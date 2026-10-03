@@ -31,6 +31,50 @@ Um agent pode definir contexto, conhecimento, responsabilidades, ferramentas, pr
 
 Um agent não deve redefinir ou contrariar os princípios estabelecidos neste arquivo.
 
+## 1.1 Fonte única da verdade e precedência
+
+Cada arquivo de instrução, agent ou skill deve ser a **fonte única da verdade de seu próprio tema**.
+
+Não repita em um arquivo conceitos, regras ou instruções que já sejam definidos por outro nível.
+
+A responsabilidade de cada nível deve ser clara:
+
+```text
+AGENTS.md
+    ↓
+Regras universais e obrigatórias
+    ↓
+Agents
+    ↓
+Contexto, conhecimento e responsabilidades específicas
+    ↓
+Skills
+    ↓
+Procedimentos e capacidades específicas
+```
+
+Um agent ou skill deve complementar as regras superiores, e não duplicá-las.
+
+Uma regra deve ser definida em um único lugar sempre que possível.
+
+Quando existir duplicidade ou conflito entre instruções:
+
+1. prevalece a instrução do nível mais alto;
+2. a instrução específica não substitui silenciosamente a instrução superior;
+3. uma instrução de nível inferior só pode detalhar uma regra superior, sem contradizê-la.
+
+A ordem de precedência é:
+
+```text
+AGENTS.md
+    >
+Agent
+    >
+Skill
+```
+
+O `AGENTS.md` é a autoridade máxima e deve prevalecer sobre qualquer regra existente em agents ou skills.
+
 ---
 
 # 2. Princípios Fundamentais
