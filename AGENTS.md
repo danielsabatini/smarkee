@@ -700,7 +700,12 @@ Utilize diagramas para explicar o que for difícil expressar apenas com texto, c
 Inclua exemplos práticos sempre que forem relevantes para enriquecer e facilitar o entendimento (ex: exemplos de payloads, comandos ou configurações). 
 **Atenção:** Exemplos nunca devem conter credenciais, tokens ou dados sensíveis reais.
 
-## 24.5 Acompanhamento e Foco
+## 24.5 Fonte Única da Verdade (SSOT)
+
+Cada documento deve ser a fonte única da verdade sobre o seu respectivo tema. 
+Não duplique regras, contratos ou explicações em múltiplos arquivos. Se um documento (ou código) precisar referenciar um conceito explicado em outro lugar, faça-o através de um **link explícito** para o documento principal, em vez de reescrever o conteúdo.
+
+## 24.6 Acompanhamento e Foco
 
 A documentação é viva e deve acompanhar obrigatoriamente alterações relevantes de:
 * Comportamento e Operação
