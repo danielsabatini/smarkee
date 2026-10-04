@@ -974,7 +974,42 @@ Não utilize:
 
 ---
 
-# 37. Regra Final
+
+# 37. Versionamento e Changelog
+
+O projeto adota o padrão **Semantic Versioning (SemVer)** para versionamento e o formato **Keep a Changelog** para registro histórico de alterações.
+
+O arquivo `CHANGELOG.md` deve ser **obrigatoriamente atualizado** a cada nova release ou alteração significativa gerada.
+
+## 37.1 Semantic Versioning (SemVer)
+
+O formato de versão deve obedecer estritamente à estrutura `MAJOR.MINOR.PATCH` (ex: `1.2.3` ou iniciando em `0.1.0`):
+
+*   **MAJOR (Maior):** Incrementado quando há mudanças incompatíveis ou quebras de contrato (Breaking Changes).
+*   **MINOR (Menor):** Incrementado quando novas funcionalidades são adicionadas mantendo a compatibilidade com versões anteriores.
+*   **PATCH (Correção):** Incrementado quando são feitas correções de bugs que mantêm a compatibilidade.
+
+## 37.2 Padrão do CHANGELOG.md
+
+O `CHANGELOG.md` é escrito para humanos, não para máquinas. Ele deve relatar de forma clara o impacto das mudanças.
+
+**Regras de estruturação:**
+1. A versão mais recente sempre aparece no topo (ordem cronológica reversa).
+2. Cada versão deve indicar o número e a data de lançamento no formato ISO (ex: `## [1.0.0] - 2026-10-04`).
+3. Alterações não lançadas devem ser agrupadas sob o cabeçalho `## [Unreleased]`.
+4. As mudanças de cada versão devem ser agrupadas exclusivamente sob os seguintes rótulos padronizados:
+   *   `### Added`: Para funcionalidades novas.
+   *   `### Changed`: Para alterações em funcionalidades existentes.
+   *   `### Deprecated`: Para funcionalidades que serão removidas nos próximos releases.
+   *   `### Removed`: Para funcionalidades que foram removidas.
+   *   `### Fixed`: Para qualquer correção de bug.
+   *   `### Security`: Em caso de correção de vulnerabilidades de segurança.
+
+**Nunca** utilize logs brutos de commit (`git log`) diretamente como Changelog sem curadoria humana ou sem agrupá-los semanticamente.
+
+---
+
+# 38. Regra Final
 
 Este arquivo deve ser interpretado como a **lei geral de comportamento dos agentes**.
 
