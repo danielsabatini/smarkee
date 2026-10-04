@@ -330,3 +330,49 @@ Sempre que apropriado, utilize e aproveite as informações operacionais especia
 - `nats-jetstream-replicate`: Topologia Hub-Spoke, Mirroring, Source e Leaf Nodes.
 - `nats-jetstream-streams`: Configuração profunda, limits, retenção e storage em disco/memória de streams persistentes.
 - `nats-operations-configure-server`: Definição e tuning do `nats.conf` e hardware (limits/OOM/auth).
+
+## 12. Comandos e Procedimentos Operacionais (NATS CLI)
+
+Como uma skill focada em operação, utilize os seguintes comandos para materializar e verificar a configuração do NATS.
+
+### 12.1 Gerenciamento de Streams
+
+```bash
+# Adicionar um novo stream interativamente
+nats stream add <nome-do-stream>
+
+# Visualizar a configuração de um stream existente
+nats stream info <nome-do-stream>
+
+# Atualizar retenção ou limites de um stream
+nats stream edit <nome-do-stream>
+
+# Listar todos os streams
+nats stream ls
+```
+
+### 12.2 Gerenciamento de Consumers
+
+```bash
+# Criar um consumer (push ou pull) interativamente
+nats consumer add <nome-do-stream> <nome-do-consumer>
+
+# Inspecionar detalhes e fila de um consumer
+nats consumer info <nome-do-stream> <nome-do-consumer>
+
+# Testar consumo via Pull
+nats consumer next <nome-do-stream> <nome-do-consumer>
+
+# Listar consumers atrelados a um stream
+nats consumer ls <nome-do-stream>
+```
+
+### 12.3 Testes e Validação de Mensagens
+
+```bash
+# Publicar uma mensagem com Nats-Msg-Id (Deduplicação)
+nats pub <subject> "payload" -H "Nats-Msg-Id:<id-unico>"
+
+# Assinar um subject para depuração em tempo real
+nats sub <subject>
+```
