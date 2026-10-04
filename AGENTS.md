@@ -990,6 +990,13 @@ Não utilize:
 - `.journal/` como governança do projeto.
 - `artifacts/` como documentação oficial permanente.
 
+## 36.3 Informações Exclusivas de Produtos (CHANGELOG.md, CONTRIBUTING.md e ROADMAP.md)
+
+Os arquivos `CHANGELOG.md`, `CONTRIBUTING.md` e `ROADMAP.md` têm como finalidade única e estrita relatar a evolução, diretrizes de contribuição e planejamento estratégico dos **produtos** de software desenvolvidos no repositório (a partir das releases `0.0.0` e versões subsequentes).
+
+* **Exclusividade de Produto**: Devem conter exclusivamente informações sobre funcionalidades, correções, melhorias, arquitetura de software, componentes e fluxos de contribuição voltados diretamente aos produtos (ex: CLIs, APIs, workers, bibliotecas e serviços de negócio).
+* **Vedação a Informações de IA e Harness**: É terminantemente proibido incluir nesses documentos qualquer informação, decisão ou planejamento relativo à plataforma de Inteligência Artificial, governança de agentes, instruções do *harness*, *prompts*, *skills* ou orquestração interna de IA. Essas informações pertencem exclusivamente ao `AGENTS.md`, `.decisions/`, `.opencode/agents/` e `.opencode/skills/`.
+
 ---
 
 
@@ -1022,6 +1029,7 @@ O `CHANGELOG.md` é escrito para humanos, não para máquinas. Ele deve relatar 
    *   `### Removed`: Para funcionalidades que foram removidas.
    *   `### Fixed`: Para qualquer correção de bug.
    *   `### Security`: Em caso de correção de vulnerabilidades de segurança.
+5. **Foco Exclusivo em Produtos:** O `CHANGELOG.md` deve relatar unicamente mudanças nos produtos de software a partir dos releases `0.0.0`. Não inclua decisões de governança de IA, ajustes de agentes ou regras internas do harness.
 
 **Nunca** utilize logs brutos de commit (`git log`) diretamente como Changelog sem curadoria humana ou sem agrupá-los semanticamente.
 
@@ -1044,6 +1052,7 @@ Um `ROADMAP.md` saudável não deve ser uma lista engessada de datas, mas sim um
     *   **Later / Exploratory:** Ideias, inovações e melhorias de longo prazo que precisam de pesquisa.
 4.  **Fases / Status:** Indicação clara do status das iniciativas (ex: `[Exploratory]`, `[In Design]`, `[In Progress]`, `[Preview]`, `[GA]`).
 5.  **Links para Issues/Contribuição:** Facilitadores para que humanos ou IA saibam como ajudar (ex: referenciando o `CONTRIBUTING.md`).
+6.  **Foco Exclusivo em Produtos:** Todos os itens, horizontes e status pertencem estritamente aos produtos de software, sem inclusão de planejamento ou decisões internas da plataforma de IA ou do harness.
 
 ## 38.2 Atualização do Roadmap
 
