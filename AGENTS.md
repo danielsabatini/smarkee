@@ -494,7 +494,7 @@ A regra é utilizar nomes **inequívocos**.
 
 ---
 
-# 16. Código
+# 16. Código e Padrão de Desenvolvimento
 
 Código deve priorizar:
 
@@ -517,6 +517,24 @@ Evite:
 * Dependências desnecessárias
 
 Código deve ser compreensível por outro engenheiro sem depender do autor original.
+
+## 16.1 Padrão de Desenvolvimento e Idiomas no Código
+
+Para assegurar consistência técnica, facilidade de integração com ecossistemas externos e clareza para a equipe, a divisão de idiomas no desenvolvimento de software segue regras bem delimitadas:
+
+### Elementos Técnicos em Inglês (`en-US`)
+Devem ser obrigatoriamente escritos em inglês:
+* **Variáveis**: Nomes de variáveis locais, globais, atributos de classes e membros de estruturas.
+* **Parâmetros**: Argumentos e assinaturas de funções, métodos e construtores.
+* **Comandos**: Nomes de subcomandos de CLI, argumentos técnicos de terminal e identificadores de rotas/endpoints de APIs.
+* **Funções e Classes**: Declarações de métodos, rotinas, classes, interfaces e tipos.
+* **Logs**: Mensagens emitidas por loggers, chaves de contexto e eventos de observabilidade estruturada.
+
+### Elementos Descritivos e de Ajuda em Português do Brasil (`pt-BR`)
+Neste momento do projeto, devem ser redigidos obrigatoriamente em `pt-BR`:
+* **Comentários**: Linhas explicativas internas no código que detalham intenção, complexidade de negócio ou advertências.
+* **Docstrings**: Documentação de cabeçalho de módulos, classes e funções que descrevem contratos e comportamentos.
+* **Textos de Ajuda (*Help* / Descrições)**: Textos de ajuda expostos ao usuário via CLI (`--help`, descriptions de opções e argumentos) e documentações descritivas de interfaces.
 
 ---
 
@@ -1034,7 +1052,30 @@ Um `ROADMAP.md` saudável não deve ser uma lista engessada de datas, mas sim um
 
 ---
 
-# 39. Regra Final
+# 39. Padrão de Comunicação
+
+A clareza e a consistência na interação entre humanos, agentes e ferramentas são essenciais para a governança e alinhamento do projeto.
+
+## 39.1 Idioma Obrigatório (pt-BR)
+
+Toda a comunicação com o harness deve ser realizada obrigatoriamente em **Português do Brasil (`pt-BR`)**.
+
+Esta regra aplica-se rigorosamente a:
+*   Respostas, explicações e perguntas direcionadas ao operador/usuário.
+*   Mensagens e títulos de commits no controle de versão.
+*   Documentação textual, especificações técnicas, guias e changelogs.
+*   Comunicação inter-agentes e relatórios de orquestração.
+*   Descrições de tarefas, sumários de execução e justificativas de decisões técnicas.
+
+## 39.2 Terminologia Técnica e Código
+
+Termos técnicos consagrados da indústria (como *harness*, *commit*, *stream*, *payload*, *pull request*, *handler*, *runtime*) e a escrita de código-fonte (palavras-chave da linguagem, variáveis, bibliotecas e convenções idiomáticas) podem ser mantidos em sua forma original quando agregarem clareza e precisão técnica.
+
+Contudo, todo o texto explicativo, contextualização, documentação e qualquer diálogo com o harness devem sempre ser formulados estritamente em `pt-BR`.
+
+---
+
+# 40. Regra Final
 
 Este arquivo deve ser interpretado como a **lei geral de comportamento dos agentes**.
 
