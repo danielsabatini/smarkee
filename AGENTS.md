@@ -907,27 +907,17 @@ Quando ainda houver dúvida, procure evidências antes de decidir.
 ---
 
 
-# 35. Memória, Journal e Persistência
+
+# 35. Memória e Journal
 
 A gestão de contexto e histórico de execução deve obedecer a uma clara separação de responsabilidades para evitar que os agentes percam contexto ou alucinem regras.
 
 ```text
 MEMORY.md
-→ estado operacional atual
+→ estado operacional atual (transferência de contexto)
 
 .journal/
 → histórico detalhado de execução
-
-docs/
-→ documentação permanente
-
-.decisions/
-→ decisões arquiteturais permanentes
-
-artifacts/
-→ artefatos compartilhados
-.workspace/
-→ arquivos temporários (sandbox)
 ```
 
 ## 35.1 MEMORY.md
@@ -949,17 +939,42 @@ O diretório `.journal/` (se utilizado pela plataforma) registra o rastreamento 
 *   Não é fonte normativa ou de decisão arquitetural.
 *   Secrets **nunca** devem ser persistidos no journal.
 
-## 35.3 Artefatos e Fonte da Verdade (Resumo)
+---
+
+# 36. Artefatos, Documentação e Decisões
+
+As definições de negócio e arquivos permanentes possuem responsabilidades distintas das de memória.
+
+```text
+docs/
+→ documentação permanente de uso, arquitetura e contratos
+
+.decisions/
+→ decisões arquiteturais e direcionamentos técnicos do projeto
+
+artifacts/
+→ artefatos consolidados e compartilhados
+
+.workspace/
+→ arquivos temporários, experimentais ou scripts auxiliares (sandbox)
+```
+
+## 36.1 Decisões (.decisions/)
+
+Decisões arquiteturais e direcionamentos que afetam o projeto permanentemente devem ser registradas em `.decisions/`. 
+Isso isola o histórico de decisões da documentação oficial de uso do projeto.
+
+## 36.2 Restrições de Fonte de Verdade
 
 Não utilize:
-- Diretórios temporários como fonte de regras.
+- Diretórios temporários (`.workspace/`) como fonte de regras.
 - `MEMORY.md` como documentação do sistema.
 - `.journal/` como governança do projeto.
 - `artifacts/` como documentação oficial permanente.
 
 ---
 
-# 36. Regra Final
+# 37. Regra Final
 
 Este arquivo deve ser interpretado como a **lei geral de comportamento dos agentes**.
 
