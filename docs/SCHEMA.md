@@ -744,9 +744,26 @@ Um subject, tópico, queue, stream ou consumer não deve redefinir o significado
 
 Da mesma forma, um schema não deve conter detalhes específicos do broker.
 
-## 23. Relacionamento com SSOT
+## 23. Relacionamento com SSOT e Ciclo de Vida End-to-End
 
-O schema representa o contrato formal dos dados, mas não substitui o modelo conceitual de SSOT.
+O schema representa o contrato formal dos dados ao longo de todo o seu ciclo de vida no ecossistema, garantindo integridade desde a entrada do usuário até a persistência final como Fonte Única da Verdade (SSOT).
+
+### 23.1. Agnosticismo de Produto
+
+O schema dita como um recurso é validado, criado, atualizado e apagado independentemente do produto final. As regras definidas no schema aplicam-se uniformemente a todos os domínios de negócio e serviços.
+
+### 23.2. Fluxo pelo Ecossistema
+
+O mesmo contrato (ou envelope compatível) deve percorrer todas as camadas do sistema de forma íntegra e sem mutações semânticas arbitrárias, passando por:
+
+1. **CLI / UI**: Onde o operador (humano ou máquina) submete a intenção (`Desired`) de criação, atualização ou remoção baseando-se estritamente na estrutura do schema formal.
+2. **API**: Onde a requisição de borda é recebida, autenticada e estruturalmente validada contra o schema antes de qualquer processamento.
+3. **Messaging (Broker / NATS)**: Onde a intenção validada é envelopada e roteada assincronamente para os serviços responsáveis, mantendo a identidade e o payload definidos no contrato.
+4. **Manager / Orchestrators**: Onde as regras de negócio de alto nível processam o estado desejado, verificam dependências e orquestram a execução, consumindo o payload original.
+5. **Workers / Executors**: Onde a ação real ocorre, gerando o estado efetivo (`Observed`).
+6. **Banco de Dados (SSOT)**: Onde os estados de *Desired* e *Observed* são finalmente consolidados e persistidos em conformidade estrutural rígida com o schema, tornando-se a Fonte Única da Verdade histórica do recurso.
+
+Essa fluidez exige que os schemas não sejam desenhados apenas para o banco de dados ou apenas para a API, mas como um modelo unificado de dados para o ciclo end-to-end do recurso.
 
 A sequência recomendada para recursos declarativos é:
 
