@@ -703,6 +703,12 @@ Eles são instruções executáveis, de uso estritamente exclusivo do harness pa
 Contudo, a seguinte regra de consistência é obrigatória:
 * **Nenhuma contradição ou sobreposição (overlap) é permitida.** Alterações em documentações oficiais do projeto (ex: em `docs/`) devem ser refletidas nos arquivos de *agents* e *skills* para garantir que a inteligência artificial utilize e obedeça aos mesmos princípios arquiteturais e funcionais atuais, evitando que operem com premissas defasadas.
 
+Além disso, como o diretório `docs/` é a fonte oficial da verdade dos seus respectivos temas, agentes e skills devem relacionar (linkar) esses documentos em vez de duplicar a informação internamente. Eles possuem finalidades diferentes, devendo aproveitar as informações teóricas já existentes para focar apenas nas suas diretrizes de operação e execução.
+
+## 24.2 Atualização de Ferramentas e Versões
+
+Na elaboração de documentações, na codificação e nas ações dos agentes e skills, priorize utilizar as ferramentas e os softwares em suas versões mais novas e estáveis disponíveis. Isso garante melhor segurança, performance e acesso aos recursos atualizados do ecossistema, minimizando débito técnico.
+
 ---
 
 # 25. Decisões Técnicas
