@@ -1009,7 +1009,32 @@ O `CHANGELOG.md` é escrito para humanos, não para máquinas. Ele deve relatar 
 
 ---
 
-# 38. Regra Final
+
+# 38. Roadmap do Projeto
+
+O arquivo `ROADMAP.md` é o documento oficial para organizar a visão estratégica e os próximos passos do projeto. Ele comunica para onde o projeto está indo e facilita a contribuição.
+
+## 38.1 Estrutura do Roadmap
+
+Um `ROADMAP.md` saudável não deve ser uma lista engessada de datas, mas sim uma visão direcional. Ele deve conter obrigatoriamente:
+
+1.  **Visão e Objetivos:** O que o projeto busca alcançar no longo prazo.
+2.  **Disclaimer:** Um aviso claro de que o roadmap é um "documento vivo" e sujeito a alterações.
+3.  **Horizontes (Now / Next / Later):** Em vez de datas rígidas que envelhecem rápido, adote buckets de prioridade temporal:
+    *   **Now:** O que está sendo ativamente desenvolvido no momento.
+    *   **Next:** O que está na fila para ser puxado em seguida.
+    *   **Later / Exploratory:** Ideias, inovações e melhorias de longo prazo que precisam de pesquisa.
+4.  **Fases / Status:** Indicação clara do status das iniciativas (ex: `[Exploratory]`, `[In Design]`, `[In Progress]`, `[Preview]`, `[GA]`).
+5.  **Links para Issues/Contribuição:** Facilitadores para que humanos ou IA saibam como ajudar (ex: referenciando o `CONTRIBUTING.md`).
+
+## 38.2 Atualização do Roadmap
+
+*   Quando uma funcionalidade de **Now** for concluída, ela deve ser movida para o `CHANGELOG.md` e retirada do Roadmap.
+*   Quando o projeto pivotar ou uma decisão em `.decisions/` alterar o rumo do projeto, o `ROADMAP.md` deve ser atualizado para refletir o novo cenário.
+
+---
+
+# 39. Regra Final
 
 Este arquivo deve ser interpretado como a **lei geral de comportamento dos agentes**.
 
