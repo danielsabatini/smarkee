@@ -921,7 +921,7 @@ MEMORY.md
 docs/
 → documentação permanente
 
-docs/decisions/
+.decisions/
 → decisões arquiteturais permanentes
 
 artifacts/
