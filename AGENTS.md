@@ -671,54 +671,37 @@ Arquivos temporários não devem ser promovidos para o projeto sem intenção ex
 
 # 24. Documentação
 
-A documentação deve ser tratada como código: simples de entender, clara, direta e mantida sempre atualizada.
+Documentação deve acompanhar alterações relevantes de:
 
-## 24.1 Localização
+* Comportamento
+* Arquitetura
+* Contratos
+* Interfaces
+* Operação
+* Configuração
+* Decisões
 
-Documentos técnicos e de arquitetura devem ser armazenados no diretório `docs/`.
-Isso se aplica tanto à raiz do repositório (para arquitetura global) quanto dentro do diretório de um componente específico (ex: `features/ipm/docs/`).
+Documentação deve priorizar:
 
-## 24.2 Estrutura Padronizada
+* Intenção
+* Contexto
+* Responsabilidade
+* Contrato
+* Restrições
+* Comportamento
+* Limitações
+* Operação
 
-Todo documento deve seguir uma organização lógica usando cabeçalhos Markdown, iniciando obrigatoriamente por:
+Não documente detalhes que não agreguem valor ou que possam se tornar incorretos rapidamente.
 
-# 1. Introdução
-# 2. Objetivos
+## 24.1 Relação com Agentes e Skills
 
-As demais seções devem prosseguir de forma numerada e sequencial, de acordo com a necessidade do tema (ex: `# 3. Arquitetura`, `# 4. Contratos`).
+Os arquivos presentes nos diretórios `.opencode/agents/` e `.opencode/skills/` **não são considerados documentação de projeto**. 
 
-## 24.3 Diagramas e Arquitetura
+Eles são instruções executáveis, de uso estritamente exclusivo do harness para controle, orquestração e contexto da Inteligência Artificial. Sendo assim, não estão submetidos às regras gerais de documentação do sistema (como formatos, diretórios ou diagramas aplicáveis em `docs/`).
 
-Sempre que possível, inclua desenhos de arquitetura utilizando ferramentas baseadas em texto, preferencialmente **Mermaid**. 
-Utilize diagramas para explicar o que for difícil expressar apenas com texto, como:
-- Fluxos de execução e comunicação (`sequenceDiagram`)
-- Máquinas de estado e ciclo de vida (`stateDiagram`)
-- Relacionamento entre componentes e contratos.
-
-## 24.4 Exemplos Práticos
-
-Inclua exemplos práticos sempre que forem relevantes para enriquecer e facilitar o entendimento (ex: exemplos de payloads, comandos ou configurações). 
-**Atenção:** Exemplos nunca devem conter credenciais, tokens ou dados sensíveis reais.
-
-## 24.5 Fonte Única da Verdade (SSOT)
-
-Cada documento deve ser a fonte única da verdade sobre o seu respectivo tema. 
-Não duplique regras, contratos ou explicações em múltiplos arquivos. Se um documento (ou código) precisar referenciar um conceito explicado em outro lugar, faça-o através de um **link explícito** para o documento principal, em vez de reescrever o conteúdo.
-
-## 24.6 Acompanhamento e Foco
-
-A documentação é viva e deve acompanhar obrigatoriamente alterações relevantes de:
-* Comportamento e Operação
-* Arquitetura e Decisões
-* Contratos (APIs, schemas, eventos, CLI)
-* Interfaces e Configurações
-
-Ao escrever, priorize o "porquê" e o "como usar":
-* Intenção e Contexto
-* Responsabilidade e Limitações
-* Restrições e Garantias
-
-Não documente detalhes voláteis de implementação interna que não agreguem valor arquitetural e que ficarão incorretos rapidamente.
+Contudo, a seguinte regra de consistência é obrigatória:
+* **Nenhuma contradição ou sobreposição (overlap) é permitida.** Alterações em documentações oficiais do projeto (ex: em `docs/`) devem ser refletidas nos arquivos de *agents* e *skills* para garantir que a inteligência artificial utilize e obedeça aos mesmos princípios arquiteturais e funcionais atuais, evitando que operem com premissas defasadas.
 
 ---
 
