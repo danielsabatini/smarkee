@@ -653,7 +653,9 @@ Não altere manualmente um artefato gerado quando isso puder causar inconsistên
 
 # 23. Arquivos Temporários
 
-Arquivos temporários, experimentais ou intermediários devem ser criados e manipulados **desde o início de sua concepção** em uma área isolada do sistema, preferencialmente `/tmp/opencode`. Nunca crie esses arquivos provisórios na raiz ou em diretórios do repositório, mesmo que com a intenção de excluí-los depois.
+Arquivos temporários, experimentais ou intermediários devem ser criados e manipulados **desde o início de sua concepção** em uma área isolada designada para trabalho, especificamente o diretório `.workspace/` localizado na raiz do projeto. Nunca crie esses arquivos provisórios soltos na raiz ou em outros diretórios do repositório, mesmo que com a intenção de excluí-los depois.
+
+A utilização do diretório `.workspace/` assegura que os arquivos temporários sejam ignorados pelo controle de versão de forma padronizada e garante que o projeto permaneça agnóstico a ferramentas ou harness específicos.
 
 Não polua o projeto com:
 
@@ -665,7 +667,7 @@ Não polua o projeto com:
 * Resultados experimentais
 * Arquivos ou scripts auxiliares criados apenas durante o trabalho do agente (ex: scripts em Python/Bash de uso único)
 
-Arquivos temporários não devem ser promovidos para o projeto sem intenção explícita. Ao criar arquivos de suporte durante a execução, utilize `/tmp/opencode` e evite que a working tree do git rastreie esses arquivos acidentalmente.
+Arquivos temporários não devem ser promovidos para o projeto sem intenção explícita. Ao criar arquivos de suporte durante a execução, direcione-os para `.workspace/` e evite que a working tree do git rastreie esses arquivos acidentalmente.
 
 ---
 
