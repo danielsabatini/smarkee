@@ -118,7 +118,7 @@ O emissor é o primeiro token do subject. Cada identidade só publica no própri
 | `srv-<m>-<t>-manager` | `manager.desired.<m>.<t>.>`, `manager.updated.<m>.<t>.>` | `REQUESTED`, `OBSERVED` e `RESULT` do tipo, por consumers criados pela infraestrutura |
 | `srv-<m>-<t>-observer` | `observer.observed.<m>.<t>.>` | `DESIRED` e `RESULT` do tipo, por consumers de estado criados pelo próprio serviço |
 | `srv-<m>-<t>-reconciler` | `reconciler.action.<m>.<t>.>` | `DESIRED`, `OBSERVED` e `RESULT` do tipo, por consumers de estado criados pelo próprio serviço |
-| `srv-<m>-<t>-executor` | `executor.completed.<m>.<t>.>`, `executor.failed.<m>.<t>.>` | `ACTION` do tipo, por consumer criado pela infraestrutura; leitura direta do último `desired` do tipo |
+| `srv-<m>-<t>-executor` | `executor.completed.<m>.<t>.>`, `executor.failed.<m>.<t>.>` | `ACTION` do tipo, por consumer criado pela infraestrutura; leitura direta do último `desired` e do último resultado (`RESULT`) do tipo |
 
 A configuração concreta (consumers, filtros e Subjects de autorização do servidor) pertence a `NATS.md` e deve ser validada no ambiente.
 
@@ -169,7 +169,9 @@ Uma `action` que não passa na revalidação **não é executada**: o Executor p
 
 ## 7.2 Deduplicação
 
-O Executor deduplica por `actionId` (ver `RESOURCE-CONTROL-LOOP.md`). Reentrega ou reemissão da mesma `action` não produz uma segunda escrita.
+Antes de escrever, o Executor consulta o desfecho já registrado para o `actionId` (`RESOURCE-CONTROL-LOOP.md`, *Desfecho e deduplicação no Executor*). Reentrega ou reemissão da mesma `action` já concluída não produz uma segunda escrita.
+
+O `actionId` inclui a observação que motivou a decisão. Por isso, uma `action` repetida por um atacante com o mesmo `actionId` é descartada, e uma nova decisão legítima (nova observação) não é bloqueada por uma execução antiga.
 
 ## 7.3 Assinatura da `action`
 
@@ -274,7 +276,8 @@ Devem ser observáveis, sem expor dados sensíveis:
 - [ ] A limpeza de tombstones é feita por identidade administrativa separada?
 - [ ] O `resourceId` é validado antes de compor o subject?
 - [ ] O Executor revalida `operation`, geração e coerência com o `desired`?
-- [ ] O Executor deduplica por `actionId`?
+- [ ] O Executor consulta o desfecho do `actionId` antes de escrever?
+- [ ] A observação periódica é particionada, de modo que o provider não receba leituras duplicadas?
 - [ ] A observação distingue `present`, `absent` e `unknown`?
 - [ ] Ação destrutiva exige observação conclusiva e recente?
 - [ ] Existe limite de remoções por janela?

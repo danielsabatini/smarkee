@@ -348,7 +348,7 @@ action  = o que o reconciler decidiu fazer para chegar ao estado desejado
 
 O `action` é uma mensagem operacional derivada do processo de reconciliação.
 
-Toda `action` possui um `actionId` determinístico, derivado de `resourceId`, `desiredGeneration` e `operation`. A mesma decisão sobre o mesmo estado produz o mesmo `actionId`, o que permite deduplicar reentregas e reemissões.
+Toda `action` possui um `actionId` determinístico, derivado de `resourceId`, `desiredGeneration`, `operation` e da observação que motivou a decisão (o `messageId` do `observed` utilizado). A mesma decisão sobre o mesmo estado e a mesma observação produz o mesmo `actionId`, o que permite deduplicar reentregas e reemissões. Uma nova observação produz um novo `actionId`, para que a correção de um drift não seja descartada como duplicata.
 
 O Reconciler decide.
 
@@ -754,7 +754,8 @@ Para `observed`:
 ## 10.1 Regras dos campos de decisão e rastreabilidade
 
 - **`presence`:** `unknown` indica leitura falha ou inconclusiva (timeout, 5xx, 401/403, limite de taxa) e nunca deve ser tratado como `absent`. Somente a confirmação inequívoca do provider é `absent`.
-- **`actionId`:** derivado de `resourceId`, `desiredGeneration` e `operation`. O formato é definido pelo contrato do recurso. É a chave de deduplicação da `action` e acompanha `completed` e `failed`.
+- **`actionId`:** derivado de `resourceId`, `desiredGeneration`, `operation` e do `messageId` do `observed` que motivou a decisão. O formato é definido pelo contrato do recurso. É a chave de deduplicação da `action` e acompanha `completed` e `failed`.
+- **`causationId` em `observed`:** uma observação feita em consequência de `completed` ou `failed` tem como `causationId` o `messageId` desse resultado. O Reconciler usa essa relação para saber que a leitura é posterior à execução, sem depender de relógios sincronizados entre serviços.
 - **`requestedBy`:** identifica quem pediu a alteração, e não quem a executou (o executor é identificado por `emitter`). É definido pela API a partir do solicitante autenticado e propagado sem alteração. Não contém credenciais.
 
 # 11. `schemaVersion`
@@ -1529,7 +1530,7 @@ Envelope:
   "resourceType": "tenant",
   "resourceId": "0199c8a4-...",
   "operation": "create",
-  "actionId": "0199c8a4.1.create",
+  "actionId": "0199c8a4.1.create.0199c8d0",
   "desiredGeneration": 1,
   "requestedBy": "0199c8a0-...",
   "correlationId": "0199c8b2-...",
@@ -1562,7 +1563,7 @@ Envelope:
   "resourceType": "tenant",
   "resourceId": "0199c8a4-...",
   "operation": "create",
-  "actionId": "0199c8a4.1.create",
+  "actionId": "0199c8a4.1.create.0199c8d0",
   "desiredGeneration": 1,
   "requestedBy": "0199c8a0-...",
   "correlationId": "0199c8b2-...",
@@ -1600,6 +1601,7 @@ Envelope:
   "presence": "present",
   "observedGeneration": 1,
   "correlationId": "0199c8b2-...",
+  "causationId": "0199c8f0-...",
   "occurredAt": "2026-10-04T00:00:06Z",
   "publishedAt": "2026-10-04T00:00:06Z",
   "observedAt": "2026-10-04T00:00:06Z",

@@ -193,14 +193,14 @@ Esta regra não contradiz a recomendação de evitar fragmentação (seção pr�
 | `DESIRED` | `manager.desired.>` | `LimitsPolicy`, `MaxMsgsPerSubject=1`, `allow_direct` | Estado | Reconciler, Observer, Executor (leitura direta do último valor), outros |
 | `OBSERVED` | `observer.observed.>` | `LimitsPolicy`, `MaxMsgsPerSubject=1`, `MaxAge` | Estado | Reconciler, Manager, outros |
 | `ACTION` | `reconciler.action.>` | `WorkQueuePolicy`, `DiscardNew` | Trabalho | Executor |
-| `RESULT` | `executor.completed.>`, `executor.failed.>` | `LimitsPolicy`, `MaxAge` | Fato | Manager, Observer, Reconciler, auditoria |
+| `RESULT` | `executor.completed.>`, `executor.failed.>` | `LimitsPolicy`, `MaxAge`, `allow_direct` | Fato | Manager, Observer, Reconciler, auditoria |
 | `UPDATED` | `manager.updated.>` | `LimitsPolicy`, `MaxAge` | Fato | Console, auditoria, métricas |
 | `AUDIT` | `audit.>` | `LimitsPolicy`, retenção longa | Histórico | Auditoria |
 | `QUARANTINE` | definido pela política de quarentena | `LimitsPolicy` | Diagnóstico | Operação |
 
 Os valores de limites (`MaxAge`, tamanho, réplicas) dependem do ambiente. Duas restrições:
 
-- `RESULT` deve reter por mais tempo que o prazo de ação do domínio e que a janela de recuperação do Reconciler;
+- `RESULT` deve reter por mais tempo que o prazo de ação do domínio, que a janela de recuperação do Reconciler e que o prazo máximo de reentrega ou reemissão de uma `action`. O Executor consulta o `RESULT` para saber o desfecho de um `actionId` (seção de Consumers);
 - `OBSERVED` deve possuir `MaxAge` maior que alguns períodos de observação (o Observer observa periodicamente). Um recurso que deixa de ser observado expira, e o Reconciler não decide sem observação (ver `RESOURCE-CONTROL-LOOP.md`).
 
 ## 6.3 `REQUESTED` e `ACTION`: trabalho
@@ -327,12 +327,14 @@ Efeitos:
 
 - todas as instâncias possuem o estado completo, e o failover é imediato;
 - as instâncias podem tomar a mesma decisão. Isso é inofensivo: a `action` possui `actionId` determinístico, o publicador usa `Nats-Msg-Id` igual ao `actionId` e o Executor deduplica por `actionId` (`RESOURCE-CONTROL-LOOP.md`);
-- o custo é a duplicação do cache e da avaliação por instância. O particionamento por `resourceId` fica reservado para quando houver carga medida que o justifique.
+- o custo é a duplicação do cache e da avaliação por instância. Para o Reconciler, o particionamento por `resourceId` fica reservado para quando houver carga medida que o justifique;
+- **o Observer é a exceção**: se todas as instâncias observassem todos os recursos, o provider receberia N vezes as leituras. A observação periódica é particionada por `resourceId`, e cada instância observa apenas a sua partição, usando o índice estável da réplica (`RESOURCE-CONTROL-LOOP.md`, *Coordenação da observação*). O consumer de estado continua por instância, para que o cache permaneça completo.
 
 ## 7.5 Executor
 
 - **`action`:** consumer durável com `priority_policy=pinned_client` (instância ativa e instâncias em standby, com failover automático) e `max_ack_pending=1`. Em operação normal, apenas uma `action` é executada por vez no serviço, o que garante o *single-flight* por recurso. A vazão fica limitada; o particionamento por `resourceId` só deve ser considerado com carga medida. Pinned consumers exigem `AckExplicit`.
 - **Revalidação do `desired`:** *Direct Get* do último valor do Subject do recurso (`last_by_subj`), sem consumer e sem cache. Requer `allow_direct` em `DESIRED`.
+- **Desfecho do `actionId`:** antes de executar, *Direct Get* do último `completed` e do último `failed` publicados por ele para o recurso e a operação (Subjects `executor.completed.<módulo>.<tipo>.<resourceId>.<operação>` e `executor.failed...`), em `RESULT`. Se o desfecho do mesmo `actionId` já existe, o Executor não executa de novo e republica o resultado. Requer `allow_direct` em `RESULT`.
 
 Limitações a considerar:
 
@@ -662,7 +664,7 @@ Em JetStream há uma particularidade: a permissão de subscribe por Subject não
 - a identidade de um serviço é `<módulo>-<tipo>-<papel>`, e suas permissões são sempre escopadas por `<módulo>.<tipo>` (por exemplo, `manager.desired.ipm.tenant.>`), nunca por `manager.desired.>`;
 - consumers de trabalho e persistência são criados pela infraestrutura (seção de administração), e a identidade de runtime recebe apenas o acesso ao **seu** consumer (`$JS.API.CONSUMER.MSG.NEXT.<stream>.<consumer>` e os Subjects de ACK correspondentes);
 - consumers de estado em memória são criados pelo próprio serviço. Sua identidade pode criar **somente** consumers que casem com o seu padrão de nome e com o seu filtro único (`$JS.API.CONSUMER.CREATE.<stream>.<consumer>.<filtro>`), e não pode listar, alterar nem remover consumers de outros serviços;
-- o Executor lê o `desired` por Direct Get, com a permissão restrita ao Subject do seu tipo (`$JS.API.DIRECT.GET.DESIRED.manager.desired.<módulo>.<tipo>.>`);
+- o Executor lê o `desired` e o desfecho em `RESULT` por Direct Get, com permissões restritas ao Subject do seu tipo (`$JS.API.DIRECT.GET.DESIRED.manager.desired.<módulo>.<tipo>.>` e `$JS.API.DIRECT.GET.RESULT.executor.*.<módulo>.<tipo>.>`);
 - nenhum serviço de runtime recebe permissão sobre `$JS.API.STREAM.*`, inclusive purge;
 - criação de Streams e de consumers duráveis e a limpeza de tombstones usam uma identidade administrativa separada.
 
@@ -877,6 +879,7 @@ consumo (consumer criado pela infraestrutura):
 
 leitura direta:
   DESIRED → último valor de manager.desired.ipm.tenant.>
+  RESULT  → último valor de executor.*.ipm.tenant.>   (desfecho do actionId)
 ```
 
 O Executor do tipo é a única identidade com acesso de consumo ao consumer de `ACTION` desse tipo.
