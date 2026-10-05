@@ -78,6 +78,8 @@ Ele diz:
 
 O Reconciler determina como transformar a realidade atual na realidade desejada.
 
+**Nota sobre `operation` no `desired`:** o último token do subject de `desired` (por exemplo, `create`) é um rótulo semântico da intenção original do pedido, conforme `MESSAGING.md`. Ele não é um comando. O Reconciler não utiliza esse token para decidir: a decisão resulta exclusivamente da comparação entre `desired` e `observed`.
+
 ## 3.2 Desired e Observed são conceitos centrais
 
 O controle é baseado em dois estados:
@@ -210,6 +212,25 @@ A separação em processos independentes é preferível quando:
 - possuem falhas independentes;
 - possuem requisitos operacionais diferentes.
 
+## 3.8 Estado do Reconciler
+
+O Manager publica `desired`. O Observer publica `observed`. O Reconciler consome os dois.
+
+O estado do Reconciler é o último `desired` e o último `observed` de cada `resourceId`, obtidos **exclusivamente pela mensageria**. O Reconciler não acessa o SSOT.
+
+```text
+Manager  → desired  ┐
+                    ├→ Reconciler (último desired + último observed por resourceId)
+Observer → observed ┘
+```
+
+Regras:
+
+- o estado mantido em memória é um cache descartável: após restart, o Reconciler o reconstrói consumindo o último `desired` e o último `observed` de cada recurso;
+- por isso, o transporte deve reter ao menos a última mensagem de `desired` e de `observed` por recurso (na implementação NATS, ver `NATS.md`);
+- o Reconciler não decide enquanto não possuir os dois estados;
+- o Reconciler não decide com `observed` inconclusivo ou desatualizado (ver *Observação inconclusiva*).
+
 # 4. Modelo geral
 
 O Resource Control Loop pode ser representado como:
@@ -292,6 +313,7 @@ flowchart TB
 
     Manager -->|desired| Desired
     Desired --> Reconciler
+    Desired --> Observer
 
     External -->|read| Observer
     Observer -->|observed| Observed
@@ -308,6 +330,8 @@ flowchart TB
 
     Manager -->|updated| Updated
 ```
+
+O Observer consome `desired` apenas para saber quais recursos observar. Ele não decide e não compara estados.
 
 # 6. Componentes
 
@@ -389,7 +413,9 @@ Responsabilidades:
 - consultar configuração;
 - coletar estado;
 - produzir observações;
-- detectar drift.
+- detectar drift;
+- executar observação periódica, independentemente de eventos;
+- informar `observedAt` e distinguir `present`, `absent` e `unknown` (ver *Observação inconclusiva*).
 
 Fluxo:
 
@@ -480,15 +506,19 @@ Executor
     → write
 ```
 
+Por possuir a credencial de escrita, o Executor é o último ponto de controle antes do sistema externo. Ele deve revalidar cada `action` contra o `desired` vigente antes de escrever (ver *Segurança do loop*).
+
 # 7. O fluxo completo
 
-O fluxo completo pode ser dividido em quatro fases:
+O fluxo completo pode ser dividido em seis fases:
 
 ```text
 1. Request
-2. Reconciliation
-3. Execution
-4. Observation
+2. Desired
+3. Observation
+4. Reconciliation
+5. Action
+6. Execution
 ```
 
 Visualmente:
@@ -547,6 +577,12 @@ A API retorna rapidamente:
 
 O processamento continua de forma assíncrona.
 
+Requisitos:
+
+- a API aceita uma chave de idempotência no `POST`: a repetição do mesmo pedido não cria outro recurso nem outro `desired`;
+- atualizações devem informar a versão do recurso (`resourceVersion`, ver `MESSAGING.md`); uma versão desatualizada é rejeitada, e a atualização não sobrescreve silenciosamente outra concorrente;
+- o Manager persiste o recurso e registra a publicação de `desired` na mesma transação (outbox, ver `MESSAGING.md`), evitando o estado `persistido, mas não publicado`.
+
 # 9. Fase 2 — Desired
 
 O Manager estabelece o estado desejado no SSOT.
@@ -599,6 +635,25 @@ O resultado é:
 ```text
 Observed = absent
 ```
+
+## 10.1 Observação inconclusiva
+
+Uma observação possui três resultados:
+
+| Resultado | Significado |
+|---|---|
+| `present` | O recurso foi lido e existe. |
+| `absent` | O provider confirmou, de forma inequívoca, que o recurso não existe. |
+| `unknown` | A leitura falhou ou foi inconclusiva. |
+
+Erro de leitura (timeout, 5xx, 401/403, limite de taxa) é `unknown`, nunca `absent`. Somente a confirmação inequívoca de ausência é `absent`.
+
+Toda observação informa `observedAt`. O Reconciler:
+
+- não emite `Action` com base em `unknown`;
+- não emite `Action` com base em observação mais antiga que o limite de validade definido pelo domínio (mais estrito para ações destrutivas);
+- aguarda nova observação quando a atual for inconclusiva ou desatualizada;
+- após `completed`, ignora observações anteriores à conclusão ao decidir uma nova ação.
 
 # 11. Fase 4 — Reconciliation
 
@@ -695,7 +750,7 @@ sequenceDiagram
 
 O Reconciler não precisa esperar uma nova mensagem `observed`.
 
-Ele pode utilizar a última observação persistida/conhecida.
+Ele utiliza o último `observed` retido em seu estado (ver *Estado do Reconciler*), desde que seja conclusivo e esteja dentro do limite de validade (ver *Observação inconclusiva*).
 
 # 14. Reconcile provocado por mudança em Observed
 
@@ -766,6 +821,17 @@ Ele apenas responde:
 Desired != Observed
 ```
 
+O drift pode ter sido causado por:
+
+- alteração manual;
+- alteração por outro sistema;
+- falha parcial;
+- mudança externa;
+- perda de estado;
+- operação concorrente.
+
+O mecanismo de correção permanece o mesmo. Quando o drift se repete continuamente, aplicam-se as proteções descritas em *Proteções de carga e estabilidade*.
+
 # 16. Fase 5 — Action
 
 A Action representa uma decisão.
@@ -782,6 +848,7 @@ Payload:
 {
   "messageType": "action",
   "operation": "create",
+  "actionId": "tenant-01.1.create",
   "resourceId": "tenant-01",
   "desiredGeneration": 1,
   "data": {
@@ -801,6 +868,16 @@ Action
    ↓
 "o que precisa ser feito agora"
 ```
+
+## 16.1 Identidade da Action
+
+O `actionId` é **determinístico**: derivado de `resourceId`, `desiredGeneration` e `operation`. A mesma decisão sobre o mesmo estado produz o mesmo `actionId`.
+
+- O Executor usa o `actionId` para deduplicar: reentrega ou reemissão da mesma decisão não gera uma segunda execução.
+- O Reconciler não reemite uma `action` enquanto houver outra pendente para o recurso (ou seja, sem `completed` ou `failed` correspondente). Ao expirar o prazo de ação definido pelo domínio, ele pode reemitir com o mesmo `actionId`.
+- Uma `action` baseada em geração obsoleta é descartada pelo Executor.
+
+O contrato formal do campo pertence a `MESSAGING.md` e `SCHEMA.md`.
 
 # 17. Fase 6 — Execution
 
@@ -908,6 +985,17 @@ No Action
 
 O recurso convergiu.
 
+## 20.1 Comparação entre Desired e Observed
+
+A pergunta "Desired == Observed?" deve ter definição explícita para cada recurso:
+
+- **campos gerenciados:** apenas os campos declarados em `desired` participam da comparação; campos não declarados não geram drift;
+- **normalização:** os valores são normalizados antes da comparação (caixa, ordenação de listas, formatação), conforme o contrato do recurso;
+- **defaults do provider:** valores preenchidos pelo provider e não declarados em `desired` não constituem drift;
+- **resultado:** iguais → `noop`; diferentes → `Action` determinada pela diferença.
+
+Uma comparação mal definida produz `update` infinito. A definição pertence ao contrato do recurso (`SCHEMA.md`).
+
 # 21. Atualização do SSOT
 
 O Manager recebe a observação e atualiza o Resource.
@@ -985,59 +1073,7 @@ sequenceDiagram
     API-->>CLI: lifecycle=Ready
 ```
 
-# 23. Fluxo lógico simplificado
-
-```mermaid
-flowchart LR
-
-    Request["Request"]
-    Desired["Desired"]
-    Observed["Observed"]
-    Reconcile["Reconcile"]
-    Action["Action"]
-    Execute["Execute"]
-    External["External System"]
-
-    Request --> Desired
-
-    Desired --> Reconcile
-    Observed --> Reconcile
-
-    Reconcile --> Action
-    Action --> Execute
-    Execute --> External
-    External --> Observed
-
-    Reconcile -->|"converged"| Ready["Ready"]
-```
-
-# 24. Fluxo de criação
-
-```mermaid
-flowchart TB
-
-    A[Create Request]
-    B[Persist Resource]
-    C[Desired: present]
-    D[Observed: absent]
-    E[Action: create]
-    F[Execute create]
-    G[Observed: present]
-    H[Converged]
-    I[Lifecycle: Ready]
-
-    A --> B
-    B --> C
-    C --> E
-    D --> E
-    E --> F
-    F --> G
-    C --> H
-    G --> H
-    H --> I
-```
-
-# 25. Fluxo de atualização
+# 23. Fluxo de atualização
 
 ```mermaid
 flowchart TB
@@ -1065,7 +1101,7 @@ flowchart TB
     D --> J
 ```
 
-# 26. Fluxo de remoção
+# 24. Fluxo de remoção
 
 A remoção também é declarativa.
 
@@ -1091,39 +1127,9 @@ flowchart TB
 
 A plataforma não precisa representar a exclusão como um comando imperativo no `desired`.
 
-# 27. Fluxo de drift
+**Limitação conhecida:** este padrão não define a ordem de remoção entre recursos dependentes (por exemplo, um Tenant com Agents). Enquanto não houver regra própria, a remoção de um recurso com dependentes deve ser tratada pelo domínio.
 
-```mermaid
-flowchart TB
-
-    Desired["Desired<br/>ACME"]
-    External["External System<br/>ACME Corp"]
-
-    External --> Observer
-    Observer["Observer"] --> Observed["Observed<br/>ACME Corp"]
-
-    Desired --> Reconciler["Reconciler"]
-    Observed --> Reconciler
-
-    Reconciler --> Decision{"Drift?"}
-
-    Decision -->|Yes| Action["Action: update"]
-    Action --> Executor["Executor"]
-    Executor --> External
-```
-
-O drift pode ter sido causado por:
-
-- alteração manual;
-- alteração por outro sistema;
-- falha parcial;
-- mudança externa;
-- perda de estado;
-- operação concorrente.
-
-O mecanismo de correção permanece o mesmo.
-
-# 28. Fluxo de falha
+# 25. Fluxo de falha
 
 ```mermaid
 flowchart TB
@@ -1149,7 +1155,13 @@ O Desired permanece como fonte da intenção.
 
 Isso permite retry e recuperação.
 
-# 29. Falha após alteração externa
+Retry, backoff, limite de tentativas e quarentena seguem `NATS.md`. No nível do recurso:
+
+- falha transitória mantém o recurso em `Reconciling`, com nova tentativa sob backoff;
+- ao esgotar as tentativas, o recurso passa a `Failed` e registra a causa em `conditions`;
+- de `Failed`, o recurso só volta a `Reconciling` por nova geração de `desired` ou por intervenção explícita, e não em ciclo contínuo contra o provider.
+
+# 26. Falha após alteração externa
 
 Este é um dos cenários mais importantes.
 
@@ -1179,11 +1191,11 @@ A arquitetura não depende de `completed` para recuperar o estado.
 
 A realidade observada é a fonte de evidência.
 
-# 30. Reconciliation periódica
+# 27. Reconciliation periódica
 
 Eventos não devem ser a única forma de disparar reconciliação.
 
-O sistema pode possuir reconciliação periódica:
+O sistema deve possuir reconciliação periódica:
 
 ```mermaid
 flowchart LR
@@ -1211,7 +1223,13 @@ Isso permite recuperação após:
 
 O período deve ser definido de acordo com o domínio.
 
-# 31. Reconciliation é idempotente
+Requisitos:
+
+- o Observer observa periodicamente, para que `observed` não envelheça indefinidamente;
+- o Reconciler reavalia periodicamente o estado que possui;
+- os disparos periódicos usam jitter, para evitar rajadas sincronizadas.
+
+# 28. Reconciliation é idempotente
 
 Uma mesma mensagem pode provocar múltiplas reconciliações.
 
@@ -1237,7 +1255,9 @@ flowchart TB
 
 O Executor também deve ser idempotente ou utilizar mecanismos que tornem a operação segura.
 
-# 32. Idempotência em cada camada
+Para que a repetição de um `create` (por exemplo, após timeout) não duplique o recurso, o Executor deve possuir uma chave de correlação com o recurso externo: um identificador externo determinístico, uma chave de idempotência aceita pelo provider ou uma consulta prévia quando o provider não garante unicidade.
+
+# 29. Idempotência em cada camada
 
 ```mermaid
 flowchart LR
@@ -1264,7 +1284,7 @@ Cada camada possui uma estratégia diferente.
 
 Não existe uma única técnica universal de idempotência.
 
-# 33. Mensageria
+# 30. Mensageria
 
 A comunicação utiliza o modelo semântico definido em `MESSAGING.md`.
 
@@ -1292,23 +1312,23 @@ observer.observed.ipm.tenant.<id>.present
 manager.updated.ipm.tenant.<id>.changed
 ```
 
-# 34. Quem publica e quem consome
+# 31. Quem publica e quem consome
 
 O padrão define explicitamente:
 
 | Mensagem | Publicador | Consumidores principais |
 |---|---|---|
 | `requested` | API | Manager |
-| `desired` | Manager | Reconciler, Observer, outros interessados |
+| `desired` | Manager | Reconciler, Observer, Executor (revalidação, somente leitura), outros interessados |
 | `observed` | Observer | Reconciler, Manager, outros consumidores |
 | `action` | Reconciler | Executor |
-| `completed` | Executor | Manager, Observer, auditoria |
+| `completed` | Executor | Manager, Observer, Reconciler (rastreio de action pendente), auditoria |
 | `updated` | Manager | Console, auditoria, métricas, consumidores |
-| `failed` | Executor/componente responsável | Manager, observabilidade, retry |
+| `failed` | Executor/componente responsável | Manager, Reconciler (rastreio de action pendente), observabilidade, retry |
 
 O consumidor não deve ser codificado no subject.
 
-# 35. Matriz de responsabilidades
+# 32. Matriz de responsabilidades
 
 | Responsabilidade | API | Manager | Observer | Reconciler | Executor |
 |---|---:|---:|---:|---:|---:|
@@ -1327,7 +1347,7 @@ O consumidor não deve ser codificado no subject.
 | Conditions | | ✓ | | | |
 | Provider credentials | | | Read | | Write |
 
-# 36. Separação de privilégios
+# 33. Separação de privilégios
 
 A arquitetura permite aplicar princípio de menor privilégio.
 
@@ -1353,7 +1373,9 @@ Reconciler
 
 quando não forem necessárias.
 
-# 37. Separação de falhas
+Cada componente deve possuir identidade própria no barramento, com permissões de publicação e assinatura restritas ao seu papel. Os requisitos completos estão em `RESOURCE-CONTROL-SECURITY.md`.
+
+# 34. Separação de falhas
 
 Cada componente possui um domínio de falha diferente.
 
@@ -1375,7 +1397,7 @@ flowchart LR
 
 O objetivo é permitir que uma falha em um componente não exija indisponibilidade de toda a plataforma.
 
-# 38. Escalabilidade
+# 35. Escalabilidade
 
 Os componentes podem escalar independentemente.
 
@@ -1416,7 +1438,7 @@ Manager
     → pode exigir escala baseada em throughput do SSOT
 ```
 
-# 39. Concorrência
+# 36. Concorrência
 
 A unidade natural de concorrência deve ser o recurso.
 
@@ -1442,7 +1464,9 @@ Quando houver necessidade de serialização, ela deve ser definida explicitament
 
 Não assumir ordenação global.
 
-# 40. DesiredGeneration
+Para cada `resourceId`, apenas uma `action` deve estar em execução por vez (*single-flight*). Com várias instâncias de Reconciler ou de Executor, a serialização por recurso deve ser garantida pelo mecanismo de consumo, e não pela expectativa de que apenas uma instância exista.
+
+# 37. DesiredGeneration
 
 A geração identifica uma versão lógica do estado desejado.
 
@@ -1472,37 +1496,30 @@ generation 3
 
 O Reconciler deve evitar aplicar uma decisão baseada em uma geração antiga quando uma geração mais recente já estiver disponível.
 
-# 41. ObservedGeneration
+# 38. ObservedGeneration
 
-A observação pode indicar qual geração foi efetivamente observada.
+O sistema externo não conhece a geração do `desired`. Por isso, a convergência **não** é determinada por `observedGeneration`, e sim pela comparação de conteúdo entre `desired` e `observed` (ver *Comparação entre Desired e Observed*).
 
-```text
-Desired:
-generation = 5
+A geração serve para:
 
-Observed:
-observedGeneration = 4
-```
+- descartar uma `action` baseada em geração obsoleta;
+- identificar a que geração uma condition se refere.
 
-Indica:
-
-```text
-Observed ainda não representa generation 5
-```
-
-Após convergência:
+`observedGeneration` só é confiável quando a geração é registrada no próprio recurso externo (por exemplo, como metadado gravado pelo Executor) e lida pelo Observer:
 
 ```text
 Desired:
 generation = 5
 
-Observed:
-observedGeneration = 5
+Recurso externo (metadado gravado pelo Executor):
+generation = 4
 ```
 
-Ainda assim, condições específicas do recurso devem ser avaliadas.
+Indica que o recurso externo ainda não reflete a geração 5.
 
-# 42. Lifecycle
+Quando o provider não permite esse registro, `observedGeneration` não deve ser usado como evidência de convergência.
+
+# 39. Lifecycle
 
 O lifecycle do Resource Control Loop é definido no recurso, não na mensageria.
 
@@ -1531,7 +1548,9 @@ durante múltiplos ciclos.
 
 Isso é esperado.
 
-# 43. Conditions
+O estado `Failed` é terminal para o ciclo automático: a saída dele segue as regras descritas em *Fluxo de falha*.
+
+# 40. Conditions
 
 Conditions representam fatos ou condições consolidadas do recurso.
 
@@ -1550,7 +1569,7 @@ Exemplo:
 
 O lifecycle e as conditions são persistidos no SSOT pelo Manager.
 
-# 44. Operation
+# 41. Operation
 
 Uma operação acompanha uma solicitação assíncrona.
 
@@ -1577,7 +1596,7 @@ Operation
     = processamento de uma solicitação
 ```
 
-# 45. CLI e experiência síncrona
+# 42. CLI e experiência síncrona
 
 A arquitetura pode ser assíncrona internamente sem obrigar o usuário a trabalhar de forma assíncrona.
 
@@ -1610,7 +1629,7 @@ O `--wait` é uma conveniência do cliente.
 
 Não altera o modelo interno.
 
-# 46. Console e projeções
+# 43. Console e projeções
 
 O Manager não deve conhecer detalhes da interface.
 
@@ -1645,7 +1664,7 @@ Analytics
 
 sem alterar o Manager.
 
-# 47. Auditoria
+# 44. Auditoria
 
 Eventos de domínio podem ser consumidos por uma camada de auditoria.
 
@@ -1664,7 +1683,7 @@ A auditoria não deve ser necessária para a operação normal do control loop.
 
 Ela é um consumidor.
 
-# 48. Recuperação após restart
+# 45. Recuperação após restart
 
 Os componentes devem poder reiniciar sem perder a capacidade de convergir.
 
@@ -1673,20 +1692,20 @@ flowchart LR
 
     Restart[Component Restart]
 
-    Restart --> ReadSSOT[Read SSOT]
-    Restart --> ReadDesired[Read Desired]
-    Restart --> ReadObserved[Read Observed]
+    Restart --> ReadDesired[Replay do último desired por recurso]
+    Restart --> ReadObserved[Replay do último observed por recurso]
 
-    ReadSSOT --> Reconcile[Reconcile]
-    ReadDesired --> Reconcile
+    ReadDesired --> Reconcile[Reconcile]
     ReadObserved --> Reconcile
 
     Reconcile --> Continue[Continue Control Loop]
 ```
 
-O sistema não deve depender exclusivamente da memória local do processo.
+O estado em memória é descartável. Observer, Reconciler e Executor não acessam o SSOT e reconstroem o que precisam pela mensageria (ver *Estado do Reconciler*).
 
-# 49. Recuperação após perda de mensagem
+Para evitar rajadas após o restart de muitos componentes, a reconciliação inicial deve usar jitter e limite de mensagens pendentes.
+
+# 46. Recuperação após perda de mensagem
 
 Caso uma mensagem seja perdida:
 
@@ -1707,9 +1726,9 @@ flowchart TB
     Reconciler --> Action
 ```
 
-A persistência do estado e a reconciliação periódica permitem recuperação.
+A retenção do último estado pela mensageria e a reconciliação periódica permitem recuperação.
 
-# 50. Padrão de dependências
+# 47. Padrão de dependências
 
 A direção de dependência deve ser:
 
@@ -1739,66 +1758,11 @@ Observer → Executor diretamente
 
 quando o objetivo for comunicação entre componentes do control loop.
 
-# 51. Regra de ouro
+Somente o Manager escreve no SSOT; a API o consulta apenas para leitura. Observer, Reconciler e Executor não acessam o SSOT e obtêm o estado de que precisam pela mensageria.
 
-A arquitetura pode ser resumida em:
+# 48. Resource Control Loop como padrão
 
-```text
-Manager
-    ↓
-Desired
-
-Observer
-    ↓
-Observed
-
-Desired + Observed
-    ↓
-Reconciler
-
-Reconciler
-    ↓
-Action
-
-Action
-    ↓
-Executor
-
-Executor
-    ↓
-External System
-
-External System
-    ↓
-Observer
-
-Observer
-    ↓
-Observed
-
-Observed
-    ↓
-Manager
-```
-
-Ou, de forma ainda mais simples:
-
-```mermaid
-flowchart TB
-
-    Desired --> Reconciler
-    Observed --> Reconciler
-
-    Reconciler --> Action
-    Action --> Executor
-    Executor --> External
-    External --> Observer
-    Observer --> Observed
-```
-
-# 52. Resource Control Loop como padrão
-
-O padrão completo pode ser abstraído para qualquer recurso:
+O padrão se abstrai para qualquer recurso:
 
 ```text
 Resource
@@ -1814,39 +1778,9 @@ Resource
     └── Generations
 ```
 
-Control loop:
+O fluxo do padrão é o descrito em *Modelo geral*.
 
-```text
-             ┌───────────────┐
-             │    Desired    │
-             └───────┬───────┘
-                     │
-                     ▼
-              ┌─────────────┐
-              │ Reconciler  │
-              └──────┬──────┘
-                     │
-                   Action
-                     │
-                     ▼
-              ┌─────────────┐
-              │  Executor   │
-              └──────┬──────┘
-                     │
-                     ▼
-              External System
-                     │
-                     ▼
-              ┌─────────────┐
-              │   Observer  │
-              └──────┬──────┘
-                     │
-                  Observed
-                     │
-                     └──────────► Reconciler
-```
-
-# 53. Aplicação ao Tenant
+# 49. Aplicação ao Tenant
 
 Para Tenant:
 
@@ -1879,69 +1813,19 @@ srv-ipm-tenant-reconciler
 srv-ipm-tenant-executor
 ```
 
-# 54. Aplicação a Agent
+# 50. Aplicação a outros recursos
 
-O mesmo padrão pode ser utilizado para Agent:
+O mesmo padrão se aplica a Agent, Runner e Tool. Mudam apenas o sistema externo e os componentes específicos do recurso:
 
-```mermaid
-flowchart TB
+| Recurso | Sistema externo alterado pelo Executor e lido pelo Observer |
+|---|---|
+| Agent | Agent Runtime |
+| Runner | Runner Runtime |
+| Tool | External Tool Provider |
 
-    Desired["Agent Desired"]
-    Observed["Agent Observed"]
+Cada recurso possui seu próprio `desired`, `observed`, Reconciler, Executor e Observer.
 
-    Desired --> Reconciler["Agent Reconciler"]
-    Observed --> Reconciler
-
-    Reconciler --> Action["Agent Action"]
-    Action --> Executor["Agent Executor"]
-
-    Executor --> Runtime["Agent Runtime"]
-
-    Runtime --> Observer["Agent Observer"]
-    Observer --> Observed
-```
-
-# 55. Aplicação a Runner
-
-```mermaid
-flowchart TB
-
-    Desired["Runner Desired"]
-    Observed["Runner Observed"]
-
-    Desired --> Reconciler["Runner Reconciler"]
-    Observed --> Reconciler
-
-    Reconciler --> Action["Runner Action"]
-    Action --> Executor["Runner Executor"]
-
-    Executor --> Runtime["Runner Runtime"]
-    Runtime --> Observer["Runner Observer"]
-
-    Observer --> Observed
-```
-
-# 56. Aplicação a Tool
-
-```mermaid
-flowchart TB
-
-    Desired["Tool Desired"]
-    Observed["Tool Observed"]
-
-    Desired --> Reconciler["Tool Reconciler"]
-    Observed --> Reconciler
-
-    Reconciler --> Action["Tool Action"]
-    Action --> Executor["Tool Executor"]
-
-    Executor --> Provider["External Tool Provider"]
-    Provider --> Observer["Tool Observer"]
-
-    Observer --> Observed
-```
-
-# 57. O padrão não exige seis processos
+# 51. O padrão não exige seis processos
 
 Um recurso simples pode implementar:
 
@@ -1980,7 +1864,9 @@ flowchart LR
 
 A decisão deve ser baseada em responsabilidade e operação, não em uma regra artificial de quantidade de serviços.
 
-# 58. Quando separar em processos
+O formato colapsado é o ponto de partida. A separação em componentes independentes exige justificativa registrada, conforme os critérios de *Quando separar em processos*.
+
+# 52. Quando separar em processos
 
 A separação é recomendada quando houver diferenças relevantes em:
 
@@ -2007,7 +1893,7 @@ Executor
 
 Essa diferença já constitui uma forte justificativa para separação.
 
-# 59. Quando não separar
+# 53. Quando não separar
 
 Evitar fragmentação quando dois componentes:
 
@@ -2020,9 +1906,9 @@ Evitar fragmentação quando dois componentes:
 
 O objetivo é **separação de responsabilidades**, não maximização do número de serviços.
 
-# 60. Anti-padrões
+# 54. Anti-padrões
 
-## 60.1 API executando provider
+## 54.1 API executando provider
 
 ```text
 API → Zitadel
@@ -2030,7 +1916,7 @@ API → Zitadel
 
 Evitar.
 
-## 60.2 Reconciler executando provider
+## 54.2 Reconciler executando provider
 
 ```text
 Reconciler → Zitadel
@@ -2038,7 +1924,7 @@ Reconciler → Zitadel
 
 Evitar quando existir Executor.
 
-## 60.3 Observer corrigindo drift
+## 54.3 Observer corrigindo drift
 
 ```text
 Observer → UPDATE
@@ -2046,7 +1932,7 @@ Observer → UPDATE
 
 Evitar.
 
-## 60.4 Manager executando operações externas
+## 54.4 Manager executando operações externas
 
 ```text
 Manager → POST provider
@@ -2054,7 +1940,7 @@ Manager → POST provider
 
 Evitar.
 
-## 60.5 Reconciler dependendo de uma única mensagem
+## 54.5 Reconciler dependendo de uma única mensagem
 
 O Reconciler não deve depender da sequência:
 
@@ -2068,7 +1954,7 @@ reconcile
 
 Ele deve conseguir reconciliar a partir dos estados atuais.
 
-## 60.6 Convergência baseada em ACK
+## 54.6 Convergência baseada em ACK
 
 ```text
 ACK = Ready
@@ -2076,17 +1962,33 @@ ACK = Ready
 
 Incorreto.
 
-## 60.7 Control loop baseado somente em eventos
+## 54.7 Control loop baseado somente em eventos
 
-Eventos aceleram a convergência, mas o sistema deve possuir mecanismos de recuperação, como:
+Eventos aceleram a convergência, mas o sistema deve possuir mecanismos de recuperação. A reconciliação periódica é obrigatória.
 
-```text
-reconciliation periódica
-```
+# 55. Segurança do loop
 
-quando aplicável.
+Os requisitos de segurança do Resource Control Loop são definidos em [`RESOURCE-CONTROL-SECURITY.md`](RESOURCE-CONTROL-SECURITY.md). Este documento mantém apenas as invariantes que o padrão exige:
 
-# 61. Propriedades desejadas
+- cada componente possui identidade própria e publica somente no seu próprio emissor;
+- a `action` é a mensagem mais privilegiada do loop: somente o Reconciler a publica e somente o Executor a consome;
+- o Executor revalida a `action` contra o `desired` vigente antes de escrever no sistema externo;
+- `observed` inconclusivo (`unknown`) ou desatualizado não autoriza `Action`;
+- a identidade do solicitante acompanha a operação de ponta a ponta;
+- segredos trafegam somente por referência;
+- a credencial de escrita pertence exclusivamente ao Executor.
+
+# 56. Proteções de carga e estabilidade
+
+O loop corrige continuamente a realidade. Sem limites, ele pode sobrecarregar o provider ou disputar indefinidamente com outro agente.
+
+- **Limite de taxa e backpressure:** o Executor limita a concorrência e a taxa de chamadas ao provider e respeita sinais de limite do provider (por exemplo, `Retry-After`).
+- **Flapping:** quando o mesmo recurso diverge repetidamente após convergir, o Manager registra a condition `DriftLoop` e o Reconciler aplica backoff crescente até intervenção, em vez de corrigir indefinidamente.
+- **Restart em massa:** jitter na reconciliação inicial e periódica, e limite de mensagens pendentes por consumidor.
+- **Métricas mínimas:** latência até a convergência, idade da última reconciliação por recurso, idade do último `observed`, quantidade de `action` pendentes e taxa de falha por provider (ver `NATS.md`, observabilidade).
+- **Pontos únicos de falha:** Manager, PostgreSQL e mensageria são dependências críticas. Com o Manager indisponível, o loop continua para o `desired` já publicado, mas não aceita novos pedidos nem atualiza o SSOT.
+
+# 57. Propriedades desejadas
 
 Uma implementação madura do Resource Control Loop deve possuir:
 
@@ -2103,7 +2005,7 @@ Provider Independent
 Transport Independent
 ```
 
-# 62. Checklist de implementação
+# 58. Checklist de implementação
 
 Antes de considerar um novo recurso conforme ao padrão, verificar:
 
@@ -2124,13 +2026,16 @@ Antes de considerar um novo recurso conforme ao padrão, verificar:
 - [ ] Publica `desired`?
 - [ ] Processa `observed`?
 - [ ] Não executa provider diretamente?
+- [ ] Persiste e registra a publicação de `desired` na mesma transação (outbox)?
 
 ### Observer
 
 - [ ] É read-only?
 - [ ] Consegue observar a realidade?
 - [ ] Publica `observed`?
-- [ ] Pode executar periodicamente?
+- [ ] Executa periodicamente?
+- [ ] Informa `observedAt`?
+- [ ] Distingue `present`, `absent` e `unknown`?
 
 ### Reconciler
 
@@ -2138,6 +2043,10 @@ Antes de considerar um novo recurso conforme ao padrão, verificar:
 - [ ] Consome `observed`?
 - [ ] Compara os dois estados?
 - [ ] Pode ser acionado por qualquer alteração?
+- [ ] Reavalia periodicamente?
+- [ ] Só decide com `desired` e `observed` conclusivos e dentro do limite de validade?
+- [ ] Não reemite `action` pendente?
+- [ ] A comparação entre `desired` e `observed` está definida para o recurso?
 - [ ] Produz `action`?
 - [ ] Não executa a ação diretamente?
 
@@ -2145,6 +2054,10 @@ Antes de considerar um novo recurso conforme ao padrão, verificar:
 
 - [ ] Consome `action`?
 - [ ] Possui somente os privilégios necessários?
+- [ ] Revalida a `action` contra o `desired` vigente?
+- [ ] Deduplica por `actionId`?
+- [ ] Possui chave de correlação com o recurso externo?
+- [ ] Limita taxa e concorrência contra o provider?
 - [ ] Executa operações de forma idempotente?
 - [ ] Publica `completed` ou `failed`?
 - [ ] Não decide o estado desejado?
@@ -2160,13 +2073,17 @@ Antes de considerar um novo recurso conforme ao padrão, verificar:
 - [ ] Reentrega é suportada?
 - [ ] Ordering é explicitamente definido quando necessário?
 
-# 63. Fonte de verdade
+# 59. Fonte de verdade
 
 Este documento define o **Resource Control Loop** como padrão arquitetural da plataforma.
 
 `MESSAGING.md` define a semântica das mensagens.
 
 `NATS.md` define a implementação da mensageria utilizando NATS e NATS JetStream.
+
+`SCHEMA.md` define os contratos formais e a evolução dos schemas.
+
+`RESOURCE-CONTROL-SECURITY.md` define os requisitos de segurança do padrão.
 
 O contrato do Resource define:
 
@@ -2180,35 +2097,5 @@ Generations
 ```
 
 O Resource Control Loop define como esses conceitos participam de um processo contínuo de convergência.
-
-A regra fundamental é:
-
-```text
-                    Desired
-                       │
-                       ▼
-                ┌─────────────┐
-                │ Reconciler  │◄──── Observed
-                └──────┬──────┘
-                       │
-                    Action
-                       │
-                       ▼
-                ┌─────────────┐
-                │  Executor   │
-                └──────┬──────┘
-                       │
-                       ▼
-                External System
-                       │
-                       ▼
-                ┌─────────────┐
-                │  Observer   │
-                └──────┬──────┘
-                       │
-                    Observed
-                       │
-                       └───────────► Reconciler
-```
 
 **O sistema não é considerado concluído quando uma ação é executada. O sistema é considerado convergido quando o `Observed` demonstra que a realidade corresponde ao `Desired`, conforme as regras do recurso.**
