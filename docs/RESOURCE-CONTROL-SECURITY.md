@@ -197,9 +197,9 @@ Regras:
 Toda alteração deve ser atribuível a um solicitante.
 
 - a API autentica o solicitante e registra sua identidade (ator) no contexto da requisição;
-- o ator acompanha a operação em `requested`, `desired`, `action`, `completed` e `failed`, junto de `correlationId` e `causationId` (`MESSAGING.md`);
+- o ator é registrado no campo `requestedBy` e acompanha a operação em `requested`, `desired`, `action`, `completed` e `failed`, junto de `correlationId` e `causationId` (`MESSAGING.md`);
 - o ator descreve **quem pediu**, e não quem executou: a identidade do componente executor já é conhecida pelo emissor;
-- o contrato formal do campo pertence a `MESSAGING.md` e `SCHEMA.md`.
+- o campo é definido em `MESSAGING.md` (envelope).
 
 Auditoria:
 

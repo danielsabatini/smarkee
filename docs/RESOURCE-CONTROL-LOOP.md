@@ -78,7 +78,7 @@ Ele diz:
 
 O Reconciler determina como transformar a realidade atual na realidade desejada.
 
-**Nota sobre `operation` no `desired`:** o último token do subject de `desired` (por exemplo, `create`) é um rótulo semântico da intenção original do pedido, conforme `MESSAGING.md`. Ele não é um comando. O Reconciler não utiliza esse token para decidir: a decisão resulta exclusivamente da comparação entre `desired` e `observed`.
+**Nota sobre `operation` no `desired`:** o `desired` é uma mensagem de estado e utiliza sempre a operação `changed` (`MESSAGING.md`). Ele não carrega verbo de ação: a decisão sobre `create`, `update` ou `delete` resulta exclusivamente da comparação entre `desired` e `observed`.
 
 ## 3.2 Desired e Observed são conceitos centrais
 
@@ -566,7 +566,7 @@ sequenceDiagram
     API->>NATS: api.requested.ipm.tenant.<id>.create
     NATS->>Manager: requested
     Manager->>Manager: validate + persist
-    Manager->>NATS: manager.desired.ipm.tenant.<id>.create
+    Manager->>NATS: manager.desired.ipm.tenant.<id>.changed
 ```
 
 A API retorna rapidamente:
@@ -603,7 +603,7 @@ Exemplo:
 Publicação:
 
 ```text
-manager.desired.ipm.tenant.tenant-01.create
+manager.desired.ipm.tenant.tenant-01.changed
 ```
 
 O Desired é uma declaração.
@@ -627,7 +627,7 @@ sequenceDiagram
     NATS->>Observer: manager.desired...
     Observer->>Zitadel: GET organization
     Zitadel-->>Observer: 404 Not Found
-    Observer->>NATS: observer.observed...absent
+    Observer->>NATS: observer.observed...changed (presence=absent)
 ```
 
 O resultado é:
@@ -648,7 +648,7 @@ Uma observação possui três resultados:
 
 Erro de leitura (timeout, 5xx, 401/403, limite de taxa) é `unknown`, nunca `absent`. Somente a confirmação inequívoca de ausência é `absent`.
 
-Toda observação informa `observedAt`. O Reconciler:
+Toda observação informa o resultado no campo `presence` e o momento em `observedAt` (`MESSAGING.md`). O Reconciler:
 
 - não emite `Action` com base em `unknown`;
 - não emite `Action` com base em observação mais antiga que o limite de validade definido pelo domínio (mais estrito para ações destrutivas);
@@ -738,8 +738,8 @@ sequenceDiagram
     participant Reconciler
     participant Executor
 
-    Manager->>NATS: desired.create
-    NATS->>Reconciler: desired.create
+    Manager->>NATS: desired.changed
+    NATS->>Reconciler: desired.changed
 
     Note over Reconciler: lê Observed atual
 
@@ -877,7 +877,7 @@ O `actionId` é **determinístico**: derivado de `resourceId`, `desiredGeneratio
 - O Reconciler não reemite uma `action` enquanto houver outra pendente para o recurso (ou seja, sem `completed` ou `failed` correspondente). Ao expirar o prazo de ação definido pelo domínio, ele pode reemitir com o mesmo `actionId`.
 - Uma `action` baseada em geração obsoleta é descartada pelo Executor.
 
-O contrato formal do campo pertence a `MESSAGING.md` e `SCHEMA.md`.
+O campo é definido em `MESSAGING.md` (envelope).
 
 # 17. Fase 6 — Execution
 
@@ -923,7 +923,7 @@ flowchart LR
     A["Action.create"] --> E["Executor"]
     E --> C["completed"]
     E --> X["External System"]
-    X --> O["Observed.present"]
+    X --> O["Observed presence=present"]
 
     O --> R["Reconciler"]
 
@@ -948,7 +948,7 @@ sequenceDiagram
     Note over Observer: próxima observação
     Observer->>External: GET organization
     External-->>Observer: Organization exists
-    Observer->>NATS: observed.present
+    Observer->>NATS: observed presence=present
 ```
 
 Agora:
@@ -1042,15 +1042,15 @@ sequenceDiagram
     NATS->>Manager: requested.create
     Manager->>Manager: validate
     Manager->>Manager: persist Resource
-    Manager->>NATS: desired.create
+    Manager->>NATS: desired.changed
 
-    NATS->>Observer: desired.create
+    NATS->>Observer: desired.changed
     Observer->>Zitadel: GET organization
     Zitadel-->>Observer: 404
-    Observer->>NATS: observed.absent
+    Observer->>NATS: observed presence=absent
 
-    NATS->>Reconciler: desired.create
-    NATS->>Reconciler: observed.absent
+    NATS->>Reconciler: desired.changed
+    NATS->>Reconciler: observed presence=absent
 
     Reconciler->>Reconciler: compare
     Reconciler->>NATS: action.create
@@ -1063,9 +1063,9 @@ sequenceDiagram
     NATS->>Observer: trigger observation
     Observer->>Zitadel: GET organization
     Zitadel-->>Observer: 200 OK
-    Observer->>NATS: observed.present
+    Observer->>NATS: observed presence=present
 
-    NATS->>Manager: observed.present
+    NATS->>Manager: observed presence=present
     Manager->>Manager: update SSOT
     Manager->>NATS: updated.changed
 
@@ -1181,7 +1181,7 @@ sequenceDiagram
 
     O->>X: GET
     X-->>O: resource exists
-    O->>R: observed.present
+    O->>R: observed presence=present
 
     R->>R: compare Desired vs Observed
     R-->>R: converged
@@ -1236,9 +1236,9 @@ Uma mesma mensagem pode provocar múltiplas reconciliações.
 ```mermaid
 flowchart TB
 
-    D1["desired.create"]
-    D2["desired.create<br/>duplicate"]
-    O["observed.absent"]
+    D1["desired.changed"]
+    D2["desired.changed<br/>duplicate"]
+    O["observed presence=absent"]
 
     D1 --> R["Reconciler"]
     D2 --> R
@@ -1299,18 +1299,18 @@ Exemplos:
 ```text
 api.requested.ipm.tenant.<id>.create
 
-manager.desired.ipm.tenant.<id>.create
+manager.desired.ipm.tenant.<id>.changed
 
-observer.observed.ipm.tenant.<id>.absent
+observer.observed.ipm.tenant.<id>.changed
 
 reconciler.action.ipm.tenant.<id>.create
 
 executor.completed.ipm.tenant.<id>.create
 
-observer.observed.ipm.tenant.<id>.present
-
 manager.updated.ipm.tenant.<id>.changed
 ```
+
+O resultado da observação (`present`, `absent` ou `unknown`) é informado no campo `presence`, e não no endereço. Cada `messageType` é persistido em seu próprio Stream, com a retenção da sua classe de mensagem (trabalho, estado ou fato), conforme `NATS.md`.
 
 # 31. Quem publica e quem consome
 
