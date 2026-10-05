@@ -7,6 +7,11 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+### Changed
+- Mensageria: `desired` e `observed` passam a usar sempre a operação `changed` (um endereço por recurso); o resultado da observação (`present`, `absent`, `unknown`) passa a ser o campo `presence`, e `observedAt` torna-se obrigatório em `observed`. Novos campos do envelope: `actionId` e `requestedBy` (`docs/MESSAGING.md`).
+- NATS: um Stream por `messageType` (`REQUESTED` e `ACTION` em `WorkQueue`; `DESIRED` e `OBSERVED` em `Limits` com o último estado por recurso; `RESULT` e `UPDATED` em `Limits` com `MaxAge`), consumidores por função e autorização por Stream (`docs/NATS.md`).
+- Resource Control Loop: subjects de exemplo alinhados à operação `changed` (`docs/RESOURCE-CONTROL-LOOP.md`).
+
 ### Added
 - Especificação de mensageria assíncrona semântica e integração com NATS JetStream (`docs/MESSAGING.md`, `docs/NATS.md`).
 - Especificação de governança, versionamento e evolução de schemas de contratos (`docs/SCHEMA.md`).
