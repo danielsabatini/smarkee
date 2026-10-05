@@ -86,42 +86,25 @@ Não utilizar esses termos para definir o significado do recurso sem antes estab
 
 ## 4.2 Emissor explícito
 
-O endereço lógico começa pelo emissor.
-
-Exemplos:
+O endereço lógico começa pelo emissor, que é uma identidade funcional estável:
 
 ```text
+api
 manager
-worker.platform
-worker.storage
-worker.identity
-worker.vault
-worker.agent
-worker.runner
-worker.tools
+observer
+reconciler
+executor
 ```
 
-Para workers especializados, preferir uma identidade hierárquica com tokens separados:
-
-```text
-worker.platform
-```
-
-em vez de:
-
-```text
-worker-platform
-```
-
-A forma hierárquica permite filtros por função quando o transporte oferecer wildcards por token.
+Cada `messageType` possui um emissor típico (ver a matriz em `docs/MESSAGING.md`). Emissores de dois tokens (por exemplo, `worker.platform`) só são válidos quando `docs/MESSAGING.md` os definir, e exigem que filtros e autorizações considerem os dois tokens.
 
 ## 4.3 Destinatário não é identidade da mensagem
 
 Não modelar o endereço semântico como uma conversa fixa:
 
 ```text
-manager.worker...
-worker.manager...
+manager.executor...
+executor.manager...
 ```
 
 Uma mesma mensagem pode possuir vários consumidores interessados.
@@ -140,7 +123,19 @@ Não usar `task` e `reality` como substitutos semânticos desses conceitos.
 
 `reality` não deve substituir `observed`, pois o objetivo é representar uma observação verificável, não uma afirmação abstrata de verdade absoluta.
 
-# 5. Fonte Única da Verdade (SSOT)
+## 4.5 Classes de mensagem
+
+Os sete `messageType` pertencem a três classes, que determinam entrega e retenção (`docs/MESSAGING.md`):
+
+| Classe | Tipos | Característica |
+|---|---|---|
+| Trabalho | `requested`, `action` | Processada uma vez por um grupo de instâncias |
+| Estado | `desired`, `observed` | A mais recente por recurso substitui as anteriores; operação sempre `changed`; um endereço por recurso |
+| Fato | `completed`, `failed`, `updated` | Registro imutável, vários consumidores independentes |
+
+O resultado da observação (`present`, `absent`, `unknown`) é o campo `presence` do envelope, e não parte do endereço. Uma decisão de reconciliação possui `actionId` determinístico, e o solicitante é o campo `requestedBy`.
+
+# 5. Fonte de verdade da semântica
 
 Em conformidade com o `AGENTS.md` (seção 24.1 - Relação com Agentes e Skills), este arquivo atua estritamente como instrução e critério de revisão para a inteligência artificial, e não como documentação teórica do projeto.
 
@@ -157,7 +152,7 @@ Antes de aprovar um novo endereço, verificar:
 
 1. Quem é o emissor?
 2. Qual é o `messageType`?
-3. Qual é o `scope`?
+3. Qual é o `module`?
 4. Qual é o `resourceType`?
 5. `resourceId` realmente precisa participar do routing?
 6. O destinatário está sendo indevidamente codificado?
@@ -166,12 +161,18 @@ Antes de aprovar um novo endereço, verificar:
 9. Qual é a identidade lógica da mensagem?
 10. Retry produzirá o mesmo `messageId`?
 11. O consumidor é idempotente?
-12. Qual é a Recovery Window?
+12. Qual é a janela de recuperação?
 13. Qual é a retenção necessária?
 14. Replay é suportado?
 15. Existem implicações de segurança?
+16. A mensagem é de trabalho, de estado ou de fato? A retenção e o consumo são coerentes com a classe?
+17. Se for `desired` ou `observed`, a operação é `changed` e existe um único endereço por recurso?
+18. O resultado da observação está em `presence`, e não no endereço?
+19. Se for `action`, o `actionId` é determinístico e inclui a observação que motivou a decisão?
 
 # 7. Revisão de novos campos
+
+Os campos do envelope são definidos em `docs/MESSAGING.md`; a representação formal, a anotação de campo (`writer`, `sensitivity`) e a evolução estão em `docs/SCHEMA.md`.
 
 Para cada campo avaliar:
 
@@ -212,9 +213,17 @@ Não assumir ordering global sem requisito explícito.
 
 Não usar ACK como prova de convergência.
 
-Não escolher retenção sem avaliar Recovery Window.
+Não escolher retenção sem avaliar a janela de recuperação (definida em `docs/NATS.md`).
 
 Não criar uma dimensão de routing para cada atributo disponível no payload.
+
+Não usar verbo de ação (`create`, `update`, `delete`) no endereço de `desired`: ele é estado e usa `changed`.
+
+Não usar o resultado da observação (`present`, `absent`) como operação de `observed`: ele pertence a `presence`.
+
+Não tratar falha de leitura como `absent`: ela é `unknown`.
+
+Não aceitar de cliente externo campos atribuídos pelo servidor (`requestedBy`, `desiredGeneration`, `actionId`).
 
 # 9. Integração com outros agents
 
@@ -255,7 +264,7 @@ Uma proposta de mensageria está semanticamente adequada quando:
 - ordering é exigido somente quando necessário;
 - Work Distribution e Fanout estão diferenciados;
 - replay é possível quando requerido;
-- retention atende a Recovery Window;
+- a retenção atende à janela de recuperação;
 - o contrato pode evoluir sem ambiguidade;
 - nenhum detalhe de broker é exigido para entender o domínio.
 

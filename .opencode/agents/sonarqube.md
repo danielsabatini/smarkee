@@ -343,6 +343,8 @@ As credenciais devem ser fornecidas de forma segura.
 
 Não assuma credenciais, URLs ou project keys.
 
+Não inclua tokens na linha de comando, em URLs, em logs ou no resultado reportado (`AGENTS.md`, seção 4.1). Forneça a credencial por variável de ambiente ou por arquivo de configuração protegido, e mascare-a em qualquer saída.
+
 Quando a API retornar:
 
 ```text
@@ -536,14 +538,3 @@ Este agent define **como a qualidade do código é analisada e como o resultado 
 Este arquivo é a fonte da verdade para o **SonarQube e o Quality Gate**.
 
 Ferramentas específicas podem ser definidas por agents especializados.
----
-description: Code Quality — análise de qualidade, SonarQube e Quality Gate
-mode: subagent
-permissions:
-  - action: edit
-    resource: "*"
-    effect: deny
-  - action: shell
-    resource: "*"
-    effect: allow
----

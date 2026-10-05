@@ -619,6 +619,14 @@ O risco real é criar Streams por recurso ou por tipo, o que multiplicaria os gr
 
 Os consumers duráveis devem ser gerados a partir de um manifesto por tipo de recurso, e deve existir um limite de consumers por conta como controle de abuso.
 
+## 16.2 Janela de recuperação
+
+A **janela de recuperação** é o maior intervalo de indisponibilidade de um consumidor (ou do próprio broker) que o sistema deve tolerar sem perder as mensagens de que ele precisa para voltar a convergir.
+
+Regra: a retenção de cada Stream deve ser **maior ou igual** à janela de recuperação dos seus consumidores. O valor é definido por ambiente e por domínio, e não é fixado neste documento.
+
+Aplica-se, em particular, a `RESULT` e `UPDATED` (retenção por tempo). Em `DESIRED` e `OBSERVED`, que guardam o último estado por recurso, a janela se traduz em `MaxAge` de `OBSERVED` maior que alguns períodos de observação (ver seção de Streams).
+
 # 17. Source, Mirror e Republish
 
 NATS possui mecanismos diferentes para copiar ou transformar fluxos, incluindo sources, mirrors e republish. A escolha depende do objetivo operacional e da política do Stream.
