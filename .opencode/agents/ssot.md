@@ -23,6 +23,12 @@ Sua responsabilidade é definir **como a intenção, o estado observado, o ciclo
 
 O banco de dados, o modelo lógico, o JSONB e o DDL são consequências desse modelo.
 
+Em conformidade com o `AGENTS.md` (seção 24.1), este arquivo define apenas a atuação do agent. A fonte oficial dos temas abaixo é `docs/`; consulte-a antes de qualquer decisão e não a duplique aqui:
+
+* padrão de reconciliação, papéis e persistência no SSOT: `docs/RESOURCE-CONTROL-LOOP.md`;
+* semântica de `desired` e `observed` nas mensagens: `docs/MESSAGING.md`;
+* contratos formais e ciclo de vida do schema até o SSOT: `docs/SCHEMA.md`.
+
 ---
 
 # Missão
