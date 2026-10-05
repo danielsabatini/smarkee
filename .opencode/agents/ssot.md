@@ -28,7 +28,9 @@ Em conformidade com o `AGENTS.md` (seção 24.1), este arquivo define apenas a a
 * padrão de reconciliação, papéis e persistência no SSOT: `docs/RESOURCE-CONTROL-LOOP.md`;
 * semântica de `desired` e `observed` nas mensagens: `docs/MESSAGING.md`;
 * contratos formais e ciclo de vida do schema até o SSOT: `docs/SCHEMA.md`;
-* segurança do control loop (identidades, proteção da `action`, credenciais): `docs/RESOURCE-CONTROL-SECURITY.md`.
+* segurança do control loop (identidades, proteção da `action`, credenciais): `docs/RESOURCE-CONTROL-SECURITY.md`;
+* modelo e garantias de gravação do SSOT (modelo lógico, atomicidade, concorrência, idempotência, outbox, segurança, recuperação): `docs/SSOT.md`;
+* implementação do SSOT em PostgreSQL com `jsonb` (tabelas, privilégios, relay, migrações, backup): `docs/POSTGRESQL.md`.
 
 ---
 
@@ -285,142 +287,32 @@ Nunca considere uma operação bem-sucedida apenas porque uma requisição foi e
 
 ---
 
-# Generations
+# Generations, versão e conditions
 
-Utilize:
+As definições de `desiredGeneration`, `observedGeneration` e `resourceVersion`, e as regras de quando cada uma muda, pertencem a `docs/SSOT.md` (invariantes e concorrência), `docs/MESSAGING.md` (envelope) e `docs/RESOURCE-CONTROL-LOOP.md`. Consulte-os antes de modelar.
 
-```text
-desiredGeneration
-observedGeneration
-```
+Pontos de atenção na revisão:
 
-## desiredGeneration
-
-Identifica a geração atual do estado desejado.
-
-Deve ser incrementada quando o `desired` for alterado.
-
-## observedGeneration
-
-Identifica qual `desiredGeneration` foi processada pelo mecanismo de reconciliação e observação.
-
-Exemplo:
-
-```text
-desiredGeneration  = 8
-observedGeneration = 7
-```
-
-significa que a geração 8 ainda não convergiu.
-
-Quando:
-
-```text
-desiredGeneration  = 8
-observedGeneration = 8
-```
-
-significa que a geração foi processada.
-
-Isso não significa necessariamente que o recurso esteja saudável.
-
-A saúde operacional deve ser representada por `conditions`.
+* `desiredGeneration` só muda quando a **especificação** muda;
+* a convergência é decidida por comparação de conteúdo entre `desired` e `observed`, e não por `observedGeneration`;
+* `resourceVersion` serve ao controle de concorrência e não representa geração;
+* `conditions` seguem o contrato comum e o dicionário de `docs/SSOT.md`, e a saúde operacional é representada por elas e por `phase`.
 
 ---
 
-# Resource Version
-
-`resourceVersion` representa a versão persistida do recurso no SSOT.
-
-É diferente de:
-
-```text
-desiredGeneration
-observedGeneration
-```
-
-Utilize `resourceVersion` para:
-
-* controle de concorrência otimista;
-* detecção de alterações;
-* proteção contra atualizações concorrentes;
-* consistência de escrita.
-
-Não utilize `resourceVersion` para representar a geração do `desired`.
-
 ---
-
-# Conditions
-
-Conditions representam as condições operacionais relevantes do recurso.
-
-Prefira condições estruturadas:
-
-```text
-type
-status
-reason
-message
-observedGeneration
-lastTransitionAt
-```
-
-Exemplo:
-
-```json
-{
-  "type": "Ready",
-  "status": "True",
-  "reason": "Reconciled",
-  "message": "Resource successfully reconciled",
-  "observedGeneration": 8,
-  "lastTransitionAt": "2026-10-03T12:00:00Z"
-}
-```
-
-Uma condition deve permitir responder:
-
-* Qual condição está sendo avaliada?
-* Qual é seu estado?
-* Por que está nesse estado?
-* Qual geração ela representa?
-* Quando ocorreu a última transição?
-
-Evite depender exclusivamente de:
-
-```text
-status = "failed"
-```
 
 ---
 
 # JSON
 
-`JSON/JSONB` pode ser utilizado para representar dados flexíveis do domínio.
+O uso de `jsonb` para o conteúdo declarativo, as colunas fixas e as propriedades do tipo estão em `docs/POSTGRESQL.md`. A regra de contrato está em `docs/SCHEMA.md`.
 
-Entretanto:
+Na revisão de um campo, aplique:
 
-> **JSON não significa ausência de schema.**
+> **JSON não significa ausência de schema.** Todo JSON de domínio possui contrato explícito.
 
-Todo JSON que representar dados de domínio deve possuir um contrato explícito.
-
-Utilize JSON quando:
-
-* a estrutura for específica do domínio;
-* a estrutura puder evoluir independentemente;
-* a flexibilidade for realmente necessária;
-* não houver necessidade de constraints relacionais fortes.
-
-Prefira atributos relacionais quando o campo:
-
-* fizer parte da identidade do recurso;
-* participar de unicidade;
-* for utilizado para concorrência;
-* for consultado frequentemente;
-* exigir integridade relacional;
-* representar metadados fundamentais do control plane.
-
-Não utilize JSON simplesmente para evitar modelagem.
+Prefira atributo relacional ao que fizer parte da identidade, de unicidade, de concorrência ou de consulta do loop, e não use JSON para evitar modelagem.
 
 ---
 
@@ -570,33 +462,9 @@ O SSOT Core não deve conhecer detalhes da implementação.
 
 # Exemplo de Resource
 
-Um recurso pode ser representado conceitualmente como:
+Um recurso é representado conceitualmente por sua identidade, `desired`, `observed`, `phase`, `conditions` e versões, conforme `docs/SSOT.md`. O conteúdo de `desired` e `observed` pertence ao contrato do recurso (`docs/SCHEMA.md`).
 
-```yaml
-apiVersion: ipm.smarkee.io/v1
-kind: IdentityProvider
-
-metadata:
-  name: production
-  namespace: platform
-
-desired:
-  ...
-
-observed:
-  ...
-```
-
-O SSOT não deve precisar saber se o recurso é implementado por:
-
-```text
-Zitadel
-Keycloak
-Okta
-Auth0
-```
-
-Essa decisão pertence ao Domain Contract e ao Provider Adapter.
+O SSOT não deve precisar saber qual fornecedor implementa o recurso. Essa decisão pertence ao Domain Contract e ao Provider Adapter.
 
 ---
 
@@ -757,7 +625,7 @@ Defina como o modelo lógico será persistido.
 
 ## 11. Gerenciador de Banco de Dados
 
-Somente quando a tecnologia de persistência for explicitamente escolhida.
+Somente quando a tecnologia de persistência for explicitamente escolhida. A implementação de referência está em `docs/POSTGRESQL.md`; não a duplique aqui.
 
 ## 12. Índices e Constraints
 
