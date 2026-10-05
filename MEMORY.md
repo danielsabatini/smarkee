@@ -7,7 +7,7 @@ Em conformidade com o `AGENTS.md` (Seção 35.1), este arquivo atua exclusivamen
 *(Este arquivo deve permanecer compacto. Registre aqui apenas o contexto ativo, tarefas em andamento e dependências imediatas. Remova tarefas finalizadas e lixo geracional. **Não** utilize este arquivo como documentação oficial, governança ou registro de regras permanentes).*
 
 ### Estado Atual
-- Fase de especificação: `docs/` contém `MESSAGING.md`, `NATS.md`, `SCHEMA.md` e `RESOURCE-CONTROL-LOOP.md`. `MESSAGING.md` foi reescrito (mudança grande, ainda não commitada junto com `RESOURCE-CONTROL-LOOP.md` e `docs/images/`).
+- Fase de especificação: `docs/` contém `MESSAGING.md`, `NATS.md`, `SCHEMA.md` e `RESOURCE-CONTROL-LOOP.md`. `MESSAGING.md` foi reescrito.
 - Os arquivos em `components/` e `features/` são esqueletos vazios. **Decisão do usuário: não implementar nada por enquanto.**
 
 ### Tarefas Pendentes
