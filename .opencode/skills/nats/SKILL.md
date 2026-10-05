@@ -1,380 +1,135 @@
 ---
 name: NATS
-description: Implementar, configurar, revisar e validar a arquitetura de mensageria definida em MESSAGING.md usando NATS e NATS JetStream.
+description: Guia de procedimentos para projetar, inspecionar, alterar, validar e diagnosticar a mensageria em NATS e JetStream definida em docs/MESSAGING.md e docs/NATS.md. Use ao criar ou revisar Streams, Consumers, Subjects, autorização ou ao diagnosticar backlog, redelivery e duplicidade.
 ---
 
 # NATS
 
-## 1. Introdução
+## 1. Papel desta skill
 
-Esta skill define o procedimento para implementar e validar em NATS e NATS JetStream o modelo semântico estabelecido em `docs/MESSAGING.md`.
-
-A especificação de implementação está em `docs/NATS.md`.
-
-A skill é um procedimento operacional. Ela não redefine a semântica de `desired`, `observed`, identidade de mensagem, ordering, idempotência ou Recovery Window.
-
-Regras gerais permanecem em `AGENTS.md`.
-
-## 2. Objetivo
-
-Executar mudanças e validações NATS de forma previsível, segura, idempotente e compatível com a arquitetura semântica.
-
-A skill deve ser utilizada para:
-
-- projetar Subjects;
-- projetar Streams;
-- projetar Consumers;
-- configurar entrega de trabalho e fanout;
-- configurar ACK e redelivery;
-- configurar `Nats-Msg-Id` e deduplicação;
-- configurar ordering quando necessário;
-- configurar retenção e replay;
-- configurar TLS/mTLS e autorização;
-- diagnosticar problemas de consumo;
-- verificar a implementação contra `MESSAGING.md` e `NATS.md`.
-
-## 3. Fontes de verdade
-
-Antes de executar qualquer mudança, consultar:
+Esta skill é um **guia de procedimentos** que chama ferramentas (CLI `nats`, leitura de arquivos de configuração, pipeline de infraestrutura). Ela não define regras.
 
 ```text
 AGENTS.md
     ↓
-docs/MESSAGING.md
+docs/MESSAGING.md   → semântica
     ↓
-docs/NATS.md
+docs/NATS.md        → implementação em NATS
+    ↓
+esta skill          → procedimento
 ```
 
-A semântica definida em `MESSAGING.md` tem precedência sobre qualquer escolha de implementação.
+Não redefina aqui Streams, retenção, Consumers, autorização ou nomenclatura: leia `docs/NATS.md`. Em conflito, os documentos prevalecem.
 
-A configuração concreta deve obedecer `NATS.md`.
+Não use esta skill para decidir semântica de mensagem (use o agent `messaging`).
 
-Não criar uma implementação NATS baseada apenas em memória, convenção ou conhecimento implícito quando a documentação do projeto já definir o comportamento.
+## 2. Regras de operação
 
-## 4. Pré-requisitos
+1. **Leitura por padrão.** Os procedimentos de projeto, inspeção, validação e diagnóstico só leem.
+2. **Mutação é declarativa e aprovada.** Streams e Consumers duráveis são criados pela infraestrutura a partir de configuração versionada (`docs/NATS.md`, administração). O agente prepara e revisa a configuração; a aplicação ocorre pelo pipeline da infraestrutura ou com aprovação explícita do operador.
+3. **Sem comandos interativos.** Use sempre flags e arquivos de configuração (`--config`, `-j`), nunca assistentes interativos.
+4. **Sem efeito colateral em produção.** `nats consumer next` consome e confirma mensagem; publicar mensagem de teste altera estado. Só em ambiente de teste e com subject de teste.
+5. **Credenciais.** Use `nats context` ou variáveis de ambiente do ambiente. Nunca coloque credenciais na linha de comando, em log ou na resposta.
+6. **Operações destrutivas** (apagar Stream ou Consumer, `purge`, reduzir retenção) exigem confirmação explícita do operador. Serviços de runtime nunca recebem essas permissões (`docs/NATS.md`).
+7. **Não invente** nomes de arquivos, contextos, servidores ou versões. Se não existirem, informe e pare.
+8. Confirme as flags da CLI na versão pinada do ambiente; este guia não fixa versão.
 
-Antes de alterar NATS:
+## 3. Procedimento A: projetar um fluxo ou mensagem
 
-1. identificar o ambiente alvo;
-2. identificar o servidor NATS e versão configurada;
-3. localizar configuração do broker;
-4. localizar definição de Streams;
-5. localizar definição de Consumers;
-6. identificar credenciais e certificados sem expô-los;
-7. identificar os Subjects afetados;
-8. identificar dependências dos consumidores;
-9. verificar a janela de recuperação necessária;
-10. verificar o impacto de retenção e volume.
+Entradas: o recurso (`<módulo>.<tipo>`) e o `messageType`.
 
-Não inventar nomes de arquivos, endpoints, project IDs ou credenciais.
+1. Ler `docs/MESSAGING.md` e `docs/NATS.md` (Subjects, Streams, Consumers).
+2. Classificar a mensagem: **trabalho**, **estado** ou **fato** (`docs/MESSAGING.md`).
+3. Derivar, a partir de `docs/NATS.md`, e registrar em uma tabela:
+   - Subject (gramática oficial);
+   - Stream do `messageType` e sua retenção;
+   - Consumers por serviço, com classe, filtro único `<módulo>.<tipo>` e nome;
+   - política de ACK, retry, `max_deliver`, backoff e quarentena;
+   - `Nats-Msg-Id` (quando aplicável) e a deduplicação obrigatória do consumidor;
+   - autorização por serviço (publish e consumo).
+4. Conferir a janela de recuperação (`docs/NATS.md`): retenção maior ou igual.
+5. Entregar a tabela para revisão. Não aplique nada.
 
-## 5. Fonte Única da Verdade (SSOT)
+## 4. Procedimento B: inspecionar o estado atual (somente leitura)
 
-Em conformidade com o `AGENTS.md` (seção 24.1 - Relação com Agentes e Skills), esta skill fornece exclusivamente o checklist executivo de operação. 
+Ferramentas e o que cada uma responde:
 
-**As políticas arquiteturais, limites de hardware, configurações do JetStream e especificações técnicas de Streams e Consumers do projeto NATS estão definidas em:**
-👉 `docs/NATS.md`
+| Pergunta | Ferramenta |
+|---|---|
+| Quais Streams existem? | `nats stream ls` |
+| Como está um Stream (retenção, limites, mensagens, `allow_direct`)? | `nats stream info <STREAM> -j` |
+| Quais Consumers existem e como estão? | `nats consumer ls <STREAM>` e `nats consumer info <STREAM> <CONSUMER> -j` |
+| Qual o último estado de um recurso? | `nats stream get <STREAM> --last-for <SUBJECT>` |
+| Como está o servidor e o JetStream? | `nats server report jetstream` |
 
-Ao executar esta skill, **você deve consultar, ler e extrair a configuração adequada do `docs/NATS.md`** (e cruzar com a semântica em `docs/MESSAGING.md`). Não duplique conhecimento ou invente implementações que fujam da documentação oficial.
+Registre a evidência (saída resumida, sem credenciais) e compare com `docs/NATS.md`. Divergência é um achado, e não uma correção automática.
 
-## 6. Procedimento para criar um novo fluxo
+## 5. Procedimento C: alterar Streams ou Consumers
 
-### 6.1 Definir semântica
+1. Executar o Procedimento B e guardar o estado atual (rollback).
+2. Escrever a configuração desejada em arquivo, derivada do Procedimento A, no local de configuração que a infraestrutura do projeto definir. Se não houver, informar e parar.
+3. Revisar a diferença entre o estado atual e o desejado, e classificar o risco: reduzir retenção, alterar filtro e remover Consumer são destrutivos.
+4. **Pedir aprovação** para a aplicação.
+5. Aplicar pelo pipeline da infraestrutura. Na ausência dele e com aprovação, usar o equivalente não interativo: `nats stream add <STREAM> --config <arquivo>` e `nats consumer add <STREAM> <CONSUMER> --config <arquivo>`.
+6. Repetir o Procedimento B e confirmar que o estado final corresponde ao desejado.
+7. Registrar o resultado e como reverter.
 
-Primeiro responder:
+## 6. Procedimento D: validar um fluxo (somente em ambiente de teste)
+
+1. Confirmar que o ambiente é de teste e usar um Subject de teste dentro do escopo autorizado.
+2. Publicar duas vezes a mesma mensagem com o mesmo `Nats-Msg-Id`: `nats pub <SUBJECT> <CORPO> -H "Nats-Msg-Id:<ID>"`. Confirmar com `nats stream info` que apenas uma foi armazenada.
+3. Verificar o consumo com `nats sub <SUBJECT> --count=1` ou, para Consumer pull de teste, `nats consumer next`, sabendo que isso confirma a mensagem.
+4. Verificar redelivery (não confirmar dentro de `ack_wait`), retry com backoff e quarentena após `max_deliver`.
+5. Para Consumer de estado: reiniciar a instância de teste e confirmar que o último estado por Subject é reconstruído (`DeliverLastPerSubject`).
+6. Remover as mensagens e Consumers de teste.
+
+## 7. Procedimento E: diagnosticar
+
+| Sintoma | Verificar com | Observação |
+|---|---|---|
+| Mensagem duplicada no Stream | `nats stream info` (duplicates), cabeçalho `Nats-Msg-Id` | Retries devem reutilizar o mesmo `messageId`. A janela de deduplicação é limitada |
+| Processada duas vezes | `nats consumer info` (redelivered, ack pending) | Redelivery não é falha do broker. Verificar tempo de ACK, queda de instância e idempotência |
+| Backlog crescente | `nats consumer info` (num_pending, ack pending) | Não aumentar retenção para compensar consumidor lento |
+| Fora de ordem | Consumers, `orderingKey`, concorrência | Stream não garante ordem de negócio |
+| Estado não reconstruído após restart | Política de entrega do Consumer da instância | `DeliverLastPerSubject` só vale na criação do Consumer; o nome deve ser único por execução |
+| Consumer recusado na criação | Filtros do Stream `WorkQueue` | Filtros sobrepostos são rejeitados |
+| Permissão negada | Autorização por Stream, consumer e filtro | Nunca ampliar permissão para contornar |
+
+## 8. Critérios de conclusão
+
+Registre cada item como `PASS`, `FAIL` ou `NOT VERIFIED` (com o motivo). Não transforme item não executado em sucesso.
 
 ```text
-Qual é o `messageType` (e sua classe: trabalho, estado ou fato)?
-Qual é o recurso?
-Qual é o module?
-Quem é o emissor?
+NATS
+
+Semântica (Subject, classe, Stream):   PASS/FAIL/NOT VERIFIED
+Consumers (classe, filtro, nome):      PASS/FAIL/NOT VERIFIED
+Retenção x janela de recuperação:      PASS/FAIL/NOT VERIFIED
+Deduplicação e idempotência:           PASS/FAIL/NOT VERIFIED
+ACK, retry, quarentena:                PASS/FAIL/NOT VERIFIED
+Autorização (menor privilégio):        PASS/FAIL/NOT VERIFIED
+TLS e segredos:                        PASS/FAIL/NOT VERIFIED
+Observabilidade:                       PASS/FAIL/NOT VERIFIED
+
+Overall: PASS/FAIL
 ```
 
-### 6.2 Definir identidade
+## 9. Skills complementares
 
-Determinar:
-
-```text
-messageId
-resourceId
-orderingKey, se necessária
-correlationId, se necessária
-causationId, se necessária
-```
-
-### 6.3 Escolher entrega
-
-Determinar:
-
-```text
-Work Distribution
-ou
-Fanout
-```
-
-### 6.4 Mapear para NATS
-
-Definir:
-
-```text
-Subject
-Stream
-Retention
-Consumer
-Filter
-Ack policy
-Retry
-MaxDeliver
-Backoff
-Dedup window
-```
-
-### 6.5 Validar recuperação
-
-Confirmar:
-
-```text
-retention >= Recovery Window
-```
-
-### 6.6 Validar segurança
-
-Confirmar:
-
-```text
-Publish permissions
-Subscribe permissions
-TLS/mTLS
-secret handling
-```
-
-### 6.7 Validar operacionalmente
-
-Confirmar:
-
-- criação do Stream;
-- criação do Consumer;
-- publicação;
-- deduplicação;
-- consumo;
-- ACK;
-- redelivery;
-- retry;
-- quarentena;
-- replay quando aplicável;
-- ordering quando aplicável.
-
-## 7. Checklist de implementação
-
-### Semântica
-
-- [ ] `desired`/`observed` correto.
-- [ ] emissor explícito.
-- [ ] destinatário não codificado indevidamente.
-- [ ] module correto.
-- [ ] Stream correto para o `messageType`.
-- [ ] resource type correto.
-- [ ] resourceId estável.
-- [ ] messageId estável.
-
-### Entrega
-
-- [ ] Work Distribution ou Fanout definido.
-- [ ] Pull Consumer usado para trabalho; consumer de estado em memória é por instância (não compartilhado).
-- [ ] consumer com filtro único no nível `<módulo>.<tipo>`; sem purge ou administração de Stream para serviço de runtime.
-- [ ] ACK no ponto correto.
-- [ ] retry definido.
-- [ ] quarentena definida.
-
-### Deduplicação
-
-- [ ] `Nats-Msg-Id` configurado/usado.
-- [ ] mesmo `messageId` em retries da mesma mensagem.
-- [ ] `duplicate_window` dimensionada.
-- [ ] consumidor idempotente.
-
-### Ordering
-
-- [ ] requisito de ordering explicitamente identificado.
-- [ ] `orderingKey` definida quando necessária.
-- [ ] concorrência compatível.
-- [ ] não existe serialização desnecessária.
-
-### Recuperação
-
-- [ ] retention definida.
-- [ ] Recovery Window definida.
-- [ ] replay planejado quando necessário.
-- [ ] deliver policy adequada.
-
-### Segurança
-
-- [ ] TLS/mTLS conforme ambiente.
-- [ ] Publish ACL restrita.
-- [ ] Subscribe ACL restrita.
-- [ ] nenhum segredo em payload/Subject/log.
-
-### Observabilidade
-
-- [ ] backlog observável.
-- [ ] redelivery observável.
-- [ ] falhas observáveis.
-- [ ] quarentena observável.
-- [ ] armazenamento monitorado.
-
-## 8. Troubleshooting
-
-### 8.1 Mensagem duplicada no Stream
-
-Verificar:
-
-```text
-Nats-Msg-Id
-Duplicate Window
-identity generation
-retry behavior
-```
-
-Confirmar que retries utilizam o mesmo identificador lógico.
-
-### 8.2 Mensagem processada duas vezes
-
-Não concluir imediatamente que o broker falhou.
-
-Verificar:
-
-```text
-ACK timing
-consumer redelivery
-worker crash
-idempotency
-external side effect
-```
-
-`Nats-Msg-Id` trata deduplicação de publicação; não elimina redelivery após falha de ACK/processamento.
-
-### 8.3 Backlog crescente
-
-Verificar:
-
-```text
-consumer status
-num_pending
-processing latency
-external dependency latency
-redelivery count
-worker replicas
-```
-
-Não aumentar retenção como substituto para corrigir um consumidor incapaz de acompanhar a carga.
-
-### 8.4 Mensagens fora de ordem
-
-Verificar:
-
-```text
-orderingKey
-parallel consumers
-concurrency
-routing strategy
-```
-
-Não assumir que a criação de um Stream por si só garante a ordem de negócio desejada.
-
-### 8.5 Replay gera efeitos duplicados
-
-Verificar idempotência do consumidor e proteção por geração/estado.
-
-Replay deve ser tratado como uma nova execução do processamento, não como uma consulta passiva.
-
-## 9. Critérios de conclusão
-
-Uma alteração NATS está concluída quando:
-
-- o Subject corresponde ao modelo semântico;
-- Stream e Consumer possuem a política correta para a classe da mensagem (`docs/NATS.md`);
-- `Nats-Msg-Id` é utilizado quando a deduplicação de publicação é necessária;
-- retry/redelivery são seguros;
-- idempotência do consumidor foi considerada;
-- ordering atende apenas ao requisito necessário;
-- retention atende à Recovery Window;
-- replay possui comportamento conhecido;
-- ACLs respeitam menor privilégio;
-- TLS/mTLS atende ao ambiente;
-- observabilidade permite detectar backlog e falhas;
-- a implementação foi validada contra `docs/MESSAGING.md` e `docs/NATS.md`.
+Quando estiverem disponíveis no harness, as skills do ecossistema NATS (publicação e assinatura, JetStream, consumers, clusters, replicação, configuração de servidor) podem apoiar a execução. Esta skill não depende delas, e a sua disponibilidade não foi verificada.
 
 ## 10. Regra final
 
-A implementação deve seguir esta ordem:
-
 ```text
-MESSAGING semantic contract
+contrato semântico (MESSAGING.md)
         ↓
-NATS mapping
+mapeamento NATS (NATS.md)
         ↓
-JetStream configuration
+configuração declarativa revisada
         ↓
-operational validation
+aplicação aprovada
+        ↓
+validação operacional
 ```
 
 Nunca inverter a ordem criando a semântica a partir da conveniência de uma configuração NATS.
-
-## 11. Skills Complementares NATS
-
-Sempre que apropriado, utilize e aproveite as informações operacionais especializadas disponíveis nas skills externas complementares do ecossistema NATS no harness:
-
-- `nats-core-publish-subscribe`: Comunicação efêmera, pub/sub e subjects sem persistência.
-- `nats-core-request-reply`: Comunicação síncrona RPC de alta performance.
-- `nats-jetstream-cluster`: Topologia e HA do JetStream.
-- `nats-jetstream-consumers`: Configuração avançada de Push e Pull consumers.
-- `nats-jetstream-kv`: Configuração e operação de Key-Value Store nativo.
-- `nats-jetstream-replicate`: Topologia Hub-Spoke, Mirroring, Source e Leaf Nodes.
-- `nats-jetstream-streams`: Configuração profunda, limits, retenção e storage em disco/memória de streams persistentes.
-- `nats-operations-configure-server`: Definição e tuning do `nats.conf` e hardware (limits/OOM/auth).
-
-## 12. Comandos e Procedimentos Operacionais (NATS CLI)
-
-Como uma skill focada em operação, utilize os seguintes comandos para materializar e verificar a configuração do NATS.
-
-### 12.1 Gerenciamento de Streams
-
-```bash
-# Adicionar um novo stream interativamente
-nats stream add <nome-do-stream>
-
-# Visualizar a configuração de um stream existente
-nats stream info <nome-do-stream>
-
-# Atualizar retenção ou limites de um stream
-nats stream edit <nome-do-stream>
-
-# Listar todos os streams
-nats stream ls
-```
-
-### 12.2 Gerenciamento de Consumers
-
-```bash
-# Criar um consumer (push ou pull) interativamente
-nats consumer add <nome-do-stream> <nome-do-consumer>
-
-# Inspecionar detalhes e fila de um consumer
-nats consumer info <nome-do-stream> <nome-do-consumer>
-
-# Testar consumo via Pull
-nats consumer next <nome-do-stream> <nome-do-consumer>
-
-# Listar consumers atrelados a um stream
-nats consumer ls <nome-do-stream>
-```
-
-### 12.3 Testes e Validação de Mensagens
-
-```bash
-# Publicar uma mensagem com Nats-Msg-Id (Deduplicação)
-nats pub <subject> "payload" -H "Nats-Msg-Id:<id-unico>"
-
-# Assinar um subject para depuração em tempo real
-nats sub <subject>
-```

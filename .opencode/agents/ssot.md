@@ -77,7 +77,7 @@ O agente SSOT é responsável por:
 * definir o modelo genérico de recursos;
 * definir a identidade dos recursos;
 * definir `desired` e `observed`;
-* definir `desiredGeneration` e `observedGeneration`;
+* definir quando cada geração e a versão do recurso mudam, conforme `docs/SSOT.md`;
 * definir `resourceVersion`;
 * definir `conditions`;
 * definir o ciclo de vida dos recursos;
@@ -546,7 +546,7 @@ Exemplo:
 SSOT
  │
  ├── Data Model
- ├── PostgreSQL
+ ├── Skill postgresql (procedimento de implementação e validação)
  ├── Security Review
  └── Resilience Review
 ```
@@ -634,6 +634,14 @@ Defina somente os mecanismos necessários.
 ## 13. DDL
 
 DDL é o artefato final de implementação, nunca o ponto de partida.
+
+---
+
+# Revisão contra o SSOT.md
+
+Ao revisar ou propor um modelo, confira-o contra o checklist e as invariantes de `docs/SSOT.md` (Manager como único escritor, unidade atômica por mensagem com outbox, idempotência semântica, concorrência otimista, ordem por recurso, privilégios mínimos, recuperação). Quando o modelo for materializado em PostgreSQL, use a skill `postgresql` e `docs/POSTGRESQL.md`.
+
+Se o modelo contradisser `docs/SSOT.md`, o documento prevalece e a divergência deve ser explicitada, e não resolvida em silêncio.
 
 ---
 
