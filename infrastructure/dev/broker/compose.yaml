@@ -1,17 +1,14 @@
 name: broker
 services:
   broker:
-    image: ${NATS_IMAGE_VERSION:-nats:2.15-alpine}
+    image: ${NATS_IMAGE_VERSION:-nats:2.15.0-alpine}
     container_name: broker
     command: ["-c", "/etc/nats/nats.conf"]
-    ports:
-      - "${NATS_CLIENT_PORT:-4222}:4222"  # Client port
-      - "${NATS_MONITOR_PORT:-8222}:8222"  # Management/Monitoring port
     volumes:
       - broker-data:/data
       - ./nats.conf:/etc/nats/nats.conf:ro
     networks:
-      - broker
+      - internal
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
@@ -20,7 +17,11 @@ services:
       retries: 5
 
 volumes:
-  broker-data:   
+  broker-data:
 
 networks:
-  broker:
+  # Rede isolada (sem acesso ao host/internet), compartilhada por nome entre os serviços.
+  # Criada pelo primeiro serviço que subir; os demais a reutilizam.
+  internal:
+    name: internal
+    internal: true

@@ -10,7 +10,6 @@
 .env.*
 !.env.example
 !.env.template
-!infrastructure/dev/**/.env
 
 # Chaves privadas, certificados e keystores
 *.pem

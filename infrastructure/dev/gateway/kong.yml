@@ -1,5 +1,24 @@
 _format_version: "3.0"
 _transform: true
 
-services: []
-routes: []
+services:
+  # API e console do Zitadel. O Host original precisa ser preservado porque
+  # o Zitadel resolve a instância pelo domínio externo (localhost).
+  - name: zitadel-api
+    url: http://zitadel-api:8080
+    routes:
+      - name: zitadel-api
+        paths:
+          - /
+        preserve_host: true
+        strip_path: false
+
+  # Interface de login v2 do Zitadel (o caminho mais específico prevalece sobre `/`).
+  - name: zitadel-login
+    url: http://zitadel-login:3000
+    routes:
+      - name: zitadel-login
+        paths:
+          - /ui/v2/login
+        preserve_host: true
+        strip_path: false

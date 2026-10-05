@@ -1,0 +1,14 @@
+# Facilitador: sobe/derruba todos os serviços de desenvolvimento de uma vez
+# (`docker compose up -d` neste diretório). Cada serviço é autocontido e também
+# pode ser iniciado isoladamente em seu próprio diretório.
+name: dev
+
+include:
+  - path: database/compose.yaml
+    env_file: database/.env
+  - path: broker/compose.yaml
+    env_file: broker/.env
+  - path: identity/compose.yaml
+    env_file: identity/.env
+  - path: gateway/compose.yaml
+    env_file: gateway/.env

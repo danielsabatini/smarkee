@@ -5,16 +5,21 @@ services:
     container_name: database
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-smarkee}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smarkee_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no .env (veja .env.example)}
       POSTGRES_DB: ${POSTGRES_DB:-smarkee}
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - database-data:/var/lib/postgresql/data
+      # PostgreSQL 18+ grava os dados em /var/lib/postgresql/18/docker;
+      # o volume precisa ser montado em /var/lib/postgresql para persistir.
+      - database-data:/var/lib/postgresql
+      # Arquivos de configuração (postgresql.auto.conf é gerado pelo servidor e não é mapeado).
       - ./postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./pg_ident.conf:/etc/postgresql/pg_ident.conf:ro
+      # Scripts *.sql executados em ordem alfabética apenas na primeira inicialização do volume.
+      - ./initdb:/docker-entrypoint-initdb.d:ro
     networks:
-      - database
+      - internal
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smarkee} -d ${POSTGRES_DB:-smarkee}"]
@@ -24,6 +29,10 @@ services:
 
 volumes:
   database-data:
-  
+
 networks:
-  database:
+  # Rede isolada (sem acesso ao host/internet), compartilhada por nome entre os serviços.
+  # Criada pelo primeiro serviço que subir; os demais a reutilizam.
+  internal:
+    name: internal
+    internal: true

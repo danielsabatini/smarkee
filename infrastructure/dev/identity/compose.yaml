@@ -1,52 +1,90 @@
+name: identity
 services:
-  # O Zitadel requer um passo de setup (migrations, inicialização) antes de rodar o servidor principal.
-  identity-setup:
-    image: ${ZITADEL_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v2.66.1}
-    container_name: smarkee-identity-setup
-    command: ["setup", "--masterkey", "${ZITADEL_MASTERKEY}", "--config", "/machinekey.yaml"]
-    volumes:
-      - ./machinekey.yaml:/machinekey.yaml:ro
+  # API do Zitadel. Requer o serviço `database` em execução na rede `internal`; sem ele o
+  # container reinicia até conseguir conectar. O start-from-init executa init, setup e start.
+  zitadel-api:
+    image: ${ZITADEL_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.19.4}
+    container_name: zitadel-api
+    # user 0: o volume de bootstrap precisa ser gravável pela API (PAT do cliente de login).
+    user: "0"
+    command: ["start-from-init", "--masterkeyFromEnv", "--tlsMode", "disabled"]
     environment:
-      ZITADEL_DATABASE_POSTGRES_HOST: ${ZITADEL_DATABASE_HOST:-smarkee-database}
+      ZITADEL_MASTERKEY: ${ZITADEL_MASTERKEY:?Defina ZITADEL_MASTERKEY (32 caracteres) no .env}
+      ZITADEL_DATABASE_POSTGRES_HOST: ${ZITADEL_DATABASE_HOST:-database}
       ZITADEL_DATABASE_POSTGRES_PORT: ${ZITADEL_DATABASE_PORT:-5432}
-      ZITADEL_DATABASE_POSTGRES_USER: ${ZITADEL_DATABASE_USER:-smarkee}
-      ZITADEL_DATABASE_POSTGRES_PASSWORD: ${ZITADEL_DATABASE_PASSWORD:-smarkee_password}
-      ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_DATABASE_NAME:-smarkee}
-      ZITADEL_DATABASE_POSTGRES_SSL_MODE: disable
-    networks:
-      - smarkee-dev-network
-    restart: "no"
-
-  identity:
-    image: ${ZITADEL_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v2.66.1}
-    container_name: smarkee-identity
-    command: ["start-from-init", "--masterkey", "${ZITADEL_MASTERKEY}", "--config", "/machinekey.yaml"]
-    volumes:
-      - ./machinekey.yaml:/machinekey.yaml:ro
-    depends_on:
-      identity-setup:
-        condition: service_completed_successfully
-    environment:
-      ZITADEL_DATABASE_POSTGRES_HOST: ${ZITADEL_DATABASE_HOST:-smarkee-database}
-      ZITADEL_DATABASE_POSTGRES_PORT: ${ZITADEL_DATABASE_PORT:-5432}
-      ZITADEL_DATABASE_POSTGRES_USER: ${ZITADEL_DATABASE_USER:-smarkee}
-      ZITADEL_DATABASE_POSTGRES_PASSWORD: ${ZITADEL_DATABASE_PASSWORD:-smarkee_password}
-      ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_DATABASE_NAME:-smarkee}
-      ZITADEL_DATABASE_POSTGRES_SSL_MODE: disable
+      ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_DATABASE_NAME:-zitadel}
+      # Usuário de aplicação do Zitadel (criado pelo init com o admin abaixo).
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: ${ZITADEL_DATABASE_USER:-zitadel}
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${ZITADEL_DATABASE_PASSWORD:?Defina ZITADEL_DATABASE_PASSWORD no .env}
+      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+      # Administrador do PostgreSQL, usado apenas na inicialização do banco.
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${POSTGRES_ADMIN_USER:-smarkee}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Defina POSTGRES_ADMIN_PASSWORD no .env}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
+      ZITADEL_EXTERNALDOMAIN: localhost
+      # O Zitadel é acessado pelo gateway; a porta externa deve ser a do proxy HTTP do Kong.
+      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNAL_PORT:-8000}
       ZITADEL_EXTERNALSECURE: "false"
-      ZITADEL_PORT: 8080
-    ports:
-      - "8080:8080"
+      # Lido também pelo healthcheck (`zitadel ready`), que não aceita --tlsMode.
+      ZITADEL_TLS_ENABLED: "false"
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?Defina ZITADEL_ADMIN_PASSWORD no .env}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "true"
+      # Cliente de login (usuário de serviço com PAT) usado pelo zitadel-login.
+      ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: Login Client
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: ${ZITADEL_LOGIN_CLIENT_PAT_EXPIRATION:-2030-01-01T00:00:00Z}
+      # Login v2 (UI separada em /ui/v2/login, servida pelo zitadel-login).
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "true"
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://localhost:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/
+      ZITADEL_OIDC_DEFAULTLOGINURLV2: http://localhost:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/login?authRequest=
+      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://localhost:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/logout?post_logout_redirect=
+      ZITADEL_SAML_DEFAULTLOGINURLV2: http://localhost:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/login?samlRequest=
+    volumes:
+      - zitadel-bootstrap:/zitadel/bootstrap:rw
     networks:
-      - smarkee-dev-network
+      - internal
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/debug/healthz"]
+      test: ["CMD", "/app/zitadel", "ready"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 30s
+      retries: 12
+      start_period: 60s
+
+  # Interface de login (login v2). Autentica na API com o PAT gerado pelo zitadel-api.
+  zitadel-login:
+    image: ${ZITADEL_LOGIN_IMAGE_VERSION:-ghcr.io/zitadel/zitadel-login:v4.19.4}
+    container_name: zitadel-login
+    user: "0"
+    environment:
+      ZITADEL_API_URL: http://zitadel-api:8080
+      NEXT_PUBLIC_BASE_PATH: /ui/v2/login
+      ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel/bootstrap/login-client.pat
+      ZITADEL_SESSION_COOKIE_SECRET: ${ZITADEL_LOGIN_SESSION_COOKIE_SECRET:?Defina ZITADEL_LOGIN_SESSION_COOKIE_SECRET no .env}
+      # Preserva o domínio público nas chamadas à API (a instância é resolvida pelo Host).
+      CUSTOM_REQUEST_HEADERS: Host:localhost,X-Forwarded-Proto:http
+    volumes:
+      - zitadel-bootstrap:/zitadel/bootstrap:ro
+    depends_on:
+      zitadel-api:
+        condition: service_healthy
+    networks:
+      - internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "node /app/healthcheck.mjs http://localhost:3000/ui/v2/login/healthy"]
+      interval: 10s
+      timeout: 30s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  zitadel-bootstrap:
 
 networks:
-  smarkee-dev-network:
-    name: smarkee-dev-network
-    external: true
+  # Rede isolada (sem acesso ao host/internet), compartilhada por nome entre os serviços.
+  # Criada pelo primeiro serviço que subir; os demais a reutilizam.
+  internal:
+    name: internal
+    internal: true

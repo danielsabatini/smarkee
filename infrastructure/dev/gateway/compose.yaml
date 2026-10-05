@@ -1,20 +1,59 @@
 name: gateway
+
+x-kong-database-environment: &kong-database-environment
+  KONG_PG_HOST: ${KONG_DATABASE_HOST:-database}
+  KONG_PG_PORT: ${KONG_DATABASE_PORT:-5432}
+  KONG_PG_DATABASE: ${KONG_DATABASE_NAME:-kong}
+  KONG_PG_USER: ${KONG_DATABASE_USER:-kong}
+  KONG_PG_PASSWORD: ${KONG_DATABASE_PASSWORD:?Defina KONG_DATABASE_PASSWORD no .env}
+
 services:
-  gateway:
-    image: ${KONG_IMAGE_VERSION:-kong:3.9-ubuntu}
-    container_name: gateway
+  # Tarefa única: aplica as migrações do esquema e importa as rotas declaradas em kong.yml.
+  # Requer o serviço `database` na rede `internal`; tenta novamente até o banco responder.
+  # O `db_import` é repetível (atualiza por nome), então kong.yml segue como fonte das rotas
+  # a cada subida; rotas removidas do arquivo NÃO são removidas do banco automaticamente.
+  gateway-migrations:
+    image: ${KONG_IMAGE_VERSION:-kong:3.9.3-ubuntu}
+    container_name: gateway-migrations
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        n=0
+        until kong migrations bootstrap && kong migrations up && kong migrations finish; do
+          n=$$((n+1)); [ "$$n" -ge 30 ] && exit 1; sleep 3
+        done
+        kong config db_import /kong/declarative/kong.yml
     environment:
-      KONG_CONF: /etc/kong/kong.conf
-    ports:
-      - "${KONG_PROXY_HTTP_PORT:-8000}:8000"  # Proxy HTTP
-      - "${KONG_PROXY_HTTPS_PORT:-8443}:8443"  # Proxy HTTPS
-      - "${KONG_ADMIN_HTTP_PORT:-8001}:8001"  # Admin API HTTP
-      - "${KONG_ADMIN_HTTPS_PORT:-8444}:8444"  # Admin API HTTPS
+      <<: *kong-database-environment
     volumes:
       - ./kong.yml:/kong/declarative/kong.yml:ro
       - ./kong.conf:/etc/kong/kong.conf:ro
     networks:
-      - gateway
+      - internal
+    restart: "no"
+
+  gateway:
+    image: ${KONG_IMAGE_VERSION:-kong:3.9.3-ubuntu}
+    container_name: gateway
+    environment:
+      <<: *kong-database-environment
+    ports:
+      - "127.0.0.1:${KONG_PROXY_HTTP_PORT:-8000}:8000"  # Proxy HTTP
+      - "127.0.0.1:${KONG_PROXY_HTTPS_PORT:-8443}:8443"  # Proxy HTTPS
+      - "127.0.0.1:${KONG_ADMIN_HTTP_PORT:-8001}:8001"  # Admin API HTTP
+      - "127.0.0.1:${KONG_ADMIN_HTTPS_PORT:-8444}:8444"  # Admin API HTTPS
+      - "127.0.0.1:${KONG_MANAGER_HTTP_PORT:-8002}:8002"  # Kong Manager HTTP (avaliação em dev)
+      - "127.0.0.1:${KONG_MANAGER_HTTPS_PORT:-8445}:8445"  # Kong Manager HTTPS (avaliação em dev)
+    volumes:
+      - ./kong.conf:/etc/kong/kong.conf:ro
+    depends_on:
+      gateway-migrations:
+        condition: service_completed_successfully
+    networks:
+      - external
+      - internal
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "kong", "health"]
@@ -23,4 +62,11 @@ services:
       retries: 5
 
 networks:
-  gateway:  
+  # Rede isolada (sem acesso ao host/internet), compartilhada por nome entre os serviços.
+  # Criada pelo primeiro serviço que subir; os demais a reutilizam.
+  internal:
+    name: internal
+    internal: true
+  # Rede com acesso externo; somente o gateway participa e publica portas.
+  external:
+    name: external
