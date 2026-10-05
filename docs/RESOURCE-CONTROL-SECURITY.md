@@ -71,13 +71,14 @@ Específicos deste padrão:
 | `action` indevida ou obsoleta | `action` forjada, reentregue ou baseada em geração antiga leva o Executor a escrever | Seção 7 |
 | Observação falsa ou inconclusiva | Erro 403/5xx interpretado como `absent` causa recriação ou remoção | Seção 8 |
 | Vazamento de credencial | Credencial de escrita disponível a componente que só lê | Seção 9 |
+| Remoção em massa do estado | Serviço de runtime com permissão de purge apaga o estado de todos os tipos em `DESIRED` | Seção 6.3 |
 | Repúdio | Não é possível saber quem pediu uma remoção | Seção 10 |
 | Vazamento entre tenants | Mensagens ou recursos de um tenant visíveis a outro | Seção 11 |
 | Abuso e exaustão | Pedidos em massa, remoções em massa ou loop de correção | Seção 12 |
 
 # 5. Fronteiras de confiança e identidades
 
-Cada componente possui **identidade própria** no barramento e no provider. Componentes que compartilham identidade não possuem fronteira de segurança entre si.
+Cada **serviço** possui identidade própria no barramento e no provider. A identidade é `<módulo>-<tipo>-<papel>` (por exemplo, `ipm-tenant-executor`), e não apenas o papel: o Executor de `tenant` e o de `user` são identidades distintas, com permissões distintas. Serviços que compartilham identidade não possuem fronteira de segurança entre si.
 
 ```mermaid
 flowchart LR
@@ -100,7 +101,8 @@ Fronteiras:
 - componentes → mensageria: autenticação e autorização por subject;
 - Manager → SSOT: único componente do loop com escrita no SSOT;
 - Observer → provider: somente leitura;
-- Executor → provider: única identidade com escrita.
+- Executor → provider: única identidade com escrita;
+- serviço → serviço de outro tipo: nenhuma permissão. Cada serviço atua somente sobre o seu `<módulo>.<tipo>`.
 
 # 6. Autorização no barramento
 
@@ -108,29 +110,45 @@ Publicação e assinatura são autorizadas separadamente (`NATS.md`).
 
 ## 6.1 Matriz de permissões
 
-O emissor é o primeiro token do subject. Cada identidade só publica no próprio emissor.
+O emissor é o primeiro token do subject. Cada identidade só publica no próprio emissor, **escopada ao seu `<módulo>.<tipo>`**. Na tabela, `<m>.<t>` é o módulo e o tipo do serviço (por exemplo, `ipm.tenant`).
 
-| Identidade | Publica | Assina |
+| Serviço | Publica | Consome |
 |---|---|---|
-| API | `api.requested.>` | — |
-| Manager | `manager.desired.>`, `manager.updated.>` | `api.requested.>`, `observer.observed.>`, `executor.completed.>`, `executor.failed.>` |
-| Observer | `observer.observed.>` | `manager.desired.>`, `executor.completed.>` |
-| Reconciler | `reconciler.action.>` | `manager.desired.>`, `observer.observed.>`, `executor.completed.>`, `executor.failed.>` |
-| Executor | `executor.completed.>`, `executor.failed.>` | `reconciler.action.>`, `manager.desired.>` |
+| `api-<m>-<t>` | `api.requested.<m>.<t>.>` | — |
+| `srv-<m>-<t>-manager` | `manager.desired.<m>.<t>.>`, `manager.updated.<m>.<t>.>` | `REQUESTED`, `OBSERVED` e `RESULT` do tipo, por consumers criados pela infraestrutura |
+| `srv-<m>-<t>-observer` | `observer.observed.<m>.<t>.>` | `DESIRED` e `RESULT` do tipo, por consumers de estado criados pelo próprio serviço |
+| `srv-<m>-<t>-reconciler` | `reconciler.action.<m>.<t>.>` | `DESIRED`, `OBSERVED` e `RESULT` do tipo, por consumers de estado criados pelo próprio serviço |
+| `srv-<m>-<t>-executor` | `executor.completed.<m>.<t>.>`, `executor.failed.<m>.<t>.>` | `ACTION` do tipo, por consumer criado pela infraestrutura; leitura direta do último `desired` do tipo |
 
-A matriz é conceitual. A implementação restringe cada permissão ao `module` e ao `resourceType` do componente (por exemplo, `reconciler.action.ipm.tenant.>`), e a configuração concreta pertence a `NATS.md`.
+A configuração concreta (consumers, filtros e Subjects de autorização do servidor) pertence a `NATS.md` e deve ser validada no ambiente.
 
 Consequências:
 
-- somente o Reconciler publica `action`, e somente o Executor a consome;
-- apenas o Manager publica `desired`;
-- apenas o Observer publica `observed`;
+- somente o Reconciler do tipo publica `action`, e somente o Executor do tipo a consome;
+- apenas o Manager do tipo publica `desired`;
+- apenas o Observer do tipo publica `observed`;
+- nenhum serviço lê nem publica mensagens de outro `<módulo>.<tipo>`;
 - nenhuma identidade de aplicação possui `publish: >` ou `subscribe: >`;
+- consumers de trabalho e de persistência são criados pela infraestrutura, e o serviço recebe acesso somente ao seu;
+- consumers de estado em memória são criados pelo próprio serviço, que só pode criar consumers com o seu padrão de nome e o seu filtro único, e não pode listar, alterar nem remover consumers de outros serviços;
 - consumidores adicionais (auditoria, console, métricas) assinam somente o que precisam e não publicam no loop.
 
 ## 6.2 Validação de `resourceId`
 
 O `resourceId` compõe o subject. Ele deve ser validado na entrada (API e Manager) para conter apenas caracteres que não criem tokens extras nem wildcards, conforme `NATS.md` (Identificadores). Um `resourceId` inválido é rejeitado, e não normalizado silenciosamente.
+
+## 6.3 Identidade administrativa e remoção de estado
+
+Nenhum serviço de runtime possui permissão de purge nem de administração de Streams. A API de purge recebe o filtro de Subject no corpo da requisição, e uma permissão por Subject não consegue restringi-lo: dar purge ao Manager de um tipo permitiria apagar o estado de todos os tipos.
+
+Existe uma **identidade administrativa separada**, usada somente por infraestrutura:
+
+- criação de Streams e de consumers duráveis;
+- limpeza periódica de tombstones em `DESIRED` (job agendado).
+
+Ao remover um recurso, o Manager publica o `desired` final (`lifecycle=absent`) e, após a convergência, remove o recurso do SSOT. A mensagem permanece como tombstone até a limpeza (`NATS.md`).
+
+A identidade administrativa não é utilizada por serviços do loop, suas credenciais são fornecidas por secrets management e o seu uso deve ser auditado.
 
 # 7. Proteção da `action`
 
@@ -143,7 +161,9 @@ Antes de escrever no sistema externo, o Executor verifica:
 3. a `desiredGeneration` da `action` não é obsoleta em relação ao `desired` vigente;
 4. a operação é coerente com o `desired` vigente (por exemplo, `delete` somente se o `desired` declara a ausência do recurso).
 
-O Executor lê o `desired` vigente pela mensageria, em modo somente leitura. Ele não acessa o SSOT.
+O Executor lê o último `desired` do recurso por leitura direta do último valor do subject (somente leitura, restrita ao `<módulo>.<tipo>` do serviço). Ele não acessa o SSOT.
+
+A leitura direta pode ser atendida por uma réplica e refletir, por instantes, um estado anterior ao mais recente. A revalidação é um controle adicional: ela se soma à conferência da geração e à reconciliação periódica, e não as substitui.
 
 Uma `action` que não passa na revalidação **não é executada**: o Executor publica `failed` com a causa e não repete a execução.
 
@@ -248,8 +268,10 @@ Devem ser observáveis, sem expor dados sensíveis:
 
 # 15. Checklist de segurança por recurso
 
-- [ ] Cada componente do loop possui identidade própria?
-- [ ] As permissões de publicação e assinatura seguem a matriz da seção 6?
+- [ ] Cada serviço do loop possui identidade própria (`<módulo>-<tipo>-<papel>`)?
+- [ ] As permissões de publicação e consumo seguem a matriz da seção 6 e são escopadas por `<módulo>.<tipo>`?
+- [ ] Nenhum serviço de runtime possui permissão de purge ou de administração de Stream?
+- [ ] A limpeza de tombstones é feita por identidade administrativa separada?
 - [ ] O `resourceId` é validado antes de compor o subject?
 - [ ] O Executor revalida `operation`, geração e coerência com o `desired`?
 - [ ] O Executor deduplica por `actionId`?

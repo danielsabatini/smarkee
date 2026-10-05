@@ -226,7 +226,8 @@ Observer → observed ┘
 
 Regras:
 
-- o estado mantido em memória é um cache descartável: após restart, o Reconciler o reconstrói consumindo o último `desired` e o último `observed` de cada recurso;
+- o estado mantido em memória é um cache descartável: após restart, **cada instância** do Reconciler o reconstrói consumindo o último `desired` e o último `observed` de cada recurso. O consumo é por instância, e não compartilhado entre elas, para que todas possuam o estado completo (`NATS.md`);
+- instâncias distintas podem tomar a mesma decisão. Isso é inofensivo porque a `action` possui `actionId` determinístico (ver *Identidade da Action*);
 - por isso, o transporte deve reter ao menos a última mensagem de `desired` e de `observed` por recurso (na implementação NATS, ver `NATS.md`);
 - o Reconciler não decide enquanto não possuir os dois estados;
 - o Reconciler não decide com `observed` inconclusivo ou desatualizado (ver *Observação inconclusiva*).
@@ -873,7 +874,7 @@ Action
 
 O `actionId` é **determinístico**: derivado de `resourceId`, `desiredGeneration` e `operation`. A mesma decisão sobre o mesmo estado produz o mesmo `actionId`.
 
-- O Executor usa o `actionId` para deduplicar: reentrega ou reemissão da mesma decisão não gera uma segunda execução.
+- A deduplicação ocorre em três pontos: o publicador usa o `actionId` como chave de deduplicação do transporte (quando suportado), o Reconciler não reemite enquanto houver `action` pendente e o Executor deduplica por `actionId`. Reentrega, reemissão ou decisão duplicada de outra instância não geram uma segunda execução. A deduplicação do Executor é obrigatória e não depende do transporte.
 - O Reconciler não reemite uma `action` enquanto houver outra pendente para o recurso (ou seja, sem `completed` ou `failed` correspondente). Ao expirar o prazo de ação definido pelo domínio, ele pode reemitir com o mesmo `actionId`.
 - Uma `action` baseada em geração obsoleta é descartada pelo Executor.
 
@@ -1126,6 +1127,8 @@ flowchart TB
 ```
 
 A plataforma não precisa representar a exclusão como um comando imperativo no `desired`.
+
+Após a convergência da remoção, o Manager remove o recurso do SSOT. O último `desired` (`lifecycle=absent`) permanece no transporte como tombstone até uma limpeza administrativa; Reconciler e Observer ignoram recurso com `lifecycle=absent` já convergido (`NATS.md` e `RESOURCE-CONTROL-SECURITY.md`).
 
 **Limitação conhecida:** este padrão não define a ordem de remoção entre recursos dependentes (por exemplo, um Tenant com Agents). Enquanto não houver regra própria, a remoção de um recurso com dependentes deve ser tratada pelo domínio.
 
@@ -1464,7 +1467,7 @@ Quando houver necessidade de serialização, ela deve ser definida explicitament
 
 Não assumir ordenação global.
 
-Para cada `resourceId`, apenas uma `action` deve estar em execução por vez (*single-flight*). Com várias instâncias de Reconciler ou de Executor, a serialização por recurso deve ser garantida pelo mecanismo de consumo, e não pela expectativa de que apenas uma instância exista.
+Para cada `resourceId`, apenas uma `action` deve estar em execução por vez (*single-flight*). Várias instâncias do Reconciler podem decidir o mesmo recurso; a serialização é responsabilidade do **Executor**, e não do Reconciler. O Executor deve garantir uma única execução por vez por recurso (por exemplo, consumindo uma `action` por vez por serviço) e permanecer idempotente, pois sob falha uma `action` pode ser entregue a outra instância enquanto a anterior ainda executa (`NATS.md`).
 
 # 37. DesiredGeneration
 
