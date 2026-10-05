@@ -14,16 +14,14 @@ O principal objetivo do projeto é construir uma plataforma de arquitetura distr
 Adotamos a metodologia **Now, Next, Later** para o planejamento. Em vez de datas rígidas (que costumam falhar em projetos dinâmicos e open-source), utilizamos blocos lógicos de prioridade.
 
 ### 🟢 Now (Em Andamento / Curto Prazo)
-O que nossa equipe (humana e IA) está trabalhando ativamente neste exato momento.
-- [ ] **`[In Progress]` Governança da IA:** Finalizar a arquitetura fundamental de agentes (`AGENTS.md`) e regras rigorosas de poluição de contexto.
-- [ ] **`[In Progress]` Estruturação de Estado:** Definição correta do uso de `MEMORY.md`, `.decisions/`, e separação do ambiente efêmero `.workspace/`.
-- [ ] **`[In Design]` Integração NATS:** Modelagem semântica para troca assíncrona de mensagens (`docs/MESSAGING.md` e `docs/NATS.md`).
+O que está sendo trabalhado ativamente neste momento.
+- [ ] **`[In Design]` Contratos e Mensageria:** Modelagem semântica da troca assíncrona de mensagens e dos schemas de contrato (`docs/MESSAGING.md`, `docs/NATS.md` e `docs/SCHEMA.md`).
+- [ ] **`[In Design]` Resource Control Loop:** Modelo de reconciliação entre `desired` e `observed` e persistência no SSOT (`docs/RESOURCE-CONTROL-LOOP.md`).
 
 ### 🟡 Next (Próximos Passos / Médio Prazo)
-O que está planejado para ser puxado assim que o fluxo de trabalho do horizonte "Now" for esvaziado.
-- [ ] **`[Planned]` Templates de Projetos:** Criação de esqueletos iniciais baseados nas SKILLS.
+O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.
+- [ ] **`[Planned]` Primeira Fatia Vertical:** Implementação mínima do `ipm` (API, worker e CLI) validando os contratos especificados.
 - [ ] **`[Planned]` Observabilidade Básica:** Implementação de traces estruturados nos workers.
-- [ ] **`[Planned]` Diretrizes de Contribuição:** Finalização do `CONTRIBUTING.md` para novos membros.
 
 ### 🔴 Later (Exploratório / Longo Prazo)
 O que está no radar para o futuro, mas ainda carece de design, arquitetura ou Discovery.
@@ -42,4 +40,4 @@ Para facilitar a leitura, cada item possui uma etiqueta indicando a sua maturida
 ## 🤝 Como Contribuir
 
 Quer puxar algum card do horizonte **Next** ou tem uma ideia para o **Later**? 
-Consulte nosso [CONTRIBUTING.md](CONTRIBUTING.md) (em breve) para saber como participar ativamente das discussões, propor PRs e alinhar o desenvolvimento com as documentações oficiais.
+Consulte nosso [CONTRIBUTING.md](CONTRIBUTING.md) para saber como participar ativamente das discussões, propor PRs e alinhar o desenvolvimento com as documentações oficiais.
