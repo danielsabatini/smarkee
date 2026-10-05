@@ -2,15 +2,42 @@
 
 # 1. Introdução
 
-Este documento define o modelo semântico oficial para comunicação assíncrona entre componentes da plataforma. O modelo é independente do mecanismo de transporte e deve permanecer válido mesmo quando a tecnologia de mensageria for substituída.
+Este documento define o modelo semântico oficial para comunicação assíncrona entre componentes da plataforma.
+
+O modelo é independente do mecanismo de transporte e deve permanecer válido mesmo quando a tecnologia de mensageria for substituída.
 
 A implementação de referência em NATS e NATS JetStream é definida separadamente em `NATS.md`.
 
-Este documento é a fonte de verdade para a semântica, o significado, o endereçamento lógico e os contratos das mensagens.
+Este documento é a fonte de verdade para:
+
+- semântica das mensagens;
+- tipos de mensagens;
+- endereçamento lógico;
+- identificação do emissor;
+- identificação do recurso;
+- operações associadas;
+- envelope das mensagens;
+- idempotência;
+- ordenação;
+- correlação;
+- evolução de contratos;
+- responsabilidades entre aplicação e transporte.
 
 # 2. Objetivos
 
-O objetivo é estabelecer um modelo consistente, explícito, idempotente e evolutivo para comunicação assíncrona, capaz de representar estado desejado (`desired`) e estado observado (`observed`), suportar diferentes padrões de entrega e permitir a implementação do mesmo contrato em diferentes mecanismos de mensageria.
+O objetivo é estabelecer um modelo consistente, explícito, idempotente e evolutivo para comunicação assíncrona.
+
+O modelo deve:
+
+- representar estado desejado (`desired`) e estado observado (`observed`);
+- representar solicitações, ações e resultados quando semanticamente necessário;
+- permitir endereçamento lógico por emissor, módulo, recurso e operação;
+- permitir múltiplos consumidores independentes;
+- suportar diferentes padrões de entrega;
+- permitir implementação em diferentes mecanismos de mensageria;
+- suportar reentrega, retry e replay;
+- permitir evolução controlada dos contratos;
+- preservar a separação entre domínio e tecnologia de transporte.
 
 # 3. Princípios
 
@@ -20,49 +47,108 @@ O contrato deve permanecer válido mesmo que o mecanismo de mensageria seja subs
 
 Uma abstração própria do broker é uma implementação, não uma definição de domínio.
 
+Exemplos de conceitos que não pertencem ao modelo semântico:
+
+```text
+JetStream Consumer
+Kafka Partition
+RabbitMQ Exchange
+Kafka Offset
+NATS Stream
+```
+
+Esses conceitos pertencem à implementação do transporte.
+
 ## 3.2 Emissor explícito
 
 A identidade semântica de uma mensagem começa pelo emissor.
 
-O destinatário não faz parte da identidade semântica da mensagem. O interesse do consumidor é expresso por subscription, binding, consumer, grupo de consumidores, filtro ou mecanismo equivalente do transporte.
+O destinatário não faz parte da identidade semântica da mensagem.
 
 A distinção é deliberada:
 
 ```text
-emissor = quem produziu a mensagem
-consumidor = quem possui interesse na mensagem
+emitter   = quem produziu a mensagem
+consumer  = quem possui interesse na mensagem
 ```
 
-## 3.3 `desired` e `observed`
+O interesse do consumidor é expresso por subscription, consumer, grupo de consumidores, filtro, binding ou mecanismo equivalente do transporte.
 
-O modelo possui dois tipos semânticos principais:
+Exemplo:
+
+```text
+manager.desired.ipm.tenant.<resourceId>.create
+```
+
+O subject não afirma que a mensagem é destinada exclusivamente a um determinado consumidor.
+
+## 3.3 Tipos semânticos explícitos
+
+Cada mensagem deve declarar claramente **o que ela representa**.
+
+O modelo utiliza um vocabulário controlado de `messageType`:
+
+```text
+requested
+desired
+observed
+action
+completed
+updated
+failed
+```
+
+O `messageType` não identifica a operação.
+
+A operação é representada separadamente pelo último token do endereço:
+
+```text
+<messageType> ... <operation>
+```
+
+Exemplo:
+
+```text
+reconciler.action.ipm.tenant.<id>.create
+```
+
+onde:
+
+```text
+action = tipo da mensagem
+create = operação associada
+```
+
+## 3.4 `desired` e `observed`
+
+O modelo possui dois tipos semânticos fundamentais:
 
 - `desired`: estado pretendido pelo sistema;
 - `observed`: estado efetivamente observado.
 
 `desired` não é um comando imperativo.
 
-`observed` não é uma confirmação de transporte nem simplesmente um log de execução. É uma representação factual da observação de um recurso.
+`observed` não é uma confirmação de transporte nem simplesmente um log de execução.
 
-## 3.4 Declarativo sobre imperativo
+`observed` representa uma evidência factual sobre a realidade de um recurso.
+
+## 3.5 Declarativo sobre imperativo
 
 Sempre que o problema puder ser modelado como estado, representar o estado desejado em vez de uma sequência de comandos.
 
 Preferir:
 
 ```text
-manager.desired.underlay.node.node-01
+manager.desired.ipm.tenant.<tenantId>.create
 ```
 
-como representação lógica de um estado desejado, em vez de transformar o endereço em uma chamada RPC como:
+quando a mensagem representa o estado desejado para um Tenant.
 
-```text
-manager.task.underlay.node.update.node-01
-```
+A operação concreta necessária para alcançar esse estado é responsabilidade do reconciler e do executor.
 
-A operação necessária para alcançar o estado desejado é responsabilidade do reconciler ou worker.
+Não transformar o endereço de mensageria em uma API RPC imperativa.
 
-## 3.5 Explícito sobre implícito
+## 3.6 Explícito sobre implícito
 
 Usar nomes que expressem o significado do campo.
 
@@ -72,16 +158,18 @@ Preferir:
 messageId
 resourceId
 resourceType
-semanticType
+messageType
 schemaVersion
 desiredGeneration
 observedGeneration
 occurredAt
 publishedAt
 observedAt
+correlationId
+causationId
 ```
 
-Evitar nomes genéricos como:
+Evitar:
 
 ```text
 id
@@ -93,7 +181,7 @@ timestamp
 
 quando o significado não for inequívoco.
 
-## 3.6 Separação entre identidade da mensagem e identidade do recurso
+## 3.7 Separação entre identidade da mensagem e identidade do recurso
 
 `messageId` identifica uma mensagem.
 
@@ -101,13 +189,17 @@ quando o significado não for inequívoco.
 
 Eles nunca devem ser tratados como equivalentes.
 
-## 3.7 Idempotência como requisito
+```text
+messageId  != resourceId
+```
+
+## 3.8 Idempotência como requisito
 
 Consumidores de mensagens persistentes devem ser capazes de processar a mesma mensagem mais de uma vez sem corromper o estado ou produzir efeitos cumulativos indevidos.
 
 Não utilizar exatamente-uma-entrega como requisito arquitetural da aplicação.
 
-## 3.8 Falhas são normais
+## 3.9 Falhas são normais
 
 O modelo assume que podem ocorrer:
 
@@ -129,101 +221,209 @@ O ciclo declarativo é:
 
 ```mermaid
 graph TD
-    A[Desired] --> B[Reconciliation]
-    B --> C[External System]
-    C --> D[Observation]
-    D --> E[Observed]
+    A[Desired] --> B[Observation]
+    B --> C[Observed]
+    C --> D[Reconciliation]
+    D --> E[Action]
+    E --> F[External System]
+    F --> B
 ```
 
-A mensageria transporta representações de `desired` e `observed` entre componentes.
+A mensageria transporta representações dos diferentes fatos e estados desse ciclo.
+
+O fluxo típico é:
+
+```text
+Requested
+    ↓
+Manager
+    ↓
+Desired
+    ↓
+Observer
+    ↓
+Observed
+    ↓
+Reconciler
+    ↓
+Action
+    ↓
+Executor
+    ↓
+External System
+    ↓
+Observed
+    ↓
+Manager
+    ↓
+Updated
+```
 
 A aceitação da publicação não significa que o recurso convergiu.
 
-A confirmação de convergência depende da observação processada e persistida pelo sistema responsável.
+A convergência depende de uma observação compatível com o estado desejado e processada pelo componente responsável.
 
-# 5. Tipos semânticos
+# 5. Tipos de mensagem
 
-## 5.1 `desired`
+## 5.1 `requested`
 
-`desired` representa o estado que o sistema pretende obter.
+Representa uma solicitação recebida para iniciar uma operação sobre um recurso.
+
+Exemplo:
+
+```text
+api.requested.ipm.tenant.<tenantId>.create
+```
+
+Semântica:
+
+> A API recebeu e aceitou uma solicitação para criação do recurso.
+
+`requested` normalmente representa a entrada de um fluxo assíncrono.
+
+A validação interna da solicitação não precisa gerar uma mensagem `validated`.
+
+## 5.2 `desired`
+
+Representa o estado desejado estabelecido pelo componente responsável pelo SSOT.
+
+Exemplo:
+
+```text
+manager.desired.ipm.tenant.<tenantId>.create
+```
 
 Características:
 
 - declarativo;
-- versionado por `desiredGeneration` quando o recurso possui geração;
+- versionado por `desiredGeneration`;
 - idempotente;
 - independente de uma sequência específica de comandos;
-- suficientemente completo para que o reconciler determine o delta necessário;
-- capaz de representar presença, alteração e ausência do recurso.
+- suficientemente completo para que o reconciler determine o delta necessário.
 
-Exemplo:
+## 5.3 `observed`
 
-```json
-{
-  "messageId": "msg-01",
-  "schemaVersion": "1.0",
-  "semanticType": "desired",
-  "emitter": "manager",
-  "scope": "underlay",
-  "resourceType": "node",
-  "resourceId": "node-01",
-  "desiredGeneration": 12,
-  "occurredAt": "2026-10-03T22:00:00Z",
-  "publishedAt": "2026-10-03T22:00:01Z",
-  "data": {
-    "lifecycle": "present",
-    "cpuCount": 16,
-    "memoryBytes": 68719476736
-  }
-}
+Representa uma observação factual sobre a realidade.
+
+Exemplos:
+
+```text
+observer.observed.ipm.tenant.<tenantId>.absent
 ```
 
-## 5.2 `observed`
-
-`observed` representa o estado efetivamente observado no sistema externo ou no componente que possui autoridade para realizar a observação.
+```text
+observer.observed.ipm.tenant.<tenantId>.present
+```
 
 Características:
 
 - factual;
-- identifica quando a observação aconteceu;
-- pode identificar qual `desiredGeneration` foi observada, quando aplicável;
+- identifica quando a observação ocorreu;
+- pode identificar qual `desiredGeneration` está relacionada à observação;
 - deve ser segura para replay;
-- pode ser consumida por vários componentes independentes;
-- não deve afirmar convergência sem evidência compatível com o contrato do recurso.
+- pode ser consumida por vários componentes.
+
+## 5.4 `action`
+
+Representa uma decisão de reconciliação que deve ser executada.
 
 Exemplo:
 
-```json
-{
-  "messageId": "msg-02",
-  "schemaVersion": "1.0",
-  "semanticType": "observed",
-  "emitter": "worker.platform",
-  "scope": "underlay",
-  "resourceType": "node",
-  "resourceId": "node-01",
-  "observedGeneration": 12,
-  "occurredAt": "2026-10-03T22:00:00Z",
-  "publishedAt": "2026-10-03T22:00:02Z",
-  "observedAt": "2026-10-03T22:00:00Z",
-  "data": {
-    "lifecycle": "present",
-    "cpuCount": 16,
-    "memoryBytes": 68719476736,
-    "ready": true
-  }
-}
+```text
+reconciler.action.ipm.tenant.<tenantId>.create
 ```
+
+`action` é diferente de `desired`.
+
+```text
+desired = o estado que queremos
+action  = o que o reconciler decidiu fazer para chegar ao estado desejado
+```
+
+O `action` é uma mensagem operacional derivada do processo de reconciliação.
+
+O Reconciler decide.
+
+O Executor executa.
+
+## 5.5 `completed`
+
+Representa a conclusão da execução de uma operação.
+
+Exemplo:
+
+```text
+executor.completed.ipm.tenant.<tenantId>.create
+```
+
+`completed` não significa necessariamente convergência do recurso.
+
+Ele significa que a operação executada foi concluída conforme o contrato do Executor.
+
+A convergência deve continuar sendo determinada por `observed`.
+
+## 5.6 `updated`
+
+Representa uma alteração consolidada no recurso ou no seu estado persistido.
+
+Exemplo:
+
+```text
+manager.updated.ipm.tenant.<tenantId>.changed
+```
+
+O `updated` é útil para consumidores interessados em projeções, auditoria, métricas ou notificações.
+
+Não deve ser utilizado como substituto de `desired` ou `observed`.
+
+## 5.7 `failed`
+
+Representa falha na execução ou processamento associado à operação.
+
+Exemplo:
+
+```text
+executor.failed.ipm.tenant.<tenantId>.create
+```
+
+O último token continua representando a operação:
+
+```text
+create
+```
+
+O resultado é:
+
+```text
+failed
+```
+
+`failed` e `completed` representam resultados distintos da mesma operação.
 
 # 6. Endereçamento lógico
 
-O modelo define um endereço lógico como uma sequência de dimensões semânticas:
+O endereço lógico oficial é:
 
 ```text
-<emitter>.<semanticType>.<scope>.<resourceType>[.<resourceId>]
+<emitter>.<messageType>.<module>.<resourceType>.<resourceId>.<operation>
 ```
 
-A representação acima é uma convenção lógica legível. Um transporte pode representá-la como subject, topic, routing key, destination, headers ou uma combinação desses mecanismos.
+Exemplo:
+
+```text
+manager.desired.ipm.tenant.0199c8a4.create
+```
+
+A representação acima é uma convenção lógica legível.
+
+Um transporte pode representá-la como:
+
+- subject;
+- topic;
+- routing key;
+- destination;
+- headers;
+- combinação desses mecanismos.
 
 ## 6.1 `emitter`
 
@@ -232,7 +432,11 @@ Identifica o componente lógico que produziu a mensagem.
 Exemplos:
 
 ```text
+api
 manager
+observer
+reconciler
+executor
 worker.platform
 worker.storage
 worker.identity
@@ -242,152 +446,297 @@ worker.runner
 worker.tools
 ```
 
-O emissor deve representar uma identidade funcional estável, não o identificador efêmero de uma instância de processo.
+O emissor deve representar uma identidade funcional estável.
 
-Quando uma instância específica for relevante para diagnóstico, sua identificação pertence aos metadados de observabilidade.
+A identificação da instância concreta do processo pertence aos metadados de observabilidade.
 
-## 6.2 `semanticType`
+## 6.2 `messageType`
 
-Valores principais:
+Identifica o significado da mensagem.
+
+Valores oficiais iniciais:
 
 ```text
+requested
 desired
 observed
+action
+completed
+updated
+failed
 ```
 
-A introdução de novos tipos semânticos exige decisão arquitetural explícita. Não criar novos tipos apenas para representar operações locais do consumidor.
+O conjunto deve permanecer pequeno.
 
-## 6.3 `scope`
+Não criar um novo `messageType` apenas para representar cada operação.
 
-Representa o contexto arquitetural ou funcional ao qual a mensagem pertence.
+## 6.3 `module`
+
+Identifica o módulo funcional da plataforma ao qual a mensagem pertence.
 
 Exemplos:
 
 ```text
-underlay
-overlay
-identity
+ipm
+agent
+runner
+tool
 platform
 ```
 
-A lista deve permanecer pequena. O `scope` não deve ser utilizado para codificar atributos arbitrários de tenancy, região, ambiente ou infraestrutura.
+O módulo permite separar domínios independentes sem introduzir detalhes específicos do transporte.
+
+Exemplo:
+
+```text
+api.requested.ipm.tenant.<id>.create
+```
 
 ## 6.4 `resourceType`
 
-Identifica o conceito de recurso que está sendo desejado ou observado.
+Identifica o tipo de recurso.
 
 Exemplos:
 
 ```text
+tenant
+agent
+runner
+tool
 node
 vpc
 subnet
 volume
 vm
-agent
-runner
-tool
-vault
-identityProvider
 ```
+
+O `resourceType` deve utilizar a terminologia oficial do domínio.
 
 ## 6.5 `resourceId`
 
-Identifica o recurso dentro de seu domínio de identidade.
+Identifica o recurso.
 
 Regras:
 
-- deve ser estável dentro do ciclo de vida do recurso;
+- deve ser estável durante o ciclo de vida do recurso;
+- deve ser opaco;
+- não deve carregar significado de negócio;
 - não deve ser confundido com `messageId`;
-- não deve carregar informações de roteamento que já tenham dimensão própria;
-- não deve depender de uma instância específica do worker.
+- não deve ser substituído pelo nome amigável do recurso;
+- não deve depender da instância do consumidor.
 
-## 6.6 Identificadores e separadores
+UUIDv7 é o padrão adotado para `resourceId` quando aplicável.
 
-Quando o endereço for materializado em um sistema hierárquico que usa separadores, o identificador deve respeitar as regras sintáticas daquele transporte.
+## 6.6 `operation`
 
-Na implementação NATS, especificamente, `.` separa tokens de Subject. Portanto, `resourceId` usado no Subject não deve conter `.`. Essa restrição é do mapeamento NATS e não do modelo semântico.
+Identifica a operação semântica relacionada à mensagem.
 
-# 7. Destinatários e consumidores
+Valores iniciais:
+
+```text
+create
+update
+delete
+changed
+present
+absent
+reconcile
+noop
+```
+
+A lista deve ser controlada pelo domínio.
+
+A operação não representa necessariamente uma chamada direta a um sistema externo.
+
+Exemplos:
+
+```text
+manager.desired.ipm.tenant.<id>.create
+```
+
+```text
+observer.observed.ipm.tenant.<id>.absent
+```
+
+```text
+reconciler.action.ipm.tenant.<id>.create
+```
+
+```text
+manager.updated.ipm.tenant.<id>.changed
+```
+
+A operação deve ser interpretada em conjunto com o `messageType`.
+
+Assim:
+
+```text
+observed + absent
+```
+
+significa:
+
+> o recurso foi observado como ausente.
+
+Enquanto:
+
+```text
+action + create
+```
+
+significa:
+
+> o reconciler determinou a execução de uma criação.
+
+# 7. Exemplo do fluxo completo
+
+Para criação de um Tenant:
+
+```text
+1. api.requested.ipm.tenant.<id>.create
+
+2. manager.desired.ipm.tenant.<id>.create
+
+3. observer.observed.ipm.tenant.<id>.absent
+
+4. reconciler.action.ipm.tenant.<id>.create
+
+5. executor.completed.ipm.tenant.<id>.create
+
+6. observer.observed.ipm.tenant.<id>.present
+
+7. manager.updated.ipm.tenant.<id>.changed
+```
+
+Em caso de falha:
+
+```text
+executor.failed.ipm.tenant.<id>.create
+```
+
+O fluxo não deve interpretar `completed` como convergência automática.
+
+A convergência continua sendo determinada por:
+
+```text
+Desired
+    =
+Observed
+```
+
+de acordo com as regras específicas do recurso.
+
+# 8. Destinatários e consumidores
 
 O modelo não define um destinatário fixo dentro da identidade da mensagem.
 
-Exemplo semântico:
+Exemplo:
 
 ```text
-manager.desired.underlay.node.node-01
+manager.desired.ipm.tenant.<id>.create
 ```
 
 Pode ser consumido por:
 
 ```text
-worker.platform
+observer
+audit
+console
+metrics
+reconciler
 ```
 
-e, em paralelo, por outro componente que precise acompanhar mudanças de `desired`.
+conforme o contrato e o interesse de cada consumidor.
 
-Isso permite que o produtor não conheça todos os consumidores e que novos consumidores sejam adicionados sem alterar o produtor.
+O produtor não deve precisar conhecer todos os consumidores.
 
-A autorização, entretanto, deve restringir quem pode publicar e consumir cada classe de mensagem.
+Novos consumidores podem ser adicionados sem alterar o produtor.
 
-# 8. Envelope da mensagem
+A autorização deve, entretanto, restringir quem pode publicar e consumir cada classe de mensagem.
+
+# 9. Envelope da mensagem
 
 Toda mensagem persistente deve possuir um envelope explícito.
 
-Estrutura mínima recomendada:
+Estrutura mínima:
 
 ```json
 {
   "messageId": "01J...",
   "schemaVersion": "1.0",
-  "semanticType": "desired",
+  "messageType": "desired",
   "emitter": "manager",
-  "scope": "underlay",
-  "resourceType": "node",
-  "resourceId": "node-01",
-  "desiredGeneration": 12,
+  "module": "ipm",
+  "resourceType": "tenant",
+  "resourceId": "01J...",
+  "operation": "create",
+  "desiredGeneration": 1,
   "correlationId": "01J...",
   "causationId": "01J...",
-  "occurredAt": "2026-10-03T22:00:00Z",
-  "publishedAt": "2026-10-03T22:00:01Z",
+  "occurredAt": "2026-10-04T00:00:00Z",
+  "publishedAt": "2026-10-04T00:00:01Z",
   "data": {}
 }
 ```
 
-## 8.1 Campos
+Para `observed`:
+
+```json
+{
+  "messageId": "01J...",
+  "schemaVersion": "1.0",
+  "messageType": "observed",
+  "emitter": "observer",
+  "module": "ipm",
+  "resourceType": "tenant",
+  "resourceId": "01J...",
+  "operation": "present",
+  "observedGeneration": 1,
+  "correlationId": "01J...",
+  "causationId": "01J...",
+  "occurredAt": "2026-10-04T00:00:10Z",
+  "publishedAt": "2026-10-04T00:00:11Z",
+  "observedAt": "2026-10-04T00:00:10Z",
+  "data": {}
+}
+```
+
+# 10. Campos do envelope
 
 | Campo | Obrigatório | Aplicação | Definição |
 |---|---:|---|---|
 | `messageId` | Sim | Todos | Identidade única da mensagem |
 | `schemaVersion` | Sim | Todos | Versão do contrato da mensagem |
-| `semanticType` | Sim | Todos | `desired` ou `observed` |
+| `messageType` | Sim | Todos | Tipo semântico da mensagem |
 | `emitter` | Sim | Todos | Emissor lógico |
-| `scope` | Sim | Todos | Escopo semântico |
-| `resourceType` | Sim | Todos | Tipo de recurso |
-| `resourceId` | Condicional | Recursos identificáveis | Identidade do recurso |
-| `desiredGeneration` | Sim para `desired`, quando aplicável | Desired | Geração do estado desejado |
-| `observedGeneration` | Condicional | Observed | Geração desejada efetivamente relacionada à observação |
+| `module` | Sim | Todos | Módulo funcional |
+| `resourceType` | Sim | Recursos | Tipo de recurso |
+| `resourceId` | Sim | Mensagens específicas de recurso | Identidade do recurso |
+| `operation` | Sim | Todos | Operação ou resultado semântico associado |
+| `desiredGeneration` | Condicional | `desired` | Geração do estado desejado |
+| `observedGeneration` | Condicional | `observed` | Geração desejada relacionada à observação |
 | `correlationId` | Recomendado | Fluxos correlacionados | Identificador do fluxo lógico |
 | `causationId` | Recomendado | Mensagens causadas por outra | `messageId` da causa |
-| `occurredAt` | Sim | Todos | Momento em que a intenção ou fato ocorreu |
-| `publishedAt` | Sim | Todos | Momento em que a mensagem foi publicada |
-| `observedAt` | Sim para `observed` | Observed | Momento da observação factual |
-| `data` | Sim | Todos | Conteúdo semântico específico do recurso |
+| `occurredAt` | Sim | Todos | Momento em que o fato ocorreu |
+| `publishedAt` | Sim | Todos | Momento em que foi publicada |
+| `observedAt` | Condicional | `observed` | Momento da observação |
+| `data` | Sim | Todos | Conteúdo específico do recurso |
 
-## 8.2 `schemaVersion`
+# 11. `schemaVersion`
 
-Versiona o contrato da mensagem.
+Versiona o contrato estrutural e semântico da mensagem.
 
 Não representa:
 
 - versão do recurso;
 - versão do estado desejado;
 - versão da aplicação;
-- versão do broker.
+- versão do broker;
+- `resourceVersion`.
 
-Mudanças incompatíveis exigem nova versão major ou mecanismo equivalente definido pela política de versionamento do projeto.
+Mudanças incompatíveis exigem estratégia explícita de versionamento.
 
-## 8.3 `desiredGeneration`
+# 12. `desiredGeneration`
 
 Representa a geração lógica do estado desejado.
 
@@ -396,62 +745,110 @@ Uma alteração material em `desired` incrementa a geração.
 Exemplo:
 
 ```text
-Desired generation 10
-       ↓
-Desired generation 11
-       ↓
-Desired generation 12
+desiredGeneration = 10
+        ↓
+desiredGeneration = 11
+        ↓
+desiredGeneration = 12
 ```
 
-A geração é propriedade do recurso/SSOT, não da camada de transporte.
+A geração é propriedade do recurso/SSOT, não do transporte.
 
-## 8.4 `observedGeneration`
+# 13. `observedGeneration`
 
-Representa qual geração desejada está relacionada à observação.
+Representa a geração desejada à qual a observação está relacionada.
 
-Não deve ser preenchido artificialmente apenas para eliminar uma condição de drift.
+Não deve ser preenchido artificialmente.
 
-## 8.5 `resourceVersion`
+Exemplo:
 
-Quando o domínio utilizar controle otimista de concorrência, `resourceVersion` pode ser incluído como metadado do recurso.
+```text
+desiredGeneration  = 12
+observedGeneration = 11
+```
 
-`resourceVersion` não substitui `desiredGeneration` ou `observedGeneration`.
+indica que a observação ainda está relacionada a uma geração anterior.
 
-## 8.6 `correlationId`
+Uma observação compatível com a geração atual pode indicar:
+
+```text
+desiredGeneration  = 12
+observedGeneration = 12
+```
+
+Isso, isoladamente, não garante convergência. As condições e demais regras do recurso também precisam ser consideradas.
+
+# 14. `resourceVersion`
+
+Quando o domínio utilizar controle otimista de concorrência, `resourceVersion` pode ser incluído no recurso ou no envelope conforme o contrato.
+
+`resourceVersion` é uma string opaca.
+
+Não deve ser interpretado como:
+
+- número sequencial;
+- timestamp;
+- geração;
+- ordenação global.
+
+Não substitui:
+
+```text
+desiredGeneration
+observedGeneration
+messageId
+```
+
+# 15. `correlationId`
 
 Relaciona mensagens pertencentes ao mesmo fluxo lógico.
 
 Exemplo:
 
-```mermaid
-graph TD
-    A[API request] --> B[desired]
-    B --> C[reconciliation]
-    C --> D[observed]
+```text
+api.requested
+       │
+       ├── manager.desired
+       │
+       ├── observer.observed
+       │
+       ├── reconciler.action
+       │
+       └── executor.completed
 ```
 
-Todas podem compartilhar o mesmo `correlationId`.
+Todas podem compartilhar:
 
-## 8.7 `causationId`
+```text
+correlationId = flow-001
+```
+
+`correlationId` não substitui `messageId`.
+
+# 16. `causationId`
 
 Identifica a mensagem que causou diretamente a produção da mensagem atual.
 
 Exemplo:
 
-```mermaid
-graph TD
-    A[message A] --> B[message B]
-    B --> C[message C]
+```text
+Message A
+    ↓
+Message B
+    ↓
+Message C
 ```
 
-Nesse caso:
+Então:
 
 ```text
 B.causationId = A.messageId
 C.causationId = B.messageId
 ```
 
-# 9. Conteúdo de `data`
+Isso permite reconstruir causalidade sem transformar a mensageria em um log de execução obrigatório.
+
+# 17. Conteúdo de `data`
 
 `data` pertence ao contrato do recurso.
 
@@ -467,9 +864,11 @@ O contrato do recurso deve definir:
 - limites;
 - regras de compatibilidade.
 
-JSON não deve ser tratado como ausência de schema. Um payload flexível continua precisando de contrato explícito.
+JSON não deve ser tratado como ausência de schema.
 
-# 10. Presença e ausência de recursos
+Um payload flexível continua precisando de contrato explícito.
+
+# 18. Presença e ausência de recursos
 
 Sistemas declarativos devem representar a ausência desejada sem transformar `delete` em um comando obrigatório do transporte.
 
@@ -477,9 +876,11 @@ Exemplo:
 
 ```json
 {
-  "semanticType": "desired",
-  "resourceType": "vm",
-  "resourceId": "vm-01",
+  "messageType": "desired",
+  "module": "ipm",
+  "resourceType": "tenant",
+  "resourceId": "tenant-01",
+  "operation": "delete",
   "desiredGeneration": 8,
   "data": {
     "lifecycle": "absent"
@@ -487,27 +888,33 @@ Exemplo:
 }
 ```
 
-O reconciler decide quais operações concretas são necessárias.
+O reconciler decide quais ações concretas são necessárias.
 
-Isso preserva a diferença entre:
-
-```text
-desired = absent
-```
-
-e:
+Da mesma forma, uma observação pode representar:
 
 ```text
-execute delete now
+observer.observed.ipm.tenant.<id>.absent
 ```
 
-# 11. Tenancy e contexto
+A diferença é:
 
-`organizationId`, `projectId` e outros dados de tenancy devem estar no contexto semântico do recurso ou em metadados explicitamente definidos pelo contrato.
+```text
+desired + delete
+```
 
-Não inserir tenancy arbitrariamente no endereço de roteamento.
+representa intenção.
 
-Por exemplo:
+```text
+observed + absent
+```
+
+representa realidade observada.
+
+# 19. Tenancy e contexto
+
+Dados de tenancy pertencem ao contexto semântico do recurso ou ao contrato específico do domínio.
+
+Exemplo:
 
 ```json
 {
@@ -518,96 +925,99 @@ Por exemplo:
 }
 ```
 
-Quando um mecanismo suportar autorização por sujeito, tenant ou namespace, essa capacidade pode ser utilizada no transporte sem contaminar o contrato semântico.
+Não inserir tenancy arbitrariamente no endereço de roteamento.
 
-# 12. Padrões de entrega
+Quando o transporte possuir mecanismos de autorização por tenant ou namespace, eles podem ser utilizados sem alterar a semântica da mensagem.
+
+# 20. Padrões de entrega
 
 A semântica da mensagem e o modelo de entrega são dimensões independentes.
 
-## 12.1 Work Distribution
+## 20.1 Work Distribution
 
 Uma mensagem deve ser processada por uma única instância lógica dentro de um grupo de consumidores concorrentes.
 
 Uso típico:
 
 ```text
-desired -> reconciliation worker
+desired → reconciliation
 ```
 
-Escalar significa adicionar instâncias ao mesmo grupo lógico de processamento.
+Escalar significa adicionar instâncias ao mesmo grupo lógico.
 
-## 12.2 Fanout
+## 20.2 Fanout
 
-A mesma mensagem deve ser disponibilizada para consumidores independentes.
+A mesma mensagem deve estar disponível para consumidores independentes.
 
 Uso típico:
 
 ```mermaid
 graph TD
     Observed[observed] --> Manager[manager]
-    Observed --> Billing[billing]
     Observed --> Audit[audit]
-    Observed --> Monitoring[monitoring]
+    Observed --> Console[console]
+    Observed --> Metrics[metrics]
 ```
 
 Cada consumidor mantém sua própria progressão.
 
-## 12.3 Request/Reply
+## 20.3 Request/Reply
 
-Pode ser utilizado quando a interação realmente exige solicitação e resposta síncrona ou semissíncrona.
+Pode ser utilizado quando a interação realmente exige solicitação e resposta.
 
 Não utilizar request/reply para substituir um fluxo que semanticamente é declarativo e assíncrono.
 
-# 13. Idempotência e deduplicação
+# 21. Idempotência e deduplicação
 
-A aplicação deve ser correta mesmo quando uma mensagem é entregue novamente.
+A aplicação deve permanecer correta quando uma mensagem for entregue novamente.
 
-A deduplicação pode ocorrer:
+A deduplicação pode utilizar:
 
-- pelo `messageId`;
-- por `resourceId + generation`;
-- por versão da observação;
-- por chave natural do domínio;
-- por constraint transacional no armazenamento.
+- `messageId`;
+- `resourceId + desiredGeneration`;
+- `resourceId + observedGeneration`;
+- chave natural do domínio;
+- constraint transacional;
+- combinação desses mecanismos.
 
-A estratégia deve ser escolhida pela semântica da operação.
+A estratégia deve ser definida pela semântica da operação.
 
-Não depender exclusivamente de deduplicação do broker.
+Não depender exclusivamente da deduplicação do broker.
 
-# 14. Ordenação
+# 22. Ordenação
 
-A ordenação deve ser definida somente quando houver requisito de negócio ou de consistência.
+A ordenação deve ser utilizada somente quando houver requisito de negócio ou consistência.
 
 Quando necessária, a unidade de ordenação deve ser explícita:
 
 ```text
 resourceId
 aggregateId
-partitionKey
+orderingKey
 ```
 
-O sistema não deve assumir ordenação global entre produtores independentes.
+Não assumir ordenação global entre produtores independentes.
 
-Um consumidor deve ser capaz de reconhecer uma mensagem antiga por geração, versão ou outro mecanismo explícito do domínio.
+O consumidor deve ser capaz de identificar uma mensagem antiga por:
 
-Regras típicas:
+- geração;
+- versão;
+- sequência específica do domínio;
+- outro mecanismo explícito.
 
-- ignorar `desiredGeneration` inferior à última geração consolidada;
-- não sobrescrever `observed` mais recente com observação comprovadamente antiga;
-- não usar apenas `publishedAt` como mecanismo de ordering lógico.
+Nunca utilizar apenas `publishedAt` como mecanismo de ordering lógico.
 
-# 15. Retry, quarentena e reprocessamento
+# 23. Retry, quarentena e replay
 
 Falhas transitórias devem permitir retry com backoff.
 
-Falhas permanentes ou mensagens poison devem poder ser encaminhadas a uma área de quarentena.
-
-A quarentena é diferente da perda da mensagem:
+Falhas permanentes ou mensagens poison devem poder ser encaminhadas para quarentena.
 
 ```mermaid
 graph TD
-    A[normal delivery] -->|failure| B[retry]
-    B -->|failure| C[quarantine]
+    A[Delivery] -->|failure| B[Retry]
+    B -->|success| C[Processing]
+    B -->|failure limit| D[Quarantine]
 ```
 
 Uma mensagem em quarentena deve preservar, quando possível:
@@ -617,46 +1027,76 @@ Uma mensagem em quarentena deve preservar, quando possível:
 - payload original;
 - número de tentativas;
 - motivo da quarentena;
-- timestamps relevantes;
+- timestamps;
 - identidade do consumidor;
 - identificação da falha.
 
 Replay deve ser explícito, controlado e auditável.
 
-# 16. Falha após a escrita externa
+# 24. Falha após a escrita externa
 
-Um caso crítico ocorre quando o worker altera o sistema externo e falha antes de publicar `observed`.
+Um caso crítico ocorre quando o Executor altera o sistema externo e falha antes de publicar `completed` ou antes de uma nova observação.
 
 Exemplo:
 
 ```mermaid
 sequenceDiagram
-    participant D as desired
-    participant W as worker
-    participant E as external system
-    
-    D->>W: 
-    W->>E: alteração concluída
-    Note over W: worker dies (X)
+    participant R as Reconciler
+    participant E as Executor
+    participant X as External System
+    R->>E: action.create
+    E->>X: create
+    X-->>E: success
+    Note over E: processo falha antes do próximo evento
 ```
 
-A mensagem `desired` deve poder ser reentregue.
+O `desired` original deve continuar podendo ser processado.
 
-O reconciler deve consultar o sistema externo e, ao identificar o estado correto, publicar `observed`.
+O Observer deve consultar o sistema externo.
 
-Isso é uma das razões pelas quais operações de reconciliação devem ser idempotentes.
+Se identificar que o recurso existe, deve publicar:
 
-# 17. Transação entre mensageria e banco
+```text
+observer.observed.ipm.tenant.<id>.present
+```
 
-Não assumir transação ACID distribuída entre banco de dados e broker, salvo quando a plataforma específica oferecer mecanismo confiável e isso for uma decisão explícita.
+Isso permite recuperar o estado sem depender da confirmação perdida.
 
-Quando houver necessidade de garantir publicação após uma alteração persistida, utilizar padrões como Outbox/Inbox ou mecanismo equivalente.
+Por esse motivo, a execução e a reconciliação devem ser idempotentes.
 
-A escolha deve considerar complexidade, custo operacional e necessidade real.
+# 25. Transação entre mensageria e banco
 
-Não adicionar uma outbox apenas por padrão arquitetural se o problema não existir.
+Não assumir transação ACID distribuída entre banco de dados e broker.
 
-# 18. Evolução de contratos
+Quando houver necessidade de garantir publicação após uma alteração persistida, utilizar:
+
+- Outbox;
+- Inbox;
+- ou mecanismo equivalente.
+
+No caso do Manager:
+
+```text
+persist Resource
+persist Outbox
+        ↓
+transaction commit
+        ↓
+publish Desired
+```
+
+A implementação deve evitar o estado:
+
+```text
+database = committed
+broker    = not published
+```
+
+sem mecanismo de recuperação.
+
+A adoção de Outbox deve considerar simplicidade e necessidade real, mas o risco de split-brain entre persistência e publicação deve ser tratado explicitamente.
+
+# 26. Evolução de contratos
 
 Mudanças de contrato devem preservar consumidores existentes quando compatível.
 
@@ -665,12 +1105,15 @@ Regras:
 - adicionar campos opcionais é preferível a alterar o significado de campos existentes;
 - nunca reutilizar um campo para outro significado;
 - mudanças incompatíveis devem possuir estratégia explícita de versionamento;
-- consumidores devem ignorar extensões que não compreendam, quando o formato permitir;
-- produtores devem evitar depender de consumidores conhecerem campos futuros.
+- consumidores devem ignorar extensões quando o formato permitir;
+- produtores não devem depender de consumidores conhecerem campos futuros;
+- `messageType` e `operation` devem possuir vocabulário controlado.
 
-# 19. Segurança
+Não utilizar `operation` para introduzir uma nova categoria semântica de mensagem.
 
-Mensagens devem conter apenas os dados necessários para o processamento.
+# 27. Segurança
+
+Mensagens devem conter apenas os dados necessários para processamento.
 
 Não transportar:
 
@@ -678,13 +1121,13 @@ Não transportar:
 - tokens secretos;
 - chaves privadas;
 - credenciais reutilizáveis;
-- dados sensíveis sem necessidade explícita.
+- secrets sem necessidade explícita.
 
 Segredos devem ser referenciados por identificadores seguros ou recuperados de um sistema especializado de secrets management.
 
 Autenticação, autorização, criptografia em trânsito e, quando aplicável, criptografia em repouso são responsabilidades complementares do transporte e da plataforma.
 
-# 20. Observabilidade
+# 28. Observabilidade
 
 A publicação e o consumo devem ser observáveis sem alterar a semântica da mensagem.
 
@@ -709,14 +1152,18 @@ messageId
 correlationId
 causationId
 emitter
+module
 resourceId
 resourceType
-semanticType
+messageType
+operation
 ```
 
-# 21. Regras de naming
+A identidade da instância do processo pode ser registrada separadamente.
 
-Nomes devem ser:
+# 29. Naming
+
+Os nomes devem ser:
 
 - explícitos;
 - estáveis;
@@ -732,7 +1179,7 @@ worker.storage
 worker.runner
 ```
 
-a nomes ambíguos como:
+a:
 
 ```text
 w1
@@ -742,11 +1189,41 @@ handler
 service
 ```
 
-A identificação da instância concreta do processo não deve substituir a identidade funcional do emissor.
+A identidade funcional do emissor não deve ser substituída pela identidade efêmera da instância.
 
-# 22. Anti-padrões
+Todos os tokens do subject devem utilizar lowercase.
 
-## 22.1 Proibido: tratar `desired` como comando
+Exemplo:
+
+```text
+api.requested.ipm.tenant.0199c8a4.create
+```
+
+e não:
+
+```text
+API.Requested.IPM.Tenant.0199c8a4.Create
+```
+
+# 30. Restrições do transporte
+
+O modelo semântico deve ser independente do broker.
+
+Entretanto, cada transporte pode impor restrições ao seu mapeamento.
+
+Na implementação NATS, por exemplo, `.` é utilizado para separar tokens de Subject.
+
+Portanto, um `resourceId` utilizado diretamente no Subject NATS não deve conter `.`.
+
+Essa é uma restrição da implementação NATS e não uma propriedade semântica do `resourceId`.
+
+Quando um identificador não puder respeitar as restrições do transporte, deve existir uma representação de transporte explicitamente definida.
+
+# 31. Anti-padrões
+
+## 31.1 Tratar `desired` como comando
+
+Evitar:
 
 ```text
 desired = execute create
@@ -754,7 +1231,7 @@ desired = execute create
 
 `desired` representa estado pretendido.
 
-## 22.2 Proibido: tratar ACK como convergência
+## 31.2 Tratar ACK como convergência
 
 ```text
 ACK transport
@@ -762,11 +1239,65 @@ ACK transport
 resource converged
 ```
 
-## 22.3 Proibido: depender de ordenação global
+## 31.3 Usar `validated` como mensagem sem necessidade
 
-## 22.4 Proibido: usar `messageId` como `resourceId`
+Validação interna não precisa gerar:
 
-## 22.5 Proibido: colocar detalhes do broker no contrato de domínio
+```text
+api.validated...
+```
+
+quando nenhum consumidor possuir interesse nesse fato.
+
+A validação pode ser simplesmente uma etapa interna do componente.
+
+## 31.4 Usar `write` como operação genérica
+
+Evitar:
+
+```text
+api.requested.ipm.tenant.<id>.write
+```
+
+Preferir:
+
+```text
+api.requested.ipm.tenant.<id>.create
+```
+
+ou:
+
+```text
+api.requested.ipm.tenant.<id>.update
+```
+
+A operação deve ser semanticamente precisa.
+
+## 31.5 Colocar destinatário no subject
+
+Evitar:
+
+```text
+manager-to-executor.action.ipm.tenant.<id>.create
+```
+
+Preferir:
+
+```text
+reconciler.action.ipm.tenant.<id>.create
+```
+
+O consumidor é determinado pela subscription.
+
+## 31.6 Depender de ordenação global
+
+A arquitetura não deve pressupor que mensagens de diferentes recursos ou emissores estejam globalmente ordenadas.
+
+## 31.7 Usar `messageId` como `resourceId`
+
+São identidades diferentes.
+
+## 31.8 Colocar detalhes do broker no contrato de domínio
 
 Exemplos:
 
@@ -774,125 +1305,301 @@ Exemplos:
 jetstreamConsumerName
 kafkaPartition
 rabbitRoutingKey
+natsStreamName
 ```
 
 não pertencem ao contrato semântico genérico.
 
-## 22.6 Proibido: colocar segredos no payload
+## 31.9 Colocar segredos no payload
 
-## 22.7 Proibido: criar um novo tipo semântico para cada ação
+Segredos devem permanecer em sistemas especializados.
 
-Evitar uma taxonomia como:
+## 31.10 Criar um novo `messageType` para cada operação
+
+Evitar:
 
 ```text
-create
-update
-delete
-reported
-completed
-failed
+tenant-created
+tenant-updated
+tenant-deleted
+tenant-reconciled
+tenant-create-failed
 ```
 
-quando esses fatos já puderem ser expressos por `desired`, `observed`, condições e dados do recurso.
-
-# 23. Exemplos completos
-
-## 23.1 Desired de um node
-
-Endereço lógico:
+quando o mesmo significado puder ser representado por:
 
 ```text
-manager.desired.underlay.node.node-01
+<messageType> + <operation>
+```
+
+Exemplos:
+
+```text
+executor.completed.ipm.tenant.<id>.create
+executor.failed.ipm.tenant.<id>.create
+manager.updated.ipm.tenant.<id>.changed
+```
+
+# 32. Exemplos completos
+
+## 32.1 API solicita criação de Tenant
+
+Subject:
+
+```text
+api.requested.ipm.tenant.0199c8a4.create
 ```
 
 Envelope:
 
 ```json
 {
-  "messageId": "msg-100",
+  "messageId": "0199c8b1-...",
   "schemaVersion": "1.0",
-  "semanticType": "desired",
+  "messageType": "requested",
+  "emitter": "api",
+  "module": "ipm",
+  "resourceType": "tenant",
+  "resourceId": "0199c8a4-...",
+  "operation": "create",
+  "correlationId": "0199c8b2-...",
+  "occurredAt": "2026-10-04T00:00:00Z",
+  "publishedAt": "2026-10-04T00:00:00Z",
+  "data": {
+    "resourceName": "acme",
+    "displayName": "ACME"
+  }
+}
+```
+
+## 32.2 Manager estabelece Desired
+
+Subject:
+
+```text
+manager.desired.ipm.tenant.0199c8a4.create
+```
+
+Envelope:
+
+```json
+{
+  "messageId": "0199c8c0-...",
+  "schemaVersion": "1.0",
+  "messageType": "desired",
   "emitter": "manager",
-  "scope": "underlay",
-  "resourceType": "node",
-  "resourceId": "node-01",
-  "desiredGeneration": 14,
-  "correlationId": "flow-100",
-  "occurredAt": "2026-10-03T22:00:00Z",
-  "publishedAt": "2026-10-03T22:00:01Z",
+  "module": "ipm",
+  "resourceType": "tenant",
+  "resourceId": "0199c8a4-...",
+  "operation": "create",
+  "desiredGeneration": 1,
+  "correlationId": "0199c8b2-...",
+  "causationId": "0199c8b1-...",
+  "occurredAt": "2026-10-04T00:00:01Z",
+  "publishedAt": "2026-10-04T00:00:01Z",
   "data": {
     "lifecycle": "present",
-    "cpuCount": 32,
-    "memoryBytes": 137438953472
+    "resourceName": "acme",
+    "displayName": "ACME"
   }
 }
 ```
 
-## 23.2 Observed de um node
+## 32.3 Observer identifica ausência
 
-Endereço lógico:
+Subject:
 
 ```text
-worker.platform.observed.underlay.node.node-01
+observer.observed.ipm.tenant.0199c8a4.absent
 ```
 
 Envelope:
 
 ```json
 {
-  "messageId": "msg-101",
+  "messageId": "0199c8d0-...",
   "schemaVersion": "1.0",
-  "semanticType": "observed",
-  "emitter": "worker.platform",
-  "scope": "underlay",
-  "resourceType": "node",
-  "resourceId": "node-01",
-  "observedGeneration": 14,
-  "correlationId": "flow-100",
-  "causationId": "msg-100",
-  "occurredAt": "2026-10-03T22:00:10Z",
-  "publishedAt": "2026-10-03T22:00:11Z",
-  "observedAt": "2026-10-03T22:00:10Z",
+  "messageType": "observed",
+  "emitter": "observer",
+  "module": "ipm",
+  "resourceType": "tenant",
+  "resourceId": "0199c8a4-...",
+  "operation": "absent",
+  "observedGeneration": 1,
+  "correlationId": "0199c8b2-...",
+  "causationId": "0199c8c0-...",
+  "occurredAt": "2026-10-04T00:00:02Z",
+  "publishedAt": "2026-10-04T00:00:02Z",
+  "observedAt": "2026-10-04T00:00:02Z",
   "data": {
-    "lifecycle": "present",
-    "cpuCount": 32,
-    "memoryBytes": 137438953472,
-    "ready": true
+    "exists": false,
+    "provider": "zitadel"
   }
 }
 ```
 
-# 24. Matriz semântica
+## 32.4 Reconciler determina criação
+
+Subject:
+
+```text
+reconciler.action.ipm.tenant.0199c8a4.create
+```
+
+Envelope:
+
+```json
+{
+  "messageId": "0199c8e0-...",
+  "schemaVersion": "1.0",
+  "messageType": "action",
+  "emitter": "reconciler",
+  "module": "ipm",
+  "resourceType": "tenant",
+  "resourceId": "0199c8a4-...",
+  "operation": "create",
+  "desiredGeneration": 1,
+  "correlationId": "0199c8b2-...",
+  "causationId": "0199c8d0-...",
+  "occurredAt": "2026-10-04T00:00:03Z",
+  "publishedAt": "2026-10-04T00:00:03Z",
+  "data": {
+    "reason": "organizationNotFound"
+  }
+}
+```
+
+## 32.5 Executor conclui criação
+
+Subject:
+
+```text
+executor.completed.ipm.tenant.0199c8a4.create
+```
+
+Envelope:
+
+```json
+{
+  "messageId": "0199c8f0-...",
+  "schemaVersion": "1.0",
+  "messageType": "completed",
+  "emitter": "executor",
+  "module": "ipm",
+  "resourceType": "tenant",
+  "resourceId": "0199c8a4-...",
+  "operation": "create",
+  "desiredGeneration": 1,
+  "correlationId": "0199c8b2-...",
+  "causationId": "0199c8e0-...",
+  "occurredAt": "2026-10-04T00:00:05Z",
+  "publishedAt": "2026-10-04T00:00:05Z",
+  "data": {
+    "provider": "zitadel",
+    "providerResourceType": "organization",
+    "providerResourceId": "zitadel-org-abc"
+  }
+}
+```
+
+## 32.6 Observer confirma existência
+
+Subject:
+
+```text
+observer.observed.ipm.tenant.0199c8a4.present
+```
+
+Envelope:
+
+```json
+{
+  "messageId": "0199c900-...",
+  "schemaVersion": "1.0",
+  "messageType": "observed",
+  "emitter": "observer",
+  "module": "ipm",
+  "resourceType": "tenant",
+  "resourceId": "0199c8a4-...",
+  "operation": "present",
+  "observedGeneration": 1,
+  "correlationId": "0199c8b2-...",
+  "occurredAt": "2026-10-04T00:00:06Z",
+  "publishedAt": "2026-10-04T00:00:06Z",
+  "observedAt": "2026-10-04T00:00:06Z",
+  "data": {
+    "exists": true,
+    "provider": "zitadel",
+    "providerResourceType": "organization",
+    "providerResourceId": "zitadel-org-abc"
+  }
+}
+```
+
+## 32.7 Manager publica alteração consolidada
+
+Subject:
+
+```text
+manager.updated.ipm.tenant.0199c8a4.changed
+```
+
+O Manager atualiza o SSOT e os consumidores podem construir suas próprias projeções.
+
+# 33. Matriz semântica
+
+| `messageType` | Significado | Emissor típico | Operação típica |
+|---|---|---|---|
+| `requested` | Solicitação aceita | API | `create`, `update`, `delete` |
+| `desired` | Estado pretendido | Manager | `create`, `update`, `delete` |
+| `observed` | Estado observado | Observer | `present`, `absent`, `changed` |
+| `action` | Decisão de reconciliação | Reconciler | `create`, `update`, `delete`, `noop` |
+| `completed` | Operação concluída | Executor | `create`, `update`, `delete` |
+| `updated` | Recurso alterado | Manager | `changed` |
+| `failed` | Operação/processamento falhou | Executor / componente | operação relacionada |
+
+A tabela representa o vocabulário inicial da plataforma.
+
+Novos tipos devem ser introduzidos somente quando representarem uma distinção semântica real.
+
+# 34. Matriz `desired` × `observed`
 
 | Dimensão | `desired` | `observed` |
 |---|---|---|
 | Significado | Estado pretendido | Estado observado |
 | Natureza | Declarativa | Factual |
-| Origem típica | Manager / controlador | Worker / adapter / observer |
+| Origem típica | Manager | Observer |
 | Pode ser republicada | Sim | Sim |
 | Deve ser idempotente | Sim | Sim |
-| Conclui operação | Não | Pode fornecer evidência de convergência |
+| Conclui operação | Não | Não diretamente |
+| Pode fornecer evidência de convergência | Sim, como alvo | Sim |
 | Geração típica | `desiredGeneration` | `observedGeneration` |
-| Consumo típico | Work distribution | Fanout |
-| Conteúdo | Estado alvo | Estado real |
+| Consumidores típicos | Reconciler / Workers | Manager / Reconciler / Consumers |
 
-# 25. Responsabilidades por camada
+# 35. Responsabilidades por camada
 
 | Camada | Responsabilidade |
 |---|---|
 | `MESSAGING.md` | Semântica e contrato lógico |
 | Contrato do recurso | Modelo de `data` e regras do domínio |
 | Aplicação | Publicação, consumo, reconciliação e idempotência |
-| Transporte | Entrega, persistência, retry e mecanismos de distribuição |
-| `NATS.md` | Implementação de transporte em NATS |
-| Infraestrutura | Topologia, recursos, certificados, storage e deployment |
+| Manager | SSOT, lifecycle e estabelecimento de `desired` |
+| Observer | Observação da realidade |
+| Reconciler | Comparação entre `desired` e `observed` e decisão da ação |
+| Executor | Execução de ações contra sistemas externos |
+| Transporte | Entrega, persistência, retry e distribuição |
+| `NATS.md` | Implementação do modelo em NATS |
+| Infraestrutura | Topologia, certificados, storage e deployment |
 
-# 26. Critérios de conformidade
+# 36. Critérios de conformidade
 
 Uma implementação está conforme quando:
 
 - diferencia explicitamente `desired` de `observed`;
 - identifica o emissor de forma estável;
+- utiliza `messageType` controlado;
+- separa `messageType` de `operation`;
+- utiliza o formato lógico de subject definido neste documento;
 - não exige destinatário no contrato semântico;
 - separa `messageId` de `resourceId`;
 - utiliza gerações quando o domínio exige versionamento declarativo;
@@ -901,12 +1608,34 @@ Uma implementação está conforme quando:
 - não trata ACK de transporte como convergência;
 - mantém contratos versionáveis;
 - não transporta segredos sem necessidade;
-- consegue mapear a semântica para mais de um mecanismo de mensageria.
+- permite mapear a semântica para mais de um mecanismo de mensageria.
 
-# 27. Fonte de verdade
+# 37. Fonte de verdade
 
-Este documento é a fonte de verdade para a **semântica de mensageria**.
+Este documento é a fonte de verdade para a **semântica de mensageria** da plataforma.
+
+A gramática oficial de endereçamento é:
+
+```text
+<emitter>.<messageType>.<module>.<resourceType>.<resourceId>.<operation>
+```
+
+O vocabulário inicial de `messageType` é:
+
+```text
+requested
+desired
+observed
+action
+completed
+updated
+failed
+```
+
+O vocabulário de `operation` é controlado pelo domínio e deve permanecer semanticamente preciso.
 
 Decisões específicas do NATS são definidas em `NATS.md`.
 
-Quando houver conflito entre a semântica definida aqui e uma limitação ou convenção específica do transporte, o transporte deve ser adaptado ou a decisão arquitetural deve ser registrada explicitamente. O broker não redefine o significado do domínio.
+Quando houver conflito entre a semântica definida aqui e uma limitação ou convenção específica do transporte, o transporte deve ser adaptado ou a decisão arquitetural deve ser registrada explicitamente.
+
+O broker não redefine o significado do domínio.
