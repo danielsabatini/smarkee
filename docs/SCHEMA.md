@@ -402,6 +402,8 @@ Exemplo agnóstico:
 }
 ```
 
+O exemplo é ilustrativo e agnóstico. Os campos do envelope são definidos em `MESSAGING.md`, incluindo os campos de decisão e rastreabilidade: `presence` (resultado da observação), `actionId` (identidade determinística da decisão) e `requestedBy` (solicitante). Este documento define as regras de evolução e validação do envelope, e não redefine a semântica desses campos.
+
 ### 9.2. Payload
 
 O payload contém o contrato específico do domínio.
