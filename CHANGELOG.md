@@ -15,6 +15,9 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Segurança: identidade e permissões por serviço (`<módulo>-<tipo>-<papel>`), escopadas por `<módulo>.<tipo>`; nenhum serviço de runtime possui purge ou administração de Stream (`docs/RESOURCE-CONTROL-SECURITY.md`).
 - Remoção de recursos: o último `desired` permanece como tombstone até limpeza por job administrativo, em vez de purge pelo Manager (`docs/NATS.md`).
 
+- Resource Control Loop: o `actionId` passa a incluir a observação que motivou a decisão (a correção de drift não é mais descartada como duplicata); o Executor consulta o desfecho do `actionId` em `RESULT` antes de executar; ordenação causal após `completed`/`failed` (`causationId` da observação); falhas contadas pelo Manager com suspensão da reconciliação no `desired`; observação periódica particionada por `resourceId`; condition `ObservationStale` (`docs/RESOURCE-CONTROL-LOOP.md`, `docs/MESSAGING.md`, `docs/NATS.md`).
+- Resource Control Loop: documento simplificado (de 2104 para cerca de 1700 linhas), com fluxos redundantes consolidados.
+
 ### Added
 - Especificação de mensageria assíncrona semântica e integração com NATS JetStream (`docs/MESSAGING.md`, `docs/NATS.md`).
 - Especificação de governança, versionamento e evolução de schemas de contratos (`docs/SCHEMA.md`).

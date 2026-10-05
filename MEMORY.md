@@ -15,5 +15,6 @@ Em conformidade com o `AGENTS.md` (Seção 35.1), este arquivo atua exclusivamen
 - Validar em ambiente real (não há broker para testar): configuração dos Streams e das ACLs de JetStream descritas em `docs/NATS.md`, e a população do `AUDIT` a partir de Streams `WorkQueue` (`REQUESTED`, `ACTION`).
 - Validar em ambiente real: `pinned_client` (versão mínima do servidor e comportamento com `max_ack_pending=1`), `inactive_threshold`, Direct Get em `DESIRED` e os Subjects exatos de ACL (criação de consumer com filtro, `MSG.NEXT`, ACK, Direct Get).
 - Definir o job de limpeza de tombstones e a identidade administrativa (infraestrutura).
+- Contratos a formalizar quando houver schemas: campo de suspensão da reconciliação no `desired` e prazos de domínio (validade de `observed`, prazo de `action`, limite de falhas).
 - Registrar as primeiras ADRs em `.decisions/` (ex.: NATS JetStream, modelo desired/observed).
 - Auditar a consistência entre os quatro documentos de `docs/` e entre eles e `.opencode/`.
