@@ -16,7 +16,8 @@ Adotamos a metodologia **Now, Next, Later** para o planejamento. Em vez de datas
 ### 🟢 Now (Em Andamento / Curto Prazo)
 O que está sendo trabalhado ativamente neste momento.
 - [ ] **`[In Design]` Contratos e Mensageria:** Modelagem semântica da troca assíncrona de mensagens e dos schemas de contrato (`docs/MESSAGING.md`, `docs/NATS.md` e `docs/SCHEMA.md`).
-- [ ] **`[In Design]` Resource Control Loop:** Modelo de reconciliação entre `desired` e `observed` e persistência no SSOT, e sua segurança (`docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`).
+- [ ] **`[In Design]` Resource Control Loop:** Modelo de reconciliação entre `desired` e `observed` e sua segurança (`docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`).
+- [ ] **`[In Design]` SSOT e Persistência:** Modelo e garantias de gravação do SSOT e sua implementação de referência em PostgreSQL com `jsonb` (`docs/SSOT.md` e `docs/POSTGRESQL.md`).
 
 ### 🟡 Next (Próximos Passos / Médio Prazo)
 O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.

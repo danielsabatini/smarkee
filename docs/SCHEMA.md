@@ -590,7 +590,7 @@ Modelos de código, validadores, documentação de API e migrations derivados de
 3. o artefato é regenerado;
 4. a CI regenera e compara: qualquer diferença entre o artefato versionado e o gerado falha a pipeline.
 
-A estrutura de persistência (por exemplo, tabelas do SSOT) é uma representação mapeada do contrato e não é o contrato. Os testes de contrato verificam que o mapeamento preserva a semântica.
+A estrutura de persistência (por exemplo, tabelas do SSOT) é uma representação mapeada do contrato e não é o contrato. Os testes de contrato verificam que o mapeamento preserva a semântica. O modelo lógico e o dicionário de dados do SSOT estão em `SSOT.md`.
 
 # 23. Exemplos
 
@@ -783,5 +783,6 @@ A governança de schemas é considerada adequada quando:
 - [MESSAGING.md](MESSAGING.md): semântica de mensageria e campos do envelope.
 - [RESOURCE-CONTROL-LOOP.md](RESOURCE-CONTROL-LOOP.md): padrão de convergência que consome estes contratos.
 - [RESOURCE-CONTROL-SECURITY.md](RESOURCE-CONTROL-SECURITY.md): segurança do control loop.
+- [SSOT.md](SSOT.md): modelo e garantias de gravação do SSOT.
 - [NATS.md](NATS.md): implementação do transporte.
 - `schemas/`: fonte de verdade dos contratos formais individuais.

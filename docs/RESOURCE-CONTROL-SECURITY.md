@@ -99,7 +99,7 @@ Fronteiras:
 
 - cliente → API: autenticação e autorização do solicitante;
 - componentes → mensageria: autenticação e autorização por subject;
-- Manager → SSOT: único componente do loop com escrita no SSOT;
+- Manager → SSOT: único componente do loop com escrita no SSOT. Cada serviço acessa o SSOT com papel próprio e privilégios mínimos por tipo de recurso (`SSOT.md` e `POSTGRESQL.md`);
 - Observer → provider: somente leitura;
 - Executor → provider: única identidade com escrita;
 - serviço → serviço de outro tipo: nenhuma permissão. Cada serviço atua somente sobre o seu `<módulo>.<tipo>`.
@@ -147,6 +147,8 @@ Existe uma **identidade administrativa separada**, usada somente por infraestrut
 - limpeza periódica de tombstones em `DESIRED` (job agendado).
 
 Ao remover um recurso, o Manager publica o `desired` final (`lifecycle=absent`) e, após a convergência, remove o recurso do SSOT. A mensagem permanece como tombstone até a limpeza (`NATS.md`).
+
+Além dela, existem duas identidades de infraestrutura para o SSOT: o **relay** do outbox (lê as mensagens pendentes e marca a publicação, e publica no emissor `manager`) e a **manutenção** (remove registros expirados de outbox, inbox e operações). Nenhuma delas executa regra de negócio, e seus privilégios estão em `POSTGRESQL.md`.
 
 A identidade administrativa não é utilizada por serviços do loop, suas credenciais são fornecidas por secrets management e o seu uso deve ser auditado.
 
@@ -212,7 +214,8 @@ Regras:
 - o escopo da credencial do Executor se limita aos recursos e às operações necessários;
 - a credencial é rotacionável sem alteração de código;
 - `desired`, `action` e demais mensagens transportam **referências** a segredos, nunca o segredo (`MESSAGING.md` e `SCHEMA.md`);
-- logs e mensagens de erro não expõem credenciais nem dados sensíveis do provider.
+- logs e mensagens de erro não expõem credenciais nem dados sensíveis do provider;
+- as credenciais de acesso ao SSOT são por serviço, fornecidas por gestão de segredos, e nenhum serviço de runtime possui privilégio de alterar a estrutura do SSOT (`SSOT.md`).
 
 # 10. Identidade do solicitante e auditoria
 

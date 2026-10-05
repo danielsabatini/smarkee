@@ -1144,6 +1144,8 @@ sem mecanismo de recuperação.
 
 A adoção de Outbox deve considerar simplicidade e necessidade real, mas o risco de split-brain entre persistência e publicação deve ser tratado explicitamente.
 
+As garantias de gravação do Manager (unidade atômica por mensagem, outbox ordenado por recurso e idempotência de entrada) estão definidas em `SSOT.md`.
+
 # 26. Evolução de contratos
 
 Mudanças de contrato devem preservar consumidores existentes quando compatível.

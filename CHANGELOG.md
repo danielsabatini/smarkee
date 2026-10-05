@@ -23,6 +23,8 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Vocabulários distintos: `lifecycle` (intenção em `desired`), `presence` (resultado em `observed`) e `phase` (fase consolidada do recurso); novo campo de controle `reconciliation` (`active`/`suspended`) em `desired`.
 
 ### Added
+- Especificação do SSOT: modelo lógico, dicionário de dados, invariantes, unidade atômica de gravação por mensagem, concorrência otimista, idempotência semântica, outbox com ordem por recurso, segurança, evolução e recuperação, agnóstica de tecnologia de armazenamento (`docs/SSOT.md`).
+- Implementação de referência do SSOT em PostgreSQL com `jsonb`: mapeamento, DDL de referência exercitado em contêiner descartável, concorrência otimista, relay do outbox de instância única (sem `SKIP LOCKED`), privilégios por serviço, migrações, retenção, PITR e verificações (`docs/POSTGRESQL.md`).
 - Especificação de mensageria assíncrona semântica e integração com NATS JetStream (`docs/MESSAGING.md`, `docs/NATS.md`).
 - Especificação de governança, versionamento e evolução de schemas de contratos (`docs/SCHEMA.md`).
 - Especificação do padrão Resource Control Loop para gerenciamento declarativo e convergente de recursos (`docs/RESOURCE-CONTROL-LOOP.md`).

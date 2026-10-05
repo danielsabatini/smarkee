@@ -18,7 +18,7 @@ O padrão define como a plataforma:
 
 O padrão é independente da tecnologia utilizada para implementar a mensageria, persistência ou integração com sistemas externos.
 
-Na implementação atual, NATS JetStream é utilizado como mecanismo de mensageria e PostgreSQL como SSOT, mas esses componentes são detalhes de implementação.
+Na implementação atual, NATS JetStream é utilizado como mecanismo de mensageria e PostgreSQL como SSOT, mas esses componentes são detalhes de implementação. O modelo e as garantias de gravação do SSOT estão em `SSOT.md`, e a implementação em PostgreSQL está em `POSTGRESQL.md`.
 
 O Resource Control Loop é baseado no princípio:
 
@@ -582,7 +582,7 @@ Requisitos:
 
 - a API aceita uma chave de idempotência no `POST`: a repetição do mesmo pedido não cria outro recurso nem outro `desired`;
 - atualizações devem informar a versão do recurso (`resourceVersion`, ver `MESSAGING.md`); uma versão desatualizada é rejeitada, e a atualização não sobrescreve silenciosamente outra concorrente;
-- o Manager persiste o recurso e registra a publicação de `desired` na mesma transação (outbox, ver `MESSAGING.md`), evitando o estado `persistido, mas não publicado`.
+- o Manager persiste o recurso e registra a publicação de `desired` na mesma transação (outbox, ver `SSOT.md` e `MESSAGING.md`), evitando o estado `persistido, mas não publicado`. A idempotência de entrada do Manager é semântica (chave de idempotência, monotonia de `observedAt` e `actionId`), e não depende de lembrar mensagens já vistas (`SSOT.md`).
 
 # 9. Fase 2 — Desired
 
