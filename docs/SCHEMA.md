@@ -1,20 +1,18 @@
 # Especificação de Schemas
 
-> **Escopo:** governança, organização, modelagem, versionamento, compatibilidade e validação dos schemas do projeto.
+> **Escopo:** governança, organização, modelagem, versionamento, compatibilidade, segurança e validação dos schemas do projeto.
 >
 > **Papel:** Fonte de Verdade das regras de schemas.
 >
-> **Responsabilidade:** Definir como schemas são concebidos, identificados, organizados, versionados, validados e consumidos, de forma independente da linguagem de programação, formato de serialização, broker de mensageria, banco de dados ou provedor de infraestrutura.
+> **Responsabilidade:** Definir como schemas são concebidos, identificados, organizados, versionados, protegidos, validados e consumidos, de forma independente de produto, domínio, linguagem de programação, formato de serialização, broker de mensageria, banco de dados ou provedor de infraestrutura.
 
-## 1. Introdução
+# 1. Introdução
 
 Schemas são contratos formais que definem a estrutura, os tipos, as restrições e a semântica estrutural dos dados intercambiados entre componentes do sistema.
 
-Este documento estabelece as regras gerais para criação e evolução dos schemas. A especificação é agnóstica quanto ao mecanismo utilizado para representar o contrato.
+Este documento estabelece as regras gerais para criação, proteção e evolução dos schemas. Ele não define contratos de nenhum produto ou domínio específico: cada contrato pertence ao seu domínio e vive em `schemas/`.
 
-Exemplos de formatos possíveis incluem JSON Schema, Protobuf, Avro, OpenAPI Schema e outros. O formato utilizado é uma decisão de implementação do contrato e não altera as regras semânticas definidas neste documento.
-
-A arquitetura separa claramente quatro responsabilidades:
+A arquitetura separa quatro responsabilidades:
 
 ```text
 MESSAGING.md
@@ -23,68 +21,44 @@ define a semântica da mensagem
 
 SCHEMA.md
     ↓
-define as regras para criação e evolução dos schemas
+define as regras para criação, proteção e evolução dos schemas
 
 schemas/
     ↓
 define o contrato formal de cada recurso/mensagem
 
-components / features
+implementações
     ↓
-implementam e consomem os contratos
-
-NATS.md
-    ↓
-define o transporte da mensageria por NATS
+produzem e consomem os contratos
 ```
 
-## 2. Objetivo
+O transporte e a segurança do control loop são definidos em documentos próprios (ver a seção de referências).
 
-Os objetivos deste documento são:
+# 2. Objetivo
 
 - estabelecer uma regra única e explícita para schemas;
 - evitar contratos implícitos espalhados pelo código;
 - garantir consistência entre componentes e domínios;
 - permitir validação automática dos contratos;
-- controlar evolução e compatibilidade;
-- reduzir acoplamento entre schema, linguagem, transporte e infraestrutura;
-- preservar simplicidade, robustez e resiliência durante a evolução dos contratos.
+- controlar evolução e compatibilidade, inclusive de mensagens retidas;
+- proteger as fronteiras de confiança por meio dos contratos;
+- reduzir acoplamento entre schema, produto, linguagem, transporte e infraestrutura.
 
-## 3. Fonte de Verdade e Precedência
+# 3. Fonte de Verdade e Precedência
 
 Existem dois níveis distintos de fonte de verdade.
 
-### 3.1. SCHEMA.md
+## 3.1 `SCHEMA.md`
 
-`docs/SCHEMA.md` é a fonte de verdade para **as regras de governança e modelagem de schemas**.
+É a fonte de verdade para **as regras de governança, modelagem, segurança e evolução de schemas**.
 
-Define, entre outros aspectos:
-
-- organização dos schemas;
-- convenções de nomenclatura;
-- estrutura mínima;
-- versionamento;
-- compatibilidade;
-- regras de evolução;
-- validação;
-- referências entre schemas;
-- política para campos opcionais, obrigatórios e desconhecidos.
-
-### 3.2. Arquivo do schema
+## 3.2 Arquivo do schema
 
 Cada arquivo localizado em `schemas/` é a fonte de verdade para **o contrato formal daquele schema específico**.
 
-Exemplo:
+Nenhum documento de implementação, código, migration, configuração de broker ou exemplo pode redefinir silenciosamente esse contrato.
 
-```text
-schemas/ipm/agent/desired.schema.json
-```
-
-é a fonte de verdade do contrato formal de `Agent Desired`.
-
-Nenhum documento de implementação, código Python, migration, configuração de broker ou exemplo pode redefinir silenciosamente esse contrato.
-
-### 3.3. Precedência
+## 3.3 Precedência
 
 Quando houver conflito:
 
@@ -98,190 +72,138 @@ schemas/<contract>
 implementação
 ```
 
-`MESSAGING.md` continua sendo a fonte de verdade para a **semântica de mensageria**. `SCHEMA.md` não redefine essa semântica; define como ela é representada formalmente em schemas.
+`MESSAGING.md` continua sendo a fonte de verdade para a **semântica de mensageria**, inclusive para a definição dos campos do envelope. `SCHEMA.md` não redefine essa semântica: define como ela é representada formalmente, protegida e evoluída em schemas.
 
-## 4. Princípios
+# 4. Princípios
 
-### 4.1. Explícito é melhor que implícito
+- **Explícito é melhor que implícito.** Todo contrato relevante é expresso explicitamente, sem depender de coerção automática, comportamento do parser ou convenção não documentada.
+- **Semântica antes da representação.** Primeiro define-se o significado do dado, depois o contrato e só então a representação.
+- **Um contrato, uma responsabilidade.** Evitar schemas genéricos que agregam conceitos sem relação.
+- **Compatibilidade explícita.** Toda evolução considera produtores e consumidores.
+- **Simplicidade.** Não adicionar campos, abstrações, referências ou camadas de versionamento sem necessidade real.
+- **Segurança por padrão.** O contrato é uma fronteira de segurança: restringe, limita e classifica.
 
-Todo contrato relevante deve ser expresso explicitamente.
+# 5. Agnosticismo
 
-Evitar depender de convenções não documentadas, comportamento do parser, coerção automática ou conhecimento implícito no código.
+## 5.1 Produto e domínio
 
-### 4.2. Semântica antes da representação
+Este documento e as regras que ele define não mencionam nem dependem de produto, módulo ou recurso específico. Exemplos usam nomes neutros (`sample`, `item`).
 
-Primeiro define-se o significado do dado. Depois escolhe-se como representá-lo no schema.
+Contratos de um produto vivem no domínio desse produto, dentro de `schemas/`. Um schema só entra em `common/` quando houver reutilização real entre domínios.
 
-```text
-Conceito de domínio
-    ↓
-Semântica
-    ↓
-Contrato
-    ↓
-Representação do schema
-```
+## 5.2 Tecnologia
 
-### 4.3. Um contrato, uma responsabilidade
+O contrato não deve depender de linguagem, framework, banco de dados, broker, orquestrador de contêineres, provedor de nuvem ou implementação interna de um componente.
 
-Um schema deve representar um contrato coeso.
+## 5.3 Formato
 
-Evitar schemas genéricos que agregam conceitos sem relação apenas para reduzir a quantidade de arquivos.
+O formato de representação (por exemplo, JSON Schema, Protobuf, Avro, OpenAPI Schema) é uma decisão de implementação do contrato e não altera as regras semânticas deste documento.
 
-### 4.4. Independência tecnológica
+O arquivo de um schema é nomeado `<contrato>.v<MAJOR>.schema.<ext>`, em que `<ext>` depende do formato adotado. Quando o projeto escolher o formato, a escolha deve ser registrada como decisão em `.decisions/`.
 
-O contrato não deve depender de:
+Os exemplos deste documento usam JSON apenas para ilustrar.
 
-- Python ou outra linguagem;
-- framework;
-- banco de dados;
-- NATS ou outro broker;
-- Kubernetes;
-- cloud provider;
-- implementação interna de um componente.
+# 6. Organização dos Schemas
 
-### 4.5. Compatibilidade explícita
-
-A evolução de um schema deve considerar explicitamente compatibilidade para produtores e consumidores.
-
-### 4.6. Simplicidade
-
-Não adicionar campos, abstrações, referências ou camadas de versionamento sem necessidade real.
-
-### 4.7. Segurança por padrão
-
-Schemas não devem expor segredos, credenciais ou material criptográfico. Dados sensíveis devem possuir classificação e tratamento apropriados.
-
-## 5. Organização dos Schemas
-
-Os schemas devem ficar no diretório raiz:
-
-```text
-schemas/
-```
-
-A organização deve refletir o domínio funcional e não a tecnologia usada para transportar ou processar o contrato.
-
-Estrutura recomendada:
+Os schemas ficam no diretório raiz `schemas/`. A organização reflete o domínio funcional, e não a tecnologia usada para transportar ou processar o contrato.
 
 ```text
 schemas/
 ├── common/
-│   ├── message-envelope.schema.json
-│   ├── condition.schema.json
-│   └── metadata.schema.json
-└── ipm/
-    ├── agent/
-    │   ├── desired.schema.json
-    │   └── observed.schema.json
-    ├── runner/
-    │   ├── desired.schema.json
-    │   └── observed.schema.json
-    └── tool/
-        ├── desired.schema.json
-        └── observed.schema.json
+│   ├── message-envelope.v1.schema.<ext>
+│   ├── condition.v1.schema.<ext>
+│   └── ...
+└── <domain>/
+    └── <resource>/
+        ├── desired.v1.schema.<ext>
+        ├── desired.example.json
+        ├── observed.v1.schema.<ext>
+        └── observed.example.json
 ```
 
-### 5.1. `common/`
+## 6.1 `common/`
 
-Contém contratos verdadeiramente compartilhados por múltiplos domínios.
+Contém contratos verdadeiramente compartilhados por múltiplos domínios, por exemplo: envelope, condition, metadata e referência a recurso. Não criar abstrações comuns antecipadamente.
 
-Exemplos:
+## 6.2 Domínios
 
-```text
-message-envelope
-metadata
-condition
-resource-reference
-```
+Schemas específicos ficam sob o domínio que possui sua semântica. Um schema não deve ser movido para `common/` apenas porque outro componente também o consome.
 
-Um schema somente deve entrar em `common/` quando houver reutilização real e semântica comum.
+# 7. Família de Contratos
 
-Não criar abstrações comuns antecipadamente.
+Os contratos são classificados semanticamente, não tecnologicamente. Para sistemas declarativos, cada recurso possui uma família de contratos, correspondente aos tipos de mensagem de `MESSAGING.md`:
 
-### 5.2. Domínios
+| Contrato | Localização | Conteúdo |
+|---|---|---|
+| Envelope | `common/` | Campos do envelope definidos em `MESSAGING.md` |
+| `requested` | Domínio do recurso | Intenção do cliente |
+| `desired` | Domínio do recurso | Estado pretendido e controle de reconciliação |
+| `observed` | Domínio do recurso | Estado lido do sistema externo |
+| `action` | `common/` | Decisão de reconciliação (motivo) |
+| `completed` e `failed` | `common/` | Resultado da operação, referência externa e causa da falha |
+| `updated` | `common/` | Resumo da alteração consolidada |
+| Resource (visão consolidada) | Domínio do recurso | `phase`, `conditions`, `desired` e `observed` expostos pela API |
+| Condition | `common/` | Fato consolidado do recurso |
 
-Schemas específicos devem ficar sob o domínio que possui sua semântica.
+A existência de um contrato não implica que ele deva ser usado: cada recurso define os que precisa. Esta lista é a família esperada e deve ser formalizada em `schemas/` quando os recursos forem modelados.
 
-Exemplo:
+## 7.1 `desired`
 
-```text
-schemas/ipm/agent/
-```
+Representa o estado pretendido de um recurso. Não deve ser tratado como confirmação de execução.
 
-não deve ser movido para `common/` apenas porque outro componente também consome `Agent`.
+Os contratos `desired` de recursos declarativos possuem estes campos de controle:
 
-## 6. Tipos de Schema
+| Campo | Valores | Significado |
+|---|---|---|
+| `lifecycle` | `present`, `absent` | Intenção de existência. A remoção é declarada, e não um comando |
+| `reconciliation` | `active`, `suspended` | Quando `suspended`, o Reconciler não decide. Padrão: `active` |
 
-O projeto pode possuir diferentes tipos de contrato. A classificação deve ser semântica, não tecnológica.
-
-Tipos comuns incluem:
-
-```text
-Resource
-Command / Intent
-Desired
-Observed
-Event / Fact
-Request
-Response
-Configuration
-```
-
-A existência de um tipo específico não implica que ele deva ser usado. O contrato deve ser escolhido conforme a necessidade real.
-
-Para sistemas declarativos, os principais contratos são:
-
-```text
-Desired
-Observed
-```
-
-### 6.1. Desired
-
-Representa o estado pretendido de um recurso.
-
-Não deve ser tratado como confirmação de execução.
-
-Exemplo conceitual:
+Exemplo conceitual do conteúdo (`data`):
 
 ```json
 {
-  "resourceId": "01JABCDEF...",
-  "desiredGeneration": 4,
-  "lifecycle": "active",
+  "lifecycle": "present",
+  "reconciliation": "active",
   "configuration": {
     "replicas": 3
   }
 }
 ```
 
-### 6.2. Observed
+`desiredGeneration` e `resourceVersion` são campos do envelope e do recurso, definidos em `MESSAGING.md`.
 
-Representa o estado efetivamente observado de um recurso externo ou operacional.
+## 7.2 `observed`
 
-Exemplo conceitual:
+Representa o estado efetivamente observado de um recurso externo ou operacional. O resultado da observação (`presence`: `present`, `absent` ou `unknown`) e o momento (`observedAt`) são campos do envelope.
+
+Exemplo conceitual do conteúdo (`data`):
 
 ```json
 {
-  "resourceId": "01JABCDEF...",
-  "observedGeneration": 4,
-  "lifecycle": "active",
   "runtime": {
     "replicas": 3
-  }
+  },
+  "externalResourceId": "ext-0001"
 }
 ```
 
-`Desired` e `Observed` não devem ser usados como sinônimos de transporte ou resultado de uma chamada.
+`desired` e `observed` não devem ser usados como sinônimos de transporte ou de resultado de uma chamada.
 
-## 7. Identidade e Nomenclatura
+## 7.3 Vocabulários distintos
 
-Os schemas devem aplicar nomenclatura explícita e estável.
+Conceitos diferentes usam campos diferentes e valores diferentes:
 
-Evitar nomes genéricos quando existir uma definição mais precisa.
+| Conceito | Campo | Valores |
+|---|---|---|
+| Intenção de existência | `lifecycle` (em `desired`) | `present`, `absent` |
+| Resultado da observação | `presence` (no envelope de `observed`) | `present`, `absent`, `unknown` |
+| Fase consolidada do recurso | `phase` (na visão consolidada) | Definida pelo padrão do control loop (`RESOURCE-CONTROL-LOOP.md`) |
 
-Preferir:
+Não reutilizar um desses campos para outro significado.
+
+# 8. Identidade e Nomenclatura
+
+Os schemas aplicam nomenclatura explícita e estável. Preferir:
 
 ```text
 resourceId
@@ -299,170 +221,120 @@ causationId
 messageId
 ```
 
-Evitar:
+Evitar `id`, `type`, `status`, `version`, `generation` e `timestamp` quando o contexto não tornar o significado inequívoco.
 
-```text
-id
-type
-status
-version
-generation
-timestamp
-```
+## 8.1 Identificador do recurso
 
-quando o contexto não tornar o significado inequívoco.
+`resourceId` representa a identidade estável do recurso. Deve ser opaco e independente do nome legível.
 
-### 7.1. Identificador do recurso
-
-`resourceId` representa a identidade estável do recurso.
-
-Quando apropriado, deve ser opaco e independente do nome legível do recurso.
-
-Exemplo:
+O padrão de caracteres de `resourceId` é definido **uma única vez**, em `common/`, e deve ser compatível com todos os transportes suportados: letras minúsculas, dígitos e hífen, sem ponto, asterisco, sinal de maior, espaço ou outro separador, com comprimento máximo definido. Um valor fora do padrão é rejeitado, e não normalizado.
 
 ```json
 {
   "resourceId": "550e8400-e29b-41d4-a716-446655440000",
-  "resourceName": "agent-production"
+  "resourceName": "sample-item"
 }
 ```
 
-O nome pode mudar sem necessariamente alterar a identidade.
+O nome pode mudar sem alterar a identidade.
 
-### 7.2. Identificadores externos
+## 8.2 Identificadores externos
 
-Identificadores fornecidos por sistemas externos não devem contaminar o contrato genérico com nomes específicos de fornecedores.
+Identificadores fornecidos por sistemas externos não devem contaminar o contrato genérico com nomes de fornecedores. Preferir `externalResourceId`, `providerReference` e `externalReference`, e não nomes como `vendorXId`.
 
-Preferir:
+# 9. Estrutura e Anotações de Contrato
 
-```text
-externalResourceId
-providerReference
-externalReference
-```
+Um schema separa claramente identidade, metadados, semântica do recurso, estado desejado ou observado, referências e campos de domínio.
 
-em vez de:
+## 9.1 Anotações de campo
 
-```text
-zitadelId
-awsResourceId
-azureResourceId
-providerXId
-```
+Além de tipo e restrições, cada campo de um contrato declarativo pode ser anotado. As anotações são **abstratas**: a forma de expressá-las depende do formato adotado (por exemplo, palavras-chave de extensão).
 
-quando o contrato precisa permanecer agnóstico.
+| Anotação | Valores | Significado |
+|---|---|---|
+| `writer` | `client`, `server` | Quem pode preencher o campo. Campos `server` são atribuídos pelo componente de borda; um valor enviado pelo cliente é rejeitado |
+| `mutability` | `immutable`, `mutable` | Se o campo pode ser alterado após a criação |
+| `managed` | `true`, `false` | Se participa da comparação entre `desired` e `observed` |
+| `normalization` | nome da regra | Regra aplicada antes da comparação (por exemplo, caixa, ordenação, remoção de espaços) |
+| `providerDefault` | `true`, `false` | Se o provider pode preenchê-lo quando ausente em `desired`; nesse caso, o valor observado não é drift |
+| `sensitivity` | ver segurança dos contratos | Classificação do dado |
+| `enumPolicy` | `closed`, `open` | Política de evolução de um enum (ver evolução) |
 
-## 8. Estrutura de Contrato
+A comparação entre `desired` e `observed` (`RESOURCE-CONTROL-LOOP.md`) usa exclusivamente as anotações `managed`, `normalization` e `providerDefault`. Campos não anotados como gerenciados não geram drift.
 
-Um schema deve separar claramente:
+## 9.2 Parâmetros do recurso
 
-```text
-Identidade
-Metadados
-Semântica do recurso
-Estado desejado/observado
-Referências
-Campos de domínio
-```
+O contrato de um recurso declarativo define os parâmetros de domínio usados pelo control loop. Eles pertencem ao contrato, e não a cada mensagem:
 
-Para recursos declarativos, uma estrutura conceitual recomendada é:
+| Parâmetro | Usado por | Significado |
+|---|---|---|
+| `observationInterval` | Observer | Período da observação periódica |
+| `observationValidity` | Reconciler | Idade máxima de um `observed` para decidir (mais estrita para ações destrutivas) |
+| `actionDeadline` | Reconciler | Prazo após o qual uma `action` pendente pode ser reemitida |
+| `failureLimit` | Manager | Quantidade de falhas por geração antes de marcar o recurso como `Failed` |
 
-```text
-Resource
-├── resourceId
-├── metadata
-├── desired
-└── observed
-```
-
-A implementação exata depende do domínio. Não é obrigatório representar essa árvore literalmente.
-
-## 9. Envelope e Payload
+# 10. Envelope e Payload
 
 O envelope de mensagem e o payload de domínio são conceitos distintos.
 
-### 9.1. Envelope
+## 10.1 Envelope
 
-O envelope contém metadados necessários ao transporte e rastreamento lógico da mensagem.
+O envelope contém os metadados necessários ao transporte e ao rastreamento lógico. **Os campos são definidos em `MESSAGING.md`**; este documento define como o contrato do envelope é versionado, validado e protegido.
 
-Exemplo agnóstico:
+Exemplo, alinhado a `MESSAGING.md`, com nomes neutros:
 
 ```json
 {
-  "messageId": "01JABC...",
-  "messageType": "agent.observed",
+  "messageId": "01J...",
   "schemaVersion": "1.0",
-  "producer": "worker.runner",
-  "resourceId": "01JXYZ...",
-  "correlationId": "01JCORR...",
-  "causationId": "01JCAUSE...",
-  "orderingKey": "agent:01JXYZ...",
-  "createdAt": "2026-10-04T14:00:00Z",
-  "payload": {}
+  "messageType": "desired",
+  "emitter": "manager",
+  "module": "sample",
+  "resourceType": "item",
+  "resourceId": "01J...",
+  "operation": "changed",
+  "desiredGeneration": 1,
+  "requestedBy": "01J...",
+  "correlationId": "01J...",
+  "causationId": "01J...",
+  "occurredAt": "2026-10-04T14:00:00Z",
+  "publishedAt": "2026-10-04T14:00:01Z",
+  "data": {}
 }
 ```
 
-O exemplo é ilustrativo e agnóstico. Os campos do envelope são definidos em `MESSAGING.md`, incluindo os campos de decisão e rastreabilidade: `presence` (resultado da observação), `actionId` (identidade determinística da decisão) e `requestedBy` (solicitante). Este documento define as regras de evolução e validação do envelope, e não redefine a semântica desses campos.
+Campos de decisão e rastreabilidade do envelope (`presence`, `actionId`, `requestedBy`) têm a semântica definida em `MESSAGING.md`. No contrato do envelope, `requestedBy`, `desiredGeneration`, `actionId` e os campos de data e hora de publicação possuem `writer = server`.
 
-### 9.2. Payload
+## 10.2 Payload
 
-O payload contém o contrato específico do domínio.
+O payload (`data`) pertence ao contrato do recurso. O envelope não deve absorver atributos de domínio para facilitar uma implementação específica de broker.
 
-O envelope não deve absorver atributos de domínio apenas para facilitar uma implementação específica de broker.
+# 11. Versionamento
 
-### 9.3. Separação
+Todo contrato possui versionamento explícito.
 
-O schema do envelope pode ser compartilhado:
+## 11.1 Formato e significado
 
-```text
-schemas/common/message-envelope.schema.json
-```
+`schemaVersion` tem o formato `MAJOR.MINOR` e identifica a versão do **contrato da mensagem** (conforme `MESSAGING.md`), e não a versão da aplicação, do recurso ou do broker.
 
-Enquanto o payload pode possuir um schema próprio:
+| Mudança | Incrementa |
+|---|---|
+| Compatível (ver evolução) | `MINOR` |
+| Incompatível | `MAJOR` |
 
-```text
-schemas/ipm/agent/observed.schema.json
-```
+## 11.2 Arquivos
 
-## 10. Versionamento
+O nome do arquivo carrega apenas o `MAJOR` (`desired.v1.schema.<ext>`). Versões `MINOR` do mesmo `MAJOR` são compatíveis entre si, de modo que o arquivo representa sempre a versão mais recente do `MAJOR`; o histórico fica no controle de versão. Cada arquivo declara o seu `schemaVersion` atual.
 
-Todo schema deve possuir uma estratégia explícita de versionamento.
+## 11.3 Aceitação
 
-`schemaVersion` deve identificar a versão do contrato e não a versão da aplicação que o produz.
+Um consumidor aceita uma mensagem quando suporta o seu `MAJOR`. Um `MINOR` maior que o conhecido é tolerado (campos desconhecidos são ignorados, conforme a regra do leitor tolerante). Um `MAJOR` não suportado é rejeitado explicitamente e não é descartado em silêncio.
 
-Exemplo:
+## 11.4 Envelope
 
-```text
-1.0
-1.1
-2.0
-```
+O contrato do envelope evolui apenas de forma compatível. Uma mudança incompatível do envelope é uma migração global (todas as mensagens de todos os domínios) e deve ser registrada como decisão em `.decisions/` antes de ser executada.
 
-A estratégia exata de versionamento pode ser SemVer ou outra convenção documentada, mas deve ser consistente no projeto.
-
-### 10.1. Mudanças compatíveis
-
-Exemplos normalmente compatíveis dependem do formato e das regras de consumo, mas podem incluir:
-
-- adicionar um campo opcional;
-- adicionar um valor apenas quando consumidores desconhecidos puderem tolerá-lo;
-- adicionar metadados que não alterem a interpretação existente.
-
-Compatibilidade nunca deve ser presumida apenas pela sintaxe da mudança.
-
-### 10.2. Mudanças incompatíveis
-
-Exemplos:
-
-- remover campo utilizado;
-- alterar o tipo de um campo;
-- alterar a semântica de um campo existente;
-- tornar obrigatório um campo que antes era opcional;
-- renomear um campo sem estratégia de migração.
-
-Mudanças incompatíveis exigem nova versão de contrato conforme a política adotada pelo projeto.
-
-## 11. Evolução de Schemas
+# 12. Evolução e Compatibilidade
 
 Antes de alterar um schema existente, avaliar:
 
@@ -473,301 +345,255 @@ Qual é o período de coexistência?
 A mudança é compatível?
 É necessário versionar?
 Existe replay histórico?
-Existe persistência de mensagens antigas?
+Existe mensagem retida?
 ```
 
-A evolução deve seguir preferencialmente:
+## 12.1 Mudanças compatíveis e incompatíveis
+
+Compatibilidade nunca é presumida apenas pela sintaxe da mudança. As regras abaixo assumem a regra do leitor tolerante (seção de campos desconhecidos).
+
+| Compatível (`MINOR`) | Incompatível (`MAJOR`) |
+|---|---|
+| Adicionar campo opcional | Remover campo utilizado |
+| Relaxar uma restrição | Alterar o tipo de um campo |
+| Adicionar valor a enum **aberto** | Alterar a semântica de um campo existente |
+| Adicionar metadados que não alterem a interpretação | Tornar obrigatório um campo antes opcional |
+| | Tornar uma restrição mais estrita |
+| | Adicionar valor a enum **fechado** |
+| | Renomear um campo sem estratégia de migração |
+
+## 12.2 Sequência de evolução
 
 ```text
 Nova versão
     ↓
-compatibilidade
+consumidores passam a suportá-la
     ↓
-coexistência
+produtores passam a emiti-la (coexistência)
     ↓
-migração de consumidores
+migração do que está retido
     ↓
 remoção controlada da versão antiga
 ```
 
+Os consumidores são atualizados **antes** dos produtores. Em uma mudança `MAJOR`, a versão anterior e a nova são suportadas simultaneamente durante a janela de coexistência, e a janela deve ser definida e registrada junto da mudança.
+
 Não remover um campo ou versão apenas porque o código atual deixou de utilizá-lo.
 
-## 12. Campos Obrigatórios e Opcionais
+## 12.3 Mensagens retidas
 
-Campos obrigatórios devem representar dados necessários para interpretar corretamente o contrato.
+Mensagens de estado (`desired`, `observed`) podem ficar retidas por tempo indeterminado, pois guardam o último estado de cada recurso. A janela de suporte de uma versão deve, portanto, cobrir **a vida das mensagens retidas**, e não apenas o replay.
 
-Campos opcionais devem ter uma razão explícita para poderem estar ausentes.
+Antes de remover o suporte a um `MAJOR` antigo, o produtor deve republicar o estado retido na nova versão e verificar que não restam mensagens da versão antiga. Sem essa migração, um consumidor pode encontrar mensagens que não sabe interpretar.
 
-Não tornar campos opcionais apenas para facilitar produtores.
+# 13. Campos Obrigatórios, Opcionais e Defaults
 
-Não tornar campos obrigatórios apenas para evitar tratamento de ausência no consumidor.
+Campos obrigatórios representam dados necessários para interpretar corretamente o contrato. Campos opcionais precisam de uma razão explícita para poderem estar ausentes.
 
-### 12.1. Default
+Não tornar campos opcionais apenas para facilitar produtores, nem obrigatórios apenas para evitar tratamento de ausência.
 
-Defaults devem ser utilizados com cautela.
+Um default altera a semântica de ausência para presença implícita. Deve ser usado somente quando essa equivalência for verdadeira para o domínio. Preferir ausência explícita a defaults que possam mascarar informação.
 
-Um default altera a semântica de ausência para presença implícita. Deve ser usado somente quando essa equivalência for verdadeira para o domínio.
+# 14. Tipos e Restrições
 
-Preferir ausência explícita a defaults que possam mascarar informação.
+Schemas expressam as restrições conhecidas do domínio sempre que isso reduzir ambiguidade: formato de string, intervalo de inteiro, precisão, enum, cardinalidade de array e propriedades de objeto explicitamente definidas.
 
-## 13. Tipos e Restrições
+## 14.1 Limites obrigatórios
 
-Schemas devem expressar as restrições conhecidas do domínio sempre que isso reduzir ambiguidade.
+Todo contrato define limites, para impedir payloads excessivos:
 
-Exemplos:
+- comprimento máximo de toda string;
+- quantidade máxima de itens de todo array;
+- profundidade máxima de objetos aninhados;
+- tamanho máximo do conteúdo (`data`) e da mensagem.
 
-```text
-string com formato definido
-integer com range
-number com precisão conhecida
-enum para conjunto fechado
-array com cardinalidade conhecida
-object com propriedades explicitamente definidas
-```
+Valores padrão conservadores são definidos em `common/` e podem ser ajustados por contrato com justificativa. Um contrato sem limite explícito é inválido.
 
-Exemplo conceitual em JSON Schema:
+# 15. Campos Desconhecidos e Extensibilidade
 
-```json
-{
-  "type": "object",
-  "properties": {
-    "resourceId": {
-      "type": "string",
-      "minLength": 1
-    },
-    "replicas": {
-      "type": "integer",
-      "minimum": 1
-    }
-  },
-  "required": ["resourceId", "replicas"]
-}
-```
+O comportamento para propriedades desconhecidas é explícito. Os objetos de um schema são **fechados**: a definição do contrato não admite propriedades não declaradas. A extensibilidade ocorre por nova versão, e não por abertura do schema.
 
-O exemplo demonstra uma representação possível. Não torna JSON Schema obrigatório para o projeto.
+Existem dois modos de validação:
 
-## 14. Campos Desconhecidos e Extensibilidade
+| Modo | Onde se aplica | Propriedade desconhecida |
+|---|---|---|
+| Estrito | Entrada de clientes externos e publicação por produtores | Rejeitada |
+| Tolerante | Consumo de mensagens internas | Ignorada, desde que o `MAJOR` seja suportado e os campos conhecidos sejam válidos |
 
-O comportamento para propriedades desconhecidas deve ser explícito.
+O modo tolerante é o que torna compatível a adição de campo opcional (`MINOR`): um consumidor antigo continua válido ao receber uma mensagem de `MINOR` mais novo.
 
-Sempre que a ferramenta de schema permitir, definir deliberadamente se campos adicionais são:
+Um consumidor tolerante nunca age sobre um campo que desconhece.
 
-```text
-permitidos
-restritos
-ou permitidos somente em extensões conhecidas
-```
+Abertura indiscriminada aumenta a possibilidade de typos silenciosos, divergência entre produtores e consumidores e comportamento inesperado.
 
-Para contratos críticos e control-plane, a opção mais restritiva é preferível quando não houver necessidade real de extensibilidade aberta.
+# 16. Null, Ausência e Valores Vazios
 
-Abertura indiscriminada aumenta a possibilidade de:
-
-- typos silenciosos;
-- divergência entre produtores e consumidores;
-- contratos inconsistentes;
-- comportamento inesperado.
-
-## 15. Null, Ausência e Valores Vazios
-
-Ausência, `null`, string vazia, array vazio e valor padrão são conceitos diferentes.
-
-O schema deve definir explicitamente quais são válidos.
-
-Exemplo:
+Ausência, `null`, string vazia, array vazio e valor padrão são conceitos diferentes. O schema define explicitamente quais são válidos.
 
 ```text
 campo ausente → não informado
 null           → explicitamente sem valor
 ""             → string vazia
-[]              → coleção vazia
+[]             → coleção vazia
 ```
 
 Não utilizar `null` como solução genérica para qualquer campo opcional.
 
-## 16. Data e Hora
+# 17. Data e Hora
 
-Valores temporais devem possuir semântica explícita.
+Valores temporais possuem semântica explícita. Preferir timestamps com timezone explícito, em formato padronizado (por exemplo, `2026-10-04T14:00:00Z`).
 
-Preferir timestamps com timezone explícito, em formato padronizado, quando representar um instante global.
+Distinguir claramente `createdAt`, `updatedAt`, `observedAt`, `lastTransitionAt` e `expiresAt`. Não utilizar `timestamp` genérico.
 
-Exemplo:
+A ordenação lógica de mensagens não deve depender de comparar relógios de componentes diferentes (ver `MESSAGING.md`).
 
-```text
-2026-10-04T14:00:00Z
-```
+# 18. Enumeradores
 
-Distinguir claramente:
+Todo enum declara a sua política de evolução (`enumPolicy`):
 
-```text
-createdAt
-updatedAt
-observedAt
-lastTransitionAt
-expiresAt
-```
+| Política | Quando | Consumidor diante de valor desconhecido |
+|---|---|---|
+| `closed` | O conjunto é realmente fechado | Rejeita a mensagem; adicionar valor é `MAJOR` |
+| `open` | O conjunto pode crescer | Trata como valor desconhecido e não age sobre ele; adicionar valor é `MINOR` |
 
-Não utilizar `timestamp` genérico quando a semântica puder ser explicitada.
+Não utilizar enum para um conjunto que provavelmente evoluirá sem estratégia de compatibilidade. Os vocabulários da seção de contratos (`lifecycle`, `reconciliation`, `presence`) são `closed`.
 
-## 17. Enumeradores
+# 19. Referências entre Schemas
 
-Enums devem ser utilizados quando o conjunto válido é realmente fechado ou controlado.
+Schemas podem referenciar outros schemas quando isso representa reutilização semântica real, como `metadata` e `condition` em `common/`.
 
-Exemplo:
+Evitar cadeias profundas de referências. Um schema deve continuar compreensível sem exigir a leitura de uma grande árvore de dependências.
 
-```text
-lifecycle:
-- active
-- deleting
-- deleted
-```
+# 20. Segurança dos Contratos
 
-Não utilizar enum apenas para codificar um conjunto que provavelmente evoluirá de forma aberta sem estratégia de compatibilidade.
+O contrato é uma fronteira de segurança.
 
-A evolução de enums deve considerar consumidores antigos.
+## 20.1 Segredos
 
-## 18. Referências entre Schemas
+Schemas e mensagens não contêm senhas, tokens, chaves privadas, credenciais de acesso nem material criptográfico bruto. Um contrato que precise representar um segredo transporta uma **referência segura** (por exemplo, `secretReference`), e não o segredo.
 
-Schemas podem referenciar outros schemas quando isso representa reutilização semântica real.
+## 20.2 Classificação
 
-Exemplo:
+Todo campo possui a anotação `sensitivity`, com uma destas classes:
 
-```text
-schemas/common/metadata.schema.json
-schemas/common/condition.schema.json
-schemas/ipm/agent/observed.schema.json
-```
+| Classe | Tratamento |
+|---|---|
+| `public` | Pode ser exposto sem restrição |
+| `internal` | Restrito ao sistema; não exposto a clientes sem necessidade |
+| `confidential` | Dados pessoais ou de negócio; não registrar em log, limitar acesso e retenção |
+| `secretReference` | Referência a segredo; nunca o valor |
 
-Evitar cadeias profundas de referências que dificultem compreensão, validação e versionamento.
+O valor padrão de um campo sem classificação explícita é `internal`. Campos `confidential` não aparecem em logs, mensagens de erro, exemplos reais nem métricas.
 
-Um schema deve continuar compreensível sem exigir a leitura de uma grande árvore de dependências.
+## 20.3 Campos atribuídos pelo servidor
 
-## 19. Segurança e Dados Sensíveis
+Campos com `writer = server` são atribuídos pelo componente de borda (por exemplo, `requestedBy`, `desiredGeneration`, `actionId`). Um valor enviado por cliente para um campo desse tipo é **rejeitado**, e não sobrescrito silenciosamente. Isso impede a falsificação de identidade, de geração e de decisão.
 
-Schemas não devem conter:
+## 20.4 Validação nas fronteiras de confiança
 
-- senhas;
-- tokens;
-- chaves privadas;
-- secrets;
-- credenciais de acesso;
-- material criptográfico bruto.
+A validação é **obrigatória** em:
 
-Quando um contrato precisar representar uma referência a um segredo, deve transportar uma referência segura, e não o segredo em si.
+- entrada de clientes externos (modo estrito);
+- publicação por produtores (modo estrito);
+- antes de qualquer escrita em um sistema externo, sobre os campos que serão usados (modo tolerante para os demais).
 
-Campos sensíveis devem possuir classificação quando aplicável.
+## 20.5 Limites e erros
 
-Exemplo:
+- todo contrato possui os limites da seção de tipos e restrições;
+- mensagens de erro de validação identificam o campo e a regra violada, e **não repetem valores** classificados como `confidential` ou `secretReference`.
 
-```text
-secretReference
-```
+## 20.6 Alteração dos schemas
 
-é preferível a:
+Os schemas definem o que o sistema aceita. Por isso:
 
-```text
-password
-privateKey
-accessToken
-```
+- toda alteração em `schemas/` passa por revisão de um responsável do domínio;
+- alterações no envelope, em anotações `writer` e `sensitivity`, em limites e em contratos de campos `confidential` exigem também revisão de segurança;
+- as ferramentas de validação e de geração de código têm versão fixada (`AGENTS.md`, dependências).
 
-quando a intenção é referenciar um segredo externo.
+# 21. Validação
 
-## 20. Validação
-
-Todo schema deve poder ser validado automaticamente.
-
-A validação deve ocorrer em pelo menos três momentos, conforme aplicável:
+Todo schema pode ser validado automaticamente, em pelo menos três momentos:
 
 ```text
 CI/CD
     ↓
-validação estrutural
+validação estrutural do próprio schema, dos exemplos e da compatibilidade
 
 Publicação/produção
     ↓
-validação do contrato
+validação do contrato (modo estrito)
 
 Consumo
     ↓
-validação de entrada quando necessária
+validação de entrada (modo tolerante), obrigatória nas fronteiras de confiança
 ```
 
-A pipeline deve detectar pelo menos:
+A pipeline detecta pelo menos:
 
 - sintaxe inválida;
 - referências quebradas;
 - schema inconsistente;
-- incompatibilidade conforme a política adotada;
+- incompatibilidade conforme a política de evolução;
 - exemplos inválidos;
-- versionamento incorreto.
+- versionamento incorreto;
+- contrato sem limites ou sem classificação de sensibilidade.
 
-## 21. Exemplos
+# 22. Artefatos Derivados
 
-Exemplos de payloads fazem parte da documentação do contrato, mas não substituem o schema formal.
+Modelos de código, validadores, documentação de API e migrations derivados de um schema são **arquivos gerados**. Seguem o `AGENTS.md`:
 
-Cada schema relevante pode possuir exemplos próximos ao contrato:
+1. a fonte é o schema;
+2. altera-se o schema, e não o artefato;
+3. o artefato é regenerado;
+4. a CI regenera e compara: qualquer diferença entre o artefato versionado e o gerado falha a pipeline.
 
-```text
-schemas/ipm/agent/
-├── observed.schema.json
-├── observed.example.json
-├── desired.schema.json
-└── desired.example.json
-```
+A estrutura de persistência (por exemplo, tabelas do SSOT) é uma representação mapeada do contrato e não é o contrato. Os testes de contrato verificam que o mapeamento preserva a semântica.
 
-Exemplos devem:
+# 23. Exemplos
 
-- ser válidos contra o schema;
-- representar casos reais;
-- evitar dados sensíveis;
-- ser pequenos e compreensíveis.
+Exemplos de payloads fazem parte da documentação do contrato, mas não substituem o schema formal. Ficam próximos ao contrato (`<contrato>.example.json`).
 
-Um exemplo não deve introduzir campos ou semânticas que o schema não reconheça.
+Exemplos devem ser válidos contra o schema, representar casos reais, evitar dados sensíveis e ser pequenos. Um exemplo não introduz campos ou semânticas que o schema não reconheça.
 
-## 22. Relacionamento com Mensageria
-
-`SCHEMA.md` e `MESSAGING.md` possuem responsabilidades diferentes.
+# 24. Relacionamento com Mensageria e com o Control Loop
 
 ```text
 MESSAGING.md
-→ o que a mensagem significa
+→ o que a mensagem significa e quais são os campos do envelope
 
 SCHEMA.md
-→ como contratos são definidos e evoluídos
+→ como contratos são definidos, protegidos e evoluídos
 
 schemas/
 → estrutura formal do contrato
 
-NATS.md
-→ como o contrato é transportado pelo NATS
+RESOURCE-CONTROL-LOOP.md
+→ como os contratos participam do ciclo de convergência
 ```
 
-Um subject, tópico, queue, stream ou consumer não deve redefinir o significado de um schema.
+Um subject, tópico, queue, stream ou consumer não redefine o significado de um schema. Um schema não contém detalhes específicos de broker.
 
-Da mesma forma, um schema não deve conter detalhes específicos do broker.
+O control loop depende destes contratos:
 
-## 23. Relacionamento com SSOT e Ciclo de Vida End-to-End
+- a comparação `desired` × `observed` usa as anotações `managed`, `normalization` e `providerDefault`;
+- a suspensão da reconciliação usa o campo `reconciliation`;
+- os prazos e limites do loop são os parâmetros de recurso;
+- os campos `writer = server` sustentam a segurança descrita em `RESOURCE-CONTROL-SECURITY.md`.
 
-O schema representa o contrato formal dos dados ao longo de todo o seu ciclo de vida no ecossistema, garantindo integridade desde a entrada do usuário até a persistência final como Fonte Única da Verdade (SSOT).
+# 25. Ciclo de Vida do Contrato
 
-### 23.1. Agnosticismo de Produto
+Cada camada do sistema valida e produz o contrato que lhe cabe. O contrato **não é um único objeto que atravessa tudo sem mudar**: cada etapa tem seu contrato, e as transformações entre eles são explícitas.
 
-O schema dita como um recurso é validado, criado, atualizado e apagado independentemente do produto final. As regras definidas no schema aplicam-se uniformemente a todos os domínios de negócio e serviços.
+1. **Cliente / interface:** submete a intenção conforme o contrato `requested`.
+2. **API:** autentica, valida estritamente o pedido, atribui os campos `writer = server` e publica `requested`.
+3. **Mensageria:** transporta o envelope com o contrato do `messageType`, sem alterar a semântica.
+4. **Manager:** valida regras de negócio, produz `desired` e consolida a visão do recurso (`phase`, `conditions`).
+5. **Observer:** produz `observed` a partir da leitura do sistema externo.
+6. **Reconciler:** produz `action`.
+7. **Executor:** valida os campos que usará e produz `completed` ou `failed`.
+8. **Persistência (SSOT):** guarda a representação mapeada do contrato.
 
-### 23.2. Fluxo pelo Ecossistema
-
-O mesmo contrato (ou envelope compatível) deve percorrer todas as camadas do sistema de forma íntegra e sem mutações semânticas arbitrárias, passando por:
-
-1. **CLI / UI**: Onde o operador (humano ou máquina) submete a intenção (`Desired`) de criação, atualização ou remoção baseando-se estritamente na estrutura do schema formal.
-2. **API**: Onde a requisição de borda é recebida, autenticada e estruturalmente validada contra o schema antes de qualquer processamento.
-3. **Messaging (Broker / NATS)**: Onde a intenção validada é envelopada e roteada assincronamente para os serviços responsáveis, mantendo a identidade e o payload definidos no contrato.
-4. **Manager / Orchestrators**: Onde as regras de negócio de alto nível processam o estado desejado, verificam dependências e orquestram a execução, consumindo o payload original.
-5. **Workers / Executors**: Onde a ação real ocorre, gerando o estado efetivo (`Observed`).
-6. **Banco de Dados (SSOT)**: Onde os estados de *Desired* e *Observed* são finalmente consolidados e persistidos em conformidade estrutural rígida com o schema, tornando-se a Fonte Única da Verdade histórica do recurso.
-
-Essa fluidez exige que os schemas não sejam desenhados apenas para o banco de dados ou apenas para a API, mas como um modelo unificado de dados para o ciclo end-to-end do recurso.
-
-A sequência recomendada para recursos declarativos é:
+A sequência recomendada para modelar um recurso declarativo é:
 
 ```text
 Requisitos
@@ -776,7 +602,7 @@ Conceitos de domínio
     ↓
 Dicionário de dados
     ↓
-Contrato do recurso
+Contrato do recurso (com anotações e parâmetros)
     ↓
 Ciclo de vida
     ↓
@@ -787,68 +613,67 @@ Schema formal
 Persistência / implementação
 ```
 
-`schemas/` não deve ser utilizado como mecanismo para descobrir a semântica de um domínio que ainda não foi modelado.
+`schemas/` não deve ser utilizado para descobrir a semântica de um domínio que ainda não foi modelado.
 
-## 24. Compatibilidade e Testes de Contrato
+# 26. Testes de Contrato
 
-Mudanças em schemas devem possuir testes de contrato quando houver consumidores independentes.
-
-Testes recomendados:
+Mudanças em schemas possuem testes de contrato quando houver consumidores independentes:
 
 ```text
 schema aceita payload válido
 schema rejeita payload inválido
 exemplos são válidos
 versão anterior continua compatível quando requerido
+modo tolerante ignora campo desconhecido de MINOR mais novo
+modo estrito rejeita campo desconhecido
+campos com writer = server são rejeitados quando enviados por cliente
 referências permanecem resolvíveis
+artefatos derivados coincidem com a regeneração
 ```
 
-Sempre que possível, os testes devem ser automatizados na CI.
+Os testes são automatizados na CI.
 
-## 25. Checklist para Criação de um Schema
+# 27. Checklists
 
-Antes de criar um novo schema:
+## 27.1 Criação de um schema
 
 ```text
 [ ] O conceito de domínio está definido?
 [ ] O contrato possui uma responsabilidade clara?
 [ ] Existe schema semelhante reutilizável?
 [ ] Deve estar em common ou em um domínio específico?
-[ ] Os nomes são explícitos?
-[ ] resourceId foi separado de resourceName quando aplicável?
-[ ] Desired e Observed estão semanticamente corretos?
-[ ] Campos obrigatórios estão realmente justificados?
+[ ] Os nomes são explícitos e livres de produto ou fornecedor em common?
+[ ] resourceId foi separado de resourceName e segue o padrão comum?
+[ ] lifecycle, presence e phase não foram confundidos?
+[ ] Campos obrigatórios estão justificados?
 [ ] Null e ausência foram diferenciados?
-[ ] Tipos e restrições estão explícitos?
-[ ] Campos desconhecidos possuem política explícita?
-[ ] O versionamento está definido?
-[ ] A compatibilidade foi avaliada?
-[ ] Há referências excessivas?
-[ ] Existem dados sensíveis?
-[ ] O schema possui exemplos?
-[ ] Os exemplos validam contra o schema?
+[ ] Tipos, restrições e limites estão explícitos?
+[ ] Cada campo tem sensibilidade e writer?
+[ ] Campos gerenciados, normalização e defaults do provider estão anotados?
+[ ] Parâmetros do recurso estão definidos?
+[ ] Enums declaram enumPolicy?
+[ ] O versionamento e a compatibilidade foram avaliados?
+[ ] Existem exemplos que validam contra o schema?
 [ ] A validação pode ser automatizada?
 ```
 
-## 26. Checklist para Alteração de um Schema
-
-Antes de alterar um schema existente:
+## 27.2 Alteração de um schema
 
 ```text
 [ ] Identificar produtores e consumidores.
-[ ] Identificar versões atualmente em uso.
-[ ] Avaliar compatibilidade.
-[ ] Avaliar replay de dados históricos.
-[ ] Avaliar persistência de mensagens antigas.
-[ ] Avaliar impacto em Desired/Observed.
-[ ] Avaliar impacto em APIs e componentes.
-[ ] Atualizar exemplos.
-[ ] Atualizar testes de contrato.
+[ ] Identificar versões em uso.
+[ ] Classificar a mudança (MINOR ou MAJOR).
+[ ] Definir a janela de coexistência (MAJOR).
+[ ] Avaliar replay e mensagens retidas; planejar a republicação.
+[ ] Avaliar impacto em desired/observed e no control loop.
+[ ] Avaliar impacto em APIs, componentes e artefatos derivados.
+[ ] Atualizar exemplos e testes de contrato.
+[ ] Obter a revisão exigida (domínio e, quando aplicável, segurança).
 [ ] Atualizar documentação relacionada.
 [ ] Registrar decisão arquitetural quando necessário.
 ```
 
-## 27. Anti-Padrões
+# 28. Anti-Padrões
 
 São proibidos ou devem ser fortemente evitados:
 
@@ -858,57 +683,61 @@ São proibidos ou devem ser fortemente evitados:
 - esconder semântica importante em convenções implícitas;
 - adicionar schemas em `common/` sem reutilização real;
 - versionar apenas porque o arquivo mudou fisicamente;
-- alterar semântica sem alterar versão conforme a política de compatibilidade;
-- transportar secrets diretamente no schema;
-- colocar detalhes de NATS, Kafka ou outro broker no schema de domínio;
-- criar uma camada de abstração apenas para evitar alguns campos repetidos;
+- alterar semântica sem alterar versão;
+- transportar secrets no schema ou nas mensagens;
+- colocar detalhes de broker no schema de domínio;
+- colocar nome de produto, fornecedor ou módulo específico em `common/` ou neste documento;
+- deixar o cliente preencher campos de identidade, geração ou decisão;
+- contrato sem limites de tamanho;
+- reutilizar `lifecycle`, `presence` ou `phase` para outro significado;
+- remover o suporte a uma versão sem migrar o estado retido;
+- editar manualmente artefato gerado;
 - utilizar exemplos que não validam contra o schema;
 - tratar `ACK` de mensageria como confirmação de validade ou convergência do recurso.
 
-## 28. Estrutura de Referência
+# 29. Estrutura de Referência
 
-Uma estrutura inicial recomendada para o projeto é:
+Uma estrutura inicial recomendada, restrita ao que este documento governa:
 
 ```text
 .
-├── docs
+├── docs/
 │   ├── MESSAGING.md
-│   ├── NATS.md
-│   └── SCHEMA.md
-├── schemas
-│   ├── common
-│   │   ├── message-envelope.schema.json
-│   │   └── condition.schema.json
-│   └── ipm
-│       └── agent
-│           ├── desired.schema.json
-│           ├── desired.example.json
-│           ├── observed.schema.json
-│           └── observed.example.json
-├── components
-├── features
-├── platform
-└── infrastructure
+│   ├── SCHEMA.md
+│   └── ...
+└── schemas/
+    ├── common/
+    │   ├── message-envelope.v1.schema.<ext>
+    │   └── condition.v1.schema.<ext>
+    └── <domain>/
+        └── <resource>/
+            ├── desired.v1.schema.<ext>
+            ├── desired.example.json
+            ├── observed.v1.schema.<ext>
+            └── observed.example.json
 ```
 
-A estrutura é um ponto de partida. Novos diretórios somente devem ser criados quando houver uma necessidade semântica ou operacional real.
+A estrutura é um ponto de partida. Novos diretórios somente devem ser criados quando houver necessidade semântica ou operacional real.
 
-## 29. Critérios de Sucesso
+# 30. Critérios de Sucesso
 
 A governança de schemas é considerada adequada quando:
 
 - cada contrato possui uma fonte de verdade única;
-- schemas são independentes de tecnologia de implementação;
-- a semântica de `Desired` e `Observed` permanece consistente;
+- schemas são independentes de produto e de tecnologia de implementação;
+- os vocabulários de `lifecycle`, `presence` e `phase` permanecem consistentes;
 - identidade e nomenclatura são explícitas;
-- mudanças de contrato podem ser avaliadas quanto à compatibilidade;
-- schemas podem ser validados automaticamente;
-- exemplos são verificáveis;
-- contratos históricos podem ser interpretados durante a janela de retenção/replay necessária;
+- toda mudança pode ser classificada quanto à compatibilidade e possui janela de coexistência;
+- o estado retido pode ser interpretado ou migrado;
+- schemas são validados automaticamente, inclusive nas fronteiras de confiança;
+- campos de servidor não podem ser falsificados por clientes;
+- exemplos e artefatos derivados são verificáveis;
 - componentes não dependem de contratos implícitos espalhados pelo código.
 
-## 30. Referências
+# 31. Referências
 
-- [MESSAGING.md](MESSAGING.md) — semântica de mensageria.
-- [NATS.md](NATS.md) — implementação de mensageria em NATS.
-- `schemas/` — fonte de verdade dos contratos formais individuais.
+- [MESSAGING.md](MESSAGING.md): semântica de mensageria e campos do envelope.
+- [RESOURCE-CONTROL-LOOP.md](RESOURCE-CONTROL-LOOP.md): padrão de convergência que consome estes contratos.
+- [RESOURCE-CONTROL-SECURITY.md](RESOURCE-CONTROL-SECURITY.md): segurança do control loop.
+- [NATS.md](NATS.md): implementação do transporte.
+- `schemas/`: fonte de verdade dos contratos formais individuais.
