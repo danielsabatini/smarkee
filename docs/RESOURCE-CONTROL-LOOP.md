@@ -656,6 +656,8 @@ Toda observação informa o resultado no campo `presence` e o momento em `observ
 - aguarda nova observação quando a atual for inconclusiva ou desatualizada;
 - após `completed` ou `failed`, não decide uma nova ação para o recurso enquanto não receber a observação causada por esse resultado (ver abaixo).
 
+Os prazos do loop são parâmetros do contrato do recurso (`SCHEMA.md`): `observationInterval` (período da observação periódica), `observationValidity` (limite de validade do `observed`), `actionDeadline` (prazo de uma `action` pendente) e `failureLimit` (falhas por geração).
+
 ### Ordenação causal após uma ação
 
 Depois de `completed` ou `failed` de uma `action`, o Observer faz uma observação cujo `causationId` é o `messageId` desse resultado. O Reconciler só volta a decidir sobre o recurso quando recebe essa observação. Observações periódicas posteriores são admitidas depois dela.
@@ -877,7 +879,7 @@ A pergunta "Desired == Observed?" deve ter definição explícita para cada recu
 - **defaults do provider:** valores preenchidos pelo provider e não declarados em `desired` não constituem drift;
 - **resultado:** iguais → `noop`; diferentes → `Action` determinada pela diferença.
 
-Uma comparação mal definida produz `update` infinito. A definição pertence ao contrato do recurso (`SCHEMA.md`).
+Uma comparação mal definida produz `update` infinito. A definição é declarada por anotação nos campos do contrato do recurso (`managed`, `normalization` e `providerDefault`; ver `SCHEMA.md`).
 
 # 19. Atualização do SSOT
 
@@ -886,7 +888,7 @@ O Manager recebe a observação e atualiza o Resource.
 Exemplo:
 
 ```text
-lifecycle = Ready
+phase = Ready
 desiredGeneration = 1
 condition = Ready=True (desiredGeneration = 1)
 ```
@@ -939,7 +941,7 @@ sequenceDiagram
     Manager->>NATS: updated.changed
 
     CLI->>API: GET /v1/tenants/<id>
-    API-->>CLI: lifecycle=Ready
+    API-->>CLI: phase=Ready
 ```
 
 # 21. Fluxo de atualização
@@ -981,8 +983,8 @@ Uma falha de execução não deve destruir o Desired. O Desired permanece como f
 Retry, backoff, limite de tentativas e quarentena de mensagens seguem `NATS.md`. No nível do recurso:
 
 - falha transitória mantém o recurso em `Reconciling`. O backoff entre tentativas é aplicado pelo Reconciler a partir do último `failed` do recurso, que o transporte retém;
-- o Manager, dono do lifecycle, conta as falhas por geração a partir dos `failed` que consome. Ao esgotar o limite, marca o recurso como `Failed` e registra a causa em `conditions`;
-- ao marcar `Failed`, o Manager republica o `desired` com a reconciliação **suspensa** (declarada no contrato do recurso). O Reconciler não decide enquanto o `desired` estiver suspenso, o que impede o ciclo contínuo contra o provider;
+- o Manager, dono do lifecycle, conta as falhas por geração a partir dos `failed` que consome. Ao atingir o `failureLimit`, marca o recurso como `Failed` e registra a causa em `conditions`;
+- ao marcar `Failed`, o Manager republica o `desired` com a reconciliação **suspensa** (campo `reconciliation` do `desired`, ver `SCHEMA.md`). O Reconciler não decide enquanto o `desired` estiver suspenso, o que impede o ciclo contínuo contra o provider;
 - a suspensão termina por nova geração de `desired` ou por intervenção explícita, em que o Manager republica o `desired` com a reconciliação ativa.
 
 # 24. Falha após alteração externa
@@ -1236,7 +1238,7 @@ Quando o provider não permite esse registro, `observedGeneration` não deve ser
 
 # 37. Lifecycle
 
-O lifecycle do Resource Control Loop é definido no recurso, não na mensageria.
+O lifecycle do Resource Control Loop é definido no recurso, não na mensageria. A fase consolidada é o campo `phase`, mantido pelo Manager; ela não se confunde com `lifecycle` em `desired` (intenção de existência: `present` ou `absent`) nem com `presence` em `observed` (`SCHEMA.md`).
 
 Exemplo:
 
@@ -1337,7 +1339,7 @@ sequenceDiagram
         API-->>CLI: current state
     end
 
-    Note over CLI: lifecycle = Ready
+    Note over CLI: phase = Ready
 ```
 
 O `--wait` é uma conveniência do cliente.

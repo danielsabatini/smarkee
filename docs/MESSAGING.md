@@ -1471,6 +1471,7 @@ Envelope:
   "publishedAt": "2026-10-04T00:00:01Z",
   "data": {
     "lifecycle": "present",
+    "reconciliation": "active",
     "resourceName": "acme",
     "displayName": "ACME"
   }

@@ -221,7 +221,7 @@ Toda alteração deve ser atribuível a um solicitante.
 - a API autentica o solicitante e registra sua identidade (ator) no contexto da requisição;
 - o ator é registrado no campo `requestedBy` e acompanha a operação em `requested`, `desired`, `action`, `completed` e `failed`, junto de `correlationId` e `causationId` (`MESSAGING.md`);
 - o ator descreve **quem pediu**, e não quem executou: a identidade do componente executor já é conhecida pelo emissor;
-- o campo é definido em `MESSAGING.md` (envelope).
+- o campo é definido em `MESSAGING.md` (envelope) e possui `writer = server` (`SCHEMA.md`): a API o atribui a partir do solicitante autenticado e rejeita o valor enviado por um cliente.
 
 Auditoria:
 
