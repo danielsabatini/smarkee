@@ -18,6 +18,9 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Resource Control Loop: o `actionId` passa a incluir a observação que motivou a decisão (a correção de drift não é mais descartada como duplicata); o Executor consulta o desfecho do `actionId` em `RESULT` antes de executar; ordenação causal após `completed`/`failed` (`causationId` da observação); falhas contadas pelo Manager com suspensão da reconciliação no `desired`; observação periódica particionada por `resourceId`; condition `ObservationStale` (`docs/RESOURCE-CONTROL-LOOP.md`, `docs/MESSAGING.md`, `docs/NATS.md`).
 - Resource Control Loop: documento simplificado (de 2104 para cerca de 1700 linhas), com fluxos redundantes consolidados.
 
+- Schemas: `docs/SCHEMA.md` reescrito e tornado agnóstico de produto, domínio e formato. Passa a definir política de versionamento (`MAJOR.MINOR`, coexistência, migração do estado retido), regra do leitor tolerante com modos de validação estrito e tolerante, política de enums, segurança dos contratos (limites obrigatórios, classificação de sensibilidade, campos atribuídos pelo servidor, validação nas fronteiras), anotações de campo para a comparação `desired` × `observed`, parâmetros de recurso do control loop, família de contratos por `messageType` e artefatos derivados. O exemplo de envelope foi alinhado a `docs/MESSAGING.md`.
+- Vocabulários distintos: `lifecycle` (intenção em `desired`), `presence` (resultado em `observed`) e `phase` (fase consolidada do recurso); novo campo de controle `reconciliation` (`active`/`suspended`) em `desired`.
+
 ### Added
 - Especificação de mensageria assíncrona semântica e integração com NATS JetStream (`docs/MESSAGING.md`, `docs/NATS.md`).
 - Especificação de governança, versionamento e evolução de schemas de contratos (`docs/SCHEMA.md`).
