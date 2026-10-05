@@ -7,6 +7,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-smarkee}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no .env (veja .env.example)}
       POSTGRES_DB: ${POSTGRES_DB:-smarkee}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"  # Somente para desenvolvimento no host
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     volumes:
       # PostgreSQL 18+ grava os dados em /var/lib/postgresql/18/docker;
@@ -31,8 +33,7 @@ volumes:
   database-data:
 
 networks:
-  # Rede isolada (sem acesso ao host/internet), compartilhada por nome entre os serviços.
-  # Criada pelo primeiro serviço que subir; os demais a reutilizam.
+  # Rede dos serviços, compartilhada por nome. Criada pelo primeiro serviço que subir; os
+  # demais a reutilizam. Não usa `internal: true` porque redes internas não publicam portas no host.
   internal:
     name: internal
-    internal: true

@@ -83,8 +83,7 @@ volumes:
   zitadel-bootstrap:
 
 networks:
-  # Rede isolada (sem acesso ao host/internet), compartilhada por nome entre os serviços.
-  # Criada pelo primeiro serviço que subir; os demais a reutilizam.
+  # Rede dos serviços, compartilhada por nome. Criada pelo primeiro serviço que subir; os
+  # demais a reutilizam. Não usa `internal: true` porque redes internas não publicam portas no host.
   internal:
     name: internal
-    internal: true
