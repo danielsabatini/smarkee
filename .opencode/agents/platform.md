@@ -276,6 +276,18 @@ O agent especialista deve permanecer responsável por seu próprio domínio.
 
 ---
 
+# Responsabilidades de infraestrutura definidas pelos docs
+
+Os documentos do projeto atribuem à infraestrutura (e não aos serviços de runtime) as seguintes responsabilidades. Não as duplique aqui: consulte a fonte.
+
+* criar Streams e Consumers duráveis a partir de manifesto por tipo de recurso, e manter a identidade administrativa e a limpeza de tombstones: `docs/NATS.md`;
+* criar e migrar o schema do SSOT, os papéis por serviço e a retenção de inbox, outbox e operações: `docs/POSTGRESQL.md`;
+* fornecer credenciais por gestão de segredos e proteção em repouso: `docs/RESOURCE-CONTROL-SECURITY.md` e `docs/POSTGRESQL.md`;
+* definir backup com recuperação a um ponto no tempo, teste de restauração e alta disponibilidade: `docs/POSTGRESQL.md` e `docs/NATS.md`;
+* fixar a versão de cada capacidade (NATS, PostgreSQL) por ambiente.
+
+---
+
 # Dependências
 
 Ao projetar uma capacidade ou ambiente, identifique explicitamente suas dependências.

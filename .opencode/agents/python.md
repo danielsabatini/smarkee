@@ -38,6 +38,8 @@ A versão padrão do projeto é:
 Python 3.14
 ```
 
+Ao revisar este arquivo, confirme se a versão estável mais recente ainda é a adotada (`AGENTS.md`, seção 24.2).
+
 O código deve utilizar as capacidades modernas do Python 3.14 quando elas melhorarem:
 
 - Clareza
@@ -154,15 +156,6 @@ Quando utilizado, o arquivo deve possuir uma responsabilidade clara.
 
 `main.py` deve ser utilizado como padrão para o entrypoint de componentes executáveis.
 
-Exemplos:
-
-```text
-components/cli/src/sk/main.py
-components/manager/src/manager/main.py
-features/ipm/src/ipm/api/main.py
-features/ipm/src/ipm/worker/main.py
-```
-
 A convenção é:
 
 ```text
@@ -170,13 +163,13 @@ main.py
 → entrypoint do componente executável
 ```
 
+Cada serviço do control loop (API, Manager, Observer, Reconciler e Executor de um tipo de recurso, ver `docs/RESOURCE-CONTROL-LOOP.md`) é um componente executável com o seu `main.py`. A estrutura exata (um pacote por módulo ou por serviço) segue o layout do repositório e deve ser decidida e registrada antes da implementação; este arquivo não a fixa.
+
 Evite nomes redundantes como:
 
 ```text
-cli/cli.py
-manager/manager.py
 api/api.py
-worker/worker.py
+manager/manager.py
 ```
 
 quando `main.py` comunicar claramente a responsabilidade.
@@ -571,7 +564,21 @@ uv build
 
 ---
 
-# 23. Evolução das Convenções Python
+# 23. Código orientado a contratos e ao control loop
+
+As regras de contrato, mensageria e persistência pertencem aos documentos de `docs/`; este arquivo define apenas como o código Python as respeita:
+
+- **Modelos derivados de schemas** são arquivos gerados: altere o schema, regenere e confira a diferença na CI (`docs/SCHEMA.md`). Não edite o modelo gerado.
+- **Validação nas fronteiras:** validação estrita na entrada de clientes externos e na publicação, e tolerante no consumo interno, conforme `docs/SCHEMA.md`.
+- **Tempo:** use instantes com timezone explícito (UTC). Não compare relógios de componentes diferentes para ordenar eventos (`docs/MESSAGING.md`).
+- **Idempotência:** todo consumidor trata a mesma mensagem mais de uma vez sem efeito nocivo. Confirme a mensagem apenas após o processamento durável.
+- **Logs e erros:** nunca registre campos `confidential`, segredos ou referências resolvidas (`docs/SCHEMA.md`). Mensagens de erro identificam a regra violada, e não repetem valores sensíveis.
+- **Testes:** além de unidade e integração, cubra testes de contrato, de idempotência do consumidor (mensagem duplicada) e de concorrência otimista.
+- **Clientes de mensageria e de banco:** a escolha das bibliotecas segue a seção de dependências e deve ser registrada como decisão em `.decisions/`. Não escolha por conveniência.
+
+---
+
+# 24. Evolução das Convenções Python
 
 Este arquivo deve concentrar as convenções específicas de Python adotadas pelo projeto.
 

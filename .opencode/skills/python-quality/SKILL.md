@@ -9,7 +9,7 @@ description: Executar a validação completa de qualidade de um componente Pytho
 
 Executar o workflow completo de validação de qualidade de um componente Python.
 
-Esta skill define **o procedimento de execução**.
+Esta skill é um **guia de procedimento** que chama ferramentas (`uv`, Ruff, Pyright, pytest, scanner e API do SonarQube). Ela define **a ordem de execução e o registro do resultado**; os comandos refletem o `python.md`, que é a fonte deles.
 
 As regras e configurações das ferramentas pertencem aos respectivos agents:
 
@@ -84,11 +84,21 @@ Confirme:
 
 - execução dos testes;
 - resultado dos testes;
-- resultado do coverage.
+- resultado do coverage, comparado ao limite definido no `pyproject.toml` ou no Quality Gate. Se nenhum limite estiver definido, registre o percentual e marque o critério como `NOT VERIFIED`, e não como `PASS`.
 
 Uma análise de qualidade não deve ser considerada concluída quando os testes falharem.
 
 ---
+
+## 5.1 Contratos (quando existir `schemas/`)
+
+Quando o componente consumir ou produzir contratos de `schemas/`:
+
+- executar os testes de contrato definidos para o componente (`docs/SCHEMA.md`, testes de contrato);
+- regenerar os artefatos derivados dos schemas e **falhar** se houver diferença em relação ao versionado (`docs/SCHEMA.md`, artefatos derivados). Use o mecanismo de geração do projeto; não invente comandos;
+- registrar o resultado separadamente (`Contratos`).
+
+Se não houver `schemas/` ou mecanismo de geração, registre `NOT VERIFIED` com o motivo.
 
 ## 6. Executar análise do SonarQube
 
@@ -96,7 +106,7 @@ Execute a análise do componente utilizando o mecanismo de análise configurado 
 
 A configuração do scanner, project key, URL e autenticação deve ser obtida das configurações existentes.
 
-Não invente valores de configuração.
+Não invente valores de configuração. O token do SonarQube é fornecido por variável de ambiente ou arquivo protegido e **nunca** aparece na linha de comando, em log ou no resultado reportado.
 
 ---
 
@@ -135,6 +145,7 @@ Ruff
 Pyright
 pytest
 Coverage
+Contratos
 SonarQube Analysis
 Quality Gate
 ```
@@ -171,6 +182,7 @@ Ruff: PASS/FAIL
 Pyright: PASS/FAIL
 pytest: PASS/FAIL
 Coverage: PASS/FAIL
+Contratos: PASS/FAIL
 SonarQube Analysis: PASS/FAIL
 Quality Gate: PASS/FAIL
 
