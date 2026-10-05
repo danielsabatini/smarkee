@@ -156,7 +156,7 @@ Ao atuar como subagente, **você deve consultar, ler e aplicar as regras descrit
 Antes de aprovar um novo endereço, verificar:
 
 1. Quem é o emissor?
-2. Qual é o `semanticType`?
+2. Qual é o `messageType`?
 3. Qual é o `scope`?
 4. Qual é o `resourceType`?
 5. `resourceId` realmente precisa participar do routing?

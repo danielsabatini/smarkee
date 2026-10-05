@@ -84,9 +84,9 @@ Ao executar esta skill, **você deve consultar, ler e extrair a configuração a
 Primeiro responder:
 
 ```text
-É desired ou observed?
+Qual é o `messageType` (e sua classe: trabalho, estado ou fato)?
 Qual é o recurso?
-Qual é o scope?
+Qual é o module?
 Quem é o emissor?
 ```
 
@@ -171,7 +171,8 @@ Confirmar:
 - [ ] `desired`/`observed` correto.
 - [ ] emissor explícito.
 - [ ] destinatário não codificado indevidamente.
-- [ ] scope correto.
+- [ ] module correto.
+- [ ] Stream correto para o `messageType`.
 - [ ] resource type correto.
 - [ ] resourceId estável.
 - [ ] messageId estável.
@@ -290,7 +291,7 @@ Replay deve ser tratado como uma nova execução do processamento, não como uma
 Uma alteração NATS está concluída quando:
 
 - o Subject corresponde ao modelo semântico;
-- Stream e Consumer possuem a política correta;
+- Stream e Consumer possuem a política correta para a classe da mensagem (`docs/NATS.md`);
 - `Nats-Msg-Id` é utilizado quando a deduplicação de publicação é necessária;
 - retry/redelivery são seguros;
 - idempotência do consumidor foi considerada;
