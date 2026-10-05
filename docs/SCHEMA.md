@@ -143,6 +143,7 @@ Os contratos são classificados semanticamente, não tecnologicamente. Para sist
 | `completed` e `failed` | `common/` | Resultado da operação, referência externa e causa da falha |
 | `updated` | `common/` | Resumo da alteração consolidada |
 | Resource (visão consolidada) | Domínio do recurso | `phase`, `conditions`, `desired` e `observed` expostos pela API |
+| API (request e response) | Domínio do recurso | Contrato de borda das chamadas síncronas. O pedido de criação ou alteração é mapeado para `requested`, e a resposta expõe a visão consolidada |
 | Condition | `common/` | Fato consolidado do recurso |
 
 A existência de um contrato não implica que ele deva ser usado: cada recurso define os que precisa. Esta lista é a família esperada e deve ser formalizada em `schemas/` quando os recursos forem modelados.
@@ -171,6 +172,8 @@ Exemplo conceitual do conteúdo (`data`):
 ```
 
 `desiredGeneration` e `resourceVersion` são campos do envelope e do recurso, definidos em `MESSAGING.md`.
+
+`desiredGeneration` só muda quando muda a **especificação** (`lifecycle` ou os campos de configuração). Alterar apenas `reconciliation` não a incrementa, pois isso reiniciaria a contagem de falhas por geração. O Manager é o único publicador de `desired` de um recurso; quando duas mensagens possuem a mesma geração, a mais recente é a que foi entregue por último no mesmo endereço.
 
 ## 7.2 `observed`
 
@@ -227,7 +230,15 @@ Evitar `id`, `type`, `status`, `version`, `generation` e `timestamp` quando o co
 
 `resourceId` representa a identidade estável do recurso. Deve ser opaco e independente do nome legível.
 
-O padrão de caracteres de `resourceId` é definido **uma única vez**, em `common/`, e deve ser compatível com todos os transportes suportados: letras minúsculas, dígitos e hífen, sem ponto, asterisco, sinal de maior, espaço ou outro separador, com comprimento máximo definido. Um valor fora do padrão é rejeitado, e não normalizado.
+O padrão de `resourceId` é definido **uma única vez**, em `common/`, e deve ser compatível com todos os transportes suportados:
+
+```text
+^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$
+```
+
+Isto é: letras minúsculas, dígitos e hífen, de 1 a 128 caracteres, sem ponto, asterisco, sinal de maior, espaço ou outro separador. Um identificador UUID em minúsculas atende ao padrão. Um valor fora do padrão é rejeitado, e não normalizado.
+
+Na criação, o `resourceId` é atribuído pelo servidor (`writer = server`); o cliente não escolhe a identidade.
 
 ```json
 {
@@ -252,10 +263,10 @@ Além de tipo e restrições, cada campo de um contrato declarativo pode ser ano
 
 | Anotação | Valores | Significado |
 |---|---|---|
-| `writer` | `client`, `server` | Quem pode preencher o campo. Campos `server` são atribuídos pelo componente de borda; um valor enviado pelo cliente é rejeitado |
+| `writer` | `client`, `server` | Quem pode preencher o campo. Campos `server` são atribuídos por um componente do sistema (nunca por um cliente externo); um valor enviado por cliente para esse campo é rejeitado |
 | `mutability` | `immutable`, `mutable` | Se o campo pode ser alterado após a criação |
 | `managed` | `true`, `false` | Se participa da comparação entre `desired` e `observed` |
-| `normalization` | nome da regra | Regra aplicada antes da comparação (por exemplo, caixa, ordenação, remoção de espaços) |
+| `normalization` | nome da regra | Regra aplicada antes da comparação. As regras possuem nome e definição únicos em `common/` (por exemplo, `trim`, `lowercase`, `sort`); uma regra nova exige alteração em `common/` |
 | `providerDefault` | `true`, `false` | Se o provider pode preenchê-lo quando ausente em `desired`; nesse caso, o valor observado não é drift |
 | `sensitivity` | ver segurança dos contratos | Classificação do dado |
 | `enumPolicy` | `closed`, `open` | Política de evolução de um enum (ver evolução) |
@@ -272,6 +283,8 @@ O contrato de um recurso declarativo define os parâmetros de domínio usados pe
 | `observationValidity` | Reconciler | Idade máxima de um `observed` para decidir (mais estrita para ações destrutivas) |
 | `actionDeadline` | Reconciler | Prazo após o qual uma `action` pendente pode ser reemitida |
 | `failureLimit` | Manager | Quantidade de falhas por geração antes de marcar o recurso como `Failed` |
+
+Durações usam o formato padronizado de duração (ISO 8601). Os parâmetros são obrigatórios em todo recurso declarativo e não possuem valor padrão: um recurso sem eles não pode ser reconciliado de forma segura.
 
 # 10. Envelope e Payload
 
@@ -303,7 +316,7 @@ Exemplo, alinhado a `MESSAGING.md`, com nomes neutros:
 }
 ```
 
-Campos de decisão e rastreabilidade do envelope (`presence`, `actionId`, `requestedBy`) têm a semântica definida em `MESSAGING.md`. No contrato do envelope, `requestedBy`, `desiredGeneration`, `actionId` e os campos de data e hora de publicação possuem `writer = server`.
+Campos de decisão e rastreabilidade do envelope (`presence`, `actionId`, `requestedBy`) têm a semântica definida em `MESSAGING.md`. No contrato do envelope, `messageId`, `resourceId` (na criação), `requestedBy`, `desiredGeneration`, `actionId` e os campos de data e hora (`occurredAt`, `publishedAt`, `observedAt`) possuem `writer = server`: cada um é atribuído pelo componente responsável, e nunca aceito de um cliente externo.
 
 ## 10.2 Payload
 
@@ -315,7 +328,7 @@ Todo contrato possui versionamento explícito.
 
 ## 11.1 Formato e significado
 
-`schemaVersion` tem o formato `MAJOR.MINOR` e identifica a versão do **contrato da mensagem** (conforme `MESSAGING.md`), e não a versão da aplicação, do recurso ou do broker.
+`schemaVersion` tem o formato `MAJOR.MINOR` e identifica a versão do **contrato da mensagem**, isto é, do envelope somado ao `data` do `messageType` e do tipo de recurso (conforme `MESSAGING.md`). Não é a versão da aplicação, do recurso ou do broker.
 
 | Mudança | Incrementa |
 |---|---|
@@ -332,7 +345,7 @@ Um consumidor aceita uma mensagem quando suporta o seu `MAJOR`. Um `MINOR` maior
 
 ## 11.4 Envelope
 
-O contrato do envelope evolui apenas de forma compatível. Uma mudança incompatível do envelope é uma migração global (todas as mensagens de todos os domínios) e deve ser registrada como decisão em `.decisions/` antes de ser executada.
+O envelope faz parte do contrato de toda mensagem. Uma mudança compatível do envelope incrementa o `MINOR` de todos os contratos. Uma mudança incompatível incrementa o `MAJOR` de todos os contratos: é uma migração global, e deve ser registrada como decisão em `.decisions/` antes de ser executada.
 
 # 12. Evolução e Compatibilidade
 
@@ -386,6 +399,12 @@ Mensagens de estado (`desired`, `observed`) podem ficar retidas por tempo indete
 
 Antes de remover o suporte a um `MAJOR` antigo, o produtor deve republicar o estado retido na nova versão e verificar que não restam mensagens da versão antiga. Sem essa migração, um consumidor pode encontrar mensagens que não sabe interpretar.
 
+A republicação preserva `desiredGeneration`, `resourceVersion` e o conteúdo; muda apenas a versão do contrato e o `messageId`. Os consumidores tratam a mensagem republicada com a mesma geração como idempotente.
+
+## 12.4 Conversão na leitura
+
+Durante a coexistência, o consumidor converte as versões que suporta para a sua representação interna atual no momento da leitura. A conversão é uma função explícita por versão, coberta por teste de contrato, e não exige que os produtores reescrevam o que já publicaram.
+
 # 13. Campos Obrigatórios, Opcionais e Defaults
 
 Campos obrigatórios representam dados necessários para interpretar corretamente o contrato. Campos opcionais precisam de uma razão explícita para poderem estar ausentes.
@@ -400,6 +419,8 @@ Schemas expressam as restrições conhecidas do domínio sempre que isso reduzir
 
 ## 14.1 Limites obrigatórios
 
+Expressões regulares usadas em restrições devem ser de tempo linear (sem construções que permitam retrocesso exponencial), para impedir negação de serviço pela validação.
+
 Todo contrato define limites, para impedir payloads excessivos:
 
 - comprimento máximo de toda string;
@@ -407,7 +428,17 @@ Todo contrato define limites, para impedir payloads excessivos:
 - profundidade máxima de objetos aninhados;
 - tamanho máximo do conteúdo (`data`) e da mensagem.
 
-Valores padrão conservadores são definidos em `common/` e podem ser ajustados por contrato com justificativa. Um contrato sem limite explícito é inválido.
+Os valores de referência iniciais são definidos em `common/` e só podem ser ampliados por contrato com justificativa:
+
+| Limite | Valor de referência |
+|---|---|
+| Comprimento de string de identificação ou nome | 256 caracteres |
+| Comprimento de string descritiva | 4096 caracteres |
+| Itens de um array | 1000 |
+| Profundidade de objetos aninhados | 8 níveis |
+| Tamanho de `data` | 256 KiB |
+
+O tamanho da mensagem nunca excede o limite do transporte. Um contrato sem limite explícito é inválido.
 
 # 15. Campos Desconhecidos e Extensibilidade
 
@@ -464,6 +495,8 @@ Schemas podem referenciar outros schemas quando isso representa reutilização s
 
 Evitar cadeias profundas de referências. Um schema deve continuar compreensível sem exigir a leitura de uma grande árvore de dependências.
 
+Referências são resolvidas apenas dentro de `schemas/`. É proibido resolver referência remota (por URL) em tempo de validação, para evitar dependência externa e leitura de conteúdo não confiável.
+
 # 20. Segurança dos Contratos
 
 O contrato é uma fronteira de segurança.
@@ -483,11 +516,13 @@ Todo campo possui a anotação `sensitivity`, com uma destas classes:
 | `confidential` | Dados pessoais ou de negócio; não registrar em log, limitar acesso e retenção |
 | `secretReference` | Referência a segredo; nunca o valor |
 
-O valor padrão de um campo sem classificação explícita é `internal`. Campos `confidential` não aparecem em logs, mensagens de erro, exemplos reais nem métricas.
+A classificação é obrigatória e não possui valor padrão: um contrato com campo sem `sensitivity` é inválido. Campos `confidential` não aparecem em logs, mensagens de erro, exemplos reais nem métricas.
 
 ## 20.3 Campos atribuídos pelo servidor
 
-Campos com `writer = server` são atribuídos pelo componente de borda (por exemplo, `requestedBy`, `desiredGeneration`, `actionId`). Um valor enviado por cliente para um campo desse tipo é **rejeitado**, e não sobrescrito silenciosamente. Isso impede a falsificação de identidade, de geração e de decisão.
+Campos com `writer = server` são atribuídos por um componente do sistema: `requestedBy` pela API, `desiredGeneration` pelo Manager, `actionId` pelo Reconciler. Um valor enviado por cliente externo para um campo desse tipo é **rejeitado** na API, e não sobrescrito silenciosamente. Isso impede a falsificação de identidade, de geração e de decisão.
+
+Entre componentes internos, quem pode emitir cada campo é controlado pela autorização do emissor (`RESOURCE-CONTROL-SECURITY.md`).
 
 ## 20.4 Validação nas fronteiras de confiança
 
@@ -527,6 +562,14 @@ Consumo
     ↓
 validação de entrada (modo tolerante), obrigatória nas fronteiras de confiança
 ```
+
+## 21.1 Falha de validação em tempo de execução
+
+- uma mensagem que falha na validação ou que possui `MAJOR` não suportado é uma **falha permanente**: não é reprocessada em ciclo, e segue a política de quarentena do transporte, preservando a mensagem original e o motivo;
+- as rejeições são observáveis, com contagem por contrato e por versão, sem registrar valores `confidential`;
+- uma entrada externa inválida é rejeitada na borda, com erro que identifica o campo e a regra.
+
+## 21.2 Verificações da pipeline
 
 A pipeline detecta pelo menos:
 
@@ -623,7 +666,8 @@ Mudanças em schemas possuem testes de contrato quando houver consumidores indep
 schema aceita payload válido
 schema rejeita payload inválido
 exemplos são válidos
-versão anterior continua compatível quando requerido
+a nova versão aceita toda mensagem válida da versão anterior (leitura retroativa)
+a versão anterior, em modo tolerante, aceita mensagem do MINOR mais novo (leitura futura)
 modo tolerante ignora campo desconhecido de MINOR mais novo
 modo estrito rejeita campo desconhecido
 campos com writer = server são rejeitados quando enviados por cliente

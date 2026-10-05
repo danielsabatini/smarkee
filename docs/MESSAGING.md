@@ -1052,6 +1052,8 @@ Nunca utilizar apenas `publishedAt` como mecanismo de ordering lógico.
 
 Nas mensagens de estado, a mais recente é identificada por `desiredGeneration` (`desired`) ou por `observedAt` (`observed`). Uma mensagem de estado mais antiga que a já conhecida é ignorada.
 
+Quando duas mensagens de `desired` possuem a mesma geração (por exemplo, quando muda apenas o controle de reconciliação), vale a que foi entregue por último no mesmo endereço, pois o Manager é o único publicador de `desired` do recurso.
+
 # 23. Retry, quarentena e replay
 
 Falhas transitórias devem permitir retry com backoff.
