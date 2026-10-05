@@ -77,7 +77,7 @@ O interesse do consumidor é expresso por subscription, consumer, grupo de consu
 Exemplo:
 
 ```text
-manager.desired.ipm.tenant.<resourceId>.create
+manager.desired.ipm.tenant.<resourceId>.changed
 ```
 
 O subject não afirma que a mensagem é destinada exclusivamente a um determinado consumidor.
@@ -139,7 +139,7 @@ Sempre que o problema puder ser modelado como estado, representar o estado desej
 Preferir:
 
 ```text
-manager.desired.ipm.tenant.<tenantId>.create
+manager.desired.ipm.tenant.<tenantId>.changed
 ```
 
 quando a mensagem representa o estado desejado para um Tenant.
@@ -290,7 +290,7 @@ Representa o estado desejado estabelecido pelo componente responsável pelo SSOT
 Exemplo:
 
 ```text
-manager.desired.ipm.tenant.<tenantId>.create
+manager.desired.ipm.tenant.<tenantId>.changed
 ```
 
 Características:
@@ -299,26 +299,32 @@ Características:
 - versionado por `desiredGeneration`;
 - idempotente;
 - independente de uma sequência específica de comandos;
-- suficientemente completo para que o reconciler determine o delta necessário.
+- suficientemente completo para que o reconciler determine o delta necessário;
+- uma mensagem de estado: o `desired` mais recente do recurso (maior `desiredGeneration`) substitui os anteriores. A operação é sempre `changed`.
 
 ## 5.3 `observed`
 
 Representa uma observação factual sobre a realidade.
 
-Exemplos:
+Exemplo:
 
 ```text
-observer.observed.ipm.tenant.<tenantId>.absent
+observer.observed.ipm.tenant.<tenantId>.changed
 ```
 
-```text
-observer.observed.ipm.tenant.<tenantId>.present
-```
+O resultado da observação não faz parte do endereço. Ele é informado no campo `presence` do envelope:
+
+| `presence` | Significado |
+|---|---|
+| `present` | O recurso foi lido e existe. |
+| `absent` | O provider confirmou, de forma inequívoca, que o recurso não existe. |
+| `unknown` | A leitura falhou ou foi inconclusiva. |
 
 Características:
 
 - factual;
-- identifica quando a observação ocorreu;
+- identifica quando a observação ocorreu (`observedAt`, obrigatório);
+- uma mensagem de estado: a observação mais recente do recurso substitui as anteriores. A operação é sempre `changed`;
 - pode identificar qual `desiredGeneration` está relacionada à observação;
 - deve ser segura para replay;
 - pode ser consumida por vários componentes.
@@ -341,6 +347,8 @@ action  = o que o reconciler decidiu fazer para chegar ao estado desejado
 ```
 
 O `action` é uma mensagem operacional derivada do processo de reconciliação.
+
+Toda `action` possui um `actionId` determinístico, derivado de `resourceId`, `desiredGeneration` e `operation`. A mesma decisão sobre o mesmo estado produz o mesmo `actionId`, o que permite deduplicar reentregas e reemissões.
 
 O Reconciler decide.
 
@@ -400,6 +408,20 @@ failed
 
 `failed` e `completed` representam resultados distintos da mesma operação.
 
+## 5.8 Classes de mensagem
+
+Os tipos de mensagem pertencem a três classes, que determinam o modelo de entrega e de retenção esperado:
+
+| Classe | Tipos | Característica | Entrega |
+|---|---|---|---|
+| Trabalho | `requested`, `action` | Deve ser processada uma vez por um grupo de instâncias e deixa de existir após o processamento | Work Distribution |
+| Estado | `desired`, `observed` | A mais recente por recurso substitui as anteriores e deve estar disponível para novos consumidores e após restart | Fanout, com retenção do último estado por recurso |
+| Fato | `completed`, `failed`, `updated` | Registro imutável de algo que ocorreu, consumido por vários consumidores independentes | Fanout, com retenção por tempo |
+
+Mensagens de estado utilizam sempre a operação `changed`, de modo que cada recurso possua um único endereço por tipo de estado. A mensagem de estado mais recente é identificada por geração (`desiredGeneration`) ou por `observedAt`, nunca apenas por `publishedAt`.
+
+O mapeamento das classes para retenção e Streams pertence à implementação do transporte (`NATS.md`).
+
 # 6. Endereçamento lógico
 
 O endereço lógico oficial é:
@@ -411,7 +433,7 @@ O endereço lógico oficial é:
 Exemplo:
 
 ```text
-manager.desired.ipm.tenant.0199c8a4.create
+manager.desired.ipm.tenant.0199c8a4.changed
 ```
 
 A representação acima é uma convenção lógica legível.
@@ -538,8 +560,6 @@ create
 update
 delete
 changed
-present
-absent
 reconcile
 noop
 ```
@@ -548,14 +568,16 @@ A lista deve ser controlada pelo domínio.
 
 A operação não representa necessariamente uma chamada direta a um sistema externo.
 
+`desired` e `observed` são mensagens de estado e utilizam sempre `changed`. O resultado da observação (`present`, `absent`, `unknown`) pertence ao campo `presence`, e não à operação.
+
 Exemplos:
 
 ```text
-manager.desired.ipm.tenant.<id>.create
+manager.desired.ipm.tenant.<id>.changed
 ```
 
 ```text
-observer.observed.ipm.tenant.<id>.absent
+observer.observed.ipm.tenant.<id>.changed
 ```
 
 ```text
@@ -571,7 +593,7 @@ A operação deve ser interpretada em conjunto com o `messageType`.
 Assim:
 
 ```text
-observed + absent
+observed + changed, com presence = absent
 ```
 
 significa:
@@ -595,18 +617,20 @@ Para criação de um Tenant:
 ```text
 1. api.requested.ipm.tenant.<id>.create
 
-2. manager.desired.ipm.tenant.<id>.create
+2. manager.desired.ipm.tenant.<id>.changed
 
-3. observer.observed.ipm.tenant.<id>.absent
+3. observer.observed.ipm.tenant.<id>.changed
 
 4. reconciler.action.ipm.tenant.<id>.create
 
 5. executor.completed.ipm.tenant.<id>.create
 
-6. observer.observed.ipm.tenant.<id>.present
+6. observer.observed.ipm.tenant.<id>.changed
 
 7. manager.updated.ipm.tenant.<id>.changed
 ```
+
+Os passos 3 e 6 possuem o mesmo endereço. Eles se distinguem pelo campo `presence` (`absent` e `present`) e por `observedAt`.
 
 Em caso de falha:
 
@@ -633,7 +657,7 @@ O modelo não define um destinatário fixo dentro da identidade da mensagem.
 Exemplo:
 
 ```text
-manager.desired.ipm.tenant.<id>.create
+manager.desired.ipm.tenant.<id>.changed
 ```
 
 Pode ser consumido por:
@@ -669,8 +693,9 @@ Estrutura mínima:
   "module": "ipm",
   "resourceType": "tenant",
   "resourceId": "01J...",
-  "operation": "create",
+  "operation": "changed",
   "desiredGeneration": 1,
+  "requestedBy": "01J...",
   "correlationId": "01J...",
   "causationId": "01J...",
   "occurredAt": "2026-10-04T00:00:00Z",
@@ -690,7 +715,8 @@ Para `observed`:
   "module": "ipm",
   "resourceType": "tenant",
   "resourceId": "01J...",
-  "operation": "present",
+  "operation": "changed",
+  "presence": "present",
   "observedGeneration": 1,
   "correlationId": "01J...",
   "causationId": "01J...",
@@ -715,12 +741,21 @@ Para `observed`:
 | `operation` | Sim | Todos | Operação ou resultado semântico associado |
 | `desiredGeneration` | Condicional | `desired` | Geração do estado desejado |
 | `observedGeneration` | Condicional | `observed` | Geração desejada relacionada à observação |
+| `presence` | Sim | `observed` | Resultado da observação: `present`, `absent` ou `unknown` |
+| `actionId` | Condicional | `action`, `completed`, `failed` | Identidade determinística da decisão de reconciliação |
+| `requestedBy` | Condicional | Fluxo originado por uma solicitação | Identificador opaco do solicitante autenticado |
 | `correlationId` | Recomendado | Fluxos correlacionados | Identificador do fluxo lógico |
 | `causationId` | Recomendado | Mensagens causadas por outra | `messageId` da causa |
 | `occurredAt` | Sim | Todos | Momento em que o fato ocorreu |
 | `publishedAt` | Sim | Todos | Momento em que foi publicada |
-| `observedAt` | Condicional | `observed` | Momento da observação |
+| `observedAt` | Sim | `observed` | Momento da observação |
 | `data` | Sim | Todos | Conteúdo específico do recurso |
+
+## 10.1 Regras dos campos de decisão e rastreabilidade
+
+- **`presence`:** `unknown` indica leitura falha ou inconclusiva (timeout, 5xx, 401/403, limite de taxa) e nunca deve ser tratado como `absent`. Somente a confirmação inequívoca do provider é `absent`.
+- **`actionId`:** derivado de `resourceId`, `desiredGeneration` e `operation`. O formato é definido pelo contrato do recurso. É a chave de deduplicação da `action` e acompanha `completed` e `failed`.
+- **`requestedBy`:** identifica quem pediu a alteração, e não quem a executou (o executor é identificado por `emitter`). É definido pela API a partir do solicitante autenticado e propagado sem alteração. Não contém credenciais.
 
 # 11. `schemaVersion`
 
@@ -880,7 +915,7 @@ Exemplo:
   "module": "ipm",
   "resourceType": "tenant",
   "resourceId": "tenant-01",
-  "operation": "delete",
+  "operation": "changed",
   "desiredGeneration": 8,
   "data": {
     "lifecycle": "absent"
@@ -890,22 +925,23 @@ Exemplo:
 
 O reconciler decide quais ações concretas são necessárias.
 
-Da mesma forma, uma observação pode representar:
+Da mesma forma, uma observação pode representar a ausência:
 
 ```text
-observer.observed.ipm.tenant.<id>.absent
+observer.observed.ipm.tenant.<id>.changed
+presence = absent
 ```
 
 A diferença é:
 
 ```text
-desired + delete
+desired + lifecycle = absent
 ```
 
 representa intenção.
 
 ```text
-observed + absent
+observed + presence = absent
 ```
 
 representa realidade observada.
@@ -937,10 +973,13 @@ A semântica da mensagem e o modelo de entrega são dimensões independentes.
 
 Uma mensagem deve ser processada por uma única instância lógica dentro de um grupo de consumidores concorrentes.
 
+Aplica-se às mensagens de trabalho (`requested`, `action`).
+
 Uso típico:
 
 ```text
-desired → reconciliation
+requested → Manager
+action    → Executor
 ```
 
 Escalar significa adicionar instâncias ao mesmo grupo lógico.
@@ -948,6 +987,8 @@ Escalar significa adicionar instâncias ao mesmo grupo lógico.
 ## 20.2 Fanout
 
 A mesma mensagem deve estar disponível para consumidores independentes.
+
+Aplica-se às mensagens de estado e de fato (`desired`, `observed`, `completed`, `failed`, `updated`).
 
 Uso típico:
 
@@ -976,6 +1017,7 @@ A deduplicação pode utilizar:
 - `messageId`;
 - `resourceId + desiredGeneration`;
 - `resourceId + observedGeneration`;
+- `actionId`;
 - chave natural do domínio;
 - constraint transacional;
 - combinação desses mecanismos.
@@ -1006,6 +1048,8 @@ O consumidor deve ser capaz de identificar uma mensagem antiga por:
 - outro mecanismo explícito.
 
 Nunca utilizar apenas `publishedAt` como mecanismo de ordering lógico.
+
+Nas mensagens de estado, a mais recente é identificada por `desiredGeneration` (`desired`) ou por `observedAt` (`observed`). Uma mensagem de estado mais antiga que a já conhecida é ignorada.
 
 # 23. Retry, quarentena e replay
 
@@ -1057,7 +1101,8 @@ O Observer deve consultar o sistema externo.
 Se identificar que o recurso existe, deve publicar:
 
 ```text
-observer.observed.ipm.tenant.<id>.present
+observer.observed.ipm.tenant.<id>.changed
+presence = present
 ```
 
 Isso permite recuperar o estado sem depender da confirmação perdida.
@@ -1125,6 +1170,8 @@ Não transportar:
 
 Segredos devem ser referenciados por identificadores seguros ou recuperados de um sistema especializado de secrets management.
 
+`requestedBy` é um identificador opaco do solicitante, e não uma credencial.
+
 Autenticação, autorização, criptografia em trânsito e, quando aplicável, criptografia em repouso são responsabilidades complementares do transporte e da plataforma.
 
 # 28. Observabilidade
@@ -1151,6 +1198,7 @@ Logs e traces devem correlacionar:
 messageId
 correlationId
 causationId
+actionId
 emitter
 module
 resourceId
@@ -1340,6 +1388,27 @@ executor.failed.ipm.tenant.<id>.create
 manager.updated.ipm.tenant.<id>.changed
 ```
 
+## 31.11 Usar o resultado da observação como operação
+
+Evitar:
+
+```text
+observer.observed.ipm.tenant.<id>.changed
+observer.observed.ipm.tenant.<id>.changed
+```
+
+Preferir:
+
+```text
+observer.observed.ipm.tenant.<id>.changed
+```
+
+com `presence` no envelope. Dois endereços para o mesmo recurso impedem que o transporte retenha apenas o último estado.
+
+## 31.12 Tratar falha de leitura como ausência
+
+Um timeout, um 5xx ou um 401/403 do provider resulta em `presence = unknown`, e não em `absent`.
+
 # 32. Exemplos completos
 
 ## 32.1 API solicita criação de Tenant
@@ -1362,6 +1431,7 @@ Envelope:
   "resourceType": "tenant",
   "resourceId": "0199c8a4-...",
   "operation": "create",
+  "requestedBy": "0199c8a0-...",
   "correlationId": "0199c8b2-...",
   "occurredAt": "2026-10-04T00:00:00Z",
   "publishedAt": "2026-10-04T00:00:00Z",
@@ -1377,7 +1447,7 @@ Envelope:
 Subject:
 
 ```text
-manager.desired.ipm.tenant.0199c8a4.create
+manager.desired.ipm.tenant.0199c8a4.changed
 ```
 
 Envelope:
@@ -1391,8 +1461,9 @@ Envelope:
   "module": "ipm",
   "resourceType": "tenant",
   "resourceId": "0199c8a4-...",
-  "operation": "create",
+  "operation": "changed",
   "desiredGeneration": 1,
+  "requestedBy": "0199c8a0-...",
   "correlationId": "0199c8b2-...",
   "causationId": "0199c8b1-...",
   "occurredAt": "2026-10-04T00:00:01Z",
@@ -1410,7 +1481,7 @@ Envelope:
 Subject:
 
 ```text
-observer.observed.ipm.tenant.0199c8a4.absent
+observer.observed.ipm.tenant.0199c8a4.changed
 ```
 
 Envelope:
@@ -1424,7 +1495,8 @@ Envelope:
   "module": "ipm",
   "resourceType": "tenant",
   "resourceId": "0199c8a4-...",
-  "operation": "absent",
+  "operation": "changed",
+  "presence": "absent",
   "observedGeneration": 1,
   "correlationId": "0199c8b2-...",
   "causationId": "0199c8c0-...",
@@ -1432,7 +1504,6 @@ Envelope:
   "publishedAt": "2026-10-04T00:00:02Z",
   "observedAt": "2026-10-04T00:00:02Z",
   "data": {
-    "exists": false,
     "provider": "zitadel"
   }
 }
@@ -1458,7 +1529,9 @@ Envelope:
   "resourceType": "tenant",
   "resourceId": "0199c8a4-...",
   "operation": "create",
+  "actionId": "0199c8a4.1.create",
   "desiredGeneration": 1,
+  "requestedBy": "0199c8a0-...",
   "correlationId": "0199c8b2-...",
   "causationId": "0199c8d0-...",
   "occurredAt": "2026-10-04T00:00:03Z",
@@ -1489,7 +1562,9 @@ Envelope:
   "resourceType": "tenant",
   "resourceId": "0199c8a4-...",
   "operation": "create",
+  "actionId": "0199c8a4.1.create",
   "desiredGeneration": 1,
+  "requestedBy": "0199c8a0-...",
   "correlationId": "0199c8b2-...",
   "causationId": "0199c8e0-...",
   "occurredAt": "2026-10-04T00:00:05Z",
@@ -1507,7 +1582,7 @@ Envelope:
 Subject:
 
 ```text
-observer.observed.ipm.tenant.0199c8a4.present
+observer.observed.ipm.tenant.0199c8a4.changed
 ```
 
 Envelope:
@@ -1521,14 +1596,14 @@ Envelope:
   "module": "ipm",
   "resourceType": "tenant",
   "resourceId": "0199c8a4-...",
-  "operation": "present",
+  "operation": "changed",
+  "presence": "present",
   "observedGeneration": 1,
   "correlationId": "0199c8b2-...",
   "occurredAt": "2026-10-04T00:00:06Z",
   "publishedAt": "2026-10-04T00:00:06Z",
   "observedAt": "2026-10-04T00:00:06Z",
   "data": {
-    "exists": true,
     "provider": "zitadel",
     "providerResourceType": "organization",
     "providerResourceId": "zitadel-org-abc"
@@ -1551,8 +1626,8 @@ O Manager atualiza o SSOT e os consumidores podem construir suas próprias proje
 | `messageType` | Significado | Emissor típico | Operação típica |
 |---|---|---|---|
 | `requested` | Solicitação aceita | API | `create`, `update`, `delete` |
-| `desired` | Estado pretendido | Manager | `create`, `update`, `delete` |
-| `observed` | Estado observado | Observer | `present`, `absent`, `changed` |
+| `desired` | Estado pretendido | Manager | `changed` |
+| `observed` | Estado observado | Observer | `changed` |
 | `action` | Decisão de reconciliação | Reconciler | `create`, `update`, `delete`, `noop` |
 | `completed` | Operação concluída | Executor | `create`, `update`, `delete` |
 | `updated` | Recurso alterado | Manager | `changed` |
@@ -1568,6 +1643,9 @@ Novos tipos devem ser introduzidos somente quando representarem uma distinção 
 |---|---|---|
 | Significado | Estado pretendido | Estado observado |
 | Natureza | Declarativa | Factual |
+| Classe | Estado | Estado |
+| Operação | `changed` | `changed` |
+| Substituição | O `desired` de maior geração substitui o anterior | A observação mais recente (`observedAt`) substitui a anterior |
 | Origem típica | Manager | Observer |
 | Pode ser republicada | Sim | Sim |
 | Deve ser idempotente | Sim | Sim |
@@ -1599,6 +1677,9 @@ Uma implementação está conforme quando:
 - identifica o emissor de forma estável;
 - utiliza `messageType` controlado;
 - separa `messageType` de `operation`;
+- utiliza a operação `changed` em `desired` e `observed`, e informa o resultado da observação em `presence`;
+- trata `presence = unknown` como inconclusivo, nunca como ausência;
+- identifica o solicitante (`requestedBy`) e a decisão (`actionId`) quando aplicável;
 - utiliza o formato lógico de subject definido neste documento;
 - não exige destinatário no contrato semântico;
 - separa `messageId` de `resourceId`;
