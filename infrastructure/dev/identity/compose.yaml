@@ -1,0 +1,52 @@
+services:
+  # O Zitadel requer um passo de setup (migrations, inicialização) antes de rodar o servidor principal.
+  identity-setup:
+    image: ${ZITADEL_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v2.66.1}
+    container_name: smarkee-identity-setup
+    command: ["setup", "--masterkey", "${ZITADEL_MASTERKEY}", "--config", "/machinekey.yaml"]
+    volumes:
+      - ./machinekey.yaml:/machinekey.yaml:ro
+    environment:
+      ZITADEL_DATABASE_POSTGRES_HOST: ${ZITADEL_DATABASE_HOST:-smarkee-database}
+      ZITADEL_DATABASE_POSTGRES_PORT: ${ZITADEL_DATABASE_PORT:-5432}
+      ZITADEL_DATABASE_POSTGRES_USER: ${ZITADEL_DATABASE_USER:-smarkee}
+      ZITADEL_DATABASE_POSTGRES_PASSWORD: ${ZITADEL_DATABASE_PASSWORD:-smarkee_password}
+      ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_DATABASE_NAME:-smarkee}
+      ZITADEL_DATABASE_POSTGRES_SSL_MODE: disable
+    networks:
+      - smarkee-dev-network
+    restart: "no"
+
+  identity:
+    image: ${ZITADEL_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v2.66.1}
+    container_name: smarkee-identity
+    command: ["start-from-init", "--masterkey", "${ZITADEL_MASTERKEY}", "--config", "/machinekey.yaml"]
+    volumes:
+      - ./machinekey.yaml:/machinekey.yaml:ro
+    depends_on:
+      identity-setup:
+        condition: service_completed_successfully
+    environment:
+      ZITADEL_DATABASE_POSTGRES_HOST: ${ZITADEL_DATABASE_HOST:-smarkee-database}
+      ZITADEL_DATABASE_POSTGRES_PORT: ${ZITADEL_DATABASE_PORT:-5432}
+      ZITADEL_DATABASE_POSTGRES_USER: ${ZITADEL_DATABASE_USER:-smarkee}
+      ZITADEL_DATABASE_POSTGRES_PASSWORD: ${ZITADEL_DATABASE_PASSWORD:-smarkee_password}
+      ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_DATABASE_NAME:-smarkee}
+      ZITADEL_DATABASE_POSTGRES_SSL_MODE: disable
+      ZITADEL_EXTERNALSECURE: "false"
+      ZITADEL_PORT: 8080
+    ports:
+      - "8080:8080"
+    networks:
+      - smarkee-dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/debug/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  smarkee-dev-network:
+    name: smarkee-dev-network
+    external: true
