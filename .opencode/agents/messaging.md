@@ -147,7 +147,7 @@ Em conformidade com o `AGENTS.md` (seção 24.1 - Relação com Agentes e Skills
 **Toda a modelagem semântica, taxonomia (desired/observed), envelopes, roteamento lógico, idempotência e evolução de contratos estão definidos na documentação oficial em:**
 👉 `docs/MESSAGING.md`
 
-Contratos formais, versionamento e compatibilidade de schemas: `docs/SCHEMA.md`. Padrão de reconciliação que origina as mensagens `desired` e `observed`: `docs/RESOURCE-CONTROL-LOOP.md`.
+Contratos formais, versionamento e compatibilidade de schemas: `docs/SCHEMA.md`. Padrão de reconciliação que origina as mensagens `desired` e `observed`: `docs/RESOURCE-CONTROL-LOOP.md`. Autorização e segurança das mensagens do loop: `docs/RESOURCE-CONTROL-SECURITY.md`.
 
 Ao atuar como subagente, **você deve consultar, ler e aplicar as regras descritas no `docs/MESSAGING.md`** para realizar qualquer avaliação, decisão ou desenho de contratos assíncronos.
 

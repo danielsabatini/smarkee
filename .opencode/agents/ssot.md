@@ -27,7 +27,8 @@ Em conformidade com o `AGENTS.md` (seção 24.1), este arquivo define apenas a a
 
 * padrão de reconciliação, papéis e persistência no SSOT: `docs/RESOURCE-CONTROL-LOOP.md`;
 * semântica de `desired` e `observed` nas mensagens: `docs/MESSAGING.md`;
-* contratos formais e ciclo de vida do schema até o SSOT: `docs/SCHEMA.md`.
+* contratos formais e ciclo de vida do schema até o SSOT: `docs/SCHEMA.md`;
+* segurança do control loop (identidades, proteção da `action`, credenciais): `docs/RESOURCE-CONTROL-SECURITY.md`.
 
 ---
 
