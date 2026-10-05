@@ -18,10 +18,11 @@ A implementação NATS deve preservar:
 
 ```text
 emitter
-semanticType
-scope
+messageType
+module
 resourceType
 resourceId
+operation
 ```
 
 conforme definido em `MESSAGING.md`.
@@ -33,48 +34,41 @@ No NATS, o endereço lógico é materializado em um Subject hierárquico.
 Formato de referência:
 
 ```text
-<emitter>.<semanticType>.<scope>.<resourceType>[.<resourceId>]
+<emitter>.<messageType>.<module>.<resourceType>.<resourceId>.<operation>
 ```
 
 Exemplos:
 
 ```text
-manager.desired.underlay.node.node-01
-manager.desired.overlay.vm.vm-01
-worker.platform.observed.underlay.node.node-01
-worker.storage.observed.underlay.volume.volume-01
-worker.agent.observed.overlay.agent.agent-01
+api.requested.ipm.tenant.<id>.create
+manager.desired.ipm.tenant.<id>.changed
+observer.observed.ipm.tenant.<id>.changed
+reconciler.action.ipm.tenant.<id>.create
+executor.completed.ipm.tenant.<id>.create
+manager.updated.ipm.tenant.<id>.changed
 ```
 
 ## 3.3 Emissor primeiro
 
-O primeiro nível representa o emissor.
-
-Para workers especializados, a identidade funcional pode ser composta por dois tokens:
+O primeiro nível representa o emissor funcional:
 
 ```text
-worker.platform
-worker.storage
-worker.identity
-worker.vault
-worker.agent
-worker.runner
-worker.tools
+api
+manager
+observer
+reconciler
+executor
 ```
 
-Isso permite filtros eficientes usando wildcard de um token:
-
-```text
-worker.*.observed.underlay.>
-```
+Emissores compostos de dois tokens, quando definidos em `MESSAGING.md` (por exemplo, `worker.platform`), exigem que filtros e autorizações considerem os dois tokens.
 
 ## 3.4 Destinatário não é codificado no Subject
 
 Não utilizar:
 
 ```text
-manager.worker.desired...
-worker.manager.observed...
+manager.executor.desired...
+observer.manager.observed...
 ```
 
 para representar destinatário.
@@ -85,13 +79,28 @@ O consumidor manifesta interesse por meio de subscription ou JetStream Consumer.
 
 Quando `resourceId` fizer parte do Subject, ele deve respeitar a sintaxe de Subject do NATS.
 
-Em particular, `.` é separador de tokens e, portanto, não deve aparecer no `resourceId` usado no Subject.
+Em particular, `.` é separador de tokens e, portanto, não deve aparecer no `resourceId` usado no Subject. Caracteres que criem tokens extras ou wildcards (`*`, `>`) também não são permitidos.
+
+O `resourceId` deve ser validado antes de compor o Subject, e um valor inválido deve ser rejeitado (ver `RESOURCE-CONTROL-SECURITY.md`).
 
 A regra semântica de identidade de recurso continua pertencendo a `MESSAGING.md`; a restrição de caracteres é específica da implementação NATS.
 
+## 3.6 Um Subject por recurso nas mensagens de estado
+
+`desired` e `observed` são mensagens de estado (ver `MESSAGING.md`, classes de mensagem). Por isso, utilizam sempre a operação `changed`:
+
+```text
+manager.desired.ipm.tenant.<id>.changed
+observer.observed.ipm.tenant.<id>.changed
+```
+
+Assim, cada recurso possui **um único Subject** por tipo de estado, e a retenção de uma mensagem por Subject (seção de retenção) guarda exatamente o último estado do recurso.
+
+Se a operação fizesse parte da identidade do Subject (`...create`, `...update`, `...present`, `...absent`), o stream reteria uma mensagem por operação, e uma observação antiga poderia permanecer ao lado de uma recente.
+
 # 4. Core NATS e JetStream
 
-Core NATS entrega mensagens aos subscribers conectados e não fornece persistência para reprocessamento posterior. Quando mensagens precisam sobreviver a reinícios, aguardar consumidores ou ser reproduzidas, a implementação deve utilizar JetStream. citeturn267294search1turn267294search0
+Core NATS entrega mensagens aos subscribers conectados e não fornece persistência para reprocessamento posterior. Quando mensagens precisam sobreviver a reinícios, aguardar consumidores ou ser reproduzidas, a implementação deve utilizar JetStream.
 
 ## 4.1 Uso recomendado
 
@@ -104,19 +113,19 @@ Core NATS pode ser utilizado para interações que explicitamente sejam efêmera
 ## 5.1 Subject canônico
 
 ```text
-<emitter>.<semanticType>.<scope>.<resourceType>[.<resourceId>]
+<emitter>.<messageType>.<module>.<resourceType>.<resourceId>.<operation>
 ```
 
 ## 5.2 Exemplos
 
 ```text
-manager.desired.underlay.node.node-01
-manager.desired.underlay.volume.volume-01
-manager.desired.overlay.vm.vm-01
-
-worker.platform.observed.underlay.node.node-01
-worker.storage.observed.underlay.volume.volume-01
-worker.runner.observed.overlay.vm.vm-01
+api.requested.ipm.tenant.<id>.create
+manager.desired.ipm.tenant.<id>.changed
+observer.observed.ipm.tenant.<id>.changed
+reconciler.action.ipm.tenant.<id>.create
+executor.completed.ipm.tenant.<id>.create
+executor.failed.ipm.tenant.<id>.create
+manager.updated.ipm.tenant.<id>.changed
 ```
 
 ## 5.3 Wildcards
@@ -127,19 +136,18 @@ Exemplos:
 
 ```text
 manager.desired.>
-manager.desired.underlay.>
-manager.desired.overlay.>
+manager.desired.ipm.>
+manager.desired.ipm.tenant.>
 
-worker.*.observed.>
-worker.*.observed.underlay.>
-worker.platform.observed.underlay.node.>
+observer.observed.ipm.tenant.>
+reconciler.action.ipm.tenant.>
 ```
 
 Evitar subscriptions genéricas como:
 
 ```text
 >
-* 
+*
 ```
 
 em componentes de produção.
@@ -149,62 +157,81 @@ em componentes de produção.
 Quando `resourceId` estiver no Subject:
 
 ```text
-worker.platform.observed.underlay.node.node-01
+observer.observed.ipm.tenant.tenant-01.changed
 ```
 
 não utilizar:
 
 ```text
-worker.platform.observed.underlay.node.node.01
+observer.observed.ipm.tenant.tenant.01.changed
 ```
 
 porque o segundo exemplo cria dois tokens adicionais.
 
 # 6. Streams JetStream
 
-Streams são o mecanismo de persistência e replay do JetStream. O desenho do Stream deve seguir o modelo de entrega desejado, e não apenas a conveniência de agrupar Subjects. JetStream suporta políticas de retenção `limits`, `interest` e `workqueue`, além de consumidores, replay e replicação. citeturn267294search0turn267294search2
+Streams são o mecanismo de persistência e replay do JetStream. O desenho do Stream deve seguir o modelo de entrega desejado, e não apenas a conveniência de agrupar Subjects. JetStream suporta políticas de retenção `limits`, `interest` e `workqueue`, além de consumidores, replay e replicação.
 
-## 6.1 Stream `DESIRED`
+## 6.1 Um Stream por `messageType`
 
-Responsável pela persistência das mensagens `desired` utilizadas como trabalho de reconciliação.
+A regra é explícita: **cada `messageType` possui seu Stream**, com a retenção adequada à sua classe (ver `MESSAGING.md`, classes de mensagem). A única exceção é `completed` e `failed`, que compartilham o Stream `RESULT` por serem resultados da mesma operação, com os mesmos consumidores e a mesma retenção.
 
-Mapeamento de referência:
+Motivos:
 
-```text
-Stream: DESIRED
-Subjects:
-  manager.desired.>
-```
+- **segurança:** a autorização de JetStream é por Stream. A permissão de subscribe por Subject não restringe o que um consumidor JetStream lê, e o controle por filtro de consumidor só existe para consumidor com um único filtro. Um Stream por tipo isola quem acessa `action` de quem acessa `requested`;
+- **robustez:** limites e política de descarte são por Stream, de modo que um excesso de um tipo não bloqueia outro;
+- **resiliência:** a falha ou a limpeza de um Stream afeta um único tipo;
+- **simplicidade:** a regra "Stream = `messageType`" dispensa uma segunda taxonomia.
 
-Retenção de referência:
+Esta regra não contradiz a recomendação de evitar fragmentação (seção própria): ela se aplica a recursos e componentes, e não a tipos semânticos.
 
-```text
-WorkQueuePolicy
-```
+## 6.2 Mapeamento
 
-A semântica é de distribuição de trabalho: dentro de um grupo lógico, uma mensagem deve ser processada por uma instância concorrente por vez.
+| Stream | Subjects | Retenção | Classe | Consumidores |
+|---|---|---|---|---|
+| `REQUESTED` | `api.requested.>` | `WorkQueuePolicy`, `DiscardNew` | Trabalho | Manager |
+| `DESIRED` | `manager.desired.>` | `LimitsPolicy`, `MaxMsgsPerSubject=1` | Estado | Reconciler, Observer, Executor (leitura), outros |
+| `OBSERVED` | `observer.observed.>` | `LimitsPolicy`, `MaxMsgsPerSubject=1`, `MaxAge` | Estado | Reconciler, Manager, outros |
+| `ACTION` | `reconciler.action.>` | `WorkQueuePolicy`, `DiscardNew` | Trabalho | Executor |
+| `RESULT` | `executor.completed.>`, `executor.failed.>` | `LimitsPolicy`, `MaxAge` | Fato | Manager, Observer, Reconciler, auditoria |
+| `UPDATED` | `manager.updated.>` | `LimitsPolicy`, `MaxAge` | Fato | Console, auditoria, métricas |
+| `AUDIT` | `audit.>` | `LimitsPolicy`, retenção longa | Histórico | Auditoria |
+| `QUARANTINE` | definido pela política de quarentena | `LimitsPolicy` | Diagnóstico | Operação |
 
-## 6.2 Stream `OBSERVED`
+Os valores de limites (`MaxAge`, tamanho, réplicas) dependem do ambiente. Duas restrições:
 
-Responsável pela persistência das mensagens `observed`.
+- `RESULT` deve reter por mais tempo que o prazo de ação do domínio e que a janela de recuperação do Reconciler;
+- `OBSERVED` deve possuir `MaxAge` maior que alguns períodos de observação (o Observer observa periodicamente). Um recurso que deixa de ser observado expira, e o Reconciler não decide sem observação (ver `RESOURCE-CONTROL-LOOP.md`).
 
-Mapeamento de referência:
+## 6.3 `REQUESTED` e `ACTION`: trabalho
 
-```text
-Stream: OBSERVED
-Subjects:
-  worker.*.observed.>
-```
+São mensagens de trabalho com **um único consumidor lógico**. A mensagem deve ser processada uma vez por um grupo de instâncias e deixar de existir após o ACK.
 
-Retenção de referência:
+- `WorkQueuePolicy`: a mensagem é removida após o ACK;
+- `DiscardNew`: com o Stream cheio, o publicador recebe erro, em vez de o Stream descartar trabalho antigo. O publicador deve tratar esse erro como contrapressão (a API rejeita o pedido de forma retentável; o Reconciler tenta novamente na próxima reconciliação);
+- consumidores de um Stream `WorkQueue` não podem ter filtros de Subject sobrepostos. Cada Stream de trabalho possui um único consumidor durável por função;
+- um segundo leitor (auditoria, métricas) **não** deve consumir o Stream de trabalho. Esses leitores usam `AUDIT` (ver seção de Source, Mirror e Republish).
 
-```text
-LimitsPolicy
-```
+`ACTION` publica com o cabeçalho `Nats-Msg-Id` igual ao `actionId`. O broker descarta duplicatas dentro da janela de deduplicação (por padrão, 2 minutos). Isso é uma otimização: a deduplicação do Executor por `actionId` continua obrigatória.
 
-Isso permite múltiplos consumidores independentes, cada um mantendo seu próprio progresso e sua própria retenção de consumo.
+## 6.4 `DESIRED` e `OBSERVED`: estado
 
-## 6.3 Stream `AUDIT`
+São mensagens de estado: a mais recente por recurso substitui as anteriores.
+
+- `LimitsPolicy` com `MaxMsgsPerSubject=1`: o Stream retém o último estado de cada recurso, e **não** remove a mensagem após o ACK;
+- vários consumidores independentes, cada um com seu progresso (Reconciler, Observer, Executor, Manager, outros);
+- após restart, o consumidor do Reconciler parte da última mensagem de cada Subject (`DeliverLastPerSubject`) e reconstrói o estado;
+- o histórico de gerações não fica nestes Streams. Quando necessário, vem de `AUDIT`.
+
+## 6.5 `RESULT` e `UPDATED`: fatos
+
+São fatos imutáveis, consumidos por vários consumidores independentes.
+
+- `LimitsPolicy` com `MaxAge` (e limites de tamanho);
+- cada consumidor mantém seu progresso;
+- um consumidor lento não bloqueia os demais.
+
+## 6.6 `AUDIT`
 
 Auditoria é opcional e não faz parte da semântica básica da mensagem.
 
@@ -218,13 +245,13 @@ Subjects:
   audit.>
 ```
 
-A forma de popular `AUDIT` deve ser escolhida explicitamente. Não assumir que `Source`, `Mirror` ou `RePublish` são semanticamente equivalentes.
+A forma de popular `AUDIT` deve ser escolhida explicitamente. Não assumir que `Source`, `Mirror` ou `RePublish` são semanticamente equivalentes. Em particular, a origem em Stream `WorkQueue` (`REQUESTED`, `ACTION`) deve ser validada antes de adotada, pois a restrição de consumidores sem sobreposição se aplica a quem lê o Stream.
 
-## 6.4 Evitar streams excessivamente fragmentados
+## 6.7 Evitar streams excessivamente fragmentados
 
 Não criar um Stream por recurso ou por componente sem necessidade operacional.
 
-A divisão deve considerar:
+A divisão por `messageType` (6 Streams operacionais) é deliberada. Qualquer divisão adicional deve considerar:
 
 - política de retenção;
 - modelo de consumo;
@@ -236,78 +263,90 @@ A divisão deve considerar:
 
 # 7. Consumers
 
-Consumers mantêm o estado de entrega por leitor e controlam como mensagens persistidas são disponibilizadas. JetStream suporta pull consumers, replay, ACK, redelivery e escalabilidade entre várias instâncias de um mesmo consumer. citeturn498353view0L58-L79
+Consumers mantêm o estado de entrega por leitor e controlam como mensagens persistidas são disponibilizadas. JetStream suporta pull consumers, replay, ACK, redelivery e escalabilidade entre várias instâncias de um mesmo consumer.
 
-## 7.1 `DESIRED`: Pull Consumer
+## 7.1 Consumers por função
 
-Para trabalho de reconciliação, utilizar Pull Consumer como padrão.
+Cada função possui seu próprio consumer durável. O nome representa a função, e não uma instância.
+
+| Stream | Consumer | Função | Observação |
+|---|---|---|---|
+| `REQUESTED` | `manager-requested` | Manager | Único consumidor do Stream de trabalho |
+| `DESIRED` | `reconciler-desired` | Reconciler | `DeliverLastPerSubject` no cold start |
+| `DESIRED` | `observer-desired` | Observer | Define quais recursos observar |
+| `DESIRED` | `executor-desired` | Executor | Somente leitura, para revalidar a `action` |
+| `OBSERVED` | `reconciler-observed` | Reconciler | `DeliverLastPerSubject` no cold start |
+| `OBSERVED` | `manager-observed` | Manager | Atualiza `observed` e `conditions` no SSOT |
+| `ACTION` | `executor-action` | Executor | Único consumidor do Stream de trabalho |
+| `RESULT` | `manager-result`, `observer-result`, `reconciler-result` | Manager, Observer, Reconciler | O Reconciler rastreia `action` pendente |
+| `UPDATED` | `console-updated`, `metrics-updated`, ... | Projeções | Um por consumidor |
+
+Funções adicionais (billing, auditoria, monitoramento) criam seus próprios consumers, sem alterar o produtor.
+
+## 7.2 Pull Consumer
+
+Pull Consumer é o padrão para todos os consumers de processamento.
 
 Motivos:
 
-- backpressure controlado pelo worker;
+- backpressure controlado pelo consumidor;
 - lote de mensagens controlado pelo consumidor;
 - escala horizontal simples;
 - comportamento operacional previsível.
 
-## 7.2 `OBSERVED`: Consumers independentes
+## 7.3 Instâncias de uma função
 
-Cada função que precisa receber `observed` deve possuir seu próprio consumer durável quando a informação precisar sobreviver ao reinício do componente.
+Várias instâncias de uma mesma função **compartilham o mesmo consumer durável**. É isso que distribui o trabalho entre elas, e não a política de retenção do Stream.
 
-Exemplo:
+Para `DESIRED` e `OBSERVED`, cada instância do Reconciler precisa do estado completo dos recursos que decide. Quando a carga exigir mais de uma instância, a divisão deve ser determinística por `resourceId`, de modo que um mesmo recurso seja decidido por uma única instância por vez.
 
-```mermaid
-graph TD
-    A[(OBSERVED)] --> B[manager consumer]
-    A --> C[billing consumer]
-    A --> D[audit consumer]
-    A --> E[monitoring consumer]
-```
-
-## 7.3 Durable Consumers
+## 7.4 Durable Consumers
 
 Consumidores responsáveis por processamento de produção devem utilizar identidade durável e estável quando a continuidade do progresso for necessária.
 
 O nome do consumer deve representar sua função, não uma instância efêmera.
 
-# 8. Work Distribution para `desired`
+# 8. Work Distribution
 
-O padrão recomendado é:
+Aplica-se às mensagens de trabalho (`requested` e `action`):
 
 ```mermaid
 graph TD
-    A[manager.desired.>] --> B[(DESIRED Stream)]
-    B --> C[Pull Consumer]
-    C --> D[worker-1]
-    C --> E[worker-2]
+    A[api.requested.>] --> B[(REQUESTED)]
+    B --> C[manager-requested]
+    C --> D[manager-1]
+    C --> E[manager-2]
 ```
 
-As instâncias concorrem sobre o mesmo fluxo lógico de trabalho.
+As instâncias concorrem sobre o mesmo fluxo lógico de trabalho. A instância confirma a mensagem somente depois de executar o processamento definido pela aplicação.
 
-O worker confirma a mensagem somente depois de executar o processamento definido pela aplicação.
+Para `action`, apenas uma `action` deve estar em execução por vez para o mesmo `resourceId` (*single-flight*, ver `RESOURCE-CONTROL-LOOP.md`). Essa garantia deve ser implementada pela aplicação (verificação de `action` pendente ou divisão determinística por `resourceId`). Ela não decorre automaticamente da política `WorkQueue`.
 
-A confirmação de transporte não substitui a publicação de `observed`.
+A confirmação de transporte não substitui a publicação de `completed`, `failed` ou `observed`.
 
-# 9. Fanout para `observed`
+# 9. Fanout e estado
 
-O padrão recomendado é:
+Aplica-se às mensagens de estado (`desired`, `observed`) e aos fatos (`completed`, `failed`, `updated`):
 
 ```text
-worker.*.observed.>
+observer.observed.>
           |
           v
-     OBSERVED
-      /  |  \
-     /   |   \
- manager billing audit
+      OBSERVED
+      /   |   \
+     /    |    \
+reconciler manager audit
 ```
 
 Cada consumidor mantém seu próprio estado de leitura.
 
 Um consumidor lento não deve bloquear semanticamente os demais consumidores.
 
+Nas mensagens de estado, o ACK registra o progresso do consumidor, mas **não remove** a mensagem: o último estado do recurso permanece disponível para novos consumidores e para restarts.
+
 # 10. ACK e processamento
 
-JetStream rastreia a entrega por consumer e considera a mensagem processada quando há ACK apropriado. Mensagens não confirmadas podem ser entregues novamente. citeturn545275search1
+JetStream rastreia a entrega por consumer e considera a mensagem processada quando há ACK apropriado. Mensagens não confirmadas podem ser entregues novamente.
 
 ## 10.1 Regra de ACK
 
@@ -412,7 +451,7 @@ Não tratar uma quarentena como armazenamento histórico permanente.
 
 # 14. Replay
 
-JetStream permite leitura e replay de mensagens persistidas. citeturn498353view0L58-L87
+JetStream permite leitura e replay de mensagens persistidas.
 
 Replay deve ser controlado para evitar efeitos duplicados.
 
@@ -431,13 +470,13 @@ Replay não deve ser utilizado como mecanismo cotidiano de retry.
 
 ## 15.1 `WorkQueuePolicy`
 
-Adequado para `DESIRED` quando a mensagem representa trabalho que deve ser processado por um grupo de consumidores concorrentes.
+Adequado para `REQUESTED` e `ACTION`, quando a mensagem representa trabalho que deve ser processado por um único grupo de consumidores concorrentes.
 
-A mensagem não deve desaparecer do fluxo antes que o processamento correspondente tenha sido reconhecido conforme a política do consumer.
+A mensagem não deve desaparecer do fluxo antes que o processamento correspondente tenha sido reconhecido conforme a política do consumer. Os consumidores do Stream não podem ter filtros de Subject sobrepostos.
 
 ## 15.2 `LimitsPolicy`
 
-Adequado para `OBSERVED` quando os fatos devem permanecer disponíveis para consumidores independentes dentro de uma janela de retenção.
+Adequado para `DESIRED`, `OBSERVED`, `RESULT`, `UPDATED` e `AUDIT`, quando as mensagens devem permanecer disponíveis para consumidores independentes.
 
 Os limites devem ser definidos por:
 
@@ -447,11 +486,22 @@ Os limites devem ser definidos por:
 - impacto de armazenamento;
 - necessidade de replay.
 
+Em `DESIRED` e `OBSERVED`, o limite principal é a quantidade por Subject (`MaxMsgsPerSubject=1`).
+
 ## 15.3 `InterestPolicy`
 
 Pode ser utilizada quando a retenção deve depender da existência de consumidores interessados.
 
-Não utilizar automaticamente apenas porque está disponível. Validar primeiro a semântica desejada.
+Não utilizar automaticamente apenas porque está disponível. Validar primeiro a semântica desejada. Esta política não é adotada neste momento.
+
+## 15.4 Remoção de recursos
+
+Como `DESIRED` e `OBSERVED` retêm o último estado por recurso, o estado de um recurso removido precisa sair dos Streams:
+
+- `DESIRED`: após a convergência da remoção (`desired` com `lifecycle=absent` e observação `presence=absent`), o Manager remove o recurso do SSOT e remove a mensagem do Subject do recurso (purge por Subject). Remover antes da convergência faria o Reconciler perder o estado desejado;
+- `OBSERVED`: expira por `MaxAge`, pois o Observer reobserva periodicamente os recursos que existem em `DESIRED`.
+
+O purge deve ser autorizado de forma restrita (somente o Stream `DESIRED` e somente o Manager).
 
 # 16. Replicação e durabilidade
 
@@ -470,7 +520,7 @@ Não assumir que replicação do Stream elimina a necessidade de backup.
 
 # 17. Source, Mirror e Republish
 
-NATS possui mecanismos diferentes para copiar ou transformar fluxos, incluindo sources, mirrors e republish. A escolha depende do objetivo operacional e da política do Stream. citeturn267294search3turn545275search1
+NATS possui mecanismos diferentes para copiar ou transformar fluxos, incluindo sources, mirrors e republish. A escolha depende do objetivo operacional e da política do Stream.
 
 ## 17.1 Regra arquitetural
 
@@ -503,18 +553,15 @@ Para comunicação serviço-a-serviço, mTLS é a configuração recomendada qua
 
 Publicação e assinatura devem ser autorizadas separadamente.
 
-Exemplos conceituais:
+A matriz de permissões por componente é definida em `RESOURCE-CONTROL-SECURITY.md`. Este documento descreve como ela é materializada em NATS.
 
-```text
-manager
-  publish: manager.desired.>
+NATS suporta ACLs de publicação e assinatura por Subject. Uma allow-list explícita restringe o acesso às subjects não autorizadas.
 
-worker.platform
-  subscribe: manager.desired.underlay.node.>
-  publish: worker.platform.observed.underlay.node.>
-```
+Em JetStream há uma particularidade: a permissão de subscribe por Subject não restringe o que um consumidor JetStream lê do Stream. O acesso à API de consumers é autorizado por Stream (`$JS.API.CONSUMER.*.<stream>...`) e, para um consumer com um único filtro, por filtro. Por isso:
 
-NATS suporta ACLs de publicação e assinatura por Subject. Uma allow-list explícita restringe o acesso às subjects não autorizadas. citeturn630348search0turn267294search6
+- cada `messageType` possui seu Stream (seção de Streams);
+- consumers são criados pela infraestrutura (seção de administração), e identidades de runtime recebem apenas o acesso ao **seu** consumer (`$JS.API.CONSUMER.MSG.NEXT.<stream>.<consumer>` e os Subjects de ACK correspondentes);
+- identidades de runtime não recebem permissão para criar, alterar ou listar consumers de outros componentes.
 
 ## 18.4 Princípio do menor privilégio
 
@@ -632,7 +679,7 @@ correlationId
 causationId
 resourceId
 resourceType
-semanticType
+messageType
 ```
 
 # 24. Requisitos de resiliência do cliente
@@ -649,7 +696,7 @@ Devem possuir:
 - shutdown ordenado;
 - recuperação do consumer durável quando aplicável.
 
-Falha de autenticação não deve ser mascarada como simples indisponibilidade de rede. Clientes NATS possuem comportamentos específicos para reconexão e falhas de autenticação que devem ser considerados na operação. citeturn267294search9
+Falha de autenticação não deve ser mascarada como simples indisponibilidade de rede. Clientes NATS possuem comportamentos específicos para reconexão e falhas de autenticação que devem ser considerados na operação.
 
 # 25. JetStream API e administração
 
@@ -667,41 +714,66 @@ sem necessidade explícita.
 
 # 26. Exemplos de autorização
 
+Exemplos conceituais por componente. A matriz oficial está em `RESOURCE-CONTROL-SECURITY.md`; os valores concretos de configuração do servidor pertencem à infraestrutura e devem ser validados no ambiente.
+
 ## 26.1 Manager
 
 ```text
 publish:
   manager.desired.>
+  manager.updated.>
 
-subscribe:
-  worker.*.observed.>
+consumo (consumers próprios):
+  REQUESTED  → manager-requested
+  OBSERVED   → manager-observed
+  RESULT     → manager-result
+
+administração restrita:
+  purge do Stream DESIRED
 ```
 
-## 26.2 Platform Worker
+## 26.2 Observer
 
 ```text
-subscribe:
-  manager.desired.underlay.node.>
-
 publish:
-  worker.platform.observed.underlay.node.>
+  observer.observed.>
+
+consumo (consumers próprios):
+  DESIRED → observer-desired
+  RESULT  → observer-result
 ```
 
-## 26.3 Storage Worker
+## 26.3 Reconciler
 
 ```text
-subscribe:
-  manager.desired.underlay.volume.>
-
 publish:
-  worker.storage.observed.underlay.volume.>
+  reconciler.action.>
+
+consumo (consumers próprios):
+  DESIRED  → reconciler-desired
+  OBSERVED → reconciler-observed
+  RESULT   → reconciler-result
 ```
 
-## 26.4 Billing
+## 26.4 Executor
 
 ```text
-subscribe:
-  worker.*.observed.overlay.>
+publish:
+  executor.completed.>
+  executor.failed.>
+
+consumo (consumers próprios):
+  ACTION  → executor-action
+  DESIRED → executor-desired   (somente leitura, revalidação)
+```
+
+O Executor é a única identidade com acesso de consumo ao Stream `ACTION`.
+
+## 26.5 Billing
+
+```text
+consumo (consumer próprio):
+  OBSERVED → billing-observed
 ```
 
 Billing não recebe permissões de publicação para Subjects de outros componentes apenas para consumir observações.
@@ -710,31 +782,45 @@ Billing não recebe permissões de publicação para Subjects de outros componen
 
 ```mermaid
 graph TD
-    Manager[Manager] -->|desired subjects| DesiredJS[(DESIRED JetStream<br/>WorkQueue)]
-    DesiredJS --> WorkerPlatform[worker.platform]
-    DesiredJS --> WorkerStorage[worker.storage]
-    WorkerPlatform -->|observed| ObservedJS[(OBSERVED JetStream<br/>Limits)]
-    WorkerStorage -->|observed| ObservedJS
-    ObservedJS --> M[manager]
-    ObservedJS --> B[billing]
-    ObservedJS --> A[audit]
+    API[api] -->|requested| REQ[(REQUESTED<br/>WorkQueue)]
+    REQ --> MGR[manager]
+    MGR -->|desired| DES[(DESIRED<br/>Limits, 1 por Subject)]
+    OBS[observer] -->|observed| OBSD[(OBSERVED<br/>Limits, 1 por Subject)]
+    DES --> REC[reconciler]
+    DES --> OBS
+    OBSD --> REC
+    OBSD --> MGR
+    REC -->|action| ACT[(ACTION<br/>WorkQueue)]
+    ACT --> EXE[executor]
+    DES -.->|revalidação, somente leitura| EXE
+    EXE -->|completed / failed| RES[(RESULT<br/>Limits + MaxAge)]
+    RES --> MGR
+    RES --> OBS
+    RES --> REC
+    MGR -->|updated| UPD[(UPDATED<br/>Limits + MaxAge)]
+    UPD --> CON[console / audit / metrics]
 ```
 
 # 28. Fluxo de reconciliação
 
 ```mermaid
 graph TD
-    1[1. Manager altera desiredGeneration] --> 2[2. Publica desired]
-    2 --> 3[(3. DESIRED Stream)]
-    3 --> 4[4. Worker recebe por Pull Consumer]
-    4 --> 5{5. Worker reconcilia sistema externo}
-    5 -->|sucesso| 6A[6. observed]
-    5 -->|falha transitória| 6B[6. retry/backoff]
-    6A --> 7[(7. OBSERVED Stream)]
-    7 --> 8A[Manager]
-    7 --> 8B[Billing]
-    7 --> 8C[Audit]
+    A[1. API publica requested] --> B[(2. REQUESTED)]
+    B --> C[3. Manager persiste e publica desired]
+    C --> D[(4. DESIRED)]
+    D --> E[5. Observer observa o sistema externo]
+    E --> F[(6. OBSERVED)]
+    D --> G{7. Reconciler compara desired e observed}
+    F --> G
+    G -->|diferente| H[(8. ACTION)]
+    H --> I[9. Executor revalida e executa]
+    I -->|sucesso| J[(10. RESULT completed)]
+    I -->|falha transitória| K[retry/backoff]
+    J --> E
+    G -->|igual| L[noop / convergido]
 ```
+
+O ciclo continua até que a observação demonstre convergência. `completed` não encerra o ciclo (ver `RESOURCE-CONTROL-LOOP.md`).
 
 # 29. Anti-padrões
 
@@ -743,7 +829,7 @@ graph TD
 Não utilizar:
 
 ```text
-worker.manager.desired...
+manager.executor.desired...
 ```
 
 para codificar uma rota ponto-a-ponto.
@@ -757,21 +843,23 @@ desired
 observed
 ```
 
-## 29.3 Proibido: ação imperativa no Subject
+## 29.3 Proibido: operação imperativa ou resultado no Subject de `desired` e `observed`
 
 Evitar:
 
 ```text
-manager.desired.underlay.node.update.node-01
+manager.desired.ipm.tenant.<id>.create
+observer.observed.ipm.tenant.<id>.absent
 ```
 
 Preferir:
 
 ```text
-manager.desired.underlay.node.node-01
+manager.desired.ipm.tenant.<id>.changed
+observer.observed.ipm.tenant.<id>.changed
 ```
 
-O tipo de mudança pertence ao contrato do recurso e à evolução de `desiredGeneration`.
+O tipo de mudança pertence ao contrato do recurso e à evolução de `desiredGeneration`. O resultado da observação (`present`, `absent`, `unknown`) pertence ao campo `presence` do envelope.
 
 ## 29.4 Proibido: subscription `>` sem justificativa
 
@@ -783,33 +871,46 @@ O tipo de mudança pertence ao contrato do recurso e à evolução de `desiredGe
 
 ## 29.8 Proibido: criar um Stream por recurso sem necessidade
 
+## 29.9 Proibido: misturar classes de retenção no mesmo Stream
+
+Não reunir mensagens de trabalho, de estado e de fato em um mesmo Stream, nem conceder acesso a um Stream de trabalho (`REQUESTED`, `ACTION`) a quem não é seu consumidor.
+
+## 29.10 Proibido: mais de um consumidor sobreposto em Stream `WorkQueue`
+
 # 30. Nomenclatura recomendada
 
 ## 30.1 Streams
 
 ```text
+REQUESTED
 DESIRED
 OBSERVED
+ACTION
+RESULT
+UPDATED
 AUDIT
+QUARANTINE
 ```
 
 ## 30.2 Consumers
 
-Nomes devem ser funcionais e estáveis, por exemplo:
+Nomes devem ser funcionais e estáveis, no formato `<função>-<stream>`, por exemplo:
 
 ```text
-manager-reconciler
+manager-requested
+reconciler-desired
+reconciler-observed
+executor-action
 billing-observed
 audit-observed
-monitoring-observed
 ```
 
 ## 30.3 Subjects
 
 ```text
-manager.desired.underlay.node.node-01
-worker.platform.observed.underlay.node.node-01
-worker.storage.observed.underlay.volume.volume-01
+manager.desired.ipm.tenant.<id>.changed
+observer.observed.ipm.tenant.<id>.changed
+executor.completed.ipm.tenant.<id>.create
 ```
 
 # 31. Checklist operacional
@@ -820,7 +921,10 @@ Antes de colocar um fluxo em produção, verificar:
 - [ ] emissor é funcional e estável;
 - [ ] consumidor não está embutido no Subject;
 - [ ] `desired` e `observed` estão corretamente utilizados;
-- [ ] Stream possui retenção adequada;
+- [ ] Stream pertence ao `messageType` da mensagem e possui a retenção da sua classe;
+- [ ] `desired` e `observed` usam a operação `changed` (um Subject por recurso);
+- [ ] Stream `WorkQueue` possui consumidores sem filtros sobrepostos e `DiscardNew`;
+- [ ] consumidor de estado reconstrói o último estado por Subject após restart;
 - [ ] consumer é durável quando necessário;
 - [ ] Pull Consumer é utilizado para work distribution;
 - [ ] ACK ocorre somente após processamento seguro;
@@ -846,6 +950,8 @@ A implementação deste documento utiliza como referência a documentação ofic
 - Authorization: https://docs.nats.io/learn/security/authorization
 - TLS/Auth e clientes resilientes: https://docs.nats.io/learn/resilient-clients/tls-and-auth
 - Encryption at rest: https://docs.nats.io/learn/security/encryption
+- Retention policies: https://docs.nats.io/learn/jetstream/retention-policies
+- Consumers: https://docs.nats.io/nats-concepts/jetstream/consumers
 
 # 33. Fonte de verdade
 
