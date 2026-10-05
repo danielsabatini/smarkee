@@ -180,7 +180,8 @@ Confirmar:
 ### Entrega
 
 - [ ] Work Distribution ou Fanout definido.
-- [ ] Pull Consumer usado para trabalho quando apropriado.
+- [ ] Pull Consumer usado para trabalho; consumer de estado em memória é por instância (não compartilhado).
+- [ ] consumer com filtro único no nível `<módulo>.<tipo>`; sem purge ou administração de Stream para serviço de runtime.
 - [ ] ACK no ponto correto.
 - [ ] retry definido.
 - [ ] quarentena definida.
