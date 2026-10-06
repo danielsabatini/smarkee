@@ -1,4 +1,20 @@
 name: broker
+
+x-broker-bootstrap: &broker-bootstrap
+  image: ${NATS_BOX_IMAGE_VERSION:-natsio/nats-box:0.20.0-nonroot}
+  environment:
+    NATS_URL: nats://broker:4222
+    NATS_USER: ${NATS_USER:-smarkee}
+    NATS_PASSWORD: ${NATS_PASSWORD:?Defina NATS_PASSWORD no .env (veja .env.example)}
+  volumes:
+    - ./bootstrap:/bootstrap:ro
+  depends_on:
+    broker:
+      condition: service_healthy
+  networks:
+    - internal
+  restart: "no"
+
 services:
   broker:
     image: ${NATS_IMAGE_VERSION:-nats:2.15.0-alpine}
@@ -21,6 +37,41 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # Contêineres de inicialização (equivalente ao initContainer): um por Stream declarado em
+  # bootstrap/<stream>.json, cada um executando um único comando da CLI oficial, a cada subida.
+  # Stream inexistente é criado; existente com configuração idêntica não muda; configuração
+  # diferente falha de forma explícita e exige `nats stream edit` deliberado (veja o README).
+  # Todo arquivo novo em bootstrap/ exige o seu serviço aqui.
+  broker-bootstrap-requested:
+    <<: *broker-bootstrap
+    container_name: broker-bootstrap-requested
+    command: ["nats", "stream", "add", "REQUESTED", "--config", "/bootstrap/requested.json"]
+
+  broker-bootstrap-desired:
+    <<: *broker-bootstrap
+    container_name: broker-bootstrap-desired
+    command: ["nats", "stream", "add", "DESIRED", "--config", "/bootstrap/desired.json"]
+
+  broker-bootstrap-observed:
+    <<: *broker-bootstrap
+    container_name: broker-bootstrap-observed
+    command: ["nats", "stream", "add", "OBSERVED", "--config", "/bootstrap/observed.json"]
+
+  broker-bootstrap-action:
+    <<: *broker-bootstrap
+    container_name: broker-bootstrap-action
+    command: ["nats", "stream", "add", "ACTION", "--config", "/bootstrap/action.json"]
+
+  broker-bootstrap-result:
+    <<: *broker-bootstrap
+    container_name: broker-bootstrap-result
+    command: ["nats", "stream", "add", "RESULT", "--config", "/bootstrap/result.json"]
+
+  broker-bootstrap-updated:
+    <<: *broker-bootstrap
+    container_name: broker-bootstrap-updated
+    command: ["nats", "stream", "add", "UPDATED", "--config", "/bootstrap/updated.json"]
 
 volumes:
   broker-data:

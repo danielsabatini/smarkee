@@ -19,7 +19,7 @@ services:
       - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
       - ./pg_ident.conf:/etc/postgresql/pg_ident.conf:ro
       # Scripts *.sql executados em ordem alfabética apenas na primeira inicialização do volume.
-      - ./initdb:/docker-entrypoint-initdb.d:ro
+      - ./bootstrap:/docker-entrypoint-initdb.d:ro
     networks:
       - internal
     restart: unless-stopped

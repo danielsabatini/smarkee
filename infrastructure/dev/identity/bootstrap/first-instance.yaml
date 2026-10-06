@@ -1,0 +1,19 @@
+# Primeira instância do Zitadel (apenas desenvolvimento local), no formato nativo de steps do
+# Zitadel (cmd/setup/steps.yaml), passado ao `start-from-setup` por `--steps`.
+# Aplicado somente na primeira inicialização da instância: alterar este arquivo depois não muda
+# uma instância existente.
+# Segredos não ficam aqui: a senha do administrador vem de ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD
+# (identity/.env), que tem precedência sobre este arquivo.
+FirstInstance:
+  # PAT do cliente de login, lido pelo zitadel-login (volume zitadel-bootstrap).
+  LoginClientPatPath: /zitadel/bootstrap/login-client.pat
+  Org:
+    Human:
+      PasswordChangeRequired: true
+    # Usuário de serviço com PAT usado pela interface de login v2.
+    LoginClient:
+      Machine:
+        Username: login-client
+        Name: Login Client
+      Pat:
+        ExpirationDate: 2030-01-01T00:00:00Z

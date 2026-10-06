@@ -17,7 +17,6 @@ Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
 | `database/.env` | `POSTGRES_PASSWORD` | Senha do administrador `postgres`: `openssl rand -hex 16` |
 | `broker/.env` | `NATS_PASSWORD` | Senha do usuário do NATS: `openssl rand -hex 16` |
 | `identity/.env` | `ZITADEL_MASTERKEY` | Exatamente 32 caracteres: `openssl rand -hex 16`. Não altere depois da primeira subida |
-| `identity/.env` | `POSTGRES_ADMIN_PASSWORD` | **O mesmo** valor de `POSTGRES_PASSWORD` de `database/.env` |
 | `identity/.env` | `ZITADEL_ADMIN_PASSWORD` | Senha inicial do administrador do Zitadel, com maiúscula, minúscula, número e símbolo |
 | `identity/.env` | `ZITADEL_LOGIN_SESSION_COOKIE_SECRET` | `openssl rand -hex 32` |
 
@@ -26,11 +25,14 @@ Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
 ## Subir e derrubar
 
 ```bash
-docker compose up -d --wait      # sobe tudo (database, broker, identity, gateway)
+docker compose up -d                                       # sobe tudo, inclusive os contêineres de inicialização
+docker compose up -d --wait broker gateway zitadel-login   # espera os serviços de longa duração ficarem saudáveis
 docker compose ps                # estado e saúde
 docker compose down              # derruba, preservando os volumes
 docker compose down -v           # derruba e APAGA os dados
 ```
+
+Os contêineres de inicialização permanecem parados (`Exited (0)`) depois de executar, preservando o código de saída e os logs para diagnóstico (`docker compose ps -a`, `docker compose logs <serviço>`). O Compose não os remove automaticamente: não há equivalente ao `docker run --rm`, e o `depends_on: service_completed_successfully` precisa do contêiner encerrado para ler o código de saída. A próxima subida os recria.
 
 Cada serviço também sobe isoladamente em seu próprio diretório (`cd database && docker compose up -d`). Use **um modo por vez**: os nomes dos containers são fixos e conflitam entre os dois modos. O `identity` e o `gateway` precisam do `database` em execução.
 
@@ -43,7 +45,7 @@ Do host, use a coluna **Host**. De um container na rede `internal` (por exemplo,
 | Zitadel (console) | http://auth.localhost:8000/ui/console/ | — | Navegador, via gateway |
 | Zitadel (login) | http://auth.localhost:8000/ui/v2/login/ | — | Navegador, via gateway |
 | Zitadel (OIDC e APIs) | http://auth.localhost:8000 | http://gateway:8000 com o cabeçalho `Host: auth.localhost:8000` | Ver a seção OIDC |
-| Kong (proxy HTTP) | http://localhost:8000 | http://gateway:8000 | Roteia por host (`gateway/kong.yml`); host desconhecido responde 404 |
+| Kong (proxy HTTP) | http://localhost:8000 | http://gateway:8000 | Roteia por host (`gateway/bootstrap/routes.yml`); host desconhecido responde 404 |
 | Kong (proxy HTTPS) | https://localhost:8443 | https://gateway:8443 | Certificado autoassinado (`curl -k`); não use para o Zitadel (ver OIDC) |
 | Kong Admin API | http://localhost:8001 · https://localhost:8444 | http://gateway:8001 | Sem autenticação |
 | Kong Manager | http://localhost:8002 · https://localhost:8445 | — | Navegador; sem autenticação |
@@ -55,15 +57,15 @@ O gateway trata somente HTTP e HTTPS e roteia por host: o Zitadel atende `auth.l
 
 ## Credenciais
 
-Valores sensíveis ficam nos arquivos `.env` (fora do git). As senhas dos bancos de aplicação são triviais e fixas em `database/initdb/*.sql`.
+Valores sensíveis ficam nos arquivos `.env` (fora do git). As senhas dos bancos de aplicação são triviais e fixas em `database/bootstrap/*.sql`.
 
 | Sistema | Usuário | Senha | Onde está |
 |---|---|---|---|
 | Zitadel (administrador) | `zitadel-admin@zitadel.auth.localhost` | `ZITADEL_ADMIN_PASSWORD` | `identity/.env` (troca obrigatória no primeiro acesso) |
 | PostgreSQL (administrador) | `postgres` | `POSTGRES_PASSWORD` | `database/.env` |
-| PostgreSQL, banco `smarkee` (SSOT, proprietário) | `smarkee` | `smarkee` | `database/initdb/smarkee.sql` |
-| PostgreSQL, banco `zitadel` | `zitadel` | `zitadel` | `database/initdb/zitadel.sql` |
-| PostgreSQL, banco `kong` | `kong` | `kong` | `database/initdb/kong.sql` |
+| PostgreSQL, banco `smarkee` (SSOT, proprietário) | `smarkee` | `smarkee` | `database/bootstrap/smarkee.sql` |
+| PostgreSQL, banco `zitadel` | `zitadel` | `zitadel` | `database/bootstrap/zitadel.sql` (o Zitadel usa só este usuário, sem credencial de administrador) |
+| PostgreSQL, banco `kong` | `kong` | `kong` | `database/bootstrap/kong.sql` |
 | NATS | `NATS_USER` (`smarkee`) | `NATS_PASSWORD` | `broker/.env` (um único usuário em dev, compartilhado pelos serviços) |
 | Kong Manager / Admin API | — | — | Sem autenticação (Kong OSS) |
 
@@ -89,6 +91,38 @@ Não há TLS em dev (`sslmode=disable` quando o cliente exigir o parâmetro).
 
 - Use sempre o endereço HTTP da porta 8000. O issuer é derivado do endereço de acesso: pelo HTTPS da porta 8443 ele seria `https://auth.localhost:8443`, e tokens emitidos por um endereço não validam no outro.
 - Um serviço em container obtém o discovery e o JWKS por `http://gateway:8000` com o cabeçalho `Host: auth.localhost:8000`, e valida o `iss` contra `http://auth.localhost:8000`.
+
+## Bootstrap
+
+Cada serviço guarda o seu **estado inicial declarado** em `bootstrap/`: arquivos direto na raiz da pasta, cada um com o nome do que configura, em formato nativo da ferramenta e sem scripts. A configuração do servidor (`nats.conf`, `postgresql.conf`, `pg_hba.conf`, `pg_ident.conf`, `kong.conf`) fica fora de `bootstrap/`. Decisão em `.decisions/0005-bootstrap-declarativo-da-infraestrutura.md`.
+
+| Serviço | Arquivos | Quem aplica | Quando | Efeito de alterar um arquivo depois |
+|---|---|---|---|---|
+| database | `bootstrap/kong.sql`, `smarkee.sql`, `zitadel.sql` | A própria imagem (`/docker-entrypoint-initdb.d`) | Só na primeira inicialização do volume | Nenhum, até recriar o volume ou aplicar manualmente (pontos de atenção) |
+| identity | `bootstrap/first-instance.yaml` (steps nativos do Zitadel) `zitadel-init` (`zitadel init zitadel`: schemas internos) → `zitadel-api` (`start-from-setup --steps`) | Só na primeira inicialização da instância | Nenhum, até recriar a instância (`docker compose down -v`) |
+| gateway | `bootstrap/routes.yml` (configuração declarativa do Kong) | Cadeia `gateway-migrations-bootstrap` → `-up` → `-finish` → `gateway-import` | A cada `up`, antes do `gateway` | Reimporta; reinicie o `gateway` (pontos de atenção) |
+| broker | `bootstrap/<stream>.json` (configuração nativa de Stream do JetStream) | Um serviço `broker-bootstrap-<stream>` por arquivo | A cada `up`, depois que o broker fica saudável | Falha de forma explícita até a alteração deliberada (abaixo) |
+
+Os contêineres de inicialização equivalem a *initContainers*: cada um executa um único comando da CLI oficial e termina; o serviço seguinte declara `depends_on` com `service_completed_successfully`.
+
+NATS:
+
+- Os seis Streams operacionais de `docs/NATS.md` são `REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT` e `UPDATED`. O `nats-server` não declara Streams no `nats.conf`; por isso, a criação é pela CLI oficial (`nats-box`).
+- **Todo arquivo novo em `broker/bootstrap/` exige o seu serviço `broker-bootstrap-<stream>`** em `broker/compose.yaml` (âncora `x-broker-bootstrap`); sem ele, o arquivo é ignorado.
+- Stream inexistente é criado; existente com a mesma configuração não muda. Com configuração diferente, o contêiner falha (`stream name already in use with a different configuration`). Para aplicar a alteração de forma deliberada:
+
+  ```bash
+  NATS_PASSWORD=$(grep '^NATS_PASSWORD=' broker/.env | cut -d= -f2)
+  docker run --rm --network internal -v "$PWD/broker/bootstrap:/bootstrap:ro" natsio/nats-box:0.20.0-nonroot \
+    nats -s nats://broker:4222 --user smarkee --password "$NATS_PASSWORD" stream edit OBSERVED --config /bootstrap/observed.json --force
+  ```
+
+  Campos imutáveis (`retention`, `storage`) não podem ser editados: o Stream precisa ser removido e recriado, com perda das mensagens.
+- Os limites são valores de desenvolvimento. `DESIRED` não possui limite de tamanho nem de quantidade total: com descarte do mais antigo, um limite apagaria o estado de outros recursos.
+- Os consumers duráveis de cada tipo de recurso serão declarados quando o tipo for modelado (manifesto por tipo, `docs/NATS.md`).
+- **Até existir o primeiro serviço que dependa dos Streams (o Manager), não use `docker compose up -d --wait` sem nomear serviços.** O `--wait` só aceita um contêiner de inicialização terminado quando outro serviço depende dele: ao ver um `broker-bootstrap-*` terminar, ele **interrompe a espera** com `container broker-bootstrap-<stream> exited (0)`, antes de os demais ficarem saudáveis. Use os dois comandos de "Subir e derrubar": o primeiro sobe tudo; o segundo espera somente os serviços de longa duração. Confira a inicialização com `docker compose ps -a` (todos os contêineres de inicialização com `Exited (0)`).
+
+Zitadel: o volume `zitadel-bootstrap` (`/zitadel/bootstrap` no contêiner) guarda o PAT gerado do cliente de login. É estado de runtime e não se confunde com a pasta `identity/bootstrap/`.
 
 ## Exemplos
 
@@ -120,11 +154,11 @@ curl -s http://localhost:8001/routes                                  # rotas do
 
 ## Pontos de atenção
 
-- Rotas criadas pelo Kong Manager ficam apenas no banco `kong`. A cada `up`, o serviço `gateway-migrations` reimporta `gateway/kong.yml` e pode sobrescrever rotas de mesmo nome; rotas removidas do arquivo não são removidas do banco.
-- A reimportação de `gateway/kong.yml` grava direto no banco e **não** invalida o cache de um `gateway` já em execução. Depois de alterar o arquivo, reinicie o gateway: `docker compose up -d --wait && docker compose restart gateway`.
-- Na subida pela raiz, `identity/compose.root.yaml` e `gateway/compose.root.yaml` fazem o Zitadel e as migrações do Kong aguardarem o PostgreSQL aceitar conexões. No modo isolado, essa ordem não existe: suba o `database` antes.
+- Rotas criadas pelo Kong Manager ficam apenas no banco `kong`. A cada `up`, o serviço `gateway-import` reimporta `gateway/bootstrap/routes.yml` e pode sobrescrever rotas de mesmo nome; rotas removidas do arquivo não são removidas do banco.
+- A reimportação de `gateway/bootstrap/routes.yml` grava direto no banco e **não** invalida o cache de um `gateway` já em execução. Depois de alterar o arquivo, reinicie o gateway: `docker compose up -d && docker compose restart gateway`.
+- Na subida pela raiz, `identity/compose.root.yaml` e `gateway/compose.root.yaml` fazem a inicialização do Zitadel (`zitadel-init`) e a primeira migração do Kong (`gateway-migrations-bootstrap`) aguardarem o PostgreSQL aceitar conexões. No modo isolado, essa ordem não existe: suba o `database` antes.
 - O Zitadel monta o issuer e as URLs públicas a partir do cabeçalho `x-zitadel-public-host`, preenchido pelo Kong com o `Host` original (com a porta). Sem isso, os endpoints OIDC apontariam para `http://auth.localhost` (porta 80).
-- Os scripts de `database/initdb/` só rodam na primeira inicialização do volume. Em um volume existente, aplique-os manualmente:
+- Os arquivos de `database/bootstrap/` só rodam na primeira inicialização do volume. Em um volume existente, aplique-os manualmente:
 
   ```bash
   docker exec database sh -c 'for f in /docker-entrypoint-initdb.d/*.sql; do psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f $f; done'

@@ -1,8 +1,8 @@
 # Sobreposição aplicada somente quando a stack sobe pela raiz (../compose.yaml).
-# Garante que zitadel-api só inicie com o PostgreSQL aceitando conexões. No modo isolado
+# Garante que zitadel-init só inicie com o PostgreSQL aceitando conexões. No modo isolado
 # o serviço `database` não pertence ao projeto, por isso a dependência não fica em compose.yaml.
 services:
-  zitadel-api:
+  zitadel-init:
     depends_on:
       database:
         condition: service_healthy

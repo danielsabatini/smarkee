@@ -22,6 +22,6 @@ O SSOT será implementado em PostgreSQL (`docs/POSTGRESQL.md`), com um schema po
 
 ## Consequências
 
-- `infrastructure/dev/database/initdb/smarkee.sql` cria o proprietário e o banco no desenvolvimento.
+- `infrastructure/dev/database/bootstrap/smarkee.sql` cria o proprietário e o banco no desenvolvimento.
 - A infraestrutura de cada ambiente deve prover um cluster dedicado ao SSOT fora do desenvolvimento.
 - Cada papel de serviço recebe `CONNECT` explicitamente nas migrações do seu tipo.

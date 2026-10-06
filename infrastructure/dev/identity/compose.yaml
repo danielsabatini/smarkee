@@ -1,26 +1,40 @@
 name: identity
+
+# Conexão com o banco `zitadel`, criado com o usuário `zitadel` por database/bootstrap/zitadel.sql.
+# O Zitadel não recebe credencial de administrador do PostgreSQL.
+x-zitadel-database-environment: &zitadel-database-environment
+  ZITADEL_DATABASE_POSTGRES_HOST: ${ZITADEL_DATABASE_HOST:-database}
+  ZITADEL_DATABASE_POSTGRES_PORT: ${ZITADEL_DATABASE_PORT:-5432}
+  ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_DATABASE_NAME:-zitadel}
+  ZITADEL_DATABASE_POSTGRES_USER_USERNAME: ${ZITADEL_DATABASE_USER:-zitadel}
+  ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${ZITADEL_DATABASE_PASSWORD:?Defina ZITADEL_DATABASE_PASSWORD no .env}
+  ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
+
 services:
-  # API do Zitadel. Requer o serviço `database` em execução na rede `internal`; sem ele o
-  # container reinicia até conseguir conectar. O start-from-init executa init, setup e start.
+  # Contêiner de inicialização (equivalente ao initContainer): cria os schemas internos do
+  # Zitadel (eventstore, projections, system) com o próprio usuário `zitadel`. Repetível.
+  # Requer o `database` aceitando conexões (veja o README).
+  zitadel-init:
+    image: ${ZITADEL_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.19.4}
+    container_name: zitadel-init
+    command: ["init", "zitadel"]
+    environment:
+      <<: *zitadel-database-environment
+    networks:
+      - internal
+    restart: "no"
+
+  # API do Zitadel. O start-from-setup aplica as migrações e, na primeira vez, cria a instância
+  # declarada em bootstrap/first-instance.yaml (steps nativos do Zitadel).
   zitadel-api:
     image: ${ZITADEL_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.19.4}
     container_name: zitadel-api
-    # user 0: o volume de bootstrap precisa ser gravável pela API (PAT do cliente de login).
+    # user 0: o volume zitadel-bootstrap precisa ser gravável pela API (PAT do cliente de login).
     user: "0"
-    command: ["start-from-init", "--masterkeyFromEnv", "--tlsMode", "disabled"]
+    command: ["start-from-setup", "--masterkeyFromEnv", "--tlsMode", "disabled", "--steps", "/bootstrap/first-instance.yaml"]
     environment:
+      <<: *zitadel-database-environment
       ZITADEL_MASTERKEY: ${ZITADEL_MASTERKEY:?Defina ZITADEL_MASTERKEY (32 caracteres) no .env}
-      ZITADEL_DATABASE_POSTGRES_HOST: ${ZITADEL_DATABASE_HOST:-database}
-      ZITADEL_DATABASE_POSTGRES_PORT: ${ZITADEL_DATABASE_PORT:-5432}
-      ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_DATABASE_NAME:-zitadel}
-      # Usuário de aplicação do Zitadel (criado pelo init com o admin abaixo).
-      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: ${ZITADEL_DATABASE_USER:-zitadel}
-      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${ZITADEL_DATABASE_PASSWORD:?Defina ZITADEL_DATABASE_PASSWORD no .env}
-      ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
-      # Administrador do PostgreSQL, usado apenas na inicialização do banco.
-      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${POSTGRES_ADMIN_USER:-postgres}
-      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Defina POSTGRES_ADMIN_PASSWORD no .env}
-      ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
       ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}
       # O Zitadel é acessado pelo gateway; a porta externa deve ser a do proxy HTTP do Kong.
       ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNAL_PORT:-8000}
@@ -28,12 +42,6 @@ services:
       # Lido também pelo healthcheck (`zitadel ready`), que não aceita --tlsMode.
       ZITADEL_TLS_ENABLED: "false"
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?Defina ZITADEL_ADMIN_PASSWORD no .env}
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "true"
-      # Cliente de login (usuário de serviço com PAT) usado pelo zitadel-login.
-      ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
-      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
-      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: Login Client
-      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: ${ZITADEL_LOGIN_CLIENT_PAT_EXPIRATION:-2030-01-01T00:00:00Z}
       # Login v2 (UI separada em /ui/v2/login, servida pelo zitadel-login).
       ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "true"
       ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/
@@ -41,7 +49,12 @@ services:
       ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/logout?post_logout_redirect=
       ZITADEL_SAML_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/login?samlRequest=
     volumes:
+      - ./bootstrap:/bootstrap:ro
+      # Estado de runtime (PAT gerado na primeira inicialização), não confundir com ./bootstrap.
       - zitadel-bootstrap:/zitadel/bootstrap:rw
+    depends_on:
+      zitadel-init:
+        condition: service_completed_successfully
     networks:
       - internal
     restart: unless-stopped

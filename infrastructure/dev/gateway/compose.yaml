@@ -7,32 +7,50 @@ x-kong-database-environment: &kong-database-environment
   KONG_PG_USER: ${KONG_DATABASE_USER:-kong}
   KONG_PG_PASSWORD: ${KONG_DATABASE_PASSWORD:?Defina KONG_DATABASE_PASSWORD no .env}
 
+x-gateway-bootstrap: &gateway-bootstrap
+  image: ${KONG_IMAGE_VERSION:-kong:3.9.3-ubuntu}
+  environment:
+    <<: *kong-database-environment
+  volumes:
+    - ./kong.conf:/etc/kong/kong.conf:ro
+    - ./bootstrap:/bootstrap:ro
+  networks:
+    - internal
+  restart: "no"
+
 services:
-  # Tarefa única: aplica as migrações do esquema e importa as rotas declaradas em kong.yml.
-  # Requer o serviço `database` na rede `internal`; tenta novamente até o banco responder.
-  # O `db_import` é repetível (atualiza por nome), então kong.yml segue como fonte das rotas
-  # a cada subida; rotas removidas do arquivo NÃO são removidas do banco automaticamente.
-  gateway-migrations:
-    image: ${KONG_IMAGE_VERSION:-kong:3.9.3-ubuntu}
-    container_name: gateway-migrations
-    command:
-      - sh
-      - -c
-      - |
-        set -e
-        n=0
-        until kong migrations bootstrap && kong migrations up && kong migrations finish; do
-          n=$$((n+1)); [ "$$n" -ge 30 ] && exit 1; sleep 3
-        done
-        kong config db_import /kong/declarative/kong.yml
-    environment:
-      <<: *kong-database-environment
-    volumes:
-      - ./kong.yml:/kong/declarative/kong.yml:ro
-      - ./kong.conf:/etc/kong/kong.conf:ro
-    networks:
-      - internal
-    restart: "no"
+  # Contêineres de inicialização (equivalente ao initContainer), em cadeia, um comando cada:
+  # migrações do esquema do Kong e importação das rotas declaradas em bootstrap/routes.yml.
+  # Todos são repetíveis a cada subida. O `db_import` atualiza por nome: rotas removidas do
+  # arquivo NÃO são removidas do banco. Requer o `database` aceitando conexões (veja o README).
+  gateway-migrations-bootstrap:
+    <<: *gateway-bootstrap
+    container_name: gateway-migrations-bootstrap
+    command: ["kong", "migrations", "bootstrap"]
+
+  gateway-migrations-up:
+    <<: *gateway-bootstrap
+    container_name: gateway-migrations-up
+    command: ["kong", "migrations", "up"]
+    depends_on:
+      gateway-migrations-bootstrap:
+        condition: service_completed_successfully
+
+  gateway-migrations-finish:
+    <<: *gateway-bootstrap
+    container_name: gateway-migrations-finish
+    command: ["kong", "migrations", "finish"]
+    depends_on:
+      gateway-migrations-up:
+        condition: service_completed_successfully
+
+  gateway-import:
+    <<: *gateway-bootstrap
+    container_name: gateway-import
+    command: ["kong", "config", "db_import", "/bootstrap/routes.yml"]
+    depends_on:
+      gateway-migrations-finish:
+        condition: service_completed_successfully
 
   gateway:
     image: ${KONG_IMAGE_VERSION:-kong:3.9.3-ubuntu}
@@ -49,7 +67,7 @@ services:
     volumes:
       - ./kong.conf:/etc/kong/kong.conf:ro
     depends_on:
-      gateway-migrations:
+      gateway-import:
         condition: service_completed_successfully
     networks:
       - external
