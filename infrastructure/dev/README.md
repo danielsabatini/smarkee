@@ -38,7 +38,8 @@ Valores sensíveis ficam nos arquivos `.env` (fora do git). Os valores abaixo de
 | Sistema | Usuário | Senha | Onde está |
 |---|---|---|---|
 | Zitadel (administrador) | `zitadel-admin@zitadel.localhost` | `ZITADEL_ADMIN_PASSWORD` | `identity/.env` (troca obrigatória no primeiro acesso) |
-| PostgreSQL (administrador) | `smarkee` | `POSTGRES_PASSWORD` | `database/.env` |
+| PostgreSQL (administrador) | `postgres` | `POSTGRES_PASSWORD` | `database/.env` |
+| PostgreSQL, banco `smarkee` (SSOT, proprietário) | `smarkee_owner` | `smarkee` | `database/initdb/smarkee.sql` |
 | PostgreSQL, banco `zitadel` | `zitadel` | `zitadel` | `database/initdb/zitadel.sql` |
 | PostgreSQL, banco `kong` | `kong` | `kong` | `database/initdb/kong.sql` |
 | Kong Manager / Admin API | — | — | Sem autenticação (Kong OSS) |
@@ -46,13 +47,13 @@ Valores sensíveis ficam nos arquivos `.env` (fora do git). Os valores abaixo de
 
 ## Exemplos
 
-PostgreSQL (o banco `smarkee` ainda não possui tabelas):
+PostgreSQL (o banco `smarkee` é o SSOT, conforme `docs/POSTGRESQL.md`; ainda não possui tabelas, que serão criadas pelas migrações):
 
 ```bash
 # Com psql instalado no host
 PGPASSWORD=zitadel psql -h localhost -U zitadel -d zitadel
 # Sem psql no host: dentro do container (socket local, sem senha)
-docker exec -it database psql -U smarkee -d smarkee
+docker exec -it database psql -U smarkee_owner -d smarkee
 ```
 
 NATS (sem a CLI `nats` no host, use o container oficial com a rede do host):
