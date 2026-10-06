@@ -2,12 +2,29 @@ _format_version: "3.0"
 _transform: true
 
 services:
+  # Roteamento por host: o Zitadel atende somente auth.localhost, e nenhum serviço ocupa
+  # o caminho `/` de forma genérica. Novas APIs recebem host próprio (por exemplo, api.localhost).
+
   # API e console do Zitadel. O Host original precisa ser preservado porque
-  # o Zitadel resolve a instância pelo domínio externo (localhost).
+  # o Zitadel resolve a instância pelo domínio externo (auth.localhost).
   - name: zitadel-api
     url: http://zitadel-api:8080
+    plugins:
+      # O Kong envia X-Forwarded-Host sem a porta, e o Zitadel o usa para montar o issuer e as
+      # URLs públicas (ficariam http://localhost, porta 80). O cabeçalho próprio do Zitadel recebe
+      # o Host original, com a porta; o valor enviado pelo cliente é removido para não ser forjado.
+      - name: request-transformer
+        config:
+          remove:
+            headers:
+              - x-zitadel-public-host
+          add:
+            headers:
+              - "x-zitadel-public-host:$(headers.host)"
     routes:
       - name: zitadel-api
+        hosts:
+          - auth.localhost
         paths:
           - /
         preserve_host: true
@@ -18,6 +35,8 @@ services:
     url: http://zitadel-login:3000
     routes:
       - name: zitadel-login
+        hosts:
+          - auth.localhost
         paths:
           - /ui/v2/login
         preserve_host: true

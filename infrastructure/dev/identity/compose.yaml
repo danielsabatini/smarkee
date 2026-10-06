@@ -18,10 +18,10 @@ services:
       ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${ZITADEL_DATABASE_PASSWORD:?Defina ZITADEL_DATABASE_PASSWORD no .env}
       ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
       # Administrador do PostgreSQL, usado apenas na inicialização do banco.
-      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${POSTGRES_ADMIN_USER:-smarkee}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${POSTGRES_ADMIN_USER:-postgres}
       ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Defina POSTGRES_ADMIN_PASSWORD no .env}
       ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
-      ZITADEL_EXTERNALDOMAIN: localhost
+      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}
       # O Zitadel é acessado pelo gateway; a porta externa deve ser a do proxy HTTP do Kong.
       ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNAL_PORT:-8000}
       ZITADEL_EXTERNALSECURE: "false"
@@ -36,10 +36,10 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: ${ZITADEL_LOGIN_CLIENT_PAT_EXPIRATION:-2030-01-01T00:00:00Z}
       # Login v2 (UI separada em /ui/v2/login, servida pelo zitadel-login).
       ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "true"
-      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://localhost:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/
-      ZITADEL_OIDC_DEFAULTLOGINURLV2: http://localhost:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/login?authRequest=
-      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://localhost:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/logout?post_logout_redirect=
-      ZITADEL_SAML_DEFAULTLOGINURLV2: http://localhost:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/login?samlRequest=
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/
+      ZITADEL_OIDC_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/login?authRequest=
+      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/logout?post_logout_redirect=
+      ZITADEL_SAML_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/login?samlRequest=
     volumes:
       - zitadel-bootstrap:/zitadel/bootstrap:rw
     networks:
@@ -63,7 +63,7 @@ services:
       ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel/bootstrap/login-client.pat
       ZITADEL_SESSION_COOKIE_SECRET: ${ZITADEL_LOGIN_SESSION_COOKIE_SECRET:?Defina ZITADEL_LOGIN_SESSION_COOKIE_SECRET no .env}
       # Preserva o domínio público nas chamadas à API (a instância é resolvida pelo Host).
-      CUSTOM_REQUEST_HEADERS: Host:localhost,X-Forwarded-Proto:http
+      CUSTOM_REQUEST_HEADERS: Host:${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost},X-Forwarded-Proto:http
     volumes:
       - zitadel-bootstrap:/zitadel/bootstrap:ro
     depends_on:

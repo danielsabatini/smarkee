@@ -24,7 +24,9 @@ services:
       - internal
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      # Por TCP: durante a inicialização (initdb.d), o servidor temporário só escuta no socket local;
+      # pelo socket, o healthcheck indicaria pronto antes de o banco aceitar conexões dos serviços.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
