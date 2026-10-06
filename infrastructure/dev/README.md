@@ -94,12 +94,12 @@ Não há TLS em dev (`sslmode=disable` quando o cliente exigir o parâmetro).
 
 ## Bootstrap
 
-Cada serviço guarda o seu **estado inicial declarado** em `bootstrap/`: arquivos direto na raiz da pasta, cada um com o nome do que configura, em formato nativo da ferramenta e sem scripts. A configuração do servidor (`nats.conf`, `postgresql.conf`, `pg_hba.conf`, `pg_ident.conf`, `kong.conf`) fica fora de `bootstrap/`. Decisão em `.decisions/0005-bootstrap-declarativo-da-infraestrutura.md`.
+Quando a ferramenta tem formato declarativo em arquivo, o serviço guarda o seu **estado inicial declarado** em `bootstrap/`: arquivos direto na raiz da pasta, cada um com o nome do que configura, em formato nativo da ferramenta e sem scripts. O Zitadel é a exceção: é configurado por variáveis de ambiente, e a sua primeira instância também (`ZITADEL_FIRSTINSTANCE_*` em `identity/compose.yaml`). A configuração do servidor (`nats.conf`, `postgresql.conf`, `pg_hba.conf`, `pg_ident.conf`, `kong.conf`) fica fora de `bootstrap/`. Decisão em `.decisions/0005-bootstrap-declarativo-da-infraestrutura.md`.
 
-| Serviço | Arquivos | Quem aplica | Quando | Efeito de alterar um arquivo depois |
+| Serviço | Fonte | Quem aplica | Quando | Efeito de alterar um arquivo depois |
 |---|---|---|---|---|
 | database | `bootstrap/kong.sql`, `smarkee.sql`, `zitadel.sql` | A própria imagem (`/docker-entrypoint-initdb.d`) | Só na primeira inicialização do volume | Nenhum, até recriar o volume ou aplicar manualmente (pontos de atenção) |
-| identity | `bootstrap/first-instance.yaml` (steps nativos do Zitadel) `zitadel-init` (`zitadel init zitadel`: schemas internos) → `zitadel-api` (`start-from-setup --steps`) | Só na primeira inicialização da instância | Nenhum, até recriar a instância (`docker compose down -v`) |
+| identity | Sem pasta: variáveis `ZITADEL_FIRSTINSTANCE_*` em `identity/compose.yaml` | `zitadel-init` (`zitadel init zitadel`: schemas internos) → `zitadel-api` (`start-from-setup`) | Só na primeira inicialização da instância | Nenhum, até recriar a instância (`docker compose down -v`) |
 | gateway | `bootstrap/routes.yml` (configuração declarativa do Kong) | Cadeia `gateway-migrations-bootstrap` → `-up` → `-finish` → `gateway-import` | A cada `up`, antes do `gateway` | Reimporta; reinicie o `gateway` (pontos de atenção) |
 | broker | `bootstrap/<stream>.json` (configuração nativa de Stream do JetStream) | Um serviço `broker-bootstrap-<stream>` por arquivo | A cada `up`, depois que o broker fica saudável | Falha de forma explícita até a alteração deliberada (abaixo) |
 
@@ -122,7 +122,7 @@ NATS:
 - Os consumers duráveis de cada tipo de recurso serão declarados quando o tipo for modelado (manifesto por tipo, `docs/NATS.md`).
 - **Até existir o primeiro serviço que dependa dos Streams (o Manager), não use `docker compose up -d --wait` sem nomear serviços.** O `--wait` só aceita um contêiner de inicialização terminado quando outro serviço depende dele: ao ver um `broker-bootstrap-*` terminar, ele **interrompe a espera** com `container broker-bootstrap-<stream> exited (0)`, antes de os demais ficarem saudáveis. Use os dois comandos de "Subir e derrubar": o primeiro sobe tudo; o segundo espera somente os serviços de longa duração. Confira a inicialização com `docker compose ps -a` (todos os contêineres de inicialização com `Exited (0)`).
 
-Zitadel: o volume `zitadel-bootstrap` (`/zitadel/bootstrap` no contêiner) guarda o PAT gerado do cliente de login. É estado de runtime e não se confunde com a pasta `identity/bootstrap/`.
+Zitadel: o volume `zitadel-bootstrap` (`/zitadel/bootstrap` no contêiner) guarda o PAT gerado do cliente de login, que o `zitadel-login` usa para se autenticar na API. É estado de runtime, e não configuração.
 
 ## Exemplos
 

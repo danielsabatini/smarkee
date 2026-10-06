@@ -25,13 +25,13 @@ services:
     restart: "no"
 
   # API do Zitadel. O start-from-setup aplica as migrações e, na primeira vez, cria a instância
-  # declarada em bootstrap/first-instance.yaml (steps nativos do Zitadel).
+  # descrita pelas variáveis ZITADEL_FIRSTINSTANCE_* (aplicadas só na primeira inicialização).
   zitadel-api:
     image: ${ZITADEL_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.19.4}
     container_name: zitadel-api
     # user 0: o volume zitadel-bootstrap precisa ser gravável pela API (PAT do cliente de login).
     user: "0"
-    command: ["start-from-setup", "--masterkeyFromEnv", "--tlsMode", "disabled", "--steps", "/bootstrap/first-instance.yaml"]
+    command: ["start-from-setup", "--masterkeyFromEnv", "--tlsMode", "disabled"]
     environment:
       <<: *zitadel-database-environment
       ZITADEL_MASTERKEY: ${ZITADEL_MASTERKEY:?Defina ZITADEL_MASTERKEY (32 caracteres) no .env}
@@ -41,7 +41,15 @@ services:
       ZITADEL_EXTERNALSECURE: "false"
       # Lido também pelo healthcheck (`zitadel ready`), que não aceita --tlsMode.
       ZITADEL_TLS_ENABLED: "false"
+      # Primeira instância: administrador humano e cliente de login (usuário de serviço com PAT,
+      # gravado no volume zitadel-bootstrap e lido pelo zitadel-login).
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?Defina ZITADEL_ADMIN_PASSWORD no .env}
+      # Já é o padrão do Zitadel; explícito por ser configuração de segurança.
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "true"
+      ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: Login Client
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: "2030-01-01T00:00:00Z"
       # Login v2 (UI separada em /ui/v2/login, servida pelo zitadel-login).
       ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "true"
       ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/
@@ -49,8 +57,7 @@ services:
       ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/logout?post_logout_redirect=
       ZITADEL_SAML_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/login?samlRequest=
     volumes:
-      - ./bootstrap:/bootstrap:ro
-      # Estado de runtime (PAT gerado na primeira inicialização), não confundir com ./bootstrap.
+      # Estado de runtime: PAT do cliente de login, gerado na primeira inicialização.
       - zitadel-bootstrap:/zitadel/bootstrap:rw
     depends_on:
       zitadel-init:
