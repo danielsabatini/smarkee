@@ -7,6 +7,9 @@ services:
       - "127.0.0.1:${NATS_CLIENT_PORT:-4222}:4222"  # Client port (somente para desenvolvimento no host)
       - "127.0.0.1:${NATS_MONITOR_PORT:-8222}:8222"  # Monitoring port
     command: ["-c", "/etc/nats/nats.conf"]
+    environment:
+      NATS_USER: ${NATS_USER:-smarkee}
+      NATS_PASSWORD: ${NATS_PASSWORD:?Defina NATS_PASSWORD no .env (veja .env.example)}
     volumes:
       - broker-data:/data
       - ./nats.conf:/etc/nats/nats.conf:ro
