@@ -78,8 +78,10 @@ Um tipo de recurso concreto é descrito por um contrato de domínio (`SCHEMA.md`
 - o estado consolidado (`phase`, `conditions`);
 - as gerações e a versão para controle de concorrência;
 - as operações assíncronas em andamento ou concluídas (`Operation`);
-- as mensagens aguardando publicação (outbox);
-- o registro de mensagens recebidas, apenas para reduzir reprocessamento (inbox).
+- os resultados de ação já contabilizados (`ActionResult`), para a idempotência de `completed` e `failed`;
+- as mensagens aguardando publicação (outbox).
+
+Não existe inbox: a idempotência de entrada é garantida pelas regras semânticas da seção de idempotência, e um registro de mensagens recebidas não acrescentaria correção.
 
 ## 6.2 Não guardado
 
@@ -106,15 +108,40 @@ Registro consolidado de um recurso. Existe um conjunto de registros por tipo de 
 
 ## 7.2 Operation
 
-Registro de uma solicitação assíncrona (`RESOURCE-CONTROL-LOOP.md`): identifica a solicitação, o recurso, a geração, o solicitante, o estado do processamento, a chave de idempotência da solicitação e os tempos. Não se confunde com o Resource.
+Registro de uma solicitação assíncrona (`RESOURCE-CONTROL-LOOP.md`): identifica a solicitação, o recurso, a geração, o solicitante, o estado do processamento e o seu motivo, o resumo do pedido e os tempos. Não se confunde com o Resource.
+
+A identidade da Operation (`operationId`) é atribuída pela API (`writer = server`), devolvida ao cliente e transportada no `requested`. Ela é a chave de idempotência do pedido no SSOT:
+
+- quando o cliente informa uma chave de idempotência, a API deriva o `operationId` de forma determinística, por função de hash criptográfica sobre o módulo, o tipo de recurso, o solicitante (`requestedBy`) e a chave. A repetição do pedido com a mesma chave produz o mesmo `operationId`, e chaves iguais de solicitantes diferentes produzem identidades diferentes;
+- sem chave, a API gera um `operationId` aleatório. A reentrega do mesmo `requested` pelo transporte carrega o mesmo `operationId`.
+
+A API também calcula o **resumo do pedido** (`requestDigest`), uma função de hash criptográfica sobre a forma canônica do conteúdo pedido, e o transporta no `requested`. O resumo detecta o reuso da mesma chave com outro conteúdo.
+
+| `operationStatus` | Significado |
+|---|---|
+| `accepted` | Pedido gravado; `desired` registrado no outbox |
+| `in_progress` | Reconciliação da geração do pedido em andamento |
+| `completed` | A geração do pedido convergiu |
+| `failed` | A geração do pedido atingiu o `failureLimit` ou foi substituída por outra antes de convergir |
+| `rejected` | Pedido não aplicado; o Resource não foi alterado |
+
+Uma Operation `rejected` possui `operationStatusReason`, enumeração fechada:
+
+| `operationStatusReason` | Significado |
+|---|---|
+| `conflict` | A `resourceVersion` informada está desatualizada |
+| `validation` | Regra de negócio violada |
+| `not_found` | O recurso não existe |
+
+O motivo não repete valores `confidential` nem `secretReference` (`SCHEMA.md`).
 
 ## 7.3 Outbox
 
 Registro de cada mensagem que o Manager deve publicar, gravado **na mesma unidade atômica** da alteração que a originou. Contém a identidade da mensagem, o endereço lógico, o conteúdo, a ordem de gravação e o instante de publicação.
 
-## 7.4 Inbox
+## 7.4 ActionResult
 
-Registro curto de identidades de mensagens já tratadas. Reduz reprocessamento, mas **não é a garantia de correção** (ver idempotência de entrada).
+Registro de cada `actionId` cujo resultado (`completed` ou `failed`) já foi contabilizado: identidade da ação, recurso, geração, desfecho e instante do registro. É a garantia de que um resultado reentregue não é contado de novo. Sua retenção é maior que a retenção dos resultados no transporte somada ao prazo máximo de reentrega.
 
 # 8. Dicionário de Dados
 
@@ -122,7 +149,7 @@ Registro curto de identidades de mensagens já tratadas. Reduz reprocessamento, 
 |---|---|---|---|---|---|---|
 | `resourceId` | Identidade estável do recurso | texto no padrão comum | Sim | Imutável | Servidor (na criação) | `internal` |
 | `lifecycle` | Intenção de existência | enumeração fechada: `present`, `absent` | Sim | Mutável | Manager | `internal` |
-| `reconciliation` | Controle da reconciliação | enumeração fechada: `active`, `suspended` | Sim | Mutável | Manager | `internal` |
+| `reconciliation` | Controle da reconciliação; reflete sempre o último `desired` registrado no outbox | enumeração fechada: `active`, `suspended` | Sim | Mutável | Manager | `internal` |
 | `desired` | Conteúdo declarativo do recurso | objeto do contrato do recurso | Sim | Mutável | Manager | por campo do contrato |
 | `desiredGeneration` | Versão lógica da especificação | inteiro crescente | Sim | Automática | Manager | `internal` |
 | `resourceVersion` | Versão persistida, para concorrência otimista | valor opaco | Sim | Automática | Manager | `internal` |
@@ -140,43 +167,57 @@ Campos de `desired` e `observed` herdam a sensibilidade declarada no contrato do
 # 9. Invariantes
 
 1. **`resourceId` é único e imutável** dentro do tipo.
-2. **`desiredGeneration` só aumenta**, e só quando a **especificação** muda. Alterar apenas `reconciliation` não a incrementa.
+2. **`desiredGeneration` só aumenta**, e só quando a **especificação** muda ou quando a recuperação reafirma a especificação (seção de recuperação). Alterar apenas `reconciliation` não a incrementa.
 3. **`resourceVersion` muda a cada gravação** do registro e é a base do controle otimista.
 4. **Toda gravação que gera mensagem registra a mensagem no outbox na mesma unidade atômica.** Não existe o estado "alterado, mas sem mensagem a publicar".
 5. **`observed` nunca retrocede:** uma observação só substitui a existente se for mais recente (`observedAt`).
 6. **`phase` e `failureCount` são derivados** das mensagens consumidas e das invariantes, e não de entrada externa.
 7. **O SSOT não executa nada** no sistema externo e não depende de resposta dele para gravar.
 8. **Remoção física só ocorre após a convergência** da remoção.
+9. **As unidades atômicas de um mesmo recurso são serializadas.** Duas mensagens sobre o mesmo recurso nunca são aplicadas sobre o mesmo estado lido.
+10. **Uma geração publicada nunca é reutilizada com outro conteúdo.** Consumidores tratam a mesma geração como idempotente; reutilizá-la com conteúdo diferente causaria divergência silenciosa.
+11. **O registro reflete o último `desired` registrado no outbox.** Toda mensagem `desired` corresponde ao conteúdo e ao controle gravados no registro na mesma unidade.
 
 # 10. Unidade Atômica de Gravação
 
 Cada mensagem consumida pelo Manager é tratada em **uma unidade atômica**. A confirmação ao transporte ocorre **somente depois** da gravação durável.
 
+Toda unidade **começa obtendo acesso exclusivo ao registro do recurso** e só então lê o estado atual (invariante 9). Isso serializa as mensagens do mesmo recurso, inclusive `observed` e `completed`/`failed` processados em paralelo por instâncias diferentes, e impede que uma sobrescreva as `conditions` calculadas pela outra.
+
 ## 10.1 `requested`
 
-1. verificar duplicidade da solicitação (chave de idempotência);
-2. validar o pedido e as regras de negócio;
-3. conferir a `resourceVersion` informada (atualizações);
-4. gravar o recurso: incrementar `desiredGeneration` somente se a especificação mudou;
-5. registrar a Operation;
-6. registrar no outbox a mensagem `desired`;
-7. confirmar a gravação e, então, confirmar a mensagem ao transporte.
+1. obter acesso exclusivo ao registro, quando ele existir. Na criação ainda não há registro: a unicidade da identidade da Operation e do `resourceId` impede que duas entregas simultâneas do mesmo pedido gravem duas vezes;
+2. verificar se a Operation (`operationId`) já existe; se existir, a mensagem é uma reentrega ou uma repetição do cliente e é apenas confirmada, sem nova gravação. Se o `requestDigest` for diferente do gravado, o reuso da chave é registrado como sinal de observabilidade, e a Operation original prevalece;
+3. validar o pedido e as regras de negócio; em violação, registrar a Operation como `rejected` (`validation` ou `not_found`);
+4. conferir a `resourceVersion` informada (atualizações); se estiver desatualizada, registrar a Operation como `rejected` (`conflict`);
+5. gravar o recurso: incrementar `desiredGeneration` somente se a especificação mudou;
+6. registrar a Operation como `accepted`;
+7. registrar no outbox a mensagem `desired`;
+8. confirmar a gravação e, então, confirmar a mensagem ao transporte.
+
+Um pedido `rejected` não altera o Resource e não gera `desired`.
+
+Antes de publicar, a API consulta a Operation pelo `operationId`: se ela existir com o mesmo `requestDigest`, a API devolve a Operation existente sem publicar; com resumo diferente, a API rejeita o pedido de imediato. Essa consulta evita publicações repetidas, e o passo 2 cobre as repetições simultâneas que passam por ela.
 
 ## 10.2 `observed`
 
-1. verificar duplicidade;
+1. obter acesso exclusivo ao registro; se o recurso não existir, descartar a mensagem;
 2. descartar a mensagem se `observedAt` não for mais recente que o gravado;
 3. gravar `observed`, `presence` e `observedAt`, e recalcular `conditions` e `phase`;
 4. registrar no outbox a mensagem `updated`;
 5. confirmar.
 
+A monotonia por `observedAt` compara instantes do Observer. Ela é válida porque um recurso é observado por uma instância por vez (partição por `resourceId`, `RESOURCE-CONTROL-LOOP.md`) e porque os relógios do ambiente são sincronizados. Durante a redistribuição de partições, duas instâncias podem observar o mesmo recurso; um desvio de relógio entre elas menor que o `observationInterval` do contrato faz, no pior caso, uma observação ser descartada e substituída pela próxima.
+
 ## 10.3 `completed` e `failed`
 
-1. verificar duplicidade;
-2. atualizar a Operation e as `conditions`;
-3. em `failed`, incrementar `failureCount` da geração; ao atingir o `failureLimit` do contrato, definir `phase = Failed` e registrar no outbox o `desired` com `reconciliation = suspended` (mesma geração);
-4. registrar no outbox a mensagem `updated`;
-5. confirmar.
+1. obter acesso exclusivo ao registro;
+2. registrar o `actionId` em `ActionResult`; se ele já existir, a mensagem é uma reentrega e é apenas confirmada;
+3. atualizar a Operation e as `conditions`;
+4. se a geração do resultado for diferente da `desiredGeneration` atual, o resultado não altera `failureCount` nem `phase`: ele se refere a uma especificação substituída;
+5. em `failed` da geração atual, incrementar `failureCount`; ao atingir o `failureLimit` do contrato, definir `phase = Failed`, gravar `reconciliation = suspended` no registro e registrar no outbox o `desired` com `reconciliation = suspended` (mesma geração);
+6. registrar no outbox a mensagem `updated`;
+7. confirmar.
 
 ## 10.4 Nova geração
 
@@ -184,9 +225,11 @@ Quando a especificação muda, `desiredGeneration` aumenta, `failureCount` é ze
 
 # 11. Concorrência
 
-O controle é **otimista**. Uma atualização informa a `resourceVersion` que leu. Se o registro foi alterado depois, a atualização é rejeitada e o solicitante recebe um conflito explícito. A atualização não sobrescreve silenciosamente uma alteração concorrente.
+O controle para o **solicitante** é **otimista**. Uma atualização informa a `resourceVersion` que leu. Se o registro foi alterado depois, a atualização é rejeitada e a Operation registra o conflito explícito (`rejected`, `conflict`). A atualização não sobrescreve silenciosamente uma alteração concorrente.
 
-Atualizações do mesmo recurso por mensagens internas (observação e resultado) são serializadas pela própria unidade atômica de gravação; em caso de conflito, a unidade é repetida a partir do estado atual.
+Como a API responde de forma assíncrona, o conflito é conhecido pela Operation. A API pode conferir a `resourceVersion` antes de publicar, para devolver o conflito de imediato; essa conferência é uma conveniência, e a decisão é sempre do Manager.
+
+Entre **mensagens internas**, a serialização é pelo acesso exclusivo ao registro no início da unidade (invariante 9). A unidade é repetida a partir do estado atual somente em falha transitória da gravação.
 
 # 12. Idempotência de Entrada
 
@@ -194,17 +237,21 @@ Mensagens do transporte podem ser entregues mais de uma vez e, para mensagens de
 
 | Mensagem | Regra semântica de idempotência |
 |---|---|
-| `requested` | Chave de idempotência da solicitação, única por tipo de recurso, com prazo definido pelo domínio |
+| `requested` | Identidade da Operation (`operationId`), derivada da chave de idempotência do cliente no escopo do solicitante e do tipo de recurso, ou aleatória sem chave. O prazo é a retenção da Operation |
 | `observed` | Monotonia de `observedAt`: observação não mais recente é descartada |
-| `completed`, `failed` | Identidade da ação (`actionId`): o resultado de uma ação já registrada não é contado de novo |
+| `completed`, `failed` | Identidade da ação (`actionId`) registrada em `ActionResult`: o resultado de uma ação já registrada não é contado de novo |
 
-O inbox registra identidades de mensagens para evitar trabalho repetido **dentro de uma janela curta**. A perda ou a expiração do inbox não compromete a correção.
+A chave de idempotência é escopada ao solicitante: chaves iguais de solicitantes diferentes são independentes, e um solicitante nunca recebe a Operation de outro. A chave em si não precisa ser guardada nem transportada: ela é consumida pela API na derivação do `operationId`.
+
+A retenção da Operation é maior que o prazo máximo de reentrega do `requested`; a de `ActionResult`, maior que a retenção dos resultados no transporte.
 
 # 13. Outbox
 
 A publicação das mensagens registradas no outbox é feita por um **relay**, que é um componente de infraestrutura e não executa regra de negócio.
 
 - a entrega é *pelo menos uma vez*: uma falha entre publicar e marcar como publicada resulta em republicação;
+- a publicação é **sequencial**: a próxima mensagem só é publicada depois da confirmação do transporte para a anterior, e um erro interrompe o lote. Publicar várias mensagens em paralelo permitiria que uma mensagem antiga, repetida após um erro, fosse gravada depois de uma nova e passasse a ser o último estado retido;
+- **uma única instância** do relay publica por vez cada outbox. Ao perder a garantia de exclusividade, a instância descarta o lote em memória e para de publicar imediatamente;
 - toda mensagem publicada leva a sua identidade (`messageId`) também como chave de deduplicação do transporte, quando suportado; os consumidores continuam idempotentes;
 - a **ordem de gravação por recurso é preservada na publicação**. Isso é necessário porque mensagens de `desired` de mesma geração (por exemplo, a suspensão da reconciliação) são ordenadas pela ordem de publicação (`MESSAGING.md`);
 - um atraso na publicação é observável (idade da mensagem mais antiga não publicada);
@@ -219,6 +266,7 @@ A publicação das mensagens registradas no outbox é feita por um **relay**, qu
 | Reconciliação | `phase = Reconciling` até a convergência observada; depois `Ready` |
 | Falha | `failureCount`; no limite, `phase = Failed` e reconciliação suspensa |
 | Suspensão e retomada | Alteração de `reconciliation` sem nova geração; outbox (`desired`) |
+| Rejeição | Operation `rejected` com motivo; o Resource não muda |
 | Remoção | `lifecycle = absent`, `phase = Deleting`; após a convergência (`presence = absent`), remoção física do registro |
 
 Após a remoção física, o último `desired` (`lifecycle = absent`) permanece no transporte até a limpeza administrativa (`RESOURCE-CONTROL-LOOP.md`). O SSOT não depende dessa mensagem.
@@ -227,7 +275,7 @@ Operações concluídas têm retenção limitada. O que precisa ser mantido a lo
 
 # 15. Leitura e Consistência
 
-- a API lê o SSOT em **modo somente leitura** para expor o estado atual do recurso e das operações;
+- a API lê o SSOT em **modo somente leitura**, por uma interface de leitura própria e versionada, e não pela estrutura de armazenamento, para expor o estado atual do recurso e das operações;
 - a leitura reflete o que o Manager já gravou. Pode estar atrasada em relação ao sistema externo e ao transporte, e isso é esperado: a convergência é eventual;
 - a leitura nunca é usada para decidir uma ação sobre o sistema externo. Quem decide é o Reconciler, a partir do estado recebido pelo transporte.
 
@@ -260,15 +308,34 @@ O SSOT é a **única fonte** de Operation, de `conditions` e do histórico conso
 - os objetivos de recuperação (ponto e tempo) são parâmetros do ambiente;
 - a reconstrução do SSOT a partir do transporte é **apenas parcial**: o transporte retém o último `desired` e o último `observed` de cada recurso, mas não Operation, `conditions` nem `failureCount`;
 - com o SSOT indisponível, o Manager não aceita novos pedidos nem atualiza o estado, mas o loop continua operando sobre o `desired` já publicado;
-- após restauração a um ponto anterior, o Manager reavalia o estado e republica o `desired` quando necessário. A geração não retrocede, e os consumidores tratam republicações como idempotentes.
+- após restauração a um ponto anterior, aplica-se o procedimento de recuperação abaixo **antes** de liberar o Manager e o relay.
+
+## 18.1 Recuperação após restauração
+
+Restaurar o SSOT a um ponto anterior faz `desiredGeneration` voltar ao valor daquele ponto, enquanto o transporte retém `desired` publicados depois dele. Sem tratamento, uma nova alteração reutilizaria uma geração já publicada com outro conteúdo (invariante 10), e mensagens já publicadas voltariam a ficar pendentes no outbox e poderiam substituir o último estado retido por um anterior.
+
+O procedimento é executado por infraestrutura, com o Manager e o relay parados:
+
+1. descartar as mensagens pendentes do outbox: elas são anteriores ao ponto restaurado e podem já ter sido publicadas;
+2. para cada recurso do SSOT, ler o último `desired` retido no transporte;
+3. se o transporte não tiver `desired` do recurso, ou tiver geração menor, registrar no outbox o `desired` do SSOT com a geração do SSOT;
+4. se o transporte tiver a mesma geração e o mesmo conteúdo, não fazer nada;
+5. se o transporte tiver geração maior, ou a mesma geração com conteúdo diferente, gravar `desiredGeneration` como a geração do transporte mais um e registrar no outbox o `desired` do SSOT com essa geração;
+6. listar, sem alterar, os recursos que existem no transporte e não existem no SSOT (criados depois do ponto restaurado). A decisão de recriar o registro ou publicar a remoção é do operador, porque é destrutiva;
+7. registrar o relatório da recuperação e só então liberar o Manager e o relay.
+
+O SSOT restaurado é a intenção vigente. Pedidos aceitos depois do ponto restaurado são perdidos, e suas Operations deixam de existir; essa perda é limitada pelo objetivo de ponto de recuperação do ambiente. Mensagens `updated` desse intervalo não são republicadas.
+
+O procedimento é idempotente: repeti-lo sobre o mesmo estado não altera mais nada. Ele faz parte do teste periódico de restauração.
 
 # 19. Observabilidade
 
 Devem ser observáveis, sem expor dados sensíveis:
 
 - idade da mensagem mais antiga não publicada no outbox;
-- tamanho do inbox e do outbox;
-- conflitos de concorrência e repetições da unidade atômica;
+- tamanho do outbox, de `ActionResult` e das Operations;
+- Operations `rejected` por motivo e reusos de chave de idempotência com outro conteúdo;
+- tempo de espera pelo acesso exclusivo ao registro e repetições da unidade atômica;
 - latência e falhas de gravação;
 - quantidade de recursos por `phase`;
 - recursos em `Failed` e com `reconciliation = suspended`;
@@ -279,7 +346,11 @@ Devem ser observáveis, sem expor dados sensíveis:
 - escrever no SSOT por um componente que não seja o Manager;
 - gravar a alteração e publicar a mensagem em unidades separadas;
 - confirmar a mensagem ao transporte antes da gravação durável;
-- depender do inbox para a correção da idempotência;
+- ler o estado do recurso e gravá-lo sem acesso exclusivo ao registro;
+- contar um resultado sem registrar o seu `actionId`, ou contá-lo contra uma geração diferente da sua;
+- escopar a chave de idempotência apenas ao tipo de recurso, sem o solicitante;
+- publicar o outbox em paralelo ou por mais de uma instância ao mesmo tempo;
+- liberar o Manager após uma restauração sem o procedimento de recuperação;
 - decidir ação sobre o sistema externo com base na leitura do SSOT;
 - tratar a estrutura de armazenamento como o contrato;
 - guardar histórico completo de observações no registro do recurso;
@@ -293,16 +364,18 @@ Devem ser observáveis, sem expor dados sensíveis:
 
 - [ ] O Manager é o único escritor?
 - [ ] Cada mensagem consumida é tratada em uma unidade atômica, com confirmação após a gravação?
+- [ ] Toda unidade começa com acesso exclusivo ao registro do recurso?
+- [ ] Rejeições são registradas na Operation com motivo?
 - [ ] Toda gravação que gera mensagem registra o outbox na mesma unidade?
 - [ ] A ordem por recurso é preservada na publicação?
-- [ ] A idempotência de `requested`, `observed` e `completed`/`failed` é semântica?
+- [ ] A idempotência de `requested`, `observed` e `completed`/`failed` é semântica, com `operationId` derivado da chave escopada ao solicitante e `ActionResult`?
 - [ ] `desiredGeneration` só muda quando a especificação muda?
 - [ ] A atualização informa e confere a `resourceVersion`?
 - [ ] O dicionário de dados está completo, com sensibilidade e escritor?
 - [ ] O que é guardado e o que não é está definido?
 - [ ] Os privilégios são mínimos e por tipo de recurso?
 - [ ] A estrutura é gerada a partir de um modelo, e a migração segue o `SCHEMA.md`?
-- [ ] Existe cópia de segurança com recuperação a um ponto no tempo e teste de restauração?
+- [ ] Existe cópia de segurança com recuperação a um ponto no tempo e teste de restauração, incluindo o procedimento de recuperação?
 - [ ] Os sinais de observabilidade estão disponíveis?
 
 # 22. Critérios de Sucesso
@@ -310,11 +383,11 @@ Devem ser observáveis, sem expor dados sensíveis:
 O SSOT está adequado quando:
 
 - uma falha entre gravar e publicar não perde nem duplica de forma nociva uma mensagem;
-- duas atualizações concorrentes nunca se sobrescrevem em silêncio;
+- duas atualizações concorrentes nunca se sobrescrevem em silêncio, sejam pedidos ou mensagens internas;
 - repetir qualquer mensagem consumida não altera o resultado;
 - o modelo é compreensível sem conhecer a tecnologia de armazenamento;
 - a tecnologia de armazenamento pode ser trocada sem alterar este documento;
-- o estado pode ser recuperado a um ponto no tempo conhecido.
+- o estado pode ser recuperado a um ponto no tempo conhecido sem reutilizar uma geração já publicada.
 
 # 23. Referências
 

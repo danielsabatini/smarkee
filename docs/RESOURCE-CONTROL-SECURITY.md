@@ -148,7 +148,7 @@ Existe uma **identidade administrativa separada**, usada somente por infraestrut
 
 Ao remover um recurso, o Manager publica o `desired` final (`lifecycle=absent`) e, após a convergência, remove o recurso do SSOT. A mensagem permanece como tombstone até a limpeza (`NATS.md`).
 
-Além dela, existem duas identidades de infraestrutura para o SSOT: o **relay** do outbox (lê as mensagens pendentes e marca a publicação, e publica no emissor `manager`) e a **manutenção** (remove registros expirados de outbox, inbox e operações). Nenhuma delas executa regra de negócio, e seus privilégios estão em `POSTGRESQL.md`.
+Além dela, existem duas identidades de infraestrutura para o SSOT: o **relay** do outbox (lê as mensagens pendentes e marca a publicação, e publica no emissor `manager`) e a **manutenção** (remove registros expirados de outbox, de resultados de ação e de operações). Nenhuma delas executa regra de negócio, e seus privilégios estão em `POSTGRESQL.md`.
 
 A identidade administrativa não é utilizada por serviços do loop, suas credenciais são fornecidas por secrets management e o seu uso deve ser auditado.
 

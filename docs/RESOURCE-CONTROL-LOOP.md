@@ -1303,7 +1303,7 @@ updatedAt
 completedAt
 ```
 
-A Operation não deve ser confundida com o Resource. Ela é um registro do SSOT mantido pelo Manager e exposto pela API; não trafega no envelope das mensagens, e o `correlationId` liga a Operation às mensagens do fluxo.
+A Operation não deve ser confundida com o Resource. Ela é um registro do SSOT mantido pelo Manager e exposto pela API; não trafega no envelope das mensagens, e o `correlationId` liga a Operation às mensagens do fluxo. O `operationId` é atribuído pela API e transportado no conteúdo do `requested` (`SCHEMA.md`); os estados da Operation, inclusive a rejeição com motivo, e a idempotência do pedido estão em `SSOT.md`.
 
 ```text
 Resource

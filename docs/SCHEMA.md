@@ -204,6 +204,17 @@ Conceitos diferentes usam campos diferentes e valores diferentes:
 
 Não reutilizar um desses campos para outro significado.
 
+## 7.4 `requested`
+
+Os contratos `requested` possuem estes campos de controle, atribuídos pela API (`writer = server`) e usados pelo Manager para a idempotência do pedido (`SSOT.md`, Operation):
+
+| Campo | Significado |
+|---|---|
+| `operationId` | Identidade da Operation. Derivado de forma determinística da chave de idempotência do cliente, no escopo do solicitante e do tipo de recurso, ou aleatório quando o cliente não informa a chave |
+| `requestDigest` | Resumo criptográfico da forma canônica do conteúdo pedido; detecta o reuso da mesma chave com outro conteúdo |
+
+A chave de idempotência do cliente é consumida pela API e não é transportada.
+
 # 8. Identidade e Nomenclatura
 
 Os schemas aplicam nomenclatura explícita e estável. Preferir:
@@ -520,7 +531,7 @@ A classificação é obrigatória e não possui valor padrão: um contrato com c
 
 ## 20.3 Campos atribuídos pelo servidor
 
-Campos com `writer = server` são atribuídos por um componente do sistema: `requestedBy` pela API, `desiredGeneration` pelo Manager, `actionId` pelo Reconciler. Um valor enviado por cliente externo para um campo desse tipo é **rejeitado** na API, e não sobrescrito silenciosamente. Isso impede a falsificação de identidade, de geração e de decisão.
+Campos com `writer = server` são atribuídos por um componente do sistema: `requestedBy`, `operationId` e `requestDigest` pela API, `desiredGeneration` pelo Manager, `actionId` pelo Reconciler. Um valor enviado por cliente externo para um campo desse tipo é **rejeitado** na API, e não sobrescrito silenciosamente. Isso impede a falsificação de identidade, de geração e de decisão.
 
 Entre componentes internos, quem pode emitir cada campo é controlado pela autorização do emissor (`RESOURCE-CONTROL-SECURITY.md`).
 

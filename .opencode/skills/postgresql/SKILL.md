@@ -40,7 +40,7 @@ Entradas: módulo, tipo e o contrato do recurso (`docs/SCHEMA.md`, parâmetros e
 
 1. Ler `docs/SSOT.md` (modelo, dicionário, invariantes) e `docs/POSTGRESQL.md` (mapeamento e DDL de referência).
 2. Confirmar que o contrato do recurso define limites, sensibilidade e os parâmetros do loop. Se não definir, parar e devolver ao agent `ssot`.
-3. **Gerar** as quatro tabelas (`<tipo>`, `<tipo>_operation`, `<tipo>_outbox`, `<tipo>_inbox`) **a partir do modelo único** do projeto. Não escreva o DDL à mão por tipo e não edite a tabela gerada (`AGENTS.md`, arquivos gerados). Se o modelo ainda não existir, proponha-o como artefato versionado e pare.
+3. **Gerar** as quatro tabelas (`<tipo>`, `<tipo>_operation`, `<tipo>_action_result`, `<tipo>_outbox`) e as duas views de leitura (`<tipo>_v<MAJOR>`, `<tipo>_operation_v<MAJOR>`) **a partir do modelo único** do projeto. Não escreva o DDL à mão por tipo e não edite a tabela gerada (`AGENTS.md`, arquivos gerados). Se o modelo ainda não existir, proponha-o como artefato versionado e pare.
 4. Gerar os papéis e os `GRANT` da matriz de `docs/POSTGRESQL.md` (por serviço) e conferir contra a matriz de identidades de `docs/RESOURCE-CONTROL-SECURITY.md`.
 5. Executar o Procedimento C (validação em contêiner) com o DDL gerado.
 6. Entregar a migração para revisão. Não aplique.
@@ -59,7 +59,7 @@ Entradas: módulo, tipo e o contrato do recurso (`docs/SCHEMA.md`, parâmetros e
 1. Verificar a imagem fixada: `docker image inspect <imagem>`. Se faltar, **pedir aprovação** para baixá-la.
 2. Subir um cluster descartável e isolado (`docker run --rm`), sem rede externa e sem volumes do host além do necessário para ler os scripts. Algumas imagens não trazem inicialização automática; nesse caso inicialize o cluster dentro do contêiner e use um diretório de socket gravável.
 3. Aplicar o DDL e os `GRANT` com `psql -X -v ON_ERROR_STOP=1 -f <arquivo>`.
-4. Executar os testes funcionais do que foi alterado. O conjunto de verificações de referência está em `docs/POSTGRESQL.md` (verificação do DDL): restrições, concorrência otimista e geração, monotonia de `observed_at`, duplicata do inbox, índice de idempotência, privilégios por papel (incluindo as negações), ordem do outbox com duas sessões, trava consultiva.
+4. Executar os testes funcionais do que foi alterado. O conjunto de verificações de referência está em `docs/POSTGRESQL.md` (verificação do DDL): restrições, concorrência otimista e geração, monotonia de `observed_at`, serialização por `FOR UPDATE`, duplicata de `action_id` e de `operation_id`, privilégios por papel (incluindo as negações e a leitura da API somente pelas views), parâmetros de sessão no papel de login, ordem do outbox com duas sessões, trava consultiva e consulta de posse.
 5. Executar os **casos negativos** (devem falhar): identificador inválido, `jsonb` que não é objeto, fase inválida, escrita sem privilégio.
 6. Remover o contêiner e qualquer arquivo temporário (`--rm`; scripts em `.workspace/`).
 7. Reportar o que foi e o que **não** foi verificado (carga, failover, PITR, proteção em repouso, *pooling*).
@@ -83,8 +83,8 @@ Evite `SELECT *` e qualquer exibição do conteúdo de `desired` e `observed`.
 
 ## 7. Procedimento E: revisar segurança
 
-1. Conferir os papéis e os `GRANT` contra a matriz de `docs/POSTGRESQL.md` e de `docs/RESOURCE-CONTROL-SECURITY.md`: um papel por serviço; Manager sem `DELETE` em outbox, inbox e operation; API só com leitura por coluna; relay só com `UPDATE (published_at)`; manutenção separada.
-2. Confirmar que `PUBLIC` não possui privilégios no schema nem nas tabelas.
+1. Conferir os papéis e os `GRANT` contra a matriz de `docs/POSTGRESQL.md` e de `docs/RESOURCE-CONTROL-SECURITY.md`: um papel por serviço; Manager sem `DELETE` em outbox, resultados de ação e operation; API só com leitura pelas views; relay só com `UPDATE (published_at)`; manutenção separada.
+2. Confirmar que `PUBLIC` não possui privilégios no banco, no schema `public`, no schema do módulo nem nas tabelas, e que os papéis de login de runtime têm os parâmetros de sessão.
 3. Confirmar que nenhum serviço de runtime é proprietário de objeto nem executa DDL.
 4. Confirmar TLS fora do ambiente local, proteção em repouso (validada no ambiente) e que log não registra parâmetros nem colunas `confidential`.
 
@@ -93,13 +93,15 @@ Evite `SELECT *` e qualquer exibição do conteúdo de `desired` e `observed`.
 | Sintoma | Verificar | Observação |
 |---|---|---|
 | Atraso crescente no outbox | Procedimento D (atraso e pendentes); o relay está ativo e com a trava consultiva? | Uma única instância ativa por tabela. Não "acelerar" com `SKIP LOCKED` |
-| Mensagens fora de ordem | Se a transação atualiza a linha do recurso antes de inserir no outbox; se há mais de um relay | A ordem por recurso depende dessa sequência e de uma única instância |
+| Mensagens fora de ordem | Se a transação bloqueia e atualiza a linha do recurso antes de inserir no outbox; se há mais de um relay; se o relay publica em paralelo | A ordem por recurso depende dessa sequência e de uma única instância |
 | Mensagem publicada duas vezes | Falha entre publicar e marcar `published_at` | Esperado (entrega pelo menos uma vez); a deduplicação do transporte e a idempotência dos consumidores absorvem |
 | Mensagens perdidas pelo relay | Uso de marca-d'água por `sequence` | O relay seleciona por `published_at IS NULL` |
 | Muitos conflitos de atualização | Taxa de linhas afetadas igual a zero | Versão desatualizada informada pelo solicitante; é esperado em concorrência |
 | Espera por bloqueio | Bloqueios em espera (Procedimento D); documentos grandes | Toda atualização bloqueia a linha inteira |
 | Geração incrementando sem mudança de especificação | A comparação de `desired` na atualização | Mudar só `reconciliation` não incrementa a geração |
 | Falhas de serialização ou deadlock | Nível de isolamento e ordem de acesso | Read Committed é o padrão; a aplicação repete a unidade |
+| `lock_timeout` frequente | Bloqueios em espera (Procedimento D); transações longas do Manager | Toda unidade bloqueia a linha do recurso; transações devem ser curtas |
+| `conditions` sobrescritas entre `observed` e resultados | Se a unidade começa com `FOR UPDATE` na linha | Sem o bloqueio, duas instâncias calculam sobre o mesmo estado lido |
 | Trava consultiva não obtida | *Pooling* de conexões | A trava é de sessão e não funciona com *pooling* de transação |
 
 ## 9. Critérios de conclusão
