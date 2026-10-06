@@ -10,7 +10,7 @@ O SSOT será implementado em PostgreSQL (`docs/POSTGRESQL.md`), com um schema po
 ## Decisão
 
 - O SSOT usa **um único banco**, `smarkee`, para todos os módulos. O isolamento entre módulos e tipos é feito por schema, por tabela, por view e por `GRANT`.
-- O banco pertence ao papel `smarkee_owner`, que não é superusuário e é usado somente por migração e recuperação. Serviços de runtime usam papéis próprios.
+- O banco pertence ao papel `smarkee`, que não é superusuário e é usado somente por migração e recuperação. Serviços de runtime usam papéis próprios.
 - `PUBLIC` não possui `CONNECT` nem `TEMPORARY` no banco, nem privilégios no schema `public`.
 - O SSOT não compartilha banco com componentes de terceiros. No desenvolvimento, ele divide o servidor com `kong` e `zitadel`; fora do ambiente local, usa um **cluster próprio**.
 
