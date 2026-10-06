@@ -1,5 +1,12 @@
 name: gateway
 
+# Depende do PostgreSQL: o `database` é incluído para que gateway-migrations-bootstrap possa aguardá-lo
+# (depends_on) tanto na subida pela raiz quanto no modo isolado. O Compose trata
+# inclusões repetidas do mesmo arquivo como um único serviço.
+include:
+  - path: ../database/compose.yaml
+    env_file: ../database/.env
+
 x-kong-database-environment: &kong-database-environment
   KONG_PG_HOST: ${KONG_DATABASE_HOST:-database}
   KONG_PG_PORT: ${KONG_DATABASE_PORT:-5432}
@@ -27,6 +34,9 @@ services:
     <<: *gateway-bootstrap
     container_name: gateway-migrations-bootstrap
     command: ["kong", "migrations", "bootstrap"]
+    depends_on:
+      database:
+        condition: service_healthy
 
   gateway-migrations-up:
     <<: *gateway-bootstrap

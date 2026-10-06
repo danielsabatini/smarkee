@@ -34,7 +34,7 @@ docker compose down -v           # derruba e APAGA os dados
 
 Os contêineres de inicialização permanecem parados (`Exited (0)`) depois de executar, preservando o código de saída e os logs para diagnóstico (`docker compose ps -a`, `docker compose logs <serviço>`). O Compose não os remove automaticamente: não há equivalente ao `docker run --rm`, e o `depends_on: service_completed_successfully` precisa do contêiner encerrado para ler o código de saída. A próxima subida os recria.
 
-Cada serviço também sobe isoladamente em seu próprio diretório (`cd database && docker compose up -d`). Use **um modo por vez**: os nomes dos containers são fixos e conflitam entre os dois modos. O `identity` e o `gateway` precisam do `database` em execução.
+Cada serviço também sobe isoladamente em seu próprio diretório (`cd database && docker compose up -d`). Use **um modo por vez**: os nomes dos containers são fixos e conflitam entre os dois modos. Cada recurso tem um único `compose.yaml`. O `identity` e o `gateway` incluem o `database/compose.yaml`: isolados, sobem o PostgreSQL junto e aguardam que ele aceite conexões.
 
 ## Mapa de acesso
 
@@ -94,7 +94,11 @@ Não há TLS em dev (`sslmode=disable` quando o cliente exigir o parâmetro).
 
 ## Bootstrap
 
-Quando a ferramenta tem formato declarativo em arquivo, o serviço guarda o seu **estado inicial declarado** em `bootstrap/`: arquivos direto na raiz da pasta, cada um com o nome do que configura, em formato nativo da ferramenta e sem scripts. O Zitadel é a exceção: é configurado por variáveis de ambiente, e a sua primeira instância também (`ZITADEL_FIRSTINSTANCE_*` em `identity/compose.yaml`). A configuração do servidor (`nats.conf`, `postgresql.conf`, `pg_hba.conf`, `pg_ident.conf`, `kong.conf`) fica fora de `bootstrap/`. Decisão em `.decisions/0005-bootstrap-declarativo-da-infraestrutura.md`.
+O estado inicial é configurado, em primeiro lugar, **por variáveis de ambiente ou pela forma mais simples que a ferramenta oferecer**. Arquivo de bootstrap é o último recurso, usado só quando não há alternativa; nesse caso, o serviço guarda o seu **estado inicial declarado** em `bootstrap/`: arquivos direto na raiz da pasta, cada um com o nome do que configura, em formato nativo da ferramenta e sem scripts. Por isso o Zitadel não tem pasta (primeira instância por `ZITADEL_FIRSTINSTANCE_*` em `identity/compose.yaml`), e database, broker e gateway têm:
+
+- database: as variáveis da imagem criam um único banco e usuário; são necessários três bancos com donos próprios, a localidade do `smarkee` e as revogações de `PUBLIC`;
+- broker: o `nats-server` não declara Streams por configuração nem por variável, e serviços de runtime não podem criá-los (`docs/NATS.md`);
+- gateway: com banco, o Kong só aceita rotas importadas (a configuração declarativa direta vale apenas no modo sem banco). A configuração do servidor (`nats.conf`, `postgresql.conf`, `pg_hba.conf`, `pg_ident.conf`, `kong.conf`) fica fora de `bootstrap/`. Decisão em `.decisions/0005-bootstrap-declarativo-da-infraestrutura.md`.
 
 | Serviço | Fonte | Quem aplica | Quando | Efeito de alterar um arquivo depois |
 |---|---|---|---|---|
@@ -156,7 +160,7 @@ curl -s http://localhost:8001/routes                                  # rotas do
 
 - Rotas criadas pelo Kong Manager ficam apenas no banco `kong`. A cada `up`, o serviço `gateway-import` reimporta `gateway/bootstrap/routes.yml` e pode sobrescrever rotas de mesmo nome; rotas removidas do arquivo não são removidas do banco.
 - A reimportação de `gateway/bootstrap/routes.yml` grava direto no banco e **não** invalida o cache de um `gateway` já em execução. Depois de alterar o arquivo, reinicie o gateway: `docker compose up -d && docker compose restart gateway`.
-- Na subida pela raiz, `identity/compose.root.yaml` e `gateway/compose.root.yaml` fazem a inicialização do Zitadel (`zitadel-init`) e a primeira migração do Kong (`gateway-migrations-bootstrap`) aguardarem o PostgreSQL aceitar conexões. No modo isolado, essa ordem não existe: suba o `database` antes.
+- A inicialização do Zitadel (`zitadel-init`) e a primeira migração do Kong (`gateway-migrations-bootstrap`) aguardam o PostgreSQL aceitar conexões (`depends_on` com `service_healthy`), declarado no próprio `compose.yaml` de cada recurso, que inclui o `database/compose.yaml`.
 - O Zitadel monta o issuer e as URLs públicas a partir do cabeçalho `x-zitadel-public-host`, preenchido pelo Kong com o `Host` original (com a porta). Sem isso, os endpoints OIDC apontariam para `http://auth.localhost` (porta 80).
 - Os arquivos de `database/bootstrap/` só rodam na primeira inicialização do volume. Em um volume existente, aplique-os manualmente:
 

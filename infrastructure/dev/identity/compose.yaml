@@ -1,5 +1,12 @@
 name: identity
 
+# Depende do PostgreSQL: o `database` é incluído para que zitadel-init possa aguardá-lo
+# (depends_on) tanto na subida pela raiz quanto no modo isolado. O Compose trata
+# inclusões repetidas do mesmo arquivo como um único serviço.
+include:
+  - path: ../database/compose.yaml
+    env_file: ../database/.env
+
 # Conexão com o banco `zitadel`, criado com o usuário `zitadel` por database/bootstrap/zitadel.sql.
 # O Zitadel não recebe credencial de administrador do PostgreSQL.
 x-zitadel-database-environment: &zitadel-database-environment
@@ -20,6 +27,9 @@ services:
     command: ["init", "zitadel"]
     environment:
       <<: *zitadel-database-environment
+    depends_on:
+      database:
+        condition: service_healthy
     networks:
       - internal
     restart: "no"

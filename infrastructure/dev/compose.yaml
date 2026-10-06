@@ -8,11 +8,7 @@ include:
     env_file: database/.env
   - path: broker/compose.yaml
     env_file: broker/.env
-  - path:
-      - identity/compose.yaml
-      - identity/compose.root.yaml
+  - path: identity/compose.yaml
     env_file: identity/.env
-  - path:
-      - gateway/compose.yaml
-      - gateway/compose.root.yaml
+  - path: gateway/compose.yaml
     env_file: gateway/.env

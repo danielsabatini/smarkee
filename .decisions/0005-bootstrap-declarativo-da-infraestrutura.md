@@ -29,7 +29,7 @@ Era preciso um padrão único, explícito, sem código próprio para manter, e q
 | broker | `<stream>.json` | Um contêiner por stream: `nats stream add <NOME> --config` | A cada `up` |
 
 - Os contêineres de inicialização são o equivalente, no Compose, a `initContainers`: serviços de execução única, um comando cada, encadeados por `depends_on` com `service_completed_successfully`.
-- **Exceção do Zitadel:** ele é configurado por variáveis de ambiente, e a primeira instância também (`ZITADEL_FIRSTINSTANCE_*`). Um arquivo de steps (`--steps`) dividiria a configuração do serviço em dois lugares para poucos valores; por isso o identity não tem pasta `bootstrap/`. O critério é: `bootstrap/` quando o formato natural da ferramenta é um arquivo declarativo.
+- **Critério:** o estado inicial é configurado primeiro por variáveis de ambiente ou pela forma mais simples da ferramenta; arquivo em `bootstrap/` é o último recurso, só quando não há alternativa. O Zitadel aceita a primeira instância por variáveis (`ZITADEL_FIRSTINSTANCE_*`) e, por isso, o identity não tem pasta `bootstrap/`. Database (três bancos com donos, localidade e revogações), broker (Streams só pela API) e gateway (rotas só por importação, com banco) não têm alternativa.
 - O Zitadel não recebe credencial de administrador do PostgreSQL: banco e usuário vêm de `database/bootstrap/zitadel.sql`, e os schemas internos são criados pelo próprio usuário `zitadel`.
 - Um stream com configuração diferente da existente faz o contêiner falhar de forma explícita. A alteração é feita com um `nats stream edit` deliberado.
 
