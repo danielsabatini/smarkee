@@ -33,6 +33,7 @@ services:
 
 volumes:
   database-data:
+    name: database-data
 
 networks:
   # Rede dos serviços, compartilhada por nome. Criada pelo primeiro serviço que subir; os
