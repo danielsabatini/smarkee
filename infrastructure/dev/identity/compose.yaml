@@ -47,7 +47,7 @@ services:
       ZITADEL_MASTERKEY: ${ZITADEL_MASTERKEY:?Defina ZITADEL_MASTERKEY (32 caracteres) no .env}
       ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}
       # O Zitadel é acessado pelo gateway; a porta externa deve ser a do proxy HTTP do Kong.
-      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNAL_PORT:-8000}
+      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNAL_PORT:-80}
       ZITADEL_EXTERNALSECURE: "false"
       # Lido também pelo healthcheck (`zitadel ready`), que não aceita --tlsMode.
       ZITADEL_TLS_ENABLED: "false"
@@ -62,10 +62,10 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: "2030-01-01T00:00:00Z"
       # Login v2 (UI separada em /ui/v2/login, servida pelo zitadel-login).
       ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "true"
-      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/
-      ZITADEL_OIDC_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/login?authRequest=
-      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/logout?post_logout_redirect=
-      ZITADEL_SAML_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-8000}/ui/v2/login/login?samlRequest=
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-80}/ui/v2/login/
+      ZITADEL_OIDC_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-80}/ui/v2/login/login?authRequest=
+      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-80}/ui/v2/login/logout?post_logout_redirect=
+      ZITADEL_SAML_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNAL_DOMAIN:-auth.localhost}:${ZITADEL_EXTERNAL_PORT:-80}/ui/v2/login/login?samlRequest=
     volumes:
       # Estado de runtime: PAT do cliente de login, gerado na primeira inicialização.
       - zitadel-bootstrap:/zitadel/bootstrap:rw

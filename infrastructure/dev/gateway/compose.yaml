@@ -68,7 +68,9 @@ services:
     environment:
       <<: *kong-database-environment
     ports:
-      - "127.0.0.1:${KONG_PROXY_HTTP_PORT:-8000}:8000"  # Proxy HTTP
+      # Proxy HTTP na porta 80: o Kong envia o X-Forwarded-Host sem a porta, e o login do
+      # Zitadel (Next.js) recusa Server Actions cujo Origin traga outra porta.
+      - "127.0.0.1:${KONG_PROXY_HTTP_PORT:-80}:8000"  # Proxy HTTP
       - "127.0.0.1:${KONG_PROXY_HTTPS_PORT:-8443}:8443"  # Proxy HTTPS
       - "127.0.0.1:${KONG_ADMIN_HTTP_PORT:-8001}:8001"  # Admin API HTTP
       - "127.0.0.1:${KONG_ADMIN_HTTPS_PORT:-8444}:8444"  # Admin API HTTPS

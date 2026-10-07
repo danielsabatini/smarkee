@@ -42,10 +42,12 @@ Do host, use a coluna **Host**. De um container na rede `internal` (por exemplo,
 
 | Sistema | Host | Rede `internal` | Observação |
 |---|---|---|---|
-| Zitadel (console) | http://auth.localhost:8000/ui/console/ | — | Navegador, via gateway |
-| Zitadel (login) | http://auth.localhost:8000/ui/v2/login/ | — | Navegador, via gateway |
-| Zitadel (OIDC e APIs) | http://auth.localhost:8000 | http://gateway:8000 com o cabeçalho `Host: auth.localhost:8000` | Ver a seção OIDC |
-| Kong (proxy HTTP) | http://localhost:8000 | http://gateway:8000 | Roteia por host (`gateway/bootstrap/routes.yml`); host desconhecido responde 404 |
+| Zitadel (console) | http://auth.localhost/ui/console/ | — | Navegador, via gateway |
+| Zitadel (login) | http://auth.localhost/ui/v2/login/ | — | Navegador, via gateway |
+| Zitadel (OIDC e APIs) | http://auth.localhost | http://gateway:8000 com o cabeçalho `Host: auth.localhost` | Ver a seção OIDC |
+| Zitadel API (direto, sem gateway) | — (porta não publicada) | http://zitadel-api:8080 com o cabeçalho `Host: auth.localhost` | Chamadas entre serviços e diagnóstico; sem o cabeçalho responde 404 |
+| Zitadel login (direto, sem gateway) | — (porta não publicada) | http://zitadel-login:3000/ui/v2/login/ | Somente diagnóstico (`/ui/v2/login/healthy`) |
+| Kong (proxy HTTP) | http://localhost | http://gateway:8000 | Roteia por host (`gateway/bootstrap/routes.yml`); host desconhecido responde 404 |
 | Kong (proxy HTTPS) | https://localhost:8443 | https://gateway:8443 | Certificado autoassinado (`curl -k`); não use para o Zitadel (ver OIDC) |
 | Kong Admin API | http://localhost:8001 · https://localhost:8444 | http://gateway:8001 | Sem autenticação |
 | Kong Manager | http://localhost:8002 · https://localhost:8445 | — | Navegador; sem autenticação |
@@ -54,6 +56,10 @@ Do host, use a coluna **Host**. De um container na rede `internal` (por exemplo,
 | NATS (monitoramento) | http://localhost:8222 | http://broker:8222 | `/healthz`, `/varz`, `/jsz`; sem autenticação |
 
 O gateway trata somente HTTP e HTTPS e roteia por host: o Zitadel atende `auth.localhost`, e cada nova API recebe um host próprio (por exemplo, `api.localhost`). No host, nomes `*.localhost` resolvem para o loopback, sem editar `/etc/hosts`. O NATS e o PostgreSQL são acessados diretamente, sem o gateway.
+
+O proxy HTTP do gateway é publicado na porta 80 do host (no container, continua na 8000). Assim as URLs públicas não têm porta, o que o login do Zitadel exige (ver pontos de atenção).
+
+Somente o gateway publica portas do Zitadel. O acesso direto ao `zitadel-api` e ao `zitadel-login` existe apenas na rede `internal`, e o Zitadel escolhe a instância pelo domínio, por isso o cabeçalho `Host: auth.localhost` é obrigatório. O navegador (console e login) deve sempre passar pelo gateway: os redirecionamentos e o issuer apontam para `http://auth.localhost`, e só o gateway reúne a API e o login no mesmo domínio.
 
 ## Credenciais
 
@@ -84,13 +90,13 @@ Não há TLS em dev (`sslmode=disable` quando o cliente exigir o parâmetro).
 
 | Item | Valor |
 |---|---|
-| Issuer | `http://auth.localhost:8000` |
-| Discovery | `http://auth.localhost:8000/.well-known/openid-configuration` |
-| JWKS | `http://auth.localhost:8000/oauth/v2/keys` |
-| Autorização / token | `http://auth.localhost:8000/oauth/v2/authorize` · `/oauth/v2/token` |
+| Issuer | `http://auth.localhost` |
+| Discovery | `http://auth.localhost/.well-known/openid-configuration` |
+| JWKS | `http://auth.localhost/oauth/v2/keys` |
+| Autorização / token | `http://auth.localhost/oauth/v2/authorize` · `/oauth/v2/token` |
 
-- Use sempre o endereço HTTP da porta 8000. O issuer é derivado do endereço de acesso: pelo HTTPS da porta 8443 ele seria `https://auth.localhost:8443`, e tokens emitidos por um endereço não validam no outro.
-- Um serviço em container obtém o discovery e o JWKS por `http://gateway:8000` com o cabeçalho `Host: auth.localhost:8000`, e valida o `iss` contra `http://auth.localhost:8000`.
+- Use sempre o endereço HTTP da porta 80 (sem porta na URL). O issuer é derivado do endereço de acesso: pelo HTTPS da porta 8443 ele seria `https://auth.localhost:8443`, e tokens emitidos por um endereço não validam no outro.
+- Um serviço em container obtém o discovery e o JWKS por `http://gateway:8000` ou, sem o gateway, por `http://zitadel-api:8080`, em ambos os casos com o cabeçalho `Host: auth.localhost`, e valida o `iss` contra `http://auth.localhost`.
 
 ## Bootstrap
 
@@ -151,9 +157,15 @@ docker run --rm --network host natsio/nats-box nats -s nats://localhost:4222 --u
 Zitadel e Kong:
 
 ```bash
-curl -s http://auth.localhost:8000/.well-known/openid-configuration   # discovery OIDC
-curl -s http://localhost:8001/services                                # serviços do Kong
-curl -s http://localhost:8001/routes                                  # rotas do Kong
+curl -s http://auth.localhost/.well-known/openid-configuration   # discovery OIDC
+curl -s http://localhost:8001/services                           # serviços do Kong
+curl -s http://localhost:8001/routes                             # rotas do Kong
+```
+
+Zitadel direto, sem o gateway (de um container na rede `internal`):
+
+```bash
+docker run --rm --network internal curlimages/curl -s -H 'Host: auth.localhost' http://zitadel-api:8080/.well-known/openid-configuration
 ```
 
 ## Pontos de atenção
@@ -161,7 +173,8 @@ curl -s http://localhost:8001/routes                                  # rotas do
 - Rotas criadas pelo Kong Manager ficam apenas no banco `kong`. A cada `up`, o serviço `gateway-import` reimporta `gateway/bootstrap/routes.yml` e pode sobrescrever rotas de mesmo nome; rotas removidas do arquivo não são removidas do banco.
 - A reimportação de `gateway/bootstrap/routes.yml` grava direto no banco e **não** invalida o cache de um `gateway` já em execução. Depois de alterar o arquivo, reinicie o gateway: `docker compose up -d && docker compose restart gateway`.
 - A inicialização do Zitadel (`zitadel-init`) e a primeira migração do Kong (`gateway-migrations-bootstrap`) aguardam o PostgreSQL aceitar conexões (`depends_on` com `service_healthy`), declarado no próprio `compose.yaml` de cada recurso, que inclui o `database/compose.yaml`.
-- O Zitadel monta o issuer e as URLs públicas a partir do cabeçalho `x-zitadel-public-host`, preenchido pelo Kong com o `Host` original (com a porta). Sem isso, os endpoints OIDC apontariam para `http://auth.localhost` (porta 80).
+- O Kong envia o `X-Forwarded-Host` sem a porta. O login do Zitadel (Next.js) usa esse cabeçalho nos redirecionamentos e o compara com o `Origin` do navegador (proteção das Server Actions). Com o proxy em outra porta, os redirecionamentos perdem a porta e o envio do usuário falha com "erro interno" (`x-forwarded-host ... does not match origin` no log do `zitadel-login`). Por isso o proxy HTTP fica na porta 80; não altere `KONG_PROXY_HTTP_PORT` nem `ZITADEL_EXTERNAL_PORT`.
+- O Zitadel monta o issuer e as URLs públicas a partir do cabeçalho `x-zitadel-public-host`, preenchido pelo Kong com o `Host` original.
 - Os arquivos de `database/bootstrap/` só rodam na primeira inicialização do volume. Em um volume existente, aplique-os manualmente:
 
   ```bash
