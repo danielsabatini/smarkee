@@ -2,13 +2,13 @@ _format_version: "3.0"
 _transform: true
 
 services:
-  # Roteamento por host: o Zitadel atende somente auth.localhost, e nenhum serviço ocupa
+  # Roteamento por host: o Zitadel atende somente ipm-dev.smarkee.com.br, e nenhum serviço ocupa
   # o caminho `/` de forma genérica. Novas APIs recebem host próprio (por exemplo, api.localhost).
 
   # API e console do Zitadel. O Host original precisa ser preservado porque
-  # o Zitadel resolve a instância pelo domínio externo (auth.localhost).
-  - name: zitadel-api
-    url: http://zitadel-api:8080
+  # o Zitadel resolve a instância pelo domínio externo (ipm-dev.smarkee.com.br).
+  - name: identity
+    url: http://identity.smarkee.internal:8080
     plugins:
       # O Kong envia X-Forwarded-Host sem a porta, e o Zitadel o usa para montar o issuer e as
       # URLs públicas (ficariam http://localhost, porta 80). O cabeçalho próprio do Zitadel recebe
@@ -22,21 +22,41 @@ services:
             headers:
               - "x-zitadel-public-host:$(headers.host)"
     routes:
-      - name: zitadel-api
+      - name: identity
         hosts:
-          - auth.localhost
+          - ipm-dev.smarkee.com.br
         paths:
           - /
         preserve_host: true
         strip_path: false
 
   # Interface de login v2 do Zitadel (o caminho mais específico prevalece sobre `/`).
-  - name: zitadel-login
-    url: http://zitadel-login:3000
+  - name: identity-login
+    url: http://identity-login.smarkee.internal:3000
+    plugins:
+      # Em desenvolvimento (HTTP), remove o atributo Secure dos cookies emitidos pelo
+      # Next.js (hardcoded no build de produção da imagem). Navegadores rejeitam cookies
+      # com Secure em origens HTTP que não sejam localhost (como ipm-dev.smarkee.com.br).
+      - name: post-function
+        config:
+          header_filter:
+            - |
+              local cookies = ngx.header["Set-Cookie"]
+              if cookies then
+                if type(cookies) == "string" then
+                  ngx.header["Set-Cookie"] = ngx.re.gsub(cookies, ";\\s*[Ss]ecure", "", "jo")
+                elseif type(cookies) == "table" then
+                  local new_cookies = {}
+                  for i, c in ipairs(cookies) do
+                    new_cookies[i] = ngx.re.gsub(c, ";\\s*[Ss]ecure", "", "jo")
+                  end
+                  ngx.header["Set-Cookie"] = new_cookies
+                end
+              end
     routes:
-      - name: zitadel-login
+      - name: identity-login
         hosts:
-          - auth.localhost
+          - ipm-dev.smarkee.com.br
         paths:
           - /ui/v2/login
         preserve_host: true

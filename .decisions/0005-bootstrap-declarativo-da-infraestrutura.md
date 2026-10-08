@@ -63,5 +63,5 @@ Era preciso um padrão único, explícito, sem código próprio para manter, e q
 
 - Todo arquivo novo em `broker/bootstrap/` exige o seu serviço `broker-bootstrap-<stream>` no compose; sem ele, o arquivo é ignorado.
 - A pasta é a mesma nos serviços que a usam (database, broker, gateway), mas o momento em que é aplicada difere: database, só na primeira inicialização (como a primeira instância do Zitadel); gateway e broker, a cada `up`. O README de dev documenta isso.
-- Até existir o primeiro serviço que dependa dos streams (o Manager), `docker compose up -d --wait` sem nomear serviços interrompe a espera ao ver um `broker-bootstrap-*` terminar (`exited (0)`). A subida em dev usa `docker compose up -d` seguido de `docker compose up -d --wait broker gateway zitadel-login`.
+- Até existir o primeiro serviço que dependa dos streams (o Manager), `docker compose up -d --wait` sem nomear serviços interrompe a espera ao ver um `broker-bootstrap-*` terminar (`exited (0)`). A subida em dev usa `docker compose up -d` seguido de `docker compose up -d --wait broker gateway identity identity-login`.
 - O desenvolvimento se desvia conscientemente de stg e prd em três pontos: um único usuário no NATS, senhas triviais e inicialização sem reconciliação.

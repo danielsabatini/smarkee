@@ -10,8 +10,8 @@ include:
 x-kong-database-environment: &kong-database-environment
   KONG_PG_HOST: ${KONG_DATABASE_HOST:-database}
   KONG_PG_PORT: ${KONG_DATABASE_PORT:-5432}
-  KONG_PG_DATABASE: ${KONG_DATABASE_NAME:-kong}
-  KONG_PG_USER: ${KONG_DATABASE_USER:-kong}
+  KONG_PG_DATABASE: ${KONG_DATABASE_NAME:-gateway}
+  KONG_PG_USER: ${KONG_DATABASE_USER:-gateway}
   KONG_PG_PASSWORD: ${KONG_DATABASE_PASSWORD:?Defina KONG_DATABASE_PASSWORD no .env}
 
 x-gateway-bootstrap: &gateway-bootstrap
@@ -32,7 +32,7 @@ services:
   # arquivo NÃO são removidas do banco. Requer o `database` aceitando conexões (veja o README).
   gateway-migrations-bootstrap:
     <<: *gateway-bootstrap
-    container_name: gateway-migrations-bootstrap
+    container_name: gateway-migrations-bootstrap.smarkee.internal
     command: ["kong", "migrations", "bootstrap"]
     depends_on:
       database:
@@ -40,7 +40,7 @@ services:
 
   gateway-migrations-up:
     <<: *gateway-bootstrap
-    container_name: gateway-migrations-up
+    container_name: gateway-migrations-up.smarkee.internal
     command: ["kong", "migrations", "up"]
     depends_on:
       gateway-migrations-bootstrap:
@@ -48,7 +48,7 @@ services:
 
   gateway-migrations-finish:
     <<: *gateway-bootstrap
-    container_name: gateway-migrations-finish
+    container_name: gateway-migrations-finish.smarkee.internal
     command: ["kong", "migrations", "finish"]
     depends_on:
       gateway-migrations-up:
@@ -56,7 +56,7 @@ services:
 
   gateway-import:
     <<: *gateway-bootstrap
-    container_name: gateway-import
+    container_name: gateway-import.smarkee.internal
     command: ["kong", "config", "db_import", "/bootstrap/routes.yml"]
     depends_on:
       gateway-migrations-finish:
@@ -64,7 +64,7 @@ services:
 
   gateway:
     image: ${KONG_IMAGE_VERSION:-kong:3.9.3-ubuntu}
-    container_name: gateway
+    container_name: gateway.smarkee.internal
     environment:
       <<: *kong-database-environment
     ports:
@@ -82,8 +82,11 @@ services:
       gateway-import:
         condition: service_completed_successfully
     networks:
-      - external
-      - internal
+      external:
+      internal:
+        aliases:
+          - gateway
+          - gateway.smarkee.internal
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "kong", "health"]

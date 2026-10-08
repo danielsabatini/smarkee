@@ -18,7 +18,7 @@ x-broker-bootstrap: &broker-bootstrap
 services:
   broker:
     image: ${NATS_IMAGE_VERSION:-nats:2.15.0-alpine}
-    container_name: broker
+    container_name: broker.smarkee.internal
     ports:
       - "127.0.0.1:${NATS_CLIENT_PORT:-4222}:4222"  # Client port (somente para desenvolvimento no host)
       - "127.0.0.1:${NATS_MONITOR_PORT:-8222}:8222"  # Monitoring port
@@ -30,7 +30,10 @@ services:
       - broker-data:/data
       - ./nats.conf:/etc/nats/nats.conf:ro
     networks:
-      - internal
+      internal:
+        aliases:
+          - broker
+          - broker.smarkee.internal
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
@@ -45,32 +48,32 @@ services:
   # Todo arquivo novo em bootstrap/ exige o seu serviço aqui.
   broker-bootstrap-requested:
     <<: *broker-bootstrap
-    container_name: broker-bootstrap-requested
+    container_name: broker-bootstrap-requested.smarkee.internal
     command: ["nats", "stream", "add", "REQUESTED", "--config", "/bootstrap/requested.json"]
 
   broker-bootstrap-desired:
     <<: *broker-bootstrap
-    container_name: broker-bootstrap-desired
+    container_name: broker-bootstrap-desired.smarkee.internal
     command: ["nats", "stream", "add", "DESIRED", "--config", "/bootstrap/desired.json"]
 
   broker-bootstrap-observed:
     <<: *broker-bootstrap
-    container_name: broker-bootstrap-observed
+    container_name: broker-bootstrap-observed.smarkee.internal
     command: ["nats", "stream", "add", "OBSERVED", "--config", "/bootstrap/observed.json"]
 
   broker-bootstrap-action:
     <<: *broker-bootstrap
-    container_name: broker-bootstrap-action
+    container_name: broker-bootstrap-action.smarkee.internal
     command: ["nats", "stream", "add", "ACTION", "--config", "/bootstrap/action.json"]
 
   broker-bootstrap-result:
     <<: *broker-bootstrap
-    container_name: broker-bootstrap-result
+    container_name: broker-bootstrap-result.smarkee.internal
     command: ["nats", "stream", "add", "RESULT", "--config", "/bootstrap/result.json"]
 
   broker-bootstrap-updated:
     <<: *broker-bootstrap
-    container_name: broker-bootstrap-updated
+    container_name: broker-bootstrap-updated.smarkee.internal
     command: ["nats", "stream", "add", "UPDATED", "--config", "/bootstrap/updated.json"]
 
 volumes:
