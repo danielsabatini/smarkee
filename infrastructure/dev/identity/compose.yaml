@@ -67,6 +67,15 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: Login Client
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: "2030-01-01T00:00:00Z"
+      # Usuário de máquina do Executor do módulo core (decisão 0011): cria organizações, Project
+      # Grants e usuários. Chave JSON (tipo 1) gravada no volume identity-bootstrap, lida pelo core.
+      # O Zitadel atribui IAM_OWNER a este usuário (mais que o necessário; aceito em dev).
+      # Só vale na criação da instância; numa instância existente, veja o README.
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: core-executor
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: Core Executor
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINEKEY_TYPE: "1"
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINEKEY_EXPIRATIONDATE: "2030-01-01T00:00:00Z"
+      ZITADEL_FIRSTINSTANCE_MACHINEKEYPATH: /zitadel/bootstrap/service-account-core-executor.json
       # Login v2 (desativado para manter suporte nativo ao cadastro de organization e links no v1)
       ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "false"
       ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-8080}/ui/v2/login/

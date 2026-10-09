@@ -12,3 +12,4 @@ include:
     env_file: broker/.env
   - path: identity/compose.yaml
     env_file: identity/.env
+  - path: core/compose.yaml
