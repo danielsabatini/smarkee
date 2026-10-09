@@ -8,6 +8,8 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [Unreleased]
 
 ### Changed
+- Organization substitui Tenant como tipo de recurso da plataforma, no módulo `core` e unidade de isolamento (`resourceType = organization`, campo `organizationId`, subjects `*.core.organization.*`). O `resourceId` da Organization, gerado pela API, é também o ID da organização no Zitadel e o nome dos namespaces derivados, como os do OpenBao e do Kubernetes (`docs/SCHEMA.md`, `docs/MESSAGING.md`, `docs/NATS.md`, `docs/RESOURCE-CONTROL-LOOP.md`, `docs/RESOURCE-CONTROL-SECURITY.md`).
+- Nomenclatura: um único nome por conceito, com grafia por meio (camelCase em contratos e arquivos, kebab-case em flags, maiúsculas em variáveis de ambiente, snake_case em Python e PostgreSQL) (`docs/SCHEMA.md`).
 - Mensageria: `desired` e `observed` passam a usar sempre a operação `changed` (um endereço por recurso); o resultado da observação (`present`, `absent`, `unknown`) passa a ser o campo `presence`, e `observedAt` torna-se obrigatório em `observed`. Novos campos do envelope: `actionId` e `requestedBy` (`docs/MESSAGING.md`).
 - NATS: um Stream por `messageType` (`REQUESTED` e `ACTION` em `WorkQueue`; `DESIRED` e `OBSERVED` em `Limits` com o último estado por recurso; `RESULT` e `UPDATED` em `Limits` com `MaxAge`), consumidores por função e autorização por Stream (`docs/NATS.md`).
 - Resource Control Loop: subjects de exemplo alinhados à operação `changed` (`docs/RESOURCE-CONTROL-LOOP.md`).
@@ -36,6 +38,8 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - SSOT: restauração a um ponto no tempo podia reutilizar uma geração já publicada com outro conteúdo; novo procedimento de recuperação executado antes de liberar o Manager e o relay (`docs/SSOT.md`, `docs/POSTGRESQL.md`).
 
 ### Added
+- Resource Control Loop: interface HTTP comum dos recursos (`POST`, `GET`, lista paginada por cursor, `PATCH` com `resourceVersion`, `DELETE` declarativo, `GET /v1/operations/{operationId}`), cabeçalho `Idempotency-Key` e códigos de erro (`docs/RESOURCE-CONTROL-LOOP.md`).
+- CLI `sk` (Typer e Pydantic): `sk auth init`, que cria `~/.config/sk/config.toml` (chaves camelCase, como `clientId`), e `sk auth login`, que autentica o usuário no provedor de identidade pelo gateway (OIDC Authorization Code com PKCE e retorno em `127.0.0.1`) e grava os tokens em `~/.config/sk/credentials.json` com permissão `0600`. Configuração com precedência parâmetro → variável de ambiente (`SK_<SEÇÃO>_<CAMPO>`) → `~/.config/sk/config.toml` → default (`components/cli`).
 - Especificação do SSOT: modelo lógico, dicionário de dados, invariantes, unidade atômica de gravação por mensagem, concorrência otimista, idempotência semântica, outbox com ordem por recurso, segurança, evolução e recuperação, agnóstica de tecnologia de armazenamento (`docs/SSOT.md`).
 - Implementação de referência do SSOT em PostgreSQL com `jsonb`: mapeamento, DDL de referência exercitado em contêiner descartável, concorrência otimista, relay do outbox de instância única (sem `SKIP LOCKED`), privilégios por serviço, migrações, retenção, PITR e verificações (`docs/POSTGRESQL.md`).
 - Especificação de mensageria assíncrona semântica e integração com NATS JetStream (`docs/MESSAGING.md`, `docs/NATS.md`).
