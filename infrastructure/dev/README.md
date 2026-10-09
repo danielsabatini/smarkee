@@ -31,6 +31,7 @@ Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
 | `identity/.env` | `ZITADEL_SESSION_COOKIE_SECRET` | `openssl rand -hex 32` |
 
 Variáveis adicionais configuradas no `identity/.env`:
+- `ZITADEL_FIRSTINSTANCE_INSTANCENAME`: Nome da instância exibido no console (padrão: `IPM`).
 - `ZITADEL_FIRSTINSTANCE_ORG_NAME`: Nome da organização inicial (padrão: `smarkee.internal`).
 - `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME`: Nome do usuário administrador (padrão: `admin`).
 - `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL`: E-mail do administrador (padrão: `admin@smarkee.internal`).
@@ -134,9 +135,34 @@ Não há TLS em dev (`sslmode=disable` quando o cliente exigir o parâmetro).
 - Use sempre o endereço HTTP da porta 8080 (`http://ipm-dev.smarkee.com.br:8080`). O issuer é derivado do endereço de acesso: pelo HTTPS da porta 8443 ele seria `https://ipm-dev.smarkee.com.br:8443`, e tokens emitidos por um endereço não validam no outro.
 - Um serviço em container obtém o discovery e o JWKS por `http://gateway.smarkee.internal:8000` ou, sem o gateway, por `http://identity.smarkee.internal:8080`, em ambos os casos com o cabeçalho `Host: ipm-dev.smarkee.com.br:8080`, e valida o `iss` contra `http://ipm-dev.smarkee.com.br:8080`.
 
+### Login do CLI (`sk auth login`)
+
+O `sk` autentica direto no Zitadel, pelo gateway, sem API própria de autenticação (Authorization Code com PKCE e retorno em `127.0.0.1`; uso em `components/cli/README.md`). Ele precisa de uma aplicação nativa no Zitadel, criada uma vez pelo console (http://ipm-dev.smarkee.com.br:8080/ui/console/), na organização `smarkee`:
+
+1. **Projetos → Criar projeto**: nome `smarkee`. As roles serão definidas depois.
+2. No projeto, **Nova aplicação**: nome `sk`, tipo **Nativa**, método de autenticação **PKCE**.
+3. **Redirect URI**: `http://127.0.0.1/callback`. A porta não entra: em aplicação nativa, o Zitadel aceita qualquer porta em loopback (RFC 8252, seção 7.3), e o `sk` usa uma porta efêmera a cada login.
+4. **Tipos de concessão (grant types)**: **Authorization Code** e **Refresh Token**.
+5. Copie o **Client ID** da aplicação. Não há client secret: o `sk` é um cliente público.
+
+Depois, no host, grave a configuração uma vez (`~/.config/sk/config.toml`) e faça o login:
+
+```bash
+cd components/cli
+uv run sk auth init --issuer http://ipm-dev.smarkee.com.br:8080 \
+  --client-id <client-id-da-aplicação-sk> --allow-insecure-http   # dev não tem TLS
+uv run sk auth login
+```
+
+O client ID é um por ambiente, e não por organization: usuários de todas as organizations entram pela mesma aplicação `sk`.
+
+- Use o issuer pelo gateway (`http://ipm-dev.smarkee.com.br:8080`), e não o endereço direto do `identity`: o `iss` dos tokens precisa ser esse endereço.
+- O projeto, a aplicação e o client ID ficam gravados no banco do Zitadel. `docker compose down -v` os apaga, e o client ID muda ao recriá-los.
+- O discovery pelo gateway foi verificado com o `sk`. O login completo no navegador ainda não foi executado contra esta aplicação, e os nomes das opções do console podem diferir um pouco na versão em uso.
+
 ## Bootstrap
 
-O estado inicial é configurado, em primeiro lugar, **por variáveis de ambiente ou pela forma mais simples que a ferramenta oferecer**. Arquivo de bootstrap é o último recurso, usado só quando não há alternativa; nesse caso, o serviço guarda o seu **estado inicial declarado** em `bootstrap/`: arquivos direto na raiz da pasta, cada um com o nome do que configura, em formato nativo da ferramenta e sem scripts. Por isso o Zitadel não tem pasta (primeira instância por `ZITADEL_FIRSTINSTANCE_*` em `identity/compose.yaml`), e database, broker e gateway têm:
+O estado inicial é configurado, em primeiro lugar, **por variáveis de ambiente ou pela forma mais simples que a ferramenta oferecer**. Arquivo de bootstrap é o último recurso, usado só quando não há alternativa; nesse caso, o serviço guarda o seu **estado inicial declarado** em `bootstrap/`: arquivos direto na raiz da pasta, cada um com o nome do que configura, em formato nativo da ferramenta e sem scripts. Por isso o Zitadel não tem pasta (primeira instância por `ZITADEL_FIRSTINSTANCE_*` e `ZITADEL_DEFAULTINSTANCE_*` em `identity/compose.yaml`), e database, broker e gateway têm:
 
 - database: as variáveis da imagem criam um único banco e usuário; são necessários três bancos com donos próprios, a localidade do `smarkee` e as revogações de `PUBLIC`;
 - broker: o `nats-server` não declara Streams por configuração nem por variável, e serviços de runtime não podem criá-los (`docs/NATS.md`);
@@ -145,7 +171,7 @@ O estado inicial é configurado, em primeiro lugar, **por variáveis de ambiente
 | Serviço | Fonte | Quem aplica | Quando | Efeito de alterar um arquivo depois |
 |---|---|---|---|---|
 | database | `bootstrap/gateway.sql`, `smarkee.sql`, `identity.sql` | A própria imagem (`/docker-entrypoint-initdb.d`) | Só na primeira inicialização do volume | Nenhum, até recriar o volume ou aplicar manualmente (pontos de atenção) |
-| identity | Sem pasta: variáveis `ZITADEL_FIRSTINSTANCE_*` em `identity/compose.yaml` | `identity-init` (`zitadel init zitadel`: schemas internos) → `identity` (`start-from-setup`) | Só na primeira inicialização da instância | Nenhum, até recriar a instância (`docker compose down -v`) |
+| identity | Sem pasta: variáveis `ZITADEL_FIRSTINSTANCE_*` e `ZITADEL_DEFAULTINSTANCE_*` (nome da instância, marca d'água e textos de e-mail) em `identity/compose.yaml` | `identity-init` (`zitadel init zitadel`: schemas internos) → `identity` (`start-from-setup`) | Só na primeira inicialização da instância | Nenhum, até recriar a instância (`docker compose down -v`) |
 | gateway | `bootstrap/routes.yml` (configuração declarativa do Kong) | Cadeia `gateway-migrations-bootstrap` → `-up` → `-finish` → `gateway-import` | A cada `up`, antes do `gateway` | Reimporta; reinicie o `gateway` (pontos de atenção) |
 | broker | `bootstrap/<stream>.json` (configuração nativa de Stream do JetStream) | Um serviço `broker-bootstrap-<stream>` por arquivo | A cada `up`, depois que o broker fica saudável | Falha de forma explícita até a alteração deliberada (abaixo) |
 
