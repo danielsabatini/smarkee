@@ -264,6 +264,49 @@ O nome pode mudar sem alterar a identidade.
 
 Identificadores fornecidos por sistemas externos não devem contaminar o contrato genérico com nomes de fornecedores. Preferir `externalResourceId`, `providerReference` e `externalReference`, e não nomes como `vendorXId`.
 
+## 8.3 Grafia dos nomes por meio
+
+Um conceito tem **um único nome**: as mesmas palavras, na mesma ordem, em todos os meios. Muda só a grafia, conforme a convenção consagrada de cada meio. O nome canônico é o do contrato (camelCase); os demais derivam dele mecanicamente.
+
+| Meio | Grafia | Exemplo |
+|---|---|---|
+| Contratos: schemas, manifestos, mensagens (JSON, YAML) | camelCase | `clientId` |
+| Arquivos de dados e de configuração lidos por pessoas (por exemplo `config.toml` e `credentials.json` do CLI) | camelCase | `clientId` |
+| Flags de linha de comando | kebab-case | `--client-id` |
+| Variáveis de ambiente | maiúsculas com `_`, prefixadas pelo escopo | `SK_AUTH_CLIENT_ID` |
+| Código Python, colunas e objetos do PostgreSQL | snake_case | `client_id` |
+| Subjects e tokens de mensageria | minúsculas, conforme `MESSAGING.md` | `organization` |
+
+Regras:
+
+- não abreviar nem reordenar as palavras ao mudar de meio (`clientId`, e não `cid` ou `idClient`);
+- a conversão entre grafias é feita na fronteira de cada meio, por um único componente, e não espalhada pelo código;
+- uma entrada com grafia diferente da do meio é rejeitada, e não aceita como sinônimo (por exemplo, `client_id` em um arquivo camelCase).
+
+## 8.4 Organization e identificadores derivados
+
+A **Organization** é a unidade de isolamento da plataforma: todo recurso isolável pertence a uma Organization. O termo *tenant* não é usado.
+
+O `resourceId` da Organization é a **única identidade** dela em todos os sistemas. Não existe outro identificador para a Organization, nem tabela de correspondência:
+
+| Sistema | Uso do `resourceId` da Organization |
+|---|---|
+| Plataforma (SSOT, mensagens, API) | `resourceId` da Organization e `organizationId` dos recursos que pertencem a ela |
+| Identidade (Zitadel) | ID da organização, informado na criação (`organization_id`) |
+| Secrets (OpenBao) | Nome do namespace da Organization |
+| Kubernetes | Nome do namespace da Organization |
+
+Como o ID externo é atribuído pela plataforma, e não gerado pelo sistema externo, a Organization não usa `externalResourceId` (seção anterior) para esses sistemas.
+
+Regras:
+
+- o `resourceId` é atribuído pela API (UUIDv7, `MESSAGING.md`) **antes** de a Organization existir em qualquer sistema externo, e cada Executor o informa ao criar o recurso correspondente;
+- recursos que pertencem a uma Organization carregam o campo `organizationId`, com o mesmo valor, e o reutilizam quando precisarem de um escopo no sistema externo;
+- o nome legível (`resourceName`) pode mudar e nunca é usado como nome derivado;
+- o valor precisa ser válido em todos os sistemas que o usam. O padrão de `resourceId` aceita até 128 caracteres, mas o namespace do Kubernetes é um rótulo DNS (RFC 1123): no máximo 63 caracteres, minúsculas, dígitos e hífen, começando e terminando com letra ou dígito. O ID da organização no Zitadel aceita até 200 caracteres. O UUIDv7 em minúsculas (36 caracteres) atende a todos. As restrições de nome de namespace do OpenBao ainda não foram verificadas.
+
+**Organizations criadas fora do loop.** O autocadastro do Zitadel (`/ui/login/register/org`) cria a organização diretamente no Zitadel, com ID gerado por ele (numérico, por exemplo `394364432865558533`). Esse valor também atende ao padrão de `resourceId` e ao rótulo DNS. Ainda não está definido como uma Organization criada dessa forma passa a existir no SSOT.
+
 # 9. Estrutura e Anotações de Contrato
 
 Um schema separa claramente identidade, metadados, semântica do recurso, estado desejado ou observado, referências e campos de domínio.

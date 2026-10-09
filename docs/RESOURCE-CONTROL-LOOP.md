@@ -33,7 +33,7 @@ Este documento define o padrão arquitetural oficial para componentes que gerenc
 O objetivo é estabelecer uma estrutura consistente para recursos como:
 
 ```text
-Tenant
+Organization
 Agent
 Runner
 Tool
@@ -366,6 +366,26 @@ flowchart LR
     NATS --> Manager[Manager]
 ```
 
+## 6.1.1 Interface HTTP
+
+Cada tipo de recurso expõe a mesma interface, no plural do `resourceType` (por exemplo, `/v1/organizations`). As escritas são assíncronas: a API publica `requested` e responde `202 Accepted` com o `operationId`, sem esperar o Manager. As leituras vêm das views versionadas do SSOT (`POSTGRESQL.md`, decisão 0004).
+
+| Método e rota | Efeito | Resposta |
+|---|---|---|
+| `POST /v1/<tipos>` | `requested` com operação `create`; a API atribui o `resourceId` (UUIDv7) | `202` com `resourceId` e `operationId` |
+| `GET /v1/<tipos>/{resourceId}` | leitura do recurso consolidado (`phase`, `conditions`, `resourceVersion`) | `200` ou `404` |
+| `GET /v1/<tipos>?limit=&cursor=` | lista paginada por cursor opaco, ordenada por `resourceId`; `limit` padrão 50, máximo 200 | `200` com `items` e `nextCursor` (ausente na última página) |
+| `PATCH /v1/<tipos>/{resourceId}` | `requested` com operação `update`; o corpo traz `resourceVersion` | `202` com `operationId` |
+| `DELETE /v1/<tipos>/{resourceId}?resourceVersion=` | `requested` com operação `delete` (`lifecycle = absent`) | `202` com `operationId` |
+| `GET /v1/operations/{operationId}` | acompanhamento da Operation (estado e motivo de rejeição) | `200` ou `404` |
+
+Regras:
+
+- **Idempotência do pedido:** o cabeçalho opcional `Idempotency-Key` nas escritas é a chave do cliente da qual a API deriva o `operationId` (`SSOT.md`, decisão 0002). A chave não é armazenada nem transportada. Repetir a chave com o mesmo conteúdo devolve a Operation existente sem publicar de novo; com outro conteúdo, a API responde `422`.
+- **Concorrência otimista:** `update` e `delete` exigem o `resourceVersion` lido. O conflito é decidido pelo Manager e aparece como Operation `rejected` com motivo `conflict`. A API pode antecipar um `409` quando a versão lida já difere, como conveniência.
+- **Autorização:** a API autoriza o solicitante antes de publicar e filtra as leituras pelas Organizations autorizadas (`RESOURCE-CONTROL-SECURITY.md`, *Isolamento entre organizations*).
+- **Erros:** `400` corpo inválido, `401` sem token válido, `403` sem permissão, `404` inexistente ou não autorizado, `409` conflito antecipado, `422` reuso da chave de idempotência, `429` limite de taxa, `503` `REQUESTED` cheio (rejeição repetível, `NATS.md`).
+
 # 6.2 Manager
 
 O Manager é o **owner do recurso no SSOT**.
@@ -400,7 +420,7 @@ flowchart LR
 
 O Manager não precisa conhecer detalhes do provider.
 
-Por exemplo, no caso de Tenant, ele não precisa implementar chamadas para Zitadel.
+Por exemplo, no caso de Organization, ele não precisa implementar chamadas para Zitadel.
 
 # 6.3 Observer
 
@@ -551,7 +571,7 @@ O cliente solicita uma alteração.
 Exemplo:
 
 ```text
-sk ipm tenant create --name acme
+sk organization create --name acme
 ```
 
 Fluxo:
@@ -563,11 +583,11 @@ sequenceDiagram
     participant NATS
     participant Manager
 
-    CLI->>API: POST /v1/tenants
-    API->>NATS: api.requested.ipm.tenant.<id>.create
+    CLI->>API: POST /v1/organizations
+    API->>NATS: api.requested.core.organization.<id>.create
     NATS->>Manager: requested
     Manager->>Manager: validate + persist
-    Manager->>NATS: manager.desired.ipm.tenant.<id>.changed
+    Manager->>NATS: manager.desired.core.organization.<id>.changed
 ```
 
 A API retorna rapidamente:
@@ -592,7 +612,7 @@ Exemplo:
 
 ```json
 {
-  "resourceId": "tenant-01",
+  "resourceId": "organization-01",
   "desiredGeneration": 1,
   "desired": {
     "lifecycle": "present",
@@ -604,12 +624,12 @@ Exemplo:
 Publicação:
 
 ```text
-manager.desired.ipm.tenant.tenant-01.changed
+manager.desired.core.organization.organization-01.changed
 ```
 
 O Desired é uma declaração.
 
-Não significa que o Tenant já existe.
+Não significa que a Organization já existe.
 
 ```text
 Desired = intenção
@@ -697,7 +717,7 @@ Observed = absent
 Publicação:
 
 ```text
-reconciler.action.ipm.tenant.<id>.create
+reconciler.action.core.organization.<id>.create
 ```
 
 # 12. Gatilhos da reconciliação
@@ -754,7 +774,7 @@ A Action representa uma decisão.
 Exemplo:
 
 ```text
-reconciler.action.ipm.tenant.<id>.create
+reconciler.action.core.organization.<id>.create
 ```
 
 Payload:
@@ -763,8 +783,8 @@ Payload:
 {
   "messageType": "action",
   "operation": "create",
-  "actionId": "tenant-01.1.create.obs-7f3a",
-  "resourceId": "tenant-01",
+  "actionId": "organization-01.1.create.obs-7f3a",
+  "resourceId": "organization-01",
   "desiredGeneration": 1,
   "data": {
     "reason": "resourceNotFound"
@@ -893,7 +913,7 @@ desiredGeneration = 1
 condition = Ready=True (desiredGeneration = 1)
 ```
 
-# 20. Fluxo completo do Tenant
+# 20. Fluxo completo da Organization
 
 ```mermaid
 sequenceDiagram
@@ -907,7 +927,7 @@ sequenceDiagram
     participant Executor
     participant Zitadel
 
-    CLI->>API: POST /v1/tenants
+    CLI->>API: POST /v1/organizations
     API->>NATS: requested.create
 
     NATS->>Manager: requested.create
@@ -940,7 +960,7 @@ sequenceDiagram
     Manager->>Manager: update SSOT
     Manager->>NATS: updated.changed
 
-    CLI->>API: GET /v1/tenants/<id>
+    CLI->>API: GET /v1/organizations/<id>
     API-->>CLI: phase=Ready
 ```
 
@@ -956,7 +976,7 @@ A plataforma não precisa representar a exclusão como um comando imperativo no 
 
 Após a convergência da remoção, o Manager remove o recurso do SSOT. O último `desired` (`lifecycle=absent`) permanece no transporte como tombstone até uma limpeza administrativa; Reconciler e Observer ignoram recurso com `lifecycle=absent` já convergido (`NATS.md` e `RESOURCE-CONTROL-SECURITY.md`).
 
-**Limitação conhecida:** este padrão não define a ordem de remoção entre recursos dependentes (por exemplo, um Tenant com Agents). Enquanto não houver regra própria, a remoção de um recurso com dependentes deve ser tratada pelo domínio.
+**Limitação conhecida:** este padrão não define a ordem de remoção entre recursos dependentes (por exemplo, uma Organization com Agents). Enquanto não houver regra própria, a remoção de um recurso com dependentes deve ser tratada pelo domínio.
 
 # 23. Fluxo de falha
 
@@ -1083,17 +1103,17 @@ Formato:
 Exemplos:
 
 ```text
-api.requested.ipm.tenant.<id>.create
+api.requested.core.organization.<id>.create
 
-manager.desired.ipm.tenant.<id>.changed
+manager.desired.core.organization.<id>.changed
 
-observer.observed.ipm.tenant.<id>.changed
+observer.observed.core.organization.<id>.changed
 
-reconciler.action.ipm.tenant.<id>.create
+reconciler.action.core.organization.<id>.create
 
-executor.completed.ipm.tenant.<id>.create
+executor.completed.core.organization.<id>.create
 
-manager.updated.ipm.tenant.<id>.changed
+manager.updated.core.organization.<id>.changed
 ```
 
 O resultado da observação (`present`, `absent` ou `unknown`) é informado no campo `presence`, e não no endereço. Cada `messageType` é persistido em seu próprio Stream, com a retenção da sua classe de mensagem (trabalho, estado ou fato), conforme `NATS.md`.
@@ -1278,7 +1298,7 @@ Exemplo:
   "type": "Ready",
   "status": "True",
   "reason": "Reconciled",
-  "message": "Tenant exists in Zitadel",
+  "message": "Organization exists in Zitadel",
   "observedGeneration": 1,
   "lastTransitionAt": "2026-10-04T00:00:00Z"
 }
@@ -1320,7 +1340,7 @@ A arquitetura pode ser assíncrona internamente sem obrigar o usuário a trabalh
 Exemplo:
 
 ```text
-sk ipm tenant create --name acme --wait
+sk organization create --name acme --wait
 ```
 
 Fluxo:
@@ -1331,11 +1351,11 @@ sequenceDiagram
     participant API
     participant ControlLoop
 
-    CLI->>API: POST /tenants
+    CLI->>API: POST /v1/organizations
     API-->>CLI: 202 + operationId
 
     loop polling
-        CLI->>API: GET /tenants/<id>
+        CLI->>API: GET /v1/organizations/<id>
         API-->>CLI: current state
     end
 
@@ -1403,19 +1423,29 @@ Resource
 
 O fluxo do padrão é o descrito em *Modelo geral*.
 
-# 46. Aplicação ao Tenant
+# 46. Aplicação à Organization
 
-Para Tenant, o Executor escreve em uma organização do Zitadel e o Observer a lê.
+A Organization é um recurso da plataforma, no módulo `core` (`sk organization`), porque todos os demais módulos dependem dela.
+
+Para Organization, o Executor escreve em uma organização do Zitadel e o Observer a lê. Na criação, o Executor aplica, nesta ordem e cada passo de forma idempotente:
+
+1. a organização no Zitadel, com o `resourceId` como ID;
+2. o Project Grant do projeto da plataforma para a organização, com as roles delegáveis;
+3. o primeiro usuário administrador da organização, com a role delegada de administrador. O Zitadel envia o convite por e-mail.
+
+Os recursos derivados em outros sistemas (namespace do OpenBao, do Kubernetes) não são escritos por este Executor: são recursos dos próprios módulos, que referenciam o `organizationId`. Assim, cada Executor escreve em um único sistema externo.
+
+O Executor cria a organização no Zitadel informando o `resourceId` como ID da organização (`organization_id`), em vez de deixar o Zitadel gerá-lo. Assim, o ID da organização no Zitadel é o mesmo `resourceId` (`SCHEMA.md`, *Organization e identificadores derivados*), e uma criação repetida (retry, reentrega) não produz uma segunda organização: o Executor confirma pelo ID se ela já existe. O erro exato devolvido pelo Zitadel para um ID já existente ainda não foi verificado.
 
 Componentes:
 
 ```text
-cli-ipm-tenant
-api-ipm-tenant
-srv-ipm-tenant-manager
-srv-ipm-tenant-observer
-srv-ipm-tenant-reconciler
-srv-ipm-tenant-executor
+cli-core-organization
+api-core-organization
+srv-core-organization-manager
+srv-core-organization-observer
+srv-core-organization-reconciler
+srv-core-organization-executor
 ```
 
 # 47. Aplicação a outros recursos

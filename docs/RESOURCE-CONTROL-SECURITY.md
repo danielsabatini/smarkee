@@ -73,12 +73,12 @@ Específicos deste padrão:
 | Vazamento de credencial | Credencial de escrita disponível a componente que só lê | Seção 9 |
 | Remoção em massa do estado | Serviço de runtime com permissão de purge apaga o estado de todos os tipos em `DESIRED` | Seção 6.3 |
 | Repúdio | Não é possível saber quem pediu uma remoção | Seção 10 |
-| Vazamento entre tenants | Mensagens ou recursos de um tenant visíveis a outro | Seção 11 |
+| Vazamento entre organizations | Mensagens ou recursos de uma organization visíveis a outra | Seção 11 |
 | Abuso e exaustão | Pedidos em massa, remoções em massa ou loop de correção | Seção 12 |
 
 # 5. Fronteiras de confiança e identidades
 
-Cada **serviço** possui identidade própria no barramento e no provider. A identidade é `<módulo>-<tipo>-<papel>` (por exemplo, `ipm-tenant-executor`), e não apenas o papel: o Executor de `tenant` e o de `user` são identidades distintas, com permissões distintas. Serviços que compartilham identidade não possuem fronteira de segurança entre si.
+Cada **serviço** possui identidade própria no barramento e no provider. A identidade é `<módulo>-<tipo>-<papel>` (por exemplo, `core-organization-executor`), e não apenas o papel: o Executor de `organization` e o de `user` são identidades distintas, com permissões distintas. Serviços que compartilham identidade não possuem fronteira de segurança entre si.
 
 ```mermaid
 flowchart LR
@@ -110,7 +110,7 @@ Publicação e assinatura são autorizadas separadamente (`NATS.md`).
 
 ## 6.1 Matriz de permissões
 
-O emissor é o primeiro token do subject. Cada identidade só publica no próprio emissor, **escopada ao seu `<módulo>.<tipo>`**. Na tabela, `<m>.<t>` é o módulo e o tipo do serviço (por exemplo, `ipm.tenant`).
+O emissor é o primeiro token do subject. Cada identidade só publica no próprio emissor, **escopada ao seu `<módulo>.<tipo>`**. Na tabela, `<m>.<t>` é o módulo e o tipo do serviço (por exemplo, `core.organization`).
 
 | Serviço | Publica | Consome |
 |---|---|---|
@@ -194,7 +194,7 @@ Se o requisito mudar (por exemplo, barramento compartilhado com terceiros), a de
 
 ## 8.1 Limite de remoções
 
-O sistema deve limitar a quantidade de operações destrutivas por janela de tempo (por componente e por tenant). Ao atingir o limite, as demais permanecem pendentes e geram alerta, em vez de serem executadas.
+O sistema deve limitar a quantidade de operações destrutivas por janela de tempo (por componente e por organization). Ao atingir o limite, as demais permanecem pendentes e geram alerta, em vez de serem executadas.
 
 Isso reduz o impacto de um `desired` ou de um `observed` incorretos aplicado em massa.
 
@@ -232,19 +232,19 @@ Auditoria:
 - mesmo assim, o ator é obrigatório no loop: ele não é opcional como a retenção de auditoria;
 - o registro de auditoria não deve ser alterável pelos componentes do loop.
 
-# 11. Isolamento entre tenants
+# 11. Isolamento entre organizations
 
-O tenant pertence ao contexto semântico do recurso, não ao subject (`MESSAGING.md`, Tenancy e contexto).
+A Organization é a unidade de isolamento. Ela pertence ao contexto semântico do recurso (`organizationId`), não ao subject (`MESSAGING.md`, *Organization e contexto*).
 
-- a API autoriza o solicitante para o tenant do recurso antes de publicar `requested`;
-- o Manager valida que o tenant do pedido corresponde ao do recurso;
-- o Executor opera somente com o escopo do tenant presente no `desired` vigente;
-- quando o transporte oferecer autorização por tenant ou namespace, ela pode ser usada sem alterar a semântica das mensagens;
-- consultas via API retornam apenas recursos do tenant autorizado.
+- a API autoriza o solicitante para a organization do recurso antes de publicar `requested`;
+- o Manager valida que a organization do pedido corresponde à do recurso;
+- o Executor opera somente com o escopo da organization presente no `desired` vigente;
+- quando o transporte oferecer autorização por organization ou namespace, ela pode ser usada sem alterar a semântica das mensagens;
+- consultas via API retornam apenas recursos da organization autorizada.
 
 # 12. Abuso e limites
 
-- a API aplica limite de taxa por solicitante e por tenant;
+- a API aplica limite de taxa por solicitante e por organization;
 - o Executor limita concorrência e taxa de chamadas ao provider (`RESOURCE-CONTROL-LOOP.md`, *Proteções de carga e estabilidade*);
 - flapping (`DriftLoop`) e remoções em massa geram alerta;
 - limites devem ser configuráveis e possuir valores padrão conservadores.
@@ -287,7 +287,7 @@ Devem ser observáveis, sem expor dados sensíveis:
 - [ ] Observer possui credencial somente leitura e Executor a de escrita com escopo mínimo?
 - [ ] Nenhum segredo trafega em mensagens, logs ou erros?
 - [ ] O ator acompanha a operação de ponta a ponta?
-- [ ] O isolamento por tenant está definido?
+- [ ] O isolamento por organization está definido?
 - [ ] Os eventos de segurança da seção 13 são observáveis?
 
 # 16. Fonte de verdade

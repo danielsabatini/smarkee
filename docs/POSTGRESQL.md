@@ -491,7 +491,7 @@ ALTER ROLE <login> SET idle_in_transaction_session_timeout = '10s';
 
 ## 14.4 Isolamento por tipo
 
-O isolamento entre tipos de recurso é obtido por privilégios por tabela e por view. **Row-Level Security não é adotada**: a combinação de uma tabela por tipo e privilégios por objeto cumpre o isolamento com menos mecanismos. Se um tipo precisar de isolamento por linha (por exemplo, por tenant), ele é tratado explicitamente no contrato e a RLS é reavaliada; nesse caso, as views passam a usar `security_invoker`, para que a política se aplique ao papel da API.
+O isolamento entre tipos de recurso é obtido por privilégios por tabela e por view. **Row-Level Security não é adotada**: a combinação de uma tabela por tipo e privilégios por objeto cumpre o isolamento com menos mecanismos. Se um tipo precisar de isolamento por linha (por exemplo, por organization), ele é tratado explicitamente no contrato e a RLS é reavaliada; nesse caso, as views passam a usar `security_invoker`, para que a política se aplique ao papel da API.
 
 ## 14.5 Conexão, repouso e segredos
 

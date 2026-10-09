@@ -40,12 +40,12 @@ Formato de referência:
 Exemplos:
 
 ```text
-api.requested.ipm.tenant.<id>.create
-manager.desired.ipm.tenant.<id>.changed
-observer.observed.ipm.tenant.<id>.changed
-reconciler.action.ipm.tenant.<id>.create
-executor.completed.ipm.tenant.<id>.create
-manager.updated.ipm.tenant.<id>.changed
+api.requested.core.organization.<id>.create
+manager.desired.core.organization.<id>.changed
+observer.observed.core.organization.<id>.changed
+reconciler.action.core.organization.<id>.create
+executor.completed.core.organization.<id>.create
+manager.updated.core.organization.<id>.changed
 ```
 
 ## 3.3 Emissor primeiro
@@ -90,8 +90,8 @@ A regra semântica de identidade de recurso continua pertencendo a `MESSAGING.md
 `desired` e `observed` são mensagens de estado (ver `MESSAGING.md`, classes de mensagem). Por isso, utilizam sempre a operação `changed`:
 
 ```text
-manager.desired.ipm.tenant.<id>.changed
-observer.observed.ipm.tenant.<id>.changed
+manager.desired.core.organization.<id>.changed
+observer.observed.core.organization.<id>.changed
 ```
 
 Assim, cada recurso possui **um único Subject** por tipo de estado, e a retenção de uma mensagem por Subject (seção de retenção) guarda exatamente o último estado do recurso.
@@ -119,13 +119,13 @@ Core NATS pode ser utilizado para interações que explicitamente sejam efêmera
 ## 5.2 Exemplos
 
 ```text
-api.requested.ipm.tenant.<id>.create
-manager.desired.ipm.tenant.<id>.changed
-observer.observed.ipm.tenant.<id>.changed
-reconciler.action.ipm.tenant.<id>.create
-executor.completed.ipm.tenant.<id>.create
-executor.failed.ipm.tenant.<id>.create
-manager.updated.ipm.tenant.<id>.changed
+api.requested.core.organization.<id>.create
+manager.desired.core.organization.<id>.changed
+observer.observed.core.organization.<id>.changed
+reconciler.action.core.organization.<id>.create
+executor.completed.core.organization.<id>.create
+executor.failed.core.organization.<id>.create
+manager.updated.core.organization.<id>.changed
 ```
 
 ## 5.3 Wildcards
@@ -137,10 +137,10 @@ Exemplos:
 ```text
 manager.desired.>
 manager.desired.ipm.>
-manager.desired.ipm.tenant.>
+manager.desired.core.organization.>
 
-observer.observed.ipm.tenant.>
-reconciler.action.ipm.tenant.>
+observer.observed.core.organization.>
+reconciler.action.core.organization.>
 ```
 
 Evitar subscriptions genéricas como:
@@ -157,13 +157,13 @@ em componentes de produção.
 Quando `resourceId` estiver no Subject:
 
 ```text
-observer.observed.ipm.tenant.tenant-01.changed
+observer.observed.core.organization.organization-01.changed
 ```
 
 não utilizar:
 
 ```text
-observer.observed.ipm.tenant.tenant.01.changed
+observer.observed.core.organization.organization.01.changed
 ```
 
 porque o segundo exemplo cria dois tokens adicionais.
@@ -277,7 +277,7 @@ srv-<módulo>-<tipo>-reconciler
 srv-<módulo>-<tipo>-executor
 ```
 
-Um consumer pertence a **um único Stream**. Portanto, um serviço possui um consumer **por Stream que lê**. Cada consumer possui um **filtro único** no nível `<módulo>.<tipo>`, por exemplo `manager.desired.ipm.tenant.>`.
+Um consumer pertence a **um único Stream**. Portanto, um serviço possui um consumer **por Stream que lê**. Cada consumer possui um **filtro único** no nível `<módulo>.<tipo>`, por exemplo `manager.desired.core.organization.>`.
 
 Os Streams são fixos (um por `messageType`); a criação de um novo módulo ou tipo de recurso acrescenta apenas consumers, e não Streams.
 
@@ -343,22 +343,22 @@ Limitações a considerar:
 
 A configuração exata de `pinned_client` (inclusive a versão mínima do servidor) e de Direct Get deve ser validada no ambiente.
 
-## 7.6 Consumers por serviço (exemplo `ipm.tenant`)
+## 7.6 Consumers por serviço (exemplo `core.organization`)
 
 | Serviço | Consumer | Stream | Filtro | Classe |
 |---|---|---|---|---|
-| `api-ipm-tenant` | — | — | — | Somente publica |
-| `srv-ipm-tenant-manager` | `ipm-tenant-manager-requested` | `REQUESTED` | `api.requested.ipm.tenant.>` | Trabalho |
-| | `ipm-tenant-manager-observed` | `OBSERVED` | `observer.observed.ipm.tenant.>` | Persistência |
-| | `ipm-tenant-manager-result` | `RESULT` | `executor.*.ipm.tenant.>` | Persistência |
-| `srv-ipm-tenant-observer` | `ipm-tenant-observer-desired-<instância>` | `DESIRED` | `manager.desired.ipm.tenant.>` | Estado |
-| | `ipm-tenant-observer-result-<instância>` | `RESULT` | `executor.*.ipm.tenant.>` | Estado |
-| `srv-ipm-tenant-reconciler` | `ipm-tenant-reconciler-desired-<instância>` | `DESIRED` | `manager.desired.ipm.tenant.>` | Estado |
-| | `ipm-tenant-reconciler-observed-<instância>` | `OBSERVED` | `observer.observed.ipm.tenant.>` | Estado |
-| | `ipm-tenant-reconciler-result-<instância>` | `RESULT` | `executor.*.ipm.tenant.>` | Estado |
-| `srv-ipm-tenant-executor` | `ipm-tenant-executor-action` | `ACTION` | `reconciler.action.ipm.tenant.>` | Trabalho (`pinned_client`, `max_ack_pending=1`) |
+| `api-core-organization` | — | — | — | Somente publica |
+| `srv-core-organization-manager` | `core-organization-manager-requested` | `REQUESTED` | `api.requested.core.organization.>` | Trabalho |
+| | `core-organization-manager-observed` | `OBSERVED` | `observer.observed.core.organization.>` | Persistência |
+| | `core-organization-manager-result` | `RESULT` | `executor.*.core.organization.>` | Persistência |
+| `srv-core-organization-observer` | `core-organization-observer-desired-<instância>` | `DESIRED` | `manager.desired.core.organization.>` | Estado |
+| | `core-organization-observer-result-<instância>` | `RESULT` | `executor.*.core.organization.>` | Estado |
+| `srv-core-organization-reconciler` | `core-organization-reconciler-desired-<instância>` | `DESIRED` | `manager.desired.core.organization.>` | Estado |
+| | `core-organization-reconciler-observed-<instância>` | `OBSERVED` | `observer.observed.core.organization.>` | Estado |
+| | `core-organization-reconciler-result-<instância>` | `RESULT` | `executor.*.core.organization.>` | Estado |
+| `srv-core-organization-executor` | `core-organization-executor-action` | `ACTION` | `reconciler.action.core.organization.>` | Trabalho (`pinned_client`, `max_ack_pending=1`) |
 
-O filtro `executor.*.ipm.tenant.>` usa um curinga no token de `messageType` para cobrir `completed` e `failed` com **um único filtro**, o que preserva a autorização por filtro.
+O filtro `executor.*.core.organization.>` usa um curinga no token de `messageType` para cobrir `completed` e `failed` com **um único filtro**, o que preserva a autorização por filtro.
 
 Funções adicionais (billing, auditoria, monitoramento) criam seus próprios consumers, sem alterar o produtor.
 
@@ -391,8 +391,8 @@ Aplica-se às mensagens de trabalho (`requested` e `action`) e aos consumers de 
 
 ```mermaid
 graph TD
-    A[api.requested.ipm.tenant.>] --> B[(REQUESTED)]
-    B --> C[ipm-tenant-manager-requested]
+    A[api.requested.core.organization.>] --> B[(REQUESTED)]
+    B --> C[core-organization-manager-requested]
     C --> D[manager-1]
     C --> E[manager-2]
 ```
@@ -669,7 +669,7 @@ NATS suporta ACLs de publicação e assinatura por Subject. Uma allow-list expl�
 Em JetStream há uma particularidade: a permissão de subscribe por Subject não restringe o que um consumidor JetStream lê do Stream. O acesso à API de consumers é autorizado por Stream (`$JS.API.CONSUMER.*.<stream>...`) e, para um consumer com um único filtro, por filtro. Por isso:
 
 - cada `messageType` possui seu Stream (seção de Streams);
-- a identidade de um serviço é `<módulo>-<tipo>-<papel>`, e suas permissões são sempre escopadas por `<módulo>.<tipo>` (por exemplo, `manager.desired.ipm.tenant.>`), nunca por `manager.desired.>`;
+- a identidade de um serviço é `<módulo>-<tipo>-<papel>`, e suas permissões são sempre escopadas por `<módulo>.<tipo>` (por exemplo, `manager.desired.core.organization.>`), nunca por `manager.desired.>`;
 - consumers de trabalho e persistência são criados pela infraestrutura (seção de administração), e a identidade de runtime recebe apenas o acesso ao **seu** consumer (`$JS.API.CONSUMER.MSG.NEXT.<stream>.<consumer>` e os Subjects de ACK correspondentes);
 - consumers de estado em memória são criados pelo próprio serviço. Sua identidade pode criar **somente** consumers que casem com o seu padrão de nome e com o seu filtro único (`$JS.API.CONSUMER.CREATE.<stream>.<consumer>.<filtro>`), e não pode listar, alterar nem remover consumers de outros serviços;
 - o Executor lê o `desired` e o desfecho em `RESULT` por Direct Get, com permissões restritas ao Subject do seu tipo (`$JS.API.DIRECT.GET.DESIRED.manager.desired.<módulo>.<tipo>.>` e `$JS.API.DIRECT.GET.RESULT.executor.*.<módulo>.<tipo>.>`);
@@ -835,59 +835,59 @@ sem necessidade explícita.
 
 # 26. Exemplos de autorização
 
-Exemplos conceituais por serviço, para o tipo `ipm.tenant`. A matriz oficial está em `RESOURCE-CONTROL-SECURITY.md`; os valores concretos de configuração do servidor pertencem à infraestrutura e devem ser validados no ambiente.
+Exemplos conceituais por serviço, para o tipo `core.organization`. A matriz oficial está em `RESOURCE-CONTROL-SECURITY.md`; os valores concretos de configuração do servidor pertencem à infraestrutura e devem ser validados no ambiente.
 
-## 26.1 `srv-ipm-tenant-manager`
+## 26.1 `srv-core-organization-manager`
 
 ```text
 publish:
-  manager.desired.ipm.tenant.>
-  manager.updated.ipm.tenant.>
+  manager.desired.core.organization.>
+  manager.updated.core.organization.>
 
 consumo (consumers criados pela infraestrutura):
-  REQUESTED → ipm-tenant-manager-requested
-  OBSERVED  → ipm-tenant-manager-observed
-  RESULT    → ipm-tenant-manager-result
+  REQUESTED → core-organization-manager-requested
+  OBSERVED  → core-organization-manager-observed
+  RESULT    → core-organization-manager-result
 ```
 
 O Manager não recebe permissão de purge nem de administração de Streams.
 
-## 26.2 `srv-ipm-tenant-observer`
+## 26.2 `srv-core-organization-observer`
 
 ```text
 publish:
-  observer.observed.ipm.tenant.>
+  observer.observed.core.organization.>
 
 consumers de estado (criados pelo serviço, somente com este padrão):
-  DESIRED → ipm-tenant-observer-desired-*   filtro manager.desired.ipm.tenant.>
-  RESULT  → ipm-tenant-observer-result-*    filtro executor.*.ipm.tenant.>
+  DESIRED → core-organization-observer-desired-*   filtro manager.desired.core.organization.>
+  RESULT  → core-organization-observer-result-*    filtro executor.*.core.organization.>
 ```
 
-## 26.3 `srv-ipm-tenant-reconciler`
+## 26.3 `srv-core-organization-reconciler`
 
 ```text
 publish:
-  reconciler.action.ipm.tenant.>
+  reconciler.action.core.organization.>
 
 consumers de estado (criados pelo serviço, somente com este padrão):
-  DESIRED  → ipm-tenant-reconciler-desired-*
-  OBSERVED → ipm-tenant-reconciler-observed-*
-  RESULT   → ipm-tenant-reconciler-result-*
+  DESIRED  → core-organization-reconciler-desired-*
+  OBSERVED → core-organization-reconciler-observed-*
+  RESULT   → core-organization-reconciler-result-*
 ```
 
-## 26.4 `srv-ipm-tenant-executor`
+## 26.4 `srv-core-organization-executor`
 
 ```text
 publish:
-  executor.completed.ipm.tenant.>
-  executor.failed.ipm.tenant.>
+  executor.completed.core.organization.>
+  executor.failed.core.organization.>
 
 consumo (consumer criado pela infraestrutura):
-  ACTION → ipm-tenant-executor-action
+  ACTION → core-organization-executor-action
 
 leitura direta:
-  DESIRED → último valor de manager.desired.ipm.tenant.>
-  RESULT  → último valor de executor.*.ipm.tenant.>   (desfecho do actionId)
+  DESIRED → último valor de manager.desired.core.organization.>
+  RESULT  → último valor de executor.*.core.organization.>   (desfecho do actionId)
 ```
 
 O Executor do tipo é a única identidade com acesso de consumo ao consumer de `ACTION` desse tipo.
@@ -981,15 +981,15 @@ observed
 Evitar:
 
 ```text
-manager.desired.ipm.tenant.<id>.create
-observer.observed.ipm.tenant.<id>.absent
+manager.desired.core.organization.<id>.create
+observer.observed.core.organization.<id>.absent
 ```
 
 Preferir:
 
 ```text
-manager.desired.ipm.tenant.<id>.changed
-observer.observed.ipm.tenant.<id>.changed
+manager.desired.core.organization.<id>.changed
+observer.observed.core.organization.<id>.changed
 ```
 
 O tipo de mudança pertence ao contrato do recurso e à evolução de `desiredGeneration`. O resultado da observação (`present`, `absent`, `unknown`) pertence ao campo `presence` do envelope.
@@ -1050,9 +1050,9 @@ Formato:
 Exemplos:
 
 ```text
-ipm-tenant-manager-requested
-ipm-tenant-executor-action
-ipm-tenant-reconciler-desired-<instância>
+core-organization-manager-requested
+core-organization-executor-action
+core-organization-reconciler-desired-<instância>
 billing-observed
 audit-observed
 ```
@@ -1062,9 +1062,9 @@ O sufixo `<instância>` existe apenas nos consumers de estado em memória e é �
 ## 30.3 Subjects
 
 ```text
-manager.desired.ipm.tenant.<id>.changed
-observer.observed.ipm.tenant.<id>.changed
-executor.completed.ipm.tenant.<id>.create
+manager.desired.core.organization.<id>.changed
+observer.observed.core.organization.<id>.changed
+executor.completed.core.organization.<id>.create
 ```
 
 # 31. Checklist operacional
