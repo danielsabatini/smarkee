@@ -23,7 +23,6 @@ services:
     networks:
       internal:
         aliases:
-          - database
           - database.smarkee.internal
     restart: unless-stopped
     healthcheck:

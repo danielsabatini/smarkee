@@ -10,7 +10,7 @@ include:
 # Conexão com o banco `identity`, criado com o usuário `identity` por database/bootstrap/identity.sql.
 # O Zitadel não recebe credencial de administrador do PostgreSQL.
 x-identity-database-environment: &identity-database-environment
-  ZITADEL_DATABASE_POSTGRES_HOST: ${ZITADEL_DATABASE_POSTGRES_HOST:-database}
+  ZITADEL_DATABASE_POSTGRES_HOST: ${ZITADEL_DATABASE_POSTGRES_HOST:-database.smarkee.internal}
   ZITADEL_DATABASE_POSTGRES_PORT: ${ZITADEL_DATABASE_POSTGRES_PORT:-5432}
   ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_DATABASE_POSTGRES_DATABASE:-identity}
   ZITADEL_DATABASE_POSTGRES_USER_USERNAME: ${ZITADEL_DATABASE_POSTGRES_USER_USERNAME:-identity}
@@ -33,10 +33,7 @@ services:
     networks:
       internal:
         aliases:
-          - identity-init
           - identity-init.smarkee.internal
-          - zitadel-init
-          - zitadel-init.smarkee.internal
     restart: "no"
 
   # API do Zitadel. O start-from-setup aplica as migrações e, na primeira vez, cria a instância
@@ -52,7 +49,7 @@ services:
       ZITADEL_MASTERKEY: ${ZITADEL_MASTERKEY:?Defina ZITADEL_MASTERKEY (32 caracteres) no .env}
       ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}
       # O Zitadel é acessado pelo gateway; a porta externa deve ser a do proxy HTTP do Kong.
-      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-80}
+      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8080}
       ZITADEL_EXTERNALSECURE: "false"
       # Lido também pelo healthcheck (`zitadel ready`), que não aceita --tlsMode.
       ZITADEL_TLS_ENABLED: "false"
@@ -70,10 +67,10 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: "2030-01-01T00:00:00Z"
       # Login v2 (desativado para manter suporte nativo ao cadastro de tenant e links no v1)
       ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "false"
-      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-80}/ui/v2/login/
-      ZITADEL_OIDC_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-80}/ui/v2/login/login?authRequest=
-      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-80}/ui/v2/login/logout?post_logout_redirect=
-      ZITADEL_SAML_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-80}/ui/v2/login/login?samlRequest=
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-8080}/ui/v2/login/
+      ZITADEL_OIDC_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-8080}/ui/v2/login/login?authRequest=
+      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-8080}/ui/v2/login/logout?post_logout_redirect=
+      ZITADEL_SAML_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-8080}/ui/v2/login/login?samlRequest=
     volumes:
       # Estado de runtime: PAT do cliente de login, gerado na primeira inicialização.
       - identity-bootstrap:/zitadel/bootstrap:rw
@@ -83,12 +80,7 @@ services:
     networks:
       internal:
         aliases:
-          - identity
           - identity.smarkee.internal
-          - identity-api
-          - identity-api.smarkee.internal
-          - zitadel-api
-          - zitadel-api.smarkee.internal
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "/app/zitadel", "ready"]
@@ -117,10 +109,7 @@ services:
     networks:
       internal:
         aliases:
-          - identity-login
           - identity-login.smarkee.internal
-          - zitadel-login
-          - zitadel-login.smarkee.internal
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "/bin/sh", "-c", "node /app/healthcheck.mjs http://localhost:3000/ui/v2/login/healthy"]

@@ -35,9 +35,9 @@ Variáveis adicionais configuradas no `identity/.env`:
 - `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME`: Nome do usuário administrador (padrão: `admin`).
 - `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL`: E-mail do administrador (padrão: `admin@smarkee.internal`).
 - `ZITADEL_EXTERNALDOMAIN`: Domínio público de acesso (padrão: `ipm-dev.smarkee.com.br`).
-- `ZITADEL_EXTERNALPORT`: Porta pública de acesso (padrão: `80`).
+- `ZITADEL_EXTERNALPORT`: Porta pública de acesso (padrão: `8080`, igual a `KONG_PROXY_HTTP_PORT`).
 
-`gateway/.env` não possui valor obrigatório (`KONG_PROXY_HTTP_PORT=80` por padrão).
+`gateway/.env` não possui valor obrigatório (`KONG_PROXY_HTTP_PORT=8080` por padrão).
 
 ## Subir e derrubar
 
@@ -53,30 +53,49 @@ Os contêineres de inicialização permanecem parados (`Exited (0)`) depois de e
 
 Cada serviço também sobe isoladamente em seu próprio diretório (`cd database && docker compose up -d`). Use **um modo por vez**: os nomes dos containers são fixos e conflitam entre os dois modos. Cada recurso tem um único `compose.yaml`. O `identity` e o `gateway` incluem o `database/compose.yaml`: isolados, sobem o PostgreSQL junto e aguardam que ele aceite conexões.
 
+## Como acessar
+
+Com a stack de pé (`docker compose ps`) e o `/etc/hosts` configurado:
+
+| O que | Endereço | Credencial |
+|---|---|---|
+| Console do Zitadel | http://ipm-dev.smarkee.com.br:8080/ui/console/ | Usuário `admin@smarkee.internal` (ou `admin@smarkee.ipm-dev.smarkee.com.br`) e a senha `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD` de `identity/.env` (troca obrigatória no primeiro acesso) |
+| Cadastro de nova organização (Zitadel) | http://ipm-dev.smarkee.com.br:8080/ui/login/register/org | Nenhuma: página pública que cria a organização e o seu primeiro usuário |
+| Kong Manager | http://localhost:8002 | Nenhuma |
+| Kong Admin API | http://localhost:8001 | Nenhuma |
+| PostgreSQL | `psql "postgresql://smarkee:smarkee@localhost:5432/smarkee"` | Ver "Credenciais" |
+| NATS | `nats://smarkee:<NATS_PASSWORD>@localhost:4222` · monitoramento em http://localhost:8222 | `NATS_PASSWORD` de `broker/.env` |
+
+- Use o nome `ipm-dev.smarkee.com.br` **com a porta `:8080`** no navegador. O endereço `localhost:8080` não é roteado (o gateway roteia por host) e responde 404.
+- De um contêiner na rede `internal`, use os nomes `*.smarkee.internal` da coluna **Rede `internal`** do mapa abaixo; `localhost` ali aponta para o próprio contêiner.
+- Todas as portas são publicadas apenas em `127.0.0.1`.
+- **Nome de login no Zitadel:** informe o nome completo, `usuário@domínio-da-organização`, ou o e-mail do usuário. Digitar só `admin` retorna "usuário não encontrado". Para o administrador: `admin@smarkee.internal` ou `admin@smarkee.ipm-dev.smarkee.com.br`. Para usuários de organizações criadas pelo cadastro, o domínio é `<nome-da-organização>.ipm-dev.smarkee.com.br` (por exemplo, `smarkee.ipm-dev.smarkee.com.br`); o e-mail informado no cadastro também funciona. A forma exata para organizações novas não foi testada.
+- O cadastro de organização é o do login v1 do Zitadel (`/ui/login/register/org`); o `/ui/v2/login/register` cadastra apenas usuário. A página abre e exibe o formulário, mas o envio do cadastro ainda não foi testado com a porta 8080. A porta faz parte do endereço (`ZITADEL_EXTERNALPORT`); em outros ambientes o endereço será outro.
+
 ## Mapa de acesso
 
 Do host, use a coluna **Host**. De um container na rede `internal` (por exemplo, um serviço do projeto rodando em Docker), use a coluna **Rede `internal`**: dentro de um container, `localhost` e `*.localhost` apontam para o próprio container.
 
 | Sistema | Host | Rede `internal` | Observação |
 |---|---|---|---|
-| Zitadel (console) | http://ipm-dev.smarkee.com.br/ui/console/ | — | Navegador, via gateway |
-| Zitadel (login) | http://ipm-dev.smarkee.com.br/ui/v2/login/ | — | Navegador, via gateway |
-| Zitadel (OIDC e APIs) | http://ipm-dev.smarkee.com.br | http://gateway.smarkee.internal:8000 (ou `gateway:8000`) com o cabeçalho `Host: ipm-dev.smarkee.com.br` | Ver a seção OIDC |
-| Zitadel API (direto, sem gateway) | — (porta não publicada) | http://identity.smarkee.internal:8080 (ou `identity:8080`) com o cabeçalho `Host: ipm-dev.smarkee.com.br` | Chamadas entre serviços e diagnóstico; sem o cabeçalho responde 404 |
-| Zitadel login (direto, sem gateway) | — (porta não publicada) | http://identity-login.smarkee.internal:3000/ui/v2/login/ (ou `identity-login:3000`) | Somente diagnóstico (`/ui/v2/login/healthy`) |
-| Kong (proxy HTTP) | http://ipm-dev.smarkee.com.br | http://gateway.smarkee.internal:8000 (ou `gateway:8000`) | Roteia por host (`gateway/bootstrap/routes.yml`); host desconhecido responde 404 |
-| Kong (proxy HTTPS) | https://localhost:8443 | https://gateway.smarkee.internal:8443 (ou `gateway:8443`) | Certificado autoassinado (`curl -k`); não use para o Zitadel (ver OIDC) |
-| Kong Admin API | http://localhost:8001 · https://localhost:8444 | http://gateway.smarkee.internal:8001 (ou `gateway:8001`) | Sem autenticação |
+| Zitadel (console) | http://ipm-dev.smarkee.com.br:8080/ui/console/ | — | Navegador, via gateway |
+| Zitadel (login) | http://ipm-dev.smarkee.com.br:8080/ui/v2/login/ | — | Navegador, via gateway |
+| Zitadel (OIDC e APIs) | http://ipm-dev.smarkee.com.br:8080 | http://gateway.smarkee.internal:8000 com o cabeçalho `Host: ipm-dev.smarkee.com.br:8080` | Ver a seção OIDC |
+| Zitadel API (direto, sem gateway) | — (porta não publicada) | http://identity.smarkee.internal:8080 com o cabeçalho `Host: ipm-dev.smarkee.com.br:8080` | Chamadas entre serviços e diagnóstico; sem o cabeçalho responde 404 |
+| Zitadel login (direto, sem gateway) | — (porta não publicada) | http://identity-login.smarkee.internal:3000/ui/v2/login/ | Somente diagnóstico (`/ui/v2/login/healthy`) |
+| Kong (proxy HTTP) | http://ipm-dev.smarkee.com.br:8080 | http://gateway.smarkee.internal:8000 | Roteia por host (`gateway/bootstrap/routes.yml`); host desconhecido responde 404 |
+| Kong (proxy HTTPS) | https://localhost:8443 | https://gateway.smarkee.internal:8443 | Certificado autoassinado (`curl -k`); não use para o Zitadel (ver OIDC) · responde 404 sem um host roteado |
+| Kong Admin API | http://localhost:8001 · https://localhost:8444 | http://gateway.smarkee.internal:8001 | Sem autenticação |
 | Kong Manager | http://localhost:8002 · https://localhost:8445 | — | Navegador; sem autenticação |
-| PostgreSQL | `localhost:5432` | `database.smarkee.internal:5432` (ou `database:5432`) | Senha obrigatória por TCP (SCRAM) |
-| NATS (cliente) | `nats://localhost:4222` | `nats://broker.smarkee.internal:4222` (ou `broker:4222`) | Usuário e senha obrigatórios |
-| NATS (monitoramento) | http://localhost:8222 | http://broker.smarkee.internal:8222 (ou `broker:8222`) | `/healthz`, `/varz`, `/jsz`; sem autenticação |
+| PostgreSQL | `localhost:5432` | `database.smarkee.internal:5432` | Senha obrigatória por TCP (SCRAM) |
+| NATS (cliente) | `nats://localhost:4222` | `nats://broker.smarkee.internal:4222` | Usuário e senha obrigatórios |
+| NATS (monitoramento) | http://localhost:8222 | http://broker.smarkee.internal:8222 | `/healthz`, `/varz`, `/jsz`; sem autenticação |
 
 O gateway trata somente HTTP e HTTPS e roteia por host: o Zitadel atende `ipm-dev.smarkee.com.br`, e cada nova API recebe um host próprio (por exemplo, `api.localhost`). No host, aponte `127.0.0.1 ipm-dev.smarkee.com.br` em `/etc/hosts`. O NATS e o PostgreSQL são acessados diretamente, sem o gateway.
 
-O proxy HTTP do gateway é publicado na porta 80 do host (no container, continua na 8000). Assim as URLs públicas não têm porta, o que o login do Zitadel exige (ver pontos de atenção).
+O proxy HTTP do gateway é publicado na porta 8080 do host (no container, continua na 8000). A porta 80 não é usada porque costuma estar ocupada por outros serviços locais (por exemplo, ingress de clusters Kubernetes locais). O `ZITADEL_EXTERNALPORT` precisa ser igual à porta publicada do proxy (ver pontos de atenção).
 
-Somente o gateway publica portas do Zitadel. O acesso direto ao `identity` e ao `identity-login` existe apenas na rede `internal`, e o Zitadel escolhe a instância pelo domínio, por isso o cabeçalho `Host: ipm-dev.smarkee.com.br` é obrigatório. O navegador (console e login) deve sempre passar pelo gateway: os redirecionamentos e o issuer apontam para `http://ipm-dev.smarkee.com.br`, e só o gateway reúne a API e o login no mesmo domínio.
+Somente o gateway publica portas do Zitadel. O acesso direto ao `identity` e ao `identity-login` existe apenas na rede `internal`, e o Zitadel escolhe a instância pelo domínio, por isso o cabeçalho `Host` é obrigatório e **deve incluir a porta** (`Host: ipm-dev.smarkee.com.br:8080`): sem a porta, o issuer devolvido perde o `:8080` e não confere com o dos tokens emitidos pelo navegador. O navegador (console e login) deve sempre passar pelo gateway: os redirecionamentos e o issuer apontam para `http://ipm-dev.smarkee.com.br:8080`, e só o gateway reúne a API e o login no mesmo domínio.
 
 ## Credenciais
 
@@ -84,7 +103,7 @@ Valores sensíveis ficam nos arquivos `.env` (fora do git). As senhas dos bancos
 
 | Sistema | Usuário | Senha | Onde está |
 |---|---|---|---|
-| Zitadel (administrador) | `admin@smarkeeinternal.ipm-dev.smarkee.com.br` | `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD` | `identity/.env` (troca obrigatória no primeiro acesso) |
+| Zitadel (administrador) | `admin@smarkee.internal` ou `admin@smarkee.ipm-dev.smarkee.com.br` | `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD` | `identity/.env` (troca obrigatória no primeiro acesso) |
 | PostgreSQL (administrador) | `postgres` | `POSTGRES_PASSWORD` | `database/.env` |
 | PostgreSQL, banco `smarkee` (SSOT, proprietário) | `smarkee` | `smarkee` | `database/bootstrap/smarkee.sql` |
 | PostgreSQL, banco `identity` | `identity` | `identity` | `database/bootstrap/identity.sql` (o Zitadel usa só este usuário, sem credencial de administrador) |
@@ -98,8 +117,8 @@ O usuário `smarkee` é o proprietário do SSOT, destinado a migrações (`docs/
 
 | Destino | Do host | Da rede `internal` |
 |---|---|---|
-| SSOT (proprietário) | `postgresql://smarkee:smarkee@localhost:5432/smarkee` | `postgresql://smarkee:smarkee@database.smarkee.internal:5432/smarkee` (ou `@database:5432`) |
-| NATS | `nats://smarkee:<NATS_PASSWORD>@localhost:4222` | `nats://smarkee:<NATS_PASSWORD>@broker.smarkee.internal:4222` (ou `@broker:4222`) |
+| SSOT (proprietário) | `postgresql://smarkee:smarkee@localhost:5432/smarkee` | `postgresql://smarkee:smarkee@database.smarkee.internal:5432/smarkee` |
+| NATS | `nats://smarkee:<NATS_PASSWORD>@localhost:4222` | `nats://smarkee:<NATS_PASSWORD>@broker.smarkee.internal:4222` |
 
 Não há TLS em dev (`sslmode=disable` quando o cliente exigir o parâmetro).
 
@@ -107,13 +126,13 @@ Não há TLS em dev (`sslmode=disable` quando o cliente exigir o parâmetro).
 
 | Item | Valor |
 |---|---|
-| Issuer | `http://ipm-dev.smarkee.com.br` |
-| Discovery | `http://ipm-dev.smarkee.com.br/.well-known/openid-configuration` |
-| JWKS | `http://ipm-dev.smarkee.com.br/oauth/v2/keys` |
-| Autorização / token | `http://ipm-dev.smarkee.com.br/oauth/v2/authorize` · `/oauth/v2/token` |
+| Issuer | `http://ipm-dev.smarkee.com.br:8080` |
+| Discovery | `http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration` |
+| JWKS | `http://ipm-dev.smarkee.com.br:8080/oauth/v2/keys` |
+| Autorização / token | `http://ipm-dev.smarkee.com.br:8080/oauth/v2/authorize` · `/oauth/v2/token` |
 
-- Use sempre o endereço HTTP da porta 80 (sem porta na URL). O issuer é derivado do endereço de acesso: pelo HTTPS da porta 8443 ele seria `https://ipm-dev.smarkee.com.br:8443`, e tokens emitidos por um endereço não validam no outro.
-- Um serviço em container obtém o discovery e o JWKS por `http://gateway.smarkee.internal:8000` ou, sem o gateway, por `http://identity.smarkee.internal:8080`, em ambos os casos com o cabeçalho `Host: ipm-dev.smarkee.com.br`, e valida o `iss` contra `http://ipm-dev.smarkee.com.br`.
+- Use sempre o endereço HTTP da porta 8080 (`http://ipm-dev.smarkee.com.br:8080`). O issuer é derivado do endereço de acesso: pelo HTTPS da porta 8443 ele seria `https://ipm-dev.smarkee.com.br:8443`, e tokens emitidos por um endereço não validam no outro.
+- Um serviço em container obtém o discovery e o JWKS por `http://gateway.smarkee.internal:8000` ou, sem o gateway, por `http://identity.smarkee.internal:8080`, em ambos os casos com o cabeçalho `Host: ipm-dev.smarkee.com.br:8080`, e valida o `iss` contra `http://ipm-dev.smarkee.com.br:8080`.
 
 ## Bootstrap
 
@@ -174,7 +193,7 @@ docker run --rm --network host natsio/nats-box nats -s nats://localhost:4222 --u
 Zitadel e Kong:
 
 ```bash
-curl -s http://ipm-dev.smarkee.com.br/.well-known/openid-configuration   # discovery OIDC
+curl -s http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration   # discovery OIDC
 curl -s http://localhost:8001/services                           # serviços do Kong
 curl -s http://localhost:8001/routes                             # rotas do Kong
 ```
@@ -182,7 +201,7 @@ curl -s http://localhost:8001/routes                             # rotas do Kong
 Zitadel direto, sem o gateway (de um container na rede `internal`):
 
 ```bash
-docker run --rm --network internal curlimages/curl -s -H 'Host: ipm-dev.smarkee.com.br' http://identity.smarkee.internal:8080/.well-known/openid-configuration
+docker run --rm --network internal curlimages/curl -s -H 'Host: ipm-dev.smarkee.com.br:8080' http://identity.smarkee.internal:8080/.well-known/openid-configuration
 ```
 
 ## Pontos de atenção
@@ -190,7 +209,8 @@ docker run --rm --network internal curlimages/curl -s -H 'Host: ipm-dev.smarkee.
 - Rotas criadas pelo Kong Manager ficam apenas no banco `gateway`. A cada `up`, o serviço `gateway-import` reimporta `gateway/bootstrap/routes.yml` e pode sobrescrever rotas de mesmo nome; rotas removidas do arquivo não são removidas do banco.
 - A reimportação de `gateway/bootstrap/routes.yml` grava direto no banco e **não** invalida o cache de um `gateway` já em execução. Depois de alterar o arquivo, reinicie o gateway: `docker compose up -d && docker compose restart gateway`.
 - A inicialização do Zitadel (`identity-init`) e a primeira migração do Kong (`gateway-migrations-bootstrap`) aguardam o PostgreSQL aceitar conexões (`depends_on` com `service_healthy`), declarado no próprio `compose.yaml` de cada recurso, que inclui o `database/compose.yaml`.
-- O Kong envia o `X-Forwarded-Host` sem a porta. O login do Zitadel (Next.js) usa esse cabeçalho nos redirecionamentos e o compara com o `Origin` do navegador (proteção das Server Actions). Com o proxy em outra porta, os redirecionamentos perdem a porta e o envio do usuário falha com "erro interno" (`x-forwarded-host ... does not match origin` no log do `identity-login`). Por isso o proxy HTTP fica na porta 80; não altere `KONG_PROXY_HTTP_PORT` nem `ZITADEL_EXTERNALPORT`.
+- O Kong envia o `X-Forwarded-Host` sem a porta. O login do Zitadel (Next.js) usa esse cabeçalho nos redirecionamentos e o compara com o `Origin` do navegador (proteção das Server Actions). Com o proxy em porta diferente da 80, os redirecionamentos podem perder a porta e o envio do usuário falhar com "erro interno" (`x-forwarded-host ... does not match origin` no log do `identity-login`); isso foi observado quando o proxy estava em outra porta. O login do administrador na porta 8080 foi confirmado no navegador. `KONG_PROXY_HTTP_PORT` e `ZITADEL_EXTERNALPORT` devem permanecer iguais; a instância do Zitadel guarda a porta da primeira inicialização.
+- O nome de login do Zitadel é `usuário@domínio-da-organização`. Nesta instância o sufixo da organização está ligado (*Configurações da instância → Domain settings → Add Organization Domain as suffix to loginnames*) e a organização foi renomeada para `smarkee`; por isso `admin` sozinho não é aceito. O administrador entra por `admin@smarkee.internal` (o e-mail) ou `admin@smarkee.ipm-dev.smarkee.com.br`. Essas alterações (sufixo ligado e nome da organização) ficam gravadas no banco do Zitadel: `docker compose down -v` as desfaz, e a instância nova volta aos valores de `identity/.env` (`ZITADEL_FIRSTINSTANCE_*`), com o sufixo desligado. A opção *Organization Domain verification required* deve ficar desligada em dev, pois exige desafio por DNS ou HTTP.
 - O Zitadel monta o issuer e as URLs públicas a partir do cabeçalho `x-zitadel-public-host`, preenchido pelo Kong com o `Host` original.
 - Os arquivos de `database/bootstrap/` só rodam na primeira inicialização do volume. Em um volume existente, aplique-os manualmente:
 
