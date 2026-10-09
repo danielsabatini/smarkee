@@ -1,0 +1,27 @@
+{
+  "messageId": "0199c8b2-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
+  "schemaVersion": "1.0",
+  "messageType": "desired",
+  "emitter": "manager",
+  "module": "core",
+  "resourceType": "organization",
+  "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "operation": "changed",
+  "desiredGeneration": 1,
+  "requestedBy": "394364432865558533",
+  "correlationId": "0199c8b0-0a1b-7c2d-8e3f-4a5b6c7d8e9f",
+  "causationId": "0199c8b1-0a1b-7c2d-8e3f-4a5b6c7d8e9f",
+  "occurredAt": "2026-10-09T14:00:00Z",
+  "publishedAt": "2026-10-09T14:00:01Z",
+  "data": {
+    "lifecycle": "present",
+    "reconciliation": "active",
+    "name": "acme",
+    "platformAccess": "granted",
+    "firstAdministrator": {
+      "email": "ana.souza@example.com",
+      "givenName": "Ana",
+      "familyName": "Souza"
+    }
+  }
+}

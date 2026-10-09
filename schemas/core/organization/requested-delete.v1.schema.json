@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrganizationRequestedDeleteData",
+  "description": "data de requested com operation delete: declara lifecycle absent. Publicado somente pela API.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["operationId", "requestDigest", "resourceVersion"],
+  "properties": {
+    "operationId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/opaqueIdentifier",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "requestDigest": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/requestDigest",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "resourceVersion": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceVersion",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    }
+  }
+}

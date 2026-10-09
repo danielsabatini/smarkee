@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CoreContracts",
+  "description": "Índice dos contratos usados pelo módulo core: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e core/ deve estar listado (verificado pelos testes de contrato).",
+  "anyOf": [
+    {
+      "$ref": "common/message-envelope.v1.schema.json"
+    },
+    {
+      "$ref": "common/condition.v1.schema.json"
+    },
+    {
+      "$ref": "common/action.v1.schema.json"
+    },
+    {
+      "$ref": "common/completed.v1.schema.json"
+    },
+    {
+      "$ref": "common/failed.v1.schema.json"
+    },
+    {
+      "$ref": "common/updated.v1.schema.json"
+    },
+    {
+      "$ref": "common/operation.v1.schema.json"
+    },
+    {
+      "$ref": "common/api-accepted-response.v1.schema.json"
+    },
+    {
+      "$ref": "common/api-error.v1.schema.json"
+    },
+    {
+      "$ref": "core/organization/desired.v1.schema.json"
+    },
+    {
+      "$ref": "core/organization/observed.v1.schema.json"
+    },
+    {
+      "$ref": "core/organization/requested-create.v1.schema.json"
+    },
+    {
+      "$ref": "core/organization/requested-update.v1.schema.json"
+    },
+    {
+      "$ref": "core/organization/requested-delete.v1.schema.json"
+    },
+    {
+      "$ref": "core/organization/api-create-request.v1.schema.json"
+    },
+    {
+      "$ref": "core/organization/api-update-request.v1.schema.json"
+    },
+    {
+      "$ref": "core/organization/resource.v1.schema.json"
+    },
+    {
+      "$ref": "core/organization/resource-list.v1.schema.json"
+    }
+  ]
+}

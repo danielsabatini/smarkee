@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrganizationList",
+  "description": "Resposta de GET /v1/organizations: página ordenada por resourceId, somente das Organizations autorizadas. nextCursor ausente indica a última página.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {"$ref": "resource.v1.schema.json"},
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "nextCursor": {
+      "description": "Cursor opaco da próxima página.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

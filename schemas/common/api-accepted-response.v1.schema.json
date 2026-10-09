@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ApiAcceptedResponse",
+  "description": "Resposta das escritas assíncronas (POST, PATCH, DELETE): o pedido foi publicado, não aplicado (RESOURCE-CONTROL-LOOP.md, Interface HTTP).",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["resourceId", "operationId"],
+  "properties": {
+    "resourceId": {
+      "$ref": "definitions.v1.schema.json#/$defs/resourceId",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "operationId": {
+      "$ref": "definitions.v1.schema.json#/$defs/opaqueIdentifier",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

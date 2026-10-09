@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Operation",
+  "description": "Acompanhamento de uma solicitação assíncrona, exposto por GET /v1/operations/{operationId} (SSOT.md, Operation).",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operationId",
+    "operationType",
+    "module",
+    "resourceType",
+    "resourceId",
+    "operationStatus",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "operationId": {
+      "$ref": "definitions.v1.schema.json#/$defs/opaqueIdentifier",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "operationType": {
+      "title": "OperationType",
+      "type": "string",
+      "enum": [
+        "create",
+        "update",
+        "delete"
+      ],
+      "x-enumPolicy": "closed",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "module": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "resourceType": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "resourceId": {
+      "$ref": "definitions.v1.schema.json#/$defs/resourceId",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "desiredGeneration": {
+      "$ref": "definitions.v1.schema.json#/$defs/generation",
+      "description": "Geração produzida pelo pedido; ausente quando rejeitado.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "operationStatus": {
+      "title": "OperationStatus",
+      "type": "string",
+      "enum": [
+        "accepted",
+        "in_progress",
+        "completed",
+        "failed",
+        "rejected"
+      ],
+      "x-enumPolicy": "closed",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "operationStatusReason": {
+      "title": "OperationStatusReason",
+      "description": "Motivo da rejeição; presente somente quando operationStatus é rejected.",
+      "type": "string",
+      "enum": [
+        "conflict",
+        "validation",
+        "not_found"
+      ],
+      "x-enumPolicy": "closed",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "createdAt": {
+      "$ref": "definitions.v1.schema.json#/$defs/timestamp",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "updatedAt": {
+      "$ref": "definitions.v1.schema.json#/$defs/timestamp",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "completedAt": {
+      "$ref": "definitions.v1.schema.json#/$defs/timestamp",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  },
+  "if": {
+    "properties": {
+      "operationStatus": {
+        "const": "rejected"
+      }
+    }
+  },
+  "then": {
+    "required": [
+      "operationStatusReason"
+    ],
+    "not": {
+      "required": [
+        "desiredGeneration"
+      ]
+    }
+  },
+  "else": {
+    "not": {
+      "required": [
+        "operationStatusReason"
+      ]
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FailedData",
+  "description": "data de failed: a operação não foi aplicada, com a causa da falha.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reason", "retryable"],
+  "properties": {
+    "reason": {
+      "$ref": "definitions.v1.schema.json#/$defs/pascalCaseCode",
+      "description": "Motivo da falha, por exemplo ProviderUnavailable, Rejected, StaleAction.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "message": {
+      "$ref": "definitions.v1.schema.json#/$defs/descriptiveText",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "retryable": {
+      "description": "Se a mesma decisão pode ser tentada de novo. false é falha permanente para o actionId.",
+      "type": "boolean",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

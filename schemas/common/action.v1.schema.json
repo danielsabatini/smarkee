@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ActionData",
+  "description": "data de uma action: o motivo da decisão de reconciliação. A operação está no envelope (create, update, delete).",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reason"],
+  "properties": {
+    "reason": {
+      "$ref": "definitions.v1.schema.json#/$defs/pascalCaseCode",
+      "description": "Motivo da decisão, por exemplo Missing, Drift, DeletionRequested.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "message": {
+      "$ref": "definitions.v1.schema.json#/$defs/descriptiveText",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

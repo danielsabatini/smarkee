@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Organization",
+  "description": "Visão consolidada da Organization exposta pela API (GET). Não expõe firstAdministrator (confidential) nem campos internos do SSOT (failureCount, requestedBy).",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "resourceId",
+    "resourceVersion",
+    "desiredGeneration",
+    "phase",
+    "conditions",
+    "desired",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "resourceId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "description": "Também o ID da organização no provedor de identidade e dos namespaces derivados (SCHEMA.md, Organization e identificadores derivados).",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "resourceVersion": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceVersion",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "desiredGeneration": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/generation",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "phase": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/phase",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "conditions": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "$ref": "../../common/condition.v1.schema.json"
+      },
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "desired": {
+      "title": "OrganizationDesiredView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lifecycle",
+        "reconciliation",
+        "name",
+        "platformAccess"
+      ],
+      "x-writer": "server",
+      "x-sensitivity": "internal",
+      "properties": {
+        "lifecycle": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/lifecycle",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "reconciliation": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "name": {
+          "$ref": "definitions.v1.schema.json#/$defs/organizationName",
+          "x-writer": "server",
+          "x-sensitivity": "public"
+        },
+        "platformAccess": {
+          "$ref": "definitions.v1.schema.json#/$defs/platformAccess",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        }
+      }
+    },
+    "observed": {
+      "title": "OrganizationObservedView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "presence",
+        "observedAt"
+      ],
+      "description": "Última observação; ausente antes da primeira.",
+      "x-writer": "server",
+      "x-sensitivity": "internal",
+      "properties": {
+        "presence": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/presence",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "observedAt": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "name": {
+          "$ref": "definitions.v1.schema.json#/$defs/organizationName",
+          "x-writer": "server",
+          "x-sensitivity": "public"
+        },
+        "platformAccess": {
+          "$ref": "definitions.v1.schema.json#/$defs/platformAccess",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "organizationState": {
+          "$ref": "definitions.v1.schema.json#/$defs/organizationState",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        }
+      }
+    },
+    "createdAt": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "updatedAt": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

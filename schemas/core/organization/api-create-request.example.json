@@ -1,0 +1,8 @@
+{
+  "name": "acme",
+  "firstAdministrator": {
+    "email": "ana.souza@example.com",
+    "givenName": "Ana",
+    "familyName": "Souza"
+  }
+}

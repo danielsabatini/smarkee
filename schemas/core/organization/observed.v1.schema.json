@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrganizationObservedData",
+  "description": "data de observed da Organization: estado lido do provedor de identidade. Os campos estão presentes quando presence é present; com absent ou unknown, data é vazio.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "name": {
+      "$ref": "definitions.v1.schema.json#/$defs/organizationName",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "platformAccess": {
+      "$ref": "definitions.v1.schema.json#/$defs/platformAccess",
+      "description": "granted quando o Project Grant do projeto da plataforma existe para a organização.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "organizationState": {
+      "$ref": "definitions.v1.schema.json#/$defs/organizationState",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

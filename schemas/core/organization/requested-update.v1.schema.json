@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrganizationRequestedUpdateData",
+  "description": "data de requested com operation update. Traz a especificação alterada, a mudança do controle de reconciliação, ou ambas. Publicado somente pela API.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operationId",
+    "requestDigest",
+    "resourceVersion"
+  ],
+  "minProperties": 4,
+  "properties": {
+    "operationId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/opaqueIdentifier",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "requestDigest": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/requestDigest",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "resourceVersion": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceVersion",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "specification": {
+      "title": "OrganizationUpdateSpecification",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "x-writer": "client",
+      "x-sensitivity": "internal",
+      "properties": {
+        "name": {
+          "$ref": "definitions.v1.schema.json#/$defs/organizationName",
+          "x-writer": "client",
+          "x-sensitivity": "public"
+        },
+        "platformAccess": {
+          "$ref": "definitions.v1.schema.json#/$defs/platformAccess",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        }
+      }
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "description": "Muda só o controle de reconciliação; não incrementa desiredGeneration.",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    }
+  }
+}

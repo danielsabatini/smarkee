@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CommonDefinitions",
+  "description": "Tipos compartilhados pelos contratos: identificadores, instantes, versões e vocabulários do control loop (SCHEMA.md, MESSAGING.md, SSOT.md). Fonte única do padrão de resourceId.",
+  "x-schemaVersion": "1.0",
+  "$defs": {
+    "resourceId": {
+      "description": "Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$"
+    },
+    "opaqueIdentifier": {
+      "description": "Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$"
+    },
+    "actionId": {
+      "description": "Identidade determinística da decisão de reconciliação. O formato é definido pelo contrato do recurso (x-actionIdFormat no desired).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[a-z0-9][a-z0-9.-]*$"
+    },
+    "actorId": {
+      "description": "Identificador opaco do solicitante autenticado (requestedBy). Não contém credenciais.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._:@-]+$"
+    },
+    "timestamp": {
+      "description": "Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "generation": {
+      "description": "Geração lógica do estado desejado (desiredGeneration, observedGeneration).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "resourceVersion": {
+      "description": "Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9-]+$"
+    },
+    "requestDigest": {
+      "description": "SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.",
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "duration": {
+      "description": "Duração ISO 8601, por exemplo PT5M.",
+      "type": "string",
+      "format": "duration"
+    },
+    "lifecycle": {
+      "description": "Intenção de existência, em desired.",
+      "type": "string",
+      "enum": [
+        "present",
+        "absent"
+      ],
+      "x-enumPolicy": "closed"
+    },
+    "reconciliation": {
+      "description": "Controle da reconciliação, em desired. Quando suspended, o Reconciler não decide.",
+      "type": "string",
+      "enum": [
+        "active",
+        "suspended"
+      ],
+      "x-enumPolicy": "closed"
+    },
+    "presence": {
+      "description": "Resultado da observação, no envelope de observed. unknown nunca é tratado como absent.",
+      "type": "string",
+      "enum": [
+        "present",
+        "absent",
+        "unknown"
+      ],
+      "x-enumPolicy": "closed"
+    },
+    "phase": {
+      "description": "Fase consolidada do recurso (RESOURCE-CONTROL-LOOP.md, Lifecycle).",
+      "type": "string",
+      "enum": [
+        "Pending",
+        "Reconciling",
+        "Ready",
+        "Failed",
+        "Deleting"
+      ],
+      "x-enumPolicy": "closed"
+    },
+    "pascalCaseCode": {
+      "description": "Código legível por máquina em PascalCase (tipo e motivo de condition, motivo de falha).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Z][A-Za-z0-9]*$"
+    },
+    "descriptiveText": {
+      "description": "Texto descritivo para pessoas. Nunca contém valores confidential ou secretReference.",
+      "type": "string",
+      "maxLength": 4096
+    }
+  }
+}

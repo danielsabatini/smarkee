@@ -1,0 +1,75 @@
+[project]
+name = "smarkee-core"
+version = "0.1.0"
+description = "Módulo core da plataforma smarkee: recursos da plataforma (Organization) pelo Resource Control Loop."
+requires-python = ">=3.14"
+dependencies = [
+    "pydantic[email]>=2.14.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.19,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "core"
+# Sem __init__.py: o pacote é um namespace package (python.md, seção 4).
+namespace = true
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+# Modelos gerados a partir de schemas/ não são editados nem formatados à mão (SCHEMA.md, Artefatos derivados).
+extend-exclude = ["src/core/contracts/generated.py"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "S", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# assert é o mecanismo de verificação do pytest.
+"tests/**" = ["S101"]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+
+[tool.coverage.run]
+source = ["core"]
+branch = true
+
+[dependency-groups]
+dev = [
+    "datamodel-code-generator>=0.83.0",
+    "jsonschema>=4.26.0",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.0",
+]
+
+# Modelos Pydantic gerados a partir de schemas/ (decisão 0012). Regerar com `uv run datamodel-codegen`;
+# o teste de contrato falha se o resultado diferir do versionado.
+[tool.datamodel-codegen]
+input = "../../schemas/core.index.json"
+input-file-type = "jsonschema"
+# Referências só locais: bloqueia a busca de $ref por HTTP (SCHEMA.md, Referências entre Schemas).
+allow-remote-refs = false
+output = "src/core/contracts/generated.py"
+output-model-type = "pydantic_v2.BaseModel"
+target-python-version = "3.14"
+use-annotated = true
+collapse-root-models = true
+use-title-as-name = true
+field-constraints = true
+use-standard-collections = true
+use-union-operator = true
+use-schema-description = true
+use-field-description = true
+disable-timestamp = true
+formatters = ["ruff-format"]
+custom-file-header = "# Gerado por datamodel-codegen a partir de schemas/ (decisão 0012). Não editar: altere o schema e regere."

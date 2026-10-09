@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ApiError",
+  "description": "Corpo das respostas de erro da API. A mensagem identifica o campo e a regra violada e não repete valores confidential nem secretReference (SCHEMA.md, Limites e erros).",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["errorCode", "message"],
+  "properties": {
+    "errorCode": {
+      "$ref": "definitions.v1.schema.json#/$defs/pascalCaseCode",
+      "description": "Código estável do erro, por exemplo ValidationFailed, Conflict, IdempotencyKeyReused.",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "message": {
+      "$ref": "definitions.v1.schema.json#/$defs/descriptiveText",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "field": {
+      "description": "Caminho do campo inválido no corpo do pedido, quando aplicável (por exemplo, firstAdministrator.email).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    }
+  }
+}

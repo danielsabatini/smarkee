@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrganizationDefinitions",
+  "description": "Campos de domínio da Organization reutilizados pelos contratos do recurso (desired, observed, requested, API).",
+  "x-schemaVersion": "1.0",
+  "$defs": {
+    "organizationName": {
+      "description": "Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+    },
+    "platformAccess": {
+      "description": "Intenção de acesso da organização à plataforma: granted mantém o Project Grant do projeto da plataforma; revoked o remove (usuários da organização deixam de acessar).",
+      "type": "string",
+      "enum": [
+        "granted",
+        "revoked"
+      ],
+      "x-enumPolicy": "closed"
+    },
+    "firstAdministrator": {
+      "title": "FirstAdministrator",
+      "description": "Primeiro usuário administrador da organização. Usado somente na criação; alterações posteriores são feitas no próprio usuário.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "email",
+        "givenName",
+        "familyName"
+      ],
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 254,
+          "x-writer": "client",
+          "x-mutability": "immutable",
+          "x-managed": false,
+          "x-sensitivity": "confidential"
+        },
+        "givenName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "x-writer": "client",
+          "x-mutability": "immutable",
+          "x-managed": false,
+          "x-sensitivity": "confidential"
+        },
+        "familyName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "x-writer": "client",
+          "x-mutability": "immutable",
+          "x-managed": false,
+          "x-sensitivity": "confidential"
+        }
+      }
+    },
+    "organizationState": {
+      "description": "Estado da organização no provedor de identidade.",
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "x-enumPolicy": "open"
+    }
+  }
+}

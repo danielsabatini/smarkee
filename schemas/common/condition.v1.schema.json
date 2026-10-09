@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Condition",
+  "description": "Fato consolidado do recurso (RESOURCE-CONTROL-LOOP.md, Conditions). Mantida pelo Manager.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "status",
+    "reason",
+    "lastTransitionAt"
+  ],
+  "properties": {
+    "type": {
+      "$ref": "definitions.v1.schema.json#/$defs/pascalCaseCode",
+      "description": "Tipo da condition, por exemplo Ready, ObservationStale, DriftLoop.",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "status": {
+      "title": "ConditionStatus",
+      "type": "string",
+      "enum": [
+        "True",
+        "False",
+        "Unknown"
+      ],
+      "x-enumPolicy": "closed",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "reason": {
+      "$ref": "definitions.v1.schema.json#/$defs/pascalCaseCode",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "message": {
+      "$ref": "definitions.v1.schema.json#/$defs/descriptiveText",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "observedGeneration": {
+      "$ref": "definitions.v1.schema.json#/$defs/generation",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "lastTransitionAt": {
+      "$ref": "definitions.v1.schema.json#/$defs/timestamp",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

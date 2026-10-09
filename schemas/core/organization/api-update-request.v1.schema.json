@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrganizationUpdateRequest",
+  "description": "Corpo de PATCH /v1/organizations/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["resourceVersion"],
+  "minProperties": 2,
+  "properties": {
+    "resourceVersion": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceVersion",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "name": {
+      "$ref": "definitions.v1.schema.json#/$defs/organizationName",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "platformAccess": {
+      "$ref": "definitions.v1.schema.json#/$defs/platformAccess",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    }
+  }
+}

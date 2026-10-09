@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrganizationDesiredData",
+  "description": "data de desired da Organization: estado pretendido e controle de reconciliação. Publicado somente pelo Manager.",
+  "x-schemaVersion": "1.0",
+  "x-resourceParameters": {
+    "observationInterval": "PT5M",
+    "observationValidity": "PT10M",
+    "actionDeadline": "PT2M",
+    "failureLimit": 5
+  },
+  "x-actionIdFormat": "<resourceId>.<desiredGeneration>.<operation>.<messageId do observed que motivou a decisão>",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lifecycle", "reconciliation", "name", "platformAccess", "firstAdministrator"],
+  "properties": {
+    "lifecycle": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/lifecycle",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "name": {
+      "$ref": "definitions.v1.schema.json#/$defs/organizationName",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "public"
+    },
+    "platformAccess": {
+      "$ref": "definitions.v1.schema.json#/$defs/platformAccess",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "firstAdministrator": {
+      "$ref": "definitions.v1.schema.json#/$defs/firstAdministrator",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": false,
+      "x-sensitivity": "confidential"
+    }
+  }
+}

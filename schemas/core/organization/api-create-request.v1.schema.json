@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrganizationCreateRequest",
+  "description": "Corpo de POST /v1/organizations. A API atribui resourceId, operationId, requestDigest e requestedBy, e registra platformAccess = granted: uma Organization criada sem acesso à plataforma não tem uso.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "firstAdministrator"],
+  "properties": {
+    "name": {
+      "$ref": "definitions.v1.schema.json#/$defs/organizationName",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "firstAdministrator": {
+      "$ref": "definitions.v1.schema.json#/$defs/firstAdministrator",
+      "x-writer": "client",
+      "x-sensitivity": "confidential"
+    }
+  }
+}

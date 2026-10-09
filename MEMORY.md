@@ -11,7 +11,7 @@ Em conformidade com o `AGENTS.md` (Seção 35.1), este arquivo atua exclusivamen
 - `docs/RESOURCE-CONTROL-LOOP.md` foi revisado e `docs/RESOURCE-CONTROL-SECURITY.md` criado. O modelo adotado: o Reconciler consome `desired` e `observed` pela mensageria (sem acesso ao SSOT), com um Stream por `messageType`, `desired`/`observed` em operação `changed` e consumers por classe (trabalho, persistência, estado por instância).
 - `components/cli` implementa `sk auth login` (Typer, pydantic-settings; decisões 0007 e 0008). `components/manager` e `features/ipm` continuam esqueletos vazios.
 - Organization substitui Tenant (decisão 0006) e é recurso da plataforma no módulo `core` (decisão 0009): `sk organization`, subjects `*.core.organization.*`.
-- Em andamento: plano `sk organization` pelo loop completo (decisões 0010 a 0012). Fase 0 (decisões e docs) concluída; próximas: 1 contratos em `schemas/`, 2 infraestrutura de dev (usuário de máquina do Executor no Zitadel, migração `core`, serviço e rota), 3 serviço `features/core` colapsado, 4 CLI.
+- Em andamento: plano `sk organization` pelo loop completo (decisões 0010 a 0012). Fases 0 (decisões e docs) e 1 (contratos em `schemas/`, modelos gerados em `features/core`) concluídas; próximas: 2 infraestrutura de dev (usuário de máquina do Executor no Zitadel, migração `core`, serviço e rota), 3 serviço `features/core` colapsado, 4 CLI.
 
 ### Tarefas Pendentes
 - Zitadel dev: criar o projeto `smarkee` e a aplicação nativa `sk` pelo console (`infrastructure/dev/README.md`, *Login do CLI*) e executar o primeiro `sk auth login` real (só o discovery foi verificado).

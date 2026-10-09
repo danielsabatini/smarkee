@@ -494,6 +494,8 @@ Os valores de referência iniciais são definidos em `common/` e só podem ser a
 
 O tamanho da mensagem nunca excede o limite do transporte. Um contrato sem limite explícito é inválido.
 
+Strings com formato padronizado que limita o próprio tamanho (data e hora, duração) não precisam de comprimento máximo explícito: a validação do formato é o limite.
+
 # 15. Campos Desconhecidos e Extensibilidade
 
 O comportamento para propriedades desconhecidas é explícito. Os objetos de um schema são **fechados**: a definição do contrato não admite propriedades não declaradas. A extensibilidade ocorre por nova versão, e não por abertura do schema.

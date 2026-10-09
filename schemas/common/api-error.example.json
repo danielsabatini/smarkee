@@ -1,0 +1,5 @@
+{
+  "errorCode": "ValidationFailed",
+  "message": "name must match the organization name pattern.",
+  "field": "name"
+}

@@ -1,0 +1,8 @@
+{
+  "type": "Ready",
+  "status": "True",
+  "reason": "Reconciled",
+  "message": "Organization exists in the identity provider with platform access.",
+  "observedGeneration": 1,
+  "lastTransitionAt": "2026-10-09T14:00:05Z"
+}

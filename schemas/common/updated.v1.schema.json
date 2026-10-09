@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UpdatedData",
+  "description": "data de updated: resumo do estado consolidado no SSOT depois de uma alteração.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["phase", "resourceVersion", "lifecycle"],
+  "properties": {
+    "phase": {
+      "$ref": "definitions.v1.schema.json#/$defs/phase",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "lifecycle": {
+      "$ref": "definitions.v1.schema.json#/$defs/lifecycle",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "resourceVersion": {
+      "$ref": "definitions.v1.schema.json#/$defs/resourceVersion",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "removed": {
+      "description": "true quando o recurso foi removido do SSOT (remoção convergida).",
+      "type": "boolean",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

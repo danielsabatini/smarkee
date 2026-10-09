@@ -1,0 +1,11 @@
+{
+  "lifecycle": "present",
+  "reconciliation": "active",
+  "name": "acme",
+  "platformAccess": "granted",
+  "firstAdministrator": {
+    "email": "ana.souza@example.com",
+    "givenName": "Ana",
+    "familyName": "Souza"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CompletedData",
+  "description": "data de completed: a operação foi aplicada no sistema externo. Não significa convergência (RESOURCE-CONTROL-LOOP.md).",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "externalReference": {
+      "description": "Referência do recurso no sistema externo, quando diferente do resourceId.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}
