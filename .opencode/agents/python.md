@@ -512,6 +512,10 @@ sk = "sk.main:main"
 
 O mecanismo de execução deve ser definido pelo packaging do projeto, e não depender da execução manual de arquivos Python.
 
+## 20.1 CLI
+
+O CLI `sk` usa **Typer** para os comandos e **pydantic-settings** para a configuração, com precedência parâmetro → variável de ambiente (`SK_<SEÇÃO>_<CAMPO>`) → arquivo `config.toml` → default. A decisão e as regras estão em `.decisions/0008-cli-typer-pydantic-e-precedencia-de-configuracao.md`; não as repita aqui.
+
 ---
 
 # 21. Testes e Estrutura do Componente

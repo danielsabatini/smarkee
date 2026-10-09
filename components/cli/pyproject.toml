@@ -1,0 +1,55 @@
+[project]
+name = "sk"
+version = "0.1.0"
+description = "CLI da plataforma smarkee."
+requires-python = ">=3.14"
+dependencies = [
+    "pydantic>=2.14.0",
+    "pydantic-settings>=2.15.0",
+    "typer>=0.27.3",
+]
+
+[project.scripts]
+sk = "sk.main:main"
+
+[build-system]
+requires = ["uv_build>=0.11.19,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "sk"
+# Sem __init__.py: o pacote é um namespace package (python.md, seção 4).
+namespace = true
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "S", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# assert é o mecanismo de verificação do pytest; os testes usam tokens falsos e URLs de
+# loopback (provedor OIDC falso), e não credenciais reais.
+"tests/**" = ["S101", "S105", "S106", "S310"]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+
+[tool.coverage.run]
+source = ["sk"]
+branch = true
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.10",
+]
