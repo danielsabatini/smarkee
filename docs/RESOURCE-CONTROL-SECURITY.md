@@ -75,6 +75,7 @@ Específicos deste padrão:
 | Repúdio | Não é possível saber quem pediu uma remoção | Seção 10 |
 | Vazamento entre organizations | Mensagens ou recursos de uma organization visíveis a outra | Seção 11 |
 | Abuso e exaustão | Pedidos em massa, remoções em massa ou loop de correção | Seção 12 |
+| Cadastro anônimo abusivo | Criação em massa de contas, e-mail bombing ou descoberta de e-mails já cadastrados pelo endpoint de cadastro | Seções 10 e 12 |
 
 # 5. Fronteiras de confiança e identidades
 
@@ -213,6 +214,7 @@ Regras:
 - credenciais são fornecidas por mecanismo seguro de secrets management e nunca versionadas, registradas em log ou incluídas em mensagens;
 - o escopo da credencial do Executor se limita aos recursos e às operações necessários;
 - a credencial é rotacionável sem alteração de código;
+- **cada Executor tem a sua própria credencial no provider**, com o menor escopo que o provider permitir (por exemplo, um papel de organização, e não de instância). A conta administrativa de bootstrap do provider é usada só pela infraestrutura e **nenhum serviço de runtime a usa**;
 - `desired`, `action` e demais mensagens transportam **referências** a segredos, nunca o segredo (`MESSAGING.md` e `SCHEMA.md`);
 - logs e mensagens de erro não expõem credenciais nem dados sensíveis do provider;
 - as credenciais de acesso ao SSOT são por serviço, fornecidas por gestão de segredos, e nenhum serviço de runtime possui privilégio de alterar a estrutura do SSOT (`SSOT.md`).
@@ -224,7 +226,8 @@ Toda alteração deve ser atribuível a um solicitante.
 - a API autentica o solicitante e registra sua identidade (ator) no contexto da requisição;
 - o ator é registrado no campo `requestedBy` e acompanha a operação em `requested`, `desired`, `action`, `completed` e `failed`, junto de `correlationId` e `causationId` (`MESSAGING.md`);
 - o ator descreve **quem pediu**, e não quem executou: a identidade do componente executor já é conhecida pelo emissor;
-- o campo é definido em `MESSAGING.md` (envelope) e possui `writer = server` (`SCHEMA.md`): a API o atribui a partir do solicitante autenticado e rejeita o valor enviado por um cliente.
+- o campo é definido em `MESSAGING.md` (envelope) e possui `writer = server` (`SCHEMA.md`): a API o atribui a partir do solicitante autenticado e rejeita o valor enviado por um cliente;
+- **escritas anônimas** são exceção declarada no contrato do recurso (`RESOURCE-CONTROL-LOOP.md`, seção 6.1.2): o ator é `anonymous`, e a atribuição individual é substituída pela origem da requisição, registrada na API e no gateway, sem entrar nas mensagens.
 
 Auditoria:
 
@@ -245,6 +248,8 @@ A Organization é a unidade de isolamento. Ela pertence ao contexto semântico d
 # 12. Abuso e limites
 
 - a API aplica limite de taxa por solicitante e por organization;
+- o endpoint anônimo tem limite de taxa por origem no gateway e na API, resposta uniforme (sem revelar se o dado já existe) e nenhuma consulta da Operation por anônimo. Cadastro em massa é detectado e gera alerta;
+- a criação de recursos que consomem capacidade da plataforma tem **cota por dono**, aplicada pelo Manager na mesma unidade atômica do pedido (por exemplo, Organizations por usuário);
 - o Executor limita concorrência e taxa de chamadas ao provider (`RESOURCE-CONTROL-LOOP.md`, *Proteções de carga e estabilidade*);
 - flapping (`DriftLoop`) e remoções em massa geram alerta;
 - limites devem ser configuráveis e possuir valores padrão conservadores.

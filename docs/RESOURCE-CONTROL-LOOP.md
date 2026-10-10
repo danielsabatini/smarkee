@@ -384,7 +384,21 @@ Regras:
 - **Idempotência do pedido:** o cabeçalho opcional `Idempotency-Key` nas escritas é a chave do cliente da qual a API deriva o `operationId` (`SSOT.md`, decisão 0002). A chave não é armazenada nem transportada. Repetir a chave com o mesmo conteúdo devolve a Operation existente sem publicar de novo; com outro conteúdo, a API responde `422`.
 - **Concorrência otimista:** `update` e `delete` exigem o `resourceVersion` lido. O conflito é decidido pelo Manager e aparece como Operation `rejected` com motivo `conflict`. A API pode antecipar um `409` quando a versão lida já difere, como conveniência.
 - **Autorização:** a API autoriza o solicitante antes de publicar e filtra as leituras pelas Organizations autorizadas (`RESOURCE-CONTROL-SECURITY.md`, *Isolamento entre organizations*).
-- **Erros:** `400` corpo inválido, `401` sem token válido, `403` sem permissão, `404` inexistente ou não autorizado, `409` conflito antecipado, `422` reuso da chave de idempotência, `429` limite de taxa, `503` `REQUESTED` cheio (rejeição repetível, `NATS.md`).
+- **Leitura da Operation:** só o solicitante (`requestedBy`) e os operadores (`platform.admin`) leem uma Operation. Uma Operation de solicitante `anonymous` não é legível por quem a criou (seção seguinte).
+- **Erros:** `400` corpo inválido, `401` sem token válido, `403` sem permissão, `404` inexistente ou não autorizado, `409` conflito antecipado, `422` reuso da chave de idempotência, `429` limite de taxa, `503` `REQUESTED` cheio (rejeição repetível, `NATS.md`). Quando o contrato do recurso define regras de elegibilidade ou de cota, `403` leva um código estável no corpo (`api-error`): por exemplo, `EmailNotVerified` (e-mail do solicitante não verificado) e `QuotaExceeded` (cota de criação do dono excedida).
+
+## 6.1.2 Escritas anônimas
+
+Por padrão, toda escrita exige solicitante autenticado. A exceção deve estar declarada no contrato do recurso e registrada em decisão. Hoje existe uma só: o auto-cadastro de usuário (`POST /v1/users`, decisão 0014).
+
+Uma escrita anônima:
+
+- usa `requestedBy = anonymous` (um valor fixo, que não identifica a pessoa);
+- tem **limite de taxa por origem** no gateway e na API, com valores conservadores e configuráveis;
+- tem **resposta uniforme**: o mesmo `202` e o mesmo corpo, exista ou não o recurso ou o dado informado (por exemplo, o e-mail). Não pode haver diferença observável de status, de corpo nem, de forma relevante, de tempo;
+- **não permite acompanhar a Operation**: o cliente anônimo não consulta `GET /v1/operations/{operationId}`, e por isso não há `--wait`. Isso impede que a consulta revele se o dado já existia;
+- aplica a validação estrita e os limites de tamanho do contrato (`SCHEMA.md`);
+- não carrega segredo: a credencial é definida pelo próprio usuário no provedor de identidade, fora do loop.
 
 # 6.2 Manager
 
@@ -1431,11 +1445,13 @@ Para Organization, o Executor escreve em uma organização do Zitadel e o Observ
 
 1. a organização no Zitadel, com o `resourceId` como ID;
 2. o Project Grant do projeto da plataforma para a organização, com as roles delegáveis;
-3. o primeiro usuário administrador da organização, com a role delegada de administrador. O Zitadel envia o convite por e-mail.
+3. a autorização do dono da organização (`ownerUserId`, o usuário autenticado que a criou), com a role delegada de administrador. O Executor da Organization **não cria usuários**: o dono já existe, pelo cadastro (seção seguinte). Como o dono vive na organização `core` do Zitadel, e não na organização criada, a forma exata da autorização depende do spike da decisão 0010.
 
 Os recursos derivados em outros sistemas (namespace do OpenBao, do Kubernetes) não são escritos por este Executor: são recursos dos próprios módulos, que referenciam o `organizationId`. Assim, cada Executor escreve em um único sistema externo.
 
 O Executor cria a organização no Zitadel informando o `resourceId` como ID da organização (`organization_id`), em vez de deixar o Zitadel gerá-lo. Assim, o ID da organização no Zitadel é o mesmo `resourceId` (`SCHEMA.md`, *Organization e identificadores derivados*), e uma criação repetida (retry, reentrega) não produz uma segunda organização: o Executor confirma pelo ID se ela já existe. O erro exato devolvido pelo Zitadel para um ID já existente ainda não foi verificado.
+
+Antes de publicar `requested`, a API exige solicitante autenticado, com e-mail verificado e a role `platform.user`. A **cota** de Organizations por dono é aplicada pelo Manager, na mesma unidade atômica do pedido, com trava consultiva por dono (decisão 0010): a pré-checagem da API não basta para criações concorrentes. Nomes reservados e já existentes são rejeitados como `validation`.
 
 Componentes:
 
@@ -1447,6 +1463,18 @@ srv-core-organization-observer
 srv-core-organization-reconciler
 srv-core-organization-executor
 ```
+
+## 46.1 Aplicação ao User
+
+O User é um recurso da plataforma, no módulo `core` (decisão 0014), criado pelo auto-cadastro (`sk register`), uma escrita anônima (seção 6.1.2). O Executor escreve em um único sistema externo, o Zitadel:
+
+1. cria o usuário na organização `core`, com o `resourceId` como ID e **sem senha**: o `desired` do User não tem senha, porque `desired` fica retido no SSOT e na mensageria (`SCHEMA.md`);
+2. aciona o e-mail de ativação do Zitadel, em que a pessoa define a senha na página do Zitadel. A senha nunca passa por CLI, API, SSOT nem mensageria;
+3. autoriza o usuário com a role `platform.user`.
+
+Quando o e-mail já está cadastrado, o Executor não cria um segundo usuário e o pedido termina sem expor essa informação ao solicitante anônimo. O `desired` com `lifecycle = absent` não carrega dados pessoais (decisão 0014).
+
+Componentes: `cli-core-user`, `api-core-user`, `srv-core-user-manager`, `srv-core-user-observer`, `srv-core-user-reconciler` e `srv-core-user-executor`.
 
 # 47. Aplicação a outros recursos
 

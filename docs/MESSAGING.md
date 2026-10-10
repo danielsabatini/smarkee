@@ -745,7 +745,7 @@ Para `observed`:
 | `observedGeneration` | Condicional | `observed` | Geração desejada relacionada à observação |
 | `presence` | Sim | `observed` | Resultado da observação: `present`, `absent` ou `unknown` |
 | `actionId` | Condicional | `action`, `completed`, `failed` | Identidade determinística da decisão de reconciliação |
-| `requestedBy` | Condicional | Fluxo originado por uma solicitação | Identificador opaco do solicitante autenticado |
+| `requestedBy` | Condicional | Fluxo originado por uma solicitação | Identificador opaco do solicitante autenticado, ou `anonymous` nas escritas anônimas permitidas |
 | `correlationId` | Recomendado | Fluxos correlacionados | Identificador do fluxo lógico |
 | `causationId` | Recomendado | Mensagens causadas por outra | `messageId` da causa |
 | `occurredAt` | Sim | Todos | Momento em que o fato ocorreu |
@@ -758,7 +758,7 @@ Para `observed`:
 - **`presence`:** `unknown` indica leitura falha ou inconclusiva (timeout, 5xx, 401/403, limite de taxa) e nunca deve ser tratado como `absent`. Somente a confirmação inequívoca do provider é `absent`.
 - **`actionId`:** derivado de `resourceId`, `desiredGeneration`, `operation` e do `messageId` do `observed` que motivou a decisão. O formato é definido pelo contrato do recurso. É a chave de deduplicação da `action` e acompanha `completed` e `failed`.
 - **`causationId` em `observed`:** uma observação feita em consequência de `completed` ou `failed` tem como `causationId` o `messageId` desse resultado. O Reconciler usa essa relação para saber que a leitura é posterior à execução, sem depender de relógios sincronizados entre serviços.
-- **`requestedBy`:** identifica quem pediu a alteração, e não quem a executou (o executor é identificado por `emitter`). É definido pela API a partir do solicitante autenticado e propagado sem alteração. Não contém credenciais.
+- **`requestedBy`:** identifica quem pediu a alteração, e não quem a executou (o executor é identificado por `emitter`). É definido pela API a partir do solicitante autenticado e propagado sem alteração. Não contém credenciais. Nas escritas anônimas que o contrato do recurso permite (`RESOURCE-CONTROL-LOOP.md`, seção 6.1.2), o valor é o literal `anonymous`, que não identifica a pessoa.
 
 # 11. `schemaVersion`
 

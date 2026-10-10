@@ -1,7 +1,7 @@
 # 0009 — Organization no módulo `core` da plataforma
 
 - **Data:** 2026-10-09
-- **Status:** Aceita. Substitui o módulo `ipm` citado para a Organization na decisão 0006 (o restante da 0006 continua válido).
+- **Status:** Aceita. Substitui o módulo `ipm` citado para a Organization na decisão 0006 (o restante da 0006 continua válido). Revisada em 2026-10-10: o User também é do módulo `core` (decisão 0014).
 
 ## Contexto
 
@@ -17,7 +17,7 @@ Com isso, qualquer módulo futuro (secrets, clusters) dependeria do módulo de i
   - código em `features/core`;
   - comando `sk organization create|get|list|update|delete`.
 - `core` é o módulo dos recursos da própria plataforma dos quais os demais dependem. O nome `platform` foi descartado por ser ambíguo com o diretório `platform/`, que reúne capacidades de infraestrutura (database, gateway, vault).
-- O módulo `ipm` fica com os recursos de identidade **dentro** de uma Organization (por exemplo, `sk ipm user`).
+- O **User** também é um recurso do módulo `core` (decisão 0014): é a identidade da plataforma, da qual depende a criação de uma Organization. O módulo `ipm` fica com o que vier depois, como os membros de uma Organization e a configuração de identidade dentro dela.
 - Cada Executor escreve em um único sistema externo. O Executor da Organization escreve no Zitadel (decisão 0010); os namespaces derivados são recursos dos próprios módulos, referenciando o `organizationId`.
 
 ## Justificativa

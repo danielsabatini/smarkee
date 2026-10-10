@@ -305,7 +305,11 @@ Regras:
 - o nome legível (`resourceName`) pode mudar e nunca é usado como nome derivado;
 - o valor precisa ser válido em todos os sistemas que o usam. O padrão de `resourceId` aceita até 128 caracteres, mas o namespace do Kubernetes é um rótulo DNS (RFC 1123): no máximo 63 caracteres, minúsculas, dígitos e hífen, começando e terminando com letra ou dígito. O ID da organização no Zitadel aceita até 200 caracteres. O UUIDv7 em minúsculas (36 caracteres) atende a todos. As restrições de nome de namespace do OpenBao ainda não foram verificadas.
 
-**Organizations criadas fora do loop.** O autocadastro do Zitadel (`/ui/login/register/org`) cria a organização diretamente no Zitadel, com ID gerado por ele (numérico, por exemplo `394364432865558533`). Esse valor também atende ao padrão de `resourceId` e ao rótulo DNS. Ainda não está definido como uma Organization criada dessa forma passa a existir no SSOT.
+**Dono.** Toda Organization tem um dono: `ownerUserId`, o `resourceId` do User autenticado que a criou. É atribuído pela API a partir do `sub` do token (`writer = server`) e é imutável. A Organization não carrega dados pessoais do dono.
+
+**User.** O `resourceId` do User é o ID do usuário no Zitadel, informado na criação, pela mesma regra da Organization. O User vive na organização `core` do Zitadel (decisão 0014).
+
+**Nada nasce fora do loop.** O auto-cadastro de organization e o cadastro público de usuário do Zitadel são desligados (decisão 0013). Uma organização criada diretamente no Zitadel, fora do loop, não é reconhecida pela plataforma.
 
 # 9. Estrutura e Anotações de Contrato
 

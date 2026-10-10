@@ -61,7 +61,7 @@ Com a stack de pé (`docker compose ps`) e o `/etc/hosts` configurado:
 | O que | Endereço | Credencial |
 |---|---|---|
 | Console do Zitadel | http://ipm-dev.smarkee.com.br:8080/ui/console/ | Usuário `admin@smarkee.internal` (ou `admin@smarkee.ipm-dev.smarkee.com.br`) e a senha `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD` de `identity/.env` (troca obrigatória no primeiro acesso) |
-| Cadastro de nova organização (Zitadel) | http://ipm-dev.smarkee.com.br:8080/ui/login/register/org | Nenhuma: página pública que cria a organização e o seu primeiro usuário |
+| Cadastro de nova organização (Zitadel) | http://ipm-dev.smarkee.com.br:8080/ui/login/register/org | Nenhuma: página pública que cria a organização e o seu primeiro usuário. **Será desligada** (decisão 0013); hoje ainda está aberta no dev |
 | Kong Manager | http://localhost:8002 | Nenhuma |
 | Kong Admin API | http://localhost:8001 | Nenhuma |
 | PostgreSQL | `psql "postgresql://smarkee:smarkee@localhost:5432/smarkee"` | Ver "Credenciais" |
@@ -163,24 +163,24 @@ O client ID é um por ambiente, e não por organization: usuários de todas as o
 - O projeto, a aplicação e o client ID ficam gravados no banco do Zitadel. `docker compose down -v` os apaga, e o client ID muda ao recriá-los.
 - O discovery pelo gateway foi verificado com o `sk`. O login completo no navegador ainda não foi executado contra esta aplicação, e os nomes das opções do console podem diferir um pouco na versão em uso.
 
-### Executor do `core` (usuário de máquina)
+### Conta de bootstrap da plataforma (`platform-bootstrap@smarkee.internal`)
 
-O Executor do módulo `core` cria no Zitadel as organizações, os Project Grants e o primeiro usuário de cada Organization (decisões 0010 e 0011). Ele se autentica com um usuário de máquina (`core-executor`) e uma chave JSON, lida pelo serviço `core` em `/zitadel/bootstrap/service-account-core-executor.json`, no volume `identity-bootstrap`.
+`platform-bootstrap@smarkee.internal` é o usuário de máquina administrativo da instância do Zitadel (`IAM_OWNER`). Ele é usado **somente pela infraestrutura**, para configurar a plataforma no Zitadel: o projeto `smarkee`, as roles, a aplicação `cli` e um usuário de máquina por Executor, com papel mínimo (por exemplo, `core-organization-executor`). **Nenhum serviço de runtime usa essa conta** (decisão 0011): cada Executor tem a sua identidade (`docs/RESOURCE-CONTROL-SECURITY.md`). A chave fica em `/zitadel/bootstrap/service-account-platform-bootstrap.json`, no volume `identity-bootstrap`.
 
-- **Instância nova** (depois de `docker compose down -v`): o próprio Zitadel cria o usuário e grava a chave, pelas variáveis `ZITADEL_FIRSTINSTANCE_ORG_MACHINE_*` e `ZITADEL_FIRSTINSTANCE_MACHINEKEYPATH` de `identity/compose.yaml`. Ele recebe o papel `IAM_OWNER`.
+- **Instância nova** (depois de `docker compose down -v`): o próprio Zitadel cria a conta e grava a chave, pelas variáveis `ZITADEL_FIRSTINSTANCE_ORG_MACHINE_*` e `ZITADEL_FIRSTINSTANCE_MACHINEKEYPATH` de `identity/compose.yaml`.
 - **Instância existente**: as variáveis não se aplicam. Crie pelo console, uma vez:
-  1. na organização `smarkee`, **Usuários → Usuários de serviço → Novo**: nome de usuário `core-executor`, tipo de token de acesso **JWT**;
+  1. na organização `smarkee`, **Usuários → Usuários de serviço → Novo**: nome de usuário `platform-bootstrap`, tipo de token de acesso **JWT**;
   2. no usuário, **Chaves → Nova**, tipo **JSON**, com expiração; baixe o arquivo (ele só é exibido uma vez);
-  3. em **Configurações padrão → Gerentes** (*Managers* da instância), adicione `core-executor` com o papel `IAM_OWNER`;
+  3. em **Configurações padrão → Gerentes** (*Managers* da instância), adicione `platform-bootstrap@smarkee.internal` com o papel `IAM_OWNER`;
   4. copie a chave para o volume e apague a cópia local:
 
      ```bash
-     docker cp <arquivo-baixado>.json identity.smarkee.internal:/zitadel/bootstrap/service-account-core-executor.json
+     docker cp <arquivo-baixado>.json identity.smarkee.internal:/zitadel/bootstrap/service-account-platform-bootstrap.json
      rm <arquivo-baixado>.json
      ```
 
 - A chave é segredo: nunca a versione nem a copie para fora do volume. O padrão `service-account*.json` está no `.gitignore` como proteção adicional.
-- `IAM_OWNER` é mais do que o Executor precisa (ele só cria e gerencia organizações e grants). É aceito em dev; antes de stg e prd, o Executor passa a ser um processo separado com um papel mínimo (decisão 0011).
+- O mecanismo que usa essa conta para aplicar a configuração do Zitadel (projeto, roles, aplicação e contas dos Executors) está em avaliação. Até lá, o projeto, as roles e a aplicação seguem os passos manuais de *Login do CLI*.
 - A criação automática pela primeira instância ainda não foi verificada (exige recriar a instância). A criação manual segue os nomes do console da versão em uso, que podem diferir um pouco.
 
 ## Bootstrap
@@ -218,7 +218,7 @@ NATS:
 - Os consumers duráveis de cada tipo de recurso serão declarados quando o tipo for modelado (manifesto por tipo, `docs/NATS.md`).
 - **Até existir o primeiro serviço que dependa dos Streams (o Manager), não use `docker compose up -d --wait` sem nomear serviços.** O `--wait` só aceita um contêiner de inicialização terminado quando outro serviço depende dele: ao ver um `broker-bootstrap-*` terminar, ele **interrompe a espera** com `container broker-bootstrap-<stream> exited (0)`, antes de os demais ficarem saudáveis. Use os dois comandos de "Subir e derrubar": o primeiro sobe tudo; o segundo espera somente os serviços de longa duração. Confira a inicialização com `docker compose ps -a` (todos os contêineres de inicialização com `Exited (0)`).
 
-Zitadel: o volume `identity-bootstrap` (`/zitadel/bootstrap` no contêiner) guarda o PAT gerado do cliente de login, que o `identity-login` usa para se autenticar na API, e a chave do Executor do `core` (`service-account-core-executor.json`). É estado de runtime, e não configuração.
+Zitadel: o volume `identity-bootstrap` (`/zitadel/bootstrap` no contêiner) guarda o PAT gerado do cliente de login, que o `identity-login` usa para se autenticar na API, e a chave da conta de bootstrap da plataforma (`service-account-platform-bootstrap.json`). É estado de runtime, e não configuração.
 
 SSOT: num volume do banco já existente, os papéis de `database/bootstrap/core.sql` não são criados sozinhos; aplique os arquivos de bootstrap manualmente (pontos de atenção) antes do primeiro `core-migrate`. Sem os papéis, a migração falha nos `GRANT`.
 

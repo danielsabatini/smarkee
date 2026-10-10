@@ -12,13 +12,14 @@ O `python.md` (§5 e §23) exige registrar o layout do pacote e a escolha das bi
 ## Decisão
 
 - **Stack:** Python 3.14, FastAPI (API HTTP), `nats-py` (NATS JetStream), `psycopg` 3 (PostgreSQL) e PyJWT com `cryptography` (validação dos access tokens pelo JWKS do Zitadel). A configuração usa Pydantic e pydantic-settings, como o CLI (decisão 0008).
+- **Configuração do serviço:** variável de ambiente → default (pydantic-settings, sem arquivo de configuração). Segredos por variável ou arquivo montado, nunca no código. O prefixo das variáveis é o do módulo, na mesma regra do CLI: `CORE_<SEÇÃO>_<CAMPO>` (por exemplo, `CORE_NATS_URL`). A decisão 0008 cobre só o CLI, que tem parâmetros de linha de comando e arquivo de configuração do usuário.
 - **Formato colapsado:** um processo (`features/core`, pacote `core`, `main.py`) com a API e os workers (Manager, relay do outbox, Reconciler, Executor e Observer) em tarefas `asyncio`.
 - **Fronteiras internas preservadas:** cada responsabilidade é um módulo próprio, que se comunica com os demais só pela mensageria.
   - Só o Manager escreve no SSOT.
   - A API só lê as views versionadas.
   - Observer, Reconciler e Executor não leem o SSOT.
   - A separação futura em processos não muda contratos.
-- **Identidades:** no formato colapsado, o processo usa uma conexão por papel do PostgreSQL (`core_organization_manager`, `core_organization_api`, `core_relay`), e não uma identidade única com a soma dos privilégios. No NATS de dev há um único usuário (`infrastructure/dev`).
+- **Identidades:** no formato colapsado, o processo usa uma conexão por papel do PostgreSQL (`core_organization_manager`, `core_organization_api`, `core_user_manager`, `core_user_api` e `core_relay`), e não uma identidade única com a soma dos privilégios. No NATS de dev há um único usuário (`infrastructure/dev`).
 
 ## Justificativa
 
@@ -29,4 +30,8 @@ O `python.md` (§5 e §23) exige registrar o layout do pacote e a escolha das bi
 ## Consequências
 
 - **Desvio registrado de `RESOURCE-CONTROL-SECURITY.md` §9 e §14:** a credencial de escrita do Executor no Zitadel e a de leitura do Observer ficam no mesmo processo, e o NATS de dev não aplica identidades por serviço. É aceitável em dev; a separação do Executor (credencial de escrita) é o primeiro candidato pelos critérios da §49 antes de stg e prd.
-- **Credencial do Executor no Zitadel:** usuário de máquina com chave JWT, criado na primeira instância por variáveis `ZITADEL_FIRSTINSTANCE_ORG_MACHINE_*` e gravado em volume, fora do git (mesmo padrão do PAT do login).
+- **Contas no Zitadel:**
+  - `platform-bootstrap@smarkee.internal` é o usuário de máquina da primeira instância (variáveis `ZITADEL_FIRSTINSTANCE_ORG_MACHINE_*`, chave JSON em volume, fora do git). O Zitadel lhe atribui `IAM_OWNER`. Ele é usado **só pela infraestrutura** para configurar a plataforma no Zitadel, e **nenhum serviço de runtime o usa**;
+  - cada Executor que escreve no Zitadel tem o seu usuário de máquina, na organização `core` (decisão 0014), com o menor papel possível, criado pela infraestrutura com a conta de bootstrap (`<módulo>-<tipo>-<papel>`, `RESOURCE-CONTROL-SECURITY.md` §5): `core-organization-executor`, com papel de instância (criar organização é uma operação de instância), e `core-user-executor`, com papel de organização, restrito à organização `core`;
+  - a **API não tem credencial de escrita no Zitadel**: ela só publica `requested` e valida tokens pelo JWKS;
+  - o mecanismo que aplica essa configuração no Zitadel e o papel mínimo do Executor ainda estão em avaliação.

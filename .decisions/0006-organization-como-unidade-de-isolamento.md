@@ -27,5 +27,5 @@ O `resourceId` é atribuído pela API antes de o recurso existir em qualquer sis
 
 - `docs/SCHEMA.md` (*Organization e identificadores derivados*), `MESSAGING.md`, `NATS.md`, `RESOURCE-CONTROL-LOOP.md`, `RESOURCE-CONTROL-SECURITY.md` e `POSTGRESQL.md` passam a usar Organization.
 - O valor precisa ser válido em todos os sistemas: o namespace do Kubernetes limita a 63 caracteres em formato de rótulo DNS. O UUIDv7 atende; as restrições de nome de namespace do OpenBao ainda precisam ser verificadas.
-- Pendente: organizações criadas pelo autocadastro do Zitadel recebem ID gerado por ele (numérico). O valor é válido, mas a forma como essas organizações passam a existir no SSOT ainda não está definida.
+- O autocadastro de organization do Zitadel (ID gerado por ele) deixa de existir: a decisão 0013 o desliga, e toda Organization nasce pelo loop.
 - Pendente: verificar o erro devolvido pelo Zitadel ao criar uma organização com ID já existente, para o Executor tratá-lo como sucesso idempotente.
