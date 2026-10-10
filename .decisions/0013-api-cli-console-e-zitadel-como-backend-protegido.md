@@ -32,5 +32,5 @@ Além disso, o CLI fala com o Zitadel só para autenticar (decisão 0007), mas n
 
 - O console do Zitadel deixa de ser acessível publicamente em stg e prd. Operadores o acessam pela rede interna.
 - Os caminhos exatos do login v1 (o v2 está desativado) e dos recursos estáticos são confirmados no spike da Fase C.
-- O desligamento do registro na instância atual é um ajuste na política de login, pelo console. Em instância nova, é variável de ambiente (nome a confirmar).
+- **Aplicado no dev em 2026-10-10:** o registro foi desligado na política de login padrão da instância (`allowRegister = false`; as organizações herdam a política padrão), e a organização `tenant1`, criada pelo auto-cadastro antigo, foi removida. Em instância nova, o ajuste será por variável de ambiente (nome a confirmar).
 - O console web da plataforma é uma feature futura, depois da API e do CLI.

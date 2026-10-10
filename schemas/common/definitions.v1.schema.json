@@ -115,7 +115,7 @@
       "maxLength": 4096
     },
     "platformAccess": {
-      "description": "Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization, role platform.user do User); revoked a remove.",
+      "description": "Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, no User); revoked a remove.",
       "type": "string",
       "enum": [
         "granted",

@@ -34,7 +34,7 @@
     },
     "platformAccess": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
-      "description": "granted: o usuário tem a role platform.user no projeto da plataforma. Atribuído pelo Manager na criação.",
+      "description": "granted: o usuário tem o conjunto de roles de ação do usuário cadastrado no projeto da plataforma. Atribuído pelo Manager na criação.",
       "x-writer": "server",
       "x-mutability": "mutable",
       "x-managed": true,

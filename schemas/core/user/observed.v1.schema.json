@@ -20,7 +20,7 @@
     },
     "platformAccess": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
-      "description": "granted quando a role platform.user está atribuída ao usuário.",
+      "description": "granted quando o conjunto de roles de ação do usuário cadastrado está atribuído a ele no projeto da plataforma.",
       "x-writer": "server",
       "x-sensitivity": "internal"
     }

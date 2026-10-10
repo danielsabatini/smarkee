@@ -95,7 +95,7 @@ class Phase(StrEnum):
 
 class PlatformAccess(StrEnum):
     """
-    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization, role platform.user do User); revoked a remove.
+    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, no User); revoked a remove.
     """
 
     granted = "granted"
@@ -705,7 +705,7 @@ class UserObservedData(ContractModel):
     user_state: Annotated[UserState | None, Field(alias="userState")] = None
     platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
     """
-    granted quando a role platform.user está atribuída ao usuário.
+    granted quando o conjunto de roles de ação do usuário cadastrado está atribuído a ele no projeto da plataforma.
     """
 
 
@@ -1072,7 +1072,7 @@ class UserDesiredData(ContractModel):
     reconciliation: Reconciliation
     platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
     """
-    granted: o usuário tem a role platform.user no projeto da plataforma. Atribuído pelo Manager na criação.
+    granted: o usuário tem o conjunto de roles de ação do usuário cadastrado no projeto da plataforma. Atribuído pelo Manager na criação.
     """
     given_name: Annotated[str | None, Field(alias="givenName", max_length=256, min_length=1)] = None
     """

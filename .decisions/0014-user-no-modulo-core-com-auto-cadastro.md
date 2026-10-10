@@ -22,8 +22,8 @@ Dois pontos limitam o desenho:
   - limite de taxa por origem no gateway e na API;
   - **resposta uniforme**: o mesmo `202` e o mesmo corpo, exista ou não o e-mail;
   - **sem consulta da Operation por anônimo**: o `operationId` devolvido não permite acompanhar o pedido, o que impede descobrir quais e-mails já estão cadastrados.
-- **Autorização após o cadastro.** O User recebe automaticamente a role `platform.user` no projeto `smarkee`, delegado à organização `core` por Project Grant (decisão 0010). Essa role, com e-mail verificado, habilita criar uma Organization dentro da cota.
-- **Service account `core-user-executor`**, na organização `core`, com papel de **organização** do Zitadel (e não de instância), restrito aos usuários dessa organização. Se for comprometida, o dano fica nos usuários cadastrados.
+- **Autorização após o cadastro.** O projeto `smarkee` pertence à organização `core` (decisão 0010), a mesma do usuário. O Executor autoriza o User diretamente nesse projeto, com o conjunto de roles de ação (`organization.create`, `organization.get`, `organization.list`, `organization.update`, `organization.delete`, `user.get` e `user.delete`). Esse conjunto é o `platformAccess = granted` do User. Com e-mail verificado e a role `organization.create`, ele pode criar uma Organization dentro da cota.
+- **Service account `core-user-executor`**, na organização `core`, com o papel de **organização** `ORG_USER_MANAGER` (e não de instância), restrito aos usuários dessa organização. Verificado em dev: cria usuários sem senha, autoriza no projeto, lê e remove; não cria organização nem acessa outras organizações. Se for comprometida, o dano fica nos usuários cadastrados.
 - **Dados pessoais:** `email`, `givenName` e `familyName` são `confidential` (`docs/SCHEMA.md` §20.2): não aparecem em log, mensagem de erro nem métrica.
 
 ## Justificativa
@@ -37,5 +37,5 @@ Dois pontos limitam o desenho:
 
 - **Retenção de dados pessoais:** o `desired` do User, com e-mail e nome, fica retido no SSOT e em `DESIRED`. O `desired` com `lifecycle = absent` não carrega dados pessoais (a regra entra no contrato do User), e a limpeza do tombstone (`docs/NATS.md`) precisa cobrir esse caso.
 - O cliente anônimo não acompanha a Operation: `sk register` não tem `--wait` e orienta a verificar o e-mail.
-- O fluxo exato de ativação sem senha (código de inicialização ou link de redefinição) e o papel de organização do `core-user-executor` são confirmados no spike da Fase C.
+- O fluxo exato de ativação sem senha (e-mail de inicialização ou link de redefinição, e se ele já verifica o e-mail) ainda **não foi verificado**: a criação sem senha com `returnCode` funciona, mas a página de ativação do Zitadel só pode ser exercitada com e-mail entregue (precisa de servidor de e-mail em dev, decisão 0013). Isso será confirmado antes de implementar o Executor do User.
 - O módulo `ipm` fica com o que vier depois, como membros de uma Organization.

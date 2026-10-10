@@ -61,7 +61,7 @@ Com a stack de pé (`docker compose ps`) e o `/etc/hosts` configurado:
 | O que | Endereço | Credencial |
 |---|---|---|
 | Console do Zitadel | http://ipm-dev.smarkee.com.br:8080/ui/console/ | Usuário `admin@smarkee.internal` (ou `admin@smarkee.ipm-dev.smarkee.com.br`) e a senha `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD` de `identity/.env` (troca obrigatória no primeiro acesso) |
-| Cadastro de nova organização (Zitadel) | http://ipm-dev.smarkee.com.br:8080/ui/login/register/org | Nenhuma: página pública que cria a organização e o seu primeiro usuário. **Será desligada** (decisão 0013); hoje ainda está aberta no dev |
+| Cadastro de nova organização (Zitadel) | http://ipm-dev.smarkee.com.br:8080/ui/login/register/org | **Desligado** (decisão 0013): o cadastro público foi desativado na política de login; usuários e organizações nascem pela API |
 | Kong Manager | http://localhost:8002 | Nenhuma |
 | Kong Admin API | http://localhost:8001 | Nenhuma |
 | PostgreSQL | `psql "postgresql://smarkee:smarkee@localhost:5432/smarkee"` | Ver "Credenciais" |
@@ -70,8 +70,8 @@ Com a stack de pé (`docker compose ps`) e o `/etc/hosts` configurado:
 - Use o nome `ipm-dev.smarkee.com.br` **com a porta `:8080`** no navegador. O endereço `localhost:8080` não é roteado (o gateway roteia por host) e responde 404.
 - De um contêiner na rede `internal`, use os nomes `*.smarkee.internal` da coluna **Rede `internal`** do mapa abaixo; `localhost` ali aponta para o próprio contêiner.
 - Todas as portas são publicadas apenas em `127.0.0.1`.
-- **Nome de login no Zitadel:** informe o nome completo, `usuário@domínio-da-organização`, ou o e-mail do usuário. Digitar só `admin` retorna "usuário não encontrado". Para o administrador: `admin@smarkee.internal` ou `admin@smarkee.ipm-dev.smarkee.com.br`. Para usuários de organizações criadas pelo cadastro, o domínio é `<nome-da-organização>.ipm-dev.smarkee.com.br` (por exemplo, `smarkee.ipm-dev.smarkee.com.br`); o e-mail informado no cadastro também funciona. A forma exata para organizações novas não foi testada.
-- O cadastro de organização é o do login v1 do Zitadel (`/ui/login/register/org`); o `/ui/v2/login/register` cadastra apenas usuário. A página abre e exibe o formulário, mas o envio do cadastro ainda não foi testado com a porta 8080. A porta faz parte do endereço (`ZITADEL_EXTERNALPORT`); em outros ambientes o endereço será outro.
+- **Nome de login no Zitadel:** informe o nome completo, `usuário@domínio-da-organização`, ou o e-mail do usuário. Digitar só `admin` retorna "usuário não encontrado". Para o administrador: `admin@smarkee.internal` ou `admin@smarkee.ipm-dev.smarkee.com.br`. O domínio de uma organização é `<nome-da-organização>.ipm-dev.smarkee.com.br` (por exemplo, `core.ipm-dev.smarkee.com.br`, confirmado no token); o e-mail do usuário também funciona.
+- O cadastro público do Zitadel (usuário e organização) está **desligado**: usuários e organizações nascem pela API da plataforma (decisões 0013 e 0014). A porta faz parte do endereço (`ZITADEL_EXTERNALPORT`); em outros ambientes o endereço será outro.
 
 ## Mapa de acesso
 
@@ -136,32 +136,40 @@ Não há TLS em dev (`sslmode=disable` quando o cliente exigir o parâmetro).
 - Use sempre o endereço HTTP da porta 8080 (`http://ipm-dev.smarkee.com.br:8080`). O issuer é derivado do endereço de acesso: pelo HTTPS da porta 8443 ele seria `https://ipm-dev.smarkee.com.br:8443`, e tokens emitidos por um endereço não validam no outro.
 - Um serviço em container obtém o discovery e o JWKS por `http://gateway.smarkee.internal:8000` ou, sem o gateway, por `http://identity.smarkee.internal:8080`, em ambos os casos com o cabeçalho `Host: ipm-dev.smarkee.com.br:8080`, e valida o `iss` contra `http://ipm-dev.smarkee.com.br:8080`.
 
-### Login do CLI (`sk auth login`)
+### Configuração do Zitadel para a plataforma (`sk auth login`)
 
-O `sk` autentica direto no Zitadel, pelo gateway, sem API própria de autenticação (Authorization Code com PKCE e retorno em `127.0.0.1`; uso em `components/cli/README.md`). Ele usa o projeto da plataforma e a sua aplicação nativa (decisão 0010), criados uma vez pelo console (http://ipm-dev.smarkee.com.br:8080/ui/console/), na organização `smarkee`:
+O `sk` autentica direto no Zitadel, pelo gateway, sem API própria de autenticação (Authorization Code com PKCE e retorno em `127.0.0.1`; uso em `components/cli/README.md`). Ele usa o projeto da plataforma e a sua aplicação nativa. Pelas decisões 0010, 0013 e 0014, o desenho é:
 
-1. **Projetos → Criar projeto**: nome `smarkee`. Nas configurações do projeto, ligue **Afirmar roles na autenticação** (*Assert Roles on Authentication*), para que as roles venham no token.
-2. No projeto, **Roles**: crie as chaves `platform.admin` (não delegável), `organization.admin` e `organization.viewer` (delegáveis às organizations por Project Grant).
-3. Em **Autorizações** (*Authorizations*), conceda `platform.admin` ao usuário `admin`.
-4. No projeto, **Nova aplicação**: nome `cli`, tipo **Nativa**, método de autenticação **PKCE**.
-5. **Redirect URI**: `http://127.0.0.1/callback`. A porta não entra: em aplicação nativa, o Zitadel aceita qualquer porta em loopback (RFC 8252, seção 7.3), e o `sk` usa uma porta efêmera a cada login.
-6. **Tipos de concessão (grant types)**: **Authorization Code** e **Refresh Token**.
-7. Copie o **Client ID** da aplicação e o **ID do projeto** (o serviço `core` usa o ID do projeto para o Project Grant e para validar a audience dos tokens). Não há client secret: o `sk` é um cliente público.
+| Organização | Papel |
+|---|---|
+| `smarkee` | Só operadores e contas administrativas da instância (`admin`, `platform-bootstrap`, `login-client`). Não tem recursos da plataforma |
+| `core` | Organização de sistema da plataforma: dona do projeto `smarkee`, dos usuários cadastrados e das service accounts dos Executors |
+
+Estado aplicado no dev em 2026-10-10 (pela API, com a conta de bootstrap; o script usado é temporário e não versionado):
+
+- **Projeto `smarkee`, na organização `core`:** roles no token e **verificação de role na autenticação** ligadas.
+- **Roles por ação:** `organization.create`, `organization.get`, `organization.list`, `organization.update`, `organization.delete`, `user.get`, `user.delete`, e `platform.admin` (operadores).
+- **Aplicação `cli`:** nativa, PKCE, redirect `http://127.0.0.1/callback`, Authorization Code e Refresh Token, **access token JWT**, roles no token. Não há client secret: o `sk` é um cliente público. O client ID é um por ambiente.
+- **Cadastro público desligado** na política de login da instância (`allowRegister = false`), que as organizações herdam.
+- **Service accounts na organização `core`:** `core-user-executor` (papel de organização `ORG_USER_MANAGER`) e `core-organization-executor` (papel de instância `IAM_ORG_MANAGER`), com as chaves no volume `identity-bootstrap`.
+- **`platform.admin` para operadores:** autorização externa, criada na organização `core` para o usuário da organização `smarkee`.
+
+Para reproduzir pelo console (**Projetos**, **Autorizações**, **Configurações → Login**; os nomes das opções podem diferir um pouco na versão em uso): crie a organização `core`; nela, o projeto `smarkee` (*Afirmar roles na autenticação* e *Verificar roles na autenticação* ligados) com as roles acima e a aplicação `cli` (nativa, PKCE, tipo de token JWT, redirect e concessões acima); desligue o registro na política de login; e conceda `platform.admin` aos operadores.
 
 Depois, no host, grave a configuração uma vez (`~/.config/sk/config.toml`) e faça o login:
 
 ```bash
 cd components/cli
-uv run sk auth init --issuer http://ipm-dev.smarkee.com.br:8080 \
-  --client-id <client-id-da-aplicação-sk> --allow-insecure-http   # dev não tem TLS
+uv run sk auth init --force --issuer http://ipm-dev.smarkee.com.br:8080 \
+  --client-id <client-id-da-aplicação-cli> --allow-insecure-http   # dev não tem TLS
 uv run sk auth login
 ```
 
-O client ID é um por ambiente, e não por organization: usuários de todas as organizations entram pela mesma aplicação `cli`.
-
+- Só entra na aplicação quem tem ao menos uma role no projeto (verificação de role). Um operador sem `platform.admin` é recusado no login.
 - Use o issuer pelo gateway (`http://ipm-dev.smarkee.com.br:8080`), e não o endereço direto do `identity`: o `iss` dos tokens precisa ser esse endereço.
 - O projeto, a aplicação e o client ID ficam gravados no banco do Zitadel. `docker compose down -v` os apaga, e o client ID muda ao recriá-los.
-- O discovery pelo gateway foi verificado com o `sk`. O login completo no navegador ainda não foi executado contra esta aplicação, e os nomes das opções do console podem diferir um pouco na versão em uso.
+- Resta um projeto `smarkee` antigo na organização `smarkee`, com a aplicação `cli` de antes (sem JWT). Ele sai depois de o login pelo projeto novo ser validado.
+- O discovery pelo gateway foi verificado com o `sk`. O login completo no navegador contra a aplicação nova ainda não foi executado.
 
 ### Conta de bootstrap da plataforma (`platform-bootstrap@smarkee.internal`)
 
@@ -180,7 +188,7 @@ O client ID é um por ambiente, e não por organization: usuários de todas as o
      ```
 
 - A chave é segredo: nunca a versione nem a copie para fora do volume. O padrão `service-account*.json` está no `.gitignore` como proteção adicional.
-- O mecanismo que usa essa conta para aplicar a configuração do Zitadel (projeto, roles, aplicação e contas dos Executors) está em avaliação. Até lá, o projeto, as roles e a aplicação seguem os passos manuais de *Login do CLI*.
+- O mecanismo definitivo que usa essa conta para aplicar a configuração do Zitadel em stg e prd (projeto, roles, aplicação e contas dos Executors) ainda será decidido. Em dev, foi aplicada pela API (seção anterior).
 - A criação automática pela primeira instância ainda não foi verificada (exige recriar a instância). A criação manual segue os nomes do console da versão em uso, que podem diferir um pouco.
 
 ## Bootstrap

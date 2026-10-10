@@ -1444,14 +1444,15 @@ A Organization é um recurso da plataforma, no módulo `core` (`sk organization`
 Para Organization, o Executor escreve em uma organização do Zitadel e o Observer a lê. Na criação, o Executor aplica, nesta ordem e cada passo de forma idempotente:
 
 1. a organização no Zitadel, com o `resourceId` como ID;
-2. o Project Grant do projeto da plataforma para a organização, com as roles delegáveis;
-3. a autorização do dono da organização (`ownerUserId`, o usuário autenticado que a criou), com a role delegada de administrador. O Executor da Organization **não cria usuários**: o dono já existe, pelo cadastro (seção seguinte). Como o dono vive na organização `core` do Zitadel, e não na organização criada, a forma exata da autorização depende do spike da decisão 0010.
+2. o Project Grant do projeto da plataforma para a organização, com as roles delegáveis (inicialmente `organization.get` e `organization.list`, até existirem membros).
+
+O Executor da Organization **não cria usuários nem autoriza o dono**: o dono (`ownerUserId`, o usuário autenticado que a criou) já existe, pelo cadastro (seção seguinte), e já tem as roles de ação no projeto. Como o dono vive na organização `core` do Zitadel, e não na organização criada, o token não identifica a Organization: a API decide o pertencimento pelo `ownerUserId` guardado na plataforma (decisão 0010).
 
 Os recursos derivados em outros sistemas (namespace do OpenBao, do Kubernetes) não são escritos por este Executor: são recursos dos próprios módulos, que referenciam o `organizationId`. Assim, cada Executor escreve em um único sistema externo.
 
-O Executor cria a organização no Zitadel informando o `resourceId` como ID da organização (`organization_id`), em vez de deixar o Zitadel gerá-lo. Assim, o ID da organização no Zitadel é o mesmo `resourceId` (`SCHEMA.md`, *Organization e identificadores derivados*), e uma criação repetida (retry, reentrega) não produz uma segunda organização: o Executor confirma pelo ID se ela já existe. O erro exato devolvido pelo Zitadel para um ID já existente ainda não foi verificado.
+O Executor cria a organização no Zitadel informando o `resourceId` como ID da organização (`organization_id`), em vez de deixar o Zitadel gerá-lo. Assim, o ID da organização no Zitadel é o mesmo `resourceId` (`SCHEMA.md`, *Organization e identificadores derivados*), e uma criação repetida (retry, reentrega) não produz uma segunda organização. O Zitadel responde HTTP 409 a um ID ou nome já usado (verificado na v4.19.4); o Executor então lê a organização pelo ID: se existe com o nome esperado, é sucesso idempotente (o mesmo vale para o Project Grant, que também responde 409 quando repetido); se existe com outro nome, ou não existe, é falha permanente.
 
-Antes de publicar `requested`, a API exige solicitante autenticado, com e-mail verificado e a role `platform.user`. A **cota** de Organizations por dono é aplicada pelo Manager, na mesma unidade atômica do pedido, com trava consultiva por dono (decisão 0010): a pré-checagem da API não basta para criações concorrentes. Nomes reservados e já existentes são rejeitados como `validation`.
+Antes de publicar `requested`, a API exige solicitante autenticado, com e-mail verificado e a role `organization.create`. A **cota** de Organizations por dono é aplicada pelo Manager, na mesma unidade atômica do pedido, com trava consultiva por dono (decisão 0010): a pré-checagem da API não basta para criações concorrentes. Nomes reservados e já existentes são rejeitados como `validation`.
 
 Componentes:
 
@@ -1470,7 +1471,7 @@ O User é um recurso da plataforma, no módulo `core` (decisão 0014), criado pe
 
 1. cria o usuário na organização `core`, com o `resourceId` como ID e **sem senha**: o `desired` do User não tem senha, porque `desired` fica retido no SSOT e na mensageria (`SCHEMA.md`);
 2. aciona o e-mail de ativação do Zitadel, em que a pessoa define a senha na página do Zitadel. A senha nunca passa por CLI, API, SSOT nem mensageria;
-3. autoriza o usuário com a role `platform.user`.
+3. autoriza o usuário no projeto da plataforma, que pertence à mesma organização `core`, com o conjunto de roles de ação do usuário cadastrado (`organization.create`, `organization.get`, `organization.list`, `organization.update`, `organization.delete`, `user.get` e `user.delete`).
 
 Quando o e-mail já está cadastrado, o Executor não cria um segundo usuário e o pedido termina sem expor essa informação ao solicitante anônimo. O `desired` com `lifecycle = absent` não carrega dados pessoais (decisão 0014).
 
