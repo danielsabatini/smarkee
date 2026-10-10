@@ -414,7 +414,7 @@ class OrganizationCreateSpecification(ContractModel):
 
 class OrganizationRequestedCreateData(ContractModel):
     """
-    data de requested com operation create. Publicado somente pela API.
+    data de requested com operation create. Publicado somente pela API; o dono é o requestedBy.
     """
 
     model_config = ConfigDict(
@@ -441,6 +441,10 @@ class OrganizationRequestedCreateData(ContractModel):
     specification: Annotated[
         OrganizationCreateSpecification, Field(title="OrganizationCreateSpecification")
     ]
+    owner_quota_limit: Annotated[int | None, Field(alias="ownerQuotaLimit", ge=1, le=1000)] = None
+    """
+    Limite de Organizations do dono, definido pela API a partir do papel do solicitante (ausente para operadores: sem cota). O Manager aplica o limite na mesma unidade atômica do pedido (decisão 0010).
+    """
 
 
 class OrganizationUpdateSpecification(ContractModel):

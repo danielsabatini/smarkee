@@ -4,5 +4,6 @@
   "specification": {
     "name": "acme",
     "platformAccess": "granted"
-  }
+  },
+  "ownerQuotaLimit": 1
 }

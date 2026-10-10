@@ -26,6 +26,8 @@ Uma Organization só pode ser criada por um usuário registrado e autenticado (d
 - **Quem pode criar uma Organization:** o usuário autenticado, com **e-mail verificado** e a role `organization.create`, dentro da **cota por dono** (padrão 1, configurável). `platform.admin` não tem cota.
   - A cota é aplicada **no Manager**, na mesma unidade atômica do pedido, com trava consultiva por dono. A pré-checagem da API é só conveniência e não garante o limite com criações concorrentes.
   - Cada Organization vira namespace no OpenBao e no Kubernetes; sem cota, qualquer conta criaria organizações sem limite.
+  - Operadores (`platform.admin`) também dispensam a verificação de e-mail. A API define o limite de cota a partir do papel do solicitante e o envia no `requested` (`ownerQuotaLimit`, ausente para operadores); o Manager o aplica.
+- **Alterar uma Organization:** o dono altera o `name`. Mudar `platformAccess` e `reconciliation` é privilégio de operador (`platform.admin`).
 - **Nomes reservados** (`core`, `smarkee` e uma lista da plataforma) são rejeitados como `validation`.
 - **Dono:** o contrato da Organization tem `ownerUserId`, o `resourceId` do User autenticado que criou (`writer = server`, imutável, vindo do `sub` do token). Não há dados pessoais no contrato da Organization.
 - Na criação de uma Organization, o Executor aplica no Zitadel, nesta ordem e cada passo de forma idempotente:

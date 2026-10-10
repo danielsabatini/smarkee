@@ -4,7 +4,15 @@ version = "0.1.0"
 description = "Módulo core da plataforma smarkee: recursos da plataforma (Organization) pelo Resource Control Loop."
 requires-python = ">=3.14"
 dependencies = [
+    "fastapi>=0.143.0",
+    "httpx>=0.28.1",
+    "nats-py>=2.16.0",
+    "psycopg-pool>=3.3.3",
+    "psycopg[binary]>=3.3.6",
+    "pydantic-settings>=2.15.0",
     "pydantic[email]>=2.14.0",
+    "pyjwt[crypto]>=2.15.1",
+    "uvicorn>=0.54.0",
 ]
 
 [build-system]
@@ -26,8 +34,9 @@ extend-exclude = ["src/core/contracts/generated.py"]
 select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
-# assert é o mecanismo de verificação do pytest.
-"tests/**" = ["S101"]
+# assert é o mecanismo de verificação do pytest; os testes usam tokens e senhas falsos de
+# desenvolvimento (papéis de login com senha igual ao nome), e não credenciais reais.
+"tests/**" = ["S101", "S105", "S106"]
 
 [tool.pyright]
 pythonVersion = "3.14"
@@ -37,6 +46,9 @@ include = ["src", "tests"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--import-mode=importlib"]
+pythonpath = ["tests/integration"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
 source = ["core"]
@@ -48,6 +60,7 @@ dev = [
     "jsonschema>=4.26.0",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.17.0",
 ]

@@ -94,7 +94,7 @@ A idempotência de `requested` é a chave primária `operation_id`. Não existe 
 
 A API não lê as tabelas. Ela lê as views `<tipo>_v<MAJOR>` e `<tipo>_operation_v<MAJOR>`, que são a **interface de leitura versionada** do SSOT (`SSOT.md`, leitura e consistência) e correspondem ao contrato da visão consolidada do recurso (`SCHEMA.md`, família de contratos). O `MAJOR` da view acompanha o `MAJOR` desse contrato.
 
-- a view expõe apenas as colunas que a API pode ler; colunas internas de controle (`failure_count`, `requested_by`) não aparecem. `request_digest` aparece porque a API o compara antes de publicar (`SSOT.md`, `requested`);
+- a view expõe apenas as colunas que a API pode ler; colunas internas de controle (`failure_count`) não aparecem. `request_digest` aparece porque a API o compara antes de publicar (`SSOT.md`, `requested`). Na view da Operation, `requested_by` aparece **somente para a API autorizar a leitura** (só o solicitante e os operadores leem uma Operation); a API não o devolve ao cliente. Na view do recurso, `requested_by` não existe;
 - a view executa com os privilégios do proprietário (padrão do PostgreSQL), de modo que a API recebe `SELECT` somente na view, e nenhum privilégio nas tabelas;
 - uma migração da tabela (expandir → migrar → contrair) não altera a view enquanto o contrato de leitura não mudar. Uma mudança incompatível do contrato cria a view do novo `MAJOR`, que coexiste com a anterior durante a janela de coexistência.
 
