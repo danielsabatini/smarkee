@@ -42,7 +42,7 @@ Este documento não fixa uma versão. O DDL de referência foi exercitado em Pos
 | Schema | Um schema por módulo (`<módulo>`) |
 | Tabelas | Quatro por tipo de recurso, todas com o mesmo formato: `<tipo>`, `<tipo>_operation`, `<tipo>_action_result`, `<tipo>_outbox` |
 | Views | Duas por tipo de recurso, para a leitura da API: `<tipo>_v<MAJOR>` e `<tipo>_operation_v<MAJOR>` |
-| Nomes | `snake_case`, minúsculas, sem hífen |
+| Nomes | `snake_case`, minúsculas, sem hífen. Um tipo cujo nome é palavra reservada do PostgreSQL (por exemplo, `user`) mantém o nome do tipo, e a tabela do tipo é sempre citada (`core."user"`); as demais tabelas e views (`user_operation`, `user_v1`) não precisam de aspas |
 | Papéis | Um por serviço, mapeando a identidade `<módulo>-<tipo>-<papel>` para `<módulo>_<tipo>_<papel>` |
 
 As tabelas e as views de cada tipo são geradas **a partir de um único modelo** (`AGENTS.md`, arquivos gerados). A fonte é o modelo e o contrato do recurso; o objeto criado não é editado manualmente.

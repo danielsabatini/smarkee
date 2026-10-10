@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "OrganizationDesiredData",
-  "description": "data de desired da Organization: estado pretendido e controle de reconciliação. Publicado somente pelo Manager.",
+  "description": "data de desired da Organization: estado pretendido e controle de reconciliação. Publicado somente pelo Manager. Não carrega dados pessoais.",
   "x-schemaVersion": "1.0",
   "x-resourceParameters": {
     "observationInterval": "PT5M",
@@ -12,7 +12,13 @@
   "x-actionIdFormat": "<resourceId>.<desiredGeneration>.<operation>.<messageId do observed que motivou a decisão>",
   "type": "object",
   "additionalProperties": false,
-  "required": ["lifecycle", "reconciliation", "name", "platformAccess", "firstAdministrator"],
+  "required": [
+    "lifecycle",
+    "reconciliation",
+    "name",
+    "platformAccess",
+    "ownerUserId"
+  ],
   "properties": {
     "lifecycle": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/lifecycle",
@@ -36,18 +42,19 @@
       "x-sensitivity": "public"
     },
     "platformAccess": {
-      "$ref": "definitions.v1.schema.json#/$defs/platformAccess",
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
       "x-writer": "client",
       "x-mutability": "mutable",
       "x-managed": true,
       "x-sensitivity": "internal"
     },
-    "firstAdministrator": {
-      "$ref": "definitions.v1.schema.json#/$defs/firstAdministrator",
-      "x-writer": "client",
+    "ownerUserId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "description": "Dono da Organization: resourceId do User autenticado que a criou (sub do token). Atribuído pelo Manager a partir de requestedBy no create; imutável.",
+      "x-writer": "server",
       "x-mutability": "immutable",
       "x-managed": false,
-      "x-sensitivity": "confidential"
+      "x-sensitivity": "internal"
     }
   }
 }

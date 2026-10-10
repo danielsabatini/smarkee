@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UserDesiredData",
+  "description": "data de desired do User: estado pretendido e controle de reconciliação. Publicado somente pelo Manager. Sem senha: a credencial é definida pelo usuário no provedor de identidade (decisão 0014). Com lifecycle absent, não carrega dados pessoais.",
+  "x-schemaVersion": "1.0",
+  "x-resourceParameters": {
+    "observationInterval": "PT5M",
+    "observationValidity": "PT10M",
+    "actionDeadline": "PT2M",
+    "failureLimit": 5
+  },
+  "x-actionIdFormat": "<resourceId>.<desiredGeneration>.<operation>.<messageId do observed que motivou a decisão>",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lifecycle",
+    "reconciliation",
+    "platformAccess"
+  ],
+  "properties": {
+    "lifecycle": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/lifecycle",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "platformAccess": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
+      "description": "granted: o usuário tem a role platform.user no projeto da plataforma. Atribuído pelo Manager na criação.",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "givenName": {
+      "$ref": "definitions.v1.schema.json#/$defs/givenName",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": false,
+      "x-sensitivity": "confidential"
+    },
+    "familyName": {
+      "$ref": "definitions.v1.schema.json#/$defs/familyName",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": false,
+      "x-sensitivity": "confidential"
+    },
+    "email": {
+      "$ref": "definitions.v1.schema.json#/$defs/email",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": false,
+      "x-sensitivity": "confidential"
+    }
+  },
+  "if": {
+    "properties": {
+      "lifecycle": {
+        "const": "present"
+      }
+    }
+  },
+  "then": {
+    "required": [
+      "givenName",
+      "familyName",
+      "email"
+    ]
+  },
+  "else": {
+    "not": {
+      "anyOf": [
+        {
+          "required": [
+            "givenName"
+          ]
+        },
+        {
+          "required": [
+            "familyName"
+          ]
+        },
+        {
+          "required": [
+            "email"
+          ]
+        }
+      ]
+    }
+  }
+}

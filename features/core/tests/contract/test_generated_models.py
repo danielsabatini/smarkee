@@ -36,6 +36,12 @@ EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "core/organization/api-update-request.example.json": generated.OrganizationUpdateRequest,
     "core/organization/resource.example.json": generated.Organization,
     "core/organization/resource-list.example.json": generated.OrganizationList,
+    "core/user/desired.example.json": generated.UserDesiredData,
+    "core/user/observed.example.json": generated.UserObservedData,
+    "core/user/requested-create.example.json": generated.UserRequestedCreateData,
+    "core/user/requested-delete.example.json": generated.UserRequestedDeleteData,
+    "core/user/api-create-request.example.json": generated.UserCreateRequest,
+    "core/user/resource.example.json": generated.User,
 }
 
 
@@ -96,18 +102,56 @@ def test_model_rejects_unknown_field(relative_path: str, model: type[BaseModel])
         model.model_validate({**_example(relative_path), "unknownField": "x"})
 
 
-def test_create_request_rejects_server_assigned_resource_id() -> None:
+def test_create_request_rejects_server_assigned_fields() -> None:
+    for server_field in ("resourceId", "ownerUserId", "requestedBy"):
+        with pytest.raises(ValidationError):
+            generated.OrganizationCreateRequest.model_validate(
+                {**_example("core/organization/api-create-request.example.json"), server_field: "x"}
+            )
+
+
+def test_user_create_request_has_no_password() -> None:
     with pytest.raises(ValidationError):
-        generated.OrganizationCreateRequest.model_validate(
-            {**_example("core/organization/api-create-request.example.json"), "resourceId": "x"}
+        generated.UserCreateRequest.model_validate(
+            {**_example("core/user/api-create-request.example.json"), "password": "Segredo!123"}
         )
 
 
+def test_python_attributes_are_snake_case_and_json_is_camel_case() -> None:
+    condition = generated.Condition.model_validate(_example("common/condition.example.json"))
+    assert condition.observed_generation == 1
+    dumped = condition.model_dump(mode="json", exclude_none=True)
+    assert "observedGeneration" in dumped
+    assert "observed_generation" not in dumped
+    assert json.loads(condition.model_dump_json(exclude_none=True)) == dumped
+
+
+def test_snake_case_input_is_rejected() -> None:
+    example = _example("common/condition.example.json")
+    snake_case_input = {
+        "type": example["type"],
+        "status": example["status"],
+        "reason": example["reason"],
+        "observed_generation": 1,
+        "last_transition_at": example["lastTransitionAt"],
+    }
+    with pytest.raises(ValidationError):
+        generated.Condition.model_validate(snake_case_input)
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "model"), EXAMPLE_MODELS.items(), ids=list(EXAMPLE_MODELS)
+)
+def test_model_round_trips_the_example(relative_path: str, model: type[BaseModel]) -> None:
+    example = _example(relative_path)
+    assert model.model_validate(example).model_dump(mode="json", exclude_none=True) == example
+
+
 def test_validation_error_does_not_repeat_confidential_value() -> None:
-    invalid = _example("core/organization/api-create-request.example.json")
-    invalid["firstAdministrator"]["email"] = "segredo-sem-arroba"
+    invalid = _example("core/user/api-create-request.example.json")
+    invalid["email"] = "segredo-sem-arroba"
     with pytest.raises(ValidationError) as raised:
-        generated.OrganizationCreateRequest.model_validate(invalid)
+        generated.UserCreateRequest.model_validate(invalid)
     errors = raised.value.errors(include_input=False)
-    assert [error["loc"] for error in errors] == [("firstAdministrator", "email")]
+    assert [error["loc"] for error in errors] == [("email",)]
     assert "segredo-sem-arroba" not in json.dumps(errors, default=str)

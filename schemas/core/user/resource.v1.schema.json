@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Organization",
-  "description": "Visão consolidada da Organization exposta pela API (GET). Não expõe o dono (ownerUserId) nem campos internos do SSOT (failureCount, requestedBy).",
+  "title": "User",
+  "description": "Visão consolidada do User exposta pela API (GET /v1/users/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,
@@ -18,7 +18,7 @@
   "properties": {
     "resourceId": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
-      "description": "Também o ID da organização no provedor de identidade e dos namespaces derivados (SCHEMA.md, Organization e identificadores derivados).",
+      "description": "Também o ID do usuário no provedor de identidade (decisão 0014).",
       "x-writer": "server",
       "x-sensitivity": "internal"
     },
@@ -47,17 +47,16 @@
       "x-sensitivity": "internal"
     },
     "desired": {
-      "title": "OrganizationDesiredView",
+      "title": "UserDesiredView",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "lifecycle",
         "reconciliation",
-        "name",
         "platformAccess"
       ],
       "x-writer": "server",
-      "x-sensitivity": "internal",
+      "x-sensitivity": "confidential",
       "properties": {
         "lifecycle": {
           "$ref": "../../common/definitions.v1.schema.json#/$defs/lifecycle",
@@ -69,20 +68,30 @@
           "x-writer": "server",
           "x-sensitivity": "internal"
         },
-        "name": {
-          "$ref": "definitions.v1.schema.json#/$defs/organizationName",
-          "x-writer": "server",
-          "x-sensitivity": "public"
-        },
         "platformAccess": {
           "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
           "x-writer": "server",
           "x-sensitivity": "internal"
+        },
+        "givenName": {
+          "$ref": "definitions.v1.schema.json#/$defs/givenName",
+          "x-writer": "server",
+          "x-sensitivity": "confidential"
+        },
+        "familyName": {
+          "$ref": "definitions.v1.schema.json#/$defs/familyName",
+          "x-writer": "server",
+          "x-sensitivity": "confidential"
+        },
+        "email": {
+          "$ref": "definitions.v1.schema.json#/$defs/email",
+          "x-writer": "server",
+          "x-sensitivity": "confidential"
         }
       }
     },
     "observed": {
-      "title": "OrganizationObservedView",
+      "title": "UserObservedView",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -103,18 +112,18 @@
           "x-writer": "server",
           "x-sensitivity": "internal"
         },
-        "name": {
-          "$ref": "definitions.v1.schema.json#/$defs/organizationName",
-          "x-writer": "server",
-          "x-sensitivity": "public"
-        },
-        "platformAccess": {
-          "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
+        "emailVerified": {
+          "type": "boolean",
           "x-writer": "server",
           "x-sensitivity": "internal"
         },
-        "organizationState": {
-          "$ref": "definitions.v1.schema.json#/$defs/organizationState",
+        "userState": {
+          "$ref": "definitions.v1.schema.json#/$defs/userState",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "platformAccess": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
           "x-writer": "server",
           "x-sensitivity": "internal"
         }

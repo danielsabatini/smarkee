@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UserDefinitions",
+  "description": "Campos de domínio do User reutilizados pelos contratos do recurso. Os dados pessoais são confidential e nunca vão para log, erro nem métrica (SCHEMA.md, Classificação).",
+  "x-schemaVersion": "1.0",
+  "$defs": {
+    "givenName": {
+      "description": "Nome próprio do usuário.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "familyName": {
+      "description": "Sobrenome do usuário.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "email": {
+      "description": "E-mail do usuário; é também o nome de login. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.",
+      "type": "string",
+      "format": "email",
+      "minLength": 3,
+      "maxLength": 254
+    },
+    "userState": {
+      "description": "Estado do usuário no provedor de identidade. initial: aguardando a ativação (definição da senha).",
+      "type": "string",
+      "enum": [
+        "initial",
+        "active",
+        "inactive",
+        "locked"
+      ],
+      "x-enumPolicy": "open"
+    }
+  }
+}

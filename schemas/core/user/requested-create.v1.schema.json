@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "OrganizationRequestedCreateData",
-  "description": "data de requested com operation create. Publicado somente pela API.",
+  "title": "UserRequestedCreateData",
+  "description": "data de requested com operation create. Publicado somente pela API, com requestedBy = anonymous no auto-cadastro. Sem senha (decisão 0014).",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,
@@ -22,25 +22,31 @@
       "x-sensitivity": "internal"
     },
     "specification": {
-      "title": "OrganizationCreateSpecification",
+      "title": "UserCreateSpecification",
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "name",
-        "platformAccess"
+        "givenName",
+        "familyName",
+        "email"
       ],
       "x-writer": "client",
-      "x-sensitivity": "internal",
+      "x-sensitivity": "confidential",
       "properties": {
-        "name": {
-          "$ref": "definitions.v1.schema.json#/$defs/organizationName",
+        "givenName": {
+          "$ref": "definitions.v1.schema.json#/$defs/givenName",
           "x-writer": "client",
-          "x-sensitivity": "public"
+          "x-sensitivity": "confidential"
         },
-        "platformAccess": {
-          "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
+        "familyName": {
+          "$ref": "definitions.v1.schema.json#/$defs/familyName",
           "x-writer": "client",
-          "x-sensitivity": "internal"
+          "x-sensitivity": "confidential"
+        },
+        "email": {
+          "$ref": "definitions.v1.schema.json#/$defs/email",
+          "x-writer": "client",
+          "x-sensitivity": "confidential"
         }
       }
     }

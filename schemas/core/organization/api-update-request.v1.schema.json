@@ -19,7 +19,7 @@
       "x-sensitivity": "public"
     },
     "platformAccess": {
-      "$ref": "definitions.v1.schema.json#/$defs/platformAccess",
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
       "x-writer": "client",
       "x-sensitivity": "internal"
     },

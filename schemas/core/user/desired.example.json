@@ -1,7 +1,8 @@
 {
   "lifecycle": "present",
   "reconciliation": "active",
-  "name": "acme",
   "platformAccess": "granted",
-  "ownerUserId": "394397791373230085"
+  "givenName": "Ana",
+  "familyName": "Souza",
+  "email": "ana.souza@example.com"
 }

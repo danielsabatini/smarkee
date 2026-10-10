@@ -1,0 +1,33 @@
+{
+  "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "resourceVersion": "3",
+  "desiredGeneration": 1,
+  "phase": "Ready",
+  "conditions": [
+    {
+      "type": "Ready",
+      "status": "True",
+      "reason": "Reconciled",
+      "message": "User exists in the identity provider with platform access.",
+      "observedGeneration": 1,
+      "lastTransitionAt": "2026-10-09T14:00:05Z"
+    }
+  ],
+  "desired": {
+    "lifecycle": "present",
+    "reconciliation": "active",
+    "platformAccess": "granted",
+    "givenName": "Ana",
+    "familyName": "Souza",
+    "email": "ana.souza@example.com"
+  },
+  "observed": {
+    "presence": "present",
+    "observedAt": "2026-10-09T14:00:04Z",
+    "emailVerified": true,
+    "userState": "active",
+    "platformAccess": "granted"
+  },
+  "createdAt": "2026-10-09T14:00:00Z",
+  "updatedAt": "2026-10-09T14:00:05Z"
+}

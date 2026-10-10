@@ -13,7 +13,7 @@
       "x-sensitivity": "public"
     },
     "platformAccess": {
-      "$ref": "definitions.v1.schema.json#/$defs/platformAccess",
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
       "description": "granted quando o Project Grant do projeto da plataforma existe para a organização.",
       "x-writer": "server",
       "x-sensitivity": "internal"

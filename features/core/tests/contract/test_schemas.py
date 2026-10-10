@@ -218,6 +218,7 @@ def test_desired_declares_all_resource_parameters() -> None:
         ("api-create-request", "operationId"),
         ("api-create-request", "requestedBy"),
         ("api-create-request", "platformAccess"),
+        ("api-create-request", "ownerUserId"),
         ("api-update-request", "desiredGeneration"),
         ("api-update-request", "operationId"),
     ],
@@ -229,9 +230,48 @@ def test_client_request_rejects_server_assigned_fields(contract: str, server_fie
     assert not _is_valid(schema_path, example)
 
 
-def test_resource_view_never_exposes_first_administrator() -> None:
+def _confidential_fields(path: Path) -> list[str]:
+    return [
+        location
+        for location, node in _walk(_load(path), "#")
+        if node.get("x-sensitivity") == "confidential"
+    ]
+
+
+@pytest.mark.parametrize("path", sorted(ORGANIZATION.glob("*.schema.json")), ids=str)
+def test_organization_contracts_carry_no_personal_data(path: Path) -> None:
+    assert _confidential_fields(path) == []
+
+
+def test_resource_view_never_exposes_the_owner() -> None:
     resource = _load(ORGANIZATION / "resource.v1.schema.json")
-    assert "firstAdministrator" not in resource["properties"]["desired"]["properties"]
+    assert "ownerUserId" not in resource["properties"]["desired"]["properties"]
+
+
+USER = SCHEMAS_ROOT / "core" / "user"
+
+
+def test_user_contracts_have_no_password_field() -> None:
+    for path in USER.glob("*.schema.json"):
+        for _, node in _walk(_load(path), "#"):
+            properties = node.get("properties")
+            if isinstance(properties, dict):
+                assert not any(
+                    "password" in name.lower() for name in cast(dict[str, Any], properties)
+                )
+
+
+def test_user_desired_carries_personal_data_only_while_present() -> None:
+    desired_path = USER / "desired.v1.schema.json"
+    present = json.loads(_example_for(desired_path).read_text(encoding="utf-8"))
+    assert _is_valid(desired_path, present)
+
+    incomplete = {k: v for k, v in present.items() if k != "email"}
+    assert not _is_valid(desired_path, incomplete)
+
+    absent = {"lifecycle": "absent", "reconciliation": "active", "platformAccess": "granted"}
+    assert _is_valid(desired_path, absent)
+    assert not _is_valid(desired_path, {**absent, "email": present["email"]})
 
 
 @pytest.mark.parametrize(

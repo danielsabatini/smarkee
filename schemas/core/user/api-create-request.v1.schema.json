@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UserCreateRequest",
+  "description": "Corpo de POST /v1/users (auto-cadastro, escrita anônima). A API atribui resourceId, operationId e requestDigest, e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "givenName",
+    "familyName",
+    "email"
+  ],
+  "properties": {
+    "givenName": {
+      "$ref": "definitions.v1.schema.json#/$defs/givenName",
+      "x-writer": "client",
+      "x-sensitivity": "confidential"
+    },
+    "familyName": {
+      "$ref": "definitions.v1.schema.json#/$defs/familyName",
+      "x-writer": "client",
+      "x-sensitivity": "confidential"
+    },
+    "email": {
+      "$ref": "definitions.v1.schema.json#/$defs/email",
+      "x-writer": "client",
+      "x-sensitivity": "confidential"
+    }
+  }
+}

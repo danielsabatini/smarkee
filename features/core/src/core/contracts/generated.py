@@ -2,8 +2,9 @@
 
 from enum import StrEnum
 from typing import Annotated, Any
-from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field, RootModel
+from pydantic import AwareDatetime, ConfigDict, EmailStr, Field, RootModel
 from datetime import timedelta
+from core.contracts.base import ContractModel
 
 
 class MessageType(StrEnum):
@@ -85,20 +86,29 @@ class Phase(StrEnum):
     Fase consolidada do recurso (RESOURCE-CONTROL-LOOP.md, Lifecycle).
     """
 
-    Pending = "Pending"
-    Reconciling = "Reconciling"
-    Ready = "Ready"
-    Failed = "Failed"
-    Deleting = "Deleting"
+    pending = "Pending"
+    reconciling = "Reconciling"
+    ready = "Ready"
+    failed = "Failed"
+    deleting = "Deleting"
+
+
+class PlatformAccess(StrEnum):
+    """
+    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization, role platform.user do User); revoked a remove.
+    """
+
+    granted = "granted"
+    revoked = "revoked"
 
 
 class ConditionStatus(StrEnum):
-    True_ = "True"
-    False_ = "False"
-    Unknown = "Unknown"
+    true = "True"
+    false = "False"
+    unknown = "Unknown"
 
 
-class Condition(BaseModel):
+class Condition(ContractModel):
     """
     Fato consolidado do recurso (RESOURCE-CONTROL-LOOP.md, Conditions). Mantida pelo Manager.
     """
@@ -119,17 +129,19 @@ class Condition(BaseModel):
     """
     Texto descritivo para pessoas. Nunca contém valores confidential ou secretReference.
     """
-    observedGeneration: Annotated[int | None, Field(ge=1, le=9007199254740991)] = None
+    observed_generation: Annotated[
+        int | None, Field(alias="observedGeneration", ge=1, le=9007199254740991)
+    ] = None
     """
     Geração lógica do estado desejado (desiredGeneration, observedGeneration).
     """
-    lastTransitionAt: AwareDatetime
+    last_transition_at: Annotated[AwareDatetime, Field(alias="lastTransitionAt")]
     """
     Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
     """
 
 
-class ActionData(BaseModel):
+class ActionData(ContractModel):
     """
     data de uma action: o motivo da decisão de reconciliação. A operação está no envelope (create, update, delete).
     """
@@ -147,7 +159,7 @@ class ActionData(BaseModel):
     """
 
 
-class CompletedData(BaseModel):
+class CompletedData(ContractModel):
     """
     data de completed: a operação foi aplicada no sistema externo. Não significa convergência (RESOURCE-CONTROL-LOOP.md).
     """
@@ -155,13 +167,15 @@ class CompletedData(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    externalReference: Annotated[str | None, Field(max_length=256, min_length=1)] = None
+    external_reference: Annotated[
+        str | None, Field(alias="externalReference", max_length=256, min_length=1)
+    ] = None
     """
     Referência do recurso no sistema externo, quando diferente do resourceId.
     """
 
 
-class FailedData(BaseModel):
+class FailedData(ContractModel):
     """
     data de failed: a operação não foi aplicada, com a causa da falha.
     """
@@ -183,7 +197,7 @@ class FailedData(BaseModel):
     """
 
 
-class UpdatedData(BaseModel):
+class UpdatedData(ContractModel):
     """
     data de updated: resumo do estado consolidado no SSOT depois de uma alteração.
     """
@@ -193,7 +207,9 @@ class UpdatedData(BaseModel):
     )
     phase: Phase
     lifecycle: Lifecycle
-    resourceVersion: Annotated[str, Field(max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")]
+    resource_version: Annotated[
+        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
+    ]
     """
     Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
     """
@@ -227,7 +243,7 @@ class OperationStatusReason(StrEnum):
     not_found = "not_found"
 
 
-class Operation(BaseModel):
+class Operation(ContractModel):
     """
     Acompanhamento de uma solicitação assíncrona, exposto por GET /v1/operations/{operationId} (SSOT.md, Operation).
     """
@@ -235,47 +251,66 @@ class Operation(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    operationId: Annotated[
-        str, Field(max_length=128, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
+    operation_id: Annotated[
+        str,
+        Field(
+            alias="operationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
     ]
     """
     Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
     """
-    operationType: Annotated[OperationType, Field(title="OperationType")]
+    operation_type: Annotated[OperationType, Field(alias="operationType", title="OperationType")]
     module: Annotated[str, Field(max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")]
-    resourceType: Annotated[str, Field(max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")]
-    resourceId: Annotated[
-        str, Field(max_length=128, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
+    resource_type: Annotated[
+        str, Field(alias="resourceType", max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")
+    ]
+    resource_id: Annotated[
+        str,
+        Field(
+            alias="resourceId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
     ]
     """
     Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
     """
-    desiredGeneration: Annotated[int | None, Field(ge=1, le=9007199254740991)] = None
+    desired_generation: Annotated[
+        int | None, Field(alias="desiredGeneration", ge=1, le=9007199254740991)
+    ] = None
     """
     Geração produzida pelo pedido; ausente quando rejeitado.
     """
-    operationStatus: Annotated[OperationStatus, Field(title="OperationStatus")]
-    operationStatusReason: Annotated[
-        OperationStatusReason | None, Field(title="OperationStatusReason")
+    operation_status: Annotated[
+        OperationStatus, Field(alias="operationStatus", title="OperationStatus")
+    ]
+    operation_status_reason: Annotated[
+        OperationStatusReason | None,
+        Field(alias="operationStatusReason", title="OperationStatusReason"),
     ] = None
     """
     Motivo da rejeição; presente somente quando operationStatus é rejected.
     """
-    createdAt: AwareDatetime
+    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
     """
     Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
     """
-    updatedAt: AwareDatetime
+    updated_at: Annotated[AwareDatetime, Field(alias="updatedAt")]
     """
     Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
     """
-    completedAt: AwareDatetime | None = None
+    completed_at: Annotated[AwareDatetime | None, Field(alias="completedAt")] = None
     """
     Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
     """
 
 
-class ApiAcceptedResponse(BaseModel):
+class ApiAcceptedResponse(ContractModel):
     """
     Resposta das escritas assíncronas (POST, PATCH, DELETE): o pedido foi publicado, não aplicado (RESOURCE-CONTROL-LOOP.md, Interface HTTP).
     """
@@ -283,21 +318,33 @@ class ApiAcceptedResponse(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    resourceId: Annotated[
-        str, Field(max_length=128, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
+    resource_id: Annotated[
+        str,
+        Field(
+            alias="resourceId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
     ]
     """
     Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
     """
-    operationId: Annotated[
-        str, Field(max_length=128, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
+    operation_id: Annotated[
+        str,
+        Field(
+            alias="operationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
     ]
     """
     Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
     """
 
 
-class ApiError(BaseModel):
+class ApiError(ContractModel):
     """
     Corpo das respostas de erro da API. A mensagem identifica o campo e a regra violada e não repete valores confidential nem secretReference (SCHEMA.md, Limites e erros).
     """
@@ -305,7 +352,9 @@ class ApiError(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    errorCode: Annotated[str, Field(max_length=128, min_length=1, pattern="^[A-Z][A-Za-z0-9]*$")]
+    error_code: Annotated[
+        str, Field(alias="errorCode", max_length=128, min_length=1, pattern="^[A-Z][A-Za-z0-9]*$")
+    ]
     """
     Código estável do erro, por exemplo ValidationFailed, Conflict, IdempotencyKeyReused.
     """
@@ -315,30 +364,8 @@ class ApiError(BaseModel):
     """
     field: Annotated[str | None, Field(max_length=256, min_length=1)] = None
     """
-    Caminho do campo inválido no corpo do pedido, quando aplicável (por exemplo, firstAdministrator.email).
+    Caminho do campo inválido no corpo do pedido, quando aplicável (por exemplo, specification.name).
     """
-
-
-class PlatformAccess(StrEnum):
-    """
-    Intenção de acesso da organização à plataforma: granted mantém o Project Grant do projeto da plataforma; revoked o remove (usuários da organização deixam de acessar).
-    """
-
-    granted = "granted"
-    revoked = "revoked"
-
-
-class FirstAdministrator(BaseModel):
-    """
-    Primeiro usuário administrador da organização. Usado somente na criação; alterações posteriores são feitas no próprio usuário.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    email: Annotated[EmailStr, Field(max_length=254, min_length=3)]
-    givenName: Annotated[str, Field(max_length=256, min_length=1)]
-    familyName: Annotated[str, Field(max_length=256, min_length=1)]
 
 
 class OrganizationState(StrEnum):
@@ -350,7 +377,7 @@ class OrganizationState(StrEnum):
     inactive = "inactive"
 
 
-class OrganizationObservedData(BaseModel):
+class OrganizationObservedData(ContractModel):
     """
     data de observed da Organization: estado lido do provedor de identidade. Os campos estão presentes quando presence é present; com absent ou unknown, data é vazio.
     """
@@ -365,14 +392,14 @@ class OrganizationObservedData(BaseModel):
     """
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
-    platformAccess: PlatformAccess | None = None
+    platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
     """
     granted quando o Project Grant do projeto da plataforma existe para a organização.
     """
-    organizationState: OrganizationState | None = None
+    organization_state: Annotated[OrganizationState | None, Field(alias="organizationState")] = None
 
 
-class OrganizationCreateSpecification(BaseModel):
+class OrganizationCreateSpecification(ContractModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -382,11 +409,10 @@ class OrganizationCreateSpecification(BaseModel):
     """
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
-    platformAccess: PlatformAccess
-    firstAdministrator: FirstAdministrator
+    platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
 
 
-class OrganizationRequestedCreateData(BaseModel):
+class OrganizationRequestedCreateData(ContractModel):
     """
     data de requested com operation create. Publicado somente pela API.
     """
@@ -394,13 +420,21 @@ class OrganizationRequestedCreateData(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    operationId: Annotated[
-        str, Field(max_length=128, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
+    operation_id: Annotated[
+        str,
+        Field(
+            alias="operationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
     ]
     """
     Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
     """
-    requestDigest: Annotated[str, Field(max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")]
+    request_digest: Annotated[
+        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
+    ]
     """
     SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
     """
@@ -409,7 +443,7 @@ class OrganizationRequestedCreateData(BaseModel):
     ]
 
 
-class OrganizationUpdateSpecification(BaseModel):
+class OrganizationUpdateSpecification(ContractModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -420,10 +454,10 @@ class OrganizationUpdateSpecification(BaseModel):
     """
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
-    platformAccess: PlatformAccess | None = None
+    platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
 
 
-class OrganizationRequestedUpdateData(BaseModel):
+class OrganizationRequestedUpdateData(ContractModel):
     """
     data de requested com operation update. Traz a especificação alterada, a mudança do controle de reconciliação, ou ambas. Publicado somente pela API.
     """
@@ -431,17 +465,27 @@ class OrganizationRequestedUpdateData(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    operationId: Annotated[
-        str, Field(max_length=128, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
+    operation_id: Annotated[
+        str,
+        Field(
+            alias="operationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
     ]
     """
     Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
     """
-    requestDigest: Annotated[str, Field(max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")]
+    request_digest: Annotated[
+        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
+    ]
     """
     SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
     """
-    resourceVersion: Annotated[str, Field(max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")]
+    resource_version: Annotated[
+        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
+    ]
     """
     Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
     """
@@ -454,7 +498,7 @@ class OrganizationRequestedUpdateData(BaseModel):
     """
 
 
-class OrganizationRequestedDeleteData(BaseModel):
+class OrganizationRequestedDeleteData(ContractModel):
     """
     data de requested com operation delete: declara lifecycle absent. Publicado somente pela API.
     """
@@ -462,25 +506,35 @@ class OrganizationRequestedDeleteData(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    operationId: Annotated[
-        str, Field(max_length=128, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
+    operation_id: Annotated[
+        str,
+        Field(
+            alias="operationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
     ]
     """
     Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
     """
-    requestDigest: Annotated[str, Field(max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")]
+    request_digest: Annotated[
+        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
+    ]
     """
     SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
     """
-    resourceVersion: Annotated[str, Field(max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")]
+    resource_version: Annotated[
+        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
+    ]
     """
     Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
     """
 
 
-class OrganizationCreateRequest(BaseModel):
+class OrganizationCreateRequest(ContractModel):
     """
-    Corpo de POST /v1/organizations. A API atribui resourceId, operationId, requestDigest e requestedBy, e registra platformAccess = granted: uma Organization criada sem acesso à plataforma não tem uso.
+    Corpo de POST /v1/organizations. A API atribui resourceId, operationId, requestDigest e requestedBy, registra platformAccess = granted e o dono (ownerUserId = solicitante autenticado): uma Organization criada sem acesso à plataforma não tem uso.
     """
 
     model_config = ConfigDict(
@@ -492,10 +546,9 @@ class OrganizationCreateRequest(BaseModel):
     """
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
-    firstAdministrator: FirstAdministrator
 
 
-class OrganizationUpdateRequest(BaseModel):
+class OrganizationUpdateRequest(ContractModel):
     """
     Corpo de PATCH /v1/organizations/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado.
     """
@@ -503,7 +556,9 @@ class OrganizationUpdateRequest(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    resourceVersion: Annotated[str, Field(max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")]
+    resource_version: Annotated[
+        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
+    ]
     """
     Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
     """
@@ -514,11 +569,11 @@ class OrganizationUpdateRequest(BaseModel):
     """
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
-    platformAccess: PlatformAccess | None = None
+    platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
     reconciliation: Reconciliation | None = None
 
 
-class OrganizationDesiredView(BaseModel):
+class OrganizationDesiredView(ContractModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -530,10 +585,10 @@ class OrganizationDesiredView(BaseModel):
     """
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
-    platformAccess: PlatformAccess
+    platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
 
 
-class OrganizationObservedView(BaseModel):
+class OrganizationObservedView(ContractModel):
     """
     Última observação; ausente antes da primeira.
     """
@@ -542,7 +597,7 @@ class OrganizationObservedView(BaseModel):
         extra="forbid",
     )
     presence: Presence
-    observedAt: AwareDatetime
+    observed_at: Annotated[AwareDatetime, Field(alias="observedAt")]
     """
     Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
     """
@@ -553,29 +608,37 @@ class OrganizationObservedView(BaseModel):
     """
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
-    platformAccess: PlatformAccess | None = None
-    organizationState: OrganizationState | None = None
+    platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
+    organization_state: Annotated[OrganizationState | None, Field(alias="organizationState")] = None
 
 
-class Organization(BaseModel):
+class Organization(ContractModel):
     """
-    Visão consolidada da Organization exposta pela API (GET). Não expõe firstAdministrator (confidential) nem campos internos do SSOT (failureCount, requestedBy).
+    Visão consolidada da Organization exposta pela API (GET). Não expõe o dono (ownerUserId) nem campos internos do SSOT (failureCount, requestedBy).
     """
 
     model_config = ConfigDict(
         extra="forbid",
     )
-    resourceId: Annotated[
-        str, Field(max_length=128, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
+    resource_id: Annotated[
+        str,
+        Field(
+            alias="resourceId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
     ]
     """
     Também o ID da organização no provedor de identidade e dos namespaces derivados (SCHEMA.md, Organization e identificadores derivados).
     """
-    resourceVersion: Annotated[str, Field(max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")]
+    resource_version: Annotated[
+        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
+    ]
     """
     Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
     """
-    desiredGeneration: Annotated[int, Field(ge=1, le=9007199254740991)]
+    desired_generation: Annotated[int, Field(alias="desiredGeneration", ge=1, le=9007199254740991)]
     """
     Geração lógica do estado desejado (desiredGeneration, observedGeneration).
     """
@@ -588,17 +651,17 @@ class Organization(BaseModel):
     """
     Última observação; ausente antes da primeira.
     """
-    createdAt: AwareDatetime
+    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
     """
     Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
     """
-    updatedAt: AwareDatetime
+    updated_at: Annotated[AwareDatetime, Field(alias="updatedAt")]
     """
     Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
     """
 
 
-class OrganizationList(BaseModel):
+class OrganizationList(ContractModel):
     """
     Resposta de GET /v1/organizations: página ordenada por resourceId, somente das Organizations autorizadas. nextCursor ausente indica a última página.
     """
@@ -607,15 +670,237 @@ class OrganizationList(BaseModel):
         extra="forbid",
     )
     items: Annotated[list[Organization], Field(max_length=200)]
-    nextCursor: Annotated[
-        str | None, Field(max_length=512, min_length=1, pattern="^[A-Za-z0-9_-]+$")
+    next_cursor: Annotated[
+        str | None,
+        Field(alias="nextCursor", max_length=512, min_length=1, pattern="^[A-Za-z0-9_-]+$"),
     ] = None
     """
     Cursor opaco da próxima página.
     """
 
 
-class MessageEnvelope(BaseModel):
+class UserState(StrEnum):
+    """
+    Estado do usuário no provedor de identidade. initial: aguardando a ativação (definição da senha).
+    """
+
+    initial = "initial"
+    active = "active"
+    inactive = "inactive"
+    locked = "locked"
+
+
+class UserObservedData(ContractModel):
+    """
+    data de observed do User: estado lido do provedor de identidade. Os campos estão presentes quando presence é present; com absent ou unknown, data é vazio.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    email_verified: Annotated[bool | None, Field(alias="emailVerified")] = None
+    """
+    Se o e-mail foi verificado (a ativação foi concluída).
+    """
+    user_state: Annotated[UserState | None, Field(alias="userState")] = None
+    platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
+    """
+    granted quando a role platform.user está atribuída ao usuário.
+    """
+
+
+class UserCreateSpecification(ContractModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    given_name: Annotated[str, Field(alias="givenName", max_length=256, min_length=1)]
+    """
+    Nome próprio do usuário.
+    """
+    family_name: Annotated[str, Field(alias="familyName", max_length=256, min_length=1)]
+    """
+    Sobrenome do usuário.
+    """
+    email: Annotated[EmailStr, Field(max_length=254, min_length=3)]
+    """
+    E-mail do usuário; é também o nome de login. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
+    """
+
+
+class UserRequestedCreateData(ContractModel):
+    """
+    data de requested com operation create. Publicado somente pela API, com requestedBy = anonymous no auto-cadastro. Sem senha (decisão 0014).
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    operation_id: Annotated[
+        str,
+        Field(
+            alias="operationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
+    """
+    request_digest: Annotated[
+        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
+    ]
+    """
+    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
+    """
+    specification: Annotated[UserCreateSpecification, Field(title="UserCreateSpecification")]
+
+
+class UserRequestedDeleteData(ContractModel):
+    """
+    data de requested com operation delete: declara lifecycle absent. Publicado somente pela API.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    operation_id: Annotated[
+        str,
+        Field(
+            alias="operationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
+    """
+    request_digest: Annotated[
+        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
+    ]
+    """
+    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
+    """
+    resource_version: Annotated[
+        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
+    ]
+    """
+    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
+    """
+
+
+class UserCreateRequest(ContractModel):
+    """
+    Corpo de POST /v1/users (auto-cadastro, escrita anônima). A API atribui resourceId, operationId e requestDigest, e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    given_name: Annotated[str, Field(alias="givenName", max_length=256, min_length=1)]
+    """
+    Nome próprio do usuário.
+    """
+    family_name: Annotated[str, Field(alias="familyName", max_length=256, min_length=1)]
+    """
+    Sobrenome do usuário.
+    """
+    email: Annotated[EmailStr, Field(max_length=254, min_length=3)]
+    """
+    E-mail do usuário; é também o nome de login. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
+    """
+
+
+class UserDesiredView(ContractModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    lifecycle: Lifecycle
+    reconciliation: Reconciliation
+    platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
+    given_name: Annotated[str | None, Field(alias="givenName", max_length=256, min_length=1)] = None
+    """
+    Nome próprio do usuário.
+    """
+    family_name: Annotated[str | None, Field(alias="familyName", max_length=256, min_length=1)] = (
+        None
+    )
+    """
+    Sobrenome do usuário.
+    """
+    email: Annotated[EmailStr | None, Field(max_length=254, min_length=3)] = None
+    """
+    E-mail do usuário; é também o nome de login. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
+    """
+
+
+class UserObservedView(ContractModel):
+    """
+    Última observação; ausente antes da primeira.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    presence: Presence
+    observed_at: Annotated[AwareDatetime, Field(alias="observedAt")]
+    """
+    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
+    """
+    email_verified: Annotated[bool | None, Field(alias="emailVerified")] = None
+    user_state: Annotated[UserState | None, Field(alias="userState")] = None
+    platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
+
+
+class User(ContractModel):
+    """
+    Visão consolidada do User exposta pela API (GET /v1/users/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    resource_id: Annotated[
+        str,
+        Field(
+            alias="resourceId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Também o ID do usuário no provedor de identidade (decisão 0014).
+    """
+    resource_version: Annotated[
+        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
+    ]
+    """
+    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
+    """
+    desired_generation: Annotated[int, Field(alias="desiredGeneration", ge=1, le=9007199254740991)]
+    """
+    Geração lógica do estado desejado (desiredGeneration, observedGeneration).
+    """
+    phase: Phase
+    conditions: Annotated[list[Condition], Field(max_length=32)]
+    desired: Annotated[UserDesiredView, Field(title="UserDesiredView")]
+    observed: Annotated[UserObservedView | None, Field(title="UserObservedView")] = None
+    """
+    Última observação; ausente antes da primeira.
+    """
+    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
+    """
+    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
+    """
+    updated_at: Annotated[AwareDatetime, Field(alias="updatedAt")]
+    """
+    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
+    """
+
+
+class MessageEnvelope(ContractModel):
     """
     Metadados de transporte e rastreamento de toda mensagem (MESSAGING.md, Campos do envelope). O conteúdo de data é validado pelo contrato do messageType e do tipo de recurso. O tamanho de data é limitado a 256 KiB.
     """
@@ -623,17 +908,25 @@ class MessageEnvelope(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    messageId: Annotated[
-        str, Field(max_length=128, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
+    message_id: Annotated[
+        str,
+        Field(
+            alias="messageId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
     ]
     """
     Identidade única da mensagem; também a chave de deduplicação do transporte.
     """
-    schemaVersion: Annotated[str, Field(max_length=16, pattern="^[0-9]{1,4}\\.[0-9]{1,4}$")]
+    schema_version: Annotated[
+        str, Field(alias="schemaVersion", max_length=16, pattern="^[0-9]{1,4}\\.[0-9]{1,4}$")
+    ]
     """
     Versão MAJOR.MINOR do contrato da mensagem (envelope e data).
     """
-    messageType: Annotated[MessageType, Field(title="MessageType")]
+    message_type: Annotated[MessageType, Field(alias="messageType", title="MessageType")]
     """
     Tipo semântico da mensagem.
     """
@@ -645,12 +938,20 @@ class MessageEnvelope(BaseModel):
     """
     Módulo funcional ao qual a mensagem pertence (token do subject).
     """
-    resourceType: Annotated[str, Field(max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")]
+    resource_type: Annotated[
+        str, Field(alias="resourceType", max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")
+    ]
     """
     Tipo de recurso (token do subject).
     """
-    resourceId: Annotated[
-        str, Field(max_length=128, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
+    resource_id: Annotated[
+        str,
+        Field(
+            alias="resourceId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
     ]
     """
     Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
@@ -659,50 +960,66 @@ class MessageEnvelope(BaseModel):
     """
     Operação ou resultado semântico associado. desired, observed e updated usam changed.
     """
-    desiredGeneration: Annotated[int | None, Field(ge=1, le=9007199254740991)] = None
+    desired_generation: Annotated[
+        int | None, Field(alias="desiredGeneration", ge=1, le=9007199254740991)
+    ] = None
     """
     Geração lógica do estado desejado (desiredGeneration, observedGeneration).
     """
-    observedGeneration: Annotated[int | None, Field(ge=1, le=9007199254740991)] = None
+    observed_generation: Annotated[
+        int | None, Field(alias="observedGeneration", ge=1, le=9007199254740991)
+    ] = None
     """
     Geração desejada à qual a observação se relaciona; não é preenchida artificialmente.
     """
     presence: Presence | None = None
-    actionId: Annotated[
-        str | None, Field(max_length=512, min_length=1, pattern="^[a-z0-9][a-z0-9.-]*$")
+    action_id: Annotated[
+        str | None,
+        Field(alias="actionId", max_length=512, min_length=1, pattern="^[a-z0-9][a-z0-9.-]*$"),
     ] = None
     """
     Identidade determinística da decisão de reconciliação. O formato é definido pelo contrato do recurso (x-actionIdFormat no desired).
     """
-    requestedBy: Annotated[
-        str | None, Field(max_length=256, min_length=1, pattern="^[A-Za-z0-9._:@-]+$")
+    requested_by: Annotated[
+        str | None,
+        Field(alias="requestedBy", max_length=256, min_length=1, pattern="^[A-Za-z0-9._:@-]+$"),
     ] = None
     """
     Identificador opaco do solicitante autenticado (requestedBy). Não contém credenciais.
     """
-    correlationId: Annotated[
+    correlation_id: Annotated[
         str | None,
-        Field(max_length=128, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$"),
+        Field(
+            alias="correlationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
     ] = None
     """
     Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
     """
-    causationId: Annotated[
+    causation_id: Annotated[
         str | None,
-        Field(max_length=128, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$"),
+        Field(
+            alias="causationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
     ] = None
     """
     messageId da mensagem que causou esta.
     """
-    occurredAt: AwareDatetime
+    occurred_at: Annotated[AwareDatetime, Field(alias="occurredAt")]
     """
     Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
     """
-    publishedAt: AwareDatetime
+    published_at: Annotated[AwareDatetime, Field(alias="publishedAt")]
     """
     Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
     """
-    observedAt: AwareDatetime | None = None
+    observed_at: Annotated[AwareDatetime | None, Field(alias="observedAt")] = None
     """
     Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
     """
@@ -712,9 +1029,9 @@ class MessageEnvelope(BaseModel):
     """
 
 
-class OrganizationDesiredData(BaseModel):
+class OrganizationDesiredData(ContractModel):
     """
-    data de desired da Organization: estado pretendido e controle de reconciliação. Publicado somente pelo Manager.
+    data de desired da Organization: estado pretendido e controle de reconciliação. Publicado somente pelo Manager. Não carrega dados pessoais.
     """
 
     model_config = ConfigDict(
@@ -728,8 +1045,49 @@ class OrganizationDesiredData(BaseModel):
     """
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
-    platformAccess: PlatformAccess
-    firstAdministrator: FirstAdministrator
+    platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
+    owner_user_id: Annotated[
+        str,
+        Field(
+            alias="ownerUserId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Dono da Organization: resourceId do User autenticado que a criou (sub do token). Atribuído pelo Manager a partir de requestedBy no create; imutável.
+    """
+
+
+class UserDesiredData(ContractModel):
+    """
+    data de desired do User: estado pretendido e controle de reconciliação. Publicado somente pelo Manager. Sem senha: a credencial é definida pelo usuário no provedor de identidade (decisão 0014). Com lifecycle absent, não carrega dados pessoais.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    lifecycle: Lifecycle
+    reconciliation: Reconciliation
+    platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
+    """
+    granted: o usuário tem a role platform.user no projeto da plataforma. Atribuído pelo Manager na criação.
+    """
+    given_name: Annotated[str | None, Field(alias="givenName", max_length=256, min_length=1)] = None
+    """
+    Nome próprio do usuário.
+    """
+    family_name: Annotated[str | None, Field(alias="familyName", max_length=256, min_length=1)] = (
+        None
+    )
+    """
+    Sobrenome do usuário.
+    """
+    email: Annotated[EmailStr | None, Field(max_length=254, min_length=3)] = None
+    """
+    E-mail do usuário; é também o nome de login. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
+    """
 
 
 class CoreContracts(
@@ -752,6 +1110,12 @@ class CoreContracts(
         | OrganizationUpdateRequest
         | Organization
         | OrganizationList
+        | UserDesiredData
+        | UserObservedData
+        | UserRequestedCreateData
+        | UserRequestedDeleteData
+        | UserCreateRequest
+        | User
     ]
 ):
     root: Annotated[
@@ -772,7 +1136,13 @@ class CoreContracts(
         | OrganizationCreateRequest
         | OrganizationUpdateRequest
         | Organization
-        | OrganizationList,
+        | OrganizationList
+        | UserDesiredData
+        | UserObservedData
+        | UserRequestedCreateData
+        | UserRequestedDeleteData
+        | UserCreateRequest
+        | User,
         Field(title="CoreContracts"),
     ]
     """

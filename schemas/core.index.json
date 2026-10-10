@@ -56,6 +56,24 @@
     },
     {
       "$ref": "core/organization/resource-list.v1.schema.json"
+    },
+    {
+      "$ref": "core/user/desired.v1.schema.json"
+    },
+    {
+      "$ref": "core/user/observed.v1.schema.json"
+    },
+    {
+      "$ref": "core/user/requested-create.v1.schema.json"
+    },
+    {
+      "$ref": "core/user/requested-delete.v1.schema.json"
+    },
+    {
+      "$ref": "core/user/api-create-request.v1.schema.json"
+    },
+    {
+      "$ref": "core/user/resource.v1.schema.json"
     }
   ]
 }

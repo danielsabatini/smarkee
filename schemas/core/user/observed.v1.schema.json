@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UserObservedData",
+  "description": "data de observed do User: estado lido do provedor de identidade. Os campos estão presentes quando presence é present; com absent ou unknown, data é vazio.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "emailVerified": {
+      "description": "Se o e-mail foi verificado (a ativação foi concluída).",
+      "type": "boolean",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "userState": {
+      "$ref": "definitions.v1.schema.json#/$defs/userState",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "platformAccess": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
+      "description": "granted quando a role platform.user está atribuída ao usuário.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

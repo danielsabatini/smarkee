@@ -19,7 +19,7 @@
       "x-sensitivity": "public"
     },
     "field": {
-      "description": "Caminho do campo inválido no corpo do pedido, quando aplicável (por exemplo, firstAdministrator.email).",
+      "description": "Caminho do campo inválido no corpo do pedido, quando aplicável (por exemplo, specification.name).",
       "type": "string",
       "minLength": 1,
       "maxLength": 256,

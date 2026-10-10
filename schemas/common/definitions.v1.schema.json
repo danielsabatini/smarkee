@@ -113,6 +113,15 @@
       "description": "Texto descritivo para pessoas. Nunca contém valores confidential ou secretReference.",
       "type": "string",
       "maxLength": 4096
+    },
+    "platformAccess": {
+      "description": "Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization, role platform.user do User); revoked a remove.",
+      "type": "string",
+      "enum": [
+        "granted",
+        "revoked"
+      ],
+      "x-enumPolicy": "closed"
     }
   }
 }

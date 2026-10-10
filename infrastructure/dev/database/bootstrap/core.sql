@@ -10,7 +10,8 @@ DECLARE
   function_role text;
 BEGIN
   FOREACH function_role IN ARRAY ARRAY[
-    'core_organization_manager', 'core_organization_api', 'core_relay', 'core_maintenance'
+    'core_organization_manager', 'core_organization_api', 'core_user_manager', 'core_user_api',
+    'core_relay', 'core_maintenance'
   ] LOOP
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = function_role) THEN
       EXECUTE format('CREATE ROLE %I NOLOGIN', function_role);
