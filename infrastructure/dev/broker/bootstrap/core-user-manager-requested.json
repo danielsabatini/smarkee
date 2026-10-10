@@ -1,0 +1,13 @@
+{
+  "durable_name": "core-user-manager-requested",
+  "description": "Trabalho: requested de user para o Manager, compartilhado pelas instâncias (docs/NATS.md, 7.6)",
+  "deliver_policy": "all",
+  "ack_policy": "explicit",
+  "ack_wait": 15000000000,
+  "backoff": [15000000000, 30000000000, 60000000000, 120000000000, 300000000000],
+  "max_deliver": 10,
+  "filter_subject": "api.requested.core.user.>",
+  "replay_policy": "instant",
+  "max_ack_pending": 100,
+  "max_waiting": 64
+}

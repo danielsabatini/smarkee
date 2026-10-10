@@ -75,6 +75,30 @@ services:
     container_name: broker-bootstrap-updated.smarkee.internal
     command: ["nats", "stream", "add", "UPDATED", "--config", "/bootstrap/updated.json"]
 
+  # Consumers duráveis de trabalho (docs/NATS.md §7.6), um por tipo e por arquivo em
+  # bootstrap/<módulo>-<tipo>-<serviço>-<stream>.json. Consumer inexistente é criado; existente com
+  # configuração idêntica não muda; configuração diferente falha de forma explícita. Espera o
+  # Stream correspondente. Todo arquivo novo exige o seu serviço aqui.
+  broker-bootstrap-core-organization-manager-requested:
+    <<: *broker-bootstrap
+    container_name: broker-bootstrap-core-organization-manager-requested.smarkee.internal
+    command: ["nats", "consumer", "add", "REQUESTED", "--config", "/bootstrap/core-organization-manager-requested.json"]
+    depends_on:
+      broker:
+        condition: service_healthy
+      broker-bootstrap-requested:
+        condition: service_completed_successfully
+
+  broker-bootstrap-core-user-manager-requested:
+    <<: *broker-bootstrap
+    container_name: broker-bootstrap-core-user-manager-requested.smarkee.internal
+    command: ["nats", "consumer", "add", "REQUESTED", "--config", "/bootstrap/core-user-manager-requested.json"]
+    depends_on:
+      broker:
+        condition: service_healthy
+      broker-bootstrap-requested:
+        condition: service_completed_successfully
+
 volumes:
   broker-data:
     name: broker-data

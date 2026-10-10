@@ -5,6 +5,8 @@ name: core
 include:
   - path: ../database/compose.yaml
     env_file: ../database/.env
+  - path: ../broker/compose.yaml
+    env_file: ../broker/.env
 
 services:
   # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do módulo core
@@ -36,6 +38,49 @@ services:
         aliases:
           - core-migrate.smarkee.internal
     restart: "no"
+
+  # Serviço core (decisão 0011): API HTTP, Manager, relay do outbox, Reconciler, Executor e Observer
+  # num único processo. Só o gateway o alcança (api-dev.smarkee.com.br); a porta 8000 não é
+  # publicada no host. Espera a migração do SSOT e os consumers duráveis do broker.
+  core:
+    build:
+      context: ../../../features/core
+    image: ${CORE_IMAGE:-smarkee-core:dev}
+    container_name: core.smarkee.internal
+    environment:
+      # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
+      # defaults do serviço (CORE_<SEÇÃO>_<CAMPO>, features/core/src/core/settings.py).
+      CORE_DATABASE_ORGANIZATION_MANAGER_PASSWORD: ${CORE_DATABASE_ORGANIZATION_MANAGER_PASSWORD:?Defina no .env}
+      CORE_DATABASE_ORGANIZATION_API_PASSWORD: ${CORE_DATABASE_ORGANIZATION_API_PASSWORD:?Defina no .env}
+      CORE_DATABASE_USER_MANAGER_PASSWORD: ${CORE_DATABASE_USER_MANAGER_PASSWORD:?Defina no .env}
+      CORE_DATABASE_USER_API_PASSWORD: ${CORE_DATABASE_USER_API_PASSWORD:?Defina no .env}
+      CORE_DATABASE_RELAY_PASSWORD: ${CORE_DATABASE_RELAY_PASSWORD:?Defina no .env}
+      CORE_NATS_PASSWORD: ${CORE_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      CORE_AUTH_AUDIENCE: ${CORE_AUTH_AUDIENCE:?Defina no .env (ID do projeto smarkee, org core)}
+    depends_on:
+      core-migrate:
+        condition: service_completed_successfully
+      broker:
+        condition: service_healthy
+      broker-bootstrap-core-organization-manager-requested:
+        condition: service_completed_successfully
+      broker-bootstrap-core-user-manager-requested:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - core.smarkee.internal
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
 
 networks:
   internal:

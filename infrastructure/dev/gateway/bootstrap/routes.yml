@@ -61,3 +61,33 @@ services:
           - /ui/v2/login
         preserve_host: true
         strip_path: false
+
+  # API da plataforma (serviço core). Host próprio (api-dev.smarkee.com.br; em dev, aponte
+  # 127.0.0.1 em /etc/hosts). Só `/v1` é público: `/healthz` fica na rede interna. A API só
+  # é alcançada por este gateway, que acrescenta o endereço do cliente a `X-Forwarded-For`
+  # (a API usa o último valor para o limite de taxa das escritas anônimas).
+  - name: core
+    url: http://core.smarkee.internal:8000
+    routes:
+      - name: core-api
+        hosts:
+          - api-dev.smarkee.com.br
+        paths:
+          - /v1
+        strip_path: false
+      # Auto-cadastro (escrita anônima): limite de taxa por IP já no gateway, o primeiro nível
+      # de proteção (docs/RESOURCE-CONTROL-SECURITY.md §12). A API aplica o segundo.
+      - name: core-register
+        hosts:
+          - api-dev.smarkee.com.br
+        paths:
+          - ~/v1/users$
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 10
+              policy: local
+              limit_by: ip

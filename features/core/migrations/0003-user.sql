@@ -73,7 +73,10 @@ CREATE INDEX IF NOT EXISTS user_outbox_pending
 CREATE INDEX IF NOT EXISTS user_outbox_published
   ON core.user_outbox (published_at) WHERE published_at IS NOT NULL;
 
--- Interface de leitura versionada da API (decisão 0004): sem failure_count nem requested_by.
+-- Interface de leitura versionada da API (decisão 0004): sem failure_count. `requested_by` aparece
+-- só na view da Operation, para a API autorizar a leitura (docs/POSTGRESQL.md §6.5). A definição
+-- acompanha a da migração 0004: o core-migrate reaplica todos os arquivos, e uma view não pode
+-- perder coluna.
 CREATE OR REPLACE VIEW core.user_v1 AS
   SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
          resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
@@ -81,7 +84,8 @@ CREATE OR REPLACE VIEW core.user_v1 AS
 
 CREATE OR REPLACE VIEW core.user_operation_v1 AS
   SELECT operation_id, resource_id, operation_type, desired_generation, request_digest,
-         operation_status, operation_status_reason, created_at, updated_at, completed_at
+         operation_status, operation_status_reason, created_at, updated_at, completed_at,
+         requested_by
     FROM core.user_operation;
 
 -- Privilégios (docs/POSTGRESQL.md §14.2).

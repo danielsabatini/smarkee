@@ -1,4 +1,4 @@
-"""Publicação dos `requested` no transporte (a API só publica, nunca consome)."""
+"""Publicação no transporte: a API publica `requested`; o relay publica as mensagens do Manager."""
 
 from typing import Protocol
 

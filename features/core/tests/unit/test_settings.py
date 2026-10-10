@@ -31,3 +31,17 @@ def test_unknown_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CORE_NATS_TYPO", "x")
     with pytest.raises(ValidationError):
         CoreSettings()
+
+
+def test_missing_required_lists_every_secret_without_default() -> None:
+    from core.settings import REQUIRED_SECRETS, missing_required
+
+    assert missing_required(CoreSettings()) == list(REQUIRED_SECRETS)
+
+
+def test_missing_required_is_empty_when_everything_is_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    from core.settings import REQUIRED_SECRETS, missing_required
+
+    for name in REQUIRED_SECRETS:
+        monkeypatch.setenv(name, "valor")
+    assert missing_required(CoreSettings()) == []

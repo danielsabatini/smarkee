@@ -83,3 +83,30 @@ class CoreSettings(BaseSettings):
     nats: NatsSettings = NatsSettings()
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
+
+
+REQUIRED_SECRETS = (
+    "CORE_AUTH_AUDIENCE",
+    "CORE_NATS_PASSWORD",
+    "CORE_DATABASE_ORGANIZATION_MANAGER_PASSWORD",
+    "CORE_DATABASE_ORGANIZATION_API_PASSWORD",
+    "CORE_DATABASE_USER_MANAGER_PASSWORD",
+    "CORE_DATABASE_USER_API_PASSWORD",
+    "CORE_DATABASE_RELAY_PASSWORD",
+)
+
+
+def missing_required(settings: CoreSettings) -> list[str]:
+    """Nomes das variáveis obrigatórias (sem default) que não foram informadas."""
+    database = settings.database
+    present = {
+        "CORE_AUTH_AUDIENCE": bool(settings.auth.audience),
+        "CORE_NATS_PASSWORD": settings.nats.password is not None,
+        "CORE_DATABASE_ORGANIZATION_MANAGER_PASSWORD": database.organization_manager_password
+        is not None,
+        "CORE_DATABASE_ORGANIZATION_API_PASSWORD": database.organization_api_password is not None,
+        "CORE_DATABASE_USER_MANAGER_PASSWORD": database.user_manager_password is not None,
+        "CORE_DATABASE_USER_API_PASSWORD": database.user_api_password is not None,
+        "CORE_DATABASE_RELAY_PASSWORD": database.relay_password is not None,
+    }
+    return [name for name in REQUIRED_SECRETS if not present[name]]

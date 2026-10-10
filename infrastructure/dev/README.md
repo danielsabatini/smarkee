@@ -6,10 +6,10 @@ Ambiente local em Docker Compose. **Somente para desenvolvimento**: as credencia
 
 ### 1. Resolução de DNS local (`/etc/hosts`)
 
-O gateway roteia por host e atende o Zitadel em `ipm-dev.smarkee.com.br`. Adicione o apontamento para o loopback no seu arquivo `/etc/hosts`:
+O gateway roteia por host: atende o Zitadel em `ipm-dev.smarkee.com.br` e a API da plataforma em `api-dev.smarkee.com.br`. Adicione os apontamentos para o loopback no seu arquivo `/etc/hosts`:
 
 ```bash
-echo "127.0.0.1 ipm-dev.smarkee.com.br" | sudo tee -a /etc/hosts
+echo "127.0.0.1 ipm-dev.smarkee.com.br api-dev.smarkee.com.br" | sudo tee -a /etc/hosts
 ```
 
 ### 2. Criação dos arquivos `.env`
@@ -17,7 +17,7 @@ echo "127.0.0.1 ipm-dev.smarkee.com.br" | sudo tee -a /etc/hosts
 Cada serviço lê o seu `.env` (fora do git), criado a partir do exemplo:
 
 ```bash
-for s in database broker identity gateway; do cp -n $s/.env.example $s/.env; done
+for s in database broker identity gateway core; do cp -n $s/.env.example $s/.env; done
 ```
 
 Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
@@ -29,6 +29,8 @@ Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
 | `identity/.env` | `ZITADEL_MASTERKEY` | Exatamente 32 caracteres: `openssl rand -hex 16`. Não altere depois da primeira subida |
 | `identity/.env` | `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD` | Senha inicial do administrador do Zitadel, com maiúscula, minúscula, número e símbolo |
 | `identity/.env` | `ZITADEL_SESSION_COOKIE_SECRET` | `openssl rand -hex 32` |
+| `core/.env` | `CORE_NATS_PASSWORD` | A mesma `NATS_PASSWORD` de `broker/.env` |
+| `core/.env` | `CORE_AUTH_AUDIENCE` | ID do projeto `smarkee` no Zitadel (organização `core`) |
 
 Variáveis adicionais configuradas no `identity/.env`:
 - `ZITADEL_FIRSTINSTANCE_INSTANCENAME`: Nome da instância exibido no console (padrão: `IPM`).
@@ -62,6 +64,7 @@ Com a stack de pé (`docker compose ps`) e o `/etc/hosts` configurado:
 |---|---|---|
 | Console do Zitadel | http://ipm-dev.smarkee.com.br:8080/ui/console/ | Usuário `admin@smarkee.internal` (ou `admin@smarkee.ipm-dev.smarkee.com.br`) e a senha `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD` de `identity/.env` (troca obrigatória no primeiro acesso) |
 | Cadastro de nova organização (Zitadel) | http://ipm-dev.smarkee.com.br:8080/ui/login/register/org | **Desligado** (decisão 0013): o cadastro público foi desativado na política de login; usuários e organizações nascem pela API |
+| API da plataforma | http://api-dev.smarkee.com.br:8080/v1/ | Token do `sk auth login` (`Authorization: Bearer`); o cadastro (`POST /v1/users`) é anônimo, com limite de taxa |
 | Kong Manager | http://localhost:8002 | Nenhuma |
 | Kong Admin API | http://localhost:8001 | Nenhuma |
 | PostgreSQL | `psql "postgresql://smarkee:smarkee@localhost:5432/smarkee"` | Ver "Credenciais" |
@@ -85,6 +88,7 @@ Do host, use a coluna **Host**. De um container na rede `internal` (por exemplo,
 | Zitadel API (direto, sem gateway) | — (porta não publicada) | http://identity.smarkee.internal:8080 com o cabeçalho `Host: ipm-dev.smarkee.com.br:8080` | Chamadas entre serviços e diagnóstico; sem o cabeçalho responde 404 |
 | Zitadel login (direto, sem gateway) | — (porta não publicada) | http://identity-login.smarkee.internal:3000/ui/v2/login/ | Somente diagnóstico (`/ui/v2/login/healthy`) |
 | Kong (proxy HTTP) | http://ipm-dev.smarkee.com.br:8080 | http://gateway.smarkee.internal:8000 | Roteia por host (`gateway/bootstrap/routes.yml`); host desconhecido responde 404 |
+| API da plataforma (`core`) | http://api-dev.smarkee.com.br:8080/v1/ (só `/v1`) | http://core.smarkee.internal:8000 | `/healthz` só na rede interna. O cadastro anônimo tem limite de 10 por minuto por IP no gateway |
 | Kong (proxy HTTPS) | https://localhost:8443 | https://gateway.smarkee.internal:8443 | Certificado autoassinado (`curl -k`); não use para o Zitadel (ver OIDC) · responde 404 sem um host roteado |
 | Kong Admin API | http://localhost:8001 · https://localhost:8444 | http://gateway.smarkee.internal:8001 | Sem autenticação |
 | Kong Manager | http://localhost:8002 · https://localhost:8445 | — | Navegador; sem autenticação |
@@ -204,7 +208,7 @@ O estado inicial é configurado, em primeiro lugar, **por variáveis de ambiente
 | database | `bootstrap/gateway.sql`, `smarkee.sql`, `identity.sql`, `core.sql` (papéis do módulo core) | A própria imagem (`/docker-entrypoint-initdb.d`) | Só na primeira inicialização do volume | Nenhum, até recriar o volume ou aplicar manualmente (pontos de atenção) |
 | identity | Sem pasta: variáveis `ZITADEL_FIRSTINSTANCE_*` e `ZITADEL_DEFAULTINSTANCE_*` (nome da instância, marca d'água e textos de e-mail) em `identity/compose.yaml` | `identity-init` (`zitadel init zitadel`: schemas internos) → `identity` (`start-from-setup`) | Só na primeira inicialização da instância | Nenhum, até recriar a instância (`docker compose down -v`) |
 | gateway | `bootstrap/routes.yml` (configuração declarativa do Kong) | Cadeia `gateway-migrations-bootstrap` → `-up` → `-finish` → `gateway-import` | A cada `up`, antes do `gateway` | Reimporta; reinicie o `gateway` (pontos de atenção) |
-| broker | `bootstrap/<stream>.json` (configuração nativa de Stream do JetStream) | Um serviço `broker-bootstrap-<stream>` por arquivo | A cada `up`, depois que o broker fica saudável | Falha de forma explícita até a alteração deliberada (abaixo) |
+| broker | `bootstrap/<stream>.json` (Stream do JetStream) e `bootstrap/<módulo>-<tipo>-<serviço>-<stream>.json` (consumer durável de trabalho) | Um serviço `broker-bootstrap-<nome>` por arquivo | A cada `up`, depois que o broker fica saudável | Falha de forma explícita até a alteração deliberada (abaixo) |
 | core | `features/core/migrations/*.sql` (schema `core`, tabelas, views e privilégios no SSOT) | `core-migrate` (`psql` como o dono `smarkee`, arquivos em ordem) | A cada `up`, depois que o banco fica saudável | Aplicado no próximo `up`; as migrações são idempotentes e seguem expandir → migrar → contrair (`docs/POSTGRESQL.md` §15) |
 
 Os contêineres de inicialização equivalem a *initContainers*: cada um executa um único comando da CLI oficial e termina; o serviço seguinte declara `depends_on` com `service_completed_successfully`.

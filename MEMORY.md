@@ -27,3 +27,6 @@ Em conformidade com o `AGENTS.md` (Seção 35.1), este arquivo atua exclusivamen
 - Quando houver implementação: escolher o formato de schema e registrar a decisão em `.decisions/`; formalizar em `schemas/` o envelope comum, os limites padrão e a família de contratos descrita em `docs/SCHEMA.md`.
 - Registrar as primeiras ADRs em `.decisions/` (ex.: NATS JetStream, modelo desired/observed).
 - Auditar a consistência entre os quatro documentos de `docs/` e entre eles e `.opencode/`.
+
+- **Dívida de migrações (antes de stg e prd):** o `core-migrate` reaplica todos os arquivos a cada subida e não há tabela de controle de versão. Um objeto alterado por migração posterior (como a view da Operation, com `requested_by`) obriga as migrações antigas a acompanhar a definição nova. Adotar controle de versão das migrações antes de stg/prd.
+- Serviço `core` no ar no dev (API, Manager e relay) e testado de ponta a ponta pelo gateway (cadastro anônimo → SSOT → `DESIRED`). Faltam Reconciler, Executor e Observer (Fase D2), servidor de e-mail em dev e o CLI (Fase E). Aponte `api-dev.smarkee.com.br` para 127.0.0.1 em `/etc/hosts`.

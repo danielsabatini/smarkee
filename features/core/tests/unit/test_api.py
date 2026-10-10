@@ -10,11 +10,11 @@ import pytest
 from core.api.app import Dependencies, create_app
 from core.api.errors import unauthorized
 from core.api.principal import Principal
-from core.api.publisher import PublishError
 from core.api.ratelimit import SlidingWindowLimiter
 from core.api.repository import OperationRecord, ResourceRecord
 from core.api.requests import operation_id_for, request_digest
 from core.contracts import generated
+from core.messaging.publisher import PublishError
 from core.settings import ApiSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)

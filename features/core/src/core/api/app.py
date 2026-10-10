@@ -19,13 +19,13 @@ from fastapi.responses import JSONResponse
 from core.api import principal as roles
 from core.api.errors import ApiError, bad_request, forbidden, not_found, unauthorized
 from core.api.principal import Principal
-from core.api.publisher import Publisher, PublishError
 from core.api.ratelimit import SlidingWindowLimiter
 from core.api.repository import Repository, ResourceRecord
 from core.api.requests import operation_id_for, request_digest
 from core.api.views import MODULE, operation_view, organization_view, user_view
 from core.contracts import generated
 from core.ids import new_identifier, utc_now
+from core.messaging.publisher import Publisher, PublishError
 from core.settings import ApiSettings
 
 logger = logging.getLogger(__name__)

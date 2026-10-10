@@ -2,7 +2,18 @@
 
 Módulo `core` da plataforma: recursos dos quais os demais módulos dependem, começando pela Organization (decisões 0009 a 0011). Requer Python 3.14 e [uv](https://docs.astral.sh/uv/).
 
-Estado atual: contratos, modelos gerados e migrações do SSOT. O serviço (API, Manager, Reconciler, Executor, Observer) ainda não foi implementado.
+Estado atual: contratos, modelos gerados, migrações do SSOT e o serviço em formato colapsado (decisão 0011), com a **API HTTP**, o **Manager** (`requested` de Organization e User) e o **relay do outbox**. Reconciler, Executor e Observer ainda não foram implementados.
+
+## Serviço
+
+```bash
+cd infrastructure/dev && docker compose up -d --build core     # imagem, migração, consumers e serviço
+curl -H 'Host: api-dev.smarkee.com.br' http://127.0.0.1:8080/v1/organizations   # 401 sem token
+```
+
+Configuração por variáveis `CORE_<SEÇÃO>_<CAMPO>` (`src/core/settings.py`; decisão 0011). As obrigatórias, sem default, são as senhas dos papéis do SSOT, a senha do NATS e a audience (`infrastructure/dev/core/.env.example`). Sem elas, o serviço registra quais faltam e encerra com código 2.
+
+A API só valida tokens e publica `requested`; só o Manager escreve no SSOT; o relay publica o `desired` do outbox. Logs em JSON, sem mensagens de exceção (elas podem trazer valores de colunas).
 
 ## Contratos
 
@@ -31,6 +42,14 @@ uv run ruff check .
 uv run ruff format --check .
 uv run pyright
 uv run pytest --cov --cov-report=term-missing
+```
+
+Os testes de `tests/integration` usam a stack de dev (PostgreSQL com os papéis reais e, no pipeline, o NATS) e são pulados se ela não estiver acessível. Para o pipeline completo (requested → Manager → outbox → relay → `DESIRED`), exporte a senha do NATS:
+
+```bash
+NATS_ENV=../../infrastructure/dev/broker/.env
+export CORE_TEST_NATS_PASSWORD=$(grep ^NATS_PASSWORD= $NATS_ENV | cut -d= -f2)
+uv run pytest
 ```
 
 Os testes de contrato (`tests/contract`) verificam, para `common/` e `core/`:

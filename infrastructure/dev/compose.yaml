@@ -13,3 +13,4 @@ include:
   - path: identity/compose.yaml
     env_file: identity/.env
   - path: core/compose.yaml
+    env_file: core/.env
