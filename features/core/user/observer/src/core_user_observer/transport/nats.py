@@ -29,7 +29,7 @@ STREAMS = (
 )
 
 
-async def connect(settings: NatsSettings, *, name: str = "srv-core-user-observer") -> NatsClient:
+async def connect(settings: NatsSettings, *, name: str = "core-user-observer") -> NatsClient:
     password = settings.password.get_secret_value() if settings.password else None
     # `nats.connect` aceita opções livres; o pyright não as conhece.
     return await nats.connect(  # pyright: ignore[reportUnknownMemberType]

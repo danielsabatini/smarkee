@@ -7,8 +7,8 @@ from nats.js import JetStreamContext
 from core_user_publisher.settings import NatsSettings
 
 
-async def connect(settings: NatsSettings, *, name: str = "srv-core-user-publisher") -> NatsClient:
-    """Conecta com a identidade do Publisher (`srv-core-user-publisher`)."""
+async def connect(settings: NatsSettings, *, name: str = "core-user-publisher") -> NatsClient:
+    """Conecta com a identidade do Publisher (`core-user-publisher`)."""
     password = settings.password.get_secret_value() if settings.password else None
     # `nats.connect` aceita opções livres; o pyright não as conhece.
     return await nats.connect(  # pyright: ignore[reportUnknownMemberType]

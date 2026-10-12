@@ -55,7 +55,7 @@ services:
           - ipm-organization-migrate.smarkee.internal
     restart: "no"
 
-  # Receiver (srv-ipm-organization-receiver): só o gateway a alcança; a porta 8000 não é publicada no host.
+  # Receiver (ipm-organization-receiver): só o gateway a alcança; a porta 8000 não é publicada no host.
   ipm-organization-receiver:
     build:
       context: ./receiver

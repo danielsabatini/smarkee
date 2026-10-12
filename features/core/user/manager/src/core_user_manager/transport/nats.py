@@ -7,8 +7,8 @@ from nats.js import JetStreamContext
 from core_user_manager.settings import NatsSettings
 
 
-async def connect(settings: NatsSettings, *, name: str = "srv-core-user-manager") -> NatsClient:
-    """Conecta com a identidade do Manager (`srv-core-user-manager`)."""
+async def connect(settings: NatsSettings, *, name: str = "core-user-manager") -> NatsClient:
+    """Conecta com a identidade do Manager (`core-user-manager`)."""
     password = settings.password.get_secret_value() if settings.password else None
     # `nats.connect` aceita opções livres; o pyright não as conhece.
     return await nats.connect(  # pyright: ignore[reportUnknownMemberType]

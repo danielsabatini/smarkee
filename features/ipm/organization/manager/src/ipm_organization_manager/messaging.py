@@ -43,7 +43,7 @@ TRANSIENT_DATABASE_ERRORS = (
 
 
 async def connect(
-    settings: NatsSettings, *, name: str = "srv-ipm-organization-manager"
+    settings: NatsSettings, *, name: str = "ipm-organization-manager"
 ) -> NatsClient:
     password = settings.password.get_secret_value() if settings.password else None
     # `nats.connect` aceita opções livres; o pyright não as conhece.

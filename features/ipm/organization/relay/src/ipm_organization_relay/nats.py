@@ -34,9 +34,7 @@ class Publisher(Protocol):
         ...
 
 
-async def connect(
-    settings: NatsSettings, *, name: str = "srv-ipm-organization-relay"
-) -> NatsClient:
+async def connect(settings: NatsSettings, *, name: str = "ipm-organization-relay") -> NatsClient:
     password = settings.password.get_secret_value() if settings.password else None
     # `nats.connect` aceita opções livres; o pyright não as conhece.
     return await nats.connect(  # pyright: ignore[reportUnknownMemberType]
