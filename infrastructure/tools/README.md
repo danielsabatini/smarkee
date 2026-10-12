@@ -4,11 +4,12 @@ Imagens de contêiner mínimas e utilitárias para a operação, bootstrap e aut
 
 ## Imagens Disponíveis
 
-- **`psql-client/` (`smarkee-psql-client`)**: Imagem mínima com Alpine Linux e `postgresql18-client` (v18.6), usada para aplicar migrações DDL e rotinas administrativas no SSOT.
-- **`nats-client/` (`smarkee-nats-client`)**: Imagem mínima com Alpine Linux e o binário estático oficial do `nats` CLI, usada para provisionar Streams e Consumers no barramento NATS JetStream.
+- **`psql-client/` (`smarkee-psql-client`)**: Imagem mínima com Alpine Linux 3.23 e `postgresql18-client` (v18.6), usada para aplicar migrações DDL e rotinas administrativas no SSOT.
+- **`nats-client/` (`smarkee-nats-client`)**: Imagem mínima com Alpine Linux 3.23 e o binário estático oficial do `nats` CLI (0.5.0, verificado por SHA256), usada para provisionar Streams e Consumers no barramento NATS JetStream.
 
 ## Diretrizes de Segurança
 
-1. **Menor Privilégio:** Todas as ferramentas executam como usuário sem privilégios (`UID 10001: GID 10001`), nunca como `root`.
-2. **Superfície Mínima:** Nenhuma imagem contém daemons ou serviços em segundo plano.
-3. **Imagens Leves:** Otimizadas para rápido download e cold-start tanto em ambiente de desenvolvimento local quanto em *initContainers* e *Jobs* de Kubernetes.
+1. **Menor Privilégio:** Todas as ferramentas executam como `10001:10001`, nunca como `root`, e funcionam com `--read-only` e `--cap-drop ALL`.
+2. **Reprodutível:** versões da base e das ferramentas fixadas por `ARG`; binários baixados são verificados por checksum.
+3. **Superfície Mínima:** Nenhuma imagem contém daemons ou serviços em segundo plano.
+4. **Imagens Leves:** Otimizadas para rápido download e cold-start tanto em ambiente de desenvolvimento local quanto em *initContainers* e *Jobs* de Kubernetes.

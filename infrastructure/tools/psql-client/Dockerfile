@@ -1,12 +1,19 @@
-# Imagem mínima da CLI psql (PostgreSQL) para migrações e comandos administrativos.
-# Baseada em Alpine Linux, executa sem privilégios (non-root) e com superfície de ataque mínima.
-FROM alpine:3.21
+# syntax=docker/dockerfile:1
+# Imagem mínima da CLI `psql` (cliente PostgreSQL 18) para migrações e comandos administrativos.
+#
+# - Base Alpine 3.23, que já traz `postgresql18-client` no repositório estável (sem misturar o
+#   repositório `edge`, que quebra a reprodutibilidade e o ABI da base).
+# - Uma única camada de pacote (`--no-cache`, sem índice nem cache do apk) e execução sem privilégios.
+# - Só o cliente: sem servidor, extensões nem daemons.
+ARG ALPINE_VERSION=3.23
+FROM alpine:${ALPINE_VERSION}
 
-RUN apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main postgresql18-client ca-certificates && \
-    addgroup -g 10001 smarkee && \
-    adduser -u 10001 -G smarkee -s /bin/sh -D smarkee
+LABEL org.opencontainers.image.title="smarkee-psql-client" \
+      org.opencontainers.image.description="Cliente psql 18 para migrações do SSOT"
 
-USER 10001
+RUN apk add --no-cache postgresql18-client \
+ && adduser -D -H -u 10001 -s /sbin/nologin smarkee
+
+USER 10001:10001
 WORKDIR /migrations
-
 CMD ["psql", "--help"]
