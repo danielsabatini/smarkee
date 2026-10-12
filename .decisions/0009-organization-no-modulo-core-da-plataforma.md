@@ -1,7 +1,7 @@
 # 0009 — Organization no módulo `core` da plataforma
 
 - **Data:** 2026-10-09
-- **Status:** Aceita. Substitui o módulo `ipm` citado para a Organization na decisão 0006 (o restante da 0006 continua válido). Revisada em 2026-10-10: o User também é do módulo `core` (decisão 0014).
+- **Status:** Substituída pela decisão 0016 quanto à Organization (volta ao módulo `ipm`). Continua válido que o User é do módulo `core` (decisão 0014). Mantida como histórico.
 
 ## Contexto
 
@@ -12,10 +12,10 @@ Com isso, qualquer módulo futuro (secrets, clusters) dependeria do módulo de i
 ## Decisão
 
 - A Organization é um recurso **da plataforma**, no módulo **`core`**:
-  - subjects `*.core.organization.*`;
-  - serviços `srv-core-organization-*`;
-  - código em `features/core`;
-  - comando `sk organization create|get|list|update|delete`.
+  - subjects `*.ipm.organization.*`;
+  - serviços `srv-ipm-organization-*`;
+  - código em `features/core/<tipo>/<papel>` (decisão 0015);
+  - comando `sk ipm organization create|get|list|update|delete`.
 - `core` é o módulo dos recursos da própria plataforma dos quais os demais dependem. O nome `platform` foi descartado por ser ambíguo com o diretório `platform/`, que reúne capacidades de infraestrutura (database, gateway, vault).
 - O **User** também é um recurso do módulo `core` (decisão 0014): é a identidade da plataforma, da qual depende a criação de uma Organization. O módulo `ipm` fica com o que vier depois, como os membros de uma Organization e a configuração de identidade dentro dela.
 - Cada Executor escreve em um único sistema externo. O Executor da Organization escreve no Zitadel (decisão 0010); os namespaces derivados são recursos dos próprios módulos, referenciando o `organizationId`.
@@ -23,9 +23,9 @@ Com isso, qualquer módulo futuro (secrets, clusters) dependeria do módulo de i
 ## Justificativa
 
 - A dependência passa a seguir o sentido correto: os módulos dependem da plataforma, e não de outro módulo.
-- O CLI fica coerente: comandos da plataforma (`sk auth`, `sk organization`) e comandos dos módulos (`sk ipm ...`).
+- O CLI fica coerente: comandos da plataforma (`sk auth`, `sk ipm organization`) e comandos dos módulos (`sk ipm ...`).
 
 ## Consequências
 
-- `docs/MESSAGING.md`, `NATS.md`, `RESOURCE-CONTROL-LOOP.md` e `RESOURCE-CONTROL-SECURITY.md` passam a usar `core.organization`.
+- `docs/MESSAGING.md`, `NATS.md`, `RESOURCE-CONTROL-LOOP.md` e `RESOURCE-CONTROL-SECURITY.md` passam a usar `ipm.organization`.
 - O SSOT ganha o schema `core` (um schema por módulo, `docs/POSTGRESQL.md`).

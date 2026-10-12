@@ -17,9 +17,9 @@ Consequências identificadas na revisão:
 ## Decisão
 
 - **Remover o inbox.** A correção é garantida pelas regras semânticas, e o transporte já deduplica por `Nats-Msg-Id` dentro da sua janela.
-- **`requested`:** a identidade da Operation (`operationId`) é atribuída pela API e transportada no `requested`. Ela é derivada de forma determinística da chave de idempotência do cliente, no escopo do solicitante e do tipo de recurso, ou é aleatória sem chave. A API também transporta o `requestDigest`, para detectar o reuso da chave com outro conteúdo. A chave primária da Operation é a garantia de idempotência.
+- **`requested`:** a identidade da Operation (`operationId`) é atribuída pelo Receiver e transportada no `requested`. Ela é derivada de forma determinística da chave de idempotência do cliente, no escopo do solicitante e do tipo de recurso, ou é aleatória sem chave. O Receiver também transporta o `requestDigest`, para detectar o reuso da chave com outro conteúdo. A chave primária da Operation é a garantia de idempotência.
 - **`completed` e `failed`:** nova tabela `<tipo>_action_result`, com o `actionId` como chave primária, registrada antes de qualquer efeito. Um resultado de geração diferente da atual não altera `failureCount` nem `phase`.
-- **Rejeição:** a Operation ganha o estado `rejected` com motivo (`conflict`, `validation`, `not_found`), porque a API responde de forma assíncrona e o conflito só é conhecido pelo Manager.
+- **Rejeição:** a Operation ganha o estado `rejected` com motivo (`conflict`, `validation`, `not_found`), porque o Receiver responde de forma assíncrona e o conflito só é conhecido pelo Manager.
 
 ## Justificativa
 

@@ -12,7 +12,7 @@
 - **Formato:** JSON Schema 2020-12, um arquivo por contrato com o nome `<contrato>.v<MAJOR>.schema.json` (`SCHEMA.md` §5.3).
 - **Estrutura:**
   - `schemas/common/` guarda as definições comuns, como `resourceId` e o envelope;
-  - cada recurso fica em `schemas/<módulo>/<tipo>/`, por exemplo `schemas/core/organization/`;
+  - cada recurso fica em `schemas/<módulo>/<tipo>/`, por exemplo `schemas/ipm/organization/`;
   - as referências entre arquivos são só locais, por `$ref` relativo (`SCHEMA.md`).
 - **Anotações de campo** (`SCHEMA.md` §9.1), expressas como palavras-chave de extensão com o prefixo `x-`:
   - `x-writer`, `x-mutability`, `x-managed`, `x-normalization`, `x-providerDefault`, `x-sensitivity` e `x-enumPolicy`, no campo;
@@ -24,11 +24,11 @@
 
 ## Justificativa
 
-- JSON Schema é o formato nativo dos payloads JSON das mensagens e da API, e o FastAPI e o Pydantic o usam diretamente.
+- JSON Schema é o formato nativo dos payloads JSON das mensagens e do Receiver, e o FastAPI e o Pydantic o usam diretamente.
 - As palavras-chave `x-` preservam a validação padrão: validadores ignoram as anotações desconhecidas.
 
 ## Consequências
 
-- O gerador e o `jsonschema` (testes de contrato) entram como dependências de desenvolvimento do módulo `core`.
+- O gerador e o `jsonschema` (testes de contrato) entram como dependências de desenvolvimento dos componentes que geram modelos e do projeto de verificação `schemas/` (decisão 0015).
 - O gerador formata a saída com o `ruff format` usando a configuração mais próxima do arquivo de saída; por isso a verificação regera dentro do próprio projeto.
 - Formatos binários (Protobuf, Avro) ficam fora enquanto não houver requisito.

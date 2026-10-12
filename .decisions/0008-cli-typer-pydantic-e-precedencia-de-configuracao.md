@@ -5,7 +5,7 @@
 
 ## Contexto
 
-O CLI `sk` vai crescer com os comandos da plataforma (`sk auth ...`) e dos módulos (`sk ipm ...`). Cada comando precisa de configuração (issuer, client ID, URLs de API) vinda de mais de uma fonte, com uma ordem previsível e igual em todos os comandos.
+O CLI `sk` vai crescer com os comandos da plataforma (`sk auth ...`) e dos módulos (`sk ipm ...`). Cada comando precisa de configuração (issuer, client ID, URLs de Receiver) vinda de mais de uma fonte, com uma ordem previsível e igual em todos os comandos.
 
 ## Decisão
 

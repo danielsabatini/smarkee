@@ -9,19 +9,19 @@ Os documentos usavam *Tenant* como tipo de recurso e unidade de isolamento. A im
 
 Com dois conceitos (Tenant na plataforma e organização no Zitadel), cada sistema passaria a ter o seu próprio identificador, e a plataforma precisaria de uma tabela de correspondência entre eles.
 
-O `resourceId` é atribuído pela API antes de o recurso existir em qualquer sistema externo (`docs/SCHEMA.md`, *Identificador do recurso*), porque ele compõe o subject do `requested` e a criação pelo loop precisa ser idempotente. O Zitadel aceita um ID informado na criação da organização (`organization_id` em `AddOrganizationRequest`, de 1 a 200 caracteres, verificado no `org_service.proto` da v4.19.4).
+O `resourceId` é atribuído pelo Receiver antes de o recurso existir em qualquer sistema externo (`docs/SCHEMA.md`, *Identificador do recurso*), porque ele compõe o subject do `requested` e a criação pelo loop precisa ser idempotente. O Zitadel aceita um ID informado na criação da organização (`organization_id` em `AddOrganizationRequest`, de 1 a 200 caracteres, verificado no `org_service.proto` da v4.19.4).
 
 ## Decisão
 
 - **Organization substitui Tenant** como tipo de recurso e unidade de isolamento (`resourceType = organization`, campo `organizationId`, subjects `*.ipm.organization.*`, serviços `*-ipm-organization-*`).
-- **Identidade única:** o `resourceId` da Organization, gerado pela API (UUIDv7), é o ID da organização no Zitadel (informado em `organization_id` na criação) e o nome dos recursos derivados em outros sistemas, como o namespace do OpenBao e o do Kubernetes.
+- **Identidade única:** o `resourceId` da Organization, gerado pelo Receiver (UUIDv7), é o ID da organização no Zitadel (informado em `organization_id` na criação) e o nome dos recursos derivados em outros sistemas, como o namespace do OpenBao e o do Kubernetes.
 - Recursos que pertencem a uma Organization carregam `organizationId` e o reutilizam como escopo nos sistemas externos.
 
 ## Justificativa
 
 - Um único identificador elimina tabelas de correspondência e a possibilidade de divergência entre sistemas (simplicidade, explícito sobre implícito).
-- Gerar o ID na API, e não deixá-lo ser gerado pelo Zitadel, preserva o loop assíncrono: o ID existe antes do `requested`, e a criação repetida pelo Executor não produz uma segunda organização.
-- Alternativa descartada: usar o ID gerado pelo Zitadel. Exigiria criar a organização de forma síncrona na API, fora do loop, ou publicar o `requested` sem `resourceId`, e o create deixaria de ser idempotente pelo ID.
+- Gerar o ID no Receiver, e não deixá-lo ser gerado pelo Zitadel, preserva o loop assíncrono: o ID existe antes do `requested`, e a criação repetida pelo Executor não produz uma segunda organização.
+- Alternativa descartada: usar o ID gerado pelo Zitadel. Exigiria criar a organização de forma síncrona no Receiver, fora do loop, ou publicar o `requested` sem `resourceId`, e o create deixaria de ser idempotente pelo ID.
 
 ## Consequências
 
