@@ -1,0 +1,235 @@
+name: core-user
+
+# Componentes de core.user (decisões 0015 e 0019): migração, consumers, Receiver, Manager, Publisher,
+# Reconciler, Observer e Executor.
+# A plataforma (banco, broker, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
+# e saudável antes (`docker compose up -d --wait broker database gateway identity identity-login`
+# naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
+
+services:
+  # Consumer durável de trabalho do Manager para `requested` do tipo (docs/NATS.md §7.6). O manifesto
+  # é do Manager (`manager/consumers/`). Inexistente é criado; existente com configuração idêntica
+  # não muda; configuração diferente falha de forma explícita. Exige os Streams REQUESTED, OBSERVED
+  # e RESULT, criados pelo broker da plataforma.
+  core-user-consumer:
+    image: ${NATS_BOX_IMAGE_VERSION:-natsio/nats-box:0.20.0-nonroot}
+    container_name: core-user-consumer.smarkee.internal
+    environment:
+      NATS_URL: nats://broker.smarkee.internal:4222
+      NATS_USER: ${NATS_USER:-smarkee}
+      NATS_PASSWORD: ${CORE_USER_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+    command:
+      - sh
+      - -c
+      - >-
+        nats consumer add REQUESTED --config /consumers/core-user-manager-requested.json &&
+        nats consumer add OBSERVED --config /consumers/core-user-manager-observed.json &&
+        nats consumer add RESULT --config /consumers/core-user-manager-result.json &&
+        for partition in 0 1 2 3; do
+          nats consumer add ACTION --config /consumers-executor/core-user-executor-action-p$$partition.json || exit 1;
+        done
+    volumes:
+      - ./manager/consumers:/consumers:ro
+      - ./executor/consumers:/consumers-executor:ro
+    networks:
+      - internal
+    restart: "no"
+
+  # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo
+  # (features/core/user/manager/migrations/*.sql, em ordem) como o dono `smarkee`, no banco `smarkee`.
+  # O código das migrações é do projeto do Manager (decisão 0015); a execução é desta etapa de
+  # implantação, com o papel administrativo, e nunca com o papel de runtime do Manager.
+  # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/core.sql.
+  core-user-migrate:
+    image: ${POSTGRES_IMAGE_VERSION:-postgres:18.6-alpine}
+    container_name: core-user-migrate.smarkee.internal
+    environment:
+      PGHOST: database.smarkee.internal
+      PGDATABASE: smarkee
+      PGUSER: smarkee
+      # Senha trivial de dev do dono do SSOT (database/bootstrap/smarkee.sql).
+      PGPASSWORD: smarkee
+      PGOPTIONS: -c client_min_messages=warning
+    command:
+      - sh
+      - -c
+      - for migration in /migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1; done
+    volumes:
+      - ./manager/migrations:/migrations:ro
+    networks:
+      internal:
+        aliases:
+          - core-user-migrate.smarkee.internal
+    restart: "no"
+
+  # Receiver (srv-core-user-receiver): só o gateway a alcança; a porta 8000 não é publicada no host.
+  core-user-receiver:
+    build:
+      context: ./receiver
+    image: ${CORE_USER_RECEIVER_IMAGE:-smarkee-core-user-receiver:dev}
+    container_name: core-user-receiver.smarkee.internal
+    environment:
+      # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
+      # defaults do componente (CORE_USER_RECEIVER_<SEÇÃO>_<CAMPO>).
+      CORE_USER_RECEIVER_DATABASE_PASSWORD: ${CORE_USER_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
+      CORE_USER_RECEIVER_NATS_PASSWORD: ${CORE_USER_RECEIVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      CORE_USER_RECEIVER_AUTH_AUDIENCE: ${CORE_USER_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto smarkee, org core)}
+    depends_on:
+      core-user-migrate:
+        condition: service_completed_successfully
+      core-user-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - core-user-receiver.smarkee.internal
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  # Manager (srv-core-user-manager): único escritor do SSOT do tipo. Papel de banco
+  # `core_user_manager`, que só insere no outbox (decisão 0019).
+  core-user-manager:
+    build:
+      context: ./manager
+    image: ${CORE_USER_MANAGER_IMAGE:-smarkee-core-user-manager:dev}
+    container_name: core-user-manager.smarkee.internal
+    environment:
+      CORE_USER_MANAGER_DATABASE_PASSWORD: ${CORE_USER_MANAGER_DATABASE_PASSWORD:?Defina no .env}
+      CORE_USER_MANAGER_NATS_PASSWORD: ${CORE_USER_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+    depends_on:
+      core-user-migrate:
+        condition: service_completed_successfully
+      core-user-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - core-user-manager.smarkee.internal
+    restart: unless-stopped
+    healthcheck: &manager-healthcheck
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  # Reconciler (srv-core-user-reconciler): decide a `action` a partir de `desired` e `observed`.
+  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/NATS.md §7.4).
+  core-user-reconciler:
+    build:
+      context: ./reconciler
+    image: ${CORE_USER_RECONCILER_IMAGE:-smarkee-core-user-reconciler:dev}
+    container_name: core-user-reconciler.smarkee.internal
+    environment:
+      CORE_USER_RECONCILER_NATS_PASSWORD: ${CORE_USER_RECONCILER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+    depends_on:
+      core-user-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - core-user-reconciler.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *manager-healthcheck
+
+  # Observer (srv-core-user-observer): lê o Zitadel (conta somente leitura) e publica `observed`.
+  # Monta só a própria chave do volume da identidade (nunca a de bootstrap nem a do Executor).
+  core-user-observer:
+    build:
+      context: ./observer
+    image: ${CORE_USER_OBSERVER_IMAGE:-smarkee-core-user-observer:dev}
+    container_name: core-user-observer.smarkee.internal
+    environment:
+      CORE_USER_OBSERVER_NATS_PASSWORD: ${CORE_USER_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      CORE_USER_OBSERVER_ZITADEL_ORGANIZATION_ID: ${CORE_ZITADEL_ORGANIZATION_ID:?Defina no .env (ID da organização core)}
+      CORE_USER_OBSERVER_ZITADEL_PROJECT_ID: ${CORE_ZITADEL_PROJECT_ID:?Defina no .env (ID do projeto smarkee)}
+    volumes:
+      - type: volume
+        source: identity-bootstrap
+        target: /run/secrets/zitadel-key.json
+        read_only: true
+        volume:
+          subpath: service-account-core-user-observer.json
+    depends_on:
+      core-user-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - core-user-observer.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *manager-healthcheck
+
+  # Executor (srv-core-user-executor): única identidade com escrita no Zitadel (conta
+  # core-user-executor, papel ORG_USER_MANAGER). Monta só a própria chave.
+  core-user-executor:
+    build:
+      context: ./executor
+    image: ${CORE_USER_EXECUTOR_IMAGE:-smarkee-core-user-executor:dev}
+    container_name: core-user-executor.smarkee.internal
+    environment:
+      CORE_USER_EXECUTOR_NATS_PASSWORD: ${CORE_USER_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      CORE_USER_EXECUTOR_ZITADEL_ORGANIZATION_ID: ${CORE_ZITADEL_ORGANIZATION_ID:?Defina no .env (ID da organização core)}
+      CORE_USER_EXECUTOR_ZITADEL_PROJECT_ID: ${CORE_ZITADEL_PROJECT_ID:?Defina no .env (ID do projeto smarkee)}
+    volumes:
+      - type: volume
+        source: identity-bootstrap
+        target: /run/secrets/zitadel-key.json
+        read_only: true
+        volume:
+          subpath: service-account-core-user-executor.json
+    depends_on:
+      core-user-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - core-user-executor.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *manager-healthcheck
+
+  # Publisher (srv-core-user-publisher): publica o outbox do tipo (uma instância ativa por trava
+  # consultiva). Papel de banco `core_user_publisher`, que só lê o outbox e marca `published_at`, e
+  # identidade própria no NATS (decisão 0019).
+  core-user-publisher:
+    build:
+      context: ./publisher
+    image: ${CORE_USER_PUBLISHER_IMAGE:-smarkee-core-user-publisher:dev}
+    container_name: core-user-publisher.smarkee.internal
+    environment:
+      CORE_USER_PUBLISHER_DATABASE_PASSWORD: ${CORE_USER_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
+      CORE_USER_PUBLISHER_NATS_PASSWORD: ${CORE_USER_PUBLISHER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+    depends_on:
+      core-user-migrate:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - core-user-publisher.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *manager-healthcheck
+
+volumes:
+  # Volume da identidade (chaves das contas de serviço), criado por `infrastructure/dev/identity`.
+  identity-bootstrap:
+    name: identity-bootstrap
+    external: true
+
+networks:
+  # Rede da plataforma, criada por `infrastructure/dev`.
+  internal:
+    name: internal
+    external: true

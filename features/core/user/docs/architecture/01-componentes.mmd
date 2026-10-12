@@ -1,0 +1,58 @@
+flowchart LR
+    classDef client fill:#e8f0fe,stroke:#4a6fd8,color:#102a63
+    classDef core fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
+    classDef planned fill:#fff8e1,stroke:#ef6c00,color:#5a2d00,stroke-dasharray:5 3
+    classDef nats fill:#f3e5f5,stroke:#7b1fa2,color:#3a0f4a
+    classDef ext fill:#fdecea,stroke:#c62828,color:#5c1111
+    classDef store fill:#e0f2f1,stroke:#00695c,color:#003d33
+
+    CLI["sk CLI<br/>sk register, sk user"]:::planned
+    GW["Gateway Kong<br/>api-dev.smarkee.com.br<br/>limite 10/min por IP"]:::client
+    Receiver["srv-core-user-receiver<br/>auth, validação, 202"]:::client
+
+    subgraph BUS["NATS JetStream (um Stream por messageType)"]
+        direction TB
+        REQ["REQUESTED<br/>receiver.requested.core.user.id.create|delete"]:::nats
+        DES["DESIRED<br/>manager.desired.core.user.id.changed"]:::nats
+        OBSS["OBSERVED<br/>observer.observed.core.user.id.changed"]:::nats
+        ACT["ACTION (4 partições por resourceId)<br/>reconciler.action.core.user.id.create|update|delete"]:::nats
+        RES["RESULT<br/>executor.completed|failed.core.user.id.op"]:::nats
+        UPD["UPDATED<br/>manager.updated.core.user.id.changed"]:::nats
+    end
+
+    MGR["srv-core-user-manager<br/>único escritor do SSOT"]:::core
+    PUB["srv-core-user-publisher<br/>publica o outbox"]:::core
+    REC["srv-core-user-reconciler<br/>decide a action"]:::core
+    OBSV["srv-core-user-observer<br/>lê o Zitadel (leitura)"]:::core
+    EXE["srv-core-user-executor<br/>escreve no Zitadel"]:::core
+    DB[("SSOT PostgreSQL<br/>schema core: user, operation,<br/>action_result, outbox")]:::store
+    ZIT["Zitadel<br/>org core, projeto smarkee"]:::ext
+    MAIL["SMTP<br/>Mailpit em dev"]:::ext
+    CON["Consumidores<br/>console, auditoria, métricas"]:::client
+
+    CLI -->|HTTP| GW --> Receiver
+    Receiver -->|publica| REQ
+    REQ --> MGR
+    MGR -->|transação| DB
+    DB -->|outbox| PUB
+    PUB -->|publica| DES
+    PUB -->|publica| UPD
+    DES --> OBSV
+    DES --> REC
+    OBSV -->|publica| OBSS
+    OBSS --> REC
+    OBSS --> MGR
+    REC -->|publica| ACT
+    ACT --> EXE
+    EXE -->|publica| RES
+    RES --> MGR
+    RES --> OBSV
+    RES --> REC
+    OBSV -.->|GET leitura| ZIT
+    EXE -.->|cria, autoriza, remove| ZIT
+    ZIT -.->|e-mails: verificar e-mail, redefinir senha| MAIL
+    Receiver -.->|JWKS e userinfo, só validação| ZIT
+    DES -.->|Direct Get do desired| EXE
+    RES -.->|Direct Get do desfecho do actionId| EXE
+    Receiver -.->|views user_v1, só leitura| DB
+    UPD --> CON

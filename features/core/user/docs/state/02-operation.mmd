@@ -1,0 +1,22 @@
+stateDiagram-v2
+    direction LR
+    [*] --> accepted: pedido gravado, desired no outbox
+    [*] --> rejected: conflict, validation ou not_found
+    [*] --> completed: pedido sem mudança efetiva
+    accepted --> in_progress: observação ou resultado da geração
+    accepted --> completed: a geração convergiu
+    in_progress --> completed: a geração convergiu
+    accepted --> failed: limite de falhas, ou geração substituída
+    in_progress --> failed: limite de falhas, ou geração substituída
+    rejected --> [*]: retenção
+    completed --> [*]: retenção
+    failed --> [*]: retenção
+
+    note right of rejected
+        O recurso não muda e nenhum
+        desired é publicado
+    end note
+    note right of accepted
+        Cadastro anônimo: só operadores
+        (platform.admin) leem a Operation
+    end note

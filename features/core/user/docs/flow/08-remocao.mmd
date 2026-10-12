@@ -1,0 +1,59 @@
+sequenceDiagram
+    autonumber
+    actor U as Pessoa
+    participant CLI as sk CLI (a implementar)
+    participant Receiver as srv-core-user-receiver
+    participant N as NATS JetStream
+    participant MGR as srv-core-user-manager
+    participant DB as SSOT PostgreSQL
+    participant REC as srv-core-user-reconciler
+    participant OBS as srv-core-user-observer
+    participant EXE as srv-core-user-executor
+    participant ZIT as Zitadel
+
+    Note over U,ZIT: A remoção é declarativa: o desired passa a lifecycle absent, sem dados pessoais. O registro só sai do SSOT depois que a ausência é observada.
+
+    rect rgb(232,245,233)
+    Note over U,ZIT: A. Caminho perfeito
+    U->>CLI: sk user delete
+    CLI->>Receiver: GET /v1/users/{id} (lê resourceVersion)
+    Receiver-->>CLI: 200 {resourceVersion 4}
+    CLI->>Receiver: DELETE /v1/users/{id}?resourceVersion=4 (Bearer, role user.delete)
+    Receiver->>N: receiver.requested.core.user.{id}.delete
+    Receiver-->>CLI: 202 {operationId}
+    N->>MGR: requested delete
+    MGR->>DB: trava a linha, confere a versão, desired lifecycle absent (sem e-mail e nomes), phase Deleting, outbox desired
+    N->>REC: desired absent
+    REC->>N: action delete (observação de no máximo 5 min)
+    N->>EXE: action delete
+    EXE->>ZIT: remove o usuário
+    EXE->>N: completed
+    OBS->>ZIT: GET usuário
+    ZIT-->>OBS: 404
+    OBS->>N: observed presence = absent
+    N->>MGR: observed absent
+    MGR->>DB: DELETE da linha, Operation completed, outbox updated {removed true}
+    CLI->>Receiver: GET /v1/users/{id}/operations/{operationId}
+    Receiver-->>CLI: 200 completed
+    CLI-->>U: "Conta removida."
+    Note over N: O último desired (absent) permanece em DESIRED como tombstone até a limpeza administrativa.
+    end
+
+    rect rgb(255,235,238)
+    Note over U,ZIT: B. Problemas
+    CLI->>Receiver: DELETE com resourceVersion antiga
+    Receiver-->>CLI: 409 Conflict (o Receiver antecipa), ou Operation rejected conflict vinda do Manager
+    CLI-->>U: "O recurso mudou. Leia de novo e repita."
+    CLI->>Receiver: DELETE de outro usuário
+    Receiver-->>CLI: 404 (operadores platform.admin podem)
+    CLI->>Receiver: DELETE sem a role user.delete
+    Receiver-->>CLI: 403
+    CLI->>Receiver: DELETE de usuário já removido
+    Receiver-->>CLI: 404
+    EXE->>ZIT: remove usuário
+    ZIT--xEXE: erro
+    EXE->>N: failed, retry com backoff, limite 5 e suspensão (ver 05)
+    OBS->>ZIT: leitura inconclusiva durante a remoção
+    OBS->>N: observed unknown (nunca absent): a remoção não converge por engano
+    Note over U: Limitação conhecida: a ordem de remoção entre recursos dependentes (um usuário dono<br/>de Organizations) não está definida e deve ser tratada pelo domínio.
+    end

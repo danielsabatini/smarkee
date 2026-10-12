@@ -1,0 +1,51 @@
+sequenceDiagram
+    autonumber
+    actor U as Pessoa
+    participant Receiver as srv-core-user-receiver
+    participant N as NATS JetStream
+    participant MGR as srv-core-user-manager
+    participant DB as SSOT PostgreSQL
+    participant REC as srv-core-user-reconciler
+    participant EXE as srv-core-user-executor
+    participant ZIT as Zitadel
+
+    Note over U,ZIT: Regra de privacidade: a resposta ao cadastro é SEMPRE a mesma, exista ou não o e-mail.<br/>A pessoa anônima não consulta a Operation, então não há como descobrir e-mails cadastrados.
+
+    rect rgb(255,243,224)
+    Note over Receiver,DB: A. E-mail já existe no SSOT (cadastro anterior, outro resourceId)
+    U->>Receiver: POST /v1/users com e-mail já cadastrado
+    Receiver->>N: requested (novo resourceId)
+    Receiver-->>U: 202 {resourceId, operationId} (idêntico ao caso de sucesso)
+    N->>MGR: entrega requested
+    MGR->>DB: trava consultiva do e-mail, encontra usuário com o mesmo e-mail (normalizado, sem diferença de caixa)
+    MGR->>DB: Operation rejected (validation), nenhuma linha de User, nenhum desired
+    MGR-->>N: ACK
+    Note over U: Nenhum e-mail é enviado. A pessoa não vê erro.<br/>Orientação: usar "Esqueci a senha" na tela de login do Zitadel.
+    end
+
+    rect rgb(232,240,254)
+    Note over MGR,DB: B. Dois cadastros simultâneos com o mesmo e-mail
+    N->>MGR: requested (A) e requested (B), instâncias diferentes do Manager
+    MGR->>DB: trava consultiva por e-mail serializa as duas transações
+    MGR->>DB: o primeiro grava (accepted), o segundo encontra o e-mail e é rejected
+    end
+
+    rect rgb(255,235,238)
+    Note over REC,ZIT: C. E-mail livre no SSOT, mas já existe no Zitadel (criado fora do loop) 
+    REC->>N: action create
+    N->>EXE: entrega action
+    EXE->>ZIT: cria usuário
+    ZIT-->>EXE: 400 AlreadyExisting, id COMMAND-7yiox1isql (e-mail ou nome de login em uso por outro ID)
+    EXE->>ZIT: lê o usuário pelo resourceId
+    ZIT-->>EXE: 404 (o dono do e-mail é outro usuário)
+    EXE->>N: failed {reason Rejected, retryable false}
+    Note over N: O Manager conta a falha. Ao atingir o limite (5) o recurso vai a Failed<br/>e a reconciliação é suspensa (ver 05-falhas-na-reconciliacao).<br/>Operation failed. A pessoa não recebe aviso (limitação conhecida).
+    end
+
+    rect rgb(232,245,233)
+    Note over EXE,ZIT: D. Repetição do mesmo create após timeout (idempotência) 
+    EXE->>ZIT: cria usuário com o mesmo user_id
+    ZIT-->>EXE: 400 AlreadyExisting (mesmo ID)
+    EXE->>ZIT: lê pelo resourceId, existe com o e-mail esperado
+    EXE->>N: completed (sucesso idempotente, nenhum segundo usuário)
+    end

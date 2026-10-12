@@ -1,0 +1,268 @@
+# core.user
+
+O **User** é a identidade da plataforma: a pessoa que se cadastra sozinha (`sk register`) e depois se autentica (`sk auth login`) para criar Organizations. É um recurso do módulo `core`, gerenciado pelo Resource Control Loop (`docs/RESOURCE-CONTROL-LOOP.md`), e vive na organização de sistema `core` do Zitadel.
+
+Decisões que definem este módulo: `.decisions/0014-user-no-modulo-core-com-auto-cadastro.md` (User, auto-cadastro sem senha), `0013` (API → CLI → console, Zitadel protegido), `0010` (roles e dono), `0015` (componentes por papel), `0017` (estrutura interna dos componentes e testes e2e), `0018` (partição do `ACTION`, saúde e erro permanente do Publisher), `0019` (Publisher como sexto papel) e `0020` (Receiver em lugar de API). **Esta é a primeira feature e o modelo das demais.**
+
+# 1. Estado da implementação
+
+| Papel | Projeto | Estado |
+|---|---|---|
+| Receiver | `receiver/` (`srv-core-user-receiver`) | Implementado |
+| Manager | `manager/` (`srv-core-user-manager`) | Implementado: `requested`, `observed`, `completed` e `failed` |
+| Publisher | `publisher/` (`srv-core-user-publisher`) | Implementado: publica o outbox do Manager |
+| Reconciler | `reconciler/` (`srv-core-user-reconciler`) | Implementado |
+| Observer | `observer/` (`srv-core-user-observer`) | Implementado |
+| Executor | `executor/` (`srv-core-user-executor`) | Implementado |
+| Testes e2e | `tests/e2e/` | Implementados: 7 testes de conformidade e 3 de resiliência (`E2E_CHAOS=1`); **não são um componente** |
+| CLI | `components/cli` (`sk register`, `sk user`) | **A implementar** (só existe `sk auth`) |
+
+**Estrutura interna.** Os seis papéis seguem a decisão 0017 (camadas `domain/` puro, orquestração, adaptadores e `main.py`, com um teste por projeto que falha se o `domain/` importar um adaptador) e a decisão 0018 (`/health/live`, `/health/ready` e `/health/startup` em cada componente; no Publisher, a readiness também cai diante de recusa permanente do transporte; o Stream `ACTION` é particionado por `resourceId`). Verificado em 2026-10-11: testes de cada projeto, `ruff`, `pyright` e os testes e2e contra o Zitadel e o Mailpit reais.
+
+O loop completo foi verificado em desenvolvimento contra o Zitadel e o Mailpit reais (conformidade, 2026-10-11): cadastro anônimo, criação do usuário sem senha, e-mails "Verificar e-mail" e "Redefinir senha", observação, `Ready` e remoção pelo próprio loop. **Não verificado de ponta a ponta:** a pessoa clicando nos links, definindo a senha e fazendo `sk auth login` com o usuário novo (os comportamentos do Zitadel descritos nessas etapas estão marcados nos fluxos).
+
+# 2. Arquitetura
+
+![Componentes](docs/architecture/01-componentes.svg)
+
+*Fonte: [`docs/architecture/01-componentes.mmd`](docs/architecture/01-componentes.mmd). Contorno tracejado: a implementar. Cores: azul = cliente e borda, verde = módulo, roxo = mensageria, vermelho = sistema externo.*
+
+Cada papel é um projeto autocontido (`.decisions/0015`): código, dependências, testes, imagem e versão próprios, **sem biblioteca compartilhada**. O que os une é a mensageria, o SSOT (cada papel com o seu privilégio) e os contratos neutros de `schemas/`.
+
+# 3. Papéis e componentes
+
+## 3.1 Receiver (`srv-core-user-receiver`)
+
+Porta de entrada HTTP. Autentica o token (JWKS do Zitadel), autoriza pela role da ação, valida o corpo (modo estrito), gera `resourceId` (UUIDv7), `operationId` e `requestDigest` e **publica `requested`**. Responde `202 Accepted`. Lê o SSOT só pelas views `user_v1` e `user_operation_v1`. Não escreve no SSOT nem no Zitadel.
+
+| Rota | Efeito | Quem | Respostas |
+|---|---|---|---|
+| `POST /v1/users` | Auto-cadastro (**anônimo**) | Qualquer pessoa | `202` uniforme, `400`, `429` (com `Retry-After`), `503` (com `Retry-After`) |
+| `GET /v1/users/{id}` | Lê o usuário | O próprio usuário ou `platform.admin`, role `user.get` | `200`, `401`, `403`, `404` |
+| `DELETE /v1/users/{id}?resourceVersion=` | Remove (cabeçalho opcional `Idempotency-Key`) | O próprio usuário ou `platform.admin`, role `user.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422` (`Idempotency-Key` reutilizada com outro conteúdo), `503` |
+| `GET /v1/users/{id}/operations/{operationId}` | Acompanha a Operation | Solicitante ou `platform.admin` (a do cadastro anônimo só operadores) | `200`, `401`, `404` |
+
+Não há listagem (`GET /v1/users`) nem `PATCH`: o User não tem `update` (decisão 0014). O contrato descritivo é [`receiver/openapi.json`](receiver/openapi.json). Erros: `{errorCode, message, field?}` (`schemas/common/api-error`; códigos `ValidationFailed`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `IdempotencyKeyReused`, `ServiceUnavailable` e `InternalError`), sem repetir valores enviados. Um usuário que não é o dono recebe `404`, e não `403`, para não revelar a existência.
+
+## 3.2 Manager (`srv-core-user-manager`)
+
+**Único escritor do SSOT** do tipo. Cada mensagem é uma unidade atômica (linha bloqueada, Operation única, `desired` ou `updated` no outbox, `COMMIT`, só então `ACK`):
+
+- `requested`: valida, garante e-mail único (normalizado, trava consultiva), grava o recurso (`Pending`, geração 1), a Operation (`accepted`) e o `desired` no outbox; rejeita com motivo (`validation`, `conflict`, `not_found`).
+- `observed`: guarda a observação (nunca retrocede), recalcula `conditions` e `phase` (`Reconciling`, `Ready`, `Deleting`), conclui a Operation e, na remoção convergida, apaga a linha.
+- `completed` e `failed`: registra o `actionId` (idempotência), conta falhas por geração e, no limite (5), marca `Failed` e republica o `desired` com a reconciliação suspensa.
+
+É dono do esquema do tipo: o código das migrações está em `manager/migrations/` e roda como etapa de implantação com o papel administrativo, nunca com o papel de runtime do Manager.
+
+## 3.3 Publisher (`srv-core-user-publisher`)
+
+Publica no NATS, em ordem e de forma sequencial, as mensagens que o Manager gravou no **outbox**. Uma instância ativa por vez (trava consultiva de sessão); marca `published_at` só depois da confirmação do transporte (entrega *pelo menos uma vez*, deduplicada por `Nats-Msg-Id`). Não executa regra de negócio. É o sexto papel (decisão 0019), em projeto e processo próprios, para manter o menor privilégio: o Manager só insere no outbox (papel `core_user_manager`), e o Publisher só lê e marca (papel `core_user_publisher`, identidade NATS `srv-core-user-publisher`). Uma recusa permanente do transporte bloqueia a fila na ordem e tira o Publisher de `ready` (decisão 0018). Detalhes em [`publisher/README.md`](publisher/README.md).
+
+## 3.4 Reconciler (`srv-core-user-reconciler`)
+
+Compara o último `desired` e o último `observed` de cada usuário (campos gerenciados: `lifecycle` e `platformAccess`) e decide `create`, `update` ou `delete`. Não executa e **não acessa o SSOT**: o estado é um cache em memória reconstruído da mensageria (consumers de estado por instância, `DeliverLastPerSubject`). Não decide com `observed` `unknown` ou antigo (10 min; 5 min para `delete`), com `desired` suspenso, nem enquanto há ação pendente (prazo de 2 min); espera a observação causada por cada resultado e aplica *backoff* após falha (5 s, dobrando até 300 s).
+
+## 3.5 Observer (`srv-core-user-observer`)
+
+Lê o Zitadel (conta de serviço **somente leitura**, `ORG_OWNER_VIEWER`) e publica `observed`:
+
+- `absent` **só** com 404 inequívoco do usuário exato (código 5 com detalhe do erro); qualquer outra falha (timeout, 5xx, 401/403, 429, corpo inesperado) é `unknown`;
+- `present` com `emailVerified`, `userState` (`initial` até a senha ser definida) e `platformAccess` (`granted` quando as 7 roles de ação estão concedidas no projeto).
+
+Observa quando o `desired` é novo, depois de cada `completed`/`failed` (com `causationId` do resultado) e periodicamente (5 min, com jitter), só os recursos da sua partição (`hash(resourceId) mod count`).
+
+## 3.6 Executor (`srv-core-user-executor`)
+
+A **única identidade com escrita no Zitadel** (conta `core-user-executor`, papel `ORG_USER_MANAGER`, só a organização `core`). Para cada `action`: revalida contra o `desired` vigente (geração, operação coerente, reconciliação ativa), consulta o desfecho já registrado do `actionId` e só então executa:
+
+- `create`: `POST /v2/users/human` **sem senha**, com `userId = resourceId` (o `sub` do token será o `resourceId`); o Zitadel envia "Verificar e-mail"; em seguida `password_reset` com `sendLink` envia "Redefinir senha"; por fim concede as 7 roles de ação no projeto `smarkee`. Cada passo é idempotente (repetição confere o dono do ID pelo e-mail).
+- `update`: garante (ou remove, se `revoked`) as roles do projeto.
+- `delete`: remove o usuário (ausente é sucesso).
+
+Publica `completed` ou `failed {reason, retryable}`. O retry é do Reconciler. Consome `ACTION` em 4 partições por `resourceId` (um laço e um consumer por partição, `max_ack_pending = 1`): uma `action` por vez em cada recurso, até 4 recursos em paralelo.
+
+## 3.7 Estrutura interna do Manager e do Publisher
+
+Manager e Publisher são projetos separados, cada um em camadas (decisão 0017):
+
+```text
+core_user_manager/
+  domain/      política do User (e-mail único, convergência), puro, sem I/O
+  handlers/    uma unidade atômica por mensagem (requested, observed, result)
+  store/       SQL (recurso, operation, action_result) e escrita no outbox
+  http/        servidor de saúde (/health/live, /health/ready, /health/startup)
+  transport/   adaptadores NATS (consumers de requested, observed e resultados)
+  main.py
+
+core_user_publisher/
+  domain/      PublishError e PublicationResult, puros
+  outbox/      leitura, trava consultiva, publicação em ordem, marcação
+  transport/   conexão e publicação no NATS
+  http/        servidor de saúde
+  main.py
+```
+
+| Camada | Função do Manager | Observação |
+|---|---|---|
+| `domain/` | Regras do User | Puro; testável sem banco |
+| `handlers/` | Orquestra cada mensagem | Usa o `domain` e o `store` |
+| `store/` | Único código que **escreve** no SSOT | Insere no outbox, nunca lê dele |
+| `outbox/` (Publisher) | Publicação do outbox | Outro papel de banco; sem regra de negócio |
+| `transport/` | Adaptadores NATS | Sem regra de negócio |
+
+O outbox existe porque o Manager grava o recurso **e** a mensagem na mesma transação (senão haveria "gravado, mas nunca publicado"); alguém precisa levá-lo ao NATS, e isso é o Publisher. Ele é um processo à parte do Manager por ter privilégio de banco diferente, uma instância ativa por trava (enquanto o Manager escala) e domínio de falha próprio.
+
+## 3.8 Estrutura interna dos demais papéis
+
+Mesmo princípio: `domain/` puro e sem I/O, orquestração, adaptadores e `main.py`; a dependência vai em um sentido só (`main → orquestração → domain`) e o `domain` nunca importa um adaptador (cada projeto tem um teste que garante isso).
+
+| Papel | Camadas |
+|---|---|
+| Receiver | `domain/` (cota, dono, autorização), `http/`, `auth/`, `store/` (leitura pelas views), `transport/` |
+| Reconciler | `domain/` (a decisão), `engine/`, `transport/` |
+| Observer | `domain/` (mapeamento do `observed`), `provider/` (leitura do Zitadel), `engine/`, `transport/` |
+| Executor | `domain/` (revalidação), `provider/` (escrita no Zitadel), `actions/`, `engine/`, `transport/` |
+
+## 3.9 Testes e2e (`tests/e2e`)
+
+Não é um componente nem vai para produção. É um projeto de **testes black-box** do contrato do User: exercita o Receiver (HTTP), o NATS e o Zitadel pela rede e valida as mensagens e as respostas contra os JSON Schemas de `schemas/`, **sem importar o código dos componentes**. É o que permite trocar um componente de linguagem (por exemplo, o Receiver de Python para Go) e provar que o contrato continua igual. Os testes de contrato de cada componente (schemas e modelos gerados) ficam nos próprios projetos.
+
+# 4. Fluxos
+
+Cada fluxo é uma sequência numerada (quem publica, quem consome, qual subject), no estilo do infográfico histórico de `docs/images/` (nomenclatura anterior; veja `docs/images/README.md`). As imagens estão em [`docs/flow/`](docs/flow/), com o fonte `.mmd` ao lado.
+
+## 4.1 Caminho perfeito: do `sk register` ao aviso à pessoa
+
+![Caminho perfeito](docs/flow/01-caminho-perfeito.svg)
+
+*Fonte: [`01-caminho-perfeito.mmd`](docs/flow/01-caminho-perfeito.mmd); [`01-caminho-perfeito.drawio`](docs/flow/01-caminho-perfeito.drawio) embute o mesmo SVG como imagem (regere-o a partir do `.mmd`; não é editável por formas).* Sete fases: solicitação, persistência, observação, decisão, execução, convergência e aviso. O `completed` do Executor **não** é a convergência: só a observação compatível converge. A pessoa é avisada pelos **e-mails do Zitadel**; o cliente anônimo não recebe retorno do loop (não consulta a Operation, o que impede descobrir e-mails cadastrados).
+
+## 4.2 Erros antes de entrar no loop
+
+![Validação e borda](docs/flow/02-validacao-e-borda.svg)
+
+*Fonte: [`02-validacao-e-borda.mmd`](docs/flow/02-validacao-e-borda.mmd).* Pedido inválido (400), excesso de tentativas (429 no gateway e no Receiver), Receiver indisponível, NATS indisponível ou `REQUESTED` cheio (503 repetível) e erros não previstos. Em todos, nada foi aceito.
+
+## 4.3 E-mail já cadastrado
+
+![E-mail já cadastrado](docs/flow/03-email-ja-cadastrado.svg)
+
+*Fonte: [`03-email-ja-cadastrado.mmd`](docs/flow/03-email-ja-cadastrado.mmd).* A resposta é sempre a mesma. O Manager rejeita (`validation`) sem criar nada nem enviar e-mail; cadastros simultâneos são serializados; e-mail livre no SSOT mas em uso no Zitadel vira falha permanente do Executor.
+
+## 4.4 Falhas no Manager e na mensageria
+
+![Falhas no Manager](docs/flow/04-falhas-no-manager-e-mensageria.svg)
+
+*Fonte: [`04-falhas-no-manager-e-mensageria.mmd`](docs/flow/04-falhas-no-manager-e-mensageria.mmd).* Mensagem inválida (`TERM`), erro transitório do banco (retry local e `NAK` com backoff), reentrega (idempotência por `operationId`), Manager ou banco indisponível e as falhas do Publisher (inclusive o bloqueio por recusa permanente).
+
+## 4.5 Falhas na reconciliação
+
+![Falhas na reconciliação](docs/flow/05-falhas-na-reconciliacao.svg)
+
+*Fonte: [`05-falhas-na-reconciliacao.mmd`](docs/flow/05-falhas-na-reconciliacao.mmd).* Observação `unknown` ou antiga, reinício do Reconciler, ação sem resultado (reemissão com o mesmo `actionId`), limite de falhas com suspensão e mensagens fora de ordem ou de geração antiga.
+
+## 4.6 Falhas no Executor e no e-mail
+
+![Falhas no Executor](docs/flow/06-falhas-no-executor-e-email.svg)
+
+*Fonte: [`06-falhas-no-executor-e-email.mmd`](docs/flow/06-falhas-no-executor-e-email.mmd).* Revalidação reprovada, reentrega de ação concluída, falhas do Zitadel (retentável ou não), falha entre os passos e o e-mail que **não chega** (fora da garantia do loop: o `completed` não significa "e-mail entregue").
+
+## 4.7 Ativação e login
+
+![Ativação e login](docs/flow/07-ativacao-e-login.svg)
+
+*Fonte: [`07-ativacao-e-login.mmd`](docs/flow/07-ativacao-e-login.mmd).* A pessoa define a senha na página do Zitadel (a senha nunca passa por CLI, Receiver, SSOT nem NATS) e depois entra com `sk auth login` (PKCE com retorno em loopback, decisão 0007). Inclui os problemas de ativação e de login. **Esta etapa não foi exercitada de ponta a ponta.**
+
+## 4.8 Remoção
+
+![Remoção](docs/flow/08-remocao.svg)
+
+*Fonte: [`08-remocao.mmd`](docs/flow/08-remocao.mmd).* Declarativa: o `desired` passa a `absent` (sem dados pessoais); o Reconciler decide `delete`; o registro só sai do SSOT quando a ausência é observada. Inclui conflito de versão, permissão e falhas.
+
+# 5. Estados
+
+| Fase do recurso | Estados da Operation |
+|---|---|
+| ![Fase](docs/state/01-fase-do-recurso.svg) | ![Operation](docs/state/02-operation.svg) |
+
+Fontes: [`01-fase-do-recurso.mmd`](docs/state/01-fase-do-recurso.mmd) e [`02-operation.mmd`](docs/state/02-operation.mmd). A fase `Failed` suspende a reconciliação; a saída é uma nova geração ou intervenção explícita (lacuna a definir: o User não tem `update`).
+
+# 6. Mensageria
+
+Gramática: `<emitter>.<messageType>.<module>.<resourceType>.<resourceId>.<operation>` (`docs/MESSAGING.md`). Para este tipo, `module = core` e `resourceType = user`.
+
+| Mensagem | Subject | Publica | Consome | Stream |
+|---|---|---|---|---|
+| `requested` | `receiver.requested.core.user.<id>.create\|delete` | Receiver | Manager | `REQUESTED` |
+| `desired` | `manager.desired.core.user.<id>.changed` | Publisher | Reconciler, Observer, Executor (leitura direta) | `DESIRED` |
+| `observed` | `observer.observed.core.user.<id>.changed` | Observer | Reconciler, Manager | `OBSERVED` |
+| `action` | `reconciler.action.core.user.<id>.create\|update\|delete` (armazenado como `reconciler.action.core.user.<partição>.<id>.<op>`) | Reconciler | Executor | `ACTION` (4 partições) |
+| `completed` / `failed` | `executor.completed\|failed.core.user.<id>.<op>` | Executor | Manager, Observer, Reconciler | `RESULT` |
+| `updated` | `manager.updated.core.user.<id>.changed` | Publisher | Console, auditoria, métricas | `UPDATED` |
+
+Consumers: Manager `core-user-manager-{requested,observed,result}` (duráveis, compartilhados); Executor `core-user-executor-action-p{0..3}` (duráveis, um por partição do Stream `ACTION`, `max_ack_pending = 1`); Reconciler e Observer criam consumers de estado **por instância** (`core-user-<papel>-<stream>-<instância>`). Os manifestos dos consumers duráveis estão em `manager/consumers/` e `executor/consumers/`.
+
+# 7. Contratos
+
+Em [`schemas/core/user/`](../../../schemas/core/user/) (JSON Schema 2020-12, com exemplos): `desired`, `observed`, `requested-create`, `requested-delete`, `api-create-request`, `resource`; e, em `schemas/common/`, envelope, `action`, `completed`, `failed`, `updated`, `operation`, `api-error` e `api-accepted-response`. O índice usado para gerar os modelos é `schemas/core.user.index.json`.
+
+Campos do User: `givenName`, `familyName` e `email` são `confidential` (nunca em log, mensagem de erro nem métrica) e **não existem** no `desired` de remoção. Campos gerenciados (comparados com o `observed`): `lifecycle` e `platformAccess`. Não há senha em nenhum contrato (`SCHEMA.md` §20.1).
+
+# 8. Segurança e privacidade
+
+- **Cadastro anônimo:** `requestedBy = anonymous`; limite de taxa por origem no gateway (10/min por IP) e no Receiver (5/60 s); resposta uniforme; sem consulta da Operation por anônimo.
+- **Sem senha na mensageria:** o Zitadel cria e envia os links; a senha é definida na página dele.
+- **Menor privilégio:** o Receiver não escreve no SSOT nem no Zitadel; o Manager é o único escritor do SSOT; o Observer só lê o Zitadel; o Executor é o único que escreve nele. Cada componente tem papel de banco e identidade próprios, e **monta só a sua chave** do Zitadel.
+- **Revalidação no Executor** e consulta do desfecho do `actionId` antes de escrever.
+- **Observação inconclusiva nunca é ausência.**
+- **Dados pessoais:** só no `desired` de criação (SSOT e `DESIRED`); o `desired` de remoção não os carrega.
+
+## 8.1 Identidades e privilégios por papel
+
+| Papel | Contêiner (Compose) | Identidade NATS | Papel de banco | Privilégio no SSOT | Conta no Zitadel |
+|---|---|---|---|---|---|
+| Receiver | `core-user-receiver.smarkee.internal` | `srv-core-user-receiver` | `core_user_receiver` | `SELECT` nas views `user_v1` e `user_operation_v1` | nenhuma (só valida tokens pelo JWKS) |
+| Manager | `core-user-manager.smarkee.internal` | `srv-core-user-manager` | `core_user_manager` | `SELECT/INSERT/UPDATE/DELETE` em `user`; `SELECT/INSERT/UPDATE` em `user_operation`; `SELECT/INSERT` em `user_action_result`; só `INSERT` em `user_outbox` | nenhuma |
+| Publisher | `core-user-publisher.smarkee.internal` | `srv-core-user-publisher` | `core_user_publisher` | `SELECT` em `user_outbox` e `UPDATE (published_at)` | nenhuma |
+| Reconciler | `core-user-reconciler.smarkee.internal` | `srv-core-user-reconciler` | nenhum (não acessa o SSOT) | nenhum | nenhuma |
+| Observer | `core-user-observer.smarkee.internal` | `srv-core-user-observer` | nenhum | nenhum | `core-user-observer` (`ORG_OWNER_VIEWER`, leitura) |
+| Executor | `core-user-executor.smarkee.internal` | `srv-core-user-executor` | nenhum | nenhum | `core-user-executor` (`ORG_USER_MANAGER`, escrita só na organização `core`) |
+
+Etapas de implantação (executam e terminam): `core-user-migrate` (migrações, papel administrativo) e `core-user-consumer` (cria os consumers duráveis). A manutenção (`core_maintenance`) é uma identidade de infraestrutura, com `SELECT` e `DELETE` no outbox, nos resultados de ação e nas Operations. Em dev, todos os componentes usam o mesmo usuário NATS (veja a seção 10).
+
+**Saúde.** Cada componente atende `GET /health/live`, `/health/ready` e `/health/startup` na porta `8000` (rede interna; o gateway publica só `/v1/users`). O healthcheck do Compose usa `/health/ready`. A liveness só olha o sinal de vida do laço principal; a readiness exige o NATS e, no Publisher, a ausência de bloqueio por recusa permanente.
+
+# 9. Configuração, execução e testes
+
+Variáveis de ambiente `CORE_USER_<PAPEL>_<SEÇÃO>_<CAMPO>` (decisão 0016), sem arquivo de configuração. Cada projeto documenta as suas no `README.md` e em `settings.py`. Obrigatórias: senha do NATS (todos), senhas dos papéis do banco (Receiver, Manager, Publisher), `AUTH_AUDIENCE` (Receiver) e os IDs da organização `core` e do projeto `smarkee` no Zitadel (Observer e Executor).
+
+```bash
+# 1. Plataforma (banco, broker, identidade, gateway, e-mail): infrastructure/dev
+cd infrastructure/dev && docker compose up -d --wait broker database gateway identity identity-login mail
+
+# 2. Os componentes do User
+cd features/core/user && cp -n .env.example .env   # preencha os valores vazios
+docker compose up -d --build
+
+# 3. Testes de cada projeto
+cd receiver && uv sync && uv run ruff check . && uv run pyright && uv run pytest   # idem manager, publisher, reconciler, observer, executor
+# 4. Testes e2e (stack no ar)
+cd tests/e2e
+  CONFORMANCE_NATS_PASSWORD=... CONFORMANCE_MAILPIT_URL=http://localhost:8025 uv run pytest
+  # resiliência (derruba Manager, Executor e Publisher, um por vez): acrescente E2E_CHAOS=1
+```
+
+Os e-mails do Zitadel de dev são capturados pelo Mailpit (http://localhost:8025): ninguém os recebe.
+
+# 10. Limitações e pendências
+
+- **CLI:** `sk register` (sem `--wait`, orienta a verificar o e-mail) e `sk user get|delete`.
+- **E-mail:** o loop não garante a entrega; falha de SMTP, endereço errado e spam estão fora da garantia (fluxo 4.6). São dois e-mails ("Verificar e-mail" e "Redefinir senha"), com textos do Zitadel a revisar.
+- **Retomada de `Failed`:** o User não tem `update`; falta definir a intervenção explícita.
+- **Remoção com dependentes:** a ordem de remoção entre recursos dependentes (um usuário dono de Organizations) não está definida.
+- **Quarentena e `ObservationStale`:** mensagens esgotadas não têm quarentena, e a condition `ObservationStale` ainda não é registrada pelo Manager.
+- **Executor:** os consumers de `ACTION` usam `max_ack_pending = 1` sem `pinned_client` (a validar no servidor, `docs/NATS.md` §7.5). O número de partições (4) é fixado no bootstrap do broker.
+- **Migrações:** sem controle de versão (obrigatório antes de stg e prd).
+- **Observer:** em dev, uma só partição (`0/1`, aplicada na aplicação por `hash(resourceId) mod count`); com mais réplicas, defina `CORE_USER_OBSERVER_PARTITION_INDEX` e `CORE_USER_OBSERVER_PARTITION_COUNT` por réplica (por exemplo, `StatefulSet` no Kubernetes).
+- **Identidades no NATS em dev:** os componentes se conectam com um único usuário (`smarkee`) e a senha da plataforma; o nome de conexão é o `srv-core-user-<papel>`. As identidades e permissões por papel (`docs/NATS.md` §18 e §26) são o alvo para stg e prd.
+- **Esqueletos vazios:** `components/manager` e `components/cli/src/sk/commands/ipm.py` não têm implementação.

@@ -1,0 +1,40 @@
+[project]
+name = "core-user-e2e"
+version = "0.1.0"
+description = "Suíte e2e black-box de core.user: exercita o contrato pela rede (HTTP, NATS e SSOT), sem importar o código dos componentes."
+requires-python = ">=3.14"
+dependencies = []
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+pythonpath = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "jsonschema>=4.26.0",
+    "nats-py>=2.16.0",
+    "psycopg[binary]>=3.3.6",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.17.0",
+]

@@ -1,0 +1,95 @@
+sequenceDiagram
+    autonumber
+    actor U as Pessoa
+    box rgb(232,240,254) Cliente e borda
+        participant CLI as sk CLI (a implementar)
+        participant GW as Gateway Kong
+        participant Receiver as srv-core-user-receiver
+    end
+    box rgb(243,229,245) Mensageria
+        participant N as NATS JetStream
+    end
+    box rgb(232,245,233) Módulo core / user
+        participant MGR as srv-core-user-manager
+        participant DB as SSOT PostgreSQL
+        participant PUB as srv-core-user-publisher
+        participant OBS as srv-core-user-observer
+        participant REC as srv-core-user-reconciler
+        participant EXE as srv-core-user-executor
+    end
+    box rgb(253,236,234) Sistemas externos
+        participant ZIT as Zitadel
+        participant MAIL as SMTP (Mailpit em dev)
+    end
+
+    rect rgb(232,240,254)
+    Note over U,Receiver: 1. Solicitação (anônima, sem senha)
+    U->>CLI: sk register --name Ana --surname Souza --email ana@dominio.com
+    CLI->>GW: POST /v1/users {givenName, familyName, email}
+    GW->>Receiver: repassa (limite 10/min por IP, X-Forwarded-For)
+    Receiver->>Receiver: valida corpo estrito (sem senha), limite 5/60 s por origem<br/>gera resourceId (UUIDv7), operationId, requestDigest<br/>NÃO consulta o SSOT (resposta uniforme)
+    Receiver->>N: publica receiver.requested.core.user.{id}.create (REQUESTED)<br/>Nats-Msg-Id = messageId, requestedBy = anonymous
+    N-->>Receiver: PubAck
+    Receiver-->>CLI: 202 Accepted {resourceId, operationId}
+    CLI-->>U: "Cadastro solicitado. Verifique seu e-mail para ativar a conta."
+    end
+
+    rect rgb(232,245,233)
+    Note over N,PUB: 2. Persistência (unidade atômica) e publicação do desired
+    N->>MGR: entrega requested (consumer core-user-manager-requested)
+    MGR->>DB: BEGIN, valida, e-mail normalizado único (trava consultiva)<br/>INSERT user (phase Pending, geração 1), Operation accepted<br/>INSERT outbox (desired), COMMIT
+    MGR-->>N: ACK (só depois do COMMIT)
+    PUB->>DB: lê outbox pendente (uma instância ativa, trava de sessão)
+    PUB->>N: publica manager.desired.core.user.{id}.changed (DESIRED)
+    PUB->>DB: marca published_at
+    end
+
+    rect rgb(255,243,224)
+    Note over N,ZIT: 3. Observação (o usuário ainda não existe)
+    N->>OBS: entrega desired (consumer de estado da instância)
+    OBS->>ZIT: GET usuário {id} (conta somente leitura)
+    ZIT-->>OBS: 404 Not Found
+    OBS->>N: publica observer.observed.core.user.{id}.changed<br/>presence = absent, observedAt
+    N->>MGR: entrega observed (consumer core-user-manager-observed)
+    MGR->>DB: phase Reconciling, Operation in_progress, outbox updated
+    end
+
+    rect rgb(255,235,238)
+    Note over N,REC: 4. Decisão
+    N->>REC: entrega desired e observed (último de cada recurso)
+    REC->>REC: desired present x observed absent, observação válida (menos de 10 min)<br/>sem ação pendente, reconciliação ativa
+    REC->>N: publica reconciler.action.core.user.{id}.create (ACTION, armazenado na partição do id)<br/>actionId = {id}.1.create.{observação}, Nats-Msg-Id = actionId
+    end
+
+    rect rgb(253,236,234)
+    Note over N,MAIL: 5. Execução (única credencial de escrita no Zitadel)
+    N->>EXE: entrega action (consumer da partição do recurso, core-user-executor-action-p0..p3, max_ack_pending 1)
+    EXE->>N: lê o desired vigente (Direct Get) e o desfecho do actionId
+    EXE->>EXE: revalida: geração vigente, operação coerente com o desired, sem desfecho prévio
+    EXE->>ZIT: POST /v2/users/human SEM senha, userId = resourceId, na organização core
+    ZIT->>MAIL: e-mail "Verificar e-mail" (código de verificação)
+    EXE->>ZIT: POST /v2/users/{id}/password_reset (sendLink)
+    ZIT->>MAIL: e-mail "Redefinir senha" (link para a pessoa definir a senha)
+    EXE->>ZIT: concede as 7 roles de ação no projeto smarkee (user grant)
+    EXE->>N: publica executor.completed.core.user.{id}.create (RESULT)
+    end
+
+    rect rgb(232,245,233)
+    Note over N,ZIT: 6. Convergência (completed NÃO é convergência)
+    N->>MGR: entrega completed (consumer core-user-manager-result)
+    MGR->>DB: ActionResult (idempotência por actionId), condition atualizada
+    N->>OBS: entrega completed (observação causada)
+    OBS->>ZIT: GET usuário {id}
+    ZIT-->>OBS: 200 (usuário ativo, sem senha definida, roles concedidas)
+    OBS->>N: publica observed presence = present, userState initial,<br/>platformAccess granted, emailVerified false<br/>causationId = messageId do completed
+    N->>MGR: entrega observed
+    MGR->>DB: converge: phase Ready, Operation completed, outbox updated
+    PUB->>N: publica manager.updated.core.user.{id}.changed (UPDATED)
+    N->>REC: entrega observed, compara, converge: noop (nenhuma nova action)
+    end
+
+    rect rgb(243,229,245)
+    Note over MAIL,U: 7. Aviso à pessoa (pelo e-mail, fora do loop)
+    MAIL-->>U: "Verificar e-mail" e "Redefinir senha" (dois e-mails do Zitadel)
+    U->>ZIT: abre o link de redefinição e define a senha (ver 07-ativacao-e-login)
+    end
