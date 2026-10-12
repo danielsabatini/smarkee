@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "OrganizationDefinitions",
-  "description": "Campos de domínio da Organization reutilizados pelos contratos do recurso (desired, observed, requested, API).",
+  "description": "Campos de domínio da Organization reutilizados pelos contratos do recurso (desired, observed, requested e a API do Receiver).",
   "x-schemaVersion": "1.0",
   "$defs": {
     "organizationName": {

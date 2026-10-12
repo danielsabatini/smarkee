@@ -55,7 +55,7 @@
       "description": "Emissor lógico (identidade funcional, não a instância).",
       "type": "string",
       "enum": [
-        "api",
+        "receiver",
         "manager",
         "observer",
         "reconciler",

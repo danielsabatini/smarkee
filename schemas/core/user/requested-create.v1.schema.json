@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "UserRequestedCreateData",
-  "description": "data de requested com operation create. Publicado somente pela API, com requestedBy = anonymous no auto-cadastro. Sem senha (decisão 0014).",
+  "description": "data de requested com operation create. Publicado somente pelo Receiver, com requestedBy = anonymous no auto-cadastro. Sem senha (decisão 0014).",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,

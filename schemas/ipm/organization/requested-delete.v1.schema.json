@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "OrganizationRequestedDeleteData",
-  "description": "data de requested com operation delete: declara lifecycle absent. Publicado somente pela API.",
+  "description": "data de requested com operation delete: declara lifecycle absent. Publicado somente pelo Receiver.",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,

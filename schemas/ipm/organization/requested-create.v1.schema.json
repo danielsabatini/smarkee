@@ -1,16 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "OrganizationRequestedUpdateData",
-  "description": "data de requested com operation update. Traz a especificação alterada, a mudança do controle de reconciliação, ou ambas. Publicado somente pela API.",
+  "title": "OrganizationRequestedCreateData",
+  "description": "data de requested com operation create. Publicado somente pelo Receiver; o dono é o requestedBy.",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "operationId",
     "requestDigest",
-    "resourceVersion"
+    "specification"
   ],
-  "minProperties": 4,
   "properties": {
     "operationId": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/opaqueIdentifier",
@@ -22,16 +21,14 @@
       "x-writer": "server",
       "x-sensitivity": "internal"
     },
-    "resourceVersion": {
-      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceVersion",
-      "x-writer": "client",
-      "x-sensitivity": "internal"
-    },
     "specification": {
-      "title": "OrganizationUpdateSpecification",
+      "title": "OrganizationCreateSpecification",
       "type": "object",
       "additionalProperties": false,
-      "minProperties": 1,
+      "required": [
+        "name",
+        "platformAccess"
+      ],
       "x-writer": "client",
       "x-sensitivity": "internal",
       "properties": {
@@ -47,10 +44,12 @@
         }
       }
     },
-    "reconciliation": {
-      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
-      "description": "Muda só o controle de reconciliação; não incrementa desiredGeneration.",
-      "x-writer": "client",
+    "ownerQuotaLimit": {
+      "description": "Limite de Organizations do dono, definido pelo Receiver a partir do papel do solicitante (ausente para operadores: sem cota). O Manager aplica o limite na mesma unidade atômica do pedido (decisão 0010).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "x-writer": "server",
       "x-sensitivity": "internal"
     }
   }

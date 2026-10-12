@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "CoreContracts",
-  "description": "Índice dos contratos usados pelo módulo core: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e core/ deve estar listado (verificado pelos testes de contrato).",
+  "title": "CoreUserContracts",
+  "description": "Índice dos contratos usados pelos componentes de user do módulo core: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e de core/user/ deve estar listado (verificado pelos testes de contrato).",
   "anyOf": [
     {
       "$ref": "common/message-envelope.v1.schema.json"
@@ -29,33 +29,6 @@
     },
     {
       "$ref": "common/api-error.v1.schema.json"
-    },
-    {
-      "$ref": "core/organization/desired.v1.schema.json"
-    },
-    {
-      "$ref": "core/organization/observed.v1.schema.json"
-    },
-    {
-      "$ref": "core/organization/requested-create.v1.schema.json"
-    },
-    {
-      "$ref": "core/organization/requested-update.v1.schema.json"
-    },
-    {
-      "$ref": "core/organization/requested-delete.v1.schema.json"
-    },
-    {
-      "$ref": "core/organization/api-create-request.v1.schema.json"
-    },
-    {
-      "$ref": "core/organization/api-update-request.v1.schema.json"
-    },
-    {
-      "$ref": "core/organization/resource.v1.schema.json"
-    },
-    {
-      "$ref": "core/organization/resource-list.v1.schema.json"
     },
     {
       "$ref": "core/user/desired.v1.schema.json"
