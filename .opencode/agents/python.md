@@ -163,7 +163,7 @@ main.py
 → entrypoint do componente executável
 ```
 
-Cada serviço do control loop (API, Manager, Observer, Reconciler e Executor de um tipo de recurso, ver `docs/RESOURCE-CONTROL-LOOP.md`) é um componente executável com o seu `main.py`. A estrutura exata (um pacote por módulo ou por serviço) segue o layout do repositório e deve ser decidida e registrada antes da implementação; este arquivo não a fixa.
+Cada componente do control loop (Receiver, Manager, Observer, Reconciler e Executor de um tipo de recurso) é um projeto Python autocontido, com o seu `main.py`, o seu `pyproject.toml` e o seu lockfile. O layout (`features/<módulo>/<tipo>/<papel>/`), o pacote plano (`<módulo>_<tipo>_<papel>`) e a proibição de código de runtime compartilhado entre componentes estão em `.decisions/0015-componentes-por-papel-autocontidos.md`; não os repita aqui.
 
 Evite nomes redundantes como:
 
@@ -177,6 +177,14 @@ quando `main.py` comunicar claramente a responsabilidade.
 O entrypoint deve ser pequeno e responsável principalmente pela inicialização do componente.
 
 A lógica de negócio não deve ser concentrada em `main.py`.
+
+## 5.1 Estrutura interna dos componentes
+
+A estrutura interna dos componentes (`domain/` puro e sem I/O, orquestração em `handlers/` ou `engine/`, adaptadores em `store/`, `provider/`, `transport/`, `http/` e `outbox/`, e `main.py`) e a regra de dependência (`main → orquestração → domain`, o `domain` sem importar adaptador) estão em `.decisions/0017-estrutura-interna-dos-componentes-e-relay-no-manager.md`; não as repita aqui. Em Python:
+
+- o `domain/` não importa `psycopg`, `nats`, `httpx`, `fastapi` nem módulos de adaptadores; cada projeto tem um teste que falha se isso acontecer;
+- as portas (contratos entre orquestração e adaptadores) são `Protocol` definidos junto de quem as usa;
+- cada componente é um processo e expõe **um** script em `[project.scripts]` (`<módulo>-<tipo>-<papel>`); um comportamento que exija privilégio diferente é outro papel, e não um modo (decisão 0019).
 
 ---
 
@@ -464,6 +472,8 @@ Utilize o mecanismo de logging definido pelo projeto.
 
 Logs Python devem ser estruturados de acordo com a necessidade do componente.
 
+Padrão dos componentes: JSON, uma linha por evento; mensagem estática em inglês e todo dado dinâmico no `extra` (chaves em inglês, `snake_case`), nunca interpolado na mensagem; `INFO` para marcos de negócio (sem `subject`, caminhos ou identificadores técnicos além do `resource_id`), `WARNING` para anomalia recuperável, `ERROR` para falha de uma operação e `CRITICAL` para falha que compromete o processo. Mensagens de exceção não entram no log (podem conter valores de colunas): registra-se só o tipo e o local.
+
 Não inclua em logs:
 
 - Secrets
@@ -519,6 +529,8 @@ O CLI `sk` usa **Typer** para os comandos e **pydantic-settings** para a configu
 ---
 
 # 21. Testes e Estrutura do Componente
+
+Cada componente tem os seus testes (`unit` e `integration`), no próprio projeto. Os testes e2e do contrato (black-box, pela rede) ficam em `features/<módulo>/<tipo>/tests/e2e`, como um projeto de testes, e não importam o código dos componentes (decisões 0015 e 0017). Eles não são um componente.
 
 Quando um componente possuir múltiplos entrypoints, os testes podem acompanhar essa separação:
 
@@ -578,6 +590,7 @@ As regras de contrato, mensageria e persistência pertencem aos documentos de `d
 - **Idempotência:** todo consumidor trata a mesma mensagem mais de uma vez sem efeito nocivo. Confirme a mensagem apenas após o processamento durável.
 - **Logs e erros:** nunca registre campos `confidential`, segredos ou referências resolvidas (`docs/SCHEMA.md`). Mensagens de erro identificam a regra violada, e não repetem valores sensíveis.
 - **Testes:** além de unidade e integração, cubra testes de contrato, de idempotência do consumidor (mensagem duplicada) e de concorrência otimista.
+- **Sem biblioteca interna comum:** um componente não importa outro nem uma biblioteca interna compartilhada. Modelos são gerados dos schemas em cada componente, e o contrato comum é verificado pelos testes e2e (decisões 0015 e 0017).
 - **Clientes de mensageria e de banco:** a escolha das bibliotecas segue a seção de dependências e deve ser registrada como decisão em `.decisions/`. Não escolha por conveniência.
 
 ---

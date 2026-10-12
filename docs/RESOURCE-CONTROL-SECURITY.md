@@ -79,28 +79,30 @@ Específicos deste padrão:
 
 # 5. Fronteiras de confiança e identidades
 
-Cada **serviço** possui identidade própria no barramento e no provider. A identidade é `<módulo>-<tipo>-<papel>` (por exemplo, `core-organization-executor`), e não apenas o papel: o Executor de `organization` e o de `user` são identidades distintas, com permissões distintas. Serviços que compartilham identidade não possuem fronteira de segurança entre si.
+Cada **serviço** possui identidade própria no barramento e no provider. A identidade é `<módulo>-<tipo>-<papel>` (por exemplo, `ipm-organization-executor`), e não apenas o papel: o Executor de `organization` e o de `user` são identidades distintas, com permissões distintas. Serviços que compartilham identidade não possuem fronteira de segurança entre si.
 
 ```mermaid
 flowchart LR
 
-    Client[Cliente] -->|autenticado| API
-    API --> Bus[(Mensageria)]
-    Manager --> Bus
+    Client[Cliente] -->|autenticado| Receiver
+    Receiver --> Bus[(Mensageria)]
+    Publisher["Publisher"] --> Bus
     Observer --> Bus
     Reconciler --> Bus
     Executor --> Bus
 
     Manager --> SSOT[(SSOT)]
+    SSOT -->|outbox| Publisher
     Observer -->|leitura| External[Sistema externo]
     Executor -->|escrita| External
 ```
 
 Fronteiras:
 
-- cliente → API: autenticação e autorização do solicitante;
+- cliente → Receiver: autenticação e autorização do solicitante;
 - componentes → mensageria: autenticação e autorização por subject;
 - Manager → SSOT: único componente do loop com escrita no SSOT. Cada serviço acessa o SSOT com papel próprio e privilégios mínimos por tipo de recurso (`SSOT.md` e `POSTGRESQL.md`);
+- Publisher → SSOT: leitura do outbox do tipo e marcação da publicação; → mensageria: publica no emissor `manager`;
 - Observer → provider: somente leitura;
 - Executor → provider: única identidade com escrita;
 - serviço → serviço de outro tipo: nenhuma permissão. Cada serviço atua somente sobre o seu `<módulo>.<tipo>`.
@@ -111,12 +113,13 @@ Publicação e assinatura são autorizadas separadamente (`NATS.md`).
 
 ## 6.1 Matriz de permissões
 
-O emissor é o primeiro token do subject. Cada identidade só publica no próprio emissor, **escopada ao seu `<módulo>.<tipo>`**. Na tabela, `<m>.<t>` é o módulo e o tipo do serviço (por exemplo, `core.organization`).
+O emissor é o primeiro token do subject. Cada identidade só publica no próprio emissor, **escopada ao seu `<módulo>.<tipo>`**. Na tabela, `<m>.<t>` é o módulo e o tipo do serviço (por exemplo, `ipm.organization`).
 
 | Serviço | Publica | Consome |
 |---|---|---|
-| `api-<m>-<t>` | `api.requested.<m>.<t>.>` | — |
-| `srv-<m>-<t>-manager` | `manager.desired.<m>.<t>.>`, `manager.updated.<m>.<t>.>` | `REQUESTED`, `OBSERVED` e `RESULT` do tipo, por consumers criados pela infraestrutura |
+| `srv-<m>-<t>-receiver` | `receiver.requested.<m>.<t>.>` | — |
+| `srv-<m>-<t>-manager` | — (registra `desired` e `updated` no outbox do SSOT) | `REQUESTED`, `OBSERVED` e `RESULT` do tipo, por consumers criados pela infraestrutura |
+| `srv-<m>-<t>-publisher` (Publisher) | `manager.desired.<m>.<t>.>`, `manager.updated.<m>.<t>.>` (a partir do outbox do tipo) | — |
 | `srv-<m>-<t>-observer` | `observer.observed.<m>.<t>.>` | `DESIRED` e `RESULT` do tipo, por consumers de estado criados pelo próprio serviço |
 | `srv-<m>-<t>-reconciler` | `reconciler.action.<m>.<t>.>` | `DESIRED`, `OBSERVED` e `RESULT` do tipo, por consumers de estado criados pelo próprio serviço |
 | `srv-<m>-<t>-executor` | `executor.completed.<m>.<t>.>`, `executor.failed.<m>.<t>.>` | `ACTION` do tipo, por consumer criado pela infraestrutura; leitura direta do último `desired` e do último resultado (`RESULT`) do tipo |
@@ -126,7 +129,7 @@ A configuração concreta (consumers, filtros e Subjects de autorização do ser
 Consequências:
 
 - somente o Reconciler do tipo publica `action`, e somente o Executor do tipo a consome;
-- apenas o Manager do tipo publica `desired`;
+- apenas o Manager do tipo origina `desired` (registrado no outbox) e apenas o Publisher o publica, no emissor `manager`;
 - apenas o Observer do tipo publica `observed`;
 - nenhum serviço lê nem publica mensagens de outro `<módulo>.<tipo>`;
 - nenhuma identidade de aplicação possui `publish: >` ou `subscribe: >`;
@@ -136,7 +139,7 @@ Consequências:
 
 ## 6.2 Validação de `resourceId`
 
-O `resourceId` compõe o subject. Ele deve ser validado na entrada (API e Manager) para conter apenas caracteres que não criem tokens extras nem wildcards, conforme `NATS.md` (Identificadores). Um `resourceId` inválido é rejeitado, e não normalizado silenciosamente.
+O `resourceId` compõe o subject. Ele deve ser validado na entrada (Receiver e Manager) para conter apenas caracteres que não criem tokens extras nem wildcards, conforme `NATS.md` (Identificadores). Um `resourceId` inválido é rejeitado, e não normalizado silenciosamente.
 
 ## 6.3 Identidade administrativa e remoção de estado
 
@@ -149,7 +152,7 @@ Existe uma **identidade administrativa separada**, usada somente por infraestrut
 
 Ao remover um recurso, o Manager publica o `desired` final (`lifecycle=absent`) e, após a convergência, remove o recurso do SSOT. A mensagem permanece como tombstone até a limpeza (`NATS.md`).
 
-Além dela, existem duas identidades de infraestrutura para o SSOT: o **relay** do outbox (lê as mensagens pendentes e marca a publicação, e publica no emissor `manager`) e a **manutenção** (remove registros expirados de outbox, de resultados de ação e de operações). Nenhuma delas executa regra de negócio, e seus privilégios estão em `POSTGRESQL.md`.
+O **Publisher** é o sexto papel (decisão 0019), com projeto, papel de banco e identidade de mensageria próprios: lê as mensagens pendentes do outbox do tipo, marca a publicação e publica no emissor `manager`. Além dele, existe a identidade de **manutenção**, de infraestrutura (remove registros expirados de outbox, de resultados de ação e de operações). Nenhum dos dois executa regra de negócio, e seus privilégios estão em `POSTGRESQL.md`.
 
 A identidade administrativa não é utilizada por serviços do loop, suas credenciais são fornecidas por secrets management e o seu uso deve ser auditado.
 
@@ -203,8 +206,9 @@ Isso reduz o impacto de um `desired` ou de um `observed` incorretos aplicado em 
 
 | Componente | Credencial do provider |
 |---|---|
-| API | Nenhuma |
+| Receiver | Nenhuma |
 | Manager | Nenhuma |
+| Publisher | Nenhuma |
 | Observer | Somente leitura |
 | Reconciler | Nenhuma |
 | Executor | Escrita, com escopo mínimo |
@@ -223,11 +227,11 @@ Regras:
 
 Toda alteração deve ser atribuível a um solicitante.
 
-- a API autentica o solicitante e registra sua identidade (ator) no contexto da requisição;
+- o Receiver autentica o solicitante e registra sua identidade (ator) no contexto da requisição;
 - o ator é registrado no campo `requestedBy` e acompanha a operação em `requested`, `desired`, `action`, `completed` e `failed`, junto de `correlationId` e `causationId` (`MESSAGING.md`);
 - o ator descreve **quem pediu**, e não quem executou: a identidade do componente executor já é conhecida pelo emissor;
-- o campo é definido em `MESSAGING.md` (envelope) e possui `writer = server` (`SCHEMA.md`): a API o atribui a partir do solicitante autenticado e rejeita o valor enviado por um cliente;
-- **escritas anônimas** são exceção declarada no contrato do recurso (`RESOURCE-CONTROL-LOOP.md`, seção 6.1.2): o ator é `anonymous`, e a atribuição individual é substituída pela origem da requisição, registrada na API e no gateway, sem entrar nas mensagens.
+- o campo é definido em `MESSAGING.md` (envelope) e possui `writer = server` (`SCHEMA.md`): o Receiver o atribui a partir do solicitante autenticado e rejeita o valor enviado por um cliente;
+- **escritas anônimas** são exceção declarada no contrato do recurso (`RESOURCE-CONTROL-LOOP.md`, seção 6.1.2): o ator é `anonymous`, e a atribuição individual é substituída pela origem da requisição, registrada no Receiver e no gateway, sem entrar nas mensagens.
 
 Auditoria:
 
@@ -239,16 +243,16 @@ Auditoria:
 
 A Organization é a unidade de isolamento. Ela pertence ao contexto semântico do recurso (`organizationId`), não ao subject (`MESSAGING.md`, *Organization e contexto*).
 
-- a API autoriza o solicitante para a organization do recurso antes de publicar `requested`;
+- o Receiver autoriza o solicitante para a organization do recurso antes de publicar `requested`;
 - o Manager valida que a organization do pedido corresponde à do recurso;
 - o Executor opera somente com o escopo da organization presente no `desired` vigente;
 - quando o transporte oferecer autorização por organization ou namespace, ela pode ser usada sem alterar a semântica das mensagens;
-- consultas via API retornam apenas recursos da organization autorizada.
+- consultas via Receiver retornam apenas recursos da organization autorizada.
 
 # 12. Abuso e limites
 
-- a API aplica limite de taxa por solicitante e por organization;
-- o endpoint anônimo tem limite de taxa por origem no gateway e na API, resposta uniforme (sem revelar se o dado já existe) e nenhuma consulta da Operation por anônimo. Cadastro em massa é detectado e gera alerta;
+- o Receiver aplica limite de taxa por solicitante e por organization;
+- o endpoint anônimo tem limite de taxa por origem no gateway e no Receiver, resposta uniforme (sem revelar se o dado já existe) e nenhuma consulta da Operation por anônimo. Cadastro em massa é detectado e gera alerta;
 - a criação de recursos que consomem capacidade da plataforma tem **cota por dono**, aplicada pelo Manager na mesma unidade atômica do pedido (por exemplo, Organizations por usuário);
 - o Executor limita concorrência e taxa de chamadas ao provider (`RESOURCE-CONTROL-LOOP.md`, *Proteções de carga e estabilidade*);
 - flapping (`DriftLoop`) e remoções em massa geram alerta;
@@ -263,7 +267,7 @@ Devem ser observáveis, sem expor dados sensíveis:
 - `observed` com `unknown` e sua duração;
 - remoções limitadas por janela;
 - uso da credencial de escrita (quem, qual recurso, qual operação);
-- falhas de autenticação na API.
+- falhas de autenticação no Receiver.
 
 # 14. Anti-padrões
 
@@ -271,7 +275,7 @@ Devem ser observáveis, sem expor dados sensíveis:
 - conceder `publish: >` ou `subscribe: >` a um componente de aplicação;
 - Executor que executa toda `action` recebida sem revalidar;
 - tratar erro de leitura como `absent`;
-- credencial de escrita no Observer, no Reconciler, no Manager ou na API;
+- credencial de escrita no Observer, no Reconciler, no Manager ou no Receiver;
 - segredo no `desired`, na `action` ou em logs;
 - operação sem ator identificável;
 - exceder o limite de remoções "porque é urgente" sem decisão explícita.

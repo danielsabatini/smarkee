@@ -110,12 +110,12 @@ Registro consolidado de um recurso. Existe um conjunto de registros por tipo de 
 
 Registro de uma solicitação assíncrona (`RESOURCE-CONTROL-LOOP.md`): identifica a solicitação, o recurso, a geração, o solicitante, o estado do processamento e o seu motivo, o resumo do pedido e os tempos. Não se confunde com o Resource.
 
-A identidade da Operation (`operationId`) é atribuída pela API (`writer = server`), devolvida ao cliente e transportada no `requested`. Ela é a chave de idempotência do pedido no SSOT:
+A identidade da Operation (`operationId`) é atribuída pelo Receiver (`writer = server`), devolvida ao cliente e transportada no `requested`. Ela é a chave de idempotência do pedido no SSOT:
 
-- quando o cliente informa uma chave de idempotência, a API deriva o `operationId` de forma determinística, por função de hash criptográfica sobre o módulo, o tipo de recurso, o solicitante (`requestedBy`) e a chave. A repetição do pedido com a mesma chave produz o mesmo `operationId`, e chaves iguais de solicitantes diferentes produzem identidades diferentes;
-- sem chave, a API gera um `operationId` aleatório. A reentrega do mesmo `requested` pelo transporte carrega o mesmo `operationId`.
+- quando o cliente informa uma chave de idempotência, o Receiver deriva o `operationId` de forma determinística, por função de hash criptográfica sobre o módulo, o tipo de recurso, o solicitante (`requestedBy`) e a chave. A repetição do pedido com a mesma chave produz o mesmo `operationId`, e chaves iguais de solicitantes diferentes produzem identidades diferentes;
+- sem chave, o Receiver gera um `operationId` aleatório. A reentrega do mesmo `requested` pelo transporte carrega o mesmo `operationId`.
 
-A API também calcula o **resumo do pedido** (`requestDigest`), uma função de hash criptográfica sobre a forma canônica do conteúdo pedido, e o transporta no `requested`. O resumo detecta o reuso da mesma chave com outro conteúdo.
+O Receiver também calcula o **resumo do pedido** (`requestDigest`), uma função de hash criptográfica sobre a forma canônica do conteúdo pedido, e o transporta no `requested`. O resumo detecta o reuso da mesma chave com outro conteúdo.
 
 | `operationStatus` | Significado |
 |---|---|
@@ -197,7 +197,7 @@ Toda unidade **começa obtendo acesso exclusivo ao registro do recurso** e só e
 
 Um pedido `rejected` não altera o Resource e não gera `desired`.
 
-Antes de publicar, a API consulta a Operation pelo `operationId`: se ela existir com o mesmo `requestDigest`, a API devolve a Operation existente sem publicar; com resumo diferente, a API rejeita o pedido de imediato. Essa consulta evita publicações repetidas, e o passo 2 cobre as repetições simultâneas que passam por ela.
+Antes de publicar, o Receiver consulta a Operation pelo `operationId`: se ela existir com o mesmo `requestDigest`, o Receiver devolve a Operation existente sem publicar; com resumo diferente, o Receiver rejeita o pedido de imediato. Essa consulta evita publicações repetidas, e o passo 2 cobre as repetições simultâneas que passam por ela.
 
 ## 10.2 `observed`
 
@@ -227,7 +227,7 @@ Quando a especificação muda, `desiredGeneration` aumenta, `failureCount` é ze
 
 O controle para o **solicitante** é **otimista**. Uma atualização informa a `resourceVersion` que leu. Se o registro foi alterado depois, a atualização é rejeitada e a Operation registra o conflito explícito (`rejected`, `conflict`). A atualização não sobrescreve silenciosamente uma alteração concorrente.
 
-Como a API responde de forma assíncrona, o conflito é conhecido pela Operation. A API pode conferir a `resourceVersion` antes de publicar, para devolver o conflito de imediato; essa conferência é uma conveniência, e a decisão é sempre do Manager.
+Como o Receiver responde de forma assíncrona, o conflito é conhecido pela Operation. O Receiver pode conferir a `resourceVersion` antes de publicar, para devolver o conflito de imediato; essa conferência é uma conveniência, e a decisão é sempre do Manager.
 
 Entre **mensagens internas**, a serialização é pelo acesso exclusivo ao registro no início da unidade (invariante 9). A unidade é repetida a partir do estado atual somente em falha transitória da gravação.
 
@@ -241,17 +241,17 @@ Mensagens do transporte podem ser entregues mais de uma vez e, para mensagens de
 | `observed` | Monotonia de `observedAt`: observação não mais recente é descartada |
 | `completed`, `failed` | Identidade da ação (`actionId`) registrada em `ActionResult`: o resultado de uma ação já registrada não é contado de novo |
 
-A chave de idempotência é escopada ao solicitante: chaves iguais de solicitantes diferentes são independentes, e um solicitante nunca recebe a Operation de outro. A chave em si não precisa ser guardada nem transportada: ela é consumida pela API na derivação do `operationId`.
+A chave de idempotência é escopada ao solicitante: chaves iguais de solicitantes diferentes são independentes, e um solicitante nunca recebe a Operation de outro. A chave em si não precisa ser guardada nem transportada: ela é consumida pelo Receiver na derivação do `operationId`.
 
 A retenção da Operation é maior que o prazo máximo de reentrega do `requested`; a de `ActionResult`, maior que a retenção dos resultados no transporte.
 
 # 13. Outbox
 
-A publicação das mensagens registradas no outbox é feita por um **relay**, que é um componente de infraestrutura e não executa regra de negócio.
+A publicação das mensagens registradas no outbox é feita pelo **Publisher**, o sexto papel (decisão 0019), com projeto, papel de banco e identidade próprios, e que não executa regra de negócio.
 
 - a entrega é *pelo menos uma vez*: uma falha entre publicar e marcar como publicada resulta em republicação;
 - a publicação é **sequencial**: a próxima mensagem só é publicada depois da confirmação do transporte para a anterior, e um erro interrompe o lote. Publicar várias mensagens em paralelo permitiria que uma mensagem antiga, repetida após um erro, fosse gravada depois de uma nova e passasse a ser o último estado retido;
-- **uma única instância** do relay publica por vez cada outbox. Ao perder a garantia de exclusividade, a instância descarta o lote em memória e para de publicar imediatamente;
+- **uma única instância** do Publisher publica por vez cada outbox. Ao perder a garantia de exclusividade, a instância descarta o lote em memória e para de publicar imediatamente;
 - toda mensagem publicada leva a sua identidade (`messageId`) também como chave de deduplicação do transporte, quando suportado; os consumidores continuam idempotentes;
 - a **ordem de gravação por recurso é preservada na publicação**. Isso é necessário porque mensagens de `desired` de mesma geração (por exemplo, a suspensão da reconciliação) são ordenadas pela ordem de publicação (`MESSAGING.md`);
 - um atraso na publicação é observável (idade da mensagem mais antiga não publicada);
@@ -275,19 +275,19 @@ Operações concluídas têm retenção limitada. O que precisa ser mantido a lo
 
 # 15. Leitura e Consistência
 
-- a API lê o SSOT em **modo somente leitura**, por uma interface de leitura própria e versionada, e não pela estrutura de armazenamento, para expor o estado atual do recurso e das operações;
+- o Receiver lê o SSOT em **modo somente leitura**, por uma interface de leitura própria e versionada, e não pela estrutura de armazenamento, para expor o estado atual do recurso e das operações;
 - a leitura reflete o que o Manager já gravou. Pode estar atrasada em relação ao sistema externo e ao transporte, e isso é esperado: a convergência é eventual;
 - a leitura nunca é usada para decidir uma ação sobre o sistema externo. Quem decide é o Reconciler, a partir do estado recebido pelo transporte.
 
 # 16. Segurança
 
-- somente o Manager do tipo escreve nos registros do tipo; a API lê; o relay lê e marca publicação; a administração do esquema pertence à infraestrutura;
+- somente o Manager do tipo escreve nos registros do tipo; o Receiver lê; o Publisher lê e marca publicação; a execução das migrações do esquema pertence à infraestrutura, com o código no projeto do Manager do tipo (decisão 0015);
 - cada serviço usa identidade própria e privilégios mínimos, escopados ao seu tipo de recurso;
 - nenhum serviço do loop possui privilégio de alterar a estrutura nem de remover registros fora do seu papel;
 - dados `confidential` e `secretReference` seguem `SCHEMA.md`: não aparecem em log, erro nem métrica, e referências a segredo nunca são resolvidas pelo SSOT;
 - o acesso é autenticado e criptografado em trânsito, e o dado é protegido em repouso conforme a classificação;
 - credenciais do SSOT são fornecidas por mecanismo seguro de gestão de segredos;
-- alterações de estrutura são feitas somente por infraestrutura, versionadas e revisadas.
+- alterações de estrutura são executadas somente por infraestrutura, com papel administrativo, versionadas e revisadas; o código delas fica no projeto do Manager do tipo.
 
 Os requisitos de segurança do loop estão em `RESOURCE-CONTROL-SECURITY.md`.
 
@@ -308,13 +308,13 @@ O SSOT é a **única fonte** de Operation, de `conditions` e do histórico conso
 - os objetivos de recuperação (ponto e tempo) são parâmetros do ambiente;
 - a reconstrução do SSOT a partir do transporte é **apenas parcial**: o transporte retém o último `desired` e o último `observed` de cada recurso, mas não Operation, `conditions` nem `failureCount`;
 - com o SSOT indisponível, o Manager não aceita novos pedidos nem atualiza o estado, mas o loop continua operando sobre o `desired` já publicado;
-- após restauração a um ponto anterior, aplica-se o procedimento de recuperação abaixo **antes** de liberar o Manager e o relay.
+- após restauração a um ponto anterior, aplica-se o procedimento de recuperação abaixo **antes** de liberar o Manager e o Publisher.
 
 ## 18.1 Recuperação após restauração
 
 Restaurar o SSOT a um ponto anterior faz `desiredGeneration` voltar ao valor daquele ponto, enquanto o transporte retém `desired` publicados depois dele. Sem tratamento, uma nova alteração reutilizaria uma geração já publicada com outro conteúdo (invariante 10), e mensagens já publicadas voltariam a ficar pendentes no outbox e poderiam substituir o último estado retido por um anterior.
 
-O procedimento é executado por infraestrutura, com o Manager e o relay parados:
+O procedimento é executado por infraestrutura, com o Manager e o Publisher parados:
 
 1. descartar as mensagens pendentes do outbox: elas são anteriores ao ponto restaurado e podem já ter sido publicadas;
 2. para cada recurso do SSOT, ler o último `desired` retido no transporte;
@@ -322,7 +322,7 @@ O procedimento é executado por infraestrutura, com o Manager e o relay parados:
 4. se o transporte tiver a mesma geração e o mesmo conteúdo, não fazer nada;
 5. se o transporte tiver geração maior, ou a mesma geração com conteúdo diferente, gravar `desiredGeneration` como a geração do transporte mais um e registrar no outbox o `desired` do SSOT com essa geração;
 6. listar, sem alterar, os recursos que existem no transporte e não existem no SSOT (criados depois do ponto restaurado). A decisão de recriar o registro ou publicar a remoção é do operador, porque é destrutiva;
-7. registrar o relatório da recuperação e só então liberar o Manager e o relay.
+7. registrar o relatório da recuperação e só então liberar o Manager e o Publisher.
 
 O SSOT restaurado é a intenção vigente. Pedidos aceitos depois do ponto restaurado são perdidos, e suas Operations deixam de existir; essa perda é limitada pelo objetivo de ponto de recuperação do ambiente. Mensagens `updated` desse intervalo não são republicadas.
 

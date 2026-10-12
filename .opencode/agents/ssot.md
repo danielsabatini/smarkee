@@ -30,7 +30,7 @@ Em conformidade com o `AGENTS.md` (seção 24.1), este arquivo define apenas a a
 * contratos formais e ciclo de vida do schema até o SSOT: `docs/SCHEMA.md`;
 * segurança do control loop (identidades, proteção da `action`, credenciais): `docs/RESOURCE-CONTROL-SECURITY.md`;
 * modelo e garantias de gravação do SSOT (modelo lógico, atomicidade, concorrência, idempotência, outbox, segurança, recuperação): `docs/SSOT.md`;
-* implementação do SSOT em PostgreSQL com `jsonb` (tabelas, privilégios, relay, migrações, backup): `docs/POSTGRESQL.md`.
+* implementação do SSOT em PostgreSQL com `jsonb` (tabelas, privilégios, Publisher, migrações, backup): `docs/POSTGRESQL.md`.
 
 ---
 

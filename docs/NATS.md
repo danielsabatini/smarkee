@@ -40,12 +40,12 @@ Formato de referência:
 Exemplos:
 
 ```text
-api.requested.core.organization.<id>.create
-manager.desired.core.organization.<id>.changed
-observer.observed.core.organization.<id>.changed
-reconciler.action.core.organization.<id>.create
-executor.completed.core.organization.<id>.create
-manager.updated.core.organization.<id>.changed
+receiver.requested.ipm.organization.<id>.create
+manager.desired.ipm.organization.<id>.changed
+observer.observed.ipm.organization.<id>.changed
+reconciler.action.ipm.organization.<id>.create
+executor.completed.ipm.organization.<id>.create
+manager.updated.ipm.organization.<id>.changed
 ```
 
 ## 3.3 Emissor primeiro
@@ -53,7 +53,7 @@ manager.updated.core.organization.<id>.changed
 O primeiro nível representa o emissor funcional:
 
 ```text
-api
+receiver
 manager
 observer
 reconciler
@@ -90,8 +90,8 @@ A regra semântica de identidade de recurso continua pertencendo a `MESSAGING.md
 `desired` e `observed` são mensagens de estado (ver `MESSAGING.md`, classes de mensagem). Por isso, utilizam sempre a operação `changed`:
 
 ```text
-manager.desired.core.organization.<id>.changed
-observer.observed.core.organization.<id>.changed
+manager.desired.ipm.organization.<id>.changed
+observer.observed.ipm.organization.<id>.changed
 ```
 
 Assim, cada recurso possui **um único Subject** por tipo de estado, e a retenção de uma mensagem por Subject (seção de retenção) guarda exatamente o último estado do recurso.
@@ -119,13 +119,13 @@ Core NATS pode ser utilizado para interações que explicitamente sejam efêmera
 ## 5.2 Exemplos
 
 ```text
-api.requested.core.organization.<id>.create
-manager.desired.core.organization.<id>.changed
-observer.observed.core.organization.<id>.changed
-reconciler.action.core.organization.<id>.create
-executor.completed.core.organization.<id>.create
-executor.failed.core.organization.<id>.create
-manager.updated.core.organization.<id>.changed
+receiver.requested.ipm.organization.<id>.create
+manager.desired.ipm.organization.<id>.changed
+observer.observed.ipm.organization.<id>.changed
+reconciler.action.ipm.organization.<id>.create
+executor.completed.ipm.organization.<id>.create
+executor.failed.ipm.organization.<id>.create
+manager.updated.ipm.organization.<id>.changed
 ```
 
 ## 5.3 Wildcards
@@ -137,10 +137,10 @@ Exemplos:
 ```text
 manager.desired.>
 manager.desired.ipm.>
-manager.desired.core.organization.>
+manager.desired.ipm.organization.>
 
-observer.observed.core.organization.>
-reconciler.action.core.organization.>
+observer.observed.ipm.organization.>
+reconciler.action.ipm.organization.>
 ```
 
 Evitar subscriptions genéricas como:
@@ -157,13 +157,13 @@ em componentes de produção.
 Quando `resourceId` estiver no Subject:
 
 ```text
-observer.observed.core.organization.organization-01.changed
+observer.observed.ipm.organization.organization-01.changed
 ```
 
 não utilizar:
 
 ```text
-observer.observed.core.organization.organization.01.changed
+observer.observed.ipm.organization.organization.01.changed
 ```
 
 porque o segundo exemplo cria dois tokens adicionais.
@@ -189,7 +189,7 @@ Esta regra não contradiz a recomendação de evitar fragmentação (seção pr�
 
 | Stream | Subjects | Retenção | Classe | Consumidores |
 |---|---|---|---|---|
-| `REQUESTED` | `api.requested.>` | `WorkQueuePolicy`, `DiscardNew` | Trabalho | Manager |
+| `REQUESTED` | `receiver.requested.>` | `WorkQueuePolicy`, `DiscardNew` | Trabalho | Manager |
 | `DESIRED` | `manager.desired.>` | `LimitsPolicy`, `MaxMsgsPerSubject=1`, `allow_direct` | Estado | Reconciler, Observer, Executor (leitura direta do último valor), outros |
 | `OBSERVED` | `observer.observed.>` | `LimitsPolicy`, `MaxMsgsPerSubject=1`, `MaxAge` | Estado | Reconciler, Manager, outros |
 | `ACTION` | `reconciler.action.>` | `WorkQueuePolicy`, `DiscardNew` | Trabalho | Executor |
@@ -208,7 +208,7 @@ Os valores de limites (`MaxAge`, tamanho, réplicas) dependem do ambiente. Duas 
 São mensagens de trabalho com **um único consumidor lógico**. A mensagem deve ser processada uma vez por um grupo de instâncias e deixar de existir após o ACK.
 
 - `WorkQueuePolicy`: a mensagem é removida após o ACK;
-- `DiscardNew`: com o Stream cheio, o publicador recebe erro, em vez de o Stream descartar trabalho antigo. O publicador deve tratar esse erro como contrapressão (a API rejeita o pedido de forma retentável; o Reconciler tenta novamente na próxima reconciliação);
+- `DiscardNew`: com o Stream cheio, o publicador recebe erro, em vez de o Stream descartar trabalho antigo. O publicador deve tratar esse erro como contrapressão (o Receiver rejeita o pedido de forma retentável; o Reconciler tenta novamente na próxima reconciliação);
 - consumidores de um Stream `WorkQueue` não podem ter filtros de Subject sobrepostos. Cada Stream de trabalho possui um único consumidor durável por função;
 - um segundo leitor (auditoria, métricas) **não** deve consumir o Stream de trabalho. Esses leitores usam `AUDIT` (ver seção de Source, Mirror e Republish).
 
@@ -267,17 +267,18 @@ Consumers mantêm o estado de entrega por leitor e controlam como mensagens pers
 
 ## 7.1 Serviço e consumer
 
-A plataforma é composta por muitos serviços pequenos. Para cada módulo e tipo de recurso existe o mesmo conjunto de serviços:
+A plataforma é composta por muitos serviços pequenos. Cada serviço é um componente autocontido (decisão 0015); o Publisher é o sexto papel (decisão 0019). Para cada módulo e tipo de recurso existe o mesmo conjunto de papéis, criados à medida que se tornam necessários:
 
 ```text
-api-<módulo>-<tipo>
+srv-<módulo>-<tipo>-receiver
 srv-<módulo>-<tipo>-manager
+srv-<módulo>-<tipo>-publisher
 srv-<módulo>-<tipo>-observer
 srv-<módulo>-<tipo>-reconciler
 srv-<módulo>-<tipo>-executor
 ```
 
-Um consumer pertence a **um único Stream**. Portanto, um serviço possui um consumer **por Stream que lê**. Cada consumer possui um **filtro único** no nível `<módulo>.<tipo>`, por exemplo `manager.desired.core.organization.>`.
+Um consumer pertence a **um único Stream**. Portanto, um serviço possui um consumer **por Stream que lê**. Cada consumer possui um **filtro único** no nível `<módulo>.<tipo>`, por exemplo `manager.desired.ipm.organization.>`.
 
 Os Streams são fixos (um por `messageType`); a criação de um novo módulo ou tipo de recurso acrescenta apenas consumers, e não Streams.
 
@@ -343,29 +344,36 @@ Limitações a considerar:
 
 A configuração exata de `pinned_client` (inclusive a versão mínima do servidor) e de Direct Get deve ser validada no ambiente.
 
-## 7.6 Consumers por serviço (exemplo `core.organization`)
+**Estado atual (dev).** Os consumers `core-user-executor-action-p<índice>` usam `max_ack_pending=1` **sem** `pinned_client` (uma só instância do Executor; sem failover automático). É um desvio consciente da regra acima, a corrigir antes de stg e prd.
+
+**Partição no servidor (decisão 0018, aplicada ao `ACTION` em dev).** Para vazão sem perder o *single-flight* por recurso, o Stream `ACTION` declara `subject_transform` com `partition(N, <resourceId>)`: `reconciler.action.<módulo>.<tipo>.<resourceId>.<operação>` é armazenado como `reconciler.action.<módulo>.<tipo>.<partição>.<resourceId>.<operação>`. Cada partição tem um consumer durável (`<módulo>-<tipo>-executor-action-p<partição>`, `filter_subject` `reconciler.action.<módulo>.<tipo>.<partição>.>`, `max_ack_pending=1`): uma `action` por vez em cada recurso e até `N` recursos em paralelo. `N` é definido no bootstrap do Stream (`infrastructure/dev/broker/bootstrap/action.json`, hoje 4), e o Executor roda um laço por partição (`CORE_USER_EXECUTOR_PARTITION_COUNT`, o mesmo valor). Mudar `N` exige recriar o Stream e os consumers. Quem publica não muda: o Subject publicado continua o canônico. O `DESIRED` e o `OBSERVED` **não** são particionados: o Executor lê o `desired` por Direct Get no Subject canônico do recurso, e o Observer segue com a partição na aplicação (`hash(resourceId) mod count`) até haver carga medida.
+
+## 7.6 Consumers por serviço (exemplo `ipm.organization`)
 
 | Serviço | Consumer | Stream | Filtro | Classe |
 |---|---|---|---|---|
-| `api-core-organization` | — | — | — | Somente publica |
-| `srv-core-organization-manager` | `core-organization-manager-requested` | `REQUESTED` | `api.requested.core.organization.>` | Trabalho |
-| | `core-organization-manager-observed` | `OBSERVED` | `observer.observed.core.organization.>` | Persistência |
-| | `core-organization-manager-result` | `RESULT` | `executor.*.core.organization.>` | Persistência |
-| `srv-core-organization-observer` | `core-organization-observer-desired-<instância>` | `DESIRED` | `manager.desired.core.organization.>` | Estado |
-| | `core-organization-observer-result-<instância>` | `RESULT` | `executor.*.core.organization.>` | Estado |
-| `srv-core-organization-reconciler` | `core-organization-reconciler-desired-<instância>` | `DESIRED` | `manager.desired.core.organization.>` | Estado |
-| | `core-organization-reconciler-observed-<instância>` | `OBSERVED` | `observer.observed.core.organization.>` | Estado |
-| | `core-organization-reconciler-result-<instância>` | `RESULT` | `executor.*.core.organization.>` | Estado |
-| `srv-core-organization-executor` | `core-organization-executor-action` | `ACTION` | `reconciler.action.core.organization.>` | Trabalho (`pinned_client`, `max_ack_pending=1`) |
+| `srv-ipm-organization-receiver` | — | — | — | Somente publica |
+| `srv-ipm-organization-publisher` | — | — | — | Somente publica (emissor `manager`, a partir do outbox) |
+| `srv-ipm-organization-manager` | `ipm-organization-manager-requested` | `REQUESTED` | `receiver.requested.ipm.organization.>` | Trabalho |
+| | `ipm-organization-manager-observed` | `OBSERVED` | `observer.observed.ipm.organization.>` | Persistência |
+| | `ipm-organization-manager-result` | `RESULT` | `executor.*.ipm.organization.>` | Persistência |
+| `srv-ipm-organization-observer` | `ipm-organization-observer-desired-<instância>` | `DESIRED` | `manager.desired.ipm.organization.>` | Estado |
+| | `ipm-organization-observer-result-<instância>` | `RESULT` | `executor.*.ipm.organization.>` | Estado |
+| `srv-ipm-organization-reconciler` | `ipm-organization-reconciler-desired-<instância>` | `DESIRED` | `manager.desired.ipm.organization.>` | Estado |
+| | `ipm-organization-reconciler-observed-<instância>` | `OBSERVED` | `observer.observed.ipm.organization.>` | Estado |
+| | `ipm-organization-reconciler-result-<instância>` | `RESULT` | `executor.*.ipm.organization.>` | Estado |
+| `srv-ipm-organization-executor` | `ipm-organization-executor-action-p<partição>` | `ACTION` | `reconciler.action.ipm.organization.<partição>.>` | Trabalho (um consumer por partição; `pinned_client` e `max_ack_pending=1`) |
 
-O filtro `executor.*.core.organization.>` usa um curinga no token de `messageType` para cobrir `completed` e `failed` com **um único filtro**, o que preserva a autorização por filtro.
+**Estado de implementação.** A tabela é o desenho de referência. Em dev, o User (`core.user`) a segue por completo, com o prefixo `core-user-` (por exemplo, `core-user-manager-{requested,observed,result}`, `core-user-observer-{desired,result}-<instância>`, `core-user-reconciler-{desired,observed,result}-<instância>` e `core-user-executor-action-p{0..3}`); a Organization tem só `ipm-organization-manager-requested`, até receber os demais papéis (`docs/IMPLEMENTATION-STATUS.md`).
+
+O filtro `executor.*.ipm.organization.>` usa um curinga no token de `messageType` para cobrir `completed` e `failed` com **um único filtro**, o que preserva a autorização por filtro.
 
 Funções adicionais (billing, auditoria, monitoramento) criam seus próprios consumers, sem alterar o produtor.
 
 ## 7.7 Regras de filtro
 
 - cada consumer possui **um único filtro** no nível `<módulo>.<tipo>`;
-- em Streams `WorkQueue` (`REQUESTED`, `ACTION`), nenhum consumer pode possuir filtro mais largo que `<módulo>.<tipo>` (por exemplo, `api.requested.ipm.>`): ele se sobreporia aos consumers dos demais tipos, e o servidor rejeitaria a criação;
+- em Streams `WorkQueue` (`REQUESTED`, `ACTION`), nenhum consumer pode possuir filtro mais largo que `<módulo>.<tipo>` (por exemplo, `receiver.requested.ipm.>`): ele se sobreporia aos consumers dos demais tipos, e o servidor rejeitaria a criação;
 - um segundo leitor de Stream de trabalho (auditoria, métricas) não é permitido; esses leitores usam `AUDIT`.
 
 ## 7.8 Pull Consumer
@@ -391,15 +399,15 @@ Aplica-se às mensagens de trabalho (`requested` e `action`) e aos consumers de 
 
 ```mermaid
 graph TD
-    A[api.requested.core.organization.>] --> B[(REQUESTED)]
-    B --> C[core-organization-manager-requested]
+    A[receiver.requested.ipm.organization.>] --> B[(REQUESTED)]
+    B --> C[ipm-organization-manager-requested]
     C --> D[manager-1]
     C --> E[manager-2]
 ```
 
 As instâncias concorrem sobre o mesmo fluxo lógico de trabalho. A instância confirma a mensagem somente depois de executar o processamento definido pela aplicação.
 
-Para `action`, apenas uma `action` deve estar em execução por vez para o mesmo `resourceId` (*single-flight*, ver `RESOURCE-CONTROL-LOOP.md`). Isso é obtido pelo consumer do Executor com `pinned_client` e `max_ack_pending=1` (seção de Consumers), e **não** decorre da política `WorkQueue`. Como o servidor pode redistribuir uma `action` sob falha, a idempotência do Executor continua obrigatória.
+Para `action`, apenas uma `action` deve estar em execução por vez para o mesmo `resourceId` (*single-flight*, ver `RESOURCE-CONTROL-LOOP.md`). Isso é obtido pelos consumers do Executor, um por partição do `resourceId`, com `max_ack_pending=1` (e `pinned_client` em stg e prd; seção de Consumers), e **não** decorre da política `WorkQueue`. Como o servidor pode redistribuir uma `action` sob falha, a idempotência do Executor continua obrigatória.
 
 A confirmação de transporte não substitui a publicação de `completed`, `failed` ou `observed`.
 
@@ -499,6 +507,8 @@ Exemplos:
 - payload incompatível.
 
 Essas falhas devem eventualmente ser direcionadas à quarentena, evitando loops infinitos.
+
+**Publicação do outbox (Publisher, decisões 0018 e 0019).** Uma recusa permanente do transporte (mensagem grande demais ou inválida) **não** é descartada nem pulada, porque isso quebraria a ordem por recurso: o Publisher preserva a ordem, registra `ERROR` com `sequence` e `message_id` e sai de `ready`, para o bloqueio aparecer no orquestrador. A saída é uma atuação humana explícita.
 
 # 12. Quarentena / DLQ
 
@@ -669,7 +679,7 @@ NATS suporta ACLs de publicação e assinatura por Subject. Uma allow-list expl�
 Em JetStream há uma particularidade: a permissão de subscribe por Subject não restringe o que um consumidor JetStream lê do Stream. O acesso à API de consumers é autorizado por Stream (`$JS.API.CONSUMER.*.<stream>...`) e, para um consumer com um único filtro, por filtro. Por isso:
 
 - cada `messageType` possui seu Stream (seção de Streams);
-- a identidade de um serviço é `<módulo>-<tipo>-<papel>`, e suas permissões são sempre escopadas por `<módulo>.<tipo>` (por exemplo, `manager.desired.core.organization.>`), nunca por `manager.desired.>`;
+- a identidade de um serviço é `<módulo>-<tipo>-<papel>`, e suas permissões são sempre escopadas por `<módulo>.<tipo>` (por exemplo, `manager.desired.ipm.organization.>`), nunca por `manager.desired.>`;
 - consumers de trabalho e persistência são criados pela infraestrutura (seção de administração), e a identidade de runtime recebe apenas o acesso ao **seu** consumer (`$JS.API.CONSUMER.MSG.NEXT.<stream>.<consumer>` e os Subjects de ACK correspondentes);
 - consumers de estado em memória são criados pelo próprio serviço. Sua identidade pode criar **somente** consumers que casem com o seu padrão de nome e com o seu filtro único (`$JS.API.CONSUMER.CREATE.<stream>.<consumer>.<filtro>`), e não pode listar, alterar nem remover consumers de outros serviços;
 - o Executor lê o `desired` e o desfecho em `RESULT` por Direct Get, com permissões restritas ao Subject do seu tipo (`$JS.API.DIRECT.GET.DESIRED.manager.desired.<módulo>.<tipo>.>` e `$JS.API.DIRECT.GET.RESULT.executor.*.<módulo>.<tipo>.>`);
@@ -773,6 +783,8 @@ instância fixada (`pinned`) por consumer do Executor
 idade do último estado (`observedAt`) por tipo de recurso
 ```
 
+**Saúde dos componentes (decisão 0018).** Todo componente expõe `/health/live`, `/health/ready` e `/health/startup` na porta `8000`. A liveness só olha o sinal de vida do laço principal e **não** consulta o NATS nem o banco; a readiness inclui a conexão com o NATS e, no Publisher, a ausência de bloqueio por recusa permanente.
+
 Os sinais devem ser coletados do NATS e das aplicações consumidoras.
 
 Observabilidade do broker não substitui observabilidade do processamento de negócio.
@@ -835,59 +847,64 @@ sem necessidade explícita.
 
 # 26. Exemplos de autorização
 
-Exemplos conceituais por serviço, para o tipo `core.organization`. A matriz oficial está em `RESOURCE-CONTROL-SECURITY.md`; os valores concretos de configuração do servidor pertencem à infraestrutura e devem ser validados no ambiente.
+Exemplos conceituais por serviço, para o tipo `ipm.organization`. A matriz oficial está em `RESOURCE-CONTROL-SECURITY.md`; os valores concretos de configuração do servidor pertencem à infraestrutura e devem ser validados no ambiente.
 
-## 26.1 `srv-core-organization-manager`
+## 26.1 `srv-ipm-organization-manager` e `srv-ipm-organization-publisher`
+
+O Manager registra `desired` e `updated` no outbox do SSOT e não publica no transporte. Quem publica é o Publisher (`SSOT.md`, outbox; decisão 0019).
 
 ```text
+srv-ipm-organization-publisher
 publish:
-  manager.desired.core.organization.>
-  manager.updated.core.organization.>
+  manager.desired.ipm.organization.>
+  manager.updated.ipm.organization.>
 
+srv-ipm-organization-manager
+publish: nenhum
 consumo (consumers criados pela infraestrutura):
-  REQUESTED → core-organization-manager-requested
-  OBSERVED  → core-organization-manager-observed
-  RESULT    → core-organization-manager-result
+  REQUESTED → ipm-organization-manager-requested
+  OBSERVED  → ipm-organization-manager-observed
+  RESULT    → ipm-organization-manager-result
 ```
 
 O Manager não recebe permissão de purge nem de administração de Streams.
 
-## 26.2 `srv-core-organization-observer`
+## 26.2 `srv-ipm-organization-observer`
 
 ```text
 publish:
-  observer.observed.core.organization.>
+  observer.observed.ipm.organization.>
 
 consumers de estado (criados pelo serviço, somente com este padrão):
-  DESIRED → core-organization-observer-desired-*   filtro manager.desired.core.organization.>
-  RESULT  → core-organization-observer-result-*    filtro executor.*.core.organization.>
+  DESIRED → ipm-organization-observer-desired-*   filtro manager.desired.ipm.organization.>
+  RESULT  → ipm-organization-observer-result-*    filtro executor.*.ipm.organization.>
 ```
 
-## 26.3 `srv-core-organization-reconciler`
+## 26.3 `srv-ipm-organization-reconciler`
 
 ```text
 publish:
-  reconciler.action.core.organization.>
+  reconciler.action.ipm.organization.>
 
 consumers de estado (criados pelo serviço, somente com este padrão):
-  DESIRED  → core-organization-reconciler-desired-*
-  OBSERVED → core-organization-reconciler-observed-*
-  RESULT   → core-organization-reconciler-result-*
+  DESIRED  → ipm-organization-reconciler-desired-*
+  OBSERVED → ipm-organization-reconciler-observed-*
+  RESULT   → ipm-organization-reconciler-result-*
 ```
 
-## 26.4 `srv-core-organization-executor`
+## 26.4 `srv-ipm-organization-executor`
 
 ```text
 publish:
-  executor.completed.core.organization.>
-  executor.failed.core.organization.>
+  executor.completed.ipm.organization.>
+  executor.failed.ipm.organization.>
 
 consumo (consumer criado pela infraestrutura):
-  ACTION → core-organization-executor-action
+  ACTION → ipm-organization-executor-action
 
 leitura direta:
-  DESIRED → último valor de manager.desired.core.organization.>
-  RESULT  → último valor de executor.*.core.organization.>   (desfecho do actionId)
+  DESIRED → último valor de manager.desired.ipm.organization.>
+  RESULT  → último valor de executor.*.ipm.organization.>   (desfecho do actionId)
 ```
 
 O Executor do tipo é a única identidade com acesso de consumo ao consumer de `ACTION` desse tipo.
@@ -915,9 +932,10 @@ Billing não recebe permissões de publicação para Subjects de outros componen
 
 ```mermaid
 graph TD
-    API[api] -->|requested| REQ[(REQUESTED<br/>WorkQueue)]
+    Receiver[receiver] -->|requested| REQ[(REQUESTED<br/>WorkQueue)]
     REQ --> MGR[manager]
-    MGR -->|desired| DES[(DESIRED<br/>Limits, 1 por Subject)]
+    MGR -->|outbox| RLY[publisher]
+    RLY -->|desired, updated| DES[(DESIRED<br/>Limits, 1 por Subject)]
     OBS[observer] -->|observed| OBSD[(OBSERVED<br/>Limits, 1 por Subject)]
     DES --> REC[reconciler]
     DES --> OBS
@@ -930,7 +948,7 @@ graph TD
     RES --> MGR
     RES --> OBS
     RES --> REC
-    MGR -->|updated| UPD[(UPDATED<br/>Limits + MaxAge)]
+    RLY -->|updated| UPD[(UPDATED<br/>Limits + MaxAge)]
     UPD --> CON[console / audit / metrics]
 ```
 
@@ -938,7 +956,7 @@ graph TD
 
 ```mermaid
 graph TD
-    A[1. API publica requested] --> B[(2. REQUESTED)]
+    A[1. Receiver publica requested] --> B[(2. REQUESTED)]
     B --> C[3. Manager persiste e publica desired]
     C --> D[(4. DESIRED)]
     D --> E[5. Observer observa o sistema externo]
@@ -981,15 +999,15 @@ observed
 Evitar:
 
 ```text
-manager.desired.core.organization.<id>.create
-observer.observed.core.organization.<id>.absent
+manager.desired.ipm.organization.<id>.create
+observer.observed.ipm.organization.<id>.absent
 ```
 
 Preferir:
 
 ```text
-manager.desired.core.organization.<id>.changed
-observer.observed.core.organization.<id>.changed
+manager.desired.ipm.organization.<id>.changed
+observer.observed.ipm.organization.<id>.changed
 ```
 
 O tipo de mudança pertence ao contrato do recurso e à evolução de `desiredGeneration`. O resultado da observação (`present`, `absent`, `unknown`) pertence ao campo `presence` do envelope.
@@ -1050,9 +1068,9 @@ Formato:
 Exemplos:
 
 ```text
-core-organization-manager-requested
-core-organization-executor-action
-core-organization-reconciler-desired-<instância>
+ipm-organization-manager-requested
+ipm-organization-executor-action
+ipm-organization-reconciler-desired-<instância>
 billing-observed
 audit-observed
 ```
@@ -1062,9 +1080,9 @@ O sufixo `<instância>` existe apenas nos consumers de estado em memória e é �
 ## 30.3 Subjects
 
 ```text
-manager.desired.core.organization.<id>.changed
-observer.observed.core.organization.<id>.changed
-executor.completed.core.organization.<id>.create
+manager.desired.ipm.organization.<id>.changed
+observer.observed.ipm.organization.<id>.changed
+executor.completed.ipm.organization.<id>.create
 ```
 
 # 31. Checklist operacional
@@ -1081,7 +1099,7 @@ Antes de colocar um fluxo em produção, verificar:
 - [ ] consumer de estado em memória é por instância, com `DeliverLastPerSubject`, nome único por execução e `inactive_threshold`;
 - [ ] consumer de trabalho ou persistência é durável e compartilhado pelas instâncias;
 - [ ] cada consumer possui um único filtro, no nível `<módulo>.<tipo>`;
-- [ ] o Executor usa `pinned_client` e `max_ack_pending=1` em `ACTION`, e lê o `desired` por Direct Get;
+- [ ] o Executor usa um consumer por partição de `ACTION`, com `max_ack_pending=1` (e `pinned_client` em stg e prd), e lê o `desired` por Direct Get;
 - [ ] nenhum serviço de runtime possui permissão de purge ou de administração de Stream;
 - [ ] Pull Consumer é utilizado para work distribution;
 - [ ] ACK ocorre somente após processamento seguro;

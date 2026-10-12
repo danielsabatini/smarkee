@@ -27,7 +27,7 @@ Não redefina aqui as regras dessas ferramentas.
 
 Determine qual componente Python deve ser analisado.
 
-O componente pode ser qualquer projeto ou componente Python que siga as convenções definidas em `python.md`.
+O componente pode ser qualquer projeto ou componente Python que siga as convenções definidas em `python.md`. Cada papel de cada tipo de recurso (`features/<módulo>/<tipo>/<papel>`) é um projeto próprio (`.decisions/0015-componentes-por-papel-autocontidos.md`) e é validado separadamente, a partir do seu diretório.
 
 Execute a validação a partir do diretório do projeto Python correspondente ou utilizando o workspace configurado pelo projeto.
 
@@ -96,6 +96,7 @@ Quando o componente consumir ou produzir contratos de `schemas/`:
 
 - executar os testes de contrato definidos para o componente (`docs/SCHEMA.md`, testes de contrato);
 - regenerar os artefatos derivados dos schemas e **falhar** se houver diferença em relação ao versionado (`docs/SCHEMA.md`, artefatos derivados). Use o mecanismo de geração do projeto; não invente comandos;
+- quando existir a suíte e2e do tipo (`features/<módulo>/<tipo>/tests/e2e`), executá-la contra a stack em execução e registrá-la em `Contratos`;
 - registrar o resultado separadamente (`Contratos`).
 
 Se não houver `schemas/` ou mecanismo de geração, registre `NOT VERIFIED` com o motivo.
@@ -120,7 +121,7 @@ Quando existir um identificador da tarefa de processamento, utilize-o para acomp
 
 ---
 
-## 8. Consultar Quality Gate via API
+## 8. Consultar Quality Gate via Receiver
 
 Consulte obrigatoriamente o Quality Gate através da Web API do SonarQube.
 
@@ -165,7 +166,7 @@ Quando o Quality Gate falhar:
 3. Corrija os problemas pertencentes ao escopo.
 4. Execute novamente a análise.
 5. Aguarde o processamento.
-6. Consulte novamente o Quality Gate via API.
+6. Consulte novamente o Quality Gate via Receiver.
 
 Não considere o problema resolvido sem nova validação.
 

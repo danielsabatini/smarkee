@@ -1,0 +1,187 @@
+# Estado da implementação
+
+> **Escopo:** compara, item a item, os checklists das especificações (`RESOURCE-CONTROL-LOOP.md`, `NATS.md`, `POSTGRESQL.md`, `SSOT.md` e `RESOURCE-CONTROL-SECURITY.md`) com o que existe hoje no repositório e no ambiente de desenvolvimento.
+>
+> **Papel:** relatório de conformidade, e não fonte de regras. As regras estão nas especificações; em conflito, elas prevalecem. Este documento muda quando a implementação muda.
+>
+> **Base da avaliação:** o tipo `core.user` (`features/core/user`), a primeira feature e o modelo das demais, verificado em desenvolvimento em 2026-10-11 (testes de cada projeto, `ruff`, `pyright`, testes e2e contra o Zitadel e o Mailpit reais e testes de resiliência). O tipo `ipm.organization` está no desenho anterior e é tratado na seção 7.
+
+Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em parte ou sem verificação completa); **Pendente** (previsto e não implementado); **Alvo** (exigido só em stg e prd; não exercitado em dev).
+
+# 1. Resumo
+
+| Área | Situação |
+|---|---|
+| Loop completo do User (Receiver, Manager, Publisher, Reconciler, Observer, Executor) | Atende: cadastro anônimo até `Ready` e remoção, contra o Zitadel e o Mailpit reais |
+| Contratos (JSON Schema, modelos gerados, OpenAPI) | Atende: 268 testes dos schemas; modelos regerados e conferidos por teste em cada projeto |
+| Estrutura interna (`domain/` puro, camadas, saúde) | Atende nos seis papéis, com teste de isolamento do `domain/` em cada projeto |
+| Resiliência | Atende para queda de Manager, Executor e Publisher (testes e2e com `E2E_CHAOS=1`); queda do NATS e do banco não é testada |
+| Segurança de transporte e identidade no barramento | **Alvo**: dev usa um só usuário NATS, sem TLS |
+| Observabilidade | Parcial: logs estruturados e probes de saúde; sem métricas nem traces |
+| Retenção, quarentena, backup e recuperação | Pendente |
+| Organization (`ipm`) | Parcial: Receiver, Manager e relay no desenho anterior; sem Observer, Reconciler e Executor |
+| CLI | Parcial: só `sk auth`; faltam `sk register`, `sk user` e `sk ipm organization` |
+
+# 2. `RESOURCE-CONTROL-LOOP.md`: checklist de implementação (seção 55), por papel (`core.user`)
+
+## 2.1 Modelo do recurso
+
+| Item | Situação | Evidência |
+|---|---|---|
+| `resourceId` estável, `desired`, `observed`, `desiredGeneration`, lifecycle, conditions | Atende | `schemas/core/user/`, migração `core."user"` |
+| `observedGeneration` | Atende | Existe na `condition` (`observedGeneration`); o `observed` do User não precisa dele |
+
+## 2.2 Manager
+
+| Item | Situação | Evidência |
+|---|---|---|
+| Dono do SSOT e do lifecycle; publica `desired`; processa `observed`; não executa provider | Atende | `manager/src/core_user_manager/handlers/` |
+| Outbox na mesma transação | Atende | `store/ssot.py`, `handlers/publishing.py`; testes de integração |
+| Conta falhas por geração, marca `Failed` e suspende no `desired` | Atende | `domain/convergence.py` (`decide_result`), limite 5 |
+| Registra `ObservationStale` | Pendente | A condition não é registrada |
+
+## 2.3 Observer
+
+| Item | Situação | Evidência |
+|---|---|---|
+| Somente leitura, observa a realidade, publica `observed` com `observedAt` | Atende | conta `core-user-observer` (`ORG_OWNER_VIEWER`) |
+| Periódico, distingue `present`, `absent`, `unknown` | Atende | 5 min com jitter; `absent` só com 404 inequívoco |
+| Observa só a sua partição | Atende | `hash(resourceId) mod count` (em dev, `0/1`) |
+| Observa após `completed` e `failed`, com `causationId` | Atende | `engine/observer.py` |
+
+## 2.4 Reconciler
+
+| Item | Situação | Evidência |
+|---|---|---|
+| Consome `desired` e `observed`, compara, reavalia periodicamente | Atende | `domain/decision.py`, `engine/reconciler.py` |
+| Decide só com estados conclusivos e válidos; não reemite `action` pendente | Atende | validade 10 min (5 min para `delete`), prazo 2 min |
+| Respeita `desired` suspenso, aplica backoff, aguarda a observação causada | Atende | backoff 5 s a 300 s |
+| `actionId` inclui a observação | Atende | `<id>.<geração>.<operação>.<messageId do observed>` |
+| Não executa a ação | Atende | não tem credencial do provedor |
+
+## 2.5 Executor
+
+| Item | Situação | Evidência |
+|---|---|---|
+| Privilégios mínimos | Atende | `ORG_USER_MANAGER`, só a organização `core`; monta só a própria chave |
+| Revalida a `action` e consulta o desfecho do `actionId` | Atende | `domain/revalidation.py`, `engine/executor.py` (Direct Get) |
+| Chave de correlação com o recurso externo | Atende | `userId = resourceId` |
+| *Single-flight* por recurso | Atende | uma partição por `resourceId`, `max_ack_pending=1` (decisão 0018) |
+| Limita taxa e concorrência contra o provider | Parcial | concorrência limitada a 4 partições; sem limite de taxa explícito (429 do Zitadel vira falha retentável) |
+| Idempotência, publica `completed`/`failed`, não decide o estado desejado | Atende | `actions/user_actions.py` |
+
+## 2.6 Componentes autocontidos (seção 48)
+
+| Item | Situação | Evidência |
+|---|---|---|
+| Cada papel é um projeto autocontido, sem biblioteca comum | Atende | seis projetos em `features/core/user/` |
+| Receiver com autenticação e autorização próprias | Atende | `receiver/.../auth/tokens.py` (JWKS) e `domain/principal.py` |
+| Manager dono das migrações, executadas como etapa de implantação | Atende | `manager/migrations/`, serviço `core-user-migrate` |
+| Publisher como papel próprio, com papel de banco e identidade próprios | Atende | `publisher/`, `core_user_publisher` |
+| Contratos verificados por testes e2e black-box | Atende | `features/core/user/tests/e2e` |
+| Estrutura interna da decisão 0017 | Atende | teste `test_domain_isolation.py` em cada projeto |
+
+## 2.7 Mensagens
+
+| Item | Situação | Evidência |
+|---|---|---|
+| Subject na gramática oficial, `messageType`, `operation`, `messageId` | Atende | validados pelo envelope e pelos testes e2e |
+| `correlationId`, `causationId`, reentrega, ordering | Atende | propagados em todas as mensagens; ordem por `resourceId` (Subject, partição) e `sequence` do outbox |
+
+# 3. `NATS.md`: checklist operacional (seção 31)
+
+| Item | Situação | Evidência ou observação |
+|---|---|---|
+| Subject, emissor e destinatário (não embutido) | Atende | emissores `receiver`, `manager`, `observer`, `reconciler`, `executor`; o Publisher publica no emissor `manager` |
+| Um Stream por `messageType`, com a retenção da classe | Atende | `infrastructure/dev/broker/bootstrap/` (seis Streams) |
+| `desired` e `observed` com a operação `changed` | Atende | `manager.desired.core.user.<id>.changed` |
+| `WorkQueue` com `DiscardNew` e consumers sem filtro sobreposto | Atende | `REQUESTED` e `ACTION`; no `ACTION`, um consumer por partição, de filtros disjuntos |
+| Consumer de estado por instância (`DeliverLastPerSubject`, nome único, `inactive_threshold`) | Atende | Reconciler e Observer |
+| Consumer de trabalho ou persistência durável e compartilhado | Atende | `core-user-manager-{requested,observed,result}` |
+| Um único filtro por consumer, no nível `<módulo>.<tipo>` | Parcial | o do Executor adiciona o token da partição (`reconciler.action.core.user.<p>.>`), mais estreito, por decisão 0018 |
+| Executor: consumer por partição, `max_ack_pending=1`, Direct Get do `desired` | Atende | |
+| Executor com `pinned_client` | Alvo | em dev há uma só instância, sem `pinned_client` (`NATS.md` §7.5) |
+| Nenhum serviço de runtime com purge ou administração de Stream | Alvo | em dev, todos usam o mesmo usuário NATS |
+| Pull Consumer, ACK após o processamento, retry com backoff | Atende | consumers do Manager e do Executor |
+| Quarentena de mensagens *poison* | Pendente | a mensagem inválida recebe `TERM` e é registrada em log |
+| Replay considerado | Parcial | estado reconstruído por `DeliverLastPerSubject`; sem procedimento de replay |
+| Idempotência | Atende | `operationId`, `actionId`, `observedAt` |
+| TLS e autorização por menor privilégio | Alvo | dev: sem TLS e um só usuário |
+| Secrets fora do repositório | Atende | `.env` e `service-account*.json` no `.gitignore` |
+| Métricas e traces | Pendente | só logs e probes |
+| Streams e consumers gerenciados de forma controlada | Atende | `bootstrap/*.json` e serviço `<módulo>-<tipo>-consumer` |
+| Versão do NATS pinada | Atende | `nats:2.15.0-alpine` |
+
+# 4. `POSTGRESQL.md`: checklist (seção 20)
+
+| Item | Situação | Evidência ou observação |
+|---|---|---|
+| Versão fixada | Atende | `postgres:18.6-alpine` |
+| Banco `smarkee` do proprietário `smarkee`, sem privilégios de `PUBLIC` | Atende | `database/bootstrap/smarkee.sql` |
+| Tabelas e views geradas do modelo | Parcial | seguem o modelo, mas as migrações são escritas à mão |
+| `CHECK` em `lifecycle`, `reconciliation`, `presence`, `phase`, `operation_status`, identificadores e `jsonb` | Atende | `core.user` (todas as colunas de controle e de identificação) |
+| `FOR UPDATE` na linha; `resource_version` na condição; conflito na Operation | Atende | `store/ssot.py` |
+| Geração só incrementa quando a especificação muda | Atende | `change_desired` |
+| Deduplicação por `operation_id` e `action_id`, com filtro de geração | Atende | `handlers/requested.py`, `handlers/result.py` |
+| Publisher: uma instância ativa, sequencial, sem marca-d'água e sem `SKIP LOCKED`; marca só após confirmação | Atende | `publisher/.../outbox/publication.py` |
+| Matriz de privilégios igual à de segurança | Atende | `features/core/user/README.md` §8.1 |
+| Receiver só lê as views; Manager sem `DELETE` em outbox, resultados e operation | Atende | migração `0001-user.sql` |
+| Papéis de login com `search_path`, `lock_timeout`, `statement_timeout`, `idle_in_transaction_session_timeout` | Atende | `database/bootstrap/core.sql` |
+| Identidade de manutenção para a retenção | Parcial | o papel `core_maintenance` existe; não há tarefa de retenção |
+| TLS e proteção em repouso | Alvo | |
+| Parâmetros e colunas `confidential` fora dos logs | Parcial | verificado por revisão (o log não registra mensagens de exceção nem valores); sem teste automatizado de varredura |
+| PITR, teste de restauração e recuperação | Pendente | |
+| Migrações expandir → migrar → contrair, por infraestrutura | Parcial | executadas por `core-user-migrate`, idempotentes; sem controle de versão (obrigatório antes de stg e prd) |
+
+# 5. `SSOT.md`: checklist (seção 21)
+
+| Item | Situação | Evidência |
+|---|---|---|
+| Manager único escritor; unidade atômica por mensagem; acesso exclusivo ao registro; ACK após a gravação | Atende | `handlers/`, `transport/consumers.py` |
+| Rejeições na Operation, com motivo | Atende | `validation`, `conflict`, `not_found` |
+| Outbox na mesma unidade; ordem por recurso preservada | Atende | Manager e Publisher |
+| Idempotência semântica de `requested`, `observed` e `completed`/`failed` | Atende | testes de integração do Manager |
+| `desiredGeneration` e `resourceVersion` | Atende | |
+| Dicionário de dados com sensibilidade e escritor | Atende | `SSOT.md` §8 e `x-sensitivity`/`x-writer` nos schemas |
+| Privilégios mínimos por tipo | Atende | |
+| Estrutura gerada de um modelo | Parcial | ver a seção 4 |
+| Backup com recuperação a um ponto no tempo e teste de restauração | Pendente | |
+| Sinais de observabilidade | Parcial | o atraso do outbox e a idade da observação são consultáveis por SQL e mensagens; não há métricas exportadas |
+| Mensagens publicadas removidas após a retenção | Pendente | não há tarefa de retenção |
+
+# 6. `RESOURCE-CONTROL-SECURITY.md`: checklist (seção 15)
+
+| Item | Situação | Evidência ou observação |
+|---|---|---|
+| Identidade própria por serviço | Parcial | nomes `srv-core-user-<papel>`, papéis de banco e contas do Zitadel próprios; no NATS, usuário único em dev |
+| Permissões de publicação e consumo pela matriz, escopadas por `<módulo>.<tipo>` | Alvo | |
+| Sem purge nem administração de Stream para serviços; limpeza de tombstones por identidade administrativa | Alvo / Pendente | |
+| `resourceId` validado antes de compor o Subject | Atende | padrão do contrato e `CHECK`; o Receiver gera UUIDv7 |
+| Executor revalida e consulta o desfecho do `actionId` | Atende | |
+| Observação periódica particionada; distingue `present`, `absent` e `unknown`; destrutiva exige observação recente | Atende | |
+| Limite de remoções por janela | Pendente | |
+| Observer só leitura; Executor com escrita de escopo mínimo | Atende | |
+| Nenhum segredo em mensagens, logs ou erros | Atende | senha nunca trafega; chaves por arquivo montado |
+| Ator acompanha a operação | Atende | `requestedBy` em `desired`, `action` e resultados |
+| Isolamento por organization | Parcial | definido para a Organization (decisão 0010); o User não tem organização |
+| Eventos de segurança observáveis | Parcial | só em logs estruturados |
+
+# 7. Lacunas conhecidas e desvios deliberados
+
+| Tema | Situação | Referência |
+|---|---|---|
+| Organization (`features/ipm/organization`) | Receiver, Manager e relay no desenho anterior (`relay/` e `conformance/` separados, `/healthz`); será refeita a partir do User | `features/ipm/organization/README.md` |
+| CLI | Só `sk auth`; `components/cli/src/sk/commands/ipm.py` e `components/manager` são esqueletos vazios | `ROADMAP.md` |
+| `pinned_client` no Executor | Alvo antes de stg e prd | `NATS.md` §7.5 |
+| Partição do Observer | Na aplicação (`hash(resourceId) mod count`); o `DESIRED` não é particionado | decisão 0018 |
+| Quarentena, `ObservationStale`, limite de remoções, retenção, métricas e traces | Pendentes | seções 2 a 6 |
+| Ativação de ponta a ponta | A pessoa seguir o link, definir a senha e fazer `sk auth login` não foi exercitado | `features/core/user/README.md` §4.7 |
+| Configuração do Zitadel | Aplicada em dev por script temporário e não versionado; o mecanismo para stg e prd não está decidido | `infrastructure/dev/README.md` |
+| Retomada de `Failed` | O User não tem `update`; a intervenção explícita não está definida | `features/core/user/README.md` §10 |
+| Imagens em `docs/images/` | O infográfico do fluxo é do desenho antigo (Tenant, `api.*`); a arquitetura Kubernetes é uma proposta | `docs/images/README.md` |
+
+# 8. Como manter
+
+- Mudou um comportamento especificado? Atualize a especificação, a implementação e a linha correspondente aqui.
+- Fechou uma lacuna? Troque a situação e cite a evidência (arquivo, teste ou comando).
+- Itens **Alvo** só passam a **Atende** com verificação em stg ou prd.

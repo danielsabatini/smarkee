@@ -56,7 +56,7 @@ Códigos de saída: `0` sucesso; `1` falha no login ou na gravação, ou cancela
 
 Limitações atuais:
 
-- o `sk` não valida localmente a assinatura do ID token e não usa as claims dele; a identidade exibida vem do userinfo, e a validação dos tokens é responsabilidade das APIs que os recebem;
+- o `sk` não valida localmente a assinatura do ID token e não usa as claims dele; a identidade exibida vem do userinfo, e a validação dos tokens é responsabilidade dos Receivers que os recebem;
 - não há `logout` nem renovação automática pelo refresh token;
 - o arquivo de credenciais guarda tokens em texto claro, protegido apenas pela permissão do sistema de arquivos.
 

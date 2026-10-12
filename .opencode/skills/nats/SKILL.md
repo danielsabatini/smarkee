@@ -19,7 +19,7 @@ docs/NATS.md        → implementação em NATS
 esta skill          → procedimento
 ```
 
-Não redefina aqui Streams, retenção, Consumers, autorização ou nomenclatura: leia `docs/NATS.md`. Em conflito, os documentos prevalecem.
+Não redefina aqui Streams, retenção, Consumers, autorização ou nomenclatura: leia `docs/NATS.md`. Em conflito, os documentos prevalecem. Atenção ao Stream `ACTION`: ele é particionado por `subject_transform` (decisão 0018), então o Subject armazenado difere do publicado e os consumers do Executor são um por partição.
 
 Não use esta skill para decidir semântica de mensagem (use o agent `messaging`).
 

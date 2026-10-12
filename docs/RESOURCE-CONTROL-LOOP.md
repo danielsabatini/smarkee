@@ -178,32 +178,11 @@ Component C
 
 ## 3.7 Responsabilidade antes de processo
 
-O padrão define **responsabilidades arquiteturais**, não uma quantidade obrigatória de processos.
+O padrão define **responsabilidades arquiteturais**: Receiver, Manager, Publisher, Observer, Reconciler e Executor. A publicação do outbox é do Publisher, o sexto papel (seção 6.6).
 
-Por exemplo:
+Na plataforma, cada papel de cada tipo de recurso é um **componente autocontido**: um projeto com código, dependências, testes, imagem, versão e configuração próprios (decisão 0015). Os componentes não compartilham código de runtime e se comunicam pela mensageria, pelo SSOT (nos limites de cada papel) e por artefatos neutros de linguagem (*Componentes autocontidos*, seção 48).
 
-```text
-Manager
-Observer
-Reconciler
-Executor
-```
-
-podem ser:
-
-```text
-4 processos
-```
-
-ou:
-
-```text
-2 processos
-```
-
-desde que as responsabilidades permaneçam claramente separadas.
-
-A separação em processos independentes é preferível quando:
+Os critérios que justificam a separação são:
 
 - possuem ciclos de escala diferentes;
 - possuem permissões diferentes;
@@ -211,6 +190,8 @@ A separação em processos independentes é preferível quando:
 - precisam de isolamento;
 - possuem falhas independentes;
 - possuem requisitos operacionais diferentes.
+
+Esses critérios se aplicam a todos os papéis do loop, e por isso a separação é a regra. Um componente só é criado quando o seu papel passa a ser necessário (seção 48).
 
 ## 3.8 Estado do Reconciler
 
@@ -288,7 +269,7 @@ A arquitetura completa é:
 flowchart TB
 
     Client[CLI / Client]
-    API[API]
+    Receiver[Receiver]
 
     subgraph Messaging[NATS / Messaging]
         Requested[requested]
@@ -306,8 +287,8 @@ flowchart TB
 
     External[External System]
 
-    Client -->|HTTP| API
-    API -->|requested| Requested
+    Client -->|HTTP| Receiver
+    Receiver -->|requested| Requested
     Requested --> Manager
 
     Manager -->|desired| Desired
@@ -333,11 +314,13 @@ flowchart TB
 
 O Observer consome `desired` apenas para saber quais recursos observar. Ele não decide e não compara estados.
 
+**Nota sobre os diagramas.** Neste documento, "o Manager publica `desired` e `updated`" significa que o **emissor** da mensagem é `manager`. Na implementação, o Manager grava a mensagem no outbox, na mesma transação do SSOT, e quem a publica no transporte é o Publisher (seção 6.6).
+
 # 6. Componentes
 
-# 6.1 API
+# 6.1 Receiver
 
-A API é a porta de entrada do sistema.
+O Receiver é a porta de entrada do sistema: o componente que expõe a **API HTTP** do recurso (decisão 0020). Recebe os pedidos do cliente e atende as leituras.
 
 Responsabilidades:
 
@@ -350,7 +333,7 @@ Responsabilidades:
 - consulta do SSOT;
 - exposição do estado atual.
 
-A API não deve:
+O Receiver não deve:
 
 - possuir o SSOT;
 - executar reconciliação;
@@ -361,29 +344,29 @@ Fluxo:
 
 ```mermaid
 flowchart LR
-    CLI[CLI] --> API[API]
-    API -->|requested| NATS[NATS]
+    CLI[CLI] --> Receiver[Receiver]
+    Receiver -->|requested| NATS[NATS]
     NATS --> Manager[Manager]
 ```
 
 ## 6.1.1 Interface HTTP
 
-Cada tipo de recurso expõe a mesma interface, no plural do `resourceType` (por exemplo, `/v1/organizations`). As escritas são assíncronas: a API publica `requested` e responde `202 Accepted` com o `operationId`, sem esperar o Manager. As leituras vêm das views versionadas do SSOT (`POSTGRESQL.md`, decisão 0004).
+Cada tipo de recurso expõe a mesma interface, no plural do `resourceType` (por exemplo, `/v1/organizations`). As escritas são assíncronas: o Receiver publica `requested` e responde `202 Accepted` com o `operationId`, sem esperar o Manager. As leituras vêm das views versionadas do SSOT (`POSTGRESQL.md`, decisão 0004). Cada tipo implementa o subconjunto aplicável da interface: o User, por exemplo, não tem `PATCH` nem listagem (decisão 0014).
 
 | Método e rota | Efeito | Resposta |
 |---|---|---|
-| `POST /v1/<tipos>` | `requested` com operação `create`; a API atribui o `resourceId` (UUIDv7) | `202` com `resourceId` e `operationId` |
+| `POST /v1/<tipos>` | `requested` com operação `create`; o Receiver atribui o `resourceId` (UUIDv7) | `202` com `resourceId` e `operationId` |
 | `GET /v1/<tipos>/{resourceId}` | leitura do recurso consolidado (`phase`, `conditions`, `resourceVersion`) | `200` ou `404` |
 | `GET /v1/<tipos>?limit=&cursor=` | lista paginada por cursor opaco, ordenada por `resourceId`; `limit` padrão 50, máximo 200 | `200` com `items` e `nextCursor` (ausente na última página) |
 | `PATCH /v1/<tipos>/{resourceId}` | `requested` com operação `update`; o corpo traz `resourceVersion` | `202` com `operationId` |
 | `DELETE /v1/<tipos>/{resourceId}?resourceVersion=` | `requested` com operação `delete` (`lifecycle = absent`) | `202` com `operationId` |
-| `GET /v1/operations/{operationId}` | acompanhamento da Operation (estado e motivo de rejeição) | `200` ou `404` |
+| `GET /v1/<tipos>/{resourceId}/operations/{operationId}` | acompanhamento da Operation (estado e motivo de rejeição), aninhada ao recurso (decisão 0015) | `200` ou `404` |
 
 Regras:
 
-- **Idempotência do pedido:** o cabeçalho opcional `Idempotency-Key` nas escritas é a chave do cliente da qual a API deriva o `operationId` (`SSOT.md`, decisão 0002). A chave não é armazenada nem transportada. Repetir a chave com o mesmo conteúdo devolve a Operation existente sem publicar de novo; com outro conteúdo, a API responde `422`.
-- **Concorrência otimista:** `update` e `delete` exigem o `resourceVersion` lido. O conflito é decidido pelo Manager e aparece como Operation `rejected` com motivo `conflict`. A API pode antecipar um `409` quando a versão lida já difere, como conveniência.
-- **Autorização:** a API autoriza o solicitante antes de publicar e filtra as leituras pelas Organizations autorizadas (`RESOURCE-CONTROL-SECURITY.md`, *Isolamento entre organizations*).
+- **Idempotência do pedido:** o cabeçalho opcional `Idempotency-Key` nas escritas é a chave do cliente da qual o Receiver deriva o `operationId` (`SSOT.md`, decisão 0002). A chave não é armazenada nem transportada. Repetir a chave com o mesmo conteúdo devolve a Operation existente sem publicar de novo; com outro conteúdo, o Receiver responde `422`.
+- **Concorrência otimista:** `update` e `delete` exigem o `resourceVersion` lido. O conflito é decidido pelo Manager e aparece como Operation `rejected` com motivo `conflict`. O Receiver pode antecipar um `409` quando a versão lida já difere, como conveniência.
+- **Autorização:** o Receiver autoriza o solicitante antes de publicar e filtra as leituras pelas Organizations autorizadas (`RESOURCE-CONTROL-SECURITY.md`, *Isolamento entre organizations*).
 - **Privilégios por campo:** o contrato do recurso pode restringir campos a operadores. Na Organization, o dono altera só o `name`; `platformAccess` e `reconciliation` exigem `platform.admin` (`403` caso contrário).
 - **Leitura da Operation:** só o solicitante (`requestedBy`) e os operadores (`platform.admin`) leem uma Operation. Uma Operation de solicitante `anonymous` não é legível por quem a criou (seção seguinte).
 - **Erros:** `400` corpo inválido, `401` sem token válido, `403` sem permissão, `404` inexistente ou não autorizado, `409` conflito antecipado, `422` reuso da chave de idempotência, `429` limite de taxa, `503` `REQUESTED` cheio (rejeição repetível, `NATS.md`). Quando o contrato do recurso define regras de elegibilidade ou de cota, `403` leva um código estável no corpo (`api-error`): por exemplo, `EmailNotVerified` (e-mail do solicitante não verificado) e `QuotaExceeded` (cota de criação do dono excedida).
@@ -395,9 +378,9 @@ Por padrão, toda escrita exige solicitante autenticado. A exceção deve estar 
 Uma escrita anônima:
 
 - usa `requestedBy = anonymous` (um valor fixo, que não identifica a pessoa);
-- tem **limite de taxa por origem** no gateway e na API, com valores conservadores e configuráveis;
+- tem **limite de taxa por origem** no gateway e no Receiver, com valores conservadores e configuráveis;
 - tem **resposta uniforme**: o mesmo `202` e o mesmo corpo, exista ou não o recurso ou o dado informado (por exemplo, o e-mail). Não pode haver diferença observável de status, de corpo nem, de forma relevante, de tempo;
-- **não permite acompanhar a Operation**: o cliente anônimo não consulta `GET /v1/operations/{operationId}`, e por isso não há `--wait`. Isso impede que a consulta revele se o dado já existia;
+- **não permite acompanhar a Operation**: o cliente anônimo não consulta a Operation (`GET /v1/<tipos>/{resourceId}/operations/{operationId}`), e por isso não há `--wait`. Isso impede que a consulta revele se o dado já existia;
 - aplica a validação estrita e os limites de tamanho do contrato (`SCHEMA.md`);
 - não carrega segredo: a credencial é definida pelo próprio usuário no provedor de identidade, fora do loop.
 
@@ -513,7 +496,7 @@ O Reconciler não deve:
 
 - persistir o recurso como SSOT;
 - chamar diretamente o provider;
-- possuir lógica de API;
+- possuir lógica de Receiver;
 - executar a ação.
 
 # 6.5 Executor
@@ -543,6 +526,17 @@ Executor
 ```
 
 Por possuir a credencial de escrita, o Executor é o último ponto de controle antes do sistema externo. Ele deve revalidar cada `action` contra o `desired` vigente antes de escrever (ver *Segurança do loop*).
+
+# 6.6 Publicação do outbox (Publisher)
+
+A publicação das mensagens que o Manager registrou no outbox do SSOT (`SSOT.md`, `POSTGRESQL.md`) é o papel do **Publisher** (decisão 0019). Ele existe porque o Manager grava o recurso e a mensagem a publicar na mesma transação (seção 8), e alguém precisa levar o outbox ao transporte.
+
+O Publisher é um projeto próprio, autocontido, com imagem, processo e *deployment* próprios, e com papel de banco e identidade de mensageria próprios, para manter o menor privilégio:
+
+- o **Manager** só **insere** no outbox; consome `requested`, `observed` e `completed`/`failed`;
+- o **Publisher** só **lê** o outbox e atualiza `published_at`; publica no emissor `manager` (ele publica em nome do Manager), em ordem por recurso, com uma instância ativa por outbox (trava consultiva de sessão), e só marca a publicação depois da confirmação do transporte.
+
+O outbox é o contrato entre o Manager e o Publisher. O Publisher **não executa regra de negócio**.
 
 # 7. O fluxo completo
 
@@ -586,7 +580,7 @@ O cliente solicita uma alteração.
 Exemplo:
 
 ```text
-sk organization create --name acme
+sk ipm organization create --name acme
 ```
 
 Fluxo:
@@ -594,18 +588,18 @@ Fluxo:
 ```mermaid
 sequenceDiagram
     participant CLI
-    participant API
+    participant Receiver
     participant NATS
     participant Manager
 
-    CLI->>API: POST /v1/organizations
-    API->>NATS: api.requested.core.organization.<id>.create
+    CLI->>Receiver: POST /v1/organizations
+    Receiver->>NATS: receiver.requested.ipm.organization.<id>.create
     NATS->>Manager: requested
     Manager->>Manager: validate + persist
-    Manager->>NATS: manager.desired.core.organization.<id>.changed
+    Manager->>NATS: manager.desired.ipm.organization.<id>.changed
 ```
 
-A API retorna rapidamente:
+O Receiver retorna rapidamente:
 
 ```text
 202 Accepted
@@ -615,7 +609,7 @@ O processamento continua de forma assíncrona.
 
 Requisitos:
 
-- a API aceita uma chave de idempotência no `POST`: a repetição do mesmo pedido não cria outro recurso nem outro `desired`;
+- o Receiver aceita uma chave de idempotência no `POST`: a repetição do mesmo pedido não cria outro recurso nem outro `desired`;
 - atualizações devem informar a versão do recurso (`resourceVersion`, ver `MESSAGING.md`); uma versão desatualizada é rejeitada, e a atualização não sobrescreve silenciosamente outra concorrente;
 - o Manager persiste o recurso e registra a publicação de `desired` na mesma transação (outbox, ver `SSOT.md` e `MESSAGING.md`), evitando o estado `persistido, mas não publicado`. A idempotência de entrada do Manager é semântica (chave de idempotência, monotonia de `observedAt` e `actionId`), e não depende de lembrar mensagens já vistas (`SSOT.md`).
 
@@ -639,7 +633,7 @@ Exemplo:
 Publicação:
 
 ```text
-manager.desired.core.organization.organization-01.changed
+manager.desired.ipm.organization.organization-01.changed
 ```
 
 O Desired é uma declaração.
@@ -732,7 +726,7 @@ Observed = absent
 Publicação:
 
 ```text
-reconciler.action.core.organization.<id>.create
+reconciler.action.ipm.organization.<id>.create
 ```
 
 # 12. Gatilhos da reconciliação
@@ -789,7 +783,7 @@ A Action representa uma decisão.
 Exemplo:
 
 ```text
-reconciler.action.core.organization.<id>.create
+reconciler.action.ipm.organization.<id>.create
 ```
 
 Payload:
@@ -934,7 +928,7 @@ condition = Ready=True (desiredGeneration = 1)
 sequenceDiagram
 
     participant CLI
-    participant API
+    participant Receiver
     participant NATS
     participant Manager
     participant Observer
@@ -942,8 +936,8 @@ sequenceDiagram
     participant Executor
     participant Zitadel
 
-    CLI->>API: POST /v1/organizations
-    API->>NATS: requested.create
+    CLI->>Receiver: POST /v1/organizations
+    Receiver->>NATS: requested.create
 
     NATS->>Manager: requested.create
     Manager->>Manager: validate
@@ -975,8 +969,8 @@ sequenceDiagram
     Manager->>Manager: update SSOT
     Manager->>NATS: updated.changed
 
-    CLI->>API: GET /v1/organizations/<id>
-    API-->>CLI: phase=Ready
+    CLI->>Receiver: GET /v1/organizations/<id>
+    Receiver-->>CLI: phase=Ready
 ```
 
 # 21. Fluxo de atualização
@@ -1099,7 +1093,7 @@ Cada camada possui uma estratégia diferente. Não existe uma única técnica un
 
 | Camada | Estratégia |
 |---|---|
-| API | Chave de idempotência no pedido |
+| Receiver | Chave de idempotência no pedido |
 | Manager | Constraints do recurso, `resourceVersion` e outbox |
 | Reconciler | Comparação de conteúdo, geração e `actionId` |
 | Executor | Desfecho por `actionId` e chave de correlação com o recurso externo |
@@ -1118,17 +1112,17 @@ Formato:
 Exemplos:
 
 ```text
-api.requested.core.organization.<id>.create
+receiver.requested.ipm.organization.<id>.create
 
-manager.desired.core.organization.<id>.changed
+manager.desired.ipm.organization.<id>.changed
 
-observer.observed.core.organization.<id>.changed
+observer.observed.ipm.organization.<id>.changed
 
-reconciler.action.core.organization.<id>.create
+reconciler.action.ipm.organization.<id>.create
 
-executor.completed.core.organization.<id>.create
+executor.completed.ipm.organization.<id>.create
 
-manager.updated.core.organization.<id>.changed
+manager.updated.ipm.organization.<id>.changed
 ```
 
 O resultado da observação (`present`, `absent` ou `unknown`) é informado no campo `presence`, e não no endereço. Cada `messageType` é persistido em seu próprio Stream, com a retenção da sua classe de mensagem (trabalho, estado ou fato), conforme `NATS.md`.
@@ -1139,7 +1133,7 @@ O padrão define explicitamente:
 
 | Mensagem | Publicador | Consumidores principais |
 |---|---|---|
-| `requested` | API | Manager |
+| `requested` | Receiver | Manager |
 | `desired` | Manager | Reconciler, Observer, Executor (revalidação, somente leitura), outros interessados |
 | `observed` | Observer | Reconciler, Manager, outros consumidores |
 | `action` | Reconciler | Executor |
@@ -1151,7 +1145,7 @@ O consumidor não deve ser codificado no subject.
 
 # 30. Matriz de responsabilidades
 
-| Responsabilidade | API | Manager | Observer | Reconciler | Executor |
+| Responsabilidade | Receiver | Manager | Observer | Reconciler | Executor |
 |---|---:|---:|---:|---:|---:|
 | AuthN | ✓ | | | | |
 | Schema validation | ✓ | ✓ | | | |
@@ -1186,7 +1180,7 @@ flowchart LR
 Credenciais de escrita não devem estar disponíveis para:
 
 ```text
-API
+Receiver
 Manager
 Observer
 Reconciler
@@ -1202,7 +1196,7 @@ Cada componente possui um domínio de falha diferente:
 
 | Componente | Falha |
 |---|---|
-| API | Indisponibilidade de entrada de pedidos |
+| Receiver | Indisponibilidade de entrada de pedidos |
 | Manager | Falha de persistência: não aceita novos pedidos nem atualiza o SSOT |
 | Observer | Falha de leitura do provider: `observed` envelhece (`unknown`) |
 | Reconciler | Falha de decisão: nenhuma nova `action` |
@@ -1216,10 +1210,12 @@ Cada serviço escala conforme o seu papel. Nem toda réplica adicional aumenta a
 
 | Serviço | Réplicas servem para | Como a carga é dividida |
 |---|---|---|
+| Receiver | Vazão e disponibilidade | Réplicas sem estado atrás do gateway; o limite de taxa do cadastro anônimo é em memória, por instância (o primeiro nível é o do gateway) |
 | Manager | Vazão e disponibilidade | Réplicas compartilham `requested`, `observed` e `result`; o SSOT garante a idempotência |
+| Publisher | Disponibilidade | Uma instância ativa por outbox (trava consultiva de sessão); as demais aguardam a trava |
 | Observer | Vazão de observação e disponibilidade | Partição por `resourceId` (ver *Coordenação da observação*) |
 | Reconciler | Disponibilidade | Cada réplica mantém o estado completo e toma decisões equivalentes. Se a CPU exigir, aplicar a partição por `resourceId` |
-| Executor | Disponibilidade | Uma `action` por vez por serviço (*single-flight*). A vazão é limitada pelo provider; particionar por `resourceId`, preservando o *single-flight* por recurso, só com carga medida |
+| Executor | Disponibilidade | Uma `action` por vez em cada recurso (*single-flight*), com paralelismo entre recursos por partição do Stream `ACTION` por `resourceId` (`docs/NATS.md` §7.5; decisão 0018). A vazão total é limitada pelo provider |
 
 # 34. Concorrência
 
@@ -1227,7 +1223,7 @@ A unidade natural de concorrência é o recurso: a reconciliação de recursos d
 
 Quando houver necessidade de serialização, ela deve ser definida explicitamente por `resourceId` ou `orderingKey`. Não assumir ordenação global.
 
-Para cada `resourceId`, apenas uma `action` deve estar em execução por vez (*single-flight*). Várias instâncias do Reconciler podem decidir o mesmo recurso; a serialização é responsabilidade do **Executor**, e não do Reconciler. O Executor deve garantir uma única execução por vez por recurso (por exemplo, consumindo uma `action` por vez por serviço) e permanecer idempotente, pois sob falha uma `action` pode ser entregue a outra instância enquanto a anterior ainda executa (`NATS.md`).
+Para cada `resourceId`, apenas uma `action` deve estar em execução por vez (*single-flight*). Várias instâncias do Reconciler podem decidir o mesmo recurso; a serialização é responsabilidade do **Executor**, e não do Reconciler. O Executor deve garantir uma única execução por vez por recurso (por exemplo, consumindo uma `action` por vez em cada partição do `resourceId`, decisão 0018) e permanecer idempotente, pois sob falha uma `action` pode ser entregue a outra instância enquanto a anterior ainda executa (`NATS.md`).
 
 # 35. DesiredGeneration
 
@@ -1338,7 +1334,7 @@ updatedAt
 completedAt
 ```
 
-A Operation não deve ser confundida com o Resource. Ela é um registro do SSOT mantido pelo Manager e exposto pela API; não trafega no envelope das mensagens, e o `correlationId` liga a Operation às mensagens do fluxo. O `operationId` é atribuído pela API e transportado no conteúdo do `requested` (`SCHEMA.md`); os estados da Operation, inclusive a rejeição com motivo, e a idempotência do pedido estão em `SSOT.md`.
+A Operation não deve ser confundida com o Resource. Ela é um registro do SSOT mantido pelo Manager e exposto pelo Receiver; não trafega no envelope das mensagens, e o `correlationId` liga a Operation às mensagens do fluxo. O `operationId` é atribuído pelo Receiver e transportado no conteúdo do `requested` (`SCHEMA.md`); os estados da Operation, inclusive a rejeição com motivo, e a idempotência do pedido estão em `SSOT.md`.
 
 ```text
 Resource
@@ -1355,7 +1351,7 @@ A arquitetura pode ser assíncrona internamente sem obrigar o usuário a trabalh
 Exemplo:
 
 ```text
-sk organization create --name acme --wait
+sk ipm organization create --name acme --wait
 ```
 
 Fluxo:
@@ -1363,15 +1359,15 @@ Fluxo:
 ```mermaid
 sequenceDiagram
     participant CLI
-    participant API
+    participant Receiver
     participant ControlLoop
 
-    CLI->>API: POST /v1/organizations
-    API-->>CLI: 202 + operationId
+    CLI->>Receiver: POST /v1/organizations
+    Receiver-->>CLI: 202 + operationId
 
     loop polling
-        CLI->>API: GET /v1/organizations/<id>
-        API-->>CLI: current state
+        CLI->>Receiver: GET /v1/organizations/<id>
+        Receiver-->>CLI: current state
     end
 
     Note over CLI: phase = Ready
@@ -1403,20 +1399,20 @@ A retenção do último estado pela mensageria e a reconciliação periódica pe
 
 # 44. Padrão de dependências
 
-A direção de dependência é: API, Manager, Observer, Reconciler e Executor dependem da mensageria; Observer e Executor dependem do sistema externo; o Manager depende do SSOT.
+A direção de dependência é: Receiver, Manager, Observer, Reconciler e Executor dependem da mensageria; Observer e Executor dependem do sistema externo; o Manager depende do SSOT.
 
 Não deve existir:
 
 ```text
 Reconciler → Executor diretamente
-API → Executor diretamente
-API → Observer diretamente
+Receiver → Executor diretamente
+Receiver → Observer diretamente
 Observer → Executor diretamente
 ```
 
 quando o objetivo for comunicação entre componentes do control loop.
 
-Somente o Manager escreve no SSOT; a API o consulta apenas para leitura. Observer, Reconciler e Executor não acessam o SSOT e obtêm o estado de que precisam pela mensageria.
+Somente o Manager escreve no SSOT; o Receiver o consulta apenas para leitura. Observer, Reconciler e Executor não acessam o SSOT e obtêm o estado de que precisam pela mensageria.
 
 # 45. Resource Control Loop como padrão
 
@@ -1440,43 +1436,45 @@ O fluxo do padrão é o descrito em *Modelo geral*.
 
 # 46. Aplicação à Organization
 
-A Organization é um recurso da plataforma, no módulo `core` (`sk organization`), porque todos os demais módulos dependem dela.
+A Organization é um recurso do módulo `ipm` (`sk ipm organization`, decisão 0016), criado por um usuário registrado (o User, do módulo `core`), que passa a ser o dono dela.
 
 Para Organization, o Executor escreve em uma organização do Zitadel e o Observer a lê. Na criação, o Executor aplica, nesta ordem e cada passo de forma idempotente:
 
 1. a organização no Zitadel, com o `resourceId` como ID;
 2. o Project Grant do projeto da plataforma para a organização, com as roles delegáveis (inicialmente `organization.get` e `organization.list`, até existirem membros).
 
-O Executor da Organization **não cria usuários nem autoriza o dono**: o dono (`ownerUserId`, o usuário autenticado que a criou) já existe, pelo cadastro (seção seguinte), e já tem as roles de ação no projeto. Como o dono vive na organização `core` do Zitadel, e não na organização criada, o token não identifica a Organization: a API decide o pertencimento pelo `ownerUserId` guardado na plataforma (decisão 0010).
+O Executor da Organization **não cria usuários nem autoriza o dono**: o dono (`ownerUserId`, o usuário autenticado que a criou) já existe, pelo cadastro (seção seguinte), e já tem as roles de ação no projeto. Como o dono vive na organização `core` do Zitadel, e não na organização criada, o token não identifica a Organization: o Receiver decide o pertencimento pelo `ownerUserId` guardado na plataforma (decisão 0010).
 
 Os recursos derivados em outros sistemas (namespace do OpenBao, do Kubernetes) não são escritos por este Executor: são recursos dos próprios módulos, que referenciam o `organizationId`. Assim, cada Executor escreve em um único sistema externo.
 
 O Executor cria a organização no Zitadel informando o `resourceId` como ID da organização (`organization_id`), em vez de deixar o Zitadel gerá-lo. Assim, o ID da organização no Zitadel é o mesmo `resourceId` (`SCHEMA.md`, *Organization e identificadores derivados*), e uma criação repetida (retry, reentrega) não produz uma segunda organização. O Zitadel responde HTTP 409 a um ID ou nome já usado (verificado na v4.19.4); o Executor então lê a organização pelo ID: se existe com o nome esperado, é sucesso idempotente (o mesmo vale para o Project Grant, que também responde 409 quando repetido); se existe com outro nome, ou não existe, é falha permanente.
 
-Antes de publicar `requested`, a API exige solicitante autenticado, com e-mail verificado e a role `organization.create`. A **cota** de Organizations por dono é aplicada pelo Manager, na mesma unidade atômica do pedido, com trava consultiva por dono (decisão 0010): a pré-checagem da API não basta para criações concorrentes. Nomes reservados e já existentes são rejeitados como `validation`.
+Antes de publicar `requested`, o Receiver exige solicitante autenticado, com e-mail verificado e a role `organization.create`. A **cota** de Organizations por dono é aplicada pelo Manager, na mesma unidade atômica do pedido, com trava consultiva por dono (decisão 0010): a pré-checagem do Receiver não basta para criações concorrentes. Nomes reservados e já existentes são rejeitados como `validation`.
 
-Componentes:
+Componentes (projetos em `features/ipm/organization/`, decisão 0015):
 
 ```text
-cli-core-organization
-api-core-organization
-srv-core-organization-manager
-srv-core-organization-observer
-srv-core-organization-reconciler
-srv-core-organization-executor
+srv-ipm-organization-receiver
+srv-ipm-organization-manager
+srv-ipm-organization-publisher
+srv-ipm-organization-observer
+srv-ipm-organization-reconciler
+srv-ipm-organization-executor
 ```
+
+O comando `sk ipm organization` pertence ao CLI da plataforma (`components/cli`), que é cliente do Receiver. Estado: `receiver`, `manager` e o relay do outbox existem (este ainda no desenho anterior, que será o `publisher`); `observer`, `reconciler` e `executor` são criados na fatia seguinte, a partir do modelo do User (seção 46.1).
 
 ## 46.1 Aplicação ao User
 
 O User é um recurso da plataforma, no módulo `core` (decisão 0014), criado pelo auto-cadastro (`sk register`), uma escrita anônima (seção 6.1.2). O Executor escreve em um único sistema externo, o Zitadel:
 
 1. cria o usuário na organização `core`, com o `resourceId` como ID e **sem senha**: o `desired` do User não tem senha, porque `desired` fica retido no SSOT e na mensageria (`SCHEMA.md`);
-2. aciona o e-mail de ativação do Zitadel, em que a pessoa define a senha na página do Zitadel. A senha nunca passa por CLI, API, SSOT nem mensageria;
+2. pede ao Zitadel o link de definição de senha (`password_reset` com `sendLink`): o Zitadel envia o e-mail "Verificar e-mail" na criação e o e-mail "Redefinir senha" em seguida, e a pessoa define a senha na página do Zitadel. A senha nunca passa por CLI, Receiver, SSOT nem mensageria;
 3. autoriza o usuário no projeto da plataforma, que pertence à mesma organização `core`, com o conjunto de roles de ação do usuário cadastrado (`organization.create`, `organization.get`, `organization.list`, `organization.update`, `organization.delete`, `user.get` e `user.delete`).
 
-Quando o e-mail já está cadastrado, o Executor não cria um segundo usuário e o pedido termina sem expor essa informação ao solicitante anônimo. O `desired` com `lifecycle = absent` não carrega dados pessoais (decisão 0014).
+Quando o e-mail já está cadastrado no SSOT, o Manager rejeita o pedido (`validation`) sem criar nada; quando ele só existe no Zitadel, a criação do Executor falha de forma permanente (`Rejected`). O Zitadel responde `AlreadyExisting` (HTTP 400, id `COMMAND-7yiox1isql`, verificado na v4.19.4) a um ID ou e-mail já usado, e o Executor lê o usuário pelo ID: se existe com o e-mail esperado, é sucesso idempotente. Em todos os casos o solicitante anônimo recebe o mesmo `202`, sem revelar se o e-mail existia. O `desired` com `lifecycle = absent` não carrega dados pessoais (decisão 0014).
 
-Componentes: `cli-core-user`, `api-core-user`, `srv-core-user-manager`, `srv-core-user-observer`, `srv-core-user-reconciler` e `srv-core-user-executor`.
+Componentes (projetos em `features/core/user/`): `srv-core-user-receiver`, `srv-core-user-manager`, `srv-core-user-publisher`, `srv-core-user-observer`, `srv-core-user-reconciler` e `srv-core-user-executor`. Os comandos `sk register` e `sk user` pertencem ao CLI da plataforma.
 
 # 47. Aplicação a outros recursos
 
@@ -1490,28 +1488,26 @@ O mesmo padrão se aplica a Agent, Runner e Tool. Mudam apenas o sistema externo
 
 Cada recurso possui seu próprio `desired`, `observed`, Reconciler, Executor e Observer.
 
-# 48. O padrão não exige seis processos
+# 48. Componentes autocontidos
 
-Um recurso simples pode ser implementado em um único serviço (API e serviço, com o sistema externo), desde que internamente mantenha as responsabilidades:
+A plataforma implementa **cada papel de cada tipo de recurso como um componente independente** (decisão 0015). Um componente é um projeto autocontido: código, dependências, testes, `Dockerfile`, imagem, versão e configuração próprios. Fica em `features/<módulo>/<tipo>/<papel>/`.
 
-desde que internamente mantenha as responsabilidades:
+Regras:
 
-```text
-Desired
-Observed
-Reconciliation
-Execution
-```
+- **Sem código de runtime compartilhado.** Um componente não importa outro nem uma biblioteca interna comum, para que cada um possa mudar de linguagem, de versão de dependência e de ritmo de implantação sem afetar os demais. A duplicação de infraestrutura (validação de token, configuração, logging, clientes) é aceita.
+- **Artefatos neutros compartilhados.** O que é comum é independente de linguagem: contratos em JSON Schema, OpenAPI de cada Receiver, SQL (tabelas, outbox e views), a especificação das mensagens, as convenções de log, métrica e trace, e uma **suíte de testes e2e black-box** por tipo (`features/<módulo>/<tipo>/tests/e2e`, não é um componente), que valida o contrato pela rede e deve passar para qualquer implementação.
+- **Estrutura interna.** Todo componente separa regra (`domain/`, pura e sem I/O), orquestração (`handlers/` ou `engine/`), adaptadores (`store/`, `provider/`, `transport/`, `http/`) e a entrada (`main.py`), com a dependência em um sentido só e o `domain` sem importar adaptadores (decisão 0017).
+- **Comunicação.** Somente pela mensageria. Exceção: o SSOT, em que o Manager escreve, o Receiver lê as views e o Publisher lê e marca o outbox (seção 44).
+- **O Receiver contém a sua autenticação e autorização.** Não há serviço de autenticação compartilhado no caminho de uma requisição.
+- **O Manager é dono do esquema do tipo.** O código das migrações pertence ao projeto do Manager e executa como etapa de implantação com o papel administrativo do banco, nunca com o papel de runtime (`SSOT.md`, seção 16).
+- **Criação incremental.** Um componente é criado quando o seu papel é necessário. A ordem usual é `receiver`, `manager` e `publisher`, depois `observer`, `reconciler` e `executor`. Um papel ainda inexistente não é uma lacuna do padrão, mas uma etapa do recurso.
+- **Ambientes.** Em dev, Docker Compose espelha o que será implantado: um serviço por componente. Em stg e prd, Kubernetes com CI/CD e GitOps, com versão e pipeline por componente.
 
-Entretanto, quando os requisitos de escala, segurança ou isolamento justificarem, as responsabilidades podem ser separadas:
+O padrão continua definindo **responsabilidades** (seção 3.7). Dois papéis só voltam ao mesmo processo por decisão registrada que mostre, com evidência, que a separação não se justifica.
 
-A decisão deve ser baseada em responsabilidade e operação, não em uma regra artificial de quantidade de serviços.
+# 49. Critérios que sustentam a separação
 
-O formato colapsado é o ponto de partida. A separação em componentes independentes exige justificativa registrada, conforme os critérios de *Quando separar em processos*.
-
-# 49. Quando separar em processos
-
-A separação é recomendada quando houver diferenças relevantes em:
+A separação é a regra porque, entre os papéis do loop, há diferenças relevantes em:
 
 ```text
 security boundary
@@ -1536,25 +1532,22 @@ Executor
 
 Essa diferença já constitui uma forte justificativa para separação.
 
-# 50. Quando não separar
+# 50. Evitar fragmentação artificial
 
-Evitar fragmentação quando dois componentes:
+A separação é por **papel e por tipo de recurso**, e não por camada técnica. Não criar componentes que:
 
-- sempre escalam juntos;
-- possuem exatamente o mesmo ciclo de vida;
-- possuem as mesmas permissões;
-- possuem as mesmas dependências;
-- não possuem necessidade de isolamento;
-- não possuem fronteira clara de responsabilidade.
+- não possuam fronteira clara de responsabilidade;
+- existam apenas para dividir código que sempre muda, escala e falha junto;
+- dependam de outro componente por chamada síncrona dentro do loop.
 
-O objetivo é **separação de responsabilidades**, não maximização do número de serviços.
+O objetivo é **separação de responsabilidades com contratos explícitos**, e não a maximização do número de projetos.
 
 # 51. Anti-padrões
 
-## 51.1 API executando provider
+## 51.1 Receiver executando provider
 
 ```text
-API → Zitadel
+Receiver → Zitadel
 ```
 
 Evitar.
@@ -1715,6 +1708,15 @@ Antes de considerar um novo recurso conforme ao padrão, verificar:
 - [ ] Publica `completed` ou `failed`?
 - [ ] Não decide o estado desejado?
 
+### Componentes
+
+- [ ] Cada papel é um projeto autocontido, sem importar outro componente nem biblioteca interna comum?
+- [ ] O Receiver tem a sua autenticação e autorização?
+- [ ] O Manager é dono do código das migrações do tipo, executadas como etapa de implantação com papel administrativo?
+- [ ] O Publisher é um papel próprio, com papel de banco e identidade de mensageria próprios?
+- [ ] Os contratos (JSON Schema, OpenAPI, SQL, mensagens) são verificados pelos testes e2e black-box?
+- [ ] A estrutura interna segue a decisão 0017 (`domain/` puro, orquestração, adaptadores, `main.py`) e o `domain/` não importa adaptador?
+
 ### Messaging
 
 - [ ] Subject segue a gramática oficial?
@@ -1737,6 +1739,8 @@ Este documento define o **Resource Control Loop** como padrão arquitetural da p
 `SCHEMA.md` define os contratos formais e a evolução dos schemas.
 
 `RESOURCE-CONTROL-SECURITY.md` define os requisitos de segurança do padrão.
+
+A decisão `0015` (`.decisions/`) define o modelo de componentes por papel.
 
 O contrato do Resource define:
 

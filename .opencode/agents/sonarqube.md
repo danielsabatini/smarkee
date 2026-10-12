@@ -71,7 +71,7 @@ A análise pode utilizar:
 - Resultados de Quality Gate
 - Métricas e issues retornadas pelo SonarQube
 
-A implementação concreta do scanner pode variar conforme a linguagem ou componente.
+A implementação concreta do scanner pode variar conforme a linguagem ou componente. Cada componente da plataforma é um projeto independente (`.decisions/0015-componentes-por-papel-autocontidos.md`) e deve ter o seu próprio projeto no SonarQube, com o seu Quality Gate.
 
 ---
 

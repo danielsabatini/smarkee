@@ -89,7 +89,7 @@ Não utilizar esses termos para definir o significado do recurso sem antes estab
 O endereço lógico começa pelo emissor, que é uma identidade funcional estável:
 
 ```text
-api
+receiver
 manager
 observer
 reconciler

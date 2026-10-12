@@ -77,7 +77,7 @@ O interesse do consumidor é expresso por subscription, consumer, grupo de consu
 Exemplo:
 
 ```text
-manager.desired.core.organization.<resourceId>.changed
+manager.desired.ipm.organization.<resourceId>.changed
 ```
 
 O subject não afirma que a mensagem é destinada exclusivamente a um determinado consumidor.
@@ -109,7 +109,7 @@ A operação é representada separadamente pelo último token do endereço:
 Exemplo:
 
 ```text
-reconciler.action.core.organization.<id>.create
+reconciler.action.ipm.organization.<id>.create
 ```
 
 onde:
@@ -139,7 +139,7 @@ Sempre que o problema puder ser modelado como estado, representar o estado desej
 Preferir:
 
 ```text
-manager.desired.core.organization.<organizationId>.changed
+manager.desired.ipm.organization.<organizationId>.changed
 ```
 
 quando a mensagem representa o estado desejado para uma Organization.
@@ -272,12 +272,12 @@ Representa uma solicitação recebida para iniciar uma operação sobre um recur
 Exemplo:
 
 ```text
-api.requested.core.organization.<organizationId>.create
+receiver.requested.ipm.organization.<organizationId>.create
 ```
 
 Semântica:
 
-> A API recebeu e aceitou uma solicitação para criação do recurso.
+> O Receiver recebeu e aceitou uma solicitação para criação do recurso.
 
 `requested` normalmente representa a entrada de um fluxo assíncrono.
 
@@ -290,7 +290,7 @@ Representa o estado desejado estabelecido pelo componente responsável pelo SSOT
 Exemplo:
 
 ```text
-manager.desired.core.organization.<organizationId>.changed
+manager.desired.ipm.organization.<organizationId>.changed
 ```
 
 Características:
@@ -309,7 +309,7 @@ Representa uma observação factual sobre a realidade.
 Exemplo:
 
 ```text
-observer.observed.core.organization.<organizationId>.changed
+observer.observed.ipm.organization.<organizationId>.changed
 ```
 
 O resultado da observação não faz parte do endereço. Ele é informado no campo `presence` do envelope:
@@ -336,7 +336,7 @@ Representa uma decisão de reconciliação que deve ser executada.
 Exemplo:
 
 ```text
-reconciler.action.core.organization.<organizationId>.create
+reconciler.action.ipm.organization.<organizationId>.create
 ```
 
 `action` é diferente de `desired`.
@@ -361,7 +361,7 @@ Representa a conclusão da execução de uma operação.
 Exemplo:
 
 ```text
-executor.completed.core.organization.<organizationId>.create
+executor.completed.ipm.organization.<organizationId>.create
 ```
 
 `completed` não significa necessariamente convergência do recurso.
@@ -377,7 +377,7 @@ Representa uma alteração consolidada no recurso ou no seu estado persistido.
 Exemplo:
 
 ```text
-manager.updated.core.organization.<organizationId>.changed
+manager.updated.ipm.organization.<organizationId>.changed
 ```
 
 O `updated` é útil para consumidores interessados em projeções, auditoria, métricas ou notificações.
@@ -391,7 +391,7 @@ Representa falha na execução ou processamento associado à operação.
 Exemplo:
 
 ```text
-executor.failed.core.organization.<organizationId>.create
+executor.failed.ipm.organization.<organizationId>.create
 ```
 
 O último token continua representando a operação:
@@ -433,7 +433,7 @@ O endereço lógico oficial é:
 Exemplo:
 
 ```text
-manager.desired.core.organization.0199c8a4.changed
+manager.desired.ipm.organization.0199c8a4.changed
 ```
 
 A representação acima é uma convenção lógica legível.
@@ -454,7 +454,7 @@ Identifica o componente lógico que produziu a mensagem.
 Exemplos:
 
 ```text
-api
+receiver
 manager
 observer
 reconciler
@@ -468,7 +468,7 @@ worker.runner
 worker.tools
 ```
 
-O emissor deve representar uma identidade funcional estável.
+O emissor deve representar uma identidade funcional estável. Ela não é o processo: as mensagens `desired` e `updated` são originadas pelo Manager e publicadas pelo Publisher, em nome do Manager (`SSOT.md`), mas o emissor é sempre `manager`.
 
 A identificação da instância concreta do processo pertence aos metadados de observabilidade.
 
@@ -506,14 +506,14 @@ runner
 tool
 ```
 
-`core` é o módulo dos recursos da própria plataforma, dos quais os demais módulos dependem, como a Organization. Os demais módulos são funcionais, por exemplo `ipm` (identidade dentro de uma Organization).
+`core` é o módulo dos recursos da própria plataforma que existem antes de qualquer Organization, como o User. `ipm` é o módulo de identidade e contém a Organization (decisão 0016). Os demais módulos são funcionais.
 
 O módulo permite separar domínios independentes sem introduzir detalhes específicos do transporte.
 
 Exemplo:
 
 ```text
-api.requested.core.organization.<id>.create
+receiver.requested.ipm.organization.<id>.create
 ```
 
 ## 6.4 `resourceType`
@@ -575,19 +575,19 @@ A operação não representa necessariamente uma chamada direta a um sistema ext
 Exemplos:
 
 ```text
-manager.desired.core.organization.<id>.changed
+manager.desired.ipm.organization.<id>.changed
 ```
 
 ```text
-observer.observed.core.organization.<id>.changed
+observer.observed.ipm.organization.<id>.changed
 ```
 
 ```text
-reconciler.action.core.organization.<id>.create
+reconciler.action.ipm.organization.<id>.create
 ```
 
 ```text
-manager.updated.core.organization.<id>.changed
+manager.updated.ipm.organization.<id>.changed
 ```
 
 A operação deve ser interpretada em conjunto com o `messageType`.
@@ -617,19 +617,19 @@ significa:
 Para criação de uma Organization:
 
 ```text
-1. api.requested.core.organization.<id>.create
+1. receiver.requested.ipm.organization.<id>.create
 
-2. manager.desired.core.organization.<id>.changed
+2. manager.desired.ipm.organization.<id>.changed
 
-3. observer.observed.core.organization.<id>.changed
+3. observer.observed.ipm.organization.<id>.changed
 
-4. reconciler.action.core.organization.<id>.create
+4. reconciler.action.ipm.organization.<id>.create
 
-5. executor.completed.core.organization.<id>.create
+5. executor.completed.ipm.organization.<id>.create
 
-6. observer.observed.core.organization.<id>.changed
+6. observer.observed.ipm.organization.<id>.changed
 
-7. manager.updated.core.organization.<id>.changed
+7. manager.updated.ipm.organization.<id>.changed
 ```
 
 Os passos 3 e 6 possuem o mesmo endereço. Eles se distinguem pelo campo `presence` (`absent` e `present`) e por `observedAt`.
@@ -637,7 +637,7 @@ Os passos 3 e 6 possuem o mesmo endereço. Eles se distinguem pelo campo `presen
 Em caso de falha:
 
 ```text
-executor.failed.core.organization.<id>.create
+executor.failed.ipm.organization.<id>.create
 ```
 
 O fluxo não deve interpretar `completed` como convergência automática.
@@ -659,7 +659,7 @@ O modelo não define um destinatário fixo dentro da identidade da mensagem.
 Exemplo:
 
 ```text
-manager.desired.core.organization.<id>.changed
+manager.desired.ipm.organization.<id>.changed
 ```
 
 Pode ser consumido por:
@@ -692,7 +692,7 @@ Estrutura mínima:
   "schemaVersion": "1.0",
   "messageType": "desired",
   "emitter": "manager",
-  "module": "core",
+  "module": "ipm",
   "resourceType": "organization",
   "resourceId": "01J...",
   "operation": "changed",
@@ -714,7 +714,7 @@ Para `observed`:
   "schemaVersion": "1.0",
   "messageType": "observed",
   "emitter": "observer",
-  "module": "core",
+  "module": "ipm",
   "resourceType": "organization",
   "resourceId": "01J...",
   "operation": "changed",
@@ -758,7 +758,7 @@ Para `observed`:
 - **`presence`:** `unknown` indica leitura falha ou inconclusiva (timeout, 5xx, 401/403, limite de taxa) e nunca deve ser tratado como `absent`. Somente a confirmação inequívoca do provider é `absent`.
 - **`actionId`:** derivado de `resourceId`, `desiredGeneration`, `operation` e do `messageId` do `observed` que motivou a decisão. O formato é definido pelo contrato do recurso. É a chave de deduplicação da `action` e acompanha `completed` e `failed`.
 - **`causationId` em `observed`:** uma observação feita em consequência de `completed` ou `failed` tem como `causationId` o `messageId` desse resultado. O Reconciler usa essa relação para saber que a leitura é posterior à execução, sem depender de relógios sincronizados entre serviços.
-- **`requestedBy`:** identifica quem pediu a alteração, e não quem a executou (o executor é identificado por `emitter`). É definido pela API a partir do solicitante autenticado e propagado sem alteração. Não contém credenciais. Nas escritas anônimas que o contrato do recurso permite (`RESOURCE-CONTROL-LOOP.md`, seção 6.1.2), o valor é o literal `anonymous`, que não identifica a pessoa.
+- **`requestedBy`:** identifica quem pediu a alteração, e não quem a executou (o executor é identificado por `emitter`). É definido pelo Receiver a partir do solicitante autenticado e propagado sem alteração. Não contém credenciais. Nas escritas anônimas que o contrato do recurso permite (`RESOURCE-CONTROL-LOOP.md`, seção 6.1.2), o valor é o literal `anonymous`, que não identifica a pessoa.
 
 # 11. `schemaVersion`
 
@@ -844,7 +844,7 @@ Relaciona mensagens pertencentes ao mesmo fluxo lógico.
 Exemplo:
 
 ```text
-api.requested
+receiver.requested
        │
        ├── manager.desired
        │
@@ -915,7 +915,7 @@ Exemplo:
 ```json
 {
   "messageType": "desired",
-  "module": "core",
+  "module": "ipm",
   "resourceType": "organization",
   "resourceId": "organization-01",
   "operation": "changed",
@@ -931,7 +931,7 @@ O reconciler decide quais ações concretas são necessárias.
 Da mesma forma, uma observação pode representar a ausência:
 
 ```text
-observer.observed.core.organization.<id>.changed
+observer.observed.ipm.organization.<id>.changed
 presence = absent
 ```
 
@@ -1106,7 +1106,7 @@ O Observer deve consultar o sistema externo.
 Se identificar que o recurso existe, deve publicar:
 
 ```text
-observer.observed.core.organization.<id>.changed
+observer.observed.ipm.organization.<id>.changed
 presence = present
 ```
 
@@ -1251,13 +1251,13 @@ Todos os tokens do subject devem utilizar lowercase.
 Exemplo:
 
 ```text
-api.requested.core.organization.0199c8a4.create
+receiver.requested.ipm.organization.0199c8a4.create
 ```
 
 e não:
 
 ```text
-API.Requested.Core.Organization.0199c8a4.Create
+Receiver.Requested.Core.Organization.0199c8a4.Create
 ```
 
 # 30. Restrições do transporte
@@ -1299,7 +1299,7 @@ resource converged
 Validação interna não precisa gerar:
 
 ```text
-api.validated...
+receiver.validated...
 ```
 
 quando nenhum consumidor possuir interesse nesse fato.
@@ -1311,19 +1311,19 @@ A validação pode ser simplesmente uma etapa interna do componente.
 Evitar:
 
 ```text
-api.requested.core.organization.<id>.write
+receiver.requested.ipm.organization.<id>.write
 ```
 
 Preferir:
 
 ```text
-api.requested.core.organization.<id>.create
+receiver.requested.ipm.organization.<id>.create
 ```
 
 ou:
 
 ```text
-api.requested.core.organization.<id>.update
+receiver.requested.ipm.organization.<id>.update
 ```
 
 A operação deve ser semanticamente precisa.
@@ -1333,13 +1333,13 @@ A operação deve ser semanticamente precisa.
 Evitar:
 
 ```text
-manager-to-executor.action.core.organization.<id>.create
+manager-to-executor.action.ipm.organization.<id>.create
 ```
 
 Preferir:
 
 ```text
-reconciler.action.core.organization.<id>.create
+reconciler.action.ipm.organization.<id>.create
 ```
 
 O consumidor é determinado pela subscription.
@@ -1390,9 +1390,9 @@ quando o mesmo significado puder ser representado por:
 Exemplos:
 
 ```text
-executor.completed.core.organization.<id>.create
-executor.failed.core.organization.<id>.create
-manager.updated.core.organization.<id>.changed
+executor.completed.ipm.organization.<id>.create
+executor.failed.ipm.organization.<id>.create
+manager.updated.ipm.organization.<id>.changed
 ```
 
 ## 31.11 Usar o resultado da observação como operação
@@ -1400,14 +1400,14 @@ manager.updated.core.organization.<id>.changed
 Evitar:
 
 ```text
-observer.observed.core.organization.<id>.changed
-observer.observed.core.organization.<id>.changed
+observer.observed.ipm.organization.<id>.changed
+observer.observed.ipm.organization.<id>.changed
 ```
 
 Preferir:
 
 ```text
-observer.observed.core.organization.<id>.changed
+observer.observed.ipm.organization.<id>.changed
 ```
 
 com `presence` no envelope. Dois endereços para o mesmo recurso impedem que o transporte retenha apenas o último estado.
@@ -1418,12 +1418,12 @@ Um timeout, um 5xx ou um 401/403 do provider resulta em `presence = unknown`, e 
 
 # 32. Exemplos completos
 
-## 32.1 API solicita criação de Organization
+## 32.1 Receiver solicita criação de Organization
 
 Subject:
 
 ```text
-api.requested.core.organization.0199c8a4.create
+receiver.requested.ipm.organization.0199c8a4.create
 ```
 
 Envelope:
@@ -1433,8 +1433,8 @@ Envelope:
   "messageId": "0199c8b1-...",
   "schemaVersion": "1.0",
   "messageType": "requested",
-  "emitter": "api",
-  "module": "core",
+  "emitter": "receiver",
+  "module": "ipm",
   "resourceType": "organization",
   "resourceId": "0199c8a4-...",
   "operation": "create",
@@ -1454,7 +1454,7 @@ Envelope:
 Subject:
 
 ```text
-manager.desired.core.organization.0199c8a4.changed
+manager.desired.ipm.organization.0199c8a4.changed
 ```
 
 Envelope:
@@ -1465,7 +1465,7 @@ Envelope:
   "schemaVersion": "1.0",
   "messageType": "desired",
   "emitter": "manager",
-  "module": "core",
+  "module": "ipm",
   "resourceType": "organization",
   "resourceId": "0199c8a4-...",
   "operation": "changed",
@@ -1489,7 +1489,7 @@ Envelope:
 Subject:
 
 ```text
-observer.observed.core.organization.0199c8a4.changed
+observer.observed.ipm.organization.0199c8a4.changed
 ```
 
 Envelope:
@@ -1500,7 +1500,7 @@ Envelope:
   "schemaVersion": "1.0",
   "messageType": "observed",
   "emitter": "observer",
-  "module": "core",
+  "module": "ipm",
   "resourceType": "organization",
   "resourceId": "0199c8a4-...",
   "operation": "changed",
@@ -1522,7 +1522,7 @@ Envelope:
 Subject:
 
 ```text
-reconciler.action.core.organization.0199c8a4.create
+reconciler.action.ipm.organization.0199c8a4.create
 ```
 
 Envelope:
@@ -1533,7 +1533,7 @@ Envelope:
   "schemaVersion": "1.0",
   "messageType": "action",
   "emitter": "reconciler",
-  "module": "core",
+  "module": "ipm",
   "resourceType": "organization",
   "resourceId": "0199c8a4-...",
   "operation": "create",
@@ -1555,7 +1555,7 @@ Envelope:
 Subject:
 
 ```text
-executor.completed.core.organization.0199c8a4.create
+executor.completed.ipm.organization.0199c8a4.create
 ```
 
 Envelope:
@@ -1566,7 +1566,7 @@ Envelope:
   "schemaVersion": "1.0",
   "messageType": "completed",
   "emitter": "executor",
-  "module": "core",
+  "module": "ipm",
   "resourceType": "organization",
   "resourceId": "0199c8a4-...",
   "operation": "create",
@@ -1590,7 +1590,7 @@ Envelope:
 Subject:
 
 ```text
-observer.observed.core.organization.0199c8a4.changed
+observer.observed.ipm.organization.0199c8a4.changed
 ```
 
 Envelope:
@@ -1601,7 +1601,7 @@ Envelope:
   "schemaVersion": "1.0",
   "messageType": "observed",
   "emitter": "observer",
-  "module": "core",
+  "module": "ipm",
   "resourceType": "organization",
   "resourceId": "0199c8a4-...",
   "operation": "changed",
@@ -1625,7 +1625,7 @@ Envelope:
 Subject:
 
 ```text
-manager.updated.core.organization.0199c8a4.changed
+manager.updated.ipm.organization.0199c8a4.changed
 ```
 
 O Manager atualiza o SSOT e os consumidores podem construir suas próprias projeções.
@@ -1634,7 +1634,7 @@ O Manager atualiza o SSOT e os consumidores podem construir suas próprias proje
 
 | `messageType` | Significado | Emissor típico | Operação típica |
 |---|---|---|---|
-| `requested` | Solicitação aceita | API | `create`, `update`, `delete` |
+| `requested` | Solicitação aceita | Receiver | `create`, `update`, `delete` |
 | `desired` | Estado pretendido | Manager | `changed` |
 | `observed` | Estado observado | Observer | `changed` |
 | `action` | Decisão de reconciliação | Reconciler | `create`, `update`, `delete`, `noop` |
