@@ -1,4 +1,4 @@
-"""Entrypoint do Manager de User (`srv-core-user-manager`, decisões 0015 e 0019).
+"""Entrypoint do Manager de User (`core-user-manager`, decisões 0015 e 0019).
 
 Consome `requested`, `observed` e `completed`/`failed` e escreve no SSOT; só insere no outbox. A
 publicação do outbox é do Publisher (`../publisher`). Só inicializa e encerra: valida a

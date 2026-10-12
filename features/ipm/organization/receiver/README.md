@@ -1,6 +1,6 @@
 # ipm-organization-receiver
 
-Receiver de `ipm.organization` (`srv-ipm-organization-receiver`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
+Receiver de `ipm.organization` (`ipm-organization-receiver`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
 
 Autentica e autoriza o solicitante, valida o pedido, gera as identidades (`resourceId`, `operationId`, `requestDigest`) e publica `requested`. Lê o SSOT somente pelas views `ipm.organization_v1` e `ipm.organization_operation_v1`. Não escreve no SSOT nem no provedor de identidade.
 

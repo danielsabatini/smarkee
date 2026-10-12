@@ -1,4 +1,4 @@
-"""Entrypoint do Publisher de User (`srv-core-user-publisher`, decisões 0015 e 0019).
+"""Entrypoint do Publisher de User (`core-user-publisher`, decisões 0015 e 0019).
 
 Lê o outbox do tipo e publica no transporte, em ordem; uma instância ativa por trava consultiva.
 Só inicializa e encerra: valida a configuração, conecta ao NATS e roda o Publisher.

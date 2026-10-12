@@ -1,6 +1,6 @@
 # ipm-organization-manager
 
-Manager de `ipm.organization` (`srv-ipm-organization-manager`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
+Manager de `ipm.organization` (`ipm-organization-manager`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
 
 Único escritor do SSOT do tipo: consome `requested`, aplica cada mensagem em uma unidade atômica (linha bloqueada, Operation única, `desired` no outbox) e confirma ao transporte depois do `COMMIT`. O código das migrações (`migrations/`) é deste projeto; a execução é uma etapa de implantação com o papel administrativo.
 

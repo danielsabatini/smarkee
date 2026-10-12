@@ -1,6 +1,6 @@
 # core-user-observer
 
-Observer de `core.user` (`srv-core-user-observer`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
+Observer de `core.user` (`core-user-observer`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
 
 Lê o usuário e as roles no Zitadel com uma conta de serviço **somente leitura** (`core-user-observer`, papel `ORG_OWNER_VIEWER`) e publica `observed` (`presence`: `present`, `absent` ou `unknown`). Qualquer falha de leitura vira `unknown`, nunca `absent`: `absent` só com `404` do Zitadel cujo corpo traz o código `5` e `details`. Observa quando o `desired` é novo, depois de cada resultado de ação e periodicamente (5 min, com jitter), só os recursos da sua partição (`hash(resourceId) mod count`).
 

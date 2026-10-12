@@ -1,6 +1,6 @@
 # core-user-reconciler
 
-Reconciler de `core.user` (`srv-core-user-reconciler`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
+Reconciler de `core.user` (`core-user-reconciler`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
 
 Compara o último `desired` e o último `observed` de cada User e decide a `action` (`create`, `update` ou `delete`), publicada em `reconciler.action.core.user.<id>.<operação>` com `Nats-Msg-Id` igual ao `actionId` (determinístico: `<id>.<geração>.<operação>.<observação>`). **Não executa** e **não acessa o SSOT**: o estado é um cache em memória, reconstruído da mensageria por consumers de estado da própria instância (`DeliverLastPerSubject`, nome único por execução, `inactive_threshold`).
 

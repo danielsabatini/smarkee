@@ -1,4 +1,4 @@
-"""Entrypoint do Observer de User (`srv-core-user-observer`, decisão 0015).
+"""Entrypoint do Observer de User (`core-user-observer`, decisão 0015).
 
 Só inicializa e encerra: valida a configuração, conecta ao NATS, cria os consumers de estado da
 instância e roda a observação periódica. O Observer não acessa o SSOT e só lê o Zitadel.

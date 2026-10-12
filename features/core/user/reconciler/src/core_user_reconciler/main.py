@@ -1,4 +1,4 @@
-"""Entrypoint do Reconciler de User (`srv-core-user-reconciler`, decisão 0015).
+"""Entrypoint do Reconciler de User (`core-user-reconciler`, decisão 0015).
 
 Só inicializa e encerra: valida a configuração, conecta ao NATS, cria os consumers de estado da
 instância e roda a reavaliação periódica. O Reconciler não acessa o SSOT.

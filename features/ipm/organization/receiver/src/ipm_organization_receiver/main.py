@@ -1,4 +1,4 @@
-"""Entrypoint do Receiver de Organization (`srv-ipm-organization-receiver`, decisão 0015).
+"""Entrypoint do Receiver de Organization (`ipm-organization-receiver`, decisão 0015).
 
 Só inicializa e encerra: valida a configuração, abre as conexões e serve a aplicação HTTP. A
 lógica fica nos módulos de cada responsabilidade.

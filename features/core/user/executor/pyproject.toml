@@ -1,7 +1,7 @@
 [project]
 name = "core-user-executor"
 version = "0.1.0"
-description = "Manager de User do módulo core (srv-core-user-executor): único escritor do SSOT do tipo."
+description = "Executor de User do módulo core (core-user-executor): escreve o estado no provedor e publica os resultados."
 requires-python = ">=3.14"
 dependencies = [
     "httpx>=0.28.1",

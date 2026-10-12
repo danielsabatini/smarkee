@@ -1,4 +1,4 @@
-# Imagem do Manager de User (srv-core-user-manager, decisão 0015). Fase de build separada da de
+# Imagem do Manager de User (core-user-manager, decisão 0015). Fase de build separada da de
 # execução: a imagem final não leva o uv, os testes nem as dependências de desenvolvimento, e roda
 # sem privilégios.
 FROM ghcr.io/astral-sh/uv:0.11.19-python3.14-trixie-slim AS build

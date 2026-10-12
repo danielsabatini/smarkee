@@ -1454,12 +1454,12 @@ Antes de publicar `requested`, o Receiver exige solicitante autenticado, com e-m
 Componentes (projetos em `features/ipm/organization/`, decisão 0015):
 
 ```text
-srv-ipm-organization-receiver
-srv-ipm-organization-manager
-srv-ipm-organization-publisher
-srv-ipm-organization-observer
-srv-ipm-organization-reconciler
-srv-ipm-organization-executor
+ipm-organization-receiver
+ipm-organization-manager
+ipm-organization-publisher
+ipm-organization-observer
+ipm-organization-reconciler
+ipm-organization-executor
 ```
 
 O comando `sk ipm organization` pertence ao CLI da plataforma (`components/cli`), que é cliente do Receiver. Estado: `receiver`, `manager` e o relay do outbox existem (este ainda no desenho anterior, que será o `publisher`); `observer`, `reconciler` e `executor` são criados na fatia seguinte, a partir do modelo do User (seção 46.1).
@@ -1474,7 +1474,7 @@ O User é um recurso da plataforma, no módulo `core` (decisão 0014), criado pe
 
 Quando o e-mail já está cadastrado no SSOT, o Manager rejeita o pedido (`validation`) sem criar nada; quando ele só existe no Zitadel, a criação do Executor falha de forma permanente (`Rejected`). O Zitadel responde `AlreadyExisting` (HTTP 400, id `COMMAND-7yiox1isql`, verificado na v4.19.4) a um ID ou e-mail já usado, e o Executor lê o usuário pelo ID: se existe com o e-mail esperado, é sucesso idempotente. Em todos os casos o solicitante anônimo recebe o mesmo `202`, sem revelar se o e-mail existia. O `desired` com `lifecycle = absent` não carrega dados pessoais (decisão 0014).
 
-Componentes (projetos em `features/core/user/`): `srv-core-user-receiver`, `srv-core-user-manager`, `srv-core-user-publisher`, `srv-core-user-observer`, `srv-core-user-reconciler` e `srv-core-user-executor`. Os comandos `sk register` e `sk user` pertencem ao CLI da plataforma.
+Componentes (projetos em `features/core/user/`): `core-user-receiver`, `core-user-manager`, `core-user-publisher`, `core-user-observer`, `core-user-reconciler` e `core-user-executor`. Os comandos `sk register` e `sk user` pertencem ao CLI da plataforma.
 
 # 47. Aplicação a outros recursos
 

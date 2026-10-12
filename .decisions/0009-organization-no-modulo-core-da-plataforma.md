@@ -13,7 +13,7 @@ Com isso, qualquer módulo futuro (secrets, clusters) dependeria do módulo de i
 
 - A Organization é um recurso **da plataforma**, no módulo **`core`**:
   - subjects `*.ipm.organization.*`;
-  - serviços `srv-ipm-organization-*`;
+  - serviços `ipm-organization-*`;
   - código em `features/core/<tipo>/<papel>` (decisão 0015);
   - comando `sk ipm organization create|get|list|update|delete`.
 - `core` é o módulo dos recursos da própria plataforma dos quais os demais dependem. O nome `platform` foi descartado por ser ambíguo com o diretório `platform/`, que reúne capacidades de infraestrutura (database, gateway, vault).

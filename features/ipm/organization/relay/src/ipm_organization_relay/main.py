@@ -1,4 +1,4 @@
-"""Entrypoint do relay de Organization (`srv-ipm-organization-relay`, decisão 0015).
+"""Entrypoint do relay de Organization (`ipm-organization-relay`, decisão 0015).
 
 Só inicializa e encerra: valida a configuração, conecta ao NATS e roda o relay do outbox.
 """

@@ -4,18 +4,18 @@ sequenceDiagram
     box rgb(232,240,254) Cliente e borda
         participant CLI as sk CLI (a implementar)
         participant GW as Gateway Kong
-        participant Receiver as srv-core-user-receiver
+        participant Receiver as core-user-receiver
     end
     box rgb(243,229,245) Mensageria
         participant N as NATS JetStream
     end
     box rgb(232,245,233) Módulo core / user
-        participant MGR as srv-core-user-manager
+        participant MGR as core-user-manager
         participant DB as SSOT PostgreSQL
-        participant PUB as srv-core-user-publisher
-        participant OBS as srv-core-user-observer
-        participant REC as srv-core-user-reconciler
-        participant EXE as srv-core-user-executor
+        participant PUB as core-user-publisher
+        participant OBS as core-user-observer
+        participant REC as core-user-reconciler
+        participant EXE as core-user-executor
     end
     box rgb(253,236,234) Sistemas externos
         participant ZIT as Zitadel

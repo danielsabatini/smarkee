@@ -1,6 +1,6 @@
 # core-user-manager
 
-Manager de `core.user` (`srv-core-user-manager`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
+Manager de `core.user` (`core-user-manager`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
 
 Único escritor do SSOT do tipo (só insere no outbox; quem o publica é o Publisher): consome `requested`, aplica cada mensagem em uma unidade atômica (linha bloqueada, Operation única, `desired` no outbox) e confirma ao transporte depois do `COMMIT`. O código das migrações (`migrations/`) é deste projeto; a execução é uma etapa de implantação com o papel administrativo.
 

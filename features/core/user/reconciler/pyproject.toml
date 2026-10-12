@@ -1,7 +1,7 @@
 [project]
 name = "core-user-reconciler"
 version = "0.1.0"
-description = "Manager de User do módulo core (srv-core-user-reconciler): único escritor do SSOT do tipo."
+description = "Reconciler de User do módulo core (core-user-reconciler): decide a action baseada em desired e observed."
 requires-python = ">=3.14"
 dependencies = [
     "nats-py>=2.16.0",

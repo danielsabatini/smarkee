@@ -1,7 +1,7 @@
 [project]
 name = "core-user-receiver"
 version = "0.1.0"
-description = "Receiver de User do módulo core (srv-core-user-receiver): autentica, valida e publica requested."
+description = "Receiver de User do módulo core (core-user-receiver): autentica, valida e publica requested."
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.143.0",

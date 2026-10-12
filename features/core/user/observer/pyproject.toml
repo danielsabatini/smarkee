@@ -1,7 +1,7 @@
 [project]
 name = "core-user-observer"
 version = "0.1.0"
-description = "Manager de User do módulo core (srv-core-user-observer): único escritor do SSOT do tipo."
+description = "Observer de User do módulo core (core-user-observer): lê o provedor e publica observações do estado."
 requires-python = ">=3.14"
 dependencies = [
     "httpx>=0.28.1",

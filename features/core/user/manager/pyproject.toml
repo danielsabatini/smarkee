@@ -1,7 +1,7 @@
 [project]
 name = "core-user-manager"
 version = "0.1.0"
-description = "Manager de User do módulo core (srv-core-user-manager): único escritor do SSOT do tipo."
+description = "Manager de User do módulo core (core-user-manager): único escritor do SSOT do tipo."
 requires-python = ">=3.14"
 dependencies = [
     "nats-py>=2.16.0",

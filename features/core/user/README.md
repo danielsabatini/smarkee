@@ -8,12 +8,12 @@ Decisões que definem este módulo: `.decisions/0014-user-no-modulo-core-com-aut
 
 | Papel | Projeto | Estado |
 |---|---|---|
-| Receiver | `receiver/` (`srv-core-user-receiver`) | Implementado |
-| Manager | `manager/` (`srv-core-user-manager`) | Implementado: `requested`, `observed`, `completed` e `failed` |
-| Publisher | `publisher/` (`srv-core-user-publisher`) | Implementado: publica o outbox do Manager |
-| Reconciler | `reconciler/` (`srv-core-user-reconciler`) | Implementado |
-| Observer | `observer/` (`srv-core-user-observer`) | Implementado |
-| Executor | `executor/` (`srv-core-user-executor`) | Implementado |
+| Receiver | `receiver/` (`core-user-receiver`) | Implementado |
+| Manager | `manager/` (`core-user-manager`) | Implementado: `requested`, `observed`, `completed` e `failed` |
+| Publisher | `publisher/` (`core-user-publisher`) | Implementado: publica o outbox do Manager |
+| Reconciler | `reconciler/` (`core-user-reconciler`) | Implementado |
+| Observer | `observer/` (`core-user-observer`) | Implementado |
+| Executor | `executor/` (`core-user-executor`) | Implementado |
 | Testes e2e | `tests/e2e/` | Implementados: 7 testes de conformidade e 3 de resiliência (`E2E_CHAOS=1`); **não são um componente** |
 | CLI | `components/cli` (`sk register`, `sk user`) | **A implementar** (só existe `sk auth`) |
 
@@ -31,7 +31,7 @@ Cada papel é um projeto autocontido (`.decisions/0015`): código, dependências
 
 # 3. Papéis e componentes
 
-## 3.1 Receiver (`srv-core-user-receiver`)
+## 3.1 Receiver (`core-user-receiver`)
 
 Porta de entrada HTTP. Autentica o token (JWKS do Zitadel), autoriza pela role da ação, valida o corpo (modo estrito), gera `resourceId` (UUIDv7), `operationId` e `requestDigest` e **publica `requested`**. Responde `202 Accepted`. Lê o SSOT só pelas views `user_v1` e `user_operation_v1`. Não escreve no SSOT nem no Zitadel.
 
@@ -44,7 +44,7 @@ Porta de entrada HTTP. Autentica o token (JWKS do Zitadel), autoriza pela role d
 
 Não há listagem (`GET /v1/users`) nem `PATCH`: o User não tem `update` (decisão 0014). O contrato descritivo é [`receiver/openapi.json`](receiver/openapi.json). Erros: `{errorCode, message, field?}` (`schemas/common/api-error`; códigos `ValidationFailed`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `IdempotencyKeyReused`, `ServiceUnavailable` e `InternalError`), sem repetir valores enviados. Um usuário que não é o dono recebe `404`, e não `403`, para não revelar a existência.
 
-## 3.2 Manager (`srv-core-user-manager`)
+## 3.2 Manager (`core-user-manager`)
 
 **Único escritor do SSOT** do tipo. Cada mensagem é uma unidade atômica (linha bloqueada, Operation única, `desired` ou `updated` no outbox, `COMMIT`, só então `ACK`):
 
@@ -54,15 +54,15 @@ Não há listagem (`GET /v1/users`) nem `PATCH`: o User não tem `update` (decis
 
 É dono do esquema do tipo: o código das migrações está em `manager/migrations/` e roda como etapa de implantação com o papel administrativo, nunca com o papel de runtime do Manager.
 
-## 3.3 Publisher (`srv-core-user-publisher`)
+## 3.3 Publisher (`core-user-publisher`)
 
 Publica no NATS, em ordem e de forma sequencial, as mensagens que o Manager gravou no **outbox**. Uma instância ativa por vez (trava consultiva de sessão); marca `published_at` só depois da confirmação do transporte (entrega *pelo menos uma vez*, deduplicada por `Nats-Msg-Id`). Não executa regra de negócio. É o sexto papel (decisão 0019), em projeto e processo próprios, para manter o menor privilégio: o Manager só insere no outbox (papel `core_user_manager`), e o Publisher só lê e marca (papel `core_user_publisher`, identidade NATS `srv-core-user-publisher`). Uma recusa permanente do transporte bloqueia a fila na ordem e tira o Publisher de `ready` (decisão 0018). Detalhes em [`publisher/README.md`](publisher/README.md).
 
-## 3.4 Reconciler (`srv-core-user-reconciler`)
+## 3.4 Reconciler (`core-user-reconciler`)
 
 Compara o último `desired` e o último `observed` de cada usuário (campos gerenciados: `lifecycle` e `platformAccess`) e decide `create`, `update` ou `delete`. Não executa e **não acessa o SSOT**: o estado é um cache em memória reconstruído da mensageria (consumers de estado por instância, `DeliverLastPerSubject`). Não decide com `observed` `unknown` ou antigo (10 min; 5 min para `delete`), com `desired` suspenso, nem enquanto há ação pendente (prazo de 2 min); espera a observação causada por cada resultado e aplica *backoff* após falha (5 s, dobrando até 300 s).
 
-## 3.5 Observer (`srv-core-user-observer`)
+## 3.5 Observer (`core-user-observer`)
 
 Lê o Zitadel (conta de serviço **somente leitura**, `ORG_OWNER_VIEWER`) e publica `observed`:
 
@@ -71,7 +71,7 @@ Lê o Zitadel (conta de serviço **somente leitura**, `ORG_OWNER_VIEWER`) e publ
 
 Observa quando o `desired` é novo, depois de cada `completed`/`failed` (com `causationId` do resultado) e periodicamente (5 min, com jitter), só os recursos da sua partição (`hash(resourceId) mod count`).
 
-## 3.6 Executor (`srv-core-user-executor`)
+## 3.6 Executor (`core-user-executor`)
 
 A **única identidade com escrita no Zitadel** (conta `core-user-executor`, papel `ORG_USER_MANAGER`, só a organização `core`). Para cada `action`: revalida contra o `desired` vigente (geração, operação coerente, reconciliação ativa), consulta o desfecho já registrado do `actionId` e só então executa:
 

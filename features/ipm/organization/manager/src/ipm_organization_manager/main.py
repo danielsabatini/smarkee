@@ -1,4 +1,4 @@
-"""Entrypoint do Manager de Organization (`srv-ipm-organization-manager`, decisão 0015).
+"""Entrypoint do Manager de Organization (`ipm-organization-manager`, decisão 0015).
 
 Só inicializa e encerra: valida a configuração, abre as conexões e roda o consumer de `requested`.
 """

@@ -1,7 +1,7 @@
 [project]
 name = "core-user-publisher"
 version = "0.1.0"
-description = "Publisher de User do módulo core (srv-core-user-publisher): publica no transporte o outbox que o Manager gravou."
+description = "Publisher de User do módulo core (core-user-publisher): publica no transporte o outbox que o Manager gravou."
 requires-python = ">=3.14"
 dependencies = [
     "nats-py>=2.16.0",

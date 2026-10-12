@@ -1,7 +1,7 @@
 [project]
 name = "ipm-organization-relay"
 version = "0.1.0"
-description = "Relay do outbox de Organization (srv-ipm-organization-relay): publica no transporte o que o Manager registrou."
+description = "Relay do outbox de Organization (ipm-organization-relay): publica no transporte o que o Manager registrou."
 requires-python = ">=3.14"
 dependencies = [
     "nats-py>=2.16.0",

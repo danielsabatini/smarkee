@@ -1,6 +1,6 @@
 # core-user-receiver
 
-Receiver de `core.user` (`srv-core-user-receiver`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
+Receiver de `core.user` (`core-user-receiver`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
 
 Autentica e autoriza o solicitante, valida o pedido, gera as identidades (`resourceId`, `operationId`, `requestDigest`) e publica `requested`. Lê o SSOT somente pelas views `core.user_v1` e `core.user_operation_v1`. Não escreve no SSOT nem no provedor de identidade.
 

@@ -1,10 +1,10 @@
 sequenceDiagram
     autonumber
-    participant Receiver as srv-core-user-receiver
+    participant Receiver as core-user-receiver
     participant N as NATS JetStream
-    participant MGR as srv-core-user-manager
+    participant MGR as core-user-manager
     participant DB as SSOT PostgreSQL
-    participant PUB as srv-core-user-publisher
+    participant PUB as core-user-publisher
 
     Note over Receiver,PUB: Falhas entre o requested aceito (202) e o desired publicado. A garantia é entrega pelo menos uma vez com idempotência semântica.
 

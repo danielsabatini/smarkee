@@ -1,12 +1,12 @@
 sequenceDiagram
     autonumber
     actor U as Pessoa
-    participant Receiver as srv-core-user-receiver
+    participant Receiver as core-user-receiver
     participant N as NATS JetStream
-    participant MGR as srv-core-user-manager
+    participant MGR as core-user-manager
     participant DB as SSOT PostgreSQL
-    participant REC as srv-core-user-reconciler
-    participant EXE as srv-core-user-executor
+    participant REC as core-user-reconciler
+    participant EXE as core-user-executor
     participant ZIT as Zitadel
 
     Note over U,ZIT: Regra de privacidade: a resposta ao cadastro é SEMPRE a mesma, exista ou não o e-mail.<br/>A pessoa anônima não consulta a Operation, então não há como descobrir e-mails cadastrados.

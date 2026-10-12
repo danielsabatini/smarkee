@@ -1,6 +1,6 @@
 # core-user-executor
 
-Executor de `core.user` (`srv-core-user-executor`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
+Executor de `core.user` (`core-user-executor`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
 
 Única identidade com escrita no Zitadel (conta `core-user-executor`, papel `ORG_USER_MANAGER`). Consome a `action` do Reconciler, **revalida** contra o `desired` vigente (geração, coerência da operação, reconciliação ativa), confere o desfecho já registrado do `actionId` por Direct Get (idempotência) e executa:
 

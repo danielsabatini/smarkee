@@ -1,6 +1,6 @@
 # core-user-publisher
 
-Publisher de `core.user` (`srv-core-user-publisher`), componente autocontido e sexto papel do loop (`.decisions/0019-publisher-como-sexto-papel.md`).
+Publisher de `core.user` (`core-user-publisher`), componente autocontido e sexto papel do loop (`.decisions/0019-publisher-como-sexto-papel.md`).
 
 Publica no transporte, em ordem e de forma sequencial, o que o Manager registrou no **outbox** do tipo (`core.user_outbox`). **Não executa regra de negócio**: o Subject e o payload já estão na linha do outbox.
 

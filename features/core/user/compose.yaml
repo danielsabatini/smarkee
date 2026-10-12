@@ -66,7 +66,7 @@ services:
           - core-user-migrate.smarkee.internal
     restart: "no"
 
-  # Receiver (srv-core-user-receiver): só o gateway a alcança; a porta 8000 não é publicada no host.
+  # Receiver (`core-user-receiver`): só o gateway a alcança; a porta 8000 não é publicada no host.
   core-user-receiver:
     build:
       context: ./receiver
@@ -99,7 +99,7 @@ services:
       retries: 6
       start_period: 10s
 
-  # Manager (srv-core-user-manager): único escritor do SSOT do tipo. Papel de banco
+  # Manager (`core-user-manager`): único escritor do SSOT do tipo. Papel de banco
   # `core_user_manager`, que só insere no outbox (decisão 0019).
   core-user-manager:
     build:
@@ -130,7 +130,7 @@ services:
       retries: 6
       start_period: 10s
 
-  # Reconciler (srv-core-user-reconciler): decide a `action` a partir de `desired` e `observed`.
+  # Reconciler (`core-user-reconciler`): decide a `action` a partir de `desired` e `observed`.
   # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/NATS.md §7.4).
   core-user-reconciler:
     build:
@@ -149,7 +149,7 @@ services:
     restart: unless-stopped
     healthcheck: *manager-healthcheck
 
-  # Observer (srv-core-user-observer): lê o Zitadel (conta somente leitura) e publica `observed`.
+  # Observer (`core-user-observer`): lê o Zitadel (conta somente leitura) e publica `observed`.
   # Monta só a própria chave do volume da identidade (nunca a de bootstrap nem a do Executor).
   core-user-observer:
     build:
@@ -177,7 +177,7 @@ services:
     restart: unless-stopped
     healthcheck: *manager-healthcheck
 
-  # Executor (srv-core-user-executor): única identidade com escrita no Zitadel (conta
+  # Executor (`core-user-executor`): única identidade com escrita no Zitadel (conta
   # core-user-executor, papel ORG_USER_MANAGER). Monta só a própria chave.
   core-user-executor:
     build:
@@ -205,7 +205,7 @@ services:
     restart: unless-stopped
     healthcheck: *manager-healthcheck
 
-  # Publisher (srv-core-user-publisher): publica o outbox do tipo (uma instância ativa por trava
+  # Publisher (`core-user-publisher`): publica o outbox do tipo (uma instância ativa por trava
   # consultiva). Papel de banco `core_user_publisher`, que só lê o outbox e marca `published_at`, e
   # identidade própria no NATS (decisão 0019).
   core-user-publisher:

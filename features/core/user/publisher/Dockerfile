@@ -1,4 +1,4 @@
-# Imagem do Publisher de User (srv-core-user-publisher, decisão 0019). Fase de build separada da de
+# Imagem do Publisher de User (core-user-publisher, decisão 0019). Fase de build separada da de
 # execução: a imagem final não leva o uv, os testes nem as dependências de desenvolvimento, e roda
 # sem privilégios.
 FROM ghcr.io/astral-sh/uv:0.11.19-python3.14-trixie-slim AS build

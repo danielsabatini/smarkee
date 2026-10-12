@@ -1,4 +1,4 @@
-"""Entrypoint do Executor de User (`srv-core-user-executor`, decisão 0015).
+"""Entrypoint do Executor de User (`core-user-executor`, decisão 0015).
 
 Só inicializa e encerra: valida a configuração, conecta ao NATS e roda o consumer de `action`.
 O Executor não acessa o SSOT; é o único com credencial de escrita no Zitadel.

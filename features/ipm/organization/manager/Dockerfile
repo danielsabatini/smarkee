@@ -1,4 +1,4 @@
-# Imagem da Manager de Organization (srv-ipm-organization-manager, decisão 0015). Fase de build separada da de
+# Imagem da Manager de Organization (ipm-organization-manager, decisão 0015). Fase de build separada da de
 # execução: a imagem final não leva o uv, os testes nem as dependências de desenvolvimento, e roda
 # sem privilégios.
 FROM ghcr.io/astral-sh/uv:0.11.19-python3.14-trixie-slim AS build

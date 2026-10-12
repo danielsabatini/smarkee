@@ -88,7 +88,7 @@ services:
       retries: 6
       start_period: 10s
 
-  # Manager (srv-ipm-organization-manager): único escritor do SSOT do tipo.
+  # Manager (`ipm-organization-manager`): único escritor do SSOT do tipo.
   ipm-organization-manager:
     build:
       context: ./manager
@@ -108,7 +108,7 @@ services:
           - ipm-organization-manager.smarkee.internal
     restart: unless-stopped
 
-  # Relay (srv-ipm-organization-relay): publica o outbox do tipo (uma instância ativa por trava consultiva).
+  # Relay (`ipm-organization-relay`): publica o outbox do tipo (uma instância ativa por trava consultiva).
   ipm-organization-relay:
     build:
       context: ./relay

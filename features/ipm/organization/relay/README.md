@@ -2,7 +2,7 @@
 
 > **Desenho anterior (decisão 0019).** O relay passa a se chamar **Publisher**, o sexto papel, em projeto próprio, com a estrutura e a saúde do `features/core/user/publisher` (modelo). Este README descreve o código atual até a migração; o Publisher do User descreve o alvo.
 
-Relay de `ipm.organization` (`srv-ipm-organization-relay`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
+Relay de `ipm.organization` (`ipm-organization-relay`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
 
 Publica no transporte, em ordem e de forma sequencial, o que o Manager registrou no outbox do tipo. Uma instância ativa por vez (trava consultiva de sessão).
 

@@ -6,9 +6,9 @@ A **Organization** é a unidade de isolamento da plataforma (`.decisions/0006-or
 
 | Papel | Projeto | Estado | Diferença em relação ao modelo (User) |
 |---|---|---|---|
-| Receiver | `receiver/` (`srv-ipm-organization-receiver`) | Implementado: `POST`, `GET`, lista, `PATCH`, `DELETE` e Operation; e-mail verificado e cota por dono | Camadas antigas (`app.py`, `repository.py`…); saúde em `/healthz`; sem teste de isolamento do `domain/` |
-| Manager | `manager/` (`srv-ipm-organization-manager`) | Implementado só para `requested` (`handler.py`, `policies.py` com SQL misturado à regra) | Faltam `observed` e `completed`/`failed`; sem `domain/` puro; sem saúde |
-| Relay do outbox | `relay/` (`srv-ipm-organization-relay`) | Implementado, projeto separado | Será o **Publisher** (decisão 0019), com a estrutura e a saúde do User |
+| Receiver | `receiver/` (`ipm-organization-receiver`) | Implementado: `POST`, `GET`, lista, `PATCH`, `DELETE` e Operation; e-mail verificado e cota por dono | Camadas antigas (`app.py`, `repository.py`…); saúde em `/healthz`; sem teste de isolamento do `domain/` |
+| Manager | `manager/` (`ipm-organization-manager`) | Implementado só para `requested` (`handler.py`, `policies.py` com SQL misturado à regra) | Faltam `observed` e `completed`/`failed`; sem `domain/` puro; sem saúde |
+| Relay do outbox | `relay/` (`ipm-organization-relay`) | Implementado, projeto separado | Será o **Publisher** (decisão 0019), com a estrutura e a saúde do User |
 | Reconciler, Observer, Executor | — | **Não implementados** | Dependem do modelo do User |
 | Testes e2e | `conformance/` | Implementados (4 testes sem token; 2 exigem `CONFORMANCE_ACCESS_TOKEN`) | A mover para `tests/e2e` |
 

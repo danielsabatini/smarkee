@@ -8,7 +8,7 @@ flowchart LR
 
     CLI["sk CLI<br/>sk register, sk user"]:::planned
     GW["Gateway Kong<br/>api-dev.smarkee.com.br<br/>limite 10/min por IP"]:::client
-    Receiver["srv-core-user-receiver<br/>auth, validação, 202"]:::client
+    Receiver["core-user-receiver<br/>auth, validação, 202"]:::client
 
     subgraph BUS["NATS JetStream (um Stream por messageType)"]
         direction TB
@@ -20,11 +20,11 @@ flowchart LR
         UPD["UPDATED<br/>manager.updated.core.user.id.changed"]:::nats
     end
 
-    MGR["srv-core-user-manager<br/>único escritor do SSOT"]:::core
-    PUB["srv-core-user-publisher<br/>publica o outbox"]:::core
-    REC["srv-core-user-reconciler<br/>decide a action"]:::core
-    OBSV["srv-core-user-observer<br/>lê o Zitadel (leitura)"]:::core
-    EXE["srv-core-user-executor<br/>escreve no Zitadel"]:::core
+    MGR["core-user-manager<br/>único escritor do SSOT"]:::core
+    PUB["core-user-publisher<br/>publica o outbox"]:::core
+    REC["core-user-reconciler<br/>decide a action"]:::core
+    OBSV["core-user-observer<br/>lê o Zitadel (leitura)"]:::core
+    EXE["core-user-executor<br/>escreve no Zitadel"]:::core
     DB[("SSOT PostgreSQL<br/>schema core: user, operation,<br/>action_result, outbox")]:::store
     ZIT["Zitadel<br/>org core, projeto smarkee"]:::ext
     MAIL["SMTP<br/>Mailpit em dev"]:::ext

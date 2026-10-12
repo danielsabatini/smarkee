@@ -1,10 +1,10 @@
 sequenceDiagram
     autonumber
-    participant MGR as srv-core-user-manager
+    participant MGR as core-user-manager
     participant N as NATS JetStream
-    participant OBS as srv-core-user-observer
-    participant REC as srv-core-user-reconciler
-    participant EXE as srv-core-user-executor
+    participant OBS as core-user-observer
+    participant REC as core-user-reconciler
+    participant EXE as core-user-executor
     participant ZIT as Zitadel
 
     Note over MGR,ZIT: Regra central: observação inconclusiva ou antiga nunca autoriza ação. Desired e observed são entradas independentes.
