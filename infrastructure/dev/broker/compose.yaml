@@ -1,7 +1,9 @@
 name: broker
 
 x-broker-bootstrap: &broker-bootstrap
-  image: ${NATS_BOX_IMAGE_VERSION:-natsio/nats-box:0.20.0-nonroot}
+  build:
+    context: ../../tools/nats-client
+  image: ${NATS_CLIENT_IMAGE:-smarkee-nats-client:dev}
   environment:
     NATS_URL: nats://broker.smarkee.internal:4222
     NATS_USER: ${NATS_USER:-smarkee}

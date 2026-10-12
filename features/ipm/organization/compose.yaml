@@ -11,7 +11,9 @@ services:
   # não muda; configuração diferente falha de forma explícita. Exige o Stream REQUESTED, criado
   # pelo broker da plataforma.
   ipm-organization-consumer:
-    image: ${NATS_BOX_IMAGE_VERSION:-natsio/nats-box:0.20.0-nonroot}
+    build:
+      context: ../../../infrastructure/tools/nats-client
+    image: ${NATS_CLIENT_IMAGE:-smarkee-nats-client:dev}
     container_name: ipm-organization-consumer.smarkee.internal
     environment:
       NATS_URL: nats://broker.smarkee.internal:4222
@@ -30,7 +32,9 @@ services:
   # implantação, com o papel administrativo, e nunca com o papel de runtime do Manager.
   # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/ipm.sql.
   ipm-organization-migrate:
-    image: ${POSTGRES_IMAGE_VERSION:-postgres:18.6-alpine}
+    build:
+      context: ../../../infrastructure/tools/psql-client
+    image: ${POSTGRES_CLIENT_IMAGE:-smarkee-psql-client:dev}
     container_name: ipm-organization-migrate.smarkee.internal
     environment:
       PGHOST: database.smarkee.internal

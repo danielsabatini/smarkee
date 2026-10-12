@@ -227,14 +227,14 @@ Os contêineres de inicialização equivalem a *initContainers*: cada um executa
 
 NATS:
 
-- Os seis Streams operacionais de `docs/NATS.md` são `REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT` e `UPDATED`. O `nats-server` não declara Streams no `nats.conf`; por isso, a criação é pela CLI oficial (`nats-box`).
+- Os seis Streams operacionais de `docs/NATS.md` são `REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT` e `UPDATED`. O `nats-server` não declara Streams no `nats.conf`; por isso, a criação é pela CLI oficial (imagem mínima `smarkee-nats-client:dev`, em `infrastructure/tools/nats-client`).
 - **Todo arquivo novo em `broker/bootstrap/` exige o seu serviço `broker-bootstrap-<stream>`** em `broker/compose.yaml` (âncora `x-broker-bootstrap`); sem ele, o arquivo é ignorado.
 - O Stream `ACTION` é **particionado** por `resourceId` (`subject_transform` em `bootstrap/action.json`, 4 partições, decisão 0018): o Subject armazenado ganha o token da partição, e cada Executor tem um consumer por partição. Mudar o número de partições exige recriar o Stream e os consumers.
 - Stream inexistente é criado; existente com a mesma configuração não muda. Com configuração diferente, o contêiner falha (`stream name already in use with a different configuration`). Para aplicar a alteração de forma deliberada:
 
   ```bash
   NATS_PASSWORD=$(grep '^NATS_PASSWORD=' broker/.env | cut -d= -f2)
-  docker run --rm --network internal -v "$PWD/broker/bootstrap:/bootstrap:ro" natsio/nats-box:0.20.0-nonroot \
+  docker run --rm --network internal -v "$PWD/broker/bootstrap:/bootstrap:ro" smarkee-nats-client:dev \
     nats -s nats://broker.smarkee.internal:4222 --user smarkee --password "$NATS_PASSWORD" stream edit OBSERVED --config /bootstrap/observed.json --force
   ```
 
@@ -260,12 +260,12 @@ docker exec -it database.smarkee.internal psql -U smarkee -d smarkee
 docker exec -it database.smarkee.internal psql -U postgres            # administrador
 ```
 
-NATS (sem a CLI `nats` no host, use o container oficial com a rede do host):
+NATS (sem a CLI `nats` no host, use a imagem mínima `smarkee-nats-client:dev` com a rede do host):
 
 ```bash
 NATS_PASSWORD=$(grep '^NATS_PASSWORD=' broker/.env | cut -d= -f2)
-docker run --rm --network host natsio/nats-box nats -s nats://localhost:4222 --user smarkee --password "$NATS_PASSWORD" account info
-docker run --rm --network host natsio/nats-box nats -s nats://localhost:4222 --user smarkee --password "$NATS_PASSWORD" stream ls
+docker run --rm --network host smarkee-nats-client:dev nats -s nats://localhost:4222 --user smarkee --password "$NATS_PASSWORD" account info
+docker run --rm --network host smarkee-nats-client:dev nats -s nats://localhost:4222 --user smarkee --password "$NATS_PASSWORD" stream ls
 ```
 
 Zitadel e Kong:
