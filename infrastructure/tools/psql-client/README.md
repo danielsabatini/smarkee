@@ -9,10 +9,10 @@ Esta imagem é destinada exclusivamente à execução de scripts de migração D
 ## Características
 
 - **Base:** Alpine Linux 3.21.
-- **Pacotes instalados:** `postgresql17-client` e `ca-certificates`.
+- **Pacotes instalados:** `postgresql18-client` (v18.6) e `ca-certificates`.
 - **Segurança:** Execução obrigatória como usuário não-root `smarkee` (`UID 10001: GID 10001`).
 - **Shell disponível:** Inclui `/bin/sh` do Alpine para permitir laços de migração como `for migration in /migrations/*.sql; do psql ...; done`.
-- **Tamanho aproximado:** ~22 MB.
+- **Tamanho aproximado:** ~23 MB.
 
 ## Construção local
 

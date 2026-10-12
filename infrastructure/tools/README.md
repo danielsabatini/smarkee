@@ -4,7 +4,7 @@ Imagens de contêiner mínimas e utilitárias para a operação, bootstrap e aut
 
 ## Imagens Disponíveis
 
-- **`psql-client/` (`smarkee-psql-client`)**: Imagem mínima com Alpine Linux e `postgresql17-client`, usada para aplicar migrações DDL e rotinas administrativas no SSOT.
+- **`psql-client/` (`smarkee-psql-client`)**: Imagem mínima com Alpine Linux e `postgresql18-client` (v18.6), usada para aplicar migrações DDL e rotinas administrativas no SSOT.
 - **`nats-client/` (`smarkee-nats-client`)**: Imagem mínima com Alpine Linux e o binário estático oficial do `nats` CLI, usada para provisionar Streams e Consumers no barramento NATS JetStream.
 
 ## Diretrizes de Segurança
