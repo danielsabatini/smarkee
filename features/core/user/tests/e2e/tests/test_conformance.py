@@ -84,6 +84,8 @@ async def test_requested_becomes_a_valid_desired(
         "manager",
         "changed",
     )
+    # O emissor é quem decidiu (Manager); `publishedBy` é quem entregou (Publisher).
+    assert desired["publishedBy"] == "core-user-publisher"
     assert desired["desiredGeneration"] == 1
     assert desired["causationId"] == message["messageId"]
     assert desired["correlationId"] == message["correlationId"]

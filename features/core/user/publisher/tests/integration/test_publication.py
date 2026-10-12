@@ -138,3 +138,15 @@ async def test_only_one_instance_holds_the_session_lock(database_available: None
         await second.close()
         if not first.closed:
             await first.close()
+
+
+async def test_the_publisher_identifies_itself_without_changing_the_emitter(
+    cleanup: Cleanup, user_manager: Connection, outbox_reader: Connection
+) -> None:
+    ids = await seed(cleanup, user_manager, 1)
+    publisher = RecordingPublisher()
+    await publish_pending(outbox_reader, publisher, batch_size=1000)
+
+    ours = [item[1] for item in publisher.published if item[1]["resourceId"] in ids]
+    assert [payload["publishedBy"] for payload in ours] == ["core-user-publisher"]
+    assert all("emitter" not in payload or payload["emitter"] == "manager" for payload in ours)

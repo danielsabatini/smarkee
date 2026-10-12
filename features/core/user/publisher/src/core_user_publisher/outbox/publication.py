@@ -44,6 +44,9 @@ class Publisher(Protocol):
         ...
 
 
+PUBLISHED_BY = "core-user-publisher"
+"""Identidade de mensageria desta instância (`publishedBy`): quem entregou a mensagem. O `emitter`
+da mensagem continua sendo `manager`, o autor da decisão."""
 OUTBOX_TABLE = sql.Identifier("core", "user_outbox")
 RESOURCE_TYPE = "user"
 LOCK_KEY = "core.user_outbox"
@@ -78,6 +81,7 @@ async def publish_pending(
             break
         payload: dict[str, Any] = dict(row["payload"])
         payload["publishedAt"] = clock().isoformat()
+        payload["publishedBy"] = PUBLISHED_BY
         try:
             await publisher.publish(
                 row["subject"], json.dumps(payload).encode(), message_id=row["message_id"]

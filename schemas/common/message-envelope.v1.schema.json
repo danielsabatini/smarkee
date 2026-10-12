@@ -151,6 +151,15 @@
       "x-writer": "server",
       "x-sensitivity": "internal"
     },
+    "publishedBy": {
+      "description": "Identidade de mensageria que entregou a mensagem ao transporte quando é diferente do emissor (o Publisher, nas mensagens `desired` e `updated`). O `emitter` continua sendo o autor da decisão.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
     "observedAt": {
       "$ref": "definitions.v1.schema.json#/$defs/timestamp",
       "x-writer": "server",

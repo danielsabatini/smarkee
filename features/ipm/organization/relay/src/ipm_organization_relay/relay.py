@@ -75,6 +75,7 @@ async def publish_pending(
             break
         payload: dict[str, Any] = dict(row["payload"])
         payload["publishedAt"] = clock().isoformat()
+        payload["publishedBy"] = "ipm-organization-relay"  # será `ipm-organization-publisher`
         try:
             await publisher.publish(
                 row["subject"], json.dumps(payload).encode(), message_id=row["message_id"]

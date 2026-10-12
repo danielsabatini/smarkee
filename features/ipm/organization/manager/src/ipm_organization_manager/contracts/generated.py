@@ -802,6 +802,13 @@ class MessageEnvelope(ContractModel):
     """
     Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
     """
+    published_by: Annotated[
+        str | None,
+        Field(alias="publishedBy", max_length=128, min_length=1, pattern="^[a-z][a-z0-9-]*$"),
+    ] = None
+    """
+    Identidade de mensageria que entregou a mensagem ao transporte quando é diferente do emissor (o Publisher, nas mensagens `desired` e `updated`). O `emitter` continua sendo o autor da decisão.
+    """
     observed_at: Annotated[AwareDatetime | None, Field(alias="observedAt")] = None
     """
     Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
