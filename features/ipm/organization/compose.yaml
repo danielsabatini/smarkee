@@ -1,0 +1,129 @@
+name: ipm-organization
+
+# Componentes de ipm.organization (decisão 0015): migração, consumer do Manager, Receiver, Manager e relay.
+# A plataforma (banco, broker, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
+# e saudável antes (`docker compose up -d --wait broker database gateway identity identity-login`
+# naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
+
+services:
+  # Consumer durável de trabalho do Manager para `requested` do tipo (docs/NATS.md §7.6). O manifesto
+  # é do Manager (`manager/consumers/`). Inexistente é criado; existente com configuração idêntica
+  # não muda; configuração diferente falha de forma explícita. Exige o Stream REQUESTED, criado
+  # pelo broker da plataforma.
+  ipm-organization-consumer:
+    image: ${NATS_BOX_IMAGE_VERSION:-natsio/nats-box:0.20.0-nonroot}
+    container_name: ipm-organization-consumer.smarkee.internal
+    environment:
+      NATS_URL: nats://broker.smarkee.internal:4222
+      NATS_USER: ${NATS_USER:-smarkee}
+      NATS_PASSWORD: ${IPM_ORGANIZATION_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+    command: ["nats", "consumer", "add", "REQUESTED", "--config", "/consumers/ipm-organization-manager-requested.json"]
+    volumes:
+      - ./manager/consumers:/consumers:ro
+    networks:
+      - internal
+    restart: "no"
+
+  # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo
+  # (features/ipm/organization/manager/migrations/*.sql, em ordem) como o dono `smarkee`, no banco `smarkee`.
+  # O código das migrações é do projeto do Manager (decisão 0015); a execução é desta etapa de
+  # implantação, com o papel administrativo, e nunca com o papel de runtime do Manager.
+  # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/ipm.sql.
+  ipm-organization-migrate:
+    image: ${POSTGRES_IMAGE_VERSION:-postgres:18.6-alpine}
+    container_name: ipm-organization-migrate.smarkee.internal
+    environment:
+      PGHOST: database.smarkee.internal
+      PGDATABASE: smarkee
+      PGUSER: smarkee
+      # Senha trivial de dev do dono do SSOT (database/bootstrap/smarkee.sql).
+      PGPASSWORD: smarkee
+      PGOPTIONS: -c client_min_messages=warning
+    command:
+      - sh
+      - -c
+      - for migration in /migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1; done
+    volumes:
+      - ./manager/migrations:/migrations:ro
+    networks:
+      internal:
+        aliases:
+          - ipm-organization-migrate.smarkee.internal
+    restart: "no"
+
+  # Receiver (srv-ipm-organization-receiver): só o gateway a alcança; a porta 8000 não é publicada no host.
+  ipm-organization-receiver:
+    build:
+      context: ./receiver
+    image: ${IPM_ORGANIZATION_RECEIVER_IMAGE:-smarkee-ipm-organization-receiver:dev}
+    container_name: ipm-organization-receiver.smarkee.internal
+    environment:
+      # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
+      # defaults do componente (IPM_ORGANIZATION_RECEIVER_<SEÇÃO>_<CAMPO>).
+      IPM_ORGANIZATION_RECEIVER_DATABASE_PASSWORD: ${IPM_ORGANIZATION_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
+      IPM_ORGANIZATION_RECEIVER_NATS_PASSWORD: ${IPM_ORGANIZATION_RECEIVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE: ${IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto smarkee, org core)}
+    depends_on:
+      ipm-organization-migrate:
+        condition: service_completed_successfully
+      ipm-organization-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-organization-receiver.smarkee.internal
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  # Manager (srv-ipm-organization-manager): único escritor do SSOT do tipo.
+  ipm-organization-manager:
+    build:
+      context: ./manager
+    image: ${IPM_ORGANIZATION_MANAGER_IMAGE:-smarkee-ipm-organization-manager:dev}
+    container_name: ipm-organization-manager.smarkee.internal
+    environment:
+      IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD: ${IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD:?Defina no .env}
+      IPM_ORGANIZATION_MANAGER_NATS_PASSWORD: ${IPM_ORGANIZATION_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+    depends_on:
+      ipm-organization-migrate:
+        condition: service_completed_successfully
+      ipm-organization-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-organization-manager.smarkee.internal
+    restart: unless-stopped
+
+  # Relay (srv-ipm-organization-relay): publica o outbox do tipo (uma instância ativa por trava consultiva).
+  ipm-organization-relay:
+    build:
+      context: ./relay
+    image: ${IPM_ORGANIZATION_RELAY_IMAGE:-smarkee-ipm-organization-relay:dev}
+    container_name: ipm-organization-relay.smarkee.internal
+    environment:
+      IPM_ORGANIZATION_RELAY_DATABASE_PASSWORD: ${IPM_ORGANIZATION_RELAY_DATABASE_PASSWORD:?Defina no .env}
+      IPM_ORGANIZATION_RELAY_NATS_PASSWORD: ${IPM_ORGANIZATION_RELAY_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+    depends_on:
+      ipm-organization-migrate:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-organization-relay.smarkee.internal
+    restart: unless-stopped
+
+networks:
+  # Rede da plataforma, criada por `infrastructure/dev`.
+  internal:
+    name: internal
+    external: true
