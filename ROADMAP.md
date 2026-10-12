@@ -17,11 +17,14 @@ Adotamos a metodologia **Now, Next, Later** para o planejamento. Em vez de datas
 O que está sendo trabalhado ativamente neste momento.
 - [ ] **`[In Design]` Contratos e Mensageria:** Modelagem semântica da troca assíncrona de mensagens e dos schemas de contrato (`docs/MESSAGING.md`, `docs/NATS.md` e `docs/SCHEMA.md`).
 - [ ] **`[In Design]` Resource Control Loop:** Modelo de reconciliação entre `desired` e `observed` e sua segurança (`docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`).
+- [ ] **`[In Progress]` Primeira Fatia Vertical (`core`/`user` completo e `ipm`/`organization` em andamento):** componentes autocontidos por papel (`receiver`, `manager`, `publisher`, `observer`, `reconciler` e `executor`), com servidor de saúde, partição do `ACTION` e testes e2e black-box (incluindo falhas de componentes), validando os contratos especificados (`docs/RESOURCE-CONTROL-LOOP.md`, seção 48).
 - [ ] **`[In Design]` SSOT e Persistência:** Modelo e garantias de gravação do SSOT e sua implementação de referência em PostgreSQL com `jsonb` (`docs/SSOT.md` e `docs/POSTGRESQL.md`).
 
 ### 🟡 Next (Próximos Passos / Médio Prazo)
 O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.
-- [ ] **`[Planned]` Primeira Fatia Vertical:** Implementação mínima do `ipm` (API, worker e CLI) validando os contratos especificados.
+- [ ] **`[Planned]` Organization derivada do User:** Manager `observed`/`result`, Reconciler, Observer e Executor do tipo `organization` do módulo `ipm`, na estrutura e com o servidor de saúde do User (modelo das demais features), fechando o loop sobre o Zitadel.
+- [ ] **`[Planned]` CLI do cadastro:** `sk register`, `sk user get|delete` e `sk ipm organization`, sobre o Receiver do User.
+- [ ] **`[Planned]` Implantação em Kubernetes:** CI/CD e GitOps por componente, com versão e imagem independentes.
 - [ ] **`[Planned]` Observabilidade Básica:** Implementação de traces estruturados nos workers.
 
 ### 🔴 Later (Exploratório / Longo Prazo)
