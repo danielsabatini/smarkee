@@ -9,7 +9,7 @@ Esta imagem é destinada ao provisionamento declarativo de Streams e Consumers d
 ## Características
 
 - **Base:** Alpine Linux 3.21.
-- **Binário:** Extraído do release oficial da Synadia (`/usr/local/bin/nats`).
+- **Binário:** Instalado via script e CDN oficial da Synadia/NATS (`https://binaries.nats.dev/nats-io/natscli/nats@latest`), conforme a [documentação oficial de Getting Started](https://docs.nats.io/concepts/getting-started/).
 - **Segurança:** Execução obrigatória como usuário não-root `smarkee` (`UID 10001: GID 10001`).
 - **Shell disponível:** Inclui `/bin/sh` do Alpine para permitir laços e validações encadeadas.
 - **Tamanho aproximado:** ~66 MB (contra os ~137 MB da toolbox `nats-box`).
