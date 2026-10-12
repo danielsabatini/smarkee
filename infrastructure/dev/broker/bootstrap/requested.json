@@ -1,8 +1,8 @@
 {
   "name": "REQUESTED",
-  "description": "Trabalho: pedidos da API ao Manager (docs/NATS.md, 6.3)",
+  "description": "Trabalho: pedidos do Receiver ao Manager (docs/NATS.md, 6.3)",
   "subjects": [
-    "api.requested.>"
+    "receiver.requested.>"
   ],
   "retention": "workqueue",
   "discard": "new",

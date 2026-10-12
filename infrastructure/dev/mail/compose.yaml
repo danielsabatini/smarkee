@@ -1,0 +1,37 @@
+name: mail
+
+# Captura de e-mail só para desenvolvimento (decisão 0013): o Zitadel envia os e-mails de ativação e
+# de redefinição de senha para cá, e nada sai da máquina. Em stg e prd o SMTP é um serviço real.
+services:
+  mail:
+    image: ${MAILPIT_IMAGE_VERSION:-axllent/mailpit:v1.31.4}
+    container_name: mail.smarkee.internal
+    ports:
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"  # Interface web (somente no host, em desenvolvimento)
+    environment:
+      # Aceita qualquer remetente e destinatário; sem autenticação (rede interna de dev).
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+      MP_MAX_MESSAGES: 500
+      MP_DATABASE: /data/mailpit.db
+    volumes:
+      - mail-data:/data
+    networks:
+      internal:
+        aliases:
+          - mail.smarkee.internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+
+volumes:
+  mail-data:
+    name: mail-data
+
+networks:
+  internal:
+    name: internal

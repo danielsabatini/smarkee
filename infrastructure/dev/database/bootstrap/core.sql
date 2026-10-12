@@ -1,4 +1,5 @@
 -- Papéis do módulo core no SSOT (apenas desenvolvimento local; credenciais triviais).
+-- Um papel por componente de cada tipo, inclusive o Publisher (decisões 0015 e 0019).
 -- Conforme docs/POSTGRESQL.md §14.2 e §14.3: um papel de função sem login por serviço, que recebe
 -- os privilégios (concedidos pela migração do módulo, como dono `smarkee`), e um papel de login por
 -- serviço, membro do papel de função, com os parâmetros de sessão.
@@ -10,8 +11,7 @@ DECLARE
   function_role text;
 BEGIN
   FOREACH function_role IN ARRAY ARRAY[
-    'core_organization_manager', 'core_organization_api', 'core_user_manager', 'core_user_api',
-    'core_relay', 'core_maintenance'
+    'core_user_manager', 'core_user_receiver', 'core_user_publisher', 'core_maintenance'
   ] LOOP
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = function_role) THEN
       EXECUTE format('CREATE ROLE %I NOLOGIN', function_role);

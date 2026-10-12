@@ -1,6 +1,6 @@
 {
   "name": "ACTION",
-  "description": "Trabalho: decisões do Reconciler ao Executor (docs/NATS.md, 6.3)",
+  "description": "Trabalho: decis\u00f5es do Reconciler ao Executor, particionadas no servidor (docs/NATS.md, 6.3 e 7.5; decis\u00e3o 0018)",
   "subjects": [
     "reconciler.action.>"
   ],
@@ -15,5 +15,9 @@
   "max_msg_size": 1048576,
   "max_consumers": -1,
   "duplicate_window": 120000000000,
-  "allow_direct": false
+  "allow_direct": false,
+  "subject_transform": {
+    "src": "reconciler.action.*.*.*.*",
+    "dest": "reconciler.action.{{wildcard(1)}}.{{wildcard(2)}}.{{partition(4,3)}}.{{wildcard(3)}}.{{wildcard(4)}}"
+  }
 }

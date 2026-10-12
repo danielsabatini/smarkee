@@ -62,22 +62,32 @@ services:
         preserve_host: true
         strip_path: false
 
-  # API da plataforma (serviço core). Host próprio (api-dev.smarkee.com.br; em dev, aponte
-  # 127.0.0.1 em /etc/hosts). Só `/v1` é público: `/healthz` fica na rede interna. A API só
-  # é alcançada por este gateway, que acrescenta o endereço do cliente a `X-Forwarded-For`
-  # (a API usa o último valor para o limite de taxa das escritas anônimas).
-  - name: core
-    url: http://core.smarkee.internal:8000
+  # APIs da plataforma. Host próprio (api-dev.smarkee.com.br; em dev, aponte 127.0.0.1 em
+  # /etc/hosts). Só `/v1/...` é público: `/health/*` (e `/healthz`, na Organization) fica na rede interna. Cada Receiver só é alcançado
+  # por este gateway, que acrescenta o endereço do cliente a `X-Forwarded-For` (o Receiver usa o último
+  # valor para o limite de taxa das escritas anônimas). Uma rota por tipo de recurso (decisão 0015).
+  - name: ipm-organization-receiver
+    url: http://ipm-organization-receiver.smarkee.internal:8000
     routes:
-      - name: core-api
+      - name: ipm-organization-receiver
         hosts:
           - api-dev.smarkee.com.br
         paths:
-          - /v1
+          - ~/v1/organizations(/|$)
+        strip_path: false
+
+  - name: core-user-receiver
+    url: http://core-user-receiver.smarkee.internal:8000
+    routes:
+      - name: core-user-receiver
+        hosts:
+          - api-dev.smarkee.com.br
+        paths:
+          - ~/v1/users(/|$)
         strip_path: false
       # Auto-cadastro (escrita anônima): limite de taxa por IP já no gateway, o primeiro nível
-      # de proteção (docs/RESOURCE-CONTROL-SECURITY.md §12). A API aplica o segundo.
-      - name: core-register
+      # de proteção (docs/RESOURCE-CONTROL-SECURITY.md §12). O Receiver aplica o segundo.
+      - name: core-user-register
         hosts:
           - api-dev.smarkee.com.br
         paths:

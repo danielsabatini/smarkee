@@ -41,7 +41,7 @@ services:
   identity:
     image: ${ZITADEL_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.19.4}
     container_name: identity.smarkee.internal
-    # user 0: o volume identity-bootstrap precisa ser gravável pela API (PAT do cliente de login).
+    # user 0: o volume identity-bootstrap precisa ser gravável pela API do Zitadel (PAT do cliente de login).
     user: "0"
     command: ["start-from-setup", "--masterkeyFromEnv", "--tlsMode", "disabled"]
     environment:
@@ -63,6 +63,13 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS: ${ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL:-admin@smarkee.internal}
       # Já é o padrão do Zitadel; explícito por ser configuração de segurança.
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "true"
+      # Servidor de e-mail de desenvolvimento (captura): o Mailpit de `mail/`. Só vale na primeira
+      # inicialização da instância; numa instância existente, a configuração SMTP é feita pela
+      # Admin API (veja o README). O remetente deve pertencer ao domínio externo da instância.
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_HOST: ${ZITADEL_SMTP_HOST:-mail.smarkee.internal:1025}
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_TLS: "false"
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROM: ${ZITADEL_SMTP_FROM:-ipm-dev@smarkee.internal}
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROMNAME: ${ZITADEL_SMTP_FROMNAME:-IPM-DEV}
       ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: Login Client
@@ -118,7 +125,7 @@ services:
       retries: 12
       start_period: 60s
 
-  # Interface de login (login v2). Autentica na API com o PAT gerado pelo identity.
+  # Interface de login (login v2). Autentica na API do Zitadel com o PAT gerado pelo identity.
   identity-login:
     image: ${ZITADEL_LOGIN_IMAGE_VERSION:-ghcr.io/zitadel/zitadel-login:v4.19.4}
     container_name: identity-login.smarkee.internal
@@ -128,7 +135,7 @@ services:
       NEXT_PUBLIC_BASE_PATH: /ui/v2/login
       ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel/bootstrap/login-client.pat
       ZITADEL_SESSION_COOKIE_SECRET: ${ZITADEL_SESSION_COOKIE_SECRET:?Defina ZITADEL_SESSION_COOKIE_SECRET no .env}
-      # Preserva o domínio público nas chamadas à API (a instância é resolvida pelo Host).
+      # Preserva o domínio público nas chamadas à API do Zitadel (a instância é resolvida pelo Host).
       CUSTOM_REQUEST_HEADERS: Host:${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br},X-Forwarded-Proto:http
     volumes:
       - identity-bootstrap:/zitadel/bootstrap:ro

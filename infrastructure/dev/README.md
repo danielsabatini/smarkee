@@ -17,7 +17,7 @@ echo "127.0.0.1 ipm-dev.smarkee.com.br api-dev.smarkee.com.br" | sudo tee -a /et
 Cada serviço lê o seu `.env` (fora do git), criado a partir do exemplo:
 
 ```bash
-for s in database broker identity gateway core; do cp -n $s/.env.example $s/.env; done
+for s in database broker identity gateway; do cp -n $s/.env.example $s/.env; done
 ```
 
 Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
@@ -29,8 +29,10 @@ Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
 | `identity/.env` | `ZITADEL_MASTERKEY` | Exatamente 32 caracteres: `openssl rand -hex 16`. Não altere depois da primeira subida |
 | `identity/.env` | `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD` | Senha inicial do administrador do Zitadel, com maiúscula, minúscula, número e símbolo |
 | `identity/.env` | `ZITADEL_SESSION_COOKIE_SECRET` | `openssl rand -hex 32` |
-| `core/.env` | `CORE_NATS_PASSWORD` | A mesma `NATS_PASSWORD` de `broker/.env` |
-| `core/.env` | `CORE_AUTH_AUDIENCE` | ID do projeto `smarkee` no Zitadel (organização `core`) |
+| `features/core/user/.env` e `features/ipm/organization/.env` | `CORE_USER_<PAPEL>_NATS_PASSWORD`, `IPM_ORGANIZATION_<PAPEL>_NATS_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`, `RECONCILER`, `OBSERVER`, `EXECUTOR`) | A mesma `NATS_PASSWORD` de `broker/.env` |
+| `features/core/user/.env` e `features/ipm/organization/.env` | `CORE_USER_RECEIVER_AUTH_AUDIENCE`, `IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE` | ID do projeto `smarkee` no Zitadel (organização `core`) |
+
+Os componentes das features (User e Organization) **não são subidos por este diretório**: cada feature tem o seu `compose.yaml` e o seu `.env` (`cp .env.example .env` em `features/core/user` e `features/ipm/organization`), e eles esperam a plataforma abaixo no ar. Suba a plataforma primeiro e depois cada feature (`docker compose up -d --build` na pasta dela). Se recriar o Receiver de uma feature, reinicie o `gateway`, que guarda em cache o endereço do contêiner.
 
 Variáveis adicionais configuradas no `identity/.env`:
 - `ZITADEL_FIRSTINSTANCE_INSTANCENAME`: Nome da instância exibido no console (padrão: `IPM`).
@@ -42,11 +44,19 @@ Variáveis adicionais configuradas no `identity/.env`:
 
 `gateway/.env` não possui valor obrigatório (`KONG_PROXY_HTTP_PORT=8080` por padrão).
 
+## E-mail de desenvolvimento (Mailpit)
+
+O serviço `mail` captura o SMTP do Zitadel (`mail.smarkee.internal:1025`, só na rede `internal`); nada sai da máquina. A interface web fica em http://localhost:8025 (somente no host) e mostra os e-mails de ativação e de redefinição de senha.
+
+- **Instância nova:** o `identity/compose.yaml` já aponta o Zitadel para o Mailpit (`ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_*`, aplicado só na primeira inicialização).
+- **Instância existente:** a configuração SMTP é da instância, e não de variável. Aplique pela Admin API ou pelo console (**Configurações → SMTP**): host `mail.smarkee.internal:1025`, sem TLS, remetente `ipm-dev@smarkee.internal` e nome `IPM-DEV`. Há um e-mail de teste no console.
+- **Destinatário:** o Mailpit só captura; **ninguém recebe** os e-mails, e por isso testes com `example.com` são seguros. Para enviar de verdade em dev, troque a configuração SMTP ativa para um provedor real (por exemplo, o Brevo) no console, sem versionar a chave, e volte ao Mailpit depois: só uma configuração fica ativa por instância. Em stg e prd o SMTP é sempre o provedor real.
+
 ## Subir e derrubar
 
 ```bash
 docker compose up -d                                                 # sobe tudo, inclusive os contêineres de inicialização
-docker compose up -d --wait broker gateway identity identity-login   # espera os serviços de longa duração ficarem saudáveis
+docker compose up -d --wait broker gateway identity identity-login mail   # espera os serviços de longa duração ficarem saudáveis
 docker compose ps                                                    # estado e saúde
 docker compose down              # derruba, preservando os volumes
 docker compose down -v           # derruba e APAGA os dados
@@ -63,7 +73,7 @@ Com a stack de pé (`docker compose ps`) e o `/etc/hosts` configurado:
 | O que | Endereço | Credencial |
 |---|---|---|
 | Console do Zitadel | http://ipm-dev.smarkee.com.br:8080/ui/console/ | Usuário `admin@smarkee.internal` (ou `admin@smarkee.ipm-dev.smarkee.com.br`) e a senha `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD` de `identity/.env` (troca obrigatória no primeiro acesso) |
-| Cadastro de nova organização (Zitadel) | http://ipm-dev.smarkee.com.br:8080/ui/login/register/org | **Desligado** (decisão 0013): o cadastro público foi desativado na política de login; usuários e organizações nascem pela API |
+| Cadastro de nova organização (Zitadel) | http://ipm-dev.smarkee.com.br:8080/ui/login/register/org | **Desligado** (decisão 0013): o cadastro público foi desativado na política de login; usuários e organizações nascem pelo Receiver |
 | API da plataforma | http://api-dev.smarkee.com.br:8080/v1/ | Token do `sk auth login` (`Authorization: Bearer`); o cadastro (`POST /v1/users`) é anônimo, com limite de taxa |
 | Kong Manager | http://localhost:8002 | Nenhuma |
 | Kong Admin API | http://localhost:8001 | Nenhuma |
@@ -88,7 +98,8 @@ Do host, use a coluna **Host**. De um container na rede `internal` (por exemplo,
 | Zitadel API (direto, sem gateway) | — (porta não publicada) | http://identity.smarkee.internal:8080 com o cabeçalho `Host: ipm-dev.smarkee.com.br:8080` | Chamadas entre serviços e diagnóstico; sem o cabeçalho responde 404 |
 | Zitadel login (direto, sem gateway) | — (porta não publicada) | http://identity-login.smarkee.internal:3000/ui/v2/login/ | Somente diagnóstico (`/ui/v2/login/healthy`) |
 | Kong (proxy HTTP) | http://ipm-dev.smarkee.com.br:8080 | http://gateway.smarkee.internal:8000 | Roteia por host (`gateway/bootstrap/routes.yml`); host desconhecido responde 404 |
-| API da plataforma (`core`) | http://api-dev.smarkee.com.br:8080/v1/ (só `/v1`) | http://core.smarkee.internal:8000 | `/healthz` só na rede interna. O cadastro anônimo tem limite de 10 por minuto por IP no gateway |
+| Receiver de User (`core`) | http://api-dev.smarkee.com.br:8080/v1/users (só `/v1/users`) | http://core-user-receiver.smarkee.internal:8000 | `/health/*` só na rede interna. O cadastro anônimo (`POST /v1/users`) tem limite de 10 por minuto por IP no gateway (rota `core-user-register`) e de 5 por 60 s por origem no Receiver |
+| Receiver de Organization (`ipm`) | http://api-dev.smarkee.com.br:8080/v1/organizations (só `/v1/organizations`) | http://ipm-organization-receiver.smarkee.internal:8000 | `/healthz` só na rede interna (desenho anterior: a Organization ainda adota a estrutura do User) |
 | Kong (proxy HTTPS) | https://localhost:8443 | https://gateway.smarkee.internal:8443 | Certificado autoassinado (`curl -k`); não use para o Zitadel (ver OIDC) · responde 404 sem um host roteado |
 | Kong Admin API | http://localhost:8001 · https://localhost:8444 | http://gateway.smarkee.internal:8001 | Sem autenticação |
 | Kong Manager | http://localhost:8002 · https://localhost:8445 | — | Navegador; sem autenticação |
@@ -96,11 +107,11 @@ Do host, use a coluna **Host**. De um container na rede `internal` (por exemplo,
 | NATS (cliente) | `nats://localhost:4222` | `nats://broker.smarkee.internal:4222` | Usuário e senha obrigatórios |
 | NATS (monitoramento) | http://localhost:8222 | http://broker.smarkee.internal:8222 | `/healthz`, `/varz`, `/jsz`; sem autenticação |
 
-O gateway trata somente HTTP e HTTPS e roteia por host: o Zitadel atende `ipm-dev.smarkee.com.br`, e cada nova API recebe um host próprio (por exemplo, `api.localhost`). No host, aponte `127.0.0.1 ipm-dev.smarkee.com.br` em `/etc/hosts`. O NATS e o PostgreSQL são acessados diretamente, sem o gateway.
+O gateway trata somente HTTP e HTTPS e roteia por host: o Zitadel atende `ipm-dev.smarkee.com.br`, e cada novo Receiver recebe um host próprio (por exemplo, `api.localhost`). No host, aponte `127.0.0.1 ipm-dev.smarkee.com.br` em `/etc/hosts`. O NATS e o PostgreSQL são acessados diretamente, sem o gateway.
 
 O proxy HTTP do gateway é publicado na porta 8080 do host (no container, continua na 8000). A porta 80 não é usada porque costuma estar ocupada por outros serviços locais (por exemplo, ingress de clusters Kubernetes locais). O `ZITADEL_EXTERNALPORT` precisa ser igual à porta publicada do proxy (ver pontos de atenção).
 
-Somente o gateway publica portas do Zitadel. O acesso direto ao `identity` e ao `identity-login` existe apenas na rede `internal`, e o Zitadel escolhe a instância pelo domínio, por isso o cabeçalho `Host` é obrigatório e **deve incluir a porta** (`Host: ipm-dev.smarkee.com.br:8080`): sem a porta, o issuer devolvido perde o `:8080` e não confere com o dos tokens emitidos pelo navegador. O navegador (console e login) deve sempre passar pelo gateway: os redirecionamentos e o issuer apontam para `http://ipm-dev.smarkee.com.br:8080`, e só o gateway reúne a API e o login no mesmo domínio.
+Somente o gateway publica portas do Zitadel. O acesso direto ao `identity` e ao `identity-login` existe apenas na rede `internal`, e o Zitadel escolhe a instância pelo domínio, por isso o cabeçalho `Host` é obrigatório e **deve incluir a porta** (`Host: ipm-dev.smarkee.com.br:8080`): sem a porta, o issuer devolvido perde o `:8080` e não confere com o dos tokens emitidos pelo navegador. O navegador (console e login) deve sempre passar pelo gateway: os redirecionamentos e o issuer apontam para `http://ipm-dev.smarkee.com.br:8080`, e só o gateway reúne o Receiver e o login no mesmo domínio.
 
 ## Credenciais
 
@@ -113,7 +124,8 @@ Valores sensíveis ficam nos arquivos `.env` (fora do git). As senhas dos bancos
 | PostgreSQL, banco `smarkee` (SSOT, proprietário) | `smarkee` | `smarkee` | `database/bootstrap/smarkee.sql` |
 | PostgreSQL, banco `identity` | `identity` | `identity` | `database/bootstrap/identity.sql` (o Zitadel usa só este usuário, sem credencial de administrador) |
 | PostgreSQL, banco `gateway` | `gateway` | `gateway` | `database/bootstrap/gateway.sql` |
-| PostgreSQL, banco `smarkee` (serviço `core`) | `core_organization_manager_login`, `core_organization_api_login`, `core_relay_login`, `core_maintenance_login` | igual ao usuário | `database/bootstrap/core.sql` |
+| PostgreSQL, banco `smarkee` (módulo `core`, User) | `core_user_manager_login`, `core_user_receiver_login`, `core_user_publisher_login`, `core_maintenance_login` | igual ao usuário | `database/bootstrap/core.sql` |
+| PostgreSQL, banco `smarkee` (módulo `ipm`, Organization) | `ipm_organization_manager_login`, `ipm_organization_receiver_login`, `ipm_organization_relay_login`, `ipm_maintenance_login` | igual ao usuário | `database/bootstrap/ipm.sql` |
 | NATS | `NATS_USER` (`smarkee`) | `NATS_PASSWORD` | `broker/.env` (um único usuário em dev, compartilhado pelos serviços) |
 | Kong Manager / Admin API | — | — | Sem autenticação (Kong OSS) |
 
@@ -149,13 +161,13 @@ O `sk` autentica direto no Zitadel, pelo gateway, sem API própria de autentica�
 | `smarkee` | Só operadores e contas administrativas da instância (`admin`, `platform-bootstrap`, `login-client`). Não tem recursos da plataforma |
 | `core` | Organização de sistema da plataforma: dona do projeto `smarkee`, dos usuários cadastrados e das service accounts dos Executors |
 
-Estado aplicado no dev em 2026-10-10 (pela API, com a conta de bootstrap; o script usado é temporário e não versionado):
+Estado aplicado no dev em 2026-10-10 (pela API do Zitadel, com a conta de bootstrap; o script usado é temporário e não versionado):
 
 - **Projeto `smarkee`, na organização `core`:** roles no token e **verificação de role na autenticação** ligadas.
 - **Roles por ação:** `organization.create`, `organization.get`, `organization.list`, `organization.update`, `organization.delete`, `user.get`, `user.delete`, e `platform.admin` (operadores).
 - **Aplicação `cli`:** nativa, PKCE, redirect `http://127.0.0.1/callback`, Authorization Code e Refresh Token, **access token JWT**, roles no token. Não há client secret: o `sk` é um cliente público. O client ID é um por ambiente.
 - **Cadastro público desligado** na política de login da instância (`allowRegister = false`), que as organizações herdam.
-- **Service accounts na organização `core`:** `core-user-executor` (papel de organização `ORG_USER_MANAGER`) e `core-organization-executor` (papel de instância `IAM_ORG_MANAGER`), com as chaves no volume `identity-bootstrap`.
+- **Service accounts na organização `core`** (verificadas no Zitadel de dev em 2026-10-11): `core-user-executor` (papel de organização `ORG_USER_MANAGER`, escrita), `core-user-observer` (papel de organização `ORG_OWNER_VIEWER`, só leitura) e `core-organization-executor` (papel de instância `IAM_ORG_MANAGER`; será renomeada para `ipm-organization-executor` quando o Executor da Organization for implementado), com as chaves no volume `identity-bootstrap`; cada componente monta só a própria.
 - **`platform.admin` para operadores:** autorização externa, criada na organização `core` para o usuário da organização `smarkee`.
 
 Para reproduzir pelo console (**Projetos**, **Autorizações**, **Configurações → Login**; os nomes das opções podem diferir um pouco na versão em uso): crie a organização `core`; nela, o projeto `smarkee` (*Afirmar roles na autenticação* e *Verificar roles na autenticação* ligados) com as roles acima e a aplicação `cli` (nativa, PKCE, tipo de token JWT, redirect e concessões acima); desligue o registro na política de login; e conceda `platform.admin` aos operadores.
@@ -172,12 +184,12 @@ uv run sk auth login
 - Só entra na aplicação quem tem ao menos uma role no projeto (verificação de role). Um operador sem `platform.admin` é recusado no login.
 - Use o issuer pelo gateway (`http://ipm-dev.smarkee.com.br:8080`), e não o endereço direto do `identity`: o `iss` dos tokens precisa ser esse endereço.
 - O projeto, a aplicação e o client ID ficam gravados no banco do Zitadel. `docker compose down -v` os apaga, e o client ID muda ao recriá-los.
-- Resta um projeto `smarkee` antigo na organização `smarkee`, com a aplicação `cli` de antes (sem JWT). Ele sai depois de o login pelo projeto novo ser validado.
+- Resta um projeto `smarkee` antigo na organização `smarkee` (5 roles, aplicação `cli` sem JWT; verificado em 2026-10-11). Ele sai depois de o login pelo projeto novo ser validado.
 - O discovery pelo gateway foi verificado com o `sk`. O login completo no navegador contra a aplicação nova ainda não foi executado.
 
 ### Conta de bootstrap da plataforma (`platform-bootstrap@smarkee.internal`)
 
-`platform-bootstrap@smarkee.internal` é o usuário de máquina administrativo da instância do Zitadel (`IAM_OWNER`). Ele é usado **somente pela infraestrutura**, para configurar a plataforma no Zitadel: o projeto `smarkee`, as roles, a aplicação `cli` e um usuário de máquina por Executor, com papel mínimo (por exemplo, `core-organization-executor`). **Nenhum serviço de runtime usa essa conta** (decisão 0011): cada Executor tem a sua identidade (`docs/RESOURCE-CONTROL-SECURITY.md`). A chave fica em `/zitadel/bootstrap/service-account-platform-bootstrap.json`, no volume `identity-bootstrap`.
+`platform-bootstrap@smarkee.internal` é o usuário de máquina administrativo da instância do Zitadel (`IAM_OWNER`). Ele é usado **somente pela infraestrutura**, para configurar a plataforma no Zitadel: o projeto `smarkee`, as roles, a aplicação `cli` e um usuário de máquina por Executor, com papel mínimo (por exemplo, `ipm-organization-executor`). **Nenhum serviço de runtime usa essa conta** (decisão 0011): cada Executor tem a sua identidade (`docs/RESOURCE-CONTROL-SECURITY.md`). A chave fica em `/zitadel/bootstrap/service-account-platform-bootstrap.json`, no volume `identity-bootstrap`.
 
 - **Instância nova** (depois de `docker compose down -v`): o próprio Zitadel cria a conta e grava a chave, pelas variáveis `ZITADEL_FIRSTINSTANCE_ORG_MACHINE_*` e `ZITADEL_FIRSTINSTANCE_MACHINEKEYPATH` de `identity/compose.yaml`.
 - **Instância existente**: as variáveis não se aplicam. Crie pelo console, uma vez:
@@ -192,7 +204,7 @@ uv run sk auth login
      ```
 
 - A chave é segredo: nunca a versione nem a copie para fora do volume. O padrão `service-account*.json` está no `.gitignore` como proteção adicional.
-- O mecanismo definitivo que usa essa conta para aplicar a configuração do Zitadel em stg e prd (projeto, roles, aplicação e contas dos Executors) ainda será decidido. Em dev, foi aplicada pela API (seção anterior).
+- O mecanismo definitivo que usa essa conta para aplicar a configuração do Zitadel em stg e prd (projeto, roles, aplicação e contas dos Executors) ainda será decidido. Em dev, foi aplicada pela API do Zitadel (seção anterior).
 - A criação automática pela primeira instância ainda não foi verificada (exige recriar a instância). A criação manual segue os nomes do console da versão em uso, que podem diferir um pouco.
 
 ## Bootstrap
@@ -205,11 +217,11 @@ O estado inicial é configurado, em primeiro lugar, **por variáveis de ambiente
 
 | Serviço | Fonte | Quem aplica | Quando | Efeito de alterar um arquivo depois |
 |---|---|---|---|---|
-| database | `bootstrap/gateway.sql`, `smarkee.sql`, `identity.sql`, `core.sql` (papéis do módulo core) | A própria imagem (`/docker-entrypoint-initdb.d`) | Só na primeira inicialização do volume | Nenhum, até recriar o volume ou aplicar manualmente (pontos de atenção) |
+| database | `bootstrap/gateway.sql`, `smarkee.sql`, `identity.sql`, `core.sql` e `ipm.sql` (papéis de serviço dos módulos `core` e `ipm`: um por componente de cada tipo, inclusive o Publisher do User e o relay da Organization, ainda no desenho anterior) | A própria imagem (`/docker-entrypoint-initdb.d`) | Só na primeira inicialização do volume | Nenhum, até recriar o volume ou aplicar manualmente (pontos de atenção) |
 | identity | Sem pasta: variáveis `ZITADEL_FIRSTINSTANCE_*` e `ZITADEL_DEFAULTINSTANCE_*` (nome da instância, marca d'água e textos de e-mail) em `identity/compose.yaml` | `identity-init` (`zitadel init zitadel`: schemas internos) → `identity` (`start-from-setup`) | Só na primeira inicialização da instância | Nenhum, até recriar a instância (`docker compose down -v`) |
 | gateway | `bootstrap/routes.yml` (configuração declarativa do Kong) | Cadeia `gateway-migrations-bootstrap` → `-up` → `-finish` → `gateway-import` | A cada `up`, antes do `gateway` | Reimporta; reinicie o `gateway` (pontos de atenção) |
-| broker | `bootstrap/<stream>.json` (Stream do JetStream) e `bootstrap/<módulo>-<tipo>-<serviço>-<stream>.json` (consumer durável de trabalho) | Um serviço `broker-bootstrap-<nome>` por arquivo | A cada `up`, depois que o broker fica saudável | Falha de forma explícita até a alteração deliberada (abaixo) |
-| core | `features/core/migrations/*.sql` (schema `core`, tabelas, views e privilégios no SSOT) | `core-migrate` (`psql` como o dono `smarkee`, arquivos em ordem) | A cada `up`, depois que o banco fica saudável | Aplicado no próximo `up`; as migrações são idempotentes e seguem expandir → migrar → contrair (`docs/POSTGRESQL.md` §15) |
+| broker | `bootstrap/<stream>.json` (Stream do JetStream). Os consumers duráveis de cada tipo são das features (`manager/consumers/` e `<módulo>-<tipo>-consumer` no `compose.yaml` delas) | Um serviço `broker-bootstrap-<nome>` por arquivo | A cada `up`, depois que o broker fica saudável | Falha de forma explícita até a alteração deliberada (abaixo) |
+| features (fora deste diretório) | `features/core/user/manager/migrations/*.sql` (schema `core`) e `features/ipm/organization/manager/migrations/*.sql` (schema `ipm`): tabelas, views e privilégios no SSOT. O código é do Manager de cada tipo (decisão 0015) | `core-user-migrate` e `ipm-organization-migrate`, no `compose.yaml` da feature (`psql` como o dono `smarkee`, arquivos em ordem) | A cada `up`, depois que o banco fica saudável | Aplicado no próximo `up`; as migrações são idempotentes e seguem expandir → migrar → contrair (`docs/POSTGRESQL.md` §15) |
 
 Os contêineres de inicialização equivalem a *initContainers*: cada um executa um único comando da CLI oficial e termina; o serviço seguinte declara `depends_on` com `service_completed_successfully`.
 
@@ -217,6 +229,7 @@ NATS:
 
 - Os seis Streams operacionais de `docs/NATS.md` são `REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT` e `UPDATED`. O `nats-server` não declara Streams no `nats.conf`; por isso, a criação é pela CLI oficial (`nats-box`).
 - **Todo arquivo novo em `broker/bootstrap/` exige o seu serviço `broker-bootstrap-<stream>`** em `broker/compose.yaml` (âncora `x-broker-bootstrap`); sem ele, o arquivo é ignorado.
+- O Stream `ACTION` é **particionado** por `resourceId` (`subject_transform` em `bootstrap/action.json`, 4 partições, decisão 0018): o Subject armazenado ganha o token da partição, e cada Executor tem um consumer por partição. Mudar o número de partições exige recriar o Stream e os consumers.
 - Stream inexistente é criado; existente com a mesma configuração não muda. Com configuração diferente, o contêiner falha (`stream name already in use with a different configuration`). Para aplicar a alteração de forma deliberada:
 
   ```bash
@@ -227,16 +240,17 @@ NATS:
 
   Campos imutáveis (`retention`, `storage`) não podem ser editados: o Stream precisa ser removido e recriado, com perda das mensagens.
 - Os limites são valores de desenvolvimento. `DESIRED` não possui limite de tamanho nem de quantidade total: com descarte do mais antigo, um limite apagaria o estado de outros recursos.
-- Os consumers duráveis de cada tipo de recurso serão declarados quando o tipo for modelado (manifesto por tipo, `docs/NATS.md`).
-- **Até existir o primeiro serviço que dependa dos Streams (o Manager), não use `docker compose up -d --wait` sem nomear serviços.** O `--wait` só aceita um contêiner de inicialização terminado quando outro serviço depende dele: ao ver um `broker-bootstrap-*` terminar, ele **interrompe a espera** com `container broker-bootstrap-<stream> exited (0)`, antes de os demais ficarem saudáveis. Use os dois comandos de "Subir e derrubar": o primeiro sobe tudo; o segundo espera somente os serviços de longa duração. Confira a inicialização com `docker compose ps -a` (todos os contêineres de inicialização com `Exited (0)`).
+- Os consumers duráveis de cada tipo são das features: os manifestos ficam em `manager/consumers/` e `executor/consumers/`, e o serviço `<módulo>-<tipo>-consumer` do `compose.yaml` da feature os cria (por exemplo, `core-user-manager-{requested,observed,result}` e `core-user-executor-action-p{0..3}`).
+- Valores aplicados em dev (`bootstrap/*.json`): todos os Streams em arquivo, 1 réplica, janela de deduplicação de 2 min e `max_msg_size` de 1 MiB. `REQUESTED` e `ACTION`: `workqueue`, `discard new`, 100.000 mensagens e 1 GiB. `DESIRED`: `limits`, 1 mensagem por Subject, `allow_direct`, sem limite de idade. `OBSERVED`: 1 mensagem por Subject, idade máxima de 24 h. `RESULT`: `allow_direct`, 1 GiB, idade máxima de 3 dias. `UPDATED`: 1 GiB, idade máxima de 24 h.
+- **Neste diretório, não use `docker compose up -d --wait` sem nomear serviços.** O `--wait` só aceita um contêiner de inicialização terminado quando outro serviço depende dele: ao ver um `broker-bootstrap-*` terminar, ele **interrompe a espera** com `container broker-bootstrap-<stream> exited (0)`, antes de os demais ficarem saudáveis. Use os dois comandos de "Subir e derrubar": o primeiro sobe tudo; o segundo espera somente os serviços de longa duração. Confira a inicialização com `docker compose ps -a` (todos os contêineres de inicialização com `Exited (0)`).
 
-Zitadel: o volume `identity-bootstrap` (`/zitadel/bootstrap` no contêiner) guarda o PAT gerado do cliente de login, que o `identity-login` usa para se autenticar na API, e a chave da conta de bootstrap da plataforma (`service-account-platform-bootstrap.json`). É estado de runtime, e não configuração.
+Zitadel: o volume `identity-bootstrap` (`/zitadel/bootstrap` no contêiner) guarda o PAT gerado do cliente de login, que o `identity-login` usa para se autenticar na API do Zitadel, e a chave da conta de bootstrap da plataforma (`service-account-platform-bootstrap.json`). É estado de runtime, e não configuração.
 
-SSOT: num volume do banco já existente, os papéis de `database/bootstrap/core.sql` não são criados sozinhos; aplique os arquivos de bootstrap manualmente (pontos de atenção) antes do primeiro `core-migrate`. Sem os papéis, a migração falha nos `GRANT`.
+SSOT: num volume do banco já existente, os papéis de `database/bootstrap/core.sql` e `ipm.sql` não são criados sozinhos; aplique os arquivos de bootstrap manualmente (pontos de atenção) antes do primeiro `*-migrate`. Sem os papéis, a migração falha nos `GRANT`.
 
 ## Exemplos
 
-PostgreSQL (o banco `smarkee` é o SSOT, conforme `docs/POSTGRESQL.md`; ainda não possui tabelas, que serão criadas pelas migrações):
+PostgreSQL (o banco `smarkee` é o SSOT, conforme `docs/POSTGRESQL.md`; as tabelas dos tipos `core.user` e `ipm.organization` são criadas pelas migrações das features):
 
 ```bash
 # Com psql instalado no host
