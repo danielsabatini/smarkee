@@ -153,7 +153,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Item | Situação | Evidência ou observação |
 |---|---|---|
-| Identidade própria por serviço | Parcial | nomes `srv-core-user-<papel>`, papéis de banco e contas do Zitadel próprios; no NATS, usuário único em dev |
+| Identidade própria por serviço | Parcial | nomes `core-user-<papel>`, papéis de banco e contas do Zitadel próprios; no NATS, usuário único em dev |
 | Permissões de publicação e consumo pela matriz, escopadas por `<módulo>.<tipo>` | Alvo | |
 | Sem purge nem administração de Stream para serviços; limpeza de tombstones por identidade administrativa | Alvo / Pendente | |
 | `resourceId` validado antes de compor o Subject | Atende | padrão do contrato e `CHECK`; o Receiver gera UUIDv7 |
@@ -177,6 +177,8 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Quarentena, `ObservationStale`, limite de remoções, retenção, métricas e traces | Pendentes | seções 2 a 6 |
 | Ativação de ponta a ponta | A pessoa seguir o link, definir a senha e fazer `sk auth login` não foi exercitado | `features/core/user/README.md` §4.7 |
 | Configuração do Zitadel | Aplicada em dev por script temporário e não versionado; o mecanismo para stg e prd não está decidido | `infrastructure/dev/README.md` |
+| Leitor tolerante | A especificação exige que o consumidor ignore campos desconhecidos de `MINOR` mais novo (`SCHEMA.md`), mas os modelos gerados são estritos (`extra="forbid"`) também na leitura. Acrescentar um campo ao envelope (como `publishedBy`) exige regerar e implantar **todos** os consumidores antes do produtor | `schemas/`, `contracts/base.py` de cada componente |
+| Dados pessoais retidos | O `payload` do `desired` de criação (e-mail e nomes) permanece no outbox, e as Operations não são removidas, porque a retenção não existe; a limpeza do tombstone no `DESIRED` também não | `features/core/user/README.md` §11.6 |
 | Retomada de `Failed` | O User não tem `update`; a intervenção explícita não está definida | `features/core/user/README.md` §10 |
 | Imagens em `docs/images/` | O infográfico do fluxo é do desenho antigo (Tenant, `api.*`); a arquitetura Kubernetes é uma proposta | `docs/images/README.md` |
 

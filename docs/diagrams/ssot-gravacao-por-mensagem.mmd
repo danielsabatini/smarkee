@@ -1,0 +1,31 @@
+flowchart LR
+    classDef msg fill:#f3e5f5,stroke:#7b1fa2,color:#3a0f4a
+    classDef tbl fill:#e0f2f1,stroke:#00695c,color:#003d33
+    classDef who fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
+
+    REQ["requested"]:::msg
+    OBS["observed"]:::msg
+    RES["completed / failed"]:::msg
+    MGR["Manager<br/>uma transação por mensagem"]:::who
+
+    R[("tipo<br/>(Resource)")]:::tbl
+    O[("tipo_operation")]:::tbl
+    A[("tipo_action_result")]:::tbl
+    X[("tipo_outbox")]:::tbl
+    PUB["Publisher<br/>lê e marca published_at"]:::who
+    BUS["NATS<br/>desired, updated"]:::msg
+
+    REQ --> MGR
+    OBS --> MGR
+    RES --> MGR
+
+    MGR -->|"requested: INSERT ou UPDATE"| R
+    MGR -->|"requested: INSERT (accepted, rejected ou completed)"| O
+    MGR -->|"requested: INSERT desired"| X
+    MGR -->|"observed: UPDATE observação, phase, conditions; DELETE se ausência convergida"| R
+    MGR -->|"observed: UPDATE status da Operation"| O
+    MGR -->|"observed: INSERT updated"| X
+    MGR -->|"result: INSERT action_id (idempotência)"| A
+    MGR -->|"result: UPDATE failure_count, phase, reconciliation"| R
+    MGR -->|"result: UPDATE status; INSERT updated e desired suspenso"| X
+    X --> PUB --> BUS

@@ -117,12 +117,14 @@ O emissor é o primeiro token do subject. Cada identidade só publica no própri
 
 | Serviço | Publica | Consome |
 |---|---|---|
-| `srv-<m>-<t>-receiver` | `receiver.requested.<m>.<t>.>` | — |
-| `srv-<m>-<t>-manager` | — (registra `desired` e `updated` no outbox do SSOT) | `REQUESTED`, `OBSERVED` e `RESULT` do tipo, por consumers criados pela infraestrutura |
-| `srv-<m>-<t>-publisher` (Publisher) | `manager.desired.<m>.<t>.>`, `manager.updated.<m>.<t>.>` (a partir do outbox do tipo) | — |
-| `srv-<m>-<t>-observer` | `observer.observed.<m>.<t>.>` | `DESIRED` e `RESULT` do tipo, por consumers de estado criados pelo próprio serviço |
-| `srv-<m>-<t>-reconciler` | `reconciler.action.<m>.<t>.>` | `DESIRED`, `OBSERVED` e `RESULT` do tipo, por consumers de estado criados pelo próprio serviço |
-| `srv-<m>-<t>-executor` | `executor.completed.<m>.<t>.>`, `executor.failed.<m>.<t>.>` | `ACTION` do tipo, por consumer criado pela infraestrutura; leitura direta do último `desired` e do último resultado (`RESULT`) do tipo |
+| `<m>-<t>-receiver` | `receiver.requested.<m>.<t>.>` | — |
+| `<m>-<t>-manager` | — (registra `desired` e `updated` no outbox do SSOT) | `REQUESTED`, `OBSERVED` e `RESULT` do tipo, por consumers criados pela infraestrutura |
+| `<m>-<t>-publisher` (Publisher) | `manager.desired.<m>.<t>.>`, `manager.updated.<m>.<t>.>` (a partir do outbox do tipo) | — |
+| `<m>-<t>-observer` | `observer.observed.<m>.<t>.>` | `DESIRED` e `RESULT` do tipo, por consumers de estado criados pelo próprio serviço |
+| `<m>-<t>-reconciler` | `reconciler.action.<m>.<t>.>` | `DESIRED`, `OBSERVED` e `RESULT` do tipo, por consumers de estado criados pelo próprio serviço |
+| `<m>-<t>-executor` | `executor.completed.<m>.<t>.>`, `executor.failed.<m>.<t>.>` | `ACTION` do tipo, por consumer criado pela infraestrutura; leitura direta do último `desired` e do último resultado (`RESULT`) do tipo |
+
+O Subject mostra o **emissor** (quem decidiu: `manager`); a **identidade que publica** (quem entregou: `<m>-<t>-publisher`) está no campo `publishedBy` do envelope, na autorização do servidor e nos logs do transporte. As duas informações não se confundem: o Manager não tem permissão de publicação, e o Publisher só publica os Subjects `manager.desired` e `manager.updated` do seu tipo (`RESOURCE-CONTROL-LOOP.md`, seção 6.6.2).
 
 A configuração concreta (consumers, filtros e Subjects de autorização do servidor) pertence a `NATS.md` e deve ser validada no ambiente.
 

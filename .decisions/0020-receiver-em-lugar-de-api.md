@@ -12,7 +12,7 @@ Os papéis do loop são agentes nomeados por um substantivo terminado em "r" (ma
 - O papel passa a se chamar **Receiver** (`receiver` em identificadores).
 - **O que muda:**
   - projeto, pacote e imagem: `<módulo>-<tipo>-receiver` / `<módulo>_<tipo>_receiver` (pasta `features/<módulo>/<tipo>/receiver/`);
-  - identidade de mensageria: `srv-<módulo>-<tipo>-receiver`, no lugar de `api-<módulo>-<tipo>` (agora segue o mesmo padrão `srv-` dos demais papéis);
+  - identidade de mensageria: `<módulo>-<tipo>-receiver`, no lugar de `api-<módulo>-<tipo>`; passa a seguir o mesmo padrão `<módulo>-<tipo>-<papel>` dos demais papéis (sem prefixo; o prefixo `srv-` usado em versões anteriores desta decisão foi retirado em 2026-10-12, por decisão do usuário, em todas as identidades, nomes de conexão e docs);
   - **emissor** da mensagem `requested`: `receiver`, no lugar de `api` (enum `emitter` do envelope), e o Subject `receiver.requested.<módulo>.<tipo>.<resourceId>.<operação>` (Stream `REQUESTED`);
   - papel de banco: `<módulo>_<tipo>_receiver` (login `..._receiver_login`);
   - variáveis de ambiente: `<MÓDULO>_<TIPO>_RECEIVER_<SEÇÃO>_<CAMPO>`;
@@ -27,7 +27,7 @@ Os papéis do loop são agentes nomeados por um substantivo terminado em "r" (ma
 ## Justificativa
 
 - Nome de agente, como os outros papéis, e que descreve o que o componente faz no loop (recebe o pedido), sem se confundir com "a API" como interface ou com APIs de sistemas externos.
-- A identidade de mensageria passa a seguir o padrão único `srv-<módulo>-<tipo>-<papel>`.
+- A identidade de mensageria passa a seguir o padrão único `<módulo>-<tipo>-<papel>`.
 - Alternativa descartada: manter `api`. Preservaria o nome nos contratos, mas deixaria o papel destoante, e o custo de trocar é menor agora, antes de existir consumidor externo ou ambiente Kubernetes.
 
 ## Consequências

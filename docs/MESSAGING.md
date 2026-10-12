@@ -468,7 +468,7 @@ worker.runner
 worker.tools
 ```
 
-O emissor deve representar uma identidade funcional estável. Ela não é o processo: as mensagens `desired` e `updated` são originadas pelo Manager e publicadas pelo Publisher, em nome do Manager (`SSOT.md`), mas o emissor é sempre `manager`.
+O emissor deve representar uma identidade funcional estável. Ela não é o processo: as mensagens `desired` e `updated` são originadas pelo Manager (que decide e registra no outbox) e entregues ao transporte pelo Publisher (`SSOT.md`), mas o emissor é sempre `manager`: o `emitter` identifica **quem decidiu**, e não quem entregou. Quem entregou aparece na identidade de mensageria que publica, nas permissões e nos logs do transporte (`RESOURCE-CONTROL-LOOP.md`, seção 6.6.2).
 
 A identificação da instância concreta do processo pertence aos metadados de observabilidade.
 
@@ -750,6 +750,7 @@ Para `observed`:
 | `causationId` | Recomendado | Mensagens causadas por outra | `messageId` da causa |
 | `occurredAt` | Sim | Todos | Momento em que o fato ocorreu |
 | `publishedAt` | Sim | Todos | Momento em que foi publicada |
+| `publishedBy` | Condicional | `desired` e `updated` | Identidade de mensageria que **entregou** a mensagem ao transporte (o Publisher), quando diferente do emissor. O `emitter` continua sendo o autor da decisão (`RESOURCE-CONTROL-LOOP.md`, seção 6.6.2) |
 | `observedAt` | Sim | `observed` | Momento da observação |
 | `data` | Sim | Todos | Conteúdo específico do recurso |
 

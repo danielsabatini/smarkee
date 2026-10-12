@@ -91,6 +91,14 @@ Não existe inbox: a idempotência de entrada é garantida pelas regras semânti
 
 # 7. Modelo Lógico
 
+![Modelo lógico do SSOT](diagrams/ssot-er-logico.svg)
+
+*Fonte: [`diagrams/ssot-er-logico.mmd`](diagrams/ssot-er-logico.mmd).* Para cada tipo de recurso existem **quatro conjuntos de registros**, todos com a mesma estrutura: o **Resource** (o estado consolidado, um registro por recurso), a **Operation** (um registro por pedido), o **ActionResult** (um por `actionId` já contabilizado) e o **Outbox** (uma mensagem por linha, à espera de publicação). Todos se relacionam pelo `resourceId`.
+
+**As relações são lógicas, e não chaves estrangeiras, de propósito:** a Operation sobrevive à remoção física do recurso até a sua retenção (ela é a resposta a "o que aconteceu com o meu pedido?"), e o ActionResult e o Outbox têm ciclos de vida próprios. A consistência entre eles vem da **unidade atômica de gravação** (seção 10): tudo o que uma mensagem altera é gravado em uma única transação.
+
+Quais registros cada mensagem altera: [`diagrams/ssot-gravacao-por-mensagem.svg`](diagrams/ssot-gravacao-por-mensagem.svg) (fonte: [`.mmd`](diagrams/ssot-gravacao-por-mensagem.mmd)). A representação física no PostgreSQL está em `POSTGRESQL.md`, seção 6.
+
 ## 7.1 Resource
 
 Registro consolidado de um recurso. Existe um conjunto de registros por tipo de recurso, todos com a mesma estrutura.
@@ -137,7 +145,7 @@ O motivo não repete valores `confidential` nem `secretReference` (`SCHEMA.md`).
 
 ## 7.3 Outbox
 
-Registro de cada mensagem que o Manager deve publicar, gravado **na mesma unidade atômica** da alteração que a originou. Contém a identidade da mensagem, o endereço lógico, o conteúdo, a ordem de gravação e o instante de publicação.
+Registro de cada mensagem que deve ser publicada (a *caixa de saída* do SSOT), gravado **na mesma unidade atômica** da alteração que a originou. Ele existe para que gravar o estado e anunciar a mudança nunca divirjam (`RESOURCE-CONTROL-LOOP.md`, seção 6.6.1). Contém a identidade da mensagem, o endereço lógico, o conteúdo, a ordem de gravação e o instante de publicação.
 
 ## 7.4 ActionResult
 

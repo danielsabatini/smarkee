@@ -55,6 +55,29 @@ O SSOT não compartilha banco com componentes de terceiros (por exemplo, gateway
 
 # 6. Mapeamento do modelo lógico
 
+## 6.0 Diagramas
+
+**Entidade e relacionamento físico** de um tipo de recurso (`tipo` é o nome do tipo; as quatro tabelas e as duas views têm sempre este formato):
+
+![ER físico](diagrams/postgresql-er-fisico.svg)
+
+*Fonte: [`diagrams/postgresql-er-fisico.mmd`](diagrams/postgresql-er-fisico.mmd).* Não há chave estrangeira: o relacionamento por `resource_id` é lógico (`SSOT.md`, seção 7). Um exemplo concreto, com os tipos e índices reais do banco, está em [`features/core/user/README.md`](../features/core/user/README.md) (seção 11).
+
+**Quem lê e escreve cada tabela** (a matriz da seção 14.2, em figura):
+
+![Privilégios](diagrams/postgresql-privilegios.svg)
+
+*Fonte: [`diagrams/postgresql-privilegios.mmd`](diagrams/postgresql-privilegios.mmd).* O Manager só insere no outbox, e o Publisher só o lê e marca `published_at`. O Receiver não tem acesso às tabelas, só às views. As gravações por mensagem estão em [`diagrams/ssot-gravacao-por-mensagem.svg`](diagrams/ssot-gravacao-por-mensagem.svg).
+
+**O conteúdo dos campos `jsonb`** (o que o banco trata como um objeto opaco e o contrato do recurso define):
+
+| Coluna | Conteúdo |
+|---|---|
+| `desired` | O estado pretendido: `lifecycle` e os campos declarativos do contrato `desired` do tipo (no User: `givenName`, `familyName`, `email` e `platformAccess`). Os campos `confidential` ficam aqui; o `desired` de remoção não os carrega |
+| `observed` | O último `data` de `observed` do tipo (no User: `emailVerified`, `userState` e `platformAccess`) |
+| `conditions` | Array de `condition` (`schemas/common/condition`); hoje a condition `Ready`, com `status`, `reason`, `observedGeneration` e `lastTransitionAt` |
+| `<tipo>_outbox.payload` | O envelope completo da mensagem (`MESSAGING.md`), pronto para publicar; o Publisher só acrescenta `publishedAt` e `publishedBy` |
+
 ## 6.1 Tabela `<tipo>` (Resource)
 
 | Coluna | Tipo | Observação |

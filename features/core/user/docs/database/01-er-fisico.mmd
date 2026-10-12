@@ -1,0 +1,60 @@
+erDiagram
+    core_user ||--o{ core_user_operation : "resource_id (sem FK)"
+    core_user ||--o{ core_user_action_result : "resource_id (sem FK)"
+    core_user ||--o{ core_user_outbox : "resource_id (sem FK)"
+    core_user ||--|| core_user_v1 : "view"
+    core_user_operation ||--|| core_user_operation_v1 : "view (com requested_by)"
+
+    core_user {
+        text resource_id PK "UUIDv7 = ID do usuário no Zitadel"
+        text schema_version
+        text lifecycle "present ou absent"
+        text reconciliation "active ou suspended"
+        jsonb desired "givenName, familyName, email, platformAccess, lifecycle"
+        bigint desired_generation
+        bigint resource_version
+        jsonb observed "emailVerified, userState, platformAccess"
+        text presence "present, absent, unknown"
+        timestamptz observed_at
+        text phase "Pending, Reconciling, Ready, Failed, Deleting"
+        jsonb conditions "Ready"
+        int failure_count
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    core_user_operation {
+        text operation_id PK "derivado da chave ou aleatório"
+        text resource_id "idx (resource_id, created_at)"
+        text operation_type "create ou delete (sem update)"
+        bigint desired_generation
+        text requested_by "ID do usuário ou anonymous"
+        text correlation_id
+        text request_digest
+        text operation_status
+        text operation_status_reason
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz completed_at
+    }
+    core_user_action_result {
+        text action_id PK "id.geração.operação.messageId do observed"
+        text resource_id
+        bigint desired_generation
+        text action_outcome "completed ou failed"
+        timestamptz recorded_at
+    }
+    core_user_outbox {
+        bigint sequence PK
+        text message_id UK
+        text resource_id
+        text subject "manager.desired ou manager.updated"
+        jsonb payload
+        timestamptz created_at
+        timestamptz published_at
+    }
+    core_user_v1 {
+        text visao "user sem failure_count"
+    }
+    core_user_operation_v1 {
+        text visao "operation com requested_by"
+    }

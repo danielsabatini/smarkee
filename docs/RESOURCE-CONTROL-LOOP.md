@@ -531,10 +531,47 @@ Por possuir a credencial de escrita, o Executor é o último ponto de controle a
 
 A publicação das mensagens que o Manager registrou no outbox do SSOT (`SSOT.md`, `POSTGRESQL.md`) é o papel do **Publisher** (decisão 0019). Ele existe porque o Manager grava o recurso e a mensagem a publicar na mesma transação (seção 8), e alguém precisa levar o outbox ao transporte.
 
+## 6.6.1 O que é o outbox
+
+O **outbox** (padrão *transactional outbox*) é uma tabela do SSOT que funciona como uma **caixa de saída**: cada linha é uma mensagem já pronta (`message_id`, `subject`, `payload`) que ainda precisa ir ao NATS. Ele resolve o problema da **escrita dupla**. Quando o Manager aplica um pedido, ele precisa fazer duas coisas: gravar o novo estado do recurso no banco **e** avisar os outros componentes pelo NATS. Banco e NATS são sistemas diferentes e não participam da mesma transação, então qualquer ordem falha em algum caso:
+
+- gravar e depois publicar: se o processo cair entre os dois passos, o banco mudou, mas ninguém foi avisado (o recurso fica parado para sempre);
+- publicar e depois gravar: se a gravação falhar, o NATS anunciou um estado que não existe.
+
+Com o outbox, o Manager faz **uma única transação no banco**: grava o recurso, a Operation **e a linha do outbox**. Ou tudo é gravado, ou nada. Depois, e fora dessa transação, o Publisher lê as linhas pendentes, publica no NATS e só então marca `published_at`.
+
+```text
+Manager (uma transação):   BEGIN
+                             atualiza o recurso        ← o estado
+                             grava a Operation
+                             grava a linha no outbox   ← "avisar que o desired mudou"
+                           COMMIT                       (tudo ou nada)
+
+Publisher (depois):        lê as linhas com published_at nulo, em ordem
+                           publica no NATS e espera a confirmação
+                           marca published_at           (só depois da confirmação)
+```
+
+Consequências: uma mensagem nunca se perde (a linha continua pendente até a confirmação); nunca se anuncia um estado que não foi gravado; e, se o Publisher cair entre publicar e marcar, a mensagem é publicada de novo (entrega *pelo menos uma vez*), o que os consumidores toleram por serem idempotentes e porque o NATS deduplica pelo `messageId`. O atraso do outbox (idade da linha pendente mais antiga) é o sinal de que a publicação está presa.
+
+## 6.6.2 Quem decide e quem entrega
+
+Há duas perguntas diferentes sobre uma mensagem `desired` ou `updated`, e cada papel responde uma:
+
+| Pergunta | Papel | Como aparece |
+|---|---|---|
+| **Quem decidiu** que essa mensagem deve existir (qual foi a mudança, qual a geração, qual o conteúdo)? | **Manager** | É o `emitter` (`manager`), o primeiro token do Subject |
+| **Quem entregou** a mensagem ao transporte? | **Publisher** | Está no campo `publishedBy` do envelope (`<módulo>-<tipo>-publisher`) e, de forma independente, na identidade de mensageria que publica (permissões e log do NATS) |
+
+O `emitter` identifica o autor da decisão, e não o processo que a transportou (`MESSAGING.md` §6.1). Por isso o Subject `manager.desired.<módulo>.<tipo>.<id>.changed` não muda se o Publisher for trocado por outro mecanismo de entrega: os consumidores dependem de **quem decidiu**, e não de **como a mensagem chegou**. Cada papel responde só pelo que lhe cabe:
+
+- o **Manager** responde pela decisão e pela gravação: valida, aplica, grava e registra no outbox. Não tem credencial para publicar no NATS;
+- o **Publisher** responde pela entrega: ordem, confirmação, repetição e visibilidade do bloqueio. Não decide nem altera o conteúdo (apenas preenche `publishedAt` no instante da entrega) e só pode publicar os Subjects `manager.desired.<m>.<t>.>` e `manager.updated.<m>.<t>.>` do seu tipo. Ele preenche `publishedAt` e `publishedBy` no instante da entrega; `emitter` e o resto do conteúdo vêm do Manager e não são alterados.
+
 O Publisher é um projeto próprio, autocontido, com imagem, processo e *deployment* próprios, e com papel de banco e identidade de mensageria próprios, para manter o menor privilégio:
 
 - o **Manager** só **insere** no outbox; consome `requested`, `observed` e `completed`/`failed`;
-- o **Publisher** só **lê** o outbox e atualiza `published_at`; publica no emissor `manager` (ele publica em nome do Manager), em ordem por recurso, com uma instância ativa por outbox (trava consultiva de sessão), e só marca a publicação depois da confirmação do transporte.
+- o **Publisher** só **lê** o outbox e atualiza `published_at`; entrega a mensagem no Subject do emissor `manager` (o autor da decisão; veja 6.6.2), em ordem por recurso, com uma instância ativa por outbox (trava consultiva de sessão), e só marca a publicação depois da confirmação do transporte.
 
 O outbox é o contrato entre o Manager e o Publisher. O Publisher **não executa regra de negócio**.
 

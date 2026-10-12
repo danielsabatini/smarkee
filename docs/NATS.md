@@ -270,12 +270,12 @@ Consumers mantêm o estado de entrega por leitor e controlam como mensagens pers
 A plataforma é composta por muitos serviços pequenos. Cada serviço é um componente autocontido (decisão 0015); o Publisher é o sexto papel (decisão 0019). Para cada módulo e tipo de recurso existe o mesmo conjunto de papéis, criados à medida que se tornam necessários:
 
 ```text
-srv-<módulo>-<tipo>-receiver
-srv-<módulo>-<tipo>-manager
-srv-<módulo>-<tipo>-publisher
-srv-<módulo>-<tipo>-observer
-srv-<módulo>-<tipo>-reconciler
-srv-<módulo>-<tipo>-executor
+<módulo>-<tipo>-receiver
+<módulo>-<tipo>-manager
+<módulo>-<tipo>-publisher
+<módulo>-<tipo>-observer
+<módulo>-<tipo>-reconciler
+<módulo>-<tipo>-executor
 ```
 
 Um consumer pertence a **um único Stream**. Portanto, um serviço possui um consumer **por Stream que lê**. Cada consumer possui um **filtro único** no nível `<módulo>.<tipo>`, por exemplo `manager.desired.ipm.organization.>`.
@@ -352,17 +352,17 @@ A configuração exata de `pinned_client` (inclusive a versão mínima do servid
 
 | Serviço | Consumer | Stream | Filtro | Classe |
 |---|---|---|---|---|
-| `srv-ipm-organization-receiver` | — | — | — | Somente publica |
-| `srv-ipm-organization-publisher` | — | — | — | Somente publica (emissor `manager`, a partir do outbox) |
-| `srv-ipm-organization-manager` | `ipm-organization-manager-requested` | `REQUESTED` | `receiver.requested.ipm.organization.>` | Trabalho |
+| `ipm-organization-receiver` | — | — | — | Somente publica |
+| `ipm-organization-publisher` | — | — | — | Somente publica (emissor `manager`, a partir do outbox) |
+| `ipm-organization-manager` | `ipm-organization-manager-requested` | `REQUESTED` | `receiver.requested.ipm.organization.>` | Trabalho |
 | | `ipm-organization-manager-observed` | `OBSERVED` | `observer.observed.ipm.organization.>` | Persistência |
 | | `ipm-organization-manager-result` | `RESULT` | `executor.*.ipm.organization.>` | Persistência |
-| `srv-ipm-organization-observer` | `ipm-organization-observer-desired-<instância>` | `DESIRED` | `manager.desired.ipm.organization.>` | Estado |
+| `ipm-organization-observer` | `ipm-organization-observer-desired-<instância>` | `DESIRED` | `manager.desired.ipm.organization.>` | Estado |
 | | `ipm-organization-observer-result-<instância>` | `RESULT` | `executor.*.ipm.organization.>` | Estado |
-| `srv-ipm-organization-reconciler` | `ipm-organization-reconciler-desired-<instância>` | `DESIRED` | `manager.desired.ipm.organization.>` | Estado |
+| `ipm-organization-reconciler` | `ipm-organization-reconciler-desired-<instância>` | `DESIRED` | `manager.desired.ipm.organization.>` | Estado |
 | | `ipm-organization-reconciler-observed-<instância>` | `OBSERVED` | `observer.observed.ipm.organization.>` | Estado |
 | | `ipm-organization-reconciler-result-<instância>` | `RESULT` | `executor.*.ipm.organization.>` | Estado |
-| `srv-ipm-organization-executor` | `ipm-organization-executor-action-p<partição>` | `ACTION` | `reconciler.action.ipm.organization.<partição>.>` | Trabalho (um consumer por partição; `pinned_client` e `max_ack_pending=1`) |
+| `ipm-organization-executor` | `ipm-organization-executor-action-p<partição>` | `ACTION` | `reconciler.action.ipm.organization.<partição>.>` | Trabalho (um consumer por partição; `pinned_client` e `max_ack_pending=1`) |
 
 **Estado de implementação.** A tabela é o desenho de referência. Em dev, o User (`core.user`) a segue por completo, com o prefixo `core-user-` (por exemplo, `core-user-manager-{requested,observed,result}`, `core-user-observer-{desired,result}-<instância>`, `core-user-reconciler-{desired,observed,result}-<instância>` e `core-user-executor-action-p{0..3}`); a Organization tem só `ipm-organization-manager-requested`, até receber os demais papéis (`docs/IMPLEMENTATION-STATUS.md`).
 
@@ -849,17 +849,17 @@ sem necessidade explícita.
 
 Exemplos conceituais por serviço, para o tipo `ipm.organization`. A matriz oficial está em `RESOURCE-CONTROL-SECURITY.md`; os valores concretos de configuração do servidor pertencem à infraestrutura e devem ser validados no ambiente.
 
-## 26.1 `srv-ipm-organization-manager` e `srv-ipm-organization-publisher`
+## 26.1 `ipm-organization-manager` e `ipm-organization-publisher`
 
 O Manager registra `desired` e `updated` no outbox do SSOT e não publica no transporte. Quem publica é o Publisher (`SSOT.md`, outbox; decisão 0019).
 
 ```text
-srv-ipm-organization-publisher
+ipm-organization-publisher
 publish:
   manager.desired.ipm.organization.>
   manager.updated.ipm.organization.>
 
-srv-ipm-organization-manager
+ipm-organization-manager
 publish: nenhum
 consumo (consumers criados pela infraestrutura):
   REQUESTED → ipm-organization-manager-requested
@@ -869,7 +869,7 @@ consumo (consumers criados pela infraestrutura):
 
 O Manager não recebe permissão de purge nem de administração de Streams.
 
-## 26.2 `srv-ipm-organization-observer`
+## 26.2 `ipm-organization-observer`
 
 ```text
 publish:
@@ -880,7 +880,7 @@ consumers de estado (criados pelo serviço, somente com este padrão):
   RESULT  → ipm-organization-observer-result-*    filtro executor.*.ipm.organization.>
 ```
 
-## 26.3 `srv-ipm-organization-reconciler`
+## 26.3 `ipm-organization-reconciler`
 
 ```text
 publish:
@@ -892,7 +892,7 @@ consumers de estado (criados pelo serviço, somente com este padrão):
   RESULT   → ipm-organization-reconciler-result-*
 ```
 
-## 26.4 `srv-ipm-organization-executor`
+## 26.4 `ipm-organization-executor`
 
 ```text
 publish:

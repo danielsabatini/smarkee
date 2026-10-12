@@ -56,7 +56,7 @@ Não há listagem (`GET /v1/users`) nem `PATCH`: o User não tem `update` (decis
 
 ## 3.3 Publisher (`core-user-publisher`)
 
-Publica no NATS, em ordem e de forma sequencial, as mensagens que o Manager gravou no **outbox**. Uma instância ativa por vez (trava consultiva de sessão); marca `published_at` só depois da confirmação do transporte (entrega *pelo menos uma vez*, deduplicada por `Nats-Msg-Id`). Não executa regra de negócio. É o sexto papel (decisão 0019), em projeto e processo próprios, para manter o menor privilégio: o Manager só insere no outbox (papel `core_user_manager`), e o Publisher só lê e marca (papel `core_user_publisher`, identidade NATS `srv-core-user-publisher`). Uma recusa permanente do transporte bloqueia a fila na ordem e tira o Publisher de `ready` (decisão 0018). Detalhes em [`publisher/README.md`](publisher/README.md).
+Publica no NATS, em ordem e de forma sequencial, as mensagens que o Manager gravou no **outbox**. Uma instância ativa por vez (trava consultiva de sessão); marca `published_at` só depois da confirmação do transporte (entrega *pelo menos uma vez*, deduplicada por `Nats-Msg-Id`). Não executa regra de negócio. É o sexto papel (decisão 0019), em projeto e processo próprios, para manter o menor privilégio: o Manager só insere no outbox (papel `core_user_manager`), e o Publisher só lê e marca (papel `core_user_publisher`, identidade NATS `core-user-publisher`). Uma recusa permanente do transporte bloqueia a fila na ordem e tira o Publisher de `ready` (decisão 0018). Detalhes em [`publisher/README.md`](publisher/README.md).
 
 ## 3.4 Reconciler (`core-user-reconciler`)
 
@@ -221,12 +221,12 @@ Campos do User: `givenName`, `familyName` e `email` são `confidential` (nunca e
 
 | Papel | Contêiner (Compose) | Identidade NATS | Papel de banco | Privilégio no SSOT | Conta no Zitadel |
 |---|---|---|---|---|---|
-| Receiver | `core-user-receiver.smarkee.internal` | `srv-core-user-receiver` | `core_user_receiver` | `SELECT` nas views `user_v1` e `user_operation_v1` | nenhuma (só valida tokens pelo JWKS) |
-| Manager | `core-user-manager.smarkee.internal` | `srv-core-user-manager` | `core_user_manager` | `SELECT/INSERT/UPDATE/DELETE` em `user`; `SELECT/INSERT/UPDATE` em `user_operation`; `SELECT/INSERT` em `user_action_result`; só `INSERT` em `user_outbox` | nenhuma |
-| Publisher | `core-user-publisher.smarkee.internal` | `srv-core-user-publisher` | `core_user_publisher` | `SELECT` em `user_outbox` e `UPDATE (published_at)` | nenhuma |
-| Reconciler | `core-user-reconciler.smarkee.internal` | `srv-core-user-reconciler` | nenhum (não acessa o SSOT) | nenhum | nenhuma |
-| Observer | `core-user-observer.smarkee.internal` | `srv-core-user-observer` | nenhum | nenhum | `core-user-observer` (`ORG_OWNER_VIEWER`, leitura) |
-| Executor | `core-user-executor.smarkee.internal` | `srv-core-user-executor` | nenhum | nenhum | `core-user-executor` (`ORG_USER_MANAGER`, escrita só na organização `core`) |
+| Receiver | `core-user-receiver.smarkee.internal` | `core-user-receiver` | `core_user_receiver` | `SELECT` nas views `user_v1` e `user_operation_v1` | nenhuma (só valida tokens pelo JWKS) |
+| Manager | `core-user-manager.smarkee.internal` | `core-user-manager` | `core_user_manager` | `SELECT/INSERT/UPDATE/DELETE` em `user`; `SELECT/INSERT/UPDATE` em `user_operation`; `SELECT/INSERT` em `user_action_result`; só `INSERT` em `user_outbox` | nenhuma |
+| Publisher | `core-user-publisher.smarkee.internal` | `core-user-publisher` | `core_user_publisher` | `SELECT` em `user_outbox` e `UPDATE (published_at)` | nenhuma |
+| Reconciler | `core-user-reconciler.smarkee.internal` | `core-user-reconciler` | nenhum (não acessa o SSOT) | nenhum | nenhuma |
+| Observer | `core-user-observer.smarkee.internal` | `core-user-observer` | nenhum | nenhum | `core-user-observer` (`ORG_OWNER_VIEWER`, leitura) |
+| Executor | `core-user-executor.smarkee.internal` | `core-user-executor` | nenhum | nenhum | `core-user-executor` (`ORG_USER_MANAGER`, escrita só na organização `core`) |
 
 Etapas de implantação (executam e terminam): `core-user-migrate` (migrações, papel administrativo) e `core-user-consumer` (cria os consumers duráveis). A manutenção (`core_maintenance`) é uma identidade de infraestrutura, com `SELECT` e `DELETE` no outbox, nos resultados de ação e nas Operations. Em dev, todos os componentes usam o mesmo usuário NATS (veja a seção 10).
 
@@ -264,5 +264,84 @@ Os e-mails do Zitadel de dev são capturados pelo Mailpit (http://localhost:8025
 - **Executor:** os consumers de `ACTION` usam `max_ack_pending = 1` sem `pinned_client` (a validar no servidor, `docs/NATS.md` §7.5). O número de partições (4) é fixado no bootstrap do broker.
 - **Migrações:** sem controle de versão (obrigatório antes de stg e prd).
 - **Observer:** em dev, uma só partição (`0/1`, aplicada na aplicação por `hash(resourceId) mod count`); com mais réplicas, defina `CORE_USER_OBSERVER_PARTITION_INDEX` e `CORE_USER_OBSERVER_PARTITION_COUNT` por réplica (por exemplo, `StatefulSet` no Kubernetes).
-- **Identidades no NATS em dev:** os componentes se conectam com um único usuário (`smarkee`) e a senha da plataforma; o nome de conexão é o `srv-core-user-<papel>`. As identidades e permissões por papel (`docs/NATS.md` §18 e §26) são o alvo para stg e prd.
+- **Identidades no NATS em dev:** os componentes se conectam com um único usuário (`smarkee`) e a senha da plataforma; o nome de conexão é o `core-user-<papel>`. As identidades e permissões por papel (`docs/NATS.md` §18 e §26) são o alvo para stg e prd.
 - **Esqueletos vazios:** `components/manager` e `components/cli/src/sk/commands/ipm.py` não têm implementação.
+
+# 11. Banco de dados (SSOT do User)
+
+O SSOT do User é o schema `core` do banco PostgreSQL `smarkee` (decisão 0001), de propriedade do usuário `smarkee`, que só migra e recupera. A especificação lógica está em [`docs/SSOT.md`](../../../docs/SSOT.md) e a física, em [`docs/POSTGRESQL.md`](../../../docs/POSTGRESQL.md); esta seção descreve o que existe de fato para o tipo `user`.
+
+- **Criação:** a migração [`manager/migrations/0001-user.sql`](manager/migrations/0001-user.sql) (código do Manager, decisão 0015) é aplicada pelo serviço `core-user-migrate`, com o papel administrativo, a cada `up`; é idempotente. Os papéis de serviço vêm de [`infrastructure/dev/database/bootstrap/core.sql`](../../../infrastructure/dev/database/bootstrap/core.sql).
+- **Nomes:** `user` é palavra reservada do PostgreSQL, então a tabela do tipo é sempre citada, `core."user"`. As demais (`core.user_operation`, `core.user_action_result`, `core.user_outbox`) e as views (`core.user_v1`, `core.user_operation_v1`) não precisam de aspas.
+
+## 11.1 Entidade e relacionamento
+
+![ER físico do User](docs/database/01-er-fisico.svg)
+
+*Fonte: [`docs/database/01-er-fisico.mmd`](docs/database/01-er-fisico.mmd); gerado a partir do DDL e conferido com o banco de dev (`information_schema`, 2026-10-12).* Quatro tabelas e duas views. **Não há chave estrangeira** (verificado: zero `FOREIGN KEY` no schema): `resource_id` relaciona as tabelas de forma lógica, porque a Operation sobrevive à remoção do usuário e o ActionResult e o outbox têm ciclo de vida próprio. A consistência vem da unidade atômica de gravação do Manager: uma transação por mensagem.
+
+## 11.2 Tabelas
+
+| Tabela | Uma linha por | Chave | Nasce quando | Sai quando |
+|---|---|---|---|---|
+| `core."user"` | usuário (estado consolidado) | `resource_id` (UUIDv7, é o ID do usuário no Zitadel) | o Manager aceita o `requested` de `create` | a ausência é observada depois do `delete` (`DELETE` da linha) |
+| `core.user_operation` | pedido (aceito ou rejeitado) | `operation_id` | cada `requested` tratado (também o rejeitado, ou o sem mudança) | **não há retenção implementada** |
+| `core.user_action_result` | `actionId` contabilizado | `action_id` (`<id>.<geração>.<operação>.<messageId do observed>`) | o Manager recebe `completed` ou `failed` da ação | **não há retenção implementada** |
+| `core.user_outbox` | mensagem a publicar (`desired` ou `updated`) | `sequence` (ordem de gravação) e `message_id` único | cada gravação do Manager que gera mensagem | **não há retenção implementada** (o Publisher só marca `published_at`) |
+
+Views (a interface de leitura do Receiver, decisão 0004): `core.user_v1` (o usuário **sem** `failure_count`) e `core.user_operation_v1` (a Operation com `requested_by`, que o Receiver usa só para autorizar a leitura e não devolve ao cliente).
+
+## 11.3 O que cada coluna `jsonb` guarda
+
+| Coluna | Conteúdo no User |
+|---|---|
+| `desired` | `lifecycle`, `platformAccess` e, no `create`, `givenName`, `familyName` e `email` (normalizado). No `delete`, só `lifecycle = absent` e `platformAccess`: **sem dados pessoais** |
+| `observed` | `emailVerified`, `userState` (`initial` até a senha ser definida) e `platformAccess` |
+| `conditions` | Array com a condition `Ready` (`status`, `reason`, `observedGeneration`, `lastTransitionAt`) |
+| `user_outbox.payload` | O envelope completo da mensagem (`desired` ou `updated`), com `publishedAt` e `publishedBy` preenchidos pelo Publisher |
+
+## 11.4 Índices e restrições
+
+| Objeto | Definição | Para quê |
+|---|---|---|
+| `user_pkey` | `PRIMARY KEY (resource_id)` | identidade e `FOR UPDATE` do registro |
+| `user_email` | índice **não único** sobre `desired ->> 'email'` | busca do e-mail na regra de unicidade |
+| `user_operation_resource` | `(resource_id, created_at)` | Operations de um recurso |
+| `user_operation_retention` | `(updated_at)` parcial (`completed`, `failed`, `rejected`) | retenção (a tarefa ainda não existe) |
+| `user_action_result_recorded` | `(recorded_at)` | retenção (idem) |
+| `user_outbox_message_id_key` | `UNIQUE (message_id)` | deduplicação |
+| `user_outbox_pending` | `(sequence)` parcial, `published_at IS NULL` | o Publisher lê só o que falta publicar |
+| `user_outbox_published` | `(published_at)` parcial, `published_at IS NOT NULL` | retenção do que já foi publicado |
+
+Restrições `CHECK` em todas as colunas de controle e de identificação (`lifecycle`, `reconciliation`, `presence`, `phase`, `operation_status`, formato de `resource_id` e de `request_digest`, tamanho dos `jsonb`, `presence` nulo se e só se `observed_at` nulo).
+
+**A unicidade do e-mail não é uma restrição do banco.** Ela é conferida pelo Manager na unidade atômica do `requested`, sob uma **trava consultiva** por e-mail (`pg_advisory_xact_lock`), que serializa os cadastros simultâneos, e depois por uma consulta sobre `desired ->> 'email'`. Escrever na tabela por outro caminho (o papel do Manager é o único com `INSERT`) pularia a regra.
+
+## 11.5 Quem grava o quê
+
+| Mensagem | `core."user"` | `core.user_operation` | `core.user_action_result` | `core.user_outbox` |
+|---|---|---|---|---|
+| `requested` (`create`) | `INSERT` (`Pending`, geração 1) | `INSERT` (`accepted`, ou `rejected` se e-mail repetido) | — | `INSERT` do `desired` |
+| `requested` (`delete`) | `UPDATE` (`desired` `absent`, `Deleting`, nova geração) | `INSERT` | — | `INSERT` do `desired` |
+| `observed` | `UPDATE` da observação, `phase` e `conditions`; `DELETE` se a ausência convergiu | `UPDATE` do status | — | `INSERT` do `updated` |
+| `completed` / `failed` | `UPDATE` de `failure_count`, `phase`, `reconciliation` | `UPDATE` do status | `INSERT` | `INSERT` do `updated` (e do `desired` suspenso no limite de falhas) |
+
+A figura genérica, por mensagem: [`docs/diagrams/ssot-gravacao-por-mensagem.svg`](../../../docs/diagrams/ssot-gravacao-por-mensagem.svg). Os privilégios por papel de banco estão na seção 8.1 e em [`docs/diagrams/postgresql-privilegios.svg`](../../../docs/diagrams/postgresql-privilegios.svg).
+
+## 11.6 Dados pessoais no banco
+
+`givenName`, `familyName` e `email` ficam em claro em `core."user".desired` e no `payload` da linha do outbox que carregou o `desired` de criação. O `request_digest` da Operation é o SHA-256 do conteúdo do pedido (inclui esses campos), e não o conteúdo. Com a remoção do usuário, a linha de `core."user"` sai e o `desired` de remoção não os carrega, **mas o outbox e as Operations não têm retenção implementada**: o `payload` do `desired` de criação permanece no outbox (e no Stream `DESIRED`, como tombstone até a limpeza). É uma pendência de privacidade, registrada em `docs/IMPLEMENTATION-STATUS.md`.
+
+## 11.7 Consultas úteis (dev)
+
+```bash
+# Usuários por fase
+docker exec database.smarkee.internal psql -U postgres -d smarkee -c \
+  'SELECT phase, count(*) FROM core."user" GROUP BY phase'
+# Atraso do outbox (idade da mensagem pendente mais antiga)
+docker exec database.smarkee.internal psql -U postgres -d smarkee -c \
+  'SELECT now() - min(created_at) AS atraso, count(*) AS pendentes FROM core.user_outbox WHERE published_at IS NULL'
+# Operations de um recurso
+docker exec database.smarkee.internal psql -U postgres -d smarkee -c \
+  "SELECT operation_id, operation_type, operation_status, operation_status_reason FROM core.user_operation WHERE resource_id = '<id>' ORDER BY created_at"
+```

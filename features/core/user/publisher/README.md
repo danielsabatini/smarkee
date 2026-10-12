@@ -8,7 +8,7 @@ Publica no transporte, em ordem e de forma sequencial, o que o Manager registrou
 - **Ordem:** publicação sequencial; um erro interrompe o lote. Uma única instância ativa por outbox, por trava consultiva **de sessão** do PostgreSQL (conexão dedicada e direta, sem *pooling* de transação). Antes de cada lote confirma que ainda detém a trava; se a perder, reconecta e disputa de novo.
 - **Falha transitória** (NATS indisponível, tempo esgotado): repete com *backoff* de 1 s até 30 s, mantendo a ordem.
 - **Falha permanente** (mensagem grande demais ou inválida): não descarta nem pula a mensagem, porque isso quebraria a ordem por recurso. Registra `ERROR` com `sequence` e `message_id` e sai de `ready`; a saída é uma atuação humana (decisão 0018).
-- **Privilégio:** papel de banco `core_user_publisher` (só `SELECT` no outbox e `UPDATE (published_at)`) e identidade NATS `srv-core-user-publisher` (publica no emissor `manager`, em nome do Manager).
+- **Privilégio:** papel de banco `core_user_publisher` (só `SELECT` no outbox e `UPDATE (published_at)`) e identidade NATS `core-user-publisher` (entrega no Subject do emissor `manager`, o autor da decisão).
 
 ## Estrutura (decisão 0017)
 

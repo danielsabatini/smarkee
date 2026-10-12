@@ -1,0 +1,60 @@
+erDiagram
+    tipo ||--o{ tipo_operation : "resource_id (sem FK)"
+    tipo ||--o{ tipo_action_result : "resource_id (sem FK)"
+    tipo ||--o{ tipo_outbox : "resource_id (sem FK)"
+    tipo ||--|| tipo_v1 : "view (sem failure_count)"
+    tipo_operation ||--|| tipo_operation_v1 : "view (inclui requested_by)"
+
+    tipo {
+        text resource_id PK "CHECK padrão do SCHEMA.md"
+        text schema_version "CHECK MAJOR.MINOR"
+        text lifecycle "CHECK present, absent"
+        text reconciliation "DEFAULT active"
+        jsonb desired "objeto, até 256 KiB"
+        bigint desired_generation "CHECK >= 1"
+        bigint resource_version "DEFAULT 1"
+        jsonb observed "nulo até a 1a observação"
+        text presence "CHECK present, absent, unknown"
+        timestamptz observed_at "nulo se e só se presence nulo"
+        text phase "CHECK 5 fases"
+        jsonb conditions "array, DEFAULT []"
+        int failure_count "CHECK >= 0"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    tipo_operation {
+        text operation_id PK
+        text resource_id "idx (resource_id, created_at)"
+        text operation_type "CHECK create, update, delete"
+        bigint desired_generation "nula so se rejected"
+        text requested_by
+        text correlation_id
+        text request_digest "CHECK 64 hex"
+        text operation_status "CHECK 5 estados"
+        text operation_status_reason "CHECK conflict, validation, not_found"
+        timestamptz created_at
+        timestamptz updated_at "idx parcial de retenção"
+        timestamptz completed_at
+    }
+    tipo_action_result {
+        text action_id PK
+        text resource_id
+        bigint desired_generation
+        text action_outcome "CHECK completed, failed"
+        timestamptz recorded_at "idx de retenção"
+    }
+    tipo_outbox {
+        bigint sequence PK "GENERATED ALWAYS AS IDENTITY"
+        text message_id UK
+        text resource_id
+        text subject
+        jsonb payload "até 256 KiB"
+        timestamptz created_at
+        timestamptz published_at "idx parcial: pendentes e publicados"
+    }
+    tipo_v1 {
+        text visao "SELECT das colunas de leitura"
+    }
+    tipo_operation_v1 {
+        text visao "SELECT das colunas de leitura"
+    }

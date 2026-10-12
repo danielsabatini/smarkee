@@ -15,7 +15,7 @@ A 0015 definiu um projeto por papel e por tipo de recurso, com seis papéis (`ap
 
 ### 1. ~~Cinco papéis; o relay é uma função do Manager~~ (substituída pela decisão 0019)
 
-> **Substituída.** Esta seção fazia do relay um modo do Manager (`serve` e `relay`, na mesma imagem). A decisão 0019 a substituiu: o relay passou a ser o **Publisher**, o sexto papel, em projeto próprio (`features/<módulo>/<tipo>/publisher/`), com papel de banco `<módulo>_<tipo>_publisher` e identidade `srv-<módulo>-<tipo>-publisher`. O Manager tem um único comportamento e não tem subcomandos. O que se mantém: o outbox como contrato entre os dois, uma instância ativa por trava consultiva de sessão, e a ausência de regra de negócio na publicação.
+> **Substituída.** Esta seção fazia do relay um modo do Manager (`serve` e `relay`, na mesma imagem). A decisão 0019 a substituiu: o relay passou a ser o **Publisher**, o sexto papel, em projeto próprio (`features/<módulo>/<tipo>/publisher/`), com papel de banco `<módulo>_<tipo>_publisher` e identidade `<módulo>-<tipo>-publisher`. O Manager tem um único comportamento e não tem subcomandos. O que se mantém: o outbox como contrato entre os dois, uma instância ativa por trava consultiva de sessão, e a ausência de regra de negócio na publicação.
 
 ### 2. Estrutura interna dos componentes
 
