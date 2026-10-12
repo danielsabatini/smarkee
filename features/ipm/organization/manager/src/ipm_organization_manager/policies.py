@@ -15,7 +15,7 @@ from psycopg import AsyncConnection, sql
 from pydantic import ValidationError
 
 from ipm_organization_manager.contracts import generated
-from ipm_organization_manager.contracts.base import ContractModel
+from ipm_organization_manager.contracts.base import ContractModel, validate_tolerant
 from ipm_organization_manager.errors import PermanentMessageError
 from ipm_organization_manager.outcome import RejectionReason
 
@@ -90,7 +90,7 @@ async def _exists_with_value(
 
 def _validated[M: ContractModel](model: type[M], data: Mapping[str, Any], *, label: str) -> M:
     try:
-        return model.model_validate(data)
+        return validate_tolerant(model, data)
     except ValidationError as error:
         fields = ", ".join(".".join(str(part) for part in item["loc"]) for item in error.errors())
         raise PermanentMessageError(f"{label} inválido nos campos: {fields}") from None

@@ -19,6 +19,7 @@ from pydantic import ValidationError
 
 from core_user_executor.actions.user_actions import Writer, execute
 from core_user_executor.contracts import generated
+from core_user_executor.contracts.base import supports_major, validate_tolerant
 from core_user_executor.domain.errors import ActionFailedError
 from core_user_executor.domain.identity import ProviderError
 from core_user_executor.domain.revalidation import revalidate
@@ -123,9 +124,12 @@ class Executor:
     @staticmethod
     def _parse(data: bytes) -> generated.MessageEnvelope | None:
         try:
-            envelope = generated.MessageEnvelope.model_validate(json.loads(data))
+            envelope = validate_tolerant(generated.MessageEnvelope, json.loads(data))
         except ValueError, ValidationError:
             logger.error("action is not a valid envelope")
+            return None
+        if not supports_major(envelope.schema_version):
+            logger.error("schemaVersion MAJOR is not supported")
             return None
         if (
             envelope.message_type.value != "action"

@@ -22,6 +22,7 @@ from typing import Any, Protocol
 from pydantic import ValidationError
 
 from core_user_observer.contracts import generated
+from core_user_observer.contracts.base import supports_major, validate_tolerant
 from core_user_observer.domain.observation import Observation, Reader, observe
 from core_user_observer.ids import new_identifier, utc_now
 from core_user_observer.settings import UserObserverSettings
@@ -107,9 +108,12 @@ class Observer:
     @staticmethod
     def _parse(data: bytes) -> generated.MessageEnvelope | None:
         try:
-            envelope = generated.MessageEnvelope.model_validate(json.loads(data))
+            envelope = validate_tolerant(generated.MessageEnvelope, json.loads(data))
         except ValueError, ValidationError:
             logger.error("message is not a valid envelope")
+            return None
+        if not supports_major(envelope.schema_version):
+            logger.error("schemaVersion MAJOR is not supported")
             return None
         if envelope.module != MODULE or envelope.resource_type != RESOURCE_TYPE:
             return None

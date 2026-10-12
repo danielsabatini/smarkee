@@ -12,6 +12,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from core_user_manager.contracts import generated
+from core_user_manager.contracts.base import validate_tolerant
 from core_user_manager.domain.convergence import decide_result
 from core_user_manager.domain.errors import DuplicateWriteError, PermanentMessageError
 from core_user_manager.domain.kind import ResourceKind
@@ -42,7 +43,7 @@ class ResultHandler:
         self, store: Store, kind: ResourceKind, raw_message: Mapping[str, Any]
     ) -> Outcome:
         try:
-            envelope = generated.MessageEnvelope.model_validate(raw_message)
+            envelope = validate_tolerant(generated.MessageEnvelope, raw_message)
         except ValidationError as error:
             raise PermanentMessageError(
                 f"envelope inválido nos campos: {fields_of(error)}"

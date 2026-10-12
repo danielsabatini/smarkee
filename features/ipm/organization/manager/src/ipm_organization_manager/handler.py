@@ -23,6 +23,7 @@ from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
 from ipm_organization_manager.contracts import generated
+from ipm_organization_manager.contracts.base import validate_tolerant
 from ipm_organization_manager.errors import PermanentMessageError
 from ipm_organization_manager.ids import new_identifier, utc_now
 from ipm_organization_manager.kind import MODULE, ResourceKind
@@ -86,7 +87,7 @@ class RequestedHandler:
         kind: ResourceKind, raw_message: Mapping[str, Any]
     ) -> generated.MessageEnvelope:
         try:
-            envelope = generated.MessageEnvelope.model_validate(raw_message)
+            envelope = validate_tolerant(generated.MessageEnvelope, raw_message)
         except ValidationError as error:
             fields = ", ".join(
                 ".".join(str(part) for part in item["loc"]) for item in error.errors()

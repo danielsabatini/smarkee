@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from core_user_manager.contracts import generated
+from core_user_manager.contracts.base import supports_major, validate_tolerant
 from core_user_manager.domain.errors import PermanentMessageError
 from core_user_manager.domain.kind import MODULE, ResourceKind
 
@@ -20,9 +21,11 @@ def parse_envelope(
     kind: ResourceKind, raw_message: Mapping[str, Any], *, message_type: str, emitter: str
 ) -> generated.MessageEnvelope:
     try:
-        envelope = generated.MessageEnvelope.model_validate(raw_message)
+        envelope = validate_tolerant(generated.MessageEnvelope, raw_message)
     except ValidationError as error:
         raise PermanentMessageError(f"envelope inválido nos campos: {fields_of(error)}") from None
+    if not supports_major(envelope.schema_version):
+        raise PermanentMessageError("MAJOR de schemaVersion não suportado")
     if (
         envelope.message_type.value != message_type
         or envelope.emitter.value != emitter

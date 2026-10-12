@@ -92,6 +92,27 @@ async def test_requested_becomes_a_valid_desired(
     assert_valid("core/user/desired.v1.schema.json", desired["data"])
 
 
+async def test_consumers_ignore_an_unknown_field_of_a_newer_minor(
+    jetstream: JetStreamContext, created: list[str]
+) -> None:
+    """Leitura tolerante (`SCHEMA.md` §15): um MINOR mais novo pode acrescentar campos."""
+    resource_id = str(uuid.uuid7())
+    created.append(resource_id)
+    message = requested_message(resource_id)
+    assert_valid("common/message-envelope.v1.schema.json", message)
+    newer = {**message, "schemaVersion": "1.1", "campoDeUmaVersaoNova": "x"}
+    await jetstream.publish(
+        REQUESTED_SUBJECT.format(resource_id=resource_id, operation="create"),
+        json.dumps(newer).encode(),
+        headers={"Nats-Msg-Id": newer["messageId"]},
+    )
+
+    desired = await last_desired(jetstream, resource_id)
+
+    assert desired["causationId"] == message["messageId"]
+    assert desired["desiredGeneration"] == 1
+
+
 async def test_repeated_request_does_not_publish_a_second_desired(
     jetstream: JetStreamContext, created: list[str]
 ) -> None:

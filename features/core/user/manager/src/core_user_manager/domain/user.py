@@ -10,14 +10,14 @@ from typing import Any
 from pydantic import ValidationError
 
 from core_user_manager.contracts import generated
-from core_user_manager.contracts.base import ContractModel
+from core_user_manager.contracts.base import ContractModel, validate_tolerant
 from core_user_manager.domain.errors import PermanentMessageError
 from core_user_manager.domain.policy import Request, UniqueValue
 
 
 def _validated[M: ContractModel](model: type[M], data: Mapping[str, Any], *, label: str) -> M:
     try:
-        return model.model_validate(data)
+        return validate_tolerant(model, data)
     except ValidationError as error:
         fields = ", ".join(".".join(str(part) for part in item["loc"]) for item in error.errors())
         raise PermanentMessageError(f"{label} inválido nos campos: {fields}") from None
