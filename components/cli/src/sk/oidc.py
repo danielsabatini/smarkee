@@ -27,16 +27,12 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from types import TracebackType
 from typing import Self, cast
 
+from sk.callback_page import CONTENT_SECURITY_POLICY, render_callback_page
+
 CALLBACK_PATH = "/callback"
 LOOPBACK_HOST = "127.0.0.1"
 HTTP_TIMEOUT_SECONDS = 30
 CODE_CHALLENGE_METHOD = "S256"
-
-CALLBACK_PAGE = (
-    '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>sk</title></head>'
-    "<body><p>Retorno do login recebido. Você já pode fechar esta janela e voltar ao terminal.</p>"
-    "</body></html>"
-).encode()
 
 
 class OidcError(Exception):
@@ -233,12 +229,14 @@ class _CallbackHandler(BaseHTTPRequestHandler):
             return
         query = urllib.parse.parse_qs(split_path.query, keep_blank_values=True)
         server.callback_parameters = {key: values[0] for key, values in query.items()}
+        page = render_callback_page(success="error" not in server.callback_parameters)
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(CALLBACK_PAGE)))
+        self.send_header("Content-Length", str(len(page)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         self.end_headers()
-        self.wfile.write(CALLBACK_PAGE)
+        self.wfile.write(page)
 
     def log_message(self, format: str, *args: object) -> None:
         # Silencia o log padrão: a URL de retorno contém o código de autorização.
