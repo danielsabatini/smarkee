@@ -254,7 +254,8 @@ AllowInsecureHttpOptionInit = Annotated[
 @auth_app.command(
     "init",
     help=comando(
-        "Cria o arquivo de configuração do sk. Não sobrescreve um arquivo existente sem --force.",
+        "Cria o arquivo de configuração da plataforma. "
+        "Não sobrescreve um arquivo existente sem --force.",
         ordem=ORDEM_SEM_ARQUIVO,
     ),
 )

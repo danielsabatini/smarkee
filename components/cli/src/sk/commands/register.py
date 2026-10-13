@@ -24,8 +24,8 @@ from sk.oidc import OidcError
 from sk.settings import ConfigurationError, SkSettings
 
 AJUDA_REGISTRO = comando(
-    "Cadastra uma nova conta, sem precisar estar logado. "
-    "Depois, confirme o e-mail e defina a senha pelos e-mails recebidos."
+    "Cadastra uma nova conta para iniciar na plataforma. "
+    "Depois, confirme o e-mail e defina a senha pelos links enviados para ele."
 )
 
 EXIT_FAILURE = 1

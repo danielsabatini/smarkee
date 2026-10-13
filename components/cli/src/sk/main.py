@@ -7,7 +7,7 @@ from sk.commands.register import AJUDA_REGISTRO, register_command
 
 app = typer.Typer(
     name="sk",
-    help="Smarkee IT Solutions Command Line Interface (CLI).",
+    help="Smarkee Platform Command Line Interface (CLI).",
     no_args_is_help=True,
     # Ajuda colorida pelo Rich. Colchetes literais nos textos são escapados com "\\[".
     rich_markup_mode="rich",
