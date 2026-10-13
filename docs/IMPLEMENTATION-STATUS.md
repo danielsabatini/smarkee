@@ -20,7 +20,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Observabilidade | Parcial: logs estruturados e probes de saúde; sem métricas nem traces |
 | Retenção, quarentena, backup e recuperação | Pendente |
 | Organization (`ipm`) | Parcial: Receiver, Manager e relay no desenho anterior; sem Observer, Reconciler e Executor |
-| CLI | Parcial: só `sk auth`; faltam `sk register`, `sk user` e `sk ipm organization` |
+| CLI | Parcial: `sk auth` e `sk register` implementados e testados; falta `sk auth whoami` (decidido em lugar de `sk user`), e `sk ipm organization` depende da Organization |
 
 # 2. `RESOURCE-CONTROL-LOOP.md`: checklist de implementação (seção 55), por papel (`core.user`)
 
@@ -175,7 +175,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | `pinned_client` no Executor | Alvo antes de stg e prd | `NATS.md` §7.5 |
 | Partição do Observer | Na aplicação (`hash(resourceId) mod count`); o `DESIRED` não é particionado | decisão 0018 |
 | Quarentena, `ObservationStale`, limite de remoções, retenção, métricas e traces | Pendentes | seções 2 a 6 |
-| Ativação de ponta a ponta | A pessoa seguir o link, definir a senha e fazer `sk auth login` não foi exercitado | `features/core/user/README.md` §4.7 |
+| Ativação de ponta a ponta | Verificada em dev em 2026-10-12: a pessoa definiu a senha e confirmou o e-mail pelos links, e os reenvios pelo provedor funcionaram. Falta confirmar o `sk auth login` com esse usuário | `features/core/user/README.md` §4.7 |
 | Configuração do Zitadel | Aplicada em dev por script temporário e não versionado; o mecanismo para stg e prd não está decidido | `infrastructure/dev/README.md` |
 | Leitor tolerante | Implementado: os consumidores de mensagens internas (Manager, Reconciler, Observer e Executor do User; Manager da Organization) validam em modo tolerante, ignoram campos de `MINOR` mais novo e recusam `MAJOR` não suportado. A entrada de clientes e a publicação continuam estritas. Testes unitários em cada projeto e caso no e2e (`schemaVersion` 1.1 com campo desconhecido) | `schemas/`, `contracts/base.py` de cada componente, `tests/unit/test_tolerant_reader.py` |
 | Dados pessoais retidos | O `payload` do `desired` de criação (e-mail e nomes) permanece no outbox, e as Operations não são removidas, porque a retenção não existe; a limpeza do tombstone no `DESIRED` também não | `features/core/user/README.md` §11.6 |

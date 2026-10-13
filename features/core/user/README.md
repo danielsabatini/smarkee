@@ -173,6 +173,25 @@ Cada fluxo é uma sequência numerada (quem publica, quem consome, qual subject)
 
 *Fonte: [`07-ativacao-e-login.mmd`](docs/flow/07-ativacao-e-login.mmd).* A pessoa define a senha na página do Zitadel (a senha nunca passa por CLI, Receiver, SSOT nem NATS) e depois entra com `sk auth login` (PKCE com retorno em loopback, decisão 0007). Inclui os problemas de ativação e de login. **Esta etapa não foi exercitada de ponta a ponta.**
 
+### Como ativar a conta (senha e e-mail)
+
+Depois do `sk register`, a pessoa tem uma conta ativa, mas sem senha e com o e-mail não verificado. Ela ativa a conta assim:
+
+1. **Defina a senha.** Abra a mensagem **"Redefinir senha"** mais recente do provedor e use o link. Na página do Zitadel, informe e confirme a senha (a política de senha da instância se aplica).
+2. **Confirme o e-mail.** Abra a mensagem **"Verificar e-mail"** mais recente e use o link (ou o código, se a página pedir).
+3. **Entre.** Com a senha definida, `sk auth login` autentica a pessoa.
+
+Em desenvolvimento, as mensagens chegam ao Mailpit (http://localhost:8025). Em outros ambientes, chegam à caixa de e-mail real.
+
+**Se o link expirou ou a pessoa não recebeu o e-mail:**
+
+- **Senha:** na tela de login do Zitadel (`http://ipm-dev.smarkee.com.br:8080/ui/v2/login/`), use a opção de recuperar a senha ("Esqueci a senha") e informe o e-mail do cadastro, que é também o nome de login. O Zitadel envia um novo link. Use sempre o link da mensagem mais recente.
+- **Verificação do e-mail:** na página de verificação, use a opção de reenviar o código.
+
+Esses reenvios não passam pela plataforma, de propósito: um reenvio anônimo revelaria se um e-mail já está cadastrado (`docs/RESOURCE-CONTROL-LOOP.md`, seção 6.1.2).
+
+**Procedimento do operador (dev).** Se a opção do provedor não estiver disponível, um operador reenvia com a conta de serviço do Executor, que já tem essa permissão (`docs/RESOURCE-CONTROL-SECURITY.md`, seção 9): `POST /v2/users/{id}/password_reset` com `{"sendLink": {}}` para o link de senha, e `POST /v2/users/{id}/email/resend` com `{"sendCode": {}}` para o código de verificação. A chave da conta de serviço nunca sai do volume `identity-bootstrap`.
+
 ## 4.8 Remoção
 
 ![Remoção](docs/flow/08-remocao.svg)
