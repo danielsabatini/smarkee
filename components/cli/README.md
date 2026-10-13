@@ -72,3 +72,29 @@ uv run pytest --cov --cov-report=term-missing
 ```
 
 Os testes de integração (`tests/integration`) exercitam o fluxo completo contra um provedor OIDC falso em loopback; não dependem do Zitadel.
+
+## Cadastro (`sk register`)
+
+```bash
+uv run sk register --name Ana --surname Souza --email ana@dominio.com
+```
+
+Pede o cadastro de um usuário pela API do módulo `core`. É **anônimo**: não exige login, não envia token (mesmo que existam credenciais salvas) e não pede senha. A pessoa define a senha depois, na página do provedor, a partir do e-mail de ativação. O cadastro é assíncrono: o comando confirma que o pedido foi aceito (`resourceId` e `operationId`), e não que a conta já existe.
+
+| Opção | Variável de ambiente | Chave em `[core]` | Significado |
+|---|---|---|---|
+| `--name` | | | Nome próprio (obrigatório, 1 a 256 caracteres) |
+| `--surname` | | | Sobrenome (obrigatório, 1 a 256 caracteres) |
+| `--email` | | | E-mail, também o nome de login (obrigatório) |
+| `--api-url` | `SK_CORE_API_URL` | `apiUrl` | URL base da API do módulo core, pelo gateway |
+| `--allow-insecure-http` | `SK_CORE_ALLOW_INSECURE_HTTP=true` | `allowInsecureHttp = true` | Aceita a API em HTTP. Somente em desenvolvimento |
+
+```toml
+[core]
+apiUrl = "http://api-dev.smarkee.com.br:8080"
+allowInsecureHttp = true  # somente em desenvolvimento
+```
+
+Os dados são validados antes do envio, com os mesmos limites do contrato. Um e-mail mal formado não gera nenhuma chamada à API. Códigos de saída: `0` pedido aceito; `1` serviço indisponível, limite de taxa ou falha de conexão; `2` uso incorreto ou dado recusado pela API.
+
+Depois do cadastro, a pessoa recebe dois e-mails do provedor (verificação de e-mail e definição de senha). Enquanto a conta não é ativada, `sk auth login` não consegue autenticar. O passo a passo para ativar a conta, e para pedir outro link ou código quando o anterior expirou, está em `features/core/user/README.md`, seção 4.7.

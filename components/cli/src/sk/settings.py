@@ -133,6 +133,18 @@ class CamelCaseTomlSettingsSource(PydanticBaseSettingsSource):
         )
 
 
+class CoreSettings(BaseModel):
+    """Seção `core`: API da plataforma usada por `sk register`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    api_url: str | None = None
+    """URL base da API do módulo core, pelo gateway (por exemplo, `https://api.exemplo`)."""
+
+    allow_insecure_http: bool = False
+    """Aceita `api_url` em `http`. Somente em desenvolvimento."""
+
+
 class SkSettings(BaseSettings):
     """Configuração consolidada do sk."""
 
@@ -145,6 +157,7 @@ class SkSettings(BaseSettings):
     )
 
     auth: AuthSettings = AuthSettings()
+    core: CoreSettings = CoreSettings()
 
     @classmethod
     def settings_customise_sources(
