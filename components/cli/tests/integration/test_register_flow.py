@@ -114,6 +114,6 @@ def test_plain_http_without_permission_sends_nothing(api_server: str) -> None:
             api_server,
         ],
     )
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "sem TLS" in result.stderr
     assert Recording.received == []

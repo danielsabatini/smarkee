@@ -61,14 +61,17 @@ def register_command(
         str | None,
         typer.Option(
             "--api-url",
-            help="URL base da API do módulo core. [dim cyan](substitui SK_CORE_API_URL)[/]",
+            help=(
+                "URL base da API do módulo core. Também por SK_CORE_API_URL ou apiUrl na "
+                "tabela \\[core]. Padrão: nenhum."
+            ),
         ),
     ] = None,
     allow_insecure_http: Annotated[
         bool,
         typer.Option(
             "--allow-insecure-http",
-            help="Aceita a API em HTTP (somente em desenvolvimento).",
+            help="Aceita a API em HTTP (somente em desenvolvimento). Booleano. Padrão: desativado.",
         ),
     ] = False,
 ) -> None:
@@ -93,7 +96,7 @@ def register_command(
             str(error),
             hint="Use HTTPS ou --allow-insecure-http em desenvolvimento.",
         )
-        raise typer.Exit(EXIT_FAILURE) from error
+        raise typer.Exit(EXIT_USAGE_ERROR) from error
     except ApiRejectedError as error:
         if error.status == 429:
             wait = error.retry_after_seconds

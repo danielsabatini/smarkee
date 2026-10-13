@@ -47,8 +47,8 @@ EXIT_USAGE_ERROR = 2
 auth_app = typer.Typer(
     help="Autenticação na plataforma.",
     no_args_is_help=True,
-    # Sem marcação Rich nos textos de ajuda: "[auth]" deve aparecer literalmente.
-    rich_markup_mode=None,
+    # Ajuda colorida pelo Rich. Colchetes literais nos textos são escapados com "\\[".
+    rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
 )
 
@@ -191,9 +191,8 @@ IssuerOption = Annotated[
     typer.Option(
         help=(
             "URL do issuer OIDC (provedor de identidade, acessado pelo gateway). "
-            "Também por SK_AUTH_ISSUER ou issuer na tabela [auth]."
+            "Também por SK_AUTH_ISSUER ou issuer na tabela \\[auth]. Padrão: nenhum."
         ),
-        show_default=False,
     ),
 ]
 ClientIdOption = Annotated[
@@ -201,9 +200,8 @@ ClientIdOption = Annotated[
     typer.Option(
         help=(
             "Client ID da aplicação nativa do sk no provedor (um por ambiente). "
-            "Também por SK_AUTH_CLIENT_ID ou clientId na tabela [auth]."
+            "Também por SK_AUTH_CLIENT_ID ou clientId na tabela \\[auth]. Padrão: nenhum."
         ),
-        show_default=False,
     ),
 ]
 AllowInsecureHttpOption = Annotated[
@@ -212,9 +210,9 @@ AllowInsecureHttpOption = Annotated[
         "--allow-insecure-http",
         help=(
             "Aceita issuer sem TLS (http). Somente para desenvolvimento. "
-            "Também por SK_AUTH_ALLOW_INSECURE_HTTP=true ou allowInsecureHttp na tabela [auth]."
+            "Também por SK_AUTH_ALLOW_INSECURE_HTTP=true ou allowInsecureHttp na tabela "
+            "\\[auth]. Booleano. Padrão: desativado."
         ),
-        show_default=False,
     ),
 ]
 
@@ -222,7 +220,7 @@ AllowInsecureHttpOption = Annotated[
 @auth_app.command(
     "init",
     help=(
-        "Cria o arquivo de configuração do sk (config.toml) com a tabela [auth]. Os valores "
+        "Cria o arquivo de configuração do sk (config.toml) com a tabela \\[auth]. Os valores "
         "vêm dos parâmetros ou das variáveis SK_AUTH_*; issuer e client ID são obrigatórios. "
         "Não sobrescreve um arquivo existente sem --force."
     ),
@@ -233,7 +231,10 @@ def init(
     allow_insecure_http: AllowInsecureHttpOption = False,
     force: Annotated[
         bool,
-        typer.Option("--force", help="Sobrescreve o arquivo de configuração existente."),
+        typer.Option(
+            "--force",
+            help="Sobrescreve o arquivo de configuração existente. Booleano. Padrão: desativado.",
+        ),
     ] = False,
 ) -> None:
     path = config_file_path()
