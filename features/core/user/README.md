@@ -284,7 +284,7 @@ Os e-mails do Zitadel de dev são capturados pelo Mailpit (http://localhost:8025
 - **Migrações:** sem controle de versão (obrigatório antes de stg e prd).
 - **Observer:** em dev, uma só partição (`0/1`, aplicada na aplicação por `hash(resourceId) mod count`); com mais réplicas, defina `CORE_USER_OBSERVER_PARTITION_INDEX` e `CORE_USER_OBSERVER_PARTITION_COUNT` por réplica (por exemplo, `StatefulSet` no Kubernetes).
 - **Identidades no NATS em dev:** os componentes se conectam com um único usuário (`smarkee`) e a senha da plataforma; o nome de conexão é o `core-user-<papel>`. As identidades e permissões por papel (`docs/NATS.md` §18 e §26) são o alvo para stg e prd.
-- **Esqueletos vazios:** `components/manager` e `components/cli/src/sk/commands/ipm.py` não têm implementação.
+- **Esqueleto vazio:** `components/cli/src/sk/commands/ipm.py` não tem implementação.
 
 # 11. Banco de dados (SSOT do User)
 
