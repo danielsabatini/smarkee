@@ -104,6 +104,32 @@ def _file_keys_to_field_names(
     return converted
 
 
+def read_config_document(path: Path) -> dict[str, Any]:
+    """Lê o TOML do arquivo, com as chaves como estão escritas. Arquivo ausente devolve `{}`."""
+    try:
+        content = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {}
+    except OSError as error:
+        raise ConfigurationError(f"não foi possível ler {path}: {error.strerror}") from error
+    try:
+        return tomllib.loads(content)
+    except tomllib.TOMLDecodeError as error:
+        raise ConfigurationError(f"TOML inválido em {path}: {error}") from error
+
+
+def convert_file_document(
+    settings_cls: type[BaseSettings], document: Mapping[str, Any], *, path: Path | None = None
+) -> dict[str, Any]:
+    """Converte um documento do arquivo (chaves camelCase) para os nomes dos campos.
+
+    Chave desconhecida ou fora do camelCase levanta `ConfigurationError`.
+    """
+    return _file_keys_to_field_names(
+        document, settings_cls, path=path or config_file_path(), location=""
+    )
+
+
 class CamelCaseTomlSettingsSource(PydanticBaseSettingsSource):
     """Fonte do arquivo `config.toml`, cujas chaves são camelCase."""
 
@@ -116,21 +142,7 @@ class CamelCaseTomlSettingsSource(PydanticBaseSettingsSource):
         return None, field_name, False
 
     def __call__(self) -> dict[str, Any]:
-        try:
-            content = self._toml_file.read_text(encoding="utf-8")
-        except FileNotFoundError:
-            return {}
-        except OSError as error:
-            raise ConfigurationError(
-                f"não foi possível ler {self._toml_file}: {error.strerror}"
-            ) from error
-        try:
-            document = tomllib.loads(content)
-        except tomllib.TOMLDecodeError as error:
-            raise ConfigurationError(f"TOML inválido em {self._toml_file}: {error}") from error
-        return _file_keys_to_field_names(
-            document, self.settings_cls, path=self._toml_file, location=""
-        )
+        return convert_file_document(self.settings_cls, read_config_document(self._toml_file))
 
 
 class CoreSettings(BaseModel):
@@ -174,6 +186,24 @@ class SkSettings(BaseSettings):
             env_settings,
             CamelCaseTomlSettingsSource(settings_cls, toml_file=config_file_path()),
         )
+
+
+class SkSettingsWithoutConfigFile(SkSettings):
+    """Mesma configuração, sem a fonte do arquivo: parâmetro e variável, nada mais.
+
+    Usada pelo `sk init`, que cria o arquivo e não deve ler o que vai substituir.
+    """
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (init_settings, env_settings)
 
 
 def _render_toml_value(value: str | bool) -> str:

@@ -7,12 +7,15 @@ from typing import Any
 
 import typer.main
 from rich.text import Text
+from typer.core import TyperOption
 from typer.testing import CliRunner
 
 from sk.main import app
 
 runner = CliRunner()
 IGNORED = {"help", "install_completion", "show_completion"}
+# Os subcomandos de `sk config` operam só no arquivo: não há ordem de resolução a explicar.
+SEM_ORDEM_DE_RESOLUCAO = {"config list", "config get", "config set"}
 FORMATO_OPCAO = re.compile(r"\[(String|Booleano)\](?: \[(.+)\])? \[(obrigatório|opcional)\]$")
 
 
@@ -29,7 +32,12 @@ def _commands() -> list[tuple[str, Any]]:
 
 
 def _options(command: Any) -> list[Any]:
-    return [param for param in command.params if param.name not in IGNORED]
+    # Argumentos posicionais (por exemplo, a chave de `sk config get`) não são opções.
+    return [
+        param
+        for param in command.params
+        if isinstance(param, TyperOption) and param.name not in IGNORED
+    ]
 
 
 def _texto(param: Any) -> str:
@@ -39,6 +47,8 @@ def _texto(param: Any) -> str:
 
 def test_every_command_explains_the_resolution_order() -> None:
     for name, command in _commands():
+        if name in SEM_ORDEM_DE_RESOLUCAO:
+            continue
         assert "Ordem de resolução" in (command.help or ""), name
 
 
@@ -93,7 +103,7 @@ def test_required_options_are_marked_as_required() -> None:
             match = FORMATO_OPCAO.search(_texto(param))
             assert match is not None, f"{name} {param.name}"
             situacao = match.group(3)
-            if param.name in obrigatorias:
+            if name != "init" and param.name in obrigatorias:
                 assert situacao == "obrigatório", f"{name} {param.name}"
 
 
@@ -113,7 +123,7 @@ def test_bracketed_names_are_shown_literally() -> None:
     login = runner.invoke(app, ["auth", "login", "--help"], env={"COLUMNS": "200"})
     assert login.exit_code == 0
     assert "[auth] issuer" in login.stdout
-    init = runner.invoke(app, ["auth", "init", "--help"], env={"COLUMNS": "200"})
+    init = runner.invoke(app, ["init", "--help"], env={"COLUMNS": "200"})
     assert init.exit_code == 0
     assert "arquivo [auth]" not in init.stdout
 
@@ -121,7 +131,7 @@ def test_bracketed_names_are_shown_literally() -> None:
 def test_init_does_not_list_the_config_file_as_a_source() -> None:
     # O init não lê o arquivo que cria: a ajuda não pode dizer o contrário.
     for name, command in _commands():
-        if name != "auth init":
+        if name != "init":
             continue
         for param in _options(command):
             match = FORMATO_OPCAO.search(_texto(param))

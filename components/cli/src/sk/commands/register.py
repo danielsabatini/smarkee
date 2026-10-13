@@ -62,7 +62,7 @@ def _load_core(api_url: str | None, allow_insecure_http: bool) -> tuple[str, boo
         ui.error(
             "API não informada",
             "Informe-a por --api-url, SK_CORE_API_URL ou apiUrl na tabela [core].",
-            hint="Adicione [core] com apiUrl ao arquivo de configuração do sk.",
+            hint="Rode `sk init` para criar a configuração, ou informe --api-url.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return core.api_url, core.allow_insecure_http

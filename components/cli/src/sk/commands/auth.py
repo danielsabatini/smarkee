@@ -12,10 +12,9 @@ from typing import Annotated
 
 import typer
 from pydantic import ValidationError
-from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 from sk import ui
-from sk.ajuda import ORDEM_SEM_ARQUIVO, comando, opcao
+from sk.ajuda import comando, opcao
 from sk.credentials import (
     CredentialsError,
     CredentialsMissingError,
@@ -24,10 +23,8 @@ from sk.credentials import (
     load_credentials,
     save_credentials,
 )
-from sk.files import write_private_file
 from sk.oidc import (
     OidcError,
-    ensure_secure_url,
     fetch_provider_metadata,
     fetch_userinfo,
     run_authorization_code_flow,
@@ -36,8 +33,8 @@ from sk.settings import (
     AuthSettings,
     ConfigurationError,
     SkSettings,
+    SkSettingsWithoutConfigFile,
     config_file_path,
-    render_section,
 )
 
 # offline_access solicita o refresh token (a aplicação no provedor precisa permiti-lo).
@@ -56,21 +53,6 @@ auth_app = typer.Typer(
 )
 
 
-class _SkSettingsWithoutConfigFile(SkSettings):
-    """Mesma configuração, sem a fonte do arquivo (usada pelo `init`, que o cria)."""
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        return (init_settings, env_settings)
-
-
 def load_auth_settings(
     command_line_values: Mapping[str, object], *, include_config_file: bool = True
 ) -> AuthSettings:
@@ -84,7 +66,7 @@ def load_auth_settings(
         for key, value in command_line_values.items()
         if value is not None and value is not False
     }
-    settings_class = SkSettings if include_config_file else _SkSettingsWithoutConfigFile
+    settings_class = SkSettings if include_config_file else SkSettingsWithoutConfigFile
     # Argumentos de inicialização são a fonte de maior precedência do pydantic-settings e
     # são mesclados campo a campo com as demais. O pydantic valida o dicionário como
     # AuthSettings; o pyright só conhece o tipo do campo, por isso a supressão.
@@ -108,14 +90,14 @@ def _require_issuer_and_client_id(settings: AuthSettings) -> tuple[str, str]:
         ui.error(
             "Issuer não informado",
             "Informe-o por --issuer, SK_AUTH_ISSUER ou issuer na tabela [auth].",
-            hint="Rode `sk auth init --issuer <URL>` para criar a configuração.",
+            hint="Rode `sk init` para criar a configuração.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     if not settings.client_id:
         ui.error(
             "Client ID não informado",
             "Informe-o por --client-id, SK_AUTH_CLIENT_ID ou clientId na tabela [auth].",
-            hint="Rode `sk auth init --client-id <ID>` para criar a configuração.",
+            hint="Rode `sk init` para criar a configuração.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return settings.issuer, settings.client_id
@@ -236,92 +218,6 @@ AllowInsecureHttpOption = Annotated[
         help=_ajuda_allow_insecure_http("[auth] allowInsecureHttp = true"),
     ),
 ]
-IssuerOptionInit = Annotated[
-    str | None,
-    typer.Option(help=_ajuda_issuer(None)),
-]
-ClientIdOptionInit = Annotated[
-    str | None,
-    typer.Option(help=_ajuda_client_id(None)),
-]
-AllowInsecureHttpOptionInit = Annotated[
-    bool,
-    typer.Option(
-        "--allow-insecure-http",
-        help=_ajuda_allow_insecure_http(None),
-    ),
-]
-
-
-@auth_app.command(
-    "init",
-    help=comando(
-        "Cria o arquivo de configuração da plataforma. "
-        "Não sobrescreve um arquivo existente sem --force.",
-        ordem=ORDEM_SEM_ARQUIVO,
-    ),
-)
-def init(
-    issuer: IssuerOptionInit = None,
-    client_id: ClientIdOptionInit = None,
-    allow_insecure_http: AllowInsecureHttpOptionInit = False,
-    force: Annotated[
-        bool,
-        typer.Option(
-            "--force",
-            help=opcao(
-                "Sobrescreve a configuração existente.",
-                tipo="Booleano",
-                variavel=None,
-                arquivo=None,
-                padrao="desativado",
-            ),
-        ),
-    ] = False,
-) -> None:
-    path = config_file_path()
-    if path.exists() and not force:
-        ui.error(
-            "Configuração já existe",
-            f"O arquivo {path} não foi alterado.",
-            hint="Use --force para sobrescrevê-lo.",
-        )
-        raise typer.Exit(EXIT_USAGE_ERROR)
-
-    # O init não lê o arquivo que vai criar: parâmetro → variável de ambiente → default.
-    settings = _load_or_exit(
-        {
-            "issuer": issuer,
-            "client_id": client_id,
-            "allow_insecure_http": allow_insecure_http,
-        },
-        include_config_file=False,
-    )
-    configured_issuer, _ = _require_issuer_and_client_id(settings)
-    try:
-        ensure_secure_url(configured_issuer, allow_insecure_http=settings.allow_insecure_http)
-    except OidcError as error:
-        ui.error(
-            "Endereço do provedor recusado",
-            str(error),
-            hint="Use HTTPS ou --allow-insecure-http em desenvolvimento.",
-        )
-        raise typer.Exit(EXIT_USAGE_ERROR) from error
-
-    try:
-        write_private_file(path, render_section("auth", settings))
-    except OSError as error:
-        ui.error("Não foi possível gravar a configuração", f"{path}: {error.strerror}")
-        raise typer.Exit(EXIT_FAILURE) from error
-    ui.panel(
-        "Configuração gravada",
-        [
-            ("Arquivo", str(path)),
-            ("Issuer", configured_issuer),
-            ("Client ID", settings.client_id or ""),
-        ],
-    )
-    ui.note("Próximo passo: `sk auth login`.")
 
 
 @auth_app.command(
