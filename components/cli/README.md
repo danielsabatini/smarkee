@@ -15,10 +15,28 @@ Cada valor é resolvido nesta ordem, do mais forte para o mais fraco: **parâmet
 - Arquivo: `$XDG_CONFIG_HOME/sk/config.toml` (padrão `~/.config/sk/config.toml`), com uma tabela por seção e **chaves em camelCase**. Uma chave desconhecida ou fora do camelCase (por exemplo `client_id`) é rejeitada.
 - O mesmo nome muda só de grafia entre os meios: `--client-id`, `SK_AUTH_CLIENT_ID`, `clientId` (`docs/SCHEMA.md`, *Grafia dos nomes por meio*).
 
-O arquivo pode ser criado por `sk auth init` ou à mão:
+O primeiro passo é `sk init`, que cria o arquivo com os endereços de produção:
 
 ```bash
-uv run sk auth init --issuer URL --client-id ID [--allow-insecure-http] [--force]
+uv run sk init [--issuer URL] [--client-id ID] [--api-url URL] [--allow-insecure-http] [--force]
+```
+
+Depois, `sk config` consulta e altera o arquivo, sem editá-lo à mão:
+
+```bash
+uv run sk config list                              # todas as chaves e os valores gravados
+uv run sk config get core.apiUrl                   # só o valor, para uso em scripts
+uv run sk config set core.apiUrl https://api.smarkee.com.br
+```
+
+Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `core.apiUrl` e `core.allowInsecureHttp`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro: comentários feitos à mão não são preservados.
+
+O `init` grava os padrões de produção: `https://ipm.smarkee.com.br` para o provedor e `https://api.smarkee.com.br` para a API. O client ID de produção ainda não existe: o `init` grava o marcador `pendente-prd` e avisa, e o valor definitivo é pendente (`.decisions/0023-sk-init-e-sk-config.md`). Para desenvolvimento, aponte para os endereços do dev e permita HTTP:
+
+```bash
+uv run sk init --force --issuer http://ipm-dev.smarkee.com.br:8080 \
+  --api-url http://api-dev.smarkee.com.br:8080 --client-id <client-id-da-aplicação-cli> \
+  --allow-insecure-http
 ```
 
 ```toml
@@ -26,9 +44,13 @@ uv run sk auth init --issuer URL --client-id ID [--allow-insecure-http] [--force
 issuer = "http://ipm-dev.smarkee.com.br:8080"
 clientId = "<client-id-da-aplicação-sk>"
 allowInsecureHttp = true  # somente em desenvolvimento
+
+[core]
+apiUrl = "http://api-dev.smarkee.com.br:8080"
+allowInsecureHttp = true  # somente em desenvolvimento
 ```
 
-O `init` usa parâmetro → variável → default (não lê o arquivo que vai criar), exige issuer e client ID, recusa issuer `http` sem `--allow-insecure-http` e não sobrescreve um arquivo existente sem `--force`. Issuer e client ID não têm valor padrão: variam por ambiente (um por ambiente, compartilhado por todas as organizations) e mudam quando a instância do Zitadel é recriada.
+O `init` não lê o arquivo que vai criar, recusa endereço `http` sem `--allow-insecure-http` e não sobrescreve um arquivo existente sem `--force`. O `sk config set` avisa quando grava um endereço `http` sem permissão, e o uso recusa esse endereço.
 
 O arquivo guarda configuração, e não credenciais. Os tokens ficam em `credentials.json`, no mesmo diretório.
 

@@ -27,6 +27,7 @@ A CLI `sk` imprimia mensagens de texto puro, com erros e avisos em frases soltas
 
 ## Consequências
 
-- Todos os comandos atuais (`auth init`, `auth login`, `register`) seguem o padrão. Novos comandos devem usar `sk/ui.py`.
+- Todos os comandos atuais (`init`, `auth login`, `register`, `config`) seguem o padrão. Novos comandos devem usar `sk/ui.py`.
+- Exceção: `sk config get` imprime só o valor na saída padrão, para uso em scripts. É dado, e não mensagem ao usuário.
 - O `sk user` não será implementado (decisão do usuário); `sk auth whoami` e `sk ipm organization` nascem com o padrão.
 - A saída passa a conter caracteres de caixa e símbolos (✓, ✗, →). Em terminais sem suporte, o Rich usa substitutos, mas a saída ainda deve ser legível sem cor.

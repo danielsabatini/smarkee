@@ -10,7 +10,7 @@ A ajuda da CLI `sk` (`--help`) descrevia as opções com frases soltas, misturav
 ## Decisão
 
 - **Linguagem para o usuário final.** Os textos de ajuda dizem o que o comando e a opção fazem, sem detalhes de implementação. Exemplos do que não aparece: nome do protocolo de autenticação, endereço de retorno local, nome do arquivo de credenciais, "gateway", "módulo".
-- **Comando.** Descrição curta (o que faz) seguida da linha `Ordem de resolução: parâmetro → variável de ambiente → arquivo de configuração (config.toml) → padrão`. No `sk auth init` o arquivo não entra na ordem, porque o comando não lê o arquivo que cria.
+- **Comando.** Descrição curta (o que faz) seguida da linha `Ordem de resolução: parâmetro → variável de ambiente → arquivo de configuração (config.toml) → padrão`. No `sk init` o arquivo não entra na ordem, porque o comando não lê o arquivo que cria. Os subcomandos de `sk config` operam só no arquivo: não têm ordem de resolução, e os argumentos posicionais (chave e valor) não seguem o formato de opção.
 - **Opção.** `<descrição> [Tipo] [fontes] [situação]`, em que:
   - **Tipo:** `[String]` ou `[Booleano]` (flags). O Typer não mostra o tipo das flags.
   - **Fontes:** `[env VARIÁVEL | arquivo [seção] chave | padrão VALOR]`, na ordem de resolução, **somente as que existem**. Sem nenhuma (valor só por parâmetro), o bloco é omitido.

@@ -176,7 +176,8 @@ Depois, no host, grave a configuração uma vez (`~/.config/sk/config.toml`) e f
 
 ```bash
 cd components/cli
-uv run sk auth init --force --issuer http://ipm-dev.smarkee.com.br:8080 \
+uv run sk init --force --issuer http://ipm-dev.smarkee.com.br:8080 \
+  --api-url http://api-dev.smarkee.com.br:8080 \
   --client-id <client-id-da-aplicação-cli> --allow-insecure-http   # dev não tem TLS
 uv run sk auth login
 ```
