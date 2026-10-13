@@ -8,6 +8,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [Unreleased]
 
 ### Added
+- Ajuda da CLI padronizada (decisão 0022): cada opção mostra o tipo, as fontes do valor (variável de ambiente, arquivo de configuração e padrão) e se é obrigatória, com cores, em linguagem para o usuário final. As opções obrigatórias do `sk register` são validadas pelo comando, com código de saída 2.
 - Apresentação da CLI com Rich (decisão 0021): painéis de sucesso, erros com dica de correção e URL de login em destaque, em todos os comandos (`auth init`, `auth login` e `register`).
 - CLI `sk register --name --surname --email`: cadastro anônimo na API do módulo core (`[core] apiUrl`), sem token e sem senha, com validação local dos limites do contrato, orientação ao usuário e códigos de saída definidos. Testes unitários, de comando e de integração com servidor HTTP real.
 - Documentação do banco de dados: diagramas de entidade e relacionamento (lógico e físico), de gravação por mensagem e de privilégios em `docs/diagrams/`, referenciados em `docs/SSOT.md` §7 e `docs/POSTGRESQL.md` §6; seção 11 do `features/core/user/README.md` com o ER real do `core.user`, colunas `jsonb`, índices, quem grava o quê e dados pessoais; índice `docs/README.md`.

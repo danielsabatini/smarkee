@@ -102,3 +102,17 @@ Depois do cadastro, a pessoa recebe dois e-mails do provedor (verificação de e
 ## Saída no terminal
 
 Os comandos mostram sucesso em painel e erro com causa e dica de correção. Cores aparecem só em terminal interativo, e `NO_COLOR` é respeitado. A apresentação está em `src/sk/ui.py` (`.decisions/0021-apresentacao-da-cli-com-rich.md`). A saída de sucesso vai para a saída padrão, e a de erro para a saída de erro.
+
+## Textos de ajuda
+
+A ajuda (`--help`) segue um padrão único, montado por `src/sk/ajuda.py` e verificado em `tests/unit/test_ajuda.py` (`.decisions/0022-padrao-dos-textos-de-ajuda-da-cli.md`). Cada opção aparece como:
+
+```text
+--api-url  Endereço da API da plataforma. [String] [env SK_CORE_API_URL | arquivo [core] apiUrl] [obrigatório]
+```
+
+- `[String]` ou `[Booleano]`: o tipo do valor.
+- `[env … | arquivo … | padrão …]`: de onde o valor pode vir, na ordem de resolução (parâmetro, variável de ambiente, arquivo de configuração, padrão). Só aparecem as fontes que existem.
+- `[obrigatório]` (vermelho) ou `[opcional]`: sem padrão, a opção é obrigatória.
+
+Os textos descrevem o que o comando faz, sem detalhes de implementação. Novos comandos usam `comando()` e `opcao()`.
