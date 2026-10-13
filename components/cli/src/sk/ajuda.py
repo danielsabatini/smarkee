@@ -2,18 +2,20 @@
 
 Todo comando descreve, na descrição, como o valor é resolvido. Toda opção segue o formato:
 
-    <descrição> [Tipo] [variável | arquivo | padrão] [obrigatório|opcional]
+    <descrição> [Tipo] [env VARIÁVEL | arquivo SEÇÃO CHAVE | padrão VALOR] [obrigatório|opcional]
 
-    --issuer  URL do issuer OIDC. [String] [SK_AUTH_ISSUER | \\[auth] issuer | nenhum] [obrigatório]
+    --issuer  URL do OIDC. [String] [env SK_AUTH_ISSUER | arquivo [auth] issuer] [obrigatório]
 
-Cada segmento tem uma cor (tipo, resolução e situação). Os colchetes do formato são escapados
-para o Rich não os tratar como tags, e os colchetes dos próprios valores também.
+O bloco de fontes só lista as que existem para a opção; sem nenhuma, ele é omitido. Cada segmento
+tem uma cor (tipo, fontes e situação). Os colchetes do formato são escapados para o Rich não os
+tratar como tags, e os colchetes dos próprios valores também.
 """
 
 # Cores de cada segmento da opção, em nomes do Rich.
 COR_TIPO = "cyan"
-COR_RESOLUCAO = "yellow"
-COR_SITUACAO = "magenta"
+COR_FONTES = "yellow"
+COR_OBRIGATORIO = "red"
+COR_OPCIONAL = "magenta"
 
 ORDEM_COM_ARQUIVO = (
     "parâmetro → variável de ambiente → arquivo de configuração (config.toml) → padrão"
@@ -44,20 +46,29 @@ def opcao(
     variavel: str | None,
     arquivo: str | None,
     padrao: str,
-    obrigatorio: bool = False,
 ) -> str:
     """Características de uma opção, no formato:
 
-    <descrição> [Tipo] [variável | arquivo | padrão] [obrigatório|opcional]
+    <descrição> [Tipo] [env VARIÁVEL | arquivo SEÇÃO CHAVE | padrão VALOR] [obrigatório|opcional]
 
-    Os segmentos são marcados com markup do Rich. Os colchetes são escapados: sem isso, o Rich
-    leria "[obrigatório]" ou "[String]" como tags, e não como texto.
+    Só as fontes que existem são listadas; sem nenhuma, o bloco é omitido. A situação deriva do
+    padrão: sem padrão ("nenhum"), a opção é obrigatória e precisa ser informada por uma das
+    fontes; com padrão, é opcional. Os segmentos são marcados com markup do Rich. Os colchetes são
+    escapados: sem isso, o Rich leria "[obrigatório]" ou "[String]" como tags, e não como texto.
     """
-    resolucao = f"{variavel or 'nenhuma'} | {arquivo or 'nenhum'} | {padrao}"
-    situacao = "obrigatório" if obrigatorio else "opcional"
-    return (
-        f"{_escapa(descricao)} "
-        f"{_segmento(tipo, COR_TIPO)} "
-        f"{_segmento(resolucao, COR_RESOLUCAO)} "
-        f"{_segmento(situacao, COR_SITUACAO)}"
-    )
+    fontes: list[str] = []
+    if variavel:
+        fontes.append(f"env {variavel}")
+    if arquivo:
+        fontes.append(f"arquivo {arquivo}")
+    if padrao != "nenhum":
+        fontes.append(f"padrão {padrao}")
+    if padrao == "nenhum":
+        situacao = _segmento("obrigatório", COR_OBRIGATORIO)
+    else:
+        situacao = _segmento("opcional", COR_OPCIONAL)
+    segmentos = [_escapa(descricao), _segmento(tipo, COR_TIPO)]
+    if fontes:
+        segmentos.append(_segmento(" | ".join(fontes), COR_FONTES))
+    segmentos.append(situacao)
+    return " ".join(segmentos)

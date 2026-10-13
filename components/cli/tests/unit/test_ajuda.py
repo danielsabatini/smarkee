@@ -1,6 +1,6 @@
 """Padrão dos textos de ajuda: todo comando explica a ordem de resolução, e toda opção segue o
-formato `<descrição> [Tipo] [variável | arquivo | padrão] [obrigatório|opcional]`. Flags são
-`Booleano`; as demais, `String`."""
+formato `<descrição> [Tipo] [env … | arquivo … | padrão …] [obrigatório|opcional]`, com o bloco de
+fontes omitido quando não há nenhuma. Flags são `Booleano`; as demais, `String`."""
 
 import re
 from typing import Any
@@ -13,7 +13,7 @@ from sk.main import app
 
 runner = CliRunner()
 IGNORED = {"help", "install_completion", "show_completion"}
-FORMATO_OPCAO = re.compile(r"\[(String|Booleano)\] \[(.+)\] \[(obrigatório|opcional)\]$")
+FORMATO_OPCAO = re.compile(r"\[(String|Booleano)\](?: \[(.+)\])? \[(obrigatório|opcional)\]$")
 
 
 def _commands() -> list[tuple[str, Any]]:
@@ -48,13 +48,26 @@ def test_every_option_follows_the_type_and_resolution_format() -> None:
             assert FORMATO_OPCAO.search(_texto(param)), f"{name} {param.name}"
 
 
-def test_resolution_lists_variable_file_and_default_in_order() -> None:
+def test_sources_are_labeled_and_in_resolution_order() -> None:
+    ordem = ["env ", "arquivo ", "padrão "]
     for name, command in _commands():
         for param in _options(command):
             match = FORMATO_OPCAO.search(_texto(param))
             assert match is not None, f"{name} {param.name}"
-            partes = [parte.strip() for parte in match.group(2).split("|")]
-            assert len(partes) == 3, f"{name} {param.name}: {partes}"
+            if match.group(2) is None:
+                continue
+            partes = [parte.strip() for parte in match.group(2).split(" | ")]
+            rotulos = [next(r for r in ordem if parte.startswith(r)) for parte in partes]
+            assert rotulos == sorted(rotulos, key=ordem.index), f"{name} {param.name}: {partes}"
+
+
+def test_options_without_other_sources_have_no_sources_block() -> None:
+    for name, command in _commands():
+        for param in _options(command):
+            if name == "register" and param.name in {"name", "surname", "email"}:
+                match = FORMATO_OPCAO.search(_texto(param))
+                assert match is not None, f"{name} {param.name}"
+                assert match.group(2) is None, f"{name} {param.name}"
 
 
 def test_boolean_options_are_declared_as_boolean() -> None:
@@ -97,12 +110,12 @@ def test_options_with_environment_variables_say_which_one() -> None:
 
 
 def test_bracketed_names_are_shown_literally() -> None:
-    login = runner.invoke(app, ["auth", "login", "--help"])
+    login = runner.invoke(app, ["auth", "login", "--help"], env={"COLUMNS": "200"})
     assert login.exit_code == 0
     assert "[auth] issuer" in login.stdout
-    init = runner.invoke(app, ["auth", "init", "--help"])
+    init = runner.invoke(app, ["auth", "init", "--help"], env={"COLUMNS": "200"})
     assert init.exit_code == 0
-    assert "seção [auth]" in init.stdout
+    assert "arquivo [auth]" not in init.stdout
 
 
 def test_init_does_not_list_the_config_file_as_a_source() -> None:
@@ -113,4 +126,18 @@ def test_init_does_not_list_the_config_file_as_a_source() -> None:
         for param in _options(command):
             match = FORMATO_OPCAO.search(_texto(param))
             assert match is not None, param.name
-            assert "[auth]" not in match.group(2), param.name
+            assert "[auth]" not in (match.group(2) or ""), param.name
+
+
+def test_register_required_options_are_checked_by_the_command() -> None:
+    # Sem o "required" do Typer, a ausência é recusada pelo comando, com código 2.
+    result = runner.invoke(app, ["register", "--surname", "B", "--email", "a@b.com"])
+    assert result.exit_code == 2
+    assert "--name" in result.output
+    assert "Opção obrigatória ausente" in result.output
+
+
+def test_required_options_do_not_show_typers_required_tag() -> None:
+    result = runner.invoke(app, ["register", "--help"])
+    assert result.exit_code == 0
+    assert "[required]" not in result.stdout

@@ -24,12 +24,23 @@ from sk.oidc import OidcError
 from sk.settings import ConfigurationError, SkSettings
 
 AJUDA_REGISTRO = comando(
-    "Pede o cadastro de um usuário, de forma anônima (sem login e sem token). "
-    "Depois do pedido, a pessoa ativa a conta pelos e-mails do provedor de identidade."
+    "Cadastra uma nova conta, sem precisar estar logado. "
+    "Depois, confirme o e-mail e defina a senha pelos e-mails recebidos."
 )
 
 EXIT_FAILURE = 1
 EXIT_USAGE_ERROR = 2
+
+
+def _exige(valor: str | None, nome_opcao: str) -> str:
+    if valor is None:
+        ui.error(
+            "Opção obrigatória ausente",
+            f"Informe {nome_opcao}.",
+            hint=f"Repita o comando com {nome_opcao} VALOR.",
+        )
+        raise typer.Exit(EXIT_USAGE_ERROR)
+    return valor
 
 
 def _load_core(api_url: str | None, allow_insecure_http: bool) -> tuple[str, bool]:
@@ -59,58 +70,54 @@ def _load_core(api_url: str | None, allow_insecure_http: bool) -> tuple[str, boo
 
 def register_command(
     name: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--name",
             help=opcao(
-                "Nome próprio da pessoa (1 a 256 caracteres).",
+                "Nome (até 256 caracteres).",
                 tipo="String",
                 variavel=None,
                 arquivo=None,
                 padrao="nenhum",
-                obrigatorio=True,
             ),
         ),
-    ],
+    ] = None,
     surname: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--surname",
             help=opcao(
-                "Sobrenome da pessoa (1 a 256 caracteres).",
+                "Sobrenome (até 256 caracteres).",
                 tipo="String",
                 variavel=None,
                 arquivo=None,
                 padrao="nenhum",
-                obrigatorio=True,
             ),
         ),
-    ],
+    ] = None,
     email: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--email",
             help=opcao(
-                "E-mail da pessoa. Também é o nome de login.",
+                "E-mail da conta. É também o nome de login.",
                 tipo="String",
                 variavel=None,
                 arquivo=None,
                 padrao="nenhum",
-                obrigatorio=True,
             ),
         ),
-    ],
+    ] = None,
     api_url: Annotated[
         str | None,
         typer.Option(
             "--api-url",
             help=opcao(
-                "URL base da API do módulo core, acessada pelo gateway.",
+                "Endereço da API da plataforma.",
                 tipo="String",
                 variavel="SK_CORE_API_URL",
                 arquivo="[core] apiUrl",
                 padrao="nenhum",
-                obrigatorio=True,
             ),
         ),
     ] = None,
@@ -119,7 +126,7 @@ def register_command(
         typer.Option(
             "--allow-insecure-http",
             help=opcao(
-                "Aceita a API em HTTP. Somente para desenvolvimento.",
+                "Permite endereço sem HTTPS. Somente para desenvolvimento.",
                 tipo="Booleano",
                 variavel="SK_CORE_ALLOW_INSECURE_HTTP=true",
                 arquivo="[core] allowInsecureHttp = true",
@@ -128,6 +135,10 @@ def register_command(
         ),
     ] = False,
 ) -> None:
+    # Obrigatórias por validação do próprio comando (não pelo Typer), para não exibir "[required]".
+    name = _exige(name, "--name")
+    surname = _exige(surname, "--surname")
+    email = _exige(email, "--email")
     url, insecure = _load_core(api_url, allow_insecure_http)
     try:
         # Validação local antes de qualquer chamada: o comando, e não só o cliente, a garante.

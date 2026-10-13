@@ -189,29 +189,27 @@ def run_login(settings: AuthSettings, credentials_path: Path) -> None:
 
 def _ajuda_issuer(arquivo: str | None) -> str:
     return opcao(
-        "URL do issuer OIDC, acessado pelo gateway.",
+        "Endereço do provedor de login.",
         tipo="String",
         variavel="SK_AUTH_ISSUER",
         arquivo=arquivo,
         padrao="nenhum",
-        obrigatorio=True,
     )
 
 
 def _ajuda_client_id(arquivo: str | None) -> str:
     return opcao(
-        "Client ID da aplicação nativa do sk no provedor (um por ambiente).",
+        "Identificador do sk no provedor de login.",
         tipo="String",
         variavel="SK_AUTH_CLIENT_ID",
         arquivo=arquivo,
         padrao="nenhum",
-        obrigatorio=True,
     )
 
 
 def _ajuda_allow_insecure_http(arquivo: str | None) -> str:
     return opcao(
-        "Aceita issuer em HTTP. Somente para desenvolvimento.",
+        "Permite endereço sem HTTPS. Somente para desenvolvimento.",
         tipo="Booleano",
         variavel="SK_AUTH_ALLOW_INSECURE_HTTP=true",
         arquivo=arquivo,
@@ -256,8 +254,7 @@ AllowInsecureHttpOptionInit = Annotated[
 @auth_app.command(
     "init",
     help=comando(
-        "Cria o arquivo de configuração do sk (config.toml) com a seção [auth]. Issuer e client "
-        "ID são obrigatórios. Não sobrescreve um arquivo existente sem --force.",
+        "Cria o arquivo de configuração do sk. Não sobrescreve um arquivo existente sem --force.",
         ordem=ORDEM_SEM_ARQUIVO,
     ),
 )
@@ -270,7 +267,7 @@ def init(
         typer.Option(
             "--force",
             help=opcao(
-                "Sobrescreve o arquivo de configuração existente.",
+                "Sobrescreve a configuração existente.",
                 tipo="Booleano",
                 variavel=None,
                 arquivo=None,
@@ -326,11 +323,7 @@ def init(
 
 @auth_app.command(
     "login",
-    help=comando(
-        "Autentica o usuário pelo navegador (OIDC Authorization Code com PKCE, retorno em "
-        "127.0.0.1) e grava os tokens em credentials.json. Um novo login substitui as "
-        "credenciais anteriores."
-    ),
+    help=comando("Entra na plataforma pelo navegador. Um novo login substitui o anterior."),
 )
 def login(
     issuer: IssuerOption = None,
