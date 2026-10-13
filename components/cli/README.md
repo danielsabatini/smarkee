@@ -54,6 +54,20 @@ O login é da plataforma, e não de um módulo. O `sk` autentica o usuário dire
 
 Códigos de saída: `0` sucesso; `1` falha no login ou na gravação, ou cancelamento (Ctrl+C); `2` uso incorreto (issuer ou client ID ausente, configuração inválida).
 
+### `sk auth whoami`
+
+```bash
+uv run sk auth whoami [--allow-insecure-http]
+```
+
+Mostra o usuário da sessão gravada e confirma com o provedor que o acesso ainda vale:
+
+1. lê `credentials.json`; sem o arquivo, diz que não há sessão e aponta `sk auth login`;
+2. se o acesso já venceu pela data gravada, para ali, sem consultar o provedor;
+3. consulta o userinfo com o access token. Se o provedor recusar ou não responder, a mensagem traz a causa e o comando não mostra o usuário.
+
+A saída nunca mostra tokens. Código `0` com sessão válida; `1` sem sessão, sessão vencida ou sessão não confirmada pelo provedor.
+
 Limitações atuais:
 
 - o `sk` não valida localmente a assinatura do ID token e não usa as claims dele; a identidade exibida vem do userinfo, e a validação dos tokens é responsabilidade dos Receivers que os recebem;

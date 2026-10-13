@@ -7,8 +7,10 @@ import pytest
 
 from sk.credentials import (
     CredentialsError,
+    CredentialsMissingError,
     StoredCredentials,
     default_credentials_path,
+    load_credentials,
     save_credentials,
 )
 
@@ -75,3 +77,31 @@ def test_unwritable_directory_raises_credentials_error(tmp_path: Path) -> None:
             save_credentials(blocked_directory / "credentials.json", make_credentials("access-1"))
     finally:
         blocked_directory.chmod(0o700)
+
+
+def test_saved_credentials_are_read_back_unchanged(tmp_path: Path) -> None:
+    path = tmp_path / "credentials.json"
+    save_credentials(path, make_credentials("access-1"))
+    assert load_credentials(path) == make_credentials("access-1")
+
+
+def test_missing_file_is_reported_as_missing(tmp_path: Path) -> None:
+    with pytest.raises(CredentialsMissingError):
+        load_credentials(tmp_path / "credentials.json")
+
+
+def test_invalid_file_error_does_not_expose_tokens(tmp_path: Path) -> None:
+    path = tmp_path / "credentials.json"
+    path.write_text('{"accessToken": "SEGREDO-123", "issuer": 7}', encoding="utf-8")
+    with pytest.raises(CredentialsError) as error:
+        load_credentials(path)
+    assert not isinstance(error.value, CredentialsMissingError)
+    assert "SEGREDO-123" not in str(error.value)
+
+
+def test_file_that_is_not_json_is_invalid(tmp_path: Path) -> None:
+    path = tmp_path / "credentials.json"
+    path.write_text("SEGREDO-123 nao e json", encoding="utf-8")
+    with pytest.raises(CredentialsError) as error:
+        load_credentials(path)
+    assert "SEGREDO-123" not in str(error.value)

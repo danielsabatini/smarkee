@@ -1,10 +1,13 @@
 import stat
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
+from sk.credentials import StoredCredentials, default_credentials_path, save_credentials
 from sk.main import app
+from sk.oidc import OidcError, ProviderMetadata
 
 runner = CliRunner()
 
@@ -127,3 +130,84 @@ def test_init_does_not_overwrite_without_force(tmp_path: Path) -> None:
 def test_auth_without_subcommand_shows_help() -> None:
     result = runner.invoke(app, ["auth"])
     assert "login" in result.output
+
+
+def write_session(expires_at: datetime) -> None:
+    save_credentials(
+        default_credentials_path(),
+        StoredCredentials(
+            issuer="https://issuer.example",
+            client_id="client-1",
+            token_type="Bearer",
+            access_token="TOKEN-SECRETO-1",
+            access_token_expires_at=expires_at,
+            refresh_token=None,
+            id_token=None,
+            scope=None,
+            obtained_at=expires_at - timedelta(hours=1),
+        ),
+    )
+
+
+def provider_metadata() -> ProviderMetadata:
+    return ProviderMetadata(
+        issuer="https://issuer.example",
+        authorization_endpoint="https://issuer.example/authorize",
+        token_endpoint="https://issuer.example/token",
+        userinfo_endpoint="https://issuer.example/userinfo",
+    )
+
+
+def fake_metadata(*_args: object, **_kwargs: object) -> ProviderMetadata:
+    return provider_metadata()
+
+
+def test_whoami_without_session_asks_to_login() -> None:
+    result = runner.invoke(app, ["auth", "whoami"])
+    assert result.exit_code == 1
+    assert "Não autenticado" in result.stderr
+    assert "sk auth login" in result.stderr
+
+
+def test_whoami_with_expired_access_does_not_call_the_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def must_not_be_called(*_args: object) -> None:
+        raise AssertionError("o provedor não deve ser consultado com o acesso vencido")
+
+    monkeypatch.setattr("sk.commands.auth.fetch_userinfo", must_not_be_called)
+    write_session(datetime.now(UTC) - timedelta(minutes=1))
+    result = runner.invoke(app, ["auth", "whoami"])
+    assert result.exit_code == 1
+    assert "Sessão expirada" in result.stderr
+
+
+def test_whoami_shows_the_user_and_hides_the_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_userinfo(*_args: object) -> dict[str, object]:
+        return {"preferred_username": "ana@example.com"}
+
+    monkeypatch.setattr("sk.commands.auth.fetch_provider_metadata", fake_metadata)
+    monkeypatch.setattr("sk.commands.auth.fetch_userinfo", fake_userinfo)
+    write_session(datetime.now(UTC) + timedelta(hours=1))
+    result = runner.invoke(app, ["auth", "whoami"])
+    assert result.exit_code == 0
+    assert "Sessão ativa" in result.stdout
+    assert "ana@example.com" in result.stdout
+    assert "TOKEN-SECRETO-1" not in result.output
+
+
+def test_whoami_reports_when_the_provider_does_not_confirm_the_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sk.commands.auth.fetch_provider_metadata", fake_metadata)
+
+    def rejected(*_args: object) -> None:
+        raise OidcError("consulta do userinfo: o provedor respondeu HTTP 401")
+
+    monkeypatch.setattr("sk.commands.auth.fetch_userinfo", rejected)
+    write_session(datetime.now(UTC) + timedelta(hours=1))
+    result = runner.invoke(app, ["auth", "whoami"])
+    assert result.exit_code == 1
+    assert "Não foi possível confirmar a sessão" in result.stderr
+    assert "HTTP 401" in result.stderr
+    assert "TOKEN-SECRETO-1" not in result.output

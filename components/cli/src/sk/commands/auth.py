@@ -18,8 +18,10 @@ from sk import ui
 from sk.ajuda import ORDEM_SEM_ARQUIVO, comando, opcao
 from sk.credentials import (
     CredentialsError,
+    CredentialsMissingError,
     StoredCredentials,
     default_credentials_path,
+    load_credentials,
     save_credentials,
 )
 from sk.files import write_private_file
@@ -340,3 +342,59 @@ def login(
         include_config_file=True,
     )
     run_login(settings, default_credentials_path())
+
+
+def run_whoami(allow_insecure_http: bool, credentials_path: Path) -> None:
+    """Mostra o usuário da sessão gravada, confirmando com o provedor que ela ainda vale."""
+    try:
+        credentials = load_credentials(credentials_path)
+    except CredentialsMissingError as error:
+        ui.error("Não autenticado", str(error), hint="Rode `sk auth login` para entrar.")
+        raise typer.Exit(EXIT_FAILURE) from error
+    except CredentialsError as error:
+        ui.error("Credenciais inválidas", str(error), hint="Rode `sk auth login` de novo.")
+        raise typer.Exit(EXIT_FAILURE) from error
+
+    # Checagem local primeiro: com o acesso vencido, nem vale consultar o provedor.
+    if credentials.access_token_expires_at <= datetime.now(UTC):
+        ui.error(
+            "Sessão expirada",
+            f"O acesso venceu em {ui.format_expiry(credentials.access_token_expires_at)}.",
+            hint="Rode `sk auth login` para entrar de novo.",
+        )
+        raise typer.Exit(EXIT_FAILURE)
+
+    try:
+        metadata = fetch_provider_metadata(
+            credentials.issuer, allow_insecure_http=allow_insecure_http
+        )
+        userinfo = fetch_userinfo(metadata, credentials.access_token)
+    except OidcError as error:
+        # Pode ser sessão recusada ou falha de rede: a mensagem do erro diz qual.
+        ui.error(
+            "Não foi possível confirmar a sessão",
+            str(error),
+            hint="Se o erro persistir, rode `sk auth login` de novo.",
+        )
+        raise typer.Exit(EXIT_FAILURE) from error
+
+    ui.panel(
+        "Sessão ativa",
+        [
+            ("Usuário", _display_name(userinfo)),
+            ("Provedor", credentials.issuer),
+            ("Válido até", ui.format_expiry(credentials.access_token_expires_at)),
+        ],
+    )
+
+
+@auth_app.command(
+    "whoami",
+    help=comando("Mostra o usuário da sessão atual e confirma que ela ainda vale."),
+)
+def whoami(allow_insecure_http: AllowInsecureHttpOption = False) -> None:
+    settings = _load_or_exit(
+        {"allow_insecure_http": allow_insecure_http},
+        include_config_file=True,
+    )
+    run_whoami(settings.allow_insecure_http, default_credentials_path())

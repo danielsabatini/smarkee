@@ -20,7 +20,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Observabilidade | Parcial: logs estruturados e probes de saúde; sem métricas nem traces |
 | Retenção, quarentena, backup e recuperação | Pendente |
 | Organization (`ipm`) | Parcial: Receiver, Manager e relay no desenho anterior; sem Observer, Reconciler e Executor |
-| CLI | Parcial: `sk auth` e `sk register` implementados e testados; falta `sk auth whoami` (decidido em lugar de `sk user`), e `sk ipm organization` depende da Organization |
+| CLI | Parcial: `sk auth init`, `login`, `whoami` e `sk register` implementados e testados; falta `sk ipm organization`, que depende da Organization |
 
 # 2. `RESOURCE-CONTROL-LOOP.md`: checklist de implementação (seção 55), por papel (`core.user`)
 

@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 from sk.files import write_private_file
 from sk.settings import config_directory
@@ -21,7 +22,11 @@ CREDENTIALS_FILE_NAME = "credentials.json"
 
 
 class CredentialsError(Exception):
-    """Falha ao gravar o arquivo de credenciais. A mensagem não contém tokens."""
+    """Falha ao ler ou gravar o arquivo de credenciais. A mensagem não contém tokens."""
+
+
+class CredentialsMissingError(CredentialsError):
+    """Não há arquivo de credenciais: a pessoa ainda não entrou na plataforma."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +60,54 @@ class StoredCredentials:
 def default_credentials_path(environment: Mapping[str, str] = os.environ) -> Path:
     """Caminho do arquivo de credenciais, no diretório de configuração do sk."""
     return config_directory(environment) / CREDENTIALS_FILE_NAME
+
+
+def _text(data: Mapping[str, object], key: str) -> str:
+    value = data.get(key)
+    if not isinstance(value, str) or not value:
+        raise ValueError(key)
+    return value
+
+
+def _optional_text(data: Mapping[str, object], key: str) -> str | None:
+    value = data.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(key)
+    return value
+
+
+def load_credentials(path: Path) -> StoredCredentials:
+    """Lê as credenciais gravadas por `save_credentials`.
+
+    Sem arquivo, levanta `CredentialsMissingError`. Arquivo ilegível ou fora do formato levanta
+    `CredentialsError` sem o conteúdo, para não expor tokens na mensagem.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError as error:
+        raise CredentialsMissingError(f"não há credenciais em {path}") from error
+    except OSError as error:
+        raise CredentialsError(f"não foi possível ler {path}: {error.strerror}") from error
+    try:
+        payload: object = json.loads(text)
+        if not isinstance(payload, dict):
+            raise ValueError("raiz")
+        data = cast(dict[str, object], payload)
+        return StoredCredentials(
+            issuer=_text(data, "issuer"),
+            client_id=_text(data, "clientId"),
+            token_type=_text(data, "tokenType"),
+            access_token=_text(data, "accessToken"),
+            access_token_expires_at=datetime.fromisoformat(_text(data, "accessTokenExpiresAt")),
+            refresh_token=_optional_text(data, "refreshToken"),
+            id_token=_optional_text(data, "idToken"),
+            scope=_optional_text(data, "scope"),
+            obtained_at=datetime.fromisoformat(_text(data, "obtainedAt")),
+        )
+    except (ValueError, TypeError) as error:
+        raise CredentialsError(f"arquivo de credenciais inválido: {path}") from error
 
 
 def save_credentials(path: Path, credentials: StoredCredentials) -> None:
