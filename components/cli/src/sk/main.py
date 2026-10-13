@@ -3,7 +3,7 @@
 import typer
 
 from sk.commands.auth import auth_app
-from sk.commands.register import register_command
+from sk.commands.register import AJUDA_REGISTRO, register_command
 
 app = typer.Typer(
     name="sk",
@@ -15,7 +15,7 @@ app = typer.Typer(
     pretty_exceptions_show_locals=False,
 )
 app.add_typer(auth_app, name="auth")
-app.command("register")(register_command)
+app.command("register", help=AJUDA_REGISTRO)(register_command)
 
 
 def main() -> None:

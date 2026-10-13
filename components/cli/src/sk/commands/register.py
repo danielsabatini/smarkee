@@ -12,6 +12,7 @@ import typer
 from pydantic import ValidationError
 
 from sk import ui
+from sk.ajuda import comando, opcao
 from sk.api import (
     ApiError,
     ApiRejectedError,
@@ -21,6 +22,11 @@ from sk.api import (
 )
 from sk.oidc import OidcError
 from sk.settings import ConfigurationError, SkSettings
+
+AJUDA_REGISTRO = comando(
+    "Pede o cadastro de um usuário, de forma anônima (sem login e sem token). "
+    "Depois do pedido, a pessoa ativa a conta pelos e-mails do provedor de identidade."
+)
 
 EXIT_FAILURE = 1
 EXIT_USAGE_ERROR = 2
@@ -52,18 +58,59 @@ def _load_core(api_url: str | None, allow_insecure_http: bool) -> tuple[str, boo
 
 
 def register_command(
-    name: Annotated[str, typer.Option("--name", help="Nome próprio da pessoa.")],
-    surname: Annotated[str, typer.Option("--surname", help="Sobrenome da pessoa.")],
+    name: Annotated[
+        str,
+        typer.Option(
+            "--name",
+            help=opcao(
+                "Nome próprio da pessoa (1 a 256 caracteres).",
+                tipo="String",
+                variavel=None,
+                arquivo=None,
+                padrao="nenhum",
+                obrigatorio=True,
+            ),
+        ),
+    ],
+    surname: Annotated[
+        str,
+        typer.Option(
+            "--surname",
+            help=opcao(
+                "Sobrenome da pessoa (1 a 256 caracteres).",
+                tipo="String",
+                variavel=None,
+                arquivo=None,
+                padrao="nenhum",
+                obrigatorio=True,
+            ),
+        ),
+    ],
     email: Annotated[
-        str, typer.Option("--email", help="E-mail da pessoa; é também o nome de login.")
+        str,
+        typer.Option(
+            "--email",
+            help=opcao(
+                "E-mail da pessoa. Também é o nome de login.",
+                tipo="String",
+                variavel=None,
+                arquivo=None,
+                padrao="nenhum",
+                obrigatorio=True,
+            ),
+        ),
     ],
     api_url: Annotated[
         str | None,
         typer.Option(
             "--api-url",
-            help=(
-                "URL base da API do módulo core. Também por SK_CORE_API_URL ou apiUrl na "
-                "tabela \\[core]. Padrão: nenhum."
+            help=opcao(
+                "URL base da API do módulo core, acessada pelo gateway.",
+                tipo="String",
+                variavel="SK_CORE_API_URL",
+                arquivo="[core] apiUrl",
+                padrao="nenhum",
+                obrigatorio=True,
             ),
         ),
     ] = None,
@@ -71,11 +118,16 @@ def register_command(
         bool,
         typer.Option(
             "--allow-insecure-http",
-            help="Aceita a API em HTTP (somente em desenvolvimento). Booleano. Padrão: desativado.",
+            help=opcao(
+                "Aceita a API em HTTP. Somente para desenvolvimento.",
+                tipo="Booleano",
+                variavel="SK_CORE_ALLOW_INSECURE_HTTP=true",
+                arquivo="[core] allowInsecureHttp = true",
+                padrao="desativado",
+            ),
         ),
     ] = False,
 ) -> None:
-    """Pede o cadastro de um usuário. Depois, a pessoa ativa a conta pelo e-mail do provedor."""
     url, insecure = _load_core(api_url, allow_insecure_http)
     try:
         # Validação local antes de qualquer chamada: o comando, e não só o cliente, a garante.

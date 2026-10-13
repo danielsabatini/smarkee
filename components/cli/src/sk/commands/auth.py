@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 from sk import ui
+from sk.ajuda import ORDEM_SEM_ARQUIVO, comando, opcao
 from sk.credentials import (
     CredentialsError,
     StoredCredentials,
@@ -186,54 +187,95 @@ def run_login(settings: AuthSettings, credentials_path: Path) -> None:
         )
 
 
+def _ajuda_issuer(arquivo: str | None) -> str:
+    return opcao(
+        "URL do issuer OIDC, acessado pelo gateway.",
+        tipo="String",
+        variavel="SK_AUTH_ISSUER",
+        arquivo=arquivo,
+        padrao="nenhum",
+        obrigatorio=True,
+    )
+
+
+def _ajuda_client_id(arquivo: str | None) -> str:
+    return opcao(
+        "Client ID da aplicação nativa do sk no provedor (um por ambiente).",
+        tipo="String",
+        variavel="SK_AUTH_CLIENT_ID",
+        arquivo=arquivo,
+        padrao="nenhum",
+        obrigatorio=True,
+    )
+
+
+def _ajuda_allow_insecure_http(arquivo: str | None) -> str:
+    return opcao(
+        "Aceita issuer em HTTP. Somente para desenvolvimento.",
+        tipo="Booleano",
+        variavel="SK_AUTH_ALLOW_INSECURE_HTTP=true",
+        arquivo=arquivo,
+        padrao="desativado",
+    )
+
+
+# O login lê o arquivo de configuração; o init não lê o arquivo que cria, então a ajuda dele
+# não lista a seção [auth] como fonte.
 IssuerOption = Annotated[
     str | None,
-    typer.Option(
-        help=(
-            "URL do issuer OIDC (provedor de identidade, acessado pelo gateway). "
-            "Também por SK_AUTH_ISSUER ou issuer na tabela \\[auth]. Padrão: nenhum."
-        ),
-    ),
+    typer.Option(help=_ajuda_issuer("[auth] issuer")),
 ]
 ClientIdOption = Annotated[
     str | None,
-    typer.Option(
-        help=(
-            "Client ID da aplicação nativa do sk no provedor (um por ambiente). "
-            "Também por SK_AUTH_CLIENT_ID ou clientId na tabela \\[auth]. Padrão: nenhum."
-        ),
-    ),
+    typer.Option(help=_ajuda_client_id("[auth] clientId")),
 ]
 AllowInsecureHttpOption = Annotated[
     bool,
     typer.Option(
         "--allow-insecure-http",
-        help=(
-            "Aceita issuer sem TLS (http). Somente para desenvolvimento. "
-            "Também por SK_AUTH_ALLOW_INSECURE_HTTP=true ou allowInsecureHttp na tabela "
-            "\\[auth]. Booleano. Padrão: desativado."
-        ),
+        help=_ajuda_allow_insecure_http("[auth] allowInsecureHttp = true"),
+    ),
+]
+IssuerOptionInit = Annotated[
+    str | None,
+    typer.Option(help=_ajuda_issuer(None)),
+]
+ClientIdOptionInit = Annotated[
+    str | None,
+    typer.Option(help=_ajuda_client_id(None)),
+]
+AllowInsecureHttpOptionInit = Annotated[
+    bool,
+    typer.Option(
+        "--allow-insecure-http",
+        help=_ajuda_allow_insecure_http(None),
     ),
 ]
 
 
 @auth_app.command(
     "init",
-    help=(
-        "Cria o arquivo de configuração do sk (config.toml) com a tabela \\[auth]. Os valores "
-        "vêm dos parâmetros ou das variáveis SK_AUTH_*; issuer e client ID são obrigatórios. "
-        "Não sobrescreve um arquivo existente sem --force."
+    help=comando(
+        "Cria o arquivo de configuração do sk (config.toml) com a seção [auth]. Issuer e client "
+        "ID são obrigatórios. Não sobrescreve um arquivo existente sem --force.",
+        ordem=ORDEM_SEM_ARQUIVO,
     ),
 )
 def init(
-    issuer: IssuerOption = None,
-    client_id: ClientIdOption = None,
-    allow_insecure_http: AllowInsecureHttpOption = False,
+    issuer: IssuerOptionInit = None,
+    client_id: ClientIdOptionInit = None,
+    allow_insecure_http: AllowInsecureHttpOptionInit = False,
     force: Annotated[
         bool,
         typer.Option(
             "--force",
-            help="Sobrescreve o arquivo de configuração existente. Booleano. Padrão: desativado.",
+            help=opcao(
+                "Sobrescreve o arquivo de configuração existente.",
+                tipo="Booleano",
+                variavel=None,
+                arquivo=None,
+                padrao="desativado",
+            ),
         ),
     ] = False,
 ) -> None:
@@ -284,10 +326,10 @@ def init(
 
 @auth_app.command(
     "login",
-    help=(
-        "Autentica o usuário pelo navegador (OIDC Authorization Code com PKCE e retorno em "
-        "127.0.0.1) e grava os tokens no arquivo de credenciais do sk. Um novo login substitui "
-        "as credenciais anteriores."
+    help=comando(
+        "Autentica o usuário pelo navegador (OIDC Authorization Code com PKCE, retorno em "
+        "127.0.0.1) e grava os tokens em credentials.json. Um novo login substitui as "
+        "credenciais anteriores."
     ),
 )
 def login(
