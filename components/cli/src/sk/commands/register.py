@@ -11,6 +11,7 @@ from typing import Annotated
 import typer
 from pydantic import ValidationError
 
+from sk import ui
 from sk.api import (
     ApiError,
     ApiRejectedError,
@@ -38,13 +39,13 @@ def _load_core(api_url: str | None, allow_insecure_http: bool) -> tuple[str, boo
         # Mesmo mecanismo do `sk auth`: parâmetro → ambiente → arquivo → default.
         core = SkSettings(core=explicit).core  # pyright: ignore[reportArgumentType]
     except (ValidationError, ConfigurationError) as error:
-        typer.echo(f"Erro na configuração: {error}", err=True)
+        ui.error("Configuração inválida", str(error), hint="Corrija o arquivo indicado e repita.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     if not core.api_url:
-        typer.echo(
-            "Erro: informe a API por --api-url, SK_CORE_API_URL ou apiUrl na tabela [core] "
-            "do arquivo de configuração.",
-            err=True,
+        ui.error(
+            "API não informada",
+            "Informe-a por --api-url, SK_CORE_API_URL ou apiUrl na tabela [core].",
+            hint="Adicione [core] com apiUrl ao arquivo de configuração do sk.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return core.api_url, core.allow_insecure_http
@@ -84,31 +85,54 @@ def register_command(
             allow_insecure_http=insecure,
         )
     except ValueError as error:
-        typer.echo(f"Erro: {error}", err=True)
+        ui.error("Dados não aceitos", str(error), hint="Corrija o valor informado e repita.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     except OidcError as error:
-        typer.echo(f"Erro: {error}", err=True)
+        ui.error(
+            "Endereço da API recusado",
+            str(error),
+            hint="Use HTTPS ou --allow-insecure-http em desenvolvimento.",
+        )
         raise typer.Exit(EXIT_FAILURE) from error
     except ApiRejectedError as error:
         if error.status == 429:
             wait = error.retry_after_seconds
-            hint = f" Aguarde {wait} segundos e repita." if wait else " Tente novamente depois."
-            typer.echo(f"Muitas tentativas.{hint}", err=True)
-        elif error.field:
-            typer.echo(f"Erro: campo inválido: {error.field}. {error}", err=True)
-        else:
-            typer.echo(f"Erro: {error}", err=True)
+            ui.error(
+                "Muitas tentativas",
+                "O cadastro tem limite de pedidos por origem.",
+                hint=f"Aguarde {wait} segundos e repita." if wait else "Tente novamente depois.",
+            )
+            raise typer.Exit(EXIT_FAILURE) from error
+        if error.field:
+            ui.error(
+                "Campo recusado pela API",
+                f"{error.field}: {error}",
+                hint="Corrija o campo e repita.",
+            )
+            raise typer.Exit(EXIT_USAGE_ERROR if error.status == 400 else EXIT_FAILURE) from error
+        ui.error(
+            "Pedido recusado pela API",
+            str(error),
+            hint=f"HTTP {error.status} ({error.error_code}).",
+        )
         raise typer.Exit(EXIT_USAGE_ERROR if error.status == 400 else EXIT_FAILURE) from error
     except ApiUnavailableError as error:
-        typer.echo(f"Serviço indisponível: {error}. Repita em alguns minutos.", err=True)
+        ui.error("Serviço indisponível", str(error), hint="Repita em alguns minutos.")
         raise typer.Exit(EXIT_FAILURE) from error
-    except ApiError as error:  # pragma: no cover (cobertura de segurança: nova subclasse)
-        typer.echo(f"Erro: {error}", err=True)
+    except ApiError as error:  # pragma: no cover (nova subclasse sem tratamento explícito)
+        ui.error("Falha no cadastro", str(error))
         raise typer.Exit(EXIT_FAILURE) from error
 
-    typer.echo("Cadastro solicitado.")
-    typer.echo(f"resourceId: {accepted.resource_id}")
-    typer.echo(f"operationId: {accepted.operation_id}")
-    typer.echo(
-        "Verifique o seu e-mail: o provedor envia a confirmação e o link para definir a senha."
+    ui.panel(
+        "Cadastro solicitado",
+        [
+            ("Nome", f"{name.strip()} {surname.strip()}"),
+            ("E-mail", email.strip()),
+            ("resourceId", accepted.resource_id),
+            ("operationId", accepted.operation_id),
+        ],
+    )
+    ui.note(
+        "Próximos passos: confirme o e-mail e defina a senha pelos links que o provedor enviou. "
+        "Depois, rode `sk auth login`."
     )

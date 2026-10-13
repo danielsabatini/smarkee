@@ -42,7 +42,7 @@ def test_invalid_config_file_is_a_usage_error(tmp_path: Path) -> None:
     (tmp_path / "sk" / "config.toml").write_text("[auth]\nunknown = 1\n", encoding="utf-8")
     result = runner.invoke(app, ["auth", "login"])
     assert result.exit_code == 2
-    assert "Erro na configuração" in result.stderr
+    assert "Configuração inválida" in result.stderr
 
 
 def test_snake_case_key_in_config_file_is_a_usage_error(tmp_path: Path) -> None:

@@ -86,7 +86,8 @@ def test_the_request_reaches_the_api_without_any_token(api_server: str, tmp_path
     )
 
     assert result.exit_code == 0, result.stderr
-    assert "operationId: op-1" in result.stdout
+    assert "op-1" in result.stdout
+    assert "Cadastro solicitado" in result.stdout
     request = Recording.received[0]
     assert request["path"] == "/v1/users"
     assert request["authorization"] is None

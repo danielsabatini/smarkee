@@ -98,3 +98,7 @@ allowInsecureHttp = true  # somente em desenvolvimento
 Os dados são validados antes do envio, com os mesmos limites do contrato. Um e-mail mal formado não gera nenhuma chamada à API. Códigos de saída: `0` pedido aceito; `1` serviço indisponível, limite de taxa ou falha de conexão; `2` uso incorreto ou dado recusado pela API.
 
 Depois do cadastro, a pessoa recebe dois e-mails do provedor (verificação de e-mail e definição de senha). Enquanto a conta não é ativada, `sk auth login` não consegue autenticar. O passo a passo para ativar a conta, e para pedir outro link ou código quando o anterior expirou, está em `features/core/user/README.md`, seção 4.7.
+
+## Saída no terminal
+
+Os comandos mostram sucesso em painel e erro com causa e dica de correção. Cores aparecem só em terminal interativo, e `NO_COLOR` é respeitado. A apresentação está em `src/sk/ui.py` (`.decisions/0021-apresentacao-da-cli-com-rich.md`). A saída de sucesso vai para a saída padrão, e a de erro para a saída de erro.

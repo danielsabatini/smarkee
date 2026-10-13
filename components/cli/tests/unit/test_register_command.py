@@ -112,9 +112,10 @@ def test_success_prints_the_identities_and_the_next_step(monkeypatch: pytest.Mon
     )
     result = runner.invoke(app, [*REGISTER, "--api-url", "https://api.example"])
     assert result.exit_code == 0
-    assert "resourceId: 0199-res" in result.stdout
-    assert "operationId: 0199-op" in result.stdout
-    assert "Verifique o seu e-mail" in result.stdout
+    assert "0199-res" in result.stdout
+    assert "0199-op" in result.stdout
+    assert "Cadastro solicitado" in result.stdout
+    assert "confirme o e-mail" in result.stdout
     assert calls[0]["given_name"] == "Ana"
     assert calls[0]["family_name"] == "Souza"
 
@@ -141,7 +142,8 @@ def test_a_rejected_field_is_a_usage_error(monkeypatch: pytest.MonkeyPatch) -> N
     )
     result = runner.invoke(app, [*REGISTER, "--api-url", "https://api.example"])
     assert result.exit_code == 2
-    assert "campo inválido: email" in result.stderr
+    assert "Campo recusado pela API" in result.stderr
+    assert "email" in result.stderr
 
 
 def test_an_unavailable_service_asks_to_retry(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -14,6 +14,7 @@ import typer
 from pydantic import ValidationError
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
+from sk import ui
 from sk.credentials import (
     CredentialsError,
     StoredCredentials,
@@ -93,31 +94,33 @@ def _load_or_exit(
     try:
         return load_auth_settings(command_line_values, include_config_file=include_config_file)
     except (ValidationError, ConfigurationError) as error:
-        typer.echo(f"Erro na configuração: {error}", err=True)
+        ui.error(
+            "Configuração inválida", str(error), hint=f"Corrija o arquivo {config_file_path()}."
+        )
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 
 
 def _require_issuer_and_client_id(settings: AuthSettings) -> tuple[str, str]:
     if not settings.issuer:
-        typer.echo(
-            "Erro: informe o issuer por --issuer, SK_AUTH_ISSUER ou issuer na tabela [auth] "
-            "do arquivo de configuração.",
-            err=True,
+        ui.error(
+            "Issuer não informado",
+            "Informe-o por --issuer, SK_AUTH_ISSUER ou issuer na tabela [auth].",
+            hint="Rode `sk auth init --issuer <URL>` para criar a configuração.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     if not settings.client_id:
-        typer.echo(
-            "Erro: informe o client ID por --client-id, SK_AUTH_CLIENT_ID ou clientId na "
-            "tabela [auth] do arquivo de configuração.",
-            err=True,
+        ui.error(
+            "Client ID não informado",
+            "Informe-o por --client-id, SK_AUTH_CLIENT_ID ou clientId na tabela [auth].",
+            hint="Rode `sk auth init --client-id <ID>` para criar a configuração.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return settings.issuer, settings.client_id
 
 
 def _present_authorization_url(authorization_url: str) -> None:
-    typer.echo("Abrindo o navegador para o login. Se ele não abrir, acesse:", err=True)
-    typer.echo(authorization_url, err=True)
+    ui.url_panel("Entre no navegador para continuar (expira em 5 minutos)", authorization_url)
+    ui.note("O navegador deve abrir sozinho. Se não abrir, copie o endereço acima.")
     webbrowser.open(authorization_url)
 
 
@@ -160,17 +163,27 @@ def run_login(settings: AuthSettings, credentials_path: Path) -> None:
             ),
         )
     except (OidcError, CredentialsError) as error:
-        typer.echo(f"Erro no login: {error}", err=True)
+        ui.error("Login não concluído", str(error), hint="Rode `sk auth login` de novo.")
         raise typer.Exit(EXIT_FAILURE) from error
 
-    typer.echo(f"Autenticado como {_display_name(userinfo)} em {metadata.issuer}.")
+    ui.panel(
+        "Login realizado",
+        [
+            ("Usuário", _display_name(userinfo)),
+            ("Provedor", metadata.issuer),
+            (
+                "Válido até",
+                ui.format_expiry(
+                    obtained_at + timedelta(seconds=token_response.expires_in_seconds)
+                ),
+            ),
+            ("Credenciais", str(credentials_path)),
+        ],
+    )
     if token_response.refresh_token is None:
-        typer.echo(
-            "Aviso: o provedor não emitiu refresh token; "
-            "habilite o grant Refresh Token na aplicação.",
-            err=True,
+        ui.warning(
+            "O provedor não emitiu refresh token: habilite o grant Refresh Token na aplicação."
         )
-    typer.echo(f"Credenciais gravadas em {credentials_path}.")
 
 
 IssuerOption = Annotated[
@@ -225,9 +238,10 @@ def init(
 ) -> None:
     path = config_file_path()
     if path.exists() and not force:
-        typer.echo(
-            f"Erro: o arquivo de configuração já existe: {path}. Use --force para sobrescrevê-lo.",
-            err=True,
+        ui.error(
+            "Configuração já existe",
+            f"O arquivo {path} não foi alterado.",
+            hint="Use --force para sobrescrevê-lo.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
 
@@ -244,15 +258,27 @@ def init(
     try:
         ensure_secure_url(configured_issuer, allow_insecure_http=settings.allow_insecure_http)
     except OidcError as error:
-        typer.echo(f"Erro: {error}", err=True)
+        ui.error(
+            "Endereço do provedor recusado",
+            str(error),
+            hint="Use HTTPS ou --allow-insecure-http em desenvolvimento.",
+        )
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 
     try:
         write_private_file(path, render_section("auth", settings))
     except OSError as error:
-        typer.echo(f"Erro: não foi possível gravar {path}: {error.strerror}", err=True)
+        ui.error("Não foi possível gravar a configuração", f"{path}: {error.strerror}")
         raise typer.Exit(EXIT_FAILURE) from error
-    typer.echo(f"Configuração gravada em {path}.")
+    ui.panel(
+        "Configuração gravada",
+        [
+            ("Arquivo", str(path)),
+            ("Issuer", configured_issuer),
+            ("Client ID", settings.client_id or ""),
+        ],
+    )
+    ui.note("Próximo passo: `sk auth login`.")
 
 
 @auth_app.command(
