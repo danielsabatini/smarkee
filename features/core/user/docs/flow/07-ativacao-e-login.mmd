@@ -11,7 +11,7 @@ sequenceDiagram
     Note over U,Receiver: A ativação e o login são feitos no Zitadel. A senha NUNCA passa por CLI, Receiver, SSOT nem NATS.
 
     rect rgb(232,245,233)
-    Note over U,ZIT: 1. Ativação (caminho perfeito) (fluxo do Zitadel ainda não exercitado de ponta a ponta)
+    Note over U,ZIT: 1. Ativação (caminho perfeito) (ativação verificada em dev em 2026-10-12, e o sk auth login com o usuário novo ainda não foi exercitado)
     U->>MAIL: abre "Redefinir senha" (e "Verificar e-mail")
     U->>GW: clica no link (/ui/login, caminho público do Zitadel)
     GW->>ZIT: repassa (Host preservado)

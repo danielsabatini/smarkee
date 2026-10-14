@@ -29,7 +29,8 @@ Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
 | `identity/.env` | `ZITADEL_MASTERKEY` | Exatamente 32 caracteres: `openssl rand -hex 16`. Não altere depois da primeira subida |
 | `identity/.env` | `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD` | Senha inicial do administrador do Zitadel, com maiúscula, minúscula, número e símbolo |
 | `identity/.env` | `ZITADEL_SESSION_COOKIE_SECRET` | `openssl rand -hex 32` |
-| `features/core/user/.env` e `features/ipm/organization/.env` | `CORE_USER_<PAPEL>_NATS_PASSWORD`, `IPM_ORGANIZATION_<PAPEL>_NATS_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`, `RECONCILER`, `OBSERVER`, `EXECUTOR`) | A mesma `NATS_PASSWORD` de `broker/.env` |
+| `features/core/user/.env` | `CORE_USER_<PAPEL>_NATS_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`, `RECONCILER`, `OBSERVER`, `EXECUTOR`) | A mesma `NATS_PASSWORD` de `broker/.env` |
+| `features/ipm/organization/.env` | `IPM_ORGANIZATION_<PAPEL>_NATS_PASSWORD` (`RECEIVER`, `MANAGER`, `RELAY`) | A mesma `NATS_PASSWORD` de `broker/.env` |
 | `features/core/user/.env` e `features/ipm/organization/.env` | `CORE_USER_RECEIVER_AUTH_AUDIENCE`, `IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE` | ID do projeto `smarkee` no Zitadel (organização `core`) |
 
 Os componentes das features (User e Organization) **não são subidos por este diretório**: cada feature tem o seu `compose.yaml` e o seu `.env` (`cp .env.example .env` em `features/core/user` e `features/ipm/organization`), e eles esperam a plataforma abaixo no ar. Suba a plataforma primeiro e depois cada feature (`docker compose up -d --build` na pasta dela). Se recriar o Receiver de uma feature, reinicie o `gateway`, que guarda em cache o endereço do contêiner.

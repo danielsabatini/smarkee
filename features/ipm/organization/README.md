@@ -12,6 +12,8 @@ A **Organization** é a unidade de isolamento da plataforma (`.decisions/0006-or
 | Reconciler, Observer, Executor | — | **Não implementados** | Dependem do modelo do User |
 | Testes e2e | `conformance/` | Implementados (4 testes sem token; 2 exigem `CONFORMANCE_ACCESS_TOKEN`) | A mover para `tests/e2e` |
 
+O documento de fluxo de dados (`docs/IPM-ORGANIZATION-DATA-FLOW.md`, decisão 0024) **ainda não existe**: nasce quando a Organization for refeita a partir do User.
+
 Contratos em `schemas/ipm/organization/` (índice em `schemas/ipm.organization.index.json`). Papéis de banco: `ipm_organization_manager`, `ipm_organization_receiver` e `ipm_organization_relay` (a renomear para `..._publisher`), em `infrastructure/dev/database/bootstrap/ipm.sql`.
 
 ```bash

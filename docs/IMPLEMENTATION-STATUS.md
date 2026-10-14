@@ -171,7 +171,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Tema | Situação | Referência |
 |---|---|---|
 | Organization (`features/ipm/organization`) | Receiver, Manager e relay no desenho anterior (`relay/` e `conformance/` separados, `/healthz`); será refeita a partir do User | `features/ipm/organization/README.md` |
-| CLI | Só `sk auth` e `sk register`; `components/cli/src/sk/commands/ipm.py` é esqueleto vazio | `ROADMAP.md` |
+| CLI | `sk init`, `sk config`, `sk auth` e `sk register`; faltam `sk user get\|delete` e `sk ipm organization`; `components/cli/src/sk/commands/ipm.py` é esqueleto vazio e não está registrado | `ROADMAP.md` |
 | `pinned_client` no Executor | Alvo antes de stg e prd | `NATS.md` §7.5 |
 | Partição do Observer | Na aplicação (`hash(resourceId) mod count`); o `DESIRED` não é particionado | decisão 0018 |
 | Quarentena, `ObservationStale`, limite de remoções, retenção, métricas e traces | Pendentes | seções 2 a 6 |

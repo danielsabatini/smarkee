@@ -165,6 +165,8 @@ main.py
 
 Cada componente do control loop (Receiver, Manager, Observer, Reconciler e Executor de um tipo de recurso) é um projeto Python autocontido, com o seu `main.py`, o seu `pyproject.toml` e o seu lockfile. O layout (`features/<módulo>/<tipo>/<papel>/`), o pacote plano (`<módulo>_<tipo>_<papel>`) e a proibição de código de runtime compartilhado entre componentes estão em `.decisions/0015-componentes-por-papel-autocontidos.md`; não os repita aqui.
 
+Toda feature tem o seu documento de fluxo de dados (`features/<módulo>/<tipo>/docs/<MÓDULO>-<TIPO>-DATA-FLOW.md`); nome, estrutura e manutenção estão em `.decisions/0024-data-flow-por-feature.md`: atualize-o ao mudar mensagem, rota, schema, migração ou privilégio, e não repita a estrutura aqui.
+
 Evite nomes redundantes como:
 
 ```text
