@@ -63,7 +63,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Privilégios mínimos | Atende | `ORG_USER_MANAGER`, só a organização `core`; monta só a própria chave |
+| Privilégios mínimos | Atende | `ORG_USER_MANAGER` só na organização `register`; as roles saem do Project Grant (sem as roles `*.admin`); monta só a própria chave |
 | Revalida a `action` e consulta o desfecho do `actionId` | Atende | `domain/revalidation.py`, `engine/executor.py` (Direct Get) |
 | Chave de correlação com o recurso externo | Atende | `userId = resourceId` |
 | *Single-flight* por recurso | Atende | uma partição por `resourceId`, `max_ack_pending=1` (decisão 0018) |

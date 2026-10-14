@@ -34,8 +34,8 @@ class ZitadelSettings(_Section):
     key_file: str = "/run/secrets/zitadel-key.json"
     """Chave JSON da conta de serviço `core-user-observer` (somente leitura)."""
 
-    organization_id: str | None = None
-    """ID da organização `core`, onde vivem os usuários. Sem default."""
+    register_organization_id: str | None = None
+    """ID da organização `register`: contexto da leitura das autorizações. Sem default."""
 
     project_id: str | None = None
     """ID do projeto `roles`, onde o usuário recebe as roles. Sem default."""
@@ -81,7 +81,7 @@ class UserObserverSettings(BaseSettings):
 
 REQUIRED_SECRETS = (
     "CORE_USER_OBSERVER_NATS_PASSWORD",
-    "CORE_USER_OBSERVER_ZITADEL_ORGANIZATION_ID",
+    "CORE_USER_OBSERVER_ZITADEL_REGISTER_ORGANIZATION_ID",
     "CORE_USER_OBSERVER_ZITADEL_PROJECT_ID",
 )
 
@@ -90,7 +90,9 @@ def missing_required(settings: UserObserverSettings) -> list[str]:
     """Nomes das variáveis obrigatórias (sem default) que não foram informadas."""
     present = {
         "CORE_USER_OBSERVER_NATS_PASSWORD": settings.nats.password is not None,
-        "CORE_USER_OBSERVER_ZITADEL_ORGANIZATION_ID": bool(settings.zitadel.organization_id),
+        "CORE_USER_OBSERVER_ZITADEL_REGISTER_ORGANIZATION_ID": bool(
+            settings.zitadel.register_organization_id
+        ),
         "CORE_USER_OBSERVER_ZITADEL_PROJECT_ID": bool(settings.zitadel.project_id),
     }
     return [name for name in REQUIRED_SECRETS if not present[name]]

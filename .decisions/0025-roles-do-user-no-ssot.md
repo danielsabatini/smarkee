@@ -2,6 +2,7 @@
 
 - **Data:** 2026-10-14
 - **Status:** Aceita
+- **Nomes das roles:** os nomes citados aqui (`organization.*`, `user.*`, `platform.admin`) foram substituídos pelo padrão da decisão 0028 (`ipm.organization.*`, `core.user.*`, `*.admin`).
 
 ## Contexto
 

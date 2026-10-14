@@ -36,7 +36,10 @@ def key_file(tmp_path: Path) -> Path:
 
 def settings(key_file: Path) -> ZitadelSettings:
     return ZitadelSettings(
-        key_file=str(key_file), organization_id="org-1", project_id="proj-1", base_url="http://z"
+        key_file=str(key_file),
+        register_organization_id="org-1",
+        project_id="proj-1",
+        base_url="http://z",
     )
 
 
@@ -141,10 +144,15 @@ async def test_missing_key_file_or_token_failure_is_a_provider_error(tmp_path: P
 
 async def test_granted_roles_are_the_union_in_the_project(key_file: Path) -> None:
     calls: list[httpx.Request] = []
-    body = {"result": [{"roleKeys": ["user.get", "user.delete"]}, {"roleKeys": ["user.get"]}]}
+    body = {
+        "result": [
+            {"roleKeys": ["core.user.get", "core.user.delete"]},
+            {"roleKeys": ["core.user.get"]},
+        ]
+    }
     zitadel = reader(key_file, lambda r: httpx.Response(200, json=body), calls=calls)
 
-    assert await zitadel.granted_roles("u-1") == {"user.get", "user.delete"}
+    assert await zitadel.granted_roles("u-1") == {"core.user.get", "core.user.delete"}
     request = next(c for c in calls if "grants" in c.url.path)
     assert request.headers["x-zitadel-orgid"] == "org-1"
     queries = json.loads(request.content)["queries"]

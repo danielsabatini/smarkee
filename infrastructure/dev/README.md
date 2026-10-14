@@ -160,20 +160,23 @@ O `sk` autentica direto no Zitadel, pelo gateway, sem API própria de autentica�
 | Organização | Papel |
 |---|---|
 | `smarkee` | Só operadores e contas administrativas da instância (`admin`, `platform-bootstrap`, `login-client`). Não tem recursos da plataforma |
-| `core` | Organização de sistema da plataforma: dona do projeto `roles`, dos usuários cadastrados e das service accounts dos Executors |
-| `register` | Reservada para os usuários cadastrados (decisão 0026). Tem o projeto `users`, vazio por ora. Os usuários e o Executor continuam na `core` até a fase de separação |
+| `core` | Organização de sistema da plataforma: dona do projeto `roles`. Sem usuários cadastrados e sem papéis das contas de serviço |
+| `register` | Usuários cadastrados (decisões 0026 e 0027). Recebe o projeto `roles` por Project Grant (só as roles de ação, sem as `*.admin`) |
 
 Estado aplicado no dev em 2026-10-10 (pela API do Zitadel, com a conta de bootstrap; o script usado é temporário e não versionado):
 
 - **Projeto `roles`, na organização `core`:** roles no token e **verificação de role na autenticação** ligadas.
-- **Roles por ação:** `organization.create`, `organization.get`, `organization.list`, `organization.update`, `organization.delete`, `user.get`, `user.delete`, e `platform.admin` (operadores).
+- **Roles por ação:** `ipm.organization.create`, `ipm.organization.get`, `ipm.organization.list`, `ipm.organization.update`, `ipm.organization.delete`, `core.user.get`, `core.user.delete`, e, para operadores, `core.user.admin` e `ipm.organization.admin`. Padrão `<módulo>.<tipo>.<ação>` (decisão 0028); no Zitadel cada role tem o módulo como `group`.
 - **Aplicação `cli`:** nativa, PKCE, redirect `http://127.0.0.1/callback`, Authorization Code e Refresh Token, **access token JWT**, roles no token. Não há client secret: o `sk` é um cliente público. O client ID é um por ambiente.
 - **Cadastro público desligado** na política de login da instância (`allowRegister = false`), que as organizações herdam.
-- **Service accounts na organização `core`** (verificadas no Zitadel de dev em 2026-10-11): `core-user-executor` (papel de organização `ORG_USER_MANAGER`, escrita), `core-user-observer` (papel de organização `ORG_OWNER_VIEWER`, só leitura) e `core-organization-executor` (papel de instância `IAM_ORG_MANAGER`; será renomeada para `ipm-organization-executor` quando o Executor da Organization for implementado), com as chaves no volume `identity-bootstrap`; cada componente monta só a própria.
-- **Nomes (2026-10-14, decisão 0026):** o projeto da organização `core` passou de `smarkee` para `roles` (o ID não muda, então audience, claims e configuração dos componentes seguem valendo). Foram criadas a organização `register` e, nela, o projeto `users` (sem roles nem aplicações).
-- **`platform.admin` para operadores:** autorização externa, criada na organização `core` para o usuário da organização `smarkee`.
+- **Service accounts na organização `core`** (verificadas no Zitadel de dev em 2026-10-11): `core-user-executor` (`ORG_USER_MANAGER` só na organização `register`: cria e remove usuários e concede as roles pelo Project Grant) e `core-user-observer` (`ORG_OWNER_VIEWER` só na `register`, somente leitura); ambos sem papel na `core` (verificado em 2026-10-14) e `core-organization-executor` (papel de instância `IAM_ORG_MANAGER`; será renomeada para `ipm-organization-executor` quando o Executor da Organization for implementado), com as chaves no volume `identity-bootstrap`; cada componente monta só a própria.
+- **Nomes (2026-10-14, decisão 0026):** o projeto da organização `core` passou de `smarkee` para `roles` (o ID não muda, então audience, claims e configuração dos componentes seguem valendo). Foi criada a organização `register` (um projeto `users` chegou a ser criado e foi removido na decisão 0027).
+- **Autorizações do projeto `roles` na `core`:** só as roles `*.admin`, dos operadores. Usuários cadastrados são autorizados no contexto da `register`.
+- **Project Grant `roles` → `register`** (2026-10-14, decisão 0027): delega só as 7 roles de ação do usuário cadastrado; o ID vai em `CORE_ZITADEL_PROJECT_GRANT_ID`.
+- **Variáveis da feature User:** `CORE_ZITADEL_REGISTER_ORGANIZATION_ID` (organização `register`), `CORE_ZITADEL_PROJECT_GRANT_ID` e `CORE_ZITADEL_PROJECT_ID`.
+- **Roles `*.admin` para operadores:** autorização externa, criada na organização `core` para o usuário da organização `smarkee`.
 
-Para reproduzir pelo console (**Projetos**, **Autorizações**, **Configurações → Login**; os nomes das opções podem diferir um pouco na versão em uso): crie a organização `core`; nela, o projeto `roles` (*Afirmar roles na autenticação* e *Verificar roles na autenticação* ligados) com as roles acima e a aplicação `cli` (nativa, PKCE, tipo de token JWT, redirect e concessões acima); desligue o registro na política de login; e conceda `platform.admin` aos operadores.
+Para reproduzir pelo console (**Projetos**, **Autorizações**, **Configurações → Login**; os nomes das opções podem diferir um pouco na versão em uso): crie a organização `core`; nela, o projeto `roles` (*Afirmar roles na autenticação* e *Verificar roles na autenticação* ligados) com as roles acima e a aplicação `cli` (nativa, PKCE, tipo de token JWT, redirect e concessões acima); desligue o registro na política de login; e conceda `core.user.admin` e `ipm.organization.admin` aos operadores.
 
 Depois, no host, grave a configuração uma vez (`~/.config/sk/config.toml`) e faça o login:
 
@@ -185,7 +188,7 @@ uv run sk init --force --issuer http://ipm-dev.smarkee.com.br:8080 \
 uv run sk auth login
 ```
 
-- Só entra na aplicação quem tem ao menos uma role no projeto (verificação de role). Um operador sem `platform.admin` é recusado no login.
+- Só entra na aplicação quem tem ao menos uma role no projeto (verificação de role). Um operador sem nenhuma role do projeto é recusado no login.
 - Use o issuer pelo gateway (`http://ipm-dev.smarkee.com.br:8080`), e não o endereço direto do `identity`: o `iss` dos tokens precisa ser esse endereço.
 - O projeto, a aplicação e o client ID ficam gravados no banco do Zitadel. `docker compose down -v` os apaga, e o client ID muda ao recriá-los.
 - Resta um projeto `smarkee` antigo na organização `smarkee` (5 roles, aplicação `cli` sem JWT; verificado em 2026-10-11). Ele sai depois de o login pelo projeto novo ser validado.

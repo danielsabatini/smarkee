@@ -381,10 +381,15 @@ class UserState(StrEnum):
 
 class PlatformRole(RootModel[str]):
     root: Annotated[
-        str, Field(max_length=128, min_length=3, pattern="^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+$")
+        str,
+        Field(
+            max_length=128,
+            min_length=5,
+            pattern="^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$",
+        ),
     ]
     """
-    Role de ação do projeto da plataforma (decisão 0025), por exemplo organization.create.
+    Role de ação do projeto da plataforma, no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.organization.create.
     """
 
 

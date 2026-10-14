@@ -87,7 +87,7 @@ class ZitadelReader:
             "Authorization": f"Bearer {await self._access_token()}",
         }
         if organization:
-            headers["x-zitadel-orgid"] = self._settings.organization_id or ""
+            headers["x-zitadel-orgid"] = self._settings.register_organization_id or ""
         try:
             response = await self._client.request(
                 method, self._settings.base_url + path, headers=headers, json=body

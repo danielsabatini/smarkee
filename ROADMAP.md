@@ -32,7 +32,7 @@ O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.
 O que está no radar para o futuro, mas ainda carece de design, arquitetura ou Discovery.
 - [ ] **`[Exploratory]` Clusterização Avançada NATS:** Topologia de Hub-Spoke com Leaf Nodes.
 - [ ] **`[Exploratory]` Plataforma de UI:** Dashboard de gestão do estado (`desired` / `observed`).
-- [ ] **`[Exploratory]` Administração da plataforma:** ferramentas de operador (`platform.admin`) para conceder e revogar o acesso de um usuário existente (`platformAccess` e `platformRoles`); o usuário final não altera o próprio acesso.
+- [ ] **`[Exploratory]` Administração da plataforma:** ferramentas de operador (roles `*.admin`) para conceder e revogar o acesso de um usuário existente (`platformAccess` e `platformRoles`); o usuário final não altera o próprio acesso.
 
 ## 🏷️ Fases de Lançamento (Status)
 

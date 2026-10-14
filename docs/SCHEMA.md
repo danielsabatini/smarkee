@@ -307,7 +307,7 @@ Regras:
 
 **Dono.** Toda Organization tem um dono: `ownerUserId`, o `resourceId` do User autenticado que a criou. É atribuído pelo Receiver a partir do `sub` do token (`writer = server`) e é imutável. A Organization não carrega dados pessoais do dono.
 
-**User.** O `resourceId` do User é o ID do usuário no Zitadel, informado na criação, pela mesma regra da Organization. O User vive na organização `core` do Zitadel (decisão 0014).
+**User.** O `resourceId` do User é o ID do usuário no Zitadel, informado na criação, pela mesma regra da Organization. O User vive na organização `register` do Zitadel (decisões 0014 e 0027).
 
 **Nada nasce fora do loop.** O auto-cadastro de organization e o cadastro público de usuário do Zitadel são desligados (decisão 0013). Uma organização criada diretamente no Zitadel, fora do loop, não é reconhecida pela plataforma.
 

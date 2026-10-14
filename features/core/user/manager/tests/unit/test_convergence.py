@@ -7,7 +7,7 @@ from core_user_manager.domain.convergence import decide_observed, decide_result
 from core_user_manager.domain.kind import USER
 
 NOW = datetime(2026, 10, 11, 12, 0, tzinfo=UTC)
-ROLES = ["organization.get", "user.get"]
+ROLES = ["ipm.organization.get", "core.user.get"]
 DESIRED_PRESENT = {"lifecycle": "present", "platformAccess": "granted", "platformRoles": ROLES}
 
 
@@ -18,7 +18,7 @@ def observe(presence: str, *, desired: dict[str, Any], lifecycle: str, phase: st
         lifecycle=lifecycle,
         generation=1,
         presence=presence,
-        observed={"platformAccess": "granted", "platformRoles": [*ROLES, "platform.admin"]},
+        observed={"platformAccess": "granted", "platformRoles": [*ROLES, "core.user.admin"]},
         previous_phase=phase,
         previous_conditions=[],
         now=NOW,
@@ -100,6 +100,6 @@ def test_already_suspended_does_not_suspend_again() -> None:
 
 
 def test_missing_a_desired_role_keeps_reconciling() -> None:
-    desired = {**DESIRED_PRESENT, "platformRoles": [*ROLES, "organization.create"]}
+    desired = {**DESIRED_PRESENT, "platformRoles": [*ROLES, "ipm.organization.create"]}
     decision = observe("present", desired=desired, lifecycle="present")
     assert not decision.converged and decision.phase == "Reconciling"

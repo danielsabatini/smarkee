@@ -284,7 +284,7 @@ def test_user_platform_roles_are_a_set_of_action_roles() -> None:
     present = json.loads(_example_for(desired_path).read_text(encoding="utf-8"))
     assert not _is_valid(desired_path, {k: v for k, v in present.items() if k != "platformRoles"})
     assert _is_valid(desired_path, {**present, "platformAccess": "revoked", "platformRoles": []})
-    assert not _is_valid(desired_path, {**present, "platformRoles": ["user.get", "user.get"]})
+    assert not _is_valid(desired_path, {**present, "platformRoles": ["core.user.get", "core.user.get"]})
     assert not _is_valid(desired_path, {**present, "platformRoles": ["User Get"]})
 
 

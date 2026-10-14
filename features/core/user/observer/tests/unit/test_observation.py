@@ -3,7 +3,7 @@
 from core_user_observer.domain.identity import ProviderError, ZitadelUser
 from core_user_observer.domain.observation import observe, user_state
 
-ROLES = {"organization.create", "organization.get", "user.get"}
+ROLES = {"ipm.organization.create", "ipm.organization.get", "core.user.get"}
 
 
 class FakeReader:
@@ -44,7 +44,7 @@ async def test_present_reports_the_roles_the_user_has_sorted() -> None:
         "emailVerified": True,
         "userState": "active",
         "platformAccess": "granted",
-        "platformRoles": ["organization.create", "organization.get", "user.get"],
+        "platformRoles": ["core.user.get", "ipm.organization.create", "ipm.organization.get"],
     }
 
 
@@ -55,8 +55,8 @@ async def test_a_user_without_roles_is_revoked_with_an_empty_list() -> None:
 
 
 async def test_extra_roles_are_reported_as_they_are() -> None:
-    result = await observe(FakeReader(active(), ROLES | {"platform.admin"}), "u-1")
-    assert "platform.admin" in result.data["platformRoles"]
+    result = await observe(FakeReader(active(), ROLES | {"core.user.admin"}), "u-1")
+    assert "core.user.admin" in result.data["platformRoles"]
 
 
 async def test_unactivated_user_is_initial() -> None:

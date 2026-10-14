@@ -72,7 +72,7 @@ class ZitadelWriter:
         """Cria o usuário **sem senha**, com o `resourceId` como ID. `False` se já existe."""
         body = {
             "userId": user_id,
-            "organization": {"orgId": self._settings.organization_id},
+            "organization": {"orgId": self._settings.register_organization_id},
             "username": email,
             "profile": {"givenName": given_name, "familyName": family_name},
             "email": {"email": email},
@@ -120,7 +120,11 @@ class ZitadelWriter:
         await self._call(
             "POST",
             f"/management/v1/users/{user_id}/grants",
-            {"projectId": self._settings.project_id, "roleKeys": roles},
+            {
+                "projectId": self._settings.project_id,
+                "projectGrantId": self._settings.project_grant_id,
+                "roleKeys": roles,
+            },
             organization=True,
         )
 
@@ -156,7 +160,7 @@ class ZitadelWriter:
             "Authorization": f"Bearer {await self._access_token()}",
         }
         if organization:
-            headers["x-zitadel-orgid"] = self._settings.organization_id or ""
+            headers["x-zitadel-orgid"] = self._settings.register_organization_id or ""
         try:
             response = await self._client.request(
                 method, self._settings.base_url + path, headers=headers, json=body

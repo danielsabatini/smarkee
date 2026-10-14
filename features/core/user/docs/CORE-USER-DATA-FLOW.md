@@ -178,13 +178,13 @@ Código: `manager/src/core_user_manager/handlers/requested.py` e `store/ssot.py`
   "lifecycle": "present",
   "platformAccess": "granted",
   "platformRoles": [
-    "organization.create",
-    "organization.delete",
-    "organization.get",
-    "organization.list",
-    "organization.update",
-    "user.delete",
-    "user.get"
+    "ipm.organization.create",
+    "ipm.organization.delete",
+    "ipm.organization.get",
+    "ipm.organization.list",
+    "ipm.organization.update",
+    "core.user.delete",
+    "core.user.get"
   ],
   "givenName": "Ana",
   "familyName": "Souza",
@@ -227,7 +227,7 @@ INSERT INTO core."user"
    desired, desired_generation, resource_version, phase)
 VALUES
   ('0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e', '1.0', 'present', 'active',
-   '{"lifecycle":"present","platformAccess":"granted","platformRoles":["organization.create","organization.delete","organization.get","organization.list","organization.update","user.delete","user.get"],"givenName":"Ana","familyName":"Souza","email":"ana.souza@example.com"}'::jsonb,
+   '{"lifecycle":"present","platformAccess":"granted","platformRoles":["ipm.organization.create","ipm.organization.delete","ipm.organization.get","ipm.organization.list","ipm.organization.update","core.user.delete","core.user.get"],"givenName":"Ana","familyName":"Souza","email":"ana.souza@example.com"}'::jsonb,
    1, 1, 'Pending');
 ```
 
@@ -331,13 +331,13 @@ Tabela `core.user_outbox` (DDL na migração). A linha é gravada na **mesma tra
     "reconciliation": "active",
     "platformAccess": "granted",
     "platformRoles": [
-      "organization.create",
-      "organization.delete",
-      "organization.get",
-      "organization.list",
-      "organization.update",
-      "user.delete",
-      "user.get"
+      "ipm.organization.create",
+      "ipm.organization.delete",
+      "ipm.organization.get",
+      "ipm.organization.list",
+      "ipm.organization.update",
+      "core.user.delete",
+      "core.user.get"
     ],
     "givenName": "Ana",
     "familyName": "Souza",
@@ -581,13 +581,13 @@ Depois do `completed` o Observer observa o usuário de novo (`causationId` = `me
     "userState": "initial",
     "platformAccess": "granted",
     "platformRoles": [
-      "organization.create",
-      "organization.delete",
-      "organization.get",
-      "organization.list",
-      "organization.update",
-      "user.delete",
-      "user.get"
+      "ipm.organization.create",
+      "ipm.organization.delete",
+      "ipm.organization.get",
+      "ipm.organization.list",
+      "ipm.organization.update",
+      "core.user.delete",
+      "core.user.get"
     ]
   }
 }
@@ -598,7 +598,7 @@ Depois do `completed` o Observer observa o usuário de novo (`causationId` = `me
 | `emailVerified` | `true` / `false` |
 | `userState` | `initial` enquanto a senha não foi definida; depois `active` ou `inactive` |
 | `platformAccess` | `granted` se o usuário tem ao menos uma role no projeto; senão `revoked` |
-| `platformRoles` | Roles que o usuário tem no projeto `roles`, em ordem alfabética (inclui roles a mais, como `platform.admin` de um operador) |
+| `platformRoles` | Roles que o usuário tem no projeto `roles`, em ordem alfabética (inclui roles a mais, como `core.user.admin` de um operador) |
 
 O Manager aplica pela mesma sequência da seção 6.1. **Convergência** do User: `presence = present`, `observed.platformAccess == desired.platformAccess` **e** `desired.platformRoles ⊆ observed.platformRoles` (roles a mais não divergem; role faltando gera `update` com `reason = Drift`); `emailVerified` e `userState` **não** entram na comparação. Convergiu, então:
 
@@ -660,8 +660,8 @@ A API **nunca lê as tabelas**: só as views versionadas (decisão 0004), com o 
 
 | Rota | View | Quem lê |
 |---|---|---|
-| `GET /v1/users/{id}` | `core.user_v1` | O próprio usuário ou `platform.admin`; outro usuário recebe `404` |
-| `GET /v1/users/{id}/operations/{operationId}` | `core.user_operation_v1` | O solicitante ou `platform.admin`; a Operation de cadastro anônimo só é legível por operadores |
+| `GET /v1/users/{id}` | `core.user_v1` | O próprio usuário ou `core.user.admin`; outro usuário recebe `404` |
+| `GET /v1/users/{id}/operations/{operationId}` | `core.user_operation_v1` | O solicitante ou `core.user.admin`; a Operation de cadastro anônimo só é legível por operadores |
 
 `core.user_v1` expõe `resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation, resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at`, **sem `failure_count`**. `core.user_operation_v1` expõe as colunas de `core.user_operation` sem `correlation_id`; `requested_by` está nela só para o Receiver autorizar a leitura. O formato JSON devolvido está em [`schemas/core/user/resource.example.json`](../../../../schemas/core/user/resource.example.json) e [`schemas/common/operation.example.json`](../../../../schemas/common/operation.example.json).
 
@@ -676,7 +676,7 @@ SELECT sequence, subject, published_at FROM core.user_outbox ORDER BY sequence;
 
 ## 8. Remoção: `DELETE /v1/users/{id}?resourceVersion=`
 
-Resumo dos dados (fluxo completo: [`08-remocao`](flow/08-remocao.mmd)). Exige token com a role `user.delete`; o dono ou `platform.admin`. `resourceVersion` é obrigatório e deve ser o da última leitura (senão `409`). Aceita `Idempotency-Key` (o mesmo valor com outro conteúdo devolve `422`).
+Resumo dos dados (fluxo completo: [`08-remocao`](flow/08-remocao.mmd)). Exige token com a role `core.user.delete`; o dono ou `core.user.admin`. `resourceVersion` é obrigatório e deve ser o da última leitura (senão `409`). Aceita `Idempotency-Key` (o mesmo valor com outro conteúdo devolve `422`).
 
 - **`requestDigest`:** SHA-256 de `{"operation":"delete","resourceId":"<id>","resourceVersion":"<versão>"}`.
 - **`requested`:** subject `receiver.requested.core.user.<resourceId>.delete`; `requestedBy` = `sub` do token; `data = {operationId, requestDigest, resourceVersion}` (contrato: [`requested-delete.v1.schema.json`](../../../../schemas/core/user/requested-delete.v1.schema.json)).

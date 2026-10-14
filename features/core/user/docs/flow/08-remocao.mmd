@@ -18,7 +18,7 @@ sequenceDiagram
     U->>CLI: sk user delete
     CLI->>Receiver: GET /v1/users/{id} (lê resourceVersion)
     Receiver-->>CLI: 200 {resourceVersion 4}
-    CLI->>Receiver: DELETE /v1/users/{id}?resourceVersion=4 (Bearer, role user.delete)
+    CLI->>Receiver: DELETE /v1/users/{id}?resourceVersion=4 (Bearer, role core.user.delete)
     Receiver->>N: receiver.requested.core.user.{id}.delete
     Receiver-->>CLI: 202 {operationId}
     N->>MGR: requested delete
@@ -45,8 +45,8 @@ sequenceDiagram
     Receiver-->>CLI: 409 Conflict (o Receiver antecipa), ou Operation rejected conflict vinda do Manager
     CLI-->>U: "O recurso mudou. Leia de novo e repita."
     CLI->>Receiver: DELETE de outro usuário
-    Receiver-->>CLI: 404 (operadores platform.admin podem)
-    CLI->>Receiver: DELETE sem a role user.delete
+    Receiver-->>CLI: 404 (operadores core.user.admin podem)
+    CLI->>Receiver: DELETE sem a role core.user.delete
     Receiver-->>CLI: 403
     CLI->>Receiver: DELETE de usuário já removido
     Receiver-->>CLI: 404

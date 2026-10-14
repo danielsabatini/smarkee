@@ -36,13 +36,13 @@ def _parse_resource_version(value: str) -> int:
 
 
 DEFAULT_PLATFORM_ROLES: tuple[str, ...] = (
-    "organization.create",
-    "organization.delete",
-    "organization.get",
-    "organization.list",
-    "organization.update",
-    "user.delete",
-    "user.get",
+    "core.user.delete",
+    "core.user.get",
+    "ipm.organization.create",
+    "ipm.organization.delete",
+    "ipm.organization.get",
+    "ipm.organization.list",
+    "ipm.organization.update",
 )
 """Roles de ação do usuário cadastrado no projeto da plataforma (decisões 0010 e 0025)."""
 

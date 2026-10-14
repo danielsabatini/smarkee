@@ -3,12 +3,12 @@
   "userState": "active",
   "platformAccess": "granted",
   "platformRoles": [
-    "organization.create",
-    "organization.delete",
-    "organization.get",
-    "organization.list",
-    "organization.update",
-    "user.delete",
-    "user.get"
+    "core.user.delete",
+    "core.user.get",
+    "ipm.organization.create",
+    "ipm.organization.delete",
+    "ipm.organization.get",
+    "ipm.organization.list",
+    "ipm.organization.update"
   ]
 }

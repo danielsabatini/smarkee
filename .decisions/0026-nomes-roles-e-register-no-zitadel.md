@@ -10,7 +10,7 @@ No Zitadel de dev, a organização `core` tinha o projeto `smarkee`, com o mesmo
 ## Decisão
 
 - **`core` → `roles`:** a organização `core` é dona do projeto **`roles`** (antes `smarkee`), que contém as roles da plataforma e a aplicação `cli`. A leitura passa a ser "organização `core`, projeto `roles`".
-- **`register` → `users`:** nova organização **`register`**, destinada aos usuários cadastrados, com o projeto **`users`**. O projeto `users` fica reservado e vazio; seu uso será definido na decisão da separação dos usuários.
+- **`register`:** nova organização **`register`**, destinada aos usuários cadastrados. Um projeto `users` foi criado junto, vazio, e removido pela decisão 0027 por não ter função.
 - **Escopo desta decisão:** só nomes e a criação das estruturas. Os usuários, o cadastro e as service accounts dos Executors **continuam na organização `core`**; mover tudo para a `register` é a fase seguinte.
 
 ## Justificativa

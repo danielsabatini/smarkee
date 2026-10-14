@@ -31,13 +31,18 @@ class ZitadelSettings(_Section):
     """Audience da assertion JWT da conta de serviço."""
 
     key_file: str = "/run/secrets/zitadel-key.json"
-    """Chave JSON da conta de serviço `core-user-executor` (papel `ORG_USER_MANAGER`)."""
+    """Chave JSON da conta `core-user-executor` (`ORG_USER_MANAGER` só na `register`)."""
 
-    organization_id: str | None = None
-    """ID da organização `core`, onde os usuários são criados. Sem default."""
+    register_organization_id: str | None = None
+    """ID da organização `register`: onde os usuários são criados e recebem as autorizações.
+    Sem default."""
 
     project_id: str | None = None
     """ID do projeto `roles`, onde o usuário recebe as roles. Sem default."""
+
+    project_grant_id: str | None = None
+    """ID do Project Grant do projeto `roles` para a `register`: limita as roles que o Executor
+    pode conceder (decisão 0027). Sem default."""
 
     timeout_seconds: float = 10.0
 
@@ -68,7 +73,8 @@ class UserExecutorSettings(BaseSettings):
 
 REQUIRED_SECRETS = (
     "CORE_USER_EXECUTOR_NATS_PASSWORD",
-    "CORE_USER_EXECUTOR_ZITADEL_ORGANIZATION_ID",
+    "CORE_USER_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID",
+    "CORE_USER_EXECUTOR_ZITADEL_PROJECT_GRANT_ID",
     "CORE_USER_EXECUTOR_ZITADEL_PROJECT_ID",
 )
 
@@ -77,7 +83,10 @@ def missing_required(settings: UserExecutorSettings) -> list[str]:
     """Nomes das variáveis obrigatórias (sem default) que não foram informadas."""
     present = {
         "CORE_USER_EXECUTOR_NATS_PASSWORD": settings.nats.password is not None,
-        "CORE_USER_EXECUTOR_ZITADEL_ORGANIZATION_ID": bool(settings.zitadel.organization_id),
+        "CORE_USER_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID": bool(
+            settings.zitadel.register_organization_id
+        ),
+        "CORE_USER_EXECUTOR_ZITADEL_PROJECT_GRANT_ID": bool(settings.zitadel.project_grant_id),
         "CORE_USER_EXECUTOR_ZITADEL_PROJECT_ID": bool(settings.zitadel.project_id),
     }
     return [name for name in REQUIRED_SECRETS if not present[name]]

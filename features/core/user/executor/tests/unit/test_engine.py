@@ -89,7 +89,7 @@ def desired_message(
             "lifecycle": lifecycle,
             "reconciliation": reconciliation,
             "platformAccess": "granted",
-            "platformRoles": ["organization.get", "user.get"],
+            "platformRoles": ["ipm.organization.get", "core.user.get"],
             "givenName": "Ana",
             "familyName": "Souza",
             "email": "ana@example.com",

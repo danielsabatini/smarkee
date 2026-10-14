@@ -38,9 +38,9 @@ Porta de entrada HTTP. Autentica o token (JWKS do Zitadel), autoriza pela role d
 | Rota | Efeito | Quem | Respostas |
 |---|---|---|---|
 | `POST /v1/users` | Auto-cadastro (**anônimo**) | Qualquer pessoa | `202` uniforme, `400`, `429` (com `Retry-After`), `503` (com `Retry-After`) |
-| `GET /v1/users/{id}` | Lê o usuário | O próprio usuário ou `platform.admin`, role `user.get` | `200`, `401`, `403`, `404` |
-| `DELETE /v1/users/{id}?resourceVersion=` | Remove (cabeçalho opcional `Idempotency-Key`) | O próprio usuário ou `platform.admin`, role `user.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422` (`Idempotency-Key` reutilizada com outro conteúdo), `503` |
-| `GET /v1/users/{id}/operations/{operationId}` | Acompanha a Operation | Solicitante ou `platform.admin` (a do cadastro anônimo só operadores) | `200`, `401`, `404` |
+| `GET /v1/users/{id}` | Lê o usuário | O próprio usuário ou `core.user.admin`, role `core.user.get` | `200`, `401`, `403`, `404` |
+| `DELETE /v1/users/{id}?resourceVersion=` | Remove (cabeçalho opcional `Idempotency-Key`) | O próprio usuário ou `core.user.admin`, role `core.user.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422` (`Idempotency-Key` reutilizada com outro conteúdo), `503` |
+| `GET /v1/users/{id}/operations/{operationId}` | Acompanha a Operation | Solicitante ou `core.user.admin` (a do cadastro anônimo só operadores) | `200`, `401`, `404` |
 
 Não há listagem (`GET /v1/users`) nem `PATCH`: o User não tem `update` (decisão 0014). O contrato descritivo é [`receiver/openapi.json`](receiver/openapi.json). Erros: `{errorCode, message, field?}` (`schemas/common/api-error`; códigos `ValidationFailed`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `IdempotencyKeyReused`, `ServiceUnavailable` e `InternalError`), sem repetir valores enviados. Um usuário que não é o dono recebe `404`, e não `403`, para não revelar a existência.
 
@@ -73,7 +73,7 @@ Observa quando o `desired` é novo, depois de cada `completed`/`failed` (com `ca
 
 ## 3.6 Executor (`core-user-executor`)
 
-A **única identidade com escrita no Zitadel** (conta `core-user-executor`, papel `ORG_USER_MANAGER`, só a organização `core`). Para cada `action`: revalida contra o `desired` vigente (geração, operação coerente, reconciliação ativa), consulta o desfecho já registrado do `actionId` e só então executa:
+A **única identidade com escrita no Zitadel** (conta `core-user-executor`: `ORG_USER_MANAGER` só na organização `register`; as roles vêm do Project Grant do projeto `roles`). Para cada `action`: revalida contra o `desired` vigente (geração, operação coerente, reconciliação ativa), consulta o desfecho já registrado do `actionId` e só então executa:
 
 - `create`: `POST /v2/users/human` **sem senha**, com `userId = resourceId` (o `sub` do token será o `resourceId`); o Zitadel envia "Verificar e-mail"; em seguida `password_reset` com `sendLink` envia "Redefinir senha"; por fim concede no projeto `roles` as roles de `desired.platformRoles` (o Executor não tem lista própria). Cada passo é idempotente (repetição confere o dono do ID pelo e-mail).
 - `update`: garante (ou remove, se `revoked`) as roles do projeto.
@@ -249,7 +249,7 @@ Campos do User: `givenName`, `familyName` e `email` são `confidential` (nunca e
 | Publisher | `core-user-publisher.smarkee.internal` | `core-user-publisher` | `core_user_publisher` | `SELECT` em `user_outbox` e `UPDATE (published_at)` | nenhuma |
 | Reconciler | `core-user-reconciler.smarkee.internal` | `core-user-reconciler` | nenhum (não acessa o SSOT) | nenhum | nenhuma |
 | Observer | `core-user-observer.smarkee.internal` | `core-user-observer` | nenhum | nenhum | `core-user-observer` (`ORG_OWNER_VIEWER`, leitura) |
-| Executor | `core-user-executor.smarkee.internal` | `core-user-executor` | nenhum | nenhum | `core-user-executor` (`ORG_USER_MANAGER`, escrita só na organização `core`) |
+| Executor | `core-user-executor.smarkee.internal` | `core-user-executor` | nenhum | nenhum | `core-user-executor` (`ORG_USER_MANAGER` só na `register`) |
 
 Etapas de implantação (executam e terminam): `core-user-migrate` (migrações, papel administrativo) e `core-user-consumer` (cria os consumers duráveis). A manutenção (`core_maintenance`) é uma identidade de infraestrutura, com `SELECT` e `DELETE` no outbox, nos resultados de ação e nas Operations. Em dev, todos os componentes usam o mesmo usuário NATS (veja a seção 10).
 

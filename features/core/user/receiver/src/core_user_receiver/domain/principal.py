@@ -2,9 +2,9 @@
 
 from dataclasses import dataclass
 
-USER_GET = "user.get"
-USER_DELETE = "user.delete"
-PLATFORM_ADMIN = "platform.admin"
+USER_GET = "core.user.get"
+USER_DELETE = "core.user.delete"
+USER_ADMIN = "core.user.admin"
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,8 +17,8 @@ class Principal:
 
     @property
     def is_operator(self) -> bool:
-        """Operadores (`platform.admin`) agem sobre qualquer usuário (decisão 0010)."""
-        return PLATFORM_ADMIN in self.roles
+        """Operadores (`core.user.admin`) agem sobre qualquer usuário (decisão 0010)."""
+        return USER_ADMIN in self.roles
 
     def has_role(self, role: str) -> bool:
         return role in self.roles

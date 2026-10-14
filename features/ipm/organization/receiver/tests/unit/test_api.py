@@ -19,14 +19,14 @@ from ipm_organization_receiver.settings import ApiSettings
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
 USER_ROLES = frozenset(
     {
-        "organization.create",
-        "organization.get",
-        "organization.list",
-        "organization.update",
-        "organization.delete",
+        "ipm.organization.create",
+        "ipm.organization.get",
+        "ipm.organization.list",
+        "ipm.organization.update",
+        "ipm.organization.delete",
     }
 )
-OPERATOR_ROLES = USER_ROLES | {"platform.admin"}
+OPERATOR_ROLES = USER_ROLES | {"ipm.organization.admin"}
 
 
 def principal(subject: str, roles: frozenset[str]) -> Principal:

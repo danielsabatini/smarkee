@@ -9,7 +9,7 @@ from core_user_executor.actions.user_actions import execute
 from core_user_executor.domain.errors import ActionFailedError
 from core_user_executor.domain.identity import Grant, ProviderError, ZitadelUser
 
-ROLES = frozenset({"organization.create", "organization.get", "user.get"})
+ROLES = frozenset({"ipm.organization.create", "ipm.organization.get", "core.user.get"})
 DESIRED = {
     "lifecycle": "present",
     "platformAccess": "granted",
@@ -139,10 +139,10 @@ async def test_create_without_the_user_data_is_rejected_and_calls_nothing(missin
 async def test_a_partial_grant_is_completed_keeping_the_extra_roles() -> None:
     writer = FakeWriter(
         users={"u-1": ZitadelUser("a@x.com", password_set=True)},
-        grants_by_user={"u-1": [Grant("g-1", frozenset({"user.get", "platform.admin"}))]},
+        grants_by_user={"u-1": [Grant("g-1", frozenset({"core.user.get", "core.user.admin"}))]},
     )
     await execute("update", "u-1", DESIRED, writer)
-    assert writer.grants_by_user["u-1"][0].roles == ROLES | {"platform.admin"}
+    assert writer.grants_by_user["u-1"][0].roles == ROLES | {"core.user.admin"}
     assert names(writer) == ["update_grant"]
 
 
@@ -183,5 +183,5 @@ async def test_create_without_platform_roles_is_rejected_without_touching_the_pr
 
 async def test_roles_come_only_from_the_desired_platform_roles() -> None:
     writer = FakeWriter()
-    await execute("create", "u-1", {**DESIRED, "platformRoles": ["user.get"]}, writer)
-    assert ("create_grant", ["user.get"]) in writer.calls
+    await execute("create", "u-1", {**DESIRED, "platformRoles": ["core.user.get"]}, writer)
+    assert ("create_grant", ["core.user.get"]) in writer.calls

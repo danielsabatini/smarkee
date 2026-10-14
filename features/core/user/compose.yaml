@@ -77,7 +77,7 @@ services:
       # defaults do componente (CORE_USER_RECEIVER_<SEÇÃO>_<CAMPO>).
       CORE_USER_RECEIVER_DATABASE_PASSWORD: ${CORE_USER_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
       CORE_USER_RECEIVER_NATS_PASSWORD: ${CORE_USER_RECEIVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
-      CORE_USER_RECEIVER_AUTH_AUDIENCE: ${CORE_USER_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto smarkee, org core)}
+      CORE_USER_RECEIVER_AUTH_AUDIENCE: ${CORE_USER_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles, org core)}
     depends_on:
       core-user-migrate:
         condition: service_completed_successfully
@@ -158,8 +158,8 @@ services:
     container_name: core-user-observer.smarkee.internal
     environment:
       CORE_USER_OBSERVER_NATS_PASSWORD: ${CORE_USER_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
-      CORE_USER_OBSERVER_ZITADEL_ORGANIZATION_ID: ${CORE_ZITADEL_ORGANIZATION_ID:?Defina no .env (ID da organização core)}
-      CORE_USER_OBSERVER_ZITADEL_PROJECT_ID: ${CORE_ZITADEL_PROJECT_ID:?Defina no .env (ID do projeto smarkee)}
+      CORE_USER_OBSERVER_ZITADEL_REGISTER_ORGANIZATION_ID: ${CORE_ZITADEL_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
+      CORE_USER_OBSERVER_ZITADEL_PROJECT_ID: ${CORE_ZITADEL_PROJECT_ID:?Defina no .env (ID do projeto roles)}
     volumes:
       - type: volume
         source: identity-bootstrap
@@ -186,8 +186,9 @@ services:
     container_name: core-user-executor.smarkee.internal
     environment:
       CORE_USER_EXECUTOR_NATS_PASSWORD: ${CORE_USER_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
-      CORE_USER_EXECUTOR_ZITADEL_ORGANIZATION_ID: ${CORE_ZITADEL_ORGANIZATION_ID:?Defina no .env (ID da organização core)}
-      CORE_USER_EXECUTOR_ZITADEL_PROJECT_ID: ${CORE_ZITADEL_PROJECT_ID:?Defina no .env (ID do projeto smarkee)}
+      CORE_USER_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID: ${CORE_ZITADEL_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
+      CORE_USER_EXECUTOR_ZITADEL_PROJECT_GRANT_ID: ${CORE_ZITADEL_PROJECT_GRANT_ID:?Defina no .env (ID do Project Grant do projeto roles para a register)}
+      CORE_USER_EXECUTOR_ZITADEL_PROJECT_ID: ${CORE_ZITADEL_PROJECT_ID:?Defina no .env (ID do projeto roles)}
     volumes:
       - type: volume
         source: identity-bootstrap

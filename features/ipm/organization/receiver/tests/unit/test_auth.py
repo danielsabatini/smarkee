@@ -40,8 +40,8 @@ def make_token(
         "iat": now,
         "exp": now + 600,
         ROLES_CLAIM: {
-            "organization.create": {"org-1": "core.example"},
-            "organization.get": {"org-1": "x"},
+            "ipm.organization.create": {"org-1": "core.example"},
+            "ipm.organization.get": {"org-1": "x"},
         },
     }
     claims.update(overrides or {})
@@ -87,7 +87,7 @@ async def test_valid_token_yields_subject_and_roles() -> None:
     provider = Provider([jwk_of(key, "key-1")])
     principal = await verifier_for(provider).verify(make_token(key))
     assert principal.subject == "user-1"
-    assert principal.roles == {"organization.create", "organization.get"}
+    assert principal.roles == {"ipm.organization.create", "ipm.organization.get"}
     assert provider.requests[0].headers["host"] == "issuer.example"
 
 

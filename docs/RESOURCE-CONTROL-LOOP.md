@@ -367,8 +367,8 @@ Regras:
 - **Idempotência do pedido:** o cabeçalho opcional `Idempotency-Key` nas escritas é a chave do cliente da qual o Receiver deriva o `operationId` (`SSOT.md`, decisão 0002). A chave não é armazenada nem transportada. Repetir a chave com o mesmo conteúdo devolve a Operation existente sem publicar de novo; com outro conteúdo, o Receiver responde `422`.
 - **Concorrência otimista:** `update` e `delete` exigem o `resourceVersion` lido. O conflito é decidido pelo Manager e aparece como Operation `rejected` com motivo `conflict`. O Receiver pode antecipar um `409` quando a versão lida já difere, como conveniência.
 - **Autorização:** o Receiver autoriza o solicitante antes de publicar e filtra as leituras pelas Organizations autorizadas (`RESOURCE-CONTROL-SECURITY.md`, *Isolamento entre organizations*).
-- **Privilégios por campo:** o contrato do recurso pode restringir campos a operadores. Na Organization, o dono altera só o `name`; `platformAccess` e `reconciliation` exigem `platform.admin` (`403` caso contrário).
-- **Leitura da Operation:** só o solicitante (`requestedBy`) e os operadores (`platform.admin`) leem uma Operation. Uma Operation de solicitante `anonymous` não é legível por quem a criou (seção seguinte).
+- **Privilégios por campo:** o contrato do recurso pode restringir campos a operadores. Na Organization, o dono altera só o `name`; `platformAccess` e `reconciliation` exigem a role de operador do tipo, `ipm.organization.admin` (`403` caso contrário; padrão de nomes na decisão 0028).
+- **Leitura da Operation:** só o solicitante (`requestedBy`) e os operadores (role `<módulo>.<tipo>.admin` do tipo) leem uma Operation. Uma Operation de solicitante `anonymous` não é legível por quem a criou (seção seguinte).
 - **Erros:** `400` corpo inválido, `401` sem token válido, `403` sem permissão, `404` inexistente ou não autorizado, `409` conflito antecipado, `422` reuso da chave de idempotência, `429` limite de taxa, `503` `REQUESTED` cheio (rejeição repetível, `NATS.md`). Quando o contrato do recurso define regras de elegibilidade ou de cota, `403` leva um código estável no corpo (`api-error`): por exemplo, `EmailNotVerified` (e-mail do solicitante não verificado) e `QuotaExceeded` (cota de criação do dono excedida).
 
 ## 6.1.2 Escritas anônimas
@@ -1478,7 +1478,7 @@ A Organization é um recurso do módulo `ipm` (`sk ipm organization`, decisão 0
 Para Organization, o Executor escreve em uma organização do Zitadel e o Observer a lê. Na criação, o Executor aplica, nesta ordem e cada passo de forma idempotente:
 
 1. a organização no Zitadel, com o `resourceId` como ID;
-2. o Project Grant do projeto da plataforma para a organização, com as roles delegáveis (inicialmente `organization.get` e `organization.list`, até existirem membros).
+2. o Project Grant do projeto da plataforma para a organização, com as roles delegáveis (inicialmente `ipm.organization.get` e `ipm.organization.list`, até existirem membros).
 
 O Executor da Organization **não cria usuários nem autoriza o dono**: o dono (`ownerUserId`, o usuário autenticado que a criou) já existe, pelo cadastro (seção seguinte), e já tem as roles de ação no projeto. Como o dono vive na organização `core` do Zitadel, e não na organização criada, o token não identifica a Organization: o Receiver decide o pertencimento pelo `ownerUserId` guardado na plataforma (decisão 0010).
 
@@ -1486,7 +1486,7 @@ Os recursos derivados em outros sistemas (namespace do OpenBao, do Kubernetes) n
 
 O Executor cria a organização no Zitadel informando o `resourceId` como ID da organização (`organization_id`), em vez de deixar o Zitadel gerá-lo. Assim, o ID da organização no Zitadel é o mesmo `resourceId` (`SCHEMA.md`, *Organization e identificadores derivados*), e uma criação repetida (retry, reentrega) não produz uma segunda organização. O Zitadel responde HTTP 409 a um ID ou nome já usado (verificado na v4.19.4); o Executor então lê a organização pelo ID: se existe com o nome esperado, é sucesso idempotente (o mesmo vale para o Project Grant, que também responde 409 quando repetido); se existe com outro nome, ou não existe, é falha permanente.
 
-Antes de publicar `requested`, o Receiver exige solicitante autenticado, com e-mail verificado e a role `organization.create`. A **cota** de Organizations por dono é aplicada pelo Manager, na mesma unidade atômica do pedido, com trava consultiva por dono (decisão 0010): a pré-checagem do Receiver não basta para criações concorrentes. Nomes reservados e já existentes são rejeitados como `validation`.
+Antes de publicar `requested`, o Receiver exige solicitante autenticado, com e-mail verificado e a role `ipm.organization.create`. A **cota** de Organizations por dono é aplicada pelo Manager, na mesma unidade atômica do pedido, com trava consultiva por dono (decisão 0010): a pré-checagem do Receiver não basta para criações concorrentes. Nomes reservados e já existentes são rejeitados como `validation`.
 
 Componentes (projetos em `features/ipm/organization/`, decisão 0015):
 
@@ -1505,9 +1505,9 @@ O comando `sk ipm organization` pertence ao CLI da plataforma (`components/cli`)
 
 O User é um recurso da plataforma, no módulo `core` (decisão 0014), criado pelo auto-cadastro (`sk register`), uma escrita anônima (seção 6.1.2). O Executor escreve em um único sistema externo, o Zitadel:
 
-1. cria o usuário na organização `core`, com o `resourceId` como ID e **sem senha**: o `desired` do User não tem senha, porque `desired` fica retido no SSOT e na mensageria (`SCHEMA.md`);
+1. cria o usuário na organização `register`, com o `resourceId` como ID e **sem senha**: o `desired` do User não tem senha, porque `desired` fica retido no SSOT e na mensageria (`SCHEMA.md`);
 2. pede ao Zitadel o link de definição de senha (`password_reset` com `sendLink`): o Zitadel envia o e-mail "Verificar e-mail" na criação e o e-mail "Redefinir senha" em seguida, e a pessoa define a senha na página do Zitadel. A senha nunca passa por CLI, Receiver, SSOT nem mensageria;
-3. autoriza o usuário no projeto da plataforma, que pertence à mesma organização `core`, com o conjunto de roles de ação do usuário cadastrado (`organization.create`, `organization.get`, `organization.list`, `organization.update`, `organization.delete`, `user.get` e `user.delete`).
+3. autoriza o usuário no projeto da plataforma, que pertence à organização `core` e é delegado à `register` por um Project Grant (a autorização é criada no contexto da `register`, e só roles do Project Grant são aceitas), com o conjunto de roles de ação do usuário cadastrado (`ipm.organization.create`, `ipm.organization.get`, `ipm.organization.list`, `ipm.organization.update`, `ipm.organization.delete`, `core.user.get` e `core.user.delete`).
 
 Quando o e-mail já está cadastrado no SSOT, o Manager rejeita o pedido (`validation`) sem criar nada; quando ele só existe no Zitadel, a criação do Executor falha de forma permanente (`Rejected`). O Zitadel responde `AlreadyExisting` (HTTP 400, id `COMMAND-7yiox1isql`, verificado na v4.19.4) a um ID ou e-mail já usado, e o Executor lê o usuário pelo ID: se existe com o e-mail esperado, é sucesso idempotente. Em todos os casos o solicitante anônimo recebe o mesmo `202`, sem revelar se o e-mail existia. O `desired` com `lifecycle = absent` não carrega dados pessoais (decisão 0014).
 

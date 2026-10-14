@@ -2,6 +2,7 @@
 
 - **Data:** 2026-10-09
 - **Status:** Aceita. Revisada em 2026-10-10: o criador autenticado é o dono; o projeto fica na organização `core`; roles por ação.
+- **Nomes das roles:** os nomes citados aqui (`organization.*`, `user.*`, `platform.admin`) foram substituídos pelo padrão da decisão 0028 (`ipm.organization.*`, `core.user.*`, `*.admin`).
 
 ## Contexto
 

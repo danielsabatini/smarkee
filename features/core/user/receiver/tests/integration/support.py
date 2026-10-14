@@ -33,7 +33,7 @@ async def seed_user(manager: psycopg.AsyncConnection[Any], *, email: str) -> tup
     desired = {
         "lifecycle": "present",
         "platformAccess": "granted",
-        "platformRoles": ["organization.get", "user.get"],
+        "platformRoles": ["ipm.organization.get", "core.user.get"],
         "givenName": "Ana",
         "familyName": "Souza",
         "email": email,

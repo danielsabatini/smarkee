@@ -43,7 +43,11 @@ def writer(
         return handler(request)
 
     settings = ZitadelSettings(
-        key_file=str(key_file), organization_id="org-1", project_id="proj-1", base_url="http://z"
+        key_file=str(key_file),
+        register_organization_id="org-r",
+        project_grant_id="pg-1",
+        project_id="proj-1",
+        base_url="http://z",
     )
     return ZitadelWriter(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
 
@@ -57,7 +61,7 @@ async def test_create_user_has_no_password_and_uses_the_resource_id(key_file: Pa
     assert created is True
     body = json.loads(calls[0].content)
     assert (calls[0].method, calls[0].url.path) == ("POST", "/v2/users/human")
-    assert body["userId"] == "u-1" and body["organization"] == {"orgId": "org-1"}
+    assert body["userId"] == "u-1" and body["organization"] == {"orgId": "org-r"}
     assert body["username"] == "a@x.com" and "password" not in body
     assert calls[0].headers["authorization"] == "Bearer tok"
     assert calls[0].headers["host"] == "ipm-dev.smarkee.com.br:8080"
@@ -131,23 +135,30 @@ async def test_grants_and_their_mutations_use_the_organization_header(key_file: 
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/_search"):
-            return httpx.Response(200, json={"result": [{"id": "g-1", "roleKeys": ["user.get"]}]})
+            return httpx.Response(
+                200, json={"result": [{"id": "g-1", "roleKeys": ["core.user.get"]}]}
+            )
         return httpx.Response(200, json={})
 
     z = writer(key_file, handler, calls)
     grants = await z.grants("u-1")
-    assert [(g.grant_id, set(g.roles)) for g in grants] == [("g-1", {"user.get"})]
+    assert [(g.grant_id, set(g.roles)) for g in grants] == [("g-1", {"core.user.get"})]
     await z.create_grant("u-1", ["a", "b"])
     await z.update_grant("u-1", "g-1", ["a"])
     await z.remove_grant("u-1", "g-1")
 
-    assert all(c.headers["x-zitadel-orgid"] == "org-1" for c in calls)
+    assert all(c.headers["x-zitadel-orgid"] == "org-r" for c in calls)
     assert [(c.method, c.url.path) for c in calls[1:]] == [
         ("POST", "/management/v1/users/u-1/grants"),
         ("PUT", "/management/v1/users/u-1/grants/g-1"),
         ("DELETE", "/management/v1/users/u-1/grants/g-1"),
     ]
-    assert json.loads(calls[1].content) == {"projectId": "proj-1", "roleKeys": ["a", "b"]}
+    # A autorização sai pelo Project Grant: o Zitadel recusa roles fora da delegação.
+    assert json.loads(calls[1].content) == {
+        "projectId": "proj-1",
+        "projectGrantId": "pg-1",
+        "roleKeys": ["a", "b"],
+    }
 
 
 async def test_token_is_cached_and_a_missing_key_is_unauthorized(

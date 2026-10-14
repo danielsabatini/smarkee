@@ -18,7 +18,7 @@ from core_user_reconciler.settings import LoopSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
 SETTINGS = LoopSettings()
-ROLES = frozenset({"organization.get", "user.get"})
+ROLES = frozenset({"ipm.organization.get", "core.user.get"})
 
 
 def desired(
@@ -69,9 +69,9 @@ def test_converged_user_needs_no_action() -> None:
 
 
 def test_a_missing_desired_role_is_drift_and_extra_roles_are_not() -> None:
-    partial = observed("present", access="granted", roles=frozenset({"user.get"}))
+    partial = observed("present", access="granted", roles=frozenset({"core.user.get"}))
     assert operation_of(state(desired(), partial)) == "update"
-    extra = observed("present", access="granted", roles=ROLES | {"platform.admin"})
+    extra = observed("present", access="granted", roles=ROLES | {"core.user.admin"})
     assert operation_of(state(desired(), extra)) is None
 
 

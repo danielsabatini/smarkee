@@ -270,8 +270,8 @@
       },
       "PlatformRole": {
         "maxLength": 128,
-        "minLength": 3,
-        "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+$",
+        "minLength": 5,
+        "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$",
         "title": "PlatformRole",
         "type": "string"
       },

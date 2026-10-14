@@ -17,8 +17,8 @@ from core_user_receiver.http.ports import PublishError
 from core_user_receiver.settings import ApiSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
-USER_ROLES = frozenset({"user.get", "user.delete"})
-OPERATOR_ROLES = USER_ROLES | {"platform.admin"}
+USER_ROLES = frozenset({"core.user.get", "core.user.delete"})
+OPERATOR_ROLES = USER_ROLES | {"core.user.admin"}
 
 
 def principal(subject: str, roles: frozenset[str]) -> Principal:
@@ -79,7 +79,7 @@ def user_record(resource_id: str) -> ResourceRecord:
         desired={
             "lifecycle": "present",
             "platformAccess": "granted",
-            "platformRoles": ["organization.get", "user.get"],
+            "platformRoles": ["ipm.organization.get", "core.user.get"],
             "givenName": "Ana",
             "familyName": "Souza",
             "email": "ana@example.com",
