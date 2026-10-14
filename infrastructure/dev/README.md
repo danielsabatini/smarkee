@@ -31,7 +31,7 @@ Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
 | `identity/.env` | `ZITADEL_SESSION_COOKIE_SECRET` | `openssl rand -hex 32` |
 | `features/core/user/.env` | `CORE_USER_<PAPEL>_NATS_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`, `RECONCILER`, `OBSERVER`, `EXECUTOR`) | A mesma `NATS_PASSWORD` de `broker/.env` |
 | `features/ipm/organization/.env` | `IPM_ORGANIZATION_<PAPEL>_NATS_PASSWORD` (`RECEIVER`, `MANAGER`, `RELAY`) | A mesma `NATS_PASSWORD` de `broker/.env` |
-| `features/core/user/.env` e `features/ipm/organization/.env` | `CORE_USER_RECEIVER_AUTH_AUDIENCE`, `IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE` | ID do projeto `smarkee` no Zitadel (organização `core`) |
+| `features/core/user/.env` e `features/ipm/organization/.env` | `CORE_USER_RECEIVER_AUTH_AUDIENCE`, `IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE` | ID do projeto `roles` no Zitadel (organização `core`) |
 
 Os componentes das features (User e Organization) **não são subidos por este diretório**: cada feature tem o seu `compose.yaml` e o seu `.env` (`cp .env.example .env` em `features/core/user` e `features/ipm/organization`), e eles esperam a plataforma abaixo no ar. Suba a plataforma primeiro e depois cada feature (`docker compose up -d --build` na pasta dela). Se recriar o Receiver de uma feature, reinicie o `gateway`, que guarda em cache o endereço do contêiner.
 
@@ -160,18 +160,20 @@ O `sk` autentica direto no Zitadel, pelo gateway, sem API própria de autentica�
 | Organização | Papel |
 |---|---|
 | `smarkee` | Só operadores e contas administrativas da instância (`admin`, `platform-bootstrap`, `login-client`). Não tem recursos da plataforma |
-| `core` | Organização de sistema da plataforma: dona do projeto `smarkee`, dos usuários cadastrados e das service accounts dos Executors |
+| `core` | Organização de sistema da plataforma: dona do projeto `roles`, dos usuários cadastrados e das service accounts dos Executors |
+| `register` | Reservada para os usuários cadastrados (decisão 0026). Tem o projeto `users`, vazio por ora. Os usuários e o Executor continuam na `core` até a fase de separação |
 
 Estado aplicado no dev em 2026-10-10 (pela API do Zitadel, com a conta de bootstrap; o script usado é temporário e não versionado):
 
-- **Projeto `smarkee`, na organização `core`:** roles no token e **verificação de role na autenticação** ligadas.
+- **Projeto `roles`, na organização `core`:** roles no token e **verificação de role na autenticação** ligadas.
 - **Roles por ação:** `organization.create`, `organization.get`, `organization.list`, `organization.update`, `organization.delete`, `user.get`, `user.delete`, e `platform.admin` (operadores).
 - **Aplicação `cli`:** nativa, PKCE, redirect `http://127.0.0.1/callback`, Authorization Code e Refresh Token, **access token JWT**, roles no token. Não há client secret: o `sk` é um cliente público. O client ID é um por ambiente.
 - **Cadastro público desligado** na política de login da instância (`allowRegister = false`), que as organizações herdam.
 - **Service accounts na organização `core`** (verificadas no Zitadel de dev em 2026-10-11): `core-user-executor` (papel de organização `ORG_USER_MANAGER`, escrita), `core-user-observer` (papel de organização `ORG_OWNER_VIEWER`, só leitura) e `core-organization-executor` (papel de instância `IAM_ORG_MANAGER`; será renomeada para `ipm-organization-executor` quando o Executor da Organization for implementado), com as chaves no volume `identity-bootstrap`; cada componente monta só a própria.
+- **Nomes (2026-10-14, decisão 0026):** o projeto da organização `core` passou de `smarkee` para `roles` (o ID não muda, então audience, claims e configuração dos componentes seguem valendo). Foram criadas a organização `register` e, nela, o projeto `users` (sem roles nem aplicações).
 - **`platform.admin` para operadores:** autorização externa, criada na organização `core` para o usuário da organização `smarkee`.
 
-Para reproduzir pelo console (**Projetos**, **Autorizações**, **Configurações → Login**; os nomes das opções podem diferir um pouco na versão em uso): crie a organização `core`; nela, o projeto `smarkee` (*Afirmar roles na autenticação* e *Verificar roles na autenticação* ligados) com as roles acima e a aplicação `cli` (nativa, PKCE, tipo de token JWT, redirect e concessões acima); desligue o registro na política de login; e conceda `platform.admin` aos operadores.
+Para reproduzir pelo console (**Projetos**, **Autorizações**, **Configurações → Login**; os nomes das opções podem diferir um pouco na versão em uso): crie a organização `core`; nela, o projeto `roles` (*Afirmar roles na autenticação* e *Verificar roles na autenticação* ligados) com as roles acima e a aplicação `cli` (nativa, PKCE, tipo de token JWT, redirect e concessões acima); desligue o registro na política de login; e conceda `platform.admin` aos operadores.
 
 Depois, no host, grave a configuração uma vez (`~/.config/sk/config.toml`) e faça o login:
 
@@ -191,7 +193,7 @@ uv run sk auth login
 
 ### Conta de bootstrap da plataforma (`platform-bootstrap@smarkee.internal`)
 
-`platform-bootstrap@smarkee.internal` é o usuário de máquina administrativo da instância do Zitadel (`IAM_OWNER`). Ele é usado **somente pela infraestrutura**, para configurar a plataforma no Zitadel: o projeto `smarkee`, as roles, a aplicação `cli` e um usuário de máquina por Executor, com papel mínimo (por exemplo, `ipm-organization-executor`). **Nenhum serviço de runtime usa essa conta** (decisão 0011): cada Executor tem a sua identidade (`docs/RESOURCE-CONTROL-SECURITY.md`). A chave fica em `/zitadel/bootstrap/service-account-platform-bootstrap.json`, no volume `identity-bootstrap`.
+`platform-bootstrap@smarkee.internal` é o usuário de máquina administrativo da instância do Zitadel (`IAM_OWNER`). Ele é usado **somente pela infraestrutura**, para configurar a plataforma no Zitadel: o projeto `roles`, as roles, a aplicação `cli` e um usuário de máquina por Executor, com papel mínimo (por exemplo, `ipm-organization-executor`). **Nenhum serviço de runtime usa essa conta** (decisão 0011): cada Executor tem a sua identidade (`docs/RESOURCE-CONTROL-SECURITY.md`). A chave fica em `/zitadel/bootstrap/service-account-platform-bootstrap.json`, no volume `identity-bootstrap`.
 
 - **Instância nova** (depois de `docker compose down -v`): o próprio Zitadel cria a conta e grava a chave, pelas variáveis `ZITADEL_FIRSTINSTANCE_ORG_MACHINE_*` e `ZITADEL_FIRSTINSTANCE_MACHINEKEYPATH` de `identity/compose.yaml`.
 - **Instância existente**: as variáveis não se aplicam. Crie pelo console, uma vez:

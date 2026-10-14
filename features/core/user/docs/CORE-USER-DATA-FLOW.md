@@ -490,7 +490,7 @@ A `action` **não carrega os dados do usuário**: o Executor lê o `desired` vig
 
 ### 6.3 Executor age no Zitadel e publica `completed` (ou `failed`)
 
-No `create`, o Executor chama o Zitadel (nesta ordem, cada passo idempotente): cria o usuário humano **sem senha**, com `userId = resourceId`; dispara o e-mail "Verificar e-mail"; dispara o "Redefinir senha"; concede no projeto `smarkee` as roles de `desired.platformRoles` (o Executor não tem lista própria; sem o campo no `desired`, a ação é rejeitada sem retentativa). Antes disso consulta o `RESULT` para saber se aquele `actionId` já tem desfecho (idempotência).
+No `create`, o Executor chama o Zitadel (nesta ordem, cada passo idempotente): cria o usuário humano **sem senha**, com `userId = resourceId`; dispara o e-mail "Verificar e-mail"; dispara o "Redefinir senha"; concede no projeto `roles` as roles de `desired.platformRoles` (o Executor não tem lista própria; sem o campo no `desired`, a ação é rejeitada sem retentativa). Antes disso consulta o `RESULT` para saber se aquele `actionId` já tem desfecho (idempotência).
 
 | Item | Valor |
 |---|---|
@@ -598,7 +598,7 @@ Depois do `completed` o Observer observa o usuário de novo (`causationId` = `me
 | `emailVerified` | `true` / `false` |
 | `userState` | `initial` enquanto a senha não foi definida; depois `active` ou `inactive` |
 | `platformAccess` | `granted` se o usuário tem ao menos uma role no projeto; senão `revoked` |
-| `platformRoles` | Roles que o usuário tem no projeto `smarkee`, em ordem alfabética (inclui roles a mais, como `platform.admin` de um operador) |
+| `platformRoles` | Roles que o usuário tem no projeto `roles`, em ordem alfabética (inclui roles a mais, como `platform.admin` de um operador) |
 
 O Manager aplica pela mesma sequência da seção 6.1. **Convergência** do User: `presence = present`, `observed.platformAccess == desired.platformAccess` **e** `desired.platformRoles ⊆ observed.platformRoles` (roles a mais não divergem; role faltando gera `update` com `reason = Drift`); `emailVerified` e `userState` **não** entram na comparação. Convergiu, então:
 

@@ -5,7 +5,7 @@
 
 ## Contexto
 
-O `platformAccess` do User (`granted` ou `revoked`) diz se o usuário tem autorização no projeto `smarkee`, mas não diz **quais roles**. O conjunto de roles (decisões 0010 e 0014) vivia em duas configurações separadas: `granted_roles` no Executor e `expected_roles` no Observer. O Observer reduzia as roles lidas do Zitadel a um booleano e descartava a lista. Resultado: nenhum contrato nem linha do SSOT registrava o que o usuário deve ter nem o que ele tem; as duas listas podiam divergir sem aviso; e mudar o conjunto não passava por `desiredGeneration`.
+O `platformAccess` do User (`granted` ou `revoked`) diz se o usuário tem autorização no projeto `roles`, mas não diz **quais roles**. O conjunto de roles (decisões 0010 e 0014) vivia em duas configurações separadas: `granted_roles` no Executor e `expected_roles` no Observer. O Observer reduzia as roles lidas do Zitadel a um booleano e descartava a lista. Resultado: nenhum contrato nem linha do SSOT registrava o que o usuário deve ter nem o que ele tem; as duas listas podiam divergir sem aviso; e mudar o conjunto não passava por `desiredGeneration`.
 
 ## Decisão
 

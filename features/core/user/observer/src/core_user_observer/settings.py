@@ -38,7 +38,7 @@ class ZitadelSettings(_Section):
     """ID da organização `core`, onde vivem os usuários. Sem default."""
 
     project_id: str | None = None
-    """ID do projeto `smarkee`, onde o usuário recebe as roles. Sem default."""
+    """ID do projeto `roles`, onde o usuário recebe as roles. Sem default."""
 
     timeout_seconds: float = 5.0
 

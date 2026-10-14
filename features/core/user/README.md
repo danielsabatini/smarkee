@@ -75,7 +75,7 @@ Observa quando o `desired` é novo, depois de cada `completed`/`failed` (com `ca
 
 A **única identidade com escrita no Zitadel** (conta `core-user-executor`, papel `ORG_USER_MANAGER`, só a organização `core`). Para cada `action`: revalida contra o `desired` vigente (geração, operação coerente, reconciliação ativa), consulta o desfecho já registrado do `actionId` e só então executa:
 
-- `create`: `POST /v2/users/human` **sem senha**, com `userId = resourceId` (o `sub` do token será o `resourceId`); o Zitadel envia "Verificar e-mail"; em seguida `password_reset` com `sendLink` envia "Redefinir senha"; por fim concede no projeto `smarkee` as roles de `desired.platformRoles` (o Executor não tem lista própria). Cada passo é idempotente (repetição confere o dono do ID pelo e-mail).
+- `create`: `POST /v2/users/human` **sem senha**, com `userId = resourceId` (o `sub` do token será o `resourceId`); o Zitadel envia "Verificar e-mail"; em seguida `password_reset` com `sendLink` envia "Redefinir senha"; por fim concede no projeto `roles` as roles de `desired.platformRoles` (o Executor não tem lista própria). Cada passo é idempotente (repetição confere o dono do ID pelo e-mail).
 - `update`: garante (ou remove, se `revoked`) as roles do projeto.
 - `delete`: remove o usuário (ausente é sucesso).
 
@@ -257,7 +257,7 @@ Etapas de implantação (executam e terminam): `core-user-migrate` (migrações,
 
 # 9. Configuração, execução e testes
 
-Variáveis de ambiente `CORE_USER_<PAPEL>_<SEÇÃO>_<CAMPO>` (decisão 0016), sem arquivo de configuração. Cada projeto documenta as suas no `README.md` e em `settings.py`. Obrigatórias: senha do NATS (todos), senhas dos papéis do banco (Receiver, Manager, Publisher), `AUTH_AUDIENCE` (Receiver) e os IDs da organização `core` e do projeto `smarkee` no Zitadel (Observer e Executor).
+Variáveis de ambiente `CORE_USER_<PAPEL>_<SEÇÃO>_<CAMPO>` (decisão 0016), sem arquivo de configuração. Cada projeto documenta as suas no `README.md` e em `settings.py`. Obrigatórias: senha do NATS (todos), senhas dos papéis do banco (Receiver, Manager, Publisher), `AUTH_AUDIENCE` (Receiver) e os IDs da organização `core` e do projeto `roles` no Zitadel (Observer e Executor).
 
 ```bash
 # 1. Plataforma (banco, broker, identidade, gateway, e-mail): infrastructure/dev
