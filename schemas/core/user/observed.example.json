@@ -1,5 +1,14 @@
 {
   "emailVerified": true,
   "userState": "active",
-  "platformAccess": "granted"
+  "platformAccess": "granted",
+  "platformRoles": [
+    "organization.create",
+    "organization.delete",
+    "organization.get",
+    "organization.list",
+    "organization.update",
+    "user.delete",
+    "user.get"
+  ]
 }

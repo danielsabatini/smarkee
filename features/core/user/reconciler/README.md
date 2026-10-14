@@ -8,7 +8,7 @@ Regras (`docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`): 
 
 A `action` é publicada no Subject canônico `reconciler.action.core.user.<id>.<operação>`; o Stream `ACTION` o armazena com o token da partição (decisão 0018).
 
-Campos gerenciados do User: `lifecycle` e `platformAccess` (`schemas/core/user/desired.v1.schema.json`).
+Campos gerenciados do User: `lifecycle`, `platformAccess` e `platformRoles` (as desejadas contidas nas observadas) (`schemas/core/user/desired.v1.schema.json`).
 
 ## Configuração
 

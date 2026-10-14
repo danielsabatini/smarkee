@@ -9,7 +9,7 @@ def test_defaults_follow_the_contract_and_have_no_secrets() -> None:
     assert settings.loop.observation_interval_seconds == 300  # PT5M
     assert settings.nats.password is None
     assert (settings.partition.index, settings.partition.count) == (0, 1)
-    assert "user.get" in settings.zitadel.expected_roles
+    assert not hasattr(settings.zitadel, "expected_roles")  # a lista vive no desired (decisão 0025)
 
 
 def test_environment_variables_follow_the_prefix_section_and_field_pattern(

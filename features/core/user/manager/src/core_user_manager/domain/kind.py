@@ -19,4 +19,9 @@ class ResourceKind:
         return f"receiver.requested.{MODULE}.{self.resource_type}.>"
 
 
+def user_kind(platform_roles: tuple[str, ...]) -> ResourceKind:
+    """User com o conjunto de roles informado (configuração do Manager)."""
+    return ResourceKind(resource_type="user", policy=UserPolicy(platform_roles))
+
+
 USER = ResourceKind(resource_type="user", policy=UserPolicy())

@@ -11,7 +11,6 @@ from core_user_executor.contracts import generated
 from core_user_executor.domain.errors import ActionFailedError
 from core_user_executor.domain.identity import Grant, ProviderError, ZitadelUser
 from core_user_executor.engine.executor import Disposition, Executor, PublishError
-from core_user_executor.settings import ZitadelSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
 RESOURCE = "user-1"
@@ -90,6 +89,7 @@ def desired_message(
             "lifecycle": lifecycle,
             "reconciliation": reconciliation,
             "platformAccess": "granted",
+            "platformRoles": ["organization.get", "user.get"],
             "givenName": "Ana",
             "familyName": "Souza",
             "email": "ana@example.com",
@@ -123,9 +123,7 @@ def action(
 
 
 def build(writer: FakeWriter, state: FakeState, publisher: FakePublisher) -> Executor:
-    return Executor(
-        writer, publisher, state, ZitadelSettings(), clock=lambda: NOW, identifiers=lambda: "msg-1"
-    )
+    return Executor(writer, publisher, state, clock=lambda: NOW, identifiers=lambda: "msg-1")
 
 
 async def test_a_valid_create_executes_and_publishes_a_valid_completed() -> None:

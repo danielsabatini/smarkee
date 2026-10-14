@@ -73,8 +73,8 @@ O SSOT não compartilha banco com componentes de terceiros (por exemplo, gateway
 
 | Coluna | Conteúdo |
 |---|---|
-| `desired` | O estado pretendido: `lifecycle` e os campos declarativos do contrato `desired` do tipo (no User: `givenName`, `familyName`, `email` e `platformAccess`). Os campos `confidential` ficam aqui; o `desired` de remoção não os carrega |
-| `observed` | O último `data` de `observed` do tipo (no User: `emailVerified`, `userState` e `platformAccess`) |
+| `desired` | O estado pretendido: `lifecycle` e os campos declarativos do contrato `desired` do tipo (no User: `givenName`, `familyName`, `email`, `platformAccess` e `platformRoles`). Os campos `confidential` ficam aqui; o `desired` de remoção não os carrega |
+| `observed` | O último `data` de `observed` do tipo (no User: `emailVerified`, `userState`, `platformAccess` e `platformRoles`) |
 | `conditions` | Array de `condition` (`schemas/common/condition`); hoje a condition `Ready`, com `status`, `reason`, `observedGeneration` e `lastTransitionAt` |
 | `<tipo>_outbox.payload` | O envelope completo da mensagem (`MESSAGING.md`), pronto para publicar; o Publisher só acrescenta `publishedAt` e `publishedBy` |
 

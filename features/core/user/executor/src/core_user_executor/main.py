@@ -42,7 +42,6 @@ async def run(settings: UserExecutorSettings) -> int:
             ZitadelWriter(settings.zitadel, http),
             JetStreamPublisher(jetstream),
             DirectStateReader(jetstream),
-            settings.zitadel,
         )
         health = Health()
         health.add_check("nats", lambda: nats_client.is_connected)

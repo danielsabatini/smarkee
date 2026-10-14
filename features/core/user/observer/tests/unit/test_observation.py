@@ -2,9 +2,8 @@
 
 from core_user_observer.domain.identity import ProviderError, ZitadelUser
 from core_user_observer.domain.observation import observe, user_state
-from core_user_observer.settings import ZitadelSettings
 
-SETTINGS = ZitadelSettings()
+ROLES = {"organization.create", "organization.get", "user.get"}
 
 
 class FakeReader:
@@ -34,34 +33,35 @@ def active(*, password: bool = True, verified: bool = True) -> ZitadelUser:
 
 
 async def test_absent_user() -> None:
-    result = await observe(FakeReader(None), SETTINGS, "u-1")
+    result = await observe(FakeReader(None), "u-1")
     assert (result.presence, result.data) == ("absent", {})
 
 
-async def test_present_with_every_role_is_granted() -> None:
-    roles = set(SETTINGS.expected_roles)
-    result = await observe(FakeReader(active(), roles), SETTINGS, "u-1")
+async def test_present_reports_the_roles_the_user_has_sorted() -> None:
+    result = await observe(FakeReader(active(), set(ROLES)), "u-1")
     assert result.presence == "present"
     assert result.data == {
         "emailVerified": True,
         "userState": "active",
         "platformAccess": "granted",
+        "platformRoles": ["organization.create", "organization.get", "user.get"],
     }
 
 
-async def test_missing_roles_are_revoked_and_extra_roles_do_not_matter() -> None:
-    partial = set(SETTINGS.expected_roles) - {"user.delete"}
-    revoked = await observe(FakeReader(active(), partial), SETTINGS, "u-1")
-    assert revoked.data["platformAccess"] == "revoked"
-    extra = set(SETTINGS.expected_roles) | {"platform.admin"}
-    granted = await observe(FakeReader(active(), extra), SETTINGS, "u-1")
-    assert granted.data["platformAccess"] == "granted"
+async def test_a_user_without_roles_is_revoked_with_an_empty_list() -> None:
+    result = await observe(FakeReader(active(), set()), "u-1")
+    assert result.data["platformAccess"] == "revoked"
+    assert result.data["platformRoles"] == []
+
+
+async def test_extra_roles_are_reported_as_they_are() -> None:
+    result = await observe(FakeReader(active(), ROLES | {"platform.admin"}), "u-1")
+    assert "platform.admin" in result.data["platformRoles"]
 
 
 async def test_unactivated_user_is_initial() -> None:
     result = await observe(
         FakeReader(active(password=False, verified=False), set()),
-        SETTINGS,
         "u-1",
     )
     assert result.data["userState"] == "initial"
@@ -73,7 +73,7 @@ async def test_read_failures_are_unknown() -> None:
         FakeReader(None, error=ProviderError("HTTP 503")),
         FakeReader(active(), roles_error=ProviderError("HTTP 500")),
     ):
-        result = await observe(reader, SETTINGS, "u-1")
+        result = await observe(reader, "u-1")
         assert (result.presence, result.data) == ("unknown", {})
 
 

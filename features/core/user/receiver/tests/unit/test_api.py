@@ -79,6 +79,7 @@ def user_record(resource_id: str) -> ResourceRecord:
         desired={
             "lifecycle": "present",
             "platformAccess": "granted",
+            "platformRoles": ["organization.get", "user.get"],
             "givenName": "Ana",
             "familyName": "Souza",
             "email": "ana@example.com",

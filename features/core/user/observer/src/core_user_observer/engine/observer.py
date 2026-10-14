@@ -140,9 +140,7 @@ class Observer:
     async def observe_resource(self, resource_id: str, *, causation_id: str | None) -> None:
         watch = self._watches.setdefault(resource_id, Watch())
         async with self._reads:
-            observation: Observation = await self._observe(
-                self._reader, self._settings.zitadel, resource_id
-            )
+            observation: Observation = await self._observe(self._reader, resource_id)
         if watch.lifecycle == "absent" and observation.presence == "absent":
             watch.tombstone = True  # remoção convergida: deixa de observar
         await self._publish(resource_id, watch, observation, causation_id)

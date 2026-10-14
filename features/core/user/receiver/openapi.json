@@ -268,6 +268,13 @@
         "title": "PlatformAccess",
         "type": "string"
       },
+      "PlatformRole": {
+        "maxLength": 128,
+        "minLength": 3,
+        "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+$",
+        "title": "PlatformRole",
+        "type": "string"
+      },
       "Presence": {
         "description": "Resultado da observação, no envelope de observed. unknown nunca é tratado como absent.",
         "enum": [
@@ -441,6 +448,14 @@
           "platformAccess": {
             "$ref": "#/components/schemas/PlatformAccess"
           },
+          "platformRoles": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformRole"
+            },
+            "maxItems": 64,
+            "title": "Platformroles",
+            "type": "array"
+          },
           "reconciliation": {
             "$ref": "#/components/schemas/Reconciliation"
           }
@@ -448,7 +463,8 @@
         "required": [
           "lifecycle",
           "reconciliation",
-          "platformAccess"
+          "platformAccess",
+          "platformRoles"
         ],
         "title": "UserDesiredView",
         "type": "object"
@@ -482,6 +498,21 @@
                 "type": "null"
               }
             ]
+          },
+          "platformRoles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PlatformRole"
+                },
+                "maxItems": 64,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platformroles"
           },
           "presence": {
             "$ref": "#/components/schemas/Presence"

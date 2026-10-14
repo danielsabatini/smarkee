@@ -24,7 +24,6 @@ from core_user_executor.domain.errors import ActionFailedError
 from core_user_executor.domain.identity import ProviderError
 from core_user_executor.domain.revalidation import revalidate
 from core_user_executor.ids import new_identifier, utc_now
-from core_user_executor.settings import ZitadelSettings
 
 MODULE = "core"
 RESOURCE_TYPE = "user"
@@ -69,7 +68,6 @@ class Executor:
         writer: Writer,
         publisher: Publisher,
         state: StateReader,
-        settings: ZitadelSettings,
         *,
         clock: Callable[[], datetime] = utc_now,
         identifiers: Callable[[], str] = new_identifier,
@@ -77,7 +75,6 @@ class Executor:
         self._writer = writer
         self._publisher = publisher
         self._state = state
-        self._settings = settings
         self._clock = clock
         self._identifiers = identifiers
 
@@ -100,7 +97,7 @@ class Executor:
         if failure is None and desired is not None:
             data_: Mapping[str, Any] = desired.get("data") or {}
             try:
-                await execute(operation, resource_id, data_, self._writer, self._settings)
+                await execute(operation, resource_id, data_, self._writer)
             except ActionFailedError as error:
                 failure = error
             except ProviderError as error:

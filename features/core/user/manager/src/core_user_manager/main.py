@@ -10,7 +10,7 @@ import logging
 import signal
 import sys
 
-from core_user_manager.domain.kind import USER
+from core_user_manager.domain.kind import user_kind
 from core_user_manager.handlers.observed import ObservedHandler
 from core_user_manager.handlers.requested import RequestedHandler
 from core_user_manager.handlers.result import ResultHandler
@@ -63,18 +63,19 @@ async def run(settings: UserManagerSettings) -> int:
     nats_client = await connect(settings.nats)
     pool = await open_pool(settings.database)
     jetstream = jetstream_of(nats_client)
+    user = user_kind(settings.platform.roles)
     health.add_check("nats", lambda: nats_client.is_connected)
     consumers = {
         "requested": RequestedConsumer(
-            jetstream, pool, USER, handler=RequestedHandler(), on_cycle=health.beat
+            jetstream, pool, user, handler=RequestedHandler(), on_cycle=health.beat
         ),
         "observed": ObservedConsumer(
-            jetstream, pool, USER, handler=ObservedHandler(), on_cycle=health.beat
+            jetstream, pool, user, handler=ObservedHandler(), on_cycle=health.beat
         ),
         "result": ResultConsumer(
             jetstream,
             pool,
-            USER,
+            user,
             handler=ResultHandler(failure_limit=settings.loop.failure_limit),
             on_cycle=health.beat,
         ),

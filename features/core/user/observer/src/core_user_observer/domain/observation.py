@@ -13,13 +13,6 @@ _STATE = {
 }
 
 
-class ExpectedRoles(Protocol):
-    """Roles que o usuário deve ter para `platformAccess = granted` (vêm da configuração)."""
-
-    @property
-    def expected_roles(self) -> tuple[str, ...]: ...
-
-
 class Reader(Protocol):
     """Leitura do provedor de identidade (implementada por `ZitadelReader`)."""
 
@@ -44,8 +37,13 @@ def user_state(user: ZitadelUser) -> str:
     return mapped
 
 
-async def observe(reader: Reader, settings: ExpectedRoles, user_id: str) -> Observation:
-    """Lê o usuário e as roles. Qualquer falha de leitura é `unknown`, nunca `absent`."""
+async def observe(reader: Reader, user_id: str) -> Observation:
+    """Lê o usuário e as roles. Qualquer falha de leitura é `unknown`, nunca `absent`.
+
+    `platformRoles` são as roles que o usuário tem no projeto da plataforma (decisão 0025);
+    `platformAccess` é `granted` quando há ao menos uma. Quem compara com o `desired` é o
+    Reconciler.
+    """
     try:
         user = await reader.get_user(user_id)
         if user is None:
@@ -53,12 +51,12 @@ async def observe(reader: Reader, settings: ExpectedRoles, user_id: str) -> Obse
         roles = await reader.granted_roles(user_id)
     except ProviderError:
         return Observation("unknown", {})
-    granted = set(settings.expected_roles) <= roles
     return Observation(
         "present",
         {
             "emailVerified": user.email_verified,
             "userState": user_state(user),
-            "platformAccess": "granted" if granted else "revoked",
+            "platformAccess": "granted" if roles else "revoked",
+            "platformRoles": sorted(roles),
         },
     )

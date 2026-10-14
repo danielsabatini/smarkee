@@ -379,22 +379,12 @@ class UserState(StrEnum):
     locked = "locked"
 
 
-class UserObservedData(ContractModel):
+class PlatformRole(RootModel[str]):
+    root: Annotated[
+        str, Field(max_length=128, min_length=3, pattern="^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+$")
+    ]
     """
-    data de observed do User: estado lido do provedor de identidade. Os campos estão presentes quando presence é present; com absent ou unknown, data é vazio.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    email_verified: Annotated[bool | None, Field(alias="emailVerified")] = None
-    """
-    Se o e-mail foi verificado (a ativação foi concluída).
-    """
-    user_state: Annotated[UserState | None, Field(alias="userState")] = None
-    platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
-    """
-    granted quando o conjunto de roles de ação do usuário cadastrado está atribuído a ele no projeto da plataforma.
+    Role de ação do projeto da plataforma (decisão 0025), por exemplo organization.create.
     """
 
 
@@ -498,94 +488,6 @@ class UserCreateRequest(ContractModel):
     email: Annotated[EmailStr, Field(max_length=254, min_length=3)]
     """
     E-mail do usuário; é também o nome de login. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
-    """
-
-
-class UserDesiredView(ContractModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    lifecycle: Lifecycle
-    reconciliation: Reconciliation
-    platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
-    given_name: Annotated[str | None, Field(alias="givenName", max_length=256, min_length=1)] = None
-    """
-    Nome próprio do usuário.
-    """
-    family_name: Annotated[str | None, Field(alias="familyName", max_length=256, min_length=1)] = (
-        None
-    )
-    """
-    Sobrenome do usuário.
-    """
-    email: Annotated[EmailStr | None, Field(max_length=254, min_length=3)] = None
-    """
-    E-mail do usuário; é também o nome de login. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
-    """
-
-
-class UserObservedView(ContractModel):
-    """
-    Última observação; ausente antes da primeira.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    presence: Presence
-    observed_at: Annotated[AwareDatetime, Field(alias="observedAt")]
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-    email_verified: Annotated[bool | None, Field(alias="emailVerified")] = None
-    user_state: Annotated[UserState | None, Field(alias="userState")] = None
-    platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
-
-
-class User(ContractModel):
-    """
-    Visão consolidada do User exposta pelo Receiver (GET /v1/users/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    resource_id: Annotated[
-        str,
-        Field(
-            alias="resourceId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Também o ID do usuário no provedor de identidade (decisão 0014).
-    """
-    resource_version: Annotated[
-        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
-    ]
-    """
-    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
-    """
-    desired_generation: Annotated[int, Field(alias="desiredGeneration", ge=1, le=9007199254740991)]
-    """
-    Geração lógica do estado desejado (desiredGeneration, observedGeneration).
-    """
-    phase: Phase
-    conditions: Annotated[list[Condition], Field(max_length=32)]
-    desired: Annotated[UserDesiredView, Field(title="UserDesiredView")]
-    observed: Annotated[UserObservedView | None, Field(title="UserObservedView")] = None
-    """
-    Última observação; ausente antes da primeira.
-    """
-    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-    updated_at: Annotated[AwareDatetime, Field(alias="updatedAt")]
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
     """
 
 
@@ -725,6 +627,129 @@ class MessageEnvelope(ContractModel):
     """
 
 
+class UserObservedData(ContractModel):
+    """
+    data de observed do User: estado lido do provedor de identidade. Os campos estão presentes quando presence é present; com absent ou unknown, data é vazio.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    email_verified: Annotated[bool | None, Field(alias="emailVerified")] = None
+    """
+    Se o e-mail foi verificado (a ativação foi concluída).
+    """
+    user_state: Annotated[UserState | None, Field(alias="userState")] = None
+    platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
+    """
+    granted quando o usuário tem ao menos uma role de ação no projeto da plataforma (a lista está em platformRoles).
+    """
+    platform_roles: Annotated[
+        list[PlatformRole] | None, Field(alias="platformRoles", max_length=64)
+    ] = None
+    """
+    Roles de ação que o usuário tem hoje no projeto da plataforma, lidas do provedor de identidade. platformAccess é granted quando há ao menos uma.
+    """
+
+
+class UserDesiredView(ContractModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    lifecycle: Lifecycle
+    reconciliation: Reconciliation
+    platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
+    platform_roles: Annotated[list[PlatformRole], Field(alias="platformRoles", max_length=64)]
+    """
+    Conjunto de roles de ação, sem repetição e em ordem alfabética.
+    """
+    given_name: Annotated[str | None, Field(alias="givenName", max_length=256, min_length=1)] = None
+    """
+    Nome próprio do usuário.
+    """
+    family_name: Annotated[str | None, Field(alias="familyName", max_length=256, min_length=1)] = (
+        None
+    )
+    """
+    Sobrenome do usuário.
+    """
+    email: Annotated[EmailStr | None, Field(max_length=254, min_length=3)] = None
+    """
+    E-mail do usuário; é também o nome de login. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
+    """
+
+
+class UserObservedView(ContractModel):
+    """
+    Última observação; ausente antes da primeira.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    presence: Presence
+    observed_at: Annotated[AwareDatetime, Field(alias="observedAt")]
+    """
+    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
+    """
+    email_verified: Annotated[bool | None, Field(alias="emailVerified")] = None
+    user_state: Annotated[UserState | None, Field(alias="userState")] = None
+    platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
+    platform_roles: Annotated[
+        list[PlatformRole] | None, Field(alias="platformRoles", max_length=64)
+    ] = None
+    """
+    Conjunto de roles de ação, sem repetição e em ordem alfabética.
+    """
+
+
+class User(ContractModel):
+    """
+    Visão consolidada do User exposta pelo Receiver (GET /v1/users/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    resource_id: Annotated[
+        str,
+        Field(
+            alias="resourceId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Também o ID do usuário no provedor de identidade (decisão 0014).
+    """
+    resource_version: Annotated[
+        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
+    ]
+    """
+    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
+    """
+    desired_generation: Annotated[int, Field(alias="desiredGeneration", ge=1, le=9007199254740991)]
+    """
+    Geração lógica do estado desejado (desiredGeneration, observedGeneration).
+    """
+    phase: Phase
+    conditions: Annotated[list[Condition], Field(max_length=32)]
+    desired: Annotated[UserDesiredView, Field(title="UserDesiredView")]
+    observed: Annotated[UserObservedView | None, Field(title="UserObservedView")] = None
+    """
+    Última observação; ausente antes da primeira.
+    """
+    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
+    """
+    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
+    """
+    updated_at: Annotated[AwareDatetime, Field(alias="updatedAt")]
+    """
+    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
+    """
+
+
 class UserDesiredData(ContractModel):
     """
     data de desired do User: estado pretendido e controle de reconciliação. Publicado somente pelo Manager. Sem senha: a credencial é definida pelo usuário no provedor de identidade (decisão 0014). Com lifecycle absent, não carrega dados pessoais.
@@ -738,6 +763,10 @@ class UserDesiredData(ContractModel):
     platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
     """
     granted: o usuário tem o conjunto de roles de ação do usuário cadastrado no projeto da plataforma. Atribuído pelo Manager na criação.
+    """
+    platform_roles: Annotated[list[PlatformRole], Field(alias="platformRoles", max_length=64)]
+    """
+    Roles de ação que o usuário deve ter no projeto da plataforma. Atribuído pelo Manager na criação, a partir da sua configuração; vazio quando platformAccess é revoked (decisão 0025).
     """
     given_name: Annotated[str | None, Field(alias="givenName", max_length=256, min_length=1)] = None
     """

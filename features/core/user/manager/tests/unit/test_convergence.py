@@ -1,22 +1,24 @@
 """Decisões puras sobre `observed` e resultados de ação, sem banco."""
 
 from datetime import UTC, datetime
+from typing import Any
 
 from core_user_manager.domain.convergence import decide_observed, decide_result
 from core_user_manager.domain.kind import USER
 
 NOW = datetime(2026, 10, 11, 12, 0, tzinfo=UTC)
-DESIRED_PRESENT = {"lifecycle": "present", "platformAccess": "granted"}
+ROLES = ["organization.get", "user.get"]
+DESIRED_PRESENT = {"lifecycle": "present", "platformAccess": "granted", "platformRoles": ROLES}
 
 
-def observe(presence: str, *, desired: dict[str, str], lifecycle: str, phase: str = "Pending"):
+def observe(presence: str, *, desired: dict[str, Any], lifecycle: str, phase: str = "Pending"):
     return decide_observed(
         USER.policy,
         desired=desired,
         lifecycle=lifecycle,
         generation=1,
         presence=presence,
-        observed={"platformAccess": "granted"},
+        observed={"platformAccess": "granted", "platformRoles": [*ROLES, "platform.admin"]},
         previous_phase=phase,
         previous_conditions=[],
         now=NOW,
@@ -30,19 +32,27 @@ def test_present_and_matching_converges_to_ready() -> None:
 
 
 def test_present_but_different_keeps_reconciling() -> None:
-    desired = {"lifecycle": "present", "platformAccess": "revoked"}
+    desired: dict[str, Any] = {
+        "lifecycle": "present",
+        "platformAccess": "revoked",
+        "platformRoles": [],
+    }
     decision = observe("present", desired=desired, lifecycle="present")
     assert not decision.converged and decision.phase == "Reconciling"
 
 
 def test_failed_phase_is_kept_while_not_converged() -> None:
-    desired = {"lifecycle": "present", "platformAccess": "revoked"}
+    desired: dict[str, Any] = {
+        "lifecycle": "present",
+        "platformAccess": "revoked",
+        "platformRoles": [],
+    }
     decision = observe("present", desired=desired, lifecycle="present", phase="Failed")
     assert decision.phase == "Failed" and decision.conditions[0]["reason"] == "Failed"
 
 
 def test_absent_when_removal_is_wanted_removes_the_record() -> None:
-    desired = {"lifecycle": "absent", "platformAccess": "granted"}
+    desired = {"lifecycle": "absent", "platformAccess": "granted", "platformRoles": ROLES}
     decision = observe("absent", desired=desired, lifecycle="absent")
     assert decision.remove and decision.converged
 
@@ -87,3 +97,9 @@ def test_success_does_not_count_a_failure() -> None:
 
 def test_already_suspended_does_not_suspend_again() -> None:
     assert not result(failed=True, count=9, reconciliation="suspended").suspend
+
+
+def test_missing_a_desired_role_keeps_reconciling() -> None:
+    desired = {**DESIRED_PRESENT, "platformRoles": [*ROLES, "organization.create"]}
+    decision = observe("present", desired=desired, lifecycle="present")
+    assert not decision.converged and decision.phase == "Reconciling"

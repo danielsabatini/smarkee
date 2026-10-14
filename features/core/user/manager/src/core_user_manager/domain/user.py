@@ -35,8 +35,27 @@ def _parse_resource_version(value: str) -> int:
         raise PermanentMessageError("resourceVersion não numérico") from None
 
 
+DEFAULT_PLATFORM_ROLES: tuple[str, ...] = (
+    "organization.create",
+    "organization.delete",
+    "organization.get",
+    "organization.list",
+    "organization.update",
+    "user.delete",
+    "user.get",
+)
+"""Roles de ação do usuário cadastrado no projeto da plataforma (decisões 0010 e 0025)."""
+
+
 class UserPolicy:
-    """User: e-mail único (normalizado) e `desired` de remoção sem dados pessoais (decisão 0014)."""
+    """User: e-mail único (normalizado) e `desired` de remoção sem dados pessoais (decisão 0014).
+
+    As roles que o usuário recebe vêm da configuração do Manager e ficam gravadas no `desired`
+    (`platformRoles`, decisão 0025): é a única fonte do conjunto no loop.
+    """
+
+    def __init__(self, platform_roles: tuple[str, ...] = DEFAULT_PLATFORM_ROLES) -> None:
+        self._platform_roles = sorted(set(platform_roles))
 
     def parse(self, operation: str, data: Mapping[str, Any]) -> Request:
         match operation:
@@ -69,14 +88,23 @@ class UserPolicy:
 
     def desired_for_create(self, request: Request, requested_by: str) -> dict[str, Any]:
         assert request.specification is not None  # noqa: S101 (invariante de parse)
-        return {"lifecycle": "present", "platformAccess": "granted", **request.specification}
+        return {
+            "lifecycle": "present",
+            "platformAccess": "granted",
+            "platformRoles": list(self._platform_roles),
+            **request.specification,
+        }
 
     def desired_for_update(self, current: Mapping[str, Any], request: Request) -> dict[str, Any]:
         raise PermanentMessageError("update não é suportado para user")
 
     def desired_for_delete(self, current: Mapping[str, Any]) -> dict[str, Any]:
         # Sem dados pessoais: o Executor só precisa do resourceId para remover o usuário.
-        return {"lifecycle": "absent", "platformAccess": current["platformAccess"]}
+        return {
+            "lifecycle": "absent",
+            "platformAccess": current["platformAccess"],
+            "platformRoles": current["platformRoles"],
+        }
 
     def unique_value(self, desired: Mapping[str, Any]) -> UniqueValue | None:
         if desired["lifecycle"] != "present":
@@ -93,11 +121,14 @@ class UserPolicy:
     def is_converged(
         self, desired: Mapping[str, Any], presence: str, observed: Mapping[str, Any] | None
     ) -> bool:
-        # Campos gerenciados do User: `lifecycle` e `platformAccess` (schemas/core/user/desired).
+        # Campos gerenciados do User: `lifecycle`, `platformAccess` e `platformRoles`
+        # (schemas/core/user/desired). As roles desejadas precisam estar contidas nas observadas:
+        # roles a mais no provedor não geram divergência.
         if desired["lifecycle"] == "absent":
             return presence == "absent"
         return (
             presence == "present"
             and observed is not None
             and observed.get("platformAccess") == desired["platformAccess"]
+            and set(desired["platformRoles"]) <= set(observed.get("platformRoles", ()))
         )

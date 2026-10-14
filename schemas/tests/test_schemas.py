@@ -269,9 +269,23 @@ def test_user_desired_carries_personal_data_only_while_present() -> None:
     incomplete = {k: v for k, v in present.items() if k != "email"}
     assert not _is_valid(desired_path, incomplete)
 
-    absent = {"lifecycle": "absent", "reconciliation": "active", "platformAccess": "granted"}
+    absent = {
+        "lifecycle": "absent",
+        "reconciliation": "active",
+        "platformAccess": "granted",
+        "platformRoles": present["platformRoles"],
+    }
     assert _is_valid(desired_path, absent)
     assert not _is_valid(desired_path, {**absent, "email": present["email"]})
+
+
+def test_user_platform_roles_are_a_set_of_action_roles() -> None:
+    desired_path = USER / "desired.v1.schema.json"
+    present = json.loads(_example_for(desired_path).read_text(encoding="utf-8"))
+    assert not _is_valid(desired_path, {k: v for k, v in present.items() if k != "platformRoles"})
+    assert _is_valid(desired_path, {**present, "platformAccess": "revoked", "platformRoles": []})
+    assert not _is_valid(desired_path, {**present, "platformRoles": ["user.get", "user.get"]})
+    assert not _is_valid(desired_path, {**present, "platformRoles": ["User Get"]})
 
 
 @pytest.mark.parametrize(

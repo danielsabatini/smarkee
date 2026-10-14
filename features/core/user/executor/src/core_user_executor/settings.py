@@ -39,17 +39,6 @@ class ZitadelSettings(_Section):
     project_id: str | None = None
     """ID do projeto `smarkee`, onde o usuário recebe as roles. Sem default."""
 
-    granted_roles: tuple[str, ...] = (
-        "organization.create",
-        "organization.get",
-        "organization.list",
-        "organization.update",
-        "organization.delete",
-        "user.get",
-        "user.delete",
-    )
-    """Roles de ação do usuário cadastrado (`platformAccess = granted`, decisão 0014)."""
-
     timeout_seconds: float = 10.0
 
 

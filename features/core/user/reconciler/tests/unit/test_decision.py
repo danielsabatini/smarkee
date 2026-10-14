@@ -18,18 +18,30 @@ from core_user_reconciler.settings import LoopSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
 SETTINGS = LoopSettings()
+ROLES = frozenset({"organization.get", "user.get"})
 
 
 def desired(
     *, lifecycle: str = "present", reconciliation: str = "active", generation: int = 1
 ) -> DesiredState:
-    return DesiredState("d-1", generation, lifecycle, reconciliation, "granted", "anonymous", "c-1")
+    return DesiredState(
+        "d-1", generation, lifecycle, reconciliation, "granted", ROLES, "anonymous", "c-1"
+    )
 
 
 def observed(
-    presence: str, *, age: int = 5, access: str | None = None, causation: str | None = None
+    presence: str,
+    *,
+    age: int = 5,
+    access: str | None = None,
+    roles: frozenset[str] | None = None,
+    causation: str | None = None,
 ) -> ObservedState:
-    return ObservedState("o-1", presence, NOW - timedelta(seconds=age), causation, access)
+    # `access="granted"` sem `roles` observa exatamente as roles desejadas.
+    held: frozenset[str] = (
+        roles if roles is not None else (ROLES if access == "granted" else frozenset[str]())
+    )
+    return ObservedState("o-1", presence, NOW - timedelta(seconds=age), causation, access, held)
 
 
 def state(d: DesiredState | None, o: ObservedState | None, **kwargs: object) -> ResourceState:
@@ -54,6 +66,13 @@ def test_present_without_platform_access_is_updated() -> None:
 
 def test_converged_user_needs_no_action() -> None:
     assert operation_of(state(desired(), observed("present", access="granted"))) is None
+
+
+def test_a_missing_desired_role_is_drift_and_extra_roles_are_not() -> None:
+    partial = observed("present", access="granted", roles=frozenset({"user.get"}))
+    assert operation_of(state(desired(), partial)) == "update"
+    extra = observed("present", access="granted", roles=ROLES | {"platform.admin"})
+    assert operation_of(state(desired(), extra)) is None
 
 
 def test_removal_deletes_while_present_and_converges_when_absent() -> None:

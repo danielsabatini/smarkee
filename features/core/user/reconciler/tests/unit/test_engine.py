@@ -69,6 +69,7 @@ def desired(
             "lifecycle": lifecycle,
             "reconciliation": reconciliation,
             "platformAccess": "granted",
+            "platformRoles": ["organization.get", "user.get"],
         },
     )
 
@@ -187,7 +188,15 @@ async def test_a_completed_result_waits_for_the_observation_it_caused(
 
     clock.advance(1)
     await reconciler.on_message(
-        observed("present", at=clock.now, causation="res-1", data={"platformAccess": "granted"})
+        observed(
+            "present",
+            at=clock.now,
+            causation="res-1",
+            data={
+                "platformAccess": "granted",
+                "platformRoles": ["organization.get", "user.get"],
+            },
+        )
     )
     assert len(publisher.published) == 1  # convergiu: nenhuma nova ação
 

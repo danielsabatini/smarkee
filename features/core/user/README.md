@@ -14,18 +14,18 @@ Decisões que definem este módulo: `.decisions/0014-user-no-modulo-core-com-aut
 | Reconciler | `reconciler/` (`core-user-reconciler`) | Implementado |
 | Observer | `observer/` (`core-user-observer`) | Implementado |
 | Executor | `executor/` (`core-user-executor`) | Implementado |
-| Testes e2e | `tests/e2e/` | Implementados: 7 testes de conformidade e 3 de resiliência (`E2E_CHAOS=1`); **não são um componente** |
-| CLI | `components/cli` (`sk register`, `sk user`) | **A implementar** (só existe `sk auth`) |
+| Testes e2e | `tests/e2e/` | Implementados: 8 testes de conformidade e 3 de resiliência (`E2E_CHAOS=1`); **não são um componente** |
+| CLI | `components/cli` | Parcial: `sk register` implementado (cadastro anônimo; veja `components/cli/README.md`); **a implementar:** `sk user get\|delete` |
 
 **Estrutura interna.** Os seis papéis seguem a decisão 0017 (camadas `domain/` puro, orquestração, adaptadores e `main.py`, com um teste por projeto que falha se o `domain/` importar um adaptador) e a decisão 0018 (`/health/live`, `/health/ready` e `/health/startup` em cada componente; no Publisher, a readiness também cai diante de recusa permanente do transporte; o Stream `ACTION` é particionado por `resourceId`). Verificado em 2026-10-11: testes de cada projeto, `ruff`, `pyright` e os testes e2e contra o Zitadel e o Mailpit reais.
 
-O loop completo foi verificado em desenvolvimento contra o Zitadel e o Mailpit reais (conformidade, 2026-10-11): cadastro anônimo, criação do usuário sem senha, e-mails "Verificar e-mail" e "Redefinir senha", observação, `Ready` e remoção pelo próprio loop. **Não verificado de ponta a ponta:** a pessoa clicando nos links, definindo a senha e fazendo `sk auth login` com o usuário novo (os comportamentos do Zitadel descritos nessas etapas estão marcados nos fluxos).
+O loop completo foi verificado em desenvolvimento contra o Zitadel e o Mailpit reais (conformidade, 2026-10-11): cadastro anônimo, criação do usuário sem senha, e-mails "Verificar e-mail" e "Redefinir senha", observação, `Ready` e remoção pelo próprio loop. A ativação foi verificada em dev em 2026-10-12: a pessoa definiu a senha e confirmou o e-mail pelos links, e os reenvios pelo provedor funcionaram (`docs/IMPLEMENTATION-STATUS.md` §7). **Não verificado de ponta a ponta:** o `sk auth login` com o usuário novo.
 
 # 2. Arquitetura
 
 ![Componentes](docs/architecture/01-componentes.svg)
 
-*Fonte: [`docs/architecture/01-componentes.mmd`](docs/architecture/01-componentes.mmd). Contorno tracejado: a implementar. Cores: azul = cliente e borda, verde = módulo, roxo = mensageria, vermelho = sistema externo.*
+*Fonte: [`docs/architecture/01-componentes.mmd`](docs/architecture/01-componentes.mmd). Cores: azul = cliente e borda, verde = módulo, roxo = mensageria, vermelho = sistema externo.*
 
 Cada papel é um projeto autocontido (`.decisions/0015`): código, dependências, testes, imagem e versão próprios, **sem biblioteca compartilhada**. O que os une é a mensageria, o SSOT (cada papel com o seu privilégio) e os contratos neutros de `schemas/`.
 
@@ -60,14 +60,14 @@ Publica no NATS, em ordem e de forma sequencial, as mensagens que o Manager grav
 
 ## 3.4 Reconciler (`core-user-reconciler`)
 
-Compara o último `desired` e o último `observed` de cada usuário (campos gerenciados: `lifecycle` e `platformAccess`) e decide `create`, `update` ou `delete`. Não executa e **não acessa o SSOT**: o estado é um cache em memória reconstruído da mensageria (consumers de estado por instância, `DeliverLastPerSubject`). Não decide com `observed` `unknown` ou antigo (10 min; 5 min para `delete`), com `desired` suspenso, nem enquanto há ação pendente (prazo de 2 min); espera a observação causada por cada resultado e aplica *backoff* após falha (5 s, dobrando até 300 s).
+Compara o último `desired` e o último `observed` de cada usuário (campos gerenciados: `lifecycle`, `platformAccess` e `platformRoles`) e decide `create`, `update` ou `delete`. Não executa e **não acessa o SSOT**: o estado é um cache em memória reconstruído da mensageria (consumers de estado por instância, `DeliverLastPerSubject`). Não decide com `observed` `unknown` ou antigo (10 min; 5 min para `delete`), com `desired` suspenso, nem enquanto há ação pendente (prazo de 2 min); espera a observação causada por cada resultado e aplica *backoff* após falha (5 s, dobrando até 300 s).
 
 ## 3.5 Observer (`core-user-observer`)
 
 Lê o Zitadel (conta de serviço **somente leitura**, `ORG_OWNER_VIEWER`) e publica `observed`:
 
 - `absent` **só** com 404 inequívoco do usuário exato (código 5 com detalhe do erro); qualquer outra falha (timeout, 5xx, 401/403, 429, corpo inesperado) é `unknown`;
-- `present` com `emailVerified`, `userState` (`initial` até a senha ser definida) e `platformAccess` (`granted` quando as 7 roles de ação estão concedidas no projeto).
+- `present` com `emailVerified`, `userState` (`initial` até a senha ser definida) `platformAccess` (`granted` quando há ao menos uma role no projeto) e `platformRoles` (as roles que o usuário tem no projeto).
 
 Observa quando o `desired` é novo, depois de cada `completed`/`failed` (com `causationId` do resultado) e periodicamente (5 min, com jitter), só os recursos da sua partição (`hash(resourceId) mod count`).
 
@@ -75,7 +75,7 @@ Observa quando o `desired` é novo, depois de cada `completed`/`failed` (com `ca
 
 A **única identidade com escrita no Zitadel** (conta `core-user-executor`, papel `ORG_USER_MANAGER`, só a organização `core`). Para cada `action`: revalida contra o `desired` vigente (geração, operação coerente, reconciliação ativa), consulta o desfecho já registrado do `actionId` e só então executa:
 
-- `create`: `POST /v2/users/human` **sem senha**, com `userId = resourceId` (o `sub` do token será o `resourceId`); o Zitadel envia "Verificar e-mail"; em seguida `password_reset` com `sendLink` envia "Redefinir senha"; por fim concede as 7 roles de ação no projeto `smarkee`. Cada passo é idempotente (repetição confere o dono do ID pelo e-mail).
+- `create`: `POST /v2/users/human` **sem senha**, com `userId = resourceId` (o `sub` do token será o `resourceId`); o Zitadel envia "Verificar e-mail"; em seguida `password_reset` com `sendLink` envia "Redefinir senha"; por fim concede no projeto `smarkee` as roles de `desired.platformRoles` (o Executor não tem lista própria). Cada passo é idempotente (repetição confere o dono do ID pelo e-mail).
 - `update`: garante (ou remove, se `revoked`) as roles do projeto.
 - `delete`: remove o usuário (ausente é sucesso).
 
@@ -171,7 +171,7 @@ Cada fluxo é uma sequência numerada (quem publica, quem consome, qual subject)
 
 ![Ativação e login](docs/flow/07-ativacao-e-login.svg)
 
-*Fonte: [`07-ativacao-e-login.mmd`](docs/flow/07-ativacao-e-login.mmd).* A pessoa define a senha na página do Zitadel (a senha nunca passa por CLI, Receiver, SSOT nem NATS) e depois entra com `sk auth login` (PKCE com retorno em loopback, decisão 0007). Inclui os problemas de ativação e de login. **Esta etapa não foi exercitada de ponta a ponta.**
+*Fonte: [`07-ativacao-e-login.mmd`](docs/flow/07-ativacao-e-login.mmd).* A pessoa define a senha na página do Zitadel (a senha nunca passa por CLI, Receiver, SSOT nem NATS) e depois entra com `sk auth login` (PKCE com retorno em loopback, decisão 0007). Inclui os problemas de ativação e de login. A ativação (senha e e-mail) foi verificada em dev em 2026-10-12; **o `sk auth login` com o usuário novo ainda não foi exercitado.**
 
 ### Como ativar a conta (senha e e-mail)
 
@@ -197,6 +197,10 @@ Esses reenvios não passam pela plataforma, de propósito: um reenvio anônimo r
 ![Remoção](docs/flow/08-remocao.svg)
 
 *Fonte: [`08-remocao.mmd`](docs/flow/08-remocao.mmd).* Declarativa: o `desired` passa a `absent` (sem dados pessoais); o Reconciler decide `delete`; o registro só sai do SSOT quando a ausência é observada. Inclui conflito de versão, permissão e falhas.
+
+## 4.9 Fluxo de dados
+
+[`docs/CORE-USER-DATA-FLOW.md`](docs/CORE-USER-DATA-FLOW.md) (padrão da decisão 0024) segue os **dados** do `sk register` até `Ready`: a chamada à API, o payload de cada mensagem, as queries do Manager e as linhas gravadas em cada tabela.
 
 # 5. Estados
 
@@ -225,7 +229,7 @@ Consumers: Manager `core-user-manager-{requested,observed,result}` (duráveis, c
 
 Em [`schemas/core/user/`](../../../schemas/core/user/) (JSON Schema 2020-12, com exemplos): `desired`, `observed`, `requested-create`, `requested-delete`, `api-create-request`, `resource`; e, em `schemas/common/`, envelope, `action`, `completed`, `failed`, `updated`, `operation`, `api-error` e `api-accepted-response`. O índice usado para gerar os modelos é `schemas/core.user.index.json`.
 
-Campos do User: `givenName`, `familyName` e `email` são `confidential` (nunca em log, mensagem de erro nem métrica) e **não existem** no `desired` de remoção. Campos gerenciados (comparados com o `observed`): `lifecycle` e `platformAccess`. Não há senha em nenhum contrato (`SCHEMA.md` §20.1).
+Campos do User: `givenName`, `familyName` e `email` são `confidential` (nunca em log, mensagem de erro nem métrica) e **não existem** no `desired` de remoção. Campos gerenciados (comparados com o `observed`): `lifecycle`, `platformAccess` e `platformRoles` (as desejadas precisam estar contidas nas observadas; roles a mais não divergem). O conjunto de roles do cadastro vem da configuração do Manager (`CORE_USER_MANAGER_PLATFORM_ROLES`) e fica registrado no SSOT ([decisão 0025](../../../.decisions/0025-roles-do-user-no-ssot.md)). A revogação de acesso de um usuário existente é privilégio de operador e ainda não está exposta. Não há senha em nenhum contrato (`SCHEMA.md` §20.1).
 
 # 8. Segurança e privacidade
 
@@ -275,7 +279,7 @@ Os e-mails do Zitadel de dev são capturados pelo Mailpit (http://localhost:8025
 
 # 10. Limitações e pendências
 
-- **CLI:** `sk register` (sem `--wait`, orienta a verificar o e-mail) e `sk user get|delete`.
+- **CLI:** `sk register` existe (sem `--wait`: confirma que o pedido foi aceito e orienta a verificar o e-mail); falta `sk user get|delete`.
 - **E-mail:** o loop não garante a entrega; falha de SMTP, endereço errado e spam estão fora da garantia (fluxo 4.6). São dois e-mails ("Verificar e-mail" e "Redefinir senha"), com textos do Zitadel a revisar.
 - **Retomada de `Failed`:** o User não tem `update`; falta definir a intervenção explícita.
 - **Remoção com dependentes:** a ordem de remoção entre recursos dependentes (um usuário dono de Organizations) não está definida.
@@ -314,8 +318,8 @@ Views (a interface de leitura do Receiver, decisão 0004): `core.user_v1` (o usu
 
 | Coluna | Conteúdo no User |
 |---|---|
-| `desired` | `lifecycle`, `platformAccess` e, no `create`, `givenName`, `familyName` e `email` (normalizado). No `delete`, só `lifecycle = absent` e `platformAccess`: **sem dados pessoais** |
-| `observed` | `emailVerified`, `userState` (`initial` até a senha ser definida) e `platformAccess` |
+| `desired` | `lifecycle`, `platformAccess`, `platformRoles` e, no `create`, `givenName`, `familyName` e `email` (normalizado). No `delete`, só `lifecycle = absent`, `platformAccess` e `platformRoles`: **sem dados pessoais** |
+| `observed` | `emailVerified`, `userState` (`initial` até a senha ser definida), `platformAccess` e `platformRoles` |
 | `conditions` | Array com a condition `Ready` (`status`, `reason`, `observedGeneration`, `lastTransitionAt`) |
 | `user_outbox.payload` | O envelope completo da mensagem (`desired` ou `updated`), com `publishedAt` e `publishedBy` preenchidos pelo Publisher |
 

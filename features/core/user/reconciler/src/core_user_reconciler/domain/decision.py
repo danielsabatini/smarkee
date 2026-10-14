@@ -18,6 +18,7 @@ class DesiredState:
     lifecycle: str
     reconciliation: str
     platform_access: str
+    platform_roles: frozenset[str]
     requested_by: str | None
     correlation_id: str | None
 
@@ -29,6 +30,7 @@ class ObservedState:
     observed_at: datetime
     causation_id: str | None
     platform_access: str | None
+    platform_roles: frozenset[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,14 +136,19 @@ def decide(state: ResourceState, now: datetime, settings: LoopParameters) -> Dec
 
 
 def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
-    """Compara os campos gerenciados do User: `lifecycle` e `platformAccess`."""
+    """Compara os campos gerenciados do User: `lifecycle`, `platformAccess` e `platformRoles`.
+
+    As roles desejadas precisam estar contidas nas observadas: roles a mais não são divergência.
+    """
     if desired.lifecycle == "absent":
         if observed.presence == "present":
             return Decision("delete", "DeletionRequested", "The user must be removed.")
         return None
     if observed.presence == "absent":
         return Decision("create", "Missing", "The user does not exist in the identity provider.")
-    if observed.platform_access != desired.platform_access:
+    if observed.platform_access != desired.platform_access or not (
+        desired.platform_roles <= observed.platform_roles
+    ):
         return Decision("update", "Drift", "The user lacks the expected platform access.")
     return None
 

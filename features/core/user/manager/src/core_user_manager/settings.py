@@ -10,6 +10,8 @@ Nome da variável: `CORE_USER_MANAGER_<SEÇÃO>_<CAMPO>`, por exemplo
 from pydantic import BaseModel, ConfigDict, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from core_user_manager.domain.user import DEFAULT_PLATFORM_ROLES
+
 
 class _Section(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -36,6 +38,11 @@ class LoopSettings(_Section):
     """Falhas por geração antes de `Failed` (`schemas/core/user/desired`, `failureLimit`)."""
 
 
+class PlatformSettings(_Section):
+    roles: tuple[str, ...] = DEFAULT_PLATFORM_ROLES
+    """Roles de ação gravadas no `desired` do usuário cadastrado (decisão 0025). Lista em JSON."""
+
+
 class HealthSettings(_Section):
     port: int = 8000
     """Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018)."""
@@ -53,6 +60,7 @@ class UserManagerSettings(BaseSettings):
     database: DatabaseSettings = DatabaseSettings()
     nats: NatsSettings = NatsSettings()
     loop: LoopSettings = LoopSettings()
+    platform: PlatformSettings = PlatformSettings()
     health: HealthSettings = HealthSettings()
 
 

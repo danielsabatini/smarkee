@@ -23,7 +23,7 @@ O que está sendo trabalhado ativamente neste momento.
 ### 🟡 Next (Próximos Passos / Médio Prazo)
 O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.
 - [ ] **`[Planned]` Organization derivada do User:** Manager `observed`/`result`, Reconciler, Observer e Executor do tipo `organization` do módulo `ipm`, na estrutura e com o servidor de saúde do User (modelo das demais features), fechando o loop sobre o Zitadel.
-- [ ] **`[Planned]` CLI do cadastro:** `sk register`, `sk user get|delete` e `sk ipm organization`, sobre o Receiver do User.
+- [ ] **`[Planned]` CLI do User e da Organization:** `sk user get|delete` e `sk ipm organization`, sobre os Receivers (o `sk register` já existe).
 - [ ] **`[Planned]` Implantação em Kubernetes:** CI/CD e GitOps por componente, com versão e imagem independentes.
 - [ ] **`[Planned]` Observabilidade Básica:** Métricas e traces nos componentes (hoje há logs estruturados e probes de saúde).
 - [ ] **`[Planned]` Endurecimento para stg e prd:** `pinned_client` no Executor, identidades e permissões por papel no NATS, TLS, quarentena de mensagens, retenção do SSOT, `ObservationStale`, limite de remoções e backup com recuperação (lacunas em `docs/IMPLEMENTATION-STATUS.md`).
@@ -32,6 +32,7 @@ O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.
 O que está no radar para o futuro, mas ainda carece de design, arquitetura ou Discovery.
 - [ ] **`[Exploratory]` Clusterização Avançada NATS:** Topologia de Hub-Spoke com Leaf Nodes.
 - [ ] **`[Exploratory]` Plataforma de UI:** Dashboard de gestão do estado (`desired` / `observed`).
+- [ ] **`[Exploratory]` Administração da plataforma:** ferramentas de operador (`platform.admin`) para conceder e revogar o acesso de um usuário existente (`platformAccess` e `platformRoles`); o usuário final não altera o próprio acesso.
 
 ## 🏷️ Fases de Lançamento (Status)
 

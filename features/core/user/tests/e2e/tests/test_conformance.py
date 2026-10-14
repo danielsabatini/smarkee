@@ -266,6 +266,10 @@ async def test_the_whole_loop_runs_against_zitadel_and_the_user_is_removed_at_th
     assert observed["presence"] == "present"
     assert_valid("core/user/observed.v1.schema.json", observed["data"])
     assert observed["data"]["platformAccess"] == "granted"
+    # As roles que o Executor concedeu (as do desired) são as que o Observer leu (decisão 0025).
+    desired = await last_desired(jetstream, resource_id)
+    assert desired["data"]["platformRoles"]
+    assert set(desired["data"]["platformRoles"]) <= set(observed["data"]["platformRoles"])
     assert observed["data"]["userState"] == "initial"  # a senha ainda não foi definida
     assert observed["data"]["emailVerified"] is False
 

@@ -114,6 +114,7 @@ class Reconciler:
             lifecycle=str(data.get("lifecycle", "present")),
             reconciliation=str(data.get("reconciliation", "active")),
             platform_access=str(data.get("platformAccess", "granted")),
+            platform_roles=frozenset(data.get("platformRoles", ())),
             requested_by=envelope.requested_by,
             correlation_id=envelope.correlation_id,
         )
@@ -136,6 +137,7 @@ class Reconciler:
             observed_at=envelope.observed_at,
             causation_id=envelope.causation_id,
             platform_access=str(platform_access) if platform_access is not None else None,
+            platform_roles=frozenset(data.get("platformRoles", ())),
         )
         if (
             state.awaiting_observation_of is not None

@@ -19,6 +19,7 @@ from support import (
 from core_user_manager.domain.errors import PermanentMessageError
 from core_user_manager.domain.kind import USER
 from core_user_manager.domain.outcome import OutcomeKind, RejectionReason
+from core_user_manager.domain.user import DEFAULT_PLATFORM_ROLES
 from core_user_manager.handlers.requested import RequestedHandler
 
 handler = RequestedHandler()
@@ -88,6 +89,7 @@ async def test_anonymous_registration_creates_the_user_with_normalized_email(
     assert row["desired"] == {
         "lifecycle": "present",
         "platformAccess": "granted",
+        "platformRoles": list(DEFAULT_PLATFORM_ROLES),
         "givenName": "Ana",
         "familyName": "Souza",
         "email": expected_email,
@@ -125,7 +127,11 @@ async def test_delete_removes_personal_data_from_the_ssot_and_from_the_desired_m
     assert outcome.kind is OutcomeKind.ACCEPTED
     row = await user_row(user_manager, message["resourceId"])
     assert row is not None
-    assert row["desired"] == {"lifecycle": "absent", "platformAccess": "granted"}
+    assert row["desired"] == {
+        "lifecycle": "absent",
+        "platformAccess": "granted",
+        "platformRoles": list(DEFAULT_PLATFORM_ROLES),
+    }
     assert (row["lifecycle"], row["phase"], row["desired_generation"]) == ("absent", "Deleting", 2)
 
     latest = (await outbox(outbox_reader, message["resourceId"]))[-1]["payload"]
@@ -134,6 +140,7 @@ async def test_delete_removes_personal_data_from_the_ssot_and_from_the_desired_m
         "lifecycle": "absent",
         "reconciliation": "active",
         "platformAccess": "granted",
+        "platformRoles": list(DEFAULT_PLATFORM_ROLES),
     }
     personal = message["data"]["specification"]["email"]
     assert personal not in json.dumps(latest)

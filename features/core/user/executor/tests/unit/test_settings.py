@@ -4,18 +4,10 @@ from pydantic import ValidationError
 from core_user_executor.settings import REQUIRED_SECRETS, UserExecutorSettings, missing_required
 
 
-def test_defaults_have_no_secrets_and_the_decision_0014_roles() -> None:
+def test_defaults_have_no_secrets_and_no_role_list() -> None:
     settings = UserExecutorSettings()
     assert settings.nats.password is None
-    assert settings.zitadel.granted_roles == (
-        "organization.create",
-        "organization.get",
-        "organization.list",
-        "organization.update",
-        "organization.delete",
-        "user.get",
-        "user.delete",
-    )
+    assert not hasattr(settings.zitadel, "granted_roles")  # as roles vêm do desired (decisão 0025)
 
 
 def test_environment_variables_follow_the_prefix_section_and_field_pattern(

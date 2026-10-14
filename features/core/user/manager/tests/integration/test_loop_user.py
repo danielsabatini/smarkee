@@ -19,6 +19,7 @@ from support import (
 from core_user_manager.domain.errors import PermanentMessageError
 from core_user_manager.domain.kind import USER
 from core_user_manager.domain.outcome import OutcomeKind
+from core_user_manager.domain.user import DEFAULT_PLATFORM_ROLES
 from core_user_manager.handlers.observed import ObservedHandler
 from core_user_manager.handlers.requested import RequestedHandler
 from core_user_manager.handlers.result import ResultHandler
@@ -27,6 +28,7 @@ Connection = psycopg.AsyncConnection[Any]
 requested_handler = RequestedHandler()
 observed_handler = ObservedHandler()
 BASE_TIME = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
+GRANTED = {"platformAccess": "granted", "platformRoles": list(DEFAULT_PLATFORM_ROLES)}
 
 
 def register(cleanup: Cleanup) -> dict[str, Any]:
@@ -171,13 +173,13 @@ async def test_converged_observation_is_ready_and_completes_the_operation(
     await observed_handler.handle(
         ssot(user_manager),
         USER,
-        observed(resource_id, "present", seconds=2, data={"platformAccess": "granted"}),
+        observed(resource_id, "present", seconds=2, data=GRANTED),
     )
 
     stored = await row(user_manager, resource_id)
     assert stored is not None
     assert (stored["phase"], stored["conditions"][0]["status"]) == ("Ready", "True")
-    assert stored["observed"] == {"platformAccess": "granted"}
+    assert stored["observed"] == GRANTED
     assert await operation_status(user_manager, resource_id) == ["completed"]
 
 
@@ -188,7 +190,12 @@ async def test_present_without_platform_access_is_not_converged(
     await observed_handler.handle(
         ssot(user_manager),
         USER,
-        observed(resource_id, "present", seconds=1, data={"platformAccess": "revoked"}),
+        observed(
+            resource_id,
+            "present",
+            seconds=1,
+            data={"platformAccess": "revoked", "platformRoles": []},
+        ),
     )
     stored = await row(user_manager, resource_id)
     assert stored is not None
@@ -206,7 +213,7 @@ async def test_older_or_equal_observation_is_ignored_and_unknown_does_not_change
     stale = await observed_handler.handle(
         ssot(user_manager),
         USER,
-        observed(resource_id, "present", seconds=5, data={"platformAccess": "granted"}),
+        observed(resource_id, "present", seconds=5, data=GRANTED),
     )
     assert stale.kind is OutcomeKind.IGNORED
     stored = await row(user_manager, resource_id)
@@ -237,7 +244,7 @@ async def test_removal_converged_deletes_the_record_and_publishes_removed(
     await observed_handler.handle(
         ssot(user_manager),
         USER,
-        observed(resource_id, "present", seconds=1, data={"platformAccess": "granted"}),
+        observed(resource_id, "present", seconds=1, data=GRANTED),
     )
     stored = await row(user_manager, resource_id)
     assert stored is not None

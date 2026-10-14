@@ -53,7 +53,8 @@
       "required": [
         "lifecycle",
         "reconciliation",
-        "platformAccess"
+        "platformAccess",
+        "platformRoles"
       ],
       "x-writer": "server",
       "x-sensitivity": "confidential",
@@ -70,6 +71,11 @@
         },
         "platformAccess": {
           "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "platformRoles": {
+          "$ref": "definitions.v1.schema.json#/$defs/platformRoles",
           "x-writer": "server",
           "x-sensitivity": "internal"
         },
@@ -124,6 +130,11 @@
         },
         "platformAccess": {
           "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "platformRoles": {
+          "$ref": "definitions.v1.schema.json#/$defs/platformRoles",
           "x-writer": "server",
           "x-sensitivity": "internal"
         }

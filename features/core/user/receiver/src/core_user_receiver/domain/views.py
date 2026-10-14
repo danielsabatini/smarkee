@@ -41,6 +41,7 @@ def user_view(record: ResourceRecord) -> generated.User:
         "lifecycle": record.lifecycle,
         "reconciliation": record.reconciliation,
         "platformAccess": record.desired["platformAccess"],
+        "platformRoles": record.desired["platformRoles"],
         **{
             field: record.desired[field] for field in USER_DESIRED_FIELDS if field in record.desired
         },

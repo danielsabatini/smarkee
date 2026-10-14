@@ -8,13 +8,12 @@ import pytest
 from core_user_executor.actions.user_actions import execute
 from core_user_executor.domain.errors import ActionFailedError
 from core_user_executor.domain.identity import Grant, ProviderError, ZitadelUser
-from core_user_executor.settings import ZitadelSettings
 
-SETTINGS = ZitadelSettings()
-ROLES = frozenset(SETTINGS.granted_roles)
+ROLES = frozenset({"organization.create", "organization.get", "user.get"})
 DESIRED = {
     "lifecycle": "present",
     "platformAccess": "granted",
+    "platformRoles": sorted(ROLES),
     "givenName": "Ana",
     "familyName": "Souza",
     "email": "Ana@Example.com",
@@ -78,27 +77,27 @@ def names(writer: FakeWriter) -> list[str]:
 
 async def test_create_makes_the_user_without_password_sends_the_link_and_grants_roles() -> None:
     writer = FakeWriter()
-    await execute("create", "u-1", DESIRED, writer, SETTINGS)
+    await execute("create", "u-1", DESIRED, writer)
     assert names(writer) == ["create_user", "send_password_link", "create_grant"]
     assert ("create_grant", sorted(ROLES)) in writer.calls
 
 
 async def test_create_repeated_after_success_is_idempotent_and_does_not_resend_the_link() -> None:
     writer = FakeWriter()
-    await execute("create", "u-1", DESIRED, writer, SETTINGS)
+    await execute("create", "u-1", DESIRED, writer)
     writer.users["u-1"] = ZitadelUser("Ana@Example.com", password_set=True)
     writer.calls.clear()
 
-    await execute("create", "u-1", DESIRED, writer, SETTINGS)
+    await execute("create", "u-1", DESIRED, writer)
 
     assert names(writer) == ["create_user"]  # o usuário já tem senha e as roles
 
 
 async def test_a_retry_before_the_password_is_set_resends_the_link() -> None:
     writer = FakeWriter()
-    await execute("create", "u-1", DESIRED, writer, SETTINGS)
+    await execute("create", "u-1", DESIRED, writer)
     writer.calls.clear()
-    await execute("create", "u-1", DESIRED, writer, SETTINGS)
+    await execute("create", "u-1", DESIRED, writer)
     assert "send_password_link" in names(writer)
     assert "create_grant" not in names(writer)  # a autorização já existe
 
@@ -106,17 +105,17 @@ async def test_a_retry_before_the_password_is_set_resends_the_link() -> None:
 async def test_a_retry_after_a_partial_failure_completes_the_missing_steps() -> None:
     writer = FakeWriter(fail_on="grants")
     with pytest.raises(ProviderError):
-        await execute("create", "u-1", DESIRED, writer, SETTINGS)
+        await execute("create", "u-1", DESIRED, writer)
     assert "u-1" in writer.users  # o usuário já foi criado
     writer.fail_on = None
-    await execute("create", "u-1", DESIRED, writer, SETTINGS)
+    await execute("create", "u-1", DESIRED, writer)
     assert writer.grants_by_user["u-1"][0].roles == ROLES
 
 
 async def test_email_in_use_by_another_user_is_a_permanent_rejection() -> None:
     writer = FakeWriter(taken_emails={"ana@example.com"})
     with pytest.raises(ActionFailedError) as raised:
-        await execute("create", "u-1", DESIRED, writer, SETTINGS)
+        await execute("create", "u-1", DESIRED, writer)
     assert (raised.value.reason, raised.value.retryable) == ("Rejected", False)
     assert "send_password_link" not in names(writer)
 
@@ -124,7 +123,7 @@ async def test_email_in_use_by_another_user_is_a_permanent_rejection() -> None:
 async def test_user_id_in_use_by_another_email_is_a_permanent_rejection() -> None:
     writer = FakeWriter(users={"u-1": ZitadelUser("outra@example.com", password_set=True)})
     with pytest.raises(ActionFailedError) as raised:
-        await execute("create", "u-1", DESIRED, writer, SETTINGS)
+        await execute("create", "u-1", DESIRED, writer)
     assert raised.value.retryable is False
 
 
@@ -133,7 +132,7 @@ async def test_create_without_the_user_data_is_rejected_and_calls_nothing(missin
     writer = FakeWriter()
     desired = {key: value for key, value in DESIRED.items() if key != missing}
     with pytest.raises(ActionFailedError):
-        await execute("create", "u-1", desired, writer, SETTINGS)
+        await execute("create", "u-1", desired, writer)
     assert writer.calls == []
 
 
@@ -142,7 +141,7 @@ async def test_a_partial_grant_is_completed_keeping_the_extra_roles() -> None:
         users={"u-1": ZitadelUser("a@x.com", password_set=True)},
         grants_by_user={"u-1": [Grant("g-1", frozenset({"user.get", "platform.admin"}))]},
     )
-    await execute("update", "u-1", DESIRED, writer, SETTINGS)
+    await execute("update", "u-1", DESIRED, writer)
     assert writer.grants_by_user["u-1"][0].roles == ROLES | {"platform.admin"}
     assert names(writer) == ["update_grant"]
 
@@ -152,22 +151,37 @@ async def test_update_revoked_removes_the_grants() -> None:
         users={"u-1": ZitadelUser("a@x.com", password_set=True)},
         grants_by_user={"u-1": [Grant("g-1", ROLES)]},
     )
-    await execute("update", "u-1", {**DESIRED, "platformAccess": "revoked"}, writer, SETTINGS)
+    await execute("update", "u-1", {**DESIRED, "platformAccess": "revoked"}, writer)
     assert names(writer) == ["remove_grant"]
 
 
 async def test_update_of_a_missing_user_is_a_permanent_rejection() -> None:
     with pytest.raises(ActionFailedError):
-        await execute("update", "u-1", DESIRED, FakeWriter(), SETTINGS)
+        await execute("update", "u-1", DESIRED, FakeWriter())
 
 
 async def test_delete_is_idempotent() -> None:
     writer = FakeWriter(users={"u-1": ZitadelUser("a@x.com", password_set=True)})
-    await execute("delete", "u-1", {"lifecycle": "absent"}, writer, SETTINGS)
-    await execute("delete", "u-1", {"lifecycle": "absent"}, writer, SETTINGS)
+    await execute("delete", "u-1", {"lifecycle": "absent"}, writer)
+    await execute("delete", "u-1", {"lifecycle": "absent"}, writer)
     assert names(writer) == ["delete_user", "delete_user"]
 
 
 async def test_an_unknown_operation_is_rejected() -> None:
     with pytest.raises(ActionFailedError):
-        await execute("noop", "u-1", DESIRED, FakeWriter(), SETTINGS)
+        await execute("noop", "u-1", DESIRED, FakeWriter())
+
+
+async def test_create_without_platform_roles_is_rejected_without_touching_the_provider() -> None:
+    writer = FakeWriter()
+    desired = {key: value for key, value in DESIRED.items() if key != "platformRoles"}
+    with pytest.raises(ActionFailedError) as error:
+        await execute("create", "u-1", desired, writer)
+    assert error.value.retryable is False
+    assert writer.calls == []
+
+
+async def test_roles_come_only_from_the_desired_platform_roles() -> None:
+    writer = FakeWriter()
+    await execute("create", "u-1", {**DESIRED, "platformRoles": ["user.get"]}, writer)
+    assert ("create_grant", ["user.get"]) in writer.calls

@@ -2,6 +2,15 @@
   "lifecycle": "present",
   "reconciliation": "active",
   "platformAccess": "granted",
+  "platformRoles": [
+    "organization.create",
+    "organization.delete",
+    "organization.get",
+    "organization.list",
+    "organization.update",
+    "user.delete",
+    "user.get"
+  ],
   "givenName": "Ana",
   "familyName": "Souza",
   "email": "ana.souza@example.com"

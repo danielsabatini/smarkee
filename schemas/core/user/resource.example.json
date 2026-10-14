@@ -17,6 +17,15 @@
     "lifecycle": "present",
     "reconciliation": "active",
     "platformAccess": "granted",
+    "platformRoles": [
+      "organization.create",
+      "organization.delete",
+      "organization.get",
+      "organization.list",
+      "organization.update",
+      "user.delete",
+      "user.get"
+    ],
     "givenName": "Ana",
     "familyName": "Souza",
     "email": "ana.souza@example.com"
@@ -26,7 +35,16 @@
     "observedAt": "2026-10-09T14:00:04Z",
     "emailVerified": true,
     "userState": "active",
-    "platformAccess": "granted"
+    "platformAccess": "granted",
+    "platformRoles": [
+      "organization.create",
+      "organization.delete",
+      "organization.get",
+      "organization.list",
+      "organization.update",
+      "user.delete",
+      "user.get"
+    ]
   },
   "createdAt": "2026-10-09T14:00:00Z",
   "updatedAt": "2026-10-09T14:00:05Z"

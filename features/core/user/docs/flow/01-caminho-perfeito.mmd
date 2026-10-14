@@ -2,7 +2,7 @@ sequenceDiagram
     autonumber
     actor U as Pessoa
     box rgb(232,240,254) Cliente e borda
-        participant CLI as sk CLI (a implementar)
+        participant CLI as sk register
         participant GW as Gateway Kong
         participant Receiver as core-user-receiver
     end
@@ -31,7 +31,7 @@ sequenceDiagram
     Receiver->>N: publica receiver.requested.core.user.{id}.create (REQUESTED)<br/>Nats-Msg-Id = messageId, requestedBy = anonymous
     N-->>Receiver: PubAck
     Receiver-->>CLI: 202 Accepted {resourceId, operationId}
-    CLI-->>U: "Cadastro solicitado. Verifique seu e-mail para ativar a conta."
+    CLI-->>U: painel "Cadastro solicitado" (resourceId e operationId) e orientação: confirmar o e-mail e definir a senha pelos links, depois sk auth login
     end
 
     rect rgb(232,245,233)
@@ -70,7 +70,7 @@ sequenceDiagram
     ZIT->>MAIL: e-mail "Verificar e-mail" (código de verificação)
     EXE->>ZIT: POST /v2/users/{id}/password_reset (sendLink)
     ZIT->>MAIL: e-mail "Redefinir senha" (link para a pessoa definir a senha)
-    EXE->>ZIT: concede as 7 roles de ação no projeto smarkee (user grant)
+    EXE->>ZIT: concede as roles de desired.platformRoles no projeto smarkee (user grant)
     EXE->>N: publica executor.completed.core.user.{id}.create (RESULT)
     end
 
@@ -81,7 +81,7 @@ sequenceDiagram
     N->>OBS: entrega completed (observação causada)
     OBS->>ZIT: GET usuário {id}
     ZIT-->>OBS: 200 (usuário ativo, sem senha definida, roles concedidas)
-    OBS->>N: publica observed presence = present, userState initial,<br/>platformAccess granted, emailVerified false<br/>causationId = messageId do completed
+    OBS->>N: publica observed presence = present, userState initial,<br/>platformAccess granted, platformRoles, emailVerified false<br/>causationId = messageId do completed
     N->>MGR: entrega observed
     MGR->>DB: converge: phase Ready, Operation completed, outbox updated
     PUB->>N: publica manager.updated.core.user.{id}.changed (UPDATED)

@@ -26,7 +26,7 @@ A dependência vai em um sentido só (`main → handlers → domain`); `tests/un
 
 ## Configuração
 
-Variáveis de ambiente `CORE_USER_MANAGER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_USER_MANAGER_DATABASE_PASSWORD`, `CORE_USER_MANAGER_NATS_PASSWORD`. Os demais valores e defaults estão em `src/core_user_manager/settings.py`.
+Variáveis de ambiente `CORE_USER_MANAGER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_USER_MANAGER_DATABASE_PASSWORD`, `CORE_USER_MANAGER_NATS_PASSWORD`. `CORE_USER_MANAGER_PLATFORM_ROLES` (lista em JSON) define as roles gravadas no `desired` do usuário cadastrado (decisão 0025); o default é o conjunto da decisão 0014. Os demais valores e defaults estão em `src/core_user_manager/settings.py`.
 
 ## Desenvolvimento
 

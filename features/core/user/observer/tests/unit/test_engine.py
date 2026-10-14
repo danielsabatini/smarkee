@@ -33,7 +33,7 @@ class FakeObservation:
     results: list[Observation] = field(default_factory=lambda: [Observation("absent", {})])
     reads: list[str] = field(default_factory=lambda: [])
 
-    async def __call__(self, reader: object, settings: object, user_id: str) -> Observation:
+    async def __call__(self, reader: object, user_id: str) -> Observation:
         self.reads.append(user_id)
         return self.results[min(len(self.reads), len(self.results)) - 1]
 

@@ -33,6 +33,22 @@
         "locked"
       ],
       "x-enumPolicy": "open"
+    },
+    "platformRole": {
+      "description": "Role de ação do projeto da plataforma (decisão 0025), por exemplo organization.create.",
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+$"
+    },
+    "platformRoles": {
+      "description": "Conjunto de roles de ação, sem repetição e em ordem alfabética.",
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/platformRole"
+      }
     }
   }
 }
