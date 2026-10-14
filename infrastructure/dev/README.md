@@ -176,6 +176,8 @@ Estado aplicado no dev em 2026-10-10 (pela API do Zitadel, com a conta de bootst
 - **Variáveis da feature User:** `CORE_ZITADEL_REGISTER_ORGANIZATION_ID` (organização `register`), `CORE_ZITADEL_PROJECT_GRANT_ID` e `CORE_ZITADEL_PROJECT_ID`.
 - **Roles `*.admin` para operadores:** autorização externa, criada na organização `core` para o usuário da organização `smarkee`.
 
+**Conferência da estrutura:** `identity/conformance` é uma suíte somente leitura que confere tudo acima (organizações, projeto `roles`, roles e `group`, aplicação `cli`, Project Grant, contas de serviço e papéis, autorizações dos operadores e cadastro público desligado). Rode-a depois de criar ou recriar a estrutura; uso em `identity/conformance/README.md`. A criação continua manual (console ou API de gestão com a conta de bootstrap): a suíte não cria nada.
+
 Para reproduzir pelo console (**Projetos**, **Autorizações**, **Configurações → Login**; os nomes das opções podem diferir um pouco na versão em uso): crie a organização `core`; nela, o projeto `roles` (*Afirmar roles na autenticação* e *Verificar roles na autenticação* ligados) com as roles acima e a aplicação `cli` (nativa, PKCE, tipo de token JWT, redirect e concessões acima); desligue o registro na política de login; e conceda `core.user.admin` e `ipm.organization.admin` aos operadores.
 
 Depois, no host, grave a configuração uma vez (`~/.config/sk/config.toml`) e faça o login:

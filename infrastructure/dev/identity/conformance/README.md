@@ -1,0 +1,36 @@
+# Zitadel de dev: conformidade da estrutura
+
+Esta suíte é um **teste**, não um componente. Somente leitura: confere se o Zitadel de dev tem a estrutura que as
+decisões 0010, 0014, 0026, 0027 e 0028 mandam, e não altera nada.
+
+| O que confere | Decisão |
+|---|---|
+| Organizações `smarkee`, `core` e `register`; cadastro público desligado | 0013, 0026 |
+| Projeto `roles` na `core` (roles no token e verificação de role), roles no padrão `<módulo>.<tipo>.<ação>` com `group` | 0010, 0028 |
+| Aplicação `cli` (nativa, PKCE sem segredo, access token JWT, redirect e concessões) | 0007, 0010 |
+| Project Grant `roles → register` só com as roles de ação (sem `*.admin`) | 0027 |
+| Contas de serviço na `core`; Executor e Observer com papel só na `register` | 0027 |
+| Membros da instância (`platform-bootstrap`, `core-organization-executor`) | 0011 |
+| Na `core`, só autorizações `*.admin` de operadores; a `register` sem projeto próprio | 0027 |
+
+A estrutura é criada à mão (`infrastructure/dev/README.md`, "Configuração do Zitadel para a plataforma"). Esta suíte diz se ela
+está como o desenho manda, e é o roteiro de conferência depois de recriar a instância (`docker compose down -v`).
+
+Requer a chave da conta `platform-bootstrap`. Grave-a fora do repositório (em `.workspace/`, ignorado) e apague depois:
+
+```bash
+mkdir -p ../../../../.workspace/zitadel
+docker run --rm -v identity-bootstrap:/b:ro alpine cat /b/service-account-platform-bootstrap.json \
+  > ../../../../.workspace/zitadel/platform-bootstrap.json
+export CONFORMANCE_ZITADEL_KEY_FILE=$PWD/../../../../.workspace/zitadel/platform-bootstrap.json
+uv sync
+uv run pytest
+rm ../../../../.workspace/zitadel/platform-bootstrap.json
+```
+
+| Variável | Padrão | Uso |
+|---|---|---|
+| `CONFORMANCE_ZITADEL_KEY_FILE` | (sem padrão; sem ela, os testes são pulados) | Chave JSON do `platform-bootstrap` |
+| `CONFORMANCE_ZITADEL_URL` | `http://localhost:8080` | Gateway do Zitadel |
+| `CONFORMANCE_ZITADEL_HOST` | `ipm-dev.smarkee.com.br:8080` | Cabeçalho `Host` |
+| `CONFORMANCE_ZITADEL_ISSUER` | `http://ipm-dev.smarkee.com.br:8080` | Audience da assertion |
