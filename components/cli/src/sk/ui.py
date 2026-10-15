@@ -41,6 +41,16 @@ def panel(title: str, rows: Sequence[tuple[str, str]], *, style: str = "green") 
     )
 
 
+def table(title: str, columns: Sequence[str], rows: Sequence[Sequence[str]]) -> None:
+    """Tabela de sucesso (saída padrão), com uma linha por registro."""
+    grid = Table(title=title, box=box.SIMPLE_HEAD, title_justify="left")
+    for column in columns:
+        grid.add_column(column, overflow="fold")
+    for row in rows:
+        grid.add_row(*row)
+    _console().print(grid)
+
+
 def note(text: str) -> None:
     """Linha de orientação ao usuário, abaixo de um painel."""
     _console().print(Text(text, style="dim"))

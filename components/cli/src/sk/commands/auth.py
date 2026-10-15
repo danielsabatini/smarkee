@@ -39,6 +39,8 @@ from sk.settings import (
 
 # offline_access solicita o refresh token (a aplicação no provedor precisa permiti-lo).
 LOGIN_SCOPES = ("openid", "profile", "email", "offline_access")
+# Roles no token e audience de um módulo: o Receiver de cada módulo exige a audience dele.
+ROLES_SCOPE = "urn:zitadel:iam:org:projects:roles"
 LOGIN_TIMEOUT_SECONDS = 300
 
 EXIT_FAILURE = 1
@@ -117,7 +119,17 @@ def _display_name(userinfo: Mapping[str, object]) -> str:
     return "usuário sem identificação no userinfo"
 
 
-def run_login(settings: AuthSettings, credentials_path: Path) -> None:
+def login_scopes(sum_project_id: str | None) -> tuple[str, ...]:
+    """Escopos do login. Com o projeto do SUM configurado, o token vale também no Receiver dele."""
+    if sum_project_id is None:
+        return LOGIN_SCOPES
+    audience = f"urn:zitadel:iam:org:project:id:{sum_project_id}:aud"
+    return (*LOGIN_SCOPES, audience, ROLES_SCOPE)
+
+
+def run_login(
+    settings: AuthSettings, credentials_path: Path, *, sum_project_id: str | None = None
+) -> None:
     """Executa o login e grava as credenciais. Falhas encerram com código diferente de 0."""
     issuer, client_id = _require_issuer_and_client_id(settings)
 
@@ -126,7 +138,7 @@ def run_login(settings: AuthSettings, credentials_path: Path) -> None:
         token_response = run_authorization_code_flow(
             metadata,
             client_id=client_id,
-            scopes=LOGIN_SCOPES,
+            scopes=login_scopes(sum_project_id),
             present_authorization_url=_present_authorization_url,
             timeout_seconds=LOGIN_TIMEOUT_SECONDS,
         )
@@ -220,6 +232,15 @@ AllowInsecureHttpOption = Annotated[
 ]
 
 
+def _sum_project_id() -> str | None:
+    """`[sum] projectId` (ou `SK_SUM_PROJECT_ID`). Sem ele, o login não pede o audience do SUM."""
+    try:
+        return SkSettings().sum.project_id
+    except (ValidationError, ConfigurationError) as error:
+        ui.error("Configuração inválida", str(error), hint="Corrija o arquivo e repita.")
+        raise typer.Exit(EXIT_USAGE_ERROR) from error
+
+
 @auth_app.command(
     "login",
     help=comando("Entra na plataforma pelo navegador. Um novo login substitui o anterior."),
@@ -237,7 +258,7 @@ def login(
         },
         include_config_file=True,
     )
-    run_login(settings, default_credentials_path())
+    run_login(settings, default_credentials_path(), sum_project_id=_sum_project_id())
 
 
 def run_whoami(allow_insecure_http: bool, credentials_path: Path) -> None:

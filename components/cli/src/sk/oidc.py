@@ -329,8 +329,34 @@ def exchange_authorization_code(
             "Content-Type": "application/x-www-form-urlencoded",
         },
     )
-    payload = _request_json(request, operation=operation)
+    return _token_response(_request_json(request, operation=operation), operation=operation)
 
+
+def refresh_access_token(
+    metadata: ProviderMetadata, *, client_id: str, refresh_token: str
+) -> TokenResponse:
+    """Troca o refresh token por um novo access token (cliente público, sem segredo).
+
+    O provedor pode emitir um refresh token novo: quem chama deve gravar o recebido e, se vier
+    vazio, manter o anterior.
+    """
+    operation = "renovação do token"
+    form = urllib.parse.urlencode(
+        {"grant_type": "refresh_token", "refresh_token": refresh_token, "client_id": client_id}
+    ).encode()
+    request = urllib.request.Request(  # noqa: S310 (esquema validado por ensure_secure_url)
+        metadata.token_endpoint,
+        data=form,
+        method="POST",
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+    )
+    return _token_response(_request_json(request, operation=operation), operation=operation)
+
+
+def _token_response(payload: Mapping[str, object], *, operation: str) -> TokenResponse:
     token_type = _require_string(payload, "token_type", operation=operation)
     if token_type.lower() != "bearer":
         raise OidcError(f"{operation}: token_type não suportado: {token_type}")

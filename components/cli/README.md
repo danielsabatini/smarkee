@@ -29,7 +29,7 @@ uv run sk config get core.apiUrl                   # só o valor, para uso em sc
 uv run sk config set core.apiUrl https://api.smarkee.com.br
 ```
 
-Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `core.apiUrl` e `core.allowInsecureHttp`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro: comentários feitos à mão não são preservados.
+Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `core.apiUrl`, `core.allowInsecureHttp` e `sum.projectId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro: comentários feitos à mão não são preservados.
 
 O `init` grava os padrões de produção: `https://ipm.smarkee.com.br` para o provedor e `https://api.smarkee.com.br` para a API. O client ID de produção ainda não existe: o `init` grava o marcador `pendente-prd` e avisa, e o valor definitivo é pendente (`.decisions/0023-sk-init-e-sk-config.md`). Para desenvolvimento, aponte para os endereços do dev e permita HTTP:
 
@@ -74,6 +74,8 @@ O login é da plataforma, e não de um módulo. O `sk` autentica o usuário dire
 | `--client-id` | `SK_AUTH_CLIENT_ID` | `clientId` | Client ID da aplicação nativa do `sk` no provedor |
 | `--allow-insecure-http` | `SK_AUTH_ALLOW_INSECURE_HTTP=true` | `allowInsecureHttp = true` | Aceita issuer `http`. Somente em desenvolvimento |
 
+Com `[sum] projectId` configurado (ou `SK_SUM_PROJECT_ID`), o login também pede o audience do projeto `roles-sum` (e as roles no token): sem ele, o Receiver do SUM recusa o token. Sem a chave, o login é o de sempre.
+
 Códigos de saída: `0` sucesso; `1` falha no login ou na gravação, ou cancelamento (Ctrl+C); `2` uso incorreto (issuer ou client ID ausente, configuração inválida).
 
 ### `sk auth whoami`
@@ -108,6 +110,30 @@ uv run pytest --cov --cov-report=term-missing
 ```
 
 Os testes de integração (`tests/integration`) exercitam o fluxo completo contra um provedor OIDC falso em loopback; não dependem do Zitadel.
+
+## Sessão
+
+O access token tem validade curta (decisão 0033). Quando está para vencer, o `sk` troca o refresh token por um novo, regrava as credenciais e segue, sem pedir login. Sem refresh token, ou se o provedor o recusar, a saída manda rodar `sk auth login`.
+
+## Serviços do SUM (`sk sum service`)
+
+```bash
+uv run sk sum service enable --service ipm
+uv run sk sum service get --resource-id ID [--operation-id OPERACAO]
+uv run sk sum service disable --resource-id ID
+uv run sk sum service list
+```
+
+| Comando | Requisição | Resultado |
+|---|---|---|
+| `enable --service NOME` | `POST /v1/sum/services`, com `Idempotency-Key` gerada por pedido | `202`: o `resourceId` e o `operationId` |
+| `disable --resource-id ID` | `GET` da ligação (para ler a `resourceVersion`), depois `DELETE` | `202`: o `operationId` |
+| `get --resource-id ID` | `GET` da ligação (e da Operation, se `--operation-id`) | Situação (`ligado` / `desligado`), fase e roles observadas |
+| `list` | `GET /v1/sum/services` | Uma linha por ligação do solicitante |
+
+Ligar e desligar são assíncronos: o comando confirma o aceite, e `get` mostra quando a fase chega a `Ready`. Usa a API de `[core] apiUrl` e o token da sessão. Precisa de um solicitante com as roles `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`.
+
+Códigos de saída: `0` sucesso; `1` sessão ausente, API recusou ou indisponível, ou ligação já desligada; `2` opção obrigatória ausente ou configuração inválida.
 
 ## Cadastro (`sk register`)
 

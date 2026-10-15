@@ -157,6 +157,15 @@ class CoreSettings(BaseModel):
     """Aceita `api_url` em `http`. Somente em desenvolvimento."""
 
 
+class SumSettings(BaseModel):
+    """Seção `sum`: Service Usage Manager, usado por `sk sum`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str | None = None
+    """ID do projeto de roles do SUM (`roles-sum`): audience dos tokens do Receiver do SUM."""
+
+
 class SkSettings(BaseSettings):
     """Configuração consolidada do sk."""
 
@@ -170,6 +179,7 @@ class SkSettings(BaseSettings):
 
     auth: AuthSettings = AuthSettings()
     core: CoreSettings = CoreSettings()
+    sum: SumSettings = SumSettings()
 
     @classmethod
     def settings_customise_sources(

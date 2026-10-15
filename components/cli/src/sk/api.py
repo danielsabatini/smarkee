@@ -10,8 +10,9 @@ que certamente seriam recusados.
 
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -156,3 +157,61 @@ def submit_registration(
     if not isinstance(resource_id, str) or not isinstance(operation_id, str):
         raise ApiUnavailableError("a resposta da API não traz resourceId e operationId")
     return RegistrationAccepted(resource_id=resource_id, operation_id=operation_id)
+
+
+def call_api(
+    method: str,
+    api_url: str,
+    path: str,
+    *,
+    token: str,
+    body: Mapping[str, object] | None = None,
+    query: Mapping[str, str] | None = None,
+    headers: Mapping[str, str] | None = None,
+    allow_insecure_http: bool,
+    opener: Opener | None = None,
+) -> tuple[int, object]:
+    """Chamada autenticada (`Authorization: Bearer`). Devolve `(status, corpo JSON)`.
+
+    `4xx` vira `ApiRejectedError` com o motivo da API; `5xx`, rede ou corpo fora de JSON viram
+    `ApiUnavailableError`. O token nunca entra em mensagem de erro.
+    """
+    open_url = opener or urllib.request.urlopen  # resolvido na chamada (testes substituem)
+    ensure_secure_url(api_url, allow_insecure_http=allow_insecure_http)
+    url = api_url.rstrip("/") + path
+    if query:
+        url += "?" + urllib.parse.urlencode(query)
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    request_headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {token}",
+        **({"Content-Type": "application/json"} if data is not None else {}),
+        **(headers or {}),
+    }
+    request = urllib.request.Request(  # noqa: S310 (esquema validado por ensure_secure_url)
+        url, data=data, method=method, headers=request_headers
+    )
+    try:
+        with open_url(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+            status = response.status
+            payload = json.loads(response.read() or b"{}")
+    except urllib.error.HTTPError as error:
+        document = _error_body(error)
+        message = document.get("message")
+        if 400 <= error.code < 500:
+            field = document.get("field")
+            raise ApiRejectedError(
+                error.code,
+                message if isinstance(message, str) else f"HTTP {error.code}",
+                error_code=str(document.get("errorCode", "Unknown")),
+                field=field if isinstance(field, str) else None,
+                retry_after_seconds=_retry_after(error.headers),
+            ) from None
+        raise ApiUnavailableError(f"a API respondeu com HTTP {error.code}") from None
+    except (urllib.error.URLError, OSError, TimeoutError) as error:
+        raise ApiUnavailableError(
+            f"não foi possível alcançar a API ({type(error).__name__})"
+        ) from None
+    except ValueError:
+        raise ApiUnavailableError("a resposta da API não é JSON") from None
+    return status, payload
