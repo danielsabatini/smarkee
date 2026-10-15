@@ -231,20 +231,40 @@ def test_instance_members(zitadel: Zitadel) -> None:
     assert by_name.get("core-organization-executor") == {"IAM_ORG_MANAGER"}
 
 
-def test_only_operators_are_authorized_in_core(
+def operator_authorizations(
     zitadel: Zitadel, orgs: dict[str, str], project_id: str
-) -> None:
-    grants = zitadel.connect(
+) -> dict[str, set[str]]:
+    """Autorizações do projeto `roles` na `core`: nome de login → roles."""
+    found = zitadel.connect(
         AUTHORIZATION_SERVICE,
         "ListAuthorizations",
         {"filters": [{"projectId": {"id": project_id}}, {"organizationId": {"id": orgs["core"]}}]},
     ).get("authorizations", [])
-    assert grants, "falta a autorização do operador (`*.admin`) no projeto roles"
-    for grant in grants:
-        assert {r["key"] for r in grant["roles"]} <= ADMIN_ROLES, (
-            f"{grant['user']['preferredLoginName']} tem roles de ação na core; "
-            "elas valem na register (decisão 0027)"
-        )
+    return {g["user"]["preferredLoginName"]: {r["key"] for r in g["roles"]} for g in found}
+
+
+def test_only_operators_are_authorized_in_core(
+    zitadel: Zitadel, orgs: dict[str, str], project_id: str
+) -> None:
+    """Na `core` só há operadores: cada autorização tem uma role `*.admin` (o escopo) e, além
+    dela, as roles de ação que o operador exerce (decisão 0031). Usuários cadastrados são
+    autorizados na `register`, pelo Project Grant, e nunca recebem `*.admin`."""
+    operators = operator_authorizations(zitadel, orgs, project_id)
+    assert operators, "falta a autorização do operador (`*.admin`) no projeto roles"
+    for name, roles in operators.items():
+        assert roles & ADMIN_ROLES, f"{name} está na core sem nenhuma role `*.admin`"
+        assert roles <= ACTION_ROLES | ADMIN_ROLES, f"{name} tem roles fora do conjunto conhecido"
+
+
+def test_default_operator_holds_every_role(
+    zitadel: Zitadel, orgs: dict[str, str], project_id: str
+) -> None:
+    """O operador padrão tem `*.admin` e as roles de ação: o Receiver exige as duas coisas
+    (o que pode fazer e em quais recursos). Role de ação nova sem concessão aparece aqui."""
+    operators = operator_authorizations(zitadel, orgs, project_id)
+    default = next((r for n, r in operators.items() if n.startswith("admin@smarkee")), None)
+    assert default is not None, "falta a autorização do operador padrão (admin@smarkee)"
+    assert default == ACTION_ROLES | ADMIN_ROLES
 
 
 def test_register_has_no_project_of_its_own(zitadel: Zitadel, orgs: dict[str, str]) -> None:
