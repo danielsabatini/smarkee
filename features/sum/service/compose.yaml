@@ -1,0 +1,237 @@
+name: sum-service
+
+# Componentes de sum.service (decisões 0015, 0019, 0032 e 0033): migração, consumers, Receiver, Manager,
+# Publisher, Reconciler, Observer e Executor.
+# A plataforma (banco, broker, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
+# e saudável antes: este arquivo só referencia a rede `internal` que ela cria.
+#
+
+services:
+  # Consumers duráveis de sum.service (docs/NATS.md §7.6). Os manifestos ficam em cada componente.
+  # Inexistente é criado; existente com configuração idêntica não muda; configuração diferente falha
+  # de forma explícita. Exige os Streams criados pelo broker da plataforma.
+  sum-service-consumer:
+    build:
+      context: ../../../infrastructure/tools/nats-client
+    image: ${NATS_CLIENT_IMAGE:-smarkee-nats-client:dev}
+    container_name: sum-service-consumer.smarkee.internal
+    environment:
+      NATS_URL: nats://broker.smarkee.internal:4222
+      NATS_USER: ${NATS_USER:-smarkee}
+      NATS_PASSWORD: ${SUM_SERVICE_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+    command:
+      - sh
+      - -c
+      - >-
+        nats consumer add REQUESTED --config /consumers/sum-service-manager-requested.json &&
+        nats consumer add OBSERVED --config /consumers/sum-service-manager-observed.json &&
+        nats consumer add RESULT --config /consumers/sum-service-manager-completed.json &&
+        nats consumer add RESULT --config /consumers/sum-service-manager-failed.json &&
+        nats consumer add DESIRED --config /consumers-reconciler/sum-service-reconciler-desired.json &&
+        nats consumer add OBSERVED --config /consumers-reconciler/sum-service-reconciler-observed.json &&
+        nats consumer add RESULT --config /consumers-reconciler/sum-service-reconciler-completed.json &&
+        nats consumer add RESULT --config /consumers-reconciler/sum-service-reconciler-failed.json &&
+        nats consumer add DESIRED --config /consumers-observer/sum-service-observer-desired.json &&
+        nats consumer add RESULT --config /consumers-observer/sum-service-observer-completed.json &&
+        nats consumer add RESULT --config /consumers-observer/sum-service-observer-failed.json &&
+        for partition in 0 1 2 3; do
+          nats consumer add ACTION --config /consumers-executor/sum-service-executor-action-p$$partition.json || exit 1;
+        done
+    volumes:
+      - ./manager/consumers:/consumers:ro
+      - ./reconciler/consumers:/consumers-reconciler:ro
+      - ./observer/consumers:/consumers-observer:ro
+      - ./executor/consumers:/consumers-executor:ro
+    networks:
+      - internal
+    restart: "no"
+
+  # Migrações do esquema `sum` (decisão 0033). Executadas como o dono `smarkee`; os papéis de função são
+  # criados por infrastructure/dev/database/bootstrap/sum.sql, que roda na criação do banco.
+  sum-service-migrate:
+    build:
+      context: ../../../infrastructure/tools/psql-client
+    image: ${POSTGRES_CLIENT_IMAGE:-smarkee-psql-client:dev}
+    container_name: sum-service-migrate.smarkee.internal
+    environment:
+      PGHOST: database.smarkee.internal
+      PGDATABASE: smarkee
+      PGUSER: smarkee
+      # Senha trivial de dev do dono do SSOT (database/bootstrap/smarkee.sql).
+      PGPASSWORD: smarkee
+      PGOPTIONS: -c client_min_messages=warning
+    command:
+      - sh
+      - -c
+      - for migration in /migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1; done
+    volumes:
+      - ./manager/migrations:/migrations:ro
+    networks:
+      internal:
+        aliases:
+          - sum-service-migrate.smarkee.internal
+    restart: "no"
+
+  # Manager (`sum-service-manager`): único escritor do SSOT de sum.service. Consome `requested`, grava a
+  # ligação, a Operation e o outbox. O catálogo serviço → roles é obrigatório (decisão 0033).
+  sum-service-manager:
+    build:
+      context: ./manager
+    image: ${SUM_SERVICE_MANAGER_IMAGE:-smarkee-sum-service-manager:dev}
+    container_name: sum-service-manager.smarkee.internal
+    environment:
+      SUM_SERVICE_MANAGER_DATABASE_PASSWORD: ${SUM_SERVICE_MANAGER_DATABASE_PASSWORD:?Defina no .env}
+      SUM_SERVICE_MANAGER_NATS_PASSWORD: ${SUM_SERVICE_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      SUM_SERVICE_MANAGER_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (JSON serviço → roles, decisão 0033)}
+    depends_on:
+      sum-service-migrate:
+        condition: service_completed_successfully
+      sum-service-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - sum-service-manager.smarkee.internal
+    restart: unless-stopped
+    healthcheck: &probe
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  # Receiver (`sum-service-receiver`): a API `/v1/sum/services`. Só o gateway a alcança; a porta 8000 não é
+  # publicada no host. Valida o token (audience = projeto `roles-sum`), confere a role da ação e publica
+  # `requested` (decisão 0033).
+  sum-service-receiver:
+    build:
+      context: ./receiver
+    image: ${SUM_SERVICE_RECEIVER_IMAGE:-smarkee-sum-service-receiver:dev}
+    container_name: sum-service-receiver.smarkee.internal
+    environment:
+      SUM_SERVICE_RECEIVER_DATABASE_PASSWORD: ${SUM_SERVICE_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
+      SUM_SERVICE_RECEIVER_NATS_PASSWORD: ${SUM_SERVICE_RECEIVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      SUM_SERVICE_RECEIVER_AUTH_AUDIENCE: ${SUM_SERVICE_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-sum)}
+    depends_on:
+      sum-service-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - sum-service-receiver.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *probe
+
+  # Reconciler (`sum-service-reconciler`): decide e publica as `action`. Sem chave de Zitadel: não escreve
+  # nem lê o provedor. Os consumers são criados pelo `sum-service-consumer`.
+  sum-service-reconciler:
+    build:
+      context: ./reconciler
+    image: ${SUM_SERVICE_RECONCILER_IMAGE:-smarkee-sum-service-reconciler:dev}
+    container_name: sum-service-reconciler.smarkee.internal
+    environment:
+      SUM_SERVICE_RECONCILER_NATS_PASSWORD: ${SUM_SERVICE_RECONCILER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+    depends_on:
+      sum-service-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - sum-service-reconciler.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *probe
+
+  # Observer (`sum-service-observer`): lê o Zitadel só de leitura (conta `sum-service-observer`) e publica
+  # `observed`. Monta só a própria chave do volume da identidade.
+  sum-service-observer:
+    build:
+      context: ./observer
+    image: ${SUM_SERVICE_OBSERVER_IMAGE:-smarkee-sum-service-observer:dev}
+    container_name: sum-service-observer.smarkee.internal
+    environment:
+      SUM_SERVICE_OBSERVER_NATS_PASSWORD: ${SUM_SERVICE_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      SUM_SERVICE_OBSERVER_ZITADEL_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_ZITADEL_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
+      SUM_SERVICE_OBSERVER_ZITADEL_PROJECT_IDS: ${SUM_SERVICE_ZITADEL_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
+      SUM_SERVICE_OBSERVER_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (o mesmo catálogo do Manager)}
+    volumes:
+      - type: volume
+        source: identity-bootstrap
+        target: /run/secrets/zitadel-key.json
+        read_only: true
+        volume:
+          subpath: service-account-sum-service-observer.json
+    depends_on:
+      sum-service-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - sum-service-observer.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *probe
+
+  # Executor (`sum-service-executor`): único componente que concede e revoga roles de serviço no Zitadel. Conta
+  # `sum-service-executor`, com `PROJECT_GRANT_OWNER` só no Grant de `roles-ipm` (decisão 0032). Consome todas as
+  # partições do ACTION, um laço por partição, no mesmo processo (decisão 0018).
+  sum-service-executor:
+    build:
+      context: ./executor
+    image: ${SUM_SERVICE_EXECUTOR_IMAGE:-smarkee-sum-service-executor:dev}
+    container_name: sum-service-executor.smarkee.internal
+    environment:
+      SUM_SERVICE_EXECUTOR_NATS_PASSWORD: ${SUM_SERVICE_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      SUM_SERVICE_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_ZITADEL_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
+      SUM_SERVICE_EXECUTOR_ZITADEL_PROJECT_IDS: ${SUM_SERVICE_ZITADEL_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
+      SUM_SERVICE_EXECUTOR_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (o mesmo catálogo do Manager)}
+    volumes:
+      - type: volume
+        source: identity-bootstrap
+        target: /run/secrets/zitadel-key.json
+        read_only: true
+        volume:
+          subpath: service-account-sum-service-executor.json
+    depends_on:
+      sum-service-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - sum-service-executor.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *probe
+
+  # Publisher (`sum-service-publisher`): publica o outbox de sum.service (uma instância ativa por trava
+  # consultiva). Papel de banco `sum_service_publisher`, que só lê o outbox e marca `published_at`.
+  sum-service-publisher:
+    build:
+      context: ./publisher
+    image: ${SUM_SERVICE_PUBLISHER_IMAGE:-smarkee-sum-service-publisher:dev}
+    container_name: sum-service-publisher.smarkee.internal
+    environment:
+      SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD: ${SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
+      SUM_SERVICE_PUBLISHER_NATS_PASSWORD: ${SUM_SERVICE_PUBLISHER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+    depends_on:
+      sum-service-migrate:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - sum-service-publisher.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *probe
+
+volumes:
+  # Volume da identidade (chaves das contas de serviço), criado por `infrastructure/dev/identity`.
+  identity-bootstrap:
+    name: identity-bootstrap
+    external: true
+
+networks:
+  # Rede da plataforma, criada por `infrastructure/dev`.
+  internal:
+    name: internal
+    external: true

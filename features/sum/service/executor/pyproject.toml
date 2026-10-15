@@ -1,0 +1,56 @@
+[project]
+name = "sum-service-executor"
+version = "0.1.0"
+description = "Executor de sum.service (sum-service-executor): concede e revoga as roles dos serviços no Zitadel (decisões 0032 e 0033)."
+requires-python = ">=3.14"
+dependencies = [
+    "httpx>=0.28.0",
+    "nats-py>=2.16.0",
+    "psycopg-pool>=3.3.3",
+    "psycopg[binary]>=3.3.6",
+    "pydantic>=2.14.0",
+    "pydantic-settings>=2.15.0",
+    "pyjwt[crypto]>=2.10.0",
+]
+
+[project.scripts]
+sum-service-executor = "sum_service_executor.main:main"
+
+[build-system]
+requires = ["uv_build>=0.11.19,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "sum_service_executor"
+# Sem __init__.py: o pacote é um namespace package (python.md, seção 4).
+namespace = true
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+extend-exclude = ["src/sum_service_executor/contracts/generated.py"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "jsonschema>=4.26.0",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.17.0",
+]

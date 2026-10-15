@@ -1,0 +1,47 @@
+"""Conexão com o NATS JetStream e publicação do `observed` pelo Observer (`docs/NATS.md`)."""
+
+from typing import Any
+
+import nats
+import nats.errors
+import nats.js.errors
+from nats.aio.client import Client as NatsClient
+from nats.js import JetStreamContext
+from pydantic import SecretStr
+
+from sum_service_observer.engine.observer import PublishError
+
+PUBLISH_TIMEOUT_SECONDS = 5.0
+
+
+async def connect(
+    url: str, user: str, password: SecretStr | None, *, name: str = "sum-service-observer"
+) -> NatsClient:
+    """Conecta com a identidade do Observer (`sum-service-observer`)."""
+    secret = password.get_secret_value() if password else None
+    # `nats.connect` aceita opções livres; o pyright não as conhece.
+    options: dict[str, Any] = {"servers": [url], "user": user, "password": secret, "name": name}
+    return await nats.connect(**options)  # pyright: ignore[reportUnknownMemberType]
+
+
+def jetstream_of(client: NatsClient) -> JetStreamContext:
+    """Contexto JetStream da conexão (o pyright não conhece as opções livres do nats-py)."""
+    return client.jetstream()  # pyright: ignore[reportUnknownMemberType]
+
+
+class JetStreamPublisher:
+    """Publica um `observed` e espera a confirmação, com `Nats-Msg-Id` igual ao `messageId`."""
+
+    def __init__(self, jetstream: JetStreamContext) -> None:
+        self._jetstream = jetstream
+
+    async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
+        try:
+            await self._jetstream.publish(
+                subject,
+                payload,
+                timeout=PUBLISH_TIMEOUT_SECONDS,
+                headers={"Nats-Msg-Id": message_id},
+            )
+        except (nats.errors.Error, nats.js.errors.Error, TimeoutError, OSError) as error:
+            raise PublishError(type(error).__name__) from error

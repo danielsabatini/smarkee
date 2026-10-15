@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ServiceResource",
+  "description": "Visão consolidada da ligação de um serviço exposta pelo Receiver (GET /v1/sum/services/{resourceId}), legível pelo dono da ligação e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "resourceId",
+    "resourceVersion",
+    "desiredGeneration",
+    "phase",
+    "conditions",
+    "desired",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "resourceId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "resourceVersion": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceVersion",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "desiredGeneration": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/generation",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "phase": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/phase",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "conditions": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "$ref": "../../common/condition.v1.schema.json"
+      },
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "desired": {
+      "$ref": "desired.v1.schema.json",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "observed": {
+      "$ref": "observed.v1.schema.json",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "createdAt": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "updatedAt": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

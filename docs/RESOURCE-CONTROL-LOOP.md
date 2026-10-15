@@ -351,7 +351,7 @@ flowchart LR
 
 ## 6.1.1 Interface HTTP
 
-Cada tipo de recurso expõe a mesma interface, sob o prefixo do módulo e no plural do `resourceType` (`/v1/<módulo>/<tipos>`, por exemplo `/v1/ipm/organizations`; decisão 0030). As escritas são assíncronas: o Receiver publica `requested` e responde `202 Accepted` com o `operationId`, sem esperar o Manager. As leituras vêm das views versionadas do SSOT (`POSTGRESQL.md`, decisão 0004). Cada tipo implementa o subconjunto aplicável da interface: o User, por exemplo, não tem `PATCH` nem listagem (decisão 0014).
+Cada tipo de recurso expõe a mesma interface, sob o prefixo do módulo e no plural do `resourceType` (`/v1/<módulo>/<tipos>`, por exemplo `/v1/ipm/organizations`; decisão 0030). As escritas são assíncronas: o Receiver publica `requested` e responde `202 Accepted` com o `operationId`, sem esperar o Manager. As leituras vêm das views versionadas do SSOT (`POSTGRESQL.md`, decisão 0004). Por isso, logo depois do `202` o recurso e a Operation ainda podem não existir no SSOT: a leitura responde `404` até o Manager gravá-los. O cliente que espera o resultado repete a leitura até o prazo (ou acompanha a Operation até `completed`), e não trata esse `404` inicial como recurso inexistente. Cada tipo implementa o subconjunto aplicável da interface: o User, por exemplo, não tem `PATCH` nem listagem (decisão 0014).
 
 | Método e rota | Efeito | Resposta |
 |---|---|---|

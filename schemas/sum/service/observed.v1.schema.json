@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ServiceObservedData",
+  "description": "data de observed do SUM: as roles do serviço que o usuário tem hoje, lidas do Zitadel. Vazio quando a ligação está ausente.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "serviceRoles": {
+      "$ref": "definitions.v1.schema.json#/$defs/serviceRoles",
+      "description": "Roles do serviço que o usuário tem no projeto de roles do módulo do serviço. A reconciliação compara com desired.serviceRoles.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

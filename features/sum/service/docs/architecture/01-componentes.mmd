@@ -1,0 +1,17 @@
+flowchart LR
+  R[Receiver - pendente] -->|requested| REQ[(REQUESTED)]
+  REQ --> M[Manager]
+  M -->|SSOT e outbox| DB[(sum schema)]
+  DB --> P[Publisher]
+  P -->|desired| DES[(DESIRED)]
+  DES --> REC[Reconciler - motor pendente]
+  DES --> OBS[Observer - motor pendente]
+  OBSV[(OBSERVED)] --> REC
+  OBS -->|observed| OBSV
+  REC -->|action| ACT[(ACTION)]
+  ACT --> EX[Executor - processo pendente]
+  EX -->|completed ou failed| RES[(RESULT)]
+  RES --> REC
+  RES --> OBS
+  EX -->|PROJECT_GRANT_OWNER em roles-ipm| Z[Zitadel]
+  OBS -->|leitura| Z

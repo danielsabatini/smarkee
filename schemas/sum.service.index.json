@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SumServiceContracts",
+  "description": "Índice dos contratos usados pelos componentes de service do módulo sum: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e de sum/service/ deve estar listado (verificado pelos testes de contrato).",
+  "anyOf": [
+    {
+      "$ref": "common/message-envelope.v1.schema.json"
+    },
+    {
+      "$ref": "common/condition.v1.schema.json"
+    },
+    {
+      "$ref": "common/action.v1.schema.json"
+    },
+    {
+      "$ref": "common/completed.v1.schema.json"
+    },
+    {
+      "$ref": "common/failed.v1.schema.json"
+    },
+    {
+      "$ref": "common/updated.v1.schema.json"
+    },
+    {
+      "$ref": "common/operation.v1.schema.json"
+    },
+    {
+      "$ref": "common/api-accepted-response.v1.schema.json"
+    },
+    {
+      "$ref": "common/api-error.v1.schema.json"
+    },
+    {
+      "$ref": "sum/service/desired.v1.schema.json"
+    },
+    {
+      "$ref": "sum/service/observed.v1.schema.json"
+    },
+    {
+      "$ref": "sum/service/api-create-request.v1.schema.json"
+    },
+    {
+      "$ref": "sum/service/resource.v1.schema.json"
+    },
+    {
+      "$ref": "sum/service/requested-create.v1.schema.json"
+    },
+    {
+      "$ref": "sum/service/requested-delete.v1.schema.json"
+    }
+  ]
+}

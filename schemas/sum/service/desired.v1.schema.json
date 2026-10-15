@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ServiceDesiredData",
+  "description": "data de desired do SUM: a ligação de um serviço para um usuário. Publicado somente pelo Manager, a partir do pedido aceito pelo Receiver e do catálogo de serviços (decisão 0033). Sem dados pessoais: o usuário é referenciado pelo ownerUserId.",
+  "x-schemaVersion": "1.0",
+  "x-resourceParameters": {
+    "observationInterval": "PT5M",
+    "observationValidity": "PT10M",
+    "actionDeadline": "PT2M",
+    "failureLimit": 5
+  },
+  "x-actionIdFormat": "<resourceId>.<desiredGeneration>.<operation>.<messageId do observed que motivou a decisão>",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lifecycle",
+    "reconciliation",
+    "ownerUserId",
+    "service",
+    "serviceRoles"
+  ],
+  "properties": {
+    "lifecycle": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/lifecycle",
+      "description": "present: a ligação existe e o usuário deve ter as roles do serviço. absent: a ligação foi desfeita e as roles devem sair.",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "ownerUserId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "description": "ID do usuário dono da ligação: o `resourceId` do User (decisão 0014). Atribuído pelo Receiver a partir do token do solicitante.",
+      "x-writer": "server",
+      "x-mutability": "immutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "service": {
+      "$ref": "definitions.v1.schema.json#/$defs/service",
+      "description": "Serviço ligado. Imutável: para outro serviço, outra ligação.",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "serviceRoles": {
+      "$ref": "definitions.v1.schema.json#/$defs/serviceRoles",
+      "description": "Roles que o usuário deve ter para usar o serviço. Copiadas do catálogo do Manager na ligação; vazias quando lifecycle é absent.",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    }
+  }
+}

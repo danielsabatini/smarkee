@@ -1,0 +1,21 @@
+sequenceDiagram
+  participant U as Usuário
+  participant R as Receiver (pendente)
+  participant M as Manager
+  participant DB as sum schema
+  participant P as Publisher
+  participant REC as Reconciler (pendente)
+  participant EX as Executor (pendente)
+  participant Z as Zitadel
+  participant OB as Observer (pendente)
+  U->>R: POST /v1/sum/services {service: ipm}
+  R->>M: requested-create (REQUESTED)
+  M->>DB: ligação present, operação accepted, outbox desired
+  M-->>P: (linha do outbox)
+  P->>REC: desired (DESIRED)
+  OB->>REC: observed sem roles (OBSERVED)
+  REC->>EX: action update (ACTION)
+  EX->>Z: CreateAuthorization em roles-ipm
+  EX->>REC: completed (RESULT)
+  OB->>Z: lê as roles
+  OB->>REC: observed com as roles

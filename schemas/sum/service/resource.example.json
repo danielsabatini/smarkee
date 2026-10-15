@@ -1,0 +1,40 @@
+{
+  "resourceId": "0199c8b0-2d4e-7f10-8a3b-6c7d8e9f0a1b",
+  "resourceVersion": "2",
+  "desiredGeneration": 1,
+  "phase": "Ready",
+  "conditions": [
+    {
+      "type": "Ready",
+      "status": "True",
+      "reason": "Reconciled",
+      "message": "O usuário tem as roles do serviço ipm.",
+      "observedGeneration": 1,
+      "lastTransitionAt": "2026-10-15T14:00:05Z"
+    }
+  ],
+  "desired": {
+    "lifecycle": "present",
+    "reconciliation": "active",
+    "ownerUserId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+    "service": "ipm",
+    "serviceRoles": [
+      "ipm.organization.create",
+      "ipm.organization.delete",
+      "ipm.organization.get",
+      "ipm.organization.list",
+      "ipm.organization.update"
+    ]
+  },
+  "observed": {
+    "serviceRoles": [
+      "ipm.organization.create",
+      "ipm.organization.delete",
+      "ipm.organization.get",
+      "ipm.organization.list",
+      "ipm.organization.update"
+    ]
+  },
+  "createdAt": "2026-10-15T14:00:00Z",
+  "updatedAt": "2026-10-15T14:00:05Z"
+}
