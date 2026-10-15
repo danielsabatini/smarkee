@@ -8,6 +8,8 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [Unreleased]
 
 ### Added
+- `sk sum service enable|disable|get|list`: liga, desliga e consulta os serviços do solicitante no Service Usage Manager. Com `[sum] projectId` configurado, `sk auth login` pede o audience do SUM. O access token é renovado pelo refresh token quando está para vencer, sem novo login.
+- Service Usage Manager (`features/sum/service`, decisão 0033): ligação de um serviço por usuário, com a API `/v1/sum/services`, os seis componentes do loop (Receiver, Manager, Publisher, Reconciler, Observer e Executor) e testes e2e, incluindo os de falha de componente.
 - `sk auth whoami`: mostra o usuário da sessão gravada e confirma com o provedor que o acesso ainda vale. Sem sessão, com acesso vencido ou não confirmado pelo provedor, sai com código 1 e a causa.
 - Ajuda da CLI padronizada (decisão 0022): cada opção mostra o tipo, as fontes do valor (variável de ambiente, arquivo de configuração e padrão) e se é obrigatória, com cores, em linguagem para o usuário final. As opções obrigatórias do `sk register` são validadas pelo comando, com código de saída 2.
 - Apresentação da CLI com Rich (decisão 0021): painéis de sucesso, erros com dica de correção e URL de login em destaque, em todos os comandos (`auth init`, `auth login` e `register`).
@@ -75,5 +77,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - SSOT: tabela de inbox; a idempotência de entrada é garantida pelas regras semânticas (`docs/SSOT.md`, `docs/POSTGRESQL.md`).
 
 ### Fixed
+- SUM: a Operation de uma ligação ficava `accepted` para sempre. Agora passa a `in_progress` durante a reconciliação e a `completed` quando a fase chega a `Ready`.
+- SUM: o Executor consumia uma só partição do `ACTION` por processo, e os recursos das outras partições ficavam sem quem os executasse. Agora há um laço por partição no mesmo processo, como no User (decisão 0018).
 - SSOT: resultados `completed` e `failed` reentregues eram contados de novo, e resultados de geração anterior eram contados contra a geração atual; nova tabela `<tipo>_action_result` registra o `actionId` (`docs/SSOT.md`, `docs/POSTGRESQL.md`).
 - SSOT: restauração a um ponto no tempo podia reutilizar uma geração já publicada com outro conteúdo; novo procedimento de recuperação executado antes de liberar o Manager e o relay (`docs/SSOT.md`, `docs/POSTGRESQL.md`).
