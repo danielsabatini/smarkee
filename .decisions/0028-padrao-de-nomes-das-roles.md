@@ -33,4 +33,4 @@ As roles do projeto `roles` (Zitadel) são uma por ação, mas os nomes não diz
 
 - Renomeação em dev: o Receiver de cada tipo, o conjunto padrão do Manager, os schemas e os exemplos, os testes e os docs. A migração `0003-user-platform-roles-names.sql` reescreve `desired.platformRoles` das linhas existentes.
 - No Zitadel, a chave da role é imutável: as roles novas foram criadas e as antigas removidas; o Project Grant delega as novas; o operador recebeu `core.user.admin` e `ipm.organization.admin`. Tokens emitidos antes valem com os nomes antigos até expirar.
-- Para o SUM, o Project Grant é por organização e não por conta: as roles `ipm.*` delegáveis ao SUM também ficam ao alcance do Executor do User. A decisão do SUM deve tratar isso (projetos de roles por módulo, ou aceitar o risco com auditoria).
+- Para o SUM, o Project Grant é por organização e não por conta: as roles `ipm.*` delegáveis ao SUM também ficam ao alcance do Executor do User. Tratado pela decisão 0032: um projeto de roles por módulo, cada um com o seu Project Grant, e o papel `ORG_USER_CREATOR` no Executor do User.

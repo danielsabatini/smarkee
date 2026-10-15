@@ -2,9 +2,9 @@
 
 Executor de `core.user` (`core-user-executor`), componente autocontido (`.decisions/0015-componentes-por-papel-autocontidos.md`).
 
-Única identidade com escrita no Zitadel (conta `core-user-executor`, papel `ORG_USER_MANAGER`). Consome a `action` do Reconciler, **revalida** contra o `desired` vigente (geração, coerência da operação, reconciliação ativa), confere o desfecho já registrado do `actionId` por Direct Get (idempotência) e executa:
+Única identidade com escrita no Zitadel (conta `core-user-executor`, papéis `ORG_USER_CREATOR` na `register` e `PROJECT_GRANT_OWNER` nos Grants de `core` e `sum`). Consome a `action` do Reconciler, **revalida** contra o `desired` vigente (geração, coerência da operação, reconciliação ativa), confere o desfecho já registrado do `actionId` por Direct Get (idempotência) e executa:
 
-- `create`: cria o usuário **sem senha**, envia o link para definir a senha (`password_reset`) e concede no projeto `roles` as roles de `desired.platformRoles` (não há lista de roles na configuração do Executor); a senha nunca passa por CLI, Receiver, SSOT nem NATS;
+- `create`: cria o usuário **sem senha**, envia o link para definir a senha (`password_reset`) e concede, em cada projeto de roles (uma autorização por módulo), as roles de `desired.platformRoles` (não há lista de roles na configuração do Executor); a senha nunca passa por CLI, Receiver, SSOT nem NATS;
 - `update`: ajusta ou revoga as roles (`platformAccess`);
 - `delete`: remove o usuário (ausente é sucesso).
 
@@ -31,7 +31,7 @@ src/core_user_executor/
 
 ## Configuração
 
-Variáveis `CORE_USER_EXECUTOR_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_USER_EXECUTOR_NATS_PASSWORD`, `CORE_USER_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID` e `CORE_USER_EXECUTOR_ZITADEL_PROJECT_ID`. A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`), só desta conta.
+Variáveis `CORE_USER_EXECUTOR_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_USER_EXECUTOR_NATS_PASSWORD`, `CORE_USER_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID` e `CORE_USER_EXECUTOR_ZITADEL_PROJECT_IDS` (JSON módulo → ID do projeto de roles, por exemplo `{"core":"…","sum":"…"}`). A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`), só desta conta.
 
 ## Desenvolvimento
 

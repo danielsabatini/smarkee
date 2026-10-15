@@ -70,7 +70,10 @@ class FakeWriter:
     async def grants(self, user_id: str) -> list[Grant]:
         return []
 
-    async def create_grant(self, user_id: str, roles: list[str]) -> None:
+    def project_of(self, role: str) -> str:
+        return "p-core"
+
+    async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None:
         self.calls.append("create_grant")
 
     async def update_grant(self, user_id: str, grant_id: str, roles: list[str]) -> None:

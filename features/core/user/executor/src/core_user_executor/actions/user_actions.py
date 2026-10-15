@@ -25,7 +25,9 @@ class Writer(Protocol):
 
     async def grants(self, user_id: str) -> list[Grant]: ...
 
-    async def create_grant(self, user_id: str, roles: list[str]) -> None: ...
+    def project_of(self, role: str) -> str: ...
+
+    async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None: ...
 
     async def update_grant(self, user_id: str, grant_id: str, roles: list[str]) -> None: ...
 
@@ -103,13 +105,23 @@ async def _update(user_id: str, desired: Mapping[str, Any], writer: Writer) -> N
 
 
 async def _ensure_grant(user_id: str, writer: Writer, expected: frozenset[str]) -> None:
-    """O usuário tem, no projeto da plataforma, ao menos as roles de `desired.platformRoles`."""
+    """O usuário tem, em cada projeto de roles, ao menos as roles de `desired.platformRoles`.
+
+    Cada role vai para o projeto do seu módulo (`writer.project_of`); uma autorização por projeto.
+    """
     if not expected:
         return
+    by_project: dict[str, set[str]] = {}
+    for role in sorted(expected):
+        by_project.setdefault(writer.project_of(role), set()).add(
+            role
+        )  # `ProviderError` se não há projeto
     grants = await writer.grants(user_id)
-    if any(expected <= grant.roles for grant in grants):
-        return
-    if grants:
-        await writer.update_grant(user_id, grants[0].grant_id, sorted(expected | grants[0].roles))
-        return
-    await writer.create_grant(user_id, sorted(expected))
+    for project_id, roles in by_project.items():
+        current = next((g for g in grants if g.project_id == project_id), None)
+        if current is not None and roles <= current.roles:
+            continue
+        if current is not None:
+            await writer.update_grant(user_id, current.grant_id, sorted(roles | current.roles))
+        else:
+            await writer.create_grant(user_id, project_id, sorted(roles))

@@ -54,14 +54,17 @@ class ZitadelReader:
         )
 
     async def granted_roles(self, user_id: str) -> set[str]:
-        """União das roles do usuário no projeto da plataforma (API v2 de autorizações)."""
+        """União das roles do usuário em todos os projetos de roles (API v2 de autorizações).
+
+        Há um projeto de roles por módulo (decisão 0032); a leitura é pela organização `register`,
+        sem filtrar o projeto, para o Observer não depender da lista de módulos.
+        """
         response = await self._request(
             "POST",
             "/zitadel.authorization.v2.AuthorizationService/ListAuthorizations",
             {
                 "filters": [
                     {"inUserIds": {"ids": [user_id]}},
-                    {"projectId": {"id": self._settings.project_id}},
                     {"organizationId": {"id": self._settings.register_organization_id}},
                 ]
             },

@@ -38,7 +38,6 @@ def settings(key_file: Path) -> ZitadelSettings:
     return ZitadelSettings(
         key_file=str(key_file),
         register_organization_id="org-1",
-        project_id="proj-1",
         base_url="http://z",
     )
 
@@ -142,7 +141,7 @@ async def test_missing_key_file_or_token_failure_is_a_provider_error(tmp_path: P
         await missing.get_user("u-1")
 
 
-async def test_granted_roles_are_the_union_in_the_project(key_file: Path) -> None:
+async def test_granted_roles_are_the_union_across_the_projects(key_file: Path) -> None:
     calls: list[httpx.Request] = []
     body = {
         "authorizations": [
@@ -159,5 +158,5 @@ async def test_granted_roles_are_the_union_in_the_project(key_file: Path) -> Non
     assert "x-zitadel-orgid" not in request.headers
     filters = json.loads(request.content)["filters"]
     assert {"inUserIds": {"ids": ["u-1"]}} in filters
-    assert {"projectId": {"id": "proj-1"}} in filters
+    assert not any("projectId" in f for f in filters)  # todos os projetos de roles
     assert {"organizationId": {"id": "org-1"}} in filters

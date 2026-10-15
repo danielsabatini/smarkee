@@ -38,13 +38,12 @@ def _parse_resource_version(value: str) -> int:
 DEFAULT_PLATFORM_ROLES: tuple[str, ...] = (
     "core.user.delete",
     "core.user.get",
-    "ipm.organization.create",
-    "ipm.organization.delete",
-    "ipm.organization.get",
-    "ipm.organization.list",
-    "ipm.organization.update",
 )
-"""Roles de ação do usuário cadastrado no projeto da plataforma (decisões 0010 e 0025)."""
+"""Roles de ação do usuário cadastrado, só do módulo `core` (decisões 0025 e 0032).
+
+As roles de outros módulos (por exemplo, `ipm.organization.*`) não vêm no cadastro: chegam quando o
+usuário liga o serviço correspondente (SUM), concedidas por quem tem o Project Grant daquele módulo.
+"""
 
 
 class UserPolicy:

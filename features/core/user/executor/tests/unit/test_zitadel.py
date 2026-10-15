@@ -45,7 +45,7 @@ def writer(
     settings = ZitadelSettings(
         key_file=str(key_file),
         register_organization_id="org-r",
-        project_id="proj-1",
+        project_ids={"core": "proj-core", "sum": "proj-sum"},
         base_url="http://z",
     )
     return ZitadelWriter(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
@@ -137,14 +137,27 @@ async def test_grants_and_their_mutations_use_the_v2_authorization_service(
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/ListAuthorizations"):
             return httpx.Response(
-                200, json={"authorizations": [{"id": "g-1", "roles": [{"key": "core.user.get"}]}]}
+                200,
+                json={
+                    "authorizations": [
+                        {
+                            "id": "g-1",
+                            "project": {"id": "proj-core"},
+                            "roles": [{"key": "core.user.get"}],
+                        },
+                        # Projeto fora de `project_ids`: o Executor não o enxerga.
+                        {"id": "g-9", "project": {"id": "proj-outro"}, "roles": [{"key": "x.y.z"}]},
+                    ]
+                },
             )
         return httpx.Response(200, json={})
 
     z = writer(key_file, handler, calls)
     grants = await z.grants("u-1")
-    assert [(g.grant_id, set(g.roles)) for g in grants] == [("g-1", {"core.user.get"})]
-    await z.create_grant("u-1", ["a", "b"])
+    assert [(g.grant_id, g.project_id, set(g.roles)) for g in grants] == [
+        ("g-1", "proj-core", {"core.user.get"})
+    ]
+    await z.create_grant("u-1", "proj-core", ["a", "b"])
     await z.update_grant("u-1", "g-1", ["a"])
     await z.remove_grant("u-1", "g-1")
 
@@ -159,18 +172,27 @@ async def test_grants_and_their_mutations_use_the_v2_authorization_service(
     assert all("x-zitadel-orgid" not in c.headers for c in calls)
     assert json.loads(calls[0].content)["filters"] == [
         {"inUserIds": {"ids": ["u-1"]}},
-        {"projectId": {"id": "proj-1"}},
         {"organizationId": {"id": "org-r"}},
     ]
     # A organização vai no corpo; o teto de roles é o Project Grant, aplicado pelo Zitadel.
     assert json.loads(calls[1].content) == {
         "userId": "u-1",
-        "projectId": "proj-1",
+        "projectId": "proj-core",
         "organizationId": "org-r",
         "roleKeys": ["a", "b"],
     }
     assert json.loads(calls[2].content) == {"id": "g-1", "roleKeys": ["a"]}
     assert json.loads(calls[3].content) == {"id": "g-1"}
+
+
+async def test_the_project_of_a_role_comes_from_its_module(key_file: Path) -> None:
+    z = writer(key_file, lambda r: httpx.Response(200, json={}))
+    assert z.project_of("core.user.get") == "proj-core"
+    assert z.project_of("sum.ipm.enable") == "proj-sum"
+    # `ipm` não está em `project_ids`: o Executor do User não concede roles dele (decisão 0032).
+    with pytest.raises(ProviderError) as raised:
+        z.project_of("ipm.organization.get")
+    assert (raised.value.reason, raised.value.retryable) == ("Rejected", False)
 
 
 async def test_creating_an_existing_authorization_is_success_and_other_errors_are_not(
@@ -180,9 +202,13 @@ async def test_creating_an_existing_authorization_is_success_and_other_errors_ar
         "code": "already_exists",
         "details": [{"debug": {"id": "V3-DKcYh"}, "id": "V3-DKcYh"}],
     }
-    await writer(key_file, lambda r: httpx.Response(409, json=exists)).create_grant("u-1", ["a"])
+    await writer(key_file, lambda r: httpx.Response(409, json=exists)).create_grant(
+        "u-1", "proj-core", ["a"]
+    )
     with pytest.raises(ProviderError):
-        await writer(key_file, lambda r: httpx.Response(403, json={})).create_grant("u-1", ["a"])
+        await writer(key_file, lambda r: httpx.Response(403, json={})).create_grant(
+            "u-1", "proj-core", ["a"]
+        )
 
 
 async def test_removing_a_missing_authorization_is_success(key_file: Path) -> None:

@@ -35,10 +35,7 @@ class ZitadelSettings(_Section):
     """Chave JSON da conta de serviço `core-user-observer` (somente leitura)."""
 
     register_organization_id: str | None = None
-    """ID da organização `register`: contexto da leitura das autorizações. Sem default."""
-
-    project_id: str | None = None
-    """ID do projeto `roles`, onde o usuário recebe as roles. Sem default."""
+    """ID da organização `register`: onde estão os usuários e as autorizações deles. Sem default."""
 
     timeout_seconds: float = 5.0
 
@@ -82,7 +79,6 @@ class UserObserverSettings(BaseSettings):
 REQUIRED_SECRETS = (
     "CORE_USER_OBSERVER_NATS_PASSWORD",
     "CORE_USER_OBSERVER_ZITADEL_REGISTER_ORGANIZATION_ID",
-    "CORE_USER_OBSERVER_ZITADEL_PROJECT_ID",
 )
 
 
@@ -93,6 +89,5 @@ def missing_required(settings: UserObserverSettings) -> list[str]:
         "CORE_USER_OBSERVER_ZITADEL_REGISTER_ORGANIZATION_ID": bool(
             settings.zitadel.register_organization_id
         ),
-        "CORE_USER_OBSERVER_ZITADEL_PROJECT_ID": bool(settings.zitadel.project_id),
     }
     return [name for name in REQUIRED_SECRETS if not present[name]]

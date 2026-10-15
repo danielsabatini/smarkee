@@ -20,5 +20,8 @@ class ZitadelUser:
 
 @dataclass(frozen=True, slots=True)
 class Grant:
+    """Autorização do usuário em um projeto de roles (uma por projeto)."""
+
     grant_id: str
+    project_id: str
     roles: frozenset[str]

@@ -73,7 +73,7 @@ Observa quando o `desired` é novo, depois de cada `completed`/`failed` (com `ca
 
 ## 3.6 Executor (`core-user-executor`)
 
-A **única identidade com escrita no Zitadel** (conta `core-user-executor`: `ORG_USER_MANAGER` só na organização `register`; as roles vêm do Project Grant do projeto `roles`). Para cada `action`: revalida contra o `desired` vigente (geração, operação coerente, reconciliação ativa), consulta o desfecho já registrado do `actionId` e só então executa:
+A **única identidade com escrita no Zitadel** (conta `core-user-executor`: `ORG_USER_CREATOR` na organização `register` e `PROJECT_GRANT_OWNER` nos Grants dos módulos `core` e `sum`; cada role vai para o projeto do seu módulo, decisão 0032). Para cada `action`: revalida contra o `desired` vigente (geração, operação coerente, reconciliação ativa), consulta o desfecho já registrado do `actionId` e só então executa:
 
 - `create`: `POST /v2/users/human` **sem senha**, com `userId = resourceId` (o `sub` do token será o `resourceId`); o Zitadel envia "Verificar e-mail"; em seguida `password_reset` com `sendLink` envia "Redefinir senha"; por fim concede no projeto `roles` as roles de `desired.platformRoles` (o Executor não tem lista própria). Cada passo é idempotente (repetição confere o dono do ID pelo e-mail).
 - `update`: garante (ou remove, se `revoked`) as roles do projeto.
@@ -249,7 +249,7 @@ Campos do User: `givenName`, `familyName` e `email` são `confidential` (nunca e
 | Publisher | `core-user-publisher.smarkee.internal` | `core-user-publisher` | `core_user_publisher` | `SELECT` em `user_outbox` e `UPDATE (published_at)` | nenhuma |
 | Reconciler | `core-user-reconciler.smarkee.internal` | `core-user-reconciler` | nenhum (não acessa o SSOT) | nenhum | nenhuma |
 | Observer | `core-user-observer.smarkee.internal` | `core-user-observer` | nenhum | nenhum | `core-user-observer` (`ORG_OWNER_VIEWER`, leitura) |
-| Executor | `core-user-executor.smarkee.internal` | `core-user-executor` | nenhum | nenhum | `core-user-executor` (`ORG_USER_MANAGER` só na `register`) |
+| Executor | `core-user-executor.smarkee.internal` | `core-user-executor` | nenhum | nenhum | `core-user-executor` (`ORG_USER_CREATOR` na `register`; `PROJECT_GRANT_OWNER` em `core` e `sum`) |
 
 Etapas de implantação (executam e terminam): `core-user-migrate` (migrações, papel administrativo) e `core-user-consumer` (cria os consumers duráveis). A manutenção (`core_maintenance`) é uma identidade de infraestrutura, com `SELECT` e `DELETE` no outbox, nos resultados de ação e nas Operations. Em dev, todos os componentes usam o mesmo usuário NATS (veja a seção 10).
 
@@ -257,7 +257,7 @@ Etapas de implantação (executam e terminam): `core-user-migrate` (migrações,
 
 # 9. Configuração, execução e testes
 
-Variáveis de ambiente `CORE_USER_<PAPEL>_<SEÇÃO>_<CAMPO>` (decisão 0016), sem arquivo de configuração. Cada projeto documenta as suas no `README.md` e em `settings.py`. Obrigatórias: senha do NATS (todos), senhas dos papéis do banco (Receiver, Manager, Publisher), `AUTH_AUDIENCE` (Receiver) e os IDs da organização `core` e do projeto `roles` no Zitadel (Observer e Executor).
+Variáveis de ambiente `CORE_USER_<PAPEL>_<SEÇÃO>_<CAMPO>` (decisão 0016), sem arquivo de configuração. Cada projeto documenta as suas no `README.md` e em `settings.py`. Obrigatórias: senha do NATS (todos), senhas dos papéis do banco (Receiver, Manager, Publisher), `AUTH_AUDIENCE` (Receiver) e os IDs no Zitadel: a organização `register` (Observer e Executor) e os projetos de roles dos módulos (`PROJECT_IDS`, só no Executor).
 
 ```bash
 # 1. Plataforma (banco, broker, identidade, gateway, e-mail): infrastructure/dev

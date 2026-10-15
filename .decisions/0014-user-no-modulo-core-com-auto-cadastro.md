@@ -2,6 +2,7 @@
 
 - **Data:** 2026-10-10
 - **Status:** Aceita
+- **Papel do Executor:** o `ORG_USER_MANAGER` citado aqui foi substituído pela decisão 0032 (`ORG_USER_CREATOR` na `register` e `PROJECT_GRANT_OWNER` nos Grants dos módulos).
 - **Rotas:** os caminhos citados aqui (`/v1/users`, `/v1/organizations`, `/v1/<tipos>`) foram substituídos pelo padrão da decisão 0030 (`/v1/<módulo>/<tipos>`).
 - **Nomes das roles:** os nomes citados aqui (`organization.*`, `user.*`, `platform.admin`) foram substituídos pelo padrão da decisão 0028 (`ipm.organization.*`, `core.user.*`, `*.admin`).
 

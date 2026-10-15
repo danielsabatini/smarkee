@@ -31,17 +31,23 @@ class ZitadelSettings(_Section):
     """Audience da assertion JWT da conta de serviço."""
 
     key_file: str = "/run/secrets/zitadel-key.json"
-    """Chave JSON da conta `core-user-executor` (`ORG_USER_MANAGER` só na `register`).
+    """Chave JSON da conta `core-user-executor`.
 
-    O teto das roles que ela concede é o Project Grant, aplicado pelo Zitadel.
+    Papéis dela: `ORG_USER_CREATOR` na `register` (cria e remove usuários, sem conceder roles) e
+    `PROJECT_GRANT_OWNER` nos Project Grants dos projetos de `project_ids` (decisão 0032).
     """
 
     register_organization_id: str | None = None
     """ID da organização `register`: onde os usuários são criados e recebem as autorizações.
     Sem default."""
 
-    project_id: str | None = None
-    """ID do projeto `roles`, onde o usuário recebe as roles. Sem default."""
+    project_ids: dict[str, str] = {}
+    """IDs dos projetos de roles que o Executor pode conceder, por módulo (`{"core": "<ID>", ...}`).
+
+    A role `<módulo>.<tipo>.<ação>` vai para o projeto do seu módulo. Um módulo ausente aqui é
+    rejeitado antes de chamar o Zitadel; o Zitadel também nega o que o Executor não tem como
+    `PROJECT_GRANT_OWNER` (decisão 0032). Sem default.
+    """
 
     timeout_seconds: float = 10.0
 
@@ -73,7 +79,7 @@ class UserExecutorSettings(BaseSettings):
 REQUIRED_SECRETS = (
     "CORE_USER_EXECUTOR_NATS_PASSWORD",
     "CORE_USER_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID",
-    "CORE_USER_EXECUTOR_ZITADEL_PROJECT_ID",
+    "CORE_USER_EXECUTOR_ZITADEL_PROJECT_IDS",
 )
 
 
@@ -84,6 +90,6 @@ def missing_required(settings: UserExecutorSettings) -> list[str]:
         "CORE_USER_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID": bool(
             settings.zitadel.register_organization_id
         ),
-        "CORE_USER_EXECUTOR_ZITADEL_PROJECT_ID": bool(settings.zitadel.project_id),
+        "CORE_USER_EXECUTOR_ZITADEL_PROJECT_IDS": bool(settings.zitadel.project_ids),
     }
     return [name for name in REQUIRED_SECRETS if not present[name]]

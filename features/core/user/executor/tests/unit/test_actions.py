@@ -9,7 +9,8 @@ from core_user_executor.actions.user_actions import execute
 from core_user_executor.domain.errors import ActionFailedError
 from core_user_executor.domain.identity import Grant, ProviderError, ZitadelUser
 
-ROLES = frozenset({"ipm.organization.create", "ipm.organization.get", "core.user.get"})
+ROLES = frozenset({"core.user.delete", "core.user.get", "sum.ipm.get"})
+PROJECTS = {"core": "p-core", "sum": "p-sum"}
 DESIRED = {
     "lifecycle": "present",
     "platformAccess": "granted",
@@ -25,7 +26,7 @@ class FakeWriter:
     users: dict[str, ZitadelUser] = field(default_factory=lambda: {})
     grants_by_user: dict[str, list[Grant]] = field(default_factory=lambda: {})
     taken_emails: set[str] = field(default_factory=lambda: set())
-    calls: list[tuple[str, Any]] = field(default_factory=lambda: [])
+    calls: list[tuple[Any, ...]] = field(default_factory=lambda: [])
     fail_on: str | None = None
 
     def _maybe_fail(self, name: str) -> None:
@@ -58,28 +59,43 @@ class FakeWriter:
         self._maybe_fail("grants")
         return list(self.grants_by_user.get(user_id, []))
 
-    async def create_grant(self, user_id: str, roles: list[str]) -> None:
-        self.calls.append(("create_grant", sorted(roles)))
-        self.grants_by_user[user_id] = [Grant("g-new", frozenset(roles))]
+    def project_of(self, role: str) -> str:
+        project = PROJECTS.get(role.split(".", 1)[0])
+        if project is None:
+            raise ProviderError("Rejected", retryable=False, detail="no roles project")
+        return project
+
+    async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None:
+        self.calls.append(("create_grant", project_id, sorted(roles)))
+        self.grants_by_user.setdefault(user_id, []).append(
+            Grant(f"g-{project_id}", project_id, frozenset(roles))
+        )
 
     async def update_grant(self, user_id: str, grant_id: str, roles: list[str]) -> None:
-        self.calls.append(("update_grant", sorted(roles)))
-        self.grants_by_user[user_id] = [Grant(grant_id, frozenset(roles))]
+        self.calls.append(("update_grant", grant_id, sorted(roles)))
+        self.grants_by_user[user_id] = [
+            Grant(g.grant_id, g.project_id, frozenset(roles)) if g.grant_id == grant_id else g
+            for g in self.grants_by_user.get(user_id, [])
+        ]
 
     async def remove_grant(self, user_id: str, grant_id: str) -> None:
         self.calls.append(("remove_grant", grant_id))
-        self.grants_by_user[user_id] = []
+        self.grants_by_user[user_id] = [
+            g for g in self.grants_by_user.get(user_id, []) if g.grant_id != grant_id
+        ]
 
 
 def names(writer: FakeWriter) -> list[str]:
-    return [name for name, _ in writer.calls]
+    return [str(call[0]) for call in writer.calls]
 
 
 async def test_create_makes_the_user_without_password_sends_the_link_and_grants_roles() -> None:
     writer = FakeWriter()
     await execute("create", "u-1", DESIRED, writer)
-    assert names(writer) == ["create_user", "send_password_link", "create_grant"]
-    assert ("create_grant", sorted(ROLES)) in writer.calls
+    assert names(writer) == ["create_user", "send_password_link", "create_grant", "create_grant"]
+    # Uma autorização por projeto: cada role vai para o projeto do seu módulo.
+    assert ("create_grant", "p-core", ["core.user.delete", "core.user.get"]) in writer.calls
+    assert ("create_grant", "p-sum", ["sum.ipm.get"]) in writer.calls
 
 
 async def test_create_repeated_after_success_is_idempotent_and_does_not_resend_the_link() -> None:
@@ -109,7 +125,7 @@ async def test_a_retry_after_a_partial_failure_completes_the_missing_steps() -> 
     assert "u-1" in writer.users  # o usuário já foi criado
     writer.fail_on = None
     await execute("create", "u-1", DESIRED, writer)
-    assert writer.grants_by_user["u-1"][0].roles == ROLES
+    assert {r for g in writer.grants_by_user["u-1"] for r in g.roles} == ROLES
 
 
 async def test_email_in_use_by_another_user_is_a_permanent_rejection() -> None:
@@ -139,20 +155,29 @@ async def test_create_without_the_user_data_is_rejected_and_calls_nothing(missin
 async def test_a_partial_grant_is_completed_keeping_the_extra_roles() -> None:
     writer = FakeWriter(
         users={"u-1": ZitadelUser("a@x.com", password_set=True)},
-        grants_by_user={"u-1": [Grant("g-1", frozenset({"core.user.get", "core.user.admin"}))]},
+        grants_by_user={
+            "u-1": [Grant("g-1", "p-core", frozenset({"core.user.get", "core.user.admin"}))]
+        },
     )
     await execute("update", "u-1", DESIRED, writer)
-    assert writer.grants_by_user["u-1"][0].roles == ROLES | {"core.user.admin"}
-    assert names(writer) == ["update_grant"]
+    roles_by_project = {g.project_id: g.roles for g in writer.grants_by_user["u-1"]}
+    assert roles_by_project["p-core"] == {"core.user.get", "core.user.delete", "core.user.admin"}
+    assert roles_by_project["p-sum"] == {"sum.ipm.get"}
+    assert names(writer) == ["update_grant", "create_grant"]
 
 
 async def test_update_revoked_removes_the_grants() -> None:
     writer = FakeWriter(
         users={"u-1": ZitadelUser("a@x.com", password_set=True)},
-        grants_by_user={"u-1": [Grant("g-1", ROLES)]},
+        grants_by_user={
+            "u-1": [
+                Grant("g-1", "p-core", frozenset({"core.user.get"})),
+                Grant("g-2", "p-sum", frozenset({"sum.ipm.get"})),
+            ]
+        },
     )
     await execute("update", "u-1", {**DESIRED, "platformAccess": "revoked"}, writer)
-    assert names(writer) == ["remove_grant"]
+    assert names(writer) == ["remove_grant", "remove_grant"]
 
 
 async def test_update_of_a_missing_user_is_a_permanent_rejection() -> None:
@@ -184,4 +209,15 @@ async def test_create_without_platform_roles_is_rejected_without_touching_the_pr
 async def test_roles_come_only_from_the_desired_platform_roles() -> None:
     writer = FakeWriter()
     await execute("create", "u-1", {**DESIRED, "platformRoles": ["core.user.get"]}, writer)
-    assert ("create_grant", ["core.user.get"]) in writer.calls
+    assert ("create_grant", "p-core", ["core.user.get"]) in writer.calls
+
+
+async def test_a_role_of_a_module_without_a_roles_project_is_rejected_before_any_grant() -> None:
+    """O Executor não concede roles de módulos fora de `project_ids` (decisão 0032)."""
+    writer = FakeWriter()
+    with pytest.raises(ProviderError) as raised:
+        await execute(
+            "create", "u-1", {**DESIRED, "platformRoles": ["ipm.organization.get"]}, writer
+        )
+    assert (raised.value.reason, raised.value.retryable) == ("Rejected", False)
+    assert "create_grant" not in names(writer)

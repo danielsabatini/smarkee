@@ -4,12 +4,7 @@
   "platformAccess": "granted",
   "platformRoles": [
     "core.user.delete",
-    "core.user.get",
-    "ipm.organization.create",
-    "ipm.organization.delete",
-    "ipm.organization.get",
-    "ipm.organization.list",
-    "ipm.organization.update"
+    "core.user.get"
   ],
   "givenName": "Ana",
   "familyName": "Souza",

@@ -43,7 +43,14 @@ services:
     container_name: identity.smarkee.internal
     # user 0: o volume identity-bootstrap precisa ser gravável pela API do Zitadel (PAT do cliente de login).
     user: "0"
-    command: ["start-from-setup", "--masterkeyFromEnv", "--tlsMode", "disabled"]
+    # `--config`: mapeamento de papéis de administração com o `ORG_USER_CREATOR` (decisão 0032).
+    command:
+      - start-from-setup
+      - --masterkeyFromEnv
+      - --tlsMode
+      - disabled
+      - --config
+      - /zitadel/config/role-permissions.yaml
     environment:
       <<: *identity-database-environment
       ZITADEL_MASTERKEY: ${ZITADEL_MASTERKEY:?Defina ZITADEL_MASTERKEY (32 caracteres) no .env}
@@ -110,6 +117,8 @@ services:
     volumes:
       # Estado de runtime: PAT do cliente de login, gerado na primeira inicialização.
       - identity-bootstrap:/zitadel/bootstrap:rw
+      # Mapeamento de papéis do Zitadel (somente leitura); o `setup` o grava no banco a cada subida.
+      - ./role-permissions.yaml:/zitadel/config/role-permissions.yaml:ro
     depends_on:
       identity-init:
         condition: service_completed_successfully

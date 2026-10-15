@@ -77,7 +77,7 @@ services:
       # defaults do componente (CORE_USER_RECEIVER_<SEÇÃO>_<CAMPO>).
       CORE_USER_RECEIVER_DATABASE_PASSWORD: ${CORE_USER_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
       CORE_USER_RECEIVER_NATS_PASSWORD: ${CORE_USER_RECEIVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
-      CORE_USER_RECEIVER_AUTH_AUDIENCE: ${CORE_USER_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles, org core)}
+      CORE_USER_RECEIVER_AUTH_AUDIENCE: ${CORE_USER_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-core, org core)}
     depends_on:
       core-user-migrate:
         condition: service_completed_successfully
@@ -159,7 +159,6 @@ services:
     environment:
       CORE_USER_OBSERVER_NATS_PASSWORD: ${CORE_USER_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
       CORE_USER_OBSERVER_ZITADEL_REGISTER_ORGANIZATION_ID: ${CORE_ZITADEL_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
-      CORE_USER_OBSERVER_ZITADEL_PROJECT_ID: ${CORE_ZITADEL_PROJECT_ID:?Defina no .env (ID do projeto roles)}
     volumes:
       - type: volume
         source: identity-bootstrap
@@ -187,7 +186,7 @@ services:
     environment:
       CORE_USER_EXECUTOR_NATS_PASSWORD: ${CORE_USER_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
       CORE_USER_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID: ${CORE_ZITADEL_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
-      CORE_USER_EXECUTOR_ZITADEL_PROJECT_ID: ${CORE_ZITADEL_PROJECT_ID:?Defina no .env (ID do projeto roles)}
+      CORE_USER_EXECUTOR_ZITADEL_PROJECT_IDS: ${CORE_ZITADEL_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles que o Executor concede)}
     volumes:
       - type: volume
         source: identity-bootstrap

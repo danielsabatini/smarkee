@@ -178,11 +178,6 @@ Código: `manager/src/core_user_manager/handlers/requested.py` e `store/ssot.py`
   "lifecycle": "present",
   "platformAccess": "granted",
   "platformRoles": [
-    "ipm.organization.create",
-    "ipm.organization.delete",
-    "ipm.organization.get",
-    "ipm.organization.list",
-    "ipm.organization.update",
     "core.user.delete",
     "core.user.get"
   ],
@@ -227,7 +222,7 @@ INSERT INTO core."user"
    desired, desired_generation, resource_version, phase)
 VALUES
   ('0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e', '1.0', 'present', 'active',
-   '{"lifecycle":"present","platformAccess":"granted","platformRoles":["ipm.organization.create","ipm.organization.delete","ipm.organization.get","ipm.organization.list","ipm.organization.update","core.user.delete","core.user.get"],"givenName":"Ana","familyName":"Souza","email":"ana.souza@example.com"}'::jsonb,
+   '{"lifecycle":"present","platformAccess":"granted","platformRoles":["core.user.delete","core.user.get"],"givenName":"Ana","familyName":"Souza","email":"ana.souza@example.com"}'::jsonb,
    1, 1, 'Pending');
 ```
 
@@ -331,11 +326,6 @@ Tabela `core.user_outbox` (DDL na migração). A linha é gravada na **mesma tra
     "reconciliation": "active",
     "platformAccess": "granted",
     "platformRoles": [
-      "ipm.organization.create",
-      "ipm.organization.delete",
-      "ipm.organization.get",
-      "ipm.organization.list",
-      "ipm.organization.update",
       "core.user.delete",
       "core.user.get"
     ],
@@ -581,11 +571,6 @@ Depois do `completed` o Observer observa o usuário de novo (`causationId` = `me
     "userState": "initial",
     "platformAccess": "granted",
     "platformRoles": [
-      "ipm.organization.create",
-      "ipm.organization.delete",
-      "ipm.organization.get",
-      "ipm.organization.list",
-      "ipm.organization.update",
       "core.user.delete",
       "core.user.get"
     ]
@@ -604,7 +589,7 @@ O Manager aplica pela mesma sequência da seção 6.1. **Convergência** do User
 
 | Onde | Valor final |
 |---|---|
-| `core."user".observed` | `{"emailVerified": false, "userState": "initial", "platformAccess": "granted", "platformRoles": [...as 7 roles...]}` |
+| `core."user".observed` | `{"emailVerified": false, "userState": "initial", "platformAccess": "granted", "platformRoles": ["core.user.delete", "core.user.get"]}` |
 | `core."user".presence` / `observed_at` | `present` / `2026-10-09T14:00:05+00:00` |
 | `core."user".phase` | `Ready` |
 | `core."user".conditions` | `[{"type":"Ready","status":"True","reason":"Reconciled","observedGeneration":1,"lastTransitionAt":"2026-10-09T14:00:05+00:00"}]` |

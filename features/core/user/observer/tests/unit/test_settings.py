@@ -16,11 +16,11 @@ def test_environment_variables_follow_the_prefix_section_and_field_pattern(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("CORE_USER_OBSERVER_PARTITION_COUNT", "3")
-    monkeypatch.setenv("CORE_USER_OBSERVER_ZITADEL_PROJECT_ID", "p-1")
+    monkeypatch.setenv("CORE_USER_OBSERVER_ZITADEL_REGISTER_ORGANIZATION_ID", "org-r")
     monkeypatch.setenv("CORE_USER_OBSERVER_NATS_PASSWORD", "segredo")
     settings = UserObserverSettings()
     assert settings.partition.count == 3
-    assert settings.zitadel.project_id == "p-1"
+    assert settings.zitadel.register_organization_id == "org-r"
     assert "segredo" not in repr(settings)
 
 

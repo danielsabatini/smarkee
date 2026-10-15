@@ -13,10 +13,10 @@ def test_defaults_have_no_secrets_and_no_role_list() -> None:
 def test_environment_variables_follow_the_prefix_section_and_field_pattern(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("CORE_USER_EXECUTOR_ZITADEL_PROJECT_ID", "p-1")
+    monkeypatch.setenv("CORE_USER_EXECUTOR_ZITADEL_PROJECT_IDS", '{"core": "p-1", "sum": "p-2"}')
     monkeypatch.setenv("CORE_USER_EXECUTOR_NATS_PASSWORD", "segredo")
     settings = UserExecutorSettings()
-    assert settings.zitadel.project_id == "p-1"
+    assert settings.zitadel.project_ids == {"core": "p-1", "sum": "p-2"}
     assert "segredo" not in repr(settings)
 
 
@@ -29,7 +29,7 @@ def test_unknown_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_missing_required(monkeypatch: pytest.MonkeyPatch) -> None:
     assert missing_required(UserExecutorSettings()) == list(REQUIRED_SECRETS)
     for name in REQUIRED_SECRETS:
-        monkeypatch.setenv(name, "valor")
+        monkeypatch.setenv(name, '{"core": "p-1"}' if name.endswith("PROJECT_IDS") else "valor")
     assert missing_required(UserExecutorSettings()) == []
 
 

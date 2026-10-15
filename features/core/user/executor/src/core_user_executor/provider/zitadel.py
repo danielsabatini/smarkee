@@ -1,8 +1,9 @@
 """Cliente de escrita do Zitadel para o Executor (única identidade com escrita, decisão 0014).
 
-Autentica com a conta de serviço `core-user-executor` (papel `ORG_USER_MANAGER` só na organização
-`register`) por assertion JWT. Cada operação é **idempotente**: o `user_id` é o `resourceId`, e a
-repetição de um passo já feito é tratada como sucesso (`docs/RESOURCE-CONTROL-LOOP.md` §26).
+Autentica com a conta de serviço `core-user-executor` (papéis `ORG_USER_CREATOR` na `register` e
+`PROJECT_GRANT_OWNER` nos Grants dos módulos) por assertion JWT. Cada operação é **idempotente**:
+o `user_id` é o `resourceId`, e a repetição de um passo já feito é tratada como sucesso
+(`docs/RESOURCE-CONTROL-LOOP.md` §26).
 Os erros viram `ProviderError`, com a causa e se a mesma decisão pode ser tentada de novo.
 Nenhum dado pessoal entra em mensagens de erro.
 """
@@ -94,43 +95,57 @@ class ZitadelWriter:
     async def delete_user(self, user_id: str) -> None:
         await self._call("DELETE", f"/v2/users/{user_id}", accept_not_found=True)
 
-    # ------------------------------------------------------------------ autorização no projeto
-    # API v2 de autorizações (Connect por POST; a organização vai no corpo, decisão 0029). O teto de
-    # roles continua sendo o Project Grant, aplicado pelo Zitadel à organização `register`.
+    # ------------------------------------------------------------------ autorização nos projetos
+    # API v2 de autorizações (Connect por POST; a organização vai no corpo, decisão 0029). Cada
+    # módulo tem o próprio projeto de roles, e o Executor só concede nos projetos de `project_ids`
+    # (`PROJECT_GRANT_OWNER` nos Grants deles). O Zitadel nega qualquer outro (decisão 0032).
+
+    def project_of(self, role: str) -> str:
+        """Projeto de roles da role (módulo = primeiro segmento). Módulo não configurado: erro."""
+        module = role.split(".", 1)[0]
+        project_id = self._settings.project_ids.get(module)
+        if project_id is None:
+            raise ProviderError(
+                "Rejected", retryable=False, detail=f"no roles project for module {module}"
+            )
+        return project_id
 
     async def grants(self, user_id: str) -> list[Grant]:
+        """Autorizações do usuário nos projetos configurados (uma por projeto)."""
         response = await self._call(
             "POST",
             f"{AUTHORIZATION_SERVICE}/ListAuthorizations",
             {
                 "filters": [
                     {"inUserIds": {"ids": [user_id]}},
-                    {"projectId": {"id": self._settings.project_id}},
                     {"organizationId": {"id": self._settings.register_organization_id}},
                 ]
             },
         )
         assert response is not None  # noqa: S101 (sem accept_not_found)
+        configured = set(self._settings.project_ids.values())
         items = cast("list[dict[str, Any]]", self._json(response).get("authorizations") or [])
         return [
             Grant(
                 grant_id=str(item["id"]),
+                project_id=str(cast("dict[str, Any]", item["project"])["id"]),
                 roles=frozenset(
                     str(cast("dict[str, Any]", r)["key"])
                     for r in cast("list[Any]", item.get("roles") or [])
                 ),
             )
             for item in items
+            if cast("dict[str, Any]", item["project"])["id"] in configured
         ]
 
-    async def create_grant(self, user_id: str, roles: list[str]) -> None:
+    async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None:
         try:
             await self._call(
                 "POST",
                 f"{AUTHORIZATION_SERVICE}/CreateAuthorization",
                 {
                     "userId": user_id,
-                    "projectId": self._settings.project_id,
+                    "projectId": project_id,
                     "organizationId": self._settings.register_organization_id,
                     "roleKeys": roles,
                 },
