@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "OrganizationUpdateRequest",
-  "description": "Corpo de PATCH /v1/organizations/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado.",
+  "description": "Corpo de PATCH /v1/ipm/organizations/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado.",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,

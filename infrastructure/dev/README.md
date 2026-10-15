@@ -75,7 +75,7 @@ Com a stack de pé (`docker compose ps`) e o `/etc/hosts` configurado:
 |---|---|---|
 | Console do Zitadel | http://ipm-dev.smarkee.com.br:8080/ui/console/ | Usuário `admin@smarkee.internal` (ou `admin@smarkee.ipm-dev.smarkee.com.br`) e a senha `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD` de `identity/.env` (troca obrigatória no primeiro acesso) |
 | Cadastro de nova organização (Zitadel) | http://ipm-dev.smarkee.com.br:8080/ui/login/register/org | **Desligado** (decisão 0013): o cadastro público foi desativado na política de login; usuários e organizações nascem pelo Receiver |
-| API da plataforma | http://api-dev.smarkee.com.br:8080/v1/ | Token do `sk auth login` (`Authorization: Bearer`); o cadastro (`POST /v1/users`) é anônimo, com limite de taxa |
+| API da plataforma | http://api-dev.smarkee.com.br:8080/v1/ | Token do `sk auth login` (`Authorization: Bearer`); o cadastro (`POST /v1/core/users`) é anônimo, com limite de taxa |
 | Kong Manager | http://localhost:8002 | Nenhuma |
 | Kong Admin API | http://localhost:8001 | Nenhuma |
 | PostgreSQL | `psql "postgresql://smarkee:smarkee@localhost:5432/smarkee"` | Ver "Credenciais" |
@@ -99,8 +99,8 @@ Do host, use a coluna **Host**. De um container na rede `internal` (por exemplo,
 | Zitadel API (direto, sem gateway) | — (porta não publicada) | http://identity.smarkee.internal:8080 com o cabeçalho `Host: ipm-dev.smarkee.com.br:8080` | Chamadas entre serviços e diagnóstico; sem o cabeçalho responde 404 |
 | Zitadel login (direto, sem gateway) | — (porta não publicada) | http://identity-login.smarkee.internal:3000/ui/v2/login/ | Somente diagnóstico (`/ui/v2/login/healthy`) |
 | Kong (proxy HTTP) | http://ipm-dev.smarkee.com.br:8080 | http://gateway.smarkee.internal:8000 | Roteia por host (`gateway/bootstrap/routes.yml`); host desconhecido responde 404 |
-| Receiver de User (`core`) | http://api-dev.smarkee.com.br:8080/v1/users (só `/v1/users`) | http://core-user-receiver.smarkee.internal:8000 | `/health/*` só na rede interna. O cadastro anônimo (`POST /v1/users`) tem limite de 10 por minuto por IP no gateway (rota `core-user-register`) e de 5 por 60 s por origem no Receiver |
-| Receiver de Organization (`ipm`) | http://api-dev.smarkee.com.br:8080/v1/organizations (só `/v1/organizations`) | http://ipm-organization-receiver.smarkee.internal:8000 | `/healthz` só na rede interna (desenho anterior: a Organization ainda adota a estrutura do User) |
+| Receiver de User (`core`) | http://api-dev.smarkee.com.br:8080/v1/core/users (só `/v1/core/users`) | http://core-user-receiver.smarkee.internal:8000 | `/health/*` só na rede interna. O cadastro anônimo (`POST /v1/core/users`) tem limite de 10 por minuto por IP no gateway (rota `core-user-register`) e de 5 por 60 s por origem no Receiver |
+| Receiver de Organization (`ipm`) | http://api-dev.smarkee.com.br:8080/v1/ipm/organizations (só `/v1/ipm/organizations`) | http://ipm-organization-receiver.smarkee.internal:8000 | `/healthz` só na rede interna (desenho anterior: a Organization ainda adota a estrutura do User) |
 | Kong (proxy HTTPS) | https://localhost:8443 | https://gateway.smarkee.internal:8443 | Certificado autoassinado (`curl -k`); não use para o Zitadel (ver OIDC) · responde 404 sem um host roteado |
 | Kong Admin API | http://localhost:8001 · https://localhost:8444 | http://gateway.smarkee.internal:8001 | Sem autenticação |
 | Kong Manager | http://localhost:8002 · https://localhost:8445 | — | Navegador; sem autenticação |
@@ -172,8 +172,8 @@ Estado aplicado no dev em 2026-10-10 (pela API do Zitadel, com a conta de bootst
 - **Service accounts na organização `core`** (verificadas no Zitadel de dev em 2026-10-11): `core-user-executor` (`ORG_USER_MANAGER` só na organização `register`: cria e remove usuários e concede as roles pelo Project Grant) e `core-user-observer` (`ORG_OWNER_VIEWER` só na `register`, somente leitura); ambos sem papel na `core` (verificado em 2026-10-14) e `core-organization-executor` (papel de instância `IAM_ORG_MANAGER`; será renomeada para `ipm-organization-executor` quando o Executor da Organization for implementado), com as chaves no volume `identity-bootstrap`; cada componente monta só a própria.
 - **Nomes (2026-10-14, decisão 0026):** o projeto da organização `core` passou de `smarkee` para `roles` (o ID não muda, então audience, claims e configuração dos componentes seguem valendo). Foi criada a organização `register` (um projeto `users` chegou a ser criado e foi removido na decisão 0027).
 - **Autorizações do projeto `roles` na `core`:** só as roles `*.admin`, dos operadores. Usuários cadastrados são autorizados no contexto da `register`.
-- **Project Grant `roles` → `register`** (2026-10-14, decisão 0027): delega só as 7 roles de ação do usuário cadastrado; o ID vai em `CORE_ZITADEL_PROJECT_GRANT_ID`.
-- **Variáveis da feature User:** `CORE_ZITADEL_REGISTER_ORGANIZATION_ID` (organização `register`), `CORE_ZITADEL_PROJECT_GRANT_ID` e `CORE_ZITADEL_PROJECT_ID`.
+- **Project Grant `roles` → `register`** (2026-10-14, decisão 0027): delega só as 7 roles de ação do usuário cadastrado. O Executor não precisa do ID: a API v2 de autorizações recebe a organização `register` e o Zitadel aplica o Project Grant (decisão 0029).
+- **Variáveis da feature User:** `CORE_ZITADEL_REGISTER_ORGANIZATION_ID` (organização `register`) e `CORE_ZITADEL_PROJECT_ID`.
 - **Roles `*.admin` para operadores:** autorização externa, criada na organização `core` para o usuário da organização `smarkee`.
 
 **Conferência da estrutura:** `identity/conformance` é uma suíte somente leitura que confere tudo acima (organizações, projeto `roles`, roles e `group`, aplicação `cli`, Project Grant, contas de serviço e papéis, autorizações dos operadores e cadastro público desligado). Rode-a depois de criar ou recriar a estrutura; uso em `identity/conformance/README.md`. A criação continua manual (console ou API de gestão com a conta de bootstrap): a suíte não cria nada.

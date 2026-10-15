@@ -351,16 +351,16 @@ flowchart LR
 
 ## 6.1.1 Interface HTTP
 
-Cada tipo de recurso expõe a mesma interface, no plural do `resourceType` (por exemplo, `/v1/organizations`). As escritas são assíncronas: o Receiver publica `requested` e responde `202 Accepted` com o `operationId`, sem esperar o Manager. As leituras vêm das views versionadas do SSOT (`POSTGRESQL.md`, decisão 0004). Cada tipo implementa o subconjunto aplicável da interface: o User, por exemplo, não tem `PATCH` nem listagem (decisão 0014).
+Cada tipo de recurso expõe a mesma interface, sob o prefixo do módulo e no plural do `resourceType` (`/v1/<módulo>/<tipos>`, por exemplo `/v1/ipm/organizations`; decisão 0030). As escritas são assíncronas: o Receiver publica `requested` e responde `202 Accepted` com o `operationId`, sem esperar o Manager. As leituras vêm das views versionadas do SSOT (`POSTGRESQL.md`, decisão 0004). Cada tipo implementa o subconjunto aplicável da interface: o User, por exemplo, não tem `PATCH` nem listagem (decisão 0014).
 
 | Método e rota | Efeito | Resposta |
 |---|---|---|
-| `POST /v1/<tipos>` | `requested` com operação `create`; o Receiver atribui o `resourceId` (UUIDv7) | `202` com `resourceId` e `operationId` |
-| `GET /v1/<tipos>/{resourceId}` | leitura do recurso consolidado (`phase`, `conditions`, `resourceVersion`) | `200` ou `404` |
-| `GET /v1/<tipos>?limit=&cursor=` | lista paginada por cursor opaco, ordenada por `resourceId`; `limit` padrão 50, máximo 200 | `200` com `items` e `nextCursor` (ausente na última página) |
-| `PATCH /v1/<tipos>/{resourceId}` | `requested` com operação `update`; o corpo traz `resourceVersion` | `202` com `operationId` |
-| `DELETE /v1/<tipos>/{resourceId}?resourceVersion=` | `requested` com operação `delete` (`lifecycle = absent`) | `202` com `operationId` |
-| `GET /v1/<tipos>/{resourceId}/operations/{operationId}` | acompanhamento da Operation (estado e motivo de rejeição), aninhada ao recurso (decisão 0015) | `200` ou `404` |
+| `POST /v1/<módulo>/<tipos>` | `requested` com operação `create`; o Receiver atribui o `resourceId` (UUIDv7) | `202` com `resourceId` e `operationId` |
+| `GET /v1/<módulo>/<tipos>/{resourceId}` | leitura do recurso consolidado (`phase`, `conditions`, `resourceVersion`) | `200` ou `404` |
+| `GET /v1/<módulo>/<tipos>?limit=&cursor=` | lista paginada por cursor opaco, ordenada por `resourceId`; `limit` padrão 50, máximo 200 | `200` com `items` e `nextCursor` (ausente na última página) |
+| `PATCH /v1/<módulo>/<tipos>/{resourceId}` | `requested` com operação `update`; o corpo traz `resourceVersion` | `202` com `operationId` |
+| `DELETE /v1/<módulo>/<tipos>/{resourceId}?resourceVersion=` | `requested` com operação `delete` (`lifecycle = absent`) | `202` com `operationId` |
+| `GET /v1/<módulo>/<tipos>/{resourceId}/operations/{operationId}` | acompanhamento da Operation (estado e motivo de rejeição), aninhada ao recurso (decisão 0015) | `200` ou `404` |
 
 Regras:
 
@@ -373,14 +373,14 @@ Regras:
 
 ## 6.1.2 Escritas anônimas
 
-Por padrão, toda escrita exige solicitante autenticado. A exceção deve estar declarada no contrato do recurso e registrada em decisão. Hoje existe uma só: o auto-cadastro de usuário (`POST /v1/users`, decisão 0014).
+Por padrão, toda escrita exige solicitante autenticado. A exceção deve estar declarada no contrato do recurso e registrada em decisão. Hoje existe uma só: o auto-cadastro de usuário (`POST /v1/core/users`, decisão 0014).
 
 Uma escrita anônima:
 
 - usa `requestedBy = anonymous` (um valor fixo, que não identifica a pessoa);
 - tem **limite de taxa por origem** no gateway e no Receiver, com valores conservadores e configuráveis;
 - tem **resposta uniforme**: o mesmo `202` e o mesmo corpo, exista ou não o recurso ou o dado informado (por exemplo, o e-mail). Não pode haver diferença observável de status, de corpo nem, de forma relevante, de tempo;
-- **não permite acompanhar a Operation**: o cliente anônimo não consulta a Operation (`GET /v1/<tipos>/{resourceId}/operations/{operationId}`), e por isso não há `--wait`. Isso impede que a consulta revele se o dado já existia;
+- **não permite acompanhar a Operation**: o cliente anônimo não consulta a Operation (`GET /v1/<módulo>/<tipos>/{resourceId}/operations/{operationId}`), e por isso não há `--wait`. Isso impede que a consulta revele se o dado já existia;
 - aplica a validação estrita e os limites de tamanho do contrato (`SCHEMA.md`);
 - não carrega segredo: a credencial é definida pelo próprio usuário no provedor de identidade, fora do loop.
 
@@ -629,7 +629,7 @@ sequenceDiagram
     participant NATS
     participant Manager
 
-    CLI->>Receiver: POST /v1/organizations
+    CLI->>Receiver: POST /v1/ipm/organizations
     Receiver->>NATS: receiver.requested.ipm.organization.<id>.create
     NATS->>Manager: requested
     Manager->>Manager: validate + persist
@@ -973,7 +973,7 @@ sequenceDiagram
     participant Executor
     participant Zitadel
 
-    CLI->>Receiver: POST /v1/organizations
+    CLI->>Receiver: POST /v1/ipm/organizations
     Receiver->>NATS: requested.create
 
     NATS->>Manager: requested.create
@@ -1006,7 +1006,7 @@ sequenceDiagram
     Manager->>Manager: update SSOT
     Manager->>NATS: updated.changed
 
-    CLI->>Receiver: GET /v1/organizations/<id>
+    CLI->>Receiver: GET /v1/ipm/organizations/<id>
     Receiver-->>CLI: phase=Ready
 ```
 
@@ -1399,11 +1399,11 @@ sequenceDiagram
     participant Receiver
     participant ControlLoop
 
-    CLI->>Receiver: POST /v1/organizations
+    CLI->>Receiver: POST /v1/ipm/organizations
     Receiver-->>CLI: 202 + operationId
 
     loop polling
-        CLI->>Receiver: GET /v1/organizations/<id>
+        CLI->>Receiver: GET /v1/ipm/organizations/<id>
         Receiver-->>CLI: current state
     end
 

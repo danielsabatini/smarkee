@@ -37,12 +37,12 @@ Porta de entrada HTTP. Autentica o token (JWKS do Zitadel), autoriza pela role d
 
 | Rota | Efeito | Quem | Respostas |
 |---|---|---|---|
-| `POST /v1/users` | Auto-cadastro (**anônimo**) | Qualquer pessoa | `202` uniforme, `400`, `429` (com `Retry-After`), `503` (com `Retry-After`) |
-| `GET /v1/users/{id}` | Lê o usuário | O próprio usuário ou `core.user.admin`, role `core.user.get` | `200`, `401`, `403`, `404` |
-| `DELETE /v1/users/{id}?resourceVersion=` | Remove (cabeçalho opcional `Idempotency-Key`) | O próprio usuário ou `core.user.admin`, role `core.user.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422` (`Idempotency-Key` reutilizada com outro conteúdo), `503` |
-| `GET /v1/users/{id}/operations/{operationId}` | Acompanha a Operation | Solicitante ou `core.user.admin` (a do cadastro anônimo só operadores) | `200`, `401`, `404` |
+| `POST /v1/core/users` | Auto-cadastro (**anônimo**) | Qualquer pessoa | `202` uniforme, `400`, `429` (com `Retry-After`), `503` (com `Retry-After`) |
+| `GET /v1/core/users/{id}` | Lê o usuário | O próprio usuário ou `core.user.admin`, role `core.user.get` | `200`, `401`, `403`, `404` |
+| `DELETE /v1/core/users/{id}?resourceVersion=` | Remove (cabeçalho opcional `Idempotency-Key`) | O próprio usuário ou `core.user.admin`, role `core.user.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422` (`Idempotency-Key` reutilizada com outro conteúdo), `503` |
+| `GET /v1/core/users/{id}/operations/{operationId}` | Acompanha a Operation | Solicitante ou `core.user.admin` (a do cadastro anônimo só operadores) | `200`, `401`, `404` |
 
-Não há listagem (`GET /v1/users`) nem `PATCH`: o User não tem `update` (decisão 0014). O contrato descritivo é [`receiver/openapi.json`](receiver/openapi.json). Erros: `{errorCode, message, field?}` (`schemas/common/api-error`; códigos `ValidationFailed`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `IdempotencyKeyReused`, `ServiceUnavailable` e `InternalError`), sem repetir valores enviados. Um usuário que não é o dono recebe `404`, e não `403`, para não revelar a existência.
+Não há listagem (`GET /v1/core/users`) nem `PATCH`: o User não tem `update` (decisão 0014). O contrato descritivo é [`receiver/openapi.json`](receiver/openapi.json). Erros: `{errorCode, message, field?}` (`schemas/common/api-error`; códigos `ValidationFailed`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `IdempotencyKeyReused`, `ServiceUnavailable` e `InternalError`), sem repetir valores enviados. Um usuário que não é o dono recebe `404`, e não `403`, para não revelar a existência.
 
 ## 3.2 Manager (`core-user-manager`)
 
@@ -229,7 +229,7 @@ Consumers: Manager `core-user-manager-{requested,observed,result}` (duráveis, c
 
 Em [`schemas/core/user/`](../../../schemas/core/user/) (JSON Schema 2020-12, com exemplos): `desired`, `observed`, `requested-create`, `requested-delete`, `api-create-request`, `resource`; e, em `schemas/common/`, envelope, `action`, `completed`, `failed`, `updated`, `operation`, `api-error` e `api-accepted-response`. O índice usado para gerar os modelos é `schemas/core.user.index.json`.
 
-Campos do User: `givenName`, `familyName` e `email` são `confidential` (nunca em log, mensagem de erro nem métrica) e **não existem** no `desired` de remoção. Campos gerenciados (comparados com o `observed`): `lifecycle`, `platformAccess` e `platformRoles` (as desejadas precisam estar contidas nas observadas; roles a mais não divergem). O conjunto de roles do cadastro vem da configuração do Manager (`CORE_USER_MANAGER_PLATFORM_ROLES`) e fica registrado no SSOT ([decisão 0025](../../../.decisions/0025-roles-do-user-no-ssot.md)). A revogação de acesso de um usuário existente é privilégio de operador e ainda não está exposta. Não há senha em nenhum contrato (`SCHEMA.md` §20.1).
+Campos do User: `givenName`, `familyName` e `email` são `confidential` (nunca em log, mensagem de erro nem métrica) e **não existem** no `desired` de remoção. Campos gerenciados (comparados com o `observed`): `lifecycle`, `platformAccess` e `platformRoles` (as desejadas precisam estar contidas nas observadas; roles a mais não divergem). O conjunto de roles do cadastro vem da configuração do Manager (`CORE_USER_MANAGER_PLATFORM_ROLES`) e fica registrado no SSOT ([decisão 0025](../../../.decisions/0025-roles-do-user-no-ssot.md)). A revogação de acesso de um usuário existente é privilégio de operador e ainda não está exposta. A política completa da exclusão da conta (dados residuais, Organizations do usuário, sessões e confirmação) ainda será definida (`ROADMAP.md`). Não há senha em nenhum contrato (`SCHEMA.md` §20.1).
 
 # 8. Segurança e privacidade
 
@@ -253,7 +253,7 @@ Campos do User: `givenName`, `familyName` e `email` são `confidential` (nunca e
 
 Etapas de implantação (executam e terminam): `core-user-migrate` (migrações, papel administrativo) e `core-user-consumer` (cria os consumers duráveis). A manutenção (`core_maintenance`) é uma identidade de infraestrutura, com `SELECT` e `DELETE` no outbox, nos resultados de ação e nas Operations. Em dev, todos os componentes usam o mesmo usuário NATS (veja a seção 10).
 
-**Saúde.** Cada componente atende `GET /health/live`, `/health/ready` e `/health/startup` na porta `8000` (rede interna; o gateway publica só `/v1/users`). O healthcheck do Compose usa `/health/ready`. A liveness só olha o sinal de vida do laço principal; a readiness exige o NATS e, no Publisher, a ausência de bloqueio por recusa permanente.
+**Saúde.** Cada componente atende `GET /health/live`, `/health/ready` e `/health/startup` na porta `8000` (rede interna; o gateway publica só `/v1/core/users`). O healthcheck do Compose usa `/health/ready`. A liveness só olha o sinal de vida do laço principal; a readiness exige o NATS e, no Publisher, a ausência de bloqueio por recusa permanente.
 
 # 9. Configuração, execução e testes
 

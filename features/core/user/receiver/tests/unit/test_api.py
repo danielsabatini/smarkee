@@ -158,7 +158,7 @@ async def test_health_probes_are_public_and_readiness_reflects_the_dependencies(
 async def test_missing_or_invalid_token_is_401_with_the_error_contract(
     harness: Harness, headers: dict[str, str]
 ) -> None:
-    response = await harness.client.get("/v1/users/ana", headers=headers)
+    response = await harness.client.get("/v1/core/users/ana", headers=headers)
     assert response.status_code == 401
     generated.ApiError.model_validate(response.json())
     assert response.json()["errorCode"] == "Unauthorized"
@@ -166,7 +166,7 @@ async def test_missing_or_invalid_token_is_401_with_the_error_contract(
 
 async def test_missing_role_is_403(harness: Harness) -> None:
     harness.repository.resources["ana"] = user_record("ana")
-    response = await harness.client.get("/v1/users/ana", headers=auth("norole"))
+    response = await harness.client.get("/v1/core/users/ana", headers=auth("norole"))
     assert response.status_code == 403
     assert harness.publisher.published == []
 
@@ -180,8 +180,8 @@ REGISTRATION = {"givenName": "Ana", "familyName": "Souza", "email": "ana@example
 async def test_registration_is_anonymous_uniform_and_never_touches_the_ssot(
     harness: Harness,
 ) -> None:
-    response = await harness.client.post("/v1/users", json=REGISTRATION)
-    again = await harness.client.post("/v1/users", json=REGISTRATION)
+    response = await harness.client.post("/v1/core/users", json=REGISTRATION)
+    again = await harness.client.post("/v1/core/users", json=REGISTRATION)
 
     assert (response.status_code, again.status_code) == (202, 202)
     assert set(response.json()) == set(again.json()) == {"resourceId", "operationId"}
@@ -198,7 +198,7 @@ async def test_registration_is_anonymous_uniform_and_never_touches_the_ssot(
 async def test_registration_rejects_password_and_server_fields(
     harness: Harness, extra: dict[str, str]
 ) -> None:
-    response = await harness.client.post("/v1/users", json={**REGISTRATION, **extra})
+    response = await harness.client.post("/v1/core/users", json={**REGISTRATION, **extra})
     assert response.status_code == 400
     assert "Segredo" not in response.text
     assert harness.publisher.published == []
@@ -209,25 +209,27 @@ async def test_registration_is_rate_limited_by_the_gateway_supplied_origin(
 ) -> None:
     headers = {"X-Forwarded-For": "203.0.113.9, 10.0.0.2"}
     statuses = [
-        (await harness.client.post("/v1/users", json=REGISTRATION, headers=headers)).status_code
+        (
+            await harness.client.post("/v1/core/users", json=REGISTRATION, headers=headers)
+        ).status_code
         for _ in range(4)
     ]
     assert statuses == [202, 202, 202, 429]
-    limited = await harness.client.post("/v1/users", json=REGISTRATION, headers=headers)
+    limited = await harness.client.post("/v1/core/users", json=REGISTRATION, headers=headers)
     assert limited.json()["errorCode"] == "RateLimited"
     assert int(limited.headers["retry-after"]) >= 1
     # outra origem não é afetada; o valor forjado à esquerda não muda a origem
     other = {"X-Forwarded-For": "198.51.100.1, 10.0.0.9"}
     assert (
-        await harness.client.post("/v1/users", json=REGISTRATION, headers=other)
+        await harness.client.post("/v1/core/users", json=REGISTRATION, headers=other)
     ).status_code == 202
     forged = {"X-Forwarded-For": "1.2.3.4, 10.0.0.2"}
     assert (
-        await harness.client.post("/v1/users", json=REGISTRATION, headers=forged)
+        await harness.client.post("/v1/core/users", json=REGISTRATION, headers=forged)
     ).status_code == 429
     harness.clock[0] = 61.0
     assert (
-        await harness.client.post("/v1/users", json=REGISTRATION, headers=headers)
+        await harness.client.post("/v1/core/users", json=REGISTRATION, headers=headers)
     ).status_code == 202
 
 
@@ -236,16 +238,20 @@ async def test_registration_is_rate_limited_by_the_gateway_supplied_origin(
 
 async def test_user_reads_and_deletes_only_itself(harness: Harness) -> None:
     harness.repository.resources["ana"] = user_record("ana")
-    own = await harness.client.get("/v1/users/ana", headers=auth("ana"))
+    own = await harness.client.get("/v1/core/users/ana", headers=auth("ana"))
     assert own.status_code == 200
     assert generated.User.model_validate(own.json()).desired.email is not None
-    assert (await harness.client.get("/v1/users/ana", headers=auth("bia"))).status_code == 404
-    assert (await harness.client.get("/v1/users/ana", headers=auth("admin"))).status_code == 200
+    assert (await harness.client.get("/v1/core/users/ana", headers=auth("bia"))).status_code == 404
+    assert (
+        await harness.client.get("/v1/core/users/ana", headers=auth("admin"))
+    ).status_code == 200
 
     assert (
-        await harness.client.delete("/v1/users/ana?resourceVersion=2", headers=auth("bia"))
+        await harness.client.delete("/v1/core/users/ana?resourceVersion=2", headers=auth("bia"))
     ).status_code == 404
-    deleted = await harness.client.delete("/v1/users/ana?resourceVersion=2", headers=auth("ana"))
+    deleted = await harness.client.delete(
+        "/v1/core/users/ana?resourceVersion=2", headers=auth("ana")
+    )
     assert deleted.status_code == 202
     assert harness.publisher.published[0][0] == "receiver.requested.core.user.ana.delete"
 
@@ -256,7 +262,7 @@ async def test_user_reads_and_deletes_only_itself(harness: Harness) -> None:
 async def test_operation_is_readable_only_by_the_requester_and_operators(harness: Harness) -> None:
     harness.repository.operations["op-1"] = operation("op-1", "ana")
     harness.repository.operations["op-anon"] = operation("op-anon", "anonymous")
-    path = "/v1/users/ana/operations"
+    path = "/v1/core/users/ana/operations"
 
     own = await harness.client.get(f"{path}/op-1", headers=auth("ana"))
     assert own.status_code == 200
@@ -273,5 +279,5 @@ async def test_operation_is_readable_only_by_the_requester_and_operators(harness
 
 async def test_operation_of_another_resource_is_404(harness: Harness) -> None:
     harness.repository.operations["op-1"] = operation("op-1", "ana")
-    response = await harness.client.get("/v1/users/outro/operations/op-1", headers=auth("ana"))
+    response = await harness.client.get("/v1/core/users/outro/operations/op-1", headers=auth("ana"))
     assert response.status_code == 404

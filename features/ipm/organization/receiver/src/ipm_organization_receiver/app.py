@@ -214,7 +214,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     # ------------------------------------------------------------ organizations
 
     @app.post(
-        "/v1/organizations",
+        "/v1/ipm/organizations",
         status_code=202,
         response_model=generated.ApiAcceptedResponse,
         response_model_exclude_none=True,
@@ -252,7 +252,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         )
 
     @app.get(
-        "/v1/organizations/{organization_id}",
+        "/v1/ipm/organizations/{organization_id}",
         response_model=generated.Organization,
         response_model_exclude_none=True,
     )
@@ -263,7 +263,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         return organization_view(await owned_organization(principal, organization_id))
 
     @app.get(
-        "/v1/organizations",
+        "/v1/ipm/organizations",
         response_model=generated.OrganizationList,
         response_model_exclude_none=True,
     )
@@ -289,7 +289,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         return generated.OrganizationList.model_validate(payload)
 
     @app.patch(
-        "/v1/organizations/{organization_id}",
+        "/v1/ipm/organizations/{organization_id}",
         status_code=202,
         response_model=generated.ApiAcceptedResponse,
         response_model_exclude_none=True,
@@ -338,7 +338,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         )
 
     @app.delete(
-        "/v1/organizations/{organization_id}",
+        "/v1/ipm/organizations/{organization_id}",
         status_code=202,
         response_model=generated.ApiAcceptedResponse,
         response_model_exclude_none=True,
@@ -368,7 +368,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     # ------------------------------------------------------------ operations e saúde
 
     @app.get(
-        "/v1/organizations/{organization_id}/operations/{operation_id}",
+        "/v1/ipm/organizations/{organization_id}/operations/{operation_id}",
         response_model=generated.Operation,
         response_model_exclude_none=True,
     )

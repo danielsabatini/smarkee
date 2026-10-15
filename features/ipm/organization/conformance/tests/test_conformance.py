@@ -103,7 +103,7 @@ async def test_repeated_request_does_not_publish_a_second_desired(
 
 
 async def test_missing_token_is_401_with_the_error_contract(api: httpx.AsyncClient) -> None:
-    response = await api.get("/v1/organizations")
+    response = await api.get("/v1/ipm/organizations")
     assert response.status_code == 401
     assert_valid("common/api-error.v1.schema.json", response.json())
     assert response.json()["errorCode"] == "Unauthorized"
@@ -111,7 +111,7 @@ async def test_missing_token_is_401_with_the_error_contract(api: httpx.AsyncClie
 
 async def test_invalid_token_is_401(api: httpx.AsyncClient) -> None:
     response = await api.get(
-        "/v1/organizations",
+        "/v1/ipm/organizations",
         headers={"Authorization": "Bearer invalido"},
     )
     assert response.status_code == 401
@@ -124,14 +124,14 @@ async def test_create_is_accepted_and_the_operation_is_readable(
     created: list[str],
 ) -> None:
     name = "conf-" + uuid.uuid4().hex[:10]
-    response = await api.post("/v1/organizations", json={"name": name}, headers=authorization)
+    response = await api.post("/v1/ipm/organizations", json={"name": name}, headers=authorization)
     assert response.status_code == 202, response.text
     body = response.json()
     assert_valid("common/api-accepted-response.v1.schema.json", body)
     created.append(body["resourceId"])
 
     operation = await api.get(
-        f"/v1/organizations/{body['resourceId']}/operations/{body['operationId']}",
+        f"/v1/ipm/organizations/{body['resourceId']}/operations/{body['operationId']}",
         headers=authorization,
     )
     assert operation.status_code == 200
@@ -141,7 +141,7 @@ async def test_create_is_accepted_and_the_operation_is_readable(
     assert desired["data"]["name"] == name
     assert "ownerUserId" in desired["data"]
 
-    resource = await api.get(f"/v1/organizations/{body['resourceId']}", headers=authorization)
+    resource = await api.get(f"/v1/ipm/organizations/{body['resourceId']}", headers=authorization)
     assert resource.status_code == 200
     assert_valid("ipm/organization/resource.v1.schema.json", resource.json())
     assert "ownerUserId" not in resource.text
@@ -151,7 +151,7 @@ async def test_unknown_body_field_is_400(
     api: httpx.AsyncClient, authorization: dict[str, str]
 ) -> None:
     response = await api.post(
-        "/v1/organizations", json={"name": "ok", "ownerUserId": "x"}, headers=authorization
+        "/v1/ipm/organizations", json={"name": "ok", "ownerUserId": "x"}, headers=authorization
     )
     assert response.status_code == 400
     assert_valid("common/api-error.v1.schema.json", response.json())

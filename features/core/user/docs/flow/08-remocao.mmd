@@ -16,9 +16,9 @@ sequenceDiagram
     rect rgb(232,245,233)
     Note over U,ZIT: A. Caminho perfeito
     U->>CLI: sk user delete
-    CLI->>Receiver: GET /v1/users/{id} (lê resourceVersion)
+    CLI->>Receiver: GET /v1/core/users/{id} (lê resourceVersion)
     Receiver-->>CLI: 200 {resourceVersion 4}
-    CLI->>Receiver: DELETE /v1/users/{id}?resourceVersion=4 (Bearer, role core.user.delete)
+    CLI->>Receiver: DELETE /v1/core/users/{id}?resourceVersion=4 (Bearer, role core.user.delete)
     Receiver->>N: receiver.requested.core.user.{id}.delete
     Receiver-->>CLI: 202 {operationId}
     N->>MGR: requested delete
@@ -33,7 +33,7 @@ sequenceDiagram
     OBS->>N: observed presence = absent
     N->>MGR: observed absent
     MGR->>DB: DELETE da linha, Operation completed, outbox updated {removed true}
-    CLI->>Receiver: GET /v1/users/{id}/operations/{operationId}
+    CLI->>Receiver: GET /v1/core/users/{id}/operations/{operationId}
     Receiver-->>CLI: 200 completed
     CLI-->>U: "Conta removida."
     Note over N: O último desired (absent) permanece em DESIRED como tombstone até a limpeza administrativa.

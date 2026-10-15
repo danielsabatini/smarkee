@@ -54,7 +54,11 @@ def http_error(
     if retry_after is not None:
         headers["Retry-After"] = retry_after
     return urllib.error.HTTPError(
-        "https://api.example/v1/users", status, "erro", headers, BytesIO(json.dumps(body).encode())
+        "https://api.example/v1/core/users",
+        status,
+        "erro",
+        headers,
+        BytesIO(json.dumps(body).encode()),
     )
 
 
@@ -84,7 +88,7 @@ def test_the_request_is_anonymous_and_carries_only_the_contract_fields(
 
     request = opener.requests[0]
     assert request.get_method() == "POST"
-    assert request.full_url == "https://api.example/v1/users"
+    assert request.full_url == "https://api.example/v1/core/users"
     assert request.get_header("Authorization") is None
     assert json.loads(request.data) == {
         "givenName": "Ana",

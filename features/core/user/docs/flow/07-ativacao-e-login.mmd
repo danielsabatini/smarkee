@@ -48,7 +48,7 @@ sequenceDiagram
     CLI->>CLI: grava ~/.config/sk/credentials.json (permissão 0600)
     CLI-->>U: "Login realizado."
     U->>CLI: sk user get (a implementar)
-    CLI->>Receiver: GET /v1/users/{sub} (Bearer)
+    CLI->>Receiver: GET /v1/core/users/{sub} (Bearer)
     Receiver-->>CLI: 200 com o próprio usuário
     end
 
@@ -64,6 +64,6 @@ sequenceDiagram
     Receiver-->>CLI: 401 Unauthorized (renovação pelo refresh token: a implementar)
     CLI->>Receiver: usuário sem a role da ação
     Receiver-->>CLI: 403 Forbidden
-    CLI->>Receiver: GET /v1/users/{outro id}
+    CLI->>Receiver: GET /v1/core/users/{outro id}
     Receiver-->>CLI: 404 (não revela a existência)
     end

@@ -180,7 +180,7 @@ async def test_health_is_public(harness: Harness) -> None:
 async def test_missing_or_invalid_token_is_401_with_the_error_contract(
     harness: Harness, headers: dict[str, str]
 ) -> None:
-    response = await harness.client.get("/v1/organizations", headers=headers)
+    response = await harness.client.get("/v1/ipm/organizations", headers=headers)
     assert response.status_code == 401
     generated.ApiError.model_validate(response.json())
     assert response.json()["errorCode"] == "Unauthorized"
@@ -188,7 +188,7 @@ async def test_missing_or_invalid_token_is_401_with_the_error_contract(
 
 async def test_missing_role_is_403(harness: Harness) -> None:
     response = await harness.client.post(
-        "/v1/organizations", json={"name": "acme"}, headers=auth("norole")
+        "/v1/ipm/organizations", json={"name": "acme"}, headers=auth("norole")
     )
     assert response.status_code == 403
     assert harness.publisher.published == []
@@ -199,7 +199,7 @@ async def test_missing_role_is_403(harness: Harness) -> None:
 
 async def test_create_publishes_requested_and_answers_202(harness: Harness) -> None:
     response = await harness.client.post(
-        "/v1/organizations", json={"name": "acme"}, headers=auth("ana")
+        "/v1/ipm/organizations", json={"name": "acme"}, headers=auth("ana")
     )
 
     assert response.status_code == 202
@@ -221,7 +221,7 @@ async def test_create_publishes_requested_and_answers_202(harness: Harness) -> N
 async def test_operator_creates_without_quota_limit_or_verified_email(harness: Harness) -> None:
     harness.repository.resources["o-1"] = organization("o-1", "admin")
     response = await harness.client.post(
-        "/v1/organizations", json={"name": "acme"}, headers=auth("admin")
+        "/v1/ipm/organizations", json={"name": "acme"}, headers=auth("admin")
     )
     assert response.status_code == 202
     assert "ownerQuotaLimit" not in harness.publisher.published[0][1]["data"]
@@ -230,7 +230,7 @@ async def test_operator_creates_without_quota_limit_or_verified_email(harness: H
 async def test_unverified_email_is_403(harness: Harness) -> None:
     harness.emails.verified.clear()
     response = await harness.client.post(
-        "/v1/organizations", json={"name": "acme"}, headers=auth("ana")
+        "/v1/ipm/organizations", json={"name": "acme"}, headers=auth("ana")
     )
     assert (response.status_code, response.json()["errorCode"]) == (403, "EmailNotVerified")
     assert harness.publisher.published == []
@@ -239,7 +239,7 @@ async def test_unverified_email_is_403(harness: Harness) -> None:
 async def test_quota_is_checked_before_publishing(harness: Harness) -> None:
     harness.repository.resources["o-1"] = organization("o-1", "ana")
     response = await harness.client.post(
-        "/v1/organizations", json={"name": "outra"}, headers=auth("ana")
+        "/v1/ipm/organizations", json={"name": "outra"}, headers=auth("ana")
     )
     assert (response.status_code, response.json()["errorCode"]) == (403, "QuotaExceeded")
     assert harness.publisher.published == []
@@ -257,7 +257,7 @@ async def test_quota_is_checked_before_publishing(harness: Harness) -> None:
 async def test_invalid_body_is_400_and_does_not_echo_values(
     harness: Harness, body: dict[str, Any], field_name: str
 ) -> None:
-    response = await harness.client.post("/v1/organizations", json=body, headers=auth("ana"))
+    response = await harness.client.post("/v1/ipm/organizations", json=body, headers=auth("ana"))
     assert response.status_code == 400
     assert response.json()["errorCode"] == "ValidationFailed"
     assert response.json()["field"] == field_name
@@ -267,7 +267,7 @@ async def test_invalid_body_is_400_and_does_not_echo_values(
 async def test_publish_failure_is_a_retryable_503(harness: Harness) -> None:
     harness.publisher.fail = True
     response = await harness.client.post(
-        "/v1/organizations", json={"name": "acme"}, headers=auth("ana")
+        "/v1/ipm/organizations", json={"name": "acme"}, headers=auth("ana")
     )
     assert (response.status_code, response.json()["errorCode"]) == (503, "ServiceUnavailable")
     assert response.headers["retry-after"] == "5"
@@ -280,7 +280,7 @@ async def test_idempotency_key_derives_a_stable_operation_id_per_requester(
     harness: Harness,
 ) -> None:
     first = await harness.client.post(
-        "/v1/organizations",
+        "/v1/ipm/organizations",
         json={"name": "acme"},
         headers={**auth("ana"), "Idempotency-Key": "k-1"},
     )
@@ -305,7 +305,7 @@ async def test_repeating_the_same_request_returns_the_existing_operation_without
     harness.repository.operations[operation_id] = operation(operation_id, "ana", digest=digest)
 
     response = await harness.client.post(
-        "/v1/organizations",
+        "/v1/ipm/organizations",
         json={"name": "acme"},
         headers={**auth("ana"), "Idempotency-Key": "k-1"},
     )
@@ -322,7 +322,7 @@ async def test_same_key_with_other_content_is_422(harness: Harness) -> None:
     )
     harness.repository.operations[operation_id] = operation(operation_id, "ana", digest="f" * 64)
     response = await harness.client.post(
-        "/v1/organizations",
+        "/v1/ipm/organizations",
         json={"name": "acme"},
         headers={**auth("ana"), "Idempotency-Key": "k-1"},
     )
@@ -331,7 +331,7 @@ async def test_same_key_with_other_content_is_422(harness: Harness) -> None:
 
 async def test_invalid_idempotency_key_is_400(harness: Harness) -> None:
     response = await harness.client.post(
-        "/v1/organizations",
+        "/v1/ipm/organizations",
         json={"name": "acme"},
         headers={**auth("ana"), "Idempotency-Key": "chave invalida!"},
     )
@@ -343,7 +343,7 @@ async def test_invalid_idempotency_key_is_400(harness: Harness) -> None:
 
 async def test_owner_reads_the_organization_without_the_owner_field(harness: Harness) -> None:
     harness.repository.resources["o-1"] = organization("o-1", "ana")
-    response = await harness.client.get("/v1/organizations/o-1", headers=auth("ana"))
+    response = await harness.client.get("/v1/ipm/organizations/o-1", headers=auth("ana"))
     assert response.status_code == 200
     view = generated.Organization.model_validate(response.json())
     assert (view.resource_id, view.resource_version, view.phase.value) == ("o-1", "3", "Ready")
@@ -353,13 +353,13 @@ async def test_owner_reads_the_organization_without_the_owner_field(harness: Har
 async def test_other_users_organization_is_404_and_operator_can_read(harness: Harness) -> None:
     harness.repository.resources["o-1"] = organization("o-1", "ana")
     assert (
-        await harness.client.get("/v1/organizations/o-1", headers=auth("bia"))
+        await harness.client.get("/v1/ipm/organizations/o-1", headers=auth("bia"))
     ).status_code == 404
     assert (
-        await harness.client.get("/v1/organizations/ghost", headers=auth("ana"))
+        await harness.client.get("/v1/ipm/organizations/ghost", headers=auth("ana"))
     ).status_code == 404
     assert (
-        await harness.client.get("/v1/organizations/o-1", headers=auth("admin"))
+        await harness.client.get("/v1/ipm/organizations/o-1", headers=auth("admin"))
     ).status_code == 200
 
 
@@ -368,23 +368,23 @@ async def test_list_is_scoped_to_the_owner_and_paginated(harness: Harness) -> No
         harness.repository.resources[f"a-{index}"] = organization(f"a-{index}", "ana")
     harness.repository.resources["b-0"] = organization("b-0", "bia")
 
-    first = (await harness.client.get("/v1/organizations?limit=2", headers=auth("ana"))).json()
+    first = (await harness.client.get("/v1/ipm/organizations?limit=2", headers=auth("ana"))).json()
     assert [item["resourceId"] for item in first["items"]] == ["a-0", "a-1"]
     second = (
         await harness.client.get(
-            f"/v1/organizations?limit=2&cursor={first['nextCursor']}", headers=auth("ana")
+            f"/v1/ipm/organizations?limit=2&cursor={first['nextCursor']}", headers=auth("ana")
         )
     ).json()
     assert [item["resourceId"] for item in second["items"]] == ["a-2"]
     assert "nextCursor" not in second
 
-    everything = (await harness.client.get("/v1/organizations", headers=auth("admin"))).json()
+    everything = (await harness.client.get("/v1/ipm/organizations", headers=auth("admin"))).json()
     assert len(everything["items"]) == 4
     assert (
-        await harness.client.get("/v1/organizations?limit=0", headers=auth("ana"))
+        await harness.client.get("/v1/ipm/organizations?limit=0", headers=auth("ana"))
     ).status_code == 400
     assert (
-        await harness.client.get("/v1/organizations?limit=201", headers=auth("ana"))
+        await harness.client.get("/v1/ipm/organizations?limit=201", headers=auth("ana"))
     ).status_code == 400
 
 
@@ -394,7 +394,9 @@ async def test_list_is_scoped_to_the_owner_and_paginated(harness: Harness) -> No
 async def test_update_publishes_with_the_resource_version(harness: Harness) -> None:
     harness.repository.resources["o-1"] = organization("o-1", "ana")
     response = await harness.client.patch(
-        "/v1/organizations/o-1", json={"resourceVersion": "3", "name": "novo"}, headers=auth("ana")
+        "/v1/ipm/organizations/o-1",
+        json={"resourceVersion": "3", "name": "novo"},
+        headers=auth("ana"),
     )
     assert response.status_code == 202
     subject, payload, _ = harness.publisher.published[0]
@@ -415,7 +417,9 @@ async def test_update_publishes_with_the_resource_version(harness: Harness) -> N
 )
 async def test_update_rules(harness: Harness, body: dict[str, Any], status: int) -> None:
     harness.repository.resources["o-1"] = organization("o-1", "ana")
-    response = await harness.client.patch("/v1/organizations/o-1", json=body, headers=auth("ana"))
+    response = await harness.client.patch(
+        "/v1/ipm/organizations/o-1", json=body, headers=auth("ana")
+    )
     assert response.status_code == status
     assert harness.publisher.published == []
 
@@ -423,7 +427,7 @@ async def test_update_rules(harness: Harness, body: dict[str, Any], status: int)
 async def test_operator_may_change_platform_access_and_reconciliation(harness: Harness) -> None:
     harness.repository.resources["o-1"] = organization("o-1", "ana")
     response = await harness.client.patch(
-        "/v1/organizations/o-1",
+        "/v1/ipm/organizations/o-1",
         json={"resourceVersion": "3", "platformAccess": "revoked", "reconciliation": "suspended"},
         headers=auth("admin"),
     )
@@ -433,15 +437,21 @@ async def test_operator_may_change_platform_access_and_reconciliation(harness: H
 async def test_delete_requires_the_version_and_the_owner(harness: Harness) -> None:
     harness.repository.resources["o-1"] = organization("o-1", "ana")
     assert (
-        await harness.client.delete("/v1/organizations/o-1", headers=auth("ana"))
+        await harness.client.delete("/v1/ipm/organizations/o-1", headers=auth("ana"))
     ).status_code == 400
     assert (
-        await harness.client.delete("/v1/organizations/o-1?resourceVersion=1", headers=auth("ana"))
+        await harness.client.delete(
+            "/v1/ipm/organizations/o-1?resourceVersion=1", headers=auth("ana")
+        )
     ).status_code == 409
     assert (
-        await harness.client.delete("/v1/organizations/o-1?resourceVersion=3", headers=auth("bia"))
+        await harness.client.delete(
+            "/v1/ipm/organizations/o-1?resourceVersion=3", headers=auth("bia")
+        )
     ).status_code == 404
-    ok = await harness.client.delete("/v1/organizations/o-1?resourceVersion=3", headers=auth("ana"))
+    ok = await harness.client.delete(
+        "/v1/ipm/organizations/o-1?resourceVersion=3", headers=auth("ana")
+    )
     assert ok.status_code == 202
     assert harness.publisher.published[0][0] == "receiver.requested.ipm.organization.o-1.delete"
 
@@ -452,7 +462,7 @@ async def test_delete_requires_the_version_and_the_owner(harness: Harness) -> No
 async def test_operation_is_readable_only_by_the_requester_and_operators(harness: Harness) -> None:
     harness.repository.operations["op-1"] = operation("op-1", "ana")
     harness.repository.operations["op-anon"] = operation("op-anon", "anonymous")
-    path = "/v1/organizations/org-1/operations"
+    path = "/v1/ipm/organizations/org-1/operations"
 
     own = await harness.client.get(f"{path}/op-1", headers=auth("ana"))
     assert own.status_code == 200
@@ -469,6 +479,6 @@ async def test_operation_is_readable_only_by_the_requester_and_operators(harness
 async def test_operation_of_another_resource_is_404(harness: Harness) -> None:
     harness.repository.operations["op-1"] = operation("op-1", "ana")
     response = await harness.client.get(
-        "/v1/organizations/outra/operations/op-1", headers=auth("ana")
+        "/v1/ipm/organizations/outra/operations/op-1", headers=auth("ana")
     )
     assert response.status_code == 404

@@ -2,6 +2,7 @@
 
 - **Data:** 2026-10-11
 - **Status:** Aceita. Renomeia o papel `api` das decisões anteriores (0006 a 0019). Não altera nenhum comportamento.
+- **Rotas:** os caminhos citados aqui (`/v1/users`, `/v1/organizations`, `/v1/<tipos>`) foram substituídos pelo padrão da decisão 0030 (`/v1/<módulo>/<tipos>`).
 
 ## Contexto
 

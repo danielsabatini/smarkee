@@ -215,7 +215,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         return request.client.host if request.client else "unknown"
 
     @app.post(
-        "/v1/users",
+        "/v1/core/users",
         status_code=202,
         response_model=generated.ApiAcceptedResponse,
         response_model_exclude_none=True,
@@ -249,13 +249,15 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             idempotency_key=None,
         )
 
-    @app.get("/v1/users/{user_id}", response_model=generated.User, response_model_exclude_none=True)
+    @app.get(
+        "/v1/core/users/{user_id}", response_model=generated.User, response_model_exclude_none=True
+    )
     async def get_user(user_id: str, principal: Authenticated) -> generated.User:
         require(principal, roles.USER_GET)
         return user_view(await own_user(principal, user_id))
 
     @app.delete(
-        "/v1/users/{user_id}",
+        "/v1/core/users/{user_id}",
         status_code=202,
         response_model=generated.ApiAcceptedResponse,
         response_model_exclude_none=True,
@@ -285,7 +287,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     # ------------------------------------------------------------ operations e saúde
 
     @app.get(
-        "/v1/users/{user_id}/operations/{operation_id}",
+        "/v1/core/users/{user_id}/operations/{operation_id}",
         response_model=generated.Operation,
         response_model_exclude_none=True,
     )

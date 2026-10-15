@@ -44,7 +44,7 @@ async def register_and_expect_ready(
         "familyName": label,
         "email": f"chaos.{label}.{uuid.uuid4().hex[:8]}@example.com",
     }
-    response = await api.post("/v1/users", json=body)
+    response = await api.post("/v1/core/users", json=body)
     assert response.status_code == 202
     resource_id = response.json()["resourceId"]
     created.append(resource_id)

@@ -1,7 +1,7 @@
 """Cliente da API da plataforma usado pelo `sk` (`docs/RESOURCE-CONTROL-LOOP.md`, §6.1).
 
-O cadastro (`POST /v1/users`) é anônimo: esta chamada **nunca** envia `Authorization`, mesmo que
-existam credenciais salvas. Só a leitura e as escritas autenticadas enviam o token.
+O cadastro (`POST /v1/core/users`) é anônimo: esta chamada **nunca** envia `Authorization`,
+mesmo que existam credenciais salvas. Só a leitura e as escritas autenticadas enviam o token.
 
 A CLI não tem dependências HTTP além da biblioteca padrão; por isso usa `urllib`, como o
 `sk.oidc`. O servidor é a autoridade sobre o conteúdo: as validações locais só evitam pedidos
@@ -18,7 +18,7 @@ from typing import Any, cast
 from sk.oidc import ensure_secure_url
 
 HTTP_TIMEOUT_SECONDS = 10.0
-USER_REGISTRATION_PATH = "/v1/users"
+USER_REGISTRATION_PATH = "/v1/core/users"
 MAXIMUM_NAME_LENGTH = 256
 MINIMUM_EMAIL_LENGTH = 3
 MAXIMUM_EMAIL_LENGTH = 254

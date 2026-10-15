@@ -538,7 +538,7 @@ class OrganizationRequestedDeleteData(ContractModel):
 
 class OrganizationCreateRequest(ContractModel):
     """
-    Corpo de POST /v1/organizations. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, registra platformAccess = granted e o dono (ownerUserId = solicitante autenticado): uma Organization criada sem acesso à plataforma não tem uso.
+    Corpo de POST /v1/ipm/organizations. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, registra platformAccess = granted e o dono (ownerUserId = solicitante autenticado): uma Organization criada sem acesso à plataforma não tem uso.
     """
 
     model_config = ConfigDict(
@@ -554,7 +554,7 @@ class OrganizationCreateRequest(ContractModel):
 
 class OrganizationUpdateRequest(ContractModel):
     """
-    Corpo de PATCH /v1/organizations/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado.
+    Corpo de PATCH /v1/ipm/organizations/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado.
     """
 
     model_config = ConfigDict(
@@ -667,7 +667,7 @@ class Organization(ContractModel):
 
 class OrganizationList(ContractModel):
     """
-    Resposta de GET /v1/organizations: página ordenada por resourceId, somente das Organizations autorizadas. nextCursor ausente indica a última página.
+    Resposta de GET /v1/ipm/organizations: página ordenada por resourceId, somente das Organizations autorizadas. nextCursor ausente indica a última página.
     """
 
     model_config = ConfigDict(

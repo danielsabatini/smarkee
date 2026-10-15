@@ -18,7 +18,7 @@ def test_versioned_openapi_matches_the_application() -> None:
 def test_every_route_is_under_the_organization_resource() -> None:
     paths = json.loads(OPENAPI_FILE.read_text("utf-8"))["paths"]
     assert {path for path in paths if path != "/healthz"} == {
-        "/v1/organizations",
-        "/v1/organizations/{organization_id}",
-        "/v1/organizations/{organization_id}/operations/{operation_id}",
+        "/v1/ipm/organizations",
+        "/v1/ipm/organizations/{organization_id}",
+        "/v1/ipm/organizations/{organization_id}/operations/{operation_id}",
     }

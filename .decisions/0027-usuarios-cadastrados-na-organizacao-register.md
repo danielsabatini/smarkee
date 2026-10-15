@@ -2,6 +2,7 @@
 
 - **Data:** 2026-10-14
 - **Status:** Aceita. Revisa as decisões 0010 e 0014 no que diz respeito à organização dos usuários e à autorização deles.
+- **API e configuração:** a decisão 0029 trocou a API v1 de autorizações pela v2; o Executor deixou de usar `projectGrantId` e `CORE_ZITADEL_PROJECT_GRANT_ID` foi removida (o Project Grant continua sendo o teto das roles, no Zitadel).
 - **Nomes das roles:** os nomes citados aqui (`organization.*`, `user.*`, `platform.admin`) foram substituídos pelo padrão da decisão 0028 (`ipm.organization.*`, `core.user.*`, `*.admin`).
 
 ## Contexto

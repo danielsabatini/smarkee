@@ -32,6 +32,7 @@ O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.
 O que está no radar para o futuro, mas ainda carece de design, arquitetura ou Discovery.
 - [ ] **`[Exploratory]` Clusterização Avançada NATS:** Topologia de Hub-Spoke com Leaf Nodes.
 - [ ] **`[Exploratory]` Plataforma de UI:** Dashboard de gestão do estado (`desired` / `observed`).
+- [ ] **`[Exploratory]` Regra de exclusão do registro (User):** definir a política da exclusão da conta. Hoje o `DELETE /v1/core/users/{id}` remove o usuário (próprio ou operador), o `desired` final sem dados pessoais, a linha do SSOT e o usuário no Zitadel. Ficam em aberto: dados pessoais que sobram em mensagens e no outbox até a retenção, Organizations de que o usuário é dono, sessões e tokens ativos depois de excluir, e confirmação ou reautenticação.
 - [ ] **`[Exploratory]` Administração da plataforma:** ferramentas de operador (roles `*.admin`) para conceder e revogar o acesso de um usuário existente (`platformAccess` e `platformRoles`); o usuário final não altera o próprio acesso.
 
 ## 🏷️ Fases de Lançamento (Status)

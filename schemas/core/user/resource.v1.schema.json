@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "User",
-  "description": "Visão consolidada do User exposta pelo Receiver (GET /v1/users/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).",
+  "description": "Visão consolidada do User exposta pelo Receiver (GET /v1/core/users/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,

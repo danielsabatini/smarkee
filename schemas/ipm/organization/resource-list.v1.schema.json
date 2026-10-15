@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "OrganizationList",
-  "description": "Resposta de GET /v1/organizations: página ordenada por resourceId, somente das Organizations autorizadas. nextCursor ausente indica a última página.",
+  "description": "Resposta de GET /v1/ipm/organizations: página ordenada por resourceId, somente das Organizations autorizadas. nextCursor ausente indica a última página.",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,

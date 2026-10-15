@@ -322,7 +322,7 @@
       },
       "OrganizationCreateRequest": {
         "additionalProperties": false,
-        "description": "Corpo de POST /v1/organizations. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, registra platformAccess = granted e o dono (ownerUserId = solicitante autenticado): uma Organization criada sem acesso à plataforma não tem uso.",
+        "description": "Corpo de POST /v1/ipm/organizations. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, registra platformAccess = granted e o dono (ownerUserId = solicitante autenticado): uma Organization criada sem acesso à plataforma não tem uso.",
         "properties": {
           "name": {
             "maxLength": 63,
@@ -369,7 +369,7 @@
       },
       "OrganizationList": {
         "additionalProperties": false,
-        "description": "Resposta de GET /v1/organizations: página ordenada por resourceId, somente das Organizations autorizadas. nextCursor ausente indica a última página.",
+        "description": "Resposta de GET /v1/ipm/organizations: página ordenada por resourceId, somente das Organizations autorizadas. nextCursor ausente indica a última página.",
         "properties": {
           "items": {
             "items": {
@@ -465,7 +465,7 @@
       },
       "OrganizationUpdateRequest": {
         "additionalProperties": false,
-        "description": "Corpo de PATCH /v1/organizations/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado.",
+        "description": "Corpo de PATCH /v1/ipm/organizations/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado.",
         "properties": {
           "name": {
             "anyOf": [
@@ -625,9 +625,9 @@
         "summary": "Healthz"
       }
     },
-    "/v1/organizations": {
+    "/v1/ipm/organizations": {
       "get": {
-        "operationId": "list_organizations_v1_organizations_get",
+        "operationId": "list_organizations_v1_ipm_organizations_get",
         "parameters": [
           {
             "in": "query",
@@ -684,7 +684,7 @@
         "summary": "List Organizations"
       },
       "post": {
-        "operationId": "create_organization_v1_organizations_post",
+        "operationId": "create_organization_v1_ipm_organizations_post",
         "parameters": [
           {
             "in": "header",
@@ -738,9 +738,9 @@
         "summary": "Create Organization"
       }
     },
-    "/v1/organizations/{organization_id}": {
+    "/v1/ipm/organizations/{organization_id}": {
       "delete": {
-        "operationId": "delete_organization_v1_organizations__organization_id__delete",
+        "operationId": "delete_organization_v1_ipm_organizations__organization_id__delete",
         "parameters": [
           {
             "in": "path",
@@ -803,7 +803,7 @@
         "summary": "Delete Organization"
       },
       "get": {
-        "operationId": "get_organization_v1_organizations__organization_id__get",
+        "operationId": "get_organization_v1_ipm_organizations__organization_id__get",
         "parameters": [
           {
             "in": "path",
@@ -840,7 +840,7 @@
         "summary": "Get Organization"
       },
       "patch": {
-        "operationId": "update_organization_v1_organizations__organization_id__patch",
+        "operationId": "update_organization_v1_ipm_organizations__organization_id__patch",
         "parameters": [
           {
             "in": "path",
@@ -903,9 +903,9 @@
         "summary": "Update Organization"
       }
     },
-    "/v1/organizations/{organization_id}/operations/{operation_id}": {
+    "/v1/ipm/organizations/{organization_id}/operations/{operation_id}": {
       "get": {
-        "operationId": "get_operation_v1_organizations__organization_id__operations__operation_id__get",
+        "operationId": "get_operation_v1_ipm_organizations__organization_id__operations__operation_id__get",
         "parameters": [
           {
             "in": "path",

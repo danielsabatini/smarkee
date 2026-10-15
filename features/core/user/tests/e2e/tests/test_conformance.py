@@ -134,7 +134,7 @@ async def test_repeated_request_does_not_publish_a_second_desired(
 
 
 async def test_missing_token_is_401_with_the_error_contract(api: httpx.AsyncClient) -> None:
-    response = await api.get("/v1/users/qualquer")
+    response = await api.get("/v1/core/users/qualquer")
     assert response.status_code == 401
     assert_valid("common/api-error.v1.schema.json", response.json())
     assert response.json()["errorCode"] == "Unauthorized"
@@ -142,7 +142,7 @@ async def test_missing_token_is_401_with_the_error_contract(api: httpx.AsyncClie
 
 async def test_invalid_token_is_401(api: httpx.AsyncClient) -> None:
     response = await api.get(
-        "/v1/users/qualquer",
+        "/v1/core/users/qualquer",
         headers={"Authorization": "Bearer invalido"},
     )
     assert response.status_code == 401
@@ -154,8 +154,8 @@ async def test_registration_is_anonymous_uniform_and_reaches_the_ssot(
     email = f"conf.{uuid.uuid4().hex[:10]}@example.com"
     body = {"givenName": "Ana", "familyName": "Souza", "email": email}
 
-    first = await api.post("/v1/users", json=body)
-    second = await api.post("/v1/users", json=body)
+    first = await api.post("/v1/core/users", json=body)
+    second = await api.post("/v1/core/users", json=body)
 
     assert (first.status_code, second.status_code) == (202, 202)
     for response in (first, second):
@@ -169,7 +169,7 @@ async def test_registration_is_anonymous_uniform_and_reaches_the_ssot(
 
 async def test_registration_rejects_a_password(api: httpx.AsyncClient) -> None:
     response = await api.post(
-        "/v1/users",
+        "/v1/core/users",
         json={
             "givenName": "Ana",
             "familyName": "Souza",
@@ -239,7 +239,7 @@ async def test_the_whole_loop_runs_against_zitadel_and_the_user_is_removed_at_th
     body = {"givenName": "Ana", "familyName": "Souza", "email": email}
 
     # 1. Solicitação anônima: 202 uniforme.
-    response = await api.post("/v1/users", json=body)
+    response = await api.post("/v1/core/users", json=body)
     assert response.status_code == 202
     resource_id = response.json()["resourceId"]
     created.append(resource_id)
@@ -280,7 +280,7 @@ async def test_the_whole_loop_runs_against_zitadel_and_the_user_is_removed_at_th
         assert "Redefinir senha" in subjects
 
     # 5. O mesmo e-mail de novo: resposta idêntica, mas nenhum desired (Manager rejeita).
-    again = await api.post("/v1/users", json=body)
+    again = await api.post("/v1/core/users", json=body)
     assert again.status_code == 202
     created.append(again.json()["resourceId"])
     await asyncio.sleep(3.0)

@@ -13,7 +13,7 @@ sequenceDiagram
     U->>CLI: sk register --email nao-e-um-email
     CLI-->>U: "Dados não aceitos" (validação local, código de saída 2) e nenhuma chamada é feita
     U->>CLI: pedido que passa na validação local, mas a API recusa
-    CLI->>GW: POST /v1/users
+    CLI->>GW: POST /v1/core/users
     GW->>Receiver: repassa
     Receiver-->>CLI: 400 {errorCode ValidationFailed, field email}
     CLI-->>U: "Campo recusado pela API" (código de saída 2, e a API nunca repete o valor digitado)
@@ -22,10 +22,10 @@ sequenceDiagram
 
     rect rgb(255,235,238)
     Note over CLI,Receiver: B. Excesso de tentativas
-    CLI->>GW: POST /v1/users (11ª no minuto, mesmo IP)
+    CLI->>GW: POST /v1/core/users (11ª no minuto, mesmo IP)
     GW-->>CLI: 429 do Kong (limite 10/min por IP)
     CLI-->>U: "Muitas tentativas" (código de saída 1)
-    CLI->>GW: POST /v1/users (6ª em 60 s, mesma origem, passou do Kong)
+    CLI->>GW: POST /v1/core/users (6ª em 60 s, mesma origem, passou do Kong)
     GW->>Receiver: repassa
     Receiver-->>CLI: 429 {errorCode RateLimited} + Retry-After
     CLI-->>U: "Muitas tentativas. Aguarde N segundos e repita." (código de saída 1)
@@ -33,7 +33,7 @@ sequenceDiagram
 
     rect rgb(232,240,254)
     Note over CLI,Receiver: C. Indisponibilidade do Receiver ou do gateway
-    CLI->>GW: POST /v1/users
+    CLI->>GW: POST /v1/core/users
     GW-->>CLI: 502/503 do Kong (Receiver fora do ar) ou falha de conexão/DNS
     CLI-->>U: "Serviço indisponível. Repita em alguns minutos." (código de saída 1)
     Note over CLI: Nenhuma mensagem foi publicada. Repetir é seguro.
@@ -41,7 +41,7 @@ sequenceDiagram
 
     rect rgb(243,229,245)
     Note over Receiver,N: D. Mensageria indisponível ou REQUESTED cheio
-    CLI->>GW: POST /v1/users
+    CLI->>GW: POST /v1/core/users
     GW->>Receiver: repassa
     Receiver->>N: publica requested
     N--xReceiver: erro, timeout ou Stream cheio (DiscardNew, 100.000 mensagens)
@@ -53,5 +53,5 @@ sequenceDiagram
     rect rgb(238,238,238)
     Note over CLI,Receiver: E. Erros não previstos
     Receiver-->>CLI: 500 {errorCode InternalError} (log só com o tipo do erro, sem dados pessoais)
-    GW-->>CLI: 404 do Kong (host ou caminho errado, por exemplo api.sk sem /v1/users)
+    GW-->>CLI: 404 do Kong (host ou caminho errado, por exemplo api.sk sem /v1/core/users)
     end

@@ -73,7 +73,7 @@ services:
         hosts:
           - api-dev.smarkee.com.br
         paths:
-          - ~/v1/organizations(/|$)
+          - ~/v1/ipm/organizations(/|$)
         strip_path: false
 
   - name: core-user-receiver
@@ -83,7 +83,7 @@ services:
         hosts:
           - api-dev.smarkee.com.br
         paths:
-          - ~/v1/users(/|$)
+          - ~/v1/core/users(/|$)
         strip_path: false
       # Auto-cadastro (escrita anônima): limite de taxa por IP já no gateway, o primeiro nível
       # de proteção (docs/RESOURCE-CONTROL-SECURITY.md §12). O Receiver aplica o segundo.
@@ -91,7 +91,7 @@ services:
         hosts:
           - api-dev.smarkee.com.br
         paths:
-          - ~/v1/users$
+          - ~/v1/core/users$
         methods:
           - POST
         strip_path: false

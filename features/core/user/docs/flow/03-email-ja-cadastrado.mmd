@@ -13,7 +13,7 @@ sequenceDiagram
 
     rect rgb(255,243,224)
     Note over Receiver,DB: A. E-mail já existe no SSOT (cadastro anterior, outro resourceId)
-    U->>Receiver: POST /v1/users com e-mail já cadastrado
+    U->>Receiver: POST /v1/core/users com e-mail já cadastrado
     Receiver->>N: requested (novo resourceId)
     Receiver-->>U: 202 {resourceId, operationId} (idêntico ao caso de sucesso)
     N->>MGR: entrega requested

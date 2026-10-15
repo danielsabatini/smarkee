@@ -296,7 +296,7 @@
       },
       "User": {
         "additionalProperties": false,
-        "description": "Visão consolidada do User exposta pelo Receiver (GET /v1/users/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).",
+        "description": "Visão consolidada do User exposta pelo Receiver (GET /v1/core/users/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).",
         "properties": {
           "conditions": {
             "items": {
@@ -369,7 +369,7 @@
       },
       "UserCreateRequest": {
         "additionalProperties": false,
-        "description": "Corpo de POST /v1/users (auto-cadastro, escrita anônima). O Receiver atribui resourceId, operationId e requestDigest, e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.",
+        "description": "Corpo de POST /v1/core/users (auto-cadastro, escrita anônima). O Receiver atribui resourceId, operationId e requestDigest, e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.",
         "properties": {
           "email": {
             "format": "email",
@@ -654,10 +654,10 @@
         "summary": "Health Startup"
       }
     },
-    "/v1/users": {
+    "/v1/core/users": {
       "post": {
         "description": "Auto-cadastro: escrita anônima (`RESOURCE-CONTROL-LOOP.md` §6.1.2).\n\nResposta uniforme: nenhuma consulta ao SSOT, e o mesmo `202` exista ou não o e-mail.",
-        "operationId": "register_user_v1_users_post",
+        "operationId": "register_user_v1_core_users_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -693,9 +693,9 @@
         "summary": "Register User"
       }
     },
-    "/v1/users/{user_id}": {
+    "/v1/core/users/{user_id}": {
       "delete": {
-        "operationId": "delete_user_v1_users__user_id__delete",
+        "operationId": "delete_user_v1_core_users__user_id__delete",
         "parameters": [
           {
             "in": "path",
@@ -758,7 +758,7 @@
         "summary": "Delete User"
       },
       "get": {
-        "operationId": "get_user_v1_users__user_id__get",
+        "operationId": "get_user_v1_core_users__user_id__get",
         "parameters": [
           {
             "in": "path",
@@ -795,9 +795,9 @@
         "summary": "Get User"
       }
     },
-    "/v1/users/{user_id}/operations/{operation_id}": {
+    "/v1/core/users/{user_id}/operations/{operation_id}": {
       "get": {
-        "operationId": "get_operation_v1_users__user_id__operations__operation_id__get",
+        "operationId": "get_operation_v1_core_users__user_id__operations__operation_id__get",
         "parameters": [
           {
             "in": "path",

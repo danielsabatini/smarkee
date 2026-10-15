@@ -18,7 +18,7 @@ src/core_user_receiver/
   main.py
 ```
 
-`tests/unit/test_domain_isolation.py` falha se o `domain/` importar um adaptador. Saúde (decisão 0018): `GET /health/live`, `/health/ready` (inclui o NATS) e `/health/startup`, só pela rede interna; o gateway publica apenas `/v1/users`.
+`tests/unit/test_domain_isolation.py` falha se o `domain/` importar um adaptador. Saúde (decisão 0018): `GET /health/live`, `/health/ready` (inclui o NATS) e `/health/startup`, só pela rede interna; o gateway publica apenas `/v1/core/users`.
 
 ## Configuração
 

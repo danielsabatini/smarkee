@@ -25,7 +25,7 @@ sequenceDiagram
     rect rgb(232,240,254)
     Note over U,Receiver: 1. Solicitação (anônima, sem senha)
     U->>CLI: sk register --name Ana --surname Souza --email ana@dominio.com
-    CLI->>GW: POST /v1/users {givenName, familyName, email}
+    CLI->>GW: POST /v1/core/users {givenName, familyName, email}
     GW->>Receiver: repassa (limite 10/min por IP, X-Forwarded-For)
     Receiver->>Receiver: valida corpo estrito (sem senha), limite 5/60 s por origem<br/>gera resourceId (UUIDv7), operationId, requestDigest<br/>NÃO consulta o SSOT (resposta uniforme)
     Receiver->>N: publica receiver.requested.core.user.{id}.create (REQUESTED)<br/>Nats-Msg-Id = messageId, requestedBy = anonymous

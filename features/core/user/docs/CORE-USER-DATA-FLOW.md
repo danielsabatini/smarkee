@@ -10,7 +10,7 @@ Documento de fluxo de dados da feature, no padrão da [decisão 0024](../../../.
 
 | # | De → Para | Meio | O que sai | O que é gravado |
 |---|---|---|---|---|
-| 1 | CLI → Receiver | `POST /v1/users` (via gateway) | `{givenName, familyName, email}` | nada |
+| 1 | CLI → Receiver | `POST /v1/core/users` (via gateway) | `{givenName, familyName, email}` | nada |
 | 2 | Receiver → Manager | NATS, Stream `REQUESTED` | `requested` / `create` | nada |
 | 3 | Manager → banco | SQL, uma transação | (nada publicado) | `core."user"`, `core.user_operation`, `core.user_outbox` |
 | 4 | Publisher → Manager (de volta) | NATS, Stream `DESIRED` | `desired` | `core.user_outbox.published_at` |
@@ -48,7 +48,7 @@ completed       messageId 0199c8b3-4a00-7c2d-8e3f-4a5b6c7d8e06
 observed (2)    messageId 0199c8b3-5a00-7c2d-8e3f-4a5b6c7d8e07   (present)
 ```
 
-## 1. CLI → Receiver: `POST /v1/users`
+## 1. CLI → Receiver: `POST /v1/core/users`
 
 Comando:
 
@@ -65,13 +65,13 @@ sk register --name Ana --surname Souza --email ana.souza@example.com \
 | `--api-url` | base da URL | parâmetro → `SK_CORE_API_URL` → `[core] apiUrl` do `config.toml`; sem valor, o comando falha com código 2 |
 | `--allow-insecure-http` | | só em desenvolvimento; sem ele, URL sem HTTPS é recusada antes da chamada |
 
-O comando valida os dados localmente, remove espaços das pontas (`strip`) e envia `POST <api-url>/v1/users` com `Content-Type: application/json`, **sem token** e sem `Idempotency-Key`. Em caso de sucesso mostra `resourceId` e `operationId` e orienta confirmar o e-mail, definir a senha e rodar `sk auth login`. Códigos de saída: `0` sucesso; `1` falha da API (`429`, `5xx`, rede); `2` uso (opção ausente, configuração, `400`).
+O comando valida os dados localmente, remove espaços das pontas (`strip`) e envia `POST <api-url>/v1/core/users` com `Content-Type: application/json`, **sem token** e sem `Idempotency-Key`. Em caso de sucesso mostra `resourceId` e `operationId` e orienta confirmar o e-mail, definir a senha e rodar `sk auth login`. Códigos de saída: `0` sucesso; `1` falha da API (`429`, `5xx`, rede); `2` uso (opção ausente, configuração, `400`).
 
 Chamada HTTP:
 
 | Item | Valor |
 |---|---|
-| Rota | `POST https://api-dev.smarkee.com.br/v1/users` (o gateway encaminha `/v1/users` ao `core-user-receiver`; veja `infrastructure/dev/gateway/bootstrap/routes.yml`) |
+| Rota | `POST https://api-dev.smarkee.com.br/v1/core/users` (o gateway encaminha `/v1/core/users` ao `core-user-receiver`; veja `infrastructure/dev/gateway/bootstrap/routes.yml`) |
 | Autenticação | **Nenhuma.** É a única escrita anônima; `requestedBy` vira `anonymous`. |
 | Cabeçalho `Idempotency-Key` | Não se aplica ao cadastro (o Receiver passa `idempotency_key=None`). |
 | Limite de taxa | Dois níveis: no gateway (por IP) e no Receiver (por origem). Estourou: `429` com `Retry-After`. |
@@ -660,8 +660,8 @@ A API **nunca lê as tabelas**: só as views versionadas (decisão 0004), com o 
 
 | Rota | View | Quem lê |
 |---|---|---|
-| `GET /v1/users/{id}` | `core.user_v1` | O próprio usuário ou `core.user.admin`; outro usuário recebe `404` |
-| `GET /v1/users/{id}/operations/{operationId}` | `core.user_operation_v1` | O solicitante ou `core.user.admin`; a Operation de cadastro anônimo só é legível por operadores |
+| `GET /v1/core/users/{id}` | `core.user_v1` | O próprio usuário ou `core.user.admin`; outro usuário recebe `404` |
+| `GET /v1/core/users/{id}/operations/{operationId}` | `core.user_operation_v1` | O solicitante ou `core.user.admin`; a Operation de cadastro anônimo só é legível por operadores |
 
 `core.user_v1` expõe `resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation, resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at`, **sem `failure_count`**. `core.user_operation_v1` expõe as colunas de `core.user_operation` sem `correlation_id`; `requested_by` está nela só para o Receiver autorizar a leitura. O formato JSON devolvido está em [`schemas/core/user/resource.example.json`](../../../../schemas/core/user/resource.example.json) e [`schemas/common/operation.example.json`](../../../../schemas/common/operation.example.json).
 
@@ -674,7 +674,7 @@ SELECT operation_id, operation_type, operation_status, operation_status_reason, 
 SELECT sequence, subject, published_at FROM core.user_outbox ORDER BY sequence;
 ```
 
-## 8. Remoção: `DELETE /v1/users/{id}?resourceVersion=`
+## 8. Remoção: `DELETE /v1/core/users/{id}?resourceVersion=`
 
 Resumo dos dados (fluxo completo: [`08-remocao`](flow/08-remocao.mmd)). Exige token com a role `core.user.delete`; o dono ou `core.user.admin`. `resourceVersion` é obrigatório e deve ser o da última leitura (senão `409`). Aceita `Idempotency-Key` (o mesmo valor com outro conteúdo devolve `422`).
 
