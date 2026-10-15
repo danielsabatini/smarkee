@@ -25,6 +25,7 @@ O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.
 - [ ] **`[Planned]` Organization derivada do User:** Manager `observed`/`result`, Reconciler, Observer e Executor do tipo `organization` do módulo `ipm`, na estrutura e com o servidor de saúde do User (modelo das demais features), fechando o loop sobre o Zitadel.
 - [ ] **`[Planned]` CLI do User e da Organization:** `sk user get|delete` e `sk ipm organization`, sobre os Receivers (o `sk register` já existe).
 - [ ] **`[Planned]` Implantação em Kubernetes:** CI/CD e GitOps por componente, com versão e imagem independentes.
+- [ ] **`[Planned]` Encerramento limpo dos componentes:** o Manager do User espera o `drain()` do NATS até o tempo limite (cerca de 30 s) e registra `task stopped unexpectedly` mesmo quando o encerramento foi pedido. O Manager do SUM já usa `close()` e só registra o erro sem pedido de parada; aplicar o mesmo ao User, e revisar os demais componentes que copiaram o padrão.
 - [ ] **`[Planned]` Observabilidade Básica:** Métricas e traces nos componentes (hoje há logs estruturados e probes de saúde).
 - [ ] **`[Planned]` Endurecimento para stg e prd:** `pinned_client` no Executor, identidades e permissões por papel no NATS, TLS, quarentena de mensagens, retenção do SSOT, `ObservationStale`, limite de remoções e backup com recuperação (lacunas em `docs/IMPLEMENTATION-STATUS.md`).
 
