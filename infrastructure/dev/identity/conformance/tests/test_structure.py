@@ -1,5 +1,7 @@
 """Estrutura do Zitadel de dev esperada pelas decisões 0010, 0014, 0026, 0027 e 0028.
 
+Usa só a API v2 do Zitadel (decisão 0029).
+
 Somente leitura: usa a chave da conta `platform-bootstrap` (`CONFORMANCE_ZITADEL_KEY_FILE`) e não
 altera nada.
 Sem a chave, os testes são pulados. A estrutura é criada à mão (ver `infrastructure/dev/README.md`);
@@ -31,6 +33,11 @@ ACTION_ROLES = {
     "ipm.organization.list",
     "ipm.organization.update",
 }
+ORGANIZATION_SERVICE = "zitadel.org.v2.OrganizationService"
+PROJECT_SERVICE = "zitadel.project.v2.ProjectService"
+APPLICATION_SERVICE = "zitadel.application.v2.ApplicationService"
+AUTHORIZATION_SERVICE = "zitadel.authorization.v2.AuthorizationService"
+PERMISSION_SERVICE = "zitadel.internal_permission.v2.InternalPermissionService"
 ADMIN_ROLES = {"core.user.admin", "ipm.organization.admin"}
 SERVICE_ACCOUNTS = {"core-user-executor", "core-user-observer", "core-organization-executor"}
 
@@ -40,7 +47,7 @@ pytestmark = pytest.mark.skipif(
 
 
 class Zitadel:
-    """Cliente mínimo da API de gestão, só para leitura."""
+    """Cliente mínimo da API do Zitadel, só para leitura."""
 
     def __init__(self, key: dict[str, str]) -> None:
         now = int(time.time())
@@ -56,7 +63,9 @@ class Zitadel:
             algorithm="RS256",
             headers={"kid": key["keyId"]},
         )
-        self._client = httpx.Client(base_url=BASE_URL, headers={"Host": HOST}, timeout=20)
+        self._client = httpx.Client(
+            base_url=BASE_URL, headers={"Host": HOST, "Connect-Protocol-Version": "1"}, timeout=20
+        )
         response = self._client.post(
             "/oauth/v2/token",
             data={
@@ -76,6 +85,12 @@ class Zitadel:
         response.raise_for_status()
         return cast("list[Any]", response.json().get("result") or [])
 
+    def connect(self, service: str, method: str, body: dict[str, Any] | None = None) -> Any:
+        """Chamada Connect da API v2 (`POST /<serviço>/<método>`), já em JSON."""
+        response = self._client.post(f"/{service}/{method}", json=body or {})
+        response.raise_for_status()
+        return response.json()
+
     def get(self, path: str) -> dict[str, Any]:
         response = self._client.get(path)
         response.raise_for_status()
@@ -94,22 +109,43 @@ def zitadel() -> Iterator[Zitadel]:
 
 @pytest.fixture(scope="module")
 def orgs(zitadel: Zitadel) -> dict[str, str]:
-    return {org["name"]: org["id"] for org in zitadel.search("/admin/v1/orgs/_search")}
+    found = zitadel.connect(ORGANIZATION_SERVICE, "ListOrganizations")["result"]
+    return {org["name"]: org["id"] for org in found}
+
+
+def projects_owned_by(zitadel: Zitadel, org_id: str) -> dict[str, dict[str, Any]]:
+    """Projetos da organização. A listagem por organização também traz os projetos delegados a ela
+    (Project Grant); aqui ficam só os que ela possui."""
+    found = zitadel.connect(
+        PROJECT_SERVICE,
+        "ListProjects",
+        {"filters": [{"organizationIdFilter": {"organizationId": org_id}}]},
+    ).get("projects", [])
+    return {p["name"]: p for p in found if p["organizationId"] == org_id}
 
 
 @pytest.fixture(scope="module")
 def project_id(zitadel: Zitadel, orgs: dict[str, str]) -> str:
-    projects = zitadel.search("/management/v1/projects/_search", org=orgs["core"])
-    return next(p["id"] for p in projects if p["name"] == "roles")
+    return projects_owned_by(zitadel, orgs["core"])["roles"]["projectId"]
+
+
+def administrators(zitadel: Zitadel, resource: dict[str, Any]) -> dict[str, set[str]]:
+    """Papéis de administração (membros) do recurso: a instância ou uma organização."""
+    found = zitadel.connect(
+        PERMISSION_SERVICE, "ListAdministrators", {"filters": [{"resource": resource}]}
+    ).get("administrators", [])
+    return {a["user"]["preferredLoginName"]: set(a["roles"]) for a in found}
 
 
 def members(zitadel: Zitadel, org_id: str) -> dict[str, set[str]]:
-    found = zitadel.search("/management/v1/orgs/me/members/_search", org=org_id)
-    return {m.get("preferredLoginName") or m["userId"]: set(m["roles"]) for m in found}
+    return administrators(zitadel, {"organizationId": org_id})
 
 
 def user_names(zitadel: Zitadel, org_id: str) -> set[str]:
-    return {u["userName"] for u in zitadel.search("/management/v1/users/_search", org=org_id)}
+    found = zitadel.search(
+        "/v2/users", {"queries": [{"organizationIdQuery": {"organizationId": org_id}}]}
+    )
+    return {u["username"] for u in found}
 
 
 def test_the_three_organizations_exist(orgs: dict[str, str]) -> None:
@@ -117,23 +153,23 @@ def test_the_three_organizations_exist(orgs: dict[str, str]) -> None:
 
 
 def test_public_registration_is_off(zitadel: Zitadel) -> None:
-    policy = zitadel.get("/admin/v1/policies/login")["policy"]
+    policy = zitadel.get("/v2/settings/login")["settings"]
     assert not policy.get("allowRegister"), "o cadastro público do Zitadel deve estar desligado"
 
 
 def test_roles_project_asserts_and_checks_roles(zitadel: Zitadel, orgs: dict[str, str]) -> None:
-    projects = {
-        p["name"]: p for p in zitadel.search("/management/v1/projects/_search", org=orgs["core"])
-    }
+    projects = projects_owned_by(zitadel, orgs["core"])
     assert "roles" in projects and "smarkee" not in projects
     assert projects["roles"].get("projectRoleAssertion") is True
-    assert projects["roles"].get("projectRoleCheck") is True
+    assert projects["roles"].get("authorizationRequired") is True  # `projectRoleCheck` da v1
 
 
 def test_roles_follow_the_naming_standard_and_group_by_module(
     zitadel: Zitadel, orgs: dict[str, str], project_id: str
 ) -> None:
-    roles = zitadel.search(f"/management/v1/projects/{project_id}/roles/_search", org=orgs["core"])
+    roles = zitadel.connect(PROJECT_SERVICE, "ListProjectRoles", {"projectId": project_id})[
+        "projectRoles"
+    ]
     assert {r["key"] for r in roles} == ACTION_ROLES | ADMIN_ROLES
     assert all(r.get("group") == r["key"].split(".")[0] for r in roles)
 
@@ -141,14 +177,13 @@ def test_roles_follow_the_naming_standard_and_group_by_module(
 def test_cli_application_is_a_public_native_client_with_jwt(
     zitadel: Zitadel, orgs: dict[str, str], project_id: str
 ) -> None:
-    apps = {
-        a["name"]: a
-        for a in zitadel.search(
-            f"/management/v1/projects/{project_id}/apps/_search", org=orgs["core"]
-        )
-    }
-    config = apps["cli"]["oidcConfig"]
-    assert config["appType"] == "OIDC_APP_TYPE_NATIVE"
+    found = zitadel.connect(
+        APPLICATION_SERVICE,
+        "ListApplications",
+        {"filters": [{"projectIdFilter": {"projectId": project_id}}]},
+    )["applications"]
+    config = {a["name"]: a for a in found}["cli"]["oidcConfiguration"]
+    assert config["applicationType"] == "OIDC_APP_TYPE_NATIVE"
     assert config["authMethodType"] == "OIDC_AUTH_METHOD_TYPE_NONE"  # cliente público (PKCE)
     assert config["accessTokenType"] == "OIDC_TOKEN_TYPE_JWT"
     assert config["accessTokenRoleAssertion"] is True and config["idTokenRoleAssertion"] is True
@@ -163,10 +198,12 @@ def test_cli_application_is_a_public_native_client_with_jwt(
 def test_project_grant_to_register_delegates_only_the_action_roles(
     zitadel: Zitadel, orgs: dict[str, str], project_id: str
 ) -> None:
-    grants = zitadel.search(
-        f"/management/v1/projects/{project_id}/grants/_search", org=orgs["core"]
-    )
-    to_register = [g for g in grants if g["grantedOrgId"] == orgs["register"]]
+    grants = zitadel.connect(PROJECT_SERVICE, "ListProjectGrants")["projectGrants"]
+    to_register = [
+        g
+        for g in grants
+        if g["projectId"] == project_id and g["grantedOrganizationId"] == orgs["register"]
+    ]
     assert len(to_register) == 1
     assert set(to_register[0]["grantedRoleKeys"]) == ACTION_ROLES  # sem as roles *.admin
 
@@ -189,8 +226,7 @@ def test_executor_and_observer_have_roles_only_in_register(
 
 
 def test_instance_members(zitadel: Zitadel) -> None:
-    found = zitadel.search("/admin/v1/members/_search")
-    by_name = {m.get("preferredLoginName") or m["userId"]: set(m["roles"]) for m in found}
+    by_name = administrators(zitadel, {"instance": True})
     assert by_name.get("platform-bootstrap@smarkee.internal") == {"IAM_OWNER"}
     assert by_name.get("core-organization-executor") == {"IAM_ORG_MANAGER"}
 
@@ -198,18 +234,18 @@ def test_instance_members(zitadel: Zitadel) -> None:
 def test_only_operators_are_authorized_in_core(
     zitadel: Zitadel, orgs: dict[str, str], project_id: str
 ) -> None:
-    grants = zitadel.search(
-        "/management/v1/users/grants/_search",
-        {"queries": [{"projectIdQuery": {"projectId": project_id}}]},
-        org=orgs["core"],
-    )
+    grants = zitadel.connect(
+        AUTHORIZATION_SERVICE,
+        "ListAuthorizations",
+        {"filters": [{"projectId": {"id": project_id}}, {"organizationId": {"id": orgs["core"]}}]},
+    ).get("authorizations", [])
     assert grants, "falta a autorização do operador (`*.admin`) no projeto roles"
     for grant in grants:
-        assert set(grant["roleKeys"]) <= ADMIN_ROLES, (
-            f"{grant.get('userName')} tem roles de ação na core; elas valem na register "
-            "(decisão 0027)"
+        assert {r["key"] for r in grant["roles"]} <= ADMIN_ROLES, (
+            f"{grant['user']['preferredLoginName']} tem roles de ação na core; "
+            "elas valem na register (decisão 0027)"
         )
 
 
 def test_register_has_no_project_of_its_own(zitadel: Zitadel, orgs: dict[str, str]) -> None:
-    assert zitadel.search("/management/v1/projects/_search", org=orgs["register"]) == []
+    assert projects_owned_by(zitadel, orgs["register"]) == {}

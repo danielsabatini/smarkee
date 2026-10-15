@@ -1,7 +1,7 @@
 # Zitadel de dev: conformidade da estrutura
 
 Esta suíte é um **teste**, não um componente. Somente leitura: confere se o Zitadel de dev tem a estrutura que as
-decisões 0010, 0014, 0026, 0027 e 0028 mandam, e não altera nada.
+decisões 0010, 0014, 0026, 0027 e 0028 mandam, e não altera nada. Usa só a API v2 do Zitadel (decisão 0029).
 
 | O que confere | Decisão |
 |---|---|

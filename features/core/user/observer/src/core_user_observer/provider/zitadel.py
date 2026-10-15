@@ -54,22 +54,27 @@ class ZitadelReader:
         )
 
     async def granted_roles(self, user_id: str) -> set[str]:
-        """União das roles do usuário no projeto da plataforma."""
+        """União das roles do usuário no projeto da plataforma (API v2 de autorizações)."""
         response = await self._request(
             "POST",
-            "/management/v1/users/grants/_search",
+            "/zitadel.authorization.v2.AuthorizationService/ListAuthorizations",
             {
-                "queries": [
-                    {"userIdQuery": {"userId": user_id}},
-                    {"projectIdQuery": {"projectId": self._settings.project_id}},
+                "filters": [
+                    {"inUserIds": {"ids": [user_id]}},
+                    {"projectId": {"id": self._settings.project_id}},
+                    {"organizationId": {"id": self._settings.register_organization_id}},
                 ]
             },
-            organization=True,
         )
         roles: set[str] = set()
-        grants = cast("list[dict[str, Any]]", self._json(response).get("result") or [])
-        for grant in grants:
-            roles.update(str(role) for role in cast("list[Any]", grant.get("roleKeys") or []))
+        authorizations = cast(
+            "list[dict[str, Any]]", self._json(response).get("authorizations") or []
+        )
+        for authorization in authorizations:
+            roles.update(
+                str(cast("dict[str, Any]", role)["key"])
+                for role in cast("list[Any]", authorization.get("roles") or [])
+            )
         return roles
 
     # ------------------------------------------------------------------ HTTP
@@ -79,15 +84,12 @@ class ZitadelReader:
         method: str,
         path: str,
         body: dict[str, Any] | None = None,
-        *,
-        organization: bool = False,
     ) -> httpx.Response:
         headers = {
             "Host": self._settings.host_header,
             "Authorization": f"Bearer {await self._access_token()}",
+            "Connect-Protocol-Version": "1",
         }
-        if organization:
-            headers["x-zitadel-orgid"] = self._settings.register_organization_id or ""
         try:
             response = await self._client.request(
                 method, self._settings.base_url + path, headers=headers, json=body

@@ -45,7 +45,6 @@ def writer(
     settings = ZitadelSettings(
         key_file=str(key_file),
         register_organization_id="org-r",
-        project_grant_id="pg-1",
         project_id="proj-1",
         base_url="http://z",
     )
@@ -130,13 +129,15 @@ async def test_get_user_reads_email_and_password_state(key_file: Path) -> None:
     )
 
 
-async def test_grants_and_their_mutations_use_the_organization_header(key_file: Path) -> None:
+async def test_grants_and_their_mutations_use_the_v2_authorization_service(
+    key_file: Path,
+) -> None:
     calls: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/_search"):
+        if request.url.path.endswith("/ListAuthorizations"):
             return httpx.Response(
-                200, json={"result": [{"id": "g-1", "roleKeys": ["core.user.get"]}]}
+                200, json={"authorizations": [{"id": "g-1", "roles": [{"key": "core.user.get"}]}]}
             )
         return httpx.Response(200, json={})
 
@@ -147,18 +148,46 @@ async def test_grants_and_their_mutations_use_the_organization_header(key_file: 
     await z.update_grant("u-1", "g-1", ["a"])
     await z.remove_grant("u-1", "g-1")
 
-    assert all(c.headers["x-zitadel-orgid"] == "org-r" for c in calls)
-    assert [(c.method, c.url.path) for c in calls[1:]] == [
-        ("POST", "/management/v1/users/u-1/grants"),
-        ("PUT", "/management/v1/users/u-1/grants/g-1"),
-        ("DELETE", "/management/v1/users/u-1/grants/g-1"),
+    service = "/zitadel.authorization.v2.AuthorizationService"
+    assert [(c.method, c.url.path) for c in calls] == [
+        ("POST", f"{service}/ListAuthorizations"),
+        ("POST", f"{service}/CreateAuthorization"),
+        ("POST", f"{service}/UpdateAuthorization"),
+        ("POST", f"{service}/DeleteAuthorization"),
     ]
-    # A autorização sai pelo Project Grant: o Zitadel recusa roles fora da delegação.
+    assert all(c.headers["Connect-Protocol-Version"] == "1" for c in calls)
+    assert all("x-zitadel-orgid" not in c.headers for c in calls)
+    assert json.loads(calls[0].content)["filters"] == [
+        {"inUserIds": {"ids": ["u-1"]}},
+        {"projectId": {"id": "proj-1"}},
+        {"organizationId": {"id": "org-r"}},
+    ]
+    # A organização vai no corpo; o teto de roles é o Project Grant, aplicado pelo Zitadel.
     assert json.loads(calls[1].content) == {
+        "userId": "u-1",
         "projectId": "proj-1",
-        "projectGrantId": "pg-1",
+        "organizationId": "org-r",
         "roleKeys": ["a", "b"],
     }
+    assert json.loads(calls[2].content) == {"id": "g-1", "roleKeys": ["a"]}
+    assert json.loads(calls[3].content) == {"id": "g-1"}
+
+
+async def test_creating_an_existing_authorization_is_success_and_other_errors_are_not(
+    key_file: Path,
+) -> None:
+    exists = {
+        "code": "already_exists",
+        "details": [{"debug": {"id": "V3-DKcYh"}, "id": "V3-DKcYh"}],
+    }
+    await writer(key_file, lambda r: httpx.Response(409, json=exists)).create_grant("u-1", ["a"])
+    with pytest.raises(ProviderError):
+        await writer(key_file, lambda r: httpx.Response(403, json={})).create_grant("u-1", ["a"])
+
+
+async def test_removing_a_missing_authorization_is_success(key_file: Path) -> None:
+    missing = {"code": "not_found", "message": "x", "details": [{"id": "COMMAND-3M9sd"}]}
+    await writer(key_file, lambda r: httpx.Response(404, json=missing)).remove_grant("u-1", "g-1")
 
 
 async def test_token_is_cached_and_a_missing_key_is_unauthorized(

@@ -31,7 +31,7 @@ src/core_user_executor/
 
 ## Configuração
 
-Variáveis `CORE_USER_EXECUTOR_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_USER_EXECUTOR_NATS_PASSWORD`, `CORE_USER_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID`, `CORE_USER_EXECUTOR_ZITADEL_PROJECT_GRANT_ID` e `CORE_USER_EXECUTOR_ZITADEL_PROJECT_ID`. A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`), só desta conta.
+Variáveis `CORE_USER_EXECUTOR_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_USER_EXECUTOR_NATS_PASSWORD`, `CORE_USER_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID` e `CORE_USER_EXECUTOR_ZITADEL_PROJECT_ID`. A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`), só desta conta.
 
 ## Desenvolvimento
 

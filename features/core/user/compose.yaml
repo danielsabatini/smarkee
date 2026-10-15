@@ -187,7 +187,6 @@ services:
     environment:
       CORE_USER_EXECUTOR_NATS_PASSWORD: ${CORE_USER_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
       CORE_USER_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID: ${CORE_ZITADEL_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
-      CORE_USER_EXECUTOR_ZITADEL_PROJECT_GRANT_ID: ${CORE_ZITADEL_PROJECT_GRANT_ID:?Defina no .env (ID do Project Grant do projeto roles para a register)}
       CORE_USER_EXECUTOR_ZITADEL_PROJECT_ID: ${CORE_ZITADEL_PROJECT_ID:?Defina no .env (ID do projeto roles)}
     volumes:
       - type: volume

@@ -145,15 +145,19 @@ async def test_missing_key_file_or_token_failure_is_a_provider_error(tmp_path: P
 async def test_granted_roles_are_the_union_in_the_project(key_file: Path) -> None:
     calls: list[httpx.Request] = []
     body = {
-        "result": [
-            {"roleKeys": ["core.user.get", "core.user.delete"]},
-            {"roleKeys": ["core.user.get"]},
+        "authorizations": [
+            {"roles": [{"key": "core.user.get"}, {"key": "core.user.delete"}]},
+            {"roles": [{"key": "core.user.get"}]},
         ]
     }
     zitadel = reader(key_file, lambda r: httpx.Response(200, json=body), calls=calls)
 
     assert await zitadel.granted_roles("u-1") == {"core.user.get", "core.user.delete"}
-    request = next(c for c in calls if "grants" in c.url.path)
-    assert request.headers["x-zitadel-orgid"] == "org-1"
-    queries = json.loads(request.content)["queries"]
-    assert {"projectIdQuery": {"projectId": "proj-1"}} in queries
+    request = next(c for c in calls if "ListAuthorizations" in c.url.path)
+    assert request.url.path == "/zitadel.authorization.v2.AuthorizationService/ListAuthorizations"
+    assert request.headers["Connect-Protocol-Version"] == "1"
+    assert "x-zitadel-orgid" not in request.headers
+    filters = json.loads(request.content)["filters"]
+    assert {"inUserIds": {"ids": ["u-1"]}} in filters
+    assert {"projectId": {"id": "proj-1"}} in filters
+    assert {"organizationId": {"id": "org-1"}} in filters

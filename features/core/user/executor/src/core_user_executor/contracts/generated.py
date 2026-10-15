@@ -476,7 +476,7 @@ class UserRequestedDeleteData(ContractModel):
 
 class UserCreateRequest(ContractModel):
     """
-    Corpo de POST /v1/users (auto-cadastro, escrita anônima). O Receiver atribui resourceId, operationId e requestDigest, e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.
+    Corpo de POST /v1/core/users (auto-cadastro, escrita anônima). O Receiver atribui resourceId, operationId e requestDigest, e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.
     """
 
     model_config = ConfigDict(
@@ -710,7 +710,7 @@ class UserObservedView(ContractModel):
 
 class User(ContractModel):
     """
-    Visão consolidada do User exposta pelo Receiver (GET /v1/users/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).
+    Visão consolidada do User exposta pelo Receiver (GET /v1/core/users/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).
     """
 
     model_config = ConfigDict(
