@@ -12,6 +12,7 @@ import json
 import os
 import time
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
@@ -51,7 +52,18 @@ PROJECT_SERVICE = "zitadel.project.v2.ProjectService"
 APPLICATION_SERVICE = "zitadel.application.v2.ApplicationService"
 AUTHORIZATION_SERVICE = "zitadel.authorization.v2.AuthorizationService"
 PERMISSION_SERVICE = "zitadel.internal_permission.v2.InternalPermissionService"
-SERVICE_ACCOUNTS = {"core-user-executor", "core-user-observer", "core-organization-executor"}
+USER_SERVICE = "zitadel.user.v2.UserService"
+# Alerta antes do vencimento, para a rotação manual ter folga (`infrastructure/dev/README.md`).
+KEY_EXPIRATION_WARNING = timedelta(days=90)
+SERVICE_ACCOUNTS = {
+    "core-user-executor",
+    "core-user-observer",
+    "core-organization-executor",
+    "sum-service-executor",
+    "sum-service-observer",
+}
+# Projeto que o Executor do SUM administra (decisão 0033): só o do `ipm`, nenhum outro módulo.
+SUM_EXECUTOR_GRANT_PROJECT = "roles-ipm"
 
 pytestmark = pytest.mark.skipif(
     not KEY_FILE, reason="CONFORMANCE_ZITADEL_KEY_FILE não definida (chave do platform-bootstrap)"
@@ -236,7 +248,9 @@ def test_each_project_grant_to_register_delegates_only_its_action_roles(
 
 def test_service_accounts_live_in_core(zitadel: Zitadel, orgs: dict[str, str]) -> None:
     assert user_names(zitadel, orgs["core"]) >= SERVICE_ACCOUNTS
-    assert not {n for n in user_names(zitadel, orgs["register"]) if n.startswith("core-")}
+    assert not {
+        n for n in user_names(zitadel, orgs["register"]) if n.startswith(("core-", "sum-service-"))
+    }
 
 
 def test_executor_and_observer_have_roles_only_in_register(
@@ -246,9 +260,12 @@ def test_executor_and_observer_have_roles_only_in_register(
     # `ORG_USER_CREATOR` cria e remove usuários, mas não concede roles (decisão 0032).
     assert in_register.get("core-user-executor") == {"ORG_USER_CREATOR"}
     assert in_register.get("core-user-observer") == {"ORG_OWNER_VIEWER"}
+    # O Observer do SUM só lê a register; o Executor do SUM não tem papel nela (só o Grant, abaixo).
+    assert in_register.get("sum-service-observer") == {"ORG_OWNER_VIEWER"}
+    assert "sum-service-executor" not in in_register
     in_core = members(zitadel, orgs["core"])
-    assert not {name for name in in_core if name.startswith("core-user-")}, (
-        "o Executor e o Observer do User não têm papel na organização core (decisão 0027)"
+    assert not {name for name in in_core if name.startswith(("core-user-", "sum-service-"))}, (
+        "o Executor e o Observer do User e do SUM não têm papel na organização core (decisão 0027)"
     )
 
 
@@ -264,6 +281,47 @@ def test_user_executor_grants_roles_only_in_its_modules(
         )
         has_role = owners.get("core-user-executor") == {"PROJECT_GRANT_OWNER"}
         assert has_role == (name in USER_EXECUTOR_GRANT_PROJECTS), name
+
+
+def test_sum_executor_is_project_grant_owner_only_in_the_ipm_grant(
+    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+) -> None:
+    """O Executor do SUM só concede as roles do `ipm` (decisão 0032): é `PROJECT_GRANT_OWNER` só
+    no Grant de `roles-ipm` para a `register`, e em nenhum outro projeto."""
+    for name, project_id in project_ids.items():
+        owners = administrators(
+            zitadel,
+            {"projectGrant": {"projectId": project_id, "organizationId": orgs["register"]}},
+        )
+        has_role = owners.get("sum-service-executor") == {"PROJECT_GRANT_OWNER"}
+        assert has_role == (name == SUM_EXECUTOR_GRANT_PROJECT), name
+
+
+def test_service_account_keys_exist_and_are_not_close_to_expiry(
+    zitadel: Zitadel, orgs: dict[str, str]
+) -> None:
+    """Cada conta de serviço tem chave, e nenhuma vence em menos de `KEY_EXPIRATION_WARNING`.
+
+    A rotação é manual (`infrastructure/dev/README.md`, "Rotação das chaves"): este teste é o aviso.
+    """
+    names = {
+        u["userId"]: u["username"]
+        for u in zitadel.search(
+            "/v2/users", {"queries": [{"organizationIdQuery": {"organizationId": orgs["core"]}}]}
+        )
+    }
+    keys = zitadel.connect(USER_SERVICE, "ListKeys", {}).get("result", [])
+    by_account: dict[str, list[datetime]] = {name: [] for name in SERVICE_ACCOUNTS}
+    for key in keys:
+        name = names.get(key["userId"])
+        if name in by_account:
+            by_account[name].append(
+                datetime.fromisoformat(key["expirationDate"].replace("Z", "+00:00"))
+            )
+    limit = datetime.now(UTC) + KEY_EXPIRATION_WARNING
+    for name, expirations in by_account.items():
+        assert expirations, f"{name} não tem chave"
+        assert max(expirations) > limit, f"chave de {name} vence antes de {limit.date()}"
 
 
 def test_instance_members(zitadel: Zitadel) -> None:

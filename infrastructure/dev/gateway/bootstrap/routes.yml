@@ -76,6 +76,17 @@ services:
           - ~/v1/ipm/organizations(/|$)
         strip_path: false
 
+  # Receiver de sum.service (decisão 0033): a API `/v1/sum/services`.
+  - name: sum-service-receiver
+    url: http://sum-service-receiver.smarkee.internal:8000
+    routes:
+      - name: sum-service-receiver
+        hosts:
+          - api-dev.smarkee.com.br
+        paths:
+          - ~/v1/sum/services(/|$)
+        strip_path: false
+
   - name: core-user-receiver
     url: http://core-user-receiver.smarkee.internal:8000
     routes:

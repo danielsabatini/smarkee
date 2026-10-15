@@ -170,6 +170,7 @@ Estado aplicado no dev em 2026-10-10 (pela API do Zitadel, com a conta de bootst
 - **Aplicação `cli`:** nativa, PKCE, redirect `http://127.0.0.1/callback`, Authorization Code e Refresh Token, **access token JWT**, roles no token. Não há client secret: o `sk` é um cliente público. O client ID é um por ambiente.
 - **Cadastro público desligado** na política de login da instância (`allowRegister = false`), que as organizações herdam.
 - **Service accounts na organização `core`** (verificadas no Zitadel de dev em 2026-10-11): `core-user-executor` (`ORG_USER_CREATOR` na organização `register`: cria e remove usuários, sem conceder roles; e `PROJECT_GRANT_OWNER` só nos Grants de `roles-core` e `roles-sum`: concede as roles desses módulos, nunca as de `ipm`) e `core-user-observer` (`ORG_OWNER_VIEWER` só na `register`, somente leitura); ambos sem papel na `core` (verificado em 2026-10-14) e `core-organization-executor` (papel de instância `IAM_ORG_MANAGER`; será renomeada para `ipm-organization-executor` quando o Executor da Organization for implementado), com as chaves no volume `identity-bootstrap`; cada componente monta só a própria.
+- **Service accounts do SUM na organização `core`** (criadas em 2026-10-15): `sum-service-executor` (`PROJECT_GRANT_OWNER` só no Grant de `roles-ipm` para a `register`) e `sum-service-observer` (`ORG_OWNER_VIEWER` só na `register`, somente leitura); sem papel na `core`, com as chaves no volume `identity-bootstrap` (dono 10001, modo 0400), cada componente montando só a própria. As chaves vencem em 2027-10-15: a rotação é a seção "Rotação das chaves das contas de serviço", e a suíte de conformidade avisa 90 dias antes.
 - **Nomes:** o projeto das roles do `core` se chama `roles-core` (decisão 0032; era `roles`, o ID não mudou) e a organização `register` guarda os usuários (decisões 0026 e 0027).
 - **Autorizações dos projetos de roles na `core`:** só de operadores (decisão 0031): a role `*.admin` do tipo (escopo: qualquer instância) mais as roles de ação que ele exerce. O operador padrão tem todas. Usuários cadastrados são autorizados no contexto da `register`.
 - **Project Grants → `register`:** um por projeto, com só as roles de ação (sem `*.admin`): `roles-core` (2 roles), `roles-ipm` (5) e `roles-sum` (3). O Zitadel aplica o Grant como teto (API v2, decisão 0029).
@@ -216,6 +217,18 @@ uv run sk auth login
 - A chave é segredo: nunca a versione nem a copie para fora do volume. O padrão `service-account*.json` está no `.gitignore` como proteção adicional.
 - O mecanismo definitivo que usa essa conta para aplicar a configuração do Zitadel em stg e prd (projeto, roles, aplicação e contas dos Executors) ainda será decidido. Em dev, foi aplicada pela API do Zitadel (seção anterior).
 - A criação automática pela primeira instância ainda não foi verificada (exige recriar a instância). A criação manual segue os nomes do console da versão em uso, que podem diferir um pouco.
+
+## Rotação das chaves das contas de serviço
+
+Cada conta de serviço tem uma chave JSON no volume `identity-bootstrap`, com validade. A rotação é manual e segue esta ordem, para o componente nunca ficar sem chave válida:
+
+1. Gere um par RSA local (`openssl genrsa -out <arquivo>.pem 2048`) e envie a parte pública em PKIX PEM, codificada em base64, à API v2 (`POST /v2/users/<userId>/keys`, com `publicKey` e `expirationDate`). A resposta traz o `keyId`.
+2. Grave no volume o JSON com `type`, `keyId`, `key` (a parte privada em PEM) e `userId`, substituindo o arquivo da conta. Dono `10001` e modo `0400`, como as chaves atuais. Passe o conteúdo pelo `stdin` de um contêiner `alpine` que escreve no volume, e apague o `.pem` local.
+3. Reinicie só o componente da conta (`docker compose restart`) e confira `/health/ready` e uma ação de teste.
+4. Remova a chave antiga pela API v2 (`POST /zitadel.user.v2.UserService/RemoveKey`, com `userId` e `keyId`).
+5. Rode a suíte de conformidade (`infrastructure/dev/identity/conformance`).
+
+Faça a rotação antes do aviso da suíte (90 dias antes do vencimento). A validade atual de cada conta está em `ListKeys` (`zitadel.user.v2.UserService`).
 
 ## Bootstrap
 
