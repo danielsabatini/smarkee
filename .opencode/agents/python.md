@@ -51,7 +51,7 @@ O código deve utilizar as capacidades modernas do Python 3.14 quando elas melho
 
 Não introduza compatibilidade com versões anteriores do Python sem requisito explícito.
 
-Evite APIs e padrões legados quando existir uma alternativa moderna adequada.
+Quanto a APIs e padrões legados da linguagem e das bibliotecas, siga `AGENTS.md`, seção 24.2.
 
 A modernidade da linguagem não deve ser utilizada como justificativa para aumentar a complexidade.
 

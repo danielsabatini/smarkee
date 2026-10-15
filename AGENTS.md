@@ -729,6 +729,16 @@ Além disso, como o diretório `docs/` é a fonte oficial da verdade dos seus re
 
 Na elaboração de documentações, na codificação e nas ações dos agentes e skills, priorize utilizar as ferramentas e os softwares em suas versões mais novas e estáveis disponíveis. Isso garante melhor segurança, performance e acesso aos recursos atualizados do ecossistema, minimizando débito técnico.
 
+### APIs de terceiros
+
+Sempre utilize a **versão mais nova e estável da API** de um serviço, produto ou biblioteca, em código novo e em código que esteja sendo alterado. Não adote uma API marcada como legada, obsoleta ou em manutenção quando existir uma versão mais nova que atenda ao requisito.
+
+* Confirme a versão vigente na documentação oficial antes de escolher a API.
+* Uma versão mais antiga só é aceitável quando a mais nova **não oferece** a capacidade necessária. Nesse caso, limite o uso ao que não tem equivalente, e registre a exceção e o motivo em `.decisions/`.
+* Uma API em estágio beta ou experimental não conta como "mais nova e estável": prefira a estável mais recente, e só use a beta com decisão registrada.
+* Ao tocar em código que usa uma API legada, migre-a quando isso couber no escopo da tarefa (§7); quando não couber, deixe a pendência explícita.
+* A migração de uma API em uso respeita a compatibilidade (§31) e é verificada contra o serviço real (§19).
+
 ---
 
 # 25. Decisões Técnicas
