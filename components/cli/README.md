@@ -124,7 +124,7 @@ uv run sk sum service disable --resource-id ID
 uv run sk sum service list
 ```
 
-Todos aceitam `--api-url` e `--allow-insecure-http` (parâmetro → `SK_CORE_*` → `[core]` → padrão), como o `sk register`. `resourceId` e `operationId` precisam ser UUIDs: outro valor é recusado antes de qualquer chamada, porque entra no caminho da URL.
+Todos aceitam `--api-url` e `--allow-insecure-http` (parâmetro → `SK_CORE_*` → `[core]` → padrão), como o `sk register`. `resourceId` e `operationId` precisam seguir o padrão do contrato (letras minúsculas, números e hífen, até 128 caracteres): outro valor é recusado antes de qualquer chamada, porque entra no caminho da URL.
 
 | Comando | Requisição | Resultado |
 |---|---|---|
@@ -135,7 +135,7 @@ Todos aceitam `--api-url` e `--allow-insecure-http` (parâmetro → `SK_CORE_*` 
 
 Ligar e desligar são assíncronos: o comando confirma o aceite, e `get` mostra quando a fase chega a `Ready`. Usa a API de `[core] apiUrl` e o token da sessão. Precisa de um solicitante com as roles `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`.
 
-Códigos de saída: `0` sucesso; `1` sessão ausente, API recusou ou indisponível; `2` opção obrigatória ausente, identificador que não é UUID, endereço sem HTTPS ou configuração inválida.
+Códigos de saída: `0` sucesso; `1` sessão ausente, API recusou ou indisponível; `2` opção obrigatória ausente, identificador fora do contrato, endereço sem HTTPS ou configuração inválida.
 
 ## Cadastro (`sk register`)
 
@@ -179,4 +179,4 @@ A ajuda (`--help`) segue um padrão único, montado por `src/sk/help.py` e verif
 - `[env … | arquivo … | padrão …]`: de onde o valor pode vir, na ordem de resolução (parâmetro, variável de ambiente, arquivo de configuração, padrão). Só aparecem as fontes que existem.
 - `[obrigatório]` (vermelho) ou `[opcional]`: sem padrão, a opção é obrigatória.
 
-Os textos descrevem o que o comando faz, sem detalhes de implementação. Novos comandos usam `comando()` e `opcao()`.
+Os textos descrevem o que o comando faz, sem detalhes de implementação. Novos comandos usam `command()` e `option()`.
