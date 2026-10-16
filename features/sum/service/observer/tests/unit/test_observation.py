@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
+from sum_service_observer.domain.authorization import Authorization, ProviderError
 from sum_service_observer.domain.observation import observe
-from sum_service_observer.provider.zitadel import Authorization, ProviderError
 
 CATALOG = {"ipm": ("ipm.organization.get", "ipm.organization.list")}
 

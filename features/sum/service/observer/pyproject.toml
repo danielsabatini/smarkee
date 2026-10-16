@@ -6,8 +6,6 @@ requires-python = ">=3.14"
 dependencies = [
     "httpx>=0.28.1",
     "nats-py>=2.16.0",
-    "psycopg-pool>=3.3.3",
-    "psycopg[binary]>=3.3.6",
     "pydantic>=2.14.0",
     "pydantic-settings>=2.15.0",
     "pyjwt[crypto]>=2.15.1",
@@ -45,12 +43,43 @@ include = ["src", "tests"]
 testpaths = ["tests"]
 addopts = ["--import-mode=importlib"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["sum_service_observer"]
+branch = true
 
 [dependency-groups]
 dev = [
+    "datamodel-code-generator>=0.83.0",
     "jsonschema>=4.26.0",
     "pyright>=1.1.414",
-    "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "pytest>=9.1.1",
     "ruff>=0.17.0",
 ]
+
+# Modelos Pydantic gerados a partir de schemas/ (decisão 0012). Regerar com `uv run datamodel-codegen`;
+# o teste de contrato falha se o resultado diferir do versionado.
+[tool.datamodel-codegen]
+input = "../../../../schemas/sum.service.index.json"
+input-file-type = "jsonschema"
+# Referências só locais: bloqueia a busca de $ref por HTTP (SCHEMA.md, Referências entre Schemas).
+allow-remote-refs = false
+output = "src/sum_service_observer/contracts/generated.py"
+output-model-type = "pydantic_v2.BaseModel"
+target-python-version = "3.14"
+use-annotated = true
+snake-case-field = true
+base-class = "sum_service_observer.contracts.base.ContractModel"
+collapse-root-models = true
+use-title-as-name = true
+field-constraints = true
+use-standard-collections = true
+use-union-operator = true
+use-schema-description = true
+use-field-description = true
+disable-timestamp = true
+formatters = ["ruff-format"]
+custom-file-header = "# Gerado por datamodel-codegen a partir de schemas/ (decisão 0012). Não editar: altere o schema e regere."

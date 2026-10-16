@@ -2,8 +2,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from sum_service_observer.engine.observer import Observer
-from sum_service_observer.provider.zitadel import Authorization, ProviderError
+from sum_service_observer.domain.authorization import Authorization, ProviderError
+from sum_service_observer.engine.observer import Observer, owns
 
 OWNER = "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e"
 RID = "0199c8b0-2d4e-7f10-8a3b-6c7d8e9f0a1b"
@@ -139,3 +139,57 @@ async def test_an_absent_user_is_published_as_absent() -> None:
     recorder = Recorder()
     await observer(FakeReader(exists=False), recorder).on_message(desired(1))
     assert recorder.sent[0][1]["presence"] == "absent"
+
+
+# ---------------------------------------------------------------------- partição e entrada inválida
+
+
+def partitioned(reader: FakeReader, recorder: Recorder, index: int, count: int) -> Observer:
+    return Observer(
+        reader,
+        recorder,
+        CATALOG,
+        partition_index=index,
+        partition_count=count,
+        identifiers=lambda: "id-1",
+    )
+
+
+def test_owns_is_deterministic_and_each_resource_has_exactly_one_owner() -> None:
+    count = 3
+    owners = [index for index in range(count) if owns(RID, index, count)]
+    assert len(owners) == 1
+    assert owns(RID, owners[0], count) is True  # repetir dá o mesmo resultado
+
+
+async def test_an_instance_ignores_a_resource_of_another_partition() -> None:
+    mine = next(index for index in range(2) if owns(RID, index, 2))
+    other = 1 - mine
+    recorder = Recorder()
+    await partitioned(FakeReader(), recorder, other, 2).on_message(desired(1))
+    assert recorder.sent == []
+    await partitioned(FakeReader(), recorder, mine, 2).on_message(desired(1))
+    assert len(recorder.sent) == 1
+
+
+async def test_the_periodic_round_skips_resources_of_another_partition() -> None:
+    mine = next(index for index in range(2) if owns(RID, index, 2))
+    recorder = Recorder()
+    watcher = partitioned(FakeReader(), recorder, mine, 2)
+    await watcher.on_message(desired(1))
+    recorder.sent.clear()
+    watcher._partition = (1 - mine, 2)  # pyright: ignore[reportPrivateUsage]
+    await watcher.observe_all()
+    assert recorder.sent == []
+
+
+async def test_a_desired_without_a_valid_lifecycle_is_not_observed() -> None:
+    recorder = Recorder()
+    watcher = observer(FakeReader(), recorder)
+    for lifecycle in (None, "", "unknown"):
+        data: dict[str, Any] = {"ownerUserId": OWNER, "service": "ipm", "serviceRoles": []}
+        if lifecycle is not None:
+            data["lifecycle"] = lifecycle
+        await watcher.on_message(envelope("desired", "m", desiredGeneration=1, data=data))
+    assert recorder.sent == []
+    assert watcher.watch_of(RID) is None

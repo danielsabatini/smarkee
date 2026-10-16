@@ -9,13 +9,13 @@ do usuário exato é ausência.
 import json
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
 import httpx
 import jwt
 
+from sum_service_observer.domain.authorization import Authorization, ProviderError
 from sum_service_observer.settings import ZitadelSettings
 
 SCOPE = "openid urn:zitadel:iam:org:project:id:zitadel:aud"
@@ -24,16 +24,6 @@ TOKEN_SAFETY_SECONDS = 60
 NOT_FOUND_CODE = 5
 HTTP_NOT_FOUND = 404
 HTTP_BAD_REQUEST = 400
-
-
-class ProviderError(Exception):
-    """Leitura do Zitadel falhou. O chamador trata como observação `unknown`."""
-
-
-@dataclass(frozen=True, slots=True)
-class Authorization:
-    project_id: str
-    roles: frozenset[str]
 
 
 class ZitadelReader:

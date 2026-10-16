@@ -712,6 +712,17 @@ class ServiceResource(ContractModel):
     """
 
 
+class ServiceListResponse(ContractModel):
+    """
+    Corpo de GET /v1/sum/services: as ligações do solicitante cujo serviço ele pode ler (role sum.<serviço>.get), até o limite pedido.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    items: Annotated[list[ServiceResource], Field(max_length=200)]
+
+
 class SumServiceContracts(
     RootModel[
         MessageEnvelope
@@ -726,6 +737,7 @@ class SumServiceContracts(
         | ServiceDesiredData
         | ServiceObservedData
         | ServiceCreateRequest
+        | ServiceListResponse
         | ServiceResource
         | ServiceRequestedCreateData
         | ServiceRequestedDeleteData
@@ -744,6 +756,7 @@ class SumServiceContracts(
         | ServiceDesiredData
         | ServiceObservedData
         | ServiceCreateRequest
+        | ServiceListResponse
         | ServiceResource
         | ServiceRequestedCreateData
         | ServiceRequestedDeleteData,

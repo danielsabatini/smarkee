@@ -9,6 +9,7 @@ O Observer não altera o sistema externo (`docs/RESOURCE-CONTROL-LOOP.md`). Obse
 Para de observar uma ligação desligada cuja remoção convergiu (sem roles do serviço).
 """
 
+import hashlib
 import json
 import logging
 from collections.abc import Callable, Mapping
@@ -35,6 +36,12 @@ class Publisher(Protocol):
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None: ...
 
 
+def owns(resource_id: str, index: int, count: int) -> bool:
+    """Partição determinística por `resourceId`: uma instância observa cada recurso."""
+    digest = hashlib.sha256(resource_id.encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") % count == index
+
+
 @dataclass(slots=True)
 class Watch:
     owner_user_id: str
@@ -58,9 +65,12 @@ class Observer:
         publisher: Publisher,
         catalog: Mapping[str, tuple[str, ...]],
         *,
+        partition_index: int = 0,
+        partition_count: int = 1,
         clock: Callable[[], datetime] = utc_now,
         identifiers: Callable[[], str] = new_identifier,
     ) -> None:
+        self._partition = (partition_index, partition_count)
         self._reader = reader
         self._publisher = publisher
         self._catalog = catalog
@@ -71,7 +81,7 @@ class Observer:
     async def on_message(self, data: bytes) -> str | None:
         """Trata um `desired` ou um resultado. Devolve o `resourceId` tratado, ou `None`."""
         envelope = self._parse(data)
-        if envelope is None:
+        if envelope is None or not self._owned(envelope.resource_id):
             return None
         match envelope.message_type.value:
             case "desired":
@@ -81,6 +91,12 @@ class Observer:
             case _:
                 return None
         return envelope.resource_id
+
+    def watch_of(self, resource_id: str) -> Watch | None:
+        return self._watches.get(resource_id)
+
+    def _owned(self, resource_id: str) -> bool:
+        return owns(resource_id, *self._partition)
 
     @staticmethod
     def _parse(data: bytes) -> generated.MessageEnvelope | None:
@@ -103,8 +119,9 @@ class Observer:
         data: Mapping[str, Any] = envelope.data
         owner = str(data.get("ownerUserId", ""))
         service = str(data.get("service", ""))
-        if not owner or not service:
-            return
+        lifecycle = data.get("lifecycle")
+        if not owner or not service or lifecycle not in ("present", "absent"):
+            return  # sem dono, serviço e `lifecycle` válidos não há o que observar
         watch = self._watches.get(envelope.resource_id)
         if watch is not None and generation < watch.generation:
             return  # geração mais antiga
@@ -113,7 +130,7 @@ class Observer:
             watch = Watch(owner_user_id=owner, service=service)
             self._watches[envelope.resource_id] = watch
         watch.generation = generation
-        watch.lifecycle = str(data.get("lifecycle", "present"))
+        watch.lifecycle = lifecycle
         watch.correlation_id = envelope.correlation_id
         if watch.lifecycle == "present":
             watch.tombstone = False
@@ -134,7 +151,7 @@ class Observer:
     async def observe_all(self) -> None:
         """Rodada periódica: todas as ligações que ainda são observadas."""
         for resource_id, watch in list(self._watches.items()):
-            if not watch.tombstone:
+            if not watch.tombstone and self._owned(resource_id):
                 await self.observe_resource(resource_id, causation_id=None)
 
     async def _publish(

@@ -2,11 +2,12 @@
 
 Lê o Zitadel só de leitura e publica `observed`. Consome o `desired` (para saber o que observar)
 e os resultados (para observar depois de cada ação), e observa periodicamente. Só inicializa e
-encerra.
+encerra: cria os consumers de estado da instância, que reconstroem o que observar.
 """
 
 import asyncio
 import logging
+import random
 import signal
 import sys
 
@@ -17,24 +18,36 @@ from sum_service_observer.engine.observer import Observer
 from sum_service_observer.http.health import Health, serve_health
 from sum_service_observer.logging_config import configure_logging
 from sum_service_observer.provider.zitadel import ZitadelReader
-from sum_service_observer.settings import SumServiceObserverSettings, missing_required
-from sum_service_observer.transport.consumers import PullConsumer
-from sum_service_observer.transport.nats import JetStreamPublisher, connect, jetstream_of
+from sum_service_observer.settings import (
+    LoopSettings,
+    SumServiceObserverSettings,
+    missing_required,
+)
+from sum_service_observer.transport.nats import (
+    STREAMS,
+    JetStreamPublisher,
+    StateConsumer,
+    connect,
+    jetstream_of,
+    new_instance_name,
+)
 
 EXIT_INVALID_CONFIGURATION = 2
-CONSUMERS = (
-    ("DESIRED", "sum-service-observer-desired"),
-    ("RESULT", "sum-service-observer-completed"),
-    ("RESULT", "sum-service-observer-failed"),
-)
 
 logger = logging.getLogger(__name__)
 
 
-async def _observe_periodically(observer: Observer, interval: int, stop: asyncio.Event) -> None:
+async def _observe_periodically(
+    observer: Observer, settings: LoopSettings, stop: asyncio.Event, health: Health
+) -> None:
+    """Observa todos os recursos de tempos em tempos, com jitter."""
     while not stop.is_set():
+        health.beat()
+        jitter = 1 + random.uniform(-settings.observation_jitter, settings.observation_jitter)  # noqa: S311 (jitter, não criptografia)
         try:
-            await asyncio.wait_for(stop.wait(), timeout=interval)
+            await asyncio.wait_for(
+                stop.wait(), timeout=settings.observation_interval_seconds * jitter
+            )
         except TimeoutError:
             await observer.observe_all()
 
@@ -51,31 +64,64 @@ async def run(settings: SumServiceObserverSettings) -> int:
     health.add_check("nats", lambda: nats_client.is_connected)
     async with httpx.AsyncClient(timeout=settings.zitadel.timeout_seconds) as client:
         reader = ZitadelReader(settings.zitadel, client)
-        observer = Observer(reader, JetStreamPublisher(jetstream), catalog)
+        observer = Observer(
+            reader,
+            JetStreamPublisher(jetstream),
+            catalog,
+            partition_index=settings.partition.index,
+            partition_count=settings.partition.count,
+        )
 
         async def handle(data: bytes) -> object:
             return await observer.on_message(data)
 
-        tasks = [
-            asyncio.create_task(
-                PullConsumer(
-                    jetstream, stream=stream, durable=durable, handle=handle, on_cycle=health.beat
+        instance = new_instance_name()
+        tasks = {
+            suffix: asyncio.create_task(
+                StateConsumer(
+                    jetstream,
+                    handle,
+                    stream=stream,
+                    filter_subject=subject,
+                    name_suffix=suffix,
+                    instance=instance,
+                    inactive_threshold_seconds=settings.nats.consumer_inactive_threshold_seconds,
+                    on_cycle=health.beat,
                 ).run(stop)
             )
-            for stream, durable in CONSUMERS
-        ]
-        tasks.append(
-            asyncio.create_task(
-                _observe_periodically(observer, settings.loop.observation_interval_seconds, stop)
-            )
+            for stream, subject, suffix in STREAMS
+        }
+        tasks["periodic"] = asyncio.create_task(
+            _observe_periodically(observer, settings.loop, stop, health)
         )
-        tasks.append(asyncio.create_task(serve_health(health, settings.health.port, stop)))
+        tasks["health"] = asyncio.create_task(serve_health(health, settings.health.port, stop))
         health.mark_started()
-        logger.info("sum service observer started")
-        await stop.wait()
-        await asyncio.gather(*tasks, return_exceptions=True)
+        logger.info(
+            "sum service observer started",
+            extra={
+                "instance": instance,
+                "partition": f"{settings.partition.index}/{settings.partition.count}",
+            },
+        )
+        waiter = asyncio.create_task(stop.wait())
+        done, _ = await asyncio.wait({waiter, *tasks.values()}, return_when=asyncio.FIRST_COMPLETED)
+        exit_code = 0
+        for name, task in tasks.items():
+            # Só é falha uma tarefa que terminou sem que a parada tenha sido pedida.
+            if task in done and not stop.is_set():
+                exit_code = 1
+                logger.error("task stopped unexpectedly", extra={"task": name})
+        stop.set()
+        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        for name, result in zip(tasks, results, strict=True):
+            if isinstance(result, BaseException):
+                logger.error(
+                    "task failed", extra={"task": name, "error_type": type(result).__name__}
+                )
+                exit_code = 1
+        waiter.cancel()
     await nats_client.close()
-    return 0
+    return exit_code
 
 
 def main() -> None:

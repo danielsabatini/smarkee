@@ -4,7 +4,7 @@ Nome da variável: `SUM_SERVICE_OBSERVER_<SEÇÃO>_<CAMPO>`. Sem default: identi
 Zitadel.
 """
 
-from pydantic import BaseModel, ConfigDict, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,6 +30,8 @@ class NatsSettings(_Section):
     url: str = "nats://broker.smarkee.internal:4222"
     user: str = "smarkee"
     password: SecretStr | None = None
+    consumer_inactive_threshold_seconds: int = 300
+    """Tempo sem uso após o qual o servidor remove o consumer da instância (`docs/NATS.md` §7.4)."""
 
 
 class CatalogSettings(_Section):
@@ -41,9 +43,24 @@ class HealthSettings(_Section):
     port: int = 8000
 
 
+class PartitionSettings(_Section):
+    index: int = Field(default=0, ge=0)
+    count: int = Field(default=1, ge=1)
+    """Partição por `resourceId`: a instância observa só `hash mod count == index`."""
+
+    @model_validator(mode="after")
+    def _index_is_inside_the_count(self) -> PartitionSettings:
+        if self.index >= self.count:
+            raise ValueError("a partição (index) deve ser menor que a quantidade (count)")
+        return self
+
+
 class LoopSettings(_Section):
     observation_interval_seconds: int = 300
     """Intervalo da observação periódica (`observationInterval` do `desired`)."""
+
+    observation_jitter: float = 0.2
+    """Fração de variação do intervalo, para as instâncias não observarem todas ao mesmo tempo."""
 
 
 class SumServiceObserverSettings(BaseSettings):
@@ -59,6 +76,7 @@ class SumServiceObserverSettings(BaseSettings):
     catalog: CatalogSettings = CatalogSettings()
     health: HealthSettings = HealthSettings()
     loop: LoopSettings = LoopSettings()
+    partition: PartitionSettings = PartitionSettings()
 
 
 REQUIRED_SECRETS = (

@@ -1,4 +1,4 @@
-"""Regras das ligações de serviço do SUM, aplicadas pelo Manager (decisão 0033).
+"""Catálogo de serviços do SUM (serviço → roles), lido da configuração (decisão 0033).
 
 Puro: sem banco, rede ou relógio. O catálogo (serviço → roles) vem da configuração e é validado
 aqui com os mesmos padrões dos contratos (`schemas/sum/service/definitions.v1.schema.json`).
@@ -21,7 +21,7 @@ Catalog = dict[str, tuple[str, ...]]
 
 
 class CatalogError(Exception):
-    """Catálogo de serviços inválido: a configuração do Manager está errada."""
+    """Catálogo de serviços inválido: a configuração deste componente está errada."""
 
 
 class ServiceNotAvailableError(Exception):
