@@ -4,7 +4,7 @@ Documento de fluxo de dados da feature, no padrão da [decisão 0024](../../../.
 
 **Origem dos exemplos.** Os exemplos foram montados a partir do código e dos schemas, **não** de uma execução. Os valores (UUIDs, e-mail, horários) são fictícios, e o `requestDigest` do exemplo foi calculado com o algoritmo do Receiver. Fontes de verdade: contratos em [`schemas/`](../../../../schemas), tabelas em [`manager/migrations/0001-user.sql`](../manager/migrations/0001-user.sql), semântica em [`docs/MESSAGING.md`](../../../../docs/MESSAGING.md), [`docs/NATS.md`](../../../../docs/NATS.md), [`docs/SSOT.md`](../../../../docs/SSOT.md) e [`docs/POSTGRESQL.md`](../../../../docs/POSTGRESQL.md). Este arquivo não as substitui: mostra um caso concreto.
 
-**Comando.** `sk register` (`components/cli/src/sk/commands/register.py`) é o cliente deste fluxo. O passo 1 mostra o que ele envia e como trata a resposta.
+**Comando.** `sk register` (`clients/cli/src/sk/commands/register.py`) é o cliente deste fluxo. O passo 1 mostra o que ele envia e como trata a resposta.
 
 ## 0. Visão geral
 
@@ -179,7 +179,10 @@ Código: `manager/src/core_user_manager/handlers/requested.py` e `store/ssot.py`
   "platformAccess": "granted",
   "platformRoles": [
     "core.user.delete",
-    "core.user.get"
+    "core.user.get",
+    "sum.ipm.disable",
+    "sum.ipm.enable",
+    "sum.ipm.get"
   ],
   "givenName": "Ana",
   "familyName": "Souza",
@@ -222,7 +225,7 @@ INSERT INTO core."user"
    desired, desired_generation, resource_version, phase)
 VALUES
   ('0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e', '1.0', 'present', 'active',
-   '{"lifecycle":"present","platformAccess":"granted","platformRoles":["core.user.delete","core.user.get"],"givenName":"Ana","familyName":"Souza","email":"ana.souza@example.com"}'::jsonb,
+   '{"lifecycle":"present","platformAccess":"granted","platformRoles":["core.user.delete","core.user.get","sum.ipm.disable","sum.ipm.enable","sum.ipm.get"],"givenName":"Ana","familyName":"Souza","email":"ana.souza@example.com"}'::jsonb,
    1, 1, 'Pending');
 ```
 
@@ -327,7 +330,10 @@ Tabela `core.user_outbox` (DDL na migração). A linha é gravada na **mesma tra
     "platformAccess": "granted",
     "platformRoles": [
       "core.user.delete",
-      "core.user.get"
+      "core.user.get",
+      "sum.ipm.disable",
+      "sum.ipm.enable",
+      "sum.ipm.get"
     ],
     "givenName": "Ana",
     "familyName": "Souza",
@@ -572,7 +578,10 @@ Depois do `completed` o Observer observa o usuário de novo (`causationId` = `me
     "platformAccess": "granted",
     "platformRoles": [
       "core.user.delete",
-      "core.user.get"
+      "core.user.get",
+      "sum.ipm.disable",
+      "sum.ipm.enable",
+      "sum.ipm.get"
     ]
   }
 }
@@ -589,7 +598,7 @@ O Manager aplica pela mesma sequência da seção 6.1. **Convergência** do User
 
 | Onde | Valor final |
 |---|---|
-| `core."user".observed` | `{"emailVerified": false, "userState": "initial", "platformAccess": "granted", "platformRoles": ["core.user.delete", "core.user.get"]}` |
+| `core."user".observed` | `{"emailVerified": false, "userState": "initial", "platformAccess": "granted", "platformRoles": ["core.user.delete", "core.user.get", "sum.ipm.disable", "sum.ipm.enable", "sum.ipm.get"]}` |
 | `core."user".presence` / `observed_at` | `present` / `2026-10-09T14:00:05+00:00` |
 | `core."user".phase` | `Ready` |
 | `core."user".conditions` | `[{"type":"Ready","status":"True","reason":"Reconciled","observedGeneration":1,"lastTransitionAt":"2026-10-09T14:00:05+00:00"}]` |

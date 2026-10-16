@@ -38,11 +38,15 @@ def _parse_resource_version(value: str) -> int:
 DEFAULT_PLATFORM_ROLES: tuple[str, ...] = (
     "core.user.delete",
     "core.user.get",
+    "sum.ipm.disable",
+    "sum.ipm.enable",
+    "sum.ipm.get",
 )
-"""Roles de ação do usuário cadastrado, só do módulo `core` (decisões 0025 e 0032).
+"""Roles de ação do usuário cadastrado (decisões 0025, 0032 e 0033).
 
-As roles de outros módulos (por exemplo, `ipm.organization.*`) não vêm no cadastro: chegam quando o
-usuário liga o serviço correspondente (SUM), concedidas por quem tem o Project Grant daquele módulo.
+São as do módulo `core` e as roles base do SUM, que só permitem **pedir** a ligação de um serviço.
+As roles dos serviços (por exemplo, `ipm.organization.*`) não vêm no cadastro: chegam quando o
+usuário liga o serviço (SUM), concedidas por quem tem o Project Grant daquele módulo.
 """
 
 

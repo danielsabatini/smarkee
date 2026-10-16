@@ -15,7 +15,7 @@ Decisões que definem este módulo: `.decisions/0014-user-no-modulo-core-com-aut
 | Observer | `observer/` (`core-user-observer`) | Implementado |
 | Executor | `executor/` (`core-user-executor`) | Implementado |
 | Testes e2e | `tests/e2e/` | Implementados: 8 testes de conformidade e 3 de resiliência (`E2E_CHAOS=1`); **não são um componente** |
-| CLI | `components/cli` | Parcial: `sk register` implementado (cadastro anônimo; veja `components/cli/README.md`); **a implementar:** `sk user get\|delete` |
+| CLI | `clients/cli` | Parcial: `sk register` implementado (cadastro anônimo; veja `clients/cli/README.md`); **a implementar:** `sk user get\|delete` |
 
 **Estrutura interna.** Os seis papéis seguem a decisão 0017 (camadas `domain/` puro, orquestração, adaptadores e `main.py`, com um teste por projeto que falha se o `domain/` importar um adaptador) e a decisão 0018 (`/health/live`, `/health/ready` e `/health/startup` em cada componente; no Publisher, a readiness também cai diante de recusa permanente do transporte; o Stream `ACTION` é particionado por `resourceId`). Verificado em 2026-10-11: testes de cada projeto, `ruff`, `pyright` e os testes e2e contra o Zitadel e o Mailpit reais.
 
@@ -288,7 +288,6 @@ Os e-mails do Zitadel de dev são capturados pelo Mailpit (http://localhost:8025
 - **Migrações:** sem controle de versão (obrigatório antes de stg e prd).
 - **Observer:** em dev, uma só partição (`0/1`, aplicada na aplicação por `hash(resourceId) mod count`); com mais réplicas, defina `CORE_USER_OBSERVER_PARTITION_INDEX` e `CORE_USER_OBSERVER_PARTITION_COUNT` por réplica (por exemplo, `StatefulSet` no Kubernetes).
 - **Identidades no NATS em dev:** os componentes se conectam com um único usuário (`smarkee`) e a senha da plataforma; o nome de conexão é o `core-user-<papel>`. As identidades e permissões por papel (`docs/NATS.md` §18 e §26) são o alvo para stg e prd.
-- **Esqueleto vazio:** `components/cli/src/sk/commands/ipm.py` não tem implementação.
 
 # 11. Banco de dados (SSOT do User)
 
