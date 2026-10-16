@@ -14,6 +14,7 @@ from pydantic import BaseModel, ValidationError
 from pydantic.alias_generators import to_camel
 
 from sk import ui
+from sk.defaults import PRD_API_URL
 from sk.files import write_private_file
 from sk.settings import (
     ApiSettings,
@@ -152,7 +153,7 @@ def _parse_value(key: ConfigKey, raw: str) -> str | bool:
         ui.error(
             "Invalid address",
             f"{key.dotted} must start with http:// or https://.",
-            hint="Provide the full address, for example https://api.smarkee.com.br.",
+            hint=f"Provide the full address, for example {PRD_API_URL}.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return raw

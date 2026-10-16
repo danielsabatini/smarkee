@@ -4,6 +4,7 @@ import pytest
 from typer.testing import CliRunner
 
 from sk.commands.config import known_keys
+from sk.defaults import PRD_API_URL, PRD_ISSUER
 from sk.main import app
 
 runner = CliRunner()
@@ -50,8 +51,8 @@ def test_keys_come_from_the_models() -> None:
 def test_list_without_a_file_shows_the_platform_defaults(tmp_path: Path) -> None:
     result = runner.invoke(app, ["config", "list"])
     assert result.exit_code == 0, result.stderr
-    assert "https://ipm.smarkee.com.br" in result.stdout
-    assert "https://api.smarkee.com.br" in result.stdout
+    assert PRD_ISSUER in result.stdout
+    assert PRD_API_URL in result.stdout
     assert "every value is the platform default" in result.stdout
     assert result.stdout.count("default") >= 8  # a coluna `source` de cada chave
     assert not config_file(tmp_path).exists()  # listar não cria arquivo
@@ -74,7 +75,7 @@ def test_list_shows_the_effective_value_and_where_it_comes_from(
 def test_get_prints_only_the_effective_value(tmp_path: Path) -> None:
     default = runner.invoke(app, ["config", "get", "auth.issuer"])
     assert default.exit_code == 0
-    assert default.stdout == "https://ipm.smarkee.com.br\n"
+    assert default.stdout == f"{PRD_ISSUER}\n"
     write_overrides(tmp_path)
     overridden = runner.invoke(app, ["config", "get", "auth.issuer"])
     assert overridden.stdout == "https://issuer.example\n"

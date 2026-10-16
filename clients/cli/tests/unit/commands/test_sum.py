@@ -12,6 +12,7 @@ from typing import Any, cast
 import pytest
 from typer.testing import CliRunner
 
+from sk.defaults import PRD_API_URL
 from sk.identity.credentials import StoredCredentials, default_credentials_path, save_credentials
 from sk.main import app
 
@@ -243,7 +244,7 @@ def test_without_any_configuration_the_command_uses_the_production_api(
 ) -> None:
     (tmp_path / "sk" / "config.toml").write_text("", encoding="utf-8")
     runner.invoke(app, ["sum", "service", "list"])  # a rota de teste não existe: só o alvo importa
-    assert api.requests[0].full_url.startswith("https://api.smarkee.com.br/v1/sum/services")
+    assert api.requests[0].full_url.startswith(f"{PRD_API_URL}/v1/sum/services")
 
 
 @pytest.mark.parametrize(

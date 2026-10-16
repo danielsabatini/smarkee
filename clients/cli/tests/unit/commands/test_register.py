@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
+from sk.defaults import PRD_API_URL
 from sk.features.core.user import RegistrationAccepted
 from sk.http import ApiRejectedError, ApiUnavailableError
 from sk.main import app
@@ -57,7 +58,7 @@ def test_without_any_configuration_the_production_api_is_used(
     )
     result = runner.invoke(app, REGISTER)
     assert result.exit_code == 0, result.stderr
-    assert calls[0]["url"] == "https://api.smarkee.com.br"
+    assert calls[0]["url"] == PRD_API_URL
 
 
 def test_the_api_url_comes_from_the_configuration_file(
