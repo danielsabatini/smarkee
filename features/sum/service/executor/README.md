@@ -24,21 +24,33 @@ removeu a autorização. A conta e o usuário de teste foram removidos.
 
 ## Processo
 
-`engine/executor.py` e `main.py`: consomem as partições do `ACTION` (um laço por partição, 0 a 3, no mesmo processo; decisão 0018).
-Cada `action` é revalidada contra o `desired` atual (leitura direta do Stream `DESIRED`): geração diferente é
-ação velha e não é executada. Concede ou revoga as roles (desligar usa as do catálogo, porque o `desired` vem
-vazio) e publica `completed` ou `failed`. Erro transitório volta à fila; erro permanente vira `failed`.
+`engine/executor.py` e `main.py`: consomem as partições do `ACTION` (um consumer e um laço por partição, 0 a 3, no mesmo
+processo; decisão 0018). Cada `action` passa por, nesta ordem:
 
-Verificado no dev, com quatro processos (uma por partição), no ciclo de ligar e desligar.
+1. **Validação da mensagem:** emissor `reconciler`, tipo `action`, módulo e tipo do recurso, versão `MAJOR` e `actionId`.
+   Fora disso, é descartada e registrada. O `desired` lido do transporte precisa ser do emissor `manager`.
+2. **Idempotência:** um `actionId` com `completed` (ou `failed` permanente) já registrado não é executado de novo; o resultado
+   é republicado com o mesmo `Nats-Msg-Id`.
+3. **Revalidação** (`domain/revalidation.py`, `docs/RESOURCE-CONTROL-SECURITY.md` §7), contra o último `desired` (leitura
+   direta do Stream `DESIRED`): sem `desired` ou geração diferente é `failed` `StaleAction`; `reconciliation = suspended` é
+   `failed` `Suspended`; `lifecycle` ausente ou inválido, ou operação fora de `update`, é `failed` `Rejected`. Todas
+   permanentes. Não existe `lifecycle` padrão: sem ele nada é concedido.
 
-## Não está pronto
+Depois concede ou revoga as roles (desligar usa as do catálogo, porque o `desired` vem vazio) e publica `completed` ou
+`failed`. Erro transitório do Zitadel volta à fila; recusa permanente vira `failed` com o motivo.
 
-- A conta `sum-service-executor` definitiva no Zitadel de dev e sua chave no volume `identity-bootstrap`. Na
-  verificação usou-se uma conta temporária, com o mesmo papel, criada e removida.
+No ar no dev (Compose), no ciclo de ligar e desligar e com o Executor parado durante um pedido (`../tests/e2e`).
+
+## Configuração
+
+`SUM_SERVICE_EXECUTOR_<SEÇÃO>_<CAMPO>`. Obrigatórias: `NATS_PASSWORD`, `ZITADEL_REGISTER_ORGANIZATION_ID`,
+`ZITADEL_PROJECT_IDS` e `CATALOG_ROLES`. A chave da conta `sum-service-executor` é montada do volume `identity-bootstrap`
+(`/run/secrets/zitadel-key.json`); a rotação está em `infrastructure/dev/README.md`. `PARTITION_COUNT` (padrão 4) é o número
+de partições do `ACTION`, definido no bootstrap do broker.
 
 ## Testes
 
 ```bash
-uv run pytest     # unitários: lógica de ligar e desligar, e provider com Zitadel simulado
+uv run pytest     # ligar e desligar, provider com Zitadel simulado, motor (emissor, revalidação, idempotência), saúde e logging
 uv run ruff check . && uv run pyright
 ```

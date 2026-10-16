@@ -1,22 +1,25 @@
 """Motor do Executor de `sum.service`: executa uma `action` no Zitadel e publica o resultado.
 
-Cada `action` é revalidada contra o `desired` atual (`docs/RESOURCE-CONTROL-LOOP.md`): se a geração
-mudou, a ação é velha e não é executada. Concede as roles pedidas (ligar) ou revoga as roles do
-serviço
-(desligar). Repetir é seguro (o provider é idempotente), então erro transitório não vira `failed`: a
-mensagem volta à fila. Erro permanente vira `failed`, com o motivo.
+Cada `action` é validada (emissor, tipo, módulo) e revalidada contra o `desired` atual
+(`docs/RESOURCE-CONTROL-SECURITY.md` §7): geração, suspensão e `lifecycle`. Uma ação recusada ou
+velha vira `failed` (permanente), nunca é executada. Concede as roles pedidas (ligar) ou revoga as
+roles do serviço (desligar). Um `actionId` com desfecho já registrado não é executado de novo.
+Erro transitório não vira `failed`: a mensagem volta à fila.
 """
 
 import json
 import logging
 from collections.abc import Callable, Mapping
-from typing import Any, Protocol
+from dataclasses import dataclass
+from typing import Any, Protocol, cast
 
 from pydantic import ValidationError
 
 from sum_service_executor.actions.service_roles import Granter, disable, enable
 from sum_service_executor.contracts import generated
 from sum_service_executor.contracts.base import supports_major, validate_tolerant
+from sum_service_executor.domain.errors import ActionFailedError
+from sum_service_executor.domain.revalidation import revalidate
 from sum_service_executor.domain.service import roles_of
 from sum_service_executor.ids import new_identifier, utc_now
 from sum_service_executor.provider.zitadel import ProviderError
@@ -37,10 +40,23 @@ class Publisher(Protocol):
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None: ...
 
 
-class DesiredReader(Protocol):
-    async def current(self, resource_id: str) -> bytes | None:
-        """O último `desired` publicado para o recurso (leitura direta do Stream `DESIRED`)."""
+class StateReader(Protocol):
+    """Leitura direta do transporte, só leitura (último `desired` e último resultado)."""
+
+    async def last_desired(self, resource_id: str) -> bytes | None:
+        """O último `desired` publicado para o recurso (Stream `DESIRED`)."""
         ...
+
+    async def last_result(self, resource_id: str, kind: str) -> bytes | None:
+        """O último resultado `completed` ou `failed` do recurso (Stream `RESULT`)."""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class _Outcome:
+    """Desfecho já registrado de um `actionId`. `failure` vazio é `completed`."""
+
+    failure: ActionFailedError | None
 
 
 class TransientFailureError(Exception):
@@ -51,7 +67,7 @@ class Executor:
     def __init__(
         self,
         granter: Granter,
-        desired: DesiredReader,
+        state: StateReader,
         publisher: Publisher,
         catalog: Mapping[str, tuple[str, ...]],
         *,
@@ -59,44 +75,92 @@ class Executor:
         identifiers: Callable[[], str] = new_identifier,
     ) -> None:
         self._granter = granter
-        self._desired = desired
+        self._state = state
         self._publisher = publisher
         self._catalog = catalog
         self._clock = clock
         self._identifiers = identifiers
 
     async def on_action(self, data: bytes) -> None:
-        """Executa uma `action`. Levanta `TransientFailureError` para voltar à fila; publica o
-        resultado."""
-        envelope = _parse(data, "action")
-        if envelope is None:
+        """Executa uma `action` e publica o resultado.
+
+        Levanta `TransientFailureError` para a mensagem voltar à fila. Mensagem inválida é
+        descartada.
+        """
+        envelope = _parse(data, expected_type="action", expected_emitter="reconciler")
+        if envelope is None or envelope.action_id is None or envelope.desired_generation is None:
+            logger.error("message is not a valid action of the reconciler for this type")
             return
         action = _Action(envelope)
-        desired = await self._current_desired(action.resource_id)
-        if desired is None or desired["generation"] != action.desired_generation:
-            return  # ação velha: a geração mudou; o Reconciler decide de novo
-        try:
-            await self._apply(action.resource_id, desired)
-        except ProviderError as error:
-            if error.retryable:
-                raise TransientFailureError(error.reason) from None
-            await self._publish_result(
-                "failed", action, reason=error.reason, message=str(error), retryable=False
-            )
+        # 1. Desfecho já registrado do mesmo actionId: não executa de novo (idempotência).
+        previous = await self._previous_outcome(action)
+        if previous is not None:
+            await self._publish_result(action, previous.failure)
             return
-        await self._publish_result("completed", action)
+        # 2. Revalidação contra o desired vigente.
+        desired = await self._current_desired(action.resource_id)
+        failure = revalidate(envelope.operation.value, action.desired_generation, desired)
+        if failure is None and desired is not None:
+            try:
+                await self._apply(action.resource_id, desired)
+            except ProviderError as error:
+                if error.retryable:
+                    raise TransientFailureError(error.reason) from None
+                failure = ActionFailedError(error.reason, retryable=False, message=str(error))
+        await self._publish_result(action, failure)
+        logger.info(
+            "action handled",
+            extra={
+                "resource_id": action.resource_id,
+                "outcome": "completed" if failure is None else "failed",
+                "reason": failure.reason if failure else None,
+            },
+        )
 
-    async def _current_desired(self, resource_id: str) -> dict[str, Any] | None:
-        raw = await self._desired.current(resource_id)
+    async def _previous_outcome(self, action: _Action) -> _Outcome | None:
+        """Desfecho já registrado para o `actionId`, lido do transporte (somente leitura).
+
+        `completed` e `failed` **permanente** do mesmo `actionId` não são executados de novo.
+        """
+        completed = await self._last_result(action.resource_id, "completed")
+        if completed is not None and completed.get("actionId") == action.action_id:
+            return _Outcome(None)
+        failed = await self._last_result(action.resource_id, "failed")
+        if failed is not None and failed.get("actionId") == action.action_id:
+            data: Mapping[str, Any] = failed.get("data") or {}
+            if data.get("retryable") is False:
+                return _Outcome(
+                    ActionFailedError(
+                        str(data.get("reason", "Rejected")),
+                        retryable=False,
+                        message=str(data.get("message", "")),
+                    )
+                )
+        return None
+
+    async def _last_result(self, resource_id: str, kind: str) -> dict[str, Any] | None:
+        raw = await self._state.last_result(resource_id, kind)
         if raw is None:
             return None
-        envelope = _parse(raw, "desired")
+        try:
+            document: object = json.loads(raw)
+        except ValueError:
+            return None
+        return cast(dict[str, Any], document) if isinstance(document, dict) else None
+
+    async def _current_desired(self, resource_id: str) -> dict[str, Any] | None:
+        raw = await self._state.last_desired(resource_id)
+        if raw is None:
+            return None
+        envelope = _parse(raw, expected_type="desired", expected_emitter="manager")
         if envelope is None:
             return None
         data: Mapping[str, Any] = envelope.data
         return {
             "generation": envelope.desired_generation,
-            "lifecycle": str(data.get("lifecycle", "present")),
+            "reconciliation": data.get("reconciliation"),
+            # Sem `lifecycle` não há padrão: a revalidação recusa (não se assume `present`).
+            "lifecycle": data.get("lifecycle"),
             "owner": str(data.get("ownerUserId", "")),
             "service": str(data.get("service", "")),
             "roles": tuple(str(role) for role in data.get("serviceRoles", ())),
@@ -111,22 +175,15 @@ class Executor:
         await disable(self._granter, owner, roles_of(self._catalog, service))
         logger.info("service roles revoked", extra={"resource_id": resource_id})
 
-    async def _publish_result(
-        self,
-        kind: str,
-        action: _Action,
-        *,
-        reason: str | None = None,
-        message: str | None = None,
-        retryable: bool | None = None,
-    ) -> None:
+    async def _publish_result(self, action: _Action, failure: ActionFailedError | None) -> None:
+        kind = "completed" if failure is None else "failed"
         now = self._clock().strftime("%Y-%m-%dT%H:%M:%SZ")
         data: dict[str, Any] = {}
-        if kind == "failed":
+        if failure is not None:
             data = {
-                "reason": reason or "Rejected",
-                "message": (message or "")[:512],
-                "retryable": bool(retryable),
+                "reason": failure.reason,
+                "message": failure.message[:512],
+                "retryable": failure.retryable,
             }
         message_id = self._identifiers()
         document: dict[str, Any] = {
@@ -169,14 +226,23 @@ class _Action:
         self.correlation_id = envelope.correlation_id or self.message_id
 
 
-def _parse(data: bytes, expected: str) -> generated.MessageEnvelope | None:
+def _parse(
+    data: bytes, *, expected_type: str, expected_emitter: str
+) -> generated.MessageEnvelope | None:
+    """Envelope válido, do emissor esperado, de uma versão MAJOR suportada e deste tipo."""
     try:
         envelope = validate_tolerant(generated.MessageEnvelope, json.loads(data))
     except ValueError, ValidationError:
         logger.error("message is not a valid envelope")
         return None
-    if not supports_major(envelope.schema_version) or envelope.module != MODULE:
+    if not supports_major(envelope.schema_version):
+        logger.error("schemaVersion MAJOR is not supported")
         return None
-    if envelope.message_type.value != expected or envelope.resource_type != RESOURCE_TYPE:
+    if (
+        envelope.message_type.value != expected_type
+        or envelope.emitter.value != expected_emitter
+        or envelope.module != MODULE
+        or envelope.resource_type != RESOURCE_TYPE
+    ):
         return None
     return envelope

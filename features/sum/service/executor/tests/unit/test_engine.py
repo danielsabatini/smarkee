@@ -86,11 +86,15 @@ class FakeGranter:
 
 
 @dataclass
-class FakeDesired:
+class FakeState:
     raw: bytes | None
+    results: dict[str, bytes] = field(default_factory=lambda: {})
 
-    async def current(self, resource_id: str) -> bytes | None:
+    async def last_desired(self, resource_id: str) -> bytes | None:
         return self.raw
+
+    async def last_result(self, resource_id: str, kind: str) -> bytes | None:
+        return self.results.get(kind)
 
 
 @dataclass
@@ -104,9 +108,16 @@ class FakePublisher:
         self.sent.append((subject, json.loads(payload), message_id))
 
 
-def executor(granter: FakeGranter, raw: bytes | None, publisher: FakePublisher) -> Executor:
+def executor(
+    granter: FakeGranter,
+    raw: bytes | None,
+    publisher: FakePublisher,
+    results: dict[str, bytes] | None = None,
+) -> Executor:
     ids = iter(f"id-{n}" for n in range(1, 1000))
-    return Executor(granter, FakeDesired(raw), publisher, CATALOG, identifiers=lambda: next(ids))
+    return Executor(
+        granter, FakeState(raw, results or {}), publisher, CATALOG, identifiers=lambda: next(ids)
+    )
 
 
 async def test_a_current_action_grants_the_roles_and_publishes_completed() -> None:
@@ -120,16 +131,116 @@ async def test_a_current_action_grants_the_roles_and_publishes_completed() -> No
     assert body["causationId"] == "m-action" and body["data"] == {}
 
 
-async def test_a_stale_action_executes_nothing_and_publishes_nothing() -> None:
+def failed_reason(publisher: FakePublisher) -> tuple[str, bool]:
+    ((subject, body, _),) = publisher.sent
+    assert subject == f"executor.failed.sum.service.{RID}"
+    return body["data"]["reason"], body["data"]["retryable"]
+
+
+async def test_a_stale_action_executes_nothing_and_publishes_failed_stale_action() -> None:
     granter, publisher = FakeGranter(), FakePublisher()
     await executor(granter, desired(3), publisher).on_action(action(2))
-    assert granter.calls == [] and publisher.sent == []
+    assert granter.calls == []
+    assert failed_reason(publisher) == ("StaleAction", False)
 
 
-async def test_a_missing_desired_executes_nothing() -> None:
+async def test_a_missing_desired_executes_nothing_and_publishes_failed_stale_action() -> None:
     granter, publisher = FakeGranter(), FakePublisher()
     await executor(granter, None, publisher).on_action(action(2))
+    assert granter.calls == []
+    assert failed_reason(publisher) == ("StaleAction", False)
+
+
+def with_fields(raw: bytes, **fields: Any) -> bytes:
+    document = json.loads(raw)
+    document.update(fields)
+    return json.dumps(document).encode()
+
+
+@pytest.mark.parametrize("emitter", ["receiver", "manager", "executor", "observer"])
+async def test_an_action_from_another_emitter_is_discarded(emitter: str) -> None:
+    granter, publisher = FakeGranter(), FakePublisher()
+    forged = with_fields(action(2), emitter=emitter)
+    await executor(granter, desired(2), publisher).on_action(forged)
     assert granter.calls == [] and publisher.sent == []
+
+
+async def test_an_action_of_another_major_is_discarded() -> None:
+    granter, publisher = FakeGranter(), FakePublisher()
+    await executor(granter, desired(2), publisher).on_action(
+        with_fields(action(2), schemaVersion="2.0")
+    )
+    assert granter.calls == [] and publisher.sent == []
+
+
+async def test_an_action_without_action_id_is_discarded() -> None:
+    granter, publisher = FakeGranter(), FakePublisher()
+    broken = json.loads(action(2))
+    del broken["actionId"]
+    await executor(granter, desired(2), publisher).on_action(json.dumps(broken).encode())
+    assert granter.calls == [] and publisher.sent == []
+
+
+async def test_a_desired_from_another_emitter_is_not_trusted() -> None:
+    granter, publisher = FakeGranter(), FakePublisher()
+    forged_desired = with_fields(desired(2), emitter="receiver")
+    await executor(granter, forged_desired, publisher).on_action(action(2))
+    assert granter.calls == []
+    assert failed_reason(publisher) == ("StaleAction", False)
+
+
+async def test_a_suspended_reconciliation_executes_nothing_and_publishes_failed() -> None:
+    granter, publisher = FakeGranter(), FakePublisher()
+    suspended = json.loads(desired(2))
+    suspended["data"]["reconciliation"] = "suspended"
+    await executor(granter, json.dumps(suspended).encode(), publisher).on_action(action(2))
+    assert granter.calls == []
+    assert failed_reason(publisher) == ("Suspended", False)
+
+
+async def test_a_desired_without_lifecycle_is_refused_and_grants_nothing() -> None:
+    granter, publisher = FakeGranter(), FakePublisher()
+    incomplete = json.loads(desired(2))
+    del incomplete["data"]["lifecycle"]
+    await executor(granter, json.dumps(incomplete).encode(), publisher).on_action(action(2))
+    assert granter.calls == []
+    assert failed_reason(publisher) == ("Rejected", False)
+
+
+async def test_an_operation_that_is_not_allowed_is_refused() -> None:
+    granter, publisher = FakeGranter(), FakePublisher()
+    await executor(granter, desired(2), publisher).on_action(
+        with_fields(action(2), operation="delete")
+    )
+    assert granter.calls == []
+    assert failed_reason(publisher) == ("Rejected", False)
+
+
+async def test_an_action_already_completed_is_not_executed_again() -> None:
+    granter, publisher = FakeGranter(), FakePublisher()
+    previous = {"completed": json.dumps({"actionId": ACTION_ID}).encode()}
+    await executor(granter, desired(2), publisher, previous).on_action(action(2))
+    assert granter.calls == []
+    ((subject, body, message_id),) = publisher.sent
+    assert subject == f"executor.completed.sum.service.{RID}"
+    assert message_id == f"{ACTION_ID}.completed"  # o mesmo id: o transporte deduplica
+    assert body["messageType"] == "completed"
+
+
+async def test_an_action_already_failed_permanently_republishes_the_failure() -> None:
+    granter, publisher = FakeGranter(), FakePublisher()
+    recorded = {"data": {"reason": "Rejected", "message": "m", "retryable": False}}
+    previous = {"failed": json.dumps({"actionId": ACTION_ID, **recorded}).encode()}
+    await executor(granter, desired(2), publisher, previous).on_action(action(2))
+    assert granter.calls == []
+    assert failed_reason(publisher) == ("Rejected", False)
+
+
+async def test_a_result_of_another_action_does_not_block_this_one() -> None:
+    granter, publisher = FakeGranter(), FakePublisher()
+    previous = {"completed": json.dumps({"actionId": "outra-acao"}).encode()}
+    await executor(granter, desired(2), publisher, previous).on_action(action(2))
+    assert granter.calls == [("create", OWNER, tuple(sorted(ROLES)))]
 
 
 async def test_a_disabled_link_revokes_the_roles_of_the_catalog() -> None:

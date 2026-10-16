@@ -20,7 +20,7 @@ from sum_service_executor.provider.zitadel import ZitadelGranter
 from sum_service_executor.settings import SumServiceExecutorSettings, missing_required
 from sum_service_executor.transport.consumers import PullConsumer
 from sum_service_executor.transport.nats import (
-    DirectDesiredReader,
+    DirectStateReader,
     JetStreamPublisher,
     connect,
     jetstream_of,
@@ -45,7 +45,7 @@ async def run(settings: SumServiceExecutorSettings) -> int:
         granter = ZitadelGranter(settings.zitadel, client)
         executor = Executor(
             granter,
-            DirectDesiredReader(jetstream),
+            DirectStateReader(jetstream),
             JetStreamPublisher(jetstream),
             catalog,
         )
