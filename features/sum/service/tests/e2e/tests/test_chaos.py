@@ -6,6 +6,7 @@ esperado: o pedido aceito durante a queda não se perde (consumers duráveis) e 
 o componente volta. Precisam de um solicitante com as roles `sum.ipm.*` (ver README).
 """
 
+import asyncio
 import os
 import subprocess
 import uuid
@@ -24,6 +25,10 @@ pytestmark = pytest.mark.skipif(
 
 def docker(*arguments: str) -> None:
     subprocess.run(["docker", *arguments], check=True, capture_output=True, timeout=60)  # noqa: S603, S607
+
+
+def restart(container: str) -> None:
+    docker("restart", container)
 
 
 @contextmanager
@@ -104,6 +109,34 @@ async def test_messages_published_while_the_publisher_is_down_are_published_when
 ) -> None:
     with component_down("sum-service-publisher.smarkee.internal"):
         resource_id, operation_id = await request_enable(api, authorization, created_resource_ids)
+    try:
+        await converges_enabled(api, authorization, resource_id, operation_id)
+    finally:
+        await disable(api, authorization, resource_id)
+
+
+async def wait_until_in_progress(
+    api: httpx.AsyncClient, authorization: dict[str, str], resource_id: str, operation_id: str
+) -> None:
+    """Espera o Manager gravar a ligação: a Operation sai de `accepted` (reconciliação em curso)."""
+    path = f"/v1/sum/services/{resource_id}/operations/{operation_id}"
+    for _ in range(60):
+        response = await api.get(path, headers=authorization)
+        if response.status_code == 200 and response.json()["operationStatus"] != "accepted":
+            return
+        await asyncio.sleep(1.0)
+    raise AssertionError("a Operation não saiu de `accepted` em 60 s")
+
+
+async def test_the_loop_converges_after_the_reconciler_and_the_observer_restart(
+    api: httpx.AsyncClient, authorization: dict[str, str], created_resource_ids: list[str]
+) -> None:
+    """O estado deles é um cache descartável: reiniciar no meio de uma ligação não a perde."""
+    with component_down("sum-service-executor.smarkee.internal"):
+        resource_id, operation_id = await request_enable(api, authorization, created_resource_ids)
+        await wait_until_in_progress(api, authorization, resource_id, operation_id)
+        restart("sum-service-reconciler.smarkee.internal")
+        restart("sum-service-observer.smarkee.internal")
     try:
         await converges_enabled(api, authorization, resource_id, operation_id)
     finally:

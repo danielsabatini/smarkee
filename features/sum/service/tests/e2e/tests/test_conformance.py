@@ -80,6 +80,7 @@ async def wait_for_operation(
             continue
         assert response.status_code == 200, response.text
         operation = response.json()
+        assert_valid("common/operation.v1.schema.json", operation)
         assert operation["operationStatus"] != "failed", operation
         if operation["operationStatus"] == "completed":
             return operation
@@ -143,6 +144,7 @@ async def test_enable_then_disable_runs_the_whole_loop(
     # 3. A ligação aparece na listagem do solicitante.
     listed = await api.get("/v1/sum/services", headers=authorization)
     assert listed.status_code == 200
+    assert_valid("sum/service/api-list-response.v1.schema.json", listed.json())
     assert resource_id in [item["resourceId"] for item in listed.json()["items"]]
 
     # 4. Ligar o mesmo serviço de novo é recusado: a unicidade do par ativo é do Manager/SSOT.

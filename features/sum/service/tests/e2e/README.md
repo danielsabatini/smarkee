@@ -13,8 +13,8 @@ pela rede, e validam os exemplos e as respostas contra os JSON Schemas de `schem
 | Exemplos (`test_example_is_valid_against_its_schema`) | Nada | Os exemplos versionados validam contra os schemas. |
 | Receiver sem token ou com token inválido | Gateway no ar (o Receiver não precisa responder) | `401` com o contrato de erro. |
 | Corpo inválido | Gateway, Receiver e um token | `400` com `ValidationFailed`. |
-| Loop completo (ligar, listar, duplicar, desligar) | Stack do SUM no ar e um token com `sum.ipm.*` | Fases `Ready`, roles concedidas e revogadas, `409` no duplicado. |
-| Caos (`tests/test_chaos.py`, com `E2E_CHAOS=1`) | Stack do SUM no ar, um token e acesso ao `docker` | Derruba o Manager, o Executor e o Publisher durante um pedido de ligação; o pedido aceito converge quando o componente volta. Restaura o componente e desliga o serviço ao final. |
+| Loop completo (ligar, listar, duplicar, desligar) | Stack do SUM no ar e um token com `sum.ipm.*` | Operation até `completed`, fases `Ready`, roles concedidas e revogadas, `409` no duplicado, e a Operation, a ligação e a listagem validadas contra os schemas. |
+| Caos (`tests/test_chaos.py`, com `E2E_CHAOS=1`) | Stack do SUM no ar, um token e acesso ao `docker` | Derruba o Manager, o Executor e o Publisher durante um pedido de ligação, e reinicia o Reconciler e o Observer no meio de uma ligação pendente; o pedido aceito converge. Restaura o componente e desliga o serviço ao final. |
 
 Não cobre (declarado, não verificado):
 - **Mensageria direta** (publicar `requested` no NATS): não há teste. Publicar um `requested` com dono
