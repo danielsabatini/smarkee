@@ -22,7 +22,7 @@ from nats.js import JetStreamContext
 from pydantic import ValidationError
 
 from sum_service_manager.contracts import generated
-from sum_service_manager.contracts.base import validate_tolerant
+from sum_service_manager.contracts.base import supports_major, validate_tolerant
 from sum_service_manager.domain.errors import PermanentMessageError
 from sum_service_manager.handlers.requested import RequestedHandler
 
@@ -85,6 +85,8 @@ def parse_request(data: bytes) -> ParsedRequest:
         envelope = validate_tolerant(generated.MessageEnvelope, document)
     except ValidationError:
         raise PermanentMessageError("envelope de requested fora do contrato") from None
+    if not supports_major(envelope.schema_version):
+        raise PermanentMessageError("schemaVersion MAJOR não suportado")
     if (
         envelope.message_type != "requested"
         or envelope.emitter != "receiver"
