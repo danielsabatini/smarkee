@@ -6,8 +6,8 @@ decisões 0010, 0014, 0026, 0027 e 0028 mandam, e não altera nada. Usa só a AP
 | O que confere | Decisão |
 |---|---|
 | Organizações `smarkee`, `core` e `register`; cadastro público desligado | 0013, 0026 |
-| Projetos de roles na `core` (roles no token e verificação de role), roles no padrão `<módulo>.<tipo>.<ação>` com `group` | 0010, 0028 |
-| Aplicação `cli` (nativa, PKCE sem segredo, access token JWT, redirect e concessões) | 0007, 0010 |
+| Projetos de roles `roles-*` na `core` (roles no token e verificação de role), roles no padrão `<módulo>.<tipo>.<ação>` com `group` | 0010, 0028 |
+| Projeto `clients` sem roles e sem verificação de role na autenticação, e nenhum projeto de roles com aplicações; aplicação `cli` nele (nativa, PKCE sem segredo, access token JWT, redirect e concessões) | 0007, 0010, 0034 |
 | Um projeto de roles por módulo; um Project Grant por projeto só com as roles de ação (sem `*.admin`) | 0027, 0032 |
 | Contas de serviço na `core`; Executor (`ORG_USER_CREATOR`) e Observer com papel só na `register`; Executor do User `PROJECT_GRANT_OWNER` só nos Grants de `core` e `sum` | 0027, 0032 |
 | Contas de serviço do SUM: Executor `PROJECT_GRANT_OWNER` só no Grant de `roles-ipm`; Observer `ORG_OWNER_VIEWER` só na `register`; chaves de todas as contas de serviço válidas por mais de 90 dias | 0032, 0033 |

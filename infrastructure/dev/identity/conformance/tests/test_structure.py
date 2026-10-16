@@ -150,9 +150,9 @@ def projects_owned_by(zitadel: Zitadel, org_id: str) -> dict[str, dict[str, Any]
 
 @pytest.fixture(scope="module")
 def project_ids(zitadel: Zitadel, orgs: dict[str, str]) -> dict[str, str]:
-    """Nome → ID dos projetos de roles da `core`."""
+    """Nome → ID dos projetos de roles da `core` (`roles-<módulo>`, sem o projeto `clients`)."""
     owned = projects_owned_by(zitadel, orgs["core"])
-    return {name: p["projectId"] for name, p in owned.items()}
+    return {name: p["projectId"] for name, p in owned.items() if name.startswith("roles-")}
 
 
 def administrators(zitadel: Zitadel, resource: dict[str, Any]) -> dict[str, set[str]]:
@@ -187,10 +187,34 @@ def test_one_roles_project_per_module_asserts_and_checks_roles(
     zitadel: Zitadel, orgs: dict[str, str]
 ) -> None:
     projects = projects_owned_by(zitadel, orgs["core"])
-    assert set(projects) == set(ACTION_ROLES_BY_PROJECT), "um projeto de roles por módulo (0032)"
-    for name, project in projects.items():
+    roles_projects = {name: p for name, p in projects.items() if name.startswith("roles-")}
+    assert set(roles_projects) == set(ACTION_ROLES_BY_PROJECT), (
+        "um projeto de roles por módulo (0032)"
+    )
+    for name, project in roles_projects.items():
         assert project.get("projectRoleAssertion") is True, name
         assert project.get("authorizationRequired") is True, name  # `projectRoleCheck` da v1
+
+
+def test_the_clients_project_has_no_roles_and_does_not_require_one_to_sign_in(
+    zitadel: Zitadel, orgs: dict[str, str]
+) -> None:
+    """A aplicação do `sk` mora num projeto sem roles (decisão 0034).
+
+    Com ela dentro de um projeto de roles, o Zitadel só põe no token as roles desse projeto, e o
+    token não valeria nos Receivers dos outros módulos. Sem roles no projeto, a verificação de
+    role na autenticação (`authorizationRequired`) precisa estar desligada: ninguém teria role nele.
+    """
+    projects = projects_owned_by(zitadel, orgs["core"])
+    assert "clients" in projects, "o projeto `clients` da core (decisão 0034)"
+    project = projects["clients"]
+    assert not project.get("authorizationRequired")  # a API v2 omite o valor falso
+    roles = zitadel.connect(
+        PROJECT_SERVICE, "ListProjectRoles", {"projectId": project["projectId"]}
+    )
+    assert roles.get("projectRoles", []) == []
+    grants = zitadel.connect(PROJECT_SERVICE, "ListProjectGrants").get("projectGrants", [])
+    assert not [g for g in grants if g["projectId"] == project["projectId"]]
 
 
 def test_roles_follow_the_naming_standard_and_group_by_module(
@@ -211,12 +235,13 @@ def test_roles_follow_the_naming_standard_and_group_by_module(
 
 
 def test_cli_application_is_a_public_native_client_with_jwt(
-    zitadel: Zitadel, project_ids: dict[str, str]
+    zitadel: Zitadel, orgs: dict[str, str]
 ) -> None:
+    clients = projects_owned_by(zitadel, orgs["core"])["clients"]
     found = zitadel.connect(
         APPLICATION_SERVICE,
         "ListApplications",
-        {"filters": [{"projectIdFilter": {"projectId": project_ids["roles-core"]}}]},
+        {"filters": [{"projectIdFilter": {"projectId": clients["projectId"]}}]},
     )["applications"]
     config = {a["name"]: a for a in found}["cli"]["oidcConfiguration"]
     assert config["applicationType"] == "OIDC_APP_TYPE_NATIVE"
@@ -229,6 +254,19 @@ def test_cli_application_is_a_public_native_client_with_jwt(
         "OIDC_GRANT_TYPE_REFRESH_TOKEN",
     }
     assert config["redirectUris"] == ["http://127.0.0.1/callback"]
+
+
+def test_no_roles_project_holds_an_application(
+    zitadel: Zitadel, project_ids: dict[str, str]
+) -> None:
+    """As aplicações moram no `clients` (decisão 0034): um projeto de roles não tem nenhuma."""
+    for name, project_id in project_ids.items():
+        found = zitadel.connect(
+            APPLICATION_SERVICE,
+            "ListApplications",
+            {"filters": [{"projectIdFilter": {"projectId": project_id}}]},
+        ).get("applications", [])
+        assert found == [], f"{name} não deve ter aplicações: {[a['name'] for a in found]}"
 
 
 def test_each_project_grant_to_register_delegates_only_its_action_roles(
