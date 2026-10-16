@@ -4,8 +4,8 @@ import re
 import threading
 import urllib.request
 
-from sk.callback_page import CONTENT_SECURITY_POLICY, render_callback_page
-from sk.oidc import LoopbackReceiver
+from sk.identity.callback_page import CONTENT_SECURITY_POLICY, render_callback_page
+from sk.identity.oidc import LoopbackReceiver
 
 
 def text(page: bytes) -> str:
@@ -67,7 +67,7 @@ def test_the_embedded_logo_is_the_full_brand_not_only_the_symbol() -> None:
     import base64
     import struct
 
-    from sk.callback_page import LOGO_PNG_BASE64
+    from sk.identity.callback_page import LOGO_PNG_BASE64
 
     png = base64.b64decode(LOGO_PNG_BASE64)
     width, height = struct.unpack(">II", png[16:24])  # cabeçalho IHDR do PNG

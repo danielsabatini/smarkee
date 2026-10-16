@@ -10,17 +10,12 @@ from typing import Annotated
 
 import typer
 from pydantic import ValidationError
+from sk.features.core.user import submit_registration, validate_registration
 
 from sk import ui
-from sk.ajuda import comando, opcao
-from sk.api import (
-    ApiError,
-    ApiRejectedError,
-    ApiUnavailableError,
-    submit_registration,
-    validate_registration,
-)
-from sk.oidc import OidcError
+from sk.help import comando, opcao
+from sk.http import ApiError, ApiRejectedError, ApiUnavailableError
+from sk.identity.oidc import OidcError
 from sk.settings import ConfigurationError, SkSettings
 
 AJUDA_REGISTRO = comando(

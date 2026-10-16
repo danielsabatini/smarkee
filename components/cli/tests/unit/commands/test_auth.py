@@ -4,9 +4,9 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from sk.credentials import StoredCredentials, default_credentials_path, save_credentials
+from sk.identity.credentials import StoredCredentials, default_credentials_path, save_credentials
+from sk.identity.oidc import OidcError, ProviderMetadata
 from sk.main import app
-from sk.oidc import OidcError, ProviderMetadata
 
 runner = CliRunner()
 

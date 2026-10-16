@@ -9,14 +9,14 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from sk.credentials import (
+from sk.identity.credentials import (
     CredentialsError,
     CredentialsMissingError,
     StoredCredentials,
     load_credentials,
     save_credentials,
 )
-from sk.oidc import OidcError, fetch_provider_metadata, refresh_access_token
+from sk.identity.oidc import OidcError, fetch_provider_metadata, refresh_access_token
 
 # Renova antes do vencimento real, para o pedido seguinte não chegar com o token já expirado.
 RENEWAL_MARGIN = timedelta(seconds=60)

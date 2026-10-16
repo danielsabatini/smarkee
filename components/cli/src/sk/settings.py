@@ -19,7 +19,7 @@ Grafia dos nomes por meio (`docs/SCHEMA.md`, *Grafia dos nomes por meio*): os ca
 fonte TOML: uma chave fora do camelCase (por exemplo `client_id`) é rejeitada.
 
 O arquivo de configuração guarda configuração, e não credenciais: os tokens ficam no
-arquivo de credenciais (`sk.credentials`).
+arquivo de credenciais (`sk.identity.credentials`).
 """
 
 import json

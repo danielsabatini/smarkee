@@ -11,10 +11,10 @@ import typer
 from pydantic import ValidationError
 
 from sk import ui
-from sk.ajuda import ORDEM_SEM_ARQUIVO, comando, opcao
 from sk.defaults import CLIENT_ID_PROVISORIO, PRD_API_URL, PRD_ISSUER
 from sk.files import write_private_file
-from sk.oidc import OidcError, ensure_secure_url
+from sk.help import ORDEM_SEM_ARQUIVO, comando, opcao
+from sk.identity.oidc import OidcError, ensure_secure_url
 from sk.settings import (
     AuthSettings,
     ConfigurationError,

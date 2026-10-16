@@ -27,7 +27,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from types import TracebackType
 from typing import Self, cast
 
-from sk.callback_page import CONTENT_SECURITY_POLICY, render_callback_page
+from sk.identity.callback_page import CONTENT_SECURITY_POLICY, render_callback_page
 
 CALLBACK_PATH = "/callback"
 LOOPBACK_HOST = "127.0.0.1"

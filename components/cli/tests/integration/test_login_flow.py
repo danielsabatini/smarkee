@@ -16,7 +16,7 @@ from typing import cast
 
 import pytest
 
-from sk.oidc import (
+from sk.identity.oidc import (
     OidcError,
     ProviderMetadata,
     compute_code_challenge,

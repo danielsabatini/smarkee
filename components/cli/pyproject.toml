@@ -34,7 +34,7 @@ select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
 # loopback (provedor OIDC falso), e não credenciais reais.
 "tests/**" = ["S101", "S105", "S106", "S310"]
 # A página de retorno embute o logo (base64) e o CSS em linhas longas, de propósito.
-"src/sk/callback_page.py" = ["E501"]
+"src/sk/identity/callback_page.py" = ["E501"]
 
 [tool.pyright]
 pythonVersion = "3.14"

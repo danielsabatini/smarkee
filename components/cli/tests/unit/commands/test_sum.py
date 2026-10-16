@@ -12,7 +12,7 @@ from typing import Any, cast
 import pytest
 from typer.testing import CliRunner
 
-from sk.credentials import StoredCredentials, default_credentials_path, save_credentials
+from sk.identity.credentials import StoredCredentials, default_credentials_path, save_credentials
 from sk.main import app
 
 runner = CliRunner()
@@ -140,10 +140,11 @@ def test_disable_reads_the_version_before_deleting(api: FakeApi) -> None:
     assert delete.full_url.endswith(f"/v1/sum/services/{RID}?resourceVersion=3")
 
 
-def test_disable_refuses_a_link_that_is_already_off(api: FakeApi) -> None:
+def test_disable_of_a_link_that_is_already_off_is_a_no_op(api: FakeApi) -> None:
     api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(200, link_document("absent", "Ready"))
     result = runner.invoke(app, ["sum", "service", "disable", "--resource-id", RID])
-    assert result.exit_code == 1
+    assert result.exit_code == 0
+    assert "já está desligada" in result.stdout
     assert all(request.get_method() != "DELETE" for request in api.requests)
 
 
@@ -208,5 +209,102 @@ def test_plain_http_is_refused_without_permission(api: FakeApi, tmp_path: Path) 
         '[core]\napiUrl = "http://api.teste"\n', encoding="utf-8"
     )
     result = runner.invoke(app, ["sum", "service", "list"])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
+    assert "Endereço da API recusado" in result.stderr
     assert api.requests == []
+
+
+def test_the_api_address_and_the_http_permission_come_from_the_command_line(
+    api: FakeApi,
+) -> None:
+    api.routes[("GET", "/v1/sum/services")] = Response(200, {"items": []})
+    result = runner.invoke(app, ["sum", "service", "list", "--api-url", API])
+    assert result.exit_code == 0, result.stderr
+    result = runner.invoke(
+        app, ["sum", "service", "list", "--api-url", "http://api.teste", "--allow-insecure-http"]
+    )
+    assert "Endereço da API recusado" not in result.stderr  # a permissão foi aceita
+
+
+def test_without_an_api_address_the_command_asks_for_it(api: FakeApi, tmp_path: Path) -> None:
+    (tmp_path / "sk" / "config.toml").write_text("", encoding="utf-8")
+    result = runner.invoke(app, ["sum", "service", "list"])
+    assert result.exit_code == 2
+    assert "API não informada" in result.stderr
+    assert api.requests == []
+
+
+@pytest.mark.parametrize(
+    "bad_id", ["../../admin", "a/b", f"{RID}?x=1", f"{RID}#", "", " ", "{" + RID + "}", "abc"]
+)
+def test_an_identifier_that_is_not_a_uuid_is_refused_before_any_call(
+    api: FakeApi, bad_id: str
+) -> None:
+    for command in (
+        ["disable", "--resource-id", bad_id],
+        ["get", "--resource-id", bad_id],
+        ["get", "--resource-id", RID, "--operation-id", bad_id],
+    ):
+        result = runner.invoke(app, ["sum", "service", *command])
+        assert result.exit_code == 2, command
+        assert "Dados não aceitos" in result.stderr
+        assert bad_id.strip() == "" or bad_id not in result.stderr  # o valor não é repetido
+    assert api.requests == []
+
+
+def test_an_uppercase_uuid_is_sent_in_the_canonical_lowercase_form(api: FakeApi) -> None:
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(200, link_document())
+    result = runner.invoke(app, ["sum", "service", "get", "--resource-id", RID.upper()])
+    assert result.exit_code == 0, result.stderr
+    assert api.requests[-1].full_url.endswith(f"/v1/sum/services/{RID}")
+
+
+def test_too_many_requests_shows_the_wait_time(api: FakeApi) -> None:
+    body = io.BytesIO(json.dumps({"errorCode": "RateLimited", "message": "limite"}).encode())
+    headers = cast(Any, {"Retry-After": "30"})
+    api.routes[("POST", "/v1/sum/services")] = urllib.error.HTTPError(
+        API, 429, "limite", hdrs=headers, fp=body
+    )
+    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm"])
+    assert result.exit_code == 1
+    assert "Aguarde 30 segundos" in result.stderr
+
+
+def test_a_validation_error_names_the_field_and_exits_with_usage_code(api: FakeApi) -> None:
+    body = io.BytesIO(
+        json.dumps(
+            {"errorCode": "ValidationFailed", "message": "valor inválido", "field": "service"}
+        ).encode()
+    )
+    api.routes[("POST", "/v1/sum/services")] = urllib.error.HTTPError(
+        API, 400, "x", hdrs=cast(Any, {}), fp=body
+    )
+    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm"])
+    assert result.exit_code == 2
+    assert "service: valor inválido" in result.stderr
+
+
+def test_a_missing_operation_is_not_reported_as_a_missing_link(api: FakeApi) -> None:
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(200, link_document())
+    api.routes[("GET", f"/v1/sum/services/{RID}/operations/{OPID}")] = http_error(
+        404, "NotFound", "não existe"
+    )
+    result = runner.invoke(
+        app, ["sum", "service", "get", "--resource-id", RID, "--operation-id", OPID]
+    )
+    assert result.exit_code == 1
+    assert "Operation não encontrada" in result.stderr
+    assert "Ligação não encontrada" not in result.stderr
+
+
+def test_a_missing_link_says_so(api: FakeApi) -> None:
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = http_error(404, "NotFound", "não existe")
+    result = runner.invoke(app, ["sum", "service", "get", "--resource-id", RID])
+    assert result.exit_code == 1
+    assert "Ligação não encontrada" in result.stderr
+
+
+def test_the_token_never_appears_in_the_output(api: FakeApi) -> None:
+    api.routes[("GET", "/v1/sum/services")] = http_error(403, "Forbidden", "sem permissão")
+    result = runner.invoke(app, ["sum", "service", "list"])
+    assert "access-1" not in result.stdout + result.stderr

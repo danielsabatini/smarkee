@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from sk import session as session_module
-from sk.credentials import StoredCredentials, load_credentials, save_credentials
-from sk.oidc import OidcError, ProviderMetadata, TokenResponse
-from sk.session import SessionError, current_access_token
+from sk.identity import session as session_module
+from sk.identity.credentials import StoredCredentials, load_credentials, save_credentials
+from sk.identity.oidc import OidcError, ProviderMetadata, TokenResponse
+from sk.identity.session import SessionError, current_access_token
 
 NOW = datetime(2026, 10, 15, 12, 0, tzinfo=UTC)
 METADATA = ProviderMetadata(

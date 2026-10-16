@@ -1,4 +1,4 @@
-"""Cliente da API do cadastro (`sk.api`): contrato do pedido, respostas e erros."""
+"""Cliente da API do cadastro (`sk.features.core.user`): contrato do pedido, respostas e erros."""
 
 import json
 import urllib.error
@@ -8,13 +8,9 @@ from typing import Any
 
 import pytest
 
-from sk.api import (
-    ApiRejectedError,
-    ApiUnavailableError,
-    submit_registration,
-    validate_registration,
-)
-from sk.oidc import OidcError
+from sk.features.core.user import submit_registration, validate_registration
+from sk.http import ApiRejectedError, ApiUnavailableError
+from sk.identity.oidc import OidcError
 
 
 class FakeResponse:

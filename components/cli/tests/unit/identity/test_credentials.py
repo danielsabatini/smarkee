@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from sk.credentials import (
+from sk.identity.credentials import (
     CredentialsError,
     CredentialsMissingError,
     StoredCredentials,

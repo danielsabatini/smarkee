@@ -5,10 +5,11 @@ definitivo vem da ligação (`phase`) e da Operation (`operationStatus`). Os dad
 `api.call_api`, com o token da sessão.
 """
 
+import uuid
 from dataclasses import dataclass
 from typing import Any, cast
 
-from sk.api import ApiUnavailableError, call_api
+from sk.http import ApiUnavailableError, call_api
 
 SERVICES_PATH = "/v1/sum/services"
 
@@ -42,6 +43,21 @@ class OperationStatus:
     reason: str | None
 
 
+def validate_identifier(value: str, *, what: str) -> str:
+    """Devolve o UUID canônico (minúsculo) ou levanta `ValueError`.
+
+    Os identificadores entram no caminho da URL: aceitar texto livre permitiria `../`, `?` e `#`
+    levarem o token da sessão a outro caminho da API. A mensagem não repete o valor informado.
+    """
+    try:
+        parsed = uuid.UUID(value)
+    except ValueError:
+        raise ValueError(f"{what} inválido: informe um UUID") from None
+    if str(parsed) != value.lower():
+        raise ValueError(f"{what} inválido: informe um UUID")
+    return str(parsed)
+
+
 def _object(document: object, *, what: str) -> dict[str, Any]:
     if not isinstance(document, dict):
         raise ApiUnavailableError(f"resposta da API fora do contrato: {what}")
@@ -72,7 +88,7 @@ def _link(document: object) -> ServiceLink:
         raise ApiUnavailableError("resposta da API com serviceRoles inválido")
     return ServiceLink(
         resource_id=_text(body, "resourceId", what="ligação"),
-        resource_version=str(body.get("resourceVersion", "")),
+        resource_version=_text(body, "resourceVersion", what="ligação"),
         phase=_text(body, "phase", what="ligação"),
         service=_text(desired, "service", what="ligação (desired)"),
         lifecycle=_text(desired, "lifecycle", what="ligação (desired)"),
@@ -118,6 +134,7 @@ def disable_service(
     resource_version: str,
     allow_insecure_http: bool,
 ) -> ServiceRequestAccepted:
+    resource_id = validate_identifier(resource_id, what="resourceId")
     _, document = call_api(
         "DELETE",
         api_url,
@@ -142,6 +159,7 @@ def list_services(api_url: str, *, token: str, allow_insecure_http: bool) -> lis
 def get_service(
     api_url: str, *, token: str, resource_id: str, allow_insecure_http: bool
 ) -> ServiceLink:
+    resource_id = validate_identifier(resource_id, what="resourceId")
     _, document = call_api(
         "GET",
         api_url,
@@ -160,6 +178,8 @@ def get_operation(
     operation_id: str,
     allow_insecure_http: bool,
 ) -> OperationStatus:
+    resource_id = validate_identifier(resource_id, what="resourceId")
+    operation_id = validate_identifier(operation_id, what="operationId")
     _, document = call_api(
         "GET",
         api_url,

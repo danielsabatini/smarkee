@@ -4,7 +4,7 @@ import urllib.request
 
 import pytest
 
-from sk.oidc import (
+from sk.identity.oidc import (
     LoopbackReceiver,
     OidcError,
     ProviderMetadata,

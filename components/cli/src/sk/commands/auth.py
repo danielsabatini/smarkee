@@ -14,8 +14,8 @@ import typer
 from pydantic import ValidationError
 
 from sk import ui
-from sk.ajuda import comando, opcao
-from sk.credentials import (
+from sk.help import comando, opcao
+from sk.identity.credentials import (
     CredentialsError,
     CredentialsMissingError,
     StoredCredentials,
@@ -23,7 +23,7 @@ from sk.credentials import (
     load_credentials,
     save_credentials,
 )
-from sk.oidc import (
+from sk.identity.oidc import (
     OidcError,
     fetch_provider_metadata,
     fetch_userinfo,

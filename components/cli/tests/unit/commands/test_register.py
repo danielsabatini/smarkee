@@ -6,7 +6,8 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from sk.api import ApiRejectedError, ApiUnavailableError, RegistrationAccepted
+from sk.features.core.user import RegistrationAccepted
+from sk.http import ApiRejectedError, ApiUnavailableError
 from sk.main import app
 
 runner = CliRunner()
