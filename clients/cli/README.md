@@ -103,7 +103,7 @@ A saída nunca mostra tokens. Código `0` com sessão válida; `1` sem sessão, 
 Limitações atuais:
 
 - o `sk` não valida localmente a assinatura do ID token e não usa as claims dele; a identidade exibida vem do userinfo, e a validação dos tokens é responsabilidade dos Receivers que os recebem;
-- não há `logout` nem renovação automática pelo refresh token;
+- não há `logout`;
 - o arquivo de credenciais guarda tokens em texto claro, protegido apenas pela permissão do sistema de arquivos.
 
 Configuração do Zitadel no ambiente de desenvolvimento: `infrastructure/dev/README.md`, seção *Login do CLI*.
@@ -121,7 +121,7 @@ Os testes de integração (`tests/integration`) exercitam o fluxo completo contr
 
 ## Sessão
 
-O access token tem validade curta (decisão 0033). Quando está para vencer, o `sk` troca o refresh token por um novo, regrava as credenciais e segue, sem pedir login. Sem refresh token, ou se o provedor o recusar, a saída manda rodar `sk auth login`.
+O access token vale **15 minutos** (decisão 0033), para que uma revogação de role chegue ao token em pouco tempo. Quando está vencido ou para vencer, o `sk` troca o refresh token por um novo, regrava as credenciais e segue, sem pedir login: vale para `sk sum service`, para `sk auth whoami` e para a espera de `--wait`, que renova a cada leitura. O refresh token vale 30 dias sem uso e 90 dias no total (configuração da instância). Sem refresh token, ou se o provedor o recusar, a saída manda rodar `sk auth login`.
 
 ## Serviços do SUM (`sk sum service`)
 

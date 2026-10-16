@@ -46,6 +46,8 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Licença Apache-2.0 (`LICENSE`).
 
 ### Changed
+- O access token passa a valer 15 minutos (antes, 12 horas), para uma revogação de role chegar ao token em pouco tempo (decisão 0033). O `sk` renova a sessão sozinho pelo refresh token: `sk auth whoami` e a espera de `--wait` também renovam (antes, `whoami` pedia novo login com o acesso vencido). Um token já emitido segue valendo até vencer.
+- A mensagem de conflito do SUM passa a dizer "habilitado" (antes, "ligado").
 - Cadastro: a pessoa recebe **um e-mail só**, o "Verificar e-mail", cujo link confirma o e-mail e já define a senha. Antes chegavam dois ("Verificar e-mail" e "Redefinir senha"), e os dois levavam à mesma tela de senha; o segundo não bastava sozinho (deixava o e-mail sem verificar e o login travava). "Esqueci a senha" na tela de login continua disponível.
 - `sk`: toda a saída para o usuário (ajuda, mensagens, títulos, avisos, erros, dicas e a página de retorno do login) passa a ser em inglês, e a data de validade da sessão sai como `AAAA-MM-DD HH:MM` (24 h). Quem lia a saída em script e dependia do texto em português precisa ajustar; os códigos de saída e os campos não mudaram (decisão 0035).
 - `sk sum service`: o vocabulário passa a ser "serviço habilitado/desabilitado" (antes "ligação"), e a listagem usa o mesmo painel das demais saídas. `sk`: os nomes dos campos e os valores de estado das saídas passam a sair em inglês (`resourceId`, `service`, `state` com `enabled`/`disabled`, `phase`, `observedRoles`, `expiresAt`...); só a ajuda e as mensagens continuam em português.
