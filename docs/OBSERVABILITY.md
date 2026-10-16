@@ -152,7 +152,7 @@ componente → stdout (JSON) → runtime do contêiner → coletor → destino
 - O coletor interpreta a linha (JSON), converte `timestamp`, `severity_*`, `trace_id` e `span_id` para os campos do LogRecord, move `resource` e `attributes` para seus lugares e define `ObservedTimestamp`.
 - O componente nunca depende do coletor nem do destino: se eles caírem, o log continua no stdout.
 - **Requisitos verificados em 2026-10-16** (Collector `otel/opentelemetry-collector-contrib:0.162.0`, receiver `file_log`, linhas reais do formatter em Docker):
-  - o contêiner precisa usar o driver de log **`json-file`**. O padrão do Docker Desktop é `local`, que grava `container.log` em formato próprio e **não** é lido pelo `file_log`. Os `compose.yaml` das features ainda **não** configuram o driver;
+  - o contêiner precisa usar o driver de log **`json-file`**. O padrão do Docker Desktop é `local`, que grava `container.log` em formato próprio e **não** é lido pelo `file_log`. Os `compose.yaml` das features configuram `json-file` (rotação de 10 MB e 3 arquivos) nos 18 componentes;
   - o Collector precisa ler `/var/lib/docker/containers` como root (os arquivos são 0600 do root);
   - o pipeline que funcionou: operador `container` (formato `docker`), `json_parser` com `timestamp` (`%Y-%m-%dT%H:%M:%S.%fZ`) e `severity` (de `severity_text`), `move` de `attributes.body` para `body` e, no processador `transform` (OTTL), `scope.name`, `Resource`, `event_name` (campo `EventName`) e `attributes` movidos para seus lugares. O `move` do operador não aceita a raiz (`resource` ou `attributes`) como destino;
   - o resultado foi um LogRecord com `Timestamp`, `ObservedTimestamp`, `SeverityNumber` e `SeverityText`, `Body`, `EventName`, escopo, `Resource` e atributos corretos, e sem `exception.message`. O Collector acrescenta `log.iostream` e `log.file.name`.
@@ -173,7 +173,6 @@ As páginas oficiais consultadas em 2026-10-16 não exibem um número de versão
 
 # 10. Pendências
 
-- Configurar `logging: driver: json-file` (com rotação) nos `compose.yaml` das features e da plataforma, para o `file_log` funcionar em dev.
 - Validar o `file_log` em Kubernetes (formato CRI). Em Docker já foi validado (seção 7).
 - `event_name` ainda não é usado por nenhum componente; definir os eventos nomeados ao precisar deles.
 - Confirmar nomes e estágios dos atributos contra a versão vigente da semconv (seção 9).
