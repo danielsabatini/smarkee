@@ -1,7 +1,8 @@
-"""Comandos `sk account`: consultar e excluir a própria conta.
+"""Comandos `sk account`: consultar, proteger e excluir a própria conta.
 
 Agem sobre a conta da sessão (`sk auth login`). A exclusão é segura (decisão 0040): a API recusa
 enquanto houver Organizations ou serviços habilitados da conta, e a CLI diz o que remover antes.
+A conta nasce protegida contra exclusão (decisão 0043): `sk account unprotect` precede o `delete`.
 O cadastro é `sk register`.
 """
 
@@ -29,6 +30,7 @@ from sk.features.core.account import (
     delete_account,
     get_account,
     get_operation,
+    set_account_protection,
     token_subject,
 )
 from sk.help import command, option
@@ -36,7 +38,7 @@ from sk.http import ApiError, ApiRejectedError
 from sk.identity.credentials import default_credentials_path
 from sk.identity.oidc import OidcError
 
-ACCOUNT_HELP = command("Show or delete your own account.")
+ACCOUNT_HELP = command("Show, protect or delete your own account.")
 
 account_app = typer.Typer(
     help=ACCOUNT_HELP,
@@ -49,6 +51,9 @@ account_app = typer.Typer(
 NOT_FOUND = "Your account was not found."
 CONFLICT_ON_CHANGE = "The account changed since it was last read. Inspect it and try again."
 ERROR_CODE_HINTS = {
+    "DeletionProtected": (
+        "The account is protected against deletion. Run `sk account unprotect` first."
+    ),
     "ResourcesAttached": (
         "Remove them first (`sk ipm organization delete`, `sk sum service disable`) and repeat."
     ),
@@ -77,6 +82,7 @@ def _rows(account: Account) -> list[tuple[str, str]]:
         ("email", account.email),
         ("phase", account.phase),
         ("platformAccess", account.platform_access),
+        ("protected", "yes" if account.deletion_protection else "no"),
     ]
 
 
@@ -93,6 +99,126 @@ def get_command() -> None:
     except ApiError as error:
         _fail_api(error)
     ui.panel("Account", _rows(account))
+
+
+def _wait_until_completed(
+    url: str, insecure: bool, resource_id: str, operation_id: str, *, timeout: int
+) -> None:
+    """Espera a Operation de proteção chegar a `completed` (ela não passa pelo provedor)."""
+    ui.note(f"Waiting for the change (up to {timeout} s)...")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            operation = get_operation(
+                url,
+                token=session_token(),
+                resource_id=resource_id,
+                operation_id=operation_id,
+                allow_insecure_http=insecure,
+            )
+        except OidcError as error:
+            bad_address(error)
+        except ApiRejectedError as error:
+            # Logo depois do `202`, a Operation pode ainda não existir: é espera, e não erro.
+            if error.status != HTTP_NOT_FOUND:
+                _fail_api(error)
+        except ApiError as error:
+            _fail_api(error)
+        else:
+            if operation.operation_status in ("rejected", "failed"):
+                ui.error(
+                    "Request not completed",
+                    f"The Operation ended as {operation.operation_status}.",
+                    hint="Inspect your account with `sk account get`.",
+                )
+                raise typer.Exit(EXIT_FAILURE)
+            if operation.operation_status == "completed":
+                return
+        if time.monotonic() >= deadline:
+            ui.error(
+                "Timed out",
+                f"{timeout} s passed and the change is still in progress.",
+                hint="Check it with `sk account get`.",
+            )
+            raise typer.Exit(EXIT_FAILURE)
+        time.sleep(WAIT_POLL_SECONDS)
+
+
+def _set_protection(*, protected: bool, wait: bool, timeout: int) -> None:
+    url, insecure = load_api()
+    token = session_token()
+    resource_id = _own_id(token)
+    try:
+        account = get_account(
+            url, token=token, resource_id=resource_id, allow_insecure_http=insecure
+        )
+        if account.deletion_protection == protected:
+            # Idempotente: pedir o estado que já vale não é erro.
+            state = "protected" if protected else "unprotected"
+            ui.note(f"The account is already {state}. Nothing to do.")
+            return
+        accepted = set_account_protection(
+            url,
+            token=token,
+            resource_id=resource_id,
+            resource_version=account.resource_version,
+            protected=protected,
+            idempotency_key=str(uuid.uuid7()),
+            allow_insecure_http=insecure,
+        )
+    except OidcError as error:
+        bad_address(error)
+    except ApiError as error:
+        _fail_api(error)
+    ui.panel(
+        "Protection change requested",
+        [
+            ("protected", "yes" if protected else "no"),
+            ("resourceId", accepted.resource_id),
+            ("operationId", accepted.operation_id),
+        ],
+    )
+    if not wait:
+        ui.note("Confirm it with `sk account get`.")
+        return
+    _wait_until_completed(url, insecure, resource_id, accepted.operation_id, timeout=timeout)
+    ui.panel(
+        "Account protected" if protected else "Account unprotected",
+        [("resourceId", resource_id), ("protected", "yes" if protected else "no")],
+    )
+
+
+WaitOption = Annotated[
+    bool,
+    typer.Option(
+        "--wait",
+        help=option(
+            "Wait for the change to complete.",
+            kind="Boolean",
+            variable=None,
+            file=None,
+            default="off",
+        ),
+    ),
+]
+
+
+@account_app.command(
+    "protect", help=command("Protect your account against deletion (the default).")
+)
+def protect_command(
+    wait: WaitOption = False, timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS
+) -> None:
+    _set_protection(protected=True, wait=wait, timeout=timeout)
+
+
+@account_app.command(
+    "unprotect", help=command("Allow your account to be deleted. Required before `delete`.")
+)
+def unprotect_command(
+    wait: WaitOption = False, timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS
+) -> None:
+    _set_protection(protected=False, wait=wait, timeout=timeout)
 
 
 def _wait_until_gone(

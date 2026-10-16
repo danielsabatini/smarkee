@@ -107,7 +107,12 @@ def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def organization_document(
-    *, name: str = "acme", phase: str = "Ready", state: str | None = "active", version: str = "3"
+    *,
+    name: str = "acme",
+    phase: str = "Ready",
+    state: str | None = "active",
+    version: str = "3",
+    protected: bool = True,
 ) -> dict[str, Any]:
     return {
         "resourceId": RID,
@@ -120,6 +125,7 @@ def organization_document(
             "reconciliation": "active",
             "name": name,
             "platformAccess": "granted",
+            "deletionProtection": protected,
         },
         **(
             {"observed": {"presence": "present", "name": name, "organizationState": state}}
@@ -388,6 +394,86 @@ def test_update_conflict_tells_to_inspect_again(api: FakeApi) -> None:
 
     assert result.exit_code == 1
     assert "changed since it was last read" in " ".join(result.stderr.split())
+
+
+def test_unprotect_sends_the_flag_with_the_current_version(api: FakeApi) -> None:
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(version="9"))
+    api.routes[("PATCH", ORGANIZATION)] = accepted()
+
+    result = runner.invoke(app, ["ipm", "organization", "unprotect", "--resource-id", RID])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    patch = next(request for request in api.requests if request.get_method() == "PATCH")
+    assert body_of(patch) == {"resourceVersion": "9", "deletionProtection": False}
+    assert patch.get_header("Idempotency-key")
+    assert "Protection change requested" in result.stdout
+
+
+def test_protect_is_idempotent_when_already_protected(api: FakeApi) -> None:
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(protected=True))
+
+    result = runner.invoke(app, ["ipm", "organization", "protect", "--resource-id", RID])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert "already protected" in " ".join(result.stdout.split())
+    assert [request.get_method() for request in api.requests] == ["GET"]
+
+
+def test_unprotect_wait_shows_the_organization_when_completed(api: FakeApi) -> None:
+    api.routes[("PATCH", ORGANIZATION)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("GET", ORGANIZATION)] = [
+        Response(200, organization_document(protected=True)),
+        Response(200, organization_document(protected=False)),
+    ]
+
+    result = runner.invoke(
+        app, ["ipm", "organization", "unprotect", "--resource-id", RID, "--wait"]
+    )
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert "Organization unprotected" in result.stdout
+    assert "no" in result.stdout.split("protected")[-1]
+
+
+def test_protection_commands_require_a_valid_resource_id(api: FakeApi) -> None:
+    for command in ("protect", "unprotect"):
+        missing = runner.invoke(app, ["ipm", "organization", command])
+        assert missing.exit_code == 2
+        assert "--resource-id" in missing.stderr
+    assert api.requests == []
+
+
+def test_get_shows_whether_the_organization_is_protected(api: FakeApi) -> None:
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(protected=False))
+
+    result = runner.invoke(app, ["ipm", "organization", "get", "--resource-id", RID])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert "protected" in result.stdout
+
+
+def test_delete_of_a_protected_organization_points_to_unprotect(api: FakeApi) -> None:
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
+    api.routes[("DELETE", ORGANIZATION)] = http_error(
+        409, "DeletionProtected", "A Organization está protegida contra exclusão."
+    )
+
+    result = runner.invoke(app, ["ipm", "organization", "delete", "--resource-id", RID])
+
+    assert result.exit_code == 1
+    assert "sk ipm organization unprotect" in " ".join(result.stderr.split())
+
+
+def test_a_protected_rejection_points_to_unprotect(api: FakeApi) -> None:
+    api.routes[("DELETE", ORGANIZATION)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("rejected", "protected")
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
+
+    result = runner.invoke(app, ["ipm", "organization", "delete", "--resource-id", RID, "--wait"])
+
+    assert result.exit_code == 1
+    assert "sk ipm organization unprotect" in " ".join(result.stderr.split())
 
 
 def test_delete_reads_the_current_version_and_sends_it(api: FakeApi) -> None:

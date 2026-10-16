@@ -43,7 +43,13 @@
       "$ref": "core/account/requested-delete.v1.schema.json"
     },
     {
+      "$ref": "core/account/requested-update.v1.schema.json"
+    },
+    {
       "$ref": "core/account/api-create-request.v1.schema.json"
+    },
+    {
+      "$ref": "core/account/api-update-request.v1.schema.json"
     },
     {
       "$ref": "core/account/resource.v1.schema.json"

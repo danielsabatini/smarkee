@@ -39,7 +39,8 @@ Porta de entrada HTTP. Autentica o token (JWKS do Zitadel), autoriza pela role d
 |---|---|---|---|
 | `POST /v1/core/accounts` | Auto-cadastro (**anônimo**) | Qualquer pessoa | `202` uniforme, `400`, `429` (com `Retry-After`), `503` (com `Retry-After`) |
 | `GET /v1/core/accounts/{id}` | Lê o usuário | O próprio usuário ou `core.account.admin`, role `core.account.get` | `200`, `401`, `403`, `404` |
-| `DELETE /v1/core/accounts/{id}?resourceVersion=` | Remove (cabeçalho opcional `Idempotency-Key`); **recusa com `409` enquanto a conta tiver Organizations ou serviços habilitados** (decisão 0040) | O próprio usuário ou `core.account.admin`, role `core.account.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422` (`Idempotency-Key` reutilizada com outro conteúdo), `503` |
+| `PATCH /v1/core/accounts/{id}` | Liga ou desliga a proteção contra exclusão (corpo `{resourceVersion, deletionProtection}`; cabeçalho opcional `Idempotency-Key`). Conclui na hora, sem reconciliar (decisão 0043) | O próprio usuário ou `core.account.admin`, role `core.account.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422`, `503` |
+| `DELETE /v1/core/accounts/{id}?resourceVersion=` | Remove (cabeçalho opcional `Idempotency-Key`); a conta **nasce protegida**: recusa com `409 DeletionProtected` até desproteger (decisão 0043); depois, **recusa com `409` enquanto a conta tiver Organizations ou serviços habilitados** (decisão 0040) | O próprio usuário ou `core.account.admin`, role `core.account.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422` (`Idempotency-Key` reutilizada com outro conteúdo), `503` |
 | `GET /v1/core/accounts/{id}/operations/{operationId}` | Acompanha a Operation | Solicitante ou `core.account.admin` (a do cadastro anônimo só operadores) | `200`, `401`, `404` |
 
 Não há listagem (`GET /v1/core/accounts`) nem `PATCH`: a Account não tem `update` (decisão 0014). O contrato descritivo é [`receiver/openapi.json`](receiver/openapi.json). Erros: `{errorCode, message, field?}` (`schemas/common/api-error`; códigos `ValidationFailed`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `IdempotencyKeyReused`, `ServiceUnavailable` e `InternalError`), sem repetir valores enviados. Um usuário que não é o dono recebe `404`, e não `403`, para não revelar a existência.
@@ -48,7 +49,7 @@ Não há listagem (`GET /v1/core/accounts`) nem `PATCH`: a Account não tem `upd
 
 **Único escritor do SSOT** do tipo. Cada mensagem é uma unidade atômica (linha bloqueada, Operation única, `desired` ou `updated` no outbox, `COMMIT`, só então `ACK`):
 
-- `requested`: valida, garante e-mail único (normalizado, trava consultiva), grava o recurso (`Pending`, geração 1), a Operation (`accepted`) e o `desired` no outbox; rejeita com motivo (`validation`, `conflict`, `not_found`).
+- `requested`: valida, garante e-mail único (normalizado, trava consultiva), grava o recurso (`Pending`, geração 1), a Operation (`accepted`) e o `desired` no outbox; rejeita com motivo (`validation`, `conflict`, `not_found`, `protected`).
 - `observed`: guarda a observação (nunca retrocede), recalcula `conditions` e `phase` (`Reconciling`, `Ready`, `Deleting`), conclui a Operation e, na remoção convergida, apaga a linha.
 - `completed` e `failed`: registra o `actionId` (idempotência), conta falhas por geração e, no limite (5), marca `Failed` e republica o `desired` com a reconciliação suspensa.
 
@@ -316,7 +317,7 @@ Views (a interface de leitura do Receiver, decisão 0004): `core.account_v1` (o 
 
 | Coluna | Conteúdo na Account |
 |---|---|
-| `desired` | `lifecycle`, `platformAccess`, `platformRoles` e, no `create`, `givenName`, `familyName` e `email` (normalizado). No `delete`, só `lifecycle = absent`, `platformAccess` e `platformRoles`: **sem dados pessoais** |
+| `desired` | `lifecycle`, `platformAccess`, `platformRoles` `deletionProtection` (nasce `true`) e, no `create`, `givenName`, `familyName` e `email` (normalizado). No `delete`, só `lifecycle = absent`, `platformAccess` e `platformRoles`: **sem dados pessoais** |
 | `observed` | `emailVerified`, `accountState` (`initial` até a senha ser definida), `platformAccess` e `platformRoles` |
 | `conditions` | Array com a condition `Ready` (`status`, `reason`, `observedGeneration`, `lastTransitionAt`) |
 | `user_outbox.payload` | O envelope completo da mensagem (`desired` ou `updated`), com `publishedAt` e `publishedBy` preenchidos pelo Publisher |

@@ -44,6 +44,11 @@
           "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
           "x-writer": "client",
           "x-sensitivity": "internal"
+        },
+        "deletionProtection": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
         }
       }
     },

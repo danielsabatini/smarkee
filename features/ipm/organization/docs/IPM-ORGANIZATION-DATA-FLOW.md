@@ -94,6 +94,8 @@ O consumer durável `ipm-organization-manager-requested` (pull, ACK explícito) 
 | criar | cota do dono esgotada (conferida de novo sob trava por dono; o Receiver só pré-checa) | recusa `validation` |
 | atualizar ou remover | Organization inexistente ou já removida | recusa `not_found` |
 | atualizar ou remover | `resourceVersion` diferente da atual | recusa `conflict` |
+| remover | `deletionProtection` diferente de `false` (a Organization nasce protegida; registro sem o campo vale como protegido) | recusa `protected` (decisão 0043); antes dela, o Receiver já responde `409 DeletionProtected` |
+| atualizar | só `deletionProtection` mudou (campo da plataforma, sem o que reconciliar) | conclui na hora: Operation `completed`, nova geração, a fase não muda |
 | qualquer | senão | aceita: `desired` com a nova geração (`lifecycle absent` ao remover) |
 
 ### 2.2 Gravação (`store/ssot.py`, `handlers/requested.py`)

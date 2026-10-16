@@ -5,7 +5,6 @@ import uuid
 from typing import Any
 
 import psycopg
-import pytest
 from support import (
     DEFAULT_DIGEST,
     Cleanup,
@@ -17,7 +16,6 @@ from support import (
 )
 
 from core_account_manager.domain.account import DEFAULT_PLATFORM_ROLES
-from core_account_manager.domain.errors import PermanentMessageError
 from core_account_manager.domain.kind import ACCOUNT
 from core_account_manager.domain.outcome import OutcomeKind, RejectionReason
 from core_account_manager.handlers.requested import RequestedHandler
@@ -59,6 +57,23 @@ def delete_message(register: dict[str, Any], *, version: str) -> dict[str, Any]:
     )
 
 
+def protection_message(
+    register: dict[str, Any], *, version: str, protected: bool
+) -> dict[str, Any]:
+    return requested_message(
+        resource_type="account",
+        resource_id=register["resourceId"],
+        operation="update",
+        requested_by=register["resourceId"],
+        data={
+            "operationId": str(uuid.uuid7()),
+            "requestDigest": DEFAULT_DIGEST,
+            "resourceVersion": version,
+            "specification": {"deletionProtection": protected},
+        },
+    )
+
+
 async def account_row(connection: Connection, resource_id: str) -> dict[str, Any] | None:
     return await fetch_one(
         connection,
@@ -93,6 +108,7 @@ async def test_anonymous_registration_creates_the_account_with_normalized_email(
         "givenName": "Ana",
         "familyName": "Souza",
         "email": expected_email,
+        "deletionProtection": True,
     }
     operation = await fetch_one(
         account_manager,
@@ -126,8 +142,11 @@ async def test_delete_removes_personal_data_from_the_ssot_and_from_the_desired_m
 ) -> None:
     message = register_message(cleanup)
     await handler.handle(ssot(account_manager), ACCOUNT, message)
+    await handler.handle(
+        ssot(account_manager), ACCOUNT, protection_message(message, version="1", protected=False)
+    )
     outcome = await handler.handle(
-        ssot(account_manager), ACCOUNT, delete_message(message, version="1")
+        ssot(account_manager), ACCOUNT, delete_message(message, version="2")
     )
 
     assert outcome.kind is OutcomeKind.ACCEPTED
@@ -138,10 +157,10 @@ async def test_delete_removes_personal_data_from_the_ssot_and_from_the_desired_m
         "platformAccess": "granted",
         "platformRoles": list(DEFAULT_PLATFORM_ROLES),
     }
-    assert (row["lifecycle"], row["phase"], row["desired_generation"]) == ("absent", "Deleting", 2)
+    assert (row["lifecycle"], row["phase"], row["desired_generation"]) == ("absent", "Deleting", 3)
 
     latest = (await outbox(outbox_reader, message["resourceId"]))[-1]["payload"]
-    assert latest["desiredGeneration"] == 2
+    assert latest["desiredGeneration"] == 3
     assert latest["data"] == {
         "lifecycle": "absent",
         "reconciliation": "active",
@@ -152,12 +171,40 @@ async def test_delete_removes_personal_data_from_the_ssot_and_from_the_desired_m
     assert personal not in json.dumps(latest)
 
 
-async def test_update_is_not_supported_for_account(
+async def test_delete_of_a_protected_account_is_rejected(
     cleanup: Cleanup, account_manager: Connection
 ) -> None:
     message = register_message(cleanup)
     await handler.handle(ssot(account_manager), ACCOUNT, message)
-    update = delete_message(message, version="1")
-    update["operation"] = "update"
-    with pytest.raises(PermanentMessageError, match="não suportada"):
-        await handler.handle(ssot(account_manager), ACCOUNT, update)
+    outcome = await handler.handle(
+        ssot(account_manager), ACCOUNT, delete_message(message, version="1")
+    )
+
+    assert (outcome.kind, outcome.reason) == (OutcomeKind.REJECTED, RejectionReason.PROTECTED)
+    row = await account_row(account_manager, message["resourceId"])
+    assert row is not None
+    assert (row["lifecycle"], row["desired_generation"]) == ("present", 1)
+
+
+async def test_protection_only_update_completes_at_once_and_is_reversible(
+    cleanup: Cleanup, account_manager: Connection
+) -> None:
+    message = register_message(cleanup)
+    await handler.handle(ssot(account_manager), ACCOUNT, message)
+    before = await account_row(account_manager, message["resourceId"])
+    outcome = await handler.handle(
+        ssot(account_manager), ACCOUNT, protection_message(message, version="1", protected=False)
+    )
+    after = await account_row(account_manager, message["resourceId"])
+
+    assert outcome.kind is OutcomeKind.COMPLETED
+    assert before is not None and after is not None
+    assert after["desired"]["deletionProtection"] is False
+    assert (after["resource_version"], after["phase"]) == (2, before["phase"])
+
+    again = await handler.handle(
+        ssot(account_manager), ACCOUNT, protection_message(message, version="2", protected=True)
+    )
+    assert again.kind is OutcomeKind.COMPLETED
+    restored = await account_row(account_manager, message["resourceId"])
+    assert restored is not None and restored["desired"]["deletionProtection"] is True

@@ -22,7 +22,7 @@
       "x-sensitivity": "internal"
     },
     "specification": {
-      "title": "UserCreateSpecification",
+      "title": "AccountCreateSpecification",
       "type": "object",
       "additionalProperties": false,
       "required": [

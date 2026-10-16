@@ -123,6 +123,15 @@ class PostgresSsot:
             found = connection.execute(query).fetchall()
         return [Row(str(row[0]), str(row[1])) for row in found]
 
+    def unprotected_version(self, kind: Kind, resource_id: str) -> str | None:
+        query = sql.SQL(
+            "SELECT resource_version FROM {table}"
+            " WHERE resource_id = %s AND desired -> 'deletionProtection' = 'false'::jsonb"
+        ).format(table=self._table(kind.table))
+        with self._connect(kind.manager_role) as connection:
+            found = connection.execute(query, (resource_id,)).fetchone()
+        return None if found is None else str(found[0])
+
     def delete(self, kind: Kind, resource_ids: set[str]) -> None:
         ids = sorted(resource_ids)
         delete = sql.SQL("DELETE FROM {table} WHERE resource_id = ANY(%s)")
@@ -160,7 +169,13 @@ class NatsBus:
             return None
         return _text(data.get("phase")), _text(data.get("resourceVersion"))
 
-    async def request_deletion(self, kind: Kind, resource_id: str, version: str) -> None:
+    async def _request(
+        self,
+        kind: Kind,
+        resource_id: str,
+        operation: str,
+        data: dict[str, Any],
+    ) -> None:
         now = datetime.now(UTC).isoformat()
         message = {
             "messageId": str(uuid.uuid7()),
@@ -170,22 +185,29 @@ class NatsBus:
             "module": kind.module,
             "resourceType": kind.resource_type,
             "resourceId": resource_id,
-            "operation": "delete",
+            "operation": operation,
             "requestedBy": resource_id if kind is ACCOUNTS else "cleanup",
             "correlationId": str(uuid.uuid7()),
             "occurredAt": now,
             "publishedAt": now,
-            "data": {
-                "operationId": str(uuid.uuid7()),
-                "requestDigest": "0" * 64,
-                "resourceVersion": version,
-            },
+            "data": {"operationId": str(uuid.uuid7()), "requestDigest": "0" * 64, **data},
         }
         await self._js.publish(
-            self._subject("receiver.requested", kind, resource_id, "delete"),
+            self._subject("receiver.requested", kind, resource_id, operation),
             json.dumps(message).encode(),
             headers={"Nats-Msg-Id": message["messageId"]},
         )
+
+    async def request_unprotection(self, kind: Kind, resource_id: str, version: str) -> None:
+        await self._request(
+            kind,
+            resource_id,
+            "update",
+            {"resourceVersion": version, "specification": {"deletionProtection": False}},
+        )
+
+    async def request_deletion(self, kind: Kind, resource_id: str, version: str) -> None:
+        await self._request(kind, resource_id, "delete", {"resourceVersion": version})
 
     async def removed(self, kind: Kind, resource_id: str) -> bool:
         return bool((await self._updated(kind, resource_id)).get("removed"))

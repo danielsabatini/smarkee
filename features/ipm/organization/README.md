@@ -43,13 +43,13 @@ Cada componente é autocontido (decisão 0015): tem o próprio papel de banco (`
 
 - Rotas sob `/v1/ipm/organizations`: `POST` cria, `GET` lista, `GET /{resourceId}` lê, `PATCH /{resourceId}` altera, `DELETE /{resourceId}?resourceVersion=` remove e `GET /{resourceId}/operations/{operationId}` acompanha a Operation.
 - Valida o token (assinatura por JWKS, `iss`, `aud` = projeto `roles-ipm`, `exp`). O dono é o `sub`: nunca vem do corpo, que só tem `name`. Cada ação exige a role `ipm.organization.<create|get|list|update|delete>`. Para criar, o solicitante precisa de **e-mail verificado** e de cota (`IPM_ORGANIZATION_RECEIVER_API_ORGANIZATION_QUOTA`, padrão 1); o operador (`ipm.organization.admin`) não tem cota.
-- O dono altera só o `name`; `platformAccess` e `reconciliation` são do operador. Uma Organization de outro dono responde `404`, para não revelar que existe. `Idempotency-Key` torna o `POST`, o `PATCH` e o `DELETE` repetíveis.
+- O dono altera o `name` e a proteção contra exclusão (`deletionProtection`); `platformAccess` e `reconciliation` são do operador. A Organization **nasce protegida** (decisão 0043): o `DELETE` responde `409 DeletionProtected` até um `PATCH` com `deletionProtection: false`; alterar só a proteção conclui na hora, sem reconciliar. Registro sem o campo vale como protegido. Uma Organization de outro dono responde `404`, para não revelar que existe. `Idempotency-Key` torna o `POST`, o `PATCH` e o `DELETE` repetíveis.
 - Só lê o SSOT, pelas views `ipm.organization_v1` e `ipm.organization_operation_v1`. Não expõe `/docs` nem `/openapi.json`: o contrato descritivo é o arquivo versionado `openapi.json`, conferido por teste. Erros no formato `api-error`; a entrada inválida é `400` e nunca repete o valor enviado.
 
 ## 3.2 Manager (`ipm-organization-manager`)
 
 - Único escritor do SSOT (`ipm.organization`, `ipm.organization_operation`, `ipm.organization_action_result`) e do outbox.
-- Consome `requested` (criar, alterar e remover), `observed` e os resultados `completed` e `failed`. Aceita ou recusa com motivo (`conflict`, `validation`, `not_found`): nome reservado, nome já usado e cota por dono esgotada são `validation`; a unicidade e a cota são conferidas na mesma unidade atômica, sob trava consultiva por nome e por dono.
+- Consome `requested` (criar, alterar e remover), `observed` e os resultados `completed` e `failed`. Aceita ou recusa com motivo (`conflict`, `validation`, `not_found`, `protected`): o `delete` de uma Organization protegida (`deletionProtection`, decisão 0043) é `protected`; nome reservado, nome já usado e cota por dono esgotada são `validation`; a unicidade e a cota são conferidas na mesma unidade atômica, sob trava consultiva por nome e por dono.
 - Só insere no outbox: a publicação é do Publisher. ACK depois do `COMMIT`; falha transitória do banco é `RETRY`; mensagem fora do contrato (inclusive de outra versão `MAJOR`) é `TERM`.
 - Aplica `observed` (fase `Ready`, `Reconciling` ou `Deleting`) e acompanha as Operations; remoção convergida apaga a linha.
 
@@ -205,7 +205,7 @@ O Receiver lê pelas views `ipm.organization_v1` (sem `failure_count`) e `ipm.or
 
 ## 11.3 O que cada coluna `jsonb` guarda
 
-- `organization.desired`: `lifecycle`, `reconciliation`, `name`, `platformAccess` e `ownerAccountId`.
+- `organization.desired`: `lifecycle`, `reconciliation`, `name`, `platformAccess`, `deletionProtection` e `ownerAccountId`.
 - `organization.observed`: `name`, `platformAccess` e `organizationState` lidos do Zitadel.
 - `organization.conditions`: lista de condições do recurso.
 - `organization_outbox.payload`: o envelope publicado, sem `publishedAt` e `publishedBy` (o Publisher os preenche).

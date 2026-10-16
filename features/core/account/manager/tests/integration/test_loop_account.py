@@ -248,6 +248,21 @@ async def test_removal_converged_deletes_the_record_and_publishes_removed(
     )
     stored = await row(account_manager, resource_id)
     assert stored is not None
+    unprotect = requested_message(
+        resource_type="account",
+        resource_id=resource_id,
+        operation="update",
+        requested_by=resource_id,
+        data={
+            "operationId": str(uuid.uuid7()),
+            "requestDigest": DEFAULT_DIGEST,
+            "resourceVersion": str(stored["resource_version"]),
+            "specification": {"deletionProtection": False},
+        },
+    )
+    await requested_handler.handle(ssot(account_manager), ACCOUNT, unprotect)
+    unprotected = await row(account_manager, resource_id)
+    assert unprotected is not None
     delete = requested_message(
         resource_type="account",
         resource_id=resource_id,
@@ -256,7 +271,7 @@ async def test_removal_converged_deletes_the_record_and_publishes_removed(
         data={
             "operationId": str(uuid.uuid7()),
             "requestDigest": DEFAULT_DIGEST,
-            "resourceVersion": str(stored["resource_version"]),
+            "resourceVersion": str(unprotected["resource_version"]),
         },
     )
     await requested_handler.handle(ssot(account_manager), ACCOUNT, delete)
@@ -268,7 +283,11 @@ async def test_removal_converged_deletes_the_record_and_publishes_removed(
     )
 
     assert await row(account_manager, resource_id) is None
-    assert await operation_status(account_manager, resource_id) == ["completed", "completed"]
+    assert await operation_status(account_manager, resource_id) == [
+        "completed",
+        "completed",
+        "completed",
+    ]
     last = (
         await fetch_all(
             outbox_reader,

@@ -19,7 +19,7 @@
             "type": "string"
           },
           "desired": {
-            "$ref": "#/components/schemas/UserDesiredView"
+            "$ref": "#/components/schemas/AccountDesiredView"
           },
           "desiredGeneration": {
             "maximum": 9007199254740991.0,
@@ -30,13 +30,13 @@
           "observed": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UserObservedView"
+                "$ref": "#/components/schemas/AccountObservedView"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "UserObservedView"
+            "title": "AccountObservedView"
           },
           "phase": {
             "$ref": "#/components/schemas/Phase"
@@ -106,6 +106,153 @@
         "title": "AccountCreateRequest",
         "type": "object"
       },
+      "AccountDesiredView": {
+        "additionalProperties": false,
+        "properties": {
+          "deletionProtection": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deletionprotection"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "format": "email",
+                "maxLength": 254,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "familyName": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Familyname"
+          },
+          "givenName": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Givenname"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/Lifecycle"
+          },
+          "platformAccess": {
+            "$ref": "#/components/schemas/PlatformAccess"
+          },
+          "platformRoles": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformRole"
+            },
+            "maxItems": 64,
+            "title": "Platformroles",
+            "type": "array"
+          },
+          "reconciliation": {
+            "$ref": "#/components/schemas/Reconciliation"
+          }
+        },
+        "required": [
+          "lifecycle",
+          "reconciliation",
+          "platformAccess",
+          "platformRoles"
+        ],
+        "title": "AccountDesiredView",
+        "type": "object"
+      },
+      "AccountObservedView": {
+        "additionalProperties": false,
+        "description": "Última observação; ausente antes da primeira.",
+        "properties": {
+          "accountState": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "emailVerified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emailverified"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "title": "Observedat",
+            "type": "string"
+          },
+          "platformAccess": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlatformAccess"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "platformRoles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PlatformRole"
+                },
+                "maxItems": 64,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platformroles"
+          },
+          "presence": {
+            "$ref": "#/components/schemas/Presence"
+          }
+        },
+        "required": [
+          "presence",
+          "observedAt"
+        ],
+        "title": "AccountObservedView",
+        "type": "object"
+      },
       "AccountState": {
         "description": "Estado do usuário no provedor de identidade. initial: aguardando a ativação (definição da senha).",
         "enum": [
@@ -116,6 +263,29 @@
         ],
         "title": "AccountState",
         "type": "string"
+      },
+      "AccountUpdateRequest": {
+        "additionalProperties": false,
+        "description": "Corpo de PATCH /v1/core/accounts/{resourceId}. resourceVersion é a versão lida; a única alteração possível é a proteção contra exclusão.",
+        "properties": {
+          "deletionProtection": {
+            "title": "Deletionprotection",
+            "type": "boolean"
+          },
+          "resourceVersion": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9-]+$",
+            "title": "Resourceversion",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resourceVersion",
+          "deletionProtection"
+        ],
+        "title": "AccountUpdateRequest",
+        "type": "object"
       },
       "ApiAcceptedResponse": {
         "additionalProperties": false,
@@ -345,11 +515,12 @@
         "type": "string"
       },
       "OperationStatusReason": {
-        "description": "Motivo da rejeição; presente somente quando operationStatus é rejected.",
+        "description": "Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).",
         "enum": [
           "conflict",
           "validation",
-          "not_found"
+          "not_found",
+          "protected"
         ],
         "title": "OperationStatusReason",
         "type": "string"
@@ -409,142 +580,6 @@
         ],
         "title": "Reconciliation",
         "type": "string"
-      },
-      "UserDesiredView": {
-        "additionalProperties": false,
-        "properties": {
-          "email": {
-            "anyOf": [
-              {
-                "format": "email",
-                "maxLength": 254,
-                "minLength": 3,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Email"
-          },
-          "familyName": {
-            "anyOf": [
-              {
-                "maxLength": 256,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Familyname"
-          },
-          "givenName": {
-            "anyOf": [
-              {
-                "maxLength": 256,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Givenname"
-          },
-          "lifecycle": {
-            "$ref": "#/components/schemas/Lifecycle"
-          },
-          "platformAccess": {
-            "$ref": "#/components/schemas/PlatformAccess"
-          },
-          "platformRoles": {
-            "items": {
-              "$ref": "#/components/schemas/PlatformRole"
-            },
-            "maxItems": 64,
-            "title": "Platformroles",
-            "type": "array"
-          },
-          "reconciliation": {
-            "$ref": "#/components/schemas/Reconciliation"
-          }
-        },
-        "required": [
-          "lifecycle",
-          "reconciliation",
-          "platformAccess",
-          "platformRoles"
-        ],
-        "title": "UserDesiredView",
-        "type": "object"
-      },
-      "UserObservedView": {
-        "additionalProperties": false,
-        "description": "Última observação; ausente antes da primeira.",
-        "properties": {
-          "accountState": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AccountState"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "emailVerified": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Emailverified"
-          },
-          "observedAt": {
-            "format": "date-time",
-            "title": "Observedat",
-            "type": "string"
-          },
-          "platformAccess": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PlatformAccess"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "platformRoles": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/PlatformRole"
-                },
-                "maxItems": 64,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Platformroles"
-          },
-          "presence": {
-            "$ref": "#/components/schemas/Presence"
-          }
-        },
-        "required": [
-          "presence",
-          "observedAt"
-        ],
-        "title": "UserObservedView",
-        "type": "object"
       },
       "ValidationError": {
         "properties": {
@@ -793,6 +828,70 @@
           }
         },
         "summary": "Get Account"
+      },
+      "patch": {
+        "description": "Única alteração possível: a proteção contra exclusão (decisão 0043).\n\nUsa a mesma role do `delete`: quem pode apagar a conta pode (des)proteger.",
+        "operationId": "update_account_v1_core_accounts__account_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Account"
       }
     },
     "/v1/core/accounts/{account_id}/operations/{operation_id}": {

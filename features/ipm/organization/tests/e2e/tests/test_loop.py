@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from conftest import unprotect_through_the_loop
 from contracts import assert_valid
 from nats.js import JetStreamContext
 
@@ -192,10 +193,13 @@ async def test_the_whole_loop_creates_updates_and_removes_the_organization(
 
     # 4. Remoção: o Executor remove a organização, o Observer confirma a ausência e o Manager
     # apaga o registro (`removed`).
-    await send(
-        jetstream,
-        request(resource_id, "delete", {"resourceVersion": updated["data"]["resourceVersion"]}),
-    )
+    # Nasce protegida (decisão 0043): o `delete` é rejeitado e nada muda no provedor.
+    version = updated["data"]["resourceVersion"]
+    await send(jetstream, request(resource_id, "delete", {"resourceVersion": version}))
+    await asyncio.sleep(3.0)
+    assert not (await last(jetstream, "updated", resource_id))["data"].get("removed")
+    version = await unprotect_through_the_loop(jetstream, resource_id, version)
+    await send(jetstream, request(resource_id, "delete", {"resourceVersion": version}))
     removed = await wait_for(
         jetstream, "updated", resource_id, lambda m: m["data"].get("removed") is True
     )

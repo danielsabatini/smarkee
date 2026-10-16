@@ -30,6 +30,8 @@ class RejectionReason(StrEnum):
     CONFLICT = "conflict"
     VALIDATION = "validation"
     NOT_FOUND = "not_found"
+    PROTECTED = "protected"
+    """Exclusão recusada: o recurso tem a proteção contra exclusão ligada (decisão 0043)."""
 
 
 @dataclass(frozen=True, slots=True)

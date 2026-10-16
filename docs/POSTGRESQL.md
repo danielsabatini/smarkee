@@ -160,7 +160,7 @@ CREATE TABLE sample.item_operation (
   request_digest          text        NOT NULL CHECK (request_digest ~ '^[0-9a-f]{64}$'),
   operation_status        text        NOT NULL
                           CHECK (operation_status IN ('accepted', 'in_progress', 'completed', 'failed', 'rejected')),
-  operation_status_reason text        CHECK (operation_status_reason IN ('conflict', 'validation', 'not_found')),
+  operation_status_reason text        CHECK (operation_status_reason IN ('conflict', 'validation', 'not_found', 'protected')),
   created_at              timestamptz NOT NULL DEFAULT now(),
   updated_at              timestamptz NOT NULL DEFAULT now(),
   completed_at            timestamptz,

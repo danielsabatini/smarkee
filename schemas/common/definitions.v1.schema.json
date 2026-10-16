@@ -80,6 +80,10 @@
       ],
       "x-enumPolicy": "closed"
     },
+    "deletionProtection": {
+      "description": "Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).",
+      "type": "boolean"
+    },
     "presence": {
       "description": "Resultado da observação, no envelope de observed. unknown nunca é tratado como absent.",
       "type": "string",

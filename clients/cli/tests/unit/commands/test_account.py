@@ -107,7 +107,7 @@ def api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[FakeApi]:
     yield fake
 
 
-def user_document(version: str = "3") -> dict[str, Any]:
+def user_document(version: str = "3", *, protected: bool = True) -> dict[str, Any]:
     return {
         "resourceId": ME,
         "resourceVersion": version,
@@ -118,6 +118,7 @@ def user_document(version: str = "3") -> dict[str, Any]:
             "givenName": "Ana",
             "familyName": "Souza",
             "email": "ana@example.com",
+            "deletionProtection": protected,
         },
     }
 
@@ -252,3 +253,57 @@ def test_delete_wait_times_out_without_forgetting_the_session(
     assert result.exit_code == 1
     assert "Timed out" in result.stderr
     assert default_credentials_path().exists()
+
+
+def test_unprotect_sends_the_flag_with_the_current_version(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = Response(200, user_document(version="5"))
+    api.routes[("PATCH", USER)] = accepted()
+
+    result = runner.invoke(app, ["account", "unprotect"])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    patch = next(request for request in api.requests if request.get_method() == "PATCH")
+    assert json.loads(patch.data) == {"resourceVersion": "5", "deletionProtection": False}  # type: ignore[arg-type]
+    assert patch.get_header("Idempotency-key")
+
+
+def test_protect_is_idempotent_when_already_protected(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = Response(200, user_document(protected=True))
+
+    result = runner.invoke(app, ["account", "protect"])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert "already protected" in " ".join(result.stdout.split())
+    assert [request.get_method() for request in api.requests] == ["GET"]
+
+
+def test_unprotect_wait_ends_when_the_operation_completes(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = Response(200, user_document())
+    api.routes[("PATCH", USER)] = accepted()
+    api.routes[("GET", OPERATION)] = [operation("in_progress"), operation("completed")]
+
+    result = runner.invoke(app, ["account", "unprotect", "--wait"])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert "Account unprotected" in result.stdout
+
+
+def test_get_shows_whether_the_account_is_protected(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = Response(200, user_document(protected=False))
+
+    result = runner.invoke(app, ["account", "get"])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert "protected" in result.stdout
+
+
+def test_delete_of_a_protected_account_points_to_unprotect(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = Response(200, user_document())
+    api.routes[("DELETE", USER)] = http_error(
+        409, "DeletionProtected", "A conta está protegida contra exclusão."
+    )
+
+    result = runner.invoke(app, ["account", "delete", "--yes"])
+
+    assert result.exit_code == 1
+    assert "sk account unprotect" in " ".join(result.stderr.split())

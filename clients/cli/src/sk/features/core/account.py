@@ -103,6 +103,8 @@ class Account:
     family_name: str
     email: str
     platform_access: str
+    deletion_protection: bool
+    """`True` impede a exclusão (decisão 0043); a API a devolve sempre, e ausente vale `True`."""
 
 
 def token_subject(access_token: str) -> str:
@@ -138,6 +140,7 @@ def _account(document: object) -> Account:
         family_name=as_text(desired, "familyName", what="user (desired)"),
         email=as_text(desired, "email", what="user (desired)"),
         platform_access=as_text(desired, "platformAccess", what="user (desired)"),
+        deletion_protection=desired.get("deletionProtection") is not False,
     )
 
 
@@ -153,6 +156,29 @@ def get_account(
         allow_insecure_http=allow_insecure_http,
     )
     return _account(document)
+
+
+def set_account_protection(
+    api_url: str,
+    *,
+    token: str,
+    resource_id: str,
+    resource_version: str,
+    protected: bool,
+    idempotency_key: str,
+    allow_insecure_http: bool,
+) -> RequestAccepted:
+    resource_id = validate_identifier(resource_id, what="resourceId")
+    _, document = call_api(
+        "PATCH",
+        api_url,
+        f"{USER_REGISTRATION_PATH}/{resource_id}",
+        token=token,
+        body={"resourceVersion": resource_version, "deletionProtection": protected},
+        headers={"Idempotency-Key": idempotency_key},
+        allow_insecure_http=allow_insecure_http,
+    )
+    return parse_accepted(document)
 
 
 def delete_account(

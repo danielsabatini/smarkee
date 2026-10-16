@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AccountUpdateRequest",
+  "description": "Corpo de PATCH /v1/core/accounts/{resourceId}. resourceVersion é a versão lida; a única alteração possível é a proteção contra exclusão.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["resourceVersion", "deletionProtection"],
+  "properties": {
+    "resourceVersion": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceVersion",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    }
+  }
+}

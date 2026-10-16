@@ -155,8 +155,45 @@ def test_get_reads_the_fields_of_the_organization(monkeypatch: pytest.MonkeyPatc
         name="acme",
         lifecycle="present",
         platform_access="granted",
+        deletion_protection=True,  # o documento sem o campo conta como protegido
         organization_state="active",
     )
+
+
+def test_deletion_protection_is_read_as_sent_and_absent_means_protected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = organization_document()
+    document["desired"]["deletionProtection"] = False
+    serve(monkeypatch, document)
+    unprotected = organization.get_organization(
+        API, token="t", resource_id=RID, allow_insecure_http=False
+    )
+    assert unprotected.deletion_protection is False
+
+
+def test_set_protection_patches_the_flag_with_the_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent = serve(monkeypatch, {"resourceId": RID, "operationId": OPID}, status=202)
+
+    organization.set_organization_protection(
+        API,
+        token="t",
+        resource_id=RID,
+        resource_version="3",
+        protected=False,
+        idempotency_key="k-1",
+        allow_insecure_http=False,
+    )
+
+    request = last(sent)
+    assert request.get_method() == "PATCH"
+    assert request.full_url == f"{API}/v1/ipm/organizations/{RID}"
+    assert json.loads(cast(bytes, request.data)) == {
+        "resourceVersion": "3",
+        "deletionProtection": False,
+    }
 
 
 def test_a_not_yet_observed_organization_has_no_state(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -47,7 +47,7 @@
       "x-sensitivity": "internal"
     },
     "desired": {
-      "title": "UserDesiredView",
+      "title": "AccountDesiredView",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -79,6 +79,11 @@
           "x-writer": "server",
           "x-sensitivity": "internal"
         },
+        "deletionProtection": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
         "givenName": {
           "$ref": "definitions.v1.schema.json#/$defs/givenName",
           "x-writer": "server",
@@ -97,7 +102,7 @@
       }
     },
     "observed": {
-      "title": "UserObservedView",
+      "title": "AccountObservedView",
       "type": "object",
       "additionalProperties": false,
       "required": [

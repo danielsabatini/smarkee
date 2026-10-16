@@ -140,6 +140,7 @@ Uma Operation `rejected` possui `operationStatusReason`, enumeração fechada:
 | `conflict` | A `resourceVersion` informada está desatualizada |
 | `validation` | Regra de negócio violada |
 | `not_found` | O recurso não existe |
+| `protected` | O `delete` foi pedido com `deletionProtection` ligada (decisão 0043); só nos tipos com proteção |
 
 O motivo não repete valores `confidential` nem `secretReference` (`SCHEMA.md`).
 
@@ -196,7 +197,7 @@ Toda unidade **começa obtendo acesso exclusivo ao registro do recurso** e só e
 
 1. obter acesso exclusivo ao registro, quando ele existir. Na criação ainda não há registro: a unicidade da identidade da Operation e do `resourceId` impede que duas entregas simultâneas do mesmo pedido gravem duas vezes;
 2. verificar se a Operation (`operationId`) já existe; se existir, a mensagem é uma reentrega ou uma repetição do cliente e é apenas confirmada, sem nova gravação. Se o `requestDigest` for diferente do gravado, o reuso da chave é registrado como sinal de observabilidade, e a Operation original prevalece;
-3. validar o pedido e as regras de negócio; em violação, registrar a Operation como `rejected` (`validation` ou `not_found`);
+3. validar o pedido e as regras de negócio; em violação, registrar a Operation como `rejected` (`validation` ou `not_found`); a proteção contra exclusão (`protected`) é conferida depois de `not_found` e `conflict`;
 4. conferir a `resourceVersion` informada (atualizações); se estiver desatualizada, registrar a Operation como `rejected` (`conflict`);
 5. gravar o recurso: incrementar `desiredGeneration` somente se a especificação mudou;
 6. registrar a Operation como `accepted`;

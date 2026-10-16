@@ -127,6 +127,8 @@ class RequestedHandler:
             return await self._reject(store, envelope, request, now, RejectionReason.CONFLICT)
 
         current: dict[str, Any] = row["desired"]
+        if request.operation == "delete" and kind.policy.deletion_protected(current):
+            return await self._reject(store, envelope, request, now, RejectionReason.PROTECTED)
         if request.operation == "update":
             if row["lifecycle"] != "present":
                 return await self._reject(store, envelope, request, now, RejectionReason.VALIDATION)
@@ -139,9 +141,12 @@ class RequestedHandler:
             return await self._reject(store, envelope, request, now, rejection)
 
         specification_changed = desired != current
+        # Só a mudança de campo gerenciado tem o que reconciliar; a de campo da plataforma (a
+        # proteção contra exclusão) conclui na hora, com nova geração e sem voltar a reconciliar.
+        managed_changed = kind.policy.managed_changed(current, desired)
         # Nova geração volta a reconciliar, salvo declaração em contrário (docs/SSOT.md §10.4).
         reconciliation = request.reconciliation or (
-            "active" if specification_changed else row["reconciliation"]
+            "active" if managed_changed else row["reconciliation"]
         )
         if not specification_changed and reconciliation == row["reconciliation"]:
             await self._record_operation(
@@ -155,7 +160,7 @@ class RequestedHandler:
             return Outcome(OutcomeKind.COMPLETED)
 
         phase = row["phase"]
-        if specification_changed:
+        if managed_changed:
             phase = "Deleting" if desired["lifecycle"] == "absent" else "Reconciling"
         generation = await store.change_desired(
             envelope.resource_id,
@@ -172,7 +177,7 @@ class RequestedHandler:
             envelope,
             request,
             now,
-            status="accepted" if specification_changed else "completed",
+            status="accepted" if managed_changed else "completed",
             generation=generation,
         )
         await self._publishing.desired(
@@ -183,7 +188,7 @@ class RequestedHandler:
             reconciliation=reconciliation,
             generation=generation,
         )
-        return Outcome(OutcomeKind.ACCEPTED if specification_changed else OutcomeKind.COMPLETED)
+        return Outcome(OutcomeKind.ACCEPTED if managed_changed else OutcomeKind.COMPLETED)
 
     @staticmethod
     async def _rejection(

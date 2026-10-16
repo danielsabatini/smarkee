@@ -229,11 +229,12 @@
         "type": "string"
       },
       "OperationStatusReason": {
-        "description": "Motivo da rejeição; presente somente quando operationStatus é rejected.",
+        "description": "Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).",
         "enum": [
           "conflict",
           "validation",
-          "not_found"
+          "not_found",
+          "protected"
         ],
         "title": "OperationStatusReason",
         "type": "string"
@@ -341,6 +342,17 @@
       "OrganizationDesiredView": {
         "additionalProperties": false,
         "properties": {
+          "deletionProtection": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deletionprotection"
+          },
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle"
           },
@@ -467,6 +479,17 @@
         "additionalProperties": false,
         "description": "Corpo de PATCH /v1/ipm/organizations/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado.",
         "properties": {
+          "deletionProtection": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deletionprotection"
+          },
           "name": {
             "anyOf": [
               {

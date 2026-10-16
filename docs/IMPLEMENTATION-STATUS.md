@@ -139,7 +139,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Item | Situação | Evidência |
 |---|---|---|
 | Manager único escritor; unidade atômica por mensagem; acesso exclusivo ao registro; ACK após a gravação | Atende | `handlers/`, `transport/consumers.py` |
-| Rejeições na Operation, com motivo | Atende | `validation`, `conflict`, `not_found` |
+| Rejeições na Operation, com motivo | Atende | `validation`, `conflict`, `not_found`, `protected` (só nos tipos com proteção contra exclusão, decisão 0043) |
 | Outbox na mesma unidade; ordem por recurso preservada | Atende | Manager e Publisher |
 | Idempotência semântica de `requested`, `observed` e `completed`/`failed` | Atende | testes de integração do Manager |
 | `desiredGeneration` e `resourceVersion` | Atende | |

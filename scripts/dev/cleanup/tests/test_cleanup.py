@@ -53,9 +53,13 @@ class FakeIdentity:
 class FakeSsot:
     tables: dict[Kind, list[Row]] = field(default_factory=lambda: {})
     deleted: list[tuple[str, set[str]]] = field(default_factory=lambda: [])
+    never_unprotects: bool = False
 
     def rows(self, kind: Kind) -> list[Row]:
         return list(self.tables.get(kind, []))
+
+    def unprotected_version(self, kind: Kind, resource_id: str) -> str | None:
+        return None if self.never_unprotects else "3"
 
     def delete(self, kind: Kind, resource_ids: set[str]) -> None:
         self.deleted.append((kind.table, set(resource_ids)))
@@ -69,12 +73,17 @@ class FakeBus:
     phases: dict[str, str] = field(default_factory=lambda: {})
     removes_when_asked: bool = True
     requested: list[str] = field(default_factory=lambda: [])
+    unprotection_requested: list[str] = field(default_factory=lambda: [])
     purged: dict[str, set[str]] = field(default_factory=lambda: {})
     gone: set[str] = field(default_factory=lambda: set())
 
     async def last_version(self, kind: Kind, resource_id: str) -> tuple[str, str] | None:
         phase = self.phases.get(resource_id)
         return (phase, "3") if phase else None
+
+    async def request_unprotection(self, kind: Kind, resource_id: str, version: str) -> None:
+        assert version == "3"
+        self.unprotection_requested.append(resource_id)
 
     async def request_deletion(self, kind: Kind, resource_id: str, version: str) -> None:
         self.requested.append(resource_id)
@@ -334,3 +343,29 @@ def test_findings_list_everything_it_would_remove() -> None:
     text = "\n".join(findings.lines())
 
     assert USER_ID in text and "3 mensagem" in text
+
+
+async def test_a_protected_resource_is_unprotected_before_the_loop_deletes_it() -> None:
+    world = World()
+    world.ssot.tables[ORGANIZATIONS] = [Row(ORG_ID, "conf-1")]
+    world.identity.orgs[ORG_ID] = "conf-1"
+    world.bus.phases[ORG_ID] = "Ready"
+    lines: list[str] = []
+
+    await clean(world.ports(), apply_changes=True, say=lines.append)
+
+    assert world.bus.unprotection_requested == [ORG_ID]
+    assert world.bus.requested == [ORG_ID]
+
+
+async def test_without_unprotection_the_loop_is_skipped_and_the_direct_path_is_used() -> None:
+    world = World()
+    world.ssot.never_unprotects = True
+    world.ssot.tables[ORGANIZATIONS] = [Row(ORG_ID, "conf-1")]
+    world.identity.orgs[ORG_ID] = "conf-1"
+    world.bus.phases[ORG_ID] = "Ready"
+
+    await clean(world.ports(), apply_changes=True, say=say_nothing)
+
+    assert world.bus.requested == []  # o delete nunca foi pedido ao loop
+    assert world.identity.deleted == [f"org:{ORG_ID}"]

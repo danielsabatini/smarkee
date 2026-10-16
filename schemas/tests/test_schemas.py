@@ -336,3 +336,33 @@ def test_rejected_operation_requires_reason_and_no_generation() -> None:
     rejected["operationStatusReason"] = "conflict"
     assert _is_valid(operation_path, rejected)
     assert not _is_valid(operation_path, {**operation, "operationStatusReason": "conflict"})
+
+
+@pytest.mark.parametrize("directory", [ORGANIZATION, ACCOUNT])
+def test_desired_carries_the_deletion_protection_as_an_optional_boolean(directory: Path) -> None:
+    desired_path = directory / "desired.v1.schema.json"
+    present = json.loads(_example_for(desired_path).read_text(encoding="utf-8"))
+    assert present["deletionProtection"] is True  # o exemplo mostra o padrão: protegido
+    assert _is_valid(desired_path, {**present, "deletionProtection": False})
+    assert _is_valid(desired_path, {k: v for k, v in present.items() if k != "deletionProtection"})
+    assert not _is_valid(desired_path, {**present, "deletionProtection": "false"})
+
+
+def test_rejection_reason_protected_is_accepted_by_the_operation_contract() -> None:
+    operation_path = SCHEMAS_ROOT / "common" / "operation.v1.schema.json"
+    operation = json.loads(_example_for(operation_path).read_text(encoding="utf-8"))
+    rejected = {k: v for k, v in operation.items() if k != "desiredGeneration"}
+    rejected = {**rejected, "operationStatus": "rejected", "operationStatusReason": "protected"}
+    assert _is_valid(operation_path, rejected)
+
+
+def test_account_update_changes_only_the_deletion_protection() -> None:
+    api_path = ACCOUNT / "api-update-request.v1.schema.json"
+    assert _is_valid(api_path, {"resourceVersion": "3", "deletionProtection": False})
+    assert not _is_valid(api_path, {"resourceVersion": "3"})
+    assert not _is_valid(api_path, {"resourceVersion": "3", "deletionProtection": False, "x": 1})
+    requested = ACCOUNT / "requested-update.v1.schema.json"
+    base = {"operationId": "op-1", "requestDigest": "0" * 64, "resourceVersion": "3"}
+    assert _is_valid(requested, {**base, "specification": {"deletionProtection": True}})
+    assert not _is_valid(requested, {**base, "specification": {}})
+    assert not _is_valid(requested, {**base, "specification": {"email": "a@b.com"}})

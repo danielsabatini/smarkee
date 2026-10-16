@@ -37,6 +37,8 @@ class Organization:
     name: str
     lifecycle: str
     platform_access: str
+    deletion_protection: bool
+    """`True` impede a exclusão (decisão 0043); a API a devolve sempre, e ausente vale `True`."""
     organization_state: str | None
     """Estado lido do provedor (`active` ou `inactive`); `None` enquanto não foi observada."""
 
@@ -63,6 +65,7 @@ def _organization(document: object) -> Organization:
         name=as_text(desired, "name", what="organization (desired)"),
         lifecycle=as_text(desired, "lifecycle", what="organization (desired)"),
         platform_access=as_text(desired, "platformAccess", what="organization (desired)"),
+        deletion_protection=desired.get("deletionProtection") is not False,
         organization_state=state if isinstance(state, str) else None,
     )
 
@@ -101,6 +104,29 @@ def update_organization(
         f"{ORGANIZATIONS_PATH}/{resource_id}",
         token=token,
         body={"resourceVersion": resource_version, "name": name},
+        headers={"Idempotency-Key": idempotency_key},
+        allow_insecure_http=allow_insecure_http,
+    )
+    return parse_accepted(document)
+
+
+def set_organization_protection(
+    api_url: str,
+    *,
+    token: str,
+    resource_id: str,
+    resource_version: str,
+    protected: bool,
+    idempotency_key: str,
+    allow_insecure_http: bool,
+) -> RequestAccepted:
+    resource_id = validate_identifier(resource_id, what="resourceId")
+    _, document = call_api(
+        "PATCH",
+        api_url,
+        f"{ORGANIZATIONS_PATH}/{resource_id}",
+        token=token,
+        body={"resourceVersion": resource_version, "deletionProtection": protected},
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )

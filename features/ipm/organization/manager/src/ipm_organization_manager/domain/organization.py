@@ -67,6 +67,10 @@ class OrganizationPolicy:
                         specification["name"] = update.specification.name
                     if update.specification.platform_access is not None:
                         specification["platformAccess"] = update.specification.platform_access.value
+                    if update.specification.deletion_protection is not None:
+                        specification["deletionProtection"] = (
+                            update.specification.deletion_protection
+                        )
                 return Request(
                     "update",
                     update.operation_id,
@@ -96,6 +100,7 @@ class OrganizationPolicy:
             "lifecycle": "present",
             "name": request.specification["name"],
             "platformAccess": request.specification["platformAccess"],
+            "deletionProtection": True,  # todo recurso apagável nasce protegido (decisão 0043)
             "ownerAccountId": requested_by,
         }
 
@@ -130,6 +135,15 @@ class OrganizationPolicy:
             lock_key=f"ipm.organization.owner:{owner}",
         )
 
+    def deletion_protected(self, current: Mapping[str, Any]) -> bool:
+        return current.get("deletionProtection", True) is not False
+
+    def managed_changed(self, current: Mapping[str, Any], desired: Mapping[str, Any]) -> bool:
+        # Campos gerenciados no Zitadel: `lifecycle`, `name` e `platformAccess`.
+        return any(
+            current.get(key) != desired.get(key) for key in ("lifecycle", "name", "platformAccess")
+        )
+
     def message_data(self, desired: Mapping[str, Any], reconciliation: str) -> dict[str, Any]:
         model = generated.OrganizationDesiredData.model_validate(
             {**desired, "reconciliation": reconciliation}
@@ -140,7 +154,8 @@ class OrganizationPolicy:
         self, desired: Mapping[str, Any], presence: str, observed: Mapping[str, Any] | None
     ) -> bool:
         # Campos gerenciados da Organization: `lifecycle`, `name` e `platformAccess`
-        # (schemas/ipm/organization/desired). `ownerAccountId` não é gerenciado: não existe no Zitadel.
+        # (schemas/ipm/organization/desired). `ownerAccountId` e `deletionProtection` não são
+        # gerenciados: não existem no Zitadel.
         if desired["lifecycle"] == "absent":
             return presence == "absent"
         return (

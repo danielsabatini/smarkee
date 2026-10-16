@@ -83,7 +83,18 @@ class FakeRepository:
         return self.operations.get(operation_id)
 
 
-def account_record(resource_id: str) -> ResourceRecord:
+def account_record(resource_id: str, *, protected: bool | None = False) -> ResourceRecord:
+    """`protected=None` simula o registro anterior à proteção (sem o campo)."""
+    desired: dict[str, Any] = {
+        "lifecycle": "present",
+        "platformAccess": "granted",
+        "platformRoles": ["ipm.organization.get", "core.account.get"],
+        "givenName": "Ana",
+        "familyName": "Souza",
+        "email": "ana@example.com",
+    }
+    if protected is not None:
+        desired["deletionProtection"] = protected
     return ResourceRecord(
         resource_id=resource_id,
         resource_version=2,
@@ -92,14 +103,7 @@ def account_record(resource_id: str) -> ResourceRecord:
         reconciliation="active",
         phase="Ready",
         conditions=[],
-        desired={
-            "lifecycle": "present",
-            "platformAccess": "granted",
-            "platformRoles": ["ipm.organization.get", "core.account.get"],
-            "givenName": "Ana",
-            "familyName": "Souza",
-            "email": "ana@example.com",
-        },
+        desired=desired,
         presence=None,
         observed=None,
         observed_at=None,
@@ -275,6 +279,60 @@ async def test_account_reads_and_deletes_only_itself(harness: Harness) -> None:
     )
     assert deleted.status_code == 202
     assert harness.publisher.published[0][0] == "receiver.requested.core.account.ana.delete"
+
+
+@pytest.mark.parametrize("protected", [True, None])
+async def test_delete_of_a_protected_account_is_refused_before_checking_resources(
+    harness: Harness, protected: bool | None
+) -> None:
+    harness.repository.resources["ana"] = account_record("ana", protected=protected)
+    response = await harness.client.delete(
+        "/v1/core/accounts/ana?resourceVersion=2", headers=auth("ana")
+    )
+    assert response.status_code == 409
+    assert response.json()["errorCode"] == "DeletionProtected"
+    assert harness.resources.tokens == []
+    assert harness.publisher.published == []
+
+
+async def test_account_may_change_its_own_deletion_protection(harness: Harness) -> None:
+    harness.repository.resources["ana"] = account_record("ana", protected=True)
+    response = await harness.client.patch(
+        "/v1/core/accounts/ana",
+        json={"resourceVersion": "2", "deletionProtection": False},
+        headers=auth("ana"),
+    )
+    assert response.status_code == 202
+    subject, payload, _ = harness.publisher.published[0]
+    assert subject == "receiver.requested.core.account.ana.update"
+    assert payload["data"]["specification"] == {"deletionProtection": False}
+    assert payload["data"]["resourceVersion"] == "2"
+
+
+@pytest.mark.parametrize(
+    ("caller", "body", "status"),
+    [
+        ("bia", {"resourceVersion": "2", "deletionProtection": False}, 404),
+        ("ana", {"resourceVersion": "1", "deletionProtection": False}, 409),
+        ("ana", {"resourceVersion": "2"}, 400),
+        ("ana", {"resourceVersion": "2", "deletionProtection": False, "email": "x@y.com"}, 400),
+    ],
+)
+async def test_protection_update_rules(
+    harness: Harness, caller: str, body: dict[str, Any], status: int
+) -> None:
+    harness.repository.resources["ana"] = account_record("ana", protected=True)
+    response = await harness.client.patch("/v1/core/accounts/ana", json=body, headers=auth(caller))
+    assert response.status_code == status
+    assert harness.publisher.published == []
+
+
+async def test_view_exposes_deletion_protection_and_defaults_to_protected(
+    harness: Harness,
+) -> None:
+    harness.repository.resources["ana"] = account_record("ana", protected=None)
+    response = await harness.client.get("/v1/core/accounts/ana", headers=auth("ana"))
+    assert response.json()["desired"]["deletionProtection"] is True
 
 
 async def delete_own(harness: Harness) -> httpx.Response:

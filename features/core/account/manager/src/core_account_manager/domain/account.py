@@ -76,6 +76,17 @@ class AccountPolicy:
                         "email": normalize_email(str(create.specification.email)),
                     },
                 )
+            case "update":
+                update = _validated(
+                    generated.AccountRequestedUpdateData, data, label="requested/update"
+                )
+                return Request(
+                    "update",
+                    update.operation_id,
+                    update.request_digest,
+                    resource_version=_parse_resource_version(update.resource_version),
+                    specification={"deletionProtection": update.specification.deletion_protection},
+                )
             case "delete":
                 delete = _validated(
                     generated.AccountRequestedDeleteData, data, label="requested/delete"
@@ -95,11 +106,13 @@ class AccountPolicy:
             "lifecycle": "present",
             "platformAccess": "granted",
             "platformRoles": list(self._platform_roles),
+            "deletionProtection": True,  # todo recurso apagável nasce protegido (decisão 0043)
             **request.specification,
         }
 
     def desired_for_update(self, current: Mapping[str, Any], request: Request) -> dict[str, Any]:
-        raise PermanentMessageError("update não é suportado para account")
+        # A única alteração possível na Account é a proteção contra exclusão (decisão 0043).
+        return {**current, **(request.specification or {})}
 
     def desired_for_delete(self, current: Mapping[str, Any]) -> dict[str, Any]:
         # Sem dados pessoais: o Executor só precisa do resourceId para remover o usuário.
@@ -114,6 +127,16 @@ class AccountPolicy:
             return None
         email: str = desired["email"]
         return UniqueValue(field="email", value=email, lock_key=f"core.account.email:{email}")
+
+    def deletion_protected(self, current: Mapping[str, Any]) -> bool:
+        return current.get("deletionProtection", True) is not False
+
+    def managed_changed(self, current: Mapping[str, Any], desired: Mapping[str, Any]) -> bool:
+        # Campos gerenciados no Zitadel: `lifecycle`, `platformAccess` e `platformRoles`.
+        return any(
+            current.get(key) != desired.get(key)
+            for key in ("lifecycle", "platformAccess", "platformRoles")
+        )
 
     def message_data(self, desired: Mapping[str, Any], reconciliation: str) -> dict[str, Any]:
         model = generated.AccountDesiredData.model_validate(

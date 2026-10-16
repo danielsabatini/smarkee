@@ -21,6 +21,7 @@
       "core.account.delete",
       "core.account.get"
     ],
+    "deletionProtection": true,
     "givenName": "Ana",
     "familyName": "Souza",
     "email": "ana.souza@example.com"

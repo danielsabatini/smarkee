@@ -42,6 +42,8 @@ def account_view(record: ResourceRecord) -> generated.Account:
         "reconciliation": record.reconciliation,
         "platformAccess": record.desired["platformAccess"],
         "platformRoles": record.desired["platformRoles"],
+        # Registro sem o campo (anterior à proteção) conta como protegido.
+        "deletionProtection": record.desired.get("deletionProtection", True),
         **{
             field: record.desired[field] for field in USER_DESIRED_FIELDS if field in record.desired
         },

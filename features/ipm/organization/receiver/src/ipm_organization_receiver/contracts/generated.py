@@ -235,12 +235,13 @@ class OperationStatus(StrEnum):
 
 class OperationStatusReason(StrEnum):
     """
-    Motivo da rejeição; presente somente quando operationStatus é rejected.
+    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
     """
 
     conflict = "conflict"
     validation = "validation"
     not_found = "not_found"
+    protected = "protected"
 
 
 class Operation(ContractModel):
@@ -294,7 +295,7 @@ class Operation(ContractModel):
         Field(alias="operationStatusReason", title="OperationStatusReason"),
     ] = None
     """
-    Motivo da rejeição; presente somente quando operationStatus é rejected.
+    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
     """
     created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
     """
@@ -459,6 +460,10 @@ class OrganizationUpdateSpecification(ContractModel):
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
     platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
+    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
 
 
 class OrganizationRequestedUpdateData(ContractModel):
@@ -575,6 +580,10 @@ class OrganizationUpdateRequest(ContractModel):
     """
     platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
     reconciliation: Reconciliation | None = None
+    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
 
 
 class OrganizationDesiredView(ContractModel):
@@ -590,6 +599,10 @@ class OrganizationDesiredView(ContractModel):
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
     platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
+    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
 
 
 class OrganizationObservedView(ContractModel):
@@ -836,6 +849,10 @@ class OrganizationDesiredData(ContractModel):
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
     platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
+    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
     owner_account_id: Annotated[
         str,
         Field(

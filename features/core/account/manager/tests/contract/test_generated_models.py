@@ -31,7 +31,9 @@ EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "core/account/observed.example.json": generated.AccountObservedData,
     "core/account/requested-create.example.json": generated.AccountRequestedCreateData,
     "core/account/requested-delete.example.json": generated.AccountRequestedDeleteData,
+    "core/account/requested-update.example.json": generated.AccountRequestedUpdateData,
     "core/account/api-create-request.example.json": generated.AccountCreateRequest,
+    "core/account/api-update-request.example.json": generated.AccountUpdateRequest,
     "core/account/resource.example.json": generated.Account,
 }
 

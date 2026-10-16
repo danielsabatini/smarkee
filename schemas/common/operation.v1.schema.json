@@ -76,12 +76,13 @@
     },
     "operationStatusReason": {
       "title": "OperationStatusReason",
-      "description": "Motivo da rejeição; presente somente quando operationStatus é rejected.",
+      "description": "Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).",
       "type": "string",
       "enum": [
         "conflict",
         "validation",
-        "not_found"
+        "not_found",
+        "protected"
       ],
       "x-enumPolicy": "closed",
       "x-writer": "server",

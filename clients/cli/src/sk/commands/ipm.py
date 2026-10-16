@@ -36,6 +36,7 @@ from sk.features.ipm.organization import (
     get_operation,
     get_organization,
     list_organizations,
+    set_organization_protection,
     update_organization,
     validate_name,
 )
@@ -44,16 +45,23 @@ from sk.http import ApiError, ApiRejectedError
 from sk.identity.oidc import OidcError
 
 IPM_HELP = command("Resources of the ipm service.")
-ORGANIZATION_HELP = command("Create, inspect, rename and delete the requester's Organizations.")
+ORGANIZATION_HELP = command(
+    "Create, inspect, rename, protect and delete the requester's Organizations."
+)
 
 NOT_FOUND = "Organization not found for your account."
 CONFLICT_ON_CHANGE = "The Organization changed since it was last read. Inspect it and try again."
+PROTECTED_HINT = (
+    "The Organization is protected against deletion. Run `sk ipm organization unprotect` first."
+)
 REJECTION_HINTS = {
     "validation": "The name is reserved or already in use, or your Organization quota is used.",
     "conflict": CONFLICT_ON_CHANGE,
     "not_found": NOT_FOUND,
+    "protected": PROTECTED_HINT,
 }
 ERROR_CODE_HINTS = {
+    "DeletionProtected": PROTECTED_HINT,
     "EmailNotVerified": "Verify your e-mail first: open the link in the activation e-mail.",
     "QuotaExceeded": "You reached the Organization limit. Delete one or ask an operator.",
 }
@@ -156,6 +164,7 @@ def _rows(organization: Organization) -> list[tuple[str, str]]:
         ("state", _state_label(organization)),
         ("phase", organization.phase),
         ("platformAccess", organization.platform_access),
+        ("protected", "yes" if organization.deletion_protection else "no"),
     ]
 
 
@@ -411,6 +420,77 @@ def update_command(
         wait=wait,
         timeout=timeout,
     )
+
+
+def _set_protection(resource_id: str | None, *, protected: bool, wait: bool, timeout: int) -> None:
+    resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    url, insecure = load_api()
+    token = session_token()
+    try:
+        current = get_organization(
+            url, token=token, resource_id=resource_id, allow_insecure_http=insecure
+        )
+        if current.deletion_protection == protected:
+            # Idempotente: pedir o estado que já vale não é erro.
+            state = "protected" if protected else "unprotected"
+            ui.note(f"Organization {resource_id} is already {state}. Nothing to do.")
+            return
+        accepted = set_organization_protection(
+            url,
+            token=token,
+            resource_id=resource_id,
+            resource_version=current.resource_version,
+            protected=protected,
+            idempotency_key=str(uuid.uuid7()),
+            allow_insecure_http=insecure,
+        )
+    except OidcError as error:
+        bad_address(error)
+    except ApiError as error:
+        _fail_api(error)
+    ui.panel(
+        "Protection change requested",
+        [
+            ("name", current.name),
+            ("protected", "yes" if protected else "no"),
+            ("resourceId", accepted.resource_id),
+            ("operationId", accepted.operation_id),
+        ],
+    )
+    _finish_request(
+        url,
+        insecure,
+        accepted,
+        title="Organization protected" if protected else "Organization unprotected",
+        expect_name=None,
+        removal=False,
+        wait=wait,
+        timeout=timeout,
+    )
+
+
+@organization_app.command(
+    "protect",
+    help=command("Protect an Organization against deletion (the default for new ones)."),
+)
+def protect_command(
+    resource_id: ResourceIdOption = None,
+    wait: WaitOption = False,
+    timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
+) -> None:
+    _set_protection(resource_id, protected=True, wait=wait, timeout=timeout)
+
+
+@organization_app.command(
+    "unprotect",
+    help=command("Allow an Organization to be deleted. Required before `delete`."),
+)
+def unprotect_command(
+    resource_id: ResourceIdOption = None,
+    wait: WaitOption = False,
+    timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
+) -> None:
+    _set_protection(resource_id, protected=False, wait=wait, timeout=timeout)
 
 
 @organization_app.command(

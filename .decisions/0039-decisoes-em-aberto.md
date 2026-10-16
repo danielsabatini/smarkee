@@ -34,6 +34,21 @@ Princípio: quanto menos decisão na mão de quem usa, melhor. Ficam como estão
 - `--yes` do `sk register delete` como confirmação interativa quando houver terminal;
 - o arquivo `config.toml` e o `sk config`, se dev e stg usarem só variáveis.
 
+## 5. Membros da Organization (`sk ipm organization member`)
+
+Direção combinada (2026-10-16): o acesso de uma pessoa a uma Organization passa a ser um recurso da plataforma (o **membro**), criado e removido pela CLI, e não uma permissão dada direto no Zitadel. O dono é o primeiro membro, com o papel de administrador, criado junto com a Organization.
+
+- **Definido:**
+  - uma Organization sempre tem ao menos um administrador: o último não se remove;
+  - apagar a Organization exige que ela esteja **vazia**: sem outros membros, sem recursos de outros módulos e sem conteúdo no Zitadel (a API v2 enxerga usuários e projetos dentro da organização, e o `DeleteOrganization` apaga tudo sem avisar, medido no dev). Com o dono sozinho, ele pode apagar, e o vínculo dele some junto;
+  - a verificação tem duas camadas: o Receiver recusa (`409`) usando o que o Observer publica no `observed`, e o Executor revalida contra o Zitadel antes de chamar o `DeleteOrganization`, como última barreira.
+- **Em aberto:** o que `<user>` é (conta já cadastrada, identificada por e-mail, é a recomendação); o nome do comando (`member`); os papéis além de administrador; a regra de acesso do Receiver passar de `ownerAccountId` para "é membro, com este papel"; e medir na API v2 os filtros de administradores e de Project Grants (o formato que usei na sondagem estava errado).
+
+## 6. Proteção contra exclusão (`deletionProtection`)
+
+- **Decidido e implementado** na decisão 0043 (Organization e Account; o SUM fica de fora porque desabilitar não apaga).
+- **Em aberto:** a regra "apagar a Organization só vazia" (sem outros membros, sem recursos de outros módulos) depende dos membros (§5).
+
 ## Consequências
 
 - Cada item acima, quando decidido, ganha o seu ADR e sai daqui; o `ROADMAP.md` acompanha.

@@ -41,6 +41,8 @@ def organization_view(record: ResourceRecord) -> generated.Organization:
         "reconciliation": record.reconciliation,
         "name": record.desired["name"],
         "platformAccess": record.desired["platformAccess"],
+        # Registro sem o campo (anterior à proteção) conta como protegido.
+        "deletionProtection": record.desired.get("deletionProtection", True),
     }
     observed = _observed(record)
     if observed is not None:

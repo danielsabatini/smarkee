@@ -40,8 +40,8 @@ async def _seed(
         "serviceRoles": ROLES if lifecycle == "present" else [],
     }
     await conn.execute(
-        "INSERT INTO sum.service (resource_id, schema_version, owner_account_id, service, lifecycle, "
-        "reconciliation, desired, desired_generation, resource_version, phase) "
+        "INSERT INTO sum.service (resource_id, schema_version, owner_account_id, service, "
+        "lifecycle, reconciliation, desired, desired_generation, resource_version, phase) "
         "VALUES (%s, '1.0', %s, 'ipm', %s, 'active', %s, 1, 1, 'Pending')",
         (resource_id, owner, lifecycle, Jsonb(desired)),
     )

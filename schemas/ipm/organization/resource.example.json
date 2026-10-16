@@ -17,7 +17,8 @@
     "lifecycle": "present",
     "reconciliation": "active",
     "name": "acme",
-    "platformAccess": "granted"
+    "platformAccess": "granted",
+    "deletionProtection": true
   },
   "observed": {
     "presence": "present",

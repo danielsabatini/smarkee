@@ -166,6 +166,8 @@ uv run sk ipm organization create --name NOME [--wait] [--timeout SEGUNDOS]
 uv run sk ipm organization get --resource-id ID [--operation-id OPERACAO]
 uv run sk ipm organization list
 uv run sk ipm organization update --resource-id ID --name NOVO-NOME [--wait] [--timeout SEGUNDOS]
+uv run sk ipm organization protect --resource-id ID [--wait] [--timeout SEGUNDOS]
+uv run sk ipm organization unprotect --resource-id ID [--wait] [--timeout SEGUNDOS]
 uv run sk ipm organization delete --resource-id ID [--wait] [--timeout SEGUNDOS]
 ```
 
@@ -175,8 +177,9 @@ O endereço da API vem do ambiente, do arquivo ou do padrão, sem opção de lin
 |---|---|---|
 | `create --name NOME` | `POST /v1/ipm/organizations`, com `Idempotency-Key` gerada por pedido | `202`: o `resourceId` e o `operationId`; com `--wait`, espera `Ready` e mostra a Organization |
 | `update --resource-id ID --name NOVO` | `GET` (para ler a `resourceVersion`), depois `PATCH`; se o nome já é esse, não faz nada | `202`: o `operationId` (ou "nada a fazer", saída `0`); com `--wait`, espera `Ready` com o nome novo |
-| `delete --resource-id ID` | `GET` (para ler a `resourceVersion`), depois `DELETE` | `202`: o `operationId`; com `--wait`, espera a Operation `completed` e a Organization sumir (`state removed`) |
-| `get --resource-id ID` | `GET` da Organization (e da Operation, se `--operation-id`) | `name`, `state` (`active`, `inactive` ou `unknown` enquanto não observada), `phase` e `platformAccess` |
+| `protect` / `unprotect --resource-id ID` | `GET` (para ler a `resourceVersion`), depois `PATCH` com `deletionProtection`; se já está no estado pedido, não faz nada | `202`: o `operationId` (ou "nada a fazer", saída `0`); conclui na hora, e `--wait` mostra a Organization |
+| `delete --resource-id ID` | `GET` (para ler a `resourceVersion`), depois `DELETE`; a Organization nasce protegida e o `409 DeletionProtected` pede o `unprotect` antes (decisão 0043) | `202`: o `operationId`; com `--wait`, espera a Operation `completed` e a Organization sumir (`state removed`) |
+| `get --resource-id ID` | `GET` da Organization (e da Operation, se `--operation-id`) | `name`, `state` (`active`, `inactive` ou `unknown` enquanto não observada), `phase`, `platformAccess` e `protected` (`yes` ou `no`) |
 | `list` | `GET /v1/ipm/organizations`, seguindo o cursor | Uma linha por Organization do solicitante |
 
 As escritas são assíncronas, como as do SUM: o comando confirma o aceite e mostra como acompanhar. Com `--wait`, ele espera a Operation `completed` (até `--timeout`, 60 s por padrão) e trata o `404` logo depois do `202` como espera, porque o Manager ainda pode não ter gravado o pedido. A sessão não precisa ser renovada: criar uma Organization não muda as roles do token. O dono altera só o `name`; `platformAccess` é do operador e não tem comando nesta CLI.
@@ -215,10 +218,12 @@ Depois do cadastro, a pessoa recebe um e-mail do provedor ("Verificar e-mail"), 
 
 ```bash
 uv run sk account get
+uv run sk account protect [--wait] [--timeout SEGUNDOS]
+uv run sk account unprotect [--wait] [--timeout SEGUNDOS]
 uv run sk account delete --yes [--wait] [--timeout SEGUNDOS]
 ```
 
-Agem sobre a conta da sessão (`sk auth login`); o `resourceId` é o `sub` do token. `delete` exige `--yes` (a exclusão não se desfaz) e lê a `resourceVersion` antes de pedir. **A exclusão é segura (decisão 0040):** a API recusa (`409`) enquanto a conta tiver Organizations ou serviços habilitados, e a saída diz o que remover antes (`sk ipm organization delete`, depois `sk sum service disable --service ipm`). Com `--wait`, o comando espera a Operation `completed` (ou o token deixar de valer, porque o usuário já saiu do provedor) e **esquece a sessão local**. `get` mostra `resourceId`, `name`, `email`, `phase` e `platformAccess`. O cadastro (`sk register --name ...`, sem subcomando) continua igual.
+Agem sobre a conta da sessão (`sk auth login`); o `resourceId` é o `sub` do token. A conta **nasce protegida contra exclusão** (decisão 0043): `unprotect` precede o `delete` (sem ele, a API responde `409 DeletionProtected` e a saída aponta o comando), e `protect` religa a proteção; ambos são idempotentes e `--wait` espera a Operation `completed`. `delete` exige `--yes` (a exclusão não se desfaz) e lê a `resourceVersion` antes de pedir. **A exclusão é segura (decisão 0040):** a API recusa (`409`) enquanto a conta tiver Organizations ou serviços habilitados, e a saída diz o que remover antes (`sk ipm organization delete`, depois `sk sum service disable --service ipm`). Com `--wait`, o comando espera a Operation `completed` (ou o token deixar de valer, porque o usuário já saiu do provedor) e **esquece a sessão local**. `get` mostra `resourceId`, `name`, `email`, `phase`, `platformAccess` e `protected`. O cadastro (`sk register --name ...`, sem subcomando) continua igual.
 
 ## Saída no terminal
 

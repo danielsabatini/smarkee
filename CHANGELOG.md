@@ -8,6 +8,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [Unreleased]
 
 ### Added
+- Proteção contra exclusão (`deletionProtection`, decisão 0043) na Organization e na Account: o recurso nasce protegido, o `DELETE` responde `409 DeletionProtected` (e o Manager rejeita a Operation com o motivo `protected`) até o dono desproteger. `PATCH /v1/core/accounts/{id}` é novo e só aceita a proteção; alterar só a proteção conclui na hora, sem reconciliar. CLI: `sk ipm organization protect|unprotect` e `sk account protect|unprotect` (idempotentes, com `--wait`), e `get` mostra `protected`.
 - `scripts/dev/cleanup` (`smarkee-dev-cleanup`): limpeza segura dos dados de teste do ambiente de dev (Zitadel, SSOT, NATS e Mailpit). Por padrão só mostra o resíduo; `--apply` remove, primeiro pelo loop e depois direto o que sobrar, e verifica ao final. Identifica o dado de teste por padrão de nome e de e-mail e recusa rodar fora do dev.
 - `sk register get|delete`: consulta e exclusão da própria conta. A exclusão é segura (decisão 0040): a API recusa (`409`) enquanto a conta tiver Organizations ou serviços habilitados, e a CLI diz o que remover antes; `--yes` confirma, e `--wait` espera o fim e esquece a sessão. O cadastro (`sk register --name ...`) continua igual.
 - Desabilitar o serviço `ipm` é recusado (`409`) enquanto o dono tiver Organizations.
@@ -52,6 +53,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Licença Apache-2.0 (`LICENSE`).
 
 ### Changed
+- `delete` de Organization e de Account passa a exigir desproteger antes (decisão 0043); `sk ipm organization delete` e `sk account delete` apontam o `unprotect` quando recusados, e os e2e, a jornada e o `smarkee-dev-cleanup` desprotegem antes de remover.
 - O tipo `core.user` passou a se chamar `core.account` (decisão 0042), para não confundir com o usuário do Zitadel nem com os membros que virão no `ipm`: rota `/v1/core/accounts`, roles `core.account.get|delete|admin`, `sk account get|delete` (antes `sk register get|delete`; o cadastro segue em `sk register`), campos `accountState` e `ownerAccountId`, e os nomes de componentes, variáveis, banco e mensageria. Quebra de contrato; sem migração de dados (o dev foi recriado).
 - `sk`: as opções `--issuer`, `--client-id`, `--allow-insecure-http` e `--api-url` deixam de existir em todos os comandos (`auth login|whoami|refresh`, `register`, `sum service` e `ipm organization`). O provedor, o client ID e a permissão de HTTP sem TLS vêm só de variáveis (`SK_AUTH_ISSUER`, `SK_AUTH_CLIENT_ID`, `SK_AUTH_ALLOW_INSECURE_HTTP`, `SK_API_ALLOW_INSECURE_HTTP`), do arquivo de configuração ou do padrão de produção (o endereço da API vem de `SK_API_URL` ou de `[api] url`).
 - `DELETE /v1/core/users/{id}`: recusa a exclusão (`409 ResourcesAttached`) com Organizations ou serviços habilitados da conta, e a de outra conta por um operador (`409 ResourcesNotVerifiable`) até haver como verificá-la.

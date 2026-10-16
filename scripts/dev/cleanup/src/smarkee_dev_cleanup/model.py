@@ -37,6 +37,8 @@ class Kind:
     maintenance_role: str
     label_field: str
     """Campo de `desired` que identifica a linha como de teste (e-mail, nome ou dono)."""
+    deletion_protected: bool = False
+    """O tipo nasce protegido contra exclusão (decisão 0043): é preciso desproteger antes."""
 
 
 ACCOUNTS = Kind(
@@ -47,6 +49,7 @@ ACCOUNTS = Kind(
     "core_account_manager_login",
     "core_maintenance_login",
     "email",
+    deletion_protected=True,
 )
 SERVICES = Kind(
     "sum",
@@ -69,6 +72,7 @@ ORGANIZATIONS = Kind(
     "ipm_organization_manager_login",
     "ipm_maintenance_login",
     "name",
+    deletion_protected=True,
 )
 
 
@@ -151,6 +155,10 @@ class Ssot(Protocol):
         """Todas as linhas do tipo, com o rótulo que a identifica (e-mail, nome ou dono)."""
         ...
 
+    def unprotected_version(self, kind: Kind, resource_id: str) -> str | None:
+        """`resourceVersion` da linha já desprotegida, ou `None` enquanto ainda está protegida."""
+        ...
+
     def delete(self, kind: Kind, resource_ids: set[str]) -> None:
         """Apaga as linhas e o apoio (outbox, Operations e resultados) dos recursos."""
         ...
@@ -160,6 +168,8 @@ class Bus(Protocol):
     async def last_version(self, kind: Kind, resource_id: str) -> tuple[str, str] | None:
         """`(fase, resourceVersion)` da última mensagem `updated`, ou `None`."""
         ...
+
+    async def request_unprotection(self, kind: Kind, resource_id: str, version: str) -> None: ...
 
     async def request_deletion(self, kind: Kind, resource_id: str, version: str) -> None: ...
 
@@ -185,4 +195,5 @@ class Ports:
 
 
 REMOVAL_WAIT_SECONDS = 45.0
+UNPROTECTION_WAIT_SECONDS = 20.0
 POLL_SECONDS = 0.5

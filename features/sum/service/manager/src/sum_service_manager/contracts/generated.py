@@ -71,6 +71,13 @@ class Reconciliation(StrEnum):
     suspended = "suspended"
 
 
+class DeletionProtection(RootModel[bool]):
+    root: bool
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
+
+
 class Presence(StrEnum):
     """
     Resultado da observação, no envelope de observed. unknown nunca é tratado como absent.
@@ -235,12 +242,13 @@ class OperationStatus(StrEnum):
 
 class OperationStatusReason(StrEnum):
     """
-    Motivo da rejeição; presente somente quando operationStatus é rejected.
+    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
     """
 
     conflict = "conflict"
     validation = "validation"
     not_found = "not_found"
+    protected = "protected"
 
 
 class Operation(ContractModel):
@@ -294,7 +302,7 @@ class Operation(ContractModel):
         Field(alias="operationStatusReason", title="OperationStatusReason"),
     ] = None
     """
-    Motivo da rejeição; presente somente quando operationStatus é rejected.
+    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
     """
     created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
     """

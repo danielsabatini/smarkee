@@ -311,6 +311,8 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             specification["name"] = body.name
         if body.platform_access is not None:
             specification["platformAccess"] = body.platform_access.value
+        if body.deletion_protection is not None:
+            specification["deletionProtection"] = body.deletion_protection
         reconciliation = body.reconciliation.value if body.reconciliation is not None else None
         if not specification and reconciliation is None:
             raise bad_request("Informe ao menos um campo a alterar.")
@@ -354,6 +356,12 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         require(principal, roles.ORGANIZATION_DELETE)
         record = await owned_organization(principal, organization_id)
         check_version(record, resource_version)
+        if record.desired.get("deletionProtection", True) is not False:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "DeletionProtected",
+                "A Organization está protegida contra exclusão. Desproteja-a antes de excluir.",
+            )
         return await submit(
             resource_id=organization_id,
             operation="delete",

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "UserDefinitions",
+  "title": "AccountDefinitions",
   "description": "Campos de domínio da Account reutilizados pelos contratos do recurso. Os dados pessoais são confidential e nunca vão para log, erro nem métrica (SCHEMA.md, Classificação).",
   "x-schemaVersion": "1.0",
   "$defs": {

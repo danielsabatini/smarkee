@@ -49,6 +49,13 @@
       "x-managed": true,
       "x-sensitivity": "internal"
     },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
     "givenName": {
       "$ref": "definitions.v1.schema.json#/$defs/givenName",
       "x-writer": "client",

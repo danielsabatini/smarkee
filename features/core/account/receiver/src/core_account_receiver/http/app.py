@@ -300,6 +300,40 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         require(principal, roles.ACCOUNT_GET)
         return account_view(await own_account(principal, account_id))
 
+    @app.patch(
+        "/v1/core/accounts/{account_id}",
+        status_code=202,
+        response_model=generated.ApiAcceptedResponse,
+        response_model_exclude_none=True,
+    )
+    async def update_account(
+        account_id: str,
+        body: generated.AccountUpdateRequest,
+        principal: Authenticated,
+        idempotency_key: IdempotencyKey = None,
+    ) -> generated.ApiAcceptedResponse:
+        """Única alteração possível: a proteção contra exclusão (decisão 0043).
+
+        Usa a mesma role do `delete`: quem pode apagar a conta pode (des)proteger.
+        """
+        require(principal, roles.ACCOUNT_DELETE)
+        record = await own_account(principal, account_id)
+        check_version(record, body.resource_version)
+        specification = {"deletionProtection": body.deletion_protection}
+        return await submit(
+            resource_id=account_id,
+            operation="update",
+            requested_by=principal.subject,
+            digest_content={
+                "operation": "update",
+                "resourceId": account_id,
+                "resourceVersion": body.resource_version,
+                "specification": specification,
+            },
+            extra_data={"resourceVersion": body.resource_version, "specification": specification},
+            idempotency_key=idempotency_key,
+        )
+
     @app.delete(
         "/v1/core/accounts/{account_id}",
         status_code=202,
@@ -315,6 +349,12 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         require(principal, roles.ACCOUNT_DELETE)
         record = await own_account(principal, account_id)
         check_version(record, resource_version)
+        if record.desired.get("deletionProtection", True) is not False:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "DeletionProtected",
+                "A conta está protegida contra exclusão. Desproteja-a antes de excluir.",
+            )
         await require_nothing_attached(principal, account_id)
         return await submit(
             resource_id=account_id,

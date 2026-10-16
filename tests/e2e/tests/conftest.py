@@ -224,6 +224,10 @@ def _remove(person: Person) -> None:
         return
     assert current.status_code == 200, f"não foi possível ler a pessoa de teste: {current.text}"
     version = str(current.json()["resourceVersion"])
+    if current.json()["desired"].get("deletionProtection", True):
+        sk.run("account", "unprotect", "--wait", timeout=150.0)
+        current = httpx.get(url, headers=headers, timeout=15.0)
+        version = str(current.json()["resourceVersion"])
     deleted = httpx.delete(url, headers=headers, params={"resourceVersion": version}, timeout=15.0)
     assert deleted.status_code == 202, deleted.text
     wait_until(

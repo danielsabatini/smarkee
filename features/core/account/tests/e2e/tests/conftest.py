@@ -124,6 +124,9 @@ async def remove_through_the_loop(jetstream: JetStreamContext, resource_id: str)
         await asyncio.sleep(0.5)
     if not updated or updated["data"].get("removed"):
         return
+    version = await unprotect_through_the_loop(
+        jetstream, resource_id, updated["data"]["resourceVersion"]
+    )
     now = datetime.now(UTC).isoformat()
     delete = {
         "messageId": str(uuid.uuid7()),
@@ -141,7 +144,7 @@ async def remove_through_the_loop(jetstream: JetStreamContext, resource_id: str)
         "data": {
             "operationId": str(uuid.uuid7()),
             "requestDigest": "0" * 64,
-            "resourceVersion": updated["data"]["resourceVersion"],
+            "resourceVersion": version,
         },
     }
     await jetstream.publish(
@@ -155,6 +158,73 @@ async def remove_through_the_loop(jetstream: JetStreamContext, resource_id: str)
         if latest["data"].get("removed"):
             return
         await asyncio.sleep(0.5)
+
+
+async def unprotect_through_the_loop(
+    jetstream: JetStreamContext, resource_id: str, resource_version: str
+) -> str:
+    """Pede o `update` que tira a proteção contra exclusão e devolve a versão seguinte.
+
+    A proteção conclui na hora (decisão 0043) e não gera `updated`; a versão nova vem do SSOT.
+    Sem acesso ao SSOT, devolve a versão recebida e o `delete` segue por conta e risco.
+    """
+    now = datetime.now(UTC).isoformat()
+    update = {
+        "messageId": str(uuid.uuid7()),
+        "schemaVersion": "1.0",
+        "messageType": "requested",
+        "emitter": "receiver",
+        "module": "core",
+        "resourceType": "account",
+        "resourceId": resource_id,
+        "operation": "update",
+        "requestedBy": resource_id,
+        "correlationId": str(uuid.uuid7()),
+        "occurredAt": now,
+        "publishedAt": now,
+        "data": {
+            "operationId": str(uuid.uuid7()),
+            "requestDigest": "0" * 64,
+            "resourceVersion": resource_version,
+            "specification": {"deletionProtection": False},
+        },
+    }
+    await jetstream.publish(
+        f"receiver.requested.core.account.{resource_id}.update",
+        json.dumps(update).encode(),
+        headers={"Nats-Msg-Id": update["messageId"]},
+    )
+    try:
+        connection: psycopg.AsyncConnection[Any] = await psycopg.AsyncConnection.connect(
+            f"host={DATABASE_HOST} port={DATABASE_PORT} dbname=smarkee"
+            f" user={MANAGER_LOGIN} password={MANAGER_LOGIN} connect_timeout=3",
+            autocommit=True,
+        )
+    except psycopg.OperationalError:
+        return resource_version
+    try:
+        deadline = asyncio.get_running_loop().time() + 20.0
+        while asyncio.get_running_loop().time() < deadline:
+            cursor = await connection.execute(
+                f"SELECT resource_version, desired FROM {TABLE} WHERE resource_id = %s",  # noqa: S608
+                (resource_id,),
+            )
+            row = await cursor.fetchone()
+            if row is not None and row[1].get("deletionProtection") is False:
+                # O Manager ainda grava resultados e observações seguintes: espera a versão parar.
+                await asyncio.sleep(2.0)
+                cursor = await connection.execute(
+                    f"SELECT resource_version FROM {TABLE} WHERE resource_id = %s",  # noqa: S608
+                    (resource_id,),
+                )
+                stable = await cursor.fetchone()
+                if stable is not None and str(stable[0]) == str(row[0]):
+                    return str(row[0])
+                continue
+            await asyncio.sleep(0.3)
+    finally:
+        await connection.close()
+    return resource_version
 
 
 async def _cleanup_database(resource_ids: list[str]) -> None:

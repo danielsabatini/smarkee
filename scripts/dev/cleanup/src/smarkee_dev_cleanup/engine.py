@@ -10,6 +10,7 @@ from smarkee_dev_cleanup.model import (
     SERVICES,
     TEST_ORGANIZATION_NAME,
     TEST_USER_EMAIL,
+    UNPROTECTION_WAIT_SECONDS,
     UUID,
     Findings,
     Kind,
@@ -54,6 +55,16 @@ def find(ports: Ports) -> Findings:
 # ---------------------------------------------------------------- remover
 
 
+async def _wait_unprotected(ports: Ports, kind: Kind, resource_id: str) -> str | None:
+    deadline = ports.clock() + UNPROTECTION_WAIT_SECONDS
+    while ports.clock() < deadline:
+        version = ports.ssot.unprotected_version(kind, resource_id)
+        if version is not None:
+            return version
+        await ports.sleep(POLL_SECONDS)
+    return None
+
+
 async def remove_through_the_loop(
     ports: Ports, kind: Kind, resource_id: str, say: Callable[[str], None]
 ) -> bool:
@@ -61,7 +72,15 @@ async def remove_through_the_loop(
     current = await ports.bus.last_version(kind, resource_id)
     if current is None or current[0] != "Ready":
         return False  # sem `Ready` o loop não remove com segurança: segue o caminho direto
-    await ports.bus.request_deletion(kind, resource_id, current[1])
+    version = current[1]
+    if kind.deletion_protected:
+        # A proteção conclui na hora e não gera `updated`: a versão nova vem do SSOT.
+        await ports.bus.request_unprotection(kind, resource_id, version)
+        unprotected = await _wait_unprotected(ports, kind, resource_id)
+        if unprotected is None:
+            return False
+        version = unprotected
+    await ports.bus.request_deletion(kind, resource_id, version)
     deadline = ports.clock() + REMOVAL_WAIT_SECONDS
     while ports.clock() < deadline:
         if await ports.bus.removed(kind, resource_id):

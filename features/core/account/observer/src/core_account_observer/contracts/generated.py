@@ -235,12 +235,13 @@ class OperationStatus(StrEnum):
 
 class OperationStatusReason(StrEnum):
     """
-    Motivo da rejeição; presente somente quando operationStatus é rejected.
+    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
     """
 
     conflict = "conflict"
     validation = "validation"
     not_found = "not_found"
+    protected = "protected"
 
 
 class Operation(ContractModel):
@@ -294,7 +295,7 @@ class Operation(ContractModel):
         Field(alias="operationStatusReason", title="OperationStatusReason"),
     ] = None
     """
-    Motivo da rejeição; presente somente quando operationStatus é rejected.
+    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
     """
     created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
     """
@@ -393,7 +394,7 @@ class PlatformRole(RootModel[str]):
     """
 
 
-class UserCreateSpecification(ContractModel):
+class AccountCreateSpecification(ContractModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -437,7 +438,7 @@ class AccountRequestedCreateData(ContractModel):
     """
     SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
     """
-    specification: Annotated[UserCreateSpecification, Field(title="UserCreateSpecification")]
+    specification: Annotated[AccountCreateSpecification, Field(title="AccountCreateSpecification")]
 
 
 class AccountRequestedDeleteData(ContractModel):
@@ -474,6 +475,51 @@ class AccountRequestedDeleteData(ContractModel):
     """
 
 
+class AccountUpdateSpecification(ContractModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    deletion_protection: Annotated[bool, Field(alias="deletionProtection")]
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
+
+
+class AccountRequestedUpdateData(ContractModel):
+    """
+    data de requested com operation update. A única alteração possível na Account é a proteção contra exclusão. Publicado somente pelo Receiver.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    operation_id: Annotated[
+        str,
+        Field(
+            alias="operationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
+    """
+    request_digest: Annotated[
+        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
+    ]
+    """
+    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
+    """
+    resource_version: Annotated[
+        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
+    ]
+    """
+    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
+    """
+    specification: Annotated[AccountUpdateSpecification, Field(title="AccountUpdateSpecification")]
+
+
 class AccountCreateRequest(ContractModel):
     """
     Corpo de POST /v1/core/accounts (auto-cadastro, escrita anônima). O Receiver atribui resourceId, operationId e requestDigest, e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.
@@ -493,6 +539,26 @@ class AccountCreateRequest(ContractModel):
     email: Annotated[EmailStr, Field(max_length=254, min_length=3)]
     """
     E-mail do usuário; é também o nome de login. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
+    """
+
+
+class AccountUpdateRequest(ContractModel):
+    """
+    Corpo de PATCH /v1/core/accounts/{resourceId}. resourceVersion é a versão lida; a única alteração possível é a proteção contra exclusão.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    resource_version: Annotated[
+        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
+    ]
+    """
+    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
+    """
+    deletion_protection: Annotated[bool, Field(alias="deletionProtection")]
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
     """
 
 
@@ -657,7 +723,7 @@ class AccountObservedData(ContractModel):
     """
 
 
-class UserDesiredView(ContractModel):
+class AccountDesiredView(ContractModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -667,6 +733,10 @@ class UserDesiredView(ContractModel):
     platform_roles: Annotated[list[PlatformRole], Field(alias="platformRoles", max_length=64)]
     """
     Conjunto de roles de ação, sem repetição e em ordem alfabética.
+    """
+    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
     """
     given_name: Annotated[str | None, Field(alias="givenName", max_length=256, min_length=1)] = None
     """
@@ -684,7 +754,7 @@ class UserDesiredView(ContractModel):
     """
 
 
-class UserObservedView(ContractModel):
+class AccountObservedView(ContractModel):
     """
     Última observação; ausente antes da primeira.
     """
@@ -740,8 +810,8 @@ class Account(ContractModel):
     """
     phase: Phase
     conditions: Annotated[list[Condition], Field(max_length=32)]
-    desired: Annotated[UserDesiredView, Field(title="UserDesiredView")]
-    observed: Annotated[UserObservedView | None, Field(title="UserObservedView")] = None
+    desired: Annotated[AccountDesiredView, Field(title="AccountDesiredView")]
+    observed: Annotated[AccountObservedView | None, Field(title="AccountObservedView")] = None
     """
     Última observação; ausente antes da primeira.
     """
@@ -772,6 +842,10 @@ class AccountDesiredData(ContractModel):
     platform_roles: Annotated[list[PlatformRole], Field(alias="platformRoles", max_length=64)]
     """
     Roles de ação que o usuário deve ter no projeto da plataforma. Atribuído pelo Manager na criação, a partir da sua configuração; vazio quando platformAccess é revoked (decisão 0025).
+    """
+    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
     """
     given_name: Annotated[str | None, Field(alias="givenName", max_length=256, min_length=1)] = None
     """
@@ -804,7 +878,9 @@ class CoreAccountContracts(
         | AccountObservedData
         | AccountRequestedCreateData
         | AccountRequestedDeleteData
+        | AccountRequestedUpdateData
         | AccountCreateRequest
+        | AccountUpdateRequest
         | Account
     ]
 ):
@@ -822,7 +898,9 @@ class CoreAccountContracts(
         | AccountObservedData
         | AccountRequestedCreateData
         | AccountRequestedDeleteData
+        | AccountRequestedUpdateData
         | AccountCreateRequest
+        | AccountUpdateRequest
         | Account,
         Field(title="CoreAccountContracts"),
     ]

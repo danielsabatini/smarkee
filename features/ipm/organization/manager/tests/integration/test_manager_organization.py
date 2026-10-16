@@ -105,6 +105,7 @@ async def test_create_is_accepted_and_publishes_desired(
         "name": message["data"]["specification"]["name"],
         "platformAccess": "granted",
         "ownerAccountId": "user-1",
+        "deletionProtection": True,
     }
 
     operations = await fetch_all(
@@ -141,6 +142,7 @@ async def test_create_is_accepted_and_publishes_desired(
         "name": message["data"]["specification"]["name"],
         "platformAccess": "granted",
         "ownerAccountId": "user-1",
+        "deletionProtection": True,
     }
 
 
@@ -385,25 +387,73 @@ async def test_reconciliation_change_alone_keeps_generation(
     ]
 
 
+async def unprotect(
+    cleanup: Cleanup, connection: Connection, create: dict[str, Any], version: str
+) -> None:
+    outcome = await handler.handle(
+        ssot(connection),
+        ORGANIZATION,
+        change_message(
+            cleanup,
+            create=create,
+            operation="update",
+            version=version,
+            specification={"deletionProtection": False},
+        ),
+    )
+    assert outcome.kind is OutcomeKind.COMPLETED
+
+
+async def test_delete_of_a_protected_organization_is_rejected(
+    cleanup: Cleanup, organization_manager: Connection
+) -> None:
+    create = create_message(cleanup, owner="user-1")
+    await handler.handle(ssot(organization_manager), ORGANIZATION, create)
+    outcome = await handler.handle(
+        ssot(organization_manager),
+        ORGANIZATION,
+        change_message(cleanup, create=create, operation="delete", version="1"),
+    )
+    assert (outcome.kind, outcome.reason) == (OutcomeKind.REJECTED, RejectionReason.PROTECTED)
+    row = await resource_row(organization_manager, create["resourceId"])
+    assert row is not None
+    assert (row["lifecycle"], row["desired_generation"]) == ("present", 1)
+
+
+async def test_protection_only_update_completes_at_once_without_new_reconciliation(
+    cleanup: Cleanup, organization_manager: Connection
+) -> None:
+    create = create_message(cleanup, owner="user-1")
+    await handler.handle(ssot(organization_manager), ORGANIZATION, create)
+    before = await resource_row(organization_manager, create["resourceId"])
+    await unprotect(cleanup, organization_manager, create, "1")
+    after = await resource_row(organization_manager, create["resourceId"])
+    assert before is not None and after is not None
+    assert after["desired"]["deletionProtection"] is False
+    assert after["resource_version"] == 2
+    assert after["phase"] == before["phase"]
+
+
 async def test_delete_declares_absence_and_is_idempotent(
     cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection
 ) -> None:
     create = create_message(cleanup, owner="user-1")
     await handler.handle(ssot(organization_manager), ORGANIZATION, create)
+    await unprotect(cleanup, organization_manager, create, "1")
     deleted = await handler.handle(
         ssot(organization_manager),
         ORGANIZATION,
-        change_message(cleanup, create=create, operation="delete", version="1"),
+        change_message(cleanup, create=create, operation="delete", version="2"),
     )
     assert deleted.kind is OutcomeKind.ACCEPTED
     row = await resource_row(organization_manager, create["resourceId"])
     assert row is not None
-    assert (row["lifecycle"], row["phase"], row["desired_generation"]) == ("absent", "Deleting", 2)
+    assert (row["lifecycle"], row["phase"], row["desired_generation"]) == ("absent", "Deleting", 3)
 
     repeated = await handler.handle(
         ssot(organization_manager),
         ORGANIZATION,
-        change_message(cleanup, create=create, operation="delete", version="2"),
+        change_message(cleanup, create=create, operation="delete", version="3"),
     )
     assert repeated.kind is OutcomeKind.COMPLETED
     after = await handler.handle(
@@ -413,12 +463,12 @@ async def test_delete_declares_absence_and_is_idempotent(
             cleanup,
             create=create,
             operation="update",
-            version="2",
+            version="3",
             specification={"name": "z-" + unique_suffix()},
         ),
     )
     assert (after.kind, after.reason) == (OutcomeKind.REJECTED, RejectionReason.VALIDATION)
-    assert len(await outbox(outbox_reader, create["resourceId"])) == 2
+    assert len(await outbox(outbox_reader, create["resourceId"])) == 3
 
 
 async def test_invalid_message_is_a_permanent_error(

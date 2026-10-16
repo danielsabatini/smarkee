@@ -96,8 +96,22 @@ class FakeRepository:
 
 
 def organization(
-    resource_id: str, owner: str, *, name: str = "acme", version: int = 3
+    resource_id: str,
+    owner: str,
+    *,
+    name: str = "acme",
+    version: int = 3,
+    protected: bool | None = False,
 ) -> ResourceRecord:
+    """`protected=None` simula o registro anterior à proteção (sem o campo)."""
+    desired: dict[str, Any] = {
+        "lifecycle": "present",
+        "name": name,
+        "platformAccess": "granted",
+        "ownerAccountId": owner,
+    }
+    if protected is not None:
+        desired["deletionProtection"] = protected
     return ResourceRecord(
         resource_id=resource_id,
         resource_version=version,
@@ -106,12 +120,7 @@ def organization(
         reconciliation="active",
         phase="Ready",
         conditions=[],
-        desired={
-            "lifecycle": "present",
-            "name": name,
-            "platformAccess": "granted",
-            "ownerAccountId": owner,
-        },
+        desired=desired,
         presence="present",
         observed={"name": name, "platformAccess": "granted"},
         observed_at=NOW,
@@ -476,6 +485,43 @@ async def test_delete_requires_the_version_and_the_owner(harness: Harness) -> No
     )
     assert ok.status_code == 202
     assert harness.publisher.published[0][0] == "receiver.requested.ipm.organization.o-1.delete"
+
+
+@pytest.mark.parametrize("protected", [True, None])
+async def test_delete_of_a_protected_organization_is_refused(
+    harness: Harness, protected: bool | None
+) -> None:
+    harness.repository.resources["o-1"] = organization("o-1", "ana", protected=protected)
+    response = await harness.client.delete(
+        "/v1/ipm/organizations/o-1?resourceVersion=3", headers=auth("ana")
+    )
+    assert response.status_code == 409
+    assert response.json()["errorCode"] == "DeletionProtected"
+    assert harness.publisher.published == []
+
+
+async def test_owner_may_change_deletion_protection(harness: Harness) -> None:
+    harness.repository.resources["o-1"] = organization("o-1", "ana", protected=True)
+    response = await harness.client.patch(
+        "/v1/ipm/organizations/o-1",
+        json={"resourceVersion": "3", "deletionProtection": False},
+        headers=auth("ana"),
+    )
+    assert response.status_code == 202
+    assert harness.publisher.published[0][1]["data"]["specification"] == {
+        "deletionProtection": False
+    }
+
+
+async def test_view_exposes_deletion_protection_and_defaults_to_protected(
+    harness: Harness,
+) -> None:
+    harness.repository.resources["o-1"] = organization("o-1", "ana", protected=None)
+    harness.repository.resources["o-2"] = organization("o-2", "ana", protected=False)
+    first = await harness.client.get("/v1/ipm/organizations/o-1", headers=auth("ana"))
+    second = await harness.client.get("/v1/ipm/organizations/o-2", headers=auth("ana"))
+    assert first.json()["desired"]["deletionProtection"] is True
+    assert second.json()["desired"]["deletionProtection"] is False
 
 
 # ---------------------------------------------------------------------- Operation

@@ -667,11 +667,13 @@ SELECT sequence, subject, published_at FROM core.account_outbox ORDER BY sequenc
 
 ## 8. Remoção: `DELETE /v1/core/accounts/{id}?resourceVersion=`
 
+**Proteção contra exclusão (decisão 0043).** A conta nasce com `desired.deletionProtection = true`. `PATCH /v1/core/accounts/{id}` (corpo `{resourceVersion, deletionProtection}`, role `core.account.delete`, só a própria conta ou `core.account.admin`) publica `requested` com `operation = update` e `specification = {deletionProtection}`; o Manager grava o novo `desired` com nova geração e conclui a Operation na hora (`completed`), sem voltar a `Reconciling`, porque o campo é da plataforma e não existe no provedor. O `DELETE` só segue com a proteção desligada.
+
 Resumo dos dados (fluxo completo: [`08-remocao`](flow/08-remocao.mmd)). Exige token com a role `core.account.delete`; o dono ou `core.account.admin`. `resourceVersion` é obrigatório e deve ser o da última leitura (senão `409`). Aceita `Idempotency-Key` (o mesmo valor com outro conteúdo devolve `422`).
 
 - **`requestDigest`:** SHA-256 de `{"operation":"delete","resourceId":"<id>","resourceVersion":"<versão>"}`.
 - **`requested`:** subject `receiver.requested.core.account.<resourceId>.delete`; `requestedBy` = `sub` do token; `data = {operationId, requestDigest, resourceVersion}` (contrato: [`requested-delete.v1.schema.json`](../../../../schemas/core/account/requested-delete.v1.schema.json)).
-- **Manager** (transação): `SELECT ... FOR UPDATE` na linha; se não existir, Operation `rejected/not_found`; se `resource_version` diferir, `rejected/conflict`. Calcula o novo `desired` **sem dados pessoais**: `{"lifecycle":"absent","platformAccess":"granted","platformRoles":[...]}` (as roles atuais são copiadas; nenhum dado pessoal). Grava:
+- **Manager** (transação): `SELECT ... FOR UPDATE` na linha; se não existir, Operation `rejected/not_found`; se `resource_version` diferir, `rejected/conflict`; se `deletionProtection` for diferente de `false` (a conta nasce protegida; registro sem o campo vale como protegido), `rejected/protected` (decisão 0043; o Receiver já responde `409 DeletionProtected` antes). Calcula o novo `desired` **sem dados pessoais**: `{"lifecycle":"absent","platformAccess":"granted","platformRoles":[...]}` (as roles atuais são copiadas; nenhum dado pessoal). Grava:
 
 ```sql
 UPDATE core.account

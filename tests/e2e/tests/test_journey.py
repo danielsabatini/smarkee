@@ -140,6 +140,20 @@ def test_the_organization_is_created_renamed_and_deleted_with_the_sk(
         assert second.exit_code == 1, second.text
         assert "Organization limit" in " ".join(second.stderr.split()), second.stderr
 
+        # Proteção contra exclusão (decisão 0043): a conta e a Organization nascem protegidas.
+        shown_account = sk.run("account", "get")
+        assert _field(shown_account.stdout, "protected") == "yes", shown_account.text
+        assert _field(shown.stdout, "protected") == "yes", shown.text
+        protected_account = sk.run("account", "delete", "--yes")
+        assert protected_account.exit_code == 1, protected_account.text
+        assert "sk account unprotect" in " ".join(protected_account.stderr.split())
+        protected_org = sk.run("ipm", "organization", "delete", "--resource-id", created_id)
+        assert protected_org.exit_code == 1, protected_org.text
+        assert "sk ipm organization unprotect" in " ".join(protected_org.stderr.split())
+        opened = sk.run("account", "unprotect", "--wait", timeout=150.0)
+        assert opened.exit_code == 0, opened.text
+        assert _field(sk.run("account", "get").stdout, "protected") == "no"
+
         # Exclusão segura (decisão 0040): com uma Organization e o `ipm` habilitado, a conta fica.
         refused = sk.run("account", "delete", "--yes")
         assert refused.exit_code == 1, refused.text
@@ -163,6 +177,13 @@ def test_the_organization_is_created_renamed_and_deleted_with_the_sk(
         assert _field(updated.stdout, "phase") == "Ready"
     finally:
         if created_id is not None:
+            unprotected = sk.run(
+                *("ipm", "organization", "unprotect"),
+                *("--resource-id", created_id),
+                "--wait",
+                timeout=150.0,
+            )
+            assert unprotected.exit_code == 0, unprotected.text
             deleted = sk.run(
                 *("ipm", "organization", "delete"),
                 *("--resource-id", created_id),

@@ -68,8 +68,8 @@ async def insert_link(
 ) -> None:
     """Grava a ligação nova. Uma ativa do mesmo par viola o índice único (`UniqueViolation`)."""
     await conn.execute(
-        "INSERT INTO sum.service (resource_id, schema_version, owner_account_id, service, lifecycle, "
-        "reconciliation, desired, desired_generation, resource_version, phase) "
+        "INSERT INTO sum.service (resource_id, schema_version, owner_account_id, service, "
+        "lifecycle, reconciliation, desired, desired_generation, resource_version, phase) "
         "VALUES (%s, %s, %s, %s, %s, %s, %s, 1, 1, 'Pending')",
         (
             resource_id,
