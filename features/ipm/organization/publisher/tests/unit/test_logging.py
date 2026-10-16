@@ -79,6 +79,12 @@ def test_severity_follows_the_log_data_model(level: int, number: int, text: str)
     assert (payload["severity_number"], payload["severity_text"]) == (number, text)
 
 
+def test_terminal_color_message_added_by_uvicorn_is_not_an_attribute() -> None:
+    log_record = record("Started server", extra={"color_message": "\x1b[36mStarted\x1b[0m"})
+    payload = format_line(log_record)
+    assert "attributes" not in payload
+
+
 def test_event_name_is_a_field_and_none_values_are_omitted() -> None:
     payload = format_line(
         record("x", extra={EVENT_NAME_KEY: "smarkee.message.rejected", "smarkee.reason": None})

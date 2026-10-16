@@ -38,6 +38,8 @@ _STANDARD_ATTRIBUTES = frozenset(logging.LogRecord("", 0, "", 0, "", (), None)._
     "message",
     "asctime",
     "taskName",
+    # O uvicorn acrescenta a mensagem colorida do terminal a alguns registros; não é atributo.
+    "color_message",
 }
 
 # Chave de `extra` que vira o campo `EventName` do LogRecord, e não um atributo.
