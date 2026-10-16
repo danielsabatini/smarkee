@@ -57,14 +57,29 @@ def decide_create(
     service: str,
     catalog: Mapping[str, tuple[str, ...]],
     active_link: Link | None,
+    existing_link: Link | None = None,
 ) -> Decision:
-    """Ligar: o serviço está no catálogo e o par dono + serviço não tem ligação ativa."""
+    """Ligar: o serviço está no catálogo e o par dono + serviço não tem ligação ativa.
+
+    `existing_link` é a ligação que o `resourceId` do pedido já tem no SSOT, se tiver: o Receiver
+    reaproveita o recurso do par quando ele foi desligado (o recurso é o par, e não cada ligar).
+    Ela precisa ser do mesmo par e estar desligada; uma ligada é `already_exists`, e uma de outro
+    par é `conflict`.
+    """
     try:
         roles_of(catalog, service)
     except ServiceNotAvailableError:
         return Rejected("service_unavailable")
     if active_link is not None and active_link.is_active:
         return Rejected("already_exists", existing_resource_id=active_link.resource_id)
+    if existing_link is not None:
+        if (
+            existing_link.desired.get("ownerUserId") != owner_user_id
+            or existing_link.desired.get("service") != service
+        ):
+            return Rejected("conflict")
+        if existing_link.is_active:
+            return Rejected("already_exists", existing_resource_id=existing_link.resource_id)
     return Accepted(enable_desired(owner_user_id, service, catalog))
 
 

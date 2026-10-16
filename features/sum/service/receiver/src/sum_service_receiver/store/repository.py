@@ -39,6 +39,16 @@ class Repository:
         )
         return None if row is None else str(row["resource_id"])
 
+    async def link_for_pair(self, owner_user_id: str, service: str) -> tuple[str, str] | None:
+        """`(resourceId, lifecycle)` do recurso do par: o ligado, ou o desligado mais recente."""
+        row = await self._one(
+            "SELECT resource_id, lifecycle FROM sum.service_v1 "
+            "WHERE desired ->> 'ownerUserId' = %s AND desired ->> 'service' = %s "
+            "ORDER BY (lifecycle = 'present') DESC, updated_at DESC, resource_id DESC LIMIT 1",
+            (owner_user_id, service),
+        )
+        return None if row is None else (str(row["resource_id"]), str(row["lifecycle"]))
+
     async def operation(self, operation_id: str) -> dict[str, Any] | None:
         return await self._one(
             "SELECT operation_id, resource_id, operation_type, request_digest, operation_status, "

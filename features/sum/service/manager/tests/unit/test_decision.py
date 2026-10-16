@@ -47,11 +47,54 @@ def test_create_with_an_active_link_is_rejected_and_names_the_existing_one() -> 
     assert decision == Rejected("already_exists", existing_resource_id=LINK_ID)
 
 
-def test_create_again_after_a_disable_is_accepted_as_a_new_link() -> None:
+def test_create_again_after_a_disable_is_accepted() -> None:
     decision = decide_create(
         owner_user_id=OWNER, service="ipm", catalog=CATALOG, active_link=absent_link()
     )
     assert isinstance(decision, Accepted)
+
+
+def test_create_on_the_disabled_resource_of_the_same_pair_is_accepted() -> None:
+    decision = decide_create(
+        owner_user_id=OWNER,
+        service="ipm",
+        catalog=CATALOG,
+        active_link=None,
+        existing_link=absent_link(),
+    )
+    assert isinstance(decision, Accepted)
+    assert decision.desired["lifecycle"] == "present"
+
+
+def test_create_on_an_active_existing_resource_is_already_exists() -> None:
+    decision = decide_create(
+        owner_user_id=OWNER,
+        service="ipm",
+        catalog=CATALOG,
+        active_link=None,
+        existing_link=active_link(),
+    )
+    assert decision == Rejected("already_exists", existing_resource_id=LINK_ID)
+
+
+def test_create_on_the_resource_of_another_owner_or_service_is_a_conflict() -> None:
+    other_owner = decide_create(
+        owner_user_id="0199c8a4-0000-7000-8000-00000000beef",
+        service="ipm",
+        catalog=CATALOG,
+        active_link=None,
+        existing_link=absent_link(),
+    )
+    assert other_owner == Rejected("conflict")
+    catalog = {**CATALOG, "ipm2": ("ipm.organization.get",)}
+    other_service = decide_create(
+        owner_user_id=OWNER,
+        service="ipm2",
+        catalog=catalog,
+        active_link=None,
+        existing_link=absent_link(),
+    )
+    assert other_service == Rejected("conflict")
 
 
 def test_delete_is_accepted_with_the_current_version_and_removes_the_roles() -> None:

@@ -47,7 +47,11 @@ def ids() -> dict[str, str]:
 
 
 async def create(
-    conn: psycopg.AsyncConnection[Any], owner: str, operation: str, service: str = "ipm"
+    conn: psycopg.AsyncConnection[Any],
+    owner: str,
+    operation: str,
+    service: str = "ipm",
+    resource_id: str | None = None,
 ) -> Any:
     return await RequestedHandler(catalog=CATALOG).create(
         conn,
@@ -56,7 +60,7 @@ async def create(
         requested_by=owner,
         correlation_id=str(uuid.uuid7()),
         requested_message_id=str(uuid.uuid7()),
-        resource_id=str(uuid.uuid7()),
+        resource_id=resource_id or str(uuid.uuid7()),
         owner_user_id=owner,
         service=service,
     )
@@ -223,12 +227,50 @@ async def test_delete_with_an_outdated_version_is_a_conflict_and_changes_nothing
     assert row["lifecycle"] == "present"
 
 
-async def test_after_a_disable_the_same_service_can_be_enabled_again_as_a_new_link(
+async def test_enabling_a_disabled_pair_again_reuses_the_same_resource(
     conn: psycopg.AsyncConnection[Any],
 ) -> None:
     v = ids()
     created = await create(conn, v["owner"], v["operation"])
-    await delete(conn, created.resource_id or "", "1", str(uuid.uuid7()), v["owner"])  # type: ignore[union-attr]
-    again = await create(conn, v["owner"], str(uuid.uuid7()))
+    resource_id = created.resource_id or ""  # type: ignore[union-attr]
+    await delete(conn, resource_id, "1", str(uuid.uuid7()), v["owner"])
+    again = await create(conn, v["owner"], str(uuid.uuid7()), resource_id=resource_id)
     assert isinstance(again, Recorded) and again.status == "accepted"
-    assert again.resource_id != created.resource_id  # type: ignore[union-attr]
+    assert again.resource_id == resource_id
+    row = await link_row(conn, resource_id)
+    # Geração 1 (ligar), 2 (desligar), 3 (ligar de novo); a versão acompanha.
+    assert (row["lifecycle"], row["desired_generation"], row["resource_version"]) == (
+        "present",
+        3,
+        3,
+    )
+    assert row["desired"]["serviceRoles"] != []
+    cur = await conn.execute(
+        "SELECT count(*) AS n FROM sum.service WHERE owner_user_id = %s", (v["owner"],)
+    )
+    assert (await cur.fetchone())["n"] == 1  # type: ignore[index]  # um recurso por par
+
+
+async def test_reusing_an_active_resource_is_rejected_as_already_exists(
+    conn: psycopg.AsyncConnection[Any],
+) -> None:
+    v = ids()
+    created = await create(conn, v["owner"], v["operation"])
+    resource_id = created.resource_id or ""  # type: ignore[union-attr]
+    again = await create(conn, v["owner"], str(uuid.uuid7()), resource_id=resource_id)
+    assert isinstance(again, Recorded) and again.reason == "already_exists"
+    assert again.existing_resource_id == resource_id
+
+
+async def test_reusing_the_resource_of_another_owner_is_a_conflict_and_changes_nothing(
+    conn: psycopg.AsyncConnection[Any],
+) -> None:
+    v = ids()
+    created = await create(conn, v["owner"], v["operation"])
+    resource_id = created.resource_id or ""  # type: ignore[union-attr]
+    await delete(conn, resource_id, "1", str(uuid.uuid7()), v["owner"])
+    stranger = str(uuid.uuid7())
+    outcome = await create(conn, stranger, str(uuid.uuid7()), resource_id=resource_id)
+    assert isinstance(outcome, Recorded) and outcome.reason == "conflict"
+    row = await link_row(conn, resource_id)
+    assert (row["lifecycle"], row["desired_generation"]) == ("absent", 2)

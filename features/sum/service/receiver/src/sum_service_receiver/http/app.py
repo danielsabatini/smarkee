@@ -66,7 +66,7 @@ MAX_LIST_LIMIT = 200
 class Repo(Protocol):
     async def link(self, resource_id: str) -> dict[str, Any] | None: ...
     async def links_of(self, owner_user_id: str) -> list[dict[str, Any]]: ...
-    async def active_link_for(self, owner_user_id: str, service: str) -> str | None: ...
+    async def link_for_pair(self, owner_user_id: str, service: str) -> tuple[str, str] | None: ...
     async def operation(self, operation_id: str) -> dict[str, Any] | None: ...
     async def operation_of(self, resource_id: str, operation_id: str) -> dict[str, Any] | None: ...
 
@@ -242,12 +242,14 @@ def create_app(deps: Dependencies) -> FastAPI:
         existing_key = idempotency_key is not None and (
             await deps.repository.operation(operation_id_for(principal.subject, idempotency_key))
         )
+        pair: tuple[str, str] | None = None
         if not existing_key:
             require(principal, service_role(service, ACTION_ENABLE))
-            active = await deps.repository.active_link_for(principal.subject, service)
-            if active is not None:
-                raise conflict(f"O serviço {service} já está ligado (resourceId {active}).")
-        resource_id = new_identifier()
+            pair = await deps.repository.link_for_pair(principal.subject, service)
+            if pair is not None and pair[1] == "present":
+                raise conflict(f"O serviço {service} já está ligado (resourceId {pair[0]}).")
+        # O recurso é o par dono + serviço: religar um desligado reaproveita o mesmo resourceId.
+        resource_id = pair[0] if pair is not None else new_identifier()
         return await accept(
             principal=principal,
             operation_type="create",

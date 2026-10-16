@@ -15,6 +15,7 @@ from psycopg import AsyncConnection, errors
 
 from sum_service_manager.domain.decision import (
     Decision,
+    Link,
     Rejected,
     decide_create,
     decide_delete,
@@ -73,12 +74,15 @@ class RequestedHandler:
         """`resource_id` é atribuído pelo Receiver (`docs/RESOURCE-CONTROL-LOOP.md`, §6.1.1)."""
         if await ssot.find_operation(conn, operation_id) is not None:
             return Duplicate(operation_id)
+        # Religar um par já desligado reaproveita o recurso: o Receiver manda o `resourceId` dele.
+        existing = await ssot.link_for_resource(conn, resource_id)
         active = await ssot.active_link_for(conn, owner_user_id, service)
         decision = decide_create(
             owner_user_id=owner_user_id,
             service=service,
             catalog=self._catalog,
             active_link=active,
+            existing_link=existing,
         )
         if isinstance(decision, Rejected):
             return await self._reject(
@@ -90,6 +94,17 @@ class RequestedHandler:
                 requested_by=requested_by,
                 correlation_id=correlation_id,
                 decision=decision,
+            )
+        if existing is not None:
+            return await self._reenable(
+                conn,
+                existing=existing,
+                desired=decision.desired,
+                operation_id=operation_id,
+                request_digest=request_digest,
+                requested_by=requested_by,
+                correlation_id=correlation_id,
+                causation_id=requested_message_id,
             )
         try:
             # Savepoint: a violação do índice da ligação ativa desfaz só esta gravação.
@@ -129,6 +144,36 @@ class RequestedHandler:
             requested_by=requested_by,
             correlation_id=correlation_id,
             causation_id=requested_message_id,
+        )
+
+    async def _reenable(
+        self,
+        conn: AsyncConnection[Any],
+        *,
+        existing: Link,
+        desired: dict[str, Any],
+        operation_id: str,
+        request_digest: str,
+        requested_by: str,
+        correlation_id: str,
+        causation_id: str,
+    ) -> Outcome:
+        """Liga de novo o recurso do par: novo `desired` e geração seguinte, sem recurso novo."""
+        generation = existing.desired_generation + 1
+        await ssot.update_link(
+            conn, resource_id=existing.resource_id, desired=desired, generation=generation
+        )
+        return await self._accept(
+            conn,
+            operation_id=operation_id,
+            resource_id=existing.resource_id,
+            operation_type="create",
+            generation=generation,
+            desired=desired,
+            request_digest=request_digest,
+            requested_by=requested_by,
+            correlation_id=correlation_id,
+            causation_id=causation_id,
         )
 
     async def delete(

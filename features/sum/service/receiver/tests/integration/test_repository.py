@@ -56,8 +56,8 @@ async def test_the_repository_reads_links_by_owner_and_service_from_the_views() 
     await pool.open(wait=True)
     try:
         repository = Repository(pool)
-        assert await repository.active_link_for(owner, "ipm") == resource_id
-        assert await repository.active_link_for(owner, "sum") is None
+        assert await repository.link_for_pair(owner, "ipm") == (resource_id, "present")
+        assert await repository.link_for_pair(owner, "sum") is None
         found = await repository.link(resource_id)
         assert found is not None and found["desired"]["service"] == "ipm"
         assert [row["resource_id"] for row in await repository.links_of(owner)] == [resource_id]

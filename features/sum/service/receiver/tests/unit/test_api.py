@@ -47,16 +47,15 @@ class FakeRepository:
             row for row in self.links.values() if row["desired"]["ownerUserId"] == owner_user_id
         ]
 
-    async def active_link_for(self, owner_user_id: str, service: str) -> str | None:
-        for row in self.links.values():
-            desired = row["desired"]
-            if (
-                desired["ownerUserId"] == owner_user_id
-                and desired["service"] == service
-                and row["lifecycle"] == "present"
-            ):
-                return str(row["resource_id"])
-        return None
+    async def link_for_pair(self, owner_user_id: str, service: str) -> tuple[str, str] | None:
+        rows = [
+            row
+            for row in self.links.values()
+            if row["desired"]["ownerUserId"] == owner_user_id
+            and row["desired"]["service"] == service
+        ]
+        rows.sort(key=lambda row: row["lifecycle"] != "present")  # o ligado vem primeiro
+        return (str(rows[0]["resource_id"]), str(rows[0]["lifecycle"])) if rows else None
 
     async def operation(self, operation_id: str) -> dict[str, Any] | None:
         return self.operations.get(operation_id)
@@ -168,6 +167,27 @@ async def test_enabling_an_already_active_service_is_a_conflict_with_the_existin
     )
     assert response.status_code == 409 and existing in response.json()["message"]
     assert publisher.sent == []
+
+
+async def test_enabling_a_disabled_pair_again_reuses_its_resource_id(world: Any) -> None:
+    client, repository, publisher = world
+    existing = str(uuid.uuid7())
+    repository.links[existing] = {**link_row(existing), "lifecycle": "absent"}
+    response = await client.post(
+        "/v1/sum/services", json={"service": "ipm"}, headers=token(OWNER, ENABLE_IPM)
+    )
+    assert response.status_code == 202
+    assert response.json()["resourceId"] == existing  # o recurso é o par, e não cada ligar
+    assert existing in publisher.sent[0][0]  # o `requested` vai para o recurso existente
+
+
+async def test_a_pair_without_any_resource_gets_a_new_resource_id(world: Any) -> None:
+    client, _, _ = world
+    response = await client.post(
+        "/v1/sum/services", json={"service": "ipm"}, headers=token(OWNER, ENABLE_IPM)
+    )
+    assert response.status_code == 202
+    assert response.json()["resourceId"]
 
 
 async def test_the_same_idempotency_key_returns_the_same_operation_and_publishes_once(
