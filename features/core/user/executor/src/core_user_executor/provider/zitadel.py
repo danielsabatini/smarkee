@@ -88,10 +88,6 @@ class ZitadelWriter:
             raise
         return True
 
-    async def send_password_link(self, user_id: str) -> None:
-        """Envia o link para a pessoa definir a senha na página do Zitadel."""
-        await self._call("POST", f"/v2/users/{user_id}/password_reset", {"sendLink": {}})
-
     async def delete_user(self, user_id: str) -> None:
         await self._call("DELETE", f"/v2/users/{user_id}", accept_not_found=True)
 

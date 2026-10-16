@@ -59,9 +59,6 @@ class FakeWriter:
         self.calls.append("create_user")
         return True
 
-    async def send_password_link(self, user_id: str) -> None:
-        self.calls.append("send_password_link")
-
     async def delete_user(self, user_id: str) -> None:
         if self.error:
             raise self.error
@@ -136,7 +133,7 @@ async def test_a_valid_create_executes_and_publishes_a_valid_completed() -> None
     disposition = await build(writer, state, publisher).handle(action())
 
     assert disposition is Disposition.ACK
-    assert writer.calls == ["create_user", "send_password_link", "create_grant"]
+    assert writer.calls == ["create_user", "create_grant"]
     ((subject, payload),) = publisher.published
     assert subject == f"executor.completed.core.user.{RESOURCE}.create"
     result = generated.MessageEnvelope.model_validate(payload)

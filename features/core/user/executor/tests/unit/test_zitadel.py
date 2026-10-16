@@ -88,7 +88,7 @@ async def test_errors_are_classified(
 ) -> None:
     z = writer(key_file, lambda r: httpx.Response(status, json={"code": 3, "details": []}))
     with pytest.raises(ProviderError) as raised:
-        await z.send_password_link("u-1")
+        await z.delete_user("u-1")
     assert (raised.value.reason, raised.value.retryable) == (reason, retryable)
 
 
@@ -229,8 +229,8 @@ async def test_token_is_cached_and_a_missing_key_is_unauthorized(
 
     settings = ZitadelSettings(key_file=str(key_file), base_url="http://z")
     z = ZitadelWriter(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
-    await z.send_password_link("u-1")
-    await z.send_password_link("u-2")
+    await z.delete_user("u-1")
+    await z.delete_user("u-2")
     assert len(tokens) == 1
 
     broken = ZitadelWriter(
@@ -238,5 +238,5 @@ async def test_token_is_cached_and_a_missing_key_is_unauthorized(
         httpx.AsyncClient(transport=httpx.MockTransport(route)),
     )
     with pytest.raises(ProviderError) as raised:
-        await broken.send_password_link("u-1")
+        await broken.delete_user("u-1")
     assert (raised.value.reason, raised.value.retryable) == ("Unauthorized", False)

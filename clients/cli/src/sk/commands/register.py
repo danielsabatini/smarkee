@@ -20,7 +20,8 @@ from sk.settings import ConfigurationError, SkSettings
 
 REGISTER_HELP = command(
     "Register a new account to get started on the platform. "
-    "Afterwards, confirm the e-mail and set the password with the links sent to it."
+    "Afterwards, open the link in the e-mail sent to it to confirm the address and set the "
+    "password."
 )
 
 EXIT_FAILURE = 1
@@ -194,6 +195,7 @@ def register_command(
         ],
     )
     ui.note(
-        "Next steps: confirm the e-mail and set the password with the links the provider sent. "
+        "Next steps: open the link in the e-mail the provider sent to confirm the address and set "
+        "the password. "
         "Then run `sk auth login`."
     )

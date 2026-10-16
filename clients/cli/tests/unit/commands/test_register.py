@@ -116,7 +116,7 @@ def test_success_prints_the_identities_and_the_next_step(monkeypatch: pytest.Mon
     assert "0199-res" in result.stdout
     assert "0199-op" in result.stdout
     assert "Registration requested" in result.stdout
-    assert "confirm the e-mail" in result.stdout
+    assert "open the link in the e-mail" in result.stdout
     assert calls[0]["given_name"] == "Ana"
     assert calls[0]["family_name"] == "Souza"
 

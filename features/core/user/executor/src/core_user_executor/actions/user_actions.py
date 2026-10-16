@@ -1,8 +1,9 @@
 """Execução das operações do User no Zitadel (`docs/RESOURCE-CONTROL-LOOP.md` §46.1).
 
 Cada operação é idempotente e usa o `resourceId` como ID do usuário. A criação não envia nem
-recebe senha: o Zitadel envia o e-mail de verificação, e o link para definir a senha é pedido em
-seguida (`password_reset`). A senha nunca passa por CLI, Receiver, SSOT nem NATS.
+recebe senha: ao criar o usuário, o Zitadel envia o e-mail de verificação, cuja página também define
+a senha de quem acabou de ser criado (um e-mail só). A senha nunca passa por CLI, Receiver, SSOT
+nem NATS.
 """
 
 from collections.abc import Mapping
@@ -18,8 +19,6 @@ class Writer(Protocol):
     async def create_user(
         self, user_id: str, *, given_name: str, family_name: str, email: str
     ) -> bool: ...
-
-    async def send_password_link(self, user_id: str) -> None: ...
 
     async def delete_user(self, user_id: str) -> None: ...
 
@@ -76,7 +75,6 @@ async def _create(user_id: str, desired: Mapping[str, Any], writer: Writer) -> N
     created = await writer.create_user(
         user_id, given_name=given_name, family_name=family_name, email=email
     )
-    must_send_link = created
     if not created:
         # Repetição (retry, reentrega) ou conflito: confere quem é o dono do ID.
         existing = await writer.get_user(user_id)
@@ -88,9 +86,6 @@ async def _create(user_id: str, desired: Mapping[str, Any], writer: Writer) -> N
             raise ActionFailedError(
                 "Rejected", retryable=False, message="user id in use by another user"
             )
-        must_send_link = not existing.password_set
-    if must_send_link:
-        await writer.send_password_link(user_id)
     await _ensure_grant(user_id, writer, roles)
 
 

@@ -47,10 +47,6 @@ class FakeWriter:
         self.taken_emails.add(email.lower())
         return True
 
-    async def send_password_link(self, user_id: str) -> None:
-        self._maybe_fail("send_password_link")
-        self.calls.append(("send_password_link", user_id))
-
     async def delete_user(self, user_id: str) -> None:
         self.calls.append(("delete_user", user_id))
         self.users.pop(user_id, None)
@@ -89,16 +85,16 @@ def names(writer: FakeWriter) -> list[str]:
     return [str(call[0]) for call in writer.calls]
 
 
-async def test_create_makes_the_user_without_password_sends_the_link_and_grants_roles() -> None:
+async def test_create_makes_the_user_without_password_and_grants_roles() -> None:
     writer = FakeWriter()
     await execute("create", "u-1", DESIRED, writer)
-    assert names(writer) == ["create_user", "send_password_link", "create_grant", "create_grant"]
+    assert names(writer) == ["create_user", "create_grant", "create_grant"]
     # Uma autorização por projeto: cada role vai para o projeto do seu módulo.
     assert ("create_grant", "p-core", ["core.user.delete", "core.user.get"]) in writer.calls
     assert ("create_grant", "p-sum", ["sum.ipm.get"]) in writer.calls
 
 
-async def test_create_repeated_after_success_is_idempotent_and_does_not_resend_the_link() -> None:
+async def test_create_repeated_after_success_is_idempotent() -> None:
     writer = FakeWriter()
     await execute("create", "u-1", DESIRED, writer)
     writer.users["u-1"] = ZitadelUser("Ana@Example.com", password_set=True)
@@ -109,13 +105,13 @@ async def test_create_repeated_after_success_is_idempotent_and_does_not_resend_t
     assert names(writer) == ["create_user"]  # o usuário já tem senha e as roles
 
 
-async def test_a_retry_before_the_password_is_set_resends_the_link() -> None:
+async def test_a_retry_before_activation_sends_no_second_email_and_keeps_the_grants() -> None:
     writer = FakeWriter()
     await execute("create", "u-1", DESIRED, writer)
     writer.calls.clear()
     await execute("create", "u-1", DESIRED, writer)
-    assert "send_password_link" in names(writer)
-    assert "create_grant" not in names(writer)  # a autorização já existe
+    # O e-mail de verificação saiu na criação; repetir o `create` não manda outro.
+    assert names(writer) == ["create_user"]  # a autorização já existe
 
 
 async def test_a_retry_after_a_partial_failure_completes_the_missing_steps() -> None:
@@ -133,7 +129,7 @@ async def test_email_in_use_by_another_user_is_a_permanent_rejection() -> None:
     with pytest.raises(ActionFailedError) as raised:
         await execute("create", "u-1", DESIRED, writer)
     assert (raised.value.reason, raised.value.retryable) == ("Rejected", False)
-    assert "send_password_link" not in names(writer)
+    assert names(writer) == ["create_user"]  # recusado: nada é concedido
 
 
 async def test_user_id_in_use_by_another_email_is_a_permanent_rejection() -> None:
