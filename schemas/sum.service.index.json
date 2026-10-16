@@ -40,6 +40,9 @@
       "$ref": "sum/service/api-create-request.v1.schema.json"
     },
     {
+      "$ref": "sum/service/api-list-response.v1.schema.json"
+    },
+    {
       "$ref": "sum/service/resource.v1.schema.json"
     },
     {
