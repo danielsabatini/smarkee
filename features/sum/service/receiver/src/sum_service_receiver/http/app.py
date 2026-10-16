@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse
 
 from sum_service_receiver.auth.tokens import TokenVerifier
 from sum_service_receiver.contracts import generated
+from sum_service_receiver.domain.dependents import DependentsCheckError
 from sum_service_receiver.domain.errors import (
     ApiError,
     bad_request,
@@ -34,6 +35,7 @@ from sum_service_receiver.domain.errors import (
     forbidden,
     not_found,
     unauthorized,
+    unavailable,
     unprocessable,
 )
 from sum_service_receiver.domain.principal import (
@@ -71,6 +73,15 @@ class Repo(Protocol):
     async def operation_of(self, resource_id: str, operation_id: str) -> dict[str, Any] | None: ...
 
 
+class Dependents(Protocol):
+    async def count(self, service: str, access_token: str) -> int:
+        """Recursos do dono do token que dependem do serviço, pelo fluxo normal do módulo dono.
+
+        Levanta `DependentsCheckError` se o módulo não puder ser consultado.
+        """
+        ...
+
+
 class Publish(Protocol):
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None: ...
 
@@ -81,6 +92,7 @@ class Dependencies:
     repository: Repo
     publisher: Publish
     health: Health
+    dependents: Dependents
     now: Callable[[], Any] = utc_now
 
 
@@ -170,6 +182,30 @@ def create_app(deps: Dependencies) -> FastAPI:
     def require(principal: Principal, role: str) -> None:
         if not principal.has_role(role):
             raise forbidden()
+
+    async def require_no_dependents(principal: Principal, service: str) -> None:
+        """Desabilitar só segue se nada do dono depender do serviço (decisão 0040).
+
+        Com isso, serviço desabilitado quer dizer "sem recursos dele", e quem verifica a conta
+        (o User) pode ler a falta de permissão no módulo como "nada atrelado". Na dúvida, não segue.
+        """
+        try:
+            count = await deps.dependents.count(service, principal.access_token)
+        except DependentsCheckError as error:
+            if error.retryable:
+                raise unavailable() from None
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "ResourcesNotVerifiable",
+                f"Não foi possível verificar os recursos do serviço {service}: falta permissão.",
+            ) from None
+        if count:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "ResourcesAttached",
+                f"O serviço {service} tem {count} recurso(s) atrelado(s). Remova-os antes de "
+                "desabilitar.",
+            )
 
     async def owned_link(principal: Principal, resource_id: str) -> dict[str, Any]:
         """A ligação do solicitante. De outro dono é `404`, para não revelar que ela existe."""
@@ -323,6 +359,7 @@ def create_app(deps: Dependencies) -> FastAPI:
                 raise conflict(
                     "O serviço mudou desde a última leitura. Leia de novo e tente outra vez."
                 )
+            await require_no_dependents(principal, service)
         return await accept(
             principal=principal,
             operation_type="delete",

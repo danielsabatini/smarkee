@@ -21,6 +21,7 @@ from core_user_receiver.settings import UserReceiverSettings, missing_required
 from core_user_receiver.store.database import open_pool
 from core_user_receiver.store.repository import PostgresRepository
 from core_user_receiver.transport.nats import JetStreamPublisher, connect, jetstream_of
+from core_user_receiver.transport.peers import PeerResources
 
 EXIT_INVALID_CONFIGURATION = 2
 
@@ -45,6 +46,7 @@ async def run(settings: UserReceiverSettings) -> int:
                         authenticator=TokenVerifier(settings.auth, http),
                         repository=PostgresRepository(pool),
                         publisher=JetStreamPublisher(jetstream_of(nats_client)),
+                        resources=PeerResources(settings.peers, http),
                         is_ready=lambda: nats_client.is_connected,
                         limiter=SlidingWindowLimiter(
                             api.anonymous_rate_limit, api.anonymous_rate_window_seconds

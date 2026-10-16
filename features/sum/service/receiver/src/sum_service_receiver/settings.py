@@ -45,6 +45,13 @@ class ApiSettings(_Section):
     port: int = 8000
 
 
+class PeersSettings(_Section):
+    """Receivers dos outros módulos, na rede interna, consultados ao desabilitar um serviço."""
+
+    organizations_url: str = "http://ipm-organization-receiver.smarkee.internal:8000"
+    timeout_seconds: float = 5.0
+
+
 class SumServiceReceiverSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="SUM_SERVICE_RECEIVER_",
@@ -57,6 +64,7 @@ class SumServiceReceiverSettings(BaseSettings):
     nats: NatsSettings = NatsSettings()
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
+    peers: PeersSettings = PeersSettings()
 
 
 REQUIRED_SECRETS = (

@@ -39,7 +39,7 @@ Porta de entrada HTTP. Autentica o token (JWKS do Zitadel), autoriza pela role d
 |---|---|---|---|
 | `POST /v1/core/users` | Auto-cadastro (**anônimo**) | Qualquer pessoa | `202` uniforme, `400`, `429` (com `Retry-After`), `503` (com `Retry-After`) |
 | `GET /v1/core/users/{id}` | Lê o usuário | O próprio usuário ou `core.user.admin`, role `core.user.get` | `200`, `401`, `403`, `404` |
-| `DELETE /v1/core/users/{id}?resourceVersion=` | Remove (cabeçalho opcional `Idempotency-Key`) | O próprio usuário ou `core.user.admin`, role `core.user.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422` (`Idempotency-Key` reutilizada com outro conteúdo), `503` |
+| `DELETE /v1/core/users/{id}?resourceVersion=` | Remove (cabeçalho opcional `Idempotency-Key`); **recusa com `409` enquanto a conta tiver Organizations ou serviços habilitados** (decisão 0040) | O próprio usuário ou `core.user.admin`, role `core.user.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422` (`Idempotency-Key` reutilizada com outro conteúdo), `503` |
 | `GET /v1/core/users/{id}/operations/{operationId}` | Acompanha a Operation | Solicitante ou `core.user.admin` (a do cadastro anônimo só operadores) | `200`, `401`, `404` |
 
 Não há listagem (`GET /v1/core/users`) nem `PATCH`: o User não tem `update` (decisão 0014). O contrato descritivo é [`receiver/openapi.json`](receiver/openapi.json). Erros: `{errorCode, message, field?}` (`schemas/common/api-error`; códigos `ValidationFailed`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `IdempotencyKeyReused`, `ServiceUnavailable` e `InternalError`), sem repetir valores enviados. Um usuário que não é o dono recebe `404`, e não `403`, para não revelar a existência.

@@ -209,6 +209,15 @@ Os dados são validados antes do envio, com os mesmos limites do contrato. Um e-
 
 Depois do cadastro, a pessoa recebe um e-mail do provedor ("Verificar e-mail"), cujo link confirma o e-mail e define a senha. Enquanto a conta não é ativada, `sk auth login` não consegue autenticar. O passo a passo para ativar a conta, e para pedir outro link ou código quando o anterior expirou, está em `features/core/user/README.md`, seção 4.7.
 
+### Consultar e excluir a própria conta (`sk register get|delete`)
+
+```bash
+uv run sk register get
+uv run sk register delete --yes [--wait] [--timeout SEGUNDOS]
+```
+
+Agem sobre a conta da sessão (`sk auth login`); o `resourceId` é o `sub` do token. `delete` exige `--yes` (a exclusão não se desfaz) e lê a `resourceVersion` antes de pedir. **A exclusão é segura (decisão 0040):** a API recusa (`409`) enquanto a conta tiver Organizations ou serviços habilitados, e a saída diz o que remover antes (`sk ipm organization delete`, depois `sk sum service disable --service ipm`). Com `--wait`, o comando espera a Operation `completed` (ou o token deixar de valer, porque o usuário já saiu do provedor) e **esquece a sessão local**. `get` mostra `resourceId`, `name`, `email`, `phase` e `platformAccess`. O cadastro (`sk register --name ...`, sem subcomando) continua igual.
+
 ## Saída no terminal
 
 Os comandos mostram sucesso em painel e erro com causa e dica de correção. Cores aparecem só em terminal interativo, e `NO_COLOR` é respeitado. A apresentação está em `src/sk/ui.py` (`.decisions/0021-apresentacao-da-cli-com-rich.md`). A saída de sucesso vai para a saída padrão, e a de erro para a saída de erro.

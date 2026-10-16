@@ -110,7 +110,9 @@ def test_the_link_is_listed_and_a_second_enable_points_to_it(
     assert "This service is already enabled" in again.stderr, again.stderr
 
 
-def test_the_organization_is_created_renamed_and_deleted_with_the_sk(person: Person) -> None:
+def test_the_organization_is_created_renamed_and_deleted_with_the_sk(
+    person: Person, link: dict[str, str]
+) -> None:
     """Com o `ipm` ligado, o token traz as roles `ipm.organization.*`: o ciclo pela CLI."""
     sk = person.sk
     name = f"e2e-{uuid.uuid4().hex[:10]}"
@@ -137,6 +139,17 @@ def test_the_organization_is_created_renamed_and_deleted_with_the_sk(person: Per
         second = sk.run("ipm", "organization", "create", "--name", name + "-2")
         assert second.exit_code == 1, second.text
         assert "Organization limit" in " ".join(second.stderr.split()), second.stderr
+
+        # Exclusão segura (decisão 0040): com uma Organization e o `ipm` habilitado, a conta fica.
+        refused = sk.run("register", "delete", "--yes")
+        assert refused.exit_code == 1, refused.text
+        text = " ".join(refused.stderr.split())
+        assert "1 Organization" in text and "sk ipm organization delete" in text, text
+
+        # E o `ipm` não é desabilitado enquanto houver Organizations (o User confia nisso).
+        blocked = sk.run("sum", "service", "disable", "--resource-id", link["resourceId"])
+        assert blocked.exit_code == 1, blocked.text
+        assert "sk ipm organization delete" in " ".join(blocked.stderr.split()), blocked.stderr
 
         updated = sk.run(
             *("ipm", "organization", "update"),
@@ -230,3 +243,14 @@ def test_the_refresh_command_renews_the_session_on_demand(person: Person) -> Non
     done = person.sk.run("auth", "refresh")
     assert done.exit_code == 0, done.text
     assert person.sk.credentials()["accessToken"] != before
+
+
+def test_the_account_is_shown_and_then_deleted_with_the_sk(person: Person) -> None:
+    """Sem recursos atrelados (a Organization saiu e o `ipm` foi desabilitado), a conta sai."""
+    shown = person.sk.run("register", "get")
+    assert shown.exit_code == 0, shown.text
+    assert person.email in shown.stdout and person.resource_id in shown.stdout
+    deleted = person.sk.run("register", "delete", "--yes", "--wait", timeout=150.0)
+    assert deleted.exit_code == 0, deleted.text
+    assert "Account deleted" in deleted.stdout, deleted.text
+    assert not person.sk.credentials_path.exists(), "a sessão local deve ser esquecida"

@@ -521,3 +521,15 @@ def test_wait_keeps_polling_while_the_manager_has_not_recorded_the_request_yet(
 
     assert result.exit_code == 0, result.stdout + result.stderr
     assert "Service enabled" in result.stdout
+
+
+def test_disable_refused_while_organizations_exist_says_what_to_delete(api: FakeApi) -> None:
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(200, link_document())
+    api.routes[("DELETE", f"/v1/sum/services/{RID}")] = http_error(
+        409, "ResourcesAttached", "O serviço ipm tem 1 recurso(s) atrelado(s)."
+    )
+
+    result = runner.invoke(app, ["sum", "service", "disable", "--resource-id", RID])
+
+    assert result.exit_code == 1
+    assert "sk ipm organization delete" in " ".join(result.stderr.split())

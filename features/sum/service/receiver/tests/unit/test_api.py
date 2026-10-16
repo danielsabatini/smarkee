@@ -14,6 +14,7 @@ import httpx
 import pytest
 
 from sum_service_receiver.contracts import generated
+from sum_service_receiver.domain.dependents import DependentsCheckError
 from sum_service_receiver.domain.errors import unavailable
 from sum_service_receiver.domain.principal import Principal
 from sum_service_receiver.domain.requests import operation_id_for
@@ -100,13 +101,37 @@ def link_row(
     }
 
 
+@dataclass
+class FakeDependents:
+    """O que depende do serviço (contagem combinada) ou a falha de consulta combinada."""
+
+    count_by_service: dict[str, int] = field(default_factory=lambda: {})
+    error: DependentsCheckError | None = None
+    tokens: list[str] = field(default_factory=lambda: [])
+
+    async def count(self, service: str, access_token: str) -> int:
+        self.tokens.append(access_token)
+        if self.error:
+            raise self.error
+        return self.count_by_service.get(service, 0)
+
+
 @pytest.fixture
-def world() -> tuple[httpx.AsyncClient, FakeRepository, FakePublisher]:
+def dependents() -> FakeDependents:
+    return FakeDependents()
+
+
+@pytest.fixture
+def world(
+    dependents: FakeDependents,
+) -> tuple[httpx.AsyncClient, FakeRepository, FakePublisher]:
     repository = FakeRepository()
     publisher = FakePublisher()
     health = Health()
     health.mark_started()
-    app = create_app(Dependencies(FakeVerifier(), repository, publisher, health, lambda: NOW))  # type: ignore[arg-type]
+    app = create_app(
+        Dependencies(FakeVerifier(), repository, publisher, health, dependents, lambda: NOW)  # type: ignore[arg-type]
+    )
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
     return client, repository, publisher
 
@@ -363,6 +388,58 @@ async def test_a_validation_error_does_not_repeat_the_sent_value(world: Any) -> 
     assert "valor-secreto-123" not in response.text
 
 
+async def disable(world: Any) -> Any:
+    client, repository, _ = world
+    rid = str(uuid.uuid7())
+    repository.links[rid] = link_row(rid, version="3")
+    return await client.delete(
+        f"/v1/sum/services/{rid}?resourceVersion=3", headers=token(OWNER, DISABLE_IPM)
+    )
+
+
+async def test_disabling_asks_what_depends_on_the_service_with_the_callers_token(
+    world: Any, dependents: FakeDependents
+) -> None:
+    assert (await disable(world)).status_code == 202
+    assert dependents.tokens == [f"{OWNER}|{DISABLE_IPM}"]
+
+
+async def test_disabling_is_refused_while_resources_depend_on_the_service(
+    world: Any, dependents: FakeDependents
+) -> None:
+    dependents.count_by_service["ipm"] = 2
+
+    response = await disable(world)
+
+    assert response.status_code == 409
+    body = response.json()
+    assert generated.ApiError.model_validate(body)
+    assert body["errorCode"] == "ResourcesAttached" and "2 recurso(s)" in body["message"]
+    assert world[2].sent == []
+
+
+async def test_disabling_does_not_proceed_when_the_module_is_unavailable(
+    world: Any, dependents: FakeDependents
+) -> None:
+    dependents.error = DependentsCheckError("ipm", retryable=True)
+
+    response = await disable(world)
+
+    assert response.status_code == 503 and world[2].sent == []
+
+
+async def test_disabling_does_not_proceed_when_the_module_cannot_be_queried(
+    world: Any, dependents: FakeDependents
+) -> None:
+    dependents.error = DependentsCheckError("ipm", retryable=False)
+
+    response = await disable(world)
+
+    assert response.status_code == 409
+    assert response.json()["errorCode"] == "ResourcesNotVerifiable"
+    assert world[2].sent == []
+
+
 async def test_an_unexpected_error_is_500_with_the_contract_and_no_internal_detail() -> None:
     class BrokenRepository(FakeRepository):
         async def links_of(self, owner_user_id: str) -> list[dict[str, Any]]:
@@ -371,7 +448,14 @@ async def test_an_unexpected_error_is_500_with_the_contract_and_no_internal_deta
     health = Health()
     health.mark_started()
     app = create_app(
-        Dependencies(FakeVerifier(), BrokenRepository(), FakePublisher(), health, lambda: NOW)  # type: ignore[arg-type]
+        Dependencies(
+            FakeVerifier(),  # type: ignore[arg-type]
+            BrokenRepository(),  # type: ignore[arg-type]
+            FakePublisher(),
+            health,
+            FakeDependents(),
+            lambda: NOW,
+        )
     )
     transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:

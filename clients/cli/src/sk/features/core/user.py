@@ -5,12 +5,22 @@ mesmo que existam credenciais salvas. O servidor é a autoridade sobre o conteú
 locais só evitam pedidos que certamente seriam recusados.
 """
 
+import base64
 import json
 import urllib.request
 from dataclasses import dataclass
 from typing import cast
 
-from sk.http import ApiUnavailableError, Opener, send
+from sk.features.api_contract import (
+    OperationStatus,
+    RequestAccepted,
+    as_object,
+    as_text,
+    parse_accepted,
+    parse_operation,
+    validate_identifier,
+)
+from sk.http import ApiUnavailableError, Opener, call_api, send
 from sk.identity.oidc import ensure_secure_url
 
 USER_REGISTRATION_PATH = "/v1/core/users"
@@ -80,3 +90,108 @@ def submit_registration(
     if not isinstance(resource_id, str) or not isinstance(operation_id, str):
         raise ApiUnavailableError("the API response does not carry resourceId and operationId")
     return RegistrationAccepted(resource_id=resource_id, operation_id=operation_id)
+
+
+@dataclass(frozen=True, slots=True)
+class UserAccount:
+    """A conta do solicitante, como a API a devolve a ele mesmo."""
+
+    resource_id: str
+    resource_version: str
+    phase: str
+    given_name: str
+    family_name: str
+    email: str
+    platform_access: str
+
+
+def token_subject(access_token: str) -> str:
+    """O `sub` do access token (o `resourceId` do próprio usuário), sem verificar a assinatura.
+
+    O token veio do provedor e a API o verifica de novo a cada chamada; aqui só se lê quem é o
+    dono da sessão. Levanta `ValueError` se o token não for um JWT legível.
+    """
+    parts = access_token.split(".")
+    if len(parts) != 3:
+        raise ValueError("the session token is not readable")
+    try:
+        padded = parts[1] + "=" * (-len(parts[1]) % 4)
+        claims = cast("object", json.loads(base64.urlsafe_b64decode(padded)))
+    except ValueError:
+        raise ValueError("the session token is not readable") from None
+    subject: object = (
+        cast("dict[str, object]", claims).get("sub") if isinstance(claims, dict) else None
+    )
+    if not isinstance(subject, str):
+        raise ValueError("the session token has no subject")
+    return validate_identifier(subject, what="resourceId")
+
+
+def _account(document: object) -> UserAccount:
+    body = as_object(document, what="user")
+    desired = as_object(body.get("desired"), what="user (desired)")
+    return UserAccount(
+        resource_id=as_text(body, "resourceId", what="user"),
+        resource_version=as_text(body, "resourceVersion", what="user"),
+        phase=as_text(body, "phase", what="user"),
+        given_name=as_text(desired, "givenName", what="user (desired)"),
+        family_name=as_text(desired, "familyName", what="user (desired)"),
+        email=as_text(desired, "email", what="user (desired)"),
+        platform_access=as_text(desired, "platformAccess", what="user (desired)"),
+    )
+
+
+def get_user(
+    api_url: str, *, token: str, resource_id: str, allow_insecure_http: bool
+) -> UserAccount:
+    resource_id = validate_identifier(resource_id, what="resourceId")
+    _, document = call_api(
+        "GET",
+        api_url,
+        f"{USER_REGISTRATION_PATH}/{resource_id}",
+        token=token,
+        allow_insecure_http=allow_insecure_http,
+    )
+    return _account(document)
+
+
+def delete_user(
+    api_url: str,
+    *,
+    token: str,
+    resource_id: str,
+    resource_version: str,
+    idempotency_key: str,
+    allow_insecure_http: bool,
+) -> RequestAccepted:
+    resource_id = validate_identifier(resource_id, what="resourceId")
+    _, document = call_api(
+        "DELETE",
+        api_url,
+        f"{USER_REGISTRATION_PATH}/{resource_id}",
+        token=token,
+        query={"resourceVersion": resource_version},
+        headers={"Idempotency-Key": idempotency_key},
+        allow_insecure_http=allow_insecure_http,
+    )
+    return parse_accepted(document)
+
+
+def get_operation(
+    api_url: str,
+    *,
+    token: str,
+    resource_id: str,
+    operation_id: str,
+    allow_insecure_http: bool,
+) -> OperationStatus:
+    resource_id = validate_identifier(resource_id, what="resourceId")
+    operation_id = validate_identifier(operation_id, what="operationId")
+    _, document = call_api(
+        "GET",
+        api_url,
+        f"{USER_REGISTRATION_PATH}/{resource_id}/operations/{operation_id}",
+        token=token,
+        allow_insecure_http=allow_insecure_http,
+    )
+    return parse_operation(document)

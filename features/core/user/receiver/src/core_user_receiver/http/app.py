@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 
 from core_user_receiver.contracts import generated
 from core_user_receiver.domain import principal as roles
+from core_user_receiver.domain.attachments import AttachmentCheckError, describe_all
 from core_user_receiver.domain.errors import (
     ApiError,
     bad_request,
@@ -30,7 +31,12 @@ from core_user_receiver.domain.ratelimit import SlidingWindowLimiter
 from core_user_receiver.domain.records import ResourceRecord
 from core_user_receiver.domain.requests import operation_id_for, request_digest
 from core_user_receiver.domain.views import MODULE, operation_view, user_view
-from core_user_receiver.http.ports import Publisher, PublishError, Repository
+from core_user_receiver.http.ports import (
+    AttachedResources,
+    Publisher,
+    PublishError,
+    Repository,
+)
 from core_user_receiver.ids import new_identifier, utc_now
 from core_user_receiver.settings import ApiSettings
 
@@ -51,6 +57,7 @@ class Dependencies:
     repository: Repository
     publisher: Publisher
     limiter: SlidingWindowLimiter
+    resources: AttachedResources
     is_ready: Callable[[], bool] = lambda: True
     """Prontidão das dependências críticas (NATS); usada por `/health/ready`."""
     clock: Callable[[], datetime] = utc_now
@@ -196,6 +203,41 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             raise not_found()
         return record
 
+    async def require_nothing_attached(principal: Principal, user_id: str) -> None:
+        """Exclusão segura (decisão 0040): a conta só sai se nenhum recurso depender dela.
+
+        Cada módulo só responde pelo que pertence a quem chama, então só dá para conferir a
+        própria conta. Na dúvida (módulo indisponível ou sem permissão), a exclusão não segue.
+        """
+        if principal.subject != user_id:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "ResourcesNotVerifiable",
+                "Ainda não é possível verificar os recursos atrelados a outra conta.",
+            )
+        try:
+            attached = await deps.resources.of(principal.access_token)
+        except AttachmentCheckError as error:
+            if error.retryable:
+                raise ApiError(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    "ServiceUnavailable",
+                    "Não foi possível verificar os recursos da conta agora. Tente novamente.",
+                    headers={"Retry-After": "5"},
+                ) from None
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "ResourcesNotVerifiable",
+                "Não foi possível verificar os recursos da conta: um módulo recusou a consulta. "
+                "Renove a sessão e tente de novo.",
+            ) from None
+        if attached:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "ResourcesAttached",
+                f"A conta tem recursos atrelados: {describe_all(attached)}. Remova-os e repita.",
+            )
+
     def check_version(record: ResourceRecord, version: str) -> None:
         if str(record.resource_version) != version:
             raise ApiError(
@@ -271,6 +313,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         require(principal, roles.USER_DELETE)
         record = await own_user(principal, user_id)
         check_version(record, resource_version)
+        await require_nothing_attached(principal, user_id)
         return await submit(
             resource_id=user_id,
             operation="delete",

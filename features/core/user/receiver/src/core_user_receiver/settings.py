@@ -59,6 +59,14 @@ class ApiSettings(_Section):
     """Cabeçalho com o endereço do cliente, definido pelo gateway (único acesso ao serviço)."""
 
 
+class PeersSettings(_Section):
+    """Receivers dos outros módulos, na rede interna, consultados na exclusão da conta."""
+
+    organizations_url: str = "http://ipm-organization-receiver.smarkee.internal:8000"
+    services_url: str = "http://sum-service-receiver.smarkee.internal:8000"
+    timeout_seconds: float = 5.0
+
+
 class UserReceiverSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="CORE_USER_RECEIVER_",
@@ -72,6 +80,7 @@ class UserReceiverSettings(BaseSettings):
     nats: NatsSettings = NatsSettings()
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
+    peers: PeersSettings = PeersSettings()
 
 
 REQUIRED_SECRETS = (

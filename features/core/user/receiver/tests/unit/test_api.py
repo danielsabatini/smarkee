@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from core_user_receiver.contracts import generated
+from core_user_receiver.domain.attachments import Attachment, AttachmentCheckError
 from core_user_receiver.domain.errors import unauthorized
 from core_user_receiver.domain.principal import Principal
 from core_user_receiver.domain.ratelimit import SlidingWindowLimiter
@@ -50,6 +51,21 @@ class FakePublisher:
         if self.fail:
             raise PublishError
         self.published.append((subject, json.loads(payload), message_id))
+
+
+@dataclass
+class FakeResources:
+    """Recursos de outros módulos atrelados à conta, ou a falha de consulta combinada."""
+
+    attached: list[Attachment] = field(default_factory=lambda: [])
+    error: AttachmentCheckError | None = None
+    tokens: list[str] = field(default_factory=lambda: [])
+
+    async def of(self, access_token: str) -> list[Attachment]:
+        self.tokens.append(access_token)
+        if self.error:
+            raise self.error
+        return self.attached
 
 
 @dataclass
@@ -114,18 +130,21 @@ class Harness:
     publisher: FakePublisher
     repository: FakeRepository
     clock: list[float]
+    resources: FakeResources
 
 
 @pytest.fixture
 def harness() -> Harness:
     counter = itertools.count(1)
     publisher, repository = FakePublisher(), FakeRepository()
+    resources = FakeResources()
     clock = [0.0]
     deps = Dependencies(
         settings=ApiSettings(anonymous_rate_limit=3, anonymous_rate_window_seconds=60),
         authenticator=FakeAuthenticator(),
         repository=repository,
         publisher=publisher,
+        resources=resources,
         limiter=SlidingWindowLimiter(3, 60, monotonic=lambda: clock[0]),
         clock=lambda: NOW,
         identifiers=lambda: f"id-{next(counter):04d}",
@@ -133,7 +152,7 @@ def harness() -> Harness:
     client = httpx.AsyncClient(
         transport=httpx.ASGITransport(app=create_app(deps)), base_url="http://api"
     )
-    return Harness(client, publisher, repository, clock)
+    return Harness(client, publisher, repository, clock, resources)
 
 
 def auth(subject: str) -> dict[str, str]:
@@ -254,6 +273,70 @@ async def test_user_reads_and_deletes_only_itself(harness: Harness) -> None:
     )
     assert deleted.status_code == 202
     assert harness.publisher.published[0][0] == "receiver.requested.core.user.ana.delete"
+
+
+async def delete_own(harness: Harness) -> httpx.Response:
+    harness.repository.resources["ana"] = user_record("ana")
+    return await harness.client.delete("/v1/core/users/ana?resourceVersion=2", headers=auth("ana"))
+
+
+async def test_delete_asks_the_other_modules_with_the_callers_own_token(harness: Harness) -> None:
+    assert (await delete_own(harness)).status_code == 202
+    assert harness.resources.tokens == ["token-ana"]  # o token do solicitante, e nenhum outro
+
+
+async def test_delete_is_refused_while_resources_are_attached(harness: Harness) -> None:
+    harness.resources.attached = [
+        Attachment("Organization", "Organizations", 1),
+        Attachment("serviço habilitado", "serviços habilitados", 2),
+    ]
+
+    response = await delete_own(harness)
+
+    assert response.status_code == 409
+    body = response.json()
+    assert generated.ApiError.model_validate(body)
+    assert body["errorCode"] == "ResourcesAttached"
+    assert "1 Organization" in body["message"] and "2 serviços habilitados" in body["message"]
+    assert harness.publisher.published == []  # nada foi pedido
+
+
+async def test_delete_does_not_proceed_when_a_module_is_unavailable(harness: Harness) -> None:
+    harness.resources.error = AttachmentCheckError("ipm", retryable=True)
+
+    response = await delete_own(harness)
+
+    assert response.status_code == 503
+    assert response.headers["retry-after"] == "5"
+    assert harness.publisher.published == []
+
+
+async def test_delete_does_not_proceed_when_the_caller_cannot_query_a_module(
+    harness: Harness,
+) -> None:
+    harness.resources.error = AttachmentCheckError("ipm", retryable=False)
+
+    response = await delete_own(harness)
+
+    assert response.status_code == 409
+    assert response.json()["errorCode"] == "ResourcesNotVerifiable"
+    assert harness.publisher.published == []
+
+
+async def test_an_operator_cannot_delete_another_account_until_it_can_be_verified(
+    harness: Harness,
+) -> None:
+    """Os módulos só respondem pelo que pertence a quem chama: de outra conta, não há como saber."""
+    harness.repository.resources["ana"] = user_record("ana")
+
+    response = await harness.client.delete(
+        "/v1/core/users/ana?resourceVersion=2", headers=auth("admin")
+    )
+
+    assert response.status_code == 409
+    assert response.json()["errorCode"] == "ResourcesNotVerifiable"
+    assert harness.resources.tokens == []
+    assert harness.publisher.published == []
 
 
 # ---------------------------------------------------------------------- Operation

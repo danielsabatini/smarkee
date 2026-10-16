@@ -97,7 +97,17 @@ def _fail_api(
     not_found: str = "Service not found for your account.",
     conflict: str = CONFLICT_ON_CHANGE,
 ) -> NoReturn:
-    fail_api(error, not_found=not_found, conflict=conflict)
+    fail_api(
+        error,
+        not_found=not_found,
+        conflict=conflict,
+        by_error_code={
+            "ResourcesAttached": (
+                "Delete the Organizations first (`sk ipm organization delete`) and repeat."
+            ),
+            "ResourcesNotVerifiable": "Renew the session with `sk auth refresh` and repeat.",
+        },
+    )
 
 
 STATE_STYLES = {"enabled": "green", "disabled": "dim"}

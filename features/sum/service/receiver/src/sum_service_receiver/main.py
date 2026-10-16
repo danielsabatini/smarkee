@@ -19,6 +19,7 @@ from sum_service_receiver.http.health import Health
 from sum_service_receiver.logging_config import configure_logging
 from sum_service_receiver.settings import SumServiceReceiverSettings, missing_required
 from sum_service_receiver.store.repository import Repository
+from sum_service_receiver.transport.dependents import PeerDependents
 from sum_service_receiver.transport.nats import RequestedPublisher, connect, jetstream_of
 
 EXIT_INVALID_CONFIGURATION = 2
@@ -38,6 +39,7 @@ async def serve(settings: SumServiceReceiverSettings) -> int:
                 repository=Repository(pool),
                 publisher=RequestedPublisher(jetstream_of(nats_client)),
                 health=health,
+                dependents=PeerDependents(settings.peers, client),
             )
         )
         health.mark_started()

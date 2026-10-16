@@ -14,6 +14,8 @@ from typer.testing import CliRunner
 from sk.main import app
 
 runner = CliRunner()
+# `--timeout` usa um intervalo inteiro (`min=1`), cujo tipo se chama "int range".
+INTEGER_TYPES = {"integer", "int range"}
 IGNORED = {"help", "install_completion", "show_completion"}
 # Os subcomandos de `sk config` operam só no arquivo: não há ordem de resolução a explicar.
 WITHOUT_RESOLUTION_ORDER = {"config list", "config get", "config set"}
@@ -21,14 +23,20 @@ OPTION_FORMAT = re.compile(r"\[(String|Integer|Boolean)\](?: \[(.+)\])? \[(requi
 
 
 def _commands() -> list[tuple[str, Any]]:
-    root: Any = typer.main.get_command(app)
+    """Todos os comandos (em qualquer nível) e os grupos que têm opções próprias."""
     found: list[tuple[str, Any]] = []
-    for name, command in root.commands.items():
-        if getattr(command, "commands", None):
-            for sub_name, sub in command.commands.items():
-                found.append((f"{name} {sub_name}", sub))
-        else:
-            found.append((name, command))
+
+    def walk(prefix: str, group: Any) -> None:
+        for name, command in group.commands.items():
+            path = f"{prefix} {name}".strip()
+            if getattr(command, "commands", None):
+                if _options(command):  # grupo com opções próprias (por exemplo, `register`)
+                    found.append((path, command))
+                walk(path, command)
+            else:
+                found.append((path, command))
+
+    walk("", typer.main.get_command(app))
     return found
 
 
@@ -88,7 +96,7 @@ def test_boolean_options_are_declared_as_boolean() -> None:
             assert match is not None, f"{name} {param.name}"
             if getattr(param, "is_flag", False):
                 expected_kind = "Boolean"
-            elif getattr(param.type, "name", "") == "integer":
+            elif getattr(param.type, "name", "") in INTEGER_TYPES:
                 expected_kind = "Integer"
             else:
                 expected_kind = "String"

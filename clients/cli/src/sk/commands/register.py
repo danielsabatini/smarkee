@@ -1,21 +1,51 @@
-"""Comando `sk register`: pede o cadastro de um usuário na plataforma.
+"""Comandos `sk register`: o cadastro, e a consulta e a exclusão da própria conta.
 
-É anônimo: não exige login e não envia token. A senha não é pedida nem aceita: ela é definida
+O cadastro (`sk register --name ...`) é anônimo: não exige login e não envia token. A senha não é
+pedida nem aceita: ela é definida
 pela própria pessoa, na página do provedor de identidade, a partir do e-mail de ativação
 (`docs/RESOURCE-CONTROL-LOOP.md`, seção 46.1). O cadastro é assíncrono: o comando confirma que o
 pedido foi aceito, e não que a conta já existe.
+
+`get` e `delete` agem sobre a conta da sessão (`sk auth login`). A exclusão é segura (decisão 0040):
+a API recusa enquanto houver Organizations ou serviços habilitados da conta, e a CLI diz o que
+remover antes.
 """
 
-from typing import Annotated
+import time
+import uuid
+from typing import Annotated, NoReturn
 
 import typer
 
 from sk import ui
-from sk.commands.shared import EXIT_FAILURE, EXIT_USAGE_ERROR, load_api, require
+from sk.commands.shared import (
+    DEFAULT_WAIT_TIMEOUT_SECONDS,
+    EXIT_FAILURE,
+    EXIT_USAGE_ERROR,
+    HTTP_NOT_FOUND,
+    WAIT_POLL_SECONDS,
+    AllowInsecureHttpOption,
+    ApiUrlOption,
+    TimeoutOption,
+    bad_address,
+    fail_api,
+    load_api,
+    require,
+    session_token,
+)
 from sk.defaults import PRD_API_URL
-from sk.features.core.user import submit_registration, validate_registration
+from sk.features.core.user import (
+    UserAccount,
+    delete_user,
+    get_operation,
+    get_user,
+    submit_registration,
+    token_subject,
+    validate_registration,
+)
 from sk.help import command, option
 from sk.http import ApiError, ApiRejectedError, ApiUnavailableError
+from sk.identity.credentials import default_credentials_path
 from sk.identity.oidc import OidcError
 
 REGISTER_HELP = command(
@@ -25,7 +55,27 @@ REGISTER_HELP = command(
 )
 
 
+register_app = typer.Typer(
+    help=REGISTER_HELP,
+    invoke_without_command=True,
+    # Ajuda colorida pelo Rich. Colchetes literais nos textos são escapados com "\\[".
+    rich_markup_mode="rich",
+    pretty_exceptions_show_locals=False,
+)
+
+NOT_FOUND = "Your account was not found."
+CONFLICT_ON_CHANGE = "The account changed since it was last read. Inspect it and try again."
+ERROR_CODE_HINTS = {
+    "ResourcesAttached": (
+        "Remove them first (`sk ipm organization delete`, `sk sum service disable`) and repeat."
+    ),
+    "ResourcesNotVerifiable": "Renew the session with `sk auth refresh` and repeat.",
+}
+
+
+@register_app.callback(invoke_without_command=True)
 def register_command(
+    context: typer.Context,
     name: Annotated[
         str | None,
         typer.Option(
@@ -92,6 +142,8 @@ def register_command(
         ),
     ] = False,
 ) -> None:
+    if context.invoked_subcommand is not None:
+        return  # `get` ou `delete`: o cadastro só roda sem subcomando
     # Obrigatórias por validação do próprio comando (não pelo Typer), para não exibir "[required]".
     name = require(name, "--name")
     surname = require(surname, "--surname")
@@ -160,3 +212,170 @@ def register_command(
         "the password. "
         "Then run `sk auth login`."
     )
+
+
+def _own_id(token: str) -> str:
+    try:
+        return token_subject(token)
+    except ValueError as error:
+        ui.error("Session unavailable", str(error), hint="Run `sk auth login`.")
+        raise typer.Exit(EXIT_FAILURE) from error
+
+
+def _fail_api(error: ApiError) -> NoReturn:
+    fail_api(
+        error, not_found=NOT_FOUND, conflict=CONFLICT_ON_CHANGE, by_error_code=ERROR_CODE_HINTS
+    )
+
+
+def _rows(account: UserAccount) -> list[tuple[str, str]]:
+    return [
+        ("resourceId", account.resource_id),
+        ("name", f"{account.given_name} {account.family_name}"),
+        ("email", account.email),
+        ("phase", account.phase),
+        ("platformAccess", account.platform_access),
+    ]
+
+
+@register_app.command("get", help=command("Show the account of the current session."))
+def get_command(
+    api_url: ApiUrlOption = None,
+    allow_insecure_http: AllowInsecureHttpOption = False,
+) -> None:
+    url, insecure = load_api(api_url, allow_insecure_http)
+    token = session_token(insecure)
+    try:
+        account = get_user(
+            url, token=token, resource_id=_own_id(token), allow_insecure_http=insecure
+        )
+    except OidcError as error:
+        bad_address(error)
+    except ApiError as error:
+        _fail_api(error)
+    ui.panel("Account", _rows(account))
+
+
+def _wait_until_gone(
+    url: str, insecure: bool, resource_id: str, operation_id: str, *, timeout: int
+) -> None:
+    """Espera a exclusão terminar: Operation `completed`, ou a conta sumir (`401` ou `404`).
+
+    Quando o usuário é removido do provedor, o token da sessão deixa de valer: o fim da exclusão
+    pode aparecer como a recusa do próprio token.
+    """
+    ui.note(f"Waiting for the deletion (up to {timeout} s)...")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            operation = get_operation(
+                url,
+                token=session_token(insecure),
+                resource_id=resource_id,
+                operation_id=operation_id,
+                allow_insecure_http=insecure,
+            )
+        except OidcError as error:
+            bad_address(error)
+        except ApiRejectedError as error:
+            if error.status == 401:
+                return  # o token deixou de valer: a conta foi removida do provedor
+            if error.status != HTTP_NOT_FOUND:
+                _fail_api(error)
+        except ApiError as error:
+            _fail_api(error)
+        else:
+            if operation.operation_status in ("rejected", "failed"):
+                ui.error(
+                    "Request not completed",
+                    f"The Operation ended as {operation.operation_status}.",
+                    hint="Inspect your account with `sk register get`.",
+                )
+                raise typer.Exit(EXIT_FAILURE)
+            if operation.operation_status == "completed":
+                return
+        if time.monotonic() >= deadline:
+            ui.error(
+                "Timed out",
+                f"{timeout} s passed and the deletion is still in progress.",
+                hint="Check it with `sk register get`.",
+            )
+            raise typer.Exit(EXIT_FAILURE)
+        time.sleep(WAIT_POLL_SECONDS)
+
+
+@register_app.command(
+    "delete",
+    help=command(
+        "Delete your own account. It is refused while Organizations or enabled services remain."
+    ),
+)
+def delete_command(
+    yes: Annotated[
+        bool,
+        typer.Option(
+            "--yes",
+            help=option(
+                "Confirm that the account is deleted for good.",
+                kind="Boolean",
+                variable=None,
+                file=None,
+                default="off",
+            ),
+        ),
+    ] = False,
+    wait: Annotated[
+        bool,
+        typer.Option(
+            "--wait",
+            help=option(
+                "Wait for the deletion to finish and forget the local session.",
+                kind="Boolean",
+                variable=None,
+                file=None,
+                default="off",
+            ),
+        ),
+    ] = False,
+    timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
+    api_url: ApiUrlOption = None,
+    allow_insecure_http: AllowInsecureHttpOption = False,
+) -> None:
+    if not yes:
+        ui.error(
+            "Confirmation required",
+            "Deleting the account cannot be undone.",
+            hint="Repeat the command with --yes.",
+        )
+        raise typer.Exit(EXIT_USAGE_ERROR)
+    url, insecure = load_api(api_url, allow_insecure_http)
+    token = session_token(insecure)
+    resource_id = _own_id(token)
+    try:
+        account = get_user(url, token=token, resource_id=resource_id, allow_insecure_http=insecure)
+        accepted = delete_user(
+            url,
+            token=token,
+            resource_id=resource_id,
+            resource_version=account.resource_version,
+            idempotency_key=str(uuid.uuid7()),
+            allow_insecure_http=insecure,
+        )
+    except OidcError as error:
+        bad_address(error)
+    except ApiError as error:
+        _fail_api(error)
+    ui.panel(
+        "Deletion requested",
+        [
+            ("email", account.email),
+            ("resourceId", accepted.resource_id),
+            ("operationId", accepted.operation_id),
+        ],
+    )
+    if not wait:
+        ui.note("The account is removed shortly. Confirm it with `sk register get`.")
+        return
+    _wait_until_gone(url, insecure, resource_id, accepted.operation_id, timeout=timeout)
+    default_credentials_path().unlink(missing_ok=True)  # a sessão não vale mais
+    ui.panel("Account deleted", [("resourceId", resource_id), ("session", "forgotten")])

@@ -8,6 +8,9 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [Unreleased]
 
 ### Added
+- `sk register get|delete`: consulta e exclusão da própria conta. A exclusão é segura (decisão 0040): a API recusa (`409`) enquanto a conta tiver Organizations ou serviços habilitados, e a CLI diz o que remover antes; `--yes` confirma, e `--wait` espera o fim e esquece a sessão. O cadastro (`sk register --name ...`) continua igual.
+- Desabilitar o serviço `ipm` é recusado (`409`) enquanto o dono tiver Organizations.
+- Conformância do Zitadel de dev: teste de desvio de configuração, que compara os IDs dos `.env` da CLI, do User, do SUM e da Organization com os da instância e aponta o que ficou desatualizado depois de recriá-la.
 - `sk ipm organization create|get|list|update|delete`: cria, consulta, renomeia e remove as Organizations do solicitante, com `--wait` e `--timeout` (esperam a Operation `completed` e a Organization `Ready`) e `--api-url`/`--allow-insecure-http`. Os pedidos de escrita levam `Idempotency-Key`, o `update` e o `delete` leem a `resourceVersion` antes, e a ajuda de cada recusa da API diz o que fazer (habilitar o `ipm`, verificar o e-mail, cota esgotada). A jornada e2e (`tests/e2e`) passou a cobrir o ciclo da Organization pela CLI real.
 - Organization (`features/ipm/organization`, decisão 0038): loop completo refeito a partir do User, com os seis papéis (Receiver, Manager, Publisher, Reconciler, Observer e Executor) e testes e2e contra o Zitadel real. O Executor escreve só a organização (criar com o `resourceId` como ID, renomear, ativar e desativar conforme `platformAccess`, e remover), sem Project Grant. Documentação no padrão do User (fluxos, estados, banco, segurança e fluxo de dados) e testes de resiliência (`E2E_CHAOS=1`) para cada papel.
 - `sk sum service enable|disable --wait [--timeout]`: espera o serviço convergir (fase `Ready` e Operation `completed`) e renova a sessão, para o token refletir as roles do serviço (ou a perda delas). `sk auth refresh` renova a sessão sob demanda. A seção `[ipm]` ganhou `projectId`, e o login pede a audience de `roles-ipm`: sem ela, as roles `ipm.*` nunca chegariam ao token.
@@ -48,6 +51,9 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Licença Apache-2.0 (`LICENSE`).
 
 ### Changed
+- `DELETE /v1/core/users/{id}`: recusa a exclusão (`409 ResourcesAttached`) com Organizations ou serviços habilitados da conta, e a de outra conta por um operador (`409 ResourcesNotVerifiable`) até haver como verificá-la.
+- Organization: o nome `register` passa a ser reservado (antes o pedido era aceito e falhava no Executor).
+- User: o Executor deixou de ler o estado da senha do usuário no Zitadel (campo sem uso).
 - `sk sum service enable|disable --wait`: um `404` logo depois do `202` (o Manager ainda não gravou o pedido) passa a ser espera, e não erro; antes, a espera podia falhar por um instante em que o recurso ainda não era visível.
 - Organization: o `relay` do outbox virou o Publisher (`ipm-organization-publisher`, papel de banco `ipm_organization_publisher`), a suíte `conformance` virou `tests/e2e`, o Receiver substituiu o `/healthz` por `/health/live`, `/health/ready` e `/health/startup`, e o Manager passou a consumir `observed` e `completed`/`failed`. No contrato `observed`, `platformAccess` passa a refletir o estado da organização (`granted` quando ativa, `revoked` quando desativada).
 - `sk`: o endereço da API da plataforma, que vale para todos os módulos, passa para a seção própria `[api]` (`api.url` e `api.allowInsecureHttp`, variáveis `SK_API_URL` e `SK_API_ALLOW_INSECURE_HTTP`), em vez de `[core]`, que fica só com o `projectId` do módulo core. Um arquivo que ainda use `[core] apiUrl` é recusado: troque as chaves de lugar.

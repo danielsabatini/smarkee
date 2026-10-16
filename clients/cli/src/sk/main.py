@@ -5,7 +5,7 @@ import typer
 from sk.commands.auth import auth_app
 from sk.commands.config import config_app
 from sk.commands.ipm import ipm_app
-from sk.commands.register import REGISTER_HELP, register_command
+from sk.commands.register import register_app
 from sk.commands.sum import sum_app
 
 app = typer.Typer(
@@ -21,7 +21,7 @@ app.add_typer(auth_app, name="auth")
 app.add_typer(config_app, name="config")
 app.add_typer(ipm_app, name="ipm")
 app.add_typer(sum_app, name="sum")
-app.command("register", help=REGISTER_HELP)(register_command)
+app.add_typer(register_app, name="register")
 
 
 def main() -> None:
