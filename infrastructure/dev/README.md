@@ -63,6 +63,8 @@ docker compose down              # derruba, preservando os volumes
 docker compose down -v           # derruba e APAGA os dados
 ```
 
+Antes de apagar os dados, faça o backup: `scripts/dev/backup` (`uv run smarkee-dev-backup reset --apply` faz o backup, prova que ele restaura e só então zera o ambiente). Configurações feitas direto no Zitadel e no Kong vivem só nos volumes.
+
 Os contêineres de inicialização permanecem parados (`Exited (0)`) depois de executar, preservando o código de saída e os logs para diagnóstico (`docker compose ps -a`, `docker compose logs <serviço>`). O Compose não os remove automaticamente: não há equivalente ao `docker run --rm`, e o `depends_on: service_completed_successfully` precisa do contêiner encerrado para ler o código de saída. A próxima subida os recria.
 
 Cada serviço também sobe isoladamente em seu próprio diretório (`cd database && docker compose up -d`). Use **um modo por vez**: os nomes dos containers são fixos e conflitam entre os dois modos. Cada recurso tem um único `compose.yaml`. O `identity` e o `gateway` incluem o `database/compose.yaml`: isolados, sobem o PostgreSQL junto e aguardam que ele aceite conexões.
