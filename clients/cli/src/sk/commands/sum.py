@@ -1,7 +1,7 @@
 """Comandos `sk sum service`: ligar, desligar e consultar os serviços do solicitante (decisão 0033).
 
 Usam o token da sessão (`sk auth login`), renovado quando está para vencer. A API é a mesma do
-`sk register` (`[core] apiUrl`). Ligar e desligar são assíncronos: o comando confirma o aceite e
+`sk register` (`[api] url`). Ligar e desligar são assíncronos: o comando confirma o aceite e
 mostra como acompanhar a Operation. Com `--wait`, ele espera a ligação convergir e renova a sessão:
 o token só traz as roles que existiam quando foi emitido, e as do serviço chegam depois do aceite.
 """
@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from rich.text import Text
 
 from sk import ui
+from sk.defaults import PRD_API_URL
 from sk.features.sum.service import (
     OperationStatus,
     ServiceLink,
@@ -40,9 +41,9 @@ ApiUrlOption = Annotated[
         help=option(
             "Platform API address.",
             kind="String",
-            variable="SK_CORE_API_URL",
-            file="[core] apiUrl",
-            default="none",
+            variable="SK_API_URL",
+            file="[api] url",
+            default=PRD_API_URL,
         ),
     ),
 ]
@@ -53,8 +54,8 @@ AllowInsecureHttpOption = Annotated[
         help=option(
             "Allow an address without HTTPS. Development only.",
             kind="Boolean",
-            variable="SK_CORE_ALLOW_INSECURE_HTTP=true",
-            file="[core] allowInsecureHttp = true",
+            variable="SK_API_ALLOW_INSECURE_HTTP=true",
+            file="[api] allowInsecureHttp = true",
             default="off",
         ),
     ),
@@ -134,29 +135,22 @@ def _identifier(value: str | None, option_name: str, *, what: str) -> str:
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 
 
-def _load_core(api_url: str | None, allow_insecure_http: bool) -> tuple[str, bool]:
+def _load_api(api_url: str | None, allow_insecure_http: bool) -> tuple[str, bool]:
     explicit = {
         key: value
         for key, value in {
-            "api_url": api_url,
+            "url": api_url,
             "allow_insecure_http": allow_insecure_http or None,
         }.items()
         if value is not None
     }
     try:
         # Mesmo mecanismo do `sk register`: parâmetro → ambiente → arquivo → default.
-        core = SkSettings(core=explicit).core  # pyright: ignore[reportArgumentType]
+        api = SkSettings(api=explicit).api  # pyright: ignore[reportArgumentType]
     except (ValidationError, ConfigurationError) as error:
         ui.error("Invalid configuration", str(error), hint="Fix the indicated file and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
-    if not core.api_url:
-        ui.error(
-            "API not provided",
-            "Provide it with --api-url, SK_CORE_API_URL or apiUrl in the [core] table.",
-            hint="Run `sk init` to create the configuration, or provide --api-url.",
-        )
-        raise typer.Exit(EXIT_USAGE_ERROR)
-    return core.api_url, core.allow_insecure_http
+    return api.url, api.allow_insecure_http
 
 
 def _session_insecure(allow_insecure_http: bool) -> bool:
@@ -375,7 +369,7 @@ def enable_command(
 ) -> None:
     # Obrigatória por validação do próprio comando (não pelo Typer), para não exibir "[required]".
     service = _require(service, "--service")
-    url, insecure = _load_core(api_url, allow_insecure_http)
+    url, insecure = _load_api(api_url, allow_insecure_http)
     token = _token(insecure)
     try:
         accepted = enable_service(
@@ -426,7 +420,7 @@ def disable_command(
     allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
     resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
-    url, insecure = _load_core(api_url, allow_insecure_http)
+    url, insecure = _load_api(api_url, allow_insecure_http)
     token = _token(insecure)
     try:
         current = get_service(
@@ -495,7 +489,7 @@ def get_command(
     resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
     if operation_id is not None:
         operation_id = _identifier(operation_id, "--operation-id", what="operationId")
-    url, insecure = _load_core(api_url, allow_insecure_http)
+    url, insecure = _load_api(api_url, allow_insecure_http)
     token = _token(insecure)
     try:
         link = get_service(url, token=token, resource_id=resource_id, allow_insecure_http=insecure)
@@ -534,7 +528,7 @@ def list_command(
     api_url: ApiUrlOption = None,
     allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
-    url, insecure = _load_core(api_url, allow_insecure_http)
+    url, insecure = _load_api(api_url, allow_insecure_http)
     token = _token(insecure)
     try:
         links = list_services(url, token=token, allow_insecure_http=insecure)

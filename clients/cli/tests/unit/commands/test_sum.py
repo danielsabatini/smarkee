@@ -66,9 +66,9 @@ def http_error(status: int, error_code: str, message: str) -> urllib.error.HTTPE
 @pytest.fixture
 def api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[FakeApi]:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    monkeypatch.delenv("SK_CORE_API_URL", raising=False)
+    monkeypatch.delenv("SK_API_URL", raising=False)
     (tmp_path / "sk").mkdir()
-    (tmp_path / "sk" / "config.toml").write_text(f'[core]\napiUrl = "{API}"\n', encoding="utf-8")
+    (tmp_path / "sk" / "config.toml").write_text(f'[api]\nurl = "{API}"\n', encoding="utf-8")
     fake = FakeApi()
     monkeypatch.setattr(urllib.request, "urlopen", fake)
     save_credentials(default_credentials_path(), session(datetime.now(UTC) + timedelta(hours=1)))
@@ -218,7 +218,7 @@ def test_without_a_session_the_command_asks_for_login(api: FakeApi, tmp_path: Pa
 
 def test_plain_http_is_refused_without_permission(api: FakeApi, tmp_path: Path) -> None:
     (tmp_path / "sk" / "config.toml").write_text(
-        '[core]\napiUrl = "http://api.teste"\n', encoding="utf-8"
+        '[api]\nurl = "http://api.teste"\n', encoding="utf-8"
     )
     result = runner.invoke(app, ["sum", "service", "list"])
     assert result.exit_code == 2
@@ -238,12 +238,12 @@ def test_the_api_address_and_the_http_permission_come_from_the_command_line(
     assert "API address refused" not in result.stderr  # a permissão foi aceita
 
 
-def test_without_an_api_address_the_command_asks_for_it(api: FakeApi, tmp_path: Path) -> None:
+def test_without_any_configuration_the_command_uses_the_production_api(
+    api: FakeApi, tmp_path: Path
+) -> None:
     (tmp_path / "sk" / "config.toml").write_text("", encoding="utf-8")
-    result = runner.invoke(app, ["sum", "service", "list"])
-    assert result.exit_code == 2
-    assert "API not provided" in result.stderr
-    assert api.requests == []
+    runner.invoke(app, ["sum", "service", "list"])  # a rota de teste não existe: só o alvo importa
+    assert api.requests[0].full_url.startswith("https://api.smarkee.com.br/v1/sum/services")
 
 
 @pytest.mark.parametrize(

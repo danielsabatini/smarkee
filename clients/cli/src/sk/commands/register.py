@@ -12,6 +12,7 @@ import typer
 from pydantic import ValidationError
 
 from sk import ui
+from sk.defaults import PRD_API_URL
 from sk.features.core.user import submit_registration, validate_registration
 from sk.help import command, option
 from sk.http import ApiError, ApiRejectedError, ApiUnavailableError
@@ -39,29 +40,22 @@ def _require(value: str | None, option_name: str) -> str:
     return value
 
 
-def _load_core(api_url: str | None, allow_insecure_http: bool) -> tuple[str, bool]:
+def _load_api(api_url: str | None, allow_insecure_http: bool) -> tuple[str, bool]:
     explicit = {
         key: value
         for key, value in {
-            "api_url": api_url,
+            "url": api_url,
             "allow_insecure_http": allow_insecure_http or None,
         }.items()
         if value is not None
     }
     try:
         # Mesmo mecanismo do `sk auth`: parâmetro → ambiente → arquivo → default.
-        core = SkSettings(core=explicit).core  # pyright: ignore[reportArgumentType]
+        api = SkSettings(api=explicit).api  # pyright: ignore[reportArgumentType]
     except (ValidationError, ConfigurationError) as error:
         ui.error("Invalid configuration", str(error), hint="Fix the indicated file and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
-    if not core.api_url:
-        ui.error(
-            "API not provided",
-            "Provide it with --api-url, SK_CORE_API_URL or apiUrl in the [core] table.",
-            hint="Run `sk init` to create the configuration, or provide --api-url.",
-        )
-        raise typer.Exit(EXIT_USAGE_ERROR)
-    return core.api_url, core.allow_insecure_http
+    return api.url, api.allow_insecure_http
 
 
 def register_command(
@@ -111,9 +105,9 @@ def register_command(
             help=option(
                 "Platform API address.",
                 kind="String",
-                variable="SK_CORE_API_URL",
-                file="[core] apiUrl",
-                default="none",
+                variable="SK_API_URL",
+                file="[api] url",
+                default=PRD_API_URL,
             ),
         ),
     ] = None,
@@ -124,8 +118,8 @@ def register_command(
             help=option(
                 "Allow an address without HTTPS. Development only.",
                 kind="Boolean",
-                variable="SK_CORE_ALLOW_INSECURE_HTTP=true",
-                file="[core] allowInsecureHttp = true",
+                variable="SK_API_ALLOW_INSECURE_HTTP=true",
+                file="[api] allowInsecureHttp = true",
                 default="off",
             ),
         ),
@@ -135,7 +129,7 @@ def register_command(
     name = _require(name, "--name")
     surname = _require(surname, "--surname")
     email = _require(email, "--email")
-    url, insecure = _load_core(api_url, allow_insecure_http)
+    url, insecure = _load_api(api_url, allow_insecure_http)
     try:
         # Validação local antes de qualquer chamada: o comando, e não só o cliente, a garante.
         validate_registration(name, surname, email)

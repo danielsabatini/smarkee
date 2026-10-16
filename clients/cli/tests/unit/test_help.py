@@ -96,28 +96,25 @@ def test_boolean_options_are_declared_as_boolean() -> None:
 
 
 def test_required_options_are_marked_as_required() -> None:
-    required = {
-        "issuer",
-        "client_id",
-        "api_url",
-        "name",
-        "surname",
-        "email",
-    }
+    required = {"name", "surname", "email"}  # os únicos valores sem padrão da plataforma
+    with_default = {"issuer", "client_id", "api_url"}
     for name, command in _commands():
         for param in _options(command):
             match = OPTION_FORMAT.search(_help_text(param))
             assert match is not None, f"{name} {param.name}"
             status = match.group(3)
-            if name != "init" and param.name in required:
+            if param.name in required:
                 assert status == "required", f"{name} {param.name}"
+            if param.name in with_default:
+                assert status == "optional", f"{name} {param.name}"
+                assert "default " in (match.group(2) or ""), f"{name} {param.name}"
 
 
 def test_options_with_environment_variables_say_which_one() -> None:
     expected = {
         "issuer": "SK_AUTH_ISSUER",
         "client_id": "SK_AUTH_CLIENT_ID",
-        "api_url": "SK_CORE_API_URL",
+        "api_url": "SK_API_URL",
     }
     for name, command in _commands():
         for param in _options(command):
@@ -129,20 +126,6 @@ def test_bracketed_names_are_shown_literally() -> None:
     login = runner.invoke(app, ["auth", "login", "--help"], env={"COLUMNS": "200"})
     assert login.exit_code == 0
     assert "[auth] issuer" in login.stdout
-    init = runner.invoke(app, ["init", "--help"], env={"COLUMNS": "200"})
-    assert init.exit_code == 0
-    assert "file [auth]" not in init.stdout
-
-
-def test_init_does_not_list_the_config_file_as_a_source() -> None:
-    # O init não lê o arquivo que cria: a ajuda não pode dizer o contrário.
-    for name, command in _commands():
-        if name != "init":
-            continue
-        for param in _options(command):
-            match = OPTION_FORMAT.search(_help_text(param))
-            assert match is not None, param.name
-            assert "[auth]" not in (match.group(2) or ""), param.name
 
 
 def test_register_required_options_are_checked_by_the_command() -> None:
@@ -157,5 +140,5 @@ def test_required_options_show_a_single_required_marker() -> None:
     result = runner.invoke(app, ["register", "--help"])
     assert result.exit_code == 0
     # O nosso marcador tem o mesmo texto do do Typer: cada opção obrigatória mostra um só.
-    options = ["--name", "--surname", "--email", "--api-url"]
+    options = ["--name", "--surname", "--email"]
     assert result.stdout.count("[required]") == len(options)

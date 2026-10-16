@@ -1,10 +1,11 @@
-"""Comandos `sk config`: consulta e altera o arquivo de configuração.
+"""Comandos `sk config`: consulta a configuração efetiva e altera o arquivo de sobrescritas.
 
 As chaves vêm dos modelos de configuração (`sk.settings`): um campo novo aparece aqui sem
 mudança neste módulo. O arquivo é gerenciado pelo sk: uma alteração regrava as seções a partir
 dos valores validados, e comentários feitos à mão não são preservados.
 """
 
+import os
 from dataclasses import dataclass
 from typing import Annotated, Any, NoReturn, cast
 
@@ -15,6 +16,7 @@ from pydantic.alias_generators import to_camel
 from sk import ui
 from sk.files import write_private_file
 from sk.settings import (
+    ApiSettings,
     AuthSettings,
     ConfigurationError,
     CoreSettings,
@@ -32,12 +34,13 @@ EXIT_USAGE_ERROR = 2
 
 SECTION_MODELS: dict[str, type[BaseModel]] = {
     "auth": AuthSettings,
+    "api": ApiSettings,
     "core": CoreSettings,
     "sum": SumSettings,
     "ipm": IpmSettings,
 }
 # Chaves que são endereços: precisam começar com http:// ou https://.
-URL_KEYS = {"auth.issuer", "core.apiUrl"}
+URL_KEYS = {"auth.issuer", "api.url"}
 
 config_app = typer.Typer(
     help="Inspect and change the sk configuration file.",
@@ -155,42 +158,62 @@ def _parse_value(key: ConfigKey, raw: str) -> str | bool:
     return raw
 
 
-@config_app.command("list", help="Show every key and the value stored for each.")
+def _effective_values() -> dict[str, str | bool]:
+    """Valor efetivo de cada chave (parâmetro, variável, arquivo ou padrão, nesta ordem)."""
+    try:
+        settings = SkSettings()
+    except (ValidationError, ConfigurationError) as error:
+        _exit_with(
+            error,
+            "Invalid configuration",
+            "Fix the file or the SK_* variables.",
+            EXIT_USAGE_ERROR,
+        )
+    values: dict[str, str | bool] = {}
+    for key in known_keys().values():
+        section = cast(BaseModel, getattr(settings, key.section))
+        values[key.dotted] = cast("str | bool", getattr(section, key.field_name))
+    return values
+
+
+def _source_of(key: ConfigKey, document: dict[str, Any]) -> str:
+    variable = f"SK_{key.section.upper()}_{key.field_name.upper()}"
+    if variable in os.environ:
+        return "env"
+    return "file" if _stored_value(document, key) is not None else "default"
+
+
+@config_app.command(
+    "list", help="Show every key, its effective value and where the value comes from."
+)
 def list_command() -> None:
     path = config_file_path()
     document = _read_or_exit()
-    rows: list[tuple[str, str]] = []
-    for key in known_keys().values():
-        value = _stored_value(document, key)
-        rows.append((key.dotted, "unset" if value is None else _text(value)))
-    ui.panel("Configuration", rows)
-    if not path.exists():
-        ui.note(f"There is no file at {path}. Run `sk init` to create it.")
-    else:
+    effective = _effective_values()
+    rows = [
+        [key.dotted, _text(effective[key.dotted]), _source_of(key, document)]
+        for key in known_keys().values()
+    ]
+    ui.table("Configuration", ["key", "value", "source"], rows)
+    if path.exists():
         ui.note(f"File: {path}. SK_* variables and parameters take precedence over it.")
+    else:
+        ui.note("No configuration file: every value is the platform default.")
 
 
 @config_app.command(
     "get",
-    help="Show the stored value of a key, unformatted (useful in scripts).",
+    help="Show the effective value of a key, unformatted (useful in scripts).",
 )
 def get_command(
     name: Annotated[
         str | None,
-        typer.Argument(help="Key, such as auth.issuer or core.apiUrl (required)."),
+        typer.Argument(help="Key, such as auth.issuer or api.url (required)."),
     ] = None,
 ) -> None:
     key = _key_or_exit(name)
-    value = _stored_value(_read_or_exit(), key)
-    if value is None:
-        ui.error(
-            "Not set",
-            f"{name} has no value in the file.",
-            hint=f"Use `sk config set {name} <value>`.",
-        )
-        raise typer.Exit(EXIT_FAILURE)
     # Saída de dado para scripts, e não mensagem ao usuário: sem painel nem cor.
-    typer.echo(_text(value))
+    typer.echo(_text(_effective_values()[key.dotted]))
 
 
 @config_app.command(
@@ -202,7 +225,7 @@ def get_command(
 def set_command(
     name: Annotated[
         str | None,
-        typer.Argument(help="Key, such as auth.issuer or core.apiUrl (required)."),
+        typer.Argument(help="Key, such as auth.issuer or api.url (required)."),
     ] = None,
     raw_value: Annotated[
         str | None,
@@ -212,13 +235,6 @@ def set_command(
     key = _key_or_exit(name)
     value_text = _require_argument(raw_value, "the value")
     path = config_file_path()
-    if not path.exists():
-        ui.error(
-            "Configuration not found",
-            f"There is no file at {path}.",
-            hint="Run `sk init` to create it.",
-        )
-        raise typer.Exit(EXIT_USAGE_ERROR)
     value = _parse_value(key, value_text)
 
     document = _read_or_exit()
@@ -228,19 +244,18 @@ def set_command(
     try:
         # Valida o documento inteiro, como o carregamento faz: chaves e valores.
         values = convert_file_document(SkSettings, document, path=path)
-        auth = AuthSettings.model_validate(values.get("auth", {}))
-        core = CoreSettings.model_validate(values.get("core", {}))
-        sum_settings = SumSettings.model_validate(values.get("sum", {}))
-        ipm_settings = IpmSettings.model_validate(values.get("ipm", {}))
+        sections = {
+            name: model.model_validate(values.get(name, {}))
+            for name, model in SECTION_MODELS.items()
+        }
     except (ValidationError, ConfigurationError) as error:
         _exit_with(error, "Value refused", "Fix the value and repeat.", EXIT_USAGE_ERROR)
 
-    # Todas as seções são regravadas: omitir uma apagaria o que o arquivo já tinha nela.
-    content = render_section("auth", auth) + "\n" + render_section("core", core)
-    if sum_settings.project_id:
-        content += "\n" + render_section("sum", sum_settings)
-    if ipm_settings.project_id:
-        content += "\n" + render_section("ipm", ipm_settings)
+    # Todas as seções são regravadas, mas só com os campos que o arquivo tem (as sobrescritas):
+    # um valor que ficou no padrão não vai para o arquivo.
+    content = "\n".join(
+        render_section(name, model) for name, model in sections.items() if model.model_fields_set
+    )
     try:
         write_private_file(path, content)
     except OSError as error:
@@ -251,7 +266,7 @@ def set_command(
         "Configuration updated",
         [("key", key.dotted), ("value", _text(value)), ("file", str(path))],
     )
-    section_allows_http = {"auth": auth, "core": core}.get(key.section, core).allow_insecure_http
+    section_allows_http = bool(getattr(sections[key.section], "allow_insecure_http", True))
     if isinstance(value, str) and value.startswith("http://") and not section_allows_http:
         ui.warning(
             f"{key.dotted} is HTTP without permission: use will refuse this address until "

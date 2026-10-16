@@ -14,6 +14,7 @@ import typer
 from pydantic import ValidationError
 
 from sk import ui
+from sk.defaults import PRD_CLIENT_ID, PRD_ISSUER, PROVISIONAL
 from sk.help import command, option
 from sk.identity.credentials import (
     CredentialsError,
@@ -34,7 +35,6 @@ from sk.settings import (
     AuthSettings,
     ConfigurationError,
     SkSettings,
-    SkSettingsWithoutConfigFile,
     config_file_path,
 )
 
@@ -56,9 +56,7 @@ auth_app = typer.Typer(
 )
 
 
-def load_auth_settings(
-    command_line_values: Mapping[str, object], *, include_config_file: bool = True
-) -> AuthSettings:
+def load_auth_settings(command_line_values: Mapping[str, object]) -> AuthSettings:
     """Carrega a seção `auth`, com os parâmetros informados acima das demais fontes.
 
     Um parâmetro não informado (`None`) ou flag não ativada (`False`) não é repassado, para
@@ -69,39 +67,46 @@ def load_auth_settings(
         for key, value in command_line_values.items()
         if value is not None and value is not False
     }
-    settings_class = SkSettings if include_config_file else SkSettingsWithoutConfigFile
     # Argumentos de inicialização são a fonte de maior precedência do pydantic-settings e
     # são mesclados campo a campo com as demais. O pydantic valida o dicionário como
     # AuthSettings; o pyright só conhece o tipo do campo, por isso a supressão.
-    return settings_class(auth=explicit_values).auth  # pyright: ignore[reportArgumentType]
+    return SkSettings(auth=explicit_values).auth  # pyright: ignore[reportArgumentType]
 
 
-def _load_or_exit(
-    command_line_values: Mapping[str, object], *, include_config_file: bool
-) -> AuthSettings:
+def _load_or_exit(command_line_values: Mapping[str, object]) -> AuthSettings:
     try:
-        return load_auth_settings(command_line_values, include_config_file=include_config_file)
+        return load_auth_settings(command_line_values)
     except (ValidationError, ConfigurationError) as error:
         ui.error("Invalid configuration", str(error), hint=f"Fix the file {config_file_path()}.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 
 
-def _require_issuer_and_client_id(settings: AuthSettings) -> tuple[str, str]:
-    if not settings.issuer:
+def _refuse_provisional_defaults(auth: AuthSettings) -> None:
+    """Recusa o login enquanto algum valor ainda não existe em produção (decisão 0036).
+
+    O padrão de produção do client ID e dos IDs dos projetos de roles só passa a valer quando o
+    Zitadel de produção for provisionado. Seguir com o marcador falharia mais adiante, sem dizer por
+    quê; aqui a mensagem diz qual valor falta.
+    """
+    try:
+        settings = SkSettings()
+    except (ValidationError, ConfigurationError) as error:
+        ui.error("Invalid configuration", str(error), hint="Fix the file and repeat.")
+        raise typer.Exit(EXIT_USAGE_ERROR) from error
+    values = {
+        "auth.clientId": auth.client_id,
+        "core.projectId": settings.core.project_id,
+        "sum.projectId": settings.sum.project_id,
+        "ipm.projectId": settings.ipm.project_id,
+    }
+    pending = [key for key, value in values.items() if value == PROVISIONAL]
+    if pending:
         ui.error(
-            "Issuer not provided",
-            "Provide it with --issuer, SK_AUTH_ISSUER or issuer in the [auth] table.",
-            hint="Run `sk init` to create the configuration.",
+            "Production is not provisioned yet",
+            f"These values have no production default yet: {', '.join(pending)}.",
+            hint="Set each with `sk config set <key> <value>` or an SK_* variable (development).",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
-    if not settings.client_id:
-        ui.error(
-            "Client ID not provided",
-            "Provide it with --client-id, SK_AUTH_CLIENT_ID or clientId in the [auth] table.",
-            hint="Run `sk init` to create the configuration.",
-        )
-        raise typer.Exit(EXIT_USAGE_ERROR)
-    return settings.issuer, settings.client_id
 
 
 def _present_authorization_url(authorization_url: str) -> None:
@@ -134,13 +139,13 @@ def run_login(
     settings: AuthSettings, credentials_path: Path, *, project_ids: Sequence[str] = ()
 ) -> None:
     """Executa o login e grava as credenciais. Falhas encerram com código diferente de 0."""
-    issuer, client_id = _require_issuer_and_client_id(settings)
-
     try:
-        metadata = fetch_provider_metadata(issuer, allow_insecure_http=settings.allow_insecure_http)
+        metadata = fetch_provider_metadata(
+            settings.issuer, allow_insecure_http=settings.allow_insecure_http
+        )
         token_response = run_authorization_code_flow(
             metadata,
-            client_id=client_id,
+            client_id=settings.client_id,
             scopes=login_scopes(project_ids),
             present_authorization_url=_present_authorization_url,
             timeout_seconds=LOGIN_TIMEOUT_SECONDS,
@@ -151,7 +156,7 @@ def run_login(
             credentials_path,
             StoredCredentials(
                 issuer=metadata.issuer,
-                client_id=client_id,
+                client_id=settings.client_id,
                 token_type=token_response.token_type,
                 access_token=token_response.access_token,
                 access_token_expires_at=obtained_at
@@ -193,7 +198,7 @@ def _help_issuer(file: str | None) -> str:
         kind="String",
         variable="SK_AUTH_ISSUER",
         file=file,
-        default="none",
+        default=PRD_ISSUER,
     )
 
 
@@ -203,7 +208,7 @@ def _help_client_id(file: str | None) -> str:
         kind="String",
         variable="SK_AUTH_CLIENT_ID",
         file=file,
-        default="none",
+        default=PRD_CLIENT_ID,
     )
 
 
@@ -237,21 +242,13 @@ AllowInsecureHttpOption = Annotated[
 
 
 def _module_project_ids() -> tuple[str, ...]:
-    """`projectId` de `[core]`, `[sum]` e `[ipm]` (ou `SK_<SEÇÃO>_PROJECT_ID`).
-
-    Só os configurados entram: sem a chave, o login não pede a audience daquele módulo.
-    """
+    """`projectId` de `[core]`, `[sum]` e `[ipm]`: o login pede a audience de cada um."""
     try:
         settings = SkSettings()
-        configured = (
-            settings.core.project_id,
-            settings.sum.project_id,
-            settings.ipm.project_id,
-        )
-        return tuple(project for project in configured if project)
     except (ValidationError, ConfigurationError) as error:
         ui.error("Invalid configuration", str(error), hint="Fix the file and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
+    return (settings.core.project_id, settings.sum.project_id, settings.ipm.project_id)
 
 
 @auth_app.command(
@@ -271,8 +268,8 @@ def login(
             "client_id": client_id,
             "allow_insecure_http": allow_insecure_http,
         },
-        include_config_file=True,
     )
+    _refuse_provisional_defaults(settings)
     run_login(settings, default_credentials_path(), project_ids=_module_project_ids())
 
 
@@ -329,7 +326,6 @@ def run_whoami(allow_insecure_http: bool, credentials_path: Path) -> None:
 def whoami(allow_insecure_http: AllowInsecureHttpOption = False) -> None:
     settings = _load_or_exit(
         {"allow_insecure_http": allow_insecure_http},
-        include_config_file=True,
     )
     run_whoami(settings.allow_insecure_http, default_credentials_path())
 
@@ -342,7 +338,7 @@ def whoami(allow_insecure_http: AllowInsecureHttpOption = False) -> None:
     ),
 )
 def refresh(allow_insecure_http: AllowInsecureHttpOption = False) -> None:
-    settings = _load_or_exit({"allow_insecure_http": allow_insecure_http}, include_config_file=True)
+    settings = _load_or_exit({"allow_insecure_http": allow_insecure_http})
     try:
         expires_at = renew_session(
             default_credentials_path(), allow_insecure_http=settings.allow_insecure_http

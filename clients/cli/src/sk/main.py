@@ -4,7 +4,6 @@ import typer
 
 from sk.commands.auth import auth_app
 from sk.commands.config import config_app
-from sk.commands.init import INIT_HELP, init_command
 from sk.commands.register import REGISTER_HELP, register_command
 from sk.commands.sum import sum_app
 
@@ -20,7 +19,6 @@ app = typer.Typer(
 app.add_typer(auth_app, name="auth")
 app.add_typer(config_app, name="config")
 app.add_typer(sum_app, name="sum")
-app.command("init", help=INIT_HELP)(init_command)
 app.command("register", help=REGISTER_HELP)(register_command)
 
 

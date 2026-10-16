@@ -18,8 +18,8 @@ REGISTER = ["register", "--name", "Ana", "--surname", "Souza", "--email", "ana@e
 def isolated_configuration(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     for variable in (
-        "SK_CORE_API_URL",
-        "SK_CORE_ALLOW_INSECURE_HTTP",
+        "SK_API_URL",
+        "SK_API_ALLOW_INSECURE_HTTP",
         "SK_AUTH_ISSUER",
         "SK_AUTH_CLIENT_ID",
     ):
@@ -47,16 +47,23 @@ def test_there_is_no_password_option() -> None:
     assert "--password" in result.stderr
 
 
-def test_the_api_url_must_be_configured(tmp_path: Path) -> None:
+def test_without_any_configuration_the_production_api_is_used(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "sk.commands.register.submit_registration",
+        fake_submit(calls, RegistrationAccepted("r-1", "o-1")),
+    )
     result = runner.invoke(app, REGISTER)
-    assert result.exit_code == 2
-    assert "SK_CORE_API_URL" in result.stderr
+    assert result.exit_code == 0, result.stderr
+    assert calls[0]["url"] == "https://api.smarkee.com.br"
 
 
 def test_the_api_url_comes_from_the_configuration_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    write_config(tmp_path, '[core]\napiUrl = "https://api.arquivo"\n')
+    write_config(tmp_path, '[api]\nurl = "https://api.arquivo"\n')
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
         "sk.commands.register.submit_registration",
@@ -70,8 +77,8 @@ def test_the_api_url_comes_from_the_configuration_file(
 def test_the_flag_overrides_the_environment_and_the_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    write_config(tmp_path, '[core]\napiUrl = "https://api.arquivo"\n')
-    monkeypatch.setenv("SK_CORE_API_URL", "https://api.ambiente")
+    write_config(tmp_path, '[api]\nurl = "https://api.arquivo"\n')
+    monkeypatch.setenv("SK_API_URL", "https://api.ambiente")
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
         "sk.commands.register.submit_registration",

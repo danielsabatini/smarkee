@@ -38,6 +38,15 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
+from sk.defaults import (
+    PRD_API_URL,
+    PRD_CLIENT_ID,
+    PRD_CORE_PROJECT_ID,
+    PRD_IPM_PROJECT_ID,
+    PRD_ISSUER,
+    PRD_SUM_PROJECT_ID,
+)
+
 CONFIG_DIRECTORY_NAME = "sk"
 CONFIG_FILE_NAME = "config.toml"
 
@@ -62,10 +71,10 @@ class AuthSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    issuer: str | None = None
+    issuer: str = PRD_ISSUER
     """URL do issuer OIDC, acessado pelo gateway."""
 
-    client_id: str | None = None
+    client_id: str = PRD_CLIENT_ID
     """Client ID da aplicação nativa do sk no provedor."""
 
     allow_insecure_http: bool = False
@@ -145,18 +154,24 @@ class CamelCaseTomlSettingsSource(PydanticBaseSettingsSource):
         return convert_file_document(self.settings_cls, read_config_document(self._toml_file))
 
 
-class CoreSettings(BaseModel):
-    """Seção `core`: API da plataforma usada por `sk register`."""
+class ApiSettings(BaseModel):
+    """Seção `api`: a API da plataforma, pelo gateway, usada por todos os módulos."""
 
     model_config = ConfigDict(extra="forbid")
 
-    api_url: str | None = None
-    """URL base da API do módulo core, pelo gateway (por exemplo, `https://api.exemplo`)."""
+    url: str = PRD_API_URL
+    """URL base da API (por exemplo, `https://api.exemplo`)."""
 
     allow_insecure_http: bool = False
-    """Aceita `api_url` em `http`. Somente em desenvolvimento."""
+    """Aceita `url` em `http`. Somente em desenvolvimento."""
 
-    project_id: str | None = None
+
+class CoreSettings(BaseModel):
+    """Seção `core`: o módulo core (`sk register`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str = PRD_CORE_PROJECT_ID
     """ID do projeto de roles do core (`roles-core`): audience dos tokens do Receiver do User."""
 
 
@@ -165,7 +180,7 @@ class SumSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    project_id: str | None = None
+    project_id: str = PRD_SUM_PROJECT_ID
     """ID do projeto de roles do SUM (`roles-sum`): audience dos tokens do Receiver do SUM."""
 
 
@@ -174,7 +189,7 @@ class IpmSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    project_id: str | None = None
+    project_id: str = PRD_IPM_PROJECT_ID
     """ID do projeto de roles do ipm (`roles-ipm`): audience dos tokens do Receiver do ipm."""
 
 
@@ -190,6 +205,7 @@ class SkSettings(BaseSettings):
     )
 
     auth: AuthSettings = AuthSettings()
+    api: ApiSettings = ApiSettings()
     core: CoreSettings = CoreSettings()
     sum: SumSettings = SumSettings()
     ipm: IpmSettings = IpmSettings()
@@ -211,24 +227,6 @@ class SkSettings(BaseSettings):
         )
 
 
-class SkSettingsWithoutConfigFile(SkSettings):
-    """Mesma configuração, sem a fonte do arquivo: parâmetro e variável, nada mais.
-
-    Usada pelo `sk init`, que cria o arquivo e não deve ler o que vai substituir.
-    """
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        return (init_settings, env_settings)
-
-
 def _render_toml_value(value: str | bool) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -237,9 +235,12 @@ def _render_toml_value(value: str | bool) -> str:
 
 
 def render_section(section_name: str, settings: BaseModel) -> str:
-    """Gera a tabela TOML de uma seção, com chaves camelCase e sem campos vazios."""
+    """Gera a tabela TOML de uma seção, com chaves camelCase, só dos campos informados.
+
+    Um campo que ficou no padrão não vai para o arquivo: o arquivo guarda só sobrescritas.
+    """
     lines = [f"[{section_name}]"]
-    for field_name, value in settings.model_dump().items():
+    for field_name, value in settings.model_dump(exclude_unset=True).items():
         if isinstance(value, str | bool):
             lines.append(f"{to_camel(field_name)} = {_render_toml_value(value)}")
     return "\n".join(lines) + "\n"

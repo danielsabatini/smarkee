@@ -49,7 +49,7 @@ class Recording(BaseHTTPRequestHandler):
 @pytest.fixture
 def api_server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    for variable in ("SK_CORE_API_URL", "SK_CORE_ALLOW_INSECURE_HTTP"):
+    for variable in ("SK_API_URL", "SK_API_ALLOW_INSECURE_HTTP"):
         monkeypatch.delenv(variable, raising=False)
     Recording.received = []
     Recording.status = 202

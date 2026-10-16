@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from sk.commands.auth import load_auth_settings
+from sk.defaults import PRD_ISSUER, PROVISIONAL
 from sk.settings import (
     CONFIG_FILE_NAME,
     AuthSettings,
@@ -46,8 +47,9 @@ def test_config_directory_falls_back_to_home_config() -> None:
 @pytest.mark.usefixtures("config_home")
 def test_defaults_apply_without_any_source() -> None:
     settings = load_auth_settings(NO_COMMAND_LINE_VALUES)
-    assert settings.issuer is None
-    assert settings.client_id is None
+    # Os padrões são os da produção: a CLI funciona sem arquivo, sem `sk init` e sem variável.
+    assert settings.issuer == PRD_ISSUER
+    assert settings.client_id == PROVISIONAL  # o de produção ainda não existe (decisão 0036)
     assert settings.allow_insecure_http is False
 
 
@@ -129,12 +131,6 @@ def test_invalid_value_type_is_a_validation_error(config_home: Path) -> None:
         load_auth_settings(NO_COMMAND_LINE_VALUES)
 
 
-def test_config_file_is_ignored_when_requested(config_home: Path) -> None:
-    write_config(config_home, '[auth]\nissuer = "https://file.example"\n')
-    settings = load_auth_settings(NO_COMMAND_LINE_VALUES, include_config_file=False)
-    assert settings.issuer is None
-
-
 def test_rendered_section_uses_camel_case_and_round_trips(config_home: Path) -> None:
     rendered = render_section(
         "auth",
@@ -159,5 +155,5 @@ def test_rendered_section_uses_camel_case_and_round_trips(config_home: Path) -> 
 
 def test_rendered_section_omits_unset_fields() -> None:
     assert render_section("auth", AuthSettings(issuer="https://issuer.example")) == (
-        '[auth]\nissuer = "https://issuer.example"\nallowInsecureHttp = false\n'
+        '[auth]\nissuer = "https://issuer.example"\n'  # o resto ficou no padrão: não vai ao arquivo
     )

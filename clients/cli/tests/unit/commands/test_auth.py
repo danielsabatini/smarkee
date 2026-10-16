@@ -18,20 +18,44 @@ def isolated_configuration(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         monkeypatch.delenv(variable, raising=False)
 
 
-def test_login_without_issuer_is_a_usage_error() -> None:
-    result = runner.invoke(app, ["auth", "login", "--client-id", "client-1"])
-    assert result.exit_code == 2
-    assert "SK_AUTH_ISSUER" in result.stderr
+PLATFORM_VARIABLES = {
+    "SK_AUTH_CLIENT_ID": "client-1",
+    "SK_CORE_PROJECT_ID": "111",
+    "SK_SUM_PROJECT_ID": "222",
+    "SK_IPM_PROJECT_ID": "333",
+}
 
 
-def test_login_without_client_id_is_a_usage_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SK_AUTH_ISSUER", "https://issuer.example")
+def configure_platform(monkeypatch: pytest.MonkeyPatch, **omitted: bool) -> None:
+    """Dá valor ao que ainda não tem padrão de produção (client ID e IDs dos projetos)."""
+    for name, value in PLATFORM_VARIABLES.items():
+        if not omitted.get(name.lower()):
+            monkeypatch.setenv(name, value)
+
+
+def test_login_refuses_the_production_values_that_do_not_exist_yet() -> None:
     result = runner.invoke(app, ["auth", "login"])
     assert result.exit_code == 2
-    assert "SK_AUTH_CLIENT_ID" in result.stderr
+    assert "Production is not provisioned yet" in result.stderr
+    for key in ("auth.clientId", "core.projectId", "sum.projectId", "ipm.projectId"):
+        assert key in result.stderr
+    assert "sk config set" in result.stderr
 
 
-def test_http_issuer_is_refused_without_explicit_permission() -> None:
+def test_login_names_only_the_values_that_are_still_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_platform(monkeypatch, sk_ipm_project_id=True)
+    result = runner.invoke(app, ["auth", "login"])
+    assert result.exit_code == 2
+    assert "ipm.projectId" in result.stderr
+    assert "auth.clientId" not in result.stderr and "sum.projectId" not in result.stderr
+
+
+def test_http_issuer_is_refused_without_explicit_permission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_platform(monkeypatch)
     result = runner.invoke(
         app, ["auth", "login", "--issuer", "http://issuer.example", "--client-id", "client-1"]
     )
