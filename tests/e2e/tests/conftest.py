@@ -92,6 +92,13 @@ class Sk:
     def credentials(self) -> dict[str, Any]:
         return json.loads(self.credentials_path.read_text(encoding="utf-8"))
 
+    def token_lifetime_seconds(self) -> int:
+        """Validade do access token da sessão atual (`exp` menos `iat`)."""
+        token = str(self.credentials()["accessToken"])
+        payload = token.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        return int(claims["exp"]) - int(claims["iat"])
+
     def token_roles(self) -> dict[str, set[str]]:
         """Roles do access token da sessão atual, por ID de projeto (só as chaves, sem o token)."""
         token = str(self.credentials()["accessToken"])

@@ -65,6 +65,8 @@ def test_login_through_the_sk_with_the_real_provider(person: Person) -> None:
     assert who.exit_code == 0, who.text
     assert person.email in who.stdout
     assert person.sk.credentials().get("refreshToken"), "o login deve emitir refresh token"
+    # Decisão 0033: uma revogação de role chega ao token em até 15 minutos.
+    assert person.sk.token_lifetime_seconds() <= 900, person.sk.token_lifetime_seconds()
 
 
 def test_a_new_account_already_holds_the_base_roles_of_the_sum(person: Person) -> None:

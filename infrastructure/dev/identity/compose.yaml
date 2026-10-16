@@ -97,6 +97,10 @@ services:
       ZITADEL_OIDC_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-8080}/ui/v2/login/login?authRequest=
       ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-8080}/ui/v2/login/logout?post_logout_redirect=
       ZITADEL_SAML_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-8080}/ui/v2/login/login?samlRequest=
+      # Access token de 15 minutos (decisão 0033): uma revogação de role chega ao token em até esse
+      # prazo, e a CLI renova a sessão pelo refresh token. Aplicado só na criação da instância; numa
+      # instância existente, é a Admin API v1 (`infrastructure/dev/README.md`).
+      ZITADEL_DEFAULTINSTANCE_OIDCSETTINGS_ACCESSTOKENLIFETIME: 15m
       # Marca: remove o "Powered by ZITADEL" das telas de login. Aplicado só na criação da instância.
       ZITADEL_DEFAULTINSTANCE_LABELPOLICY_DISABLEWATERMARK: "true"
       # Marca: textos de e-mail em pt sem "Zitadel" (títulos com IPM, frases com Identity Provider

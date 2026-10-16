@@ -174,6 +174,16 @@ def user_names(zitadel: Zitadel, org_id: str) -> set[str]:
     return {u["username"] for u in found}
 
 
+def test_the_access_token_lives_at_most_15_minutes(zitadel: Zitadel) -> None:
+    """Uma revogação de role vale em até 15 minutos (decisão 0033).
+
+    Leitura pela Admin API v1: não existe API v2 para as configurações de OIDC (exceção da seção
+    24.2 do `AGENTS.md`, registrada na decisão 0033).
+    """
+    settings = zitadel.get("/admin/v1/settings/oidc")["settings"]
+    assert settings["accessTokenLifetime"] == "900s", settings["accessTokenLifetime"]
+
+
 def test_the_three_organizations_exist(orgs: dict[str, str]) -> None:
     assert {"smarkee", "core", "register"} <= set(orgs)
 

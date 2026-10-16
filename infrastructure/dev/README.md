@@ -222,6 +222,15 @@ uv run sk auth login
 - O mecanismo definitivo que usa essa conta para aplicar a configuração do Zitadel em stg e prd (projeto, roles, aplicação e contas dos Executors) ainda será decidido. Em dev, foi aplicada pela API do Zitadel (seção anterior).
 - A criação automática pela primeira instância ainda não foi verificada (exige recriar a instância). A criação manual segue os nomes do console da versão em uso, que podem diferir um pouco.
 
+## Validade do access token (15 minutos)
+
+A decisão 0033 encurta o access token da instância de 12 horas para **15 minutos**: uma revogação de role (por exemplo, ao desabilitar um serviço) chega ao token em até esse prazo, e a CLI renova a sessão pelo refresh token, sem pedir login. O ID token (12 h) e o refresh token (30 dias sem uso, 90 no total) não mudam.
+
+- **Instância nova:** `ZITADEL_DEFAULTINSTANCE_OIDCSETTINGS_ACCESSTOKENLIFETIME: 15m` no `identity/compose.yaml` (aplicada só na criação da instância).
+- **Instância existente (aplicado no dev em 2026-10-16):** Admin API **v1**, `PUT /admin/v1/settings/oidc`, com a conta de bootstrap. O corpo leva os quatro campos (`accessTokenLifetime`, `idTokenLifetime`, `refreshTokenIdleExpiration`, `refreshTokenExpiration`): leia com `GET` e reenvie os atuais, mudando só `accessTokenLifetime` para `"900s"`. A v1 é uma exceção registrada na decisão 0033: não existe API v2 para as configurações de OIDC.
+- **Conferência:** `identity/conformance` lê a configuração e exige `900s`.
+- **Contas de serviço:** os Executors e Observers pedem token por JWT bearer e o renovam sozinhos pelo `expires_in` da resposta; nada muda para eles.
+
 ## Rotação das chaves das contas de serviço
 
 Cada conta de serviço tem uma chave JSON no volume `identity-bootstrap`, com validade. A rotação é manual e segue esta ordem, para o componente nunca ficar sem chave válida:
