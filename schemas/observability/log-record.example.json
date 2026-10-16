@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-10-16T14:03:22.123456Z",
+  "severity_number": 17,
+  "severity_text": "ERROR",
+  "body": "task failed",
+  "event_name": "smarkee.task.failed",
+  "scope": {"name": "core_account_manager.main"},
+  "resource": {
+    "service.name": "core-account-manager",
+    "service.namespace": "smarkee",
+    "service.version": "0.1.0",
+    "service.instance.id": "0199c8b2-6f0e-7a31-9d0c-1f6b5c2a8e44",
+    "deployment.environment.name": "development",
+    "smarkee.module": "core",
+    "smarkee.resource.type": "account",
+    "smarkee.component.role": "manager"
+  },
+  "attributes": {
+    "error.type": "ConnectionError",
+    "exception.type": "ConnectionError",
+    "code.file.path": "core_account_manager/transport/nats.py",
+    "code.line.number": 88,
+    "code.function.name": "core_account_manager.transport.nats.connect",
+    "smarkee.task.name": "consumer"
+  }
+}

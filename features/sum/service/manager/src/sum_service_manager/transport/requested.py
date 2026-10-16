@@ -162,12 +162,15 @@ async def process_request(
                     )
             return Disposition.ACK
         except PermanentMessageError as error:
-            logger.error("message rejected as permanently invalid", extra={"reason": str(error)})
+            logger.error(
+                "message rejected as permanently invalid", extra={"smarkee.reason": str(error)}
+            )
             return Disposition.TERM
         except TRANSIENT_DATABASE_ERRORS as error:
             logger.warning(
                 "transient database error while handling a request",
-                extra={"error_type": type(error).__name__, "attempt": attempt + 1},
+                extra={"smarkee.delivery.attempt": attempt + 1},
+                exc_info=error,
             )
             if delay is None:
                 return Disposition.RETRY
@@ -210,7 +213,7 @@ class RequestedConsumer:
             except TimeoutError:
                 continue
             except (nats.errors.Error, nats.js.errors.Error) as error:
-                logger.warning("fetch failed", extra={"error_type": type(error).__name__})
+                logger.warning("fetch failed", exc_info=error)
                 await asyncio.sleep(1.0)
                 continue
             for message in messages:

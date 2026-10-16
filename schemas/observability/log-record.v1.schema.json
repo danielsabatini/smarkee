@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LogRecordLine",
+  "description": "Linha de log emitida no stdout por um componente: representação em JSON de um LogRecord do OpenTelemetry (docs/OBSERVABILITY.md, decisão 0045). Fecha os atributos permitidos: nomes da semconv listados aqui e o namespace smarkee.*. exception.message e exception.stacktrace são proibidos.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["timestamp", "severity_number", "severity_text", "body", "scope", "resource"],
+  "dependentRequired": {
+    "span_id": ["trace_id"]
+  },
+  "properties": {
+    "timestamp": {
+      "description": "Instante do evento (Timestamp), RFC 3339 em UTC com microssegundos.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{6}Z$",
+      "maxLength": 27
+    },
+    "severity_number": {
+      "description": "SeverityNumber do modelo de dados de logs: 1 TRACE, 5 DEBUG, 9 INFO, 13 WARN, 17 ERROR, 21 FATAL.",
+      "type": "integer",
+      "enum": [1, 5, 9, 13, 17, 21]
+    },
+    "severity_text": {
+      "description": "SeverityText, coerente com severity_number.",
+      "type": "string",
+      "enum": ["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"]
+    },
+    "body": {
+      "description": "Body: texto estável em inglês, sem valores variáveis (o que varia vai em attributes).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "event_name": {
+      "description": "EventName, quando o registro é uma ocorrência nomeada: smarkee.<assunto>.<ocorrência>, minúsculas, sem valores dinâmicos.",
+      "type": "string",
+      "pattern": "^smarkee(\\.[a-z][a-z0-9_]*)+$",
+      "maxLength": 128
+    },
+    "trace_id": {
+      "description": "TraceId (W3C), 32 caracteres hexadecimais. Omitido enquanto não houver traces.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "maxLength": 32
+    },
+    "span_id": {
+      "description": "SpanId (W3C), 16 caracteres hexadecimais. Exige trace_id.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$",
+      "maxLength": 16
+    },
+    "trace_flags": {
+      "description": "TraceFlags (W3C).",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255
+    },
+    "scope": {
+      "description": "InstrumentationScope: o logger que emitiu o registro.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 255}
+      }
+    },
+    "resource": {
+      "description": "Resource: identifica o componente; idêntico em todas as linhas do processo (OBSERVABILITY.md §4).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "service.name",
+        "service.namespace",
+        "service.instance.id",
+        "smarkee.module",
+        "smarkee.resource.type",
+        "smarkee.component.role"
+      ],
+      "properties": {
+        "service.name": {
+          "description": "<módulo>-<tipo>-<papel>.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+-[a-z0-9]+-[a-z0-9]+$",
+          "maxLength": 128
+        },
+        "service.namespace": {"const": "smarkee"},
+        "service.version": {"type": "string", "maxLength": 64},
+        "service.instance.id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "deployment.environment.name": {
+          "type": "string",
+          "enum": ["development", "staging", "production"]
+        },
+        "smarkee.module": {"type": "string", "pattern": "^[a-z0-9]+$", "maxLength": 64},
+        "smarkee.resource.type": {"type": "string", "pattern": "^[a-z0-9]+$", "maxLength": 64},
+        "smarkee.component.role": {
+          "type": "string",
+          "enum": ["receiver", "manager", "publisher", "observer", "reconciler", "executor"]
+        }
+      }
+    },
+    "attributes": {
+      "description": "Attributes: nomes da semconv listados aqui ou o namespace smarkee.*. Valores nulos são omitidos.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 64,
+      "properties": {
+        "error.type": {"type": "string", "maxLength": 255},
+        "exception.type": {"type": "string", "maxLength": 255},
+        "exception.message": false,
+        "exception.stacktrace": false,
+        "code.file.path": {"type": "string", "maxLength": 1024},
+        "code.line.number": {"type": "integer", "minimum": 0},
+        "code.function.name": {"type": "string", "maxLength": 512},
+        "user.id": {"type": "string", "maxLength": 255},
+        "messaging.system": {"type": "string", "maxLength": 64},
+        "messaging.destination.name": {"type": "string", "maxLength": 255},
+        "messaging.message.id": {"type": "string", "maxLength": 255},
+        "messaging.consumer.group.name": {"type": "string", "maxLength": 255}
+      },
+      "patternProperties": {
+        "^smarkee(\\.[a-z][a-z0-9_]*)+$": {"$ref": "#/$defs/attributeValue"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "description": "severity_text acompanha severity_number.",
+      "oneOf": [
+        {"properties": {"severity_number": {"const": 1}, "severity_text": {"const": "TRACE"}}},
+        {"properties": {"severity_number": {"const": 5}, "severity_text": {"const": "DEBUG"}}},
+        {"properties": {"severity_number": {"const": 9}, "severity_text": {"const": "INFO"}}},
+        {"properties": {"severity_number": {"const": 13}, "severity_text": {"const": "WARN"}}},
+        {"properties": {"severity_number": {"const": 17}, "severity_text": {"const": "ERROR"}}},
+        {"properties": {"severity_number": {"const": 21}, "severity_text": {"const": "FATAL"}}}
+      ]
+    }
+  ],
+  "$defs": {
+    "attributeValue": {
+      "description": "Valor de atributo: escalar ou lista de textos. Nulo não é permitido (o campo é omitido).",
+      "anyOf": [
+        {"type": "string", "maxLength": 1000},
+        {"type": "integer"},
+        {"type": "number"},
+        {"type": "boolean"},
+        {
+          "type": "array",
+          "maxItems": 100,
+          "items": {"type": "string", "maxLength": 255}
+        }
+      ]
+    }
+  }
+}

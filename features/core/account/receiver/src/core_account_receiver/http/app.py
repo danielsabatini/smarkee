@@ -119,7 +119,7 @@ def _register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def handle_unexpected(_: Request, error: Exception) -> JSONResponse:  # pyright: ignore[reportUnusedFunction]
-        logger.error("unexpected error", extra={"error_type": type(error).__name__})
+        logger.error("unexpected error", exc_info=error)
         return _error_response(
             ApiError(HTTPStatus.INTERNAL_SERVER_ERROR, "InternalError", "Erro interno.")
         )

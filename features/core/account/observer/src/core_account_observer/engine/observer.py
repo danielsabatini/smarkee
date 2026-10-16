@@ -185,11 +185,16 @@ class Observer:
                 message_id=envelope.message_id,
             )
         except PublishError:
-            logger.warning("observed publication failed", extra={"resource_id": resource_id})
+            logger.warning(
+                "observed publication failed", extra={"smarkee.resource.id": resource_id}
+            )
             return
         logger.info(
             "observed published",
-            extra={"resource_id": resource_id, "presence": observation.presence},
+            extra={
+                "smarkee.resource.id": resource_id,
+                "smarkee.observation.presence": observation.presence,
+            },
         )
 
 

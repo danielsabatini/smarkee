@@ -111,9 +111,9 @@ class Executor:
         logger.info(
             "action handled",
             extra={
-                "resource_id": action.resource_id,
-                "outcome": "completed" if failure is None else "failed",
-                "reason": failure.reason if failure else None,
+                "smarkee.resource.id": action.resource_id,
+                "smarkee.outcome": "completed" if failure is None else "failed",
+                "smarkee.reason": failure.reason if failure else None,
             },
         )
 
@@ -173,7 +173,7 @@ class Executor:
             return
         # Desligada: as roles são as do catálogo do serviço (a lista de `desired` vem vazia).
         await disable(self._granter, owner, roles_of(self._catalog, service))
-        logger.info("service roles revoked", extra={"resource_id": resource_id})
+        logger.info("service roles revoked", extra={"smarkee.resource.id": resource_id})
 
     async def _publish_result(self, action: _Action, failure: ActionFailedError | None) -> None:
         kind = "completed" if failure is None else "failed"

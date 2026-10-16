@@ -205,5 +205,9 @@ class Reconciler:
         state.pending = PendingAction(identity, desired.generation, now)
         state.awaiting_observation_of = None
         logger.info(
-            "action published", extra={"resource_id": resource_id, "operation": decision.operation}
+            "action published",
+            extra={
+                "smarkee.resource.id": resource_id,
+                "smarkee.operation.name": decision.operation,
+            },
         )

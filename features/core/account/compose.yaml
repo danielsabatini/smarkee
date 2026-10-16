@@ -73,6 +73,7 @@ services:
     image: ${CORE_ACCOUNT_RECEIVER_IMAGE:-smarkee-core-account-receiver:dev}
     container_name: core-account-receiver.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
       # defaults do componente (CORE_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>).
       CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD: ${CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
@@ -107,6 +108,7 @@ services:
     image: ${CORE_ACCOUNT_MANAGER_IMAGE:-smarkee-core-account-manager:dev}
     container_name: core-account-manager.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD: ${CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD:?Defina no .env}
       CORE_ACCOUNT_MANAGER_NATS_PASSWORD: ${CORE_ACCOUNT_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
     depends_on:
@@ -138,6 +140,7 @@ services:
     image: ${CORE_ACCOUNT_RECONCILER_IMAGE:-smarkee-core-account-reconciler:dev}
     container_name: core-account-reconciler.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_RECONCILER_NATS_PASSWORD: ${CORE_ACCOUNT_RECONCILER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
     depends_on:
       core-account-consumer:
@@ -157,6 +160,7 @@ services:
     image: ${CORE_ACCOUNT_OBSERVER_IMAGE:-smarkee-core-account-observer:dev}
     container_name: core-account-observer.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_OBSERVER_NATS_PASSWORD: ${CORE_ACCOUNT_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
       CORE_ACCOUNT_OBSERVER_ZITADEL_REGISTER_ORGANIZATION_ID: ${CORE_ZITADEL_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
     volumes:
@@ -184,6 +188,7 @@ services:
     image: ${CORE_ACCOUNT_EXECUTOR_IMAGE:-smarkee-core-account-executor:dev}
     container_name: core-account-executor.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_EXECUTOR_NATS_PASSWORD: ${CORE_ACCOUNT_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
       CORE_ACCOUNT_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID: ${CORE_ZITADEL_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
       CORE_ACCOUNT_EXECUTOR_ZITADEL_PROJECT_IDS: ${CORE_ZITADEL_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles que o Executor concede)}
@@ -213,6 +218,7 @@ services:
     image: ${CORE_ACCOUNT_PUBLISHER_IMAGE:-smarkee-core-account-publisher:dev}
     container_name: core-account-publisher.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD: ${CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
       CORE_ACCOUNT_PUBLISHER_NATS_PASSWORD: ${CORE_ACCOUNT_PUBLISHER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
     depends_on:

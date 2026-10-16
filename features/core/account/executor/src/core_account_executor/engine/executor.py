@@ -108,10 +108,10 @@ class Executor:
         logger.info(
             "action handled",
             extra={
-                "resource_id": resource_id,
-                "operation": operation,
-                "outcome": "completed" if failure is None else "failed",
-                "reason": failure.reason if failure else None,
+                "smarkee.resource.id": resource_id,
+                "smarkee.operation.name": operation,
+                "smarkee.outcome": "completed" if failure is None else "failed",
+                "smarkee.reason": failure.reason if failure else None,
             },
         )
         return Disposition.ACK

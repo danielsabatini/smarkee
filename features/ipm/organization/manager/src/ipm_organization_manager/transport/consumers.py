@@ -71,7 +71,9 @@ async def process_requested(
     try:
         message: Mapping[str, Any] = json.loads(data)
     except ValueError:
-        logger.error("message is not valid JSON", extra={"resource_type": kind.resource_type})
+        logger.error(
+            "message is not valid JSON",
+        )
         return Disposition.TERM
     for attempt, delay in enumerate((*TRANSIENT_RETRY_DELAYS_SECONDS, None)):
         try:
@@ -83,17 +85,14 @@ async def process_requested(
         except PermanentMessageError as error:
             logger.error(
                 "message rejected as permanently invalid",
-                extra={"resource_type": kind.resource_type, "reason": str(error)},
+                extra={"smarkee.reason": str(error)},
             )
             return Disposition.TERM
         except TRANSIENT_DATABASE_ERRORS as error:
             logger.warning(
                 "transient database error while handling a message",
-                extra={
-                    "resource_type": kind.resource_type,
-                    "error_type": type(error).__name__,
-                    "attempt": attempt + 1,
-                },
+                extra={"smarkee.delivery.attempt": attempt + 1},
+                exc_info=error,
             )
             if delay is None:
                 return Disposition.RETRY
@@ -146,7 +145,7 @@ class StreamConsumer:
             except TimeoutError:
                 continue
             except (nats.errors.Error, nats.js.errors.Error) as error:
-                logger.warning("fetch failed", extra={"error_type": type(error).__name__})
+                logger.warning("fetch failed", exc_info=error)
                 await asyncio.sleep(1.0)
                 continue
             for message in messages:

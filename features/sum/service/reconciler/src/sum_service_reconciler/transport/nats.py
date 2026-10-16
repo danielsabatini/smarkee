@@ -119,7 +119,7 @@ class StateConsumer:
             except TimeoutError:
                 continue
             except (nats.errors.Error, nats.js.errors.Error) as error:
-                logger.warning("fetch failed", extra={"error_type": type(error).__name__})
+                logger.warning("fetch failed", exc_info=error)
                 await asyncio.sleep(1.0)
                 continue
             for message in messages:
@@ -131,7 +131,8 @@ class StateConsumer:
         except Exception as error:  # um erro de processamento volta à fila; nunca derruba o laço
             logger.error(
                 "message processing failed; it will be redelivered",
-                extra={"consumer": self._durable, "error_type": type(error).__name__},
+                extra={"messaging.consumer.group.name": self._durable},
+                exc_info=error,
             )
             await message.nak(delay=REDELIVERY_DELAY_SECONDS)
             return

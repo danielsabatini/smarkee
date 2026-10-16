@@ -65,14 +65,12 @@ async def run(settings: OrganizationExecutorSettings) -> int:
         for name, task in tasks.items():
             if task in done:
                 exit_code = 1
-                logger.error("task stopped unexpectedly", extra={"task": name})
+                logger.error("task stopped unexpectedly", extra={"smarkee.task.name": name})
         stop.set()
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
         for name, result in zip(tasks, results, strict=True):
             if isinstance(result, BaseException):
-                logger.error(
-                    "task failed", extra={"task": name, "error_type": type(result).__name__}
-                )
+                logger.error("task failed", extra={"smarkee.task.name": name}, exc_info=result)
                 exit_code = 1
         waiter.cancel()
         await nats_client.drain()
@@ -84,7 +82,9 @@ def main() -> None:
     settings = OrganizationExecutorSettings()
     missing = missing_required(settings)
     if missing:
-        logger.error("missing required configuration", extra={"variables": missing})
+        logger.error(
+            "missing required configuration", extra={"smarkee.config.missing_variables": missing}
+        )
         sys.exit(EXIT_INVALID_CONFIGURATION)
     sys.exit(asyncio.run(run(settings)))
 

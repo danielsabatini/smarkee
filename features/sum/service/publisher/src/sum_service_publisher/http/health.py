@@ -102,7 +102,7 @@ async def _handle(
         writer.write(answer(health, method, path.split("?", 1)[0]))
         await writer.drain()
     except (TimeoutError, ConnectionError, OSError) as error:
-        logger.warning("health request failed", extra={"error_type": type(error).__name__})
+        logger.warning("health request failed", exc_info=error)
     finally:
         writer.close()
 

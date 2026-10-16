@@ -169,7 +169,7 @@ def create_app(deps: Dependencies) -> FastAPI:
 
     @app.exception_handler(Exception)
     async def _unexpected_error(_request: Request, error: Exception) -> JSONResponse:
-        logger.error("unexpected error", extra={"error_type": type(error).__name__})
+        logger.error("unexpected error", exc_info=error)
         return await _api_error(
             _request, ApiError(HTTPStatus.INTERNAL_SERVER_ERROR, "InternalError", "Erro interno.")
         )

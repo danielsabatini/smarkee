@@ -271,6 +271,8 @@ Devem ser observáveis, sem expor dados sensíveis:
 - uso da credencial de escrita (quem, qual recurso, qual operação);
 - falhas de autenticação no Receiver.
 
+O formato dos logs, o que eles registram e o que nunca registram (mensagem de exceção, campos `confidential`) estão em `OBSERVABILITY.md`.
+
 # 14. Anti-padrões
 
 - compartilhar uma única identidade entre componentes do loop;

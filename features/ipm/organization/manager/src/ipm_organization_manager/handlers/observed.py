@@ -46,10 +46,9 @@ class ObservedHandler:
         logger.info(
             "observed handled",
             extra={
-                "resource_type": kind.resource_type,
-                "resource_id": envelope.resource_id,
-                "presence": envelope.presence.value,
-                "outcome": outcome.kind.value,
+                "smarkee.resource.id": envelope.resource_id,
+                "smarkee.observation.presence": envelope.presence.value,
+                "smarkee.outcome": outcome.kind.value,
             },
         )
         return outcome

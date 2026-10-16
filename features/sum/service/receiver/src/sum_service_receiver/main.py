@@ -58,7 +58,9 @@ def main() -> None:
     settings = SumServiceReceiverSettings()
     missing = missing_required(settings)
     if missing:
-        logger.error("missing required configuration", extra={"variables": missing})
+        logger.error(
+            "missing required configuration", extra={"smarkee.config.missing_variables": missing}
+        )
         sys.exit(EXIT_INVALID_CONFIGURATION)
     sys.exit(asyncio.run(serve(settings)))
 

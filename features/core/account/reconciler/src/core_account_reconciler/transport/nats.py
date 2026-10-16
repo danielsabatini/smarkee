@@ -111,7 +111,7 @@ class StateConsumer:
             except TimeoutError:
                 continue
             except (nats.errors.Error, nats.js.errors.Error) as error:
-                logger.warning("fetch failed", extra={"error_type": type(error).__name__})
+                logger.warning("fetch failed", exc_info=error)
                 await asyncio.sleep(1.0)
                 continue
             for message in messages:

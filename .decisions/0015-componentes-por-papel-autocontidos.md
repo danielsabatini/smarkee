@@ -1,7 +1,7 @@
 # 0015 — Componentes por papel, autocontidos e independentes de linguagem
 
 - **Data:** 2026-10-10
-- **Status:** Aceita. Substitui a decisão 0011 (serviço `core` colapsado). Ajustada pelas decisões 0017 e 0019: os papéis são **seis** (`receiver`, `manager`, `publisher`, `observer`, `reconciler` e `executor`) e a suíte de conformidade é teste (`tests/e2e`), e não componente.
+- **Status:** Aceita. Substitui a decisão 0011 (serviço `core` colapsado). Ajustada pelas decisões 0017, 0019 e 0046 (o código idêntico entre componentes passa a ter fonte única e verificação, sem biblioteca compartilhada): os papéis são **seis** (`receiver`, `manager`, `publisher`, `observer`, `reconciler` e `executor`) e a suíte de conformidade é teste (`tests/e2e`), e não componente.
 - **Rotas:** os caminhos citados aqui (`/v1/users`, `/v1/organizations`, `/v1/<tipos>`) foram substituídos pelo padrão da decisão 0030 (`/v1/<módulo>/<tipos>`).
 
 ## Contexto

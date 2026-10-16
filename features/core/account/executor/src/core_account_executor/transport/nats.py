@@ -117,7 +117,7 @@ class ActionConsumer:
             except TimeoutError:
                 continue
             except (nats.errors.Error, nats.js.errors.Error) as error:
-                logger.warning("fetch failed", extra={"error_type": type(error).__name__})
+                logger.warning("fetch failed", exc_info=error)
                 await asyncio.sleep(1.0)
                 continue
             for message in messages:
@@ -127,7 +127,7 @@ class ActionConsumer:
                     # Falha de infraestrutura (não do provedor): a action volta à fila.
                     logger.warning(
                         "action handling failed; it returns to the queue",
-                        extra={"error_type": type(error).__name__},
+                        exc_info=error,
                     )
                     await message.nak(delay=REDELIVERY_DELAY_SECONDS)
                     continue

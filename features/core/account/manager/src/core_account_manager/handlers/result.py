@@ -63,10 +63,9 @@ class ResultHandler:
         logger.info(
             "result handled",
             extra={
-                "resource_type": kind.resource_type,
-                "resource_id": envelope.resource_id,
-                "result": envelope.message_type.value,
-                "outcome": outcome.kind.value,
+                "smarkee.resource.id": envelope.resource_id,
+                "smarkee.result.type": envelope.message_type.value,
+                "smarkee.outcome": outcome.kind.value,
             },
         )
         return outcome

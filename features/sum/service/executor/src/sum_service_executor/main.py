@@ -68,7 +68,10 @@ async def run(settings: SumServiceExecutorSettings) -> int:
         tasks = [asyncio.create_task(consumer.run(stop)) for consumer in consumers]
         tasks.append(asyncio.create_task(serve_health(health, settings.health.port, stop)))
         health.mark_started()
-        logger.info("sum service executor started", extra={"partitions": settings.partition.count})
+        logger.info(
+            "sum service executor started",
+            extra={"smarkee.partition.count": settings.partition.count},
+        )
         await stop.wait()
         await asyncio.gather(*tasks, return_exceptions=True)
     await nats_client.close()
@@ -80,12 +83,14 @@ def main() -> None:
     settings = SumServiceExecutorSettings()
     missing = missing_required(settings)
     if missing:
-        logger.error("missing required configuration", extra={"variables": missing})
+        logger.error(
+            "missing required configuration", extra={"smarkee.config.missing_variables": missing}
+        )
         sys.exit(EXIT_INVALID_CONFIGURATION)
     try:
         parse_catalog(settings.catalog.roles or "")
     except CatalogError as error:
-        logger.error("invalid service catalog", extra={"reason": str(error)})
+        logger.error("invalid service catalog", extra={"smarkee.reason": str(error)})
         sys.exit(EXIT_INVALID_CONFIGURATION)
     sys.exit(asyncio.run(run(settings)))
 

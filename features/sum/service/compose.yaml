@@ -74,6 +74,7 @@ services:
     image: ${SUM_SERVICE_MANAGER_IMAGE:-smarkee-sum-service-manager:dev}
     container_name: sum-service-manager.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_MANAGER_DATABASE_PASSWORD: ${SUM_SERVICE_MANAGER_DATABASE_PASSWORD:?Defina no .env}
       SUM_SERVICE_MANAGER_NATS_PASSWORD: ${SUM_SERVICE_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
       SUM_SERVICE_MANAGER_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (JSON serviço → roles, decisão 0033)}
@@ -107,6 +108,7 @@ services:
     image: ${SUM_SERVICE_RECEIVER_IMAGE:-smarkee-sum-service-receiver:dev}
     container_name: sum-service-receiver.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_RECEIVER_DATABASE_PASSWORD: ${SUM_SERVICE_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
       SUM_SERVICE_RECEIVER_NATS_PASSWORD: ${SUM_SERVICE_RECEIVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
       SUM_SERVICE_RECEIVER_AUTH_AUDIENCE: ${SUM_SERVICE_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-sum)}
@@ -128,6 +130,7 @@ services:
     image: ${SUM_SERVICE_RECONCILER_IMAGE:-smarkee-sum-service-reconciler:dev}
     container_name: sum-service-reconciler.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_RECONCILER_NATS_PASSWORD: ${SUM_SERVICE_RECONCILER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
     depends_on:
       sum-service-consumer:
@@ -147,6 +150,7 @@ services:
     image: ${SUM_SERVICE_OBSERVER_IMAGE:-smarkee-sum-service-observer:dev}
     container_name: sum-service-observer.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_OBSERVER_NATS_PASSWORD: ${SUM_SERVICE_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
       SUM_SERVICE_OBSERVER_ZITADEL_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_ZITADEL_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
       SUM_SERVICE_OBSERVER_ZITADEL_PROJECT_IDS: ${SUM_SERVICE_ZITADEL_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
@@ -177,6 +181,7 @@ services:
     image: ${SUM_SERVICE_EXECUTOR_IMAGE:-smarkee-sum-service-executor:dev}
     container_name: sum-service-executor.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_EXECUTOR_NATS_PASSWORD: ${SUM_SERVICE_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
       SUM_SERVICE_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_ZITADEL_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
       SUM_SERVICE_EXECUTOR_ZITADEL_PROJECT_IDS: ${SUM_SERVICE_ZITADEL_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
@@ -206,6 +211,7 @@ services:
     image: ${SUM_SERVICE_PUBLISHER_IMAGE:-smarkee-sum-service-publisher:dev}
     container_name: sum-service-publisher.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD: ${SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
       SUM_SERVICE_PUBLISHER_NATS_PASSWORD: ${SUM_SERVICE_PUBLISHER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
     depends_on:

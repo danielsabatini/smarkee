@@ -91,11 +91,10 @@ async def publish_pending(
                 logging.ERROR if error.permanent else logging.WARNING,
                 "outbox publication failed; the batch is interrupted",
                 extra={
-                    "resource_type": RESOURCE_TYPE,
-                    "sequence": row["sequence"],
-                    "message_id": row["message_id"],
-                    "error_type": str(error),
-                    "permanent": error.permanent,
+                    "smarkee.outbox.sequence": row["sequence"],
+                    "messaging.message.id": row["message_id"],
+                    "error.type": str(error),
+                    "smarkee.failure.permanent": error.permanent,
                 },
             )
             failed = True
@@ -158,10 +157,7 @@ class OutboxPublisher:
             except (psycopg.Error, OSError) as error:
                 logger.warning(
                     "publisher connection lost",
-                    extra={
-                        "resource_type": RESOURCE_TYPE,
-                        "error_type": type(error).__name__,
-                    },
+                    exc_info=error,
                 )
                 await self._sleep(backoff, stop)
                 backoff = min(backoff * 2, MAXIMUM_BACKOFF_SECONDS)

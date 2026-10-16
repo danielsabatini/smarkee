@@ -74,7 +74,7 @@ async def run(settings: AccountReceiverSettings) -> int:
         stop.set()
         result = (await asyncio.gather(serving, return_exceptions=True))[0]
         if isinstance(result, BaseException):
-            logger.error("http server failed", extra={"error_type": type(result).__name__})
+            logger.error("http server failed", exc_info=result)
             exit_code = 1
         waiter.cancel()
         await nats_client.drain()
@@ -87,7 +87,9 @@ def main() -> None:
     settings = AccountReceiverSettings()
     missing = missing_required(settings)
     if missing:
-        logger.error("missing required configuration", extra={"variables": missing})
+        logger.error(
+            "missing required configuration", extra={"smarkee.config.missing_variables": missing}
+        )
         sys.exit(EXIT_INVALID_CONFIGURATION)
     sys.exit(asyncio.run(run(settings)))
 

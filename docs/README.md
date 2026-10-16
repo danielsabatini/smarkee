@@ -13,6 +13,7 @@
 | **Como o banco é estruturado no PostgreSQL** (tabelas, colunas, índices, views, privilégios, DDL)? | [`POSTGRESQL.md`](POSTGRESQL.md), seção 6 |
 | O que trafega e o que é gravado em cada passo de uma feature (rota, payload, query, linhas)? | `features/<módulo>/<tipo>/docs/<MÓDULO>-<TIPO>-DATA-FLOW.md` (padrão: [`.decisions/0024`](../.decisions/0024-data-flow-por-feature.md); modelo: [`CORE-ACCOUNT-DATA-FLOW.md`](../features/core/account/docs/CORE-ACCOUNT-DATA-FLOW.md)) |
 | Como é o banco de um tipo real (diagrama de entidade e relacionamento, índices, quem grava o quê)? | [`features/core/account/README.md`](../features/core/account/README.md), seção 11 |
+| Como são os logs dos componentes (formato OpenTelemetry, campos, o que não registrar)? | [`OBSERVABILITY.md`](OBSERVABILITY.md) |
 | O que já está implementado e o que falta, item a item? | [`IMPLEMENTATION-STATUS.md`](IMPLEMENTATION-STATUS.md) |
 | Por que foi decidido assim? | [`.decisions/`](../.decisions/) |
 

@@ -217,7 +217,10 @@ class Reconciler:
         except PublishError:
             logger.warning(
                 "action publication failed; the decision is retried",
-                extra={"resource_id": resource_id, "operation": decision.operation},
+                extra={
+                    "smarkee.resource.id": resource_id,
+                    "smarkee.operation.name": decision.operation,
+                },
             )
             return
         state.pending = PendingAction(identity, desired.generation, now)
@@ -225,9 +228,9 @@ class Reconciler:
         logger.info(
             "action published",
             extra={
-                "resource_id": resource_id,
-                "operation": decision.operation,
-                "reason": decision.reason,
-                "generation": desired.generation,
+                "smarkee.resource.id": resource_id,
+                "smarkee.operation.name": decision.operation,
+                "smarkee.reason": decision.reason,
+                "smarkee.desired.generation": desired.generation,
             },
         )

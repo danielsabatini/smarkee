@@ -74,6 +74,7 @@ services:
     image: ${IPM_ORGANIZATION_RECEIVER_IMAGE:-smarkee-ipm-organization-receiver:dev}
     container_name: ipm-organization-receiver.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
       # defaults do componente (IPM_ORGANIZATION_RECEIVER_<SEÇÃO>_<CAMPO>).
       IPM_ORGANIZATION_RECEIVER_DATABASE_PASSWORD: ${IPM_ORGANIZATION_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
@@ -107,6 +108,7 @@ services:
     image: ${IPM_ORGANIZATION_MANAGER_IMAGE:-smarkee-ipm-organization-manager:dev}
     container_name: ipm-organization-manager.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD: ${IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD:?Defina no .env}
       IPM_ORGANIZATION_MANAGER_NATS_PASSWORD: ${IPM_ORGANIZATION_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
     depends_on:
@@ -138,6 +140,7 @@ services:
     image: ${IPM_ORGANIZATION_PUBLISHER_IMAGE:-smarkee-ipm-organization-publisher:dev}
     container_name: ipm-organization-publisher.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD: ${IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
       IPM_ORGANIZATION_PUBLISHER_NATS_PASSWORD: ${IPM_ORGANIZATION_PUBLISHER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
     depends_on:
@@ -158,6 +161,7 @@ services:
     image: ${IPM_ORGANIZATION_RECONCILER_IMAGE:-smarkee-ipm-organization-reconciler:dev}
     container_name: ipm-organization-reconciler.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       IPM_ORGANIZATION_RECONCILER_NATS_PASSWORD: ${IPM_ORGANIZATION_RECONCILER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
     depends_on:
       ipm-organization-consumer:
@@ -177,6 +181,7 @@ services:
     image: ${IPM_ORGANIZATION_OBSERVER_IMAGE:-smarkee-ipm-organization-observer:dev}
     container_name: ipm-organization-observer.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       IPM_ORGANIZATION_OBSERVER_NATS_PASSWORD: ${IPM_ORGANIZATION_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
     volumes:
       - type: volume
@@ -203,6 +208,7 @@ services:
     image: ${IPM_ORGANIZATION_EXECUTOR_IMAGE:-smarkee-ipm-organization-executor:dev}
     container_name: ipm-organization-executor.smarkee.internal
     environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       IPM_ORGANIZATION_EXECUTOR_NATS_PASSWORD: ${IPM_ORGANIZATION_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
     volumes:
       - type: volume

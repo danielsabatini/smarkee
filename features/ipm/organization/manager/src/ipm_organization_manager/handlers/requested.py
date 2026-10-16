@@ -55,18 +55,17 @@ class RequestedHandler:
         logger.info(
             "requested handled",
             extra={
-                "resource_type": kind.resource_type,
-                "resource_id": envelope.resource_id,
-                "operation_id": request.operation_id,
-                "operation": request.operation,
-                "outcome": outcome.kind.value,
-                "reason": outcome.reason.value if outcome.reason else None,
+                "smarkee.resource.id": envelope.resource_id,
+                "smarkee.operation.id": request.operation_id,
+                "smarkee.operation.name": request.operation,
+                "smarkee.outcome": outcome.kind.value,
+                "smarkee.reason": outcome.reason.value if outcome.reason else None,
             },
         )
         if outcome.digest_mismatch:
             logger.warning(
                 "request digest differs from the recorded operation",
-                extra={"resource_type": kind.resource_type, "operation_id": request.operation_id},
+                extra={"smarkee.operation.id": request.operation_id},
             )
         return outcome
 
