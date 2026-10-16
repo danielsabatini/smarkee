@@ -1,0 +1,50 @@
+erDiagram
+    SERVICE ||--o{ SERVICE_OPERATION : "resource_id"
+    SERVICE ||--o{ SERVICE_OUTBOX : "resource_id"
+    SERVICE ||--o{ SERVICE_ACTION_RESULT : "resource_id"
+
+    SERVICE {
+        text resource_id PK "UUIDv7 do Receiver"
+        text schema_version
+        text owner_user_id "sub do token, nunca do corpo"
+        text service "nome do serviço, como no catálogo"
+        text lifecycle "present ou absent"
+        text reconciliation "active ou suspended"
+        jsonb desired "intenção (roles copiadas do catálogo)"
+        bigint desired_generation
+        bigint resource_version
+        jsonb observed "roles lidas do Zitadel"
+        text presence "present, absent ou unknown"
+        timestamptz observed_at
+        text phase "Pending, Reconciling, Ready, Failed"
+        jsonb conditions
+        int failure_count
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    SERVICE_OPERATION {
+        text operation_id PK
+        text resource_id
+        text operation_type "create ou delete"
+        bigint desired_generation "nulo quando rejected"
+        text requested_by
+        text request_digest
+        text operation_status "accepted, in_progress, completed, failed, rejected"
+        text operation_status_reason "só quando rejected"
+        timestamptz completed_at
+    }
+    SERVICE_OUTBOX {
+        bigint sequence PK "ordem de publicação"
+        text message_id UK "Nats-Msg-Id"
+        text resource_id
+        text subject
+        jsonb payload "desired sem publishedAt e publishedBy"
+        timestamptz published_at "nulo enquanto pendente"
+    }
+    SERVICE_ACTION_RESULT {
+        text action_id PK "dedupe do resultado"
+        text resource_id
+        bigint desired_generation
+        text action_outcome "completed ou failed"
+        timestamptz recorded_at
+    }

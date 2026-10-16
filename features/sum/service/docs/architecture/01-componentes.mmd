@@ -1,17 +1,22 @@
 flowchart LR
-  R[Receiver - pendente] -->|requested| REQ[(REQUESTED)]
+  U([Usuário / sk]) -->|HTTP| GW[Gateway]
+  GW --> R[Receiver]
+  R -->|leitura: views v1| DB[(SSOT: schema sum)]
+  R -->|requested| REQ[(REQUESTED)]
   REQ --> M[Manager]
-  M -->|SSOT e outbox| DB[(sum schema)]
-  DB --> P[Publisher]
+  M -->|ligação, Operation, outbox| DB
+  DB -->|outbox pendente| P[Publisher]
   P -->|desired| DES[(DESIRED)]
-  DES --> REC[Reconciler - motor pendente]
-  DES --> OBS[Observer - motor pendente]
+  DES --> REC[Reconciler]
+  DES --> OBS[Observer]
   OBSV[(OBSERVED)] --> REC
   OBS -->|observed| OBSV
-  REC -->|action| ACT[(ACTION)]
-  ACT --> EX[Executor - processo pendente]
+  REC -->|action| ACT[(ACTION, 4 partições)]
+  ACT --> EX[Executor]
   EX -->|completed ou failed| RES[(RESULT)]
   RES --> REC
   RES --> OBS
-  EX -->|PROJECT_GRANT_OWNER em roles-ipm| Z[Zitadel]
-  OBS -->|leitura| Z
+  OBSV -->|fase e Operation| M
+  RES -->|resultado por actionId| M
+  EX -->|PROJECT_GRANT_OWNER só em roles-ipm| Z[Zitadel]
+  OBS -->|somente leitura| Z
