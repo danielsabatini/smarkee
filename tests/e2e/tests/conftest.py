@@ -126,21 +126,21 @@ def wait_until[T](check: Callable[[], T | None], what: str, seconds: float = WAI
 
 
 def _mail_links(email: str) -> dict[str, str]:
+    """Links das mensagens enviadas ao endereço, por assunto."""
+
     def messages() -> dict[str, str] | None:
         found = httpx.get(
             f"{MAILPIT_URL}/api/v1/search", params={"query": f"to:{email}"}, timeout=10.0
         ).json()["messages"]
-        if len(found) < 2:
-            return None
         links: dict[str, str] = {}
         for message in found:
             body = httpx.get(f"{MAILPIT_URL}/api/v1/message/{message['ID']}", timeout=10.0).json()
             match = re.search(r"\(\s*(http\S+)\s*\)", body["Text"])
             if match:
                 links[message["Subject"]] = match.group(1)
-        return links if len(links) >= 2 else None
+        return links if "Verificar e-mail" in links else None
 
-    return wait_until(messages, f"os e-mails de ativação de {email}")
+    return wait_until(messages, f"o e-mail de ativação de {email}")
 
 
 def _query_value(url: str, name: str) -> str:
@@ -184,14 +184,15 @@ def person(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Person]:
     created = Person(email, resource_id, sk)
     try:
         links = _mail_links(email)
+        # Um e-mail só: o link de verificação confirma o e-mail e já define a senha.
+        assert "Redefinir senha" not in links, "o cadastro não deve mandar o e-mail de redefinição"
         browser = Browser()
         try:
-            verify, reset = links["Verificar e-mail"], links["Redefinir senha"]
-            browser.submit_form(verify, {"code": _query_value(verify, "code")})
+            verify = links["Verificar e-mail"]
             browser.submit_form(
-                reset,
+                verify,
                 {
-                    "code": _query_value(reset, "code"),
+                    "code": _query_value(verify, "code"),
                     "password": password,
                     "passwordconfirm": password,
                 },

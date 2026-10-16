@@ -144,6 +144,30 @@ def test_a_second_disable_has_nothing_to_do(person: Person, link: dict[str, str]
     assert "is already disabled" in done.stdout
 
 
+def test_enabling_again_reuses_the_same_resource_and_the_list_has_one_row(
+    person: Person, link: dict[str, str]
+) -> None:
+    """O recurso é o par usuário + serviço: habilitar de novo não cria uma segunda linha."""
+    done = person.sk.run("sum", "service", "enable", "--service", "ipm", "--wait", timeout=150.0)
+    assert done.exit_code == 0, done.text
+    assert _identifiers(done.stdout)[0] == link["resourceId"], done.stdout
+    assert _field(done.stdout, "state") == "enabled" and _field(done.stdout, "phase") == "Ready"
+    listed = person.sk.run("sum", "service", "list")
+    assert listed.exit_code == 0, listed.text
+    assert listed.stdout.count(link["resourceId"]) == 1, listed.stdout
+    assert len(re.findall(r"^[│\s]*[0-9a-f]{8}-", listed.stdout, re.MULTILINE)) == 1, listed.stdout
+    link["operationId"] = _identifiers(done.stdout)[1]
+    # Deixa o serviço desabilitado: a limpeza do teste não apaga uma ligação habilitada.
+    off = person.sk.run(
+        *("sum", "service", "disable"),
+        *("--resource-id", link["resourceId"]),
+        "--wait",
+        timeout=150.0,
+    )
+    assert off.exit_code == 0, off.text
+    assert _field(off.stdout, "state") == "disabled"
+
+
 def test_the_refresh_command_renews_the_session_on_demand(person: Person) -> None:
     before = person.sk.credentials()["accessToken"]
     done = person.sk.run("auth", "refresh")

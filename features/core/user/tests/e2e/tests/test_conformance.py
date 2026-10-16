@@ -273,11 +273,11 @@ async def test_the_whole_loop_runs_against_zitadel_and_the_user_is_removed_at_th
     assert observed["data"]["userState"] == "initial"  # a senha ainda não foi definida
     assert observed["data"]["emailVerified"] is False
 
-    # 4. A pessoa recebe os e-mails do Zitadel (verificação e link para definir a senha).
+    # 4. A pessoa recebe o e-mail do Zitadel: o de verificação, que também define a senha.
     if MAILPIT_URL is not None:
         subjects = await mails_to(email)
         assert "Verificar e-mail" in subjects
-        assert "Redefinir senha" in subjects
+        assert "Redefinir senha" not in subjects  # um e-mail só: o de verificação já define a senha
 
     # 5. O mesmo e-mail de novo: resposta idêntica, mas nenhum desired (Manager rejeita).
     again = await api.post("/v1/core/users", json=body)

@@ -170,3 +170,33 @@ async def test_enable_then_disable_runs_the_whole_loop(
         lambda r: r["phase"] == "Ready" and r["desired"]["lifecycle"] == "absent",
     )
     assert disabled["observed"]["serviceRoles"] == []
+
+    # 6. Ligar de novo reaproveita o mesmo recurso: o par tem uma linha só (decisão 0033).
+    again = await api.post("/v1/sum/services", json={"service": SERVICE}, headers=authorization)
+    assert again.status_code == 202, again.text
+    assert again.json()["resourceId"] == resource_id
+    await wait_for_operation(api, authorization, resource_id, again.json()["operationId"])
+    reenabled = await wait_for_resource(
+        api,
+        authorization,
+        resource_id,
+        lambda r: r["phase"] == "Ready" and r["desired"]["lifecycle"] == "present",
+    )
+    assert reenabled["desiredGeneration"] == disabled["desiredGeneration"] + 1
+    listed_again = await api.get("/v1/sum/services", headers=authorization)
+    assert [i["resourceId"] for i in listed_again.json()["items"]].count(resource_id) == 1
+
+    # 7. Desliga de novo: o teste termina desligado (a limpeza não apaga ligação ativa).
+    final = await api.delete(
+        f"/v1/sum/services/{resource_id}",
+        params={"resourceVersion": reenabled["resourceVersion"]},
+        headers=authorization,
+    )
+    assert final.status_code == 202, final.text
+    await wait_for_operation(api, authorization, resource_id, final.json()["operationId"])
+    await wait_for_resource(
+        api,
+        authorization,
+        resource_id,
+        lambda r: r["phase"] == "Ready" and r["desired"]["lifecycle"] == "absent",
+    )

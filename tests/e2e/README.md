@@ -10,7 +10,7 @@ componente.
 ## O que a jornada faz, em ordem
 
 1. Cadastra uma pessoa (`POST /v1/core/users`, anônimo) com e-mail único de teste.
-2. Lê no **Mailpit** os e-mails de ativação, verifica o e-mail e define a senha pelas páginas do Zitadel.
+2. Lê no **Mailpit** o e-mail de ativação (um só, "Verificar e-mail") e, pela página do link, confirma o e-mail e define a senha.
 3. `sk auth login`: login interativo de verdade (Authorization Code com PKCE e refresh token). O
    "navegador" é um falso (`tests/browser.py`, usado pelo `tests/login_browser.py` como `BROWSER`) que abre o
    endereço de login, preenche usuário e senha, dispensa a oferta de segundo fator e entrega o retorno ao
