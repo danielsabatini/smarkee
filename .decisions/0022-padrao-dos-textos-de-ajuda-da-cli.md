@@ -17,8 +17,8 @@ A ajuda da CLI `sk` (`--help`) descrevia as opções com frases soltas, misturav
   - **Situação:** `[obrigatório]` ou `[opcional]`, derivada do padrão: sem padrão, é obrigatória; com padrão, é opcional. Não há campo separado, para não existir "obrigatório com padrão".
 - **Cores** (só em terminal interativo): tipo em ciano, fontes em amarelo, `[obrigatório]` em vermelho e `[opcional]` em magenta.
 - **Obrigatoriedade validada pelo comando.** As opções obrigatórias sem fonte alternativa (`sk register --name`, `--surname`, `--email`) não são `required` no Typer: o comando as exige e encerra com código 2 e a mensagem "Opção obrigatória ausente". Motivo: o Typer imprime um `[required]` extra que não pode ser ocultado.
-- **Implementação:** `sk/ajuda.py` (`comando()` e `opcao()`) é o único lugar que monta esses textos. O markup do Rich exige escapar os colchetes, inclusive os do próprio formato.
-- **Testes:** `tests/unit/test_ajuda.py` verifica o formato de todas as opções e a ordem das fontes, o tipo booleano das flags, as obrigatórias, o `init` sem a fonte de arquivo e a validação de obrigatórios.
+- **Implementação:** `sk/help.py` (`comando()` e `opcao()`) é o único lugar que monta esses textos. O markup do Rich exige escapar os colchetes, inclusive os do próprio formato.
+- **Testes:** `tests/unit/test_help.py` verifica o formato de todas as opções e a ordem das fontes, o tipo booleano das flags, as obrigatórias, o `init` sem a fonte de arquivo e a validação de obrigatórios.
 
 ## Justificativa
 
@@ -29,6 +29,6 @@ A ajuda da CLI `sk` (`--help`) descrevia as opções com frases soltas, misturav
 
 ## Consequências
 
-- Todo novo comando e opção usa `comando()` e `opcao()`. Um texto fora do padrão falha em `test_ajuda.py`.
+- Todo novo comando e opção usa `comando()` e `opcao()`. Um texto fora do padrão falha em `test_help.py`.
 - As opções obrigatórias do `register` dependem da validação do comando, e não do Typer.
 - Os textos do próprio Typer (`--help`, `--install-completion`, `--show-completion`) continuam em inglês. Traduzi-los fica como pendência.

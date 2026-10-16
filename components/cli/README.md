@@ -124,16 +124,18 @@ uv run sk sum service disable --resource-id ID
 uv run sk sum service list
 ```
 
+Todos aceitam `--api-url` e `--allow-insecure-http` (parâmetro → `SK_CORE_*` → `[core]` → padrão), como o `sk register`. `resourceId` e `operationId` precisam ser UUIDs: outro valor é recusado antes de qualquer chamada, porque entra no caminho da URL.
+
 | Comando | Requisição | Resultado |
 |---|---|---|
 | `enable --service NOME` | `POST /v1/sum/services`, com `Idempotency-Key` gerada por pedido | `202`: o `resourceId` e o `operationId` |
-| `disable --resource-id ID` | `GET` da ligação (para ler a `resourceVersion`), depois `DELETE` | `202`: o `operationId` |
+| `disable --resource-id ID` | `GET` da ligação (para ler a `resourceVersion`), depois `DELETE`; se já está desligada, não faz nada | `202`: o `operationId` (ou "nada a fazer", saída `0`) |
 | `get --resource-id ID` | `GET` da ligação (e da Operation, se `--operation-id`) | Situação (`ligado` / `desligado`), fase e roles observadas |
 | `list` | `GET /v1/sum/services` | Uma linha por ligação do solicitante |
 
 Ligar e desligar são assíncronos: o comando confirma o aceite, e `get` mostra quando a fase chega a `Ready`. Usa a API de `[core] apiUrl` e o token da sessão. Precisa de um solicitante com as roles `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`.
 
-Códigos de saída: `0` sucesso; `1` sessão ausente, API recusou ou indisponível, ou ligação já desligada; `2` opção obrigatória ausente ou configuração inválida.
+Códigos de saída: `0` sucesso; `1` sessão ausente, API recusou ou indisponível; `2` opção obrigatória ausente, identificador que não é UUID, endereço sem HTTPS ou configuração inválida.
 
 ## Cadastro (`sk register`)
 
@@ -167,7 +169,7 @@ Os comandos mostram sucesso em painel e erro com causa e dica de correção. Cor
 
 ## Textos de ajuda
 
-A ajuda (`--help`) segue um padrão único, montado por `src/sk/ajuda.py` e verificado em `tests/unit/test_ajuda.py` (`.decisions/0022-padrao-dos-textos-de-ajuda-da-cli.md`). Cada opção aparece como:
+A ajuda (`--help`) segue um padrão único, montado por `src/sk/help.py` e verificado em `tests/unit/test_help.py` (`.decisions/0022-padrao-dos-textos-de-ajuda-da-cli.md`). Cada opção aparece como:
 
 ```text
 --api-url  Endereço da API da plataforma. [String] [env SK_CORE_API_URL | arquivo [core] apiUrl] [obrigatório]

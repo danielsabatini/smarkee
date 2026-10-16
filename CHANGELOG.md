@@ -44,6 +44,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Licença Apache-2.0 (`LICENSE`).
 
 ### Changed
+- `sk sum service`: todos os subcomandos aceitam `--api-url` e `--allow-insecure-http`, como o `sk register`. `disable` de uma ligação já desligada deixa de falhar: avisa que não há nada a fazer e sai com `0`.
 - Roles do usuário cadastrado por módulo (decisão 0032): o cadastro concede só `core.user.get` e `core.user.delete`; as roles de `ipm.organization.*` deixam de vir no cadastro e passam a ser concedidas quando o usuário liga o serviço (Service Usage Manager, em construção), até lá só operadores criam Organizations. Cada módulo tem o seu projeto de roles no Zitadel, e as credenciais dos Executors não concedem roles de outros módulos. A variável `CORE_ZITADEL_PROJECT_ID` do User virou `CORE_ZITADEL_PROJECT_IDS` (JSON módulo → projeto) e o Observer não precisa mais do ID do projeto.
 - Rotas da API com o prefixo do módulo (decisão 0030): `/v1/users` virou `/v1/core/users` e `/v1/organizations` virou `/v1/ipm/organizations` (plural, `/v1/<módulo>/<tipos>`). As rotas antigas deixam de existir (`404`); o `sk register` já usa a nova. Gateway, OpenAPI, schemas e documentação atualizados.
 - Padrão de nomes das roles `<módulo>.<tipo>.<ação>` (decisão 0028): `organization.*` virou `ipm.organization.*`, `user.get|delete` virou `core.user.get|delete` e `platform.admin` virou `core.user.admin` e `ipm.organization.admin` (operador por tipo). Migração `0003-user-platform-roles-names.sql` para os usuários existentes; o schema `platformRole` valida o padrão.
@@ -78,6 +79,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - SSOT: tabela de inbox; a idempotência de entrada é garantida pelas regras semânticas (`docs/SSOT.md`, `docs/POSTGRESQL.md`).
 
 ### Fixed
+- `sk sum service`: `--resource-id` e `--operation-id` agora precisam ser UUIDs e são recusados antes de qualquer chamada (antes, texto livre entrava no caminho da URL junto com o token da sessão). Uma ligação sem `resourceVersion` na resposta deixa de ser aceita. O `404` da Operation não é mais mostrado como ligação inexistente, e o `429` e o campo recusado pela API aparecem na mensagem. Endereço sem HTTPS agora termina com mensagem e código `2`, em vez de erro técnico.
 - SUM: a Operation de uma ligação ficava `accepted` para sempre. Agora passa a `in_progress` durante a reconciliação e a `completed` quando a fase chega a `Ready`.
 - SUM: o Executor consumia uma só partição do `ACTION` por processo, e os recursos das outras partições ficavam sem quem os executasse. Agora há um laço por partição no mesmo processo, como no User (decisão 0018).
 - SUM: o Executor passou a validar o emissor da `action`, a revalidar o `desired` (geração, suspensão e `lifecycle`), a publicar `failed` para ação velha ou recusada e a não repetir um `actionId` já concluído. Sem `lifecycle` válido ele não concede mais roles (antes assumia `present`).
