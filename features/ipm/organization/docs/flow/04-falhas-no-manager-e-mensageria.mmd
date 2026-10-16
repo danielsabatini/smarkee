@@ -1,0 +1,28 @@
+sequenceDiagram
+  participant R as Receiver
+  participant Q as REQUESTED (consumer durável)
+  participant M as Manager
+  participant DB as SSOT
+  participant P as Publisher
+  participant D as DESIRED
+  R->>Q: requested
+  alt Manager parado
+    Note over Q: A mensagem espera no consumer durável (workqueue)
+    Q->>M: entrega quando o Manager volta
+  else falha transitória do banco (lock, deadlock, conexão)
+    M->>Q: nak com atraso e repete
+  else mensagem fora do contrato (JSON, envelope, módulo, MAJOR)
+    M->>Q: term (descarta) e registra o motivo
+  else reentrega do mesmo operationId
+    M->>DB: não grava de novo
+    M->>Q: ack
+  end
+  M->>DB: Organization, Operation e outbox, numa transação
+  M->>Q: ack só depois do COMMIT
+  alt Publisher parado
+    Note over DB: O outbox guarda o desired pendente, em ordem
+    P->>D: publica quando volta (Nats-Msg-Id evita duplicar)
+  else recusa permanente do transporte, ou mensagem fora do envelope
+    P->>DB: mantém a mensagem pendente (a ordem é preservada)
+    Note over P: registra ERROR com sequence e message_id e sai de ready
+  end

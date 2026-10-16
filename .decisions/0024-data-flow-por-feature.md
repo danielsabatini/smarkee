@@ -37,5 +37,5 @@ Um documento por feature, com estrutura fixa, responde "o que trafega e o que é
 ## Consequências
 
 - `features/core/user/docs/CORE-USER-DATA-FLOW.md` é o primeiro e o modelo.
-- A Organization (`features/ipm/organization`) ainda está no desenho anterior: o seu `IPM-ORGANIZATION-DATA-FLOW.md` nasce quando ela for refeita a partir do User.
+- A Organization (`features/ipm/organization`) foi refeita a partir do User e tem o seu `IPM-ORGANIZATION-DATA-FLOW.md` (decisão 0038).
 - Agentes e skills que criam ou alteram features linkam esta decisão e não repetem a estrutura (`AGENTS.md` §24.1).

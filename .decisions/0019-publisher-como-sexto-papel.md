@@ -34,5 +34,5 @@ A decisão 0017 fundiu o relay do outbox ao Manager (subcomandos `serve` e `rela
 
 - `docs/RESOURCE-CONTROL-LOOP.md`, `SSOT.md`, `POSTGRESQL.md`, `NATS.md`, `RESOURCE-CONTROL-SECURITY.md`, `MESSAGING.md`, os agents e as skills passam a descrever seis papéis e o Publisher.
 - No User: projeto `features/core/user/publisher` criado; o Manager perdeu o modo `relay`. No banco de dev, os papéis `core_user_relay` e `core_user_relay_login` foram substituídos por `core_user_publisher` e `core_user_publisher_login`, e as variáveis `CORE_USER_RELAY_*` por `CORE_USER_PUBLISHER_*`.
-- A Organization (`features/ipm/organization`) ainda tem `relay/` separado e os papéis `ipm_organization_relay`; ela adotará o Publisher quando for derivada do User.
+- A Organization (`features/ipm/organization`) adotou o Publisher ao ser refeita a partir do User (decisão 0038): `relay/` virou `publisher/` e o papel de banco `ipm_organization_relay`, `ipm_organization_publisher`.
 - O teste de caos (`E2E_CHAOS=1`) passa a derrubar o Publisher.

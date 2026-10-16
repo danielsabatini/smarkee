@@ -55,5 +55,5 @@ A suíte black-box deixa de ser um projeto irmão dos componentes e passa a vive
 
 - `docs/RESOURCE-CONTROL-LOOP.md` (§3.7, §6.6, §46, §48 a §50 e o checklist), `docs/SSOT.md` (§13 e §16), `docs/POSTGRESQL.md`, `docs/RESOURCE-CONTROL-SECURITY.md`, `docs/NATS.md`, os agents `python` e `platform`, as skills e o README do User passam a descrever a estrutura interna e `tests/e2e` (e, a partir da decisão 0019, seis papéis).
 - A decisão 0015 continua valendo, exceto onde cita o relay como papel próprio e a suíte de conformidade como componente (ajustado nela).
-- O **User** (`features/core/user`) segue esta decisão nos seis papéis, com teste de isolamento do `domain/` em cada projeto (2026-10-11). A Organization (`features/ipm/organization`) ainda segue o desenho anterior e será refeita a partir do User. Saúde e erro permanente do Publisher: decisão 0018.
+- O **User** (`features/core/user`) segue esta decisão nos seis papéis, com teste de isolamento do `domain/` em cada projeto (2026-10-11). A Organization (`features/ipm/organization`) foi refeita a partir do User e segue esta decisão (decisão 0038, 2026-10-16). Saúde e erro permanente do Publisher: decisão 0018.
 - Fusão dos nomes (**substituída pela decisão 0019**): o projeto `<módulo>-<tipo>-relay` deixou de existir como modo do Manager e voltou como projeto próprio, o Publisher.

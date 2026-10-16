@@ -1,0 +1,48 @@
+erDiagram
+    ORGANIZATION ||--o{ ORGANIZATION_OPERATION : "resource_id"
+    ORGANIZATION ||--o{ ORGANIZATION_OUTBOX : "resource_id"
+    ORGANIZATION ||--o{ ORGANIZATION_ACTION_RESULT : "resource_id"
+
+    ORGANIZATION {
+        text resource_id PK "UUIDv7 do Receiver; é o ID da organização no Zitadel"
+        text schema_version
+        text lifecycle "present ou absent"
+        text reconciliation "active ou suspended"
+        jsonb desired "intenção: name, platformAccess e ownerUserId (sub do token)"
+        bigint desired_generation
+        bigint resource_version
+        jsonb observed "name, platformAccess e organizationState lidos do Zitadel"
+        text presence "present, absent ou unknown"
+        timestamptz observed_at
+        text phase "Pending, Reconciling, Ready, Failed, Deleting"
+        jsonb conditions
+        int failure_count
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    ORGANIZATION_OPERATION {
+        text operation_id PK
+        text resource_id
+        text operation_type "create, update ou delete"
+        bigint desired_generation "nulo quando rejected"
+        text requested_by
+        text request_digest
+        text operation_status "accepted, in_progress, completed, failed, rejected"
+        text operation_status_reason "só quando rejected: conflict, validation ou not_found"
+        timestamptz completed_at
+    }
+    ORGANIZATION_OUTBOX {
+        bigint sequence PK "ordem de publicação"
+        text message_id UK "Nats-Msg-Id"
+        text resource_id
+        text subject
+        jsonb payload "desired ou updated, sem publishedAt e publishedBy"
+        timestamptz published_at "nulo enquanto pendente"
+    }
+    ORGANIZATION_ACTION_RESULT {
+        text action_id PK "dedupe do resultado"
+        text resource_id
+        bigint desired_generation
+        text action_outcome "completed ou failed"
+        timestamptz recorded_at
+    }

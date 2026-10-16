@@ -4,7 +4,7 @@
 >
 > **Papel:** relatório de conformidade, e não fonte de regras. As regras estão nas especificações; em conflito, elas prevalecem. Este documento muda quando a implementação muda.
 >
-> **Base da avaliação:** o tipo `core.user` (`features/core/user`), a primeira feature e o modelo das demais, verificado em desenvolvimento em 2026-10-11 (testes de cada projeto, `ruff`, `pyright`, testes e2e contra o Zitadel e o Mailpit reais e testes de resiliência). O tipo `ipm.organization` está no desenho anterior e é tratado na seção 7.
+> **Base da avaliação:** o tipo `core.user` (`features/core/user`), a primeira feature e o modelo das demais, verificado em desenvolvimento em 2026-10-11 (testes de cada projeto, `ruff`, `pyright`, testes e2e contra o Zitadel e o Mailpit reais e testes de resiliência). O tipo `ipm.organization` foi refeito a partir dele e verificado em 2026-10-16, com a mesma bateria.
 
 Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em parte ou sem verificação completa); **Pendente** (previsto e não implementado); **Alvo** (exigido só em stg e prd; não exercitado em dev).
 
@@ -19,7 +19,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Segurança de transporte e identidade no barramento | **Alvo**: dev usa um só usuário NATS, sem TLS |
 | Observabilidade | Parcial: logs estruturados e probes de saúde; sem métricas nem traces |
 | Retenção, quarentena, backup e recuperação | Pendente |
-| Organization (`ipm`) | Parcial: Receiver, Manager e relay no desenho anterior; sem Observer, Reconciler e Executor |
+| Organization (`ipm`) | Atende para o loop completo (Receiver, Manager, Publisher, Reconciler, Observer e Executor), refeito a partir do User (decisão 0038), com testes e2e contra a stack do dev e o Zitadel real: criar, renomear, desativar e reativar (`platformAccess`), remover e a queda de cada papel. O Executor escreve só a organização, sem Project Grant |
 | SUM (`sum.service`) | Atende para o loop completo (Receiver, Manager, Publisher, Reconciler, Observer e Executor) e a CLI `sk sum service`, com testes e2e contra a stack do dev: ligar, desligar e a queda de Manager, Executor e Publisher, e o reinício de Reconciler e Observer no meio de uma ligação; e o teste de jornada (`tests/e2e`: cadastro, ativação, `sk auth login` interativo, ligar e desligar o `ipm` com a CLI real e a renovação da sessão). Pendente: verificação de e-mail do solicitante (decisão aberta), a Operation não vira `failed`, retenção das linhas desligadas, kill switch e visão de operador (`features/sum/service/README.md` §10) |
 | CLI | Parcial: `sk config`, `sk auth login`, `sk auth whoami` e `sk register` implementados e testados; falta `sk ipm organization`, que depende da Organization. Pendente: o client ID de produção (`000000000000000000`) e o endereço de stg e prd, que ainda não existem |
 
@@ -171,14 +171,14 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Tema | Situação | Referência |
 |---|---|---|
-| Organization (`features/ipm/organization`) | Receiver, Manager e relay no desenho anterior (`relay/` e `conformance/` separados, `/healthz`); será refeita a partir do User | `features/ipm/organization/README.md` |
+| Organization (`features/ipm/organization`) | Papéis de instância `IAM_ORG_MANAGER` (Executor) e `IAM_OWNER_VIEWER` (Observer): mais largos que o necessário; estreitar antes de prd. O nome `register` não é reservado (falha no Executor, `Rejected`) | `features/ipm/organization/README.md`, decisão 0038 |
 | CLI | `sk config`, `sk auth` e `sk register`; faltam `sk user get\|delete` e `sk ipm organization` | `ROADMAP.md` |
 | `pinned_client` no Executor | Alvo antes de stg e prd | `NATS.md` §7.5 |
 | Partição do Observer | Na aplicação (`hash(resourceId) mod count`); o `DESIRED` não é particionado | decisão 0018 |
 | Quarentena, `ObservationStale`, limite de remoções, retenção, métricas e traces | Pendentes | seções 2 a 6 |
 | Ativação de ponta a ponta | Verificada em dev em 2026-10-12: a pessoa definiu a senha e confirmou o e-mail pelos links, e os reenvios pelo provedor funcionaram. Falta confirmar o `sk auth login` com esse usuário | `features/core/user/README.md` §4.7 |
 | Configuração do Zitadel | Aplicada em dev por script temporário e não versionado; o mecanismo para stg e prd não está decidido | `infrastructure/dev/README.md` |
-| Leitor tolerante | Implementado: os consumidores de mensagens internas (Manager, Reconciler, Observer e Executor do User; Manager da Organization) validam em modo tolerante, ignoram campos de `MINOR` mais novo e recusam `MAJOR` não suportado. A entrada de clientes e a publicação continuam estritas. Testes unitários em cada projeto e caso no e2e (`schemaVersion` 1.1 com campo desconhecido) | `schemas/`, `contracts/base.py` de cada componente, `tests/unit/test_tolerant_reader.py` |
+| Leitor tolerante | Implementado: os consumidores de mensagens internas (Manager, Reconciler, Observer e Executor do User e da Organization) validam em modo tolerante, ignoram campos de `MINOR` mais novo e recusam `MAJOR` não suportado. A entrada de clientes e a publicação continuam estritas. Testes unitários em cada projeto e caso no e2e (`schemaVersion` 1.1 com campo desconhecido) | `schemas/`, `contracts/base.py` de cada componente, `tests/unit/test_tolerant_reader.py` |
 | Dados pessoais retidos | O `payload` do `desired` de criação (e-mail e nomes) permanece no outbox, e as Operations não são removidas, porque a retenção não existe; a limpeza do tombstone no `DESIRED` também não | `features/core/user/README.md` §11.6 |
 | Retomada de `Failed` | O User não tem `update`; a intervenção explícita não está definida | `features/core/user/README.md` §10 |
 | Imagens em `docs/images/` | O infográfico do fluxo é do desenho antigo (Tenant, `api.*`); a arquitetura Kubernetes é uma proposta | `docs/images/README.md` |
