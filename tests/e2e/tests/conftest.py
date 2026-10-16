@@ -67,8 +67,8 @@ class Sk:
         (home / "sk").mkdir(parents=True)
         (home / "sk" / "config.toml").write_text(
             f'[auth]\nissuer = "{ISSUER}"\nclientId = "{CLI_CLIENT_ID}"\nallowInsecureHttp = true\n'
-            f'[core]\napiUrl = "{API_URL}"\nallowInsecureHttp = true\n'
-            f'projectId = "{CORE_PROJECT_ID}"\n'
+            f'[api]\nurl = "{API_URL}"\nallowInsecureHttp = true\n'
+            f'[core]\nprojectId = "{CORE_PROJECT_ID}"\n'
             f'[sum]\nprojectId = "{SUM_PROJECT_ID}"\n'
             f'[ipm]\nprojectId = "{IPM_PROJECT_ID}"\n',
             encoding="utf-8",
