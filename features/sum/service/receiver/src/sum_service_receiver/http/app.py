@@ -89,7 +89,7 @@ _ERROR_DESCRIPTIONS = {
     401: "Token ausente ou inválido (`Unauthorized`).",
     403: "O solicitante não tem a role da ação (`Forbidden`).",
     404: "Recurso inexistente ou de outro dono (`NotFound`).",
-    409: "Conflito: serviço já ligado, ou versão desatualizada (`Conflict`).",
+    409: "Conflito: serviço já habilitado, ou versão desatualizada (`Conflict`).",
     422: "A chave de idempotência já foi usada com outro pedido (`IdempotencyKeyReused`).",
     503: "O pedido não pôde ser registrado agora; repita depois do `Retry-After`.",
 }
@@ -247,7 +247,7 @@ def create_app(deps: Dependencies) -> FastAPI:
             require(principal, service_role(service, ACTION_ENABLE))
             pair = await deps.repository.link_for_pair(principal.subject, service)
             if pair is not None and pair[1] == "present":
-                raise conflict(f"O serviço {service} já está ligado (resourceId {pair[0]}).")
+                raise conflict(f"O serviço {service} já está habilitado (resourceId {pair[0]}).")
         # O recurso é o par dono + serviço: religar um desligado reaproveita o mesmo resourceId.
         resource_id = pair[0] if pair is not None else new_identifier()
         return await accept(
@@ -321,7 +321,7 @@ def create_app(deps: Dependencies) -> FastAPI:
             require(principal, service_role(service, ACTION_DISABLE))
             if str(row["resource_version"]) != version:
                 raise conflict(
-                    "A ligação mudou desde a última leitura. Leia de novo e tente outra vez."
+                    "O serviço mudou desde a última leitura. Leia de novo e tente outra vez."
                 )
         return await accept(
             principal=principal,

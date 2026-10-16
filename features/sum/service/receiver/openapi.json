@@ -693,7 +693,7 @@
                 }
               }
             },
-            "description": "Conflito: serviço já ligado, ou versão desatualizada (`Conflict`)."
+            "description": "Conflito: serviço já habilitado, ou versão desatualizada (`Conflict`)."
           },
           "422": {
             "content": {
@@ -840,7 +840,7 @@
                 }
               }
             },
-            "description": "Conflito: serviço já ligado, ou versão desatualizada (`Conflict`)."
+            "description": "Conflito: serviço já habilitado, ou versão desatualizada (`Conflict`)."
           },
           "422": {
             "content": {
