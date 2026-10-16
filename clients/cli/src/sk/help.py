@@ -4,7 +4,7 @@ Todo comando descreve, na descrição, como o valor é resolvido. Toda opção s
 
     <descrição> [Type] [env VARIABLE | file SECTION KEY | default VALUE] [required|optional]
 
-    --issuer  OIDC URL. [String] [env SK_AUTH_ISSUER | file [auth] issuer] [required]
+    --timeout  Seconds to wait. [Integer] [default 60] [optional]
 
 O bloco de fontes só lista as que existem para a opção; sem nenhuma, ele é omitido. Cada segmento
 tem uma cor (tipo, fontes e situação). Os colchetes do formato são escapados para o Rich não os
@@ -17,9 +17,9 @@ COLOR_SOURCES = "yellow"
 COLOR_REQUIRED = "red"
 COLOR_OPTIONAL = "magenta"
 
-ORDER_WITH_FILE = "parameter → environment variable → configuration file (config.toml) → default"
+ORDER_WITH_FILE = "environment variable → configuration file (config.toml) → production default"
 ORDER_WITHOUT_FILE = (
-    "parameter → environment variable → default (the file about to be created is not read)"
+    "environment variable → production default (the file about to be created is not read)"
 )
 
 

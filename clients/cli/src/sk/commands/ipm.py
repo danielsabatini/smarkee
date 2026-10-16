@@ -21,8 +21,6 @@ from sk.commands.shared import (
     EXIT_USAGE_ERROR,
     HTTP_NOT_FOUND,
     WAIT_POLL_SECONDS,
-    AllowInsecureHttpOption,
-    ApiUrlOption,
     TimeoutOption,
     bad_address,
     fail_api,
@@ -201,7 +199,7 @@ def _wait_for_convergence(
     ui.note(f"Waiting for convergence (up to {timeout} s)...")
     deadline = time.monotonic() + timeout
     while True:
-        token = session_token(insecure)
+        token = session_token()
         organization: Organization | None = None
         try:
             operation = get_operation(
@@ -311,13 +309,11 @@ def create_command(
     ] = None,
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
-    api_url: ApiUrlOption = None,
-    allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
     # Obrigatória por validação do próprio comando (não pelo Typer), para não exibir "[required]".
     name = _name(name)
-    url, insecure = load_api(api_url, allow_insecure_http)
-    token = session_token(insecure)
+    url, insecure = load_api()
+    token = session_token()
     try:
         accepted = create_organization(
             url,
@@ -371,13 +367,11 @@ def update_command(
     ] = None,
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
-    api_url: ApiUrlOption = None,
-    allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
     resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
     name = _name(name)
-    url, insecure = load_api(api_url, allow_insecure_http)
-    token = session_token(insecure)
+    url, insecure = load_api()
+    token = session_token()
     try:
         current = get_organization(
             url, token=token, resource_id=resource_id, allow_insecure_http=insecure
@@ -427,12 +421,10 @@ def delete_command(
     resource_id: ResourceIdOption = None,
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
-    api_url: ApiUrlOption = None,
-    allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
     resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
-    url, insecure = load_api(api_url, allow_insecure_http)
-    token = session_token(insecure)
+    url, insecure = load_api()
+    token = session_token()
     try:
         current = get_organization(
             url, token=token, resource_id=resource_id, allow_insecure_http=insecure
@@ -488,14 +480,12 @@ def get_command(
             ),
         ),
     ] = None,
-    api_url: ApiUrlOption = None,
-    allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
     resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
     if operation_id is not None:
         operation_id = _identifier(operation_id, "--operation-id", what="operationId")
-    url, insecure = load_api(api_url, allow_insecure_http)
-    token = session_token(insecure)
+    url, insecure = load_api()
+    token = session_token()
     try:
         organization = get_organization(
             url, token=token, resource_id=resource_id, allow_insecure_http=insecure
@@ -525,12 +515,9 @@ def get_command(
 
 
 @organization_app.command("list", help=command("List the requester's Organizations."))
-def list_command(
-    api_url: ApiUrlOption = None,
-    allow_insecure_http: AllowInsecureHttpOption = False,
-) -> None:
-    url, insecure = load_api(api_url, allow_insecure_http)
-    token = session_token(insecure)
+def list_command() -> None:
+    url, insecure = load_api()
+    token = session_token()
     try:
         organizations = list_organizations(url, token=token, allow_insecure_http=insecure)
     except OidcError as error:

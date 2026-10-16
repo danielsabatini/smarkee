@@ -1,6 +1,6 @@
 """Partes comuns dos comandos que falam com a API da plataforma (`sum`, `ipm` e `register`).
 
-Reúnem o que os comandos repetiriam: as opções `--api-url`, `--allow-insecure-http`, `--wait` e
+Reúnem o que os comandos repetiriam: as opções `--wait` e
 `--timeout`, a leitura da configuração da API, o token da sessão e a tradução das falhas da API em
 mensagens para a pessoa. O texto de cada comando (o que é "recurso", o que um `404` significa) fica
 no próprio comando.
@@ -13,7 +13,6 @@ import typer
 from pydantic import ValidationError
 
 from sk import ui
-from sk.defaults import PRD_API_URL
 from sk.help import option
 from sk.http import ApiError, ApiRejectedError, ApiUnavailableError
 from sk.identity.credentials import default_credentials_path
@@ -28,32 +27,6 @@ HTTP_NOT_FOUND = 404
 DEFAULT_WAIT_TIMEOUT_SECONDS = 60
 WAIT_POLL_SECONDS = 1.0
 
-ApiUrlOption = Annotated[
-    str | None,
-    typer.Option(
-        "--api-url",
-        help=option(
-            "Platform API address.",
-            kind="String",
-            variable="SK_API_URL",
-            file="[api] url",
-            default=PRD_API_URL,
-        ),
-    ),
-]
-AllowInsecureHttpOption = Annotated[
-    bool,
-    typer.Option(
-        "--allow-insecure-http",
-        help=option(
-            "Allow an address without HTTPS. Development only.",
-            kind="Boolean",
-            variable="SK_API_ALLOW_INSECURE_HTTP=true",
-            file="[api] allowInsecureHttp = true",
-            default="off",
-        ),
-    ),
-]
 TimeoutOption = Annotated[
     int,
     typer.Option(
@@ -83,44 +56,40 @@ def require(value: str | None, option_name: str) -> str:
     return value
 
 
-def load_api(api_url: str | None, allow_insecure_http: bool) -> tuple[str, bool]:
-    """Endereço da API e permissão de HTTP: parâmetro → ambiente → arquivo → default."""
-    explicit = {
-        key: value
-        for key, value in {
-            "url": api_url,
-            "allow_insecure_http": allow_insecure_http or None,
-        }.items()
-        if value is not None
-    }
+def load_api() -> tuple[str, bool]:
+    """Endereço da API e permissão de HTTP: ambiente → arquivo → padrão de produção.
+
+    Sem opção de linha de comando (decisão 0041): `SK_API_URL` e `SK_API_ALLOW_INSECURE_HTTP`, ou
+    `[api]` no arquivo de configuração.
+    """
     try:
-        api = SkSettings(api=explicit).api  # pyright: ignore[reportArgumentType]
+        api = SkSettings().api
     except (ValidationError, ConfigurationError) as error:
         ui.error("Invalid configuration", str(error), hint="Fix the indicated file and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     return api.url, api.allow_insecure_http
 
 
-def session_insecure(allow_insecure_http: bool) -> bool:
-    """O provedor de identidade segue a permissão de HTTP da seção `[auth]`, além da opção."""
-    return allow_insecure_http or SkSettings().auth.allow_insecure_http
+def session_insecure() -> bool:
+    """HTTP sem TLS no provedor de identidade: seção `[auth]` (ambiente ou arquivo)."""
+    return SkSettings().auth.allow_insecure_http
 
 
-def session_token(allow_insecure_http: bool) -> str:
+def session_token() -> str:
     """Access token da sessão, renovado pelo refresh token quando está para vencer."""
     try:
         return current_access_token(
-            default_credentials_path(), allow_insecure_http=session_insecure(allow_insecure_http)
+            default_credentials_path(), allow_insecure_http=session_insecure()
         )
     except SessionError as error:
         ui.error("Session unavailable", str(error), hint="Run `sk auth login`.")
         raise typer.Exit(EXIT_FAILURE) from error
 
 
-def renew_after_convergence(insecure: bool) -> bool:
+def renew_after_convergence() -> bool:
     """Renova a sessão para o token refletir as roles novas. Falha vira aviso: o pedido já valeu."""
     try:
-        renew_session(default_credentials_path(), allow_insecure_http=session_insecure(insecure))
+        renew_session(default_credentials_path(), allow_insecure_http=session_insecure())
     except SessionError as error:
         ui.warning(
             f"Session not renewed ({error}). The token may not reflect the new roles: "
@@ -134,7 +103,7 @@ def bad_address(error: OidcError) -> NoReturn:
     ui.error(
         "API address refused",
         str(error),
-        hint="Use HTTPS, or --allow-insecure-http in development.",
+        hint="Use HTTPS, or set SK_API_ALLOW_INSECURE_HTTP=true in development.",
     )
     raise typer.Exit(EXIT_USAGE_ERROR) from error
 

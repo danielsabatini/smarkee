@@ -63,7 +63,11 @@ def api_server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]
         server.server_close()
 
 
-def test_the_request_reaches_the_api_without_any_token(api_server: str, tmp_path: Path) -> None:
+def test_the_request_reaches_the_api_without_any_token(
+    api_server: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SK_API_URL", api_server)
+    monkeypatch.setenv("SK_API_ALLOW_INSECURE_HTTP", "true")  # a API de teste é HTTP local
     # Há credenciais salvas: o cadastro, mesmo assim, não as envia.
     (tmp_path / "sk").mkdir()
     (tmp_path / "sk" / "credentials.json").write_text(
@@ -79,9 +83,6 @@ def test_the_request_reaches_the_api_without_any_token(api_server: str, tmp_path
             "Souza",
             "--email",
             "ana@example.com",
-            "--api-url",
-            api_server,
-            "--allow-insecure-http",
         ],
     )
 
@@ -99,7 +100,10 @@ def test_the_request_reaches_the_api_without_any_token(api_server: str, tmp_path
     assert "token-que-nao-pode-sair" not in json.dumps(Recording.received)
 
 
-def test_plain_http_without_permission_sends_nothing(api_server: str) -> None:
+def test_plain_http_without_permission_sends_nothing(
+    api_server: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SK_API_URL", api_server)
     result = runner.invoke(
         app,
         [
@@ -110,8 +114,6 @@ def test_plain_http_without_permission_sends_nothing(api_server: str) -> None:
             "Souza",
             "--email",
             "ana@example.com",
-            "--api-url",
-            api_server,
         ],
     )
     assert result.exit_code == 2

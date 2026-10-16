@@ -8,14 +8,13 @@ import webbrowser
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Annotated
 
 import typer
 from pydantic import ValidationError
 
 from sk import ui
-from sk.defaults import PRD_CLIENT_ID, PRD_ISSUER, PROVISIONAL
-from sk.help import command, option
+from sk.defaults import PROVISIONAL
+from sk.help import command
 from sk.identity.credentials import (
     CredentialsError,
     CredentialsMissingError,
@@ -192,55 +191,6 @@ def run_login(
         )
 
 
-def _help_issuer(file: str | None) -> str:
-    return option(
-        "Login provider address.",
-        kind="String",
-        variable="SK_AUTH_ISSUER",
-        file=file,
-        default=PRD_ISSUER,
-    )
-
-
-def _help_client_id(file: str | None) -> str:
-    return option(
-        "Identifier of sk at the login provider.",
-        kind="String",
-        variable="SK_AUTH_CLIENT_ID",
-        file=file,
-        default=PRD_CLIENT_ID,
-    )
-
-
-def _help_allow_insecure_http(file: str | None) -> str:
-    return option(
-        "Allow an address without HTTPS. Development only.",
-        kind="Boolean",
-        variable="SK_AUTH_ALLOW_INSECURE_HTTP=true",
-        file=file,
-        default="off",
-    )
-
-
-# O login lê o arquivo de configuração; o init não lê o arquivo que cria, então a ajuda dele
-# não lista a seção [auth] como fonte.
-IssuerOption = Annotated[
-    str | None,
-    typer.Option(help=_help_issuer("[auth] issuer")),
-]
-ClientIdOption = Annotated[
-    str | None,
-    typer.Option(help=_help_client_id("[auth] clientId")),
-]
-AllowInsecureHttpOption = Annotated[
-    bool,
-    typer.Option(
-        "--allow-insecure-http",
-        help=_help_allow_insecure_http("[auth] allowInsecureHttp = true"),
-    ),
-]
-
-
 def _module_project_ids() -> tuple[str, ...]:
     """`projectId` de `[core]`, `[sum]` e `[ipm]`: o login pede a audience de cada um."""
     try:
@@ -257,18 +207,9 @@ def _module_project_ids() -> tuple[str, ...]:
         "Sign in to the platform through the browser. A new login replaces the previous one."
     ),
 )
-def login(
-    issuer: IssuerOption = None,
-    client_id: ClientIdOption = None,
-    allow_insecure_http: AllowInsecureHttpOption = False,
-) -> None:
-    settings = _load_or_exit(
-        {
-            "issuer": issuer,
-            "client_id": client_id,
-            "allow_insecure_http": allow_insecure_http,
-        },
-    )
+def login() -> None:
+    # Sem opções: o provedor e o client ID vêm do ambiente, do arquivo ou do padrão de produção.
+    settings = _load_or_exit({})
     _refuse_provisional_defaults(settings)
     run_login(settings, default_credentials_path(), project_ids=_module_project_ids())
 
@@ -323,10 +264,8 @@ def run_whoami(allow_insecure_http: bool, credentials_path: Path) -> None:
     "whoami",
     help=command("Show the user of the current session and confirm it is still valid."),
 )
-def whoami(allow_insecure_http: AllowInsecureHttpOption = False) -> None:
-    settings = _load_or_exit(
-        {"allow_insecure_http": allow_insecure_http},
-    )
+def whoami() -> None:
+    settings = _load_or_exit({})
     run_whoami(settings.allow_insecure_http, default_credentials_path())
 
 
@@ -337,8 +276,8 @@ def whoami(allow_insecure_http: AllowInsecureHttpOption = False) -> None:
         "(for example, after enabling or disabling a service)."
     ),
 )
-def refresh(allow_insecure_http: AllowInsecureHttpOption = False) -> None:
-    settings = _load_or_exit({"allow_insecure_http": allow_insecure_http})
+def refresh() -> None:
+    settings = _load_or_exit({})
     try:
         expires_at = renew_session(
             default_credentials_path(), allow_insecure_http=settings.allow_insecure_http

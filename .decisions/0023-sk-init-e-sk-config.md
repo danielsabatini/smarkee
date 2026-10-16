@@ -1,7 +1,7 @@
 # 0023 — `sk init` com os endereços de produção e `sk config` para alterar o arquivo
 
 - **Data:** 2026-10-13
-- **Status:** Aceita. Complementa as decisões 0008 (configuração da CLI) e 0013 (ordem de acesso e exposição do Zitadel); a regra de precedência da 0008 não muda.
+- **Status:** Aceita. Complementa as decisões 0008 (configuração da CLI) e 0013 (ordem de acesso e exposição do Zitadel); a regra de precedência da 0008 não muda. **Atualizada pela decisão 0041:** as opções de linha de comando para o ambiente (`--issuer`, `--client-id`, `--allow-insecure-http`, `--api-url`) deixaram de existir; a precedência passou a ser variável, arquivo e padrão de produção.
 
 > **Atualização (decisão 0036):** o `sk init` foi removido, e os valores de produção passaram a ser o padrão da CLI; o arquivo só sobrescreve. O que esta decisão diz sobre `sk init` está superado; `sk config` continua.
 

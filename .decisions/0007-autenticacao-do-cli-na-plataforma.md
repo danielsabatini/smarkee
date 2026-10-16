@@ -1,7 +1,7 @@
 # 0007 — Autenticação do CLI na plataforma
 
 - **Data:** 2026-10-09
-- **Status:** Aceita
+- **Status:** Aceita. **Atualizada pela decisão 0041:** as opções de linha de comando para o ambiente (`--issuer`, `--client-id`, `--allow-insecure-http`, `--api-url`) deixaram de existir; a precedência passou a ser variável, arquivo e padrão de produção.
 
 ## Contexto
 

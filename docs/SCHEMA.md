@@ -272,7 +272,7 @@ Um conceito tem **um único nome**: as mesmas palavras, na mesma ordem, em todos
 |---|---|---|
 | Contratos: schemas, manifestos, mensagens (JSON, YAML) | camelCase | `clientId` |
 | Arquivos de dados e de configuração lidos por pessoas (por exemplo `config.toml` e `credentials.json` do CLI) | camelCase | `clientId` |
-| Flags de linha de comando | kebab-case | `--client-id` |
+| Flags de linha de comando | kebab-case | `--resource-id` |
 | Variáveis de ambiente | maiúsculas com `_`, prefixadas pelo escopo | `SK_AUTH_CLIENT_ID` |
 | Código Python, colunas e objetos do PostgreSQL | snake_case | `client_id` |
 | Subjects e tokens de mensageria | minúsculas, conforme `MESSAGING.md` | `organization` |

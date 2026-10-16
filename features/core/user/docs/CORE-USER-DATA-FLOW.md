@@ -53,8 +53,7 @@ observed (2)    messageId 0199c8b3-5a00-7c2d-8e3f-4a5b6c7d8e07   (present)
 Comando:
 
 ```bash
-sk register --name Ana --surname Souza --email ana.souza@example.com \
-  [--api-url <url>] [--allow-insecure-http]
+sk register --name Ana --surname Souza --email ana.souza@example.com
 ```
 
 | Opção | Vira | Observação |
@@ -62,8 +61,6 @@ sk register --name Ana --surname Souza --email ana.souza@example.com \
 | `--name` | `givenName` | até 256 caracteres |
 | `--surname` | `familyName` | até 256 caracteres |
 | `--email` | `email` | também é o nome de login |
-| `--api-url` | base da URL | parâmetro → `SK_CORE_API_URL` → `[core] apiUrl` do `config.toml`; sem valor, o comando falha com código 2 |
-| `--allow-insecure-http` | | só em desenvolvimento; sem ele, URL sem HTTPS é recusada antes da chamada |
 
 O comando valida os dados localmente, remove espaços das pontas (`strip`) e envia `POST <api-url>/v1/core/users` com `Content-Type: application/json`, **sem token** e sem `Idempotency-Key`. Em caso de sucesso mostra `resourceId` e `operationId` e orienta confirmar o e-mail, definir a senha e rodar `sk auth login`. Códigos de saída: `0` sucesso; `1` falha da API (`429`, `5xx`, rede); `2` uso (opção ausente, configuração, `400`).
 

@@ -131,9 +131,12 @@ def test_options_with_environment_variables_say_which_one() -> None:
 
 
 def test_bracketed_names_are_shown_literally() -> None:
-    login = runner.invoke(app, ["auth", "login", "--help"], env={"COLUMNS": "200"})
-    assert login.exit_code == 0
-    assert "[auth] issuer" in login.stdout
+    # Os colchetes do formato e dos valores aparecem como texto, e não viram tags do Rich.
+    result = runner.invoke(app, ["register", "--help"], env={"COLUMNS": "200"})
+    assert result.exit_code == 0
+    assert "[String]" in result.stdout and "[required]" in result.stdout
+    wait = runner.invoke(app, ["ipm", "organization", "create", "--help"], env={"COLUMNS": "200"})
+    assert "[Integer]" in wait.stdout and "[default 60]" in wait.stdout
 
 
 def test_register_required_options_are_checked_by_the_command() -> None:

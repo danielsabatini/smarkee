@@ -230,16 +230,33 @@ def test_plain_http_is_refused_without_permission(api: FakeApi, tmp_path: Path) 
     assert api.requests == []
 
 
-def test_the_api_address_and_the_http_permission_come_from_the_command_line(
-    api: FakeApi,
+def test_the_api_address_comes_from_the_environment(
+    api: FakeApi, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     api.routes[("GET", "/v1/sum/services")] = Response(200, {"items": []})
-    result = runner.invoke(app, ["sum", "service", "list", "--api-url", API])
+    monkeypatch.setenv("SK_API_URL", API)
+    result = runner.invoke(app, ["sum", "service", "list"])
     assert result.exit_code == 0, result.stderr
-    result = runner.invoke(
-        app, ["sum", "service", "list", "--api-url", "http://api.teste", "--allow-insecure-http"]
-    )
-    assert "API address refused" not in result.stderr  # a permissão foi aceita
+
+
+def test_the_environment_options_do_not_exist_on_the_command_line(api: FakeApi) -> None:
+    """Endereço e permissão de HTTP são do ambiente (decisão 0041), e não de opções."""
+    for option in (["--api-url", API], ["--allow-insecure-http"], ["--issuer", API]):
+        result = runner.invoke(app, ["sum", "service", "list", *option])
+        assert result.exit_code == 2 and "No such option" in result.output, option
+
+
+def test_http_without_tls_is_allowed_only_by_environment(
+    api: FakeApi, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SK_API_URL", "http://api.teste")
+    refused = runner.invoke(app, ["sum", "service", "list"])
+    assert refused.exit_code == 2
+    assert "SK_API_ALLOW_INSECURE_HTTP=true" in " ".join(refused.stderr.split())
+
+    monkeypatch.setenv("SK_API_ALLOW_INSECURE_HTTP", "true")
+    allowed = runner.invoke(app, ["sum", "service", "list"])
+    assert "API address refused" not in allowed.stderr
 
 
 def test_without_any_configuration_the_command_uses_the_production_api(

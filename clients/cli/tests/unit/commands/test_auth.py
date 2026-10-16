@@ -56,9 +56,8 @@ def test_http_issuer_is_refused_without_explicit_permission(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     configure_platform(monkeypatch)
-    result = runner.invoke(
-        app, ["auth", "login", "--issuer", "http://issuer.example", "--client-id", "client-1"]
-    )
+    monkeypatch.setenv("SK_AUTH_ISSUER", "http://issuer.example")
+    result = runner.invoke(app, ["auth", "login"])
     assert result.exit_code == 1
     assert "without TLS" in result.stderr
 

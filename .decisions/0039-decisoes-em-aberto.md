@@ -26,6 +26,14 @@ A regra "só exclui sem recursos atrelados" e o `sk register get|delete` foram d
 - Falta uma forma de o operador desligar um serviço para todos e de listar as ligações de qualquer usuário (`sum.service.admin`). Escopo e roles a definir.
 - **Gatilho:** quando houver um segundo serviço no catálogo ou um operador real.
 
+## 4. Simplificar mais a CLI
+
+Princípio: quanto menos decisão na mão de quem usa, melhor. Ficam como estão por ora, e a revisar quando a CLI for ao primeiro uso real:
+
+- esperar sempre a convergência (sem `--wait` e `--timeout`) e, com isso, renovar a sessão sozinho (sem `sk auth refresh`);
+- `--yes` do `sk register delete` como confirmação interativa quando houver terminal;
+- o arquivo `config.toml` e o `sk config`, se dev e stg usarem só variáveis.
+
 ## Consequências
 
 - Cada item acima, quando decidido, ganha o seu ADR e sai daqui; o `ROADMAP.md` acompanha.

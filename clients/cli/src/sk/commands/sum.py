@@ -20,8 +20,6 @@ from sk.commands.shared import (
     EXIT_USAGE_ERROR,
     HTTP_NOT_FOUND,
     WAIT_POLL_SECONDS,
-    AllowInsecureHttpOption,
-    ApiUrlOption,
     TimeoutOption,
     bad_address,
     fail_api,
@@ -158,7 +156,7 @@ def _wait_for_convergence(
     ui.note(f"Waiting for convergence (up to {timeout} s)...")
     deadline = time.monotonic() + timeout
     while True:
-        token = session_token(insecure)
+        token = session_token()
         try:
             operation = get_operation(
                 url,
@@ -231,7 +229,7 @@ def _finish_request(
         )
         return
     link = _wait_for_convergence(url, insecure, accepted, enabled=enabled, timeout=timeout)
-    renewed = renew_after_convergence(insecure)
+    renewed = renew_after_convergence()
     ui.panel(
         "Service enabled" if enabled else "Service disabled",
         [
@@ -265,13 +263,11 @@ def enable_command(
     ] = None,
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
-    api_url: ApiUrlOption = None,
-    allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
     # Obrigatória por validação do próprio comando (não pelo Typer), para não exibir "[required]".
     service = require(service, "--service")
-    url, insecure = load_api(api_url, allow_insecure_http)
-    token = session_token(insecure)
+    url, insecure = load_api()
+    token = session_token()
     try:
         accepted = enable_service(
             url,
@@ -317,12 +313,10 @@ def disable_command(
     ] = None,
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
-    api_url: ApiUrlOption = None,
-    allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
     resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
-    url, insecure = load_api(api_url, allow_insecure_http)
-    token = session_token(insecure)
+    url, insecure = load_api()
+    token = session_token()
     try:
         current = get_service(
             url, token=token, resource_id=resource_id, allow_insecure_http=insecure
@@ -384,14 +378,12 @@ def get_command(
             ),
         ),
     ] = None,
-    api_url: ApiUrlOption = None,
-    allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
     resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
     if operation_id is not None:
         operation_id = _identifier(operation_id, "--operation-id", what="operationId")
-    url, insecure = load_api(api_url, allow_insecure_http)
-    token = session_token(insecure)
+    url, insecure = load_api()
+    token = session_token()
     try:
         link = get_service(url, token=token, resource_id=resource_id, allow_insecure_http=insecure)
     except OidcError as error:
@@ -425,12 +417,9 @@ def get_command(
 
 
 @service_app.command("list", help=command("List the requester's services."))
-def list_command(
-    api_url: ApiUrlOption = None,
-    allow_insecure_http: AllowInsecureHttpOption = False,
-) -> None:
-    url, insecure = load_api(api_url, allow_insecure_http)
-    token = session_token(insecure)
+def list_command() -> None:
+    url, insecure = load_api()
+    token = session_token()
     try:
         links = list_services(url, token=token, allow_insecure_http=insecure)
     except OidcError as error:

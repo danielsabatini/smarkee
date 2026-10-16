@@ -9,11 +9,11 @@ uv run sk --help
 
 ## Configuração
 
-Cada valor é resolvido nesta ordem, do mais forte para o mais fraco: **parâmetro → variável de ambiente → arquivo de configuração → default** (`.decisions/0008-cli-typer-pydantic-e-precedencia-de-configuracao.md`).
+Cada valor é resolvido nesta ordem, do mais forte para o mais fraco: **variável de ambiente → arquivo de configuração → padrão de produção** (decisões 0008 e 0041). O que é do ambiente (provedor, client ID, endereço da API, projetos de roles e HTTP sem TLS) **não tem opção de linha de comando**: em produção a CLI usa o padrão embutido, e em dev e stg o ambiente se escolhe por variáveis (`.env` e `source`).
 
 - Variáveis: `SK_<SEÇÃO>_<CAMPO>`, por exemplo `SK_AUTH_CLIENT_ID`. Os módulos usam a própria seção (`SK_IPM_*`).
 - Arquivo: `$XDG_CONFIG_HOME/sk/config.toml` (padrão `~/.config/sk/config.toml`), com uma tabela por seção e **chaves em camelCase**. Uma chave desconhecida ou fora do camelCase (por exemplo `client_id`) é rejeitada.
-- O mesmo nome muda só de grafia entre os meios: `--client-id`, `SK_AUTH_CLIENT_ID`, `clientId` (`docs/SCHEMA.md`, *Grafia dos nomes por meio*).
+- O mesmo nome muda só de grafia entre os meios: variável `SK_AUTH_CLIENT_ID`, chave `clientId`; as opções de linha de comando (`--resource-id`, `--wait`) são kebab-case (`docs/SCHEMA.md`, *Grafia dos nomes por meio*).
 
 **Em produção não há nada a configurar.** Os valores da plataforma (provedor de identidade, URL da API, client ID e os IDs dos projetos de roles dos módulos) são o **padrão** da CLI: ela funciona sem arquivo e sem variável, e não há `sk init` (decisão 0036). O arquivo, as variáveis e as opções existem só para **sobrescrever**, o que o desenvolvimento e o stg fazem. O `allowInsecureHttp` é só de desenvolvimento e vem desligado.
 
@@ -69,7 +69,7 @@ O arquivo guarda configuração, e não credenciais. Os tokens ficam em `credent
 ## Autenticação
 
 ```bash
-uv run sk auth login [--issuer URL] [--client-id ID] [--allow-insecure-http]
+uv run sk auth login
 ```
 
 O login é da plataforma, e não de um módulo. O `sk` autentica o usuário direto no provedor de identidade (Zitadel), pelo gateway, sem API própria de autenticação:
@@ -80,11 +80,13 @@ O login é da plataforma, e não de um módulo. O `sk` autentica o usuário dire
 4. troca o código pelos tokens (cliente público, sem segredo) e consulta o userinfo para exibir o usuário autenticado;
 5. grava os tokens em `$XDG_CONFIG_HOME/sk/credentials.json` (padrão `~/.config/sk/credentials.json`), com permissão `0600` e gravação atômica. Um novo login substitui o anterior.
 
-| Opção | Variável de ambiente | Chave em `[auth]` | Significado |
-|---|---|---|---|
-| `--issuer` | `SK_AUTH_ISSUER` | `issuer` | URL do issuer OIDC, acessado pelo gateway |
-| `--client-id` | `SK_AUTH_CLIENT_ID` | `clientId` | Client ID da aplicação nativa do `sk` no provedor |
-| `--allow-insecure-http` | `SK_AUTH_ALLOW_INSECURE_HTTP=true` | `allowInsecureHttp = true` | Aceita issuer `http`. Somente em desenvolvimento |
+O login **não tem opções**: o provedor, o client ID e a permissão de HTTP vêm só do ambiente, do arquivo ou do padrão de produção (decisão 0041).
+
+| Variável de ambiente | Chave em `[auth]` | Significado |
+|---|---|---|
+| `SK_AUTH_ISSUER` | `issuer` | URL do issuer OIDC, acessado pelo gateway |
+| `SK_AUTH_CLIENT_ID` | `clientId` | Client ID da aplicação nativa do `sk` no provedor |
+| `SK_AUTH_ALLOW_INSECURE_HTTP=true` | `allowInsecureHttp = true` | Aceita issuer `http`. Somente em desenvolvimento |
 
 A aplicação do `sk` mora no projeto `clients` (sem roles), e não num projeto de roles: o token só vale no Receiver de um módulo se o login pedir a audience do projeto de roles dele. Com `[core] projectId`, `[sum] projectId` e `[ipm] projectId` configurados (ou `SK_CORE_PROJECT_ID`, `SK_SUM_PROJECT_ID` e `SK_IPM_PROJECT_ID`), o login pede a audience de `roles-core`, `roles-sum` e `roles-ipm`, com as roles no token: sem a chave de um módulo, o Receiver dele recusa o token. Sem a chave, o login é o de sempre.
 
@@ -93,7 +95,7 @@ Códigos de saída: `0` sucesso; `1` falha no login ou na gravação, ou cancela
 ### `sk auth refresh`
 
 ```bash
-uv run sk auth refresh [--allow-insecure-http]
+uv run sk auth refresh
 ```
 
 Renova a sessão agora, pelo refresh token, mesmo com o acesso ainda válido. O token só traz as roles que existiam quando foi emitido: depois de ligar ou desligar um serviço, renovar faz o token refletir as roles novas. `sk sum service enable|disable --wait` já faz isso. Sem sessão ou sem refresh token, sai com `1` e aponta `sk auth login`.
@@ -101,7 +103,7 @@ Renova a sessão agora, pelo refresh token, mesmo com o acesso ainda válido. O 
 ### `sk auth whoami`
 
 ```bash
-uv run sk auth whoami [--allow-insecure-http]
+uv run sk auth whoami
 ```
 
 Mostra o usuário da sessão gravada e confirma com o provedor que o acesso ainda vale:
@@ -144,7 +146,7 @@ uv run sk sum service disable --resource-id ID [--wait] [--timeout SEGUNDOS]
 uv run sk sum service list
 ```
 
-Todos aceitam `--api-url` e `--allow-insecure-http` (parâmetro → `SK_API_*` → `[api]` → padrão), como o `sk register`. `resourceId` e `operationId` precisam seguir o padrão do contrato (letras minúsculas, números e hífen, até 128 caracteres): outro valor é recusado antes de qualquer chamada, porque entra no caminho da URL.
+O endereço da API e a permissão de HTTP sem TLS **não têm opção de linha de comando** (decisão 0041): vêm de `SK_API_URL` e `SK_API_ALLOW_INSECURE_HTTP=true`, de `[api]` no arquivo ou do padrão de produção, como no `sk register`. `resourceId` e `operationId` precisam seguir o padrão do contrato (letras minúsculas, números e hífen, até 128 caracteres): outro valor é recusado antes de qualquer chamada, porque entra no caminho da URL.
 
 | Comando | Requisição | Resultado |
 |---|---|---|
@@ -167,7 +169,7 @@ uv run sk ipm organization update --resource-id ID --name NOVO-NOME [--wait] [--
 uv run sk ipm organization delete --resource-id ID [--wait] [--timeout SEGUNDOS]
 ```
 
-Todos aceitam `--api-url` e `--allow-insecure-http` (parâmetro → `SK_API_*` → `[api]` → padrão), e os identificadores seguem o padrão do contrato, como em `sk sum service`. O nome (`--name`) segue o contrato: letras minúsculas, números e hífen, de 1 a 63 caracteres, começando e terminando com letra ou número; outro valor é recusado antes de qualquer chamada, sem repetir o valor.
+O endereço da API vem do ambiente, do arquivo ou do padrão, sem opção de linha de comando (decisão 0041), e os identificadores seguem o padrão do contrato, como em `sk sum service`. O nome (`--name`) segue o contrato: letras minúsculas, números e hífen, de 1 a 63 caracteres, começando e terminando com letra ou número; outro valor é recusado antes de qualquer chamada, sem repetir o valor.
 
 | Comando | Requisição | Resultado |
 |---|---|---|
@@ -191,13 +193,13 @@ uv run sk register --name Ana --surname Souza --email ana@dominio.com
 
 Pede o cadastro de um usuário pela API do módulo `core`. É **anônimo**: não exige login, não envia token (mesmo que existam credenciais salvas) e não pede senha. A pessoa define a senha depois, na página do provedor, a partir do e-mail de ativação. O cadastro é assíncrono: o comando confirma que o pedido foi aceito (`resourceId` e `operationId`), e não que a conta já existe.
 
-| Opção | Variável de ambiente | Chave em `[api]` | Significado |
-|---|---|---|---|
-| `--name` | | | Nome próprio (obrigatório, 1 a 256 caracteres) |
-| `--surname` | | | Sobrenome (obrigatório, 1 a 256 caracteres) |
-| `--email` | | | E-mail, também o nome de login (obrigatório) |
-| `--api-url` | `SK_API_URL` | `url` | URL base da API da plataforma, pelo gateway |
-| `--allow-insecure-http` | `SK_API_ALLOW_INSECURE_HTTP=true` | `allowInsecureHttp = true` | Aceita a API em HTTP. Somente em desenvolvimento |
+| Opção | Significado |
+|---|---|
+| `--name` | Nome próprio (obrigatório, 1 a 256 caracteres) |
+| `--surname` | Sobrenome (obrigatório, 1 a 256 caracteres) |
+| `--email` | E-mail, também o nome de login (obrigatório) |
+
+O endereço da API (`SK_API_URL`, `[api] url`) e a permissão de HTTP (`SK_API_ALLOW_INSECURE_HTTP=true`, `[api] allowInsecureHttp`) vêm só do ambiente ou do arquivo, sem opção de linha de comando (decisão 0041).
 
 ```toml
 [api]
@@ -227,11 +229,11 @@ Os comandos mostram sucesso em painel e erro com causa e dica de correção. Cor
 A ajuda (`--help`) segue um padrão único, montado por `src/sk/help.py` e verificado em `tests/unit/test_help.py` (`.decisions/0022-padrao-dos-textos-de-ajuda-da-cli.md`). Cada opção aparece como:
 
 ```text
---api-url  Platform API address. [String] [env SK_API_URL | file [api] url | default https://api.smarkee.com.br] [optional]
+--timeout  Seconds to wait with --wait. [Integer] [default 60] [optional]
 ```
 
 - `[String]`, `[Integer]` ou `[Boolean]`: o tipo do valor.
-- `[env … | file … | default …]`: de onde o valor pode vir, na ordem de resolução (parâmetro, variável de ambiente, arquivo de configuração, padrão). Só aparecem as fontes que existem.
+- `[env … | file … | default …]`: de onde o valor pode vir, na ordem de resolução (variável de ambiente, arquivo de configuração, padrão de produção). Só aparecem as fontes que existem.
 - `[required]` (vermelho) ou `[optional]`: sem padrão, a opção é obrigatória.
 
 Os textos descrevem o que o comando faz, sem detalhes de implementação. Novos comandos usam `command()` e `option()`.

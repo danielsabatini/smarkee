@@ -52,6 +52,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Licença Apache-2.0 (`LICENSE`).
 
 ### Changed
+- `sk`: as opções `--issuer`, `--client-id`, `--allow-insecure-http` e `--api-url` deixam de existir em todos os comandos (`auth login|whoami|refresh`, `register`, `sum service` e `ipm organization`). O provedor, o client ID e a permissão de HTTP sem TLS vêm só de variáveis (`SK_AUTH_ISSUER`, `SK_AUTH_CLIENT_ID`, `SK_AUTH_ALLOW_INSECURE_HTTP`, `SK_API_ALLOW_INSECURE_HTTP`), do arquivo de configuração ou do padrão de produção (o endereço da API vem de `SK_API_URL` ou de `[api] url`).
 - `DELETE /v1/core/users/{id}`: recusa a exclusão (`409 ResourcesAttached`) com Organizations ou serviços habilitados da conta, e a de outra conta por um operador (`409 ResourcesNotVerifiable`) até haver como verificá-la.
 - Organization: o nome `register` passa a ser reservado (antes o pedido era aceito e falhava no Executor).
 - User: o Executor deixou de ler o estado da senha do usuário no Zitadel (campo sem uso).

@@ -15,7 +15,7 @@ lidos.
 
 Grafia dos nomes por meio (`docs/SCHEMA.md`, *Grafia dos nomes por meio*): os campos são
 `snake_case` no código, as chaves do arquivo são camelCase (`clientId`), as variáveis são
-`SK_AUTH_CLIENT_ID` e as flags são `--client-id`. A conversão do arquivo é feita só pela
+`SK_AUTH_CLIENT_ID`. A conversão do arquivo é feita só pela
 fonte TOML: uma chave fora do camelCase (por exemplo `client_id`) é rejeitada.
 
 O arquivo de configuração guarda configuração, e não credenciais: os tokens ficam no

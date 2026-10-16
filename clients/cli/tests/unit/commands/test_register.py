@@ -43,7 +43,7 @@ def fake_submit(calls: list[dict[str, Any]], result: object) -> Any:
 
 
 def test_there_is_no_password_option() -> None:
-    result = runner.invoke(app, [*REGISTER, "--password", "segredo", "--api-url", "https://a.b"])
+    result = runner.invoke(app, [*REGISTER, "--password", "segredo"])
     assert result.exit_code == 2
     assert "--password" in result.stderr
 
@@ -75,7 +75,7 @@ def test_the_api_url_comes_from_the_configuration_file(
     assert calls[0]["url"] == "https://api.arquivo"
 
 
-def test_the_flag_overrides_the_environment_and_the_file(
+def test_the_environment_overrides_the_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     write_config(tmp_path, '[api]\nurl = "https://api.arquivo"\n')
@@ -85,9 +85,9 @@ def test_the_flag_overrides_the_environment_and_the_file(
         "sk.commands.register.submit_registration",
         fake_submit(calls, RegistrationAccepted("r-1", "o-1")),
     )
-    result = runner.invoke(app, [*REGISTER, "--api-url", "https://api.flag"])
+    result = runner.invoke(app, REGISTER)
     assert result.exit_code == 0
-    assert calls[0]["url"] == "https://api.flag"
+    assert calls[0]["url"] == "https://api.ambiente"
 
 
 def test_an_invalid_email_never_reaches_the_api(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -105,8 +105,6 @@ def test_an_invalid_email_never_reaches_the_api(monkeypatch: pytest.MonkeyPatch)
             "Souza",
             "--email",
             "nao-e-email",
-            "--api-url",
-            "https://api.example",
         ],
     )
     assert result.exit_code == 2
@@ -119,7 +117,7 @@ def test_success_prints_the_identities_and_the_next_step(monkeypatch: pytest.Mon
         "sk.commands.register.submit_registration",
         fake_submit(calls, RegistrationAccepted("0199-res", "0199-op")),
     )
-    result = runner.invoke(app, [*REGISTER, "--api-url", "https://api.example"])
+    result = runner.invoke(app, REGISTER, env={"SK_API_URL": "https://api.example"})
     assert result.exit_code == 0
     assert "0199-res" in result.stdout
     assert "0199-op" in result.stdout
@@ -136,7 +134,7 @@ def test_rate_limit_tells_how_long_to_wait(monkeypatch: pytest.MonkeyPatch) -> N
             [], ApiRejectedError(429, "x", error_code="RateLimited", retry_after_seconds=30)
         ),
     )
-    result = runner.invoke(app, [*REGISTER, "--api-url", "https://api.example"])
+    result = runner.invoke(app, REGISTER, env={"SK_API_URL": "https://api.example"})
     assert result.exit_code == 1
     assert "Wait 30 seconds" in result.stderr
 
@@ -149,7 +147,7 @@ def test_a_rejected_field_is_a_usage_error(monkeypatch: pytest.MonkeyPatch) -> N
             ApiRejectedError(400, "Campo inválido", error_code="ValidationFailed", field="email"),
         ),
     )
-    result = runner.invoke(app, [*REGISTER, "--api-url", "https://api.example"])
+    result = runner.invoke(app, REGISTER, env={"SK_API_URL": "https://api.example"})
     assert result.exit_code == 2
     assert "Field refused by the API" in result.stderr
     assert "email" in result.stderr
@@ -160,7 +158,7 @@ def test_an_unavailable_service_asks_to_retry(monkeypatch: pytest.MonkeyPatch) -
         "sk.commands.register.submit_registration",
         fake_submit([], ApiUnavailableError("the API answered HTTP 503")),
     )
-    result = runner.invoke(app, [*REGISTER, "--api-url", "https://api.example"])
+    result = runner.invoke(app, REGISTER, env={"SK_API_URL": "https://api.example"})
     assert result.exit_code == 1
     assert "Try again in a few minutes" in result.stderr
 
@@ -168,6 +166,8 @@ def test_an_unavailable_service_asks_to_retry(monkeypatch: pytest.MonkeyPatch) -
 def test_help_is_in_portuguese_and_lists_the_three_fields() -> None:
     result = runner.invoke(app, ["register", "--help"])
     assert result.exit_code == 0
-    for option in ("--name", "--surname", "--email", "--api-url"):
+    for option in ("--name", "--surname", "--email"):
         assert option in result.stdout
-    assert "--password" not in result.stdout
+    # O endereço da API e a permissão de HTTP são do ambiente, não de opções (decisão 0041).
+    for absent in ("--password", "--api-url", "--allow-insecure-http"):
+        assert absent not in result.stdout

@@ -24,8 +24,6 @@ from sk.commands.shared import (
     EXIT_USAGE_ERROR,
     HTTP_NOT_FOUND,
     WAIT_POLL_SECONDS,
-    AllowInsecureHttpOption,
-    ApiUrlOption,
     TimeoutOption,
     bad_address,
     fail_api,
@@ -33,7 +31,6 @@ from sk.commands.shared import (
     require,
     session_token,
 )
-from sk.defaults import PRD_API_URL
 from sk.features.core.user import (
     UserAccount,
     delete_user,
@@ -115,32 +112,6 @@ def register_command(
             ),
         ),
     ] = None,
-    api_url: Annotated[
-        str | None,
-        typer.Option(
-            "--api-url",
-            help=option(
-                "Platform API address.",
-                kind="String",
-                variable="SK_API_URL",
-                file="[api] url",
-                default=PRD_API_URL,
-            ),
-        ),
-    ] = None,
-    allow_insecure_http: Annotated[
-        bool,
-        typer.Option(
-            "--allow-insecure-http",
-            help=option(
-                "Allow an address without HTTPS. Development only.",
-                kind="Boolean",
-                variable="SK_API_ALLOW_INSECURE_HTTP=true",
-                file="[api] allowInsecureHttp = true",
-                default="off",
-            ),
-        ),
-    ] = False,
 ) -> None:
     if context.invoked_subcommand is not None:
         return  # `get` ou `delete`: o cadastro só roda sem subcomando
@@ -148,7 +119,7 @@ def register_command(
     name = require(name, "--name")
     surname = require(surname, "--surname")
     email = require(email, "--email")
-    url, insecure = load_api(api_url, allow_insecure_http)
+    url, insecure = load_api()
     try:
         # Validação local antes de qualquer chamada: o comando, e não só o cliente, a garante.
         validate_registration(name, surname, email)
@@ -166,7 +137,7 @@ def register_command(
         ui.error(
             "API address refused",
             str(error),
-            hint="Use HTTPS, or --allow-insecure-http in development.",
+            hint="Use HTTPS, or set SK_API_ALLOW_INSECURE_HTTP=true in development.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     except ApiRejectedError as error:
@@ -239,12 +210,9 @@ def _rows(account: UserAccount) -> list[tuple[str, str]]:
 
 
 @register_app.command("get", help=command("Show the account of the current session."))
-def get_command(
-    api_url: ApiUrlOption = None,
-    allow_insecure_http: AllowInsecureHttpOption = False,
-) -> None:
-    url, insecure = load_api(api_url, allow_insecure_http)
-    token = session_token(insecure)
+def get_command() -> None:
+    url, insecure = load_api()
+    token = session_token()
     try:
         account = get_user(
             url, token=token, resource_id=_own_id(token), allow_insecure_http=insecure
@@ -270,7 +238,7 @@ def _wait_until_gone(
         try:
             operation = get_operation(
                 url,
-                token=session_token(insecure),
+                token=session_token(),
                 resource_id=resource_id,
                 operation_id=operation_id,
                 allow_insecure_http=insecure,
@@ -338,8 +306,6 @@ def delete_command(
         ),
     ] = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
-    api_url: ApiUrlOption = None,
-    allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
     if not yes:
         ui.error(
@@ -348,8 +314,8 @@ def delete_command(
             hint="Repeat the command with --yes.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
-    url, insecure = load_api(api_url, allow_insecure_http)
-    token = session_token(insecure)
+    url, insecure = load_api()
+    token = session_token()
     resource_id = _own_id(token)
     try:
         account = get_user(url, token=token, resource_id=resource_id, allow_insecure_http=insecure)

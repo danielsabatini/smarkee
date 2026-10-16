@@ -1,7 +1,7 @@
 # 0036 — Os valores de produção são o padrão da CLI, e `sk init` deixa de existir
 
 - **Data:** 2026-10-16
-- **Status:** Aceita. Substitui a parte da decisão 0023 que criou o `sk init` e a que fazia do arquivo o lugar dos endereços; a precedência da decisão 0008 não muda.
+- **Status:** Aceita. Substitui a parte da decisão 0023 que criou o `sk init` e a que fazia do arquivo o lugar dos endereços; a precedência da decisão 0008 não muda. **Atualizada pela decisão 0041:** as opções de linha de comando para o ambiente (`--issuer`, `--client-id`, `--allow-insecure-http`, `--api-url`) deixaram de existir; a precedência passou a ser variável, arquivo e padrão de produção.
 
 ## Contexto
 
