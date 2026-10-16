@@ -1,8 +1,8 @@
 """Entrypoint do Reconciler de `sum.service` (`sum-service-reconciler`, decisões 0015 e 0033).
 
-Consome `desired`, `observed` e os resultados (`completed` e `failed`), decide e publica as
-`action` no stream `ACTION`. Só inicializa e encerra: valida a configuração, abre a conexão e
-roda os laços.
+Consome `desired`, `observed` e os resultados (`completed` e `failed`), decide e publica as `action`
+no stream `ACTION`. Só inicializa e encerra: valida a configuração, conecta ao NATS, cria os
+consumers de estado da instância e roda a reavaliação periódica. O Reconciler não acessa o SSOT.
 """
 
 import asyncio
@@ -13,71 +13,82 @@ import sys
 from sum_service_reconciler.engine.reconciler import Reconciler
 from sum_service_reconciler.http.health import Health, serve_health
 from sum_service_reconciler.logging_config import configure_logging
-from sum_service_reconciler.settings import ReconcilerSettings, missing_required
-from sum_service_reconciler.transport.consumers import PullConsumer
-from sum_service_reconciler.transport.nats import JetStreamPublisher, connect, jetstream_of
+from sum_service_reconciler.settings import SumServiceReconcilerSettings, missing_required
+from sum_service_reconciler.transport.nats import (
+    STREAMS,
+    JetStreamPublisher,
+    StateConsumer,
+    connect,
+    jetstream_of,
+    new_instance_name,
+    periodic_reevaluation,
+)
 
 EXIT_INVALID_CONFIGURATION = 2
-EVALUATION_INTERVAL_SECONDS = 15.0
 
 logger = logging.getLogger(__name__)
 
-CONSUMERS = (
-    ("DESIRED", "sum-service-reconciler-desired"),
-    ("OBSERVED", "sum-service-reconciler-observed"),
-    ("RESULT", "sum-service-reconciler-completed"),
-    ("RESULT", "sum-service-reconciler-failed"),
-)
 
-
-async def _evaluate_periodically(reconciler: Reconciler, stop: asyncio.Event) -> None:
-    while not stop.is_set():
-        await reconciler.evaluate_all()
-        try:
-            await asyncio.wait_for(stop.wait(), timeout=EVALUATION_INTERVAL_SECONDS)
-        except TimeoutError:
-            continue
-
-
-async def run(settings: ReconcilerSettings) -> int:
+async def run(settings: SumServiceReconcilerSettings) -> int:
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for signal_number in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(signal_number, stop.set)
-    health = Health()
+
     nats_client = await connect(settings.nats.url, settings.nats.user, settings.nats.password)
     jetstream = jetstream_of(nats_client)
-    reconciler = Reconciler(JetStreamPublisher(jetstream), settings.loop)
+    health = Health()
     health.add_check("nats", lambda: nats_client.is_connected)
+    reconciler = Reconciler(JetStreamPublisher(jetstream), settings.loop)
 
     async def handle(data: bytes) -> object:
         return await reconciler.on_message(data)
 
-    tasks = [
-        asyncio.create_task(
-            PullConsumer(
+    instance = new_instance_name()
+    tasks = {
+        suffix: asyncio.create_task(
+            StateConsumer(
                 jetstream,
+                handle,
                 stream=stream,
-                durable=durable,
-                handle=handle,
+                filter_subject=subject,
+                name_suffix=suffix,
+                instance=instance,
+                inactive_threshold_seconds=settings.nats.consumer_inactive_threshold_seconds,
                 on_cycle=health.beat,
             ).run(stop)
         )
-        for stream, durable in CONSUMERS
-    ]
-    tasks.append(asyncio.create_task(_evaluate_periodically(reconciler, stop)))
-    tasks.append(asyncio.create_task(serve_health(health, settings.health.port, stop)))
+        for stream, subject, suffix in STREAMS
+    }
+    tasks["periodic"] = asyncio.create_task(
+        periodic_reevaluation(reconciler, settings.loop, stop, on_cycle=health.beat)
+    )
+    tasks["health"] = asyncio.create_task(serve_health(health, settings.health.port, stop))
     health.mark_started()
-    logger.info("sum service reconciler started")
-    await stop.wait()
-    await asyncio.gather(*tasks, return_exceptions=True)
+    logger.info("sum service reconciler started", extra={"instance": instance})
+    waiter = asyncio.create_task(stop.wait())
+    done, _ = await asyncio.wait({waiter, *tasks.values()}, return_when=asyncio.FIRST_COMPLETED)
+
+    exit_code = 0
+    for name, task in tasks.items():
+        # Só é falha uma tarefa que terminou sem que a parada tenha sido pedida.
+        if task in done and not stop.is_set():
+            exit_code = 1
+            logger.error("task stopped unexpectedly", extra={"task": name})
+    stop.set()
+    results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+    for name, result in zip(tasks, results, strict=True):
+        if isinstance(result, BaseException):
+            logger.error("task failed", extra={"task": name, "error_type": type(result).__name__})
+            exit_code = 1
+    waiter.cancel()
     await nats_client.close()
-    return 0
+    return exit_code
 
 
 def main() -> None:
     configure_logging()
-    settings = ReconcilerSettings()
+    settings = SumServiceReconcilerSettings()
     missing = missing_required(settings)
     if missing:
         logger.error("missing required configuration", extra={"variables": missing})

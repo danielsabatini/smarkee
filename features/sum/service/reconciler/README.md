@@ -10,13 +10,15 @@ quando há divergência.
 - `engine/reconciler.py`: o motor. Recebe `desired`, `observed` e resultados (`completed` e `failed`), mantém
   o estado de cada recurso, decide e publica a `action` em `reconciler.action.sum.service.<resourceId>.<operação>`,
   com `Nats-Msg-Id` igual ao `actionId`. Reavalia os recursos periodicamente (validade e prazos dependem do tempo).
-- `main.py`: o processo. Consome os consumers `sum-service-reconciler-{desired,observed,completed,failed}`
-  (declarados por `sum-service-consumer`), com ACK depois do motor.
-- Verificado no dev, com o processo no host, no ciclo de ligar e desligar com os outros componentes. Ver
-  `docs/SUM-SERVICE-DATA-FLOW.md`.
+- `transport/nats.py`: os consumers de estado da instância, a publicação da `action` e a reavaliação periódica, com jitter.
+- `main.py`: o processo. Cria um consumer por Stream (`DESIRED`, `OBSERVED` e `RESULT`) com nome único por execução,
+  `DeliverLastPerSubject` e `inactive_threshold`, confirma (ACK) depois do motor e devolve à fila (`nak`) a mensagem
+  que o motor não conseguiu processar. Não há manifesto de consumer: a instância cria os próprios.
+- No ar no dev (Compose), no ciclo de ligar e desligar com os outros componentes, inclusive reiniciando o Reconciler no meio
+  de uma ligação pendente (`../tests/e2e`). Ver `docs/SUM-SERVICE-DATA-FLOW.md`.
 
-Limite conhecido: o estado é mantido em memória. Ao reiniciar, o Reconciler só vê as mensagens novas: a
-reconstrução a partir do último `desired` e `observed` de cada recurso não foi implementada.
+O estado em memória é um cache descartável (`docs/RESOURCE-CONTROL-LOOP.md` §3.8): ao iniciar, o consumer da instância
+entrega o último `desired`, `observed` e resultado de cada ligação, e o Reconciler volta a decidir.
 
 ## Decisão
 
@@ -32,12 +34,13 @@ espera o backoff.
 
 ## Configuração
 
-`SUM_SERVICE_RECONCILER_<SEÇÃO>_<CAMPO>`. Obrigatória: `NATS_PASSWORD`. Os parâmetros do loop estão em
-`settings.py` e são os de `schemas/sum/service/desired.v1.schema.json`.
+`SUM_SERVICE_RECONCILER_<SEÇÃO>_<CAMPO>`. Obrigatória: `NATS_PASSWORD`. Os parâmetros do loop (`LOOP_*`) estão em
+`settings.py` e são os de `schemas/sum/service/desired.v1.schema.json`, mais o período e o jitter da reavaliação.
+`NATS_CONSUMER_INACTIVE_THRESHOLD_SECONDS` define quando o servidor remove o consumer de uma instância parada.
 
 ## Testes
 
 ```bash
-uv run pytest           # decisão e motor (fluxo completo com publicador simulado)
+uv run pytest           # decisão, motor (publicador simulado), consumer de estado e configurações
 uv run ruff check . && uv run pyright
 ```
