@@ -7,16 +7,18 @@
 
 A ajuda da CLI `sk` (`--help`) descrevia as opções com frases soltas, misturava detalhes de implementação (protocolo de login, endereço de retorno local, nomes de arquivos internos, gateway, módulo) e não deixava claro, para cada opção, o tipo do valor, de onde ele pode vir e se é obrigatório. O usuário avaliou várias formas de apresentar isso e escolheu o padrão abaixo.
 
+> **Atualização (decisão 0035):** os textos da CLI passaram a ser em inglês. Os marcadores e a linha de ordem de resolução abaixo já estão na forma em inglês.
+
 ## Decisão
 
 - **Linguagem para o usuário final.** Os textos de ajuda dizem o que o comando e a opção fazem, sem detalhes de implementação. Exemplos do que não aparece: nome do protocolo de autenticação, endereço de retorno local, nome do arquivo de credenciais, "gateway", "módulo".
-- **Comando.** Descrição curta (o que faz) seguida da linha `Ordem de resolução: parâmetro → variável de ambiente → arquivo de configuração (config.toml) → padrão`. No `sk init` o arquivo não entra na ordem, porque o comando não lê o arquivo que cria. Os subcomandos de `sk config` operam só no arquivo: não têm ordem de resolução, e os argumentos posicionais (chave e valor) não seguem o formato de opção.
+- **Comando.** Descrição curta (o que faz) seguida da linha `Resolution order: parameter → environment variable → configuration file (config.toml) → default`. No `sk init` o arquivo não entra na ordem, porque o comando não lê o arquivo que cria. Os subcomandos de `sk config` operam só no arquivo: não têm ordem de resolução, e os argumentos posicionais (chave e valor) não seguem o formato de opção.
 - **Opção.** `<descrição> [Tipo] [fontes] [situação]`, em que:
-  - **Tipo:** `[String]` ou `[Booleano]` (flags). O Typer não mostra o tipo das flags.
-  - **Fontes:** `[env VARIÁVEL | arquivo [seção] chave | padrão VALOR]`, na ordem de resolução, **somente as que existem**. Sem nenhuma (valor só por parâmetro), o bloco é omitido.
-  - **Situação:** `[obrigatório]` ou `[opcional]`, derivada do padrão: sem padrão, é obrigatória; com padrão, é opcional. Não há campo separado, para não existir "obrigatório com padrão".
-- **Cores** (só em terminal interativo): tipo em ciano, fontes em amarelo, `[obrigatório]` em vermelho e `[opcional]` em magenta.
-- **Obrigatoriedade validada pelo comando.** As opções obrigatórias sem fonte alternativa (`sk register --name`, `--surname`, `--email`) não são `required` no Typer: o comando as exige e encerra com código 2 e a mensagem "Opção obrigatória ausente". Motivo: o Typer imprime um `[required]` extra que não pode ser ocultado.
+  - **Tipo:** `[String]`, `[Integer]` ou `[Boolean]` (flags). O Typer não mostra o tipo das flags.
+  - **Fontes:** `[env VARIABLE | file [section] key | default VALUE]`, na ordem de resolução, **somente as que existem**. Sem nenhuma (valor só por parâmetro), o bloco é omitido.
+  - **Situação:** `[required]` ou `[optional]`, derivada do padrão: sem padrão, é obrigatória; com padrão, é opcional. Não há campo separado, para não existir "required com default".
+- **Cores** (só em terminal interativo): tipo em ciano, fontes em amarelo, `[required]` em vermelho e `[optional]` em magenta.
+- **Obrigatoriedade validada pelo comando.** As opções obrigatórias sem fonte alternativa (`sk register --name`, `--surname`, `--email`) não são `required` no Typer: o comando as exige e encerra com código 2 e a mensagem "Missing required option". Motivo: o Typer imprime um `[required]` extra que não pode ser ocultado.
 - **Implementação:** `sk/help.py` (`command()` e `option()`) é o único lugar que monta esses textos. O markup do Rich exige escapar os colchetes, inclusive os do próprio formato.
 - **Testes:** `tests/unit/test_help.py` verifica o formato de todas as opções e a ordem das fontes, o tipo booleano das flags, as obrigatórias, o `init` sem a fonte de arquivo e a validação de obrigatórios.
 

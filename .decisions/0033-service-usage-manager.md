@@ -35,5 +35,5 @@ O cadastro de usuário não concede mais as roles de `ipm.organization.*` (decis
 ## Consequências
 
 - O Executor do User nunca concede `ipm.*`: as roles de serviço saem do Executor do SUM.
-- Ligar um serviço vira um fluxo de duas etapas (o Manager decide, o Executor do SUM concede). O usuário vê a ligação `Ready` quando as roles aparecem no token, e a CLI renova o token depois de ligar ou desligar.
+- Ligar um serviço vira um fluxo de duas etapas (o Manager decide, o Executor do SUM concede). O usuário vê a ligação `Ready` quando as roles aparecem no token, e a CLI renova o token depois de ligar ou desligar (`--wait`, ou `sk auth refresh`).
 - Pendentes: os contratos de `requested-*`, o Executor do SUM, o Receiver e o restante da feature, a infraestrutura, a renovação automática na CLI e a estratégia de apagar os recursos do serviço.

@@ -8,6 +8,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [Unreleased]
 
 ### Added
+- `sk sum service enable|disable --wait [--timeout]`: espera o serviço convergir (fase `Ready` e Operation `completed`) e renova a sessão, para o token refletir as roles do serviço (ou a perda delas). `sk auth refresh` renova a sessão sob demanda. A seção `[ipm]` ganhou `projectId`, e o login pede a audience de `roles-ipm`: sem ela, as roles `ipm.*` nunca chegariam ao token.
 - `sk`: a seção `[core]` ganhou `projectId` (ID do projeto de roles do core), ao lado de `[sum] projectId`. O login passa a pedir a audience de cada módulo configurado (`SK_CORE_PROJECT_ID` e `SK_SUM_PROJECT_ID`), e `sk config` conhece as duas chaves.
 - `sk sum service enable|disable|get|list`: liga, desliga e consulta os serviços do solicitante no Service Usage Manager. Com `[sum] projectId` configurado, `sk auth login` pede o audience do SUM. O access token é renovado pelo refresh token quando está para vencer, sem novo login.
 - Service Usage Manager (`features/sum/service`, decisão 0033): ligação de um serviço por usuário, com a API `/v1/sum/services`, os seis componentes do loop (Receiver, Manager, Publisher, Reconciler, Observer e Executor) e testes e2e, incluindo os de falha de componente.
@@ -45,6 +46,8 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Licença Apache-2.0 (`LICENSE`).
 
 ### Changed
+- `sk`: toda a saída para o usuário (ajuda, mensagens, títulos, avisos, erros, dicas e a página de retorno do login) passa a ser em inglês, e a data de validade da sessão sai como `AAAA-MM-DD HH:MM` (24 h). Quem lia a saída em script e dependia do texto em português precisa ajustar; os códigos de saída e os campos não mudaram (decisão 0035).
+- `sk sum service`: o vocabulário passa a ser "serviço habilitado/desabilitado" (antes "ligação"), e a listagem usa o mesmo painel das demais saídas. `sk`: os nomes dos campos e os valores de estado das saídas passam a sair em inglês (`resourceId`, `service`, `state` com `enabled`/`disabled`, `phase`, `observedRoles`, `expiresAt`...); só a ajuda e as mensagens continuam em português.
 - A aplicação `cli` do Zitadel passa a viver no projeto `clients`, sem roles (decisão 0034): no login interativo, o Zitadel só põe no token as roles do projeto da aplicação, e com a `cli` dentro de um projeto de roles o token não valia nos outros módulos. O client ID da `cli` muda; quem usa a CLI roda `sk config set auth.clientId <novo>` e grava `core.projectId` e `sum.projectId`. A pasta `components/` virou `clients/`.
 - O cadastro de usuário passa a conceder as roles base do SUM (`sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`), que permitem pedir a ligação de um serviço, junto com `core.user.delete` e `core.user.get` (decisão 0033). A migração `0005` do `core.user` as acrescenta ao `desired` das linhas existentes; o que já foi publicado não é reemitido, então usuários anteriores devem ser recriados.
 - `sk sum service`: todos os subcomandos aceitam `--api-url` e `--allow-insecure-http`, como o `sk register`. `disable` de uma ligação já desligada deixa de falhar: avisa que não há nada a fazer e sai com `0`.

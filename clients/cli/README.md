@@ -29,7 +29,7 @@ uv run sk config get core.apiUrl                   # só o valor, para uso em sc
 uv run sk config set core.apiUrl https://api.smarkee.com.br
 ```
 
-Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `core.apiUrl`, `core.allowInsecureHttp`, `core.projectId` e `sum.projectId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro: comentários feitos à mão não são preservados.
+Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `core.apiUrl`, `core.allowInsecureHttp`, `core.projectId`, `sum.projectId` e `ipm.projectId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro: comentários feitos à mão não são preservados.
 
 O `init` grava os padrões de produção: `https://ipm.smarkee.com.br` para o provedor e `https://api.smarkee.com.br` para a API. O client ID de produção ainda não existe: o `init` grava o marcador `pendente-prd` e avisa, e o valor definitivo é pendente (`.decisions/0023-sk-init-e-sk-config.md`). Para desenvolvimento, aponte para os endereços do dev e permita HTTP:
 
@@ -74,9 +74,17 @@ O login é da plataforma, e não de um módulo. O `sk` autentica o usuário dire
 | `--client-id` | `SK_AUTH_CLIENT_ID` | `clientId` | Client ID da aplicação nativa do `sk` no provedor |
 | `--allow-insecure-http` | `SK_AUTH_ALLOW_INSECURE_HTTP=true` | `allowInsecureHttp = true` | Aceita issuer `http`. Somente em desenvolvimento |
 
-A aplicação do `sk` mora no projeto `clients` (sem roles), e não num projeto de roles: o token só vale no Receiver de um módulo se o login pedir a audience do projeto de roles dele. Com `[core] projectId` e `[sum] projectId` configurados (ou `SK_CORE_PROJECT_ID` e `SK_SUM_PROJECT_ID`), o login pede a audience de `roles-core` e de `roles-sum`, com as roles no token: sem a chave de um módulo, o Receiver dele recusa o token. Sem a chave, o login é o de sempre.
+A aplicação do `sk` mora no projeto `clients` (sem roles), e não num projeto de roles: o token só vale no Receiver de um módulo se o login pedir a audience do projeto de roles dele. Com `[core] projectId`, `[sum] projectId` e `[ipm] projectId` configurados (ou `SK_CORE_PROJECT_ID`, `SK_SUM_PROJECT_ID` e `SK_IPM_PROJECT_ID`), o login pede a audience de `roles-core`, `roles-sum` e `roles-ipm`, com as roles no token: sem a chave de um módulo, o Receiver dele recusa o token. Sem a chave, o login é o de sempre.
 
 Códigos de saída: `0` sucesso; `1` falha no login ou na gravação, ou cancelamento (Ctrl+C); `2` uso incorreto (issuer ou client ID ausente, configuração inválida).
+
+### `sk auth refresh`
+
+```bash
+uv run sk auth refresh [--allow-insecure-http]
+```
+
+Renova a sessão agora, pelo refresh token, mesmo com o acesso ainda válido. O token só traz as roles que existiam quando foi emitido: depois de ligar ou desligar um serviço, renovar faz o token refletir as roles novas. `sk sum service enable|disable --wait` já faz isso. Sem sessão ou sem refresh token, sai com `1` e aponta `sk auth login`.
 
 ### `sk auth whoami`
 
@@ -118,9 +126,9 @@ O access token tem validade curta (decisão 0033). Quando está para vencer, o `
 ## Serviços do SUM (`sk sum service`)
 
 ```bash
-uv run sk sum service enable --service ipm
+uv run sk sum service enable --service ipm [--wait] [--timeout SEGUNDOS]
 uv run sk sum service get --resource-id ID [--operation-id OPERACAO]
-uv run sk sum service disable --resource-id ID
+uv run sk sum service disable --resource-id ID [--wait] [--timeout SEGUNDOS]
 uv run sk sum service list
 ```
 
@@ -128,14 +136,14 @@ Todos aceitam `--api-url` e `--allow-insecure-http` (parâmetro → `SK_CORE_*` 
 
 | Comando | Requisição | Resultado |
 |---|---|---|
-| `enable --service NOME` | `POST /v1/sum/services`, com `Idempotency-Key` gerada por pedido | `202`: o `resourceId` e o `operationId` |
-| `disable --resource-id ID` | `GET` da ligação (para ler a `resourceVersion`), depois `DELETE`; se já está desligada, não faz nada | `202`: o `operationId` (ou "nada a fazer", saída `0`) |
-| `get --resource-id ID` | `GET` da ligação (e da Operation, se `--operation-id`) | Situação (`ligado` / `desligado`), fase e roles observadas |
-| `list` | `GET /v1/sum/services` | Uma linha por ligação do solicitante |
+| `enable --service NOME` | `POST /v1/sum/services`, com `Idempotency-Key` gerada por pedido | `202`: o `resourceId` e o `operationId`; com `--wait`, espera `Ready` e renova a sessão |
+| `disable --resource-id ID` | `GET` do serviço (para ler a `resourceVersion`), depois `DELETE`; se já está desabilitado, não faz nada | `202`: o `operationId` (ou "nada a fazer", saída `0`); com `--wait`, espera `Ready` e renova a sessão |
+| `get --resource-id ID` | `GET` do serviço (e da Operation, se `--operation-id`) | `state` (`enabled` / `disabled`), `phase` e `observedRoles` |
+| `list` | `GET /v1/sum/services` | Uma linha por serviço do solicitante (habilitado ou desabilitado) |
 
-Ligar e desligar são assíncronos: o comando confirma o aceite, e `get` mostra quando a fase chega a `Ready`. Usa a API de `[core] apiUrl` e o token da sessão. Precisa de um solicitante com as roles `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`.
+Habilitar e desabilitar são assíncronos: o comando confirma o aceite, e `get` mostra quando a fase chega a `Ready`. **O token só traz as roles que existiam quando foi emitido**: as do serviço (`ipm.*`) chegam depois do aceite e saem ao desligar. Por isso `--wait` espera a convergência (`Ready` e Operation `completed`, até `--timeout`, 60 s por padrão) e **renova a sessão** pelo refresh token, e o token já reflete o novo estado. Sem `--wait`, rode `sk auth refresh` quando a fase for `Ready`. Se a renovação falhar (por exemplo, sem refresh token), o comando avisa e sai com `0`, porque o pedido já valeu. Os nomes dos campos e os valores de estado saem em inglês (`resourceId`, `state`, `phase`); só as mensagens e a ajuda são em português. Usa a API de `[core] apiUrl` e o token da sessão. Precisa de um solicitante com as roles `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`.
 
-Códigos de saída: `0` sucesso; `1` sessão ausente, API recusou ou indisponível; `2` opção obrigatória ausente, identificador fora do contrato, endereço sem HTTPS ou configuração inválida.
+Códigos de saída: `0` sucesso; `1` sessão ausente, API recusou ou indisponível, ou `--wait` sem convergir (Operation recusada ou tempo esgotado); `2` opção obrigatória ausente, identificador fora do contrato, endereço sem HTTPS ou configuração inválida.
 
 ## Cadastro (`sk register`)
 
@@ -172,11 +180,13 @@ Os comandos mostram sucesso em painel e erro com causa e dica de correção. Cor
 A ajuda (`--help`) segue um padrão único, montado por `src/sk/help.py` e verificado em `tests/unit/test_help.py` (`.decisions/0022-padrao-dos-textos-de-ajuda-da-cli.md`). Cada opção aparece como:
 
 ```text
---api-url  Endereço da API da plataforma. [String] [env SK_CORE_API_URL | arquivo [core] apiUrl] [obrigatório]
+--api-url  Platform API address. [String] [env SK_CORE_API_URL | file [core] apiUrl] [required]
 ```
 
-- `[String]` ou `[Booleano]`: o tipo do valor.
-- `[env … | arquivo … | padrão …]`: de onde o valor pode vir, na ordem de resolução (parâmetro, variável de ambiente, arquivo de configuração, padrão). Só aparecem as fontes que existem.
-- `[obrigatório]` (vermelho) ou `[opcional]`: sem padrão, a opção é obrigatória.
+- `[String]`, `[Integer]` ou `[Boolean]`: o tipo do valor.
+- `[env … | file … | default …]`: de onde o valor pode vir, na ordem de resolução (parâmetro, variável de ambiente, arquivo de configuração, padrão). Só aparecem as fontes que existem.
+- `[required]` (vermelho) ou `[optional]`: sem padrão, a opção é obrigatória.
 
 Os textos descrevem o que o comando faz, sem detalhes de implementação. Novos comandos usam `command()` e `option()`.
+
+**Idioma:** tudo o que a CLI mostra ao usuário (ajuda, mensagens, títulos, avisos, erros, dicas e a página de retorno do login) é em **inglês** (decisão 0035); este README, os comentários e as docstrings continuam em português. A data de validade da sessão sai como `AAAA-MM-DD HH:MM` (24 h).

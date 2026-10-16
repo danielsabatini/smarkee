@@ -534,7 +534,9 @@ Devem ser obrigatoriamente escritos em inglês:
 Neste momento do projeto, devem ser redigidos obrigatoriamente em `pt-BR`:
 * **Comentários**: Linhas explicativas internas no código que detalham intenção, complexidade de negócio ou advertências.
 * **Docstrings**: Documentação de cabeçalho de módulos, classes e funções que descrevem contratos e comportamentos.
-* **Textos de Ajuda (*Help* / Descrições)**: Textos de ajuda expostos ao usuário via CLI (`--help`, descriptions de opções e argumentos) e documentações descritivas de interfaces.
+* **Textos de Ajuda (*Help* / Descrições)**: Textos de ajuda e descrições expostos ao usuário e documentações descritivas de interfaces.
+
+**Exceção — CLI `sk`:** tudo o que a CLI mostra ao usuário (ajuda, mensagens, títulos, avisos, erros, dicas, página de retorno do login) é em **inglês** (decisão `0035`). Comentários, docstrings e documentos da CLI continuam em `pt-BR`.
 
 ---
 

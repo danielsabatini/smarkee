@@ -192,6 +192,7 @@ uv run sk init --force --issuer http://ipm-dev.smarkee.com.br:8080 \
   --client-id <client-id-da-aplicação-cli> --allow-insecure-http   # dev não tem TLS
 uv run sk config set core.projectId <ID-do-projeto-roles-core>
 uv run sk config set sum.projectId <ID-do-projeto-roles-sum>
+uv run sk config set ipm.projectId <ID-do-projeto-roles-ipm>
 uv run sk auth login
 ```
 
