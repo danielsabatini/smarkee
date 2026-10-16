@@ -14,11 +14,15 @@ aceita; com outro corpo, `422`.
 """
 
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from http import HTTPStatus
 from typing import Annotated, Any, Protocol
 
 from fastapi import Depends, FastAPI, Header, Query, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 from sum_service_receiver.auth.tokens import TokenVerifier
@@ -49,6 +53,8 @@ from sum_service_receiver.domain.requests import (
 from sum_service_receiver.http.health import Health
 from sum_service_receiver.ids import new_identifier, utc_now
 
+logger = logging.getLogger(__name__)
+
 MODULE = "sum"
 RESOURCE_TYPE = "service"
 SCHEMA_VERSION = "1.0"
@@ -78,8 +84,57 @@ class Dependencies:
     now: Callable[[], Any] = utc_now
 
 
+_ERROR_DESCRIPTIONS = {
+    400: "Entrada inválida (`ValidationFailed`).",
+    401: "Token ausente ou inválido (`Unauthorized`).",
+    403: "O solicitante não tem a role da ação (`Forbidden`).",
+    404: "Recurso inexistente ou de outro dono (`NotFound`).",
+    409: "Conflito: serviço já ligado, ou versão desatualizada (`Conflict`).",
+    422: "A chave de idempotência já foi usada com outro pedido (`IdempotencyKeyReused`).",
+    503: "O pedido não pôde ser registrado agora; repita depois do `Retry-After`.",
+}
+
+
+def _errors(*statuses: int) -> dict[int | str, dict[str, Any]]:
+    """Respostas de erro documentadas de uma rota, todas no formato do contrato `ApiError`."""
+    return {
+        status: {"model": generated.ApiError, "description": _ERROR_DESCRIPTIONS[status]}
+        for status in statuses
+    }
+
+
+def _install_openapi(app: FastAPI) -> None:
+    """OpenAPI sem a resposta `422` padrão do FastAPI: aqui a entrada inválida é `400`, e o `422`
+    é só o reuso da chave de idempotência (declarado nas rotas que a aceitam)."""
+
+    def openapi() -> dict[str, Any]:
+        if app.openapi_schema is None:
+            schema = get_openapi(title=app.title, version=app.version, routes=app.routes)
+            for operations in schema["paths"].values():
+                for operation in operations.values():
+                    default = operation["responses"].get("422")
+                    if default is not None and "HTTPValidationError" in json.dumps(default):
+                        del operation["responses"]["422"]
+            for name in ("HTTPValidationError", "ValidationError"):
+                schema.get("components", {}).get("schemas", {}).pop(name, None)
+            app.openapi_schema = schema
+        return app.openapi_schema
+
+    app.openapi = openapi
+
+
 def create_app(deps: Dependencies) -> FastAPI:
-    app = FastAPI(title="sum.service", version="1.0")
+    # Sem documentação interativa nem `/openapi.json` no processo: o contrato é o arquivo versionado
+    # `openapi.json` (superfície mínima, `AGENTS.md` §4).
+    app = FastAPI(
+        title="smarkee sum service api",
+        version="1.0",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
+
+    _install_openapi(app)
 
     @app.exception_handler(ApiError)
     async def _api_error(_request: Request, error: ApiError) -> JSONResponse:
@@ -87,6 +142,23 @@ def create_app(deps: Dependencies) -> FastAPI:
         if error.field is not None:
             body["field"] = error.field
         return JSONResponse(body, status_code=error.status.value, headers=error.headers)
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error(_request: Request, error: RequestValidationError) -> JSONResponse:
+        first = error.errors()[0]
+        # Só o caminho do campo e a regra violada: nunca o valor enviado (`SCHEMA.md` §20.5).
+        # Só nomes de campo: em JSON quebrado o `loc` traz a posição do erro, que não é um campo.
+        field = ".".join(part for part in first["loc"][1:] if isinstance(part, str)) or None
+        return await _api_error(
+            _request, bad_request(f"Campo inválido: {first['msg']}", field=field)
+        )
+
+    @app.exception_handler(Exception)
+    async def _unexpected_error(_request: Request, error: Exception) -> JSONResponse:
+        logger.error("unexpected error", extra={"error_type": type(error).__name__})
+        return await _api_error(
+            _request, ApiError(HTTPStatus.INTERNAL_SERVER_ERROR, "InternalError", "Erro interno.")
+        )
 
     async def authenticated(
         authorization: Annotated[str | None, Header()] = None,
@@ -151,15 +223,18 @@ def create_app(deps: Dependencies) -> FastAPI:
     async def startup() -> JSONResponse:
         return _probe(deps.health.startup())
 
-    @app.post("/v1/sum/services", status_code=202)
+    @app.post(
+        "/v1/sum/services",
+        status_code=202,
+        response_model=generated.ApiAcceptedResponse,
+        responses=_errors(400, 401, 403, 409, 422, 503),
+    )
     async def create_service(
         principal: Annotated[Principal, Depends(authenticated)],
+        body: generated.ServiceCreateRequest,
         idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
-        body: dict[str, Any] | None = None,
     ) -> JSONResponse:
-        if body is None or set(body) != {"service"}:
-            raise bad_request('o corpo deve ser {"service": "<nome>"}.')
-        service = validate_service(body["service"])
+        service = validate_service(body.service)
         _check_key(idempotency_key)
         digest = request_digest(
             {"operation": "create", "service": service, "owner": principal.subject}
@@ -185,7 +260,12 @@ def create_app(deps: Dependencies) -> FastAPI:
             ),
         )
 
-    @app.get("/v1/sum/services")
+    @app.get(
+        "/v1/sum/services",
+        response_model=generated.ServiceListResponse,
+        response_model_exclude_none=True,
+        responses=_errors(400, 401),
+    )
     async def list_services(
         principal: Annotated[Principal, Depends(authenticated)],
         limit: Annotated[int, Query(ge=1, le=MAX_LIST_LIMIT)] = 50,
@@ -199,7 +279,12 @@ def create_app(deps: Dependencies) -> FastAPI:
         items = [_view(row) for row in visible[:limit]]
         return {"items": items}
 
-    @app.get("/v1/sum/services/{resource_id}")
+    @app.get(
+        "/v1/sum/services/{resource_id}",
+        response_model=generated.ServiceResource,
+        response_model_exclude_none=True,
+        responses=_errors(400, 401, 403, 404),
+    )
     async def read_service(
         principal: Annotated[Principal, Depends(authenticated)], resource_id: str
     ) -> dict[str, Any]:
@@ -207,7 +292,12 @@ def create_app(deps: Dependencies) -> FastAPI:
         require(principal, service_role(_service(row), ACTION_GET))
         return _view(row)
 
-    @app.delete("/v1/sum/services/{resource_id}", status_code=202)
+    @app.delete(
+        "/v1/sum/services/{resource_id}",
+        status_code=202,
+        response_model=generated.ApiAcceptedResponse,
+        responses=_errors(400, 401, 403, 404, 409, 422, 503),
+    )
     async def delete_service(
         principal: Annotated[Principal, Depends(authenticated)],
         resource_id: str,
@@ -240,7 +330,12 @@ def create_app(deps: Dependencies) -> FastAPI:
             requested=lambda _op: (_subject(resource_id, "delete"), {"resourceVersion": version}),
         )
 
-    @app.get("/v1/sum/services/{resource_id}/operations/{operation_id}")
+    @app.get(
+        "/v1/sum/services/{resource_id}/operations/{operation_id}",
+        response_model=generated.Operation,
+        response_model_exclude_none=True,
+        responses=_errors(400, 401, 404),
+    )
     async def read_operation(
         principal: Annotated[Principal, Depends(authenticated)], resource_id: str, operation_id: str
     ) -> dict[str, Any]:
@@ -334,12 +429,17 @@ def _view(row: dict[str, Any]) -> dict[str, Any]:
 def _operation_view(row: dict[str, Any]) -> dict[str, Any]:
     document: dict[str, Any] = {
         "operationId": row["operation_id"],
-        "resourceId": str(row["resource_id"]),
         "operationType": row["operation_type"],
+        "module": MODULE,
+        "resourceType": RESOURCE_TYPE,
+        "resourceId": str(row["resource_id"]),
         "operationStatus": row["operation_status"],
         "createdAt": row["created_at"].isoformat(),
         "updatedAt": row["updated_at"].isoformat(),
     }
+    # Recusada não tem geração: o pedido não chegou a mudar o `desired`.
+    if row.get("desired_generation") is not None:
+        document["desiredGeneration"] = int(row["desired_generation"])
     if row.get("operation_status_reason") is not None:
         document["operationStatusReason"] = row["operation_status_reason"]
     if row.get("completed_at") is not None:

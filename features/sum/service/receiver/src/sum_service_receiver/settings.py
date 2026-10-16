@@ -43,7 +43,6 @@ class AuthSettings(_Section):
 class ApiSettings(_Section):
     host: str = "0.0.0.0"  # noqa: S104 (escuta dentro do contêiner; o acesso é pelo gateway)
     port: int = 8000
-    client_address_header: str | None = "x-forwarded-for"
 
 
 class SumServiceReceiverSettings(BaseSettings):

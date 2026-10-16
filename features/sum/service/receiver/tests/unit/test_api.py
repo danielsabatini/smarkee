@@ -312,3 +312,131 @@ async def test_the_health_probes_answer(world: Any) -> None:
     client, _, _ = world
     assert (await client.get("/health/live")).status_code == 200
     assert (await client.get("/health/ready")).status_code == 200
+
+
+# ---------------------------------------------------------------------- erros e superfície
+
+
+async def test_an_invalid_body_is_400_with_the_error_contract_and_never_echoes_the_value(
+    world: Any,
+) -> None:
+    client, _, publisher = world
+    response = await client.post(
+        "/v1/sum/services",
+        content=b'{"service": ',
+        headers={**token(OWNER, ENABLE_IPM), "Content-Type": "application/json"},
+    )
+    assert response.status_code == 400
+    body = response.json()
+    assert body["errorCode"] == "ValidationFailed" and "detail" not in body
+    assert "field" not in body  # JSON quebrado não tem campo: a posição do erro não é um campo
+    assert publisher.sent == []
+
+
+async def test_a_validation_error_does_not_repeat_the_sent_value(world: Any) -> None:
+    client, _, _ = world
+    response = await client.get(
+        "/v1/sum/services?limit=valor-secreto-123", headers=token(OWNER, GET_IPM)
+    )
+    assert response.status_code == 400
+    assert response.json()["field"] == "limit"
+    assert "valor-secreto-123" not in response.text
+
+
+async def test_an_unexpected_error_is_500_with_the_contract_and_no_internal_detail() -> None:
+    class BrokenRepository(FakeRepository):
+        async def links_of(self, owner_user_id: str) -> list[dict[str, Any]]:
+            raise RuntimeError("senha-interna-do-banco")
+
+    health = Health()
+    health.mark_started()
+    app = create_app(
+        Dependencies(FakeVerifier(), BrokenRepository(), FakePublisher(), health, lambda: NOW)  # type: ignore[arg-type]
+    )
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/v1/sum/services", headers=token(OWNER, GET_IPM))
+    assert response.status_code == 500
+    assert response.json() == {"errorCode": "InternalError", "message": "Erro interno."}
+    assert "senha-interna-do-banco" not in response.text
+
+
+@pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
+async def test_the_interactive_documentation_is_not_exposed(world: Any, path: str) -> None:
+    client, _, _ = world
+    assert (await client.get(path)).status_code == 404
+
+
+# ---------------------------------------------------------------------- corpos no contrato
+
+
+def operation_row(
+    resource_id: str, *, status: str = "accepted", generation: int | None = 2
+) -> dict[str, Any]:
+    rejected = status == "rejected"
+    return {
+        "operation_id": str(uuid.uuid7()),
+        "resource_id": resource_id,
+        "operation_type": "create",
+        "desired_generation": None if rejected else generation,
+        "operation_status": status,
+        "operation_status_reason": "conflict" if rejected else None,
+        "request_digest": "a" * 64,
+        "requested_by": OWNER,
+        "created_at": NOW,
+        "updated_at": NOW,
+        "completed_at": NOW if rejected else None,
+    }
+
+
+async def test_every_success_body_matches_the_contract(world: Any) -> None:
+    client, repository, _ = world
+    rid = str(uuid.uuid7())
+    repository.links[rid] = link_row(rid)
+    headers = token(OWNER, ENABLE_IPM, GET_IPM, DISABLE_IPM)
+    generated.ServiceResource.model_validate(
+        (await client.get(f"/v1/sum/services/{rid}", headers=headers)).json()
+    )
+    listed = await client.get("/v1/sum/services", headers=headers)
+    assert [item["resourceId"] for item in listed.json()["items"]] == [rid]
+    generated.ServiceListResponse.model_validate(listed.json())
+    created = await client.post(
+        "/v1/sum/services", json={"service": "ipm"}, headers=token(OTHER, ENABLE_IPM)
+    )
+    generated.ApiAcceptedResponse.model_validate(created.json())
+
+
+@pytest.mark.parametrize("status", ["accepted", "rejected"])
+async def test_the_operation_body_matches_the_contract(world: Any, status: str) -> None:
+    client, repository, _ = world
+    rid = str(uuid.uuid7())
+    row = operation_row(rid, status=status)
+    repository.operations[row["operation_id"]] = row
+    response = await client.get(
+        f"/v1/sum/services/{rid}/operations/{row['operation_id']}", headers=token(OWNER)
+    )
+    assert response.status_code == 200
+    operation = generated.Operation.model_validate(response.json())
+    assert (operation.module, operation.resource_type) == ("sum", "service")
+    assert ("desiredGeneration" in response.json()) == (status != "rejected")
+
+
+async def test_every_error_body_matches_the_contract(world: Any) -> None:
+    client, repository, _ = world
+    rid = str(uuid.uuid7())
+    repository.links[rid] = link_row(rid)
+    cases = [
+        (401, await client.get("/v1/sum/services")),
+        (403, await client.post("/v1/sum/services", json={"service": "ipm"}, headers=token(OTHER))),
+        (404, await client.get(f"/v1/sum/services/{uuid.uuid7()}", headers=token(OWNER, GET_IPM))),
+        (
+            409,
+            await client.post(
+                "/v1/sum/services", json={"service": "ipm"}, headers=token(OWNER, ENABLE_IPM)
+            ),
+        ),
+        (400, await client.post("/v1/sum/services", json={}, headers=token(OWNER, ENABLE_IPM))),
+    ]
+    for status, response in cases:
+        assert response.status_code == status, response.text
+        generated.ApiError.model_validate(response.json())
