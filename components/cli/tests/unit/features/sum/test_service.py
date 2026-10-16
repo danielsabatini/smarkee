@@ -2,6 +2,7 @@
 
 import json
 import urllib.request
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -67,20 +68,51 @@ def request_of(sent: Sent) -> urllib.request.Request:
 # ---------------------------------------------------------------------- identificadores
 
 
-@pytest.mark.parametrize("value", [RID, RID.upper()])
-def test_a_uuid_is_accepted_and_returned_in_canonical_form(value: str) -> None:
-    assert service.validate_identifier(value, what="resourceId") == RID
+@pytest.mark.parametrize(
+    "value", [RID, OPID, "a", "ab", "0", "abc-123", "r1", "a" * 128, "9f2d-5e8a"]
+)
+def test_an_identifier_that_follows_the_contract_is_accepted_as_it_is(value: str) -> None:
+    assert service.validate_identifier(value, what="resourceId") == value
 
 
 @pytest.mark.parametrize(
-    "value", ["", " ", "abc", "../../admin", "a/b", f"{RID}?x=1", f"{RID}#", "{" + RID + "}"]
+    "value",
+    [
+        "",
+        " ",
+        "-a",
+        "a-",
+        "-",
+        "A",
+        RID.upper(),
+        "a" * 129,
+        "../../admin",
+        "..",
+        ".",
+        "a/b",
+        "a%2Fb",
+        "a_b",
+        "a.b",
+        f"{RID}?x=1",
+        f"{RID}#",
+        f"{RID}\n",
+        "{" + RID + "}",
+        "ç",
+    ],
 )
-def test_a_value_that_is_not_a_canonical_uuid_is_refused_without_being_repeated(
+def test_an_identifier_outside_the_contract_is_refused_without_being_repeated(
     value: str,
 ) -> None:
     with pytest.raises(ValueError, match="resourceId inválido") as caught:
         service.validate_identifier(value, what="resourceId")
     assert value.strip() == "" or value not in str(caught.value)
+
+
+def test_the_pattern_is_the_one_of_the_published_contract() -> None:
+    schema = Path(__file__).parents[6] / "schemas" / "common" / "definitions.v1.schema.json"
+    defs = json.loads(schema.read_text(encoding="utf-8"))["$defs"]
+    assert service.OPAQUE_IDENTIFIER_PATTERN.pattern == defs["resourceId"]["pattern"]
+    assert service.OPAQUE_IDENTIFIER_PATTERN.pattern == defs["opaqueIdentifier"]["pattern"]
 
 
 def test_every_call_that_puts_an_identifier_in_the_path_refuses_a_bad_one(

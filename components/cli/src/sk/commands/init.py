@@ -11,9 +11,9 @@ import typer
 from pydantic import ValidationError
 
 from sk import ui
-from sk.defaults import CLIENT_ID_PROVISORIO, PRD_API_URL, PRD_ISSUER
+from sk.defaults import PRD_API_URL, PRD_ISSUER, PROVISIONAL_CLIENT_ID
 from sk.files import write_private_file
-from sk.help import ORDEM_SEM_ARQUIVO, comando, opcao
+from sk.help import ORDER_WITHOUT_FILE, command, option
 from sk.identity.oidc import OidcError, ensure_secure_url
 from sk.settings import (
     AuthSettings,
@@ -27,50 +27,50 @@ from sk.settings import (
 EXIT_FAILURE = 1
 EXIT_USAGE_ERROR = 2
 
-AJUDA_INIT = comando(
+INIT_HELP = command(
     "Cria o arquivo de configuração da plataforma, com os endereços de produção. "
     "Não sobrescreve um arquivo existente sem --force.",
-    ordem=ORDEM_SEM_ARQUIVO,
+    order=ORDER_WITHOUT_FILE,
 )
 
 
-def _ajuda_issuer() -> str:
-    return opcao(
+def _help_issuer() -> str:
+    return option(
         "Endereço do provedor de login.",
-        tipo="String",
-        variavel="SK_AUTH_ISSUER",
-        arquivo=None,
-        padrao=PRD_ISSUER,
+        kind="String",
+        variable="SK_AUTH_ISSUER",
+        file=None,
+        default=PRD_ISSUER,
     )
 
 
-def _ajuda_client_id() -> str:
-    return opcao(
+def _help_client_id() -> str:
+    return option(
         "Identificador do sk no provedor de login. Provisório até o ambiente de produção existir.",
-        tipo="String",
-        variavel="SK_AUTH_CLIENT_ID",
-        arquivo=None,
-        padrao=CLIENT_ID_PROVISORIO,
+        kind="String",
+        variable="SK_AUTH_CLIENT_ID",
+        file=None,
+        default=PROVISIONAL_CLIENT_ID,
     )
 
 
-def _ajuda_api_url() -> str:
-    return opcao(
+def _help_api_url() -> str:
+    return option(
         "Endereço da API da plataforma.",
-        tipo="String",
-        variavel="SK_CORE_API_URL",
-        arquivo=None,
-        padrao=PRD_API_URL,
+        kind="String",
+        variable="SK_CORE_API_URL",
+        file=None,
+        default=PRD_API_URL,
     )
 
 
-def _ajuda_allow_insecure_http() -> str:
-    return opcao(
+def _help_allow_insecure_http() -> str:
+    return option(
         "Permite endereço sem HTTPS. Somente para desenvolvimento.",
-        tipo="Booleano",
-        variavel="SK_AUTH_ALLOW_INSECURE_HTTP=true",
-        arquivo=None,
-        padrao="desativado",
+        kind="Booleano",
+        variable="SK_AUTH_ALLOW_INSECURE_HTTP=true",
+        file=None,
+        default="desativado",
     )
 
 
@@ -80,23 +80,23 @@ def _exit_on_configuration_error(error: Exception) -> NoReturn:
 
 
 def init_command(
-    issuer: Annotated[str | None, typer.Option(help=_ajuda_issuer())] = None,
-    client_id: Annotated[str | None, typer.Option(help=_ajuda_client_id())] = None,
-    api_url: Annotated[str | None, typer.Option(help=_ajuda_api_url())] = None,
+    issuer: Annotated[str | None, typer.Option(help=_help_issuer())] = None,
+    client_id: Annotated[str | None, typer.Option(help=_help_client_id())] = None,
+    api_url: Annotated[str | None, typer.Option(help=_help_api_url())] = None,
     allow_insecure_http: Annotated[
         bool,
-        typer.Option("--allow-insecure-http", help=_ajuda_allow_insecure_http()),
+        typer.Option("--allow-insecure-http", help=_help_allow_insecure_http()),
     ] = False,
     force: Annotated[
         bool,
         typer.Option(
             "--force",
-            help=opcao(
+            help=option(
                 "Sobrescreve a configuração existente.",
-                tipo="Booleano",
-                variavel=None,
-                arquivo=None,
-                padrao="desativado",
+                kind="Booleano",
+                variable=None,
+                file=None,
+                default="desativado",
             ),
         ),
     ] = False,
@@ -123,7 +123,7 @@ def init_command(
 
     auth = AuthSettings(
         issuer=settings.auth.issuer or PRD_ISSUER,
-        client_id=settings.auth.client_id or CLIENT_ID_PROVISORIO,
+        client_id=settings.auth.client_id or PROVISIONAL_CLIENT_ID,
         allow_insecure_http=settings.auth.allow_insecure_http,
     )
     core = CoreSettings(
@@ -158,7 +158,7 @@ def init_command(
             ("Client ID", auth.client_id or ""),
         ],
     )
-    if auth.client_id == CLIENT_ID_PROVISORIO:
+    if auth.client_id == PROVISIONAL_CLIENT_ID:
         ui.warning(
             "O client ID de produção ainda não foi definido: o login de produção não funciona "
             "até ele ser informado com --client-id ou `sk config set auth.clientId`."

@@ -10,6 +10,8 @@ from typing import Annotated, NoReturn
 
 import typer
 from pydantic import ValidationError
+
+from sk import ui
 from sk.features.sum.service import (
     OperationStatus,
     ServiceLink,
@@ -20,9 +22,7 @@ from sk.features.sum.service import (
     list_services,
     validate_identifier,
 )
-
-from sk import ui
-from sk.help import comando, opcao
+from sk.help import command, option
 from sk.http import ApiError, ApiRejectedError, ApiUnavailableError
 from sk.identity.credentials import default_credentials_path
 from sk.identity.oidc import OidcError
@@ -33,12 +33,12 @@ ApiUrlOption = Annotated[
     str | None,
     typer.Option(
         "--api-url",
-        help=opcao(
+        help=option(
             "Endereço da API da plataforma.",
-            tipo="String",
-            variavel="SK_CORE_API_URL",
-            arquivo="[core] apiUrl",
-            padrao="nenhum",
+            kind="String",
+            variable="SK_CORE_API_URL",
+            file="[core] apiUrl",
+            default="nenhum",
         ),
     ),
 ]
@@ -46,12 +46,12 @@ AllowInsecureHttpOption = Annotated[
     bool,
     typer.Option(
         "--allow-insecure-http",
-        help=opcao(
+        help=option(
             "Permite endereço sem HTTPS. Somente para desenvolvimento.",
-            tipo="Booleano",
-            variavel="SK_CORE_ALLOW_INSECURE_HTTP=true",
-            arquivo="[core] allowInsecureHttp = true",
-            padrao="desativado",
+            kind="Booleano",
+            variable="SK_CORE_ALLOW_INSECURE_HTTP=true",
+            file="[core] allowInsecureHttp = true",
+            default="desativado",
         ),
     ),
 ]
@@ -59,18 +59,18 @@ AllowInsecureHttpOption = Annotated[
 EXIT_FAILURE = 1
 EXIT_USAGE_ERROR = 2
 
-AJUDA_SUM = comando("Serviços do Service Usage Manager (SUM).")
-AJUDA_SERVICE = comando("Liga, desliga e consulta os serviços do solicitante.")
+SUM_HELP = command("Serviços do Service Usage Manager (SUM).")
+SERVICE_HELP = command("Liga, desliga e consulta os serviços do solicitante.")
 
 sum_app = typer.Typer(
-    help=AJUDA_SUM,
+    help=SUM_HELP,
     no_args_is_help=True,
     # Ajuda colorida pelo Rich. Colchetes literais nos textos são escapados com "\\[".
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
 )
 service_app = typer.Typer(
-    help=AJUDA_SERVICE,
+    help=SERVICE_HELP,
     no_args_is_help=True,
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
@@ -78,23 +78,23 @@ service_app = typer.Typer(
 sum_app.add_typer(service_app, name="service")
 
 
-def _exige(valor: str | None, nome_opcao: str) -> str:
-    if valor is None:
+def _require(value: str | None, option_name: str) -> str:
+    if value is None:
         ui.error(
             "Opção obrigatória ausente",
-            f"Informe {nome_opcao}.",
-            hint=f"Repita o comando com {nome_opcao} VALOR.",
+            f"Informe {option_name}.",
+            hint=f"Repita o comando com {option_name} VALOR.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
-    return valor
+    return value
 
 
-def _identifier(valor: str | None, nome_opcao: str, *, what: str) -> str:
-    """Opção obrigatória que é um UUID: recusada antes de qualquer chamada de rede."""
+def _identifier(value: str | None, option_name: str, *, what: str) -> str:
+    """Opção obrigatória que é um identificador do contrato, recusada antes da chamada de rede."""
     try:
-        return validate_identifier(_exige(valor, nome_opcao), what=what)
+        return validate_identifier(_require(value, option_name), what=what)
     except ValueError as error:
-        ui.error("Dados não aceitos", str(error), hint=f"Corrija {nome_opcao} e repita.")
+        ui.error("Dados não aceitos", str(error), hint=f"Corrija {option_name} e repita.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 
 
@@ -185,19 +185,19 @@ def _operation_rows(operation: OperationStatus) -> list[tuple[str, str]]:
 
 @service_app.command(
     "enable",
-    help=comando("Liga um serviço para o solicitante. Acompanhe com `sk sum service get`."),
+    help=command("Liga um serviço para o solicitante. Acompanhe com `sk sum service get`."),
 )
 def enable_command(
     service: Annotated[
         str | None,
         typer.Option(
             "--service",
-            help=opcao(
+            help=option(
                 "Nome do serviço, como no catálogo (por exemplo, ipm).",
-                tipo="String",
-                variavel=None,
-                arquivo=None,
-                padrao="nenhum",
+                kind="String",
+                variable=None,
+                file=None,
+                default="nenhum",
             ),
         ),
     ] = None,
@@ -205,7 +205,7 @@ def enable_command(
     allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
     # Obrigatória por validação do próprio comando (não pelo Typer), para não exibir "[required]".
-    service = _exige(service, "--service")
+    service = _require(service, "--service")
     url, insecure = _load_core(api_url, allow_insecure_http)
     token = _token(insecure)
     try:
@@ -233,19 +233,19 @@ def enable_command(
 
 @service_app.command(
     "disable",
-    help=comando("Desliga uma ligação do solicitante, lendo a versão atual antes de pedir."),
+    help=command("Desliga uma ligação do solicitante, lendo a versão atual antes de pedir."),
 )
 def disable_command(
     resource_id: Annotated[
         str | None,
         typer.Option(
             "--resource-id",
-            help=opcao(
-                "resourceId da ligação, um UUID (retornado por `enable` ou `list`).",
-                tipo="String",
-                variavel=None,
-                arquivo=None,
-                padrao="nenhum",
+            help=option(
+                "resourceId da ligação (retornado por `enable` ou `list`).",
+                kind="String",
+                variable=None,
+                file=None,
+                default="nenhum",
             ),
         ),
     ] = None,
@@ -287,19 +287,19 @@ def disable_command(
 
 @service_app.command(
     "get",
-    help=comando("Mostra o estado de uma ligação e, se informado, de uma Operation."),
+    help=command("Mostra o estado de uma ligação e, se informado, de uma Operation."),
 )
 def get_command(
     resource_id: Annotated[
         str | None,
         typer.Option(
             "--resource-id",
-            help=opcao(
-                "resourceId da ligação, um UUID.",
-                tipo="String",
-                variavel=None,
-                arquivo=None,
-                padrao="nenhum",
+            help=option(
+                "resourceId da ligação.",
+                kind="String",
+                variable=None,
+                file=None,
+                default="nenhum",
             ),
         ),
     ] = None,
@@ -307,12 +307,12 @@ def get_command(
         str | None,
         typer.Option(
             "--operation-id",
-            help=opcao(
-                "operationId de um pedido, um UUID (retornado por `enable` ou `disable`).",
-                tipo="String",
-                variavel=None,
-                arquivo=None,
-                padrao="sem consulta à Operation",
+            help=option(
+                "operationId de um pedido (retornado por `enable` ou `disable`).",
+                kind="String",
+                variable=None,
+                file=None,
+                default="sem consulta à Operation",
             ),
         ),
     ] = None,
@@ -356,7 +356,7 @@ def get_command(
     ui.panel("Ligação", rows)
 
 
-@service_app.command("list", help=comando("Lista as ligações do solicitante."))
+@service_app.command("list", help=command("Lista as ligações do solicitante."))
 def list_command(
     api_url: ApiUrlOption = None,
     allow_insecure_http: AllowInsecureHttpOption = False,

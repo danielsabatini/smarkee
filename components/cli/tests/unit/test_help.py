@@ -15,8 +15,8 @@ from sk.main import app
 runner = CliRunner()
 IGNORED = {"help", "install_completion", "show_completion"}
 # Os subcomandos de `sk config` operam só no arquivo: não há ordem de resolução a explicar.
-SEM_ORDEM_DE_RESOLUCAO = {"config list", "config get", "config set"}
-FORMATO_OPCAO = re.compile(r"\[(String|Booleano)\](?: \[(.+)\])? \[(obrigatório|opcional)\]$")
+WITHOUT_RESOLUTION_ORDER = {"config list", "config get", "config set"}
+OPTION_FORMAT = re.compile(r"\[(String|Booleano)\](?: \[(.+)\])? \[(obrigatório|opcional)\]$")
 
 
 def _commands() -> list[tuple[str, Any]]:
@@ -40,14 +40,14 @@ def _options(command: Any) -> list[Any]:
     ]
 
 
-def _texto(param: Any) -> str:
+def _help_text(param: Any) -> str:
     # O help tem markup do Rich (cores e "\\["); a comparação usa o texto exibido.
     return Text.from_markup(param.help or "").plain
 
 
 def test_every_command_explains_the_resolution_order() -> None:
     for name, command in _commands():
-        if name in SEM_ORDEM_DE_RESOLUCAO:
+        if name in WITHOUT_RESOLUTION_ORDER:
             continue
         assert "Ordem de resolução" in (command.help or ""), name
 
@@ -55,27 +55,27 @@ def test_every_command_explains_the_resolution_order() -> None:
 def test_every_option_follows_the_type_and_resolution_format() -> None:
     for name, command in _commands():
         for param in _options(command):
-            assert FORMATO_OPCAO.search(_texto(param)), f"{name} {param.name}"
+            assert OPTION_FORMAT.search(_help_text(param)), f"{name} {param.name}"
 
 
 def test_sources_are_labeled_and_in_resolution_order() -> None:
-    ordem = ["env ", "arquivo ", "padrão "]
+    order = ["env ", "arquivo ", "padrão "]
     for name, command in _commands():
         for param in _options(command):
-            match = FORMATO_OPCAO.search(_texto(param))
+            match = OPTION_FORMAT.search(_help_text(param))
             assert match is not None, f"{name} {param.name}"
             if match.group(2) is None:
                 continue
-            partes = [parte.strip() for parte in match.group(2).split(" | ")]
-            rotulos = [next(r for r in ordem if parte.startswith(r)) for parte in partes]
-            assert rotulos == sorted(rotulos, key=ordem.index), f"{name} {param.name}: {partes}"
+            parts = [part.strip() for part in match.group(2).split(" | ")]
+            labels = [next(r for r in order if part.startswith(r)) for part in parts]
+            assert labels == sorted(labels, key=order.index), f"{name} {param.name}: {parts}"
 
 
 def test_options_without_other_sources_have_no_sources_block() -> None:
     for name, command in _commands():
         for param in _options(command):
             if name == "register" and param.name in {"name", "surname", "email"}:
-                match = FORMATO_OPCAO.search(_texto(param))
+                match = OPTION_FORMAT.search(_help_text(param))
                 assert match is not None, f"{name} {param.name}"
                 assert match.group(2) is None, f"{name} {param.name}"
 
@@ -83,14 +83,14 @@ def test_options_without_other_sources_have_no_sources_block() -> None:
 def test_boolean_options_are_declared_as_boolean() -> None:
     for name, command in _commands():
         for param in _options(command):
-            match = FORMATO_OPCAO.search(_texto(param))
+            match = OPTION_FORMAT.search(_help_text(param))
             assert match is not None, f"{name} {param.name}"
-            esperado = "Booleano" if getattr(param, "is_flag", False) else "String"
-            assert match.group(1) == esperado, f"{name} {param.name}"
+            expected_kind = "Booleano" if getattr(param, "is_flag", False) else "String"
+            assert match.group(1) == expected_kind, f"{name} {param.name}"
 
 
 def test_required_options_are_marked_as_required() -> None:
-    obrigatorias = {
+    required = {
         "issuer",
         "client_id",
         "api_url",
@@ -100,11 +100,11 @@ def test_required_options_are_marked_as_required() -> None:
     }
     for name, command in _commands():
         for param in _options(command):
-            match = FORMATO_OPCAO.search(_texto(param))
+            match = OPTION_FORMAT.search(_help_text(param))
             assert match is not None, f"{name} {param.name}"
-            situacao = match.group(3)
-            if name != "init" and param.name in obrigatorias:
-                assert situacao == "obrigatório", f"{name} {param.name}"
+            status = match.group(3)
+            if name != "init" and param.name in required:
+                assert status == "obrigatório", f"{name} {param.name}"
 
 
 def test_options_with_environment_variables_say_which_one() -> None:
@@ -116,7 +116,7 @@ def test_options_with_environment_variables_say_which_one() -> None:
     for name, command in _commands():
         for param in _options(command):
             if param.name in expected:
-                assert expected[param.name] in _texto(param), name
+                assert expected[param.name] in _help_text(param), name
 
 
 def test_bracketed_names_are_shown_literally() -> None:
@@ -134,7 +134,7 @@ def test_init_does_not_list_the_config_file_as_a_source() -> None:
         if name != "init":
             continue
         for param in _options(command):
-            match = FORMATO_OPCAO.search(_texto(param))
+            match = OPTION_FORMAT.search(_help_text(param))
             assert match is not None, param.name
             assert "[auth]" not in (match.group(2) or ""), param.name
 

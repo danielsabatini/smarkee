@@ -235,9 +235,10 @@ def test_without_an_api_address_the_command_asks_for_it(api: FakeApi, tmp_path: 
 
 
 @pytest.mark.parametrize(
-    "bad_id", ["../../admin", "a/b", f"{RID}?x=1", f"{RID}#", "", " ", "{" + RID + "}", "abc"]
+    "bad_id",
+    ["../../admin", "..", "a/b", f"{RID}?x=1", f"{RID}#", "", " ", RID.upper(), "a" * 129],
 )
-def test_an_identifier_that_is_not_a_uuid_is_refused_before_any_call(
+def test_an_identifier_outside_the_contract_is_refused_before_any_call(
     api: FakeApi, bad_id: str
 ) -> None:
     for command in (
@@ -252,11 +253,13 @@ def test_an_identifier_that_is_not_a_uuid_is_refused_before_any_call(
     assert api.requests == []
 
 
-def test_an_uppercase_uuid_is_sent_in_the_canonical_lowercase_form(api: FakeApi) -> None:
-    api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(200, link_document())
-    result = runner.invoke(app, ["sum", "service", "get", "--resource-id", RID.upper()])
+def test_an_opaque_identifier_that_is_not_a_uuid_is_accepted_and_sent_as_it_is(
+    api: FakeApi,
+) -> None:
+    api.routes[("GET", "/v1/sum/services/ligacao-42")] = Response(200, link_document())
+    result = runner.invoke(app, ["sum", "service", "get", "--resource-id", "ligacao-42"])
     assert result.exit_code == 0, result.stderr
-    assert api.requests[-1].full_url.endswith(f"/v1/sum/services/{RID}")
+    assert api.requests[-1].full_url.endswith("/v1/sum/services/ligacao-42")
 
 
 def test_too_many_requests_shows_the_wait_time(api: FakeApi) -> None:

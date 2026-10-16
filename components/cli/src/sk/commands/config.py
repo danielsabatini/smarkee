@@ -85,20 +85,20 @@ def _read_or_exit() -> dict[str, Any]:
         )
 
 
-def _exige_argumento(valor: str | None, nome: str) -> str:
+def _require_argument(value: str | None, label: str) -> str:
     # Argumentos obrigatórios são validados aqui, e não pelo Typer, para não exibir "[required]".
-    if valor is None:
+    if value is None:
         ui.error(
             "Argumento obrigatório ausente",
-            f"Informe {nome}.",
+            f"Informe {label}.",
             hint="Veja a ordem com `sk config --help`.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
-    return valor
+    return value
 
 
 def _key_or_exit(name: str | None) -> ConfigKey:
-    name = _exige_argumento(name, "a chave")
+    name = _require_argument(name, "a chave")
     keys = known_keys()
     if name not in keys:
         ui.error(
@@ -204,7 +204,7 @@ def set_command(
     ] = None,
 ) -> None:
     key = _key_or_exit(name)
-    value_text = _exige_argumento(raw_value, "o valor")
+    value_text = _require_argument(raw_value, "o valor")
     path = config_file_path()
     if not path.exists():
         ui.error(

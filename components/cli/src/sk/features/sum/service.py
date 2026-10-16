@@ -5,13 +5,16 @@ definitivo vem da ligação (`phase`) e da Operation (`operationStatus`). Os dad
 `api.call_api`, com o token da sessão.
 """
 
-import uuid
+import re
 from dataclasses import dataclass
 from typing import Any, cast
 
 from sk.http import ApiUnavailableError, call_api
 
 SERVICES_PATH = "/v1/sum/services"
+# `resourceId` e `operationId` são identificadores opacos: o mesmo padrão de
+# `schemas/common/definitions.v1.schema.json` (`resourceId` e `opaqueIdentifier`).
+OPAQUE_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,18 +47,18 @@ class OperationStatus:
 
 
 def validate_identifier(value: str, *, what: str) -> str:
-    """Devolve o UUID canônico (minúsculo) ou levanta `ValueError`.
+    """Devolve o identificador se ele segue o contrato, ou levanta `ValueError`.
 
     Os identificadores entram no caminho da URL: aceitar texto livre permitiria `../`, `?` e `#`
-    levarem o token da sessão a outro caminho da API. A mensagem não repete o valor informado.
+    levarem o token da sessão a outro caminho da API. O padrão do contrato só admite letras
+    minúsculas, números e hífen, caracteres que não alteram o caminho. A mensagem não repete o
+    valor informado.
     """
-    try:
-        parsed = uuid.UUID(value)
-    except ValueError:
-        raise ValueError(f"{what} inválido: informe um UUID") from None
-    if str(parsed) != value.lower():
-        raise ValueError(f"{what} inválido: informe um UUID")
-    return str(parsed)
+    if not OPAQUE_IDENTIFIER_PATTERN.fullmatch(value):
+        raise ValueError(
+            f"{what} inválido: use letras minúsculas, números e hífen (até 128 caracteres)"
+        )
+    return value
 
 
 def _object(document: object, *, what: str) -> dict[str, Any]:

@@ -12,40 +12,40 @@ tratar como tags, e os colchetes dos próprios valores também.
 """
 
 # Cores de cada segmento da opção, em nomes do Rich.
-COR_TIPO = "cyan"
-COR_FONTES = "yellow"
-COR_OBRIGATORIO = "red"
-COR_OPCIONAL = "magenta"
+COLOR_TYPE = "cyan"
+COLOR_SOURCES = "yellow"
+COLOR_REQUIRED = "red"
+COLOR_OPTIONAL = "magenta"
 
-ORDEM_COM_ARQUIVO = (
+ORDER_WITH_FILE = (
     "parâmetro → variável de ambiente → arquivo de configuração (config.toml) → padrão"
 )
-ORDEM_SEM_ARQUIVO = (
+ORDER_WITHOUT_FILE = (
     "parâmetro → variável de ambiente → padrão (o arquivo que será criado não é lido)"
 )
 
 
-def _escapa(texto: str) -> str:
-    return texto.replace("[", "\\[")
+def _escape(text: str) -> str:
+    return text.replace("[", "\\[")
 
 
-def _segmento(texto: str, cor: str) -> str:
+def _segment(text: str, color: str) -> str:
     # O "[" de abertura também é escapado: "[obrigatório]" sem escape seria uma tag do Rich.
-    return f"[{cor}]\\[{_escapa(texto)}][/]"
+    return f"[{color}]\\[{_escape(text)}][/]"
 
 
-def comando(descricao: str, *, ordem: str = ORDEM_COM_ARQUIVO) -> str:
+def command(description: str, *, order: str = ORDER_WITH_FILE) -> str:
     """Descrição de um comando: o que faz e a ordem de resolução dos valores."""
-    return _escapa(f"{descricao}\n\nOrdem de resolução: {ordem}.")
+    return _escape(f"{description}\n\nOrdem de resolução: {order}.")
 
 
-def opcao(
-    descricao: str,
+def option(
+    description: str,
     *,
-    tipo: str,
-    variavel: str | None,
-    arquivo: str | None,
-    padrao: str,
+    kind: str,
+    variable: str | None,
+    file: str | None,
+    default: str,
 ) -> str:
     """Características de uma opção, no formato:
 
@@ -56,19 +56,19 @@ def opcao(
     fontes; com padrão, é opcional. Os segmentos são marcados com markup do Rich. Os colchetes são
     escapados: sem isso, o Rich leria "[obrigatório]" ou "[String]" como tags, e não como texto.
     """
-    fontes: list[str] = []
-    if variavel:
-        fontes.append(f"env {variavel}")
-    if arquivo:
-        fontes.append(f"arquivo {arquivo}")
-    if padrao != "nenhum":
-        fontes.append(f"padrão {padrao}")
-    if padrao == "nenhum":
-        situacao = _segmento("obrigatório", COR_OBRIGATORIO)
+    sources: list[str] = []
+    if variable:
+        sources.append(f"env {variable}")
+    if file:
+        sources.append(f"arquivo {file}")
+    if default != "nenhum":
+        sources.append(f"padrão {default}")
+    if default == "nenhum":
+        status = _segment("obrigatório", COLOR_REQUIRED)
     else:
-        situacao = _segmento("opcional", COR_OPCIONAL)
-    segmentos = [_escapa(descricao), _segmento(tipo, COR_TIPO)]
-    if fontes:
-        segmentos.append(_segmento(" | ".join(fontes), COR_FONTES))
-    segmentos.append(situacao)
-    return " ".join(segmentos)
+        status = _segment("opcional", COLOR_OPTIONAL)
+    segments = [_escape(description), _segment(kind, COLOR_TYPE)]
+    if sources:
+        segments.append(_segment(" | ".join(sources), COLOR_SOURCES))
+    segments.append(status)
+    return " ".join(segments)

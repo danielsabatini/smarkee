@@ -98,7 +98,7 @@ def test_a_body_is_sent_as_json_and_the_query_is_encoded() -> None:
         API,
         "/v1/x",
         token="t",
-        body={"nome": "Ação"},
+        body={"name": "Ação"},
         query={"a": "b c", "d": "&"},
         allow_insecure_http=False,
         opener=opener,
@@ -107,7 +107,7 @@ def test_a_body_is_sent_as_json_and_the_query_is_encoded() -> None:
     assert request.get_method() == "POST"
     assert request.full_url == f"{API}/v1/x?a=b+c&d=%26"
     assert request.get_header("Content-type") == "application/json"
-    assert json.loads(cast(bytes, request.data)) == {"nome": "Ação"}
+    assert json.loads(cast(bytes, request.data)) == {"name": "Ação"}
 
 
 def test_extra_headers_are_added() -> None:

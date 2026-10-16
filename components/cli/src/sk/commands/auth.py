@@ -14,7 +14,7 @@ import typer
 from pydantic import ValidationError
 
 from sk import ui
-from sk.help import comando, opcao
+from sk.help import command, option
 from sk.identity.credentials import (
     CredentialsError,
     CredentialsMissingError,
@@ -183,33 +183,33 @@ def run_login(
         )
 
 
-def _ajuda_issuer(arquivo: str | None) -> str:
-    return opcao(
+def _help_issuer(file: str | None) -> str:
+    return option(
         "Endereço do provedor de login.",
-        tipo="String",
-        variavel="SK_AUTH_ISSUER",
-        arquivo=arquivo,
-        padrao="nenhum",
+        kind="String",
+        variable="SK_AUTH_ISSUER",
+        file=file,
+        default="nenhum",
     )
 
 
-def _ajuda_client_id(arquivo: str | None) -> str:
-    return opcao(
+def _help_client_id(file: str | None) -> str:
+    return option(
         "Identificador do sk no provedor de login.",
-        tipo="String",
-        variavel="SK_AUTH_CLIENT_ID",
-        arquivo=arquivo,
-        padrao="nenhum",
+        kind="String",
+        variable="SK_AUTH_CLIENT_ID",
+        file=file,
+        default="nenhum",
     )
 
 
-def _ajuda_allow_insecure_http(arquivo: str | None) -> str:
-    return opcao(
+def _help_allow_insecure_http(file: str | None) -> str:
+    return option(
         "Permite endereço sem HTTPS. Somente para desenvolvimento.",
-        tipo="Booleano",
-        variavel="SK_AUTH_ALLOW_INSECURE_HTTP=true",
-        arquivo=arquivo,
-        padrao="desativado",
+        kind="Booleano",
+        variable="SK_AUTH_ALLOW_INSECURE_HTTP=true",
+        file=file,
+        default="desativado",
     )
 
 
@@ -217,17 +217,17 @@ def _ajuda_allow_insecure_http(arquivo: str | None) -> str:
 # não lista a seção [auth] como fonte.
 IssuerOption = Annotated[
     str | None,
-    typer.Option(help=_ajuda_issuer("[auth] issuer")),
+    typer.Option(help=_help_issuer("[auth] issuer")),
 ]
 ClientIdOption = Annotated[
     str | None,
-    typer.Option(help=_ajuda_client_id("[auth] clientId")),
+    typer.Option(help=_help_client_id("[auth] clientId")),
 ]
 AllowInsecureHttpOption = Annotated[
     bool,
     typer.Option(
         "--allow-insecure-http",
-        help=_ajuda_allow_insecure_http("[auth] allowInsecureHttp = true"),
+        help=_help_allow_insecure_http("[auth] allowInsecureHttp = true"),
     ),
 ]
 
@@ -243,7 +243,7 @@ def _sum_project_id() -> str | None:
 
 @auth_app.command(
     "login",
-    help=comando("Entra na plataforma pelo navegador. Um novo login substitui o anterior."),
+    help=command("Entra na plataforma pelo navegador. Um novo login substitui o anterior."),
 )
 def login(
     issuer: IssuerOption = None,
@@ -307,7 +307,7 @@ def run_whoami(allow_insecure_http: bool, credentials_path: Path) -> None:
 
 @auth_app.command(
     "whoami",
-    help=comando("Mostra o usuário da sessão atual e confirma que ela ainda vale."),
+    help=command("Mostra o usuário da sessão atual e confirma que ela ainda vale."),
 )
 def whoami(allow_insecure_http: AllowInsecureHttpOption = False) -> None:
     settings = _load_or_exit(

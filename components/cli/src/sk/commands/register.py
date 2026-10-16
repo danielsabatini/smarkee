@@ -10,15 +10,15 @@ from typing import Annotated
 
 import typer
 from pydantic import ValidationError
-from sk.features.core.user import submit_registration, validate_registration
 
 from sk import ui
-from sk.help import comando, opcao
+from sk.features.core.user import submit_registration, validate_registration
+from sk.help import command, option
 from sk.http import ApiError, ApiRejectedError, ApiUnavailableError
 from sk.identity.oidc import OidcError
 from sk.settings import ConfigurationError, SkSettings
 
-AJUDA_REGISTRO = comando(
+REGISTER_HELP = command(
     "Cadastra uma nova conta para iniciar na plataforma. "
     "Depois, confirme o e-mail e defina a senha pelos links enviados para ele."
 )
@@ -27,15 +27,15 @@ EXIT_FAILURE = 1
 EXIT_USAGE_ERROR = 2
 
 
-def _exige(valor: str | None, nome_opcao: str) -> str:
-    if valor is None:
+def _require(value: str | None, option_name: str) -> str:
+    if value is None:
         ui.error(
             "Opção obrigatória ausente",
-            f"Informe {nome_opcao}.",
-            hint=f"Repita o comando com {nome_opcao} VALOR.",
+            f"Informe {option_name}.",
+            hint=f"Repita o comando com {option_name} VALOR.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
-    return valor
+    return value
 
 
 def _load_core(api_url: str | None, allow_insecure_http: bool) -> tuple[str, bool]:
@@ -68,12 +68,12 @@ def register_command(
         str | None,
         typer.Option(
             "--name",
-            help=opcao(
+            help=option(
                 "Nome (até 256 caracteres).",
-                tipo="String",
-                variavel=None,
-                arquivo=None,
-                padrao="nenhum",
+                kind="String",
+                variable=None,
+                file=None,
+                default="nenhum",
             ),
         ),
     ] = None,
@@ -81,12 +81,12 @@ def register_command(
         str | None,
         typer.Option(
             "--surname",
-            help=opcao(
+            help=option(
                 "Sobrenome (até 256 caracteres).",
-                tipo="String",
-                variavel=None,
-                arquivo=None,
-                padrao="nenhum",
+                kind="String",
+                variable=None,
+                file=None,
+                default="nenhum",
             ),
         ),
     ] = None,
@@ -94,12 +94,12 @@ def register_command(
         str | None,
         typer.Option(
             "--email",
-            help=opcao(
+            help=option(
                 "E-mail da conta. É também o nome de login.",
-                tipo="String",
-                variavel=None,
-                arquivo=None,
-                padrao="nenhum",
+                kind="String",
+                variable=None,
+                file=None,
+                default="nenhum",
             ),
         ),
     ] = None,
@@ -107,12 +107,12 @@ def register_command(
         str | None,
         typer.Option(
             "--api-url",
-            help=opcao(
+            help=option(
                 "Endereço da API da plataforma.",
-                tipo="String",
-                variavel="SK_CORE_API_URL",
-                arquivo="[core] apiUrl",
-                padrao="nenhum",
+                kind="String",
+                variable="SK_CORE_API_URL",
+                file="[core] apiUrl",
+                default="nenhum",
             ),
         ),
     ] = None,
@@ -120,20 +120,20 @@ def register_command(
         bool,
         typer.Option(
             "--allow-insecure-http",
-            help=opcao(
+            help=option(
                 "Permite endereço sem HTTPS. Somente para desenvolvimento.",
-                tipo="Booleano",
-                variavel="SK_CORE_ALLOW_INSECURE_HTTP=true",
-                arquivo="[core] allowInsecureHttp = true",
-                padrao="desativado",
+                kind="Booleano",
+                variable="SK_CORE_ALLOW_INSECURE_HTTP=true",
+                file="[core] allowInsecureHttp = true",
+                default="desativado",
             ),
         ),
     ] = False,
 ) -> None:
     # Obrigatórias por validação do próprio comando (não pelo Typer), para não exibir "[required]".
-    name = _exige(name, "--name")
-    surname = _exige(surname, "--surname")
-    email = _exige(email, "--email")
+    name = _require(name, "--name")
+    surname = _require(surname, "--surname")
+    email = _require(email, "--email")
     url, insecure = _load_core(api_url, allow_insecure_http)
     try:
         # Validação local antes de qualquer chamada: o comando, e não só o cliente, a garante.
