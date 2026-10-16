@@ -19,10 +19,11 @@ componente.
 5. `sk sum service enable --service ipm --wait`: o serviço chega a `Ready`, a Operation a `completed`, a sessão é
    renovada e **o token já traz as `ipm.organization.*`** (concedidas pelo Executor do SUM), sem novo login. Um
    segundo `enable` aponta a ligação existente.
-6. Renovação da sessão: com o access token vencido, a CLI o renova pelo refresh token.
-7. `sk sum service disable --wait`: converge, revoga as roles e o token **perde** as `ipm.*`; um segundo `disable` não
+6. Organization pela CLI real, com o `ipm` ligado: `sk ipm organization create --wait` (a organização chega a `Ready`, `active`, no Zitadel), `get` e `list`, um segundo `create` recusado pela cota com a orientação, `update --wait` (renomeia), e `delete --wait` (a Organization some); depois `get` dá `not found` e a lista fica vazia. A Organization é removida mesmo se um passo falhar.
+7. Renovação da sessão: com o access token vencido, a CLI o renova pelo refresh token.
+8. `sk sum service disable --wait`: converge, revoga as roles e o token **perde** as `ipm.*`; um segundo `disable` não
    tem nada a fazer. `sk auth refresh` renova a sessão sob demanda.
-8. Limpeza: a pessoa é removida pela API com o próprio token (falha alto se não der), e as linhas
+9. Limpeza: a pessoa é removida pela API com o próprio token (falha alto se não der), e as linhas
    `absent` da ligação são apagadas do SSOT quando há acesso ao banco.
 
 ## O que não cobre (declarado, não verificado)

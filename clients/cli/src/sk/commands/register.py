@@ -9,53 +9,20 @@ pedido foi aceito, e não que a conta já existe.
 from typing import Annotated
 
 import typer
-from pydantic import ValidationError
 
 from sk import ui
+from sk.commands.shared import EXIT_FAILURE, EXIT_USAGE_ERROR, load_api, require
 from sk.defaults import PRD_API_URL
 from sk.features.core.user import submit_registration, validate_registration
 from sk.help import command, option
 from sk.http import ApiError, ApiRejectedError, ApiUnavailableError
 from sk.identity.oidc import OidcError
-from sk.settings import ConfigurationError, SkSettings
 
 REGISTER_HELP = command(
     "Register a new account to get started on the platform. "
     "Afterwards, open the link in the e-mail sent to it to confirm the address and set the "
     "password."
 )
-
-EXIT_FAILURE = 1
-EXIT_USAGE_ERROR = 2
-
-
-def _require(value: str | None, option_name: str) -> str:
-    if value is None:
-        ui.error(
-            "Missing required option",
-            f"Provide {option_name}.",
-            hint=f"Repeat the command with {option_name} VALUE.",
-        )
-        raise typer.Exit(EXIT_USAGE_ERROR)
-    return value
-
-
-def _load_api(api_url: str | None, allow_insecure_http: bool) -> tuple[str, bool]:
-    explicit = {
-        key: value
-        for key, value in {
-            "url": api_url,
-            "allow_insecure_http": allow_insecure_http or None,
-        }.items()
-        if value is not None
-    }
-    try:
-        # Mesmo mecanismo do `sk auth`: parâmetro → ambiente → arquivo → default.
-        api = SkSettings(api=explicit).api  # pyright: ignore[reportArgumentType]
-    except (ValidationError, ConfigurationError) as error:
-        ui.error("Invalid configuration", str(error), hint="Fix the indicated file and repeat.")
-        raise typer.Exit(EXIT_USAGE_ERROR) from error
-    return api.url, api.allow_insecure_http
 
 
 def register_command(
@@ -126,10 +93,10 @@ def register_command(
     ] = False,
 ) -> None:
     # Obrigatórias por validação do próprio comando (não pelo Typer), para não exibir "[required]".
-    name = _require(name, "--name")
-    surname = _require(surname, "--surname")
-    email = _require(email, "--email")
-    url, insecure = _load_api(api_url, allow_insecure_http)
+    name = require(name, "--name")
+    surname = require(surname, "--surname")
+    email = require(email, "--email")
+    url, insecure = load_api(api_url, allow_insecure_http)
     try:
         # Validação local antes de qualquer chamada: o comando, e não só o cliente, a garante.
         validate_registration(name, surname, email)

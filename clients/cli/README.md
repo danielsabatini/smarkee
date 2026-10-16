@@ -157,6 +157,32 @@ Habilitar e desabilitar são assíncronos: o comando confirma o aceite, e `get` 
 
 Códigos de saída: `0` sucesso; `1` sessão ausente, API recusou ou indisponível, ou `--wait` sem convergir (Operation recusada ou tempo esgotado); `2` opção obrigatória ausente, identificador fora do contrato, endereço sem HTTPS ou configuração inválida.
 
+## Organizations (`sk ipm organization`)
+
+```bash
+uv run sk ipm organization create --name NOME [--wait] [--timeout SEGUNDOS]
+uv run sk ipm organization get --resource-id ID [--operation-id OPERACAO]
+uv run sk ipm organization list
+uv run sk ipm organization update --resource-id ID --name NOVO-NOME [--wait] [--timeout SEGUNDOS]
+uv run sk ipm organization delete --resource-id ID [--wait] [--timeout SEGUNDOS]
+```
+
+Todos aceitam `--api-url` e `--allow-insecure-http` (parâmetro → `SK_API_*` → `[api]` → padrão), e os identificadores seguem o padrão do contrato, como em `sk sum service`. O nome (`--name`) segue o contrato: letras minúsculas, números e hífen, de 1 a 63 caracteres, começando e terminando com letra ou número; outro valor é recusado antes de qualquer chamada, sem repetir o valor.
+
+| Comando | Requisição | Resultado |
+|---|---|---|
+| `create --name NOME` | `POST /v1/ipm/organizations`, com `Idempotency-Key` gerada por pedido | `202`: o `resourceId` e o `operationId`; com `--wait`, espera `Ready` e mostra a Organization |
+| `update --resource-id ID --name NOVO` | `GET` (para ler a `resourceVersion`), depois `PATCH`; se o nome já é esse, não faz nada | `202`: o `operationId` (ou "nada a fazer", saída `0`); com `--wait`, espera `Ready` com o nome novo |
+| `delete --resource-id ID` | `GET` (para ler a `resourceVersion`), depois `DELETE` | `202`: o `operationId`; com `--wait`, espera a Operation `completed` e a Organization sumir (`state removed`) |
+| `get --resource-id ID` | `GET` da Organization (e da Operation, se `--operation-id`) | `name`, `state` (`active`, `inactive` ou `unknown` enquanto não observada), `phase` e `platformAccess` |
+| `list` | `GET /v1/ipm/organizations`, seguindo o cursor | Uma linha por Organization do solicitante |
+
+As escritas são assíncronas, como as do SUM: o comando confirma o aceite e mostra como acompanhar. Com `--wait`, ele espera a Operation `completed` (até `--timeout`, 60 s por padrão) e trata o `404` logo depois do `202` como espera, porque o Manager ainda pode não ter gravado o pedido. A sessão não precisa ser renovada: criar uma Organization não muda as roles do token. O dono altera só o `name`; `platformAccess` é do operador e não tem comando nesta CLI.
+
+**Pré-requisitos.** O token precisa trazer as roles `ipm.organization.*`, que vêm de `sk sum service enable --service ipm --wait` (a sessão já sai renovada). Para criar, o e-mail da conta precisa estar verificado, e a cota é de uma Organization por conta. As recusas da API viram dicas: sem a role, a saída manda habilitar o `ipm`; sem e-mail verificado, abrir o link do e-mail de ativação; cota esgotada, remover uma Organization.
+
+Códigos de saída: como em `sk sum service`.
+
 ## Cadastro (`sk register`)
 
 ```bash

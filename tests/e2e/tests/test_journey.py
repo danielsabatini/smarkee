@@ -1,4 +1,4 @@
-"""Jornada completa, em ordem: login, ligar o `ipm`, renovar a sessão, desligar.
+"""Jornada completa: login, ligar o `ipm`, a Organization, renovar a sessão e desligar.
 
 Os testes compartilham a mesma pessoa (fixture `person`) e a mesma ligação: cada um depende do
 anterior, como os passos de uma pessoa usando a plataforma.
@@ -6,6 +6,7 @@ anterior, como os passos de uma pessoa usando a plataforma.
 
 import json
 import re
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import conftest
@@ -107,6 +108,60 @@ def test_the_link_is_listed_and_a_second_enable_points_to_it(
     again = person.sk.run("sum", "service", "enable", "--service", "ipm")
     assert again.exit_code == 1
     assert "This service is already enabled" in again.stderr, again.stderr
+
+
+def test_the_organization_is_created_renamed_and_deleted_with_the_sk(person: Person) -> None:
+    """Com o `ipm` ligado, o token traz as roles `ipm.organization.*`: o ciclo pela CLI."""
+    sk = person.sk
+    name = f"e2e-{uuid.uuid4().hex[:10]}"
+    renamed = name + "-b"
+    assert "No Organizations" in sk.run("ipm", "organization", "list").stdout
+    created_id: str | None = None
+    try:
+        created = sk.run(
+            *("ipm", "organization", "create"), *("--name", name), "--wait", timeout=150.0
+        )
+        assert created.exit_code == 0, created.text
+        created_id = _identifiers(created.stdout)[0]
+        assert _field(created.stdout, "name") == name
+        assert _field(created.stdout, "state") == "active"
+        assert _field(created.stdout, "phase") == "Ready"
+
+        shown = sk.run("ipm", "organization", "get", "--resource-id", created_id)
+        assert shown.exit_code == 0, shown.text
+        assert _field(shown.stdout, "platformAccess") == "granted"
+        listed = sk.run("ipm", "organization", "list")
+        assert listed.exit_code == 0 and created_id in listed.stdout, listed.text
+
+        # A cota do dono é de uma Organization: o segundo pedido é recusado com a orientação.
+        second = sk.run("ipm", "organization", "create", "--name", name + "-2")
+        assert second.exit_code == 1, second.text
+        assert "Organization limit" in " ".join(second.stderr.split()), second.stderr
+
+        updated = sk.run(
+            *("ipm", "organization", "update"),
+            *("--resource-id", created_id),
+            *("--name", renamed),
+            "--wait",
+            timeout=150.0,
+        )
+        assert updated.exit_code == 0, updated.text
+        assert _field(updated.stdout, "name") == renamed
+        assert _field(updated.stdout, "phase") == "Ready"
+    finally:
+        if created_id is not None:
+            deleted = sk.run(
+                *("ipm", "organization", "delete"),
+                *("--resource-id", created_id),
+                "--wait",
+                timeout=150.0,
+            )
+            assert deleted.exit_code == 0, deleted.text
+            assert "removed" in deleted.stdout, deleted.stdout
+    gone = sk.run("ipm", "organization", "get", "--resource-id", created_id or "x")
+    assert gone.exit_code == 1
+    assert "Organization not found" in " ".join(gone.stderr.split()), gone.stderr
+    assert "No Organizations" in sk.run("ipm", "organization", "list").stdout
 
 
 def test_the_sk_renews_an_expired_session_with_the_refresh_token(person: Person) -> None:

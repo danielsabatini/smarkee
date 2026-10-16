@@ -22,7 +22,7 @@ O que está sendo trabalhado ativamente neste momento.
 
 ### 🟡 Next (Próximos Passos / Médio Prazo)
 O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.
-- [ ] **`[Planned]` CLI do User e da Organization:** `sk user get|delete` e `sk ipm organization`, sobre os Receivers (o `sk register` já existe).
+- [ ] **`[Planned]` CLI do User:** `sk user get|delete`, sobre o Receiver (o `sk register` e o `sk ipm organization` já existem).
 - [ ] **`[Planned]` Implantação em Kubernetes:** CI/CD e GitOps por componente, com versão e imagem independentes.
 - [ ] **`[Planned]` Encerramento limpo dos componentes:** o Manager do User espera o `drain()` do NATS até o tempo limite (cerca de 30 s) e registra `task stopped unexpectedly` mesmo quando o encerramento foi pedido. O Manager do SUM já usa `close()` e só registra o erro sem pedido de parada; aplicar o mesmo ao User, e revisar os demais componentes que copiaram o padrão.
 - [ ] **`[Planned]` Detector de desvio da configuração:** teste somente leitura na conformância do Zitadel que compara os IDs dos `.env` (CLI, User, SUM e ipm) com os da instância real e aponta o que está desatualizado (decisão 0037).

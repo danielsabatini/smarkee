@@ -42,7 +42,10 @@ class FakeApi:
 
     def __init__(self) -> None:
         # Uma lista responde em sequência; a última resposta se repete.
-        self.routes: dict[tuple[str, str], Response | urllib.error.HTTPError | list[Response]] = {}
+        self.routes: dict[
+            tuple[str, str],
+            Response | urllib.error.HTTPError | list[Response | urllib.error.HTTPError],
+        ] = {}
         self.requests: list[urllib.request.Request] = []
 
     def __call__(self, request: urllib.request.Request, timeout: float = 0) -> Response:
@@ -52,10 +55,10 @@ class FakeApi:
         found = self.routes.get(key)
         if found is None:
             raise AssertionError(f"rota não prevista: {key}")
+        if isinstance(found, list):
+            found = found.pop(0) if len(found) > 1 else found[0]
         if isinstance(found, urllib.error.HTTPError):
             raise found
-        if isinstance(found, list):
-            return found.pop(0) if len(found) > 1 else found[0]
         return found
 
 
@@ -348,7 +351,7 @@ def renewals(monkeypatch: pytest.MonkeyPatch) -> list[bool]:
     def record(*_: object, **__: object) -> None:
         calls.append(True)
 
-    monkeypatch.setattr("sk.commands.sum.renew_session", record)
+    monkeypatch.setattr("sk.commands.shared.renew_session", record)
     monkeypatch.setattr("sk.commands.sum.time.sleep", no_sleep)
     return calls
 
@@ -403,7 +406,7 @@ def test_wait_asks_for_a_fresh_token_on_every_poll(
         asked.append(True)
         return "access-1"
 
-    monkeypatch.setattr("sk.commands.sum.current_access_token", counting_token)
+    monkeypatch.setattr("sk.commands.shared.current_access_token", counting_token)
     result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm", "--wait"])
     assert result.exit_code == 0, result.stdout + result.stderr
     assert len(asked) >= 4  # o pedido de ligar e uma vez por leitura (3)
@@ -465,7 +468,7 @@ def test_a_failed_renewal_is_a_warning_not_a_failure(
     def fail(*_: object, **__: object) -> None:
         raise SessionError("A sessão não tem refresh token.")
 
-    monkeypatch.setattr("sk.commands.sum.renew_session", fail)
+    monkeypatch.setattr("sk.commands.shared.renew_session", fail)
     monkeypatch.setattr("sk.commands.sum.time.sleep", no_sleep)
     route_accepted(api, "POST")
     api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(200, link_document())
@@ -497,3 +500,24 @@ def test_the_state_is_shown_in_english(api: FakeApi) -> None:
     api.routes[("GET", "/v1/sum/services")] = Response(200, {"items": [link_document()]})
     listed = runner.invoke(app, ["sum", "service", "list"])
     assert "enabled" in listed.stdout and "ligado" not in listed.stdout
+
+
+def test_wait_keeps_polling_while_the_manager_has_not_recorded_the_request_yet(
+    api: FakeApi, renewals: list[bool]
+) -> None:
+    """Logo depois do `202`, a leitura dá `404` até o Manager gravar (LOOP §6.1.1): é espera."""
+    route_accepted(api, "POST")
+    not_yet = http_error(404, "NotFound", "Recurso não encontrado.")
+    api.routes[("GET", f"/v1/sum/services/{RID}/operations/{OPID}")] = [
+        not_yet,
+        operation_document("completed"),
+    ]
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = [
+        not_yet,
+        Response(200, link_document("present", "Ready")),
+    ]
+
+    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm", "--wait"])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert "Service enabled" in result.stdout

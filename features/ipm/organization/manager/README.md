@@ -38,4 +38,6 @@ uv run ruff check . && uv run ruff format --check . && uv run pyright
 uv run pytest        # os testes de integração exigem a stack de dev e são pulados sem ela
 ```
 
+**Atenção em dev:** os testes de integração gravam no SSOT de dev e criam Organizations de teste (`acme-*`). Com o Publisher e o loop no ar, essas mensagens chegam ao Zitadel e a organização fica lá depois que o teste apaga a linha. Pare o Publisher (`docker compose stop ipm-organization-publisher`) enquanto roda os testes, ou remova depois as organizações `acme-*` pelo Zitadel.
+
 Imagem: `Dockerfile` (build com uv, execução sem privilégios). O contrato é verificado pelos testes e2e em `../tests/e2e`. A publicação do outbox é do Publisher (`../publisher`).

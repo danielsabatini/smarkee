@@ -5,24 +5,31 @@ definitivo vem da ligação (`phase`) e da Operation (`operationStatus`). Os dad
 `api.call_api`, com o token da sessão.
 """
 
-import re
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import cast
 
+from sk.features.api_contract import (
+    OPAQUE_IDENTIFIER_PATTERN,
+    OperationStatus,
+    RequestAccepted,
+    as_object,
+    as_text,
+    parse_accepted,
+    parse_operation,
+    validate_identifier,
+)
 from sk.http import ApiUnavailableError, call_api
 
+__all__ = [
+    "OPAQUE_IDENTIFIER_PATTERN",
+    "OperationStatus",
+    "ServiceLink",
+    "ServiceRequestAccepted",
+    "validate_identifier",
+]
+
 SERVICES_PATH = "/v1/sum/services"
-# `resourceId` e `operationId` são identificadores opacos: o mesmo padrão de
-# `schemas/common/definitions.v1.schema.json` (`resourceId` e `opaqueIdentifier`).
-OPAQUE_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
-
-
-@dataclass(frozen=True, slots=True)
-class ServiceRequestAccepted:
-    """`202`: a identidade do pedido, para acompanhar a Operation."""
-
-    resource_id: str
-    operation_id: str
+ServiceRequestAccepted = RequestAccepted
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,75 +44,20 @@ class ServiceLink:
     observed_roles: tuple[str, ...]
 
 
-@dataclass(frozen=True, slots=True)
-class OperationStatus:
-    """Estado de uma Operation. `reason` só existe quando o pedido foi recusado."""
-
-    operation_id: str
-    operation_status: str
-    reason: str | None
-
-
-def validate_identifier(value: str, *, what: str) -> str:
-    """Devolve o identificador se ele segue o contrato, ou levanta `ValueError`.
-
-    Os identificadores entram no caminho da URL: aceitar texto livre permitiria `../`, `?` e `#`
-    levarem o token da sessão a outro caminho da API. O padrão do contrato só admite letras
-    minúsculas, números e hífen, caracteres que não alteram o caminho. A mensagem não repete o
-    valor informado.
-    """
-    if not OPAQUE_IDENTIFIER_PATTERN.fullmatch(value):
-        raise ValueError(
-            f"{what} invalid: use lowercase letters, digits and hyphen (up to 128 characters)"
-        )
-    return value
-
-
-def _object(document: object, *, what: str) -> dict[str, Any]:
-    if not isinstance(document, dict):
-        raise ApiUnavailableError(f"API response outside the contract: {what}")
-    return cast(dict[str, Any], document)
-
-
-def _text(document: dict[str, Any], key: str, *, what: str) -> str:
-    value = document.get(key)
-    if not isinstance(value, str):
-        raise ApiUnavailableError(f"API response without {key}: {what}")
-    return value
-
-
-def _accepted(document: object) -> ServiceRequestAccepted:
-    body = _object(document, what="acceptance")
-    return ServiceRequestAccepted(
-        resource_id=_text(body, "resourceId", what="acceptance"),
-        operation_id=_text(body, "operationId", what="acceptance"),
-    )
-
-
 def _link(document: object) -> ServiceLink:
-    body = _object(document, what="service")
-    desired = _object(body.get("desired"), what="service (desired)")
+    body = as_object(document, what="service")
+    desired = as_object(body.get("desired"), what="service (desired)")
     observed: object = body.get("observed") or {}
-    roles: object = _object(observed, what="service (observed)").get("serviceRoles") or []
+    roles: object = as_object(observed, what="service (observed)").get("serviceRoles") or []
     if not isinstance(roles, list):
         raise ApiUnavailableError("API response with invalid serviceRoles")
     return ServiceLink(
-        resource_id=_text(body, "resourceId", what="service"),
-        resource_version=_text(body, "resourceVersion", what="service"),
-        phase=_text(body, "phase", what="service"),
-        service=_text(desired, "service", what="service (desired)"),
-        lifecycle=_text(desired, "lifecycle", what="service (desired)"),
+        resource_id=as_text(body, "resourceId", what="service"),
+        resource_version=as_text(body, "resourceVersion", what="service"),
+        phase=as_text(body, "phase", what="service"),
+        service=as_text(desired, "service", what="service (desired)"),
+        lifecycle=as_text(desired, "lifecycle", what="service (desired)"),
         observed_roles=tuple(str(role) for role in cast("list[object]", roles)),
-    )
-
-
-def _operation(document: object) -> OperationStatus:
-    body = _object(document, what="operation")
-    reason = body.get("operationStatusReason")
-    return OperationStatus(
-        operation_id=_text(body, "operationId", what="operation"),
-        operation_status=_text(body, "operationStatus", what="operation"),
-        reason=reason if isinstance(reason, str) else None,
     )
 
 
@@ -126,7 +78,7 @@ def enable_service(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return _accepted(document)
+    return parse_accepted(document)
 
 
 def disable_service(
@@ -146,14 +98,14 @@ def disable_service(
         query={"resourceVersion": resource_version},
         allow_insecure_http=allow_insecure_http,
     )
-    return _accepted(document)
+    return parse_accepted(document)
 
 
 def list_services(api_url: str, *, token: str, allow_insecure_http: bool) -> list[ServiceLink]:
     _, document = call_api(
         "GET", api_url, SERVICES_PATH, token=token, allow_insecure_http=allow_insecure_http
     )
-    items = _object(document, what="listing").get("items")
+    items = as_object(document, what="listing").get("items")
     if not isinstance(items, list):
         raise ApiUnavailableError("API response without items")
     return [_link(item) for item in cast("list[object]", items)]
@@ -190,4 +142,4 @@ def get_operation(
         token=token,
         allow_insecure_http=allow_insecure_http,
     )
-    return _operation(document)
+    return parse_operation(document)

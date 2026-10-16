@@ -11,11 +11,25 @@ import uuid
 from typing import Annotated, NoReturn
 
 import typer
-from pydantic import ValidationError
 from rich.text import Text
 
 from sk import ui
-from sk.defaults import PRD_API_URL
+from sk.commands.shared import (
+    DEFAULT_WAIT_TIMEOUT_SECONDS,
+    EXIT_FAILURE,
+    EXIT_USAGE_ERROR,
+    HTTP_NOT_FOUND,
+    WAIT_POLL_SECONDS,
+    AllowInsecureHttpOption,
+    ApiUrlOption,
+    TimeoutOption,
+    bad_address,
+    fail_api,
+    load_api,
+    renew_after_convergence,
+    require,
+    session_token,
+)
 from sk.features.sum.service import (
     OperationStatus,
     ServiceLink,
@@ -28,38 +42,8 @@ from sk.features.sum.service import (
     validate_identifier,
 )
 from sk.help import command, option
-from sk.http import ApiError, ApiRejectedError, ApiUnavailableError
-from sk.identity.credentials import default_credentials_path
+from sk.http import ApiError, ApiRejectedError
 from sk.identity.oidc import OidcError
-from sk.identity.session import SessionError, current_access_token, renew_session
-from sk.settings import ConfigurationError, SkSettings
-
-ApiUrlOption = Annotated[
-    str | None,
-    typer.Option(
-        "--api-url",
-        help=option(
-            "Platform API address.",
-            kind="String",
-            variable="SK_API_URL",
-            file="[api] url",
-            default=PRD_API_URL,
-        ),
-    ),
-]
-AllowInsecureHttpOption = Annotated[
-    bool,
-    typer.Option(
-        "--allow-insecure-http",
-        help=option(
-            "Allow an address without HTTPS. Development only.",
-            kind="Boolean",
-            variable="SK_API_ALLOW_INSECURE_HTTP=true",
-            file="[api] allowInsecureHttp = true",
-            default="off",
-        ),
-    ),
-]
 
 WaitOption = Annotated[
     bool,
@@ -76,26 +60,6 @@ WaitOption = Annotated[
         ),
     ),
 ]
-TimeoutOption = Annotated[
-    int,
-    typer.Option(
-        "--timeout",
-        min=1,
-        help=option(
-            "Seconds to wait with --wait.",
-            kind="Integer",
-            variable=None,
-            file=None,
-            default="60",
-        ),
-    ),
-]
-DEFAULT_WAIT_TIMEOUT_SECONDS = 60
-WAIT_POLL_SECONDS = 1.0
-
-EXIT_FAILURE = 1
-EXIT_USAGE_ERROR = 2
-
 SUM_HELP = command("Services of the Service Usage Manager (SUM).")
 SERVICE_HELP = command("Enable, disable and inspect the requester's services.")
 
@@ -115,57 +79,13 @@ service_app = typer.Typer(
 sum_app.add_typer(service_app, name="service")
 
 
-def _require(value: str | None, option_name: str) -> str:
-    if value is None:
-        ui.error(
-            "Missing required option",
-            f"Provide {option_name}.",
-            hint=f"Repeat the command with {option_name} VALUE.",
-        )
-        raise typer.Exit(EXIT_USAGE_ERROR)
-    return value
-
-
 def _identifier(value: str | None, option_name: str, *, what: str) -> str:
     """Opção obrigatória que é um identificador do contrato, recusada antes da chamada de rede."""
     try:
-        return validate_identifier(_require(value, option_name), what=what)
+        return validate_identifier(require(value, option_name), what=what)
     except ValueError as error:
         ui.error("Value not accepted", str(error), hint=f"Fix {option_name} and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
-
-
-def _load_api(api_url: str | None, allow_insecure_http: bool) -> tuple[str, bool]:
-    explicit = {
-        key: value
-        for key, value in {
-            "url": api_url,
-            "allow_insecure_http": allow_insecure_http or None,
-        }.items()
-        if value is not None
-    }
-    try:
-        # Mesmo mecanismo do `sk register`: parâmetro → ambiente → arquivo → default.
-        api = SkSettings(api=explicit).api  # pyright: ignore[reportArgumentType]
-    except (ValidationError, ConfigurationError) as error:
-        ui.error("Invalid configuration", str(error), hint="Fix the indicated file and repeat.")
-        raise typer.Exit(EXIT_USAGE_ERROR) from error
-    return api.url, api.allow_insecure_http
-
-
-def _session_insecure(allow_insecure_http: bool) -> bool:
-    """O provedor de identidade segue a permissão de HTTP da seção `[auth]`, além da opção."""
-    return allow_insecure_http or SkSettings().auth.allow_insecure_http
-
-
-def _token(allow_insecure_http: bool) -> str:
-    try:
-        return current_access_token(
-            default_credentials_path(), allow_insecure_http=_session_insecure(allow_insecure_http)
-        )
-    except SessionError as error:
-        ui.error("Session unavailable", str(error), hint="Run `sk auth login`.")
-        raise typer.Exit(EXIT_FAILURE) from error
 
 
 CONFLICT_ON_CHANGE = "The service changed since it was last read. Inspect it and try again."
@@ -177,41 +97,7 @@ def _fail_api(
     not_found: str = "Service not found for your account.",
     conflict: str = CONFLICT_ON_CHANGE,
 ) -> NoReturn:
-    """Mostra a falha da API e sai. `not_found` e `conflict` dizem o que o `404` e o `409`
-    significam no comando."""
-    if isinstance(error, ApiUnavailableError):
-        ui.error("Service unavailable", str(error), hint="Try again in a few minutes.")
-        raise typer.Exit(EXIT_FAILURE) from error
-    if not isinstance(error, ApiRejectedError):  # pragma: no cover (subclasse sem tratamento)
-        ui.error("API call failed", str(error))
-        raise typer.Exit(EXIT_FAILURE) from error
-    if error.status == 429:
-        wait = error.retry_after_seconds
-        ui.error(
-            "Too many requests",
-            str(error),
-            hint=f"Wait {wait} seconds and repeat." if wait else "Wait and try again.",
-        )
-        raise typer.Exit(EXIT_FAILURE) from error
-    hints = {
-        401: "The session was not accepted. Run `sk auth login`.",
-        403: "Your account does not have permission for this operation.",
-        404: not_found,
-        409: conflict,
-    }
-    hint = hints.get(error.status, f"HTTP {error.status} ({error.error_code}).")
-    detail = f"{error.field}: {error}" if error.field else str(error)
-    ui.error("Request refused by the API", detail, hint=hint)
-    raise typer.Exit(EXIT_USAGE_ERROR if error.status == 400 else EXIT_FAILURE) from error
-
-
-def _bad_address(error: OidcError) -> NoReturn:
-    ui.error(
-        "API address refused",
-        str(error),
-        hint="Use HTTPS, or --allow-insecure-http in development.",
-    )
-    raise typer.Exit(EXIT_USAGE_ERROR) from error
+    fail_api(error, not_found=not_found, conflict=conflict)
 
 
 STATE_STYLES = {"enabled": "green", "disabled": "dim"}
@@ -234,6 +120,18 @@ def _phase_label(link: ServiceLink) -> str:
     return "disabled" if link.lifecycle == "absent" else "enabled"
 
 
+def _timed_out(
+    timeout: int, accepted: ServiceRequestAccepted, state: str = "is not visible yet"
+) -> NoReturn:
+    ui.error(
+        "Timed out",
+        f"{timeout} s passed and the service {state}.",
+        hint=f"The request is still in progress: `sk sum service get --resource-id "
+        f"{accepted.resource_id}`.",
+    )
+    raise typer.Exit(EXIT_FAILURE)
+
+
 def _wait_for_convergence(
     url: str,
     insecure: bool,
@@ -250,7 +148,7 @@ def _wait_for_convergence(
     ui.note(f"Waiting for convergence (up to {timeout} s)...")
     deadline = time.monotonic() + timeout
     while True:
-        token = _token(insecure)
+        token = session_token(insecure)
         try:
             operation = get_operation(
                 url,
@@ -263,7 +161,16 @@ def _wait_for_convergence(
                 url, token=token, resource_id=accepted.resource_id, allow_insecure_http=insecure
             )
         except OidcError as error:
-            _bad_address(error)
+            bad_address(error)
+        except ApiRejectedError as error:
+            if error.status != HTTP_NOT_FOUND:
+                _fail_api(error)
+            # Logo depois do `202`, o Manager ainda pode não ter gravado a Operation e o recurso
+            # (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1): é espera, e não erro.
+            if time.monotonic() >= deadline:
+                _timed_out(timeout, accepted)
+            time.sleep(WAIT_POLL_SECONDS)
+            continue
         except ApiError as error:
             _fail_api(error)
         if operation.operation_status in ("rejected", "failed"):
@@ -278,28 +185,12 @@ def _wait_for_convergence(
         if operation.operation_status == "completed" and link.phase == "Ready" and reached:
             return link
         if time.monotonic() >= deadline:
-            ui.error(
-                "Timed out",
-                f"{timeout} s passed and the service is in phase {link.phase} "
-                f"(Operation {operation.operation_status}).",
-                hint=f"The request is still in progress: `sk sum service get --resource-id "
-                f"{accepted.resource_id}`.",
+            _timed_out(
+                timeout,
+                accepted,
+                f"is in phase {link.phase} (Operation {operation.operation_status})",
             )
-            raise typer.Exit(EXIT_FAILURE)
         time.sleep(WAIT_POLL_SECONDS)
-
-
-def _renew_after_convergence(insecure: bool) -> bool:
-    """Renova a sessão para o token refletir as roles novas. Falha vira aviso: o pedido já valeu."""
-    try:
-        renew_session(default_credentials_path(), allow_insecure_http=_session_insecure(insecure))
-    except SessionError as error:
-        ui.warning(
-            f"Session not renewed ({error}). The token may not reflect the new roles: "
-            "run `sk auth login`."
-        )
-        return False
-    return True
 
 
 def _operation_rows(operation: OperationStatus) -> list[tuple[str, str]]:
@@ -330,7 +221,7 @@ def _finish_request(
         )
         return
     link = _wait_for_convergence(url, insecure, accepted, enabled=enabled, timeout=timeout)
-    renewed = _renew_after_convergence(insecure)
+    renewed = renew_after_convergence(insecure)
     ui.panel(
         "Service enabled" if enabled else "Service disabled",
         [
@@ -368,9 +259,9 @@ def enable_command(
     allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
     # Obrigatória por validação do próprio comando (não pelo Typer), para não exibir "[required]".
-    service = _require(service, "--service")
-    url, insecure = _load_api(api_url, allow_insecure_http)
-    token = _token(insecure)
+    service = require(service, "--service")
+    url, insecure = load_api(api_url, allow_insecure_http)
+    token = session_token(insecure)
     try:
         accepted = enable_service(
             url,
@@ -380,7 +271,7 @@ def enable_command(
             allow_insecure_http=insecure,
         )
     except OidcError as error:
-        _bad_address(error)
+        bad_address(error)
     except ApiError as error:
         _fail_api(
             error, conflict="This service is already enabled. See it with `sk sum service list`."
@@ -420,8 +311,8 @@ def disable_command(
     allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
     resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
-    url, insecure = _load_api(api_url, allow_insecure_http)
-    token = _token(insecure)
+    url, insecure = load_api(api_url, allow_insecure_http)
+    token = session_token(insecure)
     try:
         current = get_service(
             url, token=token, resource_id=resource_id, allow_insecure_http=insecure
@@ -438,7 +329,7 @@ def disable_command(
             allow_insecure_http=insecure,
         )
     except OidcError as error:
-        _bad_address(error)
+        bad_address(error)
     except ApiError as error:
         _fail_api(error)
     ui.panel(
@@ -489,12 +380,12 @@ def get_command(
     resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
     if operation_id is not None:
         operation_id = _identifier(operation_id, "--operation-id", what="operationId")
-    url, insecure = _load_api(api_url, allow_insecure_http)
-    token = _token(insecure)
+    url, insecure = load_api(api_url, allow_insecure_http)
+    token = session_token(insecure)
     try:
         link = get_service(url, token=token, resource_id=resource_id, allow_insecure_http=insecure)
     except OidcError as error:
-        _bad_address(error)
+        bad_address(error)
     except ApiError as error:
         _fail_api(error)
     operation: OperationStatus | None = None
@@ -508,7 +399,7 @@ def get_command(
                 allow_insecure_http=insecure,
             )
         except OidcError as error:
-            _bad_address(error)
+            bad_address(error)
         except ApiError as error:
             _fail_api(error, not_found="Operation not found for this service.")
     rows = [
@@ -528,12 +419,12 @@ def list_command(
     api_url: ApiUrlOption = None,
     allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
-    url, insecure = _load_api(api_url, allow_insecure_http)
-    token = _token(insecure)
+    url, insecure = load_api(api_url, allow_insecure_http)
+    token = session_token(insecure)
     try:
         links = list_services(url, token=token, allow_insecure_http=insecure)
     except OidcError as error:
-        _bad_address(error)
+        bad_address(error)
     except ApiError as error:
         _fail_api(error)
     if not links:

@@ -21,7 +21,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Retenção, quarentena, backup e recuperação | Pendente |
 | Organization (`ipm`) | Atende para o loop completo (Receiver, Manager, Publisher, Reconciler, Observer e Executor), refeito a partir do User (decisão 0038), com testes e2e contra a stack do dev e o Zitadel real: criar, renomear, desativar e reativar (`platformAccess`), remover e a queda de cada papel. O Executor escreve só a organização, sem Project Grant |
 | SUM (`sum.service`) | Atende para o loop completo (Receiver, Manager, Publisher, Reconciler, Observer e Executor) e a CLI `sk sum service`, com testes e2e contra a stack do dev: ligar, desligar e a queda de Manager, Executor e Publisher, e o reinício de Reconciler e Observer no meio de uma ligação; e o teste de jornada (`tests/e2e`: cadastro, ativação, `sk auth login` interativo, ligar e desligar o `ipm` com a CLI real e a renovação da sessão). Pendente: verificação de e-mail do solicitante (decisão aberta), a Operation não vira `failed`, retenção das linhas desligadas, kill switch e visão de operador (`features/sum/service/README.md` §10) |
-| CLI | Parcial: `sk config`, `sk auth login`, `sk auth whoami` e `sk register` implementados e testados; falta `sk ipm organization`, que depende da Organization. Pendente: o client ID de produção (`000000000000000000`) e o endereço de stg e prd, que ainda não existem |
+| CLI | Parcial: `sk config`, `sk auth login`, `sk auth whoami`, `sk register`, `sk sum service` e `sk ipm organization` implementados e testados (a jornada e2e usa a CLI real contra o dev); falta `sk user get\|delete`. Pendente: o client ID de produção (`000000000000000000`) e o endereço de stg e prd, que ainda não existem |
 
 # 2. `RESOURCE-CONTROL-LOOP.md`: checklist de implementação (seção 55), por papel (`core.user`)
 
@@ -172,7 +172,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Tema | Situação | Referência |
 |---|---|---|
 | Organization (`features/ipm/organization`) | Papéis de instância `IAM_ORG_MANAGER` (Executor) e `IAM_OWNER_VIEWER` (Observer): mais largos que o necessário; estreitar antes de prd. O nome `register` não é reservado (falha no Executor, `Rejected`) | `features/ipm/organization/README.md`, decisão 0038 |
-| CLI | `sk config`, `sk auth` e `sk register`; faltam `sk user get\|delete` e `sk ipm organization` | `ROADMAP.md` |
+| CLI | `sk config`, `sk auth`, `sk register`, `sk sum service` e `sk ipm organization`; falta `sk user get\|delete` | `ROADMAP.md` |
 | `pinned_client` no Executor | Alvo antes de stg e prd | `NATS.md` §7.5 |
 | Partição do Observer | Na aplicação (`hash(resourceId) mod count`); o `DESIRED` não é particionado | decisão 0018 |
 | Quarentena, `ObservationStale`, limite de remoções, retenção, métricas e traces | Pendentes | seções 2 a 6 |
