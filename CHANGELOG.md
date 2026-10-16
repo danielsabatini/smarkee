@@ -16,7 +16,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - `sk auth whoami`: mostra o usuário da sessão gravada e confirma com o provedor que o acesso ainda vale. Sem sessão, com acesso vencido ou não confirmado pelo provedor, sai com código 1 e a causa.
 - Ajuda da CLI padronizada (decisão 0022): cada opção mostra o tipo, as fontes do valor (variável de ambiente, arquivo de configuração e padrão) e se é obrigatória, com cores, em linguagem para o usuário final. As opções obrigatórias do `sk register` são validadas pelo comando, com código de saída 2.
 - Apresentação da CLI com Rich (decisão 0021): painéis de sucesso, erros com dica de correção e URL de login em destaque, em todos os comandos (`auth init`, `auth login` e `register`).
-- CLI `sk register --name --surname --email`: cadastro anônimo na API do módulo core (`[core] apiUrl`), sem token e sem senha, com validação local dos limites do contrato, orientação ao usuário e códigos de saída definidos. Testes unitários, de comando e de integração com servidor HTTP real.
+- CLI `sk register --name --surname --email`: cadastro anônimo na API do módulo core (`[api] url`), sem token e sem senha, com validação local dos limites do contrato, orientação ao usuário e códigos de saída definidos. Testes unitários, de comando e de integração com servidor HTTP real.
 - Documentação do banco de dados: diagramas de entidade e relacionamento (lógico e físico), de gravação por mensagem e de privilégios em `docs/diagrams/`, referenciados em `docs/SSOT.md` §7 e `docs/POSTGRESQL.md` §6; seção 11 do `features/core/user/README.md` com o ER real do `core.user`, colunas `jsonb`, índices, quem grava o quê e dados pessoais; índice `docs/README.md`.
 - Campo opcional `publishedBy` no envelope das mensagens: a identidade de mensageria que entregou a mensagem (o Publisher, em `desired` e `updated`). O `emitter` continua sendo o autor da decisão (`manager`); o Subject não muda.
 - Imagens mínimas de ferramentas (`infrastructure/tools`): `smarkee-nats-client` (CLI `nats` 0.5.0 verificada por SHA256, ~48 MB) e `smarkee-psql-client` (cliente PostgreSQL 18.6 sobre Alpine 3.23, ~28 MB), sem privilégios e multi-estágio, usadas no bootstrap do broker e nas migrações e consumers das features em lugar de `nats-box` e `postgres:alpine`.
@@ -46,6 +46,8 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Licença Apache-2.0 (`LICENSE`).
 
 ### Changed
+- `sk`: o endereço da API da plataforma, que vale para todos os módulos, passa para a seção própria `[api]` (`api.url` e `api.allowInsecureHttp`, variáveis `SK_API_URL` e `SK_API_ALLOW_INSECURE_HTTP`), em vez de `[core]`, que fica só com o `projectId` do módulo core. Um arquivo que ainda use `[core] apiUrl` é recusado: troque as chaves de lugar.
+- `sk`: os valores da plataforma (provedor de identidade, URL da API, client ID e os IDs dos projetos de roles dos módulos) passam a ser o padrão da CLI: em produção ela funciona sem arquivo, sem variável e sem opção. O arquivo de configuração, as variáveis `SK_*` e as opções só sobrescrevem (o que o desenvolvimento faz). `sk config list` mostra o valor efetivo e a origem (`default`, `file` ou `env`), `sk config get` imprime o valor efetivo, e `sk config set` cria o arquivo se não existir e grava só as sobrescritas. Enquanto o client ID e os IDs dos projetos de produção não existirem (`000000000000000000`), `sk auth login` recusa o login dizendo quais valores faltam (decisão 0036).
 - O access token passa a valer 15 minutos (antes, 12 horas), para uma revogação de role chegar ao token em pouco tempo (decisão 0033). O `sk` renova a sessão sozinho pelo refresh token: `sk auth whoami` e a espera de `--wait` também renovam (antes, `whoami` pedia novo login com o acesso vencido). Um token já emitido segue valendo até vencer.
 - A mensagem de conflito do SUM passa a dizer "habilitado" (antes, "ligado").
 - Cadastro: a pessoa recebe **um e-mail só**, o "Verificar e-mail", cujo link confirma o e-mail e já define a senha. Antes chegavam dois ("Verificar e-mail" e "Redefinir senha"), e os dois levavam à mesma tela de senha; o segundo não bastava sozinho (deixava o e-mail sem verificar e o login travava). "Esqueci a senha" na tela de login continua disponível.
@@ -85,6 +87,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Infraestrutura de desenvolvimento: o administrador do PostgreSQL passa a ser `postgres`, e o banco do SSOT é criado pela inicialização (`infrastructure/dev`).
 
 ### Removed
+- `sk init`: o arquivo de configuração deixa de ser um passo obrigatório. Quem o usava em script passa a usar `sk config set` (decisão 0036).
 - SSOT: tabela de inbox; a idempotência de entrada é garantida pelas regras semânticas (`docs/SSOT.md`, `docs/POSTGRESQL.md`).
 
 ### Fixed

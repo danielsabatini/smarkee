@@ -3,6 +3,8 @@
 - **Data:** 2026-10-13
 - **Status:** Aceita. Complementa as decisões 0008 (configuração da CLI) e 0013 (ordem de acesso e exposição do Zitadel); a regra de precedência da 0008 não muda.
 
+> **Atualização (decisão 0036):** o `sk init` foi removido, e os valores de produção passaram a ser o padrão da CLI; o arquivo só sobrescreve. O que esta decisão diz sobre `sk init` está superado; `sk config` continua.
+
 ## Contexto
 
 A CLI `sk` dependia de o usuário configurar endereços à mão: `sk auth init` gravava só a seção `[auth]`, e nenhum comando gravava `[core] apiUrl`. Um usuário final não consegue fazer isso sem editar o arquivo ou conhecer variáveis de ambiente.

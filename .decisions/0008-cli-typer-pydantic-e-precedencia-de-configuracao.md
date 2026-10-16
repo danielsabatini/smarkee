@@ -3,6 +3,8 @@
 - **Data:** 2026-10-09
 - **Status:** Aceita
 
+> **Atualização (decisão 0036):** a precedência continua a mesma, mas o `sk init` não existe mais: os valores de produção são o padrão, e o arquivo só sobrescreve.
+
 ## Contexto
 
 O CLI `sk` vai crescer com os comandos da plataforma (`sk auth ...`) e dos módulos (`sk ipm ...`). Cada comando precisa de configuração (issuer, client ID, URLs de Receiver) vinda de mais de uma fonte, com uma ordem previsível e igual em todos os comandos.

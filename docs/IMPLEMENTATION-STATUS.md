@@ -21,7 +21,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Retenção, quarentena, backup e recuperação | Pendente |
 | Organization (`ipm`) | Parcial: Receiver, Manager e relay no desenho anterior; sem Observer, Reconciler e Executor |
 | SUM (`sum.service`) | Atende para o loop completo (Receiver, Manager, Publisher, Reconciler, Observer e Executor) e a CLI `sk sum service`, com testes e2e contra a stack do dev: ligar, desligar e a queda de Manager, Executor e Publisher, e o reinício de Reconciler e Observer no meio de uma ligação; e o teste de jornada (`tests/e2e`: cadastro, ativação, `sk auth login` interativo, ligar e desligar o `ipm` com a CLI real e a renovação da sessão). Pendente: verificação de e-mail do solicitante (decisão aberta), a Operation não vira `failed`, retenção das linhas desligadas, kill switch e visão de operador (`features/sum/service/README.md` §10) |
-| CLI | Parcial: `sk init`, `sk config`, `sk auth login`, `sk auth whoami` e `sk register` implementados e testados; falta `sk ipm organization`, que depende da Organization. Pendente: o client ID de produção (`pendente-prd`) e o endereço de stg e prd, que ainda não existem |
+| CLI | Parcial: `sk config`, `sk auth login`, `sk auth whoami` e `sk register` implementados e testados; falta `sk ipm organization`, que depende da Organization. Pendente: o client ID de produção (`000000000000000000`) e o endereço de stg e prd, que ainda não existem |
 
 # 2. `RESOURCE-CONTROL-LOOP.md`: checklist de implementação (seção 55), por papel (`core.user`)
 
@@ -172,7 +172,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Tema | Situação | Referência |
 |---|---|---|
 | Organization (`features/ipm/organization`) | Receiver, Manager e relay no desenho anterior (`relay/` e `conformance/` separados, `/healthz`); será refeita a partir do User | `features/ipm/organization/README.md` |
-| CLI | `sk init`, `sk config`, `sk auth` e `sk register`; faltam `sk user get\|delete` e `sk ipm organization` | `ROADMAP.md` |
+| CLI | `sk config`, `sk auth` e `sk register`; faltam `sk user get\|delete` e `sk ipm organization` | `ROADMAP.md` |
 | `pinned_client` no Executor | Alvo antes de stg e prd | `NATS.md` §7.5 |
 | Partição do Observer | Na aplicação (`hash(resourceId) mod count`); o `DESIRED` não é particionado | decisão 0018 |
 | Quarentena, `ObservationStale`, limite de remoções, retenção, métricas e traces | Pendentes | seções 2 a 6 |

@@ -15,29 +15,32 @@ Cada valor é resolvido nesta ordem, do mais forte para o mais fraco: **parâmet
 - Arquivo: `$XDG_CONFIG_HOME/sk/config.toml` (padrão `~/.config/sk/config.toml`), com uma tabela por seção e **chaves em camelCase**. Uma chave desconhecida ou fora do camelCase (por exemplo `client_id`) é rejeitada.
 - O mesmo nome muda só de grafia entre os meios: `--client-id`, `SK_AUTH_CLIENT_ID`, `clientId` (`docs/SCHEMA.md`, *Grafia dos nomes por meio*).
 
-O primeiro passo é `sk init`, que cria o arquivo com os endereços de produção:
+**Em produção não há nada a configurar.** Os valores da plataforma (provedor de identidade, URL da API, client ID e os IDs dos projetos de roles dos módulos) são o **padrão** da CLI: ela funciona sem arquivo e sem variável, e não há `sk init` (decisão 0036). O arquivo, as variáveis e as opções existem só para **sobrescrever**, o que o desenvolvimento e o stg fazem. O `allowInsecureHttp` é só de desenvolvimento e vem desligado.
+
+`sk config` mostra o que vale e altera as sobrescritas, sem editar o arquivo à mão:
 
 ```bash
-uv run sk init [--issuer URL] [--client-id ID] [--api-url URL] [--allow-insecure-http] [--force]
+uv run sk config list                              # cada chave, o valor efetivo e a origem (default, file ou env)
+uv run sk config get api.url                   # só o valor efetivo, para uso em scripts
+uv run sk config set api.url http://api-dev.smarkee.com.br:8080   # cria o arquivo, se não existir
 ```
 
-Depois, `sk config` consulta e altera o arquivo, sem editá-lo à mão:
+Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `api.url`, `api.allowInsecureHttp`, `core.projectId`, `sum.projectId` e `ipm.projectId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro **só com as sobrescritas**: um valor que ficou no padrão não vai para o arquivo, e comentários feitos à mão não são preservados. Não há `unset`: para voltar ao padrão, apague a chave do arquivo.
+
+**O que ainda não tem padrão de produção:** o client ID e os IDs dos projetos de roles só nascem quando o Zitadel de produção for provisionado. Até lá o padrão é o marcador `000000000000000000` (18 zeros), e `sk auth login` recusa o login dizendo quais valores faltam (em vez de seguir e falhar adiante). Em desenvolvimento, sobrescreva cada um:
 
 ```bash
-uv run sk config list                              # todas as chaves e os valores gravados
-uv run sk config get core.apiUrl                   # só o valor, para uso em scripts
-uv run sk config set core.apiUrl https://api.smarkee.com.br
+uv run sk config set auth.issuer http://ipm-dev.smarkee.com.br:8080
+uv run sk config set auth.clientId <client-id-da-aplicação-cli>
+uv run sk config set api.url http://api-dev.smarkee.com.br:8080
+uv run sk config set core.projectId <ID-do-projeto-roles-core>
+uv run sk config set sum.projectId <ID-do-projeto-roles-sum>
+uv run sk config set ipm.projectId <ID-do-projeto-roles-ipm>
+uv run sk config set auth.allowInsecureHttp true   # dev não tem TLS
+uv run sk config set api.allowInsecureHttp true
 ```
 
-Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `core.apiUrl`, `core.allowInsecureHttp`, `core.projectId`, `sum.projectId` e `ipm.projectId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro: comentários feitos à mão não são preservados.
-
-O `init` grava os padrões de produção: `https://ipm.smarkee.com.br` para o provedor e `https://api.smarkee.com.br` para a API. O client ID de produção ainda não existe: o `init` grava o marcador `pendente-prd` e avisa, e o valor definitivo é pendente (`.decisions/0023-sk-init-e-sk-config.md`). Para desenvolvimento, aponte para os endereços do dev e permita HTTP:
-
-```bash
-uv run sk init --force --issuer http://ipm-dev.smarkee.com.br:8080 \
-  --api-url http://api-dev.smarkee.com.br:8080 --client-id <client-id-da-aplicação-cli> \
-  --allow-insecure-http
-```
+**Alternativa por variáveis:** copie `.env.example` para `.env` (fora do git), preencha e rode `source .env` antes de usar a CLI. As variáveis `SK_*` valem mais que o arquivo (`sk config list` mostra a origem `env`), então com o `.env` carregado o arquivo de configuração nem é necessário. Os testes ignoram as variáveis `SK_*` do seu ambiente.
 
 ```toml
 [auth]
@@ -45,12 +48,21 @@ issuer = "http://ipm-dev.smarkee.com.br:8080"
 clientId = "<client-id-da-aplicação-sk>"
 allowInsecureHttp = true  # somente em desenvolvimento
 
-[core]
-apiUrl = "http://api-dev.smarkee.com.br:8080"
+[api]
+url = "http://api-dev.smarkee.com.br:8080"
 allowInsecureHttp = true  # somente em desenvolvimento
+
+[core]
+projectId = "<ID de roles-core>"
+
+[sum]
+projectId = "<ID de roles-sum>"
+
+[ipm]
+projectId = "<ID de roles-ipm>"
 ```
 
-O `init` não lê o arquivo que vai criar, recusa endereço `http` sem `--allow-insecure-http` e não sobrescreve um arquivo existente sem `--force`. O `sk config set` avisa quando grava um endereço `http` sem permissão, e o uso recusa esse endereço.
+O `sk config set` avisa quando grava um endereço `http` sem permissão, e o uso recusa esse endereço.
 
 O arquivo guarda configuração, e não credenciais. Os tokens ficam em `credentials.json`, no mesmo diretório.
 
@@ -132,7 +144,7 @@ uv run sk sum service disable --resource-id ID [--wait] [--timeout SEGUNDOS]
 uv run sk sum service list
 ```
 
-Todos aceitam `--api-url` e `--allow-insecure-http` (parâmetro → `SK_CORE_*` → `[core]` → padrão), como o `sk register`. `resourceId` e `operationId` precisam seguir o padrão do contrato (letras minúsculas, números e hífen, até 128 caracteres): outro valor é recusado antes de qualquer chamada, porque entra no caminho da URL.
+Todos aceitam `--api-url` e `--allow-insecure-http` (parâmetro → `SK_API_*` → `[api]` → padrão), como o `sk register`. `resourceId` e `operationId` precisam seguir o padrão do contrato (letras minúsculas, números e hífen, até 128 caracteres): outro valor é recusado antes de qualquer chamada, porque entra no caminho da URL.
 
 | Comando | Requisição | Resultado |
 |---|---|---|
@@ -141,7 +153,7 @@ Todos aceitam `--api-url` e `--allow-insecure-http` (parâmetro → `SK_CORE_*` 
 | `get --resource-id ID` | `GET` do serviço (e da Operation, se `--operation-id`) | `state` (`enabled` / `disabled`), `phase` e `observedRoles` |
 | `list` | `GET /v1/sum/services` | Uma linha por serviço do solicitante (habilitado ou desabilitado) |
 
-Habilitar e desabilitar são assíncronos: o comando confirma o aceite, e `get` mostra quando a fase chega a `Ready`. **O token só traz as roles que existiam quando foi emitido**: as do serviço (`ipm.*`) chegam depois do aceite e saem ao desligar. Por isso `--wait` espera a convergência (`Ready` e Operation `completed`, até `--timeout`, 60 s por padrão) e **renova a sessão** pelo refresh token, e o token já reflete o novo estado. Sem `--wait`, rode `sk auth refresh` quando a fase for `Ready`. Se a renovação falhar (por exemplo, sem refresh token), o comando avisa e sai com `0`, porque o pedido já valeu. Os nomes dos campos e os valores de estado saem em inglês (`resourceId`, `state`, `phase`); só as mensagens e a ajuda são em português. Usa a API de `[core] apiUrl` e o token da sessão. Precisa de um solicitante com as roles `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`.
+Habilitar e desabilitar são assíncronos: o comando confirma o aceite, e `get` mostra quando a fase chega a `Ready`. **O token só traz as roles que existiam quando foi emitido**: as do serviço (`ipm.*`) chegam depois do aceite e saem ao desligar. Por isso `--wait` espera a convergência (`Ready` e Operation `completed`, até `--timeout`, 60 s por padrão) e **renova a sessão** pelo refresh token, e o token já reflete o novo estado. Sem `--wait`, rode `sk auth refresh` quando a fase for `Ready`. Se a renovação falhar (por exemplo, sem refresh token), o comando avisa e sai com `0`, porque o pedido já valeu. Os nomes dos campos e os valores de estado saem em inglês (`resourceId`, `state`, `phase`); só as mensagens e a ajuda são em português. Usa a API de `[api] url` e o token da sessão. Precisa de um solicitante com as roles `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`.
 
 Códigos de saída: `0` sucesso; `1` sessão ausente, API recusou ou indisponível, ou `--wait` sem convergir (Operation recusada ou tempo esgotado); `2` opção obrigatória ausente, identificador fora do contrato, endereço sem HTTPS ou configuração inválida.
 
@@ -153,17 +165,17 @@ uv run sk register --name Ana --surname Souza --email ana@dominio.com
 
 Pede o cadastro de um usuário pela API do módulo `core`. É **anônimo**: não exige login, não envia token (mesmo que existam credenciais salvas) e não pede senha. A pessoa define a senha depois, na página do provedor, a partir do e-mail de ativação. O cadastro é assíncrono: o comando confirma que o pedido foi aceito (`resourceId` e `operationId`), e não que a conta já existe.
 
-| Opção | Variável de ambiente | Chave em `[core]` | Significado |
+| Opção | Variável de ambiente | Chave em `[api]` | Significado |
 |---|---|---|---|
 | `--name` | | | Nome próprio (obrigatório, 1 a 256 caracteres) |
 | `--surname` | | | Sobrenome (obrigatório, 1 a 256 caracteres) |
 | `--email` | | | E-mail, também o nome de login (obrigatório) |
-| `--api-url` | `SK_CORE_API_URL` | `apiUrl` | URL base da API do módulo core, pelo gateway |
-| `--allow-insecure-http` | `SK_CORE_ALLOW_INSECURE_HTTP=true` | `allowInsecureHttp = true` | Aceita a API em HTTP. Somente em desenvolvimento |
+| `--api-url` | `SK_API_URL` | `url` | URL base da API da plataforma, pelo gateway |
+| `--allow-insecure-http` | `SK_API_ALLOW_INSECURE_HTTP=true` | `allowInsecureHttp = true` | Aceita a API em HTTP. Somente em desenvolvimento |
 
 ```toml
-[core]
-apiUrl = "http://api-dev.smarkee.com.br:8080"
+[api]
+url = "http://api-dev.smarkee.com.br:8080"
 allowInsecureHttp = true  # somente em desenvolvimento
 ```
 
@@ -180,7 +192,7 @@ Os comandos mostram sucesso em painel e erro com causa e dica de correção. Cor
 A ajuda (`--help`) segue um padrão único, montado por `src/sk/help.py` e verificado em `tests/unit/test_help.py` (`.decisions/0022-padrao-dos-textos-de-ajuda-da-cli.md`). Cada opção aparece como:
 
 ```text
---api-url  Platform API address. [String] [env SK_CORE_API_URL | file [core] apiUrl] [required]
+--api-url  Platform API address. [String] [env SK_API_URL | file [api] url | default https://api.smarkee.com.br] [optional]
 ```
 
 - `[String]`, `[Integer]` ou `[Boolean]`: o tipo do valor.

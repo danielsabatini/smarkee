@@ -183,13 +183,15 @@ Estado aplicado no dev em 2026-10-10 (pela API do Zitadel, com a conta de bootst
 
 Para reproduzir pelo console (**Projetos**, **Autorizações**, **Configurações → Login**; os nomes das opções podem diferir um pouco na versão em uso): crie a organização `core`; nela, os projetos `roles-core`, `roles-ipm` e `roles-sum` (*Afirmar roles na autenticação* e *Verificar roles na autenticação* ligados) com as roles acima, o projeto `clients` (*Afirmar roles na autenticação* ligado e *Verificar roles na autenticação* **desligado**, sem roles) com a aplicação `cli` (nativa, PKCE, tipo de token JWT, redirect e concessões acima); desligue o registro na política de login; e delegue cada projeto à `register` por Project Grant só com as roles de ação; dê ao Executor do User os papéis `ORG_USER_CREATOR` (na `register`) e `PROJECT_GRANT_OWNER` (nos Grants de `roles-core` e `roles-sum`); e conceda `*.admin` mais as roles de ação aos operadores.
 
-Depois, no host, grave a configuração uma vez (`~/.config/sk/config.toml`) e faça o login:
+Depois, no host, grave as sobrescritas do dev uma vez (`~/.config/sk/config.toml`, criado pelo primeiro `sk config set`; em produção a CLI não precisa de arquivo, decisão 0036) e faça o login:
 
 ```bash
 cd clients/cli
-uv run sk init --force --issuer http://ipm-dev.smarkee.com.br:8080 \
-  --api-url http://api-dev.smarkee.com.br:8080 \
-  --client-id <client-id-da-aplicação-cli> --allow-insecure-http   # dev não tem TLS
+uv run sk config set auth.issuer http://ipm-dev.smarkee.com.br:8080
+uv run sk config set auth.clientId <client-id-da-aplicação-cli>
+uv run sk config set api.url http://api-dev.smarkee.com.br:8080
+uv run sk config set auth.allowInsecureHttp true   # dev não tem TLS
+uv run sk config set api.allowInsecureHttp true
 uv run sk config set core.projectId <ID-do-projeto-roles-core>
 uv run sk config set sum.projectId <ID-do-projeto-roles-sum>
 uv run sk config set ipm.projectId <ID-do-projeto-roles-ipm>
