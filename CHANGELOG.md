@@ -10,6 +10,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ### Added
 - `sk sum service enable|disable|get|list`: liga, desliga e consulta os serviços do solicitante no Service Usage Manager. Com `[sum] projectId` configurado, `sk auth login` pede o audience do SUM. O access token é renovado pelo refresh token quando está para vencer, sem novo login.
 - Service Usage Manager (`features/sum/service`, decisão 0033): ligação de um serviço por usuário, com a API `/v1/sum/services`, os seis componentes do loop (Receiver, Manager, Publisher, Reconciler, Observer e Executor) e testes e2e, incluindo os de falha de componente.
+- SUM: contrato da listagem (`api-list-response`) e OpenAPI do Receiver versionado (`openapi.json`, conferido por teste), com os modelos de resposta e de erro; documentação do SUM no padrão do User (fluxos, estados, banco e segurança); partição por `resourceId` no Observer, para várias réplicas.
 - `sk auth whoami`: mostra o usuário da sessão gravada e confirma com o provedor que o acesso ainda vale. Sem sessão, com acesso vencido ou não confirmado pelo provedor, sai com código 1 e a causa.
 - Ajuda da CLI padronizada (decisão 0022): cada opção mostra o tipo, as fontes do valor (variável de ambiente, arquivo de configuração e padrão) e se é obrigatória, com cores, em linguagem para o usuário final. As opções obrigatórias do `sk register` são validadas pelo comando, com código de saída 2.
 - Apresentação da CLI com Rich (decisão 0021): painéis de sucesso, erros com dica de correção e URL de login em destaque, em todos os comandos (`auth init`, `auth login` e `register`).
@@ -79,5 +80,10 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ### Fixed
 - SUM: a Operation de uma ligação ficava `accepted` para sempre. Agora passa a `in_progress` durante a reconciliação e a `completed` quando a fase chega a `Ready`.
 - SUM: o Executor consumia uma só partição do `ACTION` por processo, e os recursos das outras partições ficavam sem quem os executasse. Agora há um laço por partição no mesmo processo, como no User (decisão 0018).
+- SUM: o Executor passou a validar o emissor da `action`, a revalidar o `desired` (geração, suspensão e `lifecycle`), a publicar `failed` para ação velha ou recusada e a não repetir um `actionId` já concluído. Sem `lifecycle` válido ele não concede mais roles (antes assumia `present`).
+- SUM: o Manager passou a recusar `requested` de outra versão MAJOR do contrato.
+- SUM: erros de validação do Receiver agora são `400` `ValidationFailed` no formato do contrato (antes, `422` no formato do FastAPI), o erro interno segue o contrato, e a documentação interativa deixou de ser exposta. `GET .../operations/{id}` devolvia a Operation sem `module` e `resourceType`.
+- SUM: uma recusa permanente no Publisher não derruba mais o processo: ele mantém a ordem, registra o erro e sai de `ready` (decisão 0018).
+- SUM: o Reconciler e o Observer reconstroem o estado da mensageria ao reiniciar (consumer por instância, `DeliverLastPerSubject`); antes só viam as mensagens novas.
 - SSOT: resultados `completed` e `failed` reentregues eram contados de novo, e resultados de geração anterior eram contados contra a geração atual; nova tabela `<tipo>_action_result` registra o `actionId` (`docs/SSOT.md`, `docs/POSTGRESQL.md`).
 - SSOT: restauração a um ponto no tempo podia reutilizar uma geração já publicada com outro conteúdo; novo procedimento de recuperação executado antes de liberar o Manager e o relay (`docs/SSOT.md`, `docs/POSTGRESQL.md`).

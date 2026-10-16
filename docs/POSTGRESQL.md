@@ -204,7 +204,7 @@ CREATE VIEW sample.item_operation_v1 AS
     FROM sample.item_operation;
 ```
 
-Cada tipo acrescenta os índices das suas regras de unicidade ou de busca: por exemplo, `core.user_email`, sobre `desired ->> 'email'`, que sustenta a unicidade do e-mail do User (conferida na unidade atômica, sob trava consultiva).
+Cada tipo acrescenta os índices das suas regras de unicidade ou de busca: por exemplo, `core.user_email`, sobre `desired ->> 'email'`, que sustenta a unicidade do e-mail do User (conferida na unidade atômica, sob trava consultiva); e `sum.service_active_link`, índice único parcial sobre `(owner_user_id, service)` com `lifecycle = 'present'`, que garante uma ligação ativa por dono e serviço, mesmo com pedidos concorrentes (SUM, decisão 0033).
 
 O limite de 262144 bytes (256 KiB) é o valor de referência de `SCHEMA.md` e pode ser ajustado por contrato. `pg_column_size` mede o valor armazenado, que pode estar comprimido; o limite da aplicação continua sendo a verificação autoritativa do tamanho do conteúdo. Os limites de comprimento das colunas de identificação seguem os valores de referência de `SCHEMA.md`; o de `action_id` comporta a sua composição (`MESSAGING.md`).
 

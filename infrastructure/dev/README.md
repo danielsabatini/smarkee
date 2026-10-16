@@ -322,6 +322,7 @@ docker run --rm --network internal curlimages/curl -s -H 'Host: ipm-dev.smarkee.
 - As senhas triviais dos bancos `identity` e `gateway` devem ser trocadas antes de qualquer ambiente `stg` ou `prd`.
 - O NATS usa um único usuário em dev. A identidade e as permissões por serviço de `docs/NATS.md` e `docs/RESOURCE-CONTROL-SECURITY.md` não são exercitadas aqui; erros de permissão só aparecem em ambientes que as aplicam.
 - Na subida a frio, o Kong pode responder 503 (`name resolution failed`) para o login do Zitadel (`identity-login`) por alguns segundos, enquanto expira o cache de DNS negativo de um contêiner que ainda não existia. Normaliza sozinho.
+- Depois de recriar o contêiner de um Receiver (por exemplo, `docker compose up -d --build` de uma feature), o Kong pode continuar enviando as requisições ao IP antigo por até cerca de 10 minutos, o TTL do DNS embutido do Docker: a resposta vem de outro contêiner (por exemplo, `405` com `{"status":"DOWN"}`). Reinicie o gateway (`docker compose restart gateway`). Uma alternativa permanente é definir `dns_valid_ttl` em `gateway/kong.conf`, o que é uma decisão de infraestrutura ainda não tomada.
 - Desenvolvimento apenas: o Zitadel roda como root, não há TLS e não há arquivamento de WAL (o procedimento de recuperação do SSOT não é testável aqui).
 - O PostgreSQL registra esperas por bloqueio (`log_lock_waits`) e comandos acima de 500 ms, sem os valores dos parâmetros: `docker logs database.smarkee.internal`.
 - O Kong Manager e a Admin API não têm autenticação; não exponha essas portas fora de `127.0.0.1`.
