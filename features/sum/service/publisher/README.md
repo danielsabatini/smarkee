@@ -5,13 +5,15 @@ gravado pelo Manager e publica no NATS (decisão 0033).
 
 ## Regras
 
-- Uma instância publica por vez, por trava consultiva de sessão.
+- Uma instância publica por vez, por trava consultiva de sessão, mantida enquanto publica e reconquistada se a conexão cair.
+- Estrutura: `domain/` (tipos puros), `outbox/` (conexão dedicada e publicação do lote) e `transport/` (JetStream).
 - O envelope é validado de forma estrita antes de sair; o Publisher acrescenta `publishedAt` e
   `publishedBy` (`sum-service-publisher`). O `emitter` continua `manager`.
 - O `Nats-Msg-Id` é o `messageId`: o transporte deduplica reenvios.
-- `published_at` só é marcado depois da confirmação do transporte.
-- Mensagem fora do envelope, ou recusa permanente do transporte, para o laço e o processo sai com código 1.
-  A mensagem continua pendente: quem opera decide.
+- `published_at` só é marcado depois da confirmação do transporte, mensagem a mensagem.
+- Mensagem fora do envelope, ou recusa permanente do transporte, para o lote e registra `ERROR` com `sequence` e
+  `message_id`. A mensagem continua pendente (a ordem é preservada) e o Publisher sai de `ready` (verificação
+  `publication`), sem derrubar o processo: quem opera decide (decisão 0018). Erro transitório tem recuo exponencial.
 
 ## Configuração
 
@@ -29,7 +31,7 @@ Variáveis dos testes de integração: `SUM_SERVICE_PUBLISHER_TEST_URL`, `..._TE
 do outbox), `..._TEST_MAINTENANCE_URL` (limpeza) e `..._TEST_NATS_URL`, `..._TEST_NATS_USER`,
 `..._TEST_NATS_PASSWORD`. O teste de publicação usa um Stream temporário e não toca no `DESIRED`.
 
-## Não verificado
+## Verificação
 
-A publicação no subject real `manager.desired.sum.service.<resourceId>.changed` com o Publisher rodando
-contra o Stream `DESIRED` do dev: não foi feita para não deixar mensagens de teste no Stream.
+A publicação no subject real `manager.desired.sum.service.<resourceId>.changed`, com o Publisher no Compose, é
+exercida pela suíte e2e (`../tests/e2e`), inclusive com o Publisher parado durante um pedido.

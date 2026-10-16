@@ -9,7 +9,7 @@ from pydantic import SecretStr
 
 
 async def connect(
-    url: str, user: str, password: SecretStr | None, *, name: str = "sum-service-manager"
+    url: str, user: str, password: SecretStr | None, *, name: str = "sum-service-publisher"
 ) -> NatsClient:
     """Conecta com a identidade do Publisher (`sum-service-publisher`)."""
     secret = password.get_secret_value() if password else None

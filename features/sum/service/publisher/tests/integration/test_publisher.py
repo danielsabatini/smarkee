@@ -18,11 +18,8 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from pydantic import SecretStr
 
-from sum_service_publisher.outbox.publication import (
-    PublicationRejectedError,
-    PublishError,
-    publish_pending,
-)
+from sum_service_publisher.domain.publication import PublishError
+from sum_service_publisher.outbox.publication import publish_pending
 from sum_service_publisher.transport.nats import connect, jetstream_of
 from sum_service_publisher.transport.publisher import JetStreamPublisher
 
@@ -120,8 +117,9 @@ async def test_an_invalid_outbox_message_stops_the_batch_and_stays_pending() -> 
         os.environ["SUM_SERVICE_PUBLISHER_TEST_URL"], autocommit=True
     )
     try:
-        with pytest.raises(PublicationRejectedError):
-            await publish_pending(connection, RefusingPublisher())
+        result = await publish_pending(connection, RefusingPublisher())
+        # Mensagem fora do envelope: falha permanente, o lote para e a mensagem fica pendente.
+        assert (result.failed, result.permanent_failure, result.published) == (True, True, 0)
         assert await _published_at(resource_id) is None
     finally:
         await connection.close()
@@ -138,8 +136,8 @@ async def test_a_permanent_refusal_from_the_transport_keeps_the_message_pending(
         os.environ["SUM_SERVICE_PUBLISHER_TEST_URL"], autocommit=True
     )
     try:
-        with pytest.raises(PublishError):
-            await publish_pending(connection, RefusingPublisher())
+        result = await publish_pending(connection, RefusingPublisher())
+        assert (result.failed, result.permanent_failure, result.published) == (True, True, 0)
         assert await _published_at(resource_id) is None
     finally:
         await connection.close()
@@ -165,7 +163,8 @@ async def test_a_valid_message_is_published_once_on_a_temporary_stream_and_marke
         os.environ["SUM_SERVICE_PUBLISHER_TEST_URL"], autocommit=True
     )
     try:
-        assert await publish_pending(connection, JetStreamPublisher(jetstream)) >= 1
+        first = await publish_pending(connection, JetStreamPublisher(jetstream))
+        assert first.published >= 1 and not first.failed
         assert await _published_at(resource_id) is not None
         info = await jetstream.stream_info(stream)
         assert info.state.messages == 1
@@ -176,9 +175,35 @@ async def test_a_valid_message_is_published_once_on_a_temporary_stream_and_marke
             envelope["messageId"] == message_id
             and envelope["publishedBy"] == "sum-service-publisher"
         )
-        assert await publish_pending(connection, JetStreamPublisher(jetstream)) == 0  # já marcada
+        again = await publish_pending(connection, JetStreamPublisher(jetstream))
+        assert again.published == 0  # já marcada
     finally:
         await connection.close()
         await jetstream.delete_stream(stream)
         await client.close()
+        await _cleanup(resource_id)
+
+
+class TransientlyFailingPublisher:
+    async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
+        raise PublishError("TimeoutError", permanent=False)
+
+
+async def test_a_transient_failure_keeps_the_message_pending_without_blocking_the_publisher() -> (
+    None
+):
+    resource_id = _uuid()
+    payload = {**ENVELOPE_FIELDS, "messageId": _uuid(), "resourceId": resource_id}
+    await _insert_outbox(
+        f"test.sum.service.{resource_id}.changed", resource_id, payload["messageId"], payload
+    )
+    connection = await psycopg.AsyncConnection.connect(
+        os.environ["SUM_SERVICE_PUBLISHER_TEST_URL"], autocommit=True
+    )
+    try:
+        result = await publish_pending(connection, TransientlyFailingPublisher())
+        assert (result.failed, result.permanent_failure) == (True, False)
+        assert await _published_at(resource_id) is None
+    finally:
+        await connection.close()
         await _cleanup(resource_id)

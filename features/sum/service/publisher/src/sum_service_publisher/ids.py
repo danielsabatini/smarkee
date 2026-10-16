@@ -1,4 +1,4 @@
-"""Identificadores e relógio do Manager do SUM."""
+"""Identificadores e relógio do Publisher do SUM."""
 
 from datetime import UTC, datetime
 

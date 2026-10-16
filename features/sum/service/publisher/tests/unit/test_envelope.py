@@ -2,11 +2,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from sum_service_publisher.outbox.publication import (
-    PUBLISHED_BY,
-    PublicationRejectedError,
-    publication_envelope,
-)
+from sum_service_publisher.domain.publication import PublicationRejectedError
+from sum_service_publisher.outbox.publication import PUBLISHED_BY, publication_envelope
 
 WHEN = datetime(2026, 10, 15, 14, 0, 1, tzinfo=UTC)
 VALID = {

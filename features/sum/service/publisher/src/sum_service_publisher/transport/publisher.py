@@ -4,7 +4,7 @@ import nats.errors
 import nats.js.errors
 from nats.js import JetStreamContext
 
-from sum_service_publisher.outbox.publication import PublishError
+from sum_service_publisher.domain.publication import PublishError
 
 PUBLISH_TIMEOUT_SECONDS = 5.0
 _PERMANENT_ERRORS = (nats.errors.MaxPayloadError, nats.js.errors.BadRequestError)

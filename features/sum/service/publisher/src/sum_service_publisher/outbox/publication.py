@@ -1,44 +1,60 @@
 """Publicação do outbox de `sum.service` (`docs/POSTGRESQL.md` §11; decisão 0033).
 
-Publica, em ordem de `sequence`, as mensagens que o Manager gravou, e só marca `published_at` depois
-da confirmação do transporte (entrega pelo menos uma vez; o transporte deduplica por `Nats-Msg-Id`).
-Uma única instância publica por vez, por trava consultiva de sessão, numa conexão dedicada em
-autocommit. Uma mensagem fora do contrato para o lote e não é marcada: o erro vai para quem opera.
+Publica, em ordem de `sequence`, as mensagens que o Manager gravou no outbox, e só marca
+`published_at` depois da confirmação do transporte (entrega pelo menos uma vez; o transporte
+deduplica por `Nats-Msg-Id`). Uma única instância publica por vez, por trava consultiva de sessão:
+a conexão do Publisher é dedicada e direta. Antes de cada lote a instância confirma que ainda
+detém a trava. Uma mensagem fora do envelope é uma falha permanente: o lote para, ela continua
+pendente (a ordem é preservada) e o Publisher sai de `ready` (decisão 0018).
 """
 
+import asyncio
 import json
+import logging
+import time
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any, Protocol
 
-from psycopg import AsyncConnection
-from psycopg.rows import dict_row, tuple_row
+import psycopg
+from psycopg import sql
+from psycopg.rows import dict_row
 from pydantic import ValidationError
 
 from sum_service_publisher.contracts import generated
+from sum_service_publisher.domain.publication import (
+    PublicationRejectedError,
+    PublicationResult,
+    PublishError,
+)
 from sum_service_publisher.ids import utc_now
+from sum_service_publisher.outbox.database import conninfo
+from sum_service_publisher.settings import DatabaseSettings
+
+logger = logging.getLogger(__name__)
+
+BATCH_SIZE = 100
+POLL_INTERVAL_SECONDS = 0.5
+LOCK_RETRY_SECONDS = 2.0
+# Um lote dura uma fração da janela de deduplicação do transporte (120 s em `REQUESTED` e
+# `DESIRED`), para que uma sobreposição entre instâncias seja absorvida pela deduplicação.
+MAXIMUM_BATCH_SECONDS = 30.0
+MAXIMUM_BACKOFF_SECONDS = 30.0
 
 PUBLISHED_BY = "sum-service-publisher"
 """Identidade de mensageria desta instância (`publishedBy`). O `emitter` continua `manager`."""
+OUTBOX_TABLE = sql.Identifier("sum", "service_outbox")
+RESOURCE_TYPE = "service"
 LOCK_KEY = "sum.service_outbox"
-BATCH_SIZE = 100
-
-
-class PublishError(Exception):
-    """O transporte recusou a publicação. `permanent` é verdadeiro quando repetir não resolve."""
-
-    def __init__(self, reason: str, *, permanent: bool) -> None:
-        super().__init__(reason)
-        self.permanent = permanent
-
-
-class PublicationRejectedError(Exception):
-    """Uma mensagem do outbox não atende ao envelope: o lote para e ela continua pendente."""
+"""Chave da trava consultiva de sessão: uma por tabela de outbox (`docs/POSTGRESQL.md` §11.4)."""
 
 
 class Publisher(Protocol):
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
-        """Publica e aguarda a confirmação do transporte. `message_id` é o `Nats-Msg-Id`."""
+        """Publica e aguarda a confirmação do transporte.
+
+        `message_id` é a chave de deduplicação do transporte (`Nats-Msg-Id`).
+        """
         ...
 
 
@@ -54,41 +70,130 @@ def publication_envelope(payload: dict[str, Any], published_at: datetime) -> byt
 
 
 async def publish_pending(
-    connection: AsyncConnection[Any],
+    connection: psycopg.AsyncConnection[Any],
     publisher: Publisher,
     *,
     batch_size: int = BATCH_SIZE,
+    maximum_seconds: float = MAXIMUM_BATCH_SECONDS,
     clock: Callable[[], datetime] = utc_now,
-) -> int:
-    """Publica um lote de mensagens pendentes. Devolve quantas foram confirmadas (0 sem a trava)."""
-    locked = await _try_lock(connection)
-    if not locked:
-        return 0
-    try:
-        async with connection.cursor(row_factory=dict_row) as cursor:
-            await cursor.execute(
-                "SELECT sequence, message_id, subject, payload FROM sum.service_outbox "
-                "WHERE published_at IS NULL ORDER BY sequence LIMIT %s",
-                (batch_size,),
-            )
-            pending = await cursor.fetchall()
-        published = 0
-        for row in pending:
-            body = publication_envelope(row["payload"], clock())
+    monotonic: Callable[[], float] = time.monotonic,
+) -> PublicationResult:
+    """Publica um lote, em ordem e de forma sequencial; interrompe no primeiro erro."""
+    cursor = connection.cursor(row_factory=dict_row)
+    await cursor.execute(
+        sql.SQL(
+            "SELECT sequence, message_id, subject, payload FROM {table}"
+            " WHERE published_at IS NULL ORDER BY sequence LIMIT %s"
+        ).format(table=OUTBOX_TABLE),
+        (batch_size,),
+    )
+    rows = await cursor.fetchall()
+    started = monotonic()
+    published = 0
+    for row in rows:
+        if monotonic() - started > maximum_seconds:
+            break
+        try:
+            body = publication_envelope(dict(row["payload"]), clock())
             await publisher.publish(row["subject"], body, message_id=row["message_id"])
-            await connection.execute(
-                "UPDATE sum.service_outbox SET published_at = %s WHERE sequence = %s",
-                (clock(), row["sequence"]),
+        except (PublicationRejectedError, PublishError) as error:
+            permanent = isinstance(error, PublicationRejectedError) or error.permanent
+            logger.log(
+                logging.ERROR if permanent else logging.WARNING,
+                "outbox publication failed; the batch is interrupted",
+                extra={
+                    "resource_type": RESOURCE_TYPE,
+                    "sequence": row["sequence"],
+                    "message_id": row["message_id"],
+                    "error_type": str(error),
+                    "permanent": permanent,
+                },
             )
-            published += 1
-        return published
-    finally:
-        await connection.execute("SELECT pg_advisory_unlock(hashtext(%s))", (LOCK_KEY,))
+            return PublicationResult(published=published, failed=True, permanent_failure=permanent)
+        # Marca cada mensagem logo após a confirmação: uma queda no meio do lote repete o mínimo.
+        await connection.execute(
+            sql.SQL("UPDATE {table} SET published_at = now() WHERE sequence = %s").format(
+                table=OUTBOX_TABLE
+            ),
+            (row["sequence"],),
+        )
+        published += 1
+    return PublicationResult(published=published, failed=False)
 
 
-async def _try_lock(connection: AsyncConnection[Any]) -> bool:
-    # Cursor de tupla: a trava não depende do formato de linha da conexão.
-    async with connection.cursor(row_factory=tuple_row) as cursor:
-        await cursor.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (LOCK_KEY,))
-        row = await cursor.fetchone()
-    return bool(row is not None and row[0])
+async def holds_lock(connection: psycopg.AsyncConnection[Any], lock_key: str = LOCK_KEY) -> bool:
+    cursor = await connection.execute(
+        "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory'"
+        " AND pid = pg_backend_pid() AND granted AND objid = hashtext(%s)::oid)",
+        (lock_key,),
+    )
+    row = await cursor.fetchone()
+    return bool(row and row[0])
+
+
+async def try_acquire_lock(
+    connection: psycopg.AsyncConnection[Any], lock_key: str = LOCK_KEY
+) -> bool:
+    cursor = await connection.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (lock_key,))
+    row = await cursor.fetchone()
+    return bool(row and row[0])
+
+
+class OutboxPublisher:
+    """Mantém a instância ativa do Publisher do tipo."""
+
+    def __init__(
+        self,
+        settings: DatabaseSettings,
+        publisher: Publisher,
+        *,
+        on_cycle: Callable[[], None] = lambda: None,
+    ) -> None:
+        self._settings = settings
+        self._publisher = publisher
+        self._on_cycle = on_cycle
+        self.blocked_by_permanent_failure = False
+        """Verdadeiro enquanto uma recusa permanente impede a publicação (readiness)."""
+
+    async def run(self, stop: asyncio.Event) -> None:
+        backoff = 1.0
+        while not stop.is_set():
+            try:
+                async with await psycopg.AsyncConnection.connect(
+                    conninfo(self._settings), autocommit=True
+                ) as connection:
+                    await self._serve(connection, stop)
+                backoff = 1.0
+            except (psycopg.Error, OSError) as error:
+                logger.warning(
+                    "publisher connection lost",
+                    extra={"resource_type": RESOURCE_TYPE, "error_type": type(error).__name__},
+                )
+                await self._sleep(backoff, stop)
+                backoff = min(backoff * 2, MAXIMUM_BACKOFF_SECONDS)
+
+    async def _serve(self, connection: psycopg.AsyncConnection[Any], stop: asyncio.Event) -> None:
+        while not stop.is_set() and not await try_acquire_lock(connection, LOCK_KEY):
+            self._on_cycle()
+            await self._sleep(LOCK_RETRY_SECONDS, stop)
+        failure_backoff = 1.0
+        while not stop.is_set():
+            self._on_cycle()  # sinal de vida do laço (liveness)
+            if not await holds_lock(connection, LOCK_KEY):
+                return  # perdeu a trava: reconecta e disputa de novo
+            result = await publish_pending(connection, self._publisher)
+            self.blocked_by_permanent_failure = result.permanent_failure
+            if result.failed:
+                await self._sleep(failure_backoff, stop)
+                failure_backoff = min(failure_backoff * 2, MAXIMUM_BACKOFF_SECONDS)
+            else:
+                failure_backoff = 1.0
+                if result.published == 0:
+                    await self._sleep(POLL_INTERVAL_SECONDS, stop)
+
+    @staticmethod
+    async def _sleep(seconds: float, stop: asyncio.Event) -> None:
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=seconds)
+        except TimeoutError:
+            return
