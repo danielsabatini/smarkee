@@ -8,6 +8,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [Unreleased]
 
 ### Added
+- `scripts/dev/cleanup` (`smarkee-dev-cleanup`): limpeza segura dos dados de teste do ambiente de dev (Zitadel, SSOT, NATS e Mailpit). Por padrão só mostra o resíduo; `--apply` remove, primeiro pelo loop e depois direto o que sobrar, e verifica ao final. Identifica o dado de teste por padrão de nome e de e-mail e recusa rodar fora do dev.
 - `sk register get|delete`: consulta e exclusão da própria conta. A exclusão é segura (decisão 0040): a API recusa (`409`) enquanto a conta tiver Organizations ou serviços habilitados, e a CLI diz o que remover antes; `--yes` confirma, e `--wait` espera o fim e esquece a sessão. O cadastro (`sk register --name ...`) continua igual.
 - Desabilitar o serviço `ipm` é recusado (`409`) enquanto o dono tiver Organizations.
 - Conformância do Zitadel de dev: teste de desvio de configuração, que compara os IDs dos `.env` da CLI, do User, do SUM e da Organization com os da instância e aponta o que ficou desatualizado depois de recriá-la.

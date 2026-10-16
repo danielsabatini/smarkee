@@ -1,0 +1,55 @@
+[project]
+name = "smarkee-dev-cleanup"
+version = "0.1.0"
+description = "Limpeza segura dos dados de teste do ambiente de desenvolvimento (Zitadel, SSOT, NATS e Mailpit)."
+requires-python = ">=3.14"
+dependencies = [
+    "httpx>=0.28.1",
+    "nats-py>=2.16.0",
+    "psycopg[binary]>=3.3.6",
+    "pyjwt[crypto]>=2.15.1",
+]
+
+[project.scripts]
+smarkee-dev-cleanup = "smarkee_dev_cleanup.main:main"
+
+[build-system]
+requires = ["uv_build>=0.11.19,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "smarkee_dev_cleanup"
+# Sem __init__.py: o pacote é um namespace package, como nos demais projetos.
+namespace = true
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# As senhas dos papéis de banco de dev são triviais e públicas (iguais ao nome do papel), e o
+# `docker` é chamado só para ler a chave do volume da identidade.
+"src/**/adapters.py" = ["S105", "S106"]
+"src/**/main.py" = ["S603", "S607"]
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.17.0",
+]
