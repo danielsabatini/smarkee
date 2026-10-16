@@ -58,7 +58,7 @@ def desired(
         data={
             "lifecycle": lifecycle,
             "reconciliation": "active",
-            "ownerUserId": OWNER,
+            "ownerAccountId": OWNER,
             "service": "ipm",
             "serviceRoles": roles,
         },

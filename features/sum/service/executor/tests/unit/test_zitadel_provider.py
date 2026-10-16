@@ -93,6 +93,6 @@ async def test_a_module_without_a_project_is_refused_without_calling_the_zitadel
     calls: list[httpx.Request] = []
     with pytest.raises(ProviderError):
         granter(key_file, lambda _request: httpx.Response(200, json={}), calls).project_of(
-            "core.user.get"
+            "core.account.get"
         )
     assert calls == []

@@ -30,7 +30,7 @@ ENVELOPE: dict[str, Any] = {
     "data": {
         "operationId": "0199c8b2-1a2b-7c3d-8e4f-5a6b7c8d9e11",
         "requestDigest": "a" * 64,
-        "specification": {"service": "ipm", "ownerUserId": OWNER},
+        "specification": {"service": "ipm", "ownerAccountId": OWNER},
     },
 }
 

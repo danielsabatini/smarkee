@@ -87,5 +87,5 @@ async def test_disable_of_a_user_without_the_roles_changes_nothing() -> None:
 async def test_a_role_of_a_module_without_a_project_is_refused_before_any_call() -> None:
     granter = FakeGranter()
     with pytest.raises(ProviderError):
-        await enable(granter, "u-1", ["core.user.get"])
+        await enable(granter, "u-1", ["core.account.get"])
     assert granter.calls == []

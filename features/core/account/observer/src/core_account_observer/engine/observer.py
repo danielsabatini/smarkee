@@ -1,0 +1,220 @@
+"""Motor do Observer: decide o que observar, lê o Zitadel e publica `observed`.
+
+O Observer transforma a realidade externa em `observed` e **não altera** o sistema externo. Observa
+um recurso (`docs/RESOURCE-CONTROL-LOOP.md` §6.3, §10, §25 e §26.1):
+
+- quando o `desired` é novo ou muda de geração;
+- depois de cada `completed` ou `failed`, com `causationId` igual ao `messageId` do resultado;
+- periodicamente, para que `observed` não envelheça, com jitter;
+- apenas para os recursos da sua partição (`hash(resourceId) mod count == index`).
+"""
+
+import asyncio
+import hashlib
+import json
+import logging
+import random
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Protocol
+
+from pydantic import ValidationError
+
+from core_account_observer.contracts import generated
+from core_account_observer.contracts.base import supports_major, validate_tolerant
+from core_account_observer.domain.observation import Observation, Reader, observe
+from core_account_observer.ids import new_identifier, utc_now
+from core_account_observer.settings import AccountObserverSettings
+
+MODULE = "core"
+RESOURCE_TYPE = "account"
+SCHEMA_VERSION = "1.0"
+
+logger = logging.getLogger(__name__)
+
+
+class PublishError(Exception):
+    """O transporte não confirmou a publicação; a observação é refeita na próxima rodada."""
+
+
+class Publisher(Protocol):
+    async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None: ...
+
+
+@dataclass(slots=True)
+class Watch:
+    """O que o Observer sabe de um recurso: o necessário para decidir quando observar."""
+
+    lifecycle: str = "present"
+    generation: int = 0
+    correlation_id: str | None = None
+    tombstone: bool = False
+    """`lifecycle = absent` já convergido: não há mais o que observar."""
+
+
+def owns(resource_id: str, index: int, count: int) -> bool:
+    """Partição determinística por `resourceId`: uma instância observa cada recurso."""
+    digest = hashlib.sha256(resource_id.encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") % count == index
+
+
+class Observer:
+    def __init__(
+        self,
+        reader: Reader,
+        publisher: Publisher,
+        settings: AccountObserverSettings,
+        *,
+        clock: Callable[[], datetime] = utc_now,
+        identifiers: Callable[[], str] = new_identifier,
+        observe_resource: Callable[..., Any] = observe,
+    ) -> None:
+        self._reader = reader
+        self._publisher = publisher
+        self._settings = settings
+        self._clock = clock
+        self._identifiers = identifiers
+        self._observe = observe_resource
+        self._watches: dict[str, Watch] = {}
+        self._reads = asyncio.Semaphore(settings.loop.maximum_concurrent_reads)
+
+    @property
+    def resource_ids(self) -> list[str]:
+        return list(self._watches)
+
+    def watch_of(self, resource_id: str) -> Watch | None:
+        return self._watches.get(resource_id)
+
+    def _owned(self, resource_id: str) -> bool:
+        partition = self._settings.partition
+        return owns(resource_id, partition.index, partition.count)
+
+    # ------------------------------------------------------------------ entrada
+
+    async def on_message(self, data: bytes) -> None:
+        envelope = self._parse(data)
+        if envelope is None or not self._owned(envelope.resource_id):
+            return
+        match envelope.message_type.value:
+            case "desired":
+                await self._on_desired(envelope)
+            case "completed" | "failed":
+                # Observação causada pelo resultado: o Reconciler só decide depois dela.
+                await self.observe_resource(envelope.resource_id, causation_id=envelope.message_id)
+            case _:
+                return
+
+    @staticmethod
+    def _parse(data: bytes) -> generated.MessageEnvelope | None:
+        try:
+            envelope = validate_tolerant(generated.MessageEnvelope, json.loads(data))
+        except ValueError, ValidationError:
+            logger.error("message is not a valid envelope")
+            return None
+        if not supports_major(envelope.schema_version):
+            logger.error("schemaVersion MAJOR is not supported")
+            return None
+        if envelope.module != MODULE or envelope.resource_type != RESOURCE_TYPE:
+            return None
+        return envelope
+
+    async def _on_desired(self, envelope: generated.MessageEnvelope) -> None:
+        generation = envelope.desired_generation
+        if generation is None:
+            return
+        watch = self._watches.setdefault(envelope.resource_id, Watch())
+        if generation < watch.generation:
+            return  # geração mais antiga: ignorada
+        changed = generation != watch.generation
+        watch.generation = generation
+        watch.lifecycle = str(envelope.data.get("lifecycle", "present"))
+        watch.correlation_id = envelope.correlation_id
+        if watch.lifecycle == "present":
+            watch.tombstone = False
+        if changed:
+            await self.observe_resource(envelope.resource_id, causation_id=envelope.message_id)
+
+    # ------------------------------------------------------------------ observação
+
+    async def observe_resource(self, resource_id: str, *, causation_id: str | None) -> None:
+        watch = self._watches.setdefault(resource_id, Watch())
+        async with self._reads:
+            observation: Observation = await self._observe(self._reader, resource_id)
+        if watch.lifecycle == "absent" and observation.presence == "absent":
+            watch.tombstone = True  # remoção convergida: deixa de observar
+        await self._publish(resource_id, watch, observation, causation_id)
+
+    async def observe_all(self) -> None:
+        """Rodada periódica: todos os recursos da partição que ainda existem."""
+        pending = [
+            self.observe_resource(resource_id, causation_id=None)
+            for resource_id, watch in self._watches.items()
+            if not watch.tombstone and self._owned(resource_id)
+        ]
+        await asyncio.gather(*pending)
+
+    async def _publish(
+        self, resource_id: str, watch: Watch, observation: Observation, causation_id: str | None
+    ) -> None:
+        now = self._clock()
+        envelope = generated.MessageEnvelope.model_validate(
+            {
+                "messageId": self._identifiers(),
+                "schemaVersion": SCHEMA_VERSION,
+                "messageType": "observed",
+                "emitter": "observer",
+                "module": MODULE,
+                "resourceType": RESOURCE_TYPE,
+                "resourceId": resource_id,
+                "operation": "changed",
+                "presence": observation.presence,
+                "observedAt": now.isoformat(),
+                **({"causationId": causation_id} if causation_id else {}),
+                "correlationId": watch.correlation_id or self._identifiers(),
+                "occurredAt": now.isoformat(),
+                "publishedAt": now.isoformat(),
+                "data": observation.data,
+            }
+        )
+        subject = f"observer.observed.{MODULE}.{RESOURCE_TYPE}.{resource_id}.changed"
+        try:
+            await self._publisher.publish(
+                subject,
+                envelope.model_dump_json(exclude_none=True).encode(),
+                message_id=envelope.message_id,
+            )
+        except PublishError:
+            logger.warning("observed publication failed", extra={"resource_id": resource_id})
+            return
+        logger.info(
+            "observed published",
+            extra={"resource_id": resource_id, "presence": observation.presence},
+        )
+
+
+HEARTBEAT_SLICE_SECONDS = 15.0
+"""A espera entre observações é fatiada para o laço dar sinal de vida (liveness) no intervalo."""
+
+
+async def periodic_observation(
+    observer: Observer,
+    settings: AccountObserverSettings,
+    stop: asyncio.Event,
+    on_cycle: Callable[[], None] = lambda: None,
+) -> None:
+    """Observação periódica, independente de eventos, com jitter (`LOOP.md` §25)."""
+    loop = settings.loop
+    while not stop.is_set():
+        jitter = 1 + random.uniform(-loop.observation_jitter, loop.observation_jitter)  # noqa: S311
+        remaining = loop.observation_interval_seconds * jitter
+        while remaining > 0 and not stop.is_set():
+            on_cycle()
+            wait = min(HEARTBEAT_SLICE_SECONDS, remaining)
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=wait)
+            except TimeoutError:
+                remaining -= wait
+        if not stop.is_set():
+            await observer.observe_all()
+            on_cycle()

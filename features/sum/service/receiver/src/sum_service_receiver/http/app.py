@@ -67,8 +67,10 @@ MAX_LIST_LIMIT = 200
 
 class Repo(Protocol):
     async def link(self, resource_id: str) -> dict[str, Any] | None: ...
-    async def links_of(self, owner_user_id: str) -> list[dict[str, Any]]: ...
-    async def link_for_pair(self, owner_user_id: str, service: str) -> tuple[str, str] | None: ...
+    async def links_of(self, owner_account_id: str) -> list[dict[str, Any]]: ...
+    async def link_for_pair(
+        self, owner_account_id: str, service: str
+    ) -> tuple[str, str] | None: ...
     async def operation(self, operation_id: str) -> dict[str, Any] | None: ...
     async def operation_of(self, resource_id: str, operation_id: str) -> dict[str, Any] | None: ...
 
@@ -294,7 +296,7 @@ def create_app(deps: Dependencies) -> FastAPI:
             idempotency_key=idempotency_key,
             requested=lambda _op: (
                 _subject(resource_id, "create"),
-                {"specification": {"service": service, "ownerUserId": principal.subject}},
+                {"specification": {"service": service, "ownerAccountId": principal.subject}},
             ),
         )
 
@@ -400,7 +402,7 @@ def _check_key(key: str | None) -> None:
 
 
 def _owner(row: dict[str, Any]) -> str:
-    return str(row["desired"]["ownerUserId"])
+    return str(row["desired"]["ownerAccountId"])
 
 
 def _service(row: dict[str, Any]) -> str:

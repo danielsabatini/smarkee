@@ -27,7 +27,7 @@
       "additionalProperties": false,
       "required": [
         "service",
-        "ownerUserId"
+        "ownerAccountId"
       ],
       "x-writer": "server",
       "x-sensitivity": "internal",
@@ -37,7 +37,7 @@
           "x-writer": "client",
           "x-sensitivity": "internal"
         },
-        "ownerUserId": {
+        "ownerAccountId": {
           "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
           "description": "Dono da ligação: o `sub` do token do solicitante, atribuído pelo Receiver.",
           "x-writer": "server",

@@ -28,7 +28,7 @@ KEY_FILE = os.environ.get("CONFORMANCE_ZITADEL_KEY_FILE")
 # Um projeto de roles por módulo, na organização `core` (decisão 0032): as roles de ação (delegadas
 # à `register` por Project Grant) e a role de operador `*.admin`, que fica fora do Grant.
 ACTION_ROLES_BY_PROJECT = {
-    "roles-core": {"core.user.delete", "core.user.get"},
+    "roles-core": {"core.account.delete", "core.account.get"},
     "roles-ipm": {
         "ipm.organization.create",
         "ipm.organization.delete",
@@ -39,7 +39,7 @@ ACTION_ROLES_BY_PROJECT = {
     "roles-sum": {"sum.ipm.disable", "sum.ipm.enable", "sum.ipm.get"},
 }
 ADMIN_ROLES_BY_PROJECT = {
-    "roles-core": {"core.user.admin"},
+    "roles-core": {"core.account.admin"},
     "roles-ipm": {"ipm.organization.admin"},
     "roles-sum": set[str](),
 }
@@ -56,8 +56,8 @@ USER_SERVICE = "zitadel.user.v2.UserService"
 # Alerta antes do vencimento, para a rotação manual ter folga (`infrastructure/dev/README.md`).
 KEY_EXPIRATION_WARNING = timedelta(days=90)
 SERVICE_ACCOUNTS = {
-    "core-user-executor",
-    "core-user-observer",
+    "core-account-executor",
+    "core-account-observer",
     "ipm-organization-executor",
     "ipm-organization-observer",
     "sum-service-executor",
@@ -309,8 +309,8 @@ def test_executor_and_observer_have_roles_only_in_register(
 ) -> None:
     in_register = members(zitadel, orgs["register"])
     # `ORG_USER_CREATOR` cria e remove usuários, mas não concede roles (decisão 0032).
-    assert in_register.get("core-user-executor") == {"ORG_USER_CREATOR"}
-    assert in_register.get("core-user-observer") == {"ORG_OWNER_VIEWER"}
+    assert in_register.get("core-account-executor") == {"ORG_USER_CREATOR"}
+    assert in_register.get("core-account-observer") == {"ORG_OWNER_VIEWER"}
     # O Observer do SUM só lê a register; o Executor do SUM não tem papel nela (só o Grant, abaixo).
     assert in_register.get("sum-service-observer") == {"ORG_OWNER_VIEWER"}
     assert "sum-service-executor" not in in_register
@@ -320,7 +320,7 @@ def test_executor_and_observer_have_roles_only_in_register(
     assert not {
         name
         for name in in_core
-        if name.startswith(("core-user-", "sum-service-", "ipm-organization-"))
+        if name.startswith(("core-account-", "sum-service-", "ipm-organization-"))
     }, "o Executor e o Observer não têm papel na organização core (decisão 0027)"
 
 
@@ -334,7 +334,7 @@ def test_user_executor_grants_roles_only_in_its_modules(
             zitadel,
             {"projectGrant": {"projectId": project_id, "organizationId": orgs["register"]}},
         )
-        has_role = owners.get("core-user-executor") == {"PROJECT_GRANT_OWNER"}
+        has_role = owners.get("core-account-executor") == {"PROJECT_GRANT_OWNER"}
         assert has_role == (name in USER_EXECUTOR_GRANT_PROJECTS), name
 
 
@@ -443,22 +443,22 @@ def test_register_has_no_project_of_its_own(zitadel: Zitadel, orgs: dict[str, st
 REPOSITORY = Path(__file__).resolve().parents[5]
 ENV_FILES = {
     "cli": REPOSITORY / "clients" / "cli" / ".env",
-    "core.user": REPOSITORY / "features" / "core" / "user" / ".env",
+    "core.account": REPOSITORY / "features" / "core" / "account" / ".env",
     "sum.service": REPOSITORY / "features" / "sum" / "service" / ".env",
     "ipm.organization": REPOSITORY / "features" / "ipm" / "organization" / ".env",
 }
 # Variável de cada `.env` → o que ela deve apontar na instância.
 EXPECTED_AUDIENCE = {
-    "core.user": ("CORE_USER_RECEIVER_AUTH_AUDIENCE", "roles-core"),
+    "core.account": ("CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE", "roles-core"),
     "sum.service": ("SUM_SERVICE_RECEIVER_AUTH_AUDIENCE", "roles-sum"),
     "ipm.organization": ("IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
 }
 EXPECTED_REGISTER = {
-    "core.user": "CORE_ZITADEL_REGISTER_ORGANIZATION_ID",
+    "core.account": "CORE_ZITADEL_REGISTER_ORGANIZATION_ID",
     "sum.service": "SUM_SERVICE_ZITADEL_REGISTER_ORGANIZATION_ID",
 }
 EXPECTED_PROJECT_IDS = {
-    "core.user": "CORE_ZITADEL_PROJECT_IDS",
+    "core.account": "CORE_ZITADEL_PROJECT_IDS",
     "sum.service": "SUM_SERVICE_ZITADEL_PROJECT_IDS",
 }
 CLI_PROJECTS = {
@@ -513,7 +513,7 @@ def test_the_ids_in_the_env_files_match_the_instance(
                 drifts, "clients/cli/.env", variable, cli.get(variable), project_ids[project]
             )
 
-    for feature in ("core.user", "sum.service", "ipm.organization"):
+    for feature in ("core.account", "sum.service", "ipm.organization"):
         if not ENV_FILES[feature].exists():
             continue
         values = read_env(feature)

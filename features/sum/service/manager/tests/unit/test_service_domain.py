@@ -46,7 +46,7 @@ def test_enable_copies_the_catalog_roles_and_validates_against_the_contract() ->
     assert desired == {
         "lifecycle": "present",
         "reconciliation": "active",
-        "ownerUserId": OWNER,
+        "ownerAccountId": OWNER,
         "service": "ipm",
         "serviceRoles": [
             "ipm.organization.create",
@@ -70,7 +70,7 @@ def test_disable_keeps_the_link_and_removes_the_roles() -> None:
     disabled = disable_desired(enabled)
     assert disabled["lifecycle"] == "absent"
     assert disabled["serviceRoles"] == []
-    assert (disabled["ownerUserId"], disabled["service"]) == (OWNER, "ipm")
+    assert (disabled["ownerAccountId"], disabled["service"]) == (OWNER, "ipm")
     generated.ServiceDesiredData.model_validate(disabled)
 
 

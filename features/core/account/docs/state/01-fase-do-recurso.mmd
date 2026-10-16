@@ -1,0 +1,22 @@
+stateDiagram-v2
+    direction LR
+    [*] --> Pending: requested aceito
+    Pending --> Reconciling: primeira observação ou primeira ação
+    Reconciling --> Ready: observed converge com o desired
+    Reconciling --> Failed: 5 falhas na mesma geração
+    Ready --> Reconciling: drift observado
+    Ready --> Deleting: lifecycle absent
+    Reconciling --> Deleting: lifecycle absent
+    Pending --> Deleting: lifecycle absent
+    Failed --> Deleting: lifecycle absent
+    Failed --> Reconciling: nova geração (Account não tem update: lacuna)
+    Deleting --> [*]: observed absent, linha removida
+
+    note right of Failed
+        reconciliation = suspended
+        O Reconciler não decide
+    end note
+    note right of Ready
+        completed NÃO é Ready.
+        Só a observação compatível converge.
+    end note

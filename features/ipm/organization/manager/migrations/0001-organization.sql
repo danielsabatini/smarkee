@@ -78,7 +78,7 @@ CREATE INDEX IF NOT EXISTS organization_outbox_published
 -- Índices de busca do Manager: dono (cota por dono, decisão 0010) e nome (unicidade), conferidos
 -- na unidade atômica do pedido (docs/SSOT.md §10.1).
 CREATE INDEX IF NOT EXISTS organization_owner
-  ON ipm.organization ((desired ->> 'ownerUserId'));
+  ON ipm.organization ((desired ->> 'ownerAccountId'));
 CREATE INDEX IF NOT EXISTS organization_name
   ON ipm.organization ((desired ->> 'name'));
 

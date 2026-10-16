@@ -312,16 +312,16 @@
       },
       "ServiceDesiredData": {
         "additionalProperties": false,
-        "description": "data de desired do SUM: a ligação de um serviço para um usuário. Publicado somente pelo Manager, a partir do pedido aceito pelo Receiver e do catálogo de serviços (decisão 0033). Sem dados pessoais: o usuário é referenciado pelo ownerUserId.",
+        "description": "data de desired do SUM: a ligação de um serviço para um usuário. Publicado somente pelo Manager, a partir do pedido aceito pelo Receiver e do catálogo de serviços (decisão 0033). Sem dados pessoais: o usuário é referenciado pelo ownerAccountId.",
         "properties": {
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle"
           },
-          "ownerUserId": {
+          "ownerAccountId": {
             "maxLength": 128,
             "minLength": 1,
             "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Owneruserid",
+            "title": "Owneraccountid",
             "type": "string"
           },
           "reconciliation": {
@@ -346,7 +346,7 @@
         "required": [
           "lifecycle",
           "reconciliation",
-          "ownerUserId",
+          "ownerAccountId",
           "service",
           "serviceRoles"
         ],

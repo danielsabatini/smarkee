@@ -30,33 +30,37 @@ def absent_link() -> Link:
 def test_create_is_accepted_when_the_service_is_in_the_catalog_and_there_is_no_active_link() -> (
     None
 ):
-    decision = decide_create(owner_user_id=OWNER, service="ipm", catalog=CATALOG, active_link=None)
+    decision = decide_create(
+        owner_account_id=OWNER, service="ipm", catalog=CATALOG, active_link=None
+    )
     assert isinstance(decision, Accepted)
     generated.ServiceDesiredData.model_validate(decision.desired)
 
 
 def test_create_for_a_service_outside_the_catalog_is_rejected() -> None:
-    decision = decide_create(owner_user_id=OWNER, service="sum", catalog=CATALOG, active_link=None)
+    decision = decide_create(
+        owner_account_id=OWNER, service="sum", catalog=CATALOG, active_link=None
+    )
     assert decision == Rejected("service_unavailable")
 
 
 def test_create_with_an_active_link_is_rejected_and_names_the_existing_one() -> None:
     decision = decide_create(
-        owner_user_id=OWNER, service="ipm", catalog=CATALOG, active_link=active_link()
+        owner_account_id=OWNER, service="ipm", catalog=CATALOG, active_link=active_link()
     )
     assert decision == Rejected("already_exists", existing_resource_id=LINK_ID)
 
 
 def test_create_again_after_a_disable_is_accepted() -> None:
     decision = decide_create(
-        owner_user_id=OWNER, service="ipm", catalog=CATALOG, active_link=absent_link()
+        owner_account_id=OWNER, service="ipm", catalog=CATALOG, active_link=absent_link()
     )
     assert isinstance(decision, Accepted)
 
 
 def test_create_on_the_disabled_resource_of_the_same_pair_is_accepted() -> None:
     decision = decide_create(
-        owner_user_id=OWNER,
+        owner_account_id=OWNER,
         service="ipm",
         catalog=CATALOG,
         active_link=None,
@@ -68,7 +72,7 @@ def test_create_on_the_disabled_resource_of_the_same_pair_is_accepted() -> None:
 
 def test_create_on_an_active_existing_resource_is_already_exists() -> None:
     decision = decide_create(
-        owner_user_id=OWNER,
+        owner_account_id=OWNER,
         service="ipm",
         catalog=CATALOG,
         active_link=None,
@@ -79,7 +83,7 @@ def test_create_on_an_active_existing_resource_is_already_exists() -> None:
 
 def test_create_on_the_resource_of_another_owner_or_service_is_a_conflict() -> None:
     other_owner = decide_create(
-        owner_user_id="0199c8a4-0000-7000-8000-00000000beef",
+        owner_account_id="0199c8a4-0000-7000-8000-00000000beef",
         service="ipm",
         catalog=CATALOG,
         active_link=None,
@@ -88,7 +92,7 @@ def test_create_on_the_resource_of_another_owner_or_service_is_a_conflict() -> N
     assert other_owner == Rejected("conflict")
     catalog = {**CATALOG, "ipm2": ("ipm.organization.get",)}
     other_service = decide_create(
-        owner_user_id=OWNER,
+        owner_account_id=OWNER,
         service="ipm2",
         catalog=catalog,
         active_link=None,

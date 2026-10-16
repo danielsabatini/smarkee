@@ -95,7 +95,7 @@ class Phase(StrEnum):
 
 class PlatformAccess(StrEnum):
     """
-    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, no User); revoked a remove.
+    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, na Account); revoked a remove.
     """
 
     granted = "granted"
@@ -420,10 +420,10 @@ class ServiceCreateSpecification(ContractModel):
     """
     Serviço da plataforma que o usuário liga, por exemplo ipm (a Organization). Nome curto, em minúsculas, sem o módulo. Só vale se estiver no catálogo do Manager.
     """
-    owner_user_id: Annotated[
+    owner_account_id: Annotated[
         str,
         Field(
-            alias="ownerUserId",
+            alias="ownerAccountId",
             max_length=128,
             min_length=1,
             pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
@@ -635,7 +635,7 @@ class MessageEnvelope(ContractModel):
 
 class ServiceDesiredData(ContractModel):
     """
-    data de desired do SUM: a ligação de um serviço para um usuário. Publicado somente pelo Manager, a partir do pedido aceito pelo Receiver e do catálogo de serviços (decisão 0033). Sem dados pessoais: o usuário é referenciado pelo ownerUserId.
+    data de desired do SUM: a ligação de um serviço para um usuário. Publicado somente pelo Manager, a partir do pedido aceito pelo Receiver e do catálogo de serviços (decisão 0033). Sem dados pessoais: o usuário é referenciado pelo ownerAccountId.
     """
 
     model_config = ConfigDict(
@@ -646,17 +646,17 @@ class ServiceDesiredData(ContractModel):
     present: a ligação existe e o usuário deve ter as roles do serviço. absent: a ligação foi desfeita e as roles devem sair.
     """
     reconciliation: Reconciliation
-    owner_user_id: Annotated[
+    owner_account_id: Annotated[
         str,
         Field(
-            alias="ownerUserId",
+            alias="ownerAccountId",
             max_length=128,
             min_length=1,
             pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
         ),
     ]
     """
-    ID do usuário dono da ligação: o `resourceId` do User (decisão 0014). Atribuído pelo Receiver a partir do token do solicitante.
+    ID do usuário dono da ligação: o `resourceId` da Account (decisão 0014). Atribuído pelo Receiver a partir do token do solicitante.
     """
     service: Annotated[str, Field(max_length=32, min_length=2, pattern="^[a-z][a-z0-9]*$")]
     """

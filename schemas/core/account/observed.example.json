@@ -1,0 +1,9 @@
+{
+  "emailVerified": true,
+  "accountState": "active",
+  "platformAccess": "granted",
+  "platformRoles": [
+    "core.account.delete",
+    "core.account.get"
+  ]
+}

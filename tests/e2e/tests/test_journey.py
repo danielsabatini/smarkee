@@ -95,7 +95,7 @@ def test_enable_wait_converges_and_the_token_already_carries_the_ipm_roles(
         f"{IPM_ROLE}.get",
         f"{IPM_ROLE}.create",
     }, roles
-    assert {"core.user.get", "core.user.delete"} <= roles[_project("CORE")]
+    assert {"core.account.get", "core.account.delete"} <= roles[_project("CORE")]
     assert {"sum.ipm.enable", "sum.ipm.get"} <= roles[_project("SUM")]
 
 
@@ -141,7 +141,7 @@ def test_the_organization_is_created_renamed_and_deleted_with_the_sk(
         assert "Organization limit" in " ".join(second.stderr.split()), second.stderr
 
         # Exclusão segura (decisão 0040): com uma Organization e o `ipm` habilitado, a conta fica.
-        refused = sk.run("register", "delete", "--yes")
+        refused = sk.run("account", "delete", "--yes")
         assert refused.exit_code == 1, refused.text
         text = " ".join(refused.stderr.split())
         assert "1 Organization" in text and "sk ipm organization delete" in text, text
@@ -247,10 +247,10 @@ def test_the_refresh_command_renews_the_session_on_demand(person: Person) -> Non
 
 def test_the_account_is_shown_and_then_deleted_with_the_sk(person: Person) -> None:
     """Sem recursos atrelados (a Organization saiu e o `ipm` foi desabilitado), a conta sai."""
-    shown = person.sk.run("register", "get")
+    shown = person.sk.run("account", "get")
     assert shown.exit_code == 0, shown.text
     assert person.email in shown.stdout and person.resource_id in shown.stdout
-    deleted = person.sk.run("register", "delete", "--yes", "--wait", timeout=150.0)
+    deleted = person.sk.run("account", "delete", "--yes", "--wait", timeout=150.0)
     assert deleted.exit_code == 0, deleted.text
     assert "Account deleted" in deleted.stdout, deleted.text
     assert not person.sk.credentials_path.exists(), "a sessão local deve ser esquecida"

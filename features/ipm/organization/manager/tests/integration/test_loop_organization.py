@@ -375,7 +375,7 @@ async def test_a_completed_result_does_not_count_a_failure(
     [
         {"messageType": "desired"},
         {"emitter": "manager"},
-        {"resourceType": "user"},
+        {"resourceType": "account"},
     ],
 )
 async def test_a_message_that_is_not_an_executor_result_is_permanently_invalid(

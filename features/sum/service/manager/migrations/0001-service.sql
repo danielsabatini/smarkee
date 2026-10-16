@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS sum.service (
   resource_id        text        PRIMARY KEY
                      CHECK (resource_id ~ '^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$'),
   schema_version     text        NOT NULL CHECK (schema_version ~ '^[0-9]+\.[0-9]+$'),
-  owner_user_id      text        NOT NULL
-                     CHECK (owner_user_id ~ '^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$'),
+  owner_account_id      text        NOT NULL
+                     CHECK (owner_account_id ~ '^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$'),
   service            text        NOT NULL CHECK (service ~ '^[a-z][a-z0-9]*$' AND length(service) BETWEEN 2 AND 32),
   lifecycle          text        NOT NULL CHECK (lifecycle IN ('present', 'absent')),
   reconciliation     text        NOT NULL DEFAULT 'active' CHECK (reconciliation IN ('active', 'suspended')),
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS sum.service (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS service_active_link
-  ON sum.service (owner_user_id, service)
+  ON sum.service (owner_account_id, service)
   WHERE lifecycle = 'present';
 
 CREATE TABLE IF NOT EXISTS sum.service_operation (

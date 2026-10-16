@@ -161,7 +161,7 @@ class Executor:
             "reconciliation": data.get("reconciliation"),
             # Sem `lifecycle` não há padrão: a revalidação recusa (não se assume `present`).
             "lifecycle": data.get("lifecycle"),
-            "owner": str(data.get("ownerUserId", "")),
+            "owner": str(data.get("ownerAccountId", "")),
             "service": str(data.get("service", "")),
             "roles": tuple(str(role) for role in data.get("serviceRoles", ())),
         }

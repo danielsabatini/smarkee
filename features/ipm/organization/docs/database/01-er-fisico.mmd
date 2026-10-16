@@ -8,7 +8,7 @@ erDiagram
         text schema_version
         text lifecycle "present ou absent"
         text reconciliation "active ou suspended"
-        jsonb desired "intenção: name, platformAccess e ownerUserId (sub do token)"
+        jsonb desired "intenção: name, platformAccess e ownerAccountId (sub do token)"
         bigint desired_generation
         bigint resource_version
         jsonb observed "name, platformAccess e organizationState lidos do Zitadel"

@@ -76,14 +76,14 @@ def roles_of(catalog: Mapping[str, tuple[str, ...]], service: str) -> tuple[str,
 
 
 def enable_desired(
-    owner_user_id: str, service: str, catalog: Mapping[str, tuple[str, ...]]
+    owner_account_id: str, service: str, catalog: Mapping[str, tuple[str, ...]]
 ) -> dict[str, Any]:
     """`desired` de uma ligação ativa: as roles do catálogo, copiadas no momento da ligação."""
     return _validated(
         {
             "lifecycle": "present",
             "reconciliation": "active",
-            "ownerUserId": owner_user_id,
+            "ownerAccountId": owner_account_id,
             "service": service,
             "serviceRoles": list(roles_of(catalog, service)),
         }
@@ -99,7 +99,7 @@ def disable_desired(current: Mapping[str, Any]) -> dict[str, Any]:
         {
             "lifecycle": "absent",
             "reconciliation": current["reconciliation"],
-            "ownerUserId": current["ownerUserId"],
+            "ownerAccountId": current["ownerAccountId"],
             "service": current["service"],
             "serviceRoles": [],
         }

@@ -39,12 +39,12 @@ class Kind:
     """Campo de `desired` que identifica a linha como de teste (e-mail, nome ou dono)."""
 
 
-USERS = Kind(
+ACCOUNTS = Kind(
     "core",
-    "user",
-    "core.user",
-    ("core.user_outbox", "core.user_operation", "core.user_action_result"),
-    "core_user_manager_login",
+    "account",
+    "core.account",
+    ("core.account_outbox", "core.account_operation", "core.account_action_result"),
+    "core_account_manager_login",
     "core_maintenance_login",
     "email",
 )
@@ -55,7 +55,7 @@ SERVICES = Kind(
     ("sum.service_outbox", "sum.service_operation", "sum.service_action_result"),
     "sum_service_manager_login",
     "sum_service_maintenance_login",
-    "ownerUserId",
+    "ownerAccountId",
 )
 ORGANIZATIONS = Kind(
     "ipm",
@@ -86,7 +86,7 @@ class Findings:
 
     zitadel_users: dict[str, str] = field(default_factory=lambda: {})
     zitadel_organizations: dict[str, str] = field(default_factory=lambda: {})
-    user_rows: list[Row] = field(default_factory=lambda: [])
+    account_rows: list[Row] = field(default_factory=lambda: [])
     service_rows: list[Row] = field(default_factory=lambda: [])
     organization_rows: list[Row] = field(default_factory=lambda: [])
     mails: int = 0
@@ -95,7 +95,7 @@ class Findings:
         return not (
             self.zitadel_users
             or self.zitadel_organizations
-            or self.user_rows
+            or self.account_rows
             or self.service_rows
             or self.organization_rows
             or self.mails
@@ -108,7 +108,7 @@ class Findings:
                 f"Zitadel organização {rid}  {label}"
                 for rid, label in self.zitadel_organizations.items()
             ),
-            *(f"SSOT core.user {row.resource_id}  {row.label}" for row in self.user_rows),
+            *(f"SSOT core.account {row.resource_id}  {row.label}" for row in self.account_rows),
             *(f"SSOT sum.service {row.resource_id}  {row.label}" for row in self.service_rows),
             *(
                 f"SSOT ipm.organization {row.resource_id}  {row.label}"
@@ -122,7 +122,7 @@ class Findings:
     def resource_ids(self) -> dict[Kind, set[str]]:
         """Os `resourceId` afetados, por tipo (para a mensageria)."""
         return {
-            USERS: set(self.zitadel_users) | {row.resource_id for row in self.user_rows},
+            ACCOUNTS: set(self.zitadel_users) | {row.resource_id for row in self.account_rows},
             SERVICES: {row.resource_id for row in self.service_rows},
             ORGANIZATIONS: set(self.zitadel_organizations)
             | {row.resource_id for row in self.organization_rows},

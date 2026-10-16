@@ -1,7 +1,7 @@
 """Base HTTP do `sk` para a API da plataforma (`docs/RESOURCE-CONTROL-LOOP.md`, §6.1).
 
 Reúne a chamada autenticada (`call_api`), o envio de um pedido já montado (`send`) e os erros
-comuns aos clientes de cada feature (`features/core/user`, `features/sum/service`). Cada cliente
+comuns aos clientes de cada feature (`features/core/account`, `features/sum/service`). Cada cliente
 conhece o contrato da sua feature; aqui só há o que não depende dela.
 
 A CLI não tem dependências HTTP além da biblioteca padrão; por isso usa `urllib`, como o

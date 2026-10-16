@@ -44,7 +44,7 @@ class PostgresRepository:
             cursor = connection.cursor(row_factory=dict_row)
             await cursor.execute(
                 f"SELECT {RESOURCE_COLUMNS} FROM ipm.organization_v1"  # noqa: S608 (constante do módulo)
-                " WHERE (%(owner)s::text IS NULL OR desired ->> 'ownerUserId' = %(owner)s)"
+                " WHERE (%(owner)s::text IS NULL OR desired ->> 'ownerAccountId' = %(owner)s)"
                 " AND (%(after)s::text IS NULL OR resource_id > %(after)s)"
                 " ORDER BY resource_id LIMIT %(limit)s",
                 {"owner": owner, "after": after, "limit": limit},
@@ -54,7 +54,7 @@ class PostgresRepository:
     async def count_organizations_owned_by(self, owner: str) -> int:
         async with self._pool.connection() as connection:
             cursor = await connection.execute(
-                "SELECT count(*) FROM ipm.organization_v1 WHERE desired ->> 'ownerUserId' = %s",
+                "SELECT count(*) FROM ipm.organization_v1 WHERE desired ->> 'ownerAccountId' = %s",
                 (owner,),
             )
             row = await cursor.fetchone()

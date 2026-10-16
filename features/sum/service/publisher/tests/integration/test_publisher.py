@@ -48,7 +48,7 @@ ENVELOPE_FIELDS: dict[str, Any] = {
     "data": {
         "lifecycle": "present",
         "reconciliation": "active",
-        "ownerUserId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+        "ownerAccountId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
         "service": "ipm",
         "serviceRoles": ["ipm.organization.get"],
     },

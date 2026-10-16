@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CoreAccountContracts",
+  "description": "Índice dos contratos usados pelos componentes de account do módulo core: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e de core/account/ deve estar listado (verificado pelos testes de contrato).",
+  "anyOf": [
+    {
+      "$ref": "common/message-envelope.v1.schema.json"
+    },
+    {
+      "$ref": "common/condition.v1.schema.json"
+    },
+    {
+      "$ref": "common/action.v1.schema.json"
+    },
+    {
+      "$ref": "common/completed.v1.schema.json"
+    },
+    {
+      "$ref": "common/failed.v1.schema.json"
+    },
+    {
+      "$ref": "common/updated.v1.schema.json"
+    },
+    {
+      "$ref": "common/operation.v1.schema.json"
+    },
+    {
+      "$ref": "common/api-accepted-response.v1.schema.json"
+    },
+    {
+      "$ref": "common/api-error.v1.schema.json"
+    },
+    {
+      "$ref": "core/account/desired.v1.schema.json"
+    },
+    {
+      "$ref": "core/account/observed.v1.schema.json"
+    },
+    {
+      "$ref": "core/account/requested-create.v1.schema.json"
+    },
+    {
+      "$ref": "core/account/requested-delete.v1.schema.json"
+    },
+    {
+      "$ref": "core/account/api-create-request.v1.schema.json"
+    },
+    {
+      "$ref": "core/account/resource.v1.schema.json"
+    }
+  ]
+}

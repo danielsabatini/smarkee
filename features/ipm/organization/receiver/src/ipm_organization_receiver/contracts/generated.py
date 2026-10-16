@@ -95,7 +95,7 @@ class Phase(StrEnum):
 
 class PlatformAccess(StrEnum):
     """
-    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, no User); revoked a remove.
+    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, na Account); revoked a remove.
     """
 
     granted = "granted"
@@ -538,7 +538,7 @@ class OrganizationRequestedDeleteData(ContractModel):
 
 class OrganizationCreateRequest(ContractModel):
     """
-    Corpo de POST /v1/ipm/organizations. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, registra platformAccess = granted e o dono (ownerUserId = solicitante autenticado): uma Organization criada sem acesso à plataforma não tem uso.
+    Corpo de POST /v1/ipm/organizations. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, registra platformAccess = granted e o dono (ownerAccountId = solicitante autenticado): uma Organization criada sem acesso à plataforma não tem uso.
     """
 
     model_config = ConfigDict(
@@ -618,7 +618,7 @@ class OrganizationObservedView(ContractModel):
 
 class Organization(ContractModel):
     """
-    Visão consolidada da Organization exposta pelo Receiver (GET). Não expõe o dono (ownerUserId) nem campos internos do SSOT (failureCount, requestedBy).
+    Visão consolidada da Organization exposta pelo Receiver (GET). Não expõe o dono (ownerAccountId) nem campos internos do SSOT (failureCount, requestedBy).
     """
 
     model_config = ConfigDict(
@@ -836,17 +836,17 @@ class OrganizationDesiredData(ContractModel):
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
     platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
-    owner_user_id: Annotated[
+    owner_account_id: Annotated[
         str,
         Field(
-            alias="ownerUserId",
+            alias="ownerAccountId",
             max_length=128,
             min_length=1,
             pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
         ),
     ]
     """
-    Dono da Organization: resourceId do User autenticado que a criou (sub do token). Atribuído pelo Manager a partir de requestedBy no create; imutável.
+    Dono da Organization: resourceId da Account autenticado que a criou (sub do token). Atribuído pelo Manager a partir de requestedBy no create; imutável.
     """
 
 

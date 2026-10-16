@@ -1,6 +1,6 @@
 # Imagens de apoio
 
-Imagens estáticas usadas como referência visual. Elas **não** são geradas a partir do código e **não** descrevem, por si, a implementação atual. Os diagramas mantidos em sincronia com a implementação são os de [`features/core/user/docs/`](../../features/core/user/docs/) (fonte Mermaid ao lado de cada SVG).
+Imagens estáticas usadas como referência visual. Elas **não** são geradas a partir do código e **não** descrevem, por si, a implementação atual. Os diagramas mantidos em sincronia com a implementação são os de [`features/core/account/docs/`](../../features/core/account/docs/) (fonte Mermaid ao lado de cada SVG).
 
 | Arquivo | Situação |
 |---|---|

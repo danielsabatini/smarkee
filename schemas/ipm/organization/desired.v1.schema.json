@@ -17,7 +17,7 @@
     "reconciliation",
     "name",
     "platformAccess",
-    "ownerUserId"
+    "ownerAccountId"
   ],
   "properties": {
     "lifecycle": {
@@ -48,9 +48,9 @@
       "x-managed": true,
       "x-sensitivity": "internal"
     },
-    "ownerUserId": {
+    "ownerAccountId": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
-      "description": "Dono da Organization: resourceId do User autenticado que a criou (sub do token). Atribuído pelo Manager a partir de requestedBy no create; imutável.",
+      "description": "Dono da Organization: resourceId da Account autenticado que a criou (sub do token). Atribuído pelo Manager a partir de requestedBy no create; imutável.",
       "x-writer": "server",
       "x-mutability": "immutable",
       "x-managed": false,

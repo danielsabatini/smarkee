@@ -3,13 +3,13 @@
 from collections.abc import Callable
 
 from smarkee_dev_cleanup.model import (
+    ACCOUNTS,
     ORGANIZATIONS,
     POLL_SECONDS,
     REMOVAL_WAIT_SECONDS,
     SERVICES,
     TEST_ORGANIZATION_NAME,
     TEST_USER_EMAIL,
-    USERS,
     UUID,
     Findings,
     Kind,
@@ -35,13 +35,13 @@ def find(ports: Ports) -> Findings:
         for rid, name in ports.identity.organizations().items()
         if is_test_organization(rid, name)
     }
-    findings.user_rows = [row for row in ports.ssot.rows(USERS) if is_test_user(row.label)]
+    findings.account_rows = [row for row in ports.ssot.rows(ACCOUNTS) if is_test_user(row.label)]
     findings.organization_rows = [
         row for row in ports.ssot.rows(ORGANIZATIONS) if TEST_ORGANIZATION_NAME.match(row.label)
     ]
     # Ligação de serviço é de teste se o dono é de teste, ou se o dono nem existe mais no Zitadel
     # (sem usuário, a ligação não tem como convergir nem como ser desligada).
-    test_owners = set(findings.zitadel_users) | {row.resource_id for row in findings.user_rows}
+    test_owners = set(findings.zitadel_users) | {row.resource_id for row in findings.account_rows}
     findings.service_rows = [
         row
         for row in ports.ssot.rows(SERVICES)
@@ -74,7 +74,10 @@ async def remove_through_the_loop(
 async def apply(ports: Ports, findings: Findings, say: Callable[[str], None]) -> None:
     """Remove o resíduo: primeiro pelo loop, depois direto o que sobrou, e limpa a mensageria."""
     say("1. Pelo loop (organizações e usuários que ainda estão `Ready`)")
-    for kind, rows in ((ORGANIZATIONS, findings.organization_rows), (USERS, findings.user_rows)):
+    for kind, rows in (
+        (ORGANIZATIONS, findings.organization_rows),
+        (ACCOUNTS, findings.account_rows),
+    ):
         for row in rows:
             await remove_through_the_loop(ports, kind, row.resource_id, say)
 
@@ -89,7 +92,7 @@ async def apply(ports: Ports, findings: Findings, say: Callable[[str], None]) ->
     for kind, rows in (
         (SERVICES, remaining.service_rows),
         (ORGANIZATIONS, remaining.organization_rows),
-        (USERS, remaining.user_rows),
+        (ACCOUNTS, remaining.account_rows),
     ):
         if rows:
             ports.ssot.delete(kind, {row.resource_id for row in rows})

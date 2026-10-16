@@ -31,14 +31,14 @@ async def test_the_repository_reads_links_by_owner_and_service_from_the_views() 
     desired = {
         "lifecycle": "present",
         "reconciliation": "active",
-        "ownerUserId": owner,
+        "ownerAccountId": owner,
         "service": "ipm",
         "serviceRoles": ["ipm.organization.get"],
     }
     writer = await psycopg.AsyncConnection.connect(WRITER, autocommit=True)
     try:
         await writer.execute(
-            "INSERT INTO sum.service (resource_id, schema_version, owner_user_id, service, "
+            "INSERT INTO sum.service (resource_id, schema_version, owner_account_id, service, "
             "lifecycle, "
             "reconciliation, desired, desired_generation, resource_version, phase) "
             "VALUES (%s, '1.0', %s, 'ipm', 'present', 'active', %s, 1, 1, 'Pending')",

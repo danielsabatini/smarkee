@@ -36,7 +36,7 @@ async def seed_organization(
         "lifecycle": "present",
         "name": name,
         "platformAccess": "granted",
-        "ownerUserId": owner,
+        "ownerAccountId": owner,
     }
     await manager.execute(
         "INSERT INTO ipm.organization (resource_id, schema_version, lifecycle, reconciliation,"

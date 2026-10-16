@@ -43,16 +43,18 @@ class FakeRepository:
     async def link(self, resource_id: str) -> dict[str, Any] | None:
         return self.links.get(resource_id)
 
-    async def links_of(self, owner_user_id: str) -> list[dict[str, Any]]:
+    async def links_of(self, owner_account_id: str) -> list[dict[str, Any]]:
         return [
-            row for row in self.links.values() if row["desired"]["ownerUserId"] == owner_user_id
+            row
+            for row in self.links.values()
+            if row["desired"]["ownerAccountId"] == owner_account_id
         ]
 
-    async def link_for_pair(self, owner_user_id: str, service: str) -> tuple[str, str] | None:
+    async def link_for_pair(self, owner_account_id: str, service: str) -> tuple[str, str] | None:
         rows = [
             row
             for row in self.links.values()
-            if row["desired"]["ownerUserId"] == owner_user_id
+            if row["desired"]["ownerAccountId"] == owner_account_id
             and row["desired"]["service"] == service
         ]
         rows.sort(key=lambda row: row["lifecycle"] != "present")  # o ligado vem primeiro
@@ -83,7 +85,7 @@ def link_row(
     desired = {
         "lifecycle": "present",
         "reconciliation": "active",
-        "ownerUserId": owner,
+        "ownerAccountId": owner,
         "service": service,
         "serviceRoles": ["ipm.organization.get"],
     }
@@ -160,7 +162,7 @@ async def test_enabling_a_service_needs_its_enable_role_and_publishes_the_reques
     assert message_id == body["operationId"]  # Nats-Msg-Id = operationId
     generated.MessageEnvelope.model_validate(envelope)
     assert envelope["requestedBy"] == OWNER and envelope["emitter"] == "receiver"
-    assert envelope["data"]["specification"] == {"service": "ipm", "ownerUserId": OWNER}
+    assert envelope["data"]["specification"] == {"service": "ipm", "ownerAccountId": OWNER}
 
 
 async def test_without_the_enable_role_nothing_is_published(world: Any) -> None:
@@ -442,7 +444,7 @@ async def test_disabling_does_not_proceed_when_the_module_cannot_be_queried(
 
 async def test_an_unexpected_error_is_500_with_the_contract_and_no_internal_detail() -> None:
     class BrokenRepository(FakeRepository):
-        async def links_of(self, owner_user_id: str) -> list[dict[str, Any]]:
+        async def links_of(self, owner_account_id: str) -> list[dict[str, Any]]:
             raise RuntimeError("senha-interna-do-banco")
 
     health = Health()

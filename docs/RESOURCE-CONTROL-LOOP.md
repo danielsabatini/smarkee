@@ -351,7 +351,7 @@ flowchart LR
 
 ## 6.1.1 Interface HTTP
 
-Cada tipo de recurso expõe a mesma interface, sob o prefixo do módulo e no plural do `resourceType` (`/v1/<módulo>/<tipos>`, por exemplo `/v1/ipm/organizations`; decisão 0030). As escritas são assíncronas: o Receiver publica `requested` e responde `202 Accepted` com o `operationId`, sem esperar o Manager. As leituras vêm das views versionadas do SSOT (`POSTGRESQL.md`, decisão 0004). Por isso, logo depois do `202` o recurso e a Operation ainda podem não existir no SSOT: a leitura responde `404` até o Manager gravá-los. O cliente que espera o resultado repete a leitura até o prazo (ou acompanha a Operation até `completed`), e não trata esse `404` inicial como recurso inexistente. Cada tipo implementa o subconjunto aplicável da interface: o User, por exemplo, não tem `PATCH` nem listagem (decisão 0014).
+Cada tipo de recurso expõe a mesma interface, sob o prefixo do módulo e no plural do `resourceType` (`/v1/<módulo>/<tipos>`, por exemplo `/v1/ipm/organizations`; decisão 0030). As escritas são assíncronas: o Receiver publica `requested` e responde `202 Accepted` com o `operationId`, sem esperar o Manager. As leituras vêm das views versionadas do SSOT (`POSTGRESQL.md`, decisão 0004). Por isso, logo depois do `202` o recurso e a Operation ainda podem não existir no SSOT: a leitura responde `404` até o Manager gravá-los. O cliente que espera o resultado repete a leitura até o prazo (ou acompanha a Operation até `completed`), e não trata esse `404` inicial como recurso inexistente. Cada tipo implementa o subconjunto aplicável da interface: a Account, por exemplo, não tem `PATCH` nem listagem (decisão 0014).
 
 | Método e rota | Efeito | Resposta |
 |---|---|---|
@@ -373,7 +373,7 @@ Regras:
 
 ## 6.1.2 Escritas anônimas
 
-Por padrão, toda escrita exige solicitante autenticado. A exceção deve estar declarada no contrato do recurso e registrada em decisão. Hoje existe uma só: o auto-cadastro de usuário (`POST /v1/core/users`, decisão 0014).
+Por padrão, toda escrita exige solicitante autenticado. A exceção deve estar declarada no contrato do recurso e registrada em decisão. Hoje existe uma só: o auto-cadastro de usuário (`POST /v1/core/accounts`, decisão 0014).
 
 Uma escrita anônima:
 
@@ -1473,11 +1473,11 @@ O fluxo do padrão é o descrito em *Modelo geral*.
 
 # 46. Aplicação à Organization
 
-A Organization é um recurso do módulo `ipm` (`sk ipm organization`, decisão 0016), criado por um usuário registrado (o User, do módulo `core`), que passa a ser o dono dela.
+A Organization é um recurso do módulo `ipm` (`sk ipm organization`, decisão 0016), criado por um usuário registrado (a Account, do módulo `core`), que passa a ser o dono dela.
 
 Para Organization, o Executor escreve em uma organização do Zitadel e o Observer a lê. O Executor escreve **só a organização** (decisão 0038), de forma idempotente: na criação, a organização no Zitadel, com o `resourceId` como ID; na alteração, renomeia e ativa ou desativa a organização (`platformAccess` `granted` ou `revoked`); na remoção, a remove. O Project Grant do projeto da plataforma para a organização **não é criado**: ele só terá sentido quando houver membros (hoje a Organization só tem o dono).
 
-O Executor da Organization **não cria usuários nem autoriza o dono**: o dono (`ownerUserId`, o usuário autenticado que a criou) já existe, pelo cadastro (seção seguinte), e já tem as roles de ação no projeto. Como o dono vive na organização `core` do Zitadel, e não na organização criada, o token não identifica a Organization: o Receiver decide o pertencimento pelo `ownerUserId` guardado na plataforma (decisão 0010).
+O Executor da Organization **não cria usuários nem autoriza o dono**: o dono (`ownerAccountId`, o usuário autenticado que a criou) já existe, pelo cadastro (seção seguinte), e já tem as roles de ação no projeto. Como o dono vive na organização `core` do Zitadel, e não na organização criada, o token não identifica a Organization: o Receiver decide o pertencimento pelo `ownerAccountId` guardado na plataforma (decisão 0010).
 
 Os recursos derivados em outros sistemas (namespace do OpenBao, do Kubernetes) não são escritos por este Executor: são recursos dos próprios módulos, que referenciam o `organizationId`. Assim, cada Executor escreve em um único sistema externo.
 
@@ -1498,17 +1498,17 @@ ipm-organization-executor
 
 O comando `sk ipm organization` pertence ao CLI da plataforma (`clients/cli`), que é cliente do Receiver. Estado: os seis componentes existem e o loop fecha em dev contra o Zitadel (`features/ipm/organization`, decisão 0038); o `observed` informa `platformAccess` pelo estado da organização (`active` ↔ `granted`) e `organizationState`.
 
-## 46.1 Aplicação ao User
+## 46.1 Aplicação à Account
 
-O User é um recurso da plataforma, no módulo `core` (decisão 0014), criado pelo auto-cadastro (`sk register`), uma escrita anônima (seção 6.1.2). O Executor escreve em um único sistema externo, o Zitadel:
+A Account é um recurso da plataforma, no módulo `core` (decisão 0014), criado pelo auto-cadastro (`sk register`), uma escrita anônima (seção 6.1.2). O Executor escreve em um único sistema externo, o Zitadel:
 
-1. cria o usuário na organização `register`, com o `resourceId` como ID e **sem senha**: o `desired` do User não tem senha, porque `desired` fica retido no SSOT e na mensageria (`SCHEMA.md`);
+1. cria o usuário na organização `register`, com o `resourceId` como ID e **sem senha**: o `desired` da Account não tem senha, porque `desired` fica retido no SSOT e na mensageria (`SCHEMA.md`);
 2. o Zitadel envia o e-mail "Verificar e-mail" na criação, e a pessoa confirma o e-mail e define a senha na página desse link (um e-mail só; o Executor não pede `password_reset`). A senha nunca passa por CLI, Receiver, SSOT nem mensageria;
-3. autoriza o usuário nos projetos de roles dos módulos, que pertencem à organização `core` e são delegados à `register` por um Project Grant cada (decisão 0032) (a autorização é criada no contexto da `register`, e só roles do Project Grant são aceitas), com o conjunto de roles de ação do usuário cadastrado (`ipm.organization.create`, `ipm.organization.get`, `ipm.organization.list`, `ipm.organization.update`, `ipm.organization.delete`, `core.user.get` e `core.user.delete`).
+3. autoriza o usuário nos projetos de roles dos módulos, que pertencem à organização `core` e são delegados à `register` por um Project Grant cada (decisão 0032) (a autorização é criada no contexto da `register`, e só roles do Project Grant são aceitas), com o conjunto de roles de ação do usuário cadastrado (`ipm.organization.create`, `ipm.organization.get`, `ipm.organization.list`, `ipm.organization.update`, `ipm.organization.delete`, `core.account.get` e `core.account.delete`).
 
 Quando o e-mail já está cadastrado no SSOT, o Manager rejeita o pedido (`validation`) sem criar nada; quando ele só existe no Zitadel, a criação do Executor falha de forma permanente (`Rejected`). O Zitadel responde `AlreadyExisting` (HTTP 400, id `COMMAND-7yiox1isql`, verificado na v4.19.4) a um ID ou e-mail já usado, e o Executor lê o usuário pelo ID: se existe com o e-mail esperado, é sucesso idempotente. Em todos os casos o solicitante anônimo recebe o mesmo `202`, sem revelar se o e-mail existia. O `desired` com `lifecycle = absent` não carrega dados pessoais (decisão 0014).
 
-Componentes (projetos em `features/core/user/`): `core-user-receiver`, `core-user-manager`, `core-user-publisher`, `core-user-observer`, `core-user-reconciler` e `core-user-executor`. Os comandos `sk register` e `sk user` pertencem ao CLI da plataforma.
+Componentes (projetos em `features/core/account/`): `core-account-receiver`, `core-account-manager`, `core-account-publisher`, `core-account-observer`, `core-account-reconciler` e `core-account-executor`. Os comandos `sk register` e `sk user` pertencem ao CLI da plataforma.
 
 # 47. Aplicação a outros recursos
 

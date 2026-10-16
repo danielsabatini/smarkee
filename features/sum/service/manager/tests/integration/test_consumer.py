@@ -72,7 +72,7 @@ def _requested_create(owner: str, service: str, operation: str, resource_id: str
             "data": {
                 "operationId": operation,
                 "requestDigest": DIGEST,
-                "specification": {"service": service, "ownerUserId": owner},
+                "specification": {"service": service, "ownerAccountId": owner},
             },
         }
     ).encode()
@@ -90,7 +90,7 @@ async def _cleanup(owner: str, resource_ids: list[str]) -> None:
         await maintenance.execute(
             "DELETE FROM sum.service_operation WHERE requested_by = %s", (owner,)
         )
-        await manager.execute("DELETE FROM sum.service WHERE owner_user_id = %s", (owner,))
+        await manager.execute("DELETE FROM sum.service WHERE owner_account_id = %s", (owner,))
     finally:
         await maintenance.close()
         await manager.close()

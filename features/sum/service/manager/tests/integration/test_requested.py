@@ -61,7 +61,7 @@ async def create(
         correlation_id=str(uuid.uuid7()),
         requested_message_id=str(uuid.uuid7()),
         resource_id=resource_id or str(uuid.uuid7()),
-        owner_user_id=owner,
+        owner_account_id=owner,
         service=service,
     )
 
@@ -143,7 +143,7 @@ async def test_the_outbox_message_is_the_desired_envelope_read_by_the_maintenanc
             "DELETE FROM sum.service_operation WHERE requested_by = %s", (v["owner"],)
         )
         await reader.commit()
-        await writer.execute("DELETE FROM sum.service WHERE owner_user_id = %s", (v["owner"],))
+        await writer.execute("DELETE FROM sum.service WHERE owner_account_id = %s", (v["owner"],))
         await writer.commit()
         await reader.close()
         await writer.close()
@@ -167,7 +167,7 @@ async def test_a_redelivered_operation_is_a_duplicate_and_writes_nothing_again(
     again = await create(conn, v["owner"], v["operation"])
     assert again == Duplicate(v["operation"])
     cur = await conn.execute(
-        "SELECT count(*) AS n FROM sum.service WHERE owner_user_id = %s", (v["owner"],)
+        "SELECT count(*) AS n FROM sum.service WHERE owner_account_id = %s", (v["owner"],)
     )
     assert (await cur.fetchone())["n"] == 1  # type: ignore[index]
 
@@ -185,7 +185,7 @@ async def test_a_service_outside_the_catalog_is_rejected_and_keeps_the_receiver_
         correlation_id=str(uuid.uuid7()),
         requested_message_id=str(uuid.uuid7()),
         resource_id=resource_id,
-        owner_user_id=v["owner"],
+        owner_account_id=v["owner"],
         service="sum",
     )
     assert isinstance(outcome, Recorded) and outcome.reason == "service_unavailable"
@@ -246,7 +246,7 @@ async def test_enabling_a_disabled_pair_again_reuses_the_same_resource(
     )
     assert row["desired"]["serviceRoles"] != []
     cur = await conn.execute(
-        "SELECT count(*) AS n FROM sum.service WHERE owner_user_id = %s", (v["owner"],)
+        "SELECT count(*) AS n FROM sum.service WHERE owner_account_id = %s", (v["owner"],)
     )
     assert (await cur.fetchone())["n"] == 1  # type: ignore[index]  # um recurso por par
 

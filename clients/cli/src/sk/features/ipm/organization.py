@@ -29,7 +29,7 @@ MAXIMUM_LIST_PAGES = 50  # trava contra um cursor que nunca termina
 
 @dataclass(frozen=True, slots=True)
 class Organization:
-    """Uma Organization, como a API a devolve ao dono (o `ownerUserId` nunca é exposto)."""
+    """Uma Organization, como a API a devolve ao dono (o `ownerAccountId` nunca é exposto)."""
 
     resource_id: str
     resource_version: str

@@ -97,7 +97,7 @@ def test_model_rejects_unknown_field(relative_path: str, model: type[BaseModel])
 
 
 def test_create_request_rejects_server_assigned_fields() -> None:
-    for server_field in ("resourceId", "ownerUserId", "requestedBy"):
+    for server_field in ("resourceId", "ownerAccountId", "requestedBy"):
         with pytest.raises(ValidationError):
             generated.OrganizationCreateRequest.model_validate(
                 {**_example("ipm/organization/api-create-request.example.json"), server_field: "x"}

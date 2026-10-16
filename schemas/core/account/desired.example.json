@@ -1,0 +1,12 @@
+{
+  "lifecycle": "present",
+  "reconciliation": "active",
+  "platformAccess": "granted",
+  "platformRoles": [
+    "core.account.delete",
+    "core.account.get"
+  ],
+  "givenName": "Ana",
+  "familyName": "Souza",
+  "email": "ana.souza@example.com"
+}

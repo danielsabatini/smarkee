@@ -104,7 +104,7 @@ async def test_create_is_accepted_and_publishes_desired(
         "lifecycle": "present",
         "name": message["data"]["specification"]["name"],
         "platformAccess": "granted",
-        "ownerUserId": "user-1",
+        "ownerAccountId": "user-1",
     }
 
     operations = await fetch_all(
@@ -140,7 +140,7 @@ async def test_create_is_accepted_and_publishes_desired(
         "reconciliation": "active",
         "name": message["data"]["specification"]["name"],
         "platformAccess": "granted",
-        "ownerUserId": "user-1",
+        "ownerAccountId": "user-1",
     }
 
 

@@ -1,7 +1,7 @@
 """`sk register` contra um servidor HTTP real (loopback), sem nenhum token enviado.
 
 Simula a API do cadastro: responde `202` ao pedido bem formado e registra o que chegou. Não
-substitui o teste contra a plataforma de dev (`features/core/user/tests/e2e`).
+substitui o teste contra a plataforma de dev (`features/core/account/tests/e2e`).
 """
 
 import json
@@ -90,7 +90,7 @@ def test_the_request_reaches_the_api_without_any_token(
     assert "op-1" in result.stdout
     assert "Registration requested" in result.stdout
     request = Recording.received[0]
-    assert request["path"] == "/v1/core/users"
+    assert request["path"] == "/v1/core/accounts"
     assert request["authorization"] is None
     assert request["body"] == {
         "givenName": "Ana",

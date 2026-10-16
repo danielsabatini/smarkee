@@ -13,12 +13,12 @@
   "causationId": "0199c8b1-0a1b-7c2d-8e3f-4a5b6c7d8e9f",
   "occurredAt": "2026-10-09T14:00:00Z",
   "publishedAt": "2026-10-09T14:00:01Z",
-  "publishedBy": "core-user-publisher",
+  "publishedBy": "core-account-publisher",
   "data": {
     "lifecycle": "present",
     "reconciliation": "active",
     "name": "acme",
     "platformAccess": "granted",
-    "ownerUserId": "394397791373230085"
+    "ownerAccountId": "394397791373230085"
   }
 }

@@ -7,7 +7,7 @@ import pytest
 from typer.testing import CliRunner
 
 from sk.defaults import PRD_API_URL
-from sk.features.core.user import RegistrationAccepted
+from sk.features.core.account import RegistrationAccepted
 from sk.http import ApiRejectedError, ApiUnavailableError
 from sk.main import app
 

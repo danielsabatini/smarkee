@@ -11,7 +11,7 @@ DESIRED_PRESENT: dict[str, Any] = {
     "lifecycle": "present",
     "name": "acme",
     "platformAccess": "granted",
-    "ownerUserId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+    "ownerAccountId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
 }
 
 
@@ -102,6 +102,6 @@ def test_a_different_name_keeps_reconciling() -> None:
 
 
 def test_the_owner_is_not_a_managed_field() -> None:
-    desired = {**DESIRED_PRESENT, "ownerUserId": "0199c8a4-0000-7000-8000-00000000beef"}
+    desired = {**DESIRED_PRESENT, "ownerAccountId": "0199c8a4-0000-7000-8000-00000000beef"}
     decision = observe("present", desired=desired, lifecycle="present")
-    assert decision.converged  # `ownerUserId` não existe no Zitadel: não gera divergência
+    assert decision.converged  # `ownerAccountId` não existe no Zitadel: não gera divergência

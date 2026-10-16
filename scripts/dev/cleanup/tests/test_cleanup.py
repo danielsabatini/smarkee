@@ -14,9 +14,9 @@ from smarkee_dev_cleanup.engine import (
 )
 from smarkee_dev_cleanup.main import refuse_outside_development
 from smarkee_dev_cleanup.model import (
+    ACCOUNTS,
     ORGANIZATIONS,
     SERVICES,
-    USERS,
     Findings,
     Kind,
     Ports,
@@ -183,7 +183,7 @@ def test_find_picks_only_test_resources() -> None:
     }
     world.identity.users = {USER_ID: "e2e-6a67549d@example.com", REAL_USER: "ana@example.com"}
     world.ssot.tables = {
-        USERS: [Row(USER_ID, "e2e-6a67549d@example.com"), Row(REAL_USER, "ana@example.com")],
+        ACCOUNTS: [Row(USER_ID, "e2e-6a67549d@example.com"), Row(REAL_USER, "ana@example.com")],
         ORGANIZATIONS: [Row(ORG_ID, "acme-d5d03b3d9c"), Row("outra", "minha-empresa")],
         SERVICES: [Row("s1", USER_ID), Row("s2", REAL_USER)],
     }
@@ -192,7 +192,7 @@ def test_find_picks_only_test_resources() -> None:
 
     assert set(findings.zitadel_users) == {USER_ID}
     assert set(findings.zitadel_organizations) == {ORG_ID}
-    assert [r.resource_id for r in findings.user_rows] == [USER_ID]
+    assert [r.resource_id for r in findings.account_rows] == [USER_ID]
     assert [r.resource_id for r in findings.organization_rows] == [ORG_ID]
     assert [r.resource_id for r in findings.service_rows] == ["s1"]  # a de ana não é tocada
 
@@ -238,7 +238,7 @@ async def test_the_loop_is_tried_first_and_only_ready_resources_are_asked() -> N
     world.bus.phases = {ORG_ID: "Ready", USER_ID: "Failed"}
 
     ready = await remove_through_the_loop(world.ports(), ORGANIZATIONS, ORG_ID, say_nothing)
-    failed = await remove_through_the_loop(world.ports(), USERS, USER_ID, say_nothing)
+    failed = await remove_through_the_loop(world.ports(), ACCOUNTS, USER_ID, say_nothing)
 
     assert ready is True and failed is False
     assert world.bus.requested == [ORG_ID]  # o que não está `Ready` não é pedido ao loop
@@ -258,7 +258,7 @@ async def test_apply_removes_through_the_loop_then_directly_what_is_left_and_ver
     world.identity.users = {USER_ID: "e2e-1@example.com"}
     world.ssot.tables = {
         ORGANIZATIONS: [Row(ORG_ID, "acme-1")],
-        USERS: [Row(USER_ID, "e2e-1@example.com")],
+        ACCOUNTS: [Row(USER_ID, "e2e-1@example.com")],
         SERVICES: [Row("s1", USER_ID)],
     }
     world.bus.phases = {ORG_ID: "Ready"}  # a organização sai pelo loop; o usuário, direto
@@ -303,7 +303,7 @@ async def test_apply_never_touches_real_data() -> None:
     world = World()
     world.identity.users = {REAL_USER: "ana@example.com"}
     world.identity.orgs = {ORG_ID: "minha-empresa"}
-    world.ssot.tables = {USERS: [Row(REAL_USER, "ana@example.com")]}
+    world.ssot.tables = {ACCOUNTS: [Row(REAL_USER, "ana@example.com")]}
 
     findings = find(world.ports())
     await apply(world.ports(), findings, say_nothing)

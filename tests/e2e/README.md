@@ -1,7 +1,7 @@
 # Teste de jornada da plataforma
 
 Esta suíte é um **teste**, e não um componente (decisão 0017). Fica na raiz porque cruza features e não
-pertence a nenhuma: cada feature mantém o seu e2e de contrato (`features/core/user/tests/e2e`,
+pertence a nenhuma: cada feature mantém o seu e2e de contrato (`features/core/account/tests/e2e`,
 `features/sum/service/tests/e2e`), e este prova a **jornada** de uma pessoa usando a plataforma.
 
 Black-box: usa a rede (gateway, Zitadel, Mailpit) e a **CLI real** (`sk`), e não importa o código de nenhum
@@ -9,7 +9,7 @@ componente.
 
 ## O que a jornada faz, em ordem
 
-1. Cadastra uma pessoa (`POST /v1/core/users`, anônimo) com e-mail único de teste.
+1. Cadastra uma pessoa (`POST /v1/core/accounts`, anônimo) com e-mail único de teste.
 2. Lê no **Mailpit** o e-mail de ativação (um só, "Verificar e-mail") e, pela página do link, confirma o e-mail e define a senha.
 3. `sk auth login`: login interativo de verdade (Authorization Code com PKCE e refresh token). O
    "navegador" é um falso (`tests/browser.py`, usado pelo `tests/login_browser.py` como `BROWSER`) que abre o
@@ -58,5 +58,5 @@ uv sync
 uv run pytest
 ```
 
-Pré-requisito: a stack de dev no ar (Zitadel e login, gateway, User, SUM e Mailpit). Cada execução cria e
+Pré-requisito: a stack de dev no ar (Zitadel e login, gateway, Account, SUM e Mailpit). Cada execução cria e
 remove uma pessoa nova; nada é compartilhado entre execuções.

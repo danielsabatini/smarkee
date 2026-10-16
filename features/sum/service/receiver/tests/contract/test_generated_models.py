@@ -97,7 +97,7 @@ def test_model_rejects_unknown_field(relative_path: str, model: type[BaseModel])
 def test_the_client_cannot_choose_the_owner_of_the_link() -> None:
     """O corpo do cliente só tem `service`: o dono é o `sub` do token, nunca um campo enviado."""
     example = _example("sum/service/api-create-request.example.json")
-    for forbidden in ("ownerUserId", "serviceRoles", "lifecycle", "resourceId"):
+    for forbidden in ("ownerAccountId", "serviceRoles", "lifecycle", "resourceId"):
         with pytest.raises(ValidationError):
             generated.ServiceCreateRequest.model_validate({**example, forbidden: "x"})
 

@@ -209,13 +209,13 @@ allowInsecureHttp = true  # somente em desenvolvimento
 
 Os dados são validados antes do envio, com os mesmos limites do contrato. Um e-mail mal formado não gera nenhuma chamada à API. Códigos de saída: `0` pedido aceito; `1` serviço indisponível, limite de taxa ou falha de conexão; `2` uso incorreto ou dado recusado pela API.
 
-Depois do cadastro, a pessoa recebe um e-mail do provedor ("Verificar e-mail"), cujo link confirma o e-mail e define a senha. Enquanto a conta não é ativada, `sk auth login` não consegue autenticar. O passo a passo para ativar a conta, e para pedir outro link ou código quando o anterior expirou, está em `features/core/user/README.md`, seção 4.7.
+Depois do cadastro, a pessoa recebe um e-mail do provedor ("Verificar e-mail"), cujo link confirma o e-mail e define a senha. Enquanto a conta não é ativada, `sk auth login` não consegue autenticar. O passo a passo para ativar a conta, e para pedir outro link ou código quando o anterior expirou, está em `features/core/account/README.md`, seção 4.7.
 
-### Consultar e excluir a própria conta (`sk register get|delete`)
+## Conta (`sk account`)
 
 ```bash
-uv run sk register get
-uv run sk register delete --yes [--wait] [--timeout SEGUNDOS]
+uv run sk account get
+uv run sk account delete --yes [--wait] [--timeout SEGUNDOS]
 ```
 
 Agem sobre a conta da sessão (`sk auth login`); o `resourceId` é o `sub` do token. `delete` exige `--yes` (a exclusão não se desfaz) e lê a `resourceVersion` antes de pedir. **A exclusão é segura (decisão 0040):** a API recusa (`409`) enquanto a conta tiver Organizations ou serviços habilitados, e a saída diz o que remover antes (`sk ipm organization delete`, depois `sk sum service disable --service ipm`). Com `--wait`, o comando espera a Operation `completed` (ou o token deixar de valer, porque o usuário já saiu do provedor) e **esquece a sessão local**. `get` mostra `resourceId`, `name`, `email`, `phase` e `platformAccess`. O cadastro (`sk register --name ...`, sem subcomando) continua igual.

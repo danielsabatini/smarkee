@@ -68,7 +68,7 @@ class RequestedHandler:
         correlation_id: str,
         requested_message_id: str,
         resource_id: str,
-        owner_user_id: str,
+        owner_account_id: str,
         service: str,
     ) -> Outcome:
         """`resource_id` é atribuído pelo Receiver (`docs/RESOURCE-CONTROL-LOOP.md`, §6.1.1)."""
@@ -76,9 +76,9 @@ class RequestedHandler:
             return Duplicate(operation_id)
         # Religar um par já desligado reaproveita o recurso: o Receiver manda o `resourceId` dele.
         existing = await ssot.link_for_resource(conn, resource_id)
-        active = await ssot.active_link_for(conn, owner_user_id, service)
+        active = await ssot.active_link_for(conn, owner_account_id, service)
         decision = decide_create(
-            owner_user_id=owner_user_id,
+            owner_account_id=owner_account_id,
             service=service,
             catalog=self._catalog,
             active_link=active,
@@ -113,13 +113,13 @@ class RequestedHandler:
                     conn,
                     resource_id=resource_id,
                     schema_version=SCHEMA_VERSION,
-                    owner_user_id=owner_user_id,
+                    owner_account_id=owner_account_id,
                     service=service,
                     desired=decision.desired,
                 )
         except errors.UniqueViolation:
             # Outro pedido ligou o mesmo par entre a leitura e a gravação.
-            raced = await ssot.active_link_for(conn, owner_user_id, service)
+            raced = await ssot.active_link_for(conn, owner_account_id, service)
             return await self._reject(
                 conn,
                 operation_id=operation_id,

@@ -1,6 +1,6 @@
 # sum.service: fluxo de dados (da ligação até as roles no Zitadel)
 
-Este documento segue o padrão de `features/core/user/docs/CORE-USER-DATA-FLOW.md`. Todos os passos estão
+Este documento segue o padrão de `features/core/account/docs/CORE-ACCOUNT-DATA-FLOW.md`. Todos os passos estão
 implementados e rodam no dev (Compose), verificados pela suíte e2e (`tests/e2e`), inclusive com falha de
 componente. A decisão de desenho é a 0033 (`.decisions/0033-service-usage-manager.md`).
 
@@ -31,7 +31,7 @@ Banco: [`database/01-er-fisico.svg`](database/01-er-fisico.svg).
 
 - `resourceId`: UUIDv7 atribuído pelo Receiver (o Manager não o gera). Recusas gravam o mesmo id.
 - `operationId`, `requestDigest`: vêm do Receiver; a repetição de um `operationId` não grava de novo.
-- `ownerUserId`: o `resourceId` do usuário dono (o `sub` do token). Vem do token, nunca do corpo.
+- `ownerAccountId`: o `resourceId` do usuário dono (o `sub` do token). Vem do token, nunca do corpo.
 - `actionId` = `<resourceId>.<desiredGeneration>.<operação>.<messageId do observed>`: chave de dedupe da `action`.
 
 ## 1. Receiver → NATS: `requested` (implementado)
@@ -39,7 +39,7 @@ Banco: [`database/01-er-fisico.svg`](database/01-er-fisico.svg).
 O corpo do `POST` é `{"service": "<nome>"}` (`schemas/sum/service/api-create-request`). O Receiver valida o token
 (audience `roles-sum`), confere a role `sum.<serviço>.enable`, atribui `resourceId` e `operationId`, calcula o
 `requestDigest` e publica `requested-create` em `receiver.requested.sum.service.<resourceId>.create`, com
-`Nats-Msg-Id` igual ao `operationId`. O `ownerUserId` vem do `sub` do token. O desligamento é `DELETE`, que confere
+`Nats-Msg-Id` igual ao `operationId`. O `ownerAccountId` vem do `sub` do token. O desligamento é `DELETE`, que confere
 a `resourceVersion` e publica `requested-delete` (`.delete`). Detalhes da API: `receiver/README.md`; o contrato
 descritivo é `receiver/openapi.json`.
 
@@ -147,7 +147,7 @@ Erro transitório do Zitadel volta a mensagem à fila; recusa permanente vira `f
 
 Toda concessão passa pela conta `sum-service-executor`, que tem `PROJECT_GRANT_OWNER` só no Grant de
 `roles-ipm` (decisão 0032). O Zitadel recusa qualquer outra role. Isso foi verificado no dev com o provider
-real: `core.user.get` em `roles-core` e `ipm.organization.admin` em `roles-ipm` foram recusados.
+real: `core.account.get` em `roles-core` e `ipm.organization.admin` em `roles-ipm` foram recusados.
 
 ## 6. Observer (implementado)
 

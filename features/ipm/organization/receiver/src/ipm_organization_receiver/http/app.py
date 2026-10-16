@@ -197,7 +197,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         )
 
     def is_owner(principal: Principal, record: ResourceRecord) -> bool:
-        return principal.is_operator or record.desired.get("ownerUserId") == principal.subject
+        return principal.is_operator or record.desired.get("ownerAccountId") == principal.subject
 
     async def owned_organization(principal: Principal, organization_id: str) -> ResourceRecord:
         record = await deps.repository.get_organization(organization_id)

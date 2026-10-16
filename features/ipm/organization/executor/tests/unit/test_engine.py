@@ -82,7 +82,7 @@ def desired_message(
             "reconciliation": reconciliation,
             "platformAccess": "granted",
             "name": "acme",
-            "ownerUserId": "owner-1",
+            "ownerAccountId": "owner-1",
         },
     }
 

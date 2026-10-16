@@ -18,7 +18,7 @@ recusa a concessão de qualquer outra role, e o provider recusa módulos sem pro
 chamar o Zitadel.
 
 Verificado no Zitadel de dev (2026-10-15) com o provider real e uma conta temporária com esse papel:
-ligar criou a autorização no `roles-ipm`; repetir não duplicou; `core.user.get` no `roles-core` foi recusado
+ligar criou a autorização no `roles-ipm`; repetir não duplicou; `core.account.get` no `roles-core` foi recusado
 pelo Zitadel (`Unauthorized`); `ipm.organization.admin` no `roles-ipm` foi recusado (`Rejected`); desligar
 removeu a autorização. A conta e o usuário de teste foram removidos.
 

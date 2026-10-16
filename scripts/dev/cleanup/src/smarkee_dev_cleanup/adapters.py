@@ -11,7 +11,7 @@ import jwt
 import psycopg
 from psycopg import sql
 
-from smarkee_dev_cleanup.model import MAIL_QUERIES, STREAM_SUBJECTS, USERS, Kind, Row
+from smarkee_dev_cleanup.model import ACCOUNTS, MAIL_QUERIES, STREAM_SUBJECTS, Kind, Row
 
 HTTP_NOT_FOUND = 404
 
@@ -171,7 +171,7 @@ class NatsBus:
             "resourceType": kind.resource_type,
             "resourceId": resource_id,
             "operation": "delete",
-            "requestedBy": resource_id if kind is USERS else "cleanup",
+            "requestedBy": resource_id if kind is ACCOUNTS else "cleanup",
             "correlationId": str(uuid.uuid7()),
             "occurredAt": now,
             "publishedAt": now,

@@ -249,7 +249,7 @@
       },
       "Organization": {
         "additionalProperties": false,
-        "description": "Visão consolidada da Organization exposta pelo Receiver (GET). Não expõe o dono (ownerUserId) nem campos internos do SSOT (failureCount, requestedBy).",
+        "description": "Visão consolidada da Organization exposta pelo Receiver (GET). Não expõe o dono (ownerAccountId) nem campos internos do SSOT (failureCount, requestedBy).",
         "properties": {
           "conditions": {
             "items": {
@@ -322,7 +322,7 @@
       },
       "OrganizationCreateRequest": {
         "additionalProperties": false,
-        "description": "Corpo de POST /v1/ipm/organizations. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, registra platformAccess = granted e o dono (ownerUserId = solicitante autenticado): uma Organization criada sem acesso à plataforma não tem uso.",
+        "description": "Corpo de POST /v1/ipm/organizations. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, registra platformAccess = granted e o dono (ownerAccountId = solicitante autenticado): uma Organization criada sem acesso à plataforma não tem uso.",
         "properties": {
           "name": {
             "maxLength": 63,
@@ -528,7 +528,7 @@
         "type": "string"
       },
       "PlatformAccess": {
-        "description": "Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, no User); revoked a remove.",
+        "description": "Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, na Account); revoked a remove.",
         "enum": [
           "granted",
           "revoked"

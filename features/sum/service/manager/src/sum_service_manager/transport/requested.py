@@ -54,7 +54,7 @@ class CreateRequest:
     correlation_id: str
     requested_message_id: str
     resource_id: str
-    owner_user_id: str
+    owner_account_id: str
     service: str
 
 
@@ -108,7 +108,7 @@ def parse_request(data: bytes) -> ParsedRequest:
                 correlation_id=envelope.correlation_id,
                 requested_message_id=envelope.message_id,
                 resource_id=envelope.resource_id,
-                owner_user_id=spec.owner_user_id,
+                owner_account_id=spec.owner_account_id,
                 service=spec.service,
             )
         if operation == "delete":
@@ -146,7 +146,7 @@ async def process_request(
                         correlation_id=request.correlation_id,
                         requested_message_id=request.requested_message_id,
                         resource_id=request.resource_id,
-                        owner_user_id=request.owner_user_id,
+                        owner_account_id=request.owner_account_id,
                         service=request.service,
                     )
                 else:

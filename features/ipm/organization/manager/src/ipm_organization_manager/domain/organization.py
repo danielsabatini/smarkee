@@ -96,7 +96,7 @@ class OrganizationPolicy:
             "lifecycle": "present",
             "name": request.specification["name"],
             "platformAccess": request.specification["platformAccess"],
-            "ownerUserId": requested_by,
+            "ownerAccountId": requested_by,
         }
 
     def desired_for_update(self, current: Mapping[str, Any], request: Request) -> dict[str, Any]:
@@ -122,9 +122,9 @@ class OrganizationPolicy:
         """
         if request.operation != "create" or request.owner_quota_limit is None:
             return None
-        owner: str = desired["ownerUserId"]
+        owner: str = desired["ownerAccountId"]
         return OwnerQuota(
-            field="ownerUserId",
+            field="ownerAccountId",
             owner=owner,
             limit=request.owner_quota_limit,
             lock_key=f"ipm.organization.owner:{owner}",
@@ -140,7 +140,7 @@ class OrganizationPolicy:
         self, desired: Mapping[str, Any], presence: str, observed: Mapping[str, Any] | None
     ) -> bool:
         # Campos gerenciados da Organization: `lifecycle`, `name` e `platformAccess`
-        # (schemas/ipm/organization/desired). `ownerUserId` não é gerenciado: não existe no Zitadel.
+        # (schemas/ipm/organization/desired). `ownerAccountId` não é gerenciado: não existe no Zitadel.
         if desired["lifecycle"] == "absent":
             return presence == "absent"
         return (

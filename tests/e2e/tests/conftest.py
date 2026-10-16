@@ -181,7 +181,7 @@ def person(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Person]:
     email = f"e2e-{secrets.token_hex(4)}@example.com"
     password = "Aa1!" + secrets.token_urlsafe(14)
     registered = httpx.post(
-        f"{API_URL}/v1/core/users",
+        f"{API_URL}/v1/core/accounts",
         json={"givenName": "Jornada", "familyName": "E2e", "email": email},
         timeout=15.0,
     )
@@ -218,7 +218,7 @@ def _remove(person: Person) -> None:
     sk = person.sk
     sk.run("sum", "service", "list")  # renova o token se preciso (a CLI cuida da sessão)
     headers = {"Authorization": f"Bearer {sk.credentials()['accessToken']}"}
-    url = f"{API_URL}/v1/core/users/{person.resource_id}"
+    url = f"{API_URL}/v1/core/accounts/{person.resource_id}"
     current = httpx.get(url, headers=headers, timeout=15.0)
     if current.status_code == 404:
         return

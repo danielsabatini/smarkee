@@ -41,7 +41,7 @@ def desired(generation: int, lifecycle: str = "present") -> bytes:
         desiredGeneration=generation,
         data={
             "lifecycle": lifecycle,
-            "ownerUserId": OWNER,
+            "ownerAccountId": OWNER,
             "service": "ipm",
             "serviceRoles": list(ROLES) if lifecycle == "present" else [],
         },

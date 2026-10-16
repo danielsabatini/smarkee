@@ -4,7 +4,7 @@
 >
 > **Papel:** relatório de conformidade, e não fonte de regras. As regras estão nas especificações; em conflito, elas prevalecem. Este documento muda quando a implementação muda.
 >
-> **Base da avaliação:** o tipo `core.user` (`features/core/user`), a primeira feature e o modelo das demais, verificado em desenvolvimento em 2026-10-11 (testes de cada projeto, `ruff`, `pyright`, testes e2e contra o Zitadel e o Mailpit reais e testes de resiliência). O tipo `ipm.organization` foi refeito a partir dele e verificado em 2026-10-16, com a mesma bateria.
+> **Base da avaliação:** o tipo `core.account` (`features/core/account`), a primeira feature e o modelo das demais, verificado em desenvolvimento em 2026-10-11 (testes de cada projeto, `ruff`, `pyright`, testes e2e contra o Zitadel e o Mailpit reais e testes de resiliência). O tipo `ipm.organization` foi refeito a partir dele e verificado em 2026-10-16, com a mesma bateria.
 
 Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em parte ou sem verificação completa); **Pendente** (previsto e não implementado); **Alvo** (exigido só em stg e prd; não exercitado em dev).
 
@@ -12,31 +12,31 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Área | Situação |
 |---|---|
-| Loop completo do User (Receiver, Manager, Publisher, Reconciler, Observer, Executor) | Atende: cadastro anônimo até `Ready` e remoção, contra o Zitadel e o Mailpit reais |
+| Loop completo da Account (Receiver, Manager, Publisher, Reconciler, Observer, Executor) | Atende: cadastro anônimo até `Ready` e remoção, contra o Zitadel e o Mailpit reais |
 | Contratos (JSON Schema, modelos gerados, OpenAPI) | Atende: 268 testes dos schemas; modelos regerados e conferidos por teste em cada projeto |
 | Estrutura interna (`domain/` puro, camadas, saúde) | Atende nos seis papéis, com teste de isolamento do `domain/` em cada projeto |
 | Resiliência | Atende para queda de Manager, Executor e Publisher (testes e2e com `E2E_CHAOS=1`); queda do NATS e do banco não é testada |
 | Segurança de transporte e identidade no barramento | **Alvo**: dev usa um só usuário NATS, sem TLS |
 | Observabilidade | Parcial: logs estruturados e probes de saúde; sem métricas nem traces |
 | Retenção, quarentena, backup e recuperação | Pendente |
-| Organization (`ipm`) | Atende para o loop completo (Receiver, Manager, Publisher, Reconciler, Observer e Executor), refeito a partir do User (decisão 0038), com testes e2e contra a stack do dev e o Zitadel real: criar, renomear, desativar e reativar (`platformAccess`), remover e a queda de cada papel. O Executor escreve só a organização, sem Project Grant |
+| Organization (`ipm`) | Atende para o loop completo (Receiver, Manager, Publisher, Reconciler, Observer e Executor), refeito a partir da Account (decisão 0038), com testes e2e contra a stack do dev e o Zitadel real: criar, renomear, desativar e reativar (`platformAccess`), remover e a queda de cada papel. O Executor escreve só a organização, sem Project Grant |
 | SUM (`sum.service`) | Atende para o loop completo (Receiver, Manager, Publisher, Reconciler, Observer e Executor) e a CLI `sk sum service`, com testes e2e contra a stack do dev: ligar, desligar e a queda de Manager, Executor e Publisher, e o reinício de Reconciler e Observer no meio de uma ligação; e o teste de jornada (`tests/e2e`: cadastro, ativação, `sk auth login` interativo, ligar e desligar o `ipm` com a CLI real e a renovação da sessão). Pendente: verificação de e-mail do solicitante (decisão aberta), a Operation não vira `failed`, retenção das linhas desligadas, kill switch e visão de operador (`features/sum/service/README.md` §10) |
-| CLI | Parcial: `sk config`, `sk auth login`, `sk auth whoami`, `sk register`, `sk sum service` e `sk ipm organization` implementados e testados (a jornada e2e usa a CLI real contra o dev); `sk register get\|delete` (consulta e exclusão segura da conta). Pendente: o client ID de produção (`000000000000000000`) e o endereço de stg e prd, que ainda não existem |
+| CLI | Parcial: `sk config`, `sk auth login`, `sk auth whoami`, `sk register`, `sk sum service` e `sk ipm organization` implementados e testados (a jornada e2e usa a CLI real contra o dev); `sk account get\|delete` (consulta e exclusão segura da conta). Pendente: o client ID de produção (`000000000000000000`) e o endereço de stg e prd, que ainda não existem |
 
-# 2. `RESOURCE-CONTROL-LOOP.md`: checklist de implementação (seção 55), por papel (`core.user`)
+# 2. `RESOURCE-CONTROL-LOOP.md`: checklist de implementação (seção 55), por papel (`core.account`)
 
 ## 2.1 Modelo do recurso
 
 | Item | Situação | Evidência |
 |---|---|---|
-| `resourceId` estável, `desired`, `observed`, `desiredGeneration`, lifecycle, conditions | Atende | `schemas/core/user/`, migração `core."user"` |
-| `observedGeneration` | Atende | Existe na `condition` (`observedGeneration`); o `observed` do User não precisa dele |
+| `resourceId` estável, `desired`, `observed`, `desiredGeneration`, lifecycle, conditions | Atende | `schemas/core/account/`, migração `core.account` |
+| `observedGeneration` | Atende | Existe na `condition` (`observedGeneration`); o `observed` da Account não precisa dele |
 
 ## 2.2 Manager
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Dono do SSOT e do lifecycle; publica `desired`; processa `observed`; não executa provider | Atende | `manager/src/core_user_manager/handlers/` |
+| Dono do SSOT e do lifecycle; publica `desired`; processa `observed`; não executa provider | Atende | `manager/src/core_account_manager/handlers/` |
 | Outbox na mesma transação | Atende | `store/ssot.py`, `handlers/publishing.py`; testes de integração |
 | Conta falhas por geração, marca `Failed` e suspende no `desired` | Atende | `domain/convergence.py` (`decide_result`), limite 5 |
 | Registra `ObservationStale` | Pendente | A condition não é registrada |
@@ -45,7 +45,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Somente leitura, observa a realidade, publica `observed` com `observedAt` | Atende | conta `core-user-observer` (`ORG_OWNER_VIEWER`) |
+| Somente leitura, observa a realidade, publica `observed` com `observedAt` | Atende | conta `core-account-observer` (`ORG_OWNER_VIEWER`) |
 | Periódico, distingue `present`, `absent`, `unknown` | Atende | 5 min com jitter; `absent` só com 404 inequívoco |
 | Observa só a sua partição | Atende | `hash(resourceId) mod count` (em dev, `0/1`) |
 | Observa após `completed` e `failed`, com `causationId` | Atende | `engine/observer.py` |
@@ -75,11 +75,11 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Cada papel é um projeto autocontido, sem biblioteca comum | Atende | seis projetos em `features/core/user/` |
+| Cada papel é um projeto autocontido, sem biblioteca comum | Atende | seis projetos em `features/core/account/` |
 | Receiver com autenticação e autorização próprias | Atende | `receiver/.../auth/tokens.py` (JWKS) e `domain/principal.py` |
-| Manager dono das migrações, executadas como etapa de implantação | Atende | `manager/migrations/`, serviço `core-user-migrate` |
-| Publisher como papel próprio, com papel de banco e identidade próprios | Atende | `publisher/`, `core_user_publisher` |
-| Contratos verificados por testes e2e black-box | Atende | `features/core/user/tests/e2e` |
+| Manager dono das migrações, executadas como etapa de implantação | Atende | `manager/migrations/`, serviço `core-account-migrate` |
+| Publisher como papel próprio, com papel de banco e identidade próprios | Atende | `publisher/`, `core_account_publisher` |
+| Contratos verificados por testes e2e black-box | Atende | `features/core/account/tests/e2e` |
 | Estrutura interna da decisão 0017 | Atende | teste `test_domain_isolation.py` em cada projeto |
 
 ## 2.7 Mensagens
@@ -95,11 +95,11 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 |---|---|---|
 | Subject, emissor e destinatário (não embutido) | Atende | emissores `receiver`, `manager`, `observer`, `reconciler`, `executor`; o Publisher publica no emissor `manager` |
 | Um Stream por `messageType`, com a retenção da classe | Atende | `infrastructure/dev/broker/bootstrap/` (seis Streams) |
-| `desired` e `observed` com a operação `changed` | Atende | `manager.desired.core.user.<id>.changed` |
+| `desired` e `observed` com a operação `changed` | Atende | `manager.desired.core.account.<id>.changed` |
 | `WorkQueue` com `DiscardNew` e consumers sem filtro sobreposto | Atende | `REQUESTED` e `ACTION`; no `ACTION`, um consumer por partição, de filtros disjuntos |
 | Consumer de estado por instância (`DeliverLastPerSubject`, nome único, `inactive_threshold`) | Atende | Reconciler e Observer |
-| Consumer de trabalho ou persistência durável e compartilhado | Atende | `core-user-manager-{requested,observed,result}` |
-| Um único filtro por consumer, no nível `<módulo>.<tipo>` | Parcial | o do Executor adiciona o token da partição (`reconciler.action.core.user.<p>.>`), mais estreito, por decisão 0018 |
+| Consumer de trabalho ou persistência durável e compartilhado | Atende | `core-account-manager-{requested,observed,result}` |
+| Um único filtro por consumer, no nível `<módulo>.<tipo>` | Parcial | o do Executor adiciona o token da partição (`reconciler.action.core.account.<p>.>`), mais estreito, por decisão 0018 |
 | Executor: consumer por partição, `max_ack_pending=1`, Direct Get do `desired` | Atende | |
 | Executor com `pinned_client` | Alvo | em dev há uma só instância, sem `pinned_client` (`NATS.md` §7.5) |
 | Nenhum serviço de runtime com purge ou administração de Stream | Alvo | em dev, todos usam o mesmo usuário NATS |
@@ -120,19 +120,19 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Versão fixada | Atende | `postgres:18.6-alpine` |
 | Banco `smarkee` do proprietário `smarkee`, sem privilégios de `PUBLIC` | Atende | `database/bootstrap/smarkee.sql` |
 | Tabelas e views geradas do modelo | Parcial | seguem o modelo, mas as migrações são escritas à mão |
-| `CHECK` em `lifecycle`, `reconciliation`, `presence`, `phase`, `operation_status`, identificadores e `jsonb` | Atende | `core.user` (todas as colunas de controle e de identificação) |
+| `CHECK` em `lifecycle`, `reconciliation`, `presence`, `phase`, `operation_status`, identificadores e `jsonb` | Atende | `core.account` (todas as colunas de controle e de identificação) |
 | `FOR UPDATE` na linha; `resource_version` na condição; conflito na Operation | Atende | `store/ssot.py` |
 | Geração só incrementa quando a especificação muda | Atende | `change_desired` |
 | Deduplicação por `operation_id` e `action_id`, com filtro de geração | Atende | `handlers/requested.py`, `handlers/result.py` |
 | Publisher: uma instância ativa, sequencial, sem marca-d'água e sem `SKIP LOCKED`; marca só após confirmação | Atende | `publisher/.../outbox/publication.py` |
-| Matriz de privilégios igual à de segurança | Atende | `features/core/user/README.md` §8.1 |
-| Receiver só lê as views; Manager sem `DELETE` em outbox, resultados e operation | Atende | migração `0001-user.sql` |
+| Matriz de privilégios igual à de segurança | Atende | `features/core/account/README.md` §8.1 |
+| Receiver só lê as views; Manager sem `DELETE` em outbox, resultados e operation | Atende | migração `0001-account.sql` |
 | Papéis de login com `search_path`, `lock_timeout`, `statement_timeout`, `idle_in_transaction_session_timeout` | Atende | `database/bootstrap/core.sql` |
 | Identidade de manutenção para a retenção | Parcial | o papel `core_maintenance` existe; não há tarefa de retenção |
 | TLS e proteção em repouso | Alvo | |
 | Parâmetros e colunas `confidential` fora dos logs | Parcial | verificado por revisão (o log não registra mensagens de exceção nem valores); sem teste automatizado de varredura |
 | PITR, teste de restauração e recuperação | Pendente | |
-| Migrações expandir → migrar → contrair, por infraestrutura | Parcial | executadas por `core-user-migrate`, idempotentes; sem controle de versão (obrigatório antes de stg e prd) |
+| Migrações expandir → migrar → contrair, por infraestrutura | Parcial | executadas por `core-account-migrate`, idempotentes; sem controle de versão (obrigatório antes de stg e prd) |
 
 # 5. `SSOT.md`: checklist (seção 21)
 
@@ -154,7 +154,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Item | Situação | Evidência ou observação |
 |---|---|---|
-| Identidade própria por serviço | Parcial | nomes `core-user-<papel>`, papéis de banco e contas do Zitadel próprios; no NATS, usuário único em dev |
+| Identidade própria por serviço | Parcial | nomes `core-account-<papel>`, papéis de banco e contas do Zitadel próprios; no NATS, usuário único em dev |
 | Permissões de publicação e consumo pela matriz, escopadas por `<módulo>.<tipo>` | Alvo | |
 | Sem purge nem administração de Stream para serviços; limpeza de tombstones por identidade administrativa | Alvo / Pendente | |
 | `resourceId` validado antes de compor o Subject | Atende | padrão do contrato e `CHECK`; o Receiver gera UUIDv7 |
@@ -164,7 +164,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Observer só leitura; Executor com escrita de escopo mínimo | Atende | |
 | Nenhum segredo em mensagens, logs ou erros | Atende | senha nunca trafega; chaves por arquivo montado |
 | Ator acompanha a operação | Atende | `requestedBy` em `desired`, `action` e resultados |
-| Isolamento por organization | Parcial | definido para a Organization (decisão 0010); o User não tem organização |
+| Isolamento por organization | Parcial | definido para a Organization (decisão 0010); a Account não tem organização |
 | Eventos de segurança observáveis | Parcial | só em logs estruturados |
 
 # 7. Lacunas conhecidas e desvios deliberados
@@ -172,15 +172,15 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Tema | Situação | Referência |
 |---|---|---|
 | Organization (`features/ipm/organization`) | Papéis de instância `IAM_ORG_MANAGER` (Executor) e `IAM_OWNER_VIEWER` (Observer): mais largos que o necessário; estreitar antes de prd. O nome `register` não é reservado (falha no Executor, `Rejected`) | `features/ipm/organization/README.md`, decisão 0038 |
-| CLI | `sk config`, `sk auth`, `sk register`, `sk sum service`, `sk ipm organization` e `sk register get\|delete` | `ROADMAP.md` |
+| CLI | `sk config`, `sk auth`, `sk register`, `sk sum service`, `sk ipm organization` e `sk account get\|delete` | `ROADMAP.md` |
 | `pinned_client` no Executor | Alvo antes de stg e prd | `NATS.md` §7.5 |
 | Partição do Observer | Na aplicação (`hash(resourceId) mod count`); o `DESIRED` não é particionado | decisão 0018 |
 | Quarentena, `ObservationStale`, limite de remoções, retenção, métricas e traces | Pendentes | seções 2 a 6 |
-| Ativação de ponta a ponta | Verificada em dev em 2026-10-12: a pessoa definiu a senha e confirmou o e-mail pelos links, e os reenvios pelo provedor funcionaram. Falta confirmar o `sk auth login` com esse usuário | `features/core/user/README.md` §4.7 |
+| Ativação de ponta a ponta | Verificada em dev em 2026-10-12: a pessoa definiu a senha e confirmou o e-mail pelos links, e os reenvios pelo provedor funcionaram. Falta confirmar o `sk auth login` com esse usuário | `features/core/account/README.md` §4.7 |
 | Configuração do Zitadel | Aplicada em dev por script temporário e não versionado; o mecanismo para stg e prd não está decidido | `infrastructure/dev/README.md` |
-| Leitor tolerante | Implementado: os consumidores de mensagens internas (Manager, Reconciler, Observer e Executor do User e da Organization) validam em modo tolerante, ignoram campos de `MINOR` mais novo e recusam `MAJOR` não suportado. A entrada de clientes e a publicação continuam estritas. Testes unitários em cada projeto e caso no e2e (`schemaVersion` 1.1 com campo desconhecido) | `schemas/`, `contracts/base.py` de cada componente, `tests/unit/test_tolerant_reader.py` |
-| Dados pessoais retidos | O `payload` do `desired` de criação (e-mail e nomes) permanece no outbox, e as Operations não são removidas, porque a retenção não existe; a limpeza do tombstone no `DESIRED` também não | `features/core/user/README.md` §11.6 |
-| Retomada de `Failed` | O User não tem `update`; a intervenção explícita não está definida | `features/core/user/README.md` §10 |
+| Leitor tolerante | Implementado: os consumidores de mensagens internas (Manager, Reconciler, Observer e Executor da Account e da Organization) validam em modo tolerante, ignoram campos de `MINOR` mais novo e recusam `MAJOR` não suportado. A entrada de clientes e a publicação continuam estritas. Testes unitários em cada projeto e caso no e2e (`schemaVersion` 1.1 com campo desconhecido) | `schemas/`, `contracts/base.py` de cada componente, `tests/unit/test_tolerant_reader.py` |
+| Dados pessoais retidos | O `payload` do `desired` de criação (e-mail e nomes) permanece no outbox, e as Operations não são removidas, porque a retenção não existe; a limpeza do tombstone no `DESIRED` também não | `features/core/account/README.md` §11.6 |
+| Retomada de `Failed` | A Account não tem `update`; a intervenção explícita não está definida | `features/core/account/README.md` §10 |
 | Imagens em `docs/images/` | O infográfico do fluxo é do desenho antigo (Tenant, `api.*`); a arquitetura Kubernetes é uma proposta | `docs/images/README.md` |
 
 # 8. Como manter

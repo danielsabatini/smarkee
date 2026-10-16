@@ -218,7 +218,7 @@ def test_desired_declares_all_resource_parameters() -> None:
         ("api-create-request", "operationId"),
         ("api-create-request", "requestedBy"),
         ("api-create-request", "platformAccess"),
-        ("api-create-request", "ownerUserId"),
+        ("api-create-request", "ownerAccountId"),
         ("api-update-request", "desiredGeneration"),
         ("api-update-request", "operationId"),
     ],
@@ -245,14 +245,14 @@ def test_organization_contracts_carry_no_personal_data(path: Path) -> None:
 
 def test_resource_view_never_exposes_the_owner() -> None:
     resource = _load(ORGANIZATION / "resource.v1.schema.json")
-    assert "ownerUserId" not in resource["properties"]["desired"]["properties"]
+    assert "ownerAccountId" not in resource["properties"]["desired"]["properties"]
 
 
-USER = SCHEMAS_ROOT / "core" / "user"
+ACCOUNT = SCHEMAS_ROOT / "core" / "account"
 
 
-def test_user_contracts_have_no_password_field() -> None:
-    for path in USER.glob("*.schema.json"):
+def test_account_contracts_have_no_password_field() -> None:
+    for path in ACCOUNT.glob("*.schema.json"):
         for _, node in _walk(_load(path), "#"):
             properties = node.get("properties")
             if isinstance(properties, dict):
@@ -261,8 +261,8 @@ def test_user_contracts_have_no_password_field() -> None:
                 )
 
 
-def test_user_desired_carries_personal_data_only_while_present() -> None:
-    desired_path = USER / "desired.v1.schema.json"
+def test_account_desired_carries_personal_data_only_while_present() -> None:
+    desired_path = ACCOUNT / "desired.v1.schema.json"
     present = json.loads(_example_for(desired_path).read_text(encoding="utf-8"))
     assert _is_valid(desired_path, present)
 
@@ -279,12 +279,14 @@ def test_user_desired_carries_personal_data_only_while_present() -> None:
     assert not _is_valid(desired_path, {**absent, "email": present["email"]})
 
 
-def test_user_platform_roles_are_a_set_of_action_roles() -> None:
-    desired_path = USER / "desired.v1.schema.json"
+def test_account_platform_roles_are_a_set_of_action_roles() -> None:
+    desired_path = ACCOUNT / "desired.v1.schema.json"
     present = json.loads(_example_for(desired_path).read_text(encoding="utf-8"))
     assert not _is_valid(desired_path, {k: v for k, v in present.items() if k != "platformRoles"})
     assert _is_valid(desired_path, {**present, "platformAccess": "revoked", "platformRoles": []})
-    assert not _is_valid(desired_path, {**present, "platformRoles": ["core.user.get", "core.user.get"]})
+    assert not _is_valid(
+        desired_path, {**present, "platformRoles": ["core.account.get", "core.account.get"]}
+    )
     assert not _is_valid(desired_path, {**present, "platformRoles": ["User Get"]})
 
 

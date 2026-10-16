@@ -1,0 +1,847 @@
+{
+  "components": {
+    "schemas": {
+      "Account": {
+        "additionalProperties": false,
+        "description": "Visão consolidada da Account exposta pelo Receiver (GET /v1/core/accounts/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).",
+        "properties": {
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/Condition"
+            },
+            "maxItems": 32,
+            "title": "Conditions",
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "desired": {
+            "$ref": "#/components/schemas/UserDesiredView"
+          },
+          "desiredGeneration": {
+            "maximum": 9007199254740991.0,
+            "minimum": 1.0,
+            "title": "Desiredgeneration",
+            "type": "integer"
+          },
+          "observed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserObservedView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "UserObservedView"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/Phase"
+          },
+          "resourceId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+            "title": "Resourceid",
+            "type": "string"
+          },
+          "resourceVersion": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9-]+$",
+            "title": "Resourceversion",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resourceId",
+          "resourceVersion",
+          "desiredGeneration",
+          "phase",
+          "conditions",
+          "desired",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "Account",
+        "type": "object"
+      },
+      "AccountCreateRequest": {
+        "additionalProperties": false,
+        "description": "Corpo de POST /v1/core/accounts (auto-cadastro, escrita anônima). O Receiver atribui resourceId, operationId e requestDigest, e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.",
+        "properties": {
+          "email": {
+            "format": "email",
+            "maxLength": 254,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "familyName": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Familyname",
+            "type": "string"
+          },
+          "givenName": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Givenname",
+            "type": "string"
+          }
+        },
+        "required": [
+          "givenName",
+          "familyName",
+          "email"
+        ],
+        "title": "AccountCreateRequest",
+        "type": "object"
+      },
+      "AccountState": {
+        "description": "Estado do usuário no provedor de identidade. initial: aguardando a ativação (definição da senha).",
+        "enum": [
+          "initial",
+          "active",
+          "inactive",
+          "locked"
+        ],
+        "title": "AccountState",
+        "type": "string"
+      },
+      "ApiAcceptedResponse": {
+        "additionalProperties": false,
+        "description": "Resposta das escritas assíncronas (POST, PATCH, DELETE): o pedido foi publicado, não aplicado (RESOURCE-CONTROL-LOOP.md, Interface HTTP).",
+        "properties": {
+          "operationId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+            "title": "Operationid",
+            "type": "string"
+          },
+          "resourceId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+            "title": "Resourceid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resourceId",
+          "operationId"
+        ],
+        "title": "ApiAcceptedResponse",
+        "type": "object"
+      },
+      "Condition": {
+        "additionalProperties": false,
+        "description": "Fato consolidado do recurso (RESOURCE-CONTROL-LOOP.md, Conditions). Mantida pelo Manager.",
+        "properties": {
+          "lastTransitionAt": {
+            "format": "date-time",
+            "title": "Lasttransitionat",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "observedGeneration": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observedgeneration"
+          },
+          "reason": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Z][A-Za-z0-9]*$",
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ConditionStatus"
+          },
+          "type": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Z][A-Za-z0-9]*$",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "status",
+          "reason",
+          "lastTransitionAt"
+        ],
+        "title": "Condition",
+        "type": "object"
+      },
+      "ConditionStatus": {
+        "enum": [
+          "True",
+          "False",
+          "Unknown"
+        ],
+        "title": "ConditionStatus",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Lifecycle": {
+        "description": "Intenção de existência, em desired.",
+        "enum": [
+          "present",
+          "absent"
+        ],
+        "title": "Lifecycle",
+        "type": "string"
+      },
+      "Operation": {
+        "additionalProperties": false,
+        "description": "Acompanhamento de uma solicitação assíncrona, exposto por GET /v1/operations/{operationId} (SSOT.md, Operation).",
+        "properties": {
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "desiredGeneration": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Desiredgeneration"
+          },
+          "module": {
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "title": "Module",
+            "type": "string"
+          },
+          "operationId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+            "title": "Operationid",
+            "type": "string"
+          },
+          "operationStatus": {
+            "$ref": "#/components/schemas/OperationStatus"
+          },
+          "operationStatusReason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperationStatusReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "OperationStatusReason"
+          },
+          "operationType": {
+            "$ref": "#/components/schemas/OperationType"
+          },
+          "resourceId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+            "title": "Resourceid",
+            "type": "string"
+          },
+          "resourceType": {
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "title": "Resourcetype",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId",
+          "operationType",
+          "module",
+          "resourceType",
+          "resourceId",
+          "operationStatus",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "Operation",
+        "type": "object"
+      },
+      "OperationStatus": {
+        "enum": [
+          "accepted",
+          "in_progress",
+          "completed",
+          "failed",
+          "rejected"
+        ],
+        "title": "OperationStatus",
+        "type": "string"
+      },
+      "OperationStatusReason": {
+        "description": "Motivo da rejeição; presente somente quando operationStatus é rejected.",
+        "enum": [
+          "conflict",
+          "validation",
+          "not_found"
+        ],
+        "title": "OperationStatusReason",
+        "type": "string"
+      },
+      "OperationType": {
+        "enum": [
+          "create",
+          "update",
+          "delete"
+        ],
+        "title": "OperationType",
+        "type": "string"
+      },
+      "Phase": {
+        "description": "Fase consolidada do recurso (RESOURCE-CONTROL-LOOP.md, Lifecycle).",
+        "enum": [
+          "Pending",
+          "Reconciling",
+          "Ready",
+          "Failed",
+          "Deleting"
+        ],
+        "title": "Phase",
+        "type": "string"
+      },
+      "PlatformAccess": {
+        "description": "Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, na Account); revoked a remove.",
+        "enum": [
+          "granted",
+          "revoked"
+        ],
+        "title": "PlatformAccess",
+        "type": "string"
+      },
+      "PlatformRole": {
+        "maxLength": 128,
+        "minLength": 5,
+        "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$",
+        "title": "PlatformRole",
+        "type": "string"
+      },
+      "Presence": {
+        "description": "Resultado da observação, no envelope de observed. unknown nunca é tratado como absent.",
+        "enum": [
+          "present",
+          "absent",
+          "unknown"
+        ],
+        "title": "Presence",
+        "type": "string"
+      },
+      "Reconciliation": {
+        "description": "Controle da reconciliação, em desired. Quando suspended, o Reconciler não decide.",
+        "enum": [
+          "active",
+          "suspended"
+        ],
+        "title": "Reconciliation",
+        "type": "string"
+      },
+      "UserDesiredView": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "format": "email",
+                "maxLength": 254,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "familyName": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Familyname"
+          },
+          "givenName": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Givenname"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/Lifecycle"
+          },
+          "platformAccess": {
+            "$ref": "#/components/schemas/PlatformAccess"
+          },
+          "platformRoles": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformRole"
+            },
+            "maxItems": 64,
+            "title": "Platformroles",
+            "type": "array"
+          },
+          "reconciliation": {
+            "$ref": "#/components/schemas/Reconciliation"
+          }
+        },
+        "required": [
+          "lifecycle",
+          "reconciliation",
+          "platformAccess",
+          "platformRoles"
+        ],
+        "title": "UserDesiredView",
+        "type": "object"
+      },
+      "UserObservedView": {
+        "additionalProperties": false,
+        "description": "Última observação; ausente antes da primeira.",
+        "properties": {
+          "accountState": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "emailVerified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emailverified"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "title": "Observedat",
+            "type": "string"
+          },
+          "platformAccess": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlatformAccess"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "platformRoles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PlatformRole"
+                },
+                "maxItems": 64,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platformroles"
+          },
+          "presence": {
+            "$ref": "#/components/schemas/Presence"
+          }
+        },
+        "required": [
+          "presence",
+          "observedAt"
+        ],
+        "title": "UserObservedView",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "smarkee core account api",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health/live": {
+      "get": {
+        "operationId": "health_live_health_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Live Health Live Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Live"
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "health_ready_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Ready"
+      }
+    },
+    "/health/startup": {
+      "get": {
+        "operationId": "health_startup_health_startup_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Startup Health Startup Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Startup"
+      }
+    },
+    "/v1/core/accounts": {
+      "post": {
+        "description": "Auto-cadastro: escrita anônima (`RESOURCE-CONTROL-LOOP.md` §6.1.2).\n\nResposta uniforme: nenhuma consulta ao SSOT, e o mesmo `202` exista ou não o e-mail.",
+        "operationId": "register_account_v1_core_accounts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Account"
+      }
+    },
+    "/v1/core/accounts/{account_id}": {
+      "delete": {
+        "operationId": "delete_account_v1_core_accounts__account_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "resourceVersion",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{1,18}$",
+              "title": "Resourceversion",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Account"
+      },
+      "get": {
+        "operationId": "get_account_v1_core_accounts__account_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Account"
+      }
+    },
+    "/v1/core/accounts/{account_id}/operations/{operation_id}": {
+      "get": {
+        "operationId": "get_operation_v1_core_accounts__account_id__operations__operation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "title": "Account Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "operation_id",
+            "required": true,
+            "schema": {
+              "title": "Operation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Operation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Operation"
+      }
+    }
+  }
+}

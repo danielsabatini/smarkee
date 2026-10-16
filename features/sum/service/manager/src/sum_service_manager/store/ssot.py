@@ -36,14 +36,14 @@ async def find_operation(conn: AsyncConnection[Any], operation_id: str) -> Opera
 
 
 async def active_link_for(
-    conn: AsyncConnection[Any], owner_user_id: str, service: str
+    conn: AsyncConnection[Any], owner_account_id: str, service: str
 ) -> Link | None:
     """A ligação ativa do par dono + serviço, bloqueada até o fim da transação."""
     return await _one_link(
         conn,
         "SELECT resource_id, resource_version, desired_generation, desired FROM sum.service "
-        "WHERE owner_user_id = %s AND service = %s AND lifecycle = 'present' FOR UPDATE",
-        (owner_user_id, service),
+        "WHERE owner_account_id = %s AND service = %s AND lifecycle = 'present' FOR UPDATE",
+        (owner_account_id, service),
     )
 
 
@@ -62,19 +62,19 @@ async def insert_link(
     *,
     resource_id: str,
     schema_version: str,
-    owner_user_id: str,
+    owner_account_id: str,
     service: str,
     desired: dict[str, Any],
 ) -> None:
     """Grava a ligação nova. Uma ativa do mesmo par viola o índice único (`UniqueViolation`)."""
     await conn.execute(
-        "INSERT INTO sum.service (resource_id, schema_version, owner_user_id, service, lifecycle, "
+        "INSERT INTO sum.service (resource_id, schema_version, owner_account_id, service, lifecycle, "
         "reconciliation, desired, desired_generation, resource_version, phase) "
         "VALUES (%s, %s, %s, %s, %s, %s, %s, 1, 1, 'Pending')",
         (
             resource_id,
             schema_version,
-            owner_user_id,
+            owner_account_id,
             service,
             desired["lifecycle"],
             desired["reconciliation"],

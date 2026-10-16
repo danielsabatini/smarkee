@@ -87,22 +87,22 @@ services:
           - ~/v1/sum/services(/|$)
         strip_path: false
 
-  - name: core-user-receiver
-    url: http://core-user-receiver.smarkee.internal:8000
+  - name: core-account-receiver
+    url: http://core-account-receiver.smarkee.internal:8000
     routes:
-      - name: core-user-receiver
+      - name: core-account-receiver
         hosts:
           - api-dev.smarkee.com.br
         paths:
-          - ~/v1/core/users(/|$)
+          - ~/v1/core/accounts(/|$)
         strip_path: false
       # Auto-cadastro (escrita anônima): limite de taxa por IP já no gateway, o primeiro nível
       # de proteção (docs/RESOURCE-CONTROL-SECURITY.md §12). O Receiver aplica o segundo.
-      - name: core-user-register
+      - name: core-account-register
         hosts:
           - api-dev.smarkee.com.br
         paths:
-          - ~/v1/core/users$
+          - ~/v1/core/accounts$
         methods:
           - POST
         strip_path: false

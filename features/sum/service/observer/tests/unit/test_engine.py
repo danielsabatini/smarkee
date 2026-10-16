@@ -58,7 +58,12 @@ def desired(generation: int, lifecycle: str = "present", message_id: str = "m-de
         "desired",
         message_id,
         desiredGeneration=generation,
-        data={"lifecycle": lifecycle, "ownerUserId": OWNER, "service": "ipm", "serviceRoles": []},
+        data={
+            "lifecycle": lifecycle,
+            "ownerAccountId": OWNER,
+            "service": "ipm",
+            "serviceRoles": [],
+        },
     )
 
 
@@ -187,7 +192,7 @@ async def test_a_desired_without_a_valid_lifecycle_is_not_observed() -> None:
     recorder = Recorder()
     watcher = observer(FakeReader(), recorder)
     for lifecycle in (None, "", "unknown"):
-        data: dict[str, Any] = {"ownerUserId": OWNER, "service": "ipm", "serviceRoles": []}
+        data: dict[str, Any] = {"ownerAccountId": OWNER, "service": "ipm", "serviceRoles": []}
         if lifecycle is not None:
             data["lifecycle"] = lifecycle
         await watcher.on_message(envelope("desired", "m", desiredGeneration=1, data=data))

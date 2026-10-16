@@ -42,7 +42,7 @@ Este documento não fixa uma versão. O DDL de referência foi exercitado em Pos
 | Schema | Um schema por módulo (`<módulo>`) |
 | Tabelas | Quatro por tipo de recurso, todas com o mesmo formato: `<tipo>`, `<tipo>_operation`, `<tipo>_action_result`, `<tipo>_outbox` |
 | Views | Duas por tipo de recurso, para a leitura do Receiver: `<tipo>_v<MAJOR>` e `<tipo>_operation_v<MAJOR>` |
-| Nomes | `snake_case`, minúsculas, sem hífen. Um tipo cujo nome é palavra reservada do PostgreSQL (por exemplo, `user`) mantém o nome do tipo, e a tabela do tipo é sempre citada (`core."user"`); as demais tabelas e views (`user_operation`, `user_v1`) não precisam de aspas |
+| Nomes | `snake_case`, minúsculas, sem hífen. Um tipo cujo nome é palavra reservada do PostgreSQL (por exemplo, `user`) mantém o nome do tipo, e a tabela do tipo é sempre citada (`core.account`); as demais tabelas e views (`user_operation`, `user_v1`) não precisam de aspas |
 | Papéis | Um por serviço, mapeando a identidade `<módulo>-<tipo>-<papel>` para `<módulo>_<tipo>_<papel>` (o Publisher tem o papel `<módulo>_<tipo>_publisher`) |
 
 As tabelas e as views de cada tipo seguem **um único modelo** (o DDL de referência da seção 6.6) e o contrato do recurso. Como os componentes não compartilham código (decisão 0015), o Manager de cada tipo versiona as suas migrações a partir desse modelo (hoje escritas à mão, sem gerador), e os testes de integração do Manager e os testes e2e verificam o comportamento do resultado. O objeto criado não é editado manualmente (`AGENTS.md`, arquivos gerados).
@@ -61,7 +61,7 @@ O SSOT não compartilha banco com componentes de terceiros (por exemplo, gateway
 
 ![ER físico](diagrams/postgresql-er-fisico.svg)
 
-*Fonte: [`diagrams/postgresql-er-fisico.mmd`](diagrams/postgresql-er-fisico.mmd).* Não há chave estrangeira: o relacionamento por `resource_id` é lógico (`SSOT.md`, seção 7). Um exemplo concreto, com os tipos e índices reais do banco, está em [`features/core/user/README.md`](../features/core/user/README.md) (seção 11).
+*Fonte: [`diagrams/postgresql-er-fisico.mmd`](diagrams/postgresql-er-fisico.mmd).* Não há chave estrangeira: o relacionamento por `resource_id` é lógico (`SSOT.md`, seção 7). Um exemplo concreto, com os tipos e índices reais do banco, está em [`features/core/account/README.md`](../features/core/account/README.md) (seção 11).
 
 **Quem lê e escreve cada tabela** (a matriz da seção 14.2, em figura):
 
@@ -73,8 +73,8 @@ O SSOT não compartilha banco com componentes de terceiros (por exemplo, gateway
 
 | Coluna | Conteúdo |
 |---|---|
-| `desired` | O estado pretendido: `lifecycle` e os campos declarativos do contrato `desired` do tipo (no User: `givenName`, `familyName`, `email`, `platformAccess` e `platformRoles`). Os campos `confidential` ficam aqui; o `desired` de remoção não os carrega |
-| `observed` | O último `data` de `observed` do tipo (no User: `emailVerified`, `userState`, `platformAccess` e `platformRoles`) |
+| `desired` | O estado pretendido: `lifecycle` e os campos declarativos do contrato `desired` do tipo (na Account: `givenName`, `familyName`, `email`, `platformAccess` e `platformRoles`). Os campos `confidential` ficam aqui; o `desired` de remoção não os carrega |
+| `observed` | O último `data` de `observed` do tipo (na Account: `emailVerified`, `accountState`, `platformAccess` e `platformRoles`) |
 | `conditions` | Array de `condition` (`schemas/common/condition`); hoje a condition `Ready`, com `status`, `reason`, `observedGeneration` e `lastTransitionAt` |
 | `<tipo>_outbox.payload` | O envelope completo da mensagem (`MESSAGING.md`), pronto para publicar; o Publisher só acrescenta `publishedAt` e `publishedBy` |
 
@@ -204,7 +204,7 @@ CREATE VIEW sample.item_operation_v1 AS
     FROM sample.item_operation;
 ```
 
-Cada tipo acrescenta os índices das suas regras de unicidade ou de busca: por exemplo, `core.user_email`, sobre `desired ->> 'email'`, que sustenta a unicidade do e-mail do User (conferida na unidade atômica, sob trava consultiva); e `sum.service_active_link`, índice único parcial sobre `(owner_user_id, service)` com `lifecycle = 'present'`, que garante uma ligação ativa por dono e serviço, mesmo com pedidos concorrentes (SUM, decisão 0033).
+Cada tipo acrescenta os índices das suas regras de unicidade ou de busca: por exemplo, `core.account_email`, sobre `desired ->> 'email'`, que sustenta a unicidade do e-mail da Account (conferida na unidade atômica, sob trava consultiva); e `sum.service_active_link`, índice único parcial sobre `(owner_account_id, service)` com `lifecycle = 'present'`, que garante uma ligação ativa por dono e serviço, mesmo com pedidos concorrentes (SUM, decisão 0033).
 
 O limite de 262144 bytes (256 KiB) é o valor de referência de `SCHEMA.md` e pode ser ajustado por contrato. `pg_column_size` mede o valor armazenado, que pode estar comprimido; o limite da aplicação continua sendo a verificação autoritativa do tamanho do conteúdo. Os limites de comprimento das colunas de identificação seguem os valores de referência de `SCHEMA.md`; o de `action_id` comporta a sua composição (`MESSAGING.md`).
 

@@ -1,0 +1,68 @@
+sequenceDiagram
+    autonumber
+    actor U as Pessoa
+    participant MAIL as Caixa de e-mail (Mailpit em dev)
+    participant GW as Gateway Kong
+    participant ZIT as Zitadel (login)
+    participant OBS as core-account-observer
+    participant CLI as sk CLI
+    participant Receiver as APIs da plataforma
+
+    Note over U,Receiver: A ativação e o login são feitos no Zitadel. A senha NUNCA passa por CLI, Receiver, SSOT nem NATS.
+
+    rect rgb(232,245,233)
+    Note over U,ZIT: 1. Ativação (caminho perfeito) (ativação verificada em dev em 2026-10-12, e o sk auth login com o usuário novo ainda não foi exercitado)
+    U->>MAIL: abre "Verificar e-mail" (o único e-mail da ativação)
+    U->>GW: clica no link (/ui/login, caminho público do Zitadel)
+    GW->>ZIT: repassa (Host preservado)
+    ZIT-->>U: página com o código e a senha (política do Zitadel)
+    U->>ZIT: informa e confirma a senha
+    ZIT->>ZIT: verifica o e-mail e grava a senha (passwordChanged), envia "Senha do usuário foi alterada"
+    ZIT-->>U: "Senha definida. Faça login."
+    OBS->>ZIT: próxima observação (periódica, 5 min)
+    OBS->>OBS: publica observed com emailVerified true, accountState active
+    Note over OBS: O Manager atualiza o recurso (updated). Convergência não depende disso:<br/>emailVerified não é campo gerenciado.
+    end
+
+    rect rgb(255,235,238)
+    Note over U,ZIT: 2. Problemas na ativação
+    U->>ZIT: link expirado ou código inválido
+    ZIT-->>U: erro de código. Usar "Reenviar código" na própria página
+    U->>ZIT: senha fora da política (curta, sem requisitos)
+    ZIT-->>U: erro de política, tentar de novo
+    U->>ZIT: link já usado (ativação concluída antes)
+    ZIT-->>U: pede login normal
+    Note over U: Link aberto em outro navegador ou e-mail encaminhado: o código só vale para o usuário criado.
+    end
+
+    rect rgb(232,240,254)
+    Note over U,Receiver: 3. Login pelo CLI (já implementado, decisão 0007)
+    U->>CLI: sk auth login
+    CLI->>CLI: gera PKCE (S256) e abre o servidor de retorno em 127.0.0.1:porta
+    CLI->>U: abre o navegador no endereço de autorização do Zitadel
+    U->>ZIT: informa usuário e senha
+    ZIT-->>CLI: redireciona para http://127.0.0.1:porta/callback?code=...
+    CLI->>ZIT: troca code + code_verifier por tokens
+    ZIT-->>CLI: access token JWT (roles organization.* e account.* do projeto smarkee)
+    CLI->>CLI: grava ~/.config/sk/credentials.json (permissão 0600)
+    CLI-->>U: "Login completed."
+    U->>CLI: sk account get (a implementar)
+    CLI->>Receiver: GET /v1/core/accounts/{sub} (Bearer)
+    Receiver-->>CLI: 200 com o próprio usuário
+    end
+
+    rect rgb(255,243,224)
+    Note over U,Receiver: 4. Problemas no login
+    U->>CLI: sk auth login (antes de ativar a conta)
+    ZIT-->>U: usuário sem senha definida, pede a ativação
+    U->>CLI: sk auth login (platformAccess revoked, sem roles no projeto)
+    ZIT-->>U: acesso negado (verificação de role na autenticação)
+    CLI->>CLI: porta de retorno ocupada, state ou PKCE divergente, navegador fechado
+    CLI-->>U: erro explícito e nenhuma credencial gravada
+    CLI->>Receiver: chamada com token expirado ou audience errada
+    Receiver-->>CLI: 401 Unauthorized (renovação pelo refresh token: a implementar)
+    CLI->>Receiver: usuário sem a role da ação
+    Receiver-->>CLI: 403 Forbidden
+    CLI->>Receiver: GET /v1/core/accounts/{outro id}
+    Receiver-->>CLI: 404 (não revela a existência)
+    end

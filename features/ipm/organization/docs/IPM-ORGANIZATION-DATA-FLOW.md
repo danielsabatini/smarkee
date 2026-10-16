@@ -1,7 +1,7 @@
 # ipm.organization: fluxo de dados (do `POST` até a organização no Zitadel)
 
 Documento de fluxo de dados da feature, no padrão da [decisão 0024](../../../../.decisions/0024-data-flow-por-feature.md) e de
-`features/core/user/docs/CORE-USER-DATA-FLOW.md`. Todos os passos estão implementados e rodam no dev (Compose), verificados
+`features/core/account/docs/CORE-ACCOUNT-DATA-FLOW.md`. Todos os passos estão implementados e rodam no dev (Compose), verificados
 pela suíte e2e (`tests/e2e`) contra o Zitadel real, inclusive com falha de componente. A decisão de desenho é a
 [0038](../../../../.decisions/0038-organization-refeita-a-partir-do-user.md).
 
@@ -44,7 +44,7 @@ Banco: [`database/01-er-fisico.svg`](database/01-er-fisico.svg).
 |---|---|---|---|
 | `resourceId` | Receiver | UUIDv7 minúsculo | Identidade da Organization. Vira o ID da organização no Zitadel (`organization_id`), então repetir a criação não duplica. |
 | `operationId`, `requestDigest` | Receiver | UUIDv7 (ou determinístico com `Idempotency-Key`); SHA-256 do pedido | Identidade da Operation; a repetição produz o mesmo valor. |
-| `ownerUserId` | Receiver | `sub` do token | O dono. Vem do token, nunca do corpo, e vive só no `desired`. |
+| `ownerAccountId` | Receiver | `sub` do token | O dono. Vem do token, nunca do corpo, e vive só no `desired`. |
 | `messageId` | Quem emite | UUIDv7 | É o `Nats-Msg-Id` (deduplicação) e a chave única do outbox. |
 | `correlationId`, `causationId` | Receiver; quem emite | UUIDv7; `messageId` da causa | Rastreiam o pedido do início ao fim e encadeiam causa e efeito. |
 | `actionId` | Reconciler | `<resourceId>.<desiredGeneration>.<operação>.<messageId do observed>` | Identidade determinística da decisão; Executor e Manager a usam para ser idempotentes. |
@@ -120,7 +120,7 @@ tiram o Publisher de `ready`, sem derrubar o processo (decisão 0018). O `desire
   "messageType": "desired", "emitter": "manager", "module": "ipm", "resourceType": "organization",
   "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e", "operation": "changed", "desiredGeneration": 1,
   "publishedBy": "ipm-organization-publisher",
-  "data": {"name": "acme", "lifecycle": "present", "ownerUserId": "0199c8a4-0000-7000-8000-00000000beef",
+  "data": {"name": "acme", "lifecycle": "present", "ownerAccountId": "0199c8a4-0000-7000-8000-00000000beef",
            "platformAccess": "granted", "reconciliation": "active"}
 }
 ```

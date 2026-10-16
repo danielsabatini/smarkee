@@ -139,19 +139,19 @@ async def test_create_is_accepted_and_the_operation_is_readable(
 
     desired = await last_desired(jetstream, body["resourceId"])
     assert desired["data"]["name"] == name
-    assert "ownerUserId" in desired["data"]
+    assert "ownerAccountId" in desired["data"]
 
     resource = await api.get(f"/v1/ipm/organizations/{body['resourceId']}", headers=authorization)
     assert resource.status_code == 200
     assert_valid("ipm/organization/resource.v1.schema.json", resource.json())
-    assert "ownerUserId" not in resource.text
+    assert "ownerAccountId" not in resource.text
 
 
 async def test_unknown_body_field_is_400(
     api: httpx.AsyncClient, authorization: dict[str, str]
 ) -> None:
     response = await api.post(
-        "/v1/ipm/organizations", json={"name": "ok", "ownerUserId": "x"}, headers=authorization
+        "/v1/ipm/organizations", json={"name": "ok", "ownerAccountId": "x"}, headers=authorization
     )
     assert response.status_code == 400
     assert_valid("common/api-error.v1.schema.json", response.json())

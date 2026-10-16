@@ -40,7 +40,7 @@ claim `urn:zitadel:iam:org:project:<roles-sum>:roles`: o cliente precisa pedir o
   contrato (`tests/contract/`: modelos gerados e OpenAPI) e o repositório contra o banco de dev (`tests/integration/`).
 - As respostas de sucesso e de erro são validadas contra os modelos do contrato (`test_api.py`, e no e2e contra os schemas).
 - No ar no dev (Compose), atrás do gateway, verificado pela suíte e2e (`../tests/e2e`).
-- Verificação de e-mail do solicitante: não decidida para o SUM (o User exige).
+- Verificação de e-mail do solicitante: não decidida para o SUM (a Account exige).
 
 ## Configuração
 

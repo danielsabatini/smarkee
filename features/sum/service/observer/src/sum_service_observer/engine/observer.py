@@ -44,7 +44,7 @@ def owns(resource_id: str, index: int, count: int) -> bool:
 
 @dataclass(slots=True)
 class Watch:
-    owner_user_id: str
+    owner_account_id: str
     service: str
     lifecycle: str = "present"
     generation: int = 0
@@ -117,7 +117,7 @@ class Observer:
         if generation is None:
             return
         data: Mapping[str, Any] = envelope.data
-        owner = str(data.get("ownerUserId", ""))
+        owner = str(data.get("ownerAccountId", ""))
         service = str(data.get("service", ""))
         lifecycle = data.get("lifecycle")
         if not owner or not service or lifecycle not in ("present", "absent"):
@@ -127,7 +127,7 @@ class Observer:
             return  # geração mais antiga
         changed = watch is None or generation != watch.generation
         if watch is None:
-            watch = Watch(owner_user_id=owner, service=service)
+            watch = Watch(owner_account_id=owner, service=service)
             self._watches[envelope.resource_id] = watch
         watch.generation = generation
         watch.lifecycle = lifecycle
@@ -142,7 +142,7 @@ class Observer:
         if watch is None:
             return  # sem o `desired`, o Observer não sabe o que observar
         observation: Observation = await observe(
-            self._reader, watch.owner_user_id, watch.service, self._catalog
+            self._reader, watch.owner_account_id, watch.service, self._catalog
         )
         if _removal_converged(watch, observation):
             watch.tombstone = True  # remoção convergida: deixa de observar

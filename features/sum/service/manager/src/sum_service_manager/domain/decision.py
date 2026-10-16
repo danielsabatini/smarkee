@@ -53,7 +53,7 @@ class Link:
 
 def decide_create(
     *,
-    owner_user_id: str,
+    owner_account_id: str,
     service: str,
     catalog: Mapping[str, tuple[str, ...]],
     active_link: Link | None,
@@ -74,13 +74,13 @@ def decide_create(
         return Rejected("already_exists", existing_resource_id=active_link.resource_id)
     if existing_link is not None:
         if (
-            existing_link.desired.get("ownerUserId") != owner_user_id
+            existing_link.desired.get("ownerAccountId") != owner_account_id
             or existing_link.desired.get("service") != service
         ):
             return Rejected("conflict")
         if existing_link.is_active:
             return Rejected("already_exists", existing_resource_id=existing_link.resource_id)
-    return Accepted(enable_desired(owner_user_id, service, catalog))
+    return Accepted(enable_desired(owner_account_id, service, catalog))
 
 
 def decide_delete(*, link: Link | None, expected_version: str) -> Decision:

@@ -21,7 +21,7 @@ async def test_organization_is_read_through_the_view(
 
     assert record is not None
     assert (record.resource_version, record.desired_generation, record.phase) == (1, 1, "Pending")
-    assert record.desired["ownerUserId"] == "repo-owner"
+    assert record.desired["ownerAccountId"] == "repo-owner"
     assert record.presence is None and record.observed is None
     assert await repository.get_organization("inexistente") is None
 

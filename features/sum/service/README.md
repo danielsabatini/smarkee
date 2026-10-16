@@ -2,7 +2,7 @@
 
 Módulo `sum`, tipo `service`: o uso de um serviço da plataforma (hoje, `ipm`) por um usuário. Um usuário
 liga ou desliga um serviço, e a ligação concede ou revoga as roles desse serviço no Zitadel (decisão 0033).
-É o SUM (Service Usage Manager). A estrutura segue a de `features/core/user`.
+É o SUM (Service Usage Manager). A estrutura segue a de `features/core/account`.
 
 # 1. Estado da implementação
 
@@ -168,9 +168,9 @@ por `uv run python -m sum_service_receiver.http.openapi` e conferido por teste.
 
 # 8. Segurança e privacidade
 
-- **Dono pelo token:** o `ownerUserId` é o `sub` do token. O corpo do `POST` só aceita `service`; qualquer outro campo é
+- **Dono pelo token:** o `ownerAccountId` é o `sub` do token. O corpo do `POST` só aceita `service`; qualquer outro campo é
   recusado pelo contrato.
-- **Sem dados pessoais no SSOT:** só o ID do usuário no Zitadel (`owner_user_id`) e o nome do serviço. Não há e-mail,
+- **Sem dados pessoais no SSOT:** só o ID do usuário no Zitadel (`owner_account_id`) e o nome do serviço. Não há e-mail,
   nome nem token.
 - **Isolamento das roles:** só o Executor concede, e o Zitadel nega o que estiver fora do Grant de `roles-ipm`
   (decisão 0032). O catálogo (serviço → roles) é do Manager, e a lista concedida é copiada para o `desired`.
@@ -218,7 +218,7 @@ o Kong guarda o IP antigo pelo TTL do DNS do Docker e responde com erro até exp
 
 - A Operation não vira `failed`: a falha aparece na fase `Failed` da ligação.
 - Logo depois do `202`, a leitura pode dar `404` até o Manager gravar a Operation (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1).
-- A verificação de e-mail do solicitante (o User exige) ainda não foi decidida para o SUM.
+- A verificação de e-mail do solicitante (a Account exige) ainda não foi decidida para o SUM.
 - Desligar não apaga: a linha fica como histórico. A estratégia de apagar os recursos do usuário no serviço fica para depois
   (decisão 0033), e ainda não há retenção das linhas desligadas.
 - Kill switch e a visão de operador (`sum.service.admin`) não existem.
@@ -249,7 +249,7 @@ autorizar a leitura).
 
 ## 11.3 O que cada coluna `jsonb` guarda
 
-- `service.desired`: `lifecycle`, `reconciliation`, `ownerUserId`, `service` e `serviceRoles` (copiadas do catálogo ao ligar;
+- `service.desired`: `lifecycle`, `reconciliation`, `ownerAccountId`, `service` e `serviceRoles` (copiadas do catálogo ao ligar;
   vazias ao desligar).
 - `service.observed`: `serviceRoles` lidas do Zitadel.
 - `service.conditions`: lista de condições do recurso.
@@ -272,7 +272,7 @@ Ver o mapa em [`docs/SUM-SERVICE-DATA-FLOW.md`](docs/SUM-SERVICE-DATA-FLOW.md) �
 
 ## 11.6 Dados pessoais no banco
 
-Nenhum dado pessoal: só o ID do usuário no Zitadel (`owner_user_id`) e o nome do serviço. A linha de uma ligação desfeita
+Nenhum dado pessoal: só o ID do usuário no Zitadel (`owner_account_id`) e o nome do serviço. A linha de uma ligação desfeita
 fica como histórico, sem dado adicional.
 
 ## 11.7 Consultas úteis (dev)

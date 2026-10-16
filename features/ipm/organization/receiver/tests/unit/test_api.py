@@ -83,12 +83,12 @@ class FakeRepository:
     ) -> list[ResourceRecord]:
         self.calls += 1
         items = sorted(self.resources.values(), key=lambda r: r.resource_id)
-        items = [r for r in items if owner is None or r.desired.get("ownerUserId") == owner]
+        items = [r for r in items if owner is None or r.desired.get("ownerAccountId") == owner]
         return [r for r in items if after is None or r.resource_id > after][:limit]
 
     async def count_organizations_owned_by(self, owner: str) -> int:
         self.calls += 1
-        return sum(1 for r in self.resources.values() if r.desired.get("ownerUserId") == owner)
+        return sum(1 for r in self.resources.values() if r.desired.get("ownerAccountId") == owner)
 
     async def find_operation(self, operation_id: str) -> OperationRecord | None:
         self.calls += 1
@@ -110,7 +110,7 @@ def organization(
             "lifecycle": "present",
             "name": name,
             "platformAccess": "granted",
-            "ownerUserId": owner,
+            "ownerAccountId": owner,
         },
         presence="present",
         observed={"name": name, "platformAccess": "granted"},
@@ -272,7 +272,7 @@ async def test_quota_is_checked_before_publishing(harness: Harness) -> None:
     [
         ({"name": "Nome Inválido"}, "name"),
         ({"name": "ok", "resourceId": "x"}, "resourceId"),
-        ({"name": "ok", "ownerUserId": "x"}, "ownerUserId"),
+        ({"name": "ok", "ownerAccountId": "x"}, "ownerAccountId"),
         ({}, "name"),
     ],
 )
@@ -369,7 +369,7 @@ async def test_owner_reads_the_organization_without_the_owner_field(harness: Har
     assert response.status_code == 200
     view = generated.Organization.model_validate(response.json())
     assert (view.resource_id, view.resource_version, view.phase.value) == ("o-1", "3", "Ready")
-    assert "ownerUserId" not in response.text
+    assert "ownerAccountId" not in response.text
 
 
 async def test_other_users_organization_is_404_and_operator_can_read(harness: Harness) -> None:

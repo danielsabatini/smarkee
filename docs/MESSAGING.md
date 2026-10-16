@@ -506,7 +506,7 @@ runner
 tool
 ```
 
-`core` é o módulo dos recursos da própria plataforma que existem antes de qualquer Organization, como o User. `ipm` é o módulo de identidade e contém a Organization (decisão 0016). Os demais módulos são funcionais.
+`core` é o módulo dos recursos da própria plataforma que existem antes de qualquer Organization, como a Account. `ipm` é o módulo de identidade e contém a Organization (decisão 0016). Os demais módulos são funcionais.
 
 O módulo permite separar domínios independentes sem introduzir detalhes específicos do transporte.
 

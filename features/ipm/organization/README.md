@@ -1,8 +1,8 @@
 # ipm.organization
 
-A **Organization** é a unidade de isolamento da plataforma (`.decisions/0006-organization-como-unidade-de-isolamento.md`): um recurso do módulo `ipm` (`.decisions/0016-organization-no-modulo-ipm.md`), criado por um usuário registrado (o User, do módulo `core`), que passa a ser o dono dela. É gerenciada pelo Resource Control Loop (`docs/RESOURCE-CONTROL-LOOP.md`, seção 46) e vive, no Zitadel, como uma organização com o mesmo ID (`resourceId`).
+A **Organization** é a unidade de isolamento da plataforma (`.decisions/0006-organization-como-unidade-de-isolamento.md`): um recurso do módulo `ipm` (`.decisions/0016-organization-no-modulo-ipm.md`), criado por um usuário registrado (a Account, do módulo `core`), que passa a ser o dono dela. É gerenciada pelo Resource Control Loop (`docs/RESOURCE-CONTROL-LOOP.md`, seção 46) e vive, no Zitadel, como uma organização com o mesmo ID (`resourceId`).
 
-Decisões que definem esta feature: `0006` e `0016` (o que é a Organization e onde mora), `0010` (roles, dono, cota e acesso no Zitadel), `0015` (componentes por papel), `0017` (estrutura interna e testes e2e), `0018` (partições e saúde), `0019` (Publisher), `0020` (Receiver) e `0038` (refeita a partir do User: só a organização no Zitadel). A feature `features/core/user` é o **modelo** desta estrutura.
+Decisões que definem esta feature: `0006` e `0016` (o que é a Organization e onde mora), `0010` (roles, dono, cota e acesso no Zitadel), `0015` (componentes por papel), `0017` (estrutura interna e testes e2e), `0018` (partições e saúde), `0019` (Publisher), `0020` (Receiver) e `0038` (refeita a partir da Account: só a organização no Zitadel). A feature `features/core/account` é o **modelo** desta estrutura.
 
 # 1. Estado da implementação
 
@@ -138,7 +138,7 @@ Os contratos estão em `schemas/ipm/organization/` (e `schemas/common/`), com o 
 
 # 8. Segurança e privacidade
 
-- **Dono pelo token:** o `ownerUserId` é o `sub` do token. O corpo do `POST` só aceita `name`; qualquer outro campo é recusado pelo contrato. O dono vive só no `desired` (no SSOT e na mensageria), nunca no Zitadel nem nas respostas ao usuário.
+- **Dono pelo token:** o `ownerAccountId` é o `sub` do token. O corpo do `POST` só aceita `name`; qualquer outro campo é recusado pelo contrato. O dono vive só no `desired` (no SSOT e na mensageria), nunca no Zitadel nem nas respostas ao usuário.
 - **Sem dados pessoais:** a Organization guarda só IDs e o nome. Não há e-mail, nome de pessoa nem token no banco, nas mensagens ou nos logs.
 - **Menor escrita:** o Executor escreve só a organização. Os papéis `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` são de instância (o Zitadel não tem papel menor para criar e listar organizações); estreitar com papéis customizados antes de prd (decisões 0010 e 0015).
 - **Última barreira:** o Executor não confia em quem enviou a ação: confere o emissor, a versão e o `desired` vigente, e não assume `present` quando falta o `lifecycle`.
@@ -205,7 +205,7 @@ O Receiver lê pelas views `ipm.organization_v1` (sem `failure_count`) e `ipm.or
 
 ## 11.3 O que cada coluna `jsonb` guarda
 
-- `organization.desired`: `lifecycle`, `reconciliation`, `name`, `platformAccess` e `ownerUserId`.
+- `organization.desired`: `lifecycle`, `reconciliation`, `name`, `platformAccess` e `ownerAccountId`.
 - `organization.observed`: `name`, `platformAccess` e `organizationState` lidos do Zitadel.
 - `organization.conditions`: lista de condições do recurso.
 - `organization_outbox.payload`: o envelope publicado, sem `publishedAt` e `publishedBy` (o Publisher os preenche).
@@ -223,7 +223,7 @@ Ver o mapa em [`docs/IPM-ORGANIZATION-DATA-FLOW.md`](docs/IPM-ORGANIZATION-DATA-
 
 ## 11.6 Dados pessoais no banco
 
-Nenhum dado pessoal: só o ID do dono no Zitadel (`ownerUserId`, dentro de `desired`) e o nome da Organization.
+Nenhum dado pessoal: só o ID do dono no Zitadel (`ownerAccountId`, dentro de `desired`) e o nome da Organization.
 
 ## 11.7 Consultas úteis (dev)
 
@@ -232,7 +232,7 @@ Nenhum dado pessoal: só o ID do dono no Zitadel (`ownerUserId`, dentro de `desi
 SELECT phase, lifecycle, count(*) FROM ipm.organization GROUP BY 1, 2 ORDER BY 1, 2;
 
 -- Organizations por dono
-SELECT desired ->> 'ownerUserId' AS dono, count(*) FROM ipm.organization GROUP BY 1;
+SELECT desired ->> 'ownerAccountId' AS dono, count(*) FROM ipm.organization GROUP BY 1;
 
 -- Atraso do outbox (idade da mensagem pendente mais antiga)
 SELECT now() - min(created_at) AS atraso FROM ipm.organization_outbox WHERE published_at IS NULL;

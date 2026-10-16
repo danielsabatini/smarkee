@@ -1,0 +1,58 @@
+sequenceDiagram
+    autonumber
+    participant N as NATS JetStream
+    participant EXE as core-account-executor
+    participant ZIT as Zitadel
+    participant MAIL as SMTP (Mailpit em dev)
+    actor U as Pessoa
+
+    Note over N,U: O Executor é o último ponto de controle antes do Zitadel e a única identidade com escrita (conta core-account-executor, papel ORG_USER_MANAGER, só a organização core). Fluxo verificado contra o Zitadel de dev.
+
+    rect rgb(255,235,238)
+    Note over N,EXE: A. A action não passa na revalidação
+    N->>EXE: action create (geração 1)
+    EXE->>N: lê o desired vigente (Direct Get)
+    EXE->>EXE: geração obsoleta, ou create com desired absent, ou operação fora do conjunto
+    EXE->>N: failed {StaleAction ou Rejected, retryable false}, NÃO escreve no Zitadel
+    end
+
+    rect rgb(232,245,233)
+    Note over N,EXE: B. Reentrega de uma ação já concluída
+    N->>EXE: action (mesmo actionId)
+    EXE->>N: consulta o desfecho do actionId em RESULT
+    EXE->>N: republica o completed anterior, sem executar de novo
+    end
+
+    rect rgb(255,243,224)
+    Note over EXE,ZIT: C. Falhas ao chamar o Zitadel
+    EXE->>ZIT: cria usuário
+    ZIT--xEXE: timeout, 5xx ou limite de taxa (Retry-After)
+    EXE->>N: failed {ProviderUnavailable, retryable true}
+    Note over EXE: Backoff do Reconciler. A criação repetida é segura: account_id = resourceId.
+    EXE->>ZIT: cria usuário
+    ZIT-->>EXE: 401/403 (chave expirada, papel insuficiente)
+    EXE->>N: failed {Unauthorized, retryable false} (alerta de credencial: a implementar)
+    EXE->>ZIT: cria usuário com o mesmo account_id após timeout anterior
+    ZIT-->>EXE: 400 AlreadyExisting (mesmo ID)
+    EXE->>ZIT: lê o usuário, existe e confere
+    EXE->>N: completed (sucesso idempotente)
+    end
+
+    rect rgb(232,240,254)
+    Note over EXE,ZIT: D. Falha no meio dos passos (criar, e-mail de ativação, autorizar)
+    EXE->>ZIT: 1. cria usuário (ok) e o Zitadel envia "Verificar e-mail"
+    EXE->>ZIT: 2. password_reset sendLink (ok) e o Zitadel envia "Redefinir senha"
+    EXE->>ZIT: 3. concede as roles no projeto smarkee
+    ZIT--xEXE: erro
+    EXE->>N: failed (retryable true)
+    Note over EXE: Na repetição cada passo é idempotente: o usuário já existe (AlreadyExisting conferido pelo e-mail),<br/>as roles são conferidas antes (só cria ou atualiza o que falta). Regra implementada: o link de senha só é reenviado se o usuário<br/>ainda não definiu a senha (passwordChanged ausente), para limitar e-mails duplicados.
+    end
+
+    rect rgb(243,229,245)
+    Note over ZIT,U: E. O e-mail não chega à pessoa (FORA da garantia do loop)
+    ZIT->>MAIL: envia o e-mail de ativação
+    MAIL--xZIT: SMTP recusa ou fora do ar
+    Note over ZIT: O usuário existe, o loop observa present e converge (Ready). O completed<br/>não significa "e-mail entregue". Risco aceito e documentado.
+    U->>ZIT: tela de login, Esqueci a senha (reenvia o código para o mesmo e-mail)
+    Note over U: Outras causas: e-mail digitado errado (quem receber ativa a conta, mas o dono do<br/>e-mail real pode refazer o cadastro com o endereço correto), caixa de spam, atraso do provedor.<br/>Monitorar falhas de SMTP nos logs do Zitadel e alertar.
+    end
