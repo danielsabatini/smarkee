@@ -6,6 +6,14 @@ name: ipm-organization
 # e saudável antes (`docker compose up -d --wait broker database gateway identity identity-login`
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
 
+# Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7): o padrão `local` do
+# Docker não é lido pelo `file_log` do OpenTelemetry Collector. Com rotação.
+x-logging: &component-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # Consumers duráveis de trabalho do tipo: o Manager (`requested`, `observed` e `result`) e o
   # Executor (`action`, um por partição) (docs/NATS.md §7.5 e §7.6). Os manifestos são do Manager (`manager/consumers/`). Inexistente é criado;
@@ -73,6 +81,7 @@ services:
       context: ./receiver
     image: ${IPM_ORGANIZATION_RECEIVER_IMAGE:-smarkee-ipm-organization-receiver:dev}
     container_name: ipm-organization-receiver.smarkee.internal
+    logging: *component-logging
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
@@ -107,6 +116,7 @@ services:
       context: ./manager
     image: ${IPM_ORGANIZATION_MANAGER_IMAGE:-smarkee-ipm-organization-manager:dev}
     container_name: ipm-organization-manager.smarkee.internal
+    logging: *component-logging
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD: ${IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD:?Defina no .env}
@@ -139,6 +149,7 @@ services:
       context: ./publisher
     image: ${IPM_ORGANIZATION_PUBLISHER_IMAGE:-smarkee-ipm-organization-publisher:dev}
     container_name: ipm-organization-publisher.smarkee.internal
+    logging: *component-logging
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD: ${IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
@@ -160,6 +171,7 @@ services:
       context: ./reconciler
     image: ${IPM_ORGANIZATION_RECONCILER_IMAGE:-smarkee-ipm-organization-reconciler:dev}
     container_name: ipm-organization-reconciler.smarkee.internal
+    logging: *component-logging
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       IPM_ORGANIZATION_RECONCILER_NATS_PASSWORD: ${IPM_ORGANIZATION_RECONCILER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
@@ -180,6 +192,7 @@ services:
       context: ./observer
     image: ${IPM_ORGANIZATION_OBSERVER_IMAGE:-smarkee-ipm-organization-observer:dev}
     container_name: ipm-organization-observer.smarkee.internal
+    logging: *component-logging
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       IPM_ORGANIZATION_OBSERVER_NATS_PASSWORD: ${IPM_ORGANIZATION_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
@@ -207,6 +220,7 @@ services:
       context: ./executor
     image: ${IPM_ORGANIZATION_EXECUTOR_IMAGE:-smarkee-ipm-organization-executor:dev}
     container_name: ipm-organization-executor.smarkee.internal
+    logging: *component-logging
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       IPM_ORGANIZATION_EXECUTOR_NATS_PASSWORD: ${IPM_ORGANIZATION_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}

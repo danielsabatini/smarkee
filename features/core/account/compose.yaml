@@ -6,6 +6,14 @@ name: core-account
 # e saudável antes (`docker compose up -d --wait broker database gateway identity identity-login`
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
 
+# Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7): o padrão `local` do
+# Docker não é lido pelo `file_log` do OpenTelemetry Collector. Com rotação.
+x-logging: &component-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # Consumer durável de trabalho do Manager para `requested` do tipo (docs/NATS.md §7.6). O manifesto
   # é do Manager (`manager/consumers/`). Inexistente é criado; existente com configuração idêntica
@@ -72,6 +80,7 @@ services:
       context: ./receiver
     image: ${CORE_ACCOUNT_RECEIVER_IMAGE:-smarkee-core-account-receiver:dev}
     container_name: core-account-receiver.smarkee.internal
+    logging: *component-logging
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
@@ -107,6 +116,7 @@ services:
       context: ./manager
     image: ${CORE_ACCOUNT_MANAGER_IMAGE:-smarkee-core-account-manager:dev}
     container_name: core-account-manager.smarkee.internal
+    logging: *component-logging
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD: ${CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD:?Defina no .env}
@@ -139,6 +149,7 @@ services:
       context: ./reconciler
     image: ${CORE_ACCOUNT_RECONCILER_IMAGE:-smarkee-core-account-reconciler:dev}
     container_name: core-account-reconciler.smarkee.internal
+    logging: *component-logging
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_RECONCILER_NATS_PASSWORD: ${CORE_ACCOUNT_RECONCILER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
@@ -159,6 +170,7 @@ services:
       context: ./observer
     image: ${CORE_ACCOUNT_OBSERVER_IMAGE:-smarkee-core-account-observer:dev}
     container_name: core-account-observer.smarkee.internal
+    logging: *component-logging
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_OBSERVER_NATS_PASSWORD: ${CORE_ACCOUNT_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
@@ -187,6 +199,7 @@ services:
       context: ./executor
     image: ${CORE_ACCOUNT_EXECUTOR_IMAGE:-smarkee-core-account-executor:dev}
     container_name: core-account-executor.smarkee.internal
+    logging: *component-logging
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_EXECUTOR_NATS_PASSWORD: ${CORE_ACCOUNT_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
@@ -217,6 +230,7 @@ services:
       context: ./publisher
     image: ${CORE_ACCOUNT_PUBLISHER_IMAGE:-smarkee-core-account-publisher:dev}
     container_name: core-account-publisher.smarkee.internal
+    logging: *component-logging
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD: ${CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
