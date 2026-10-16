@@ -13,13 +13,13 @@ import sys
 import httpx
 import uvicorn
 
-from ipm_organization_receiver.app import Dependencies, create_app
-from ipm_organization_receiver.auth import EmailVerification, TokenVerifier
-from ipm_organization_receiver.database import open_pool
+from ipm_organization_receiver.auth.tokens import EmailVerification, TokenVerifier
+from ipm_organization_receiver.http.app import Dependencies, create_app
 from ipm_organization_receiver.logging_config import configure_logging
-from ipm_organization_receiver.nats import JetStreamPublisher, connect, jetstream_of
-from ipm_organization_receiver.repository import PostgresRepository
 from ipm_organization_receiver.settings import OrganizationReceiverSettings, missing_required
+from ipm_organization_receiver.store.database import open_pool
+from ipm_organization_receiver.store.repository import PostgresRepository
+from ipm_organization_receiver.transport.nats import JetStreamPublisher, connect, jetstream_of
 
 EXIT_INVALID_CONFIGURATION = 2
 
@@ -43,6 +43,7 @@ async def run(settings: OrganizationReceiverSettings) -> int:
                         settings=api,
                         authenticator=TokenVerifier(settings.auth, http),
                         email_verifier=EmailVerification(settings.auth, http),
+                        is_ready=lambda: nats_client.is_connected,
                         repository=PostgresRepository(pool),
                         publisher=JetStreamPublisher(jetstream_of(nats_client)),
                     )

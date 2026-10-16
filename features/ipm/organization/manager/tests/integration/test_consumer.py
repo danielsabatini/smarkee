@@ -11,12 +11,13 @@ import pytest
 import pytest_asyncio
 from support import DEFAULT_DIGEST, Cleanup, dsn, requested_message, unique_suffix
 
-from ipm_organization_manager import messaging
-from ipm_organization_manager.errors import PermanentMessageError
-from ipm_organization_manager.handler import RequestedHandler
-from ipm_organization_manager.kind import ORGANIZATION, ResourceKind
-from ipm_organization_manager.messaging import Disposition, process_requested
-from ipm_organization_manager.outcome import Outcome, OutcomeKind
+from ipm_organization_manager.domain.errors import PermanentMessageError
+from ipm_organization_manager.domain.kind import ORGANIZATION, ResourceKind
+from ipm_organization_manager.domain.outcome import Outcome, OutcomeKind
+from ipm_organization_manager.handlers.ports import Store
+from ipm_organization_manager.handlers.requested import RequestedHandler
+from ipm_organization_manager.transport import consumers as messaging
+from ipm_organization_manager.transport.consumers import Disposition, process_requested
 
 
 @pytest_asyncio.fixture
@@ -39,11 +40,11 @@ def valid_message(cleanup: Cleanup) -> bytes:
             resource_type="organization",
             resource_id=cleanup.track(str(uuid.uuid7())),
             operation="create",
-            requested_by="consumer-" + unique_suffix(),
+            requested_by="owner-1",
             data={
                 "operationId": str(uuid.uuid7()),
                 "requestDigest": DEFAULT_DIGEST,
-                "specification": {"name": "cons-" + unique_suffix(), "platformAccess": "granted"},
+                "specification": {"name": f"cons-{unique_suffix()}", "platformAccess": "granted"},
             },
         )
     ).encode()
@@ -60,7 +61,7 @@ class FlakyHandler(RequestedHandler):
 
     async def handle(
         self,
-        connection: psycopg.AsyncConnection[Any],
+        store: Store,
         kind: ResourceKind,
         raw_message: Mapping[str, Any],
     ) -> Outcome:

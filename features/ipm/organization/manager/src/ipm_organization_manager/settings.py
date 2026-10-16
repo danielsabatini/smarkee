@@ -1,4 +1,4 @@
-"""Configuração do Manager de Organization (decisão 0015).
+"""Configuração do Manager de Organization (decisões 0015 e 0019).
 
 Ordem: variável de ambiente → default. Não há arquivo de configuração: o componente roda em
 contêiner, e os segredos entram por variável (ou arquivo montado), nunca no código.
@@ -31,6 +31,16 @@ class NatsSettings(_Section):
     password: SecretStr | None = None
 
 
+class LoopSettings(_Section):
+    failure_limit: int = 5
+    """Falhas por geração antes de `Failed` (`schemas/ipm/organization/desired`, `failureLimit`)."""
+
+
+class HealthSettings(_Section):
+    port: int = 8000
+    """Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018)."""
+
+
 class OrganizationManagerSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="IPM_ORGANIZATION_MANAGER_",
@@ -42,6 +52,8 @@ class OrganizationManagerSettings(BaseSettings):
 
     database: DatabaseSettings = DatabaseSettings()
     nats: NatsSettings = NatsSettings()
+    loop: LoopSettings = LoopSettings()
+    health: HealthSettings = HealthSettings()
 
 
 REQUIRED_SECRETS = (

@@ -10,9 +10,9 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt.algorithms import RSAAlgorithm
 
-from ipm_organization_receiver.auth import EmailVerification, TokenVerifier
-from ipm_organization_receiver.errors import ApiError
-from ipm_organization_receiver.principal import Principal
+from ipm_organization_receiver.auth.tokens import EmailVerification, TokenVerifier
+from ipm_organization_receiver.domain.errors import ApiError
+from ipm_organization_receiver.domain.principal import Principal
 from ipm_organization_receiver.settings import AuthSettings
 
 ISSUER = "http://issuer.example"

@@ -603,9 +603,9 @@
   },
   "openapi": "3.1.0",
   "paths": {
-    "/healthz": {
+    "/health/live": {
       "get": {
-        "operationId": "healthz_healthz_get",
+        "operationId": "health_live_health_live_get",
         "responses": {
           "200": {
             "content": {
@@ -614,7 +614,7 @@
                   "additionalProperties": {
                     "type": "string"
                   },
-                  "title": "Response Healthz Healthz Get",
+                  "title": "Response Health Live Health Live Get",
                   "type": "object"
                 }
               }
@@ -622,7 +622,45 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Healthz"
+        "summary": "Health Live"
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "health_ready_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Ready"
+      }
+    },
+    "/health/startup": {
+      "get": {
+        "operationId": "health_startup_health_startup_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Startup Health Startup Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Startup"
       }
     },
     "/v1/ipm/organizations": {

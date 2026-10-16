@@ -5,7 +5,7 @@ from typing import Any
 import psycopg
 from support import seed_organization, unique_suffix
 
-from ipm_organization_receiver.repository import PostgresRepository
+from ipm_organization_receiver.store.repository import PostgresRepository
 
 Connection = psycopg.AsyncConnection[Any]
 

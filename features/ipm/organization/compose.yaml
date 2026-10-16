@@ -1,15 +1,15 @@
 name: ipm-organization
 
-# Componentes de ipm.organization (decisão 0015): migração, consumer do Manager, Receiver, Manager e relay.
+# Componentes de ipm.organization (decisões 0015 e 0019): migração, consumers, Receiver, Manager e Publisher.
 # A plataforma (banco, broker, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
 # e saudável antes (`docker compose up -d --wait broker database gateway identity identity-login`
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
 
 services:
-  # Consumer durável de trabalho do Manager para `requested` do tipo (docs/NATS.md §7.6). O manifesto
-  # é do Manager (`manager/consumers/`). Inexistente é criado; existente com configuração idêntica
-  # não muda; configuração diferente falha de forma explícita. Exige o Stream REQUESTED, criado
-  # pelo broker da plataforma.
+  # Consumers duráveis de trabalho do Manager para `requested`, `observed` e `result` do tipo
+  # (docs/NATS.md §7.6). Os manifestos são do Manager (`manager/consumers/`). Inexistente é criado;
+  # existente com configuração idêntica não muda; configuração diferente falha de forma explícita.
+  # Exige os Streams REQUESTED, OBSERVED e RESULT, criados pelo broker da plataforma.
   ipm-organization-consumer:
     build:
       context: ../../../infrastructure/tools/nats-client
@@ -19,7 +19,13 @@ services:
       NATS_URL: nats://broker.smarkee.internal:4222
       NATS_USER: ${NATS_USER:-smarkee}
       NATS_PASSWORD: ${IPM_ORGANIZATION_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
-    command: ["nats", "consumer", "add", "REQUESTED", "--config", "/consumers/ipm-organization-manager-requested.json"]
+    command:
+      - sh
+      - -c
+      - >-
+        nats consumer add REQUESTED --config /consumers/ipm-organization-manager-requested.json &&
+        nats consumer add OBSERVED --config /consumers/ipm-organization-manager-observed.json &&
+        nats consumer add RESULT --config /consumers/ipm-organization-manager-result.json
     volumes:
       - ./manager/consumers:/consumers:ro
     networks:
@@ -82,7 +88,7 @@ services:
         - CMD
         - python
         - -c
-        - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)"
+        - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)"
       interval: 10s
       timeout: 5s
       retries: 6
@@ -107,24 +113,45 @@ services:
         aliases:
           - ipm-organization-manager.smarkee.internal
     restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
 
-  # Relay (`ipm-organization-relay`): publica o outbox do tipo (uma instância ativa por trava consultiva).
-  ipm-organization-relay:
+  # Publisher (`ipm-organization-publisher`): publica o outbox do tipo (uma instância ativa por
+  # trava consultiva).
+  ipm-organization-publisher:
     build:
-      context: ./relay
-    image: ${IPM_ORGANIZATION_RELAY_IMAGE:-smarkee-ipm-organization-relay:dev}
-    container_name: ipm-organization-relay.smarkee.internal
+      context: ./publisher
+    image: ${IPM_ORGANIZATION_PUBLISHER_IMAGE:-smarkee-ipm-organization-publisher:dev}
+    container_name: ipm-organization-publisher.smarkee.internal
     environment:
-      IPM_ORGANIZATION_RELAY_DATABASE_PASSWORD: ${IPM_ORGANIZATION_RELAY_DATABASE_PASSWORD:?Defina no .env}
-      IPM_ORGANIZATION_RELAY_NATS_PASSWORD: ${IPM_ORGANIZATION_RELAY_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD: ${IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
+      IPM_ORGANIZATION_PUBLISHER_NATS_PASSWORD: ${IPM_ORGANIZATION_PUBLISHER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
     depends_on:
       ipm-organization-migrate:
         condition: service_completed_successfully
     networks:
       internal:
         aliases:
-          - ipm-organization-relay.smarkee.internal
+          - ipm-organization-publisher.smarkee.internal
     restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
 
 networks:
   # Rede da plataforma, criada por `infrastructure/dev`.

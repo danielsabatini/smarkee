@@ -12,14 +12,15 @@ from support import (
     fetch_all,
     fetch_one,
     requested_message,
+    ssot,
     unique_suffix,
 )
 
 from ipm_organization_manager.contracts import generated
-from ipm_organization_manager.errors import PermanentMessageError
-from ipm_organization_manager.handler import RequestedHandler
-from ipm_organization_manager.kind import ORGANIZATION
-from ipm_organization_manager.outcome import OutcomeKind, RejectionReason
+from ipm_organization_manager.domain.errors import PermanentMessageError
+from ipm_organization_manager.domain.kind import ORGANIZATION
+from ipm_organization_manager.domain.outcome import OutcomeKind, RejectionReason
+from ipm_organization_manager.handlers.requested import RequestedHandler
 
 handler = RequestedHandler()
 Connection = psycopg.AsyncConnection[Any]
@@ -77,9 +78,9 @@ async def resource_row(connection: Connection, resource_id: str) -> dict[str, An
     )
 
 
-async def outbox(relay: Connection, resource_id: str) -> list[dict[str, Any]]:
+async def outbox(outbox_reader: Connection, resource_id: str) -> list[dict[str, Any]]:
     return await fetch_all(
-        relay,
+        outbox_reader,
         "SELECT subject, payload FROM ipm.organization_outbox"
         " WHERE resource_id = %s ORDER BY sequence",
         resource_id,
@@ -87,10 +88,10 @@ async def outbox(relay: Connection, resource_id: str) -> list[dict[str, Any]]:
 
 
 async def test_create_is_accepted_and_publishes_desired(
-    cleanup: Cleanup, organization_manager: Connection, relay: Connection
+    cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection
 ) -> None:
     message = create_message(cleanup, owner="user-1", name="acme-" + unique_suffix())
-    outcome = await handler.handle(organization_manager, ORGANIZATION, message)
+    outcome = await handler.handle(ssot(organization_manager), ORGANIZATION, message)
 
     assert outcome.kind is OutcomeKind.ACCEPTED
     row = await resource_row(organization_manager, message["resourceId"])
@@ -121,7 +122,7 @@ async def test_create_is_accepted_and_publishes_desired(
         }
     ]
 
-    published = await outbox(relay, message["resourceId"])
+    published = await outbox(outbox_reader, message["resourceId"])
     assert len(published) == 1
     assert published[0]["subject"] == (
         f"manager.desired.ipm.organization.{message['resourceId']}.changed"
@@ -143,21 +144,21 @@ async def test_create_is_accepted_and_publishes_desired(
 
 
 async def test_redelivery_is_ignored_without_new_writes(
-    cleanup: Cleanup, organization_manager: Connection, relay: Connection
+    cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection
 ) -> None:
     message = create_message(cleanup, owner="user-1")
-    assert (await handler.handle(organization_manager, ORGANIZATION, message)).kind is (
+    assert (await handler.handle(ssot(organization_manager), ORGANIZATION, message)).kind is (
         OutcomeKind.ACCEPTED
     )
-    second = await handler.handle(organization_manager, ORGANIZATION, message)
+    second = await handler.handle(ssot(organization_manager), ORGANIZATION, message)
 
     assert second.kind is OutcomeKind.DUPLICATE
     assert not second.digest_mismatch
-    assert len(await outbox(relay, message["resourceId"])) == 1
+    assert len(await outbox(outbox_reader, message["resourceId"])) == 1
 
 
 async def test_same_operation_with_other_digest_is_flagged_and_original_prevails(
-    cleanup: Cleanup, organization_manager: Connection, relay: Connection
+    cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection
 ) -> None:
     first = create_message(cleanup, owner="user-1", digest="a" * 64)
     other = create_message(
@@ -166,8 +167,8 @@ async def test_same_operation_with_other_digest_is_flagged_and_original_prevails
         operation_id=first["data"]["operationId"],
         digest="b" * 64,
     )
-    await handler.handle(organization_manager, ORGANIZATION, first)
-    outcome = await handler.handle(organization_manager, ORGANIZATION, other)
+    await handler.handle(ssot(organization_manager), ORGANIZATION, first)
+    outcome = await handler.handle(ssot(organization_manager), ORGANIZATION, other)
 
     assert outcome.kind is OutcomeKind.DUPLICATE
     assert outcome.digest_mismatch
@@ -176,14 +177,14 @@ async def test_same_operation_with_other_digest_is_flagged_and_original_prevails
 
 @pytest.mark.parametrize("name", ["core", "smarkee"])
 async def test_reserved_name_is_rejected_without_changing_anything(
-    cleanup: Cleanup, organization_manager: Connection, relay: Connection, name: str
+    cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection, name: str
 ) -> None:
     message = create_message(cleanup, owner="user-1", name=name)
-    outcome = await handler.handle(organization_manager, ORGANIZATION, message)
+    outcome = await handler.handle(ssot(organization_manager), ORGANIZATION, message)
 
     assert (outcome.kind, outcome.reason) == (OutcomeKind.REJECTED, RejectionReason.VALIDATION)
     assert await resource_row(organization_manager, message["resourceId"]) is None
-    assert await outbox(relay, message["resourceId"]) == []
+    assert await outbox(outbox_reader, message["resourceId"]) == []
     recorded = await fetch_one(
         organization_manager,
         "SELECT operation_status, operation_status_reason, desired_generation"
@@ -203,10 +204,10 @@ async def test_duplicate_name_is_rejected(
     name = "dup-" + unique_suffix()
     first = create_message(cleanup, owner="user-1", name=name)
     second = create_message(cleanup, owner="user-2", name=name)
-    assert (await handler.handle(organization_manager, ORGANIZATION, first)).kind is (
+    assert (await handler.handle(ssot(organization_manager), ORGANIZATION, first)).kind is (
         OutcomeKind.ACCEPTED
     )
-    outcome = await handler.handle(organization_manager, ORGANIZATION, second)
+    outcome = await handler.handle(ssot(organization_manager), ORGANIZATION, second)
     assert (outcome.kind, outcome.reason) == (OutcomeKind.REJECTED, RejectionReason.VALIDATION)
 
 
@@ -215,18 +216,18 @@ async def test_owner_quota_blocks_the_second_organization_of_the_same_owner(
 ) -> None:
     owner = "quota-" + unique_suffix()
     first = await handler.handle(
-        organization_manager, ORGANIZATION, create_message(cleanup, owner=owner, quota=1)
+        ssot(organization_manager), ORGANIZATION, create_message(cleanup, owner=owner, quota=1)
     )
     blocked = await handler.handle(
-        organization_manager, ORGANIZATION, create_message(cleanup, owner=owner, quota=1)
+        ssot(organization_manager), ORGANIZATION, create_message(cleanup, owner=owner, quota=1)
     )
     other_owner = await handler.handle(
-        organization_manager,
+        ssot(organization_manager),
         ORGANIZATION,
         create_message(cleanup, owner="quota-" + unique_suffix(), quota=1),
     )
     unlimited = await handler.handle(
-        organization_manager, ORGANIZATION, create_message(cleanup, owner=owner)
+        ssot(organization_manager), ORGANIZATION, create_message(cleanup, owner=owner)
     )
 
     assert first.kind is OutcomeKind.ACCEPTED
@@ -241,10 +242,12 @@ async def test_concurrent_creates_respect_quota_and_name_uniqueness(
     owner = "race-" + unique_suffix()
     results = await asyncio.gather(
         handler.handle(
-            organization_manager, ORGANIZATION, create_message(cleanup, owner=owner, quota=1)
+            ssot(organization_manager), ORGANIZATION, create_message(cleanup, owner=owner, quota=1)
         ),
         handler.handle(
-            organization_manager_2, ORGANIZATION, create_message(cleanup, owner=owner, quota=1)
+            ssot(organization_manager_2),
+            ORGANIZATION,
+            create_message(cleanup, owner=owner, quota=1),
         ),
     )
     assert sorted(result.kind.value for result in results) == ["accepted", "rejected"]
@@ -252,12 +255,12 @@ async def test_concurrent_creates_respect_quota_and_name_uniqueness(
     name = "race-name-" + unique_suffix()
     results = await asyncio.gather(
         handler.handle(
-            organization_manager,
+            ssot(organization_manager),
             ORGANIZATION,
             create_message(cleanup, owner="a-" + owner, name=name),
         ),
         handler.handle(
-            organization_manager_2,
+            ssot(organization_manager_2),
             ORGANIZATION,
             create_message(cleanup, owner="b-" + owner, name=name),
         ),
@@ -266,13 +269,13 @@ async def test_concurrent_creates_respect_quota_and_name_uniqueness(
 
 
 async def test_update_bumps_generation_and_version_and_publishes(
-    cleanup: Cleanup, organization_manager: Connection, relay: Connection
+    cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection
 ) -> None:
     create = create_message(cleanup, owner="user-1")
-    await handler.handle(organization_manager, ORGANIZATION, create)
+    await handler.handle(ssot(organization_manager), ORGANIZATION, create)
     new_name = "renamed-" + unique_suffix()
     outcome = await handler.handle(
-        organization_manager,
+        ssot(organization_manager),
         ORGANIZATION,
         change_message(
             cleanup,
@@ -292,17 +295,17 @@ async def test_update_bumps_generation_and_version_and_publishes(
         "Reconciling",
     )
     assert row["desired"]["name"] == new_name
-    messages = await outbox(relay, create["resourceId"])
+    messages = await outbox(outbox_reader, create["resourceId"])
     assert [item["payload"]["desiredGeneration"] for item in messages] == [1, 2]
 
 
 async def test_stale_resource_version_is_a_conflict(
-    cleanup: Cleanup, organization_manager: Connection, relay: Connection
+    cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection
 ) -> None:
     create = create_message(cleanup, owner="user-1")
-    await handler.handle(organization_manager, ORGANIZATION, create)
+    await handler.handle(ssot(organization_manager), ORGANIZATION, create)
     outcome = await handler.handle(
-        organization_manager,
+        ssot(organization_manager),
         ORGANIZATION,
         change_message(
             cleanup,
@@ -316,7 +319,7 @@ async def test_stale_resource_version_is_a_conflict(
     row = await resource_row(organization_manager, create["resourceId"])
     assert row is not None
     assert (row["resource_version"], row["desired_generation"]) == (1, 1)
-    assert len(await outbox(relay, create["resourceId"])) == 1
+    assert len(await outbox(outbox_reader, create["resourceId"])) == 1
 
 
 async def test_unknown_resource_is_not_found(
@@ -324,7 +327,7 @@ async def test_unknown_resource_is_not_found(
 ) -> None:
     ghost = create_message(cleanup, owner="user-1")
     outcome = await handler.handle(
-        organization_manager,
+        ssot(organization_manager),
         ORGANIZATION,
         change_message(cleanup, create=ghost, operation="delete", version="1"),
     )
@@ -332,12 +335,12 @@ async def test_unknown_resource_is_not_found(
 
 
 async def test_update_without_effective_change_completes_without_new_generation(
-    cleanup: Cleanup, organization_manager: Connection, relay: Connection
+    cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection
 ) -> None:
     create = create_message(cleanup, owner="user-1")
-    await handler.handle(organization_manager, ORGANIZATION, create)
+    await handler.handle(ssot(organization_manager), ORGANIZATION, create)
     outcome = await handler.handle(
-        organization_manager,
+        ssot(organization_manager),
         ORGANIZATION,
         change_message(
             cleanup,
@@ -351,16 +354,16 @@ async def test_update_without_effective_change_completes_without_new_generation(
     row = await resource_row(organization_manager, create["resourceId"])
     assert row is not None
     assert (row["resource_version"], row["desired_generation"]) == (1, 1)
-    assert len(await outbox(relay, create["resourceId"])) == 1
+    assert len(await outbox(outbox_reader, create["resourceId"])) == 1
 
 
 async def test_reconciliation_change_alone_keeps_generation(
-    cleanup: Cleanup, organization_manager: Connection, relay: Connection
+    cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection
 ) -> None:
     create = create_message(cleanup, owner="user-1")
-    await handler.handle(organization_manager, ORGANIZATION, create)
+    await handler.handle(ssot(organization_manager), ORGANIZATION, create)
     outcome = await handler.handle(
-        organization_manager,
+        ssot(organization_manager),
         ORGANIZATION,
         change_message(
             cleanup, create=create, operation="update", version="1", reconciliation="suspended"
@@ -374,7 +377,7 @@ async def test_reconciliation_change_alone_keeps_generation(
         1,
         "suspended",
     )
-    messages = await outbox(relay, create["resourceId"])
+    messages = await outbox(outbox_reader, create["resourceId"])
     assert [item["payload"]["data"]["reconciliation"] for item in messages] == [
         "active",
         "suspended",
@@ -382,12 +385,12 @@ async def test_reconciliation_change_alone_keeps_generation(
 
 
 async def test_delete_declares_absence_and_is_idempotent(
-    cleanup: Cleanup, organization_manager: Connection, relay: Connection
+    cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection
 ) -> None:
     create = create_message(cleanup, owner="user-1")
-    await handler.handle(organization_manager, ORGANIZATION, create)
+    await handler.handle(ssot(organization_manager), ORGANIZATION, create)
     deleted = await handler.handle(
-        organization_manager,
+        ssot(organization_manager),
         ORGANIZATION,
         change_message(cleanup, create=create, operation="delete", version="1"),
     )
@@ -397,13 +400,13 @@ async def test_delete_declares_absence_and_is_idempotent(
     assert (row["lifecycle"], row["phase"], row["desired_generation"]) == ("absent", "Deleting", 2)
 
     repeated = await handler.handle(
-        organization_manager,
+        ssot(organization_manager),
         ORGANIZATION,
         change_message(cleanup, create=create, operation="delete", version="2"),
     )
     assert repeated.kind is OutcomeKind.COMPLETED
     after = await handler.handle(
-        organization_manager,
+        ssot(organization_manager),
         ORGANIZATION,
         change_message(
             cleanup,
@@ -414,7 +417,7 @@ async def test_delete_declares_absence_and_is_idempotent(
         ),
     )
     assert (after.kind, after.reason) == (OutcomeKind.REJECTED, RejectionReason.VALIDATION)
-    assert len(await outbox(relay, create["resourceId"])) == 2
+    assert len(await outbox(outbox_reader, create["resourceId"])) == 2
 
 
 async def test_invalid_message_is_a_permanent_error(
@@ -423,9 +426,9 @@ async def test_invalid_message_is_a_permanent_error(
     broken = create_message(cleanup, owner="user-1")
     broken["data"]["specification"]["name"] = "Nome Inválido!"
     with pytest.raises(PermanentMessageError, match="requested/create"):
-        await handler.handle(organization_manager, ORGANIZATION, broken)
+        await handler.handle(ssot(organization_manager), ORGANIZATION, broken)
 
     wrong_emitter = create_message(cleanup, owner="user-1")
     wrong_emitter["emitter"] = "manager"
-    with pytest.raises(PermanentMessageError, match="não é um requested do Receiver"):
-        await handler.handle(organization_manager, ORGANIZATION, wrong_emitter)
+    with pytest.raises(PermanentMessageError, match="não é um requested de receiver deste tipo"):
+        await handler.handle(ssot(organization_manager), ORGANIZATION, wrong_emitter)

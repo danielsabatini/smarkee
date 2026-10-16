@@ -1,6 +1,8 @@
-"""Entrypoint do Manager de Organization (`ipm-organization-manager`, decisão 0015).
+"""Entrypoint do Manager de Organization (`ipm-organization-manager`, decisões 0015 e 0019).
 
-Só inicializa e encerra: valida a configuração, abre as conexões e roda o consumer de `requested`.
+Consome `requested`, `observed` e `completed`/`failed` e escreve no SSOT; só insere no outbox. A
+publicação do outbox é do Publisher (`../publisher`). Só inicializa e encerra: valida a
+configuração, abre as conexões e roda os consumers.
 """
 
 import asyncio
@@ -8,41 +10,81 @@ import logging
 import signal
 import sys
 
-from ipm_organization_manager.database import open_pool
-from ipm_organization_manager.kind import ORGANIZATION
+from ipm_organization_manager.domain.kind import ORGANIZATION
+from ipm_organization_manager.handlers.observed import ObservedHandler
+from ipm_organization_manager.handlers.requested import RequestedHandler
+from ipm_organization_manager.handlers.result import ResultHandler
+from ipm_organization_manager.http.health import Health, serve_health
 from ipm_organization_manager.logging_config import configure_logging
-from ipm_organization_manager.messaging import RequestedConsumer, connect, jetstream_of
 from ipm_organization_manager.settings import OrganizationManagerSettings, missing_required
+from ipm_organization_manager.store.database import open_pool
+from ipm_organization_manager.transport.consumers import (
+    ObservedConsumer,
+    RequestedConsumer,
+    ResultConsumer,
+)
+from ipm_organization_manager.transport.nats import connect, jetstream_of
 
 EXIT_INVALID_CONFIGURATION = 2
 
 logger = logging.getLogger(__name__)
 
 
-async def run(settings: OrganizationManagerSettings) -> int:
+def _stop_on_signals() -> asyncio.Event:
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for signal_number in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(signal_number, stop.set)
+    return stop
 
+
+async def _run_until_stopped(tasks: dict[str, asyncio.Task[None]], stop: asyncio.Event) -> int:
+    """Espera o sinal de parada ou o fim inesperado de uma tarefa; encerra todas."""
+    waiter = asyncio.create_task(stop.wait())
+    done, _ = await asyncio.wait({waiter, *tasks.values()}, return_when=asyncio.FIRST_COMPLETED)
+    exit_code = 0
+    for name, task in tasks.items():
+        if task in done:
+            exit_code = 1
+            logger.error("task stopped unexpectedly", extra={"task": name})
+    stop.set()
+    results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+    for name, result in zip(tasks, results, strict=True):
+        if isinstance(result, BaseException):
+            logger.error("task failed", extra={"task": name, "error_type": type(result).__name__})
+            exit_code = 1
+    waiter.cancel()
+    return exit_code
+
+
+async def run(settings: OrganizationManagerSettings) -> int:
+    stop = _stop_on_signals()
+    health = Health()
     nats_client = await connect(settings.nats)
     pool = await open_pool(settings.database)
-    consumer = asyncio.create_task(
-        RequestedConsumer(jetstream_of(nats_client), pool, ORGANIZATION).run(stop)
-    )
+    jetstream = jetstream_of(nats_client)
+    organization = ORGANIZATION
+    health.add_check("nats", lambda: nats_client.is_connected)
+    consumers = {
+        "requested": RequestedConsumer(
+            jetstream, pool, organization, handler=RequestedHandler(), on_cycle=health.beat
+        ),
+        "observed": ObservedConsumer(
+            jetstream, pool, organization, handler=ObservedHandler(), on_cycle=health.beat
+        ),
+        "result": ResultConsumer(
+            jetstream,
+            pool,
+            organization,
+            handler=ResultHandler(failure_limit=settings.loop.failure_limit),
+            on_cycle=health.beat,
+        ),
+    }
+    tasks = {name: asyncio.create_task(consumer.run(stop)) for name, consumer in consumers.items()}
+    tasks["health"] = asyncio.create_task(serve_health(health, settings.health.port, stop))
+    health.mark_started()
     logger.info("organization manager started")
-    waiter = asyncio.create_task(stop.wait())
-    done, _ = await asyncio.wait({waiter, consumer}, return_when=asyncio.FIRST_COMPLETED)
-
-    exit_code = 1 if consumer in done else 0
-    if exit_code:
-        logger.error("consumer stopped unexpectedly")
-    stop.set()
-    result = (await asyncio.gather(consumer, return_exceptions=True))[0]
-    if isinstance(result, BaseException):
-        logger.error("consumer failed", extra={"error_type": type(result).__name__})
-        exit_code = 1
-    waiter.cancel()
+    exit_code = await _run_until_stopped(tasks, stop)
     await nats_client.drain()
     await pool.close()
     return exit_code

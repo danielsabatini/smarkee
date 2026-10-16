@@ -13,9 +13,9 @@ import pytest_asyncio
 from pydantic import SecretStr
 from support import DATABASE_HOST, DATABASE_PORT, connect
 
-from ipm_organization_receiver.database import open_pool
-from ipm_organization_receiver.repository import PostgresRepository
 from ipm_organization_receiver.settings import DatabaseSettings
+from ipm_organization_receiver.store.database import open_pool
+from ipm_organization_receiver.store.repository import PostgresRepository
 
 
 @pytest_asyncio.fixture

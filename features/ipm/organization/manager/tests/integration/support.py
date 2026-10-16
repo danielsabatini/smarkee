@@ -8,8 +8,11 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
-DATABASE_HOST = os.environ.get("CORE_TEST_DATABASE_HOST", "localhost")
-DATABASE_PORT = os.environ.get("CORE_TEST_DATABASE_PORT", "5432")
+from ipm_organization_manager.store.ssot import PostgresStore
+from ipm_organization_manager.store.tables import tables_of
+
+DATABASE_HOST = os.environ.get("IPM_TEST_DATABASE_HOST", "localhost")
+DATABASE_PORT = os.environ.get("IPM_TEST_DATABASE_PORT", "5432")
 DEFAULT_DIGEST = "0" * 64
 
 
@@ -80,3 +83,8 @@ def requested_message(
         "publishedAt": "2026-10-10T12:00:00Z",
         "data": data,
     }
+
+
+def ssot(connection: psycopg.AsyncConnection[Any]) -> PostgresStore:
+    """Adaptador do SSOT da Organization sobre a conexão do teste."""
+    return PostgresStore(connection, tables_of("organization"))

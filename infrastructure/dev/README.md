@@ -30,7 +30,7 @@ Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
 | `identity/.env` | `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD` | Senha inicial do administrador do Zitadel, com maiúscula, minúscula, número e símbolo |
 | `identity/.env` | `ZITADEL_SESSION_COOKIE_SECRET` | `openssl rand -hex 32` |
 | `features/core/user/.env` | `CORE_USER_<PAPEL>_NATS_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`, `RECONCILER`, `OBSERVER`, `EXECUTOR`) | A mesma `NATS_PASSWORD` de `broker/.env` |
-| `features/ipm/organization/.env` | `IPM_ORGANIZATION_<PAPEL>_NATS_PASSWORD` (`RECEIVER`, `MANAGER`, `RELAY`) | A mesma `NATS_PASSWORD` de `broker/.env` |
+| `features/ipm/organization/.env` | `IPM_ORGANIZATION_<PAPEL>_NATS_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`) | A mesma `NATS_PASSWORD` de `broker/.env` |
 | `features/core/user/.env` e `features/ipm/organization/.env` | `CORE_USER_RECEIVER_AUTH_AUDIENCE`, `IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE` | ID do projeto de roles do módulo no Zitadel (organização `core`): `roles-core` para o User, `roles-ipm` para a Organization (decisão 0032) |
 
 Os componentes das features (User e Organization) **não são subidos por este diretório**: cada feature tem o seu `compose.yaml` e o seu `.env` (`cp .env.example .env` em `features/core/user` e `features/ipm/organization`), e eles esperam a plataforma abaixo no ar. Suba a plataforma primeiro e depois cada feature (`docker compose up -d --build` na pasta dela). Se recriar o Receiver de uma feature, reinicie o `gateway`, que guarda em cache o endereço do contêiner.
@@ -126,7 +126,7 @@ Valores sensíveis ficam nos arquivos `.env` (fora do git). As senhas dos bancos
 | PostgreSQL, banco `identity` | `identity` | `identity` | `database/bootstrap/identity.sql` (o Zitadel usa só este usuário, sem credencial de administrador) |
 | PostgreSQL, banco `gateway` | `gateway` | `gateway` | `database/bootstrap/gateway.sql` |
 | PostgreSQL, banco `smarkee` (módulo `core`, User) | `core_user_manager_login`, `core_user_receiver_login`, `core_user_publisher_login`, `core_maintenance_login` | igual ao usuário | `database/bootstrap/core.sql` |
-| PostgreSQL, banco `smarkee` (módulo `ipm`, Organization) | `ipm_organization_manager_login`, `ipm_organization_receiver_login`, `ipm_organization_relay_login`, `ipm_maintenance_login` | igual ao usuário | `database/bootstrap/ipm.sql` |
+| PostgreSQL, banco `smarkee` (módulo `ipm`, Organization) | `ipm_organization_manager_login`, `ipm_organization_receiver_login`, `ipm_organization_publisher_login`, `ipm_maintenance_login` | igual ao usuário | `database/bootstrap/ipm.sql` |
 | NATS | `NATS_USER` (`smarkee`) | `NATS_PASSWORD` | `broker/.env` (um único usuário em dev, compartilhado pelos serviços) |
 | Kong Manager / Admin API | — | — | Sem autenticação (Kong OSS) |
 
@@ -255,7 +255,7 @@ O estado inicial é configurado, em primeiro lugar, **por variáveis de ambiente
 
 | Serviço | Fonte | Quem aplica | Quando | Efeito de alterar um arquivo depois |
 |---|---|---|---|---|
-| database | `bootstrap/gateway.sql`, `smarkee.sql`, `identity.sql`, `core.sql` e `ipm.sql` (papéis de serviço dos módulos `core` e `ipm`: um por componente de cada tipo, inclusive o Publisher do User e o relay da Organization, ainda no desenho anterior) | A própria imagem (`/docker-entrypoint-initdb.d`) | Só na primeira inicialização do volume | Nenhum, até recriar o volume ou aplicar manualmente (pontos de atenção) |
+| database | `bootstrap/gateway.sql`, `smarkee.sql`, `identity.sql`, `core.sql` e `ipm.sql` (papéis de serviço dos módulos `core` e `ipm`: um por componente de cada tipo, inclusive o Publisher do User e o da Organization) | A própria imagem (`/docker-entrypoint-initdb.d`) | Só na primeira inicialização do volume | Nenhum, até recriar o volume ou aplicar manualmente (pontos de atenção) |
 | identity | Sem pasta: variáveis `ZITADEL_FIRSTINSTANCE_*` e `ZITADEL_DEFAULTINSTANCE_*` (nome da instância, marca d'água e textos de e-mail) em `identity/compose.yaml` | `identity-init` (`zitadel init zitadel`: schemas internos) → `identity` (`start-from-setup`) | Só na primeira inicialização da instância | Nenhum, até recriar a instância (`docker compose down -v`) |
 | gateway | `bootstrap/routes.yml` (configuração declarativa do Kong) | Cadeia `gateway-migrations-bootstrap` → `-up` → `-finish` → `gateway-import` | A cada `up`, antes do `gateway` | Reimporta; reinicie o `gateway` (pontos de atenção) |
 | broker | `bootstrap/<stream>.json` (Stream do JetStream). Os consumers duráveis de cada tipo são das features (`manager/consumers/` e `<módulo>-<tipo>-consumer` no `compose.yaml` delas) | Um serviço `broker-bootstrap-<nome>` por arquivo | A cada `up`, depois que o broker fica saudável | Falha de forma explícita até a alteração deliberada (abaixo) |

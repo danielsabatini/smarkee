@@ -7,13 +7,13 @@ from typing import Any
 import httpx
 import pytest
 
-from ipm_organization_receiver.app import Dependencies, create_app
 from ipm_organization_receiver.contracts import generated
-from ipm_organization_receiver.errors import unauthorized
-from ipm_organization_receiver.nats import PublishError
-from ipm_organization_receiver.principal import Principal
-from ipm_organization_receiver.repository import OperationRecord, ResourceRecord
-from ipm_organization_receiver.requests import operation_id_for, request_digest
+from ipm_organization_receiver.domain.errors import unauthorized
+from ipm_organization_receiver.domain.principal import Principal
+from ipm_organization_receiver.domain.records import OperationRecord, ResourceRecord
+from ipm_organization_receiver.domain.requests import operation_id_for, request_digest
+from ipm_organization_receiver.http.app import Dependencies, create_app
+from ipm_organization_receiver.http.ports import PublishError
 from ipm_organization_receiver.settings import ApiSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
@@ -170,8 +170,30 @@ def auth(subject: str) -> dict[str, str]:
 # ---------------------------------------------------------------------- autenticação e autorização
 
 
-async def test_health_is_public(harness: Harness) -> None:
-    assert (await harness.client.get("/healthz")).json() == {"status": "ok"}
+async def test_health_probes_are_public_and_readiness_reflects_the_dependencies(
+    harness: Harness,
+) -> None:
+    for probe in ("live", "startup", "ready"):
+        response = await harness.client.get(f"/health/{probe}")
+        assert response.status_code == 200
+        assert response.json()["status"] == "UP"
+
+
+async def test_readiness_is_down_when_a_critical_dependency_is_down() -> None:
+    deps = Dependencies(
+        settings=ApiSettings(),
+        authenticator=FakeAuthenticator(),
+        email_verifier=FakeEmailVerifier(),
+        repository=FakeRepository(),
+        publisher=FakePublisher(),
+        is_ready=lambda: False,
+    )
+    client = httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=create_app(deps)), base_url="http://api"
+    )
+    ready = await client.get("/health/ready")
+    assert ready.status_code == 503 and ready.json()["status"] == "DOWN"
+    assert (await client.get("/health/live")).status_code == 200  # a liveness não olha o NATS
 
 
 @pytest.mark.parametrize(

@@ -4,7 +4,7 @@ Receiver de `ipm.organization` (`ipm-organization-receiver`), componente autocon
 
 Autentica e autoriza o solicitante, valida o pedido, gera as identidades (`resourceId`, `operationId`, `requestDigest`) e publica `requested`. Lê o SSOT somente pelas views `ipm.organization_v1` e `ipm.organization_operation_v1`. Não escreve no SSOT nem no provedor de identidade.
 
-`openapi.json` é o contrato descritivo do Receiver (gerado, versionado e conferido por teste): `uv run python -m ipm_organization_receiver.openapi > openapi.json`.
+`openapi.json` é o contrato descritivo do Receiver (gerado, versionado e conferido por teste): `uv run python -m ipm_organization_receiver.http.openapi > openapi.json`.
 
 ## Configuração
 
@@ -18,4 +18,4 @@ uv run ruff check . && uv run ruff format --check . && uv run pyright
 uv run pytest        # os testes de integração exigem a stack de dev e são pulados sem ela
 ```
 
-Imagem: `Dockerfile` (build com uv, execução sem privilégios). O contrato é verificado pela suíte black-box em `../conformance` (a ser movida para `tests/e2e`).
+Imagem: `Dockerfile` (build com uv, execução sem privilégios). O contrato é verificado pelos testes e2e em `../tests/e2e`.

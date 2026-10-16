@@ -18,7 +18,7 @@ from support import Cleanup, connect
 @pytest_asyncio.fixture
 async def database_available() -> None:
     try:
-        connection = await connect("ipm_organization_relay_login")
+        connection = await connect("ipm_organization_manager_login")
     except psycopg.OperationalError as error:
         pytest.skip(f"PostgreSQL de dev indisponível: {error}")
     await connection.close()
@@ -64,8 +64,8 @@ async def organization_manager_2(
 
 
 @pytest_asyncio.fixture
-async def relay(database_available: None) -> AsyncIterator[psycopg.AsyncConnection[Any]]:
-    """Papel de leitura do outbox do tipo (o Manager só insere nele)."""
-    connection = await connect("ipm_organization_relay_login")
+async def outbox_reader(database_available: None) -> AsyncIterator[psycopg.AsyncConnection[Any]]:
+    """Leitura do outbox com o papel do Publisher (o papel do Manager só insere nele)."""
+    connection = await connect("ipm_organization_publisher_login")
     yield connection
     await connection.close()

@@ -1,5 +1,5 @@
 -- Papéis do módulo ipm no SSOT (apenas desenvolvimento local; credenciais triviais).
--- Um papel por componente de cada tipo, inclusive o relay (decisão 0015).
+-- Um papel por componente de cada tipo, inclusive o publisher (decisão 0015).
 -- Conforme docs/POSTGRESQL.md §14.2 e §14.3: um papel de função sem login por serviço, que recebe
 -- os privilégios (concedidos pela migração do módulo, como dono `smarkee`), e um papel de login por
 -- serviço, membro do papel de função, com os parâmetros de sessão.
@@ -11,7 +11,7 @@ DECLARE
   function_role text;
 BEGIN
   FOREACH function_role IN ARRAY ARRAY[
-    'ipm_organization_manager', 'ipm_organization_receiver', 'ipm_organization_relay', 'ipm_maintenance'
+    'ipm_organization_manager', 'ipm_organization_receiver', 'ipm_organization_publisher', 'ipm_maintenance'
   ] LOOP
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = function_role) THEN
       EXECUTE format('CREATE ROLE %I NOLOGIN', function_role);

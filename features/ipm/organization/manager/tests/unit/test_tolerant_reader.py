@@ -49,3 +49,32 @@ def test_the_tolerant_mode_still_validates_the_known_fields() -> None:
 )
 def test_only_the_supported_major_is_accepted(version: str, supported: bool) -> None:
     assert supports_major(version) is supported
+
+
+def test_the_manager_accepts_a_requested_with_an_unknown_field_and_refuses_another_major() -> None:
+    from ipm_organization_manager.domain.errors import PermanentMessageError
+    from ipm_organization_manager.domain.kind import ORGANIZATION
+    from ipm_organization_manager.handlers.envelope import parse_envelope
+
+    requested: dict[str, Any] = {
+        **ENVELOPE,
+        "messageType": "requested",
+        "emitter": "receiver",
+        "operation": "create",
+        "requestedBy": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+        "correlationId": "0199c8b0-0a1b-7c2d-8e3f-4a5b6c7d8e9f",
+        "futureField": "x",
+    }
+    for key in ("presence", "observedAt"):
+        requested.pop(key)
+
+    parsed = parse_envelope(ORGANIZATION, requested, message_type="requested", emitter="receiver")
+    assert parsed.resource_id == ENVELOPE["resourceId"]
+
+    with pytest.raises(PermanentMessageError):
+        parse_envelope(
+            ORGANIZATION,
+            {**requested, "schemaVersion": "2.0"},
+            message_type="requested",
+            emitter="receiver",
+        )
