@@ -4,7 +4,7 @@ Manager de `ipm.organization` (`ipm-organization-manager`), componente autoconti
 
 Único escritor do SSOT do tipo (só insere no outbox; quem o publica é o Publisher): consome `requested`, `observed` e o resultado das ações (`completed` e `failed`) e aplica cada mensagem em uma unidade atômica (linha bloqueada, Operation única, `desired` no outbox), confirmando ao transporte depois do `COMMIT`. O código das migrações (`migrations/`) é deste projeto; a execução é uma etapa de implantação com o papel administrativo.
 
-Regras próprias da Organization, aplicadas na mesma unidade atômica: o nome não pode ser reservado (`core`, `smarkee`, `platform`, `system`, `admin`, `zitadel`) nem repetido; a cota por dono (`ownerQuotaLimit`, decidida pelo Receiver; o operador não tem cota) é conferida sob trava consultiva por dono.
+Regras próprias da Organization, aplicadas na mesma unidade atômica: o nome não pode ser reservado (`core`, `smarkee`, `register`, `platform`, `system`, `admin`, `zitadel`) nem repetido; a cota por dono (`ownerQuotaLimit`, decidida pelo Receiver; o operador não tem cota) é conferida sob trava consultiva por dono.
 
 `uv run datamodel-codegen` regera `contracts/generated.py` a partir de `schemas/` (o teste de contrato falha se divergir).
 

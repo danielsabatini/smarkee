@@ -19,6 +19,7 @@ from support import (
 from ipm_organization_manager.contracts import generated
 from ipm_organization_manager.domain.errors import PermanentMessageError
 from ipm_organization_manager.domain.kind import ORGANIZATION
+from ipm_organization_manager.domain.organization import RESERVED_ORGANIZATION_NAMES
 from ipm_organization_manager.domain.outcome import OutcomeKind, RejectionReason
 from ipm_organization_manager.handlers.requested import RequestedHandler
 
@@ -175,7 +176,7 @@ async def test_same_operation_with_other_digest_is_flagged_and_original_prevails
     assert await resource_row(organization_manager, other["resourceId"]) is None
 
 
-@pytest.mark.parametrize("name", ["core", "smarkee"])
+@pytest.mark.parametrize("name", sorted(RESERVED_ORGANIZATION_NAMES))
 async def test_reserved_name_is_rejected_without_changing_anything(
     cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection, name: str
 ) -> None:

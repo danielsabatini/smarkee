@@ -120,10 +120,10 @@ async def test_delete_user_missing_is_success_but_ambiguous_404_is_an_error(key_
         await writer(key_file, lambda r: httpx.Response(404, text="nginx")).delete_user("u-1")
 
 
-async def test_get_user_reads_email_and_password_state(key_file: Path) -> None:
-    body = {"user": {"human": {"email": {"email": "a@x.com"}, "passwordChanged": "t"}}}
+async def test_get_user_reads_the_email(key_file: Path) -> None:
+    body = {"user": {"human": {"email": {"email": "a@x.com"}}}}
     user = await writer(key_file, lambda r: httpx.Response(200, json=body)).get_user("u-1")
-    assert user is not None and (user.email, user.password_set) == ("a@x.com", True)
+    assert user is not None and user.email == "a@x.com"
     assert (
         await writer(key_file, lambda r: httpx.Response(404, json=NOT_FOUND)).get_user("u") is None
     )

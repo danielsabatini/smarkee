@@ -89,7 +89,7 @@ O consumer durável `ipm-organization-manager-requested` (pull, ACK explícito) 
 
 | Pedido | Condição | Resultado |
 |---|---|---|
-| criar ou renomear | nome reservado (`core`, `smarkee`, `platform`, `system`, `admin`, `zitadel`) | recusa `validation` |
+| criar ou renomear | nome reservado (`core`, `smarkee`, `register`, `platform`, `system`, `admin`, `zitadel`) | recusa `validation` |
 | criar ou renomear | nome já usado por outra Organization presente | recusa `validation` |
 | criar | cota do dono esgotada (conferida de novo sob trava por dono; o Receiver só pré-checa) | recusa `validation` |
 | atualizar ou remover | Organization inexistente ou já removida | recusa `not_found` |
@@ -170,8 +170,8 @@ mesmo `Nats-Msg-Id`) e pela **revalidação contra o `desired` vigente** (sem `d
 Diagrama: [`flow/06-falhas-no-executor.svg`](flow/06-falhas-no-executor.svg). Depois, pela API v2 de organizações:
 
 - **`create`:** cria a organização com o `resourceId` como ID e o `name`. Um `409` (ID ou nome já usados) leva a ler a organização
-  pelo ID: se existe com o nome esperado, é sucesso idempotente; senão, `failed` `Rejected` (por exemplo, um nome já usado por
-  outra organização do Zitadel, como `register`). Depois deixa a organização ativa ou desativada conforme `platformAccess`.
+  pelo ID: se existe com o nome esperado, é sucesso idempotente; senão, `failed` `Rejected` (um nome já usado por outra organização do Zitadel que
+  a plataforma não reservou). Depois deixa a organização ativa ou desativada conforme `platformAccess`.
 - **`update`:** renomeia quando o nome difere e ativa (`granted`) ou desativa (`revoked`) quando o estado difere. Só chama o
   Zitadel quando há diferença; o "já feito" (nome igual, já ativa, já desativada) também é sucesso.
 - **`delete`:** remove a organização; ausente também é sucesso (o Zitadel responde `200` a uma remoção repetida).

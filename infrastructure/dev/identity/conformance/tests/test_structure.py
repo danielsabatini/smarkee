@@ -436,3 +436,103 @@ def test_default_operator_holds_every_role_of_each_project_with_an_admin_role(
 
 def test_register_has_no_project_of_its_own(zitadel: Zitadel, orgs: dict[str, str]) -> None:
     assert projects_owned_by(zitadel, orgs["register"]) == {}
+
+
+# ---- desvio de configuração (decisão 0037) ----
+
+REPOSITORY = Path(__file__).resolve().parents[5]
+ENV_FILES = {
+    "cli": REPOSITORY / "clients" / "cli" / ".env",
+    "core.user": REPOSITORY / "features" / "core" / "user" / ".env",
+    "sum.service": REPOSITORY / "features" / "sum" / "service" / ".env",
+    "ipm.organization": REPOSITORY / "features" / "ipm" / "organization" / ".env",
+}
+# Variável de cada `.env` → o que ela deve apontar na instância.
+EXPECTED_AUDIENCE = {
+    "core.user": ("CORE_USER_RECEIVER_AUTH_AUDIENCE", "roles-core"),
+    "sum.service": ("SUM_SERVICE_RECEIVER_AUTH_AUDIENCE", "roles-sum"),
+    "ipm.organization": ("IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
+}
+EXPECTED_REGISTER = {
+    "core.user": "CORE_ZITADEL_REGISTER_ORGANIZATION_ID",
+    "sum.service": "SUM_SERVICE_ZITADEL_REGISTER_ORGANIZATION_ID",
+}
+EXPECTED_PROJECT_IDS = {
+    "core.user": "CORE_ZITADEL_PROJECT_IDS",
+    "sum.service": "SUM_SERVICE_ZITADEL_PROJECT_IDS",
+}
+CLI_PROJECTS = {
+    "SK_CORE_PROJECT_ID": "roles-core",
+    "SK_SUM_PROJECT_ID": "roles-sum",
+    "SK_IPM_PROJECT_ID": "roles-ipm",
+}
+
+
+def read_env(name: str) -> dict[str, str]:
+    """Variáveis de um `.env` (aceita `export`). Sem o arquivo, o teste que o usa é pulado."""
+    path = ENV_FILES[name]
+    if not path.exists():
+        pytest.skip(f"{path.relative_to(REPOSITORY)} não existe")
+    found: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        text = line.strip().removeprefix("export ")
+        if text and not text.startswith("#") and "=" in text:
+            key, _, value = text.partition("=")
+            found[key.strip()] = value.strip().strip("\"'")
+    return found
+
+
+def assert_same(
+    drifts: list[str], where: str, variable: str, found: str | None, expected: str
+) -> None:
+    """Acumula o desvio (sem repetir os valores além dos IDs, que são públicos)."""
+    if found != expected:
+        drifts.append(f"{where}: {variable} = {found!r}, e a instância tem {expected!r}")
+
+
+def test_the_ids_in_the_env_files_match_the_instance(
+    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+) -> None:
+    """Ao recriar a instância os IDs mudam; este teste aponta o `.env` que ficou desatualizado."""
+    drifts: list[str] = []
+
+    clients = projects_owned_by(zitadel, orgs["core"])["clients"]
+    applications = zitadel.connect(
+        APPLICATION_SERVICE,
+        "ListApplications",
+        {"filters": [{"projectIdFilter": {"projectId": clients["projectId"]}}]},
+    )["applications"]
+    client_id = {a["name"]: a for a in applications}["cli"]["oidcConfiguration"]["clientId"]
+    if ENV_FILES["cli"].exists():
+        cli = read_env("cli")
+        assert_same(
+            drifts, "clients/cli/.env", "SK_AUTH_CLIENT_ID", cli.get("SK_AUTH_CLIENT_ID"), client_id
+        )
+        for variable, project in CLI_PROJECTS.items():
+            assert_same(
+                drifts, "clients/cli/.env", variable, cli.get(variable), project_ids[project]
+            )
+
+    for feature in ("core.user", "sum.service", "ipm.organization"):
+        if not ENV_FILES[feature].exists():
+            continue
+        values = read_env(feature)
+        where = ENV_FILES[feature].relative_to(REPOSITORY).as_posix()
+        variable, project = EXPECTED_AUDIENCE[feature]
+        assert_same(drifts, where, variable, values.get(variable), project_ids[project])
+        if feature in EXPECTED_REGISTER:
+            variable = EXPECTED_REGISTER[feature]
+            assert_same(drifts, where, variable, values.get(variable), orgs["register"])
+        if feature in EXPECTED_PROJECT_IDS:
+            variable = EXPECTED_PROJECT_IDS[feature]
+            configured: dict[str, str] = json.loads(values.get(variable, "{}"))
+            for module, project_id in configured.items():
+                assert_same(
+                    drifts,
+                    where,
+                    f"{variable}[{module}]",
+                    project_id,
+                    project_ids[f"roles-{module}"],
+                )
+
+    assert not drifts, "configuração desatualizada:\n" + "\n".join(drifts)

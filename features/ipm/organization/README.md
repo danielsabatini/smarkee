@@ -142,7 +142,7 @@ Os contratos estão em `schemas/ipm/organization/` (e `schemas/common/`), com o 
 - **Sem dados pessoais:** a Organization guarda só IDs e o nome. Não há e-mail, nome de pessoa nem token no banco, nas mensagens ou nos logs.
 - **Menor escrita:** o Executor escreve só a organização. Os papéis `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` são de instância (o Zitadel não tem papel menor para criar e listar organizações); estreitar com papéis customizados antes de prd (decisões 0010 e 0015).
 - **Última barreira:** o Executor não confia em quem enviou a ação: confere o emissor, a versão e o `desired` vigente, e não assume `present` quando falta o `lifecycle`.
-- **Nomes:** nomes reservados e repetidos são recusados antes de o pedido chegar ao Zitadel; um nome já usado só no Zitadel (por exemplo, `register`) vira `failed` `Rejected` no Executor.
+- **Nomes:** nomes reservados e repetidos são recusados antes de o pedido chegar ao Zitadel; um nome já usado só no Zitadel (e não reservado) vira `failed` `Rejected` no Executor.
 - **Erros e logs:** nenhuma resposta ou log repete o valor enviado, senhas ou tokens; as configurações escondem os segredos (`SecretStr`).
 
 ## 8.1 Identidades e privilégios por papel
@@ -180,7 +180,6 @@ Depois de recriar o contêiner do Receiver, reinicie o gateway (`docker compose 
 - Logo depois do `202`, a leitura pode dar `404` até o Manager gravar a Operation (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1).
 - O Executor não cria Project Grant nem autoriza membros: a Organization de hoje só existe como organização no Zitadel. Membros e Agents, e os recursos derivados (OpenBao, Kubernetes), são de outras features.
 - Os papéis de instância `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` são mais largos que o necessário; estreitar antes de prd.
-- O nome `register` (organização do Zitadel) não está na lista de nomes reservados: o pedido é aceito pelo Manager e falha no Executor (`Rejected`).
 - Remover não tem retenção: a organização some do Zitadel e a linha é apagada ao convergir.
 - As chaves das contas de serviço vencem em 2030-01-01 e a rotação é manual (`infrastructure/dev/README.md`).
 - Endurecimento comum aos módulos, ainda pendente: `cap_drop` e `no-new-privileges` no Compose, limite de taxa e de tamanho nas rotas autenticadas do gateway, e `pinned_client` no Executor (`docs/IMPLEMENTATION-STATUS.md`).

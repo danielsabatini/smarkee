@@ -20,7 +20,7 @@ Surgiu a ideia de reunir as configurações globais (banco, NATS, Zitadel, ender
   - **Segredos** (senhas, chaves das contas de serviço): um cofre, uma credencial por componente (menor privilégio, `AGENTS.md` §4.2).
   - **Endereços de outros serviços:** DNS e rede interna, como hoje.
 - **Plano, nesta ordem:**
-  1. **Detector de desvio (barato):** um teste somente leitura em `infrastructure/dev/identity/conformance` que compara os IDs de cada `.env` com os do Zitadel real e aponta o que está desatualizado. Elimina o risco sem centralizar nada.
+  1. **Detector de desvio (barato, implementado em 2026-10-16):** um teste somente leitura em `infrastructure/dev/identity/conformance` que compara os IDs de cada `.env` com os do Zitadel real e aponta o que está desatualizado. Elimina o risco sem centralizar nada.
   2. **Terraform** para o provisionamento do Zitadel: o ID sai como saída, e as configurações por ambiente são geradas a partir dela (e os `.env.example`, o e2e e os padrões da CLI passam a ser derivados, no padrão de `schemas/` com arquivos gerados, `AGENTS.md` §22). Só aqui faz sentido uma fonte por ambiente (`settings/<ambiente>.yaml`, sem segredos).
   3. **OpenBao**, junto com stg, para os **segredos** e a rotação (as chaves das contas de serviço vencem em 2027-10-15). Resolve a senha copiada em cada `.env` e a chave no volume `identity-bootstrap`; para o Postgres, credenciais dinâmicas com validade curta.
 

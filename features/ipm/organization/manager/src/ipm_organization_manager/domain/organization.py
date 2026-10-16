@@ -19,7 +19,7 @@ from ipm_organization_manager.domain.policy import OwnerQuota, Request, UniqueVa
 # do Zitadel e termos que se confundiriam com a plataforma. Lista da plataforma, em código por
 # enquanto; vira configuração quando houver necessidade.
 RESERVED_ORGANIZATION_NAMES = frozenset(
-    {"core", "smarkee", "platform", "system", "admin", "zitadel"}
+    {"core", "smarkee", "register", "platform", "system", "admin", "zitadel"}
 )
 
 

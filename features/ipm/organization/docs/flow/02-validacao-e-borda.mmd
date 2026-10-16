@@ -23,7 +23,7 @@ sequenceDiagram
     R->>M: requested-create (REQUESTED)
     R-->>U: 202 resourceId e operationId
     Note over M: A decisão final é do Manager e pode recusar
-    alt nome reservado (core, smarkee, platform, system, admin, zitadel)
+    alt nome reservado (core, smarkee, register, platform, system, admin, zitadel)
       M->>DB: Operation rejected (validation), sem desired
     else nome já usado por outra Organization presente
       M->>DB: Operation rejected (validation), sem desired

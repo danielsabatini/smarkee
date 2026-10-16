@@ -15,7 +15,6 @@ class ProviderError(Exception):
 @dataclass(frozen=True, slots=True)
 class ZitadelUser:
     email: str
-    password_set: bool
 
 
 @dataclass(frozen=True, slots=True)

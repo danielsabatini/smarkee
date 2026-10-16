@@ -65,9 +65,7 @@ class ZitadelWriter:
         user = cast("dict[str, Any]", self._json(response).get("user") or {})
         human = cast("dict[str, Any]", user.get("human") or {})
         email = cast("dict[str, Any]", human.get("email") or {})
-        return ZitadelUser(
-            email=str(email.get("email", "")), password_set="passwordChanged" in human
-        )
+        return ZitadelUser(email=str(email.get("email", "")))
 
     async def create_user(
         self, user_id: str, *, given_name: str, family_name: str, email: str
