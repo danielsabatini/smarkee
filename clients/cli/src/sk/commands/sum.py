@@ -242,17 +242,21 @@ def _phase_label(link: ServiceLink) -> str:
 
 def _wait_for_convergence(
     url: str,
-    token: str,
     insecure: bool,
     accepted: ServiceRequestAccepted,
     *,
     enabled: bool,
     timeout: int,
 ) -> ServiceLink:
-    """Espera a ligação em `Ready` e a Operation `completed`; se não der, sai dizendo por quê."""
+    """Espera a ligação em `Ready` e a Operation `completed`; se não der, sai dizendo por quê.
+
+    O token é pedido a cada leitura: o acesso dura 15 minutos, e uma espera longa (`--timeout`)
+    pode atravessar o vencimento (a sessão se renova pelo refresh token).
+    """
     ui.note(f"Waiting for convergence (up to {timeout} s)...")
     deadline = time.monotonic() + timeout
     while True:
+        token = _token(insecure)
         try:
             operation = get_operation(
                 url,
@@ -316,7 +320,6 @@ def _operation_rows(operation: OperationStatus) -> list[tuple[str, str]]:
 
 def _finish_request(
     url: str,
-    token: str,
     insecure: bool,
     accepted: ServiceRequestAccepted,
     *,
@@ -332,7 +335,7 @@ def _finish_request(
             "is Ready, run `sk auth refresh` so the token reflects the new roles."
         )
         return
-    link = _wait_for_convergence(url, token, insecure, accepted, enabled=enabled, timeout=timeout)
+    link = _wait_for_convergence(url, insecure, accepted, enabled=enabled, timeout=timeout)
     renewed = _renew_after_convergence(insecure)
     ui.panel(
         "Service enabled" if enabled else "Service disabled",
@@ -396,7 +399,7 @@ def enable_command(
             ("operationId", accepted.operation_id),
         ],
     )
-    _finish_request(url, token, insecure, accepted, enabled=True, wait=wait, timeout=timeout)
+    _finish_request(url, insecure, accepted, enabled=True, wait=wait, timeout=timeout)
 
 
 @service_app.command(
@@ -452,7 +455,7 @@ def disable_command(
             ("operationId", accepted.operation_id),
         ],
     )
-    _finish_request(url, token, insecure, accepted, enabled=False, wait=wait, timeout=timeout)
+    _finish_request(url, insecure, accepted, enabled=False, wait=wait, timeout=timeout)
 
 
 @service_app.command(

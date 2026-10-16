@@ -29,7 +29,7 @@ from sk.identity.oidc import (
     fetch_userinfo,
     run_authorization_code_flow,
 )
-from sk.identity.session import SessionError, renew_session
+from sk.identity.session import SessionError, current_access_token, renew_session
 from sk.settings import (
     AuthSettings,
     ConfigurationError,
@@ -287,20 +287,22 @@ def run_whoami(allow_insecure_http: bool, credentials_path: Path) -> None:
         ui.error("Invalid credentials", str(error), hint="Run `sk auth login` again.")
         raise typer.Exit(EXIT_FAILURE) from error
 
-    # Checagem local primeiro: com o acesso vencido, nem vale consultar o provedor.
-    if credentials.access_token_expires_at <= datetime.now(UTC):
-        ui.error(
-            "Session expired",
-            f"Access expired at {ui.format_expiry(credentials.access_token_expires_at)}.",
-            hint="Run `sk auth login` to sign in again.",
+    # O acesso dura 15 minutos (decisão 0033): vencido ou quase, a sessão se renova pelo refresh
+    # token. Só sem como renovar (sem refresh token, ou recusado) a pessoa precisa entrar de novo.
+    try:
+        access_token = current_access_token(
+            credentials_path, allow_insecure_http=allow_insecure_http
         )
-        raise typer.Exit(EXIT_FAILURE)
+    except SessionError as error:
+        ui.error("Session expired", str(error), hint="Run `sk auth login` to sign in again.")
+        raise typer.Exit(EXIT_FAILURE) from error
+    credentials = load_credentials(credentials_path)  # pode ter sido renovada
 
     try:
         metadata = fetch_provider_metadata(
             credentials.issuer, allow_insecure_http=allow_insecure_http
         )
-        userinfo = fetch_userinfo(metadata, credentials.access_token)
+        userinfo = fetch_userinfo(metadata, access_token)
     except OidcError as error:
         # Pode ser sessão recusada ou falha de rede: a mensagem do erro diz qual.
         ui.error(

@@ -381,6 +381,33 @@ def test_enable_wait_waits_for_ready_then_renews_the_session(
     assert renewals == [True]
 
 
+def test_wait_asks_for_a_fresh_token_on_every_poll(
+    api: FakeApi, renewals: list[bool], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """O acesso dura 15 minutos: uma espera longa pode atravessar o vencimento."""
+    route_accepted(api, "POST")
+    api.routes[("GET", f"/v1/sum/services/{RID}/operations/{OPID}")] = [
+        operation_document("in_progress"),
+        operation_document("in_progress"),
+        operation_document("completed"),
+    ]
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = [
+        Response(200, link_document("present", "Reconciling")),
+        Response(200, link_document("present", "Reconciling")),
+        Response(200, link_document("present", "Ready")),
+    ]
+    asked: list[bool] = []
+
+    def counting_token(*_: object, **__: object) -> str:
+        asked.append(True)
+        return "access-1"
+
+    monkeypatch.setattr("sk.commands.sum.current_access_token", counting_token)
+    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm", "--wait"])
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert len(asked) >= 4  # o pedido de ligar e uma vez por leitura (3)
+
+
 def test_enable_without_wait_does_not_poll_nor_renew_and_points_to_refresh(
     api: FakeApi, renewals: list[bool]
 ) -> None:

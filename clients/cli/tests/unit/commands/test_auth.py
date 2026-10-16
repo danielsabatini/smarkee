@@ -99,17 +99,40 @@ def test_whoami_without_session_asks_to_login() -> None:
     assert "sk auth login" in result.stderr
 
 
-def test_whoami_with_expired_access_does_not_call_the_provider(
+def test_whoami_with_expired_access_and_no_refresh_token_asks_to_login(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def must_not_be_called(*_args: object) -> None:
-        raise AssertionError("o provedor não deve ser consultado com o acesso vencido")
+        raise AssertionError("o provedor não deve ser consultado sem como renovar o acesso")
 
     monkeypatch.setattr("sk.commands.auth.fetch_userinfo", must_not_be_called)
     write_session(datetime.now(UTC) - timedelta(minutes=1))
     result = runner.invoke(app, ["auth", "whoami"])
     assert result.exit_code == 1
     assert "Session expired" in result.stderr
+    assert "sk auth login" in result.stderr
+
+
+def test_whoami_renews_an_expired_access_with_the_refresh_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[str] = []
+
+    def fake_userinfo(_metadata: object, token: str) -> dict[str, object]:
+        seen.append(token)
+        return {"preferred_username": "ana@example.com"}
+
+    def renewed(*_args: object, **_kwargs: object) -> str:
+        return "TOKEN-NOVO"
+
+    monkeypatch.setattr("sk.commands.auth.fetch_provider_metadata", fake_metadata)
+    monkeypatch.setattr("sk.commands.auth.fetch_userinfo", fake_userinfo)
+    monkeypatch.setattr("sk.commands.auth.current_access_token", renewed)
+    write_session(datetime.now(UTC) - timedelta(minutes=1))
+    result = runner.invoke(app, ["auth", "whoami"])
+    assert result.exit_code == 0, result.stderr
+    assert seen == ["TOKEN-NOVO"]  # o provedor é consultado com o token renovado
+    assert "TOKEN-NOVO" not in result.output
 
 
 def test_whoami_shows_the_user_and_hides_the_token(monkeypatch: pytest.MonkeyPatch) -> None:
