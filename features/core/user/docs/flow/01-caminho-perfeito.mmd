@@ -67,9 +67,7 @@ sequenceDiagram
     EXE->>N: lê o desired vigente (Direct Get) e o desfecho do actionId
     EXE->>EXE: revalida: geração vigente, operação coerente com o desired, sem desfecho prévio
     EXE->>ZIT: POST /v2/users/human SEM senha, userId = resourceId, na organização core
-    ZIT->>MAIL: e-mail "Verificar e-mail" (código de verificação)
-    EXE->>ZIT: POST /v2/users/{id}/password_reset (sendLink)
-    ZIT->>MAIL: e-mail "Redefinir senha" (link para a pessoa definir a senha)
+    ZIT->>MAIL: e-mail "Verificar e-mail" (link que verifica o e-mail e define a senha)
     EXE->>ZIT: concede as roles de desired.platformRoles no projeto smarkee (user grant)
     EXE->>N: publica executor.completed.core.user.{id}.create (RESULT)
     end
@@ -90,6 +88,6 @@ sequenceDiagram
 
     rect rgb(243,229,245)
     Note over MAIL,U: 7. Aviso à pessoa (pelo e-mail, fora do loop)
-    MAIL-->>U: "Verificar e-mail" e "Redefinir senha" (dois e-mails do Zitadel)
-    U->>ZIT: abre o link de redefinição e define a senha (ver 07-ativacao-e-login)
+    MAIL-->>U: "Verificar e-mail" (um e-mail do Zitadel)
+    U->>ZIT: abre o link, confirma o e-mail e define a senha (ver 07-ativacao-e-login)
     end

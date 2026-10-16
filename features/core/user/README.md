@@ -19,7 +19,7 @@ Decisões que definem este módulo: `.decisions/0014-user-no-modulo-core-com-aut
 
 **Estrutura interna.** Os seis papéis seguem a decisão 0017 (camadas `domain/` puro, orquestração, adaptadores e `main.py`, com um teste por projeto que falha se o `domain/` importar um adaptador) e a decisão 0018 (`/health/live`, `/health/ready` e `/health/startup` em cada componente; no Publisher, a readiness também cai diante de recusa permanente do transporte; o Stream `ACTION` é particionado por `resourceId`). Verificado em 2026-10-11: testes de cada projeto, `ruff`, `pyright` e os testes e2e contra o Zitadel e o Mailpit reais.
 
-O loop completo foi verificado em desenvolvimento contra o Zitadel e o Mailpit reais (conformidade, 2026-10-11): cadastro anônimo, criação do usuário sem senha, e-mails "Verificar e-mail" e "Redefinir senha", observação, `Ready` e remoção pelo próprio loop. A ativação foi verificada em dev em 2026-10-12: a pessoa definiu a senha e confirmou o e-mail pelos links, e os reenvios pelo provedor funcionaram (`docs/IMPLEMENTATION-STATUS.md` §7). **Não verificado de ponta a ponta:** o `sk auth login` com o usuário novo.
+O loop completo foi verificado em desenvolvimento contra o Zitadel e o Mailpit reais (conformidade, 2026-10-11): cadastro anônimo, criação do usuário sem senha, e-mail "Verificar e-mail" (um só, que também define a senha), observação, `Ready` e remoção pelo próprio loop. A ativação foi verificada em dev em 2026-10-12: a pessoa definiu a senha e confirmou o e-mail, e os reenvios pelo provedor funcionaram (`docs/IMPLEMENTATION-STATUS.md` §7). **Não verificado de ponta a ponta:** o `sk auth login` com o usuário novo.
 
 # 2. Arquitetura
 
@@ -75,7 +75,7 @@ Observa quando o `desired` é novo, depois de cada `completed`/`failed` (com `ca
 
 A **única identidade com escrita no Zitadel** (conta `core-user-executor`: `ORG_USER_CREATOR` na organização `register` e `PROJECT_GRANT_OWNER` nos Grants dos módulos `core` e `sum`; cada role vai para o projeto do seu módulo, decisão 0032). Para cada `action`: revalida contra o `desired` vigente (geração, operação coerente, reconciliação ativa), consulta o desfecho já registrado do `actionId` e só então executa:
 
-- `create`: `POST /v2/users/human` **sem senha**, com `userId = resourceId` (o `sub` do token será o `resourceId`); o Zitadel envia "Verificar e-mail"; em seguida `password_reset` com `sendLink` envia "Redefinir senha"; por fim concede no projeto `roles` as roles de `desired.platformRoles` (o Executor não tem lista própria). Cada passo é idempotente (repetição confere o dono do ID pelo e-mail).
+- `create`: `POST /v2/users/human` **sem senha**, com `userId = resourceId` (o `sub` do token será o `resourceId`); o Zitadel envia o e-mail "Verificar e-mail", cuja página também define a senha (um e-mail só, decisão da jornada de 2026-10-16); por fim concede no projeto `roles` as roles de `desired.platformRoles` (o Executor não tem lista própria). Cada passo é idempotente (repetição confere o dono do ID pelo e-mail).
 - `update`: garante (ou remove, se `revoked`) as roles do projeto.
 - `delete`: remove o usuário (ausente é sucesso).
 
@@ -175,11 +175,10 @@ Cada fluxo é uma sequência numerada (quem publica, quem consome, qual subject)
 
 ### Como ativar a conta (senha e e-mail)
 
-Depois do `sk register`, a pessoa tem uma conta ativa, mas sem senha e com o e-mail não verificado. Ela ativa a conta assim:
+Depois do `sk register`, a pessoa tem uma conta criada, mas sem senha e com o e-mail não verificado. Ela ativa a conta assim:
 
-1. **Defina a senha.** Abra a mensagem **"Redefinir senha"** mais recente do provedor e use o link. Na página do Zitadel, informe e confirme a senha (a política de senha da instância se aplica).
-2. **Confirme o e-mail.** Abra a mensagem **"Verificar e-mail"** mais recente e use o link (ou o código, se a página pedir).
-3. **Entre.** Com a senha definida, `sk auth login` autentica a pessoa.
+1. **Abra o e-mail "Verificar e-mail"** mais recente do provedor e use o botão. A página do Zitadel confirma o e-mail e já pede a senha: informe e confirme (a política de senha da instância se aplica). Um e-mail só.
+2. **Entre.** Com o e-mail confirmado e a senha definida, `sk auth login` autentica a pessoa.
 
 Em desenvolvimento, as mensagens chegam ao Mailpit (http://localhost:8025). Em outros ambientes, chegam à caixa de e-mail real.
 
@@ -234,7 +233,7 @@ Campos do User: `givenName`, `familyName` e `email` são `confidential` (nunca e
 # 8. Segurança e privacidade
 
 - **Cadastro anônimo:** `requestedBy = anonymous`; limite de taxa por origem no gateway (10/min por IP) e no Receiver (5/60 s); resposta uniforme; sem consulta da Operation por anônimo.
-- **Sem senha na mensageria:** o Zitadel cria e envia os links; a senha é definida na página dele.
+- **Sem senha na mensageria:** o Zitadel cria o usuário e envia o link; a senha é definida na página dele.
 - **Menor privilégio:** o Receiver não escreve no SSOT nem no Zitadel; o Manager é o único escritor do SSOT; o Observer só lê o Zitadel; o Executor é o único que escreve nele. Cada componente tem papel de banco e identidade próprios, e **monta só a sua chave** do Zitadel.
 - **Revalidação no Executor** e consulta do desfecho do `actionId` antes de escrever.
 - **Observação inconclusiva nunca é ausência.**
@@ -280,7 +279,7 @@ Os e-mails do Zitadel de dev são capturados pelo Mailpit (http://localhost:8025
 # 10. Limitações e pendências
 
 - **CLI:** `sk register` existe (sem `--wait`: confirma que o pedido foi aceito e orienta a verificar o e-mail); falta `sk user get|delete`.
-- **E-mail:** o loop não garante a entrega; falha de SMTP, endereço errado e spam estão fora da garantia (fluxo 4.6). São dois e-mails ("Verificar e-mail" e "Redefinir senha"), com textos do Zitadel a revisar.
+- **E-mail:** o loop não garante a entrega; falha de SMTP, endereço errado e spam estão fora da garantia (fluxo 4.6). É um e-mail só ("Verificar e-mail"), com texto do Zitadel a revisar.
 - **Retomada de `Failed`:** o User não tem `update`; falta definir a intervenção explícita.
 - **Remoção com dependentes:** a ordem de remoção entre recursos dependentes (um usuário dono de Organizations) não está definida.
 - **Quarentena e `ObservationStale`:** mensagens esgotadas não têm quarentena, e a condition `ObservationStale` ainda não é registrada pelo Manager.

@@ -77,7 +77,11 @@ O consumer `sum-service-manager-requested` (pull, durável, ACK explícito) entr
   índice único parcial `service_active_link` impede duas ligações ativas para o mesmo par, mesmo com pedidos
   concorrentes: se a violação acontecer, a recusa é `already_exists`.
 - **Desligar aceito:** `UPDATE` da mesma linha: `lifecycle = absent`, geração + 1, versão + 1. A linha não é
-  apagada: quem desliga mantém o histórico, e uma nova ligação cria outra linha.
+  apagada: quem desliga mantém o histórico.
+- **Ligar de novo (decisão 0033):** o recurso é o par dono + serviço, e não cada ligar. Se o par já tem uma
+  linha desligada, o Receiver reaproveita o `resourceId` dela no `requested`, e o Manager faz `UPDATE` da mesma
+  linha (`lifecycle = present`, geração + 1, versão + 1), sem linha nova. Uma linha de outro dono ou serviço é
+  `conflict`, e uma já ativa é `already_exists`. O histórico de cada ligar e desligar fica nas Operations.
 - **Operation:** `INSERT` em `sum.service_operation` com `accepted` (com `desired_generation`) ou `rejected`
   (com o motivo, sem geração).
 - **Outbox:** só nas aceitas, `INSERT` em `sum.service_outbox` com a mensagem `desired` (envelope sem

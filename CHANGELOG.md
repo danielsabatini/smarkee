@@ -46,6 +46,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Licença Apache-2.0 (`LICENSE`).
 
 ### Changed
+- Cadastro: a pessoa recebe **um e-mail só**, o "Verificar e-mail", cujo link confirma o e-mail e já define a senha. Antes chegavam dois ("Verificar e-mail" e "Redefinir senha"), e os dois levavam à mesma tela de senha; o segundo não bastava sozinho (deixava o e-mail sem verificar e o login travava). "Esqueci a senha" na tela de login continua disponível.
 - `sk`: toda a saída para o usuário (ajuda, mensagens, títulos, avisos, erros, dicas e a página de retorno do login) passa a ser em inglês, e a data de validade da sessão sai como `AAAA-MM-DD HH:MM` (24 h). Quem lia a saída em script e dependia do texto em português precisa ajustar; os códigos de saída e os campos não mudaram (decisão 0035).
 - `sk sum service`: o vocabulário passa a ser "serviço habilitado/desabilitado" (antes "ligação"), e a listagem usa o mesmo painel das demais saídas. `sk`: os nomes dos campos e os valores de estado das saídas passam a sair em inglês (`resourceId`, `service`, `state` com `enabled`/`disabled`, `phase`, `observedRoles`, `expiresAt`...); só a ajuda e as mensagens continuam em português.
 - A aplicação `cli` do Zitadel passa a viver no projeto `clients`, sem roles (decisão 0034): no login interativo, o Zitadel só põe no token as roles do projeto da aplicação, e com a `cli` dentro de um projeto de roles o token não valia nos outros módulos. O client ID da `cli` muda; quem usa a CLI roda `sk config set auth.clientId <novo>` e grava `core.projectId` e `sum.projectId`. A pasta `components/` virou `clients/`.
@@ -85,6 +86,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - SSOT: tabela de inbox; a idempotência de entrada é garantida pelas regras semânticas (`docs/SSOT.md`, `docs/POSTGRESQL.md`).
 
 ### Fixed
+- SUM: habilitar de novo um serviço já desabilitado reaproveita o mesmo recurso (mesmo `resourceId`, geração seguinte), em vez de criar uma linha nova a cada habilitação. Antes, `sk sum service list` acumulava uma linha desabilitada por ciclo de habilitar e desabilitar. O recurso é o par usuário + serviço (decisão 0033); o histórico fica nas Operations.
 - `sk config set` não apaga mais a seção `[sum]` do arquivo de configuração ao gravar outra chave.
 - `sk sum service`: `--resource-id` e `--operation-id` agora precisam seguir o padrão do contrato (letras minúsculas, números e hífen) e são recusados antes de qualquer chamada (antes, texto livre entrava no caminho da URL junto com o token da sessão). Uma ligação sem `resourceVersion` na resposta deixa de ser aceita. O `404` da Operation não é mais mostrado como ligação inexistente, o `409` ao ligar um serviço já ligado deixa de dizer que "a ligação mudou desde a última leitura", e o `429` e o campo recusado pela API aparecem na mensagem. Endereço sem HTTPS agora termina com mensagem e código `2`, em vez de erro técnico.
 - SUM: a Operation de uma ligação ficava `accepted` para sempre. Agora passa a `in_progress` durante a reconciliação e a `completed` quando a fase chega a `Ready`.

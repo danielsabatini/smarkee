@@ -239,7 +239,7 @@ Fonte: [`01-er-fisico.mmd`](docs/database/01-er-fisico.mmd).
 
 | Tabela | Conteúdo | Quem grava |
 |---|---|---|
-| `sum.service` | Uma linha por ligação (ativa ou desfeita): intenção, observado, fase | Manager |
+| `sum.service` | Uma linha por par dono + serviço (ligada ou desligada; religar reaproveita a linha): intenção, observado, fase | Manager |
 | `sum.service_operation` | Uma linha por pedido aceito ou recusado | Manager |
 | `sum.service_outbox` | Mensagens `desired` à espera de publicação, em ordem de `sequence` | Manager insere; Publisher marca `published_at` |
 | `sum.service_action_result` | Resultado já contado, por `actionId` | Manager |

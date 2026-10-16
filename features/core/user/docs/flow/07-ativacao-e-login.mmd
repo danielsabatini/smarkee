@@ -12,14 +12,13 @@ sequenceDiagram
 
     rect rgb(232,245,233)
     Note over U,ZIT: 1. Ativação (caminho perfeito) (ativação verificada em dev em 2026-10-12, e o sk auth login com o usuário novo ainda não foi exercitado)
-    U->>MAIL: abre "Redefinir senha" (e "Verificar e-mail")
+    U->>MAIL: abre "Verificar e-mail" (o único e-mail da ativação)
     U->>GW: clica no link (/ui/login, caminho público do Zitadel)
     GW->>ZIT: repassa (Host preservado)
-    ZIT-->>U: página para definir a senha (política do Zitadel)
+    ZIT-->>U: página com o código e a senha (política do Zitadel)
     U->>ZIT: informa e confirma a senha
-    ZIT->>ZIT: grava a senha (passwordChanged), envia "Senha do usuário foi alterada"
+    ZIT->>ZIT: verifica o e-mail e grava a senha (passwordChanged), envia "Senha do usuário foi alterada"
     ZIT-->>U: "Senha definida. Faça login."
-    U->>ZIT: abre o link de "Verificar e-mail" (verifica o e-mail)
     OBS->>ZIT: próxima observação (periódica, 5 min)
     OBS->>OBS: publica observed com emailVerified true, userState active
     Note over OBS: O Manager atualiza o recurso (updated). Convergência não depende disso:<br/>emailVerified não é campo gerenciado.

@@ -37,3 +37,7 @@ O cadastro de usuário não concede mais as roles de `ipm.organization.*` (decis
 - O Executor do User nunca concede `ipm.*`: as roles de serviço saem do Executor do SUM.
 - Ligar um serviço vira um fluxo de duas etapas (o Manager decide, o Executor do SUM concede). O usuário vê a ligação `Ready` quando as roles aparecem no token, e a CLI renova o token depois de ligar ou desligar (`--wait`, ou `sk auth refresh`).
 - Pendentes: os contratos de `requested-*`, o Executor do SUM, o Receiver e o restante da feature, a infraestrutura, a renovação automática na CLI e a estratégia de apagar os recursos do serviço.
+
+## Atualização (2026-10-16): religar reaproveita o recurso
+
+O recurso é o par `ownerUserId` + `service`, e não cada ligar. Ao pedir `POST /v1/sum/services` para um par que já tem uma linha **desligada**, o Receiver reaproveita o `resourceId` dela e o Manager liga a mesma linha de novo (`lifecycle = present`, geração e versão + 1); não nasce linha nova. Uma linha ligada continua `409` (`already_exists`), e o `resourceId` de outro dono ou serviço é recusado (`conflict`). Motivo: a implementação inicial criava um recurso por ligar, e a listagem acumulava uma linha desligada por ciclo. O histórico de cada ligar e desligar fica nas Operations. As linhas duplicadas que existiam antes, no dev, foram removidas na limpeza do ambiente.

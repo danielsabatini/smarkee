@@ -486,7 +486,7 @@ A `action` **não carrega os dados do usuário**: o Executor lê o `desired` vig
 
 ### 6.3 Executor age no Zitadel e publica `completed` (ou `failed`)
 
-No `create`, o Executor chama o Zitadel (nesta ordem, cada passo idempotente): cria o usuário humano **sem senha**, com `userId = resourceId`; dispara o e-mail "Verificar e-mail"; dispara o "Redefinir senha"; concede no projeto `roles` as roles de `desired.platformRoles` (o Executor não tem lista própria; sem o campo no `desired`, a ação é rejeitada sem retentativa). Antes disso consulta o `RESULT` para saber se aquele `actionId` já tem desfecho (idempotência).
+No `create`, o Executor chama o Zitadel (nesta ordem, cada passo idempotente): cria o usuário humano **sem senha**, com `userId = resourceId`; o Zitadel dispara, na criação, o e-mail "Verificar e-mail", cuja página também define a senha (um e-mail só; o "Redefinir senha" fica para quem esquecer a senha); concede no projeto `roles` as roles de `desired.platformRoles` (o Executor não tem lista própria; sem o campo no `desired`, a ação é rejeitada sem retentativa). Antes disso consulta o `RESULT` para saber se aquele `actionId` já tem desfecho (idempotência).
 
 | Item | Valor |
 |---|---|
@@ -605,7 +605,7 @@ O Manager aplica pela mesma sequência da seção 6.1. **Convergência** do User
 | `core."user".resource_version` | `4` |
 | `core.user_operation.operation_status` | `completed` (`completed_at` preenchido) |
 
-Do ponto de vista dos dados, o cadastro termina aqui. A pessoa ainda precisa clicar nos links e definir a senha; isso não é gravado pelo SSOT até uma nova observação (`userState` passa de `initial` a `active`, `emailVerified` a `true`, e `resource_version` sobe).
+Do ponto de vista dos dados, o cadastro termina aqui. A pessoa ainda precisa abrir o link do e-mail e definir a senha; isso não é gravado pelo SSOT até uma nova observação (`userState` passa de `initial` a `active`, `emailVerified` a `true`, e `resource_version` sobe).
 
 ### 6.5 `updated`: o fato "mudou de fase"
 
