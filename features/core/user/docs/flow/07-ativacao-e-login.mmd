@@ -46,7 +46,7 @@ sequenceDiagram
     CLI->>ZIT: troca code + code_verifier por tokens
     ZIT-->>CLI: access token JWT (roles organization.* e user.* do projeto smarkee)
     CLI->>CLI: grava ~/.config/sk/credentials.json (permissão 0600)
-    CLI-->>U: "Login realizado."
+    CLI-->>U: "Login completed."
     U->>CLI: sk user get (a implementar)
     CLI->>Receiver: GET /v1/core/users/{sub} (Bearer)
     Receiver-->>CLI: 200 com o próprio usuário

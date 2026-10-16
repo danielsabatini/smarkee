@@ -31,7 +31,7 @@ sequenceDiagram
     Receiver->>N: publica receiver.requested.core.user.{id}.create (REQUESTED)<br/>Nats-Msg-Id = messageId, requestedBy = anonymous
     N-->>Receiver: PubAck
     Receiver-->>CLI: 202 Accepted {resourceId, operationId}
-    CLI-->>U: painel "Cadastro solicitado" (resourceId e operationId) e orientação: confirmar o e-mail e definir a senha pelos links, depois sk auth login
+    CLI-->>U: painel "Registration requested" (resourceId e operationId) e orientação: confirmar o e-mail e definir a senha pelos links, depois sk auth login
     end
 
     rect rgb(232,245,233)
