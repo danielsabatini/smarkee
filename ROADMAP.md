@@ -26,12 +26,15 @@ O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.
 - [ ] **`[Planned]` CLI do User e da Organization:** `sk user get|delete` e `sk ipm organization`, sobre os Receivers (o `sk register` já existe).
 - [ ] **`[Planned]` Implantação em Kubernetes:** CI/CD e GitOps por componente, com versão e imagem independentes.
 - [ ] **`[Planned]` Encerramento limpo dos componentes:** o Manager do User espera o `drain()` do NATS até o tempo limite (cerca de 30 s) e registra `task stopped unexpectedly` mesmo quando o encerramento foi pedido. O Manager do SUM já usa `close()` e só registra o erro sem pedido de parada; aplicar o mesmo ao User, e revisar os demais componentes que copiaram o padrão.
+- [ ] **`[Planned]` Detector de desvio da configuração:** teste somente leitura na conformância do Zitadel que compara os IDs dos `.env` (CLI, User, SUM e ipm) com os da instância real e aponta o que está desatualizado (decisão 0037).
 - [ ] **`[Planned]` Observabilidade Básica:** Métricas e traces nos componentes (hoje há logs estruturados e probes de saúde).
 - [ ] **`[Planned]` Endurecimento para stg e prd:** `pinned_client` no Executor, identidades e permissões por papel no NATS, TLS, quarentena de mensagens, retenção do SSOT, `ObservationStale`, limite de remoções e backup com recuperação (lacunas em `docs/IMPLEMENTATION-STATUS.md`).
 
 ### 🔴 Later (Exploratório / Longo Prazo)
 O que está no radar para o futuro, mas ainda carece de design, arquitetura ou Discovery.
 - [ ] **`[Exploratory]` Clusterização Avançada NATS:** Topologia de Hub-Spoke com Leaf Nodes.
+- [ ] **`[Exploratory]` Provisionamento por IaC (Terraform):** criar o Zitadel (organizações, projetos, aplicações, contas de serviço) por código, com os IDs como saída que gera a configuração por ambiente (decisão 0037).
+- [ ] **`[Exploratory]` Cofre de segredos (OpenBao):** senhas por componente, chaves das contas de serviço e rotação, junto com o ambiente de stg (decisão 0037).
 - [ ] **`[Exploratory]` Plataforma de UI:** Dashboard de gestão do estado (`desired` / `observed`).
 - [ ] **`[Exploratory]` Regra de exclusão do registro (User):** definir a política da exclusão da conta. Hoje o `DELETE /v1/core/users/{id}` remove o usuário (próprio ou operador), o `desired` final sem dados pessoais, a linha do SSOT e o usuário no Zitadel. Ficam em aberto: dados pessoais que sobram em mensagens e no outbox até a retenção, Organizations de que o usuário é dono, sessões e tokens ativos depois de excluir, e confirmação ou reautenticação.
 - [ ] **`[Exploratory]` Administração da plataforma:** ferramentas de operador (roles `*.admin`) para conceder e revogar o acesso de um usuário existente (`platformAccess` e `platformRoles`); o usuário final não altera o próprio acesso.
