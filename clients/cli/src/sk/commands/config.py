@@ -19,6 +19,7 @@ from sk.settings import (
     ConfigurationError,
     CoreSettings,
     SkSettings,
+    SumSettings,
     config_file_path,
     convert_file_document,
     read_config_document,
@@ -28,7 +29,11 @@ from sk.settings import (
 EXIT_FAILURE = 1
 EXIT_USAGE_ERROR = 2
 
-SECTION_MODELS: dict[str, type[BaseModel]] = {"auth": AuthSettings, "core": CoreSettings}
+SECTION_MODELS: dict[str, type[BaseModel]] = {
+    "auth": AuthSettings,
+    "core": CoreSettings,
+    "sum": SumSettings,
+}
 # Chaves que são endereços: precisam começar com http:// ou https://.
 URL_KEYS = {"auth.issuer", "core.apiUrl"}
 
@@ -224,10 +229,14 @@ def set_command(
         values = convert_file_document(SkSettings, document, path=path)
         auth = AuthSettings.model_validate(values.get("auth", {}))
         core = CoreSettings.model_validate(values.get("core", {}))
+        sum_settings = SumSettings.model_validate(values.get("sum", {}))
     except (ValidationError, ConfigurationError) as error:
         _exit_with(error, "Valor recusado", "Corrija o valor e repita.", EXIT_USAGE_ERROR)
 
+    # Todas as seções são regravadas: omitir uma apagaria o que o arquivo já tinha nela.
     content = render_section("auth", auth) + "\n" + render_section("core", core)
+    if sum_settings.project_id:
+        content += "\n" + render_section("sum", sum_settings)
     try:
         write_private_file(path, content)
     except OSError as error:
@@ -238,7 +247,7 @@ def set_command(
         "Configuração atualizada",
         [("Chave", key.dotted), ("Valor", _text(value)), ("Arquivo", str(path))],
     )
-    section_allows_http = (auth if key.section == "auth" else core).allow_insecure_http
+    section_allows_http = {"auth": auth, "core": core}.get(key.section, core).allow_insecure_http
     if isinstance(value, str) and value.startswith("http://") and not section_allows_http:
         ui.warning(
             f"{key.dotted} é HTTP sem permissão: o uso vai recusar esse endereço até que "

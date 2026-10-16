@@ -18,6 +18,8 @@ def isolated_configuration(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         "SK_AUTH_ALLOW_INSECURE_HTTP",
         "SK_CORE_API_URL",
         "SK_CORE_ALLOW_INSECURE_HTTP",
+        "SK_CORE_PROJECT_ID",
+        "SK_SUM_PROJECT_ID",
     ):
         monkeypatch.delenv(variable, raising=False)
 
@@ -34,7 +36,7 @@ def create_defaults() -> None:
 def test_keys_come_from_the_models() -> None:
     keys = known_keys()
     assert {"auth.issuer", "auth.clientId", "auth.allowInsecureHttp"} <= set(keys)
-    assert {"core.apiUrl", "core.allowInsecureHttp"} <= set(keys)
+    assert {"core.apiUrl", "core.allowInsecureHttp", "core.projectId", "sum.projectId"} <= set(keys)
     assert keys["auth.allowInsecureHttp"].is_boolean
     assert not keys["auth.issuer"].is_boolean
 
@@ -86,6 +88,22 @@ def test_set_changes_only_the_given_key(tmp_path: Path) -> None:
     assert 'apiUrl = "https://api.other.example"' in text
     assert 'issuer = "https://ipm.smarkee.com.br"' in text
     assert 'clientId = "pendente-prd"' in text
+
+
+def test_the_project_ids_of_the_modules_are_settable_and_survive_other_changes(
+    tmp_path: Path,
+) -> None:
+    create_defaults()
+    for key, value in (("core.projectId", "111"), ("sum.projectId", "222")):
+        result = runner.invoke(app, ["config", "set", key, value])
+        assert result.exit_code == 0, result.stderr
+    # Uma alteração em outra seção não pode apagar as chaves de projeto já gravadas.
+    result = runner.invoke(app, ["config", "set", "auth.clientId", "novo-client"])
+    assert result.exit_code == 0, result.stderr
+    text = config_file(tmp_path).read_text(encoding="utf-8")
+    assert 'projectId = "111"' in text and "[sum]" in text and 'projectId = "222"' in text
+    assert runner.invoke(app, ["config", "get", "sum.projectId"]).stdout.strip() == "222"
+    assert runner.invoke(app, ["config", "get", "core.projectId"]).stdout.strip() == "111"
 
 
 def test_set_boolean_accepts_true_and_false(tmp_path: Path) -> None:

@@ -143,11 +143,12 @@ def test_whoami_reports_when_the_provider_does_not_confirm_the_session(
     assert "TOKEN-SECRETO-1" not in result.output
 
 
-def test_login_asks_for_the_sum_audience_only_when_the_project_is_configured() -> None:
+def test_login_asks_for_the_audience_of_each_configured_project() -> None:
     from sk.commands.auth import LOGIN_SCOPES, login_scopes
 
-    assert login_scopes(None) == LOGIN_SCOPES
-    scopes = login_scopes("395263163731279883")
+    assert login_scopes(()) == LOGIN_SCOPES
+    scopes = login_scopes(("394490764261851138", "395263163731279883"))
+    assert "urn:zitadel:iam:org:project:id:394490764261851138:aud" in scopes
     assert "urn:zitadel:iam:org:project:id:395263163731279883:aud" in scopes
-    assert "urn:zitadel:iam:org:projects:roles" in scopes
+    assert scopes.count("urn:zitadel:iam:org:projects:roles") == 1
     assert scopes[: len(LOGIN_SCOPES)] == LOGIN_SCOPES

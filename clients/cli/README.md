@@ -29,7 +29,7 @@ uv run sk config get core.apiUrl                   # só o valor, para uso em sc
 uv run sk config set core.apiUrl https://api.smarkee.com.br
 ```
 
-Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `core.apiUrl`, `core.allowInsecureHttp` e `sum.projectId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro: comentários feitos à mão não são preservados.
+Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `core.apiUrl`, `core.allowInsecureHttp`, `core.projectId` e `sum.projectId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro: comentários feitos à mão não são preservados.
 
 O `init` grava os padrões de produção: `https://ipm.smarkee.com.br` para o provedor e `https://api.smarkee.com.br` para a API. O client ID de produção ainda não existe: o `init` grava o marcador `pendente-prd` e avisa, e o valor definitivo é pendente (`.decisions/0023-sk-init-e-sk-config.md`). Para desenvolvimento, aponte para os endereços do dev e permita HTTP:
 
@@ -74,7 +74,7 @@ O login é da plataforma, e não de um módulo. O `sk` autentica o usuário dire
 | `--client-id` | `SK_AUTH_CLIENT_ID` | `clientId` | Client ID da aplicação nativa do `sk` no provedor |
 | `--allow-insecure-http` | `SK_AUTH_ALLOW_INSECURE_HTTP=true` | `allowInsecureHttp = true` | Aceita issuer `http`. Somente em desenvolvimento |
 
-Com `[sum] projectId` configurado (ou `SK_SUM_PROJECT_ID`), o login também pede o audience do projeto `roles-sum` (e as roles no token): sem ele, o Receiver do SUM recusa o token. Sem a chave, o login é o de sempre.
+A aplicação do `sk` mora no projeto `clients` (sem roles), e não num projeto de roles: o token só vale no Receiver de um módulo se o login pedir a audience do projeto de roles dele. Com `[core] projectId` e `[sum] projectId` configurados (ou `SK_CORE_PROJECT_ID` e `SK_SUM_PROJECT_ID`), o login pede a audience de `roles-core` e de `roles-sum`, com as roles no token: sem a chave de um módulo, o Receiver dele recusa o token. Sem a chave, o login é o de sempre.
 
 Códigos de saída: `0` sucesso; `1` falha no login ou na gravação, ou cancelamento (Ctrl+C); `2` uso incorreto (issuer ou client ID ausente, configuração inválida).
 

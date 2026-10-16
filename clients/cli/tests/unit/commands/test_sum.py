@@ -189,6 +189,15 @@ def test_a_conflict_on_disable_asks_to_read_again(api: FakeApi) -> None:
     assert "A ligação mudou desde a última leitura" in result.stderr
 
 
+def test_a_conflict_on_enable_points_to_the_existing_link(api: FakeApi) -> None:
+    api.routes[("POST", "/v1/sum/services")] = http_error(409, "Conflict", "já está ligado")
+    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm"])
+    assert result.exit_code == 1
+    assert "já está ligado" in result.stderr
+    assert "Já existe uma ligação deste serviço" in result.stderr
+    assert "mudou desde a última leitura" not in result.stderr
+
+
 def test_a_server_failure_is_reported_as_unavailable(api: FakeApi) -> None:
     api.routes[("GET", "/v1/sum/services")] = http_error(503, "Unavailable", "fora")
     result = runner.invoke(app, ["sum", "service", "list"])

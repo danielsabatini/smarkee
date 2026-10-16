@@ -133,10 +133,17 @@ def _token(allow_insecure_http: bool) -> str:
         raise typer.Exit(EXIT_FAILURE) from error
 
 
+CONFLICT_ON_CHANGE = "A ligação mudou desde a última leitura. Consulte-a e tente de novo."
+
+
 def _fail_api(
-    error: ApiError, *, not_found: str = "Ligação não encontrada para a sua conta."
+    error: ApiError,
+    *,
+    not_found: str = "Ligação não encontrada para a sua conta.",
+    conflict: str = CONFLICT_ON_CHANGE,
 ) -> NoReturn:
-    """Mostra a falha da API e sai. `not_found` diz o que o `404` significa no comando."""
+    """Mostra a falha da API e sai. `not_found` e `conflict` dizem o que o `404` e o `409`
+    significam no comando."""
     if isinstance(error, ApiUnavailableError):
         ui.error("Serviço indisponível", str(error), hint="Repita em alguns minutos.")
         raise typer.Exit(EXIT_FAILURE) from error
@@ -155,7 +162,7 @@ def _fail_api(
         401: "A sessão não foi aceita. Rode `sk auth login`.",
         403: "Sua conta não tem a permissão para esta operação.",
         404: not_found,
-        409: "A ligação mudou desde a última leitura. Consulte-a e tente de novo.",
+        409: conflict,
     }
     hint = hints.get(error.status, f"HTTP {error.status} ({error.error_code}).")
     detail = f"{error.field}: {error}" if error.field else str(error)
@@ -219,7 +226,9 @@ def enable_command(
     except OidcError as error:
         _bad_address(error)
     except ApiError as error:
-        _fail_api(error)
+        _fail_api(
+            error, conflict="Já existe uma ligação deste serviço. Veja com `sk sum service list`."
+        )
     ui.panel(
         "Ligação solicitada",
         [

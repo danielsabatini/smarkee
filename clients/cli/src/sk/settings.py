@@ -156,6 +156,9 @@ class CoreSettings(BaseModel):
     allow_insecure_http: bool = False
     """Aceita `api_url` em `http`. Somente em desenvolvimento."""
 
+    project_id: str | None = None
+    """ID do projeto de roles do core (`roles-core`): audience dos tokens do Receiver do User."""
+
 
 class SumSettings(BaseModel):
     """Seção `sum`: Service Usage Manager, usado por `sk sum`."""
