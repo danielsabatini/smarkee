@@ -29,6 +29,7 @@ from sk.identity.oidc import (
     fetch_userinfo,
     run_authorization_code_flow,
 )
+from sk.identity.session import SessionError, renew_session
 from sk.settings import (
     AuthSettings,
     ConfigurationError,
@@ -47,7 +48,7 @@ EXIT_FAILURE = 1
 EXIT_USAGE_ERROR = 2
 
 auth_app = typer.Typer(
-    help="Autenticação na plataforma.",
+    help="Authentication on the platform.",
     no_args_is_help=True,
     # Ajuda colorida pelo Rich. Colchetes literais nos textos são escapados com "\\[".
     rich_markup_mode="rich",
@@ -81,33 +82,31 @@ def _load_or_exit(
     try:
         return load_auth_settings(command_line_values, include_config_file=include_config_file)
     except (ValidationError, ConfigurationError) as error:
-        ui.error(
-            "Configuração inválida", str(error), hint=f"Corrija o arquivo {config_file_path()}."
-        )
+        ui.error("Invalid configuration", str(error), hint=f"Fix the file {config_file_path()}.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 
 
 def _require_issuer_and_client_id(settings: AuthSettings) -> tuple[str, str]:
     if not settings.issuer:
         ui.error(
-            "Issuer não informado",
-            "Informe-o por --issuer, SK_AUTH_ISSUER ou issuer na tabela [auth].",
-            hint="Rode `sk init` para criar a configuração.",
+            "Issuer not provided",
+            "Provide it with --issuer, SK_AUTH_ISSUER or issuer in the [auth] table.",
+            hint="Run `sk init` to create the configuration.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     if not settings.client_id:
         ui.error(
-            "Client ID não informado",
-            "Informe-o por --client-id, SK_AUTH_CLIENT_ID ou clientId na tabela [auth].",
-            hint="Rode `sk init` para criar a configuração.",
+            "Client ID not provided",
+            "Provide it with --client-id, SK_AUTH_CLIENT_ID or clientId in the [auth] table.",
+            hint="Run `sk init` to create the configuration.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return settings.issuer, settings.client_id
 
 
 def _present_authorization_url(authorization_url: str) -> None:
-    ui.url_panel("Entre no navegador para continuar (expira em 5 minutos)", authorization_url)
-    ui.note("O navegador deve abrir sozinho. Se não abrir, copie o endereço acima.")
+    ui.url_panel("Open the browser to continue (expires in 5 minutes)", authorization_url)
+    ui.note("The browser should open by itself. If it does not, copy the address above.")
     webbrowser.open(authorization_url)
 
 
@@ -116,7 +115,7 @@ def _display_name(userinfo: Mapping[str, object]) -> str:
         value = userinfo.get(claim)
         if isinstance(value, str) and value:
             return value
-    return "usuário sem identificação no userinfo"
+    return "unknown"
 
 
 def login_scopes(project_ids: Sequence[str]) -> tuple[str, ...]:
@@ -164,56 +163,57 @@ def run_login(
             ),
         )
     except (OidcError, CredentialsError) as error:
-        ui.error("Login não concluído", str(error), hint="Rode `sk auth login` de novo.")
+        ui.error("Login not completed", str(error), hint="Run `sk auth login` again.")
         raise typer.Exit(EXIT_FAILURE) from error
 
     ui.panel(
-        "Login realizado",
+        "Login completed",
         [
-            ("Usuário", _display_name(userinfo)),
-            ("Provedor", metadata.issuer),
+            ("user", _display_name(userinfo)),
+            ("issuer", metadata.issuer),
             (
-                "Válido até",
+                "expiresAt",
                 ui.format_expiry(
                     obtained_at + timedelta(seconds=token_response.expires_in_seconds)
                 ),
             ),
-            ("Credenciais", str(credentials_path)),
+            ("credentialsFile", str(credentials_path)),
         ],
     )
     if token_response.refresh_token is None:
         ui.warning(
-            "O provedor não emitiu refresh token: habilite o grant Refresh Token na aplicação."
+            "The provider did not issue a refresh token: enable the Refresh Token grant on "
+            "the application."
         )
 
 
 def _help_issuer(file: str | None) -> str:
     return option(
-        "Endereço do provedor de login.",
+        "Login provider address.",
         kind="String",
         variable="SK_AUTH_ISSUER",
         file=file,
-        default="nenhum",
+        default="none",
     )
 
 
 def _help_client_id(file: str | None) -> str:
     return option(
-        "Identificador do sk no provedor de login.",
+        "Identifier of sk at the login provider.",
         kind="String",
         variable="SK_AUTH_CLIENT_ID",
         file=file,
-        default="nenhum",
+        default="none",
     )
 
 
 def _help_allow_insecure_http(file: str | None) -> str:
     return option(
-        "Permite endereço sem HTTPS. Somente para desenvolvimento.",
-        kind="Booleano",
+        "Allow an address without HTTPS. Development only.",
+        kind="Boolean",
         variable="SK_AUTH_ALLOW_INSECURE_HTTP=true",
         file=file,
-        default="desativado",
+        default="off",
     )
 
 
@@ -237,22 +237,28 @@ AllowInsecureHttpOption = Annotated[
 
 
 def _module_project_ids() -> tuple[str, ...]:
-    """`[core] projectId` e `[sum] projectId` (ou `SK_CORE_PROJECT_ID` e `SK_SUM_PROJECT_ID`).
+    """`projectId` de `[core]`, `[sum]` e `[ipm]` (ou `SK_<SEÇÃO>_PROJECT_ID`).
 
     Só os configurados entram: sem a chave, o login não pede a audience daquele módulo.
     """
     try:
         settings = SkSettings()
-        configured = (settings.core.project_id, settings.sum.project_id)
+        configured = (
+            settings.core.project_id,
+            settings.sum.project_id,
+            settings.ipm.project_id,
+        )
         return tuple(project for project in configured if project)
     except (ValidationError, ConfigurationError) as error:
-        ui.error("Configuração inválida", str(error), hint="Corrija o arquivo e repita.")
+        ui.error("Invalid configuration", str(error), hint="Fix the file and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 
 
 @auth_app.command(
     "login",
-    help=command("Entra na plataforma pelo navegador. Um novo login substitui o anterior."),
+    help=command(
+        "Sign in to the platform through the browser. A new login replaces the previous one."
+    ),
 )
 def login(
     issuer: IssuerOption = None,
@@ -275,18 +281,18 @@ def run_whoami(allow_insecure_http: bool, credentials_path: Path) -> None:
     try:
         credentials = load_credentials(credentials_path)
     except CredentialsMissingError as error:
-        ui.error("Não autenticado", str(error), hint="Rode `sk auth login` para entrar.")
+        ui.error("Not authenticated", str(error), hint="Run `sk auth login` to sign in.")
         raise typer.Exit(EXIT_FAILURE) from error
     except CredentialsError as error:
-        ui.error("Credenciais inválidas", str(error), hint="Rode `sk auth login` de novo.")
+        ui.error("Invalid credentials", str(error), hint="Run `sk auth login` again.")
         raise typer.Exit(EXIT_FAILURE) from error
 
     # Checagem local primeiro: com o acesso vencido, nem vale consultar o provedor.
     if credentials.access_token_expires_at <= datetime.now(UTC):
         ui.error(
-            "Sessão expirada",
-            f"O acesso venceu em {ui.format_expiry(credentials.access_token_expires_at)}.",
-            hint="Rode `sk auth login` para entrar de novo.",
+            "Session expired",
+            f"Access expired at {ui.format_expiry(credentials.access_token_expires_at)}.",
+            hint="Run `sk auth login` to sign in again.",
         )
         raise typer.Exit(EXIT_FAILURE)
 
@@ -298,25 +304,25 @@ def run_whoami(allow_insecure_http: bool, credentials_path: Path) -> None:
     except OidcError as error:
         # Pode ser sessão recusada ou falha de rede: a mensagem do erro diz qual.
         ui.error(
-            "Não foi possível confirmar a sessão",
+            "Could not confirm the session",
             str(error),
-            hint="Se o erro persistir, rode `sk auth login` de novo.",
+            hint="If the error persists, run `sk auth login` again.",
         )
         raise typer.Exit(EXIT_FAILURE) from error
 
     ui.panel(
-        "Sessão ativa",
+        "Active session",
         [
-            ("Usuário", _display_name(userinfo)),
-            ("Provedor", credentials.issuer),
-            ("Válido até", ui.format_expiry(credentials.access_token_expires_at)),
+            ("user", _display_name(userinfo)),
+            ("issuer", credentials.issuer),
+            ("expiresAt", ui.format_expiry(credentials.access_token_expires_at)),
         ],
     )
 
 
 @auth_app.command(
     "whoami",
-    help=command("Mostra o usuário da sessão atual e confirma que ela ainda vale."),
+    help=command("Show the user of the current session and confirm it is still valid."),
 )
 def whoami(allow_insecure_http: AllowInsecureHttpOption = False) -> None:
     settings = _load_or_exit(
@@ -324,3 +330,22 @@ def whoami(allow_insecure_http: AllowInsecureHttpOption = False) -> None:
         include_config_file=True,
     )
     run_whoami(settings.allow_insecure_http, default_credentials_path())
+
+
+@auth_app.command(
+    "refresh",
+    help=command(
+        "Renew the session now, with the refresh token, so the token reflects the current roles "
+        "(for example, after enabling or disabling a service)."
+    ),
+)
+def refresh(allow_insecure_http: AllowInsecureHttpOption = False) -> None:
+    settings = _load_or_exit({"allow_insecure_http": allow_insecure_http}, include_config_file=True)
+    try:
+        expires_at = renew_session(
+            default_credentials_path(), allow_insecure_http=settings.allow_insecure_http
+        )
+    except SessionError as error:
+        ui.error("Session not renewed", str(error), hint="Run `sk auth login`.")
+        raise typer.Exit(EXIT_FAILURE) from error
+    ui.panel("Session renewed", [("expiresAt", ui.format_expiry(expires_at))])

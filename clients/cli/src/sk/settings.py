@@ -90,13 +90,13 @@ def _file_keys_to_field_names(
         field_name = field_names_by_key.get(key)
         if field_name is None:
             raise ConfigurationError(
-                f"chave desconhecida em {path}: {qualified_key}. As chaves do arquivo são "
+                f"unknown key in {path}: {qualified_key}. The file keys are "
                 f"camelCase: {', '.join(sorted(field_names_by_key))}."
             )
         nested_model = _model_type(model.model_fields[field_name])
         if nested_model is not None:
             if not isinstance(value, dict):
-                raise ConfigurationError(f"{qualified_key} em {path} deve ser uma tabela TOML.")
+                raise ConfigurationError(f"{qualified_key} in {path} must be a TOML table.")
             value = _file_keys_to_field_names(
                 cast(dict[str, Any], value), nested_model, path=path, location=f"{qualified_key}."
             )
@@ -111,11 +111,11 @@ def read_config_document(path: Path) -> dict[str, Any]:
     except FileNotFoundError:
         return {}
     except OSError as error:
-        raise ConfigurationError(f"não foi possível ler {path}: {error.strerror}") from error
+        raise ConfigurationError(f"could not read {path}: {error.strerror}") from error
     try:
         return tomllib.loads(content)
     except tomllib.TOMLDecodeError as error:
-        raise ConfigurationError(f"TOML inválido em {path}: {error}") from error
+        raise ConfigurationError(f"invalid TOML in {path}: {error}") from error
 
 
 def convert_file_document(
@@ -169,6 +169,15 @@ class SumSettings(BaseModel):
     """ID do projeto de roles do SUM (`roles-sum`): audience dos tokens do Receiver do SUM."""
 
 
+class IpmSettings(BaseModel):
+    """Seção `ipm`: módulo de Organizations, usado por `sk ipm`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str | None = None
+    """ID do projeto de roles do ipm (`roles-ipm`): audience dos tokens do Receiver do ipm."""
+
+
 class SkSettings(BaseSettings):
     """Configuração consolidada do sk."""
 
@@ -183,6 +192,7 @@ class SkSettings(BaseSettings):
     auth: AuthSettings = AuthSettings()
     core: CoreSettings = CoreSettings()
     sum: SumSettings = SumSettings()
+    ipm: IpmSettings = IpmSettings()
 
     @classmethod
     def settings_customise_sources(

@@ -41,14 +41,32 @@ def panel(title: str, rows: Sequence[tuple[str, str]], *, style: str = "green") 
     )
 
 
-def table(title: str, columns: Sequence[str], rows: Sequence[Sequence[str]]) -> None:
-    """Tabela de sucesso (saída padrão), com uma linha por registro."""
-    grid = Table(title=title, box=box.SIMPLE_HEAD, title_justify="left")
+def table(
+    title: str,
+    columns: Sequence[str],
+    rows: Sequence[Sequence[str | Text]],
+    *,
+    style: str = "green",
+) -> None:
+    """Tabela de sucesso (saída padrão), no mesmo painel do `panel`, com uma linha por registro.
+
+    Uma célula pode ser um `Text` com estilo (por exemplo, o estado em verde ou amarelo).
+    """
+    grid = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, header_style="bold dim")
     for column in columns:
-        grid.add_column(column, overflow="fold")
+        grid.add_column(column, overflow="fold", no_wrap=True)
     for row in rows:
         grid.add_row(*row)
-    _console().print(grid)
+    _console().print(
+        Panel(
+            grid,
+            title=Text(f"✓ {title}", style=f"bold {style}"),
+            title_align="left",
+            border_style=style,
+            box=box.ROUNDED,
+            padding=(0, 1),
+        )
+    )
 
 
 def note(text: str) -> None:
@@ -84,4 +102,4 @@ def url_panel(title: str, url: str) -> None:
 
 
 def format_expiry(moment: datetime) -> str:
-    return moment.astimezone().strftime("%d/%m/%Y %H:%M")
+    return moment.astimezone().strftime("%Y-%m-%d %H:%M")

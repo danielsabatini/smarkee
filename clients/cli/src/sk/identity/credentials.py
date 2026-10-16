@@ -87,9 +87,9 @@ def load_credentials(path: Path) -> StoredCredentials:
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError as error:
-        raise CredentialsMissingError(f"não há credenciais em {path}") from error
+        raise CredentialsMissingError(f"there are no credentials at {path}") from error
     except OSError as error:
-        raise CredentialsError(f"não foi possível ler {path}: {error.strerror}") from error
+        raise CredentialsError(f"could not read {path}: {error.strerror}") from error
     try:
         payload: object = json.loads(text)
         if not isinstance(payload, dict):
@@ -107,7 +107,7 @@ def load_credentials(path: Path) -> StoredCredentials:
             obtained_at=datetime.fromisoformat(_text(data, "obtainedAt")),
         )
     except (ValueError, TypeError) as error:
-        raise CredentialsError(f"arquivo de credenciais inválido: {path}") from error
+        raise CredentialsError(f"invalid credentials file: {path}") from error
 
 
 def save_credentials(path: Path, credentials: StoredCredentials) -> None:
@@ -115,4 +115,4 @@ def save_credentials(path: Path, credentials: StoredCredentials) -> None:
     try:
         write_private_file(path, json.dumps(credentials.to_json_object(), indent=2) + "\n")
     except OSError as error:
-        raise CredentialsError(f"não foi possível gravar {path}: {error.strerror}") from error
+        raise CredentialsError(f"could not write {path}: {error.strerror}") from error

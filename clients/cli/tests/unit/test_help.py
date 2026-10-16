@@ -1,6 +1,7 @@
 """Padrão dos textos de ajuda: todo comando explica a ordem de resolução, e toda opção segue o
 formato `<descrição> [Tipo] [env … | arquivo … | padrão …] [obrigatório|opcional]`, com o bloco de
-fontes omitido quando não há nenhuma. Flags são `Booleano`; as demais, `String`."""
+fontes omitido quando não há nenhuma. Flags são `Booleano`, números são `Inteiro` e as demais,
+`String`."""
 
 import re
 from typing import Any
@@ -16,7 +17,7 @@ runner = CliRunner()
 IGNORED = {"help", "install_completion", "show_completion"}
 # Os subcomandos de `sk config` operam só no arquivo: não há ordem de resolução a explicar.
 WITHOUT_RESOLUTION_ORDER = {"config list", "config get", "config set"}
-OPTION_FORMAT = re.compile(r"\[(String|Booleano)\](?: \[(.+)\])? \[(obrigatório|opcional)\]$")
+OPTION_FORMAT = re.compile(r"\[(String|Integer|Boolean)\](?: \[(.+)\])? \[(required|optional)\]$")
 
 
 def _commands() -> list[tuple[str, Any]]:
@@ -49,7 +50,7 @@ def test_every_command_explains_the_resolution_order() -> None:
     for name, command in _commands():
         if name in WITHOUT_RESOLUTION_ORDER:
             continue
-        assert "Ordem de resolução" in (command.help or ""), name
+        assert "Resolution order" in (command.help or ""), name
 
 
 def test_every_option_follows_the_type_and_resolution_format() -> None:
@@ -59,7 +60,7 @@ def test_every_option_follows_the_type_and_resolution_format() -> None:
 
 
 def test_sources_are_labeled_and_in_resolution_order() -> None:
-    order = ["env ", "arquivo ", "padrão "]
+    order = ["env ", "file ", "default "]
     for name, command in _commands():
         for param in _options(command):
             match = OPTION_FORMAT.search(_help_text(param))
@@ -85,7 +86,12 @@ def test_boolean_options_are_declared_as_boolean() -> None:
         for param in _options(command):
             match = OPTION_FORMAT.search(_help_text(param))
             assert match is not None, f"{name} {param.name}"
-            expected_kind = "Booleano" if getattr(param, "is_flag", False) else "String"
+            if getattr(param, "is_flag", False):
+                expected_kind = "Boolean"
+            elif getattr(param.type, "name", "") == "integer":
+                expected_kind = "Integer"
+            else:
+                expected_kind = "String"
             assert match.group(1) == expected_kind, f"{name} {param.name}"
 
 
@@ -104,7 +110,7 @@ def test_required_options_are_marked_as_required() -> None:
             assert match is not None, f"{name} {param.name}"
             status = match.group(3)
             if name != "init" and param.name in required:
-                assert status == "obrigatório", f"{name} {param.name}"
+                assert status == "required", f"{name} {param.name}"
 
 
 def test_options_with_environment_variables_say_which_one() -> None:
@@ -125,7 +131,7 @@ def test_bracketed_names_are_shown_literally() -> None:
     assert "[auth] issuer" in login.stdout
     init = runner.invoke(app, ["init", "--help"], env={"COLUMNS": "200"})
     assert init.exit_code == 0
-    assert "arquivo [auth]" not in init.stdout
+    assert "file [auth]" not in init.stdout
 
 
 def test_init_does_not_list_the_config_file_as_a_source() -> None:
@@ -144,10 +150,12 @@ def test_register_required_options_are_checked_by_the_command() -> None:
     result = runner.invoke(app, ["register", "--surname", "B", "--email", "a@b.com"])
     assert result.exit_code == 2
     assert "--name" in result.output
-    assert "Opção obrigatória ausente" in result.output
+    assert "Missing required option" in result.output
 
 
-def test_required_options_do_not_show_typers_required_tag() -> None:
+def test_required_options_show_a_single_required_marker() -> None:
     result = runner.invoke(app, ["register", "--help"])
     assert result.exit_code == 0
-    assert "[required]" not in result.stdout
+    # O nosso marcador tem o mesmo texto do do Typer: cada opção obrigatória mostra um só.
+    options = ["--name", "--surname", "--email", "--api-url"]
+    assert result.stdout.count("[required]") == len(options)

@@ -87,7 +87,7 @@ def test_the_request_reaches_the_api_without_any_token(api_server: str, tmp_path
 
     assert result.exit_code == 0, result.stderr
     assert "op-1" in result.stdout
-    assert "Cadastro solicitado" in result.stdout
+    assert "Registration requested" in result.stdout
     request = Recording.received[0]
     assert request["path"] == "/v1/core/users"
     assert request["authorization"] is None
@@ -115,5 +115,5 @@ def test_plain_http_without_permission_sends_nothing(api_server: str) -> None:
         ],
     )
     assert result.exit_code == 2
-    assert "sem TLS" in result.stderr
+    assert "without TLS" in result.stderr
     assert Recording.received == []

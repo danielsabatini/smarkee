@@ -180,7 +180,7 @@ def test_a_non_text_message_or_field_is_ignored() -> None:
 def test_a_5xx_is_unavailable_without_the_body(status: int) -> None:
     with pytest.raises(ApiUnavailableError) as caught:
         call(Opener(http_error(status, b'{"message": "detalhe interno"}')))
-    assert str(caught.value) == f"a API respondeu com HTTP {status}"
+    assert str(caught.value) == f"the API answered HTTP {status}"
 
 
 @pytest.mark.parametrize(
@@ -201,7 +201,7 @@ def test_a_network_failure_is_unavailable_and_names_only_the_kind(
 
 
 def test_a_body_that_is_not_json_is_unavailable() -> None:
-    with pytest.raises(ApiUnavailableError, match="não é JSON"):
+    with pytest.raises(ApiUnavailableError, match="is not JSON"):
         call(Opener(Response(b"<html>")))
 
 

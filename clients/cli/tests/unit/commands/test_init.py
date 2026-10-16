@@ -47,7 +47,7 @@ def test_init_without_options_writes_production_defaults(tmp_path: Path) -> None
 def test_init_warns_that_the_production_client_id_is_pending() -> None:
     result = runner.invoke(app, ["init"])
     assert result.exit_code == 0
-    assert "client ID de produção ainda não foi definido" in result.stderr
+    assert "production client ID is not defined yet" in result.stderr
 
 
 def test_parameters_replace_the_defaults(tmp_path: Path) -> None:
@@ -69,7 +69,7 @@ def test_parameters_replace_the_defaults(tmp_path: Path) -> None:
     assert 'clientId = "client-1"' in text
     assert 'apiUrl = "https://api.example"' in text
     assert "pendente-prd" not in text
-    assert "client ID de produção" not in result.stderr
+    assert "production client ID" not in result.stderr
 
 
 def test_environment_variables_replace_the_defaults(
@@ -104,7 +104,7 @@ def test_allow_insecure_http_applies_to_both_sections(tmp_path: Path) -> None:
 def test_http_is_refused_without_explicit_permission(tmp_path: Path) -> None:
     result = runner.invoke(app, ["init", "--issuer", "http://issuer.example"])
     assert result.exit_code == 2
-    assert "sem TLS" in result.stderr
+    assert "without TLS" in result.stderr
     assert not config_file(tmp_path).exists()
 
 

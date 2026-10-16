@@ -61,21 +61,21 @@ def render_callback_page(*, success: bool) -> bytes:
     if success:
         body = (
             f'<div class="badge ok">{_ICON_OK}</div>'
-            "<h1>Login concluído</h1>"
-            "<p>Sua sessão foi autorizada. Você já pode voltar ao terminal.</p>"
+            "<h1>Login completed</h1>"
+            "<p>Your session was authorized. You can go back to the terminal.</p>"
         )
-        title = "Login concluído · sk"
+        title = "Login completed · sk"
     else:
         body = (
             f'<div class="badge fail">{_ICON_FAIL}</div>'
-            "<h1>Login não concluído</h1>"
-            "<p>O login foi recusado ou cancelado. Volte ao terminal e rode "
-            "<strong>sk auth login</strong> de novo.</p>"
+            "<h1>Login not completed</h1>"
+            "<p>The login was refused or cancelled. Go back to the terminal and run "
+            "<strong>sk auth login</strong> again.</p>"
         )
-        title = "Login não concluído · sk"
-    hint = '<p class="hint">Esta janela pode ser fechada.</p>'
+        title = "Login not completed · sk"
+    hint = '<p class="hint">You can close this window.</p>'
     page = (
-        '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         f"<title>{title}</title><style>{_STYLE}</style></head>"
         f"<body><main>{brand}{body}{hint}</main></body></html>"

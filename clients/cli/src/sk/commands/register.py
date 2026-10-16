@@ -19,8 +19,8 @@ from sk.identity.oidc import OidcError
 from sk.settings import ConfigurationError, SkSettings
 
 REGISTER_HELP = command(
-    "Cadastra uma nova conta para iniciar na plataforma. "
-    "Depois, confirme o e-mail e defina a senha pelos links enviados para ele."
+    "Register a new account to get started on the platform. "
+    "Afterwards, confirm the e-mail and set the password with the links sent to it."
 )
 
 EXIT_FAILURE = 1
@@ -30,9 +30,9 @@ EXIT_USAGE_ERROR = 2
 def _require(value: str | None, option_name: str) -> str:
     if value is None:
         ui.error(
-            "Opção obrigatória ausente",
-            f"Informe {option_name}.",
-            hint=f"Repita o comando com {option_name} VALOR.",
+            "Missing required option",
+            f"Provide {option_name}.",
+            hint=f"Repeat the command with {option_name} VALUE.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return value
@@ -51,13 +51,13 @@ def _load_core(api_url: str | None, allow_insecure_http: bool) -> tuple[str, boo
         # Mesmo mecanismo do `sk auth`: parâmetro → ambiente → arquivo → default.
         core = SkSettings(core=explicit).core  # pyright: ignore[reportArgumentType]
     except (ValidationError, ConfigurationError) as error:
-        ui.error("Configuração inválida", str(error), hint="Corrija o arquivo indicado e repita.")
+        ui.error("Invalid configuration", str(error), hint="Fix the indicated file and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     if not core.api_url:
         ui.error(
-            "API não informada",
-            "Informe-a por --api-url, SK_CORE_API_URL ou apiUrl na tabela [core].",
-            hint="Rode `sk init` para criar a configuração, ou informe --api-url.",
+            "API not provided",
+            "Provide it with --api-url, SK_CORE_API_URL or apiUrl in the [core] table.",
+            hint="Run `sk init` to create the configuration, or provide --api-url.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return core.api_url, core.allow_insecure_http
@@ -69,11 +69,11 @@ def register_command(
         typer.Option(
             "--name",
             help=option(
-                "Nome (até 256 caracteres).",
+                "Name (up to 256 characters).",
                 kind="String",
                 variable=None,
                 file=None,
-                default="nenhum",
+                default="none",
             ),
         ),
     ] = None,
@@ -82,11 +82,11 @@ def register_command(
         typer.Option(
             "--surname",
             help=option(
-                "Sobrenome (até 256 caracteres).",
+                "Surname (up to 256 characters).",
                 kind="String",
                 variable=None,
                 file=None,
-                default="nenhum",
+                default="none",
             ),
         ),
     ] = None,
@@ -95,11 +95,11 @@ def register_command(
         typer.Option(
             "--email",
             help=option(
-                "E-mail da conta. É também o nome de login.",
+                "Account e-mail. It is also the login name.",
                 kind="String",
                 variable=None,
                 file=None,
-                default="nenhum",
+                default="none",
             ),
         ),
     ] = None,
@@ -108,11 +108,11 @@ def register_command(
         typer.Option(
             "--api-url",
             help=option(
-                "Endereço da API da plataforma.",
+                "Platform API address.",
                 kind="String",
                 variable="SK_CORE_API_URL",
                 file="[core] apiUrl",
-                default="nenhum",
+                default="none",
             ),
         ),
     ] = None,
@@ -121,11 +121,11 @@ def register_command(
         typer.Option(
             "--allow-insecure-http",
             help=option(
-                "Permite endereço sem HTTPS. Somente para desenvolvimento.",
-                kind="Booleano",
+                "Allow an address without HTTPS. Development only.",
+                kind="Boolean",
                 variable="SK_CORE_ALLOW_INSECURE_HTTP=true",
                 file="[core] allowInsecureHttp = true",
-                default="desativado",
+                default="off",
             ),
         ),
     ] = False,
@@ -146,54 +146,54 @@ def register_command(
             allow_insecure_http=insecure,
         )
     except ValueError as error:
-        ui.error("Dados não aceitos", str(error), hint="Corrija o valor informado e repita.")
+        ui.error("Value not accepted", str(error), hint="Fix the given value and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     except OidcError as error:
         ui.error(
-            "Endereço da API recusado",
+            "API address refused",
             str(error),
-            hint="Use HTTPS ou --allow-insecure-http em desenvolvimento.",
+            hint="Use HTTPS, or --allow-insecure-http in development.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     except ApiRejectedError as error:
         if error.status == 429:
             wait = error.retry_after_seconds
             ui.error(
-                "Muitas tentativas",
-                "O cadastro tem limite de pedidos por origem.",
-                hint=f"Aguarde {wait} segundos e repita." if wait else "Tente novamente depois.",
+                "Too many requests",
+                "Registration has a request limit per origin.",
+                hint=f"Wait {wait} seconds and repeat." if wait else "Try again later.",
             )
             raise typer.Exit(EXIT_FAILURE) from error
         if error.field:
             ui.error(
-                "Campo recusado pela API",
+                "Field refused by the API",
                 f"{error.field}: {error}",
-                hint="Corrija o campo e repita.",
+                hint="Fix the field and repeat.",
             )
             raise typer.Exit(EXIT_USAGE_ERROR if error.status == 400 else EXIT_FAILURE) from error
         ui.error(
-            "Pedido recusado pela API",
+            "Request refused by the API",
             str(error),
             hint=f"HTTP {error.status} ({error.error_code}).",
         )
         raise typer.Exit(EXIT_USAGE_ERROR if error.status == 400 else EXIT_FAILURE) from error
     except ApiUnavailableError as error:
-        ui.error("Serviço indisponível", str(error), hint="Repita em alguns minutos.")
+        ui.error("Service unavailable", str(error), hint="Try again in a few minutes.")
         raise typer.Exit(EXIT_FAILURE) from error
     except ApiError as error:  # pragma: no cover (nova subclasse sem tratamento explícito)
-        ui.error("Falha no cadastro", str(error))
+        ui.error("Registration failed", str(error))
         raise typer.Exit(EXIT_FAILURE) from error
 
     ui.panel(
-        "Cadastro solicitado",
+        "Registration requested",
         [
-            ("Nome", f"{name.strip()} {surname.strip()}"),
-            ("E-mail", email.strip()),
+            ("name", f"{name.strip()} {surname.strip()}"),
+            ("email", email.strip()),
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
     )
     ui.note(
-        "Próximos passos: confirme o e-mail e defina a senha pelos links que o provedor enviou. "
-        "Depois, rode `sk auth login`."
+        "Next steps: confirm the e-mail and set the password with the links the provider sent. "
+        "Then run `sk auth login`."
     )

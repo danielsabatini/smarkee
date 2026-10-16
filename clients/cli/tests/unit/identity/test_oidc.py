@@ -43,7 +43,7 @@ def test_https_is_accepted() -> None:
 
 
 def test_http_is_refused_by_default() -> None:
-    with pytest.raises(OidcError, match="sem TLS"):
+    with pytest.raises(OidcError, match="without TLS"):
         ensure_secure_url("http://issuer.example", allow_insecure_http=False)
 
 
@@ -52,7 +52,7 @@ def test_http_is_accepted_when_explicitly_allowed() -> None:
 
 
 def test_unsupported_scheme_is_refused_even_when_http_is_allowed() -> None:
-    with pytest.raises(OidcError, match="não suportado"):
+    with pytest.raises(OidcError, match="Unsupported"):
         ensure_secure_url("file:///etc/passwd", allow_insecure_http=True)
 
 
@@ -109,7 +109,7 @@ def test_provider_error_is_reported() -> None:
 
 
 def test_missing_code_is_rejected() -> None:
-    with pytest.raises(OidcError, match="código de autorização"):
+    with pytest.raises(OidcError, match="authorization code"):
         extract_authorization_code({"state": "state-1"}, expected_state="state-1")
 
 
@@ -132,5 +132,5 @@ def test_loopback_receiver_captures_callback_parameters() -> None:
 
 
 def test_loopback_receiver_times_out() -> None:
-    with LoopbackReceiver() as receiver, pytest.raises(OidcError, match="tempo esgotado"):
+    with LoopbackReceiver() as receiver, pytest.raises(OidcError, match="timed out"):
         receiver.wait_for_callback(timeout_seconds=0.2)

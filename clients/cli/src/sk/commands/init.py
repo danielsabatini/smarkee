@@ -28,15 +28,15 @@ EXIT_FAILURE = 1
 EXIT_USAGE_ERROR = 2
 
 INIT_HELP = command(
-    "Cria o arquivo de configuração da plataforma, com os endereços de produção. "
-    "Não sobrescreve um arquivo existente sem --force.",
+    "Create the platform configuration file, with the production addresses. "
+    "It does not overwrite an existing file without --force.",
     order=ORDER_WITHOUT_FILE,
 )
 
 
 def _help_issuer() -> str:
     return option(
-        "Endereço do provedor de login.",
+        "Login provider address.",
         kind="String",
         variable="SK_AUTH_ISSUER",
         file=None,
@@ -46,7 +46,7 @@ def _help_issuer() -> str:
 
 def _help_client_id() -> str:
     return option(
-        "Identificador do sk no provedor de login. Provisório até o ambiente de produção existir.",
+        "Identifier of sk at the login provider. Provisional until production exists.",
         kind="String",
         variable="SK_AUTH_CLIENT_ID",
         file=None,
@@ -56,7 +56,7 @@ def _help_client_id() -> str:
 
 def _help_api_url() -> str:
     return option(
-        "Endereço da API da plataforma.",
+        "Platform API address.",
         kind="String",
         variable="SK_CORE_API_URL",
         file=None,
@@ -66,16 +66,16 @@ def _help_api_url() -> str:
 
 def _help_allow_insecure_http() -> str:
     return option(
-        "Permite endereço sem HTTPS. Somente para desenvolvimento.",
-        kind="Booleano",
+        "Allow an address without HTTPS. Development only.",
+        kind="Boolean",
         variable="SK_AUTH_ALLOW_INSECURE_HTTP=true",
         file=None,
-        default="desativado",
+        default="off",
     )
 
 
 def _exit_on_configuration_error(error: Exception) -> NoReturn:
-    ui.error("Configuração inválida", str(error), hint="Corrija o valor informado e repita.")
+    ui.error("Invalid configuration", str(error), hint="Fix the given value and repeat.")
     raise typer.Exit(EXIT_USAGE_ERROR) from error
 
 
@@ -92,11 +92,11 @@ def init_command(
         typer.Option(
             "--force",
             help=option(
-                "Sobrescreve a configuração existente.",
-                kind="Booleano",
+                "Overwrite the existing configuration.",
+                kind="Boolean",
                 variable=None,
                 file=None,
-                default="desativado",
+                default="off",
             ),
         ),
     ] = False,
@@ -104,9 +104,9 @@ def init_command(
     path = config_file_path()
     if path.exists() and not force:
         ui.error(
-            "Configuração já existe",
-            f"O arquivo {path} não foi alterado.",
-            hint="Use --force para sobrescrevê-lo.",
+            "Configuration already exists",
+            f"The file {path} was not changed.",
+            hint="Use --force to overwrite it.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
 
@@ -136,9 +136,9 @@ def init_command(
         ensure_secure_url(core.api_url or "", allow_insecure_http=core.allow_insecure_http)
     except OidcError as error:
         ui.error(
-            "Endereço recusado",
+            "Address refused",
             str(error),
-            hint="Use HTTPS, ou --allow-insecure-http em desenvolvimento.",
+            hint="Use HTTPS, or --allow-insecure-http in development.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 
@@ -146,24 +146,24 @@ def init_command(
     try:
         write_private_file(path, content)
     except OSError as error:
-        ui.error("Não foi possível gravar a configuração", f"{path}: {error.strerror}")
+        ui.error("Could not write the configuration", f"{path}: {error.strerror}")
         raise typer.Exit(EXIT_FAILURE) from error
 
     ui.panel(
-        "Configuração gravada",
+        "Configuration written",
         [
-            ("Arquivo", str(path)),
-            ("Provedor", auth.issuer or ""),
-            ("API", core.api_url or ""),
-            ("Client ID", auth.client_id or ""),
+            ("file", str(path)),
+            ("issuer", auth.issuer or ""),
+            ("apiUrl", core.api_url or ""),
+            ("clientId", auth.client_id or ""),
         ],
     )
     if auth.client_id == PROVISIONAL_CLIENT_ID:
         ui.warning(
-            "O client ID de produção ainda não foi definido: o login de produção não funciona "
-            "até ele ser informado com --client-id ou `sk config set auth.clientId`."
+            "The production client ID is not defined yet: production login does not work "
+            "until it is provided with --client-id or `sk config set auth.clientId`."
         )
-    ui.note("Próximo passo: `sk auth login`.")
+    ui.note("Next step: `sk auth login`.")
 
 
 def _explicit(values: dict[str, object], allow_insecure_http: bool) -> dict[str, object]:

@@ -89,10 +89,10 @@ def ensure_secure_url(url: str, *, allow_insecure_http: bool) -> None:
         return
     if scheme == "http":
         raise OidcError(
-            f"URL sem TLS recusada: {url}. Use HTTPS ou permita HTTP explicitamente "
-            "(somente em desenvolvimento)."
+            f"URL without TLS refused: {url}. Use HTTPS or explicitly allow HTTP "
+            "(development only)."
         )
-    raise OidcError(f"Esquema de URL não suportado: {url}")
+    raise OidcError(f"Unsupported URL scheme: {url}")
 
 
 def _describe_provider_error(error: urllib.error.HTTPError) -> str:
@@ -117,27 +117,27 @@ def _request_json(request: urllib.request.Request, *, operation: str) -> dict[st
             body = cast(bytes, response.read())
     except urllib.error.HTTPError as error:
         raise OidcError(
-            f"{operation}: o provedor respondeu HTTP {error.code}{_describe_provider_error(error)}"
+            f"{operation}: the provider answered HTTP {error.code}{_describe_provider_error(error)}"
         ) from error
     except urllib.error.URLError as error:
         raise OidcError(
-            f"{operation}: falha de conexão com {request.full_url} ({error.reason})"
+            f"{operation}: connection failure to {request.full_url} ({error.reason})"
         ) from error
     except TimeoutError as error:
-        raise OidcError(f"{operation}: tempo esgotado aguardando {request.full_url}") from error
+        raise OidcError(f"{operation}: timed out waiting for {request.full_url}") from error
     try:
         payload = json.loads(body)
     except ValueError as error:
-        raise OidcError(f"{operation}: a resposta não é JSON válido") from error
+        raise OidcError(f"{operation}: the response is not valid JSON") from error
     if not isinstance(payload, dict):
-        raise OidcError(f"{operation}: a resposta não é um objeto JSON")
+        raise OidcError(f"{operation}: the response is not a JSON object")
     return cast(dict[str, object], payload)
 
 
 def _require_string(payload: Mapping[str, object], key: str, *, operation: str) -> str:
     value = payload.get(key)
     if not isinstance(value, str) or not value:
-        raise OidcError(f"{operation}: campo obrigatório ausente ou inválido: {key}")
+        raise OidcError(f"{operation}: required field missing or invalid: {key}")
     return value
 
 
@@ -146,13 +146,13 @@ def _optional_string(payload: Mapping[str, object], key: str, *, operation: str)
     if value is None:
         return None
     if not isinstance(value, str):
-        raise OidcError(f"{operation}: campo inválido: {key}")
+        raise OidcError(f"{operation}: invalid field: {key}")
     return value
 
 
 def fetch_provider_metadata(issuer: str, *, allow_insecure_http: bool) -> ProviderMetadata:
     """Obtém e valida o documento de discovery (OpenID Connect Discovery 1.0)."""
-    operation = "discovery OIDC"
+    operation = "OIDC discovery"
     ensure_secure_url(issuer, allow_insecure_http=allow_insecure_http)
     configured_issuer = issuer.rstrip("/")
     request = urllib.request.Request(  # noqa: S310 (esquema validado por ensure_secure_url)
@@ -164,12 +164,15 @@ def fetch_provider_metadata(issuer: str, *, allow_insecure_http: bool) -> Provid
     advertised_issuer = _require_string(payload, "issuer", operation=operation)
     if advertised_issuer.rstrip("/") != configured_issuer:
         raise OidcError(
-            f"{operation}: o issuer anunciado ({advertised_issuer}) difere do configurado "
+            f"{operation}: the advertised issuer ({advertised_issuer}) differs from the "
+            "configured one "
             f"({configured_issuer})"
         )
     challenge_methods = payload.get("code_challenge_methods_supported")
     if isinstance(challenge_methods, list) and CODE_CHALLENGE_METHOD not in challenge_methods:
-        raise OidcError(f"{operation}: o provedor não anuncia PKCE {CODE_CHALLENGE_METHOD}")
+        raise OidcError(
+            f"{operation}: the provider does not advertise PKCE {CODE_CHALLENGE_METHOD}"
+        )
 
     metadata = ProviderMetadata(
         issuer=advertised_issuer,
@@ -263,7 +266,7 @@ class LoopbackReceiver:
         while self._server.callback_parameters is None:
             remaining_seconds = deadline - time.monotonic()
             if remaining_seconds <= 0:
-                raise OidcError("tempo esgotado aguardando o retorno do login no navegador")
+                raise OidcError("timed out waiting for the login to return from the browser")
             self._server.timeout = remaining_seconds
             self._server.handle_request()
         return self._server.callback_parameters
@@ -289,15 +292,15 @@ def extract_authorization_code(
     """Valida o retorno (state e erro) e devolve o código de autorização."""
     received_state = callback_parameters.get("state", "")
     if not secrets.compare_digest(received_state.encode(), expected_state.encode()):
-        raise OidcError("o state do retorno não confere com o da requisição; login descartado")
+        raise OidcError("the returned state does not match the request state; login discarded")
     provider_error = callback_parameters.get("error")
     if provider_error is not None:
         description = callback_parameters.get("error_description")
         suffix = f": {description}" if description else ""
-        raise OidcError(f"o provedor recusou o login ({provider_error}{suffix})")
+        raise OidcError(f"the provider refused the login ({provider_error}{suffix})")
     authorization_code = callback_parameters.get("code")
     if not authorization_code:
-        raise OidcError("o retorno do login não contém o código de autorização")
+        raise OidcError("the login return does not contain the authorization code")
     return authorization_code
 
 
@@ -310,7 +313,7 @@ def exchange_authorization_code(
     code_verifier: str,
 ) -> TokenResponse:
     """Troca o código de autorização pelos tokens (cliente público, sem segredo)."""
-    operation = "troca do código por tokens"
+    operation = "exchange of the code for tokens"
     form = urllib.parse.urlencode(
         {
             "grant_type": "authorization_code",
@@ -340,7 +343,7 @@ def refresh_access_token(
     O provedor pode emitir um refresh token novo: quem chama deve gravar o recebido e, se vier
     vazio, manter o anterior.
     """
-    operation = "renovação do token"
+    operation = "token renewal"
     form = urllib.parse.urlencode(
         {"grant_type": "refresh_token", "refresh_token": refresh_token, "client_id": client_id}
     ).encode()
@@ -359,10 +362,10 @@ def refresh_access_token(
 def _token_response(payload: Mapping[str, object], *, operation: str) -> TokenResponse:
     token_type = _require_string(payload, "token_type", operation=operation)
     if token_type.lower() != "bearer":
-        raise OidcError(f"{operation}: token_type não suportado: {token_type}")
+        raise OidcError(f"{operation}: unsupported token_type: {token_type}")
     expires_in = payload.get("expires_in")
     if not isinstance(expires_in, int) or isinstance(expires_in, bool) or expires_in <= 0:
-        raise OidcError(f"{operation}: campo obrigatório ausente ou inválido: expires_in")
+        raise OidcError(f"{operation}: required field missing or invalid: expires_in")
     return TokenResponse(
         access_token=_require_string(payload, "access_token", operation=operation),
         token_type=token_type,
@@ -379,7 +382,7 @@ def fetch_userinfo(metadata: ProviderMetadata, access_token: str) -> dict[str, o
         metadata.userinfo_endpoint,
         headers={"Accept": "application/json", "Authorization": f"Bearer {access_token}"},
     )
-    return _request_json(request, operation="consulta do userinfo")
+    return _request_json(request, operation="userinfo lookup")
 
 
 def run_authorization_code_flow(

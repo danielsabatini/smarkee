@@ -12,16 +12,16 @@ def text(page: bytes) -> str:
     return page.decode("utf-8")
 
 
-def test_success_page_confirms_the_login_in_portuguese() -> None:
+def test_success_page_confirms_the_login_in_english() -> None:
     page = text(render_callback_page(success=True))
-    assert "Login concluído" in page
-    assert 'lang="pt-BR"' in page
-    assert "Esta janela pode ser fechada" in page
+    assert "Login completed" in page
+    assert 'lang="en"' in page
+    assert "You can close this window" in page
 
 
 def test_failure_page_says_how_to_retry() -> None:
     page = text(render_callback_page(success=False))
-    assert "Login não concluído" in page
+    assert "Login not completed" in page
     assert "sk auth login" in page
 
 
@@ -58,7 +58,7 @@ def test_the_callback_server_serves_the_page_with_the_policy() -> None:
             assert response.headers["Content-Security-Policy"] == CONTENT_SECURITY_POLICY
             assert response.headers["Cache-Control"] == "no-store"
         waiter.join(timeout=10)
-    assert "Login concluído" in body
+    assert "Login completed" in body
     assert "abc" not in body
 
 

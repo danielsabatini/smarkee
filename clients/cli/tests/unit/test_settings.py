@@ -95,7 +95,7 @@ def test_unset_flag_does_not_override_lower_sources(
 
 def test_unknown_key_in_config_file_is_rejected(config_home: Path) -> None:
     write_config(config_home, '[auth]\nisuer = "https://typo.example"\n')
-    with pytest.raises(ConfigurationError, match=r"chave desconhecida .*auth\.isuer"):
+    with pytest.raises(ConfigurationError, match=r"unknown key .*auth\.isuer"):
         load_auth_settings(NO_COMMAND_LINE_VALUES)
 
 
@@ -107,19 +107,19 @@ def test_snake_case_key_in_config_file_is_rejected(config_home: Path) -> None:
 
 def test_unknown_section_in_config_file_is_rejected(config_home: Path) -> None:
     write_config(config_home, '[ipm]\napiUrl = "https://api.example"\n')
-    with pytest.raises(ConfigurationError, match=r"chave desconhecida .*ipm"):
+    with pytest.raises(ConfigurationError, match=r"unknown key .*ipm"):
         load_auth_settings(NO_COMMAND_LINE_VALUES)
 
 
 def test_section_must_be_a_table(config_home: Path) -> None:
     write_config(config_home, 'auth = "https://file.example"\n')
-    with pytest.raises(ConfigurationError, match="tabela TOML"):
+    with pytest.raises(ConfigurationError, match="TOML table"):
         load_auth_settings(NO_COMMAND_LINE_VALUES)
 
 
 def test_invalid_toml_is_reported(config_home: Path) -> None:
     write_config(config_home, "[auth\n")
-    with pytest.raises(ConfigurationError, match="TOML inválido"):
+    with pytest.raises(ConfigurationError, match="invalid TOML"):
         load_auth_settings(NO_COMMAND_LINE_VALUES)
 
 

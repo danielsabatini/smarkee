@@ -34,14 +34,33 @@ def current_access_token(
     try:
         credentials = load_credentials(credentials_path)
     except CredentialsMissingError as error:
-        raise SessionError("Não há sessão. Rode `sk auth login`.") from error
+        raise SessionError("There is no session. Run `sk auth login`.") from error
     except CredentialsError as error:
-        raise SessionError(f"{error}. Rode `sk auth login` de novo.") from error
+        raise SessionError(f"{error}. Run `sk auth login` again.") from error
     if credentials.access_token_expires_at - RENEWAL_MARGIN > moment:
         return credentials.access_token
     return _renew(
         credentials, credentials_path, allow_insecure_http=allow_insecure_http, now=moment
     )
+
+
+def renew_session(
+    credentials_path: Path, *, allow_insecure_http: bool, now: datetime | None = None
+) -> datetime:
+    """Renova a sessão agora, mesmo com o acesso ainda válido, e devolve o novo vencimento.
+
+    O token só traz as roles que existiam quando foi emitido: depois de habilitar ou desabilitar
+    de serviço, renovar é o que faz o token refletir as roles novas.
+    """
+    moment = now or datetime.now(UTC)
+    try:
+        credentials = load_credentials(credentials_path)
+    except CredentialsMissingError as error:
+        raise SessionError("There is no session. Run `sk auth login`.") from error
+    except CredentialsError as error:
+        raise SessionError(f"{error}. Run `sk auth login` again.") from error
+    _renew(credentials, credentials_path, allow_insecure_http=allow_insecure_http, now=moment)
+    return load_credentials(credentials_path).access_token_expires_at
 
 
 def _renew(
@@ -52,7 +71,9 @@ def _renew(
     now: datetime,
 ) -> str:
     if credentials.refresh_token is None:
-        raise SessionError("A sessão expirou e não há refresh token. Rode `sk auth login`.")
+        raise SessionError(
+            "The session expired and there is no refresh token. Run `sk auth login`."
+        )
     try:
         metadata = fetch_provider_metadata(
             credentials.issuer, allow_insecure_http=allow_insecure_http
@@ -62,7 +83,7 @@ def _renew(
         )
     except OidcError as error:
         raise SessionError(
-            f"Não foi possível renovar a sessão ({error}). Rode `sk auth login`."
+            f"Could not renew the session ({error}). Run `sk auth login`."
         ) from error
     updated = replace(
         credentials,
@@ -77,5 +98,5 @@ def _renew(
     try:
         save_credentials(credentials_path, updated)
     except CredentialsError as error:
-        raise SessionError(f"{error}. Rode `sk auth login` de novo.") from error
+        raise SessionError(f"{error}. Run `sk auth login` again.") from error
     return updated.access_token

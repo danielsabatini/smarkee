@@ -90,13 +90,11 @@ def send(request: urllib.request.Request, *, opener: Opener | None = None) -> tu
                 field=field if isinstance(field, str) else None,
                 retry_after_seconds=_retry_after(error.headers),
             ) from None
-        raise ApiUnavailableError(f"a API respondeu com HTTP {error.code}") from None
+        raise ApiUnavailableError(f"the API answered HTTP {error.code}") from None
     except (urllib.error.URLError, OSError, TimeoutError) as error:
-        raise ApiUnavailableError(
-            f"não foi possível alcançar a API ({type(error).__name__})"
-        ) from None
+        raise ApiUnavailableError(f"could not reach the API ({type(error).__name__})") from None
     except ValueError:
-        raise ApiUnavailableError("a resposta da API não é JSON") from None
+        raise ApiUnavailableError("the API response is not JSON") from None
 
 
 def call_api(

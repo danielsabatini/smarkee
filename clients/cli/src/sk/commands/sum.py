@@ -2,19 +2,23 @@
 
 Usam o token da sessão (`sk auth login`), renovado quando está para vencer. A API é a mesma do
 `sk register` (`[core] apiUrl`). Ligar e desligar são assíncronos: o comando confirma o aceite e
-mostra como acompanhar a Operation.
+mostra como acompanhar a Operation. Com `--wait`, ele espera a ligação convergir e renova a sessão:
+o token só traz as roles que existiam quando foi emitido, e as do serviço chegam depois do aceite.
 """
 
+import time
 import uuid
 from typing import Annotated, NoReturn
 
 import typer
 from pydantic import ValidationError
+from rich.text import Text
 
 from sk import ui
 from sk.features.sum.service import (
     OperationStatus,
     ServiceLink,
+    ServiceRequestAccepted,
     disable_service,
     enable_service,
     get_operation,
@@ -26,7 +30,7 @@ from sk.help import command, option
 from sk.http import ApiError, ApiRejectedError, ApiUnavailableError
 from sk.identity.credentials import default_credentials_path
 from sk.identity.oidc import OidcError
-from sk.identity.session import SessionError, current_access_token
+from sk.identity.session import SessionError, current_access_token, renew_session
 from sk.settings import ConfigurationError, SkSettings
 
 ApiUrlOption = Annotated[
@@ -34,11 +38,11 @@ ApiUrlOption = Annotated[
     typer.Option(
         "--api-url",
         help=option(
-            "Endereço da API da plataforma.",
+            "Platform API address.",
             kind="String",
             variable="SK_CORE_API_URL",
             file="[core] apiUrl",
-            default="nenhum",
+            default="none",
         ),
     ),
 ]
@@ -47,20 +51,52 @@ AllowInsecureHttpOption = Annotated[
     typer.Option(
         "--allow-insecure-http",
         help=option(
-            "Permite endereço sem HTTPS. Somente para desenvolvimento.",
-            kind="Booleano",
+            "Allow an address without HTTPS. Development only.",
+            kind="Boolean",
             variable="SK_CORE_ALLOW_INSECURE_HTTP=true",
             file="[core] allowInsecureHttp = true",
-            default="desativado",
+            default="off",
         ),
     ),
 ]
 
+WaitOption = Annotated[
+    bool,
+    typer.Option(
+        "--wait",
+        help=option(
+            "Wait for the service to converge (phase Ready and Operation completed) and renew "
+            "the session, "
+            "so the token reflects the new roles.",
+            kind="Boolean",
+            variable=None,
+            file=None,
+            default="off",
+        ),
+    ),
+]
+TimeoutOption = Annotated[
+    int,
+    typer.Option(
+        "--timeout",
+        min=1,
+        help=option(
+            "Seconds to wait with --wait.",
+            kind="Integer",
+            variable=None,
+            file=None,
+            default="60",
+        ),
+    ),
+]
+DEFAULT_WAIT_TIMEOUT_SECONDS = 60
+WAIT_POLL_SECONDS = 1.0
+
 EXIT_FAILURE = 1
 EXIT_USAGE_ERROR = 2
 
-SUM_HELP = command("Serviços do Service Usage Manager (SUM).")
-SERVICE_HELP = command("Liga, desliga e consulta os serviços do solicitante.")
+SUM_HELP = command("Services of the Service Usage Manager (SUM).")
+SERVICE_HELP = command("Enable, disable and inspect the requester's services.")
 
 sum_app = typer.Typer(
     help=SUM_HELP,
@@ -81,9 +117,9 @@ sum_app.add_typer(service_app, name="service")
 def _require(value: str | None, option_name: str) -> str:
     if value is None:
         ui.error(
-            "Opção obrigatória ausente",
-            f"Informe {option_name}.",
-            hint=f"Repita o comando com {option_name} VALOR.",
+            "Missing required option",
+            f"Provide {option_name}.",
+            hint=f"Repeat the command with {option_name} VALUE.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return value
@@ -94,7 +130,7 @@ def _identifier(value: str | None, option_name: str, *, what: str) -> str:
     try:
         return validate_identifier(_require(value, option_name), what=what)
     except ValueError as error:
-        ui.error("Dados não aceitos", str(error), hint=f"Corrija {option_name} e repita.")
+        ui.error("Value not accepted", str(error), hint=f"Fix {option_name} and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 
 
@@ -111,88 +147,209 @@ def _load_core(api_url: str | None, allow_insecure_http: bool) -> tuple[str, boo
         # Mesmo mecanismo do `sk register`: parâmetro → ambiente → arquivo → default.
         core = SkSettings(core=explicit).core  # pyright: ignore[reportArgumentType]
     except (ValidationError, ConfigurationError) as error:
-        ui.error("Configuração inválida", str(error), hint="Corrija o arquivo indicado e repita.")
+        ui.error("Invalid configuration", str(error), hint="Fix the indicated file and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     if not core.api_url:
         ui.error(
-            "API não informada",
-            "Informe-a por --api-url, SK_CORE_API_URL ou apiUrl na tabela [core].",
-            hint="Rode `sk init` para criar a configuração, ou informe --api-url.",
+            "API not provided",
+            "Provide it with --api-url, SK_CORE_API_URL or apiUrl in the [core] table.",
+            hint="Run `sk init` to create the configuration, or provide --api-url.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return core.api_url, core.allow_insecure_http
 
 
+def _session_insecure(allow_insecure_http: bool) -> bool:
+    """O provedor de identidade segue a permissão de HTTP da seção `[auth]`, além da opção."""
+    return allow_insecure_http or SkSettings().auth.allow_insecure_http
+
+
 def _token(allow_insecure_http: bool) -> str:
     try:
         return current_access_token(
-            default_credentials_path(), allow_insecure_http=allow_insecure_http
+            default_credentials_path(), allow_insecure_http=_session_insecure(allow_insecure_http)
         )
     except SessionError as error:
-        ui.error("Sessão indisponível", str(error), hint="Rode `sk auth login`.")
+        ui.error("Session unavailable", str(error), hint="Run `sk auth login`.")
         raise typer.Exit(EXIT_FAILURE) from error
 
 
-CONFLICT_ON_CHANGE = "A ligação mudou desde a última leitura. Consulte-a e tente de novo."
+CONFLICT_ON_CHANGE = "The service changed since it was last read. Inspect it and try again."
 
 
 def _fail_api(
     error: ApiError,
     *,
-    not_found: str = "Ligação não encontrada para a sua conta.",
+    not_found: str = "Service not found for your account.",
     conflict: str = CONFLICT_ON_CHANGE,
 ) -> NoReturn:
     """Mostra a falha da API e sai. `not_found` e `conflict` dizem o que o `404` e o `409`
     significam no comando."""
     if isinstance(error, ApiUnavailableError):
-        ui.error("Serviço indisponível", str(error), hint="Repita em alguns minutos.")
+        ui.error("Service unavailable", str(error), hint="Try again in a few minutes.")
         raise typer.Exit(EXIT_FAILURE) from error
     if not isinstance(error, ApiRejectedError):  # pragma: no cover (subclasse sem tratamento)
-        ui.error("Falha na chamada à API", str(error))
+        ui.error("API call failed", str(error))
         raise typer.Exit(EXIT_FAILURE) from error
     if error.status == 429:
         wait = error.retry_after_seconds
         ui.error(
-            "Muitas tentativas",
+            "Too many requests",
             str(error),
-            hint=f"Aguarde {wait} segundos e repita." if wait else "Aguarde e tente de novo.",
+            hint=f"Wait {wait} seconds and repeat." if wait else "Wait and try again.",
         )
         raise typer.Exit(EXIT_FAILURE) from error
     hints = {
-        401: "A sessão não foi aceita. Rode `sk auth login`.",
-        403: "Sua conta não tem a permissão para esta operação.",
+        401: "The session was not accepted. Run `sk auth login`.",
+        403: "Your account does not have permission for this operation.",
         404: not_found,
         409: conflict,
     }
     hint = hints.get(error.status, f"HTTP {error.status} ({error.error_code}).")
     detail = f"{error.field}: {error}" if error.field else str(error)
-    ui.error("Pedido recusado pela API", detail, hint=hint)
+    ui.error("Request refused by the API", detail, hint=hint)
     raise typer.Exit(EXIT_USAGE_ERROR if error.status == 400 else EXIT_FAILURE) from error
 
 
 def _bad_address(error: OidcError) -> NoReturn:
     ui.error(
-        "Endereço da API recusado",
+        "API address refused",
         str(error),
-        hint="Use HTTPS ou --allow-insecure-http em desenvolvimento.",
+        hint="Use HTTPS, or --allow-insecure-http in development.",
     )
     raise typer.Exit(EXIT_USAGE_ERROR) from error
 
 
+STATE_STYLES = {"enabled": "green", "disabled": "dim"}
+PHASE_STYLES = {
+    "Ready": "green",
+    "Failed": "red",
+}  # as demais fases (em andamento) ficam em amarelo
+
+
+def _styled_state(link: ServiceLink) -> Text:
+    label = _phase_label(link)
+    return Text(label, style=STATE_STYLES[label])
+
+
+def _styled_phase(link: ServiceLink) -> Text:
+    return Text(link.phase, style=PHASE_STYLES.get(link.phase, "yellow"))
+
+
 def _phase_label(link: ServiceLink) -> str:
-    return "desligado" if link.lifecycle == "absent" else "ligado"
+    return "disabled" if link.lifecycle == "absent" else "enabled"
+
+
+def _wait_for_convergence(
+    url: str,
+    token: str,
+    insecure: bool,
+    accepted: ServiceRequestAccepted,
+    *,
+    enabled: bool,
+    timeout: int,
+) -> ServiceLink:
+    """Espera a ligação em `Ready` e a Operation `completed`; se não der, sai dizendo por quê."""
+    ui.note(f"Waiting for convergence (up to {timeout} s)...")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            operation = get_operation(
+                url,
+                token=token,
+                resource_id=accepted.resource_id,
+                operation_id=accepted.operation_id,
+                allow_insecure_http=insecure,
+            )
+            link = get_service(
+                url, token=token, resource_id=accepted.resource_id, allow_insecure_http=insecure
+            )
+        except OidcError as error:
+            _bad_address(error)
+        except ApiError as error:
+            _fail_api(error)
+        if operation.operation_status in ("rejected", "failed"):
+            ui.error(
+                "Request not completed",
+                f"The Operation ended as {operation.operation_status}"
+                + (f": {operation.reason}" if operation.reason else "."),
+                hint="Inspect it with `sk sum service get`.",
+            )
+            raise typer.Exit(EXIT_FAILURE)
+        reached = (link.lifecycle != "absent") == enabled
+        if operation.operation_status == "completed" and link.phase == "Ready" and reached:
+            return link
+        if time.monotonic() >= deadline:
+            ui.error(
+                "Timed out",
+                f"{timeout} s passed and the service is in phase {link.phase} "
+                f"(Operation {operation.operation_status}).",
+                hint=f"The request is still in progress: `sk sum service get --resource-id "
+                f"{accepted.resource_id}`.",
+            )
+            raise typer.Exit(EXIT_FAILURE)
+        time.sleep(WAIT_POLL_SECONDS)
+
+
+def _renew_after_convergence(insecure: bool) -> bool:
+    """Renova a sessão para o token refletir as roles novas. Falha vira aviso: o pedido já valeu."""
+    try:
+        renew_session(default_credentials_path(), allow_insecure_http=_session_insecure(insecure))
+    except SessionError as error:
+        ui.warning(
+            f"Session not renewed ({error}). The token may not reflect the new roles: "
+            "run `sk auth login`."
+        )
+        return False
+    return True
 
 
 def _operation_rows(operation: OperationStatus) -> list[tuple[str, str]]:
-    rows = [("operationId", operation.operation_id), ("Situação", operation.operation_status)]
+    rows = [
+        ("operationId", operation.operation_id),
+        ("operationStatus", operation.operation_status),
+    ]
     if operation.reason is not None:
-        rows.append(("Motivo", operation.reason))
+        rows.append(("reason", operation.reason))
     return rows
+
+
+def _finish_request(
+    url: str,
+    token: str,
+    insecure: bool,
+    accepted: ServiceRequestAccepted,
+    *,
+    enabled: bool,
+    wait: bool,
+    timeout: int,
+) -> None:
+    """Fim de `enable` e `disable`: orienta o acompanhamento ou, com `--wait`, espera e renova."""
+    if not wait:
+        ui.note(
+            f"Follow it with `sk sum service get --resource-id {accepted.resource_id}`. "
+            "Once the phase "
+            "is Ready, run `sk auth refresh` so the token reflects the new roles."
+        )
+        return
+    link = _wait_for_convergence(url, token, insecure, accepted, enabled=enabled, timeout=timeout)
+    renewed = _renew_after_convergence(insecure)
+    ui.panel(
+        "Service enabled" if enabled else "Service disabled",
+        [
+            ("resourceId", link.resource_id),
+            ("service", link.service),
+            ("state", _phase_label(link)),
+            ("phase", link.phase),
+            ("observedRoles", ", ".join(link.observed_roles) or "none"),
+            ("session", "renewed" if renewed else "not renewed"),
+        ],
+    )
 
 
 @service_app.command(
     "enable",
-    help=command("Liga um serviço para o solicitante. Acompanhe com `sk sum service get`."),
+    help=command("Enable a service for the requester. Follow it with `sk sum service get`."),
 )
 def enable_command(
     service: Annotated[
@@ -200,14 +357,16 @@ def enable_command(
         typer.Option(
             "--service",
             help=option(
-                "Nome do serviço, como no catálogo (por exemplo, ipm).",
+                "Service name, as in the catalog (for example, ipm).",
                 kind="String",
                 variable=None,
                 file=None,
-                default="nenhum",
+                default="none",
             ),
         ),
     ] = None,
+    wait: WaitOption = False,
+    timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
     api_url: ApiUrlOption = None,
     allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
@@ -227,22 +386,22 @@ def enable_command(
         _bad_address(error)
     except ApiError as error:
         _fail_api(
-            error, conflict="Já existe uma ligação deste serviço. Veja com `sk sum service list`."
+            error, conflict="This service is already enabled. See it with `sk sum service list`."
         )
     ui.panel(
-        "Ligação solicitada",
+        "Enablement requested",
         [
-            ("Serviço", service),
+            ("service", service),
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
     )
-    ui.note(f"Acompanhe com `sk sum service get --resource-id {accepted.resource_id}`.")
+    _finish_request(url, token, insecure, accepted, enabled=True, wait=wait, timeout=timeout)
 
 
 @service_app.command(
     "disable",
-    help=command("Desliga uma ligação do solicitante, lendo a versão atual antes de pedir."),
+    help=command("Disable a requester's service, reading the current version before asking."),
 )
 def disable_command(
     resource_id: Annotated[
@@ -250,14 +409,16 @@ def disable_command(
         typer.Option(
             "--resource-id",
             help=option(
-                "resourceId da ligação (retornado por `enable` ou `list`).",
+                "resourceId of the service (returned by `enable` or `list`).",
                 kind="String",
                 variable=None,
                 file=None,
-                default="nenhum",
+                default="none",
             ),
         ),
     ] = None,
+    wait: WaitOption = False,
+    timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
     api_url: ApiUrlOption = None,
     allow_insecure_http: AllowInsecureHttpOption = False,
 ) -> None:
@@ -270,7 +431,7 @@ def disable_command(
         )
         if current.lifecycle == "absent":
             # Idempotente: desligar o que já está desligado não é erro.
-            ui.note(f"A ligação {resource_id} já está desligada. Nada a fazer.")
+            ui.note(f"Service {resource_id} is already disabled. Nothing to do.")
             return
         accepted = disable_service(
             url,
@@ -284,19 +445,19 @@ def disable_command(
     except ApiError as error:
         _fail_api(error)
     ui.panel(
-        "Desligamento solicitado",
+        "Disablement requested",
         [
-            ("Serviço", current.service),
+            ("service", current.service),
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
     )
-    ui.note(f"Acompanhe com `sk sum service get --resource-id {accepted.resource_id}`.")
+    _finish_request(url, token, insecure, accepted, enabled=False, wait=wait, timeout=timeout)
 
 
 @service_app.command(
     "get",
-    help=command("Mostra o estado de uma ligação e, se informado, de uma Operation."),
+    help=command("Show the state of a service and, if given, of an Operation."),
 )
 def get_command(
     resource_id: Annotated[
@@ -304,11 +465,11 @@ def get_command(
         typer.Option(
             "--resource-id",
             help=option(
-                "resourceId da ligação.",
+                "resourceId of the service.",
                 kind="String",
                 variable=None,
                 file=None,
-                default="nenhum",
+                default="none",
             ),
         ),
     ] = None,
@@ -317,11 +478,11 @@ def get_command(
         typer.Option(
             "--operation-id",
             help=option(
-                "operationId de um pedido (retornado por `enable` ou `disable`).",
+                "operationId of a request (returned by `enable` or `disable`).",
                 kind="String",
                 variable=None,
                 file=None,
-                default="sem consulta à Operation",
+                default="no Operation lookup",
             ),
         ),
     ] = None,
@@ -352,20 +513,20 @@ def get_command(
         except OidcError as error:
             _bad_address(error)
         except ApiError as error:
-            _fail_api(error, not_found="Operation não encontrada para esta ligação.")
+            _fail_api(error, not_found="Operation not found for this service.")
     rows = [
         ("resourceId", link.resource_id),
-        ("Serviço", link.service),
-        ("Situação", _phase_label(link)),
-        ("Fase", link.phase),
-        ("Roles observadas", ", ".join(link.observed_roles) or "nenhuma"),
+        ("service", link.service),
+        ("state", _phase_label(link)),
+        ("phase", link.phase),
+        ("observedRoles", ", ".join(link.observed_roles) or "none"),
     ]
     if operation is not None:
         rows.extend(_operation_rows(operation))
-    ui.panel("Ligação", rows)
+    ui.panel("Service", rows)
 
 
-@service_app.command("list", help=command("Lista as ligações do solicitante."))
+@service_app.command("list", help=command("List the requester's services."))
 def list_command(
     api_url: ApiUrlOption = None,
     allow_insecure_http: AllowInsecureHttpOption = False,
@@ -379,10 +540,13 @@ def list_command(
     except ApiError as error:
         _fail_api(error)
     if not links:
-        ui.note("Nenhuma ligação.")
+        ui.note("No services.")
         return
     ui.table(
-        "Ligações",
-        ["resourceId", "Serviço", "Situação", "Fase"],
-        [[link.resource_id, link.service, _phase_label(link), link.phase] for link in links],
+        "Services",
+        ["resourceId", "service", "state", "phase"],
+        [
+            [link.resource_id, link.service, _styled_state(link), _styled_phase(link)]
+            for link in links
+        ],
     )

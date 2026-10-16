@@ -161,13 +161,13 @@ def test_plain_http_is_refused_without_permission() -> None:
 @pytest.mark.parametrize(
     ("given", "family", "email", "message"),
     [
-        ("  ", "Souza", "ana@example.com", "--name não pode ser vazio"),
-        ("Ana", "", "ana@example.com", "--surname não pode ser vazio"),
-        ("Ana", "x" * 257, "ana@example.com", "excede 256"),
-        ("Ana", "Souza", "sem-arroba", "formato de um e-mail"),
-        ("Ana", "Souza", "a@semponto", "formato de um e-mail"),
-        ("Ana", "Souza", "a b@example.com", "formato de um e-mail"),
-        ("Ana", "Souza", "a@example.com" + "x" * 250, "tamanho"),
+        ("  ", "Souza", "ana@example.com", "--name cannot be empty"),
+        ("Ana", "", "ana@example.com", "--surname cannot be empty"),
+        ("Ana", "x" * 257, "ana@example.com", "exceeds 256"),
+        ("Ana", "Souza", "sem-arroba", "format of an e-mail"),
+        ("Ana", "Souza", "a@semponto", "format of an e-mail"),
+        ("Ana", "Souza", "a b@example.com", "format of an e-mail"),
+        ("Ana", "Souza", "a@example.com" + "x" * 250, "size"),
     ],
 )
 def test_invalid_data_is_refused_before_any_request(

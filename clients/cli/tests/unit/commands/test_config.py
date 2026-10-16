@@ -20,6 +20,7 @@ def isolated_configuration(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         "SK_CORE_ALLOW_INSECURE_HTTP",
         "SK_CORE_PROJECT_ID",
         "SK_SUM_PROJECT_ID",
+        "SK_IPM_PROJECT_ID",
     ):
         monkeypatch.delenv(variable, raising=False)
 
@@ -36,7 +37,8 @@ def create_defaults() -> None:
 def test_keys_come_from_the_models() -> None:
     keys = known_keys()
     assert {"auth.issuer", "auth.clientId", "auth.allowInsecureHttp"} <= set(keys)
-    assert {"core.apiUrl", "core.allowInsecureHttp", "core.projectId", "sum.projectId"} <= set(keys)
+    assert {"core.apiUrl", "core.allowInsecureHttp"} <= set(keys)
+    assert {"core.projectId", "sum.projectId", "ipm.projectId"} <= set(keys)
     assert keys["auth.allowInsecureHttp"].is_boolean
     assert not keys["auth.issuer"].is_boolean
 
@@ -67,7 +69,7 @@ def test_get_unknown_key_is_a_usage_error() -> None:
     create_defaults()
     result = runner.invoke(app, ["config", "get", "auth.inexistente"])
     assert result.exit_code == 2
-    assert "Chave desconhecida" in result.stderr
+    assert "Unknown key" in result.stderr
 
 
 def test_get_key_without_value_fails_with_hint(tmp_path: Path) -> None:
@@ -77,7 +79,7 @@ def test_get_key_without_value_fails_with_hint(tmp_path: Path) -> None:
     )
     result = runner.invoke(app, ["config", "get", "core.apiUrl"])
     assert result.exit_code == 1
-    assert "Não definido" in result.stderr
+    assert "Not set" in result.stderr
 
 
 def test_set_changes_only_the_given_key(tmp_path: Path) -> None:
@@ -94,7 +96,11 @@ def test_the_project_ids_of_the_modules_are_settable_and_survive_other_changes(
     tmp_path: Path,
 ) -> None:
     create_defaults()
-    for key, value in (("core.projectId", "111"), ("sum.projectId", "222")):
+    for key, value in (
+        ("core.projectId", "111"),
+        ("sum.projectId", "222"),
+        ("ipm.projectId", "333"),
+    ):
         result = runner.invoke(app, ["config", "set", key, value])
         assert result.exit_code == 0, result.stderr
     # Uma alteração em outra seção não pode apagar as chaves de projeto já gravadas.
@@ -104,6 +110,7 @@ def test_the_project_ids_of_the_modules_are_settable_and_survive_other_changes(
     assert 'projectId = "111"' in text and "[sum]" in text and 'projectId = "222"' in text
     assert runner.invoke(app, ["config", "get", "sum.projectId"]).stdout.strip() == "222"
     assert runner.invoke(app, ["config", "get", "core.projectId"]).stdout.strip() == "111"
+    assert runner.invoke(app, ["config", "get", "ipm.projectId"]).stdout.strip() == "333"
 
 
 def test_set_boolean_accepts_true_and_false(tmp_path: Path) -> None:
@@ -118,7 +125,7 @@ def test_set_boolean_rejects_other_values(tmp_path: Path) -> None:
     before = config_file(tmp_path).read_text(encoding="utf-8")
     result = runner.invoke(app, ["config", "set", "auth.allowInsecureHttp", "sim"])
     assert result.exit_code == 2
-    assert "true ou false" in result.stderr
+    assert "true or false" in result.stderr
     assert config_file(tmp_path).read_text(encoding="utf-8") == before
 
 
@@ -127,7 +134,7 @@ def test_set_url_must_have_a_scheme(tmp_path: Path) -> None:
     before = config_file(tmp_path).read_text(encoding="utf-8")
     result = runner.invoke(app, ["config", "set", "core.apiUrl", "api.example"])
     assert result.exit_code == 2
-    assert "http:// ou https://" in result.stderr
+    assert "http:// or https://" in result.stderr
     assert config_file(tmp_path).read_text(encoding="utf-8") == before
 
 
@@ -135,7 +142,7 @@ def test_set_http_without_permission_warns(tmp_path: Path) -> None:
     create_defaults()
     result = runner.invoke(app, ["config", "set", "core.apiUrl", "http://api.example"])
     assert result.exit_code == 0, result.stderr
-    assert "HTTP sem permissão" in result.stderr
+    assert "HTTP without permission" in result.stderr
     assert 'apiUrl = "http://api.example"' in config_file(tmp_path).read_text(encoding="utf-8")
 
 
@@ -158,7 +165,7 @@ def test_set_refuses_a_file_with_invalid_keys(tmp_path: Path) -> None:
 def test_missing_arguments_are_usage_errors() -> None:
     result = runner.invoke(app, ["config", "get"])
     assert result.exit_code == 2
-    assert "Argumento obrigatório ausente" in result.stderr
+    assert "Missing required argument" in result.stderr
     result = runner.invoke(app, ["config", "set", "auth.issuer"])
     assert result.exit_code == 2
-    assert "o valor" in result.stderr
+    assert "the value" in result.stderr

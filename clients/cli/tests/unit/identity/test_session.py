@@ -8,7 +8,7 @@ import pytest
 from sk.identity import session as session_module
 from sk.identity.credentials import StoredCredentials, load_credentials, save_credentials
 from sk.identity.oidc import OidcError, ProviderMetadata, TokenResponse
-from sk.identity.session import SessionError, current_access_token
+from sk.identity.session import SessionError, current_access_token, renew_session
 
 NOW = datetime(2026, 10, 15, 12, 0, tzinfo=UTC)
 METADATA = ProviderMetadata(
@@ -83,6 +83,30 @@ def test_an_expiring_token_is_renewed_and_saved(
     assert saved.access_token_expires_at == NOW + timedelta(seconds=900)
 
 
+def test_renew_session_renews_even_when_the_token_is_still_valid(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    save_credentials(path, credentials(NOW + timedelta(hours=10)))
+    calls = fake_refresh(
+        monkeypatch, TokenResponse("access-new", "Bearer", 900, "refresh-2", None, None)
+    )
+    expires_at = renew_session(path, allow_insecure_http=False, now=NOW)
+    assert calls == ["refresh-1"]
+    assert expires_at == NOW + timedelta(seconds=900)
+    assert load_credentials(path).access_token == "access-new"
+
+
+def test_renew_session_without_a_session_or_a_refresh_token_asks_for_login(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_refresh(monkeypatch, OidcError("não deveria ser chamado"))
+    with pytest.raises(SessionError, match="sk auth login"):
+        renew_session(path, allow_insecure_http=False, now=NOW)
+    save_credentials(path, credentials(NOW + timedelta(hours=1), refresh_token=None))
+    with pytest.raises(SessionError, match="refresh token"):
+        renew_session(path, allow_insecure_http=False, now=NOW)
+
+
 def test_without_a_new_refresh_token_the_old_one_is_kept(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -107,7 +131,7 @@ def test_a_refused_refresh_asks_for_login_without_showing_tokens(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     save_credentials(path, credentials(NOW - timedelta(minutes=1)))
-    fake_refresh(monkeypatch, OidcError("renovação do token: HTTP 400"))
+    fake_refresh(monkeypatch, OidcError("token renewal: HTTP 400"))
     with pytest.raises(SessionError) as raised:
         current_access_token(path, allow_insecure_http=False, now=NOW)
     assert "refresh-1" not in str(raised.value)

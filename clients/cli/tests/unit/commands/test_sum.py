@@ -40,7 +40,8 @@ class FakeApi:
     """Substitui `urlopen`: responde por (método, caminho) e grava os pedidos recebidos."""
 
     def __init__(self) -> None:
-        self.routes: dict[tuple[str, str], Response | urllib.error.HTTPError] = {}
+        # Uma lista responde em sequência; a última resposta se repete.
+        self.routes: dict[tuple[str, str], Response | urllib.error.HTTPError | list[Response]] = {}
         self.requests: list[urllib.request.Request] = []
 
     def __call__(self, request: urllib.request.Request, timeout: float = 0) -> Response:
@@ -52,6 +53,8 @@ class FakeApi:
             raise AssertionError(f"rota não prevista: {key}")
         if isinstance(found, urllib.error.HTTPError):
             raise found
+        if isinstance(found, list):
+            return found.pop(0) if len(found) > 1 else found[0]
         return found
 
 
@@ -144,7 +147,7 @@ def test_disable_of_a_link_that_is_already_off_is_a_no_op(api: FakeApi) -> None:
     api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(200, link_document("absent", "Ready"))
     result = runner.invoke(app, ["sum", "service", "disable", "--resource-id", RID])
     assert result.exit_code == 0
-    assert "já está desligada" in result.stdout
+    assert "is already disabled" in result.stdout
     assert all(request.get_method() != "DELETE" for request in api.requests)
 
 
@@ -171,7 +174,7 @@ def test_an_empty_list_says_so(api: FakeApi) -> None:
     api.routes[("GET", "/v1/sum/services")] = Response(200, {"items": []})
     result = runner.invoke(app, ["sum", "service", "list"])
     assert result.exit_code == 0
-    assert "Nenhuma ligação" in result.stdout
+    assert "No services" in result.stdout
 
 
 def test_a_refused_request_shows_the_api_reason_and_a_hint(api: FakeApi) -> None:
@@ -186,23 +189,23 @@ def test_a_conflict_on_disable_asks_to_read_again(api: FakeApi) -> None:
     api.routes[("DELETE", f"/v1/sum/services/{RID}")] = http_error(409, "Conflict", "mudou")
     result = runner.invoke(app, ["sum", "service", "disable", "--resource-id", RID])
     assert result.exit_code == 1
-    assert "A ligação mudou desde a última leitura" in result.stderr
+    assert "The service changed since it was last read" in result.stderr
 
 
 def test_a_conflict_on_enable_points_to_the_existing_link(api: FakeApi) -> None:
-    api.routes[("POST", "/v1/sum/services")] = http_error(409, "Conflict", "já está ligado")
+    api.routes[("POST", "/v1/sum/services")] = http_error(409, "Conflict", "already enabled")
     result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm"])
     assert result.exit_code == 1
-    assert "já está ligado" in result.stderr
-    assert "Já existe uma ligação deste serviço" in result.stderr
-    assert "mudou desde a última leitura" not in result.stderr
+    assert "already enabled" in result.stderr
+    assert "This service is already enabled" in result.stderr
+    assert "changed since it was last read" not in result.stderr
 
 
 def test_a_server_failure_is_reported_as_unavailable(api: FakeApi) -> None:
     api.routes[("GET", "/v1/sum/services")] = http_error(503, "Unavailable", "fora")
     result = runner.invoke(app, ["sum", "service", "list"])
     assert result.exit_code == 1
-    assert "indisponível" in result.stderr
+    assert "unavailable" in result.stderr
 
 
 def test_without_a_session_the_command_asks_for_login(api: FakeApi, tmp_path: Path) -> None:
@@ -219,7 +222,7 @@ def test_plain_http_is_refused_without_permission(api: FakeApi, tmp_path: Path) 
     )
     result = runner.invoke(app, ["sum", "service", "list"])
     assert result.exit_code == 2
-    assert "Endereço da API recusado" in result.stderr
+    assert "API address refused" in result.stderr
     assert api.requests == []
 
 
@@ -232,14 +235,14 @@ def test_the_api_address_and_the_http_permission_come_from_the_command_line(
     result = runner.invoke(
         app, ["sum", "service", "list", "--api-url", "http://api.teste", "--allow-insecure-http"]
     )
-    assert "Endereço da API recusado" not in result.stderr  # a permissão foi aceita
+    assert "API address refused" not in result.stderr  # a permissão foi aceita
 
 
 def test_without_an_api_address_the_command_asks_for_it(api: FakeApi, tmp_path: Path) -> None:
     (tmp_path / "sk" / "config.toml").write_text("", encoding="utf-8")
     result = runner.invoke(app, ["sum", "service", "list"])
     assert result.exit_code == 2
-    assert "API não informada" in result.stderr
+    assert "API not provided" in result.stderr
     assert api.requests == []
 
 
@@ -257,7 +260,7 @@ def test_an_identifier_outside_the_contract_is_refused_before_any_call(
     ):
         result = runner.invoke(app, ["sum", "service", *command])
         assert result.exit_code == 2, command
-        assert "Dados não aceitos" in result.stderr
+        assert "Value not accepted" in result.stderr
         assert bad_id.strip() == "" or bad_id not in result.stderr  # o valor não é repetido
     assert api.requests == []
 
@@ -279,7 +282,7 @@ def test_too_many_requests_shows_the_wait_time(api: FakeApi) -> None:
     )
     result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm"])
     assert result.exit_code == 1
-    assert "Aguarde 30 segundos" in result.stderr
+    assert "Wait 30 seconds" in result.stderr
 
 
 def test_a_validation_error_names_the_field_and_exits_with_usage_code(api: FakeApi) -> None:
@@ -305,18 +308,164 @@ def test_a_missing_operation_is_not_reported_as_a_missing_link(api: FakeApi) -> 
         app, ["sum", "service", "get", "--resource-id", RID, "--operation-id", OPID]
     )
     assert result.exit_code == 1
-    assert "Operation não encontrada" in result.stderr
-    assert "Ligação não encontrada" not in result.stderr
+    assert "Operation not found" in result.stderr
+    assert "Service not found" not in result.stderr
 
 
 def test_a_missing_link_says_so(api: FakeApi) -> None:
     api.routes[("GET", f"/v1/sum/services/{RID}")] = http_error(404, "NotFound", "não existe")
     result = runner.invoke(app, ["sum", "service", "get", "--resource-id", RID])
     assert result.exit_code == 1
-    assert "Ligação não encontrada" in result.stderr
+    assert "Service not found" in result.stderr
 
 
 def test_the_token_never_appears_in_the_output(api: FakeApi) -> None:
     api.routes[("GET", "/v1/sum/services")] = http_error(403, "Forbidden", "sem permissão")
     result = runner.invoke(app, ["sum", "service", "list"])
     assert "access-1" not in result.stdout + result.stderr
+
+
+# ------------------------------------------------------------- --wait e a renovação da sessão
+
+
+def no_sleep(_: float) -> None:
+    return None
+
+
+def operation_document(status: str, reason: str | None = None) -> Response:
+    document: dict[str, Any] = {"operationId": OPID, "operationStatus": status}
+    if reason:
+        document["operationStatusReason"] = reason
+    return Response(200, document)
+
+
+@pytest.fixture
+def renewals(monkeypatch: pytest.MonkeyPatch) -> list[bool]:
+    """Troca a renovação da sessão por um registro e a espera por nada (o teste não dorme)."""
+    calls: list[bool] = []
+
+    def record(*_: object, **__: object) -> None:
+        calls.append(True)
+
+    monkeypatch.setattr("sk.commands.sum.renew_session", record)
+    monkeypatch.setattr("sk.commands.sum.time.sleep", no_sleep)
+    return calls
+
+
+def route_accepted(api: FakeApi, method: str) -> None:
+    api.routes[(method, "/v1/sum/services" if method == "POST" else f"/v1/sum/services/{RID}")] = (
+        Response(202, {"resourceId": RID, "operationId": OPID})
+    )
+    api.routes[("GET", f"/v1/sum/services/{RID}/operations/{OPID}")] = operation_document(
+        "completed"
+    )
+
+
+def test_enable_wait_waits_for_ready_then_renews_the_session(
+    api: FakeApi, renewals: list[bool]
+) -> None:
+    route_accepted(api, "POST")
+    api.routes[("GET", f"/v1/sum/services/{RID}/operations/{OPID}")] = [
+        operation_document("in_progress"),
+        operation_document("completed"),
+    ]
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = [
+        Response(200, link_document("present", "Reconciling")),
+        Response(200, link_document("present", "Ready")),
+    ]
+    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm", "--wait"])
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert "Service enabled" in result.stdout
+    assert "enabled" in result.stdout and "Ready" in result.stdout
+    assert "renewed" in result.stdout
+    assert renewals == [True]
+
+
+def test_enable_without_wait_does_not_poll_nor_renew_and_points_to_refresh(
+    api: FakeApi, renewals: list[bool]
+) -> None:
+    api.routes[("POST", "/v1/sum/services")] = Response(
+        202, {"resourceId": RID, "operationId": OPID}
+    )
+    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm"])
+    assert result.exit_code == 0, result.stderr
+    assert "sk auth refresh" in result.stdout
+    assert [request.get_method() for request in api.requests] == ["POST"]
+    assert renewals == []
+
+
+def test_wait_times_out_with_a_hint_and_does_not_renew(
+    api: FakeApi, renewals: list[bool], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    route_accepted(api, "POST")
+    api.routes[("GET", f"/v1/sum/services/{RID}/operations/{OPID}")] = operation_document(
+        "in_progress"
+    )
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(
+        200, link_document("present", "Reconciling")
+    )
+    clock = iter(range(0, 1000, 20))  # cada leitura do relógio avança 20 s
+    monkeypatch.setattr("sk.commands.sum.time.monotonic", lambda: next(clock))
+    result = runner.invoke(
+        app, ["sum", "service", "enable", "--service", "ipm", "--wait", "--timeout", "30"]
+    )
+    assert result.exit_code == 1
+    assert "Timed out" in result.stderr and "Reconciling" in result.stderr
+    assert f"sk sum service get --resource-id {RID}" in " ".join(result.stderr.split())
+    assert renewals == []
+
+
+def test_wait_stops_when_the_operation_is_rejected(api: FakeApi, renewals: list[bool]) -> None:
+    route_accepted(api, "POST")
+    api.routes[("GET", f"/v1/sum/services/{RID}/operations/{OPID}")] = operation_document(
+        "rejected", "serviço desconhecido"
+    )
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(
+        200, link_document("present", "Pending")
+    )
+    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm", "--wait"])
+    assert result.exit_code == 1
+    assert "Request not completed" in result.stderr and "serviço desconhecido" in result.stderr
+    assert renewals == []
+
+
+def test_a_failed_renewal_is_a_warning_not_a_failure(
+    api: FakeApi, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sk.identity.session import SessionError
+
+    def fail(*_: object, **__: object) -> None:
+        raise SessionError("A sessão não tem refresh token.")
+
+    monkeypatch.setattr("sk.commands.sum.renew_session", fail)
+    monkeypatch.setattr("sk.commands.sum.time.sleep", no_sleep)
+    route_accepted(api, "POST")
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(200, link_document())
+    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm", "--wait"])
+    assert result.exit_code == 0, result.stderr
+    assert "not renewed" in result.stdout
+    assert "sk auth login" in result.stderr  # o aviso
+
+
+def test_disable_wait_waits_for_the_disabled_state_and_renews(
+    api: FakeApi, renewals: list[bool]
+) -> None:
+    route_accepted(api, "DELETE")
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = [
+        Response(200, link_document("present", "Ready")),  # a leitura que antecede o pedido
+        Response(200, link_document("present", "Reconciling")),
+        Response(200, link_document("absent", "Ready")),
+    ]
+    result = runner.invoke(app, ["sum", "service", "disable", "--resource-id", RID, "--wait"])
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert "Service disabled" in result.stdout and "disabled" in result.stdout
+    assert renewals == [True]
+
+
+def test_the_state_is_shown_in_english(api: FakeApi) -> None:
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(200, link_document("absent", "Ready"))
+    shown = runner.invoke(app, ["sum", "service", "get", "--resource-id", RID])
+    assert "disabled" in shown.stdout and "desabilitado" not in shown.stdout
+    api.routes[("GET", "/v1/sum/services")] = Response(200, {"items": [link_document()]})
+    listed = runner.invoke(app, ["sum", "service", "list"])
+    assert "enabled" in listed.stdout and "ligado" not in listed.stdout

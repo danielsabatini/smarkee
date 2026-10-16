@@ -103,7 +103,7 @@ def test_an_identifier_that_follows_the_contract_is_accepted_as_it_is(value: str
 def test_an_identifier_outside_the_contract_is_refused_without_being_repeated(
     value: str,
 ) -> None:
-    with pytest.raises(ValueError, match="resourceId inválido") as caught:
+    with pytest.raises(ValueError, match="resourceId invalid") as caught:
         service.validate_identifier(value, what="resourceId")
     assert value.strip() == "" or value not in str(caught.value)
 
@@ -213,7 +213,7 @@ def test_a_link_without_a_required_field_is_a_contract_failure(
     document = link()
     del document[missing]
     serve(monkeypatch, document)
-    with pytest.raises(ApiUnavailableError, match=r"fora do contrato|sem "):
+    with pytest.raises(ApiUnavailableError, match=r"outside the contract|without "):
         service.get_service(API, token="t", resource_id=RID, allow_insecure_http=False)
 
 
@@ -222,7 +222,7 @@ def test_a_response_that_is_not_an_object_is_a_contract_failure(
     monkeypatch: pytest.MonkeyPatch, bad: object
 ) -> None:
     serve(monkeypatch, bad)
-    with pytest.raises(ApiUnavailableError, match="fora do contrato"):
+    with pytest.raises(ApiUnavailableError, match="outside the contract"):
         service.get_service(API, token="t", resource_id=RID, allow_insecure_http=False)
 
 

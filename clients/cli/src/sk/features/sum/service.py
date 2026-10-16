@@ -56,55 +56,55 @@ def validate_identifier(value: str, *, what: str) -> str:
     """
     if not OPAQUE_IDENTIFIER_PATTERN.fullmatch(value):
         raise ValueError(
-            f"{what} inválido: use letras minúsculas, números e hífen (até 128 caracteres)"
+            f"{what} invalid: use lowercase letters, digits and hyphen (up to 128 characters)"
         )
     return value
 
 
 def _object(document: object, *, what: str) -> dict[str, Any]:
     if not isinstance(document, dict):
-        raise ApiUnavailableError(f"resposta da API fora do contrato: {what}")
+        raise ApiUnavailableError(f"API response outside the contract: {what}")
     return cast(dict[str, Any], document)
 
 
 def _text(document: dict[str, Any], key: str, *, what: str) -> str:
     value = document.get(key)
     if not isinstance(value, str):
-        raise ApiUnavailableError(f"resposta da API sem {key}: {what}")
+        raise ApiUnavailableError(f"API response without {key}: {what}")
     return value
 
 
 def _accepted(document: object) -> ServiceRequestAccepted:
-    body = _object(document, what="aceite")
+    body = _object(document, what="acceptance")
     return ServiceRequestAccepted(
-        resource_id=_text(body, "resourceId", what="aceite"),
-        operation_id=_text(body, "operationId", what="aceite"),
+        resource_id=_text(body, "resourceId", what="acceptance"),
+        operation_id=_text(body, "operationId", what="acceptance"),
     )
 
 
 def _link(document: object) -> ServiceLink:
-    body = _object(document, what="ligação")
-    desired = _object(body.get("desired"), what="ligação (desired)")
+    body = _object(document, what="service")
+    desired = _object(body.get("desired"), what="service (desired)")
     observed: object = body.get("observed") or {}
-    roles: object = _object(observed, what="ligação (observed)").get("serviceRoles") or []
+    roles: object = _object(observed, what="service (observed)").get("serviceRoles") or []
     if not isinstance(roles, list):
-        raise ApiUnavailableError("resposta da API com serviceRoles inválido")
+        raise ApiUnavailableError("API response with invalid serviceRoles")
     return ServiceLink(
-        resource_id=_text(body, "resourceId", what="ligação"),
-        resource_version=_text(body, "resourceVersion", what="ligação"),
-        phase=_text(body, "phase", what="ligação"),
-        service=_text(desired, "service", what="ligação (desired)"),
-        lifecycle=_text(desired, "lifecycle", what="ligação (desired)"),
+        resource_id=_text(body, "resourceId", what="service"),
+        resource_version=_text(body, "resourceVersion", what="service"),
+        phase=_text(body, "phase", what="service"),
+        service=_text(desired, "service", what="service (desired)"),
+        lifecycle=_text(desired, "lifecycle", what="service (desired)"),
         observed_roles=tuple(str(role) for role in cast("list[object]", roles)),
     )
 
 
 def _operation(document: object) -> OperationStatus:
-    body = _object(document, what="operação")
+    body = _object(document, what="operation")
     reason = body.get("operationStatusReason")
     return OperationStatus(
-        operation_id=_text(body, "operationId", what="operação"),
-        operation_status=_text(body, "operationStatus", what="operação"),
+        operation_id=_text(body, "operationId", what="operation"),
+        operation_status=_text(body, "operationStatus", what="operation"),
         reason=reason if isinstance(reason, str) else None,
     )
 
@@ -153,9 +153,9 @@ def list_services(api_url: str, *, token: str, allow_insecure_http: bool) -> lis
     _, document = call_api(
         "GET", api_url, SERVICES_PATH, token=token, allow_insecure_http=allow_insecure_http
     )
-    items = _object(document, what="listagem").get("items")
+    items = _object(document, what="listing").get("items")
     if not isinstance(items, list):
-        raise ApiUnavailableError("resposta da API sem items")
+        raise ApiUnavailableError("API response without items")
     return [_link(item) for item in cast("list[object]", items)]
 
 

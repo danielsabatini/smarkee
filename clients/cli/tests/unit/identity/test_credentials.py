@@ -73,7 +73,7 @@ def test_unwritable_directory_raises_credentials_error(tmp_path: Path) -> None:
     blocked_directory = tmp_path / "blocked"
     blocked_directory.mkdir(mode=0o500)
     try:
-        with pytest.raises(CredentialsError, match="não foi possível gravar"):
+        with pytest.raises(CredentialsError, match="could not write"):
             save_credentials(blocked_directory / "credentials.json", make_credentials("access-1"))
     finally:
         blocked_directory.chmod(0o700)

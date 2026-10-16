@@ -102,7 +102,7 @@ def test_an_invalid_email_never_reaches_the_api(monkeypatch: pytest.MonkeyPatch)
         ],
     )
     assert result.exit_code == 2
-    assert "formato de um e-mail" in result.stderr
+    assert "format of an e-mail" in result.stderr
 
 
 def test_success_prints_the_identities_and_the_next_step(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -115,8 +115,8 @@ def test_success_prints_the_identities_and_the_next_step(monkeypatch: pytest.Mon
     assert result.exit_code == 0
     assert "0199-res" in result.stdout
     assert "0199-op" in result.stdout
-    assert "Cadastro solicitado" in result.stdout
-    assert "confirme o e-mail" in result.stdout
+    assert "Registration requested" in result.stdout
+    assert "confirm the e-mail" in result.stdout
     assert calls[0]["given_name"] == "Ana"
     assert calls[0]["family_name"] == "Souza"
 
@@ -130,7 +130,7 @@ def test_rate_limit_tells_how_long_to_wait(monkeypatch: pytest.MonkeyPatch) -> N
     )
     result = runner.invoke(app, [*REGISTER, "--api-url", "https://api.example"])
     assert result.exit_code == 1
-    assert "Aguarde 30 segundos" in result.stderr
+    assert "Wait 30 seconds" in result.stderr
 
 
 def test_a_rejected_field_is_a_usage_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -143,18 +143,18 @@ def test_a_rejected_field_is_a_usage_error(monkeypatch: pytest.MonkeyPatch) -> N
     )
     result = runner.invoke(app, [*REGISTER, "--api-url", "https://api.example"])
     assert result.exit_code == 2
-    assert "Campo recusado pela API" in result.stderr
+    assert "Field refused by the API" in result.stderr
     assert "email" in result.stderr
 
 
 def test_an_unavailable_service_asks_to_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sk.commands.register.submit_registration",
-        fake_submit([], ApiUnavailableError("a API respondeu com HTTP 503")),
+        fake_submit([], ApiUnavailableError("the API answered HTTP 503")),
     )
     result = runner.invoke(app, [*REGISTER, "--api-url", "https://api.example"])
     assert result.exit_code == 1
-    assert "Repita em alguns minutos" in result.stderr
+    assert "Try again in a few minutes" in result.stderr
 
 
 def test_help_is_in_portuguese_and_lists_the_three_fields() -> None:

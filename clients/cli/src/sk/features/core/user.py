@@ -34,15 +34,15 @@ def validate_registration(given_name: str, family_name: str, email: str) -> None
     """
     for label, value in (("--name", given_name), ("--surname", family_name)):
         if not value.strip():
-            raise ValueError(f"{label} não pode ser vazio.")
+            raise ValueError(f"{label} cannot be empty.")
         if len(value.strip()) > MAXIMUM_NAME_LENGTH:
-            raise ValueError(f"{label} excede {MAXIMUM_NAME_LENGTH} caracteres.")
+            raise ValueError(f"{label} exceeds {MAXIMUM_NAME_LENGTH} characters.")
     stripped = email.strip()
     if not MINIMUM_EMAIL_LENGTH <= len(stripped) <= MAXIMUM_EMAIL_LENGTH:
-        raise ValueError("--email tem tamanho fora do permitido.")
+        raise ValueError("--email has a size outside the allowed range.")
     local, separator, domain = stripped.partition("@")
     if not separator or not local or "." not in domain or domain.startswith(".") or " " in stripped:
-        raise ValueError("--email não tem o formato de um e-mail.")
+        raise ValueError("--email does not have the format of an e-mail.")
 
 
 def submit_registration(
@@ -73,10 +73,10 @@ def submit_registration(
     )
     status, payload = send(request, opener=opener)
     if status != 202 or not isinstance(payload, dict):
-        raise ApiUnavailableError(f"resposta inesperada da API (HTTP {status})")
+        raise ApiUnavailableError(f"unexpected API response (HTTP {status})")
     document = cast(dict[str, object], payload)
     resource_id = document.get("resourceId")
     operation_id = document.get("operationId")
     if not isinstance(resource_id, str) or not isinstance(operation_id, str):
-        raise ApiUnavailableError("a resposta da API não traz resourceId e operationId")
+        raise ApiUnavailableError("the API response does not carry resourceId and operationId")
     return RegistrationAccepted(resource_id=resource_id, operation_id=operation_id)

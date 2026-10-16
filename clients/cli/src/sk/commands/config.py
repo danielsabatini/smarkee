@@ -18,6 +18,7 @@ from sk.settings import (
     AuthSettings,
     ConfigurationError,
     CoreSettings,
+    IpmSettings,
     SkSettings,
     SumSettings,
     config_file_path,
@@ -33,12 +34,13 @@ SECTION_MODELS: dict[str, type[BaseModel]] = {
     "auth": AuthSettings,
     "core": CoreSettings,
     "sum": SumSettings,
+    "ipm": IpmSettings,
 }
 # Chaves que são endereços: precisam começar com http:// ou https://.
 URL_KEYS = {"auth.issuer", "core.apiUrl"}
 
 config_app = typer.Typer(
-    help="Consulta e altera o arquivo de configuração do sk.",
+    help="Inspect and change the sk configuration file.",
     no_args_is_help=True,
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
@@ -84,8 +86,8 @@ def _read_or_exit() -> dict[str, Any]:
     except ConfigurationError as error:
         _exit_with(
             error,
-            "Configuração inválida",
-            "Corrija o arquivo ou rode `sk init --force`.",
+            "Invalid configuration",
+            "Fix the file or run `sk init --force`.",
             EXIT_USAGE_ERROR,
         )
 
@@ -94,22 +96,22 @@ def _require_argument(value: str | None, label: str) -> str:
     # Argumentos obrigatórios são validados aqui, e não pelo Typer, para não exibir "[required]".
     if value is None:
         ui.error(
-            "Argumento obrigatório ausente",
-            f"Informe {label}.",
-            hint="Veja a ordem com `sk config --help`.",
+            "Missing required argument",
+            f"Provide {label}.",
+            hint="See the order with `sk config --help`.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return value
 
 
 def _key_or_exit(name: str | None) -> ConfigKey:
-    name = _require_argument(name, "a chave")
+    name = _require_argument(name, "the key")
     keys = known_keys()
     if name not in keys:
         ui.error(
-            "Chave desconhecida",
-            f"{name} não existe.",
-            hint=f"Chaves válidas: {', '.join(sorted(keys))}.",
+            "Unknown key",
+            f"{name} does not exist.",
+            hint=f"Valid keys: {', '.join(sorted(keys))}.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return keys[name]
@@ -134,57 +136,57 @@ def _parse_value(key: ConfigKey, raw: str) -> str | bool:
     if key.is_boolean:
         if raw not in ("true", "false"):
             ui.error(
-                "Valor inválido",
-                f"{key.dotted} aceita apenas true ou false.",
-                hint="Use true ou false.",
+                "Invalid value",
+                f"{key.dotted} accepts only true or false.",
+                hint="Use true or false.",
             )
             raise typer.Exit(EXIT_USAGE_ERROR)
         return raw == "true"
     if not raw.strip():
-        ui.error("Valor vazio", f"{key.dotted} não pode ficar vazio.")
+        ui.error("Empty value", f"{key.dotted} cannot be empty.")
         raise typer.Exit(EXIT_USAGE_ERROR)
     if key.dotted in URL_KEYS and not raw.startswith(("http://", "https://")):
         ui.error(
-            "Endereço inválido",
-            f"{key.dotted} precisa começar com http:// ou https://.",
-            hint="Informe o endereço completo, por exemplo https://api.smarkee.com.br.",
+            "Invalid address",
+            f"{key.dotted} must start with http:// or https://.",
+            hint="Provide the full address, for example https://api.smarkee.com.br.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return raw
 
 
-@config_app.command("list", help="Mostra todas as chaves e o valor gravado em cada uma.")
+@config_app.command("list", help="Show every key and the value stored for each.")
 def list_command() -> None:
     path = config_file_path()
     document = _read_or_exit()
     rows: list[tuple[str, str]] = []
     for key in known_keys().values():
         value = _stored_value(document, key)
-        rows.append((key.dotted, "não definido" if value is None else _text(value)))
-    ui.panel("Configuração", rows)
+        rows.append((key.dotted, "unset" if value is None else _text(value)))
+    ui.panel("Configuration", rows)
     if not path.exists():
-        ui.note(f"Não há arquivo em {path}. Rode `sk init` para criá-lo.")
+        ui.note(f"There is no file at {path}. Run `sk init` to create it.")
     else:
-        ui.note(f"Arquivo: {path}. Variáveis SK_* e parâmetros têm precedência sobre ele.")
+        ui.note(f"File: {path}. SK_* variables and parameters take precedence over it.")
 
 
 @config_app.command(
     "get",
-    help="Mostra o valor gravado de uma chave, sem formatação (útil em scripts).",
+    help="Show the stored value of a key, unformatted (useful in scripts).",
 )
 def get_command(
     name: Annotated[
         str | None,
-        typer.Argument(help="Chave, como auth.issuer ou core.apiUrl (obrigatória)."),
+        typer.Argument(help="Key, such as auth.issuer or core.apiUrl (required)."),
     ] = None,
 ) -> None:
     key = _key_or_exit(name)
     value = _stored_value(_read_or_exit(), key)
     if value is None:
         ui.error(
-            "Não definido",
-            f"{name} não tem valor no arquivo.",
-            hint=f"Use `sk config set {name} <valor>`.",
+            "Not set",
+            f"{name} has no value in the file.",
+            hint=f"Use `sk config set {name} <value>`.",
         )
         raise typer.Exit(EXIT_FAILURE)
     # Saída de dado para scripts, e não mensagem ao usuário: sem painel nem cor.
@@ -194,28 +196,27 @@ def get_command(
 @config_app.command(
     "set",
     help=(
-        "Grava o valor de uma chave e regrava o arquivo. Comentários feitos à mão não são "
-        "preservados."
+        "Store the value of a key and rewrite the file. Comments written by hand are not preserved."
     ),
 )
 def set_command(
     name: Annotated[
         str | None,
-        typer.Argument(help="Chave, como auth.issuer ou core.apiUrl (obrigatória)."),
+        typer.Argument(help="Key, such as auth.issuer or core.apiUrl (required)."),
     ] = None,
     raw_value: Annotated[
         str | None,
-        typer.Argument(help="Novo valor (obrigatório). Booleanos aceitam apenas true ou false."),
+        typer.Argument(help="New value (required). Booleans accept only true or false."),
     ] = None,
 ) -> None:
     key = _key_or_exit(name)
-    value_text = _require_argument(raw_value, "o valor")
+    value_text = _require_argument(raw_value, "the value")
     path = config_file_path()
     if not path.exists():
         ui.error(
-            "Configuração não encontrada",
-            f"Não há arquivo em {path}.",
-            hint="Rode `sk init` para criá-lo.",
+            "Configuration not found",
+            f"There is no file at {path}.",
+            hint="Run `sk init` to create it.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     value = _parse_value(key, value_text)
@@ -230,26 +231,29 @@ def set_command(
         auth = AuthSettings.model_validate(values.get("auth", {}))
         core = CoreSettings.model_validate(values.get("core", {}))
         sum_settings = SumSettings.model_validate(values.get("sum", {}))
+        ipm_settings = IpmSettings.model_validate(values.get("ipm", {}))
     except (ValidationError, ConfigurationError) as error:
-        _exit_with(error, "Valor recusado", "Corrija o valor e repita.", EXIT_USAGE_ERROR)
+        _exit_with(error, "Value refused", "Fix the value and repeat.", EXIT_USAGE_ERROR)
 
     # Todas as seções são regravadas: omitir uma apagaria o que o arquivo já tinha nela.
     content = render_section("auth", auth) + "\n" + render_section("core", core)
     if sum_settings.project_id:
         content += "\n" + render_section("sum", sum_settings)
+    if ipm_settings.project_id:
+        content += "\n" + render_section("ipm", ipm_settings)
     try:
         write_private_file(path, content)
     except OSError as error:
-        ui.error("Não foi possível gravar a configuração", f"{path}: {error.strerror}")
+        ui.error("Could not write the configuration", f"{path}: {error.strerror}")
         raise typer.Exit(EXIT_FAILURE) from error
 
     ui.panel(
-        "Configuração atualizada",
-        [("Chave", key.dotted), ("Valor", _text(value)), ("Arquivo", str(path))],
+        "Configuration updated",
+        [("key", key.dotted), ("value", _text(value)), ("file", str(path))],
     )
     section_allows_http = {"auth": auth, "core": core}.get(key.section, core).allow_insecure_http
     if isinstance(value, str) and value.startswith("http://") and not section_allows_http:
         ui.warning(
-            f"{key.dotted} é HTTP sem permissão: o uso vai recusar esse endereço até que "
-            f"`{key.section}.allowInsecureHttp` seja true."
+            f"{key.dotted} is HTTP without permission: use will refuse this address until "
+            f"`{key.section}.allowInsecureHttp` is true."
         )

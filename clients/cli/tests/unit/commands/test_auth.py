@@ -36,7 +36,7 @@ def test_http_issuer_is_refused_without_explicit_permission() -> None:
         app, ["auth", "login", "--issuer", "http://issuer.example", "--client-id", "client-1"]
     )
     assert result.exit_code == 1
-    assert "sem TLS" in result.stderr
+    assert "without TLS" in result.stderr
 
 
 def test_invalid_config_file_is_a_usage_error(tmp_path: Path) -> None:
@@ -44,7 +44,7 @@ def test_invalid_config_file_is_a_usage_error(tmp_path: Path) -> None:
     (tmp_path / "sk" / "config.toml").write_text("[auth]\nunknown = 1\n", encoding="utf-8")
     result = runner.invoke(app, ["auth", "login"])
     assert result.exit_code == 2
-    assert "Configuração inválida" in result.stderr
+    assert "Invalid configuration" in result.stderr
 
 
 def test_snake_case_key_in_config_file_is_a_usage_error(tmp_path: Path) -> None:
@@ -95,7 +95,7 @@ def fake_metadata(*_args: object, **_kwargs: object) -> ProviderMetadata:
 def test_whoami_without_session_asks_to_login() -> None:
     result = runner.invoke(app, ["auth", "whoami"])
     assert result.exit_code == 1
-    assert "Não autenticado" in result.stderr
+    assert "Not authenticated" in result.stderr
     assert "sk auth login" in result.stderr
 
 
@@ -109,7 +109,7 @@ def test_whoami_with_expired_access_does_not_call_the_provider(
     write_session(datetime.now(UTC) - timedelta(minutes=1))
     result = runner.invoke(app, ["auth", "whoami"])
     assert result.exit_code == 1
-    assert "Sessão expirada" in result.stderr
+    assert "Session expired" in result.stderr
 
 
 def test_whoami_shows_the_user_and_hides_the_token(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -121,7 +121,7 @@ def test_whoami_shows_the_user_and_hides_the_token(monkeypatch: pytest.MonkeyPat
     write_session(datetime.now(UTC) + timedelta(hours=1))
     result = runner.invoke(app, ["auth", "whoami"])
     assert result.exit_code == 0
-    assert "Sessão ativa" in result.stdout
+    assert "Active session" in result.stdout
     assert "ana@example.com" in result.stdout
     assert "TOKEN-SECRETO-1" not in result.output
 
@@ -138,7 +138,7 @@ def test_whoami_reports_when_the_provider_does_not_confirm_the_session(
     write_session(datetime.now(UTC) + timedelta(hours=1))
     result = runner.invoke(app, ["auth", "whoami"])
     assert result.exit_code == 1
-    assert "Não foi possível confirmar a sessão" in result.stderr
+    assert "Could not confirm the session" in result.stderr
     assert "HTTP 401" in result.stderr
     assert "TOKEN-SECRETO-1" not in result.output
 
@@ -147,8 +147,29 @@ def test_login_asks_for_the_audience_of_each_configured_project() -> None:
     from sk.commands.auth import LOGIN_SCOPES, login_scopes
 
     assert login_scopes(()) == LOGIN_SCOPES
-    scopes = login_scopes(("394490764261851138", "395263163731279883"))
-    assert "urn:zitadel:iam:org:project:id:394490764261851138:aud" in scopes
-    assert "urn:zitadel:iam:org:project:id:395263163731279883:aud" in scopes
+    projects = ("394490764261851138", "395263163731279883", "395263163630616587")
+    scopes = login_scopes(projects)
+    for project in projects:
+        assert f"urn:zitadel:iam:org:project:id:{project}:aud" in scopes
     assert scopes.count("urn:zitadel:iam:org:projects:roles") == 1
     assert scopes[: len(LOGIN_SCOPES)] == LOGIN_SCOPES
+
+
+def test_refresh_renews_the_session_and_shows_the_new_expiry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expires_at = datetime(2026, 10, 16, 13, 5, tzinfo=UTC)
+
+    def renewed(*_: object, **__: object) -> datetime:
+        return expires_at
+
+    monkeypatch.setattr("sk.commands.auth.renew_session", renewed)
+    result = runner.invoke(app, ["auth", "refresh"])
+    assert result.exit_code == 0, result.stderr
+    assert "Session renewed" in result.stdout
+
+
+def test_refresh_without_a_session_asks_for_login() -> None:
+    result = runner.invoke(app, ["auth", "refresh"])
+    assert result.exit_code == 1
+    assert "sk auth login" in result.stderr

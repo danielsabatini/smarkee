@@ -189,12 +189,12 @@ def test_token_endpoint_error_is_reported_with_provider_description(
 def test_discovery_rejects_issuer_mismatch(provider: ProviderState) -> None:
     configured_issuer = provider.issuer
     provider.issuer = "http://other-issuer.example"
-    with pytest.raises(OidcError, match="difere do configurado"):
+    with pytest.raises(OidcError, match="differs from the configured"):
         fetch_provider_metadata(configured_issuer, allow_insecure_http=True)
 
 
 def test_discovery_rejects_http_issuer_without_permission(provider: ProviderState) -> None:
-    with pytest.raises(OidcError, match="sem TLS"):
+    with pytest.raises(OidcError, match="without TLS"):
         fetch_provider_metadata(provider.issuer, allow_insecure_http=False)
 
 
