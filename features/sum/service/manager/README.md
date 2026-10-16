@@ -14,8 +14,8 @@ ligação de um serviço por usuário (decisão 0033). É o único escritor do S
   Operations: `in_progress` na reconciliação e `completed` quando a fase chega a `Ready`.
 - `transport/requested.py` e `transport/state.py`: validação (envelope tolerante, versão `MAJOR`, módulo, emissor e
   dados) e decisão ACK, TERM ou RETRY.
-- `main.py`: valida a configuração (`SUM_SERVICE_MANAGER_*`), consome `REQUESTED`, `OBSERVED` e `RESULT` pelos consumers
-  duráveis `sum-service-manager-{requested,observed,completed,failed}` (manifestos em `consumers/`) e expõe as probes de
+- `main.py`: valida a configuração (`SUM_SERVICE_MANAGER_*`), consome `REQUESTED`, `OBSERVED`, `RESULT` e o `UPDATED` de `core.account` (remoção da conta, decisão 0044) pelos consumers
+  duráveis `sum-service-manager-{requested,observed,completed,failed,account-removed}` (manifestos em `consumers/`) e expõe as probes de
   saúde.
 
 O Manager só insere no outbox. A publicação do outbox no NATS é do Publisher (`../publisher`).

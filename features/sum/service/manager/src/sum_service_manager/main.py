@@ -18,13 +18,19 @@ from sum_service_manager.logging_config import configure_logging
 from sum_service_manager.settings import SumServiceManagerSettings, missing_required
 from sum_service_manager.transport.nats import connect, jetstream_of
 from sum_service_manager.transport.requested import Disposition, RequestedConsumer
-from sum_service_manager.transport.state import process_observed, process_result, run_consumer
+from sum_service_manager.transport.state import (
+    process_account_removed,
+    process_observed,
+    process_result,
+    run_consumer,
+)
 
 EXIT_INVALID_CONFIGURATION = 2
 DURABLE_REQUESTED = "sum-service-manager-requested"
 DURABLE_OBSERVED = "sum-service-manager-observed"
 DURABLE_COMPLETED = "sum-service-manager-completed"
 DURABLE_FAILED = "sum-service-manager-failed"
+DURABLE_ACCOUNT_REMOVED = "sum-service-manager-account-removed"
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +89,9 @@ async def run(settings: SumServiceManagerSettings) -> int:
     async def handle_failed(data: bytes) -> Disposition:
         return await process_result(pool, data, "failed")
 
+    async def handle_account_removed(data: bytes) -> Disposition:
+        return await process_account_removed(pool, data)
+
     tasks = {
         "requested": asyncio.create_task(consumer.run(stop)),
         "observed": asyncio.create_task(
@@ -111,6 +120,16 @@ async def run(settings: SumServiceManagerSettings) -> int:
                 stream="RESULT",
                 durable=DURABLE_FAILED,
                 handle=handle_failed,
+                stop=stop,
+                on_cycle=health.beat,
+            )
+        ),
+        "account_removed": asyncio.create_task(
+            run_consumer(
+                jetstream,
+                stream="UPDATED",
+                durable=DURABLE_ACCOUNT_REMOVED,
+                handle=handle_account_removed,
                 stop=stop,
                 on_cycle=health.beat,
             )

@@ -181,11 +181,19 @@ def test_an_empty_list_says_so(api: FakeApi) -> None:
     assert "No services" in result.stdout
 
 
-def test_a_refused_request_shows_the_api_reason_and_a_hint(api: FakeApi) -> None:
+def test_a_refused_request_shows_only_the_cli_message_in_english(api: FakeApi) -> None:
     api.routes[("POST", "/v1/sum/services")] = http_error(403, "Forbidden", "sem permissão")
     result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm"])
     assert result.exit_code == 1
-    assert "sem permissão" in result.stderr
+    assert "does not have permission" in result.stderr
+    assert "sem permissão" not in result.stderr  # o texto do servidor (pt-BR) não se mistura
+
+
+def test_a_refusal_without_a_cli_message_shows_the_server_text(api: FakeApi) -> None:
+    api.routes[("POST", "/v1/sum/services")] = http_error(422, "IdempotencyKeyReused", "reusada")
+    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm"])
+    assert result.exit_code == 1
+    assert "reusada" in result.stderr and "HTTP 422 (IdempotencyKeyReused)" in result.stderr
 
 
 def test_a_conflict_on_disable_asks_to_read_again(api: FakeApi) -> None:

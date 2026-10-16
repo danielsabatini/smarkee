@@ -10,8 +10,9 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import conftest
+import psycopg
 import pytest
-from conftest import Person, Sk
+from conftest import SUM_MANAGER_DATABASE_URL, Person, Sk, wait_until
 
 IPM_ROLE = "ipm.organization"
 
@@ -158,7 +159,7 @@ def test_the_organization_is_created_renamed_and_deleted_with_the_sk(
         refused = sk.run("account", "delete", "--yes")
         assert refused.exit_code == 1, refused.text
         text = " ".join(refused.stderr.split())
-        assert "1 Organization" in text and "sk ipm organization delete" in text, text
+        assert "still has Organizations" in text and "sk ipm organization delete" in text, text
 
         # E o `ipm` não é desabilitado enquanto houver Organizations (o User confia nisso).
         blocked = sk.run("sum", "service", "disable", "--resource-id", link["resourceId"])
@@ -275,3 +276,15 @@ def test_the_account_is_shown_and_then_deleted_with_the_sk(person: Person) -> No
     assert deleted.exit_code == 0, deleted.text
     assert "Account deleted" in deleted.stdout, deleted.text
     assert not person.sk.credentials_path.exists(), "a sessão local deve ser esquecida"
+    # Decisão 0044: o SUM apaga as ligações do dono quando a conta é removida.
+    if SUM_MANAGER_DATABASE_URL:
+        with psycopg.connect(SUM_MANAGER_DATABASE_URL, autocommit=True) as manager:
+
+            def no_links_left() -> bool | None:
+                found = manager.execute(
+                    "SELECT count(*) FROM sum.service WHERE owner_account_id = %s",
+                    (person.resource_id,),
+                ).fetchone()
+                return True if found is not None and found[0] == 0 else None
+
+            wait_until(no_links_left, "a remoção das ligações do SUM da conta apagada")

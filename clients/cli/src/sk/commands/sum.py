@@ -101,9 +101,13 @@ def _fail_api(
         conflict=conflict,
         by_error_code={
             "ResourcesAttached": (
-                "Delete the Organizations first (`sk ipm organization delete`) and repeat."
+                "The service still has Organizations. Delete them first "
+                "(`sk ipm organization delete`) and repeat."
             ),
-            "ResourcesNotVerifiable": "Renew the session with `sk auth refresh` and repeat.",
+            "ResourcesNotVerifiable": (
+                "The attached resources could not be verified. "
+                "Renew the session with `sk auth refresh` and repeat."
+            ),
         },
     )
 

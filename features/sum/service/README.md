@@ -64,6 +64,7 @@ própria conta de serviço. Não há código compartilhado entre eles.
   a publicação é do Publisher. ACK depois do `COMMIT`; falha transitória do banco é `RETRY`; mensagem fora do contrato
   (inclusive de outra versão `MAJOR`) é `TERM`.
 - Aplica `observed` (fase `Ready` ou `Reconciling`) e acompanha as Operations (`in_progress`, `completed`).
+- Consome o `updated` de `core.account` com `removed` e apaga as ligações do dono (decisão 0044): idempotente, e o histórico de Operations fica.
 
 ## 3.3 Publisher (`sum-service-publisher`)
 

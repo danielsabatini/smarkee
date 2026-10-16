@@ -13,7 +13,8 @@ A CLI misturava idiomas: a ajuda e as mensagens eram em português, e tudo o que
 - **Os marcadores do padrão de ajuda (decisão 0022) passam para inglês:** `[String]`, `[Integer]` ou `[Boolean]`; `[env VARIABLE | file [section] key | default VALUE]`; `[required]` ou `[optional]`; e a linha `Resolution order: parameter → environment variable → configuration file (config.toml) → default`.
 - **Nomes de campos e valores de estado** nas saídas seguem o contrato, em inglês (`resourceId`, `service`, `state`, `phase`, `observedRoles`, `enabled`, `disabled`, `none`, `renewed`).
 - **Comentários e docstrings do código da CLI continuam em pt-BR**, como manda o `AGENTS.md` §16.1. Os documentos (README, CHANGELOG, decisões) também.
-- **O que não muda:** o texto que vem de outros sistemas (mensagens do Receiver, páginas e e-mails do Zitadel) é mostrado como veio.
+- **Recusas da API:** quando a CLI tem mensagem própria para a recusa (um `errorCode` conhecido ou `401`, `403`, `404`, `409`), mostra só ela, em inglês; o texto do Receiver (pt-BR) aparece apenas quando não há mensagem própria (por exemplo, `400` com o campo inválido), para a tela não misturar idiomas. Perde-se o detalhe dinâmico do servidor (como a contagem de recursos atrelados); a mensagem própria aponta os comandos para ver o que falta.
+- **O que não muda:** o texto que vem de outros sistemas (páginas e e-mails do Zitadel, e as mensagens do Receiver sem mensagem própria na CLI) é mostrado como veio.
 
 ## Justificativa
 

@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from sum_service_manager.contracts import generated
 from sum_service_manager.contracts.base import supports_major, validate_tolerant
 from sum_service_manager.domain.errors import PermanentMessageError
+from sum_service_manager.handlers.account_removed import remove_links_of
 from sum_service_manager.handlers.state import (
     ObservedMessage,
     ResultMessage,
@@ -65,6 +66,25 @@ def parse_result(data: bytes, outcome: str) -> ResultMessage:
     )
 
 
+def parse_account_removed(data: bytes) -> str | None:
+    """`resourceId` da conta removida, ou `None` se o `updated` não é de remoção (a ignorar)."""
+    try:
+        document: Any = json.loads(data)
+    except ValueError:
+        raise PermanentMessageError("mensagem não é JSON") from None
+    try:
+        envelope = validate_tolerant(generated.MessageEnvelope, document)
+    except ValidationError:
+        raise PermanentMessageError("envelope fora do contrato") from None
+    if not supports_major(envelope.schema_version):
+        raise PermanentMessageError("schemaVersion MAJOR não suportado")
+    if envelope.module != "core" or envelope.resource_type != "account":
+        raise PermanentMessageError("mensagem de outro tipo ou módulo")
+    if envelope.message_type.value != "updated":
+        raise PermanentMessageError("tipo de mensagem inesperado")
+    return envelope.resource_id if envelope.data.get("removed") is True else None
+
+
 def _envelope(data: bytes, expected: str) -> generated.MessageEnvelope:
     try:
         document: Any = json.loads(data)
@@ -91,6 +111,23 @@ async def process_result(
     pool: psycopg_pool.AsyncConnectionPool[Any], data: bytes, outcome: str
 ) -> Disposition:
     return await _process(pool, lambda conn: _result(conn, data, outcome))
+
+
+async def process_account_removed(
+    pool: psycopg_pool.AsyncConnectionPool[Any], data: bytes
+) -> Disposition:
+    return await _process(pool, lambda conn: _account_removed(conn, data))
+
+
+async def _account_removed(conn: psycopg.AsyncConnection[Any], data: bytes) -> None:
+    account_id = parse_account_removed(data)
+    if account_id is None:
+        return  # `updated` comum da conta: nada a fazer
+    removed = await remove_links_of(conn, account_id)
+    logger.info(
+        "links of a removed account deleted",
+        extra={"account_id": account_id, "links_removed": removed},
+    )
 
 
 async def _observed(conn: psycopg.AsyncConnection[Any], data: bytes) -> None:

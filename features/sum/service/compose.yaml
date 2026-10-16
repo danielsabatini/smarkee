@@ -7,8 +7,8 @@ name: sum-service
 #
 
 services:
-  # Consumers duráveis de trabalho de sum.service (docs/NATS.md §7.6): `requested`, `observed` e resultados
-  # do Manager, e `action` do Executor. Os manifestos ficam em cada componente. O Reconciler e o Observer não
+  # Consumers duráveis de trabalho de sum.service (docs/NATS.md §7.6): `requested`, `observed`, resultados e a
+  # remoção da conta (`updated` de core.account) do Manager, e `action` do Executor. Os manifestos ficam em cada componente. O Reconciler e o Observer não
   # têm manifesto: cada instância cria o próprio consumer de estado, com DeliverLastPerSubject (§7.4).
   # Inexistente é criado; existente com configuração idêntica não muda; configuração diferente falha
   # de forma explícita. Exige os Streams criados pelo broker da plataforma.
@@ -29,6 +29,7 @@ services:
         nats consumer add OBSERVED --config /consumers/sum-service-manager-observed.json &&
         nats consumer add RESULT --config /consumers/sum-service-manager-completed.json &&
         nats consumer add RESULT --config /consumers/sum-service-manager-failed.json &&
+        nats consumer add UPDATED --config /consumers/sum-service-manager-account-removed.json &&
         for partition in 0 1 2 3; do
           nats consumer add ACTION --config /consumers-executor/sum-service-executor-action-p$$partition.json || exit 1;
         done

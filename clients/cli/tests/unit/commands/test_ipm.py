@@ -271,7 +271,7 @@ def test_wait_asks_for_a_fresh_token_on_every_poll(
 @pytest.mark.parametrize(
     ("status", "error_code", "expected"),
     [
-        (403, "EmailNotVerified", "Verify your e-mail first"),
+        (403, "EmailNotVerified", "e-mail is not verified"),
         (403, "QuotaExceeded", "Organization limit"),
         (403, "Forbidden", "sk sum service enable --service ipm --wait"),
         (401, "Unauthorized", "sk auth login"),

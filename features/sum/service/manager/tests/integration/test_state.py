@@ -168,3 +168,24 @@ async def test_operations_follow_the_phases_up_to_the_current_generation() -> No
             )
         finally:
             await maintenance.close()
+
+
+async def test_removing_the_account_deletes_only_its_links_and_is_idempotent() -> None:
+    assert URL and MAINTENANCE
+    from sum_service_manager.handlers.account_removed import remove_links_of
+
+    mine, other = str(uuid.uuid7()), str(uuid.uuid7())
+    owner, bystander = str(uuid.uuid7()), str(uuid.uuid7())
+    conn = await psycopg.AsyncConnection.connect(URL, autocommit=True)
+    try:
+        await _seed(conn, mine, owner, "absent")
+        await _seed(conn, other, bystander, "present")
+        assert await remove_links_of(conn, owner) == 1
+        assert await remove_links_of(conn, owner) == 0  # repetir não tem efeito
+        gone = await conn.execute("SELECT 1 FROM sum.service WHERE resource_id = %s", (mine,))
+        kept = await conn.execute("SELECT 1 FROM sum.service WHERE resource_id = %s", (other,))
+        assert await gone.fetchone() is None
+        assert await kept.fetchone() is not None
+    finally:
+        await conn.execute("DELETE FROM sum.service WHERE resource_id = ANY(%s)", ([mine, other],))
+        await conn.close()

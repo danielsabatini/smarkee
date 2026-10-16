@@ -62,7 +62,9 @@ REJECTION_HINTS = {
 }
 ERROR_CODE_HINTS = {
     "DeletionProtected": PROTECTED_HINT,
-    "EmailNotVerified": "Verify your e-mail first: open the link in the activation e-mail.",
+    "EmailNotVerified": (
+        "Your e-mail is not verified yet. Open the link in the activation e-mail and repeat."
+    ),
     "QuotaExceeded": "You reached the Organization limit. Delete one or ask an operator.",
 }
 NO_ROLE_HINT = (

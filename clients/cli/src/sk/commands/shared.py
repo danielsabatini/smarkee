@@ -116,7 +116,10 @@ def fail_api(
     by_error_code: Mapping[str, str] | None = None,
 ) -> NoReturn:
     """Mostra a falha da API e sai. `not_found` e `conflict` dizem o que o `404` e o `409`
-    significam no comando; `by_error_code` dá a dica de um `errorCode` específico da API."""
+    significam no comando; `by_error_code` dá a mensagem de um `errorCode` específico da API.
+
+    Quando a CLI tem a própria mensagem (código conhecido ou `401`, `403`, `404`, `409`), mostra só
+    ela, em inglês (decisão 0035). O texto do servidor (pt-BR) só aparece sem mensagem própria."""
     if isinstance(error, ApiUnavailableError):
         ui.error("Service unavailable", str(error), hint="Try again in a few minutes.")
         raise typer.Exit(EXIT_FAILURE) from error
@@ -137,9 +140,12 @@ def fail_api(
         404: not_found,
         409: conflict,
     }
-    hint = (by_error_code or {}).get(error.error_code) or hints.get(
-        error.status, f"HTTP {error.status} ({error.error_code})."
-    )
-    detail = f"{error.field}: {error}" if error.field else str(error)
-    ui.error("Request refused by the API", detail, hint=hint)
+    message = (by_error_code or {}).get(error.error_code) or hints.get(error.status)
+    if message is not None:
+        ui.error("Request refused by the API", message)
+    else:
+        detail = f"{error.field}: {error}" if error.field else str(error)
+        ui.error(
+            "Request refused by the API", detail, hint=f"HTTP {error.status} ({error.error_code})."
+        )
     raise typer.Exit(EXIT_USAGE_ERROR if error.status == 400 else EXIT_FAILURE) from error

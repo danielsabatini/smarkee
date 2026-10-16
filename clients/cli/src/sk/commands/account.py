@@ -55,9 +55,14 @@ ERROR_CODE_HINTS = {
         "The account is protected against deletion. Run `sk account unprotect` first."
     ),
     "ResourcesAttached": (
-        "Remove them first (`sk ipm organization delete`, `sk sum service disable`) and repeat."
+        "The account still has Organizations or enabled services. Delete the Organizations "
+        "(`sk ipm organization delete`), disable the services (`sk sum service disable`) "
+        "and repeat."
     ),
-    "ResourcesNotVerifiable": "Renew the session with `sk auth refresh` and repeat.",
+    "ResourcesNotVerifiable": (
+        "The attached resources could not be verified. "
+        "Renew the session with `sk auth refresh` and repeat."
+    ),
 }
 
 
