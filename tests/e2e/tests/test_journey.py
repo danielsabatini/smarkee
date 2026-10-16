@@ -8,10 +8,18 @@ import json
 import re
 from datetime import UTC, datetime, timedelta
 
+import conftest
 import pytest
-from conftest import Person, Sk, wait_until
+from conftest import Person, Sk
 
 IPM_ROLE = "ipm.organization"
+
+
+def _project(name: str) -> str:
+    """ID do projeto de roles da variável `E2E_<NOME>_PROJECT_ID` (a fixture já a exigiu)."""
+    value: str | None = getattr(conftest, f"{name}_PROJECT_ID")
+    assert value, f"E2E_{name}_PROJECT_ID não definida"
+    return value
 
 
 @pytest.fixture(scope="module")
@@ -27,22 +35,21 @@ def _identifiers(text: str) -> tuple[str, str]:
     return resource.group(1), operation.group(1)
 
 
-def _converged(sk: Sk, link: dict[str, str], *, on: bool) -> str:
-    """Espera a ligação em `Ready` com a Operation `completed`; devolve a saída do `get`."""
-    expected = "ligado" if on else "desligado"
+def _state(sk: Sk, link: dict[str, str]) -> str:
+    """Saída do `get` da ligação e da Operation mais recentes."""
+    done = sk.run(
+        *("sum", "service", "get"),
+        *("--resource-id", link["resourceId"]),
+        *("--operation-id", link["operationId"]),
+    )
+    assert done.exit_code == 0, done.text
+    return done.stdout
 
-    def check() -> str | None:
-        done = sk.run(
-            *("sum", "service", "get"),
-            *("--resource-id", link["resourceId"]),
-            *("--operation-id", link["operationId"]),
-        )
-        ready = done.exit_code == 0 and "Ready" in done.stdout and "completed" in done.stdout
-        return (
-            done.stdout if ready and "Situação" in done.stdout and expected in done.stdout else None
-        )
 
-    return wait_until(check, f"a ligação {expected} em Ready e a Operation completed")
+def _field(shown: str, name: str) -> str:
+    match = re.search(rf"^[│\s]*{name}\s+(.+?)[│\s]*$", shown, re.MULTILINE)
+    assert match, f"campo {name} ausente em:\n{shown}"
+    return match.group(1)
 
 
 def test_the_new_person_cannot_use_the_sum_without_a_session(person: Person) -> None:
@@ -64,15 +71,29 @@ def test_a_new_account_already_holds_the_base_roles_of_the_sum(person: Person) -
     """Sem roles `sum.ipm.get`, o Receiver do SUM responderia 403 à listagem."""
     done = person.sk.run("sum", "service", "list")
     assert done.exit_code == 0, done.text
-    assert "Nenhuma ligação" in done.stdout
+    assert "No services" in done.stdout
 
 
-def test_enable_the_ipm_and_see_its_roles_granted(person: Person, link: dict[str, str]) -> None:
-    done = person.sk.run("sum", "service", "enable", "--service", "ipm")
+def test_enable_wait_converges_and_the_token_already_carries_the_ipm_roles(
+    person: Person, link: dict[str, str]
+) -> None:
+    assert _project("IPM") not in person.sk.token_roles(), "antes de ligar, o token não tem ipm.*"
+    done = person.sk.run("sum", "service", "enable", "--service", "ipm", "--wait", timeout=150.0)
     assert done.exit_code == 0, done.text
     link["resourceId"], link["operationId"] = _identifiers(done.stdout)
-    shown = _converged(person.sk, link, on=True)
-    assert IPM_ROLE in shown, shown  # roles observadas, concedidas pelo Executor do SUM
+    assert _field(done.stdout, "state") == "enabled" and _field(done.stdout, "phase") == "Ready"
+    assert _field(done.stdout, "session") == "renewed", done.stdout
+    shown = _state(person.sk, link)
+    assert _field(shown, "operationStatus") == "completed"
+    assert IPM_ROLE in _field(shown, "observedRoles")  # roles observadas no Zitadel
+    # O que a opção A garante: o token da sessão já reflete a ligação, sem novo login.
+    roles = person.sk.token_roles()
+    assert roles.get(_project("IPM"), set()) >= {
+        f"{IPM_ROLE}.get",
+        f"{IPM_ROLE}.create",
+    }, roles
+    assert {"core.user.get", "core.user.delete"} <= roles[_project("CORE")]
+    assert {"sum.ipm.enable", "sum.ipm.get"} <= roles[_project("SUM")]
 
 
 def test_the_link_is_listed_and_a_second_enable_points_to_it(
@@ -83,7 +104,7 @@ def test_the_link_is_listed_and_a_second_enable_points_to_it(
     assert listed.exit_code == 0 and link["resourceId"] in listed.stdout, listed.text
     again = person.sk.run("sum", "service", "enable", "--service", "ipm")
     assert again.exit_code == 1
-    assert "Já existe uma ligação deste serviço" in again.stderr, again.stderr
+    assert "This service is already enabled" in again.stderr, again.stderr
 
 
 def test_the_sk_renews_an_expired_session_with_the_refresh_token(person: Person) -> None:
@@ -98,15 +119,33 @@ def test_the_sk_renews_an_expired_session_with_the_refresh_token(person: Person)
     assert datetime.fromisoformat(renewed["accessTokenExpiresAt"]) > datetime.now(UTC)
 
 
-def test_disable_converges_and_revokes_the_roles(person: Person, link: dict[str, str]) -> None:
-    done = person.sk.run("sum", "service", "disable", "--resource-id", link["resourceId"])
+def test_disable_wait_converges_and_the_token_drops_the_ipm_roles(
+    person: Person, link: dict[str, str]
+) -> None:
+    done = person.sk.run(
+        *("sum", "service", "disable"),
+        *("--resource-id", link["resourceId"]),
+        "--wait",
+        timeout=150.0,
+    )
     assert done.exit_code == 0, done.text
     link["operationId"] = _identifiers(done.stdout)[1]
-    shown = _converged(person.sk, link, on=False)
-    assert "nenhuma" in shown, shown
+    assert _field(done.stdout, "state") == "disabled" and _field(done.stdout, "phase") == "Ready"
+    assert _field(done.stdout, "session") == "renewed", done.stdout
+    assert _field(_state(person.sk, link), "observedRoles") == "none"
+    # A revogação também chega ao token: sem isso, o Receiver do ipm ainda aceitaria as roles.
+    roles = person.sk.token_roles()
+    assert _project("IPM") not in roles, roles
 
 
 def test_a_second_disable_has_nothing_to_do(person: Person, link: dict[str, str]) -> None:
     done = person.sk.run("sum", "service", "disable", "--resource-id", link["resourceId"])
     assert done.exit_code == 0, done.text
-    assert "já está desligada" in done.stdout
+    assert "is already disabled" in done.stdout
+
+
+def test_the_refresh_command_renews_the_session_on_demand(person: Person) -> None:
+    before = person.sk.credentials()["accessToken"]
+    done = person.sk.run("auth", "refresh")
+    assert done.exit_code == 0, done.text
+    assert person.sk.credentials()["accessToken"] != before

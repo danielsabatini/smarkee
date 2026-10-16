@@ -15,11 +15,13 @@ componente.
    "navegador" é um falso (`tests/browser.py`, usado pelo `tests/login_browser.py` como `BROWSER`) que abre o
    endereço de login, preenche usuário e senha, dispensa a oferta de segundo fator e entrega o retorno ao
    servidor local do `sk`. Não usa nenhuma credencial privilegiada.
-4. Confere que a conta nova já tem as roles base do SUM (`sum.ipm.*`, concedidas no cadastro, decisão 0033).
-5. `sk sum service enable --service ipm`: a ligação chega a `Ready`, a Operation a `completed`, e as roles
-   `ipm.organization.*` aparecem (concedidas pelo Executor do SUM). Um segundo `enable` aponta a ligação.
+4. Confere que a conta nova já tem as roles base do SUM (`sum.ipm.*`, concedidas no cadastro, decisão 0033) e que o token **ainda não** tem as `ipm.*`.
+5. `sk sum service enable --service ipm --wait`: o serviço chega a `Ready`, a Operation a `completed`, a sessão é
+   renovada e **o token já traz as `ipm.organization.*`** (concedidas pelo Executor do SUM), sem novo login. Um
+   segundo `enable` aponta a ligação existente.
 6. Renovação da sessão: com o access token vencido, a CLI o renova pelo refresh token.
-7. `sk sum service disable`: converge e revoga as roles; um segundo `disable` não tem nada a fazer.
+7. `sk sum service disable --wait`: converge, revoga as roles e o token **perde** as `ipm.*`; um segundo `disable` não
+   tem nada a fazer. `sk auth refresh` renova a sessão sob demanda.
 8. Limpeza: a pessoa é removida pela API com o próprio token (falha alto se não der), e as linhas
    `absent` da ligação são apagadas do SSOT quando há acesso ao banco.
 
@@ -38,6 +40,7 @@ Por variável de ambiente. Sem as obrigatórias, os testes são pulados.
 | `E2E_CLI_CLIENT_ID` | (obrigatória) | Client ID da aplicação `cli` (projeto `clients`, decisão 0034) |
 | `E2E_CORE_PROJECT_ID` | (obrigatória) | ID do projeto `roles-core` (audience pedida no login) |
 | `E2E_SUM_PROJECT_ID` | (obrigatória) | ID do projeto `roles-sum` (audience pedida no login) |
+| `E2E_IPM_PROJECT_ID` | (obrigatória) | ID do projeto `roles-ipm` (audience pedida no login; as `ipm.*` chegam por ela) |
 | `E2E_API_URL` | `http://api-dev.smarkee.com.br:8080` | Gateway da API |
 | `E2E_ISSUER` | `http://ipm-dev.smarkee.com.br:8080` | Zitadel pelo gateway |
 | `E2E_MAILPIT_URL` | `http://localhost:8025` | Mailpit do dev |

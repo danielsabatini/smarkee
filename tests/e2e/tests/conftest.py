@@ -4,6 +4,7 @@ Tudo pela rede e pela CLI real. O navegador é um falso (`login_browser.py`) que
 de login do provedor como a pessoa faria; nenhuma credencial privilegiada é usada.
 """
 
+import base64
 import json
 import os
 import re
@@ -28,9 +29,8 @@ MAILPIT_URL = os.environ.get("E2E_MAILPIT_URL", "http://localhost:8025")
 CLI_CLIENT_ID = os.environ.get("E2E_CLI_CLIENT_ID")
 CORE_PROJECT_ID = os.environ.get("E2E_CORE_PROJECT_ID")
 SUM_PROJECT_ID = os.environ.get("E2E_SUM_PROJECT_ID")
-CLI_PROJECT = Path(
-    os.environ.get("E2E_CLI_PROJECT", Path(__file__).parents[3] / "clients" / "cli")
-)
+IPM_PROJECT_ID = os.environ.get("E2E_IPM_PROJECT_ID")
+CLI_PROJECT = Path(os.environ.get("E2E_CLI_PROJECT", Path(__file__).parents[3] / "clients" / "cli"))
 SUM_MANAGER_DATABASE_URL = os.environ.get("E2E_SUM_MANAGER_DATABASE_URL")
 SUM_MAINTENANCE_DATABASE_URL = os.environ.get("E2E_SUM_MAINTENANCE_DATABASE_URL")
 
@@ -69,7 +69,8 @@ class Sk:
             f'[auth]\nissuer = "{ISSUER}"\nclientId = "{CLI_CLIENT_ID}"\nallowInsecureHttp = true\n'
             f'[core]\napiUrl = "{API_URL}"\nallowInsecureHttp = true\n'
             f'projectId = "{CORE_PROJECT_ID}"\n'
-            f'[sum]\nprojectId = "{SUM_PROJECT_ID}"\n',
+            f'[sum]\nprojectId = "{SUM_PROJECT_ID}"\n'
+            f'[ipm]\nprojectId = "{IPM_PROJECT_ID}"\n',
             encoding="utf-8",
         )
 
@@ -90,6 +91,18 @@ class Sk:
 
     def credentials(self) -> dict[str, Any]:
         return json.loads(self.credentials_path.read_text(encoding="utf-8"))
+
+    def token_roles(self) -> dict[str, set[str]]:
+        """Roles do access token da sessão atual, por ID de projeto (só as chaves, sem o token)."""
+        token = str(self.credentials()["accessToken"])
+        payload = token.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        prefix, suffix = "urn:zitadel:iam:org:project:", ":roles"
+        return {
+            key[len(prefix) : -len(suffix)]: set(value)
+            for key, value in claims.items()
+            if key.startswith(prefix) and key.endswith(suffix) and key.count(":") > 5
+        }
 
     def browser_failure(self) -> str:
         return self.browser_log.read_text(encoding="utf-8") if self.browser_log.exists() else ""
@@ -141,6 +154,7 @@ def _require_environment() -> None:
             ("E2E_CLI_CLIENT_ID", CLI_CLIENT_ID),
             ("E2E_CORE_PROJECT_ID", CORE_PROJECT_ID),
             ("E2E_SUM_PROJECT_ID", SUM_PROJECT_ID),
+            ("E2E_IPM_PROJECT_ID", IPM_PROJECT_ID),
         )
         if not value
     ]
