@@ -58,7 +58,8 @@ KEY_EXPIRATION_WARNING = timedelta(days=90)
 SERVICE_ACCOUNTS = {
     "core-user-executor",
     "core-user-observer",
-    "core-organization-executor",
+    "ipm-organization-executor",
+    "ipm-organization-observer",
     "sum-service-executor",
     "sum-service-observer",
 }
@@ -297,7 +298,9 @@ def test_each_project_grant_to_register_delegates_only_its_action_roles(
 def test_service_accounts_live_in_core(zitadel: Zitadel, orgs: dict[str, str]) -> None:
     assert user_names(zitadel, orgs["core"]) >= SERVICE_ACCOUNTS
     assert not {
-        n for n in user_names(zitadel, orgs["register"]) if n.startswith(("core-", "sum-service-"))
+        n
+        for n in user_names(zitadel, orgs["register"])
+        if n.startswith(("core-", "sum-service-", "ipm-organization-"))
     }
 
 
@@ -311,10 +314,14 @@ def test_executor_and_observer_have_roles_only_in_register(
     # O Observer do SUM só lê a register; o Executor do SUM não tem papel nela (só o Grant, abaixo).
     assert in_register.get("sum-service-observer") == {"ORG_OWNER_VIEWER"}
     assert "sum-service-executor" not in in_register
+    # As contas da Organization têm só papel de instância (abaixo), nenhum na `register`.
+    assert not {n for n in in_register if n.startswith("ipm-organization-")}
     in_core = members(zitadel, orgs["core"])
-    assert not {name for name in in_core if name.startswith(("core-user-", "sum-service-"))}, (
-        "o Executor e o Observer do User e do SUM não têm papel na organização core (decisão 0027)"
-    )
+    assert not {
+        name
+        for name in in_core
+        if name.startswith(("core-user-", "sum-service-", "ipm-organization-"))
+    }, "o Executor e o Observer não têm papel na organização core (decisão 0027)"
 
 
 def test_user_executor_grants_roles_only_in_its_modules(
@@ -375,7 +382,8 @@ def test_service_account_keys_exist_and_are_not_close_to_expiry(
 def test_instance_members(zitadel: Zitadel) -> None:
     by_name = administrators(zitadel, {"instance": True})
     assert by_name.get("platform-bootstrap@smarkee.internal") == {"IAM_OWNER"}
-    assert by_name.get("core-organization-executor") == {"IAM_ORG_MANAGER"}
+    assert by_name.get("ipm-organization-executor") == {"IAM_ORG_MANAGER"}
+    assert by_name.get("ipm-organization-observer") == {"IAM_OWNER_VIEWER"}
 
 
 def operator_authorizations(

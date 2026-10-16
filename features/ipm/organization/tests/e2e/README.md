@@ -17,9 +17,14 @@ Requer a stack de dev no ar (`infrastructure/dev`). Configuração, por variáve
 | `CONFORMANCE_NATS_PASSWORD` | (sem padrão; sem ela, os testes de mensageria são pulados) | Senha do NATS (`NATS_PASSWORD` de `broker/.env`) |
 | `CONFORMANCE_ACCESS_TOKEN` | (opcional) | Access token de um usuário com as roles de ação; sem ele, os testes autenticados são pulados |
 | `CONFORMANCE_DATABASE_HOST` / `_PORT` | `localhost` / `5432` | Limpeza dos dados de teste (papéis de dev) |
+| `E2E_CHAOS` | (vazio) | `1` habilita os testes de resiliência (derrubam contêineres) |
 
 ```bash
 uv sync
 export CONFORMANCE_NATS_PASSWORD=$(grep ^NATS_PASSWORD= ../../../../../infrastructure/dev/broker/.env | cut -d= -f2)
 uv run pytest
 ```
+
+`tests/test_loop.py` fecha o loop com os componentes reais e o Zitadel de dev: os pedidos entram direto no NATS (como o Receiver os publicaria, sem token), a organização é criada, renomeada, desativada e reativada (`platformAccess`) e removida pelo próprio loop, e o Observer confirma cada passo. Cada Organization de teste é removida pelo loop ao final; sem isso, sobrariam organizações no Zitadel.
+
+Testes de resiliência (opt-in, `E2E_CHAOS=1`): `tests/test_chaos.py` derruba, com o `docker`, cada um dos papéis (Manager, Publisher, Reconciler, Observer e Executor) durante um pedido e verifica que o trabalho não se perde e o loop converge quando o componente volta. Restauram o componente ao final.

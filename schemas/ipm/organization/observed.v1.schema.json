@@ -14,7 +14,7 @@
     },
     "platformAccess": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
-      "description": "granted quando o Project Grant do projeto da plataforma existe para a organização.",
+      "description": "granted quando a organização está ativa no provedor de identidade; revoked quando está desativada.",
       "x-writer": "server",
       "x-sensitivity": "internal"
     },

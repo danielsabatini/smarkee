@@ -1,15 +1,17 @@
 name: ipm-organization
 
-# Componentes de ipm.organization (decisões 0015 e 0019): migração, consumers, Receiver, Manager e Publisher.
+# Componentes de ipm.organization (decisões 0015 e 0019): migração, consumers, Receiver, Manager,
+# Publisher, Reconciler, Observer e Executor.
 # A plataforma (banco, broker, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
 # e saudável antes (`docker compose up -d --wait broker database gateway identity identity-login`
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
 
 services:
-  # Consumers duráveis de trabalho do Manager para `requested`, `observed` e `result` do tipo
-  # (docs/NATS.md §7.6). Os manifestos são do Manager (`manager/consumers/`). Inexistente é criado;
+  # Consumers duráveis de trabalho do tipo: o Manager (`requested`, `observed` e `result`) e o
+  # Executor (`action`, um por partição) (docs/NATS.md §7.5 e §7.6). Os manifestos são do Manager (`manager/consumers/`). Inexistente é criado;
   # existente com configuração idêntica não muda; configuração diferente falha de forma explícita.
-  # Exige os Streams REQUESTED, OBSERVED e RESULT, criados pelo broker da plataforma.
+  # Exige os Streams REQUESTED, OBSERVED, RESULT e ACTION, criados pelo broker da plataforma. Os
+  # consumers do Executor (um por partição) são do Executor (`executor/consumers/`).
   ipm-organization-consumer:
     build:
       context: ../../../infrastructure/tools/nats-client
@@ -25,9 +27,13 @@ services:
       - >-
         nats consumer add REQUESTED --config /consumers/ipm-organization-manager-requested.json &&
         nats consumer add OBSERVED --config /consumers/ipm-organization-manager-observed.json &&
-        nats consumer add RESULT --config /consumers/ipm-organization-manager-result.json
+        nats consumer add RESULT --config /consumers/ipm-organization-manager-result.json &&
+        for partition in 0 1 2 3; do
+          nats consumer add ACTION --config /consumers-executor/ipm-organization-executor-action-p$$partition.json || exit 1;
+        done
     volumes:
       - ./manager/consumers:/consumers:ro
+      - ./executor/consumers:/consumers-executor:ro
     networks:
       - internal
     restart: "no"
@@ -113,7 +119,7 @@ services:
         aliases:
           - ipm-organization-manager.smarkee.internal
     restart: unless-stopped
-    healthcheck:
+    healthcheck: &service-healthcheck
       test:
         - CMD
         - python
@@ -142,16 +148,84 @@ services:
         aliases:
           - ipm-organization-publisher.smarkee.internal
     restart: unless-stopped
-    healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)"
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 10s
+    healthcheck: *service-healthcheck
+
+  # Reconciler (`ipm-organization-reconciler`): decide a `action` a partir de `desired` e `observed`.
+  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/NATS.md §7.4).
+  ipm-organization-reconciler:
+    build:
+      context: ./reconciler
+    image: ${IPM_ORGANIZATION_RECONCILER_IMAGE:-smarkee-ipm-organization-reconciler:dev}
+    container_name: ipm-organization-reconciler.smarkee.internal
+    environment:
+      IPM_ORGANIZATION_RECONCILER_NATS_PASSWORD: ${IPM_ORGANIZATION_RECONCILER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+    depends_on:
+      ipm-organization-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-organization-reconciler.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *service-healthcheck
+
+  # Observer (`ipm-organization-observer`): lê o Zitadel (conta somente leitura, IAM_OWNER_VIEWER) e
+  # publica `observed`. Monta só a própria chave do volume da identidade.
+  ipm-organization-observer:
+    build:
+      context: ./observer
+    image: ${IPM_ORGANIZATION_OBSERVER_IMAGE:-smarkee-ipm-organization-observer:dev}
+    container_name: ipm-organization-observer.smarkee.internal
+    environment:
+      IPM_ORGANIZATION_OBSERVER_NATS_PASSWORD: ${IPM_ORGANIZATION_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+    volumes:
+      - type: volume
+        source: identity-bootstrap
+        target: /run/secrets/zitadel-key.json
+        read_only: true
+        volume:
+          subpath: service-account-ipm-organization-observer.json
+    depends_on:
+      ipm-organization-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-organization-observer.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *service-healthcheck
+
+  # Executor (`ipm-organization-executor`): única identidade com escrita da Organization no Zitadel
+  # (conta ipm-organization-executor, papel IAM_ORG_MANAGER). Monta só a própria chave.
+  ipm-organization-executor:
+    build:
+      context: ./executor
+    image: ${IPM_ORGANIZATION_EXECUTOR_IMAGE:-smarkee-ipm-organization-executor:dev}
+    container_name: ipm-organization-executor.smarkee.internal
+    environment:
+      IPM_ORGANIZATION_EXECUTOR_NATS_PASSWORD: ${IPM_ORGANIZATION_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+    volumes:
+      - type: volume
+        source: identity-bootstrap
+        target: /run/secrets/zitadel-key.json
+        read_only: true
+        volume:
+          subpath: service-account-ipm-organization-executor.json
+    depends_on:
+      ipm-organization-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-organization-executor.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *service-healthcheck
+
+volumes:
+  # Volume da identidade (chaves das contas de serviço), criado por `infrastructure/dev/identity`.
+  identity-bootstrap:
+    name: identity-bootstrap
+    external: true
 
 networks:
   # Rede da plataforma, criada por `infrastructure/dev`.

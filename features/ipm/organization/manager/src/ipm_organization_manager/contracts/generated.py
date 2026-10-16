@@ -394,7 +394,7 @@ class OrganizationObservedData(ContractModel):
     """
     platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
     """
-    granted quando o Project Grant do projeto da plataforma existe para a organização.
+    granted quando a organização está ativa no provedor de identidade; revoked quando está desativada.
     """
     organization_state: Annotated[OrganizationState | None, Field(alias="organizationState")] = None
 

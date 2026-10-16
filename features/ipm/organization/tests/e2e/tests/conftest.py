@@ -1,7 +1,11 @@
 """Fixtures: cliente HTTP do gateway, NATS e limpeza dos dados de teste."""
 
+import asyncio
+import json
 import os
+import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -51,13 +55,76 @@ async def jetstream() -> AsyncIterator[JetStreamContext]:
 
 
 @pytest_asyncio.fixture
-async def created() -> AsyncIterator[list[str]]:
-    """Identificadores criados pelo teste; removidos do SSOT e do transporte ao final."""
+async def created(jetstream: JetStreamContext) -> AsyncIterator[list[str]]:
+    """Identificadores criados pelo teste.
+
+    Ao final, cada Organization é removida **pelo próprio loop** (pedido `delete`, Reconciler,
+    Executor e Observer), para não deixar organizações no Zitadel. O que sobrar no SSOT é limpo
+    diretamente.
+    """
     resource_ids: list[str] = []
     yield resource_ids
     if not resource_ids:
         return
+    for resource_id in resource_ids:
+        await remove_through_the_loop(jetstream, resource_id)
     await _cleanup_database(resource_ids)
+
+
+async def remove_through_the_loop(jetstream: JetStreamContext, resource_id: str) -> None:
+    """Pede a remoção e espera o `updated` com `removed`. Sem `Ready` ou sem tempo, desiste."""
+    subject = f"manager.updated.ipm.organization.{resource_id}.changed"
+    try:  # a organização nunca chegou a ser aceita (por exemplo, nome duplicado): nada a remover
+        await jetstream.get_last_msg(
+            "DESIRED", f"manager.desired.ipm.organization.{resource_id}.changed"
+        )
+    except Exception:
+        return
+    # Espera o loop convergir (Ready) antes de pedir a remoção; sem isso, o Executor poderia
+    # criar a organização no Zitadel depois do pedido de remoção.
+    updated: dict[str, Any] = {}
+    deadline = asyncio.get_running_loop().time() + 60.0
+    while asyncio.get_running_loop().time() < deadline:
+        try:
+            updated = json.loads((await jetstream.get_last_msg("UPDATED", subject)).data or b"{}")
+        except Exception:
+            updated = {}
+        if updated and (updated["data"].get("removed") or updated["data"]["phase"] == "Ready"):
+            break
+        await asyncio.sleep(0.5)
+    if not updated or updated["data"].get("removed"):
+        return
+    now = datetime.now(UTC).isoformat()
+    delete = {
+        "messageId": str(uuid.uuid7()),
+        "schemaVersion": "1.0",
+        "messageType": "requested",
+        "emitter": "receiver",
+        "module": "ipm",
+        "resourceType": "organization",
+        "resourceId": resource_id,
+        "operation": "delete",
+        "requestedBy": "conformance-user",
+        "correlationId": str(uuid.uuid7()),
+        "occurredAt": now,
+        "publishedAt": now,
+        "data": {
+            "operationId": str(uuid.uuid7()),
+            "requestDigest": "0" * 64,
+            "resourceVersion": updated["data"]["resourceVersion"],
+        },
+    }
+    await jetstream.publish(
+        f"receiver.requested.ipm.organization.{resource_id}.delete",
+        json.dumps(delete).encode(),
+        headers={"Nats-Msg-Id": delete["messageId"]},
+    )
+    deadline = asyncio.get_running_loop().time() + 40.0
+    while asyncio.get_running_loop().time() < deadline:
+        latest = json.loads((await jetstream.get_last_msg("UPDATED", subject)).data or b"{}")
+        if latest["data"].get("removed"):
+            return
+        await asyncio.sleep(0.5)
 
 
 async def _cleanup_database(resource_ids: list[str]) -> None:
@@ -83,7 +150,7 @@ async def _cleanup_database(resource_ids: list[str]) -> None:
         )
         for suffix in ("outbox", "operation", "action_result"):
             await maintenance.execute(
-                f"DELETE FROM {TABLE.replace('"user"', 'user')}_{suffix}"  # noqa: S608
+                f"DELETE FROM {TABLE}_{suffix}"  # noqa: S608
                 " WHERE resource_id = ANY(%s)",
                 (resource_ids,),
             )
