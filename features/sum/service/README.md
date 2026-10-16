@@ -19,7 +19,7 @@ Os seis componentes do loop e a CLI estão implementados e rodam no dev (Compose
 | Executor | `executor/` | Concede e revoga as roles no Zitadel; revalida cada ação; um laço por partição |
 | Testes e2e | `tests/e2e/` | Black-box: contrato, loop completo e caos (Manager, Executor, Publisher, Reconciler e Observer) |
 
-A CLI é o comando `sk sum service enable|disable|get|list` (`components/cli`).
+A CLI é o comando `sk sum service enable|disable|get|list` (`clients/cli`).
 
 # 2. Arquitetura
 

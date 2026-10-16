@@ -9,7 +9,7 @@ O CLI `sk` precisa autenticar o usuário antes de chamar as APIs da plataforma. 
 
 ## Decisão
 
-- **O login é da plataforma:** o comando é `sk auth login`, e não `sk ipm auth login`. O código fica no núcleo do CLI (`components/cli/src/sk/`).
+- **O login é da plataforma:** o comando é `sk auth login`, e não `sk ipm auth login`. O código fica no núcleo do CLI (`clients/cli/src/sk/`).
 - **Sem API de autenticação:** o `sk` fala direto com o Zitadel pelo gateway, usando o issuer público. Nenhum serviço da plataforma participa do login.
 - **Auth não é uma feature:** não tem recurso no Resource Control Loop (sem `desired`, `observed`, Manager, Reconciler ou Executor). Por isso não fica em `features/`. Cada Receiver valida os tokens recebidos (assinatura pelo JWKS, issuer, audience e roles); cada Receiver contém a sua própria validação (decisão 0015: sem biblioteca de runtime compartilhada entre componentes).
 - **Fluxo:** OIDC Authorization Code com PKCE S256 e retorno em loopback `http://127.0.0.1:<porta efêmera>/callback` (RFC 7636 e RFC 8252). O CLI é um cliente público, sem segredo. No Zitadel, a aplicação nativa registra `http://127.0.0.1/callback`: em aplicação nativa, o Zitadel ignora a porta para loopback (`equalURI` em `zitadel/oidc` compara somente o caminho e a query).

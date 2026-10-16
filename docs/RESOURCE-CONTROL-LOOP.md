@@ -1499,7 +1499,7 @@ ipm-organization-reconciler
 ipm-organization-executor
 ```
 
-O comando `sk ipm organization` pertence ao CLI da plataforma (`components/cli`), que é cliente do Receiver. Estado: `receiver`, `manager` e o relay do outbox existem (este ainda no desenho anterior, que será o `publisher`); `observer`, `reconciler` e `executor` são criados na fatia seguinte, a partir do modelo do User (seção 46.1).
+O comando `sk ipm organization` pertence ao CLI da plataforma (`clients/cli`), que é cliente do Receiver. Estado: `receiver`, `manager` e o relay do outbox existem (este ainda no desenho anterior, que será o `publisher`); `observer`, `reconciler` e `executor` são criados na fatia seguinte, a partir do modelo do User (seção 46.1).
 
 ## 46.1 Aplicação ao User
 

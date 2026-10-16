@@ -15,7 +15,7 @@ O Project Grant é **por organização**, não por conta de serviço, e o papel 
 
 ## Decisão
 
-- **Um projeto de roles por módulo**, na organização `core`: `roles-core` (também com a aplicação `cli`), `roles-ipm`, `roles-sum`. Cada um é delegado à `register` por **Project Grant** só com as roles de ação. As `*.admin` ficam no projeto do módulo, fora do Grant (não há projeto de administração separado).
+- **Um projeto de roles por módulo**, na organização `core`: `roles-core`, `roles-ipm`, `roles-sum` (a aplicação `cli` saiu do `roles-core` para o projeto `clients`, decisão 0034). Cada um é delegado à `register` por **Project Grant** só com as roles de ação. As `*.admin` ficam no projeto do módulo, fora do Grant (não há projeto de administração separado).
 - **Papel `ORG_USER_CREATOR`**: papel de organização customizado, com as permissões do `ORG_USER_MANAGER` **sem** `user.grant.read|write|delete`. Entra pelo arquivo `infrastructure/dev/identity/role-permissions.yaml`, que o `identity` carrega com `--config` (cópia integral do `InternalAuthz.RolePermissionMappings` do Zitadel v4.19.4, que o configurado substitui por inteiro, mais esse papel). Em Kubernetes, o mesmo conteúdo vai em `zitadel.configmapConfig` do chart. A cada atualização do Zitadel, o arquivo é comparado com o `defaults.yaml` da nova versão.
 - **Papéis dos executores:**
 

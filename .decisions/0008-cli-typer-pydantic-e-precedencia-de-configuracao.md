@@ -9,7 +9,7 @@ O CLI `sk` vai crescer com os comandos da plataforma (`sk auth ...`) e dos módu
 
 ## Decisão
 
-- **Python 3.14**, **Typer** para os comandos e **Pydantic** com **pydantic-settings** para a configuração (`components/cli`).
+- **Python 3.14**, **Typer** para os comandos e **Pydantic** com **pydantic-settings** para a configuração (`clients/cli`).
 - **Precedência**, da maior para a menor: **parâmetro → variável de ambiente → arquivo de configuração → default**.
   - Os parâmetros do Typer são repassados ao pydantic-settings como argumentos de inicialização, somente quando informados (`None` e flag não ativada não são repassados).
   - As variáveis de ambiente são lidas só pelo pydantic-settings. O Typer não usa `envvar`, para que a precedência tenha uma única fonte.

@@ -155,19 +155,20 @@ Não há TLS em dev (`sslmode=disable` quando o cliente exigir o parâmetro).
 
 ### Configuração do Zitadel para a plataforma (`sk auth login`)
 
-O `sk` autentica direto no Zitadel, pelo gateway, sem API própria de autenticação (Authorization Code com PKCE e retorno em `127.0.0.1`; uso em `components/cli/README.md`). Ele usa a sua aplicação nativa, que fica no projeto `roles-core`. Pelas decisões 0010, 0013, 0014 e 0032, o desenho é:
+O `sk` autentica direto no Zitadel, pelo gateway, sem API própria de autenticação (Authorization Code com PKCE e retorno em `127.0.0.1`; uso em `clients/cli/README.md`). Ele usa a sua aplicação nativa, que fica no projeto `clients` (sem roles). Pelas decisões 0010, 0013, 0014, 0032 e 0034, o desenho é:
 
 | Organização | Papel |
 |---|---|
 | `smarkee` | Só operadores e contas administrativas da instância (`admin`, `platform-bootstrap`, `login-client`). Não tem recursos da plataforma |
-| `core` | Organização de sistema da plataforma: dona dos projetos de roles (`roles-core`, `roles-ipm`, `roles-sum`). Sem usuários cadastrados e sem papéis das contas de serviço |
+| `core` | Organização de sistema da plataforma: dona dos projetos de roles (`roles-core`, `roles-ipm`, `roles-sum`) e do projeto `clients` (aplicações dos clientes da plataforma). Sem usuários cadastrados e sem papéis das contas de serviço |
 | `register` | Usuários cadastrados (decisões 0026 e 0027). Recebe cada projeto de roles por Project Grant (só as roles de ação, sem as `*.admin`) |
 
 Estado aplicado no dev em 2026-10-10 (pela API do Zitadel, com a conta de bootstrap; o script usado é temporário e não versionado):
 
-- **Um projeto de roles por módulo, na organização `core`** (decisão 0032): `roles-core` (também com a aplicação `cli`), `roles-ipm` e `roles-sum`. Em cada um, roles no token e **verificação de role na autenticação** ligadas. Cada módulo tem o seu projeto para que o Project Grant (que é por projeto) limite o que cada Executor concede.
+- **Um projeto de roles por módulo, na organização `core`** (decisão 0032): `roles-core`, `roles-ipm` e `roles-sum`. Em cada um, roles no token e **verificação de role na autenticação** ligadas. Cada módulo tem o seu projeto para que o Project Grant (que é por projeto) limite o que cada Executor concede.
 - **Roles por ação:** `core.user.get|delete` (`roles-core`), `ipm.organization.create|delete|get|list|update` (`roles-ipm`) e `sum.ipm.enable|disable|get` (`roles-sum`); para operadores, `core.user.admin` (`roles-core`) e `ipm.organization.admin` (`roles-ipm`), que ficam fora dos Grants. Padrão `<módulo>.<tipo>.<ação>` (decisão 0028); no Zitadel cada role tem o módulo como `group`.
-- **Aplicação `cli`:** nativa, PKCE, redirect `http://127.0.0.1/callback`, Authorization Code e Refresh Token, **access token JWT**, roles no token. Não há client secret: o `sk` é um cliente público. O client ID é um por ambiente.
+- **Projeto `clients`** (decisão 0034), na `core`: sem roles, sem Project Grant, roles no token ligadas e **verificação de role na autenticação desligada**. Existe porque, no login interativo, o Zitadel só põe no token as roles do projeto da aplicação: com a `cli` num projeto de roles, o token não valeria nos Receivers dos outros módulos. O `sk` pede a audience de cada módulo (`[core] projectId` e `[sum] projectId`).
+- **Aplicação `cli`**, no projeto `clients`: nativa, PKCE, redirect `http://127.0.0.1/callback`, Authorization Code e Refresh Token, **access token JWT**, roles no token. Não há client secret: o `sk` é um cliente público. O client ID é um por ambiente.
 - **Cadastro público desligado** na política de login da instância (`allowRegister = false`), que as organizações herdam.
 - **Service accounts na organização `core`** (verificadas no Zitadel de dev em 2026-10-11): `core-user-executor` (`ORG_USER_CREATOR` na organização `register`: cria e remove usuários, sem conceder roles; e `PROJECT_GRANT_OWNER` só nos Grants de `roles-core` e `roles-sum`: concede as roles desses módulos, nunca as de `ipm`) e `core-user-observer` (`ORG_OWNER_VIEWER` só na `register`, somente leitura); ambos sem papel na `core` (verificado em 2026-10-14) e `core-organization-executor` (papel de instância `IAM_ORG_MANAGER`; será renomeada para `ipm-organization-executor` quando o Executor da Organization for implementado), com as chaves no volume `identity-bootstrap`; cada componente monta só a própria.
 - **Service accounts do SUM na organização `core`** (criadas em 2026-10-15): `sum-service-executor` (`PROJECT_GRANT_OWNER` só no Grant de `roles-ipm` para a `register`) e `sum-service-observer` (`ORG_OWNER_VIEWER` só na `register`, somente leitura); sem papel na `core`, com as chaves no volume `identity-bootstrap` (dono 10001, modo 0400), cada componente montando só a própria. As chaves vencem em 2027-10-15: a rotação é a seção "Rotação das chaves das contas de serviço", e a suíte de conformidade avisa 90 dias antes.
@@ -178,25 +179,27 @@ Estado aplicado no dev em 2026-10-10 (pela API do Zitadel, com a conta de bootst
 - **Variáveis da feature User:** `CORE_ZITADEL_REGISTER_ORGANIZATION_ID` (organização `register`) e `CORE_ZITADEL_PROJECT_IDS` (JSON módulo → ID do projeto de roles que o Executor concede: `core` e `sum`). O Receiver usa a audience do próprio projeto.
 - **Operadores:** autorização externa, criada na organização `core` para o usuário da organização `smarkee`, com `*.admin` e as roles de ação (`core.user.get|delete`, `ipm.organization.*`). Operador somente leitura: `*.admin` mais `get`/`list`, sem `delete`.
 
-**Conferência da estrutura:** `identity/conformance` é uma suíte somente leitura que confere tudo acima (organizações, projetos de roles, roles e `group`, aplicação `cli`, Project Grants, contas de serviço e papéis, o isolamento do Executor do User, autorizações dos operadores e cadastro público desligado). Rode-a depois de criar ou recriar a estrutura; uso em `identity/conformance/README.md`. A criação continua manual (console ou API de gestão com a conta de bootstrap): a suíte não cria nada.
+**Conferência da estrutura:** `identity/conformance` é uma suíte somente leitura que confere tudo acima (organizações, projetos de roles, o projeto `clients`, roles e `group`, aplicação `cli`, Project Grants, contas de serviço e papéis, o isolamento do Executor do User, autorizações dos operadores e cadastro público desligado). Rode-a depois de criar ou recriar a estrutura; uso em `identity/conformance/README.md`. A criação continua manual (console ou API de gestão com a conta de bootstrap): a suíte não cria nada.
 
-Para reproduzir pelo console (**Projetos**, **Autorizações**, **Configurações → Login**; os nomes das opções podem diferir um pouco na versão em uso): crie a organização `core`; nela, os projetos `roles-core`, `roles-ipm` e `roles-sum` (*Afirmar roles na autenticação* e *Verificar roles na autenticação* ligados) com as roles acima, e a aplicação `cli` em `roles-core` (nativa, PKCE, tipo de token JWT, redirect e concessões acima); desligue o registro na política de login; e delegue cada projeto à `register` por Project Grant só com as roles de ação; dê ao Executor do User os papéis `ORG_USER_CREATOR` (na `register`) e `PROJECT_GRANT_OWNER` (nos Grants de `roles-core` e `roles-sum`); e conceda `*.admin` mais as roles de ação aos operadores.
+Para reproduzir pelo console (**Projetos**, **Autorizações**, **Configurações → Login**; os nomes das opções podem diferir um pouco na versão em uso): crie a organização `core`; nela, os projetos `roles-core`, `roles-ipm` e `roles-sum` (*Afirmar roles na autenticação* e *Verificar roles na autenticação* ligados) com as roles acima, o projeto `clients` (*Afirmar roles na autenticação* ligado e *Verificar roles na autenticação* **desligado**, sem roles) com a aplicação `cli` (nativa, PKCE, tipo de token JWT, redirect e concessões acima); desligue o registro na política de login; e delegue cada projeto à `register` por Project Grant só com as roles de ação; dê ao Executor do User os papéis `ORG_USER_CREATOR` (na `register`) e `PROJECT_GRANT_OWNER` (nos Grants de `roles-core` e `roles-sum`); e conceda `*.admin` mais as roles de ação aos operadores.
 
 Depois, no host, grave a configuração uma vez (`~/.config/sk/config.toml`) e faça o login:
 
 ```bash
-cd components/cli
+cd clients/cli
 uv run sk init --force --issuer http://ipm-dev.smarkee.com.br:8080 \
   --api-url http://api-dev.smarkee.com.br:8080 \
   --client-id <client-id-da-aplicação-cli> --allow-insecure-http   # dev não tem TLS
+uv run sk config set core.projectId <ID-do-projeto-roles-core>
+uv run sk config set sum.projectId <ID-do-projeto-roles-sum>
 uv run sk auth login
 ```
 
-- Só entra na aplicação quem tem ao menos uma role no projeto (verificação de role). Um operador sem nenhuma role do projeto é recusado no login.
+- O login não verifica role (decisão 0034): quem não tem role em nenhum projeto entra, mas o token não vale em nenhum Receiver. A autorização está nos Receivers, que exigem a audience do próprio projeto e a role de ação.
 - Use o issuer pelo gateway (`http://ipm-dev.smarkee.com.br:8080`), e não o endereço direto do `identity`: o `iss` dos tokens precisa ser esse endereço.
 - O projeto, a aplicação e o client ID ficam gravados no banco do Zitadel. `docker compose down -v` os apaga, e o client ID muda ao recriá-los.
 - Resta um projeto `smarkee` antigo na organização `smarkee` (5 roles, aplicação `cli` sem JWT; verificado em 2026-10-11). Ele sai depois de o login pelo projeto novo ser validado.
-- O discovery pelo gateway foi verificado com o `sk`. O login completo no navegador contra a aplicação nova ainda não foi executado.
+- O login completo foi exercitado pelo teste de jornada (`tests/e2e`), com um navegador falso que preenche as páginas de login, contra a aplicação `cli` do projeto `clients`.
 
 ### Conta de bootstrap da plataforma (`platform-bootstrap@smarkee.internal`)
 
