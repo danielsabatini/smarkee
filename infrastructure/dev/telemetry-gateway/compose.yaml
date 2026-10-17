@@ -1,7 +1,7 @@
 name: telemetry-gateway
 
 # OpenTelemetry Collector (distribuição contrib) que recebe a telemetria OTLP do gateway e dos componentes.
-# Ainda não há backend para gravar: cada sinal (logs, métricas e traces) vai para arquivos, com rotação em 1 MB, pelo
+# Ainda não há backend para gravar: cada sinal (logs, métricas e traces) vai para arquivos, com rotação em 5 MB, pelo
 # exporter `file`, nas pastas logs/, metrics/ e traces/ deste diretório. O processador
 # `transform/gateway-semconv` (gateway-semconv.yaml) ajusta os spans do gateway à semconv (decisão 0050).
 services:
