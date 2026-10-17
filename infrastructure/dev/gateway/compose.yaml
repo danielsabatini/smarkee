@@ -56,6 +56,11 @@ services:
       internal:
         aliases:
           - gateway.smarkee.internal
+          # O plugin openid-connect busca o discovery e o JWKS no endereço do issuer
+          # (http://ipm-dev.smarkee.com.br:8080) e o Zitadel escolhe a instância pelo Host. Dentro da rede, esse nome
+          # aponta para o próprio gateway, que atende a porta 8080 e encaminha ao Zitadel (decisão 0052). Deve ser
+          # igual a ZITADEL_EXTERNALDOMAIN.
+          - ipm-dev.smarkee.com.br
     restart: unless-stopped
     healthcheck:
       # Pronto = a Admin API responde 200 (o que exige o etcd). A imagem não tem curl nem wget;
@@ -86,6 +91,12 @@ services:
       ADC_BACKEND: apisix
       ADC_SERVER: http://gateway.smarkee.internal:9180
       ADC_TOKEN: *apisix-admin-key
+      # Audiência (ID do projeto de roles do módulo no Zitadel) aceita em cada API. É a mesma `*_AUTH_AUDIENCE` do
+      # Receiver correspondente. Sem valor, o padrão não casa com nenhum token: a API rejeita tudo (falha fechada),
+      # e as rotas do Zitadel seguem funcionando para que o ID possa ser obtido.
+      APISIX_AUTH_AUDIENCE_CORE_ACCOUNT: ${APISIX_AUTH_AUDIENCE_CORE_ACCOUNT:-nao-configurada}
+      APISIX_AUTH_AUDIENCE_IPM_ORGANIZATION: ${APISIX_AUTH_AUDIENCE_IPM_ORGANIZATION:-nao-configurada}
+      APISIX_AUTH_AUDIENCE_SUM_SERVICE: ${APISIX_AUTH_AUDIENCE_SUM_SERVICE:-nao-configurada}
       # Destino dos traces do plugin opentelemetry (host:porta do OTLP HTTP). Vira `collector.address` no adc.yaml.
       APISIX_OTEL_COLLECTOR_ADDRESS: ${APISIX_OTEL_COLLECTOR_ADDRESS:-telemetry-gateway.smarkee.internal:4318}
     volumes:

@@ -18,7 +18,7 @@ Uma PoC (2026-10-17, APISIX 3.19.0 contra o Zitadel de dev) mostrou que o plugin
 - **Estado declarado:** `infrastructure/dev/gateway/bootstrap/adc.yaml`, no formato do ADC (`api7/adc:0.31.0`, Apache-2.0), aplicado pelo contêiner `gateway-sync` (`adc sync`) a cada `up`, depois que o `gateway` fica saudável. Substitui a cadeia `gateway-migrations-*` e `gateway-import` do Kong.
 - **Admin API e console:** exigem a chave `APISIX_ADMIN_KEY` (sem padrão, em `gateway/.env`), publicados só em `127.0.0.1:9180`.
 - **Contratos preservados:** serviço `gateway`, contêiner `gateway.smarkee.internal`, proxy interno em `:8000` (os Receivers buscam o JWKS ali) e publicado em `:8080`, os hosts, os caminhos (`/v1/<módulo>/<tipos>` e subcaminhos, decisão 0030) e o limite de 10 cadastros por minuto por IP, com `429` e `Retry-After`.
-- **Validação de JWT no gateway:** a PoC a desbloqueia, mas **não é habilitada por esta decisão**; continua sendo uma decisão própria. Os Receivers seguem validando `aud` e roles.
+- **Validação de JWT no gateway:** a PoC a desbloqueia, mas **não é habilitada por esta decisão**. Ela foi habilitada pela decisão `0052`; os Receivers seguem validando `aud` e roles.
 
 ## Justificativa
 

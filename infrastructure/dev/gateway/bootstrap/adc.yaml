@@ -74,6 +74,9 @@ services:
   # /etc/hosts). Só `/v1/...` é público: `/health/*` (e `/healthz`, na Organization) fica na rede interna.
   # Cada Receiver só é alcançado por este gateway, que acrescenta o endereço do cliente a
   # `X-Forwarded-For` (o Receiver usa o último valor para o limite de taxa das escritas anônimas).
+  # Autenticação (decisão 0052): as rotas de API validam o token com o plugin openid-connect (assinatura pelo JWKS do
+  # Zitadel, emissor, audiência do módulo, expiração e os campos sub, exp, iss e aud). A única rota anônima é o
+  # cadastro (`core-account-register`, POST /v1/core/accounts); as rotas do Zitadel são públicas.
   # Uma rota por tipo de recurso (decisão 0015). Cada rota casa o caminho exato e os subcaminhos
   # (`/v1/<módulo>/<tipos>` e `/v1/<módulo>/<tipos>/*`), nunca um prefixo parecido (decisão 0030).
   - name: ipm-organization-receiver
@@ -92,6 +95,51 @@ services:
         uris:
           - /v1/ipm/organizations
           - /v1/ipm/organizations/*
+        plugins:
+          # Autentica o token na porta de entrada (decisão 0052). Os Receivers repetem a validação e decidem as roles.
+          openid-connect:
+            client_id: ${APISIX_AUTH_AUDIENCE_IPM_ORGANIZATION}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${APISIX_AUTH_AUDIENCE_IPM_ORGANIZATION}
+                    - type: array
+                      contains:
+                        const: ${APISIX_AUTH_AUDIENCE_IPM_ORGANIZATION}
+          # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
+          # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                # Sem error_description: ele repetiria ao cliente o valor que ele mandou e falhas internas (por exemplo,
+                # o corpo de um 503 do Zitadel). O motivo fica no log do gateway.
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
 
   # Receiver de sum.service (decisão 0033): a API `/v1/sum/services`.
   - name: sum-service-receiver
@@ -110,6 +158,51 @@ services:
         uris:
           - /v1/sum/services
           - /v1/sum/services/*
+        plugins:
+          # Autentica o token na porta de entrada (decisão 0052). Os Receivers repetem a validação e decidem as roles.
+          openid-connect:
+            client_id: ${APISIX_AUTH_AUDIENCE_SUM_SERVICE}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${APISIX_AUTH_AUDIENCE_SUM_SERVICE}
+                    - type: array
+                      contains:
+                        const: ${APISIX_AUTH_AUDIENCE_SUM_SERVICE}
+          # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
+          # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                # Sem error_description: ele repetiria ao cliente o valor que ele mandou e falhas internas (por exemplo,
+                # o corpo de um 503 do Zitadel). O motivo fica no log do gateway.
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
 
   - name: core-account-receiver
     upstream:
@@ -127,6 +220,51 @@ services:
         uris:
           - /v1/core/accounts
           - /v1/core/accounts/*
+        plugins:
+          # Autentica o token na porta de entrada (decisão 0052). Os Receivers repetem a validação e decidem as roles.
+          openid-connect:
+            client_id: ${APISIX_AUTH_AUDIENCE_CORE_ACCOUNT}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${APISIX_AUTH_AUDIENCE_CORE_ACCOUNT}
+                    - type: array
+                      contains:
+                        const: ${APISIX_AUTH_AUDIENCE_CORE_ACCOUNT}
+          # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
+          # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                # Sem error_description: ele repetiria ao cliente o valor que ele mandou e falhas internas (por exemplo,
+                # o corpo de um 503 do Zitadel). O motivo fica no log do gateway.
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
       # Auto-cadastro (escrita anônima): limite de taxa por IP já no gateway, o primeiro nível
       # de proteção (docs/RESOURCE-CONTROL-SECURITY.md §12). O Receiver aplica o segundo.
       # O IP é o do par TCP (`remote_addr`); atrás de um balanceador (stg e prd) será preciso

@@ -229,7 +229,7 @@ Regras:
 
 Toda alteração deve ser atribuível a um solicitante.
 
-- o Receiver autentica o solicitante e registra sua identidade (ator) no contexto da requisição;
+- o Receiver autentica o solicitante e registra sua identidade (ator) no contexto da requisição. O gateway já rejeita na porta de entrada o que não traz um token válido para o módulo (assinatura, emissor, audiência e expiração; decisão `0052`), mas **não é a única fronteira**: o Receiver repete a validação, atribui o ator e decide as roles;
 - o ator é registrado no campo `requestedBy` e acompanha a operação em `requested`, `desired`, `action`, `completed` e `failed`, junto de `correlationId` e `causationId` (`MESSAGING.md`);
 - o ator descreve **quem pediu**, e não quem executou: a identidade do componente executor já é conhecida pelo emissor;
 - o campo é definido em `MESSAGING.md` (envelope) e possui `writer = server` (`SCHEMA.md`): o Receiver o atribui a partir do solicitante autenticado e rejeita o valor enviado por um cliente;

@@ -1,8 +1,13 @@
 # Configuração do Apache APISIX (modo tradicional, com etcd).
 # Segredos vêm do ambiente (sintaxe ${{VAR}}); veja o compose.yaml e o .env.example.
 apisix:
-  # Proxy HTTP dentro da rede (os Receivers buscam o JWKS do Zitadel em gateway.smarkee.internal:8000).
-  node_listen: 8000
+  # Proxy HTTP dentro da rede. A 8000 é a dos Receivers (buscam o JWKS do Zitadel em
+  # gateway.smarkee.internal:8000). A 8080 existe só para o próprio gateway buscar o discovery e o JWKS do Zitadel
+  # pelo endereço público (o issuer tem a porta 8080; veja o alias de rede no compose.yaml). Mantenha-a igual a
+  # ZITADEL_EXTERNALPORT.
+  node_listen:
+    - 8000
+    - 8080
   # Não revela a versão do APISIX no cabeçalho `Server`.
   enable_server_tokens: false
 
