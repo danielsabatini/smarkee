@@ -1,7 +1,7 @@
 # 0005 — Bootstrap declarativo da infraestrutura
 
 - **Data:** 2026-10-06
-- **Status:** Aceita para desenvolvimento; direção proposta para stg e prd
+- **Status:** Aceita para desenvolvimento; direção proposta para stg e prd. A parte do gateway (Kong) foi substituída pela decisão 0049 (Apache APISIX com ADC).
 
 ## Contexto
 

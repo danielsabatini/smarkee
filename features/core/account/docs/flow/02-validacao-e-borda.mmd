@@ -2,7 +2,7 @@ sequenceDiagram
     autonumber
     actor U as Pessoa
     participant CLI as sk register
-    participant GW as Gateway Kong
+    participant GW as Gateway APISIX
     participant Receiver as core-account-receiver
     participant N as NATS JetStream
 
@@ -23,9 +23,9 @@ sequenceDiagram
     rect rgb(255,235,238)
     Note over CLI,Receiver: B. Excesso de tentativas
     CLI->>GW: POST /v1/core/accounts (11ª no minuto, mesmo IP)
-    GW-->>CLI: 429 do Kong (limite 10/min por IP)
+    GW-->>CLI: 429 do gateway (limite 10/min por IP)
     CLI-->>U: "Muitas tentativas" (código de saída 1)
-    CLI->>GW: POST /v1/core/accounts (6ª em 60 s, mesma origem, passou do Kong)
+    CLI->>GW: POST /v1/core/accounts (6ª em 60 s, mesma origem, passou do gateway)
     GW->>Receiver: repassa
     Receiver-->>CLI: 429 {errorCode RateLimited} + Retry-After
     CLI-->>U: "Muitas tentativas. Aguarde N segundos e repita." (código de saída 1)
@@ -34,7 +34,7 @@ sequenceDiagram
     rect rgb(232,240,254)
     Note over CLI,Receiver: C. Indisponibilidade do Receiver ou do gateway
     CLI->>GW: POST /v1/core/accounts
-    GW-->>CLI: 502/503 do Kong (Receiver fora do ar) ou falha de conexão/DNS
+    GW-->>CLI: 502/503 do gateway (Receiver fora do ar) ou falha de conexão/DNS
     CLI-->>U: "Serviço indisponível. Repita em alguns minutos." (código de saída 1)
     Note over CLI: Nenhuma mensagem foi publicada. Repetir é seguro.
     end
@@ -53,5 +53,5 @@ sequenceDiagram
     rect rgb(238,238,238)
     Note over CLI,Receiver: E. Erros não previstos
     Receiver-->>CLI: 500 {errorCode InternalError} (log só com o tipo do erro, sem dados pessoais)
-    GW-->>CLI: 404 do Kong (host ou caminho errado, por exemplo api.sk sem /v1/core/accounts)
+    GW-->>CLI: 404 do gateway (host ou caminho errado, por exemplo api.sk sem /v1/core/accounts)
     end

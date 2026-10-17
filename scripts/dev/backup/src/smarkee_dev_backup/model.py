@@ -8,9 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
-# Bancos do PostgreSQL de dev: Zitadel, Kong e o SSOT. Lista fixa; o nome entra em comandos SQL,
-# então só passa o que casa com `DATABASE_NAME`.
-DATABASES = ("identity", "gateway", "smarkee")
+# Bancos do PostgreSQL de dev: Zitadel e o SSOT (o gateway usa o etcd, e não o PostgreSQL).
+# Lista fixa; o nome entra em comandos SQL, então só passa o que casa com `DATABASE_NAME`.
+DATABASES = ("identity", "smarkee")
 DATABASE_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 # Volume com as chaves das service accounts e o PAT do login (gerados na primeira subida).
 VOLUMES = ("identity-bootstrap",)
@@ -31,7 +31,7 @@ FEATURE_DIRECTORIES = (
 )
 INFRASTRUCTURE_DIRECTORY = "infrastructure/dev"
 # Serviços da plataforma que mantêm conexão com os bancos restaurados.
-INFRASTRUCTURE_DEPENDENTS = ("gateway", "identity", "identity-login")
+INFRASTRUCTURE_DEPENDENTS = ("identity", "identity-login")
 
 MANIFEST = "manifest.json"
 CHECKSUMS = "SHA256SUMS"

@@ -212,8 +212,8 @@ de `manager/migrations/`. O dono do esquema é `smarkee`. Nos bancos de dev já 
 volume: aplique-o à mão. Os testes de integração de `manager/` e `publisher/` pedem as URLs dos papéis e as credenciais do
 broker de dev (ver o README de cada componente); sem elas, são pulados.
 
-Depois de recriar o contêiner do Receiver, reinicie o gateway (`docker compose restart gateway`, em `infrastructure/dev`):
-o Kong guarda o IP antigo pelo TTL do DNS do Docker e responde com erro até expirar.
+Depois de recriar o contêiner do Receiver, o gateway volta a resolver o nome sozinho em poucos segundos (com `502` nesse
+intervalo); não é preciso reiniciá-lo.
 
 # 10. Limitações e pendências
 

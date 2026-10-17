@@ -1,6 +1,6 @@
 """Backup, verificação, restauração e reset seguro do ambiente de desenvolvimento.
 
-Guarda o que não se reconstrói só com o repositório: os bancos do Zitadel, do Kong e do SSOT, as
+Guarda o que não se reconstrói só com o repositório: os bancos do Zitadel e do SSOT, as
 chaves das service accounts (volume `identity-bootstrap`) e os `.env` (com a masterkey do Zitadel).
 É uma **ferramenta de operação**, e não um componente da plataforma.
 

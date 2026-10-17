@@ -172,7 +172,7 @@ cd receiver && uv sync && uv run ruff check . && uv run pyright && uv run pytest
 
 Os papéis `ipm_organization_*` e o esquema `ipm` são criados por `infrastructure/dev/database/bootstrap/ipm.sql` e pelas migrações de `manager/migrations/`. O dono do esquema é `smarkee`. Nos bancos de dev já existentes, o bootstrap só roda na criação do volume: aplique-o à mão. Os testes de integração de `manager/` e `publisher/` usam os papéis de login do banco de dev (`IPM_TEST_DATABASE_HOST` e `_PORT`); sem o banco, são pulados.
 
-Depois de recriar o contêiner do Receiver, reinicie o gateway (`docker compose restart gateway`, em `infrastructure/dev`): o Kong guarda o IP antigo pelo TTL do DNS do Docker e responde com erro até expirar.
+Depois de recriar o contêiner do Receiver, o gateway volta a resolver o nome sozinho em poucos segundos (com `502` nesse intervalo); não é preciso reiniciá-lo.
 
 # 10. Limitações e pendências
 

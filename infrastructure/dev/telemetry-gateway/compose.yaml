@@ -1,0 +1,43 @@
+name: telemetry-gateway
+
+# OpenTelemetry Collector (distribuição contrib) que recebe a telemetria OTLP do gateway e dos componentes.
+# Ainda não há backend para gravar: os três sinais (métricas, logs e traces) saem no stdout pelo exporter
+# `debug`; leia com `docker logs -f telemetry-gateway.smarkee.internal`. O processador
+# `transform/gateway-semconv` (gateway-semconv.yaml) ajusta os spans do gateway à semconv (decisão 0050).
+services:
+  telemetry-gateway:
+    image: ${OTELCOL_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
+    container_name: telemetry-gateway.smarkee.internal
+    # Sem capabilities e sem escalonamento de privilégio (o coletor escuta em portas altas e roda como 10001).
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges=true"]
+    # Os dois arquivos são mesclados: config.yaml (receivers, exporters e pipelines) e o fragmento
+    # gateway-semconv.yaml (o processador usado na pipeline de traces).
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+      - --config=/etc/otelcol-contrib/gateway-semconv.yaml
+    # OTLP gRPC (4317) e HTTP (4318) só na rede `internal`; não há porta no host (a stack de observabilidade
+    # do desenvolvedor, quando está no ar, já usa 4317 e 4318 no host).
+    volumes:
+      - ./config.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - ./gateway-semconv.yaml:/etc/otelcol-contrib/gateway-semconv.yaml:ro
+    # Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7), com rotação: o exporter
+    # `debug` escreve bastante.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      internal:
+        aliases:
+          - telemetry-gateway.smarkee.internal
+    restart: unless-stopped
+    # Sem healthcheck do Compose: a imagem não tem shell nem wget/curl. A extensão `health_check` responde em
+    # 13133 (rede `internal`) para sondas externas.
+    healthcheck:
+      disable: true
+
+networks:
+  internal:
+    name: internal

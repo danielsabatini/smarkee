@@ -1,86 +1,56 @@
 name: gateway
 
-# Depende do PostgreSQL: o `database` é incluído para que gateway-migrations-bootstrap possa aguardá-lo
-# (depends_on) tanto na subida pela raiz quanto no modo isolado. O Compose trata
-# inclusões repetidas do mesmo arquivo como um único serviço.
-include:
-  - path: ../database/compose.yaml
-    env_file: ../database/.env
+# Gateway: Apache APISIX no modo tradicional (configuração no etcd), com o console web embutido.
+# O console e a Admin API exigem o etcd; o estado desejado vive em `bootstrap/adc.yaml` e é
+# aplicado pelo `gateway-sync` (decisão 0049).
 
-x-kong-database-environment: &kong-database-environment
-  KONG_PG_HOST: ${KONG_DATABASE_HOST:-database.smarkee.internal}
-  KONG_PG_PORT: ${KONG_DATABASE_PORT:-5432}
-  KONG_PG_DATABASE: ${KONG_DATABASE_NAME:-gateway}
-  KONG_PG_USER: ${KONG_DATABASE_USER:-gateway}
-  KONG_PG_PASSWORD: ${KONG_DATABASE_PASSWORD:?Defina KONG_DATABASE_PASSWORD no .env}
-
-x-gateway-bootstrap: &gateway-bootstrap
-  image: ${KONG_IMAGE_VERSION:-kong:3.9.3-ubuntu}
-  environment:
-    <<: *kong-database-environment
-  volumes:
-    - ./kong.conf:/etc/kong/kong.conf:ro
-    - ./bootstrap:/bootstrap:ro
-  networks:
-    - internal
-  restart: "no"
+x-apisix-admin-key: &apisix-admin-key ${APISIX_ADMIN_KEY:?Defina APISIX_ADMIN_KEY no .env (veja .env.example)}
 
 services:
-  # Contêineres de inicialização (equivalente ao initContainer), em cadeia, um comando cada:
-  # migrações do esquema do Kong e importação das rotas declaradas em bootstrap/routes.yml.
-  # Todos são repetíveis a cada subida. O `db_import` atualiza por nome: rotas removidas do
-  # arquivo NÃO são removidas do banco. Requer o `database` aceitando conexões (veja o README).
-  gateway-migrations-bootstrap:
-    <<: *gateway-bootstrap
-    container_name: gateway-migrations-bootstrap.smarkee.internal
-    command: ["kong", "migrations", "bootstrap"]
-    depends_on:
-      database:
-        condition: service_healthy
-
-  gateway-migrations-up:
-    <<: *gateway-bootstrap
-    container_name: gateway-migrations-up.smarkee.internal
-    command: ["kong", "migrations", "up"]
-    depends_on:
-      gateway-migrations-bootstrap:
-        condition: service_completed_successfully
-
-  gateway-migrations-finish:
-    <<: *gateway-bootstrap
-    container_name: gateway-migrations-finish.smarkee.internal
-    command: ["kong", "migrations", "finish"]
-    depends_on:
-      gateway-migrations-up:
-        condition: service_completed_successfully
-
-  gateway-import:
-    <<: *gateway-bootstrap
-    container_name: gateway-import.smarkee.internal
-    command: ["kong", "config", "db_import", "/bootstrap/routes.yml"]
-    depends_on:
-      gateway-migrations-finish:
-        condition: service_completed_successfully
+  # Armazena a configuração do APISIX (rotas, serviços, plugins). Não é publicado no host.
+  gateway-etcd:
+    image: ${ETCD_IMAGE_VERSION:-quay.io/coreos/etcd:v3.7.2}
+    container_name: gateway-etcd.smarkee.internal
+    command:
+      - etcd
+      - --name=gateway-etcd
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://gateway-etcd.smarkee.internal:2379
+    volumes:
+      - gateway-etcd-data:/etcd-data
+    networks:
+      internal:
+        aliases:
+          - gateway-etcd.smarkee.internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "etcdctl", "--endpoints=http://127.0.0.1:2379", "endpoint", "health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   gateway:
-    image: ${KONG_IMAGE_VERSION:-kong:3.9.3-ubuntu}
+    image: ${APISIX_IMAGE_VERSION:-apache/apisix:3.19.0-debian}
     container_name: gateway.smarkee.internal
     environment:
-      <<: *kong-database-environment
+      APISIX_ADMIN_KEY: *apisix-admin-key
+    # Só para apontar `APISIX_OTEL_COLLECTOR_ADDRESS` a um coletor publicado no host (por exemplo, o otel-gateway da
+    # stack de observabilidade do desenvolvedor); no Docker Desktop o nome já existe, no Linux não.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
-      # Proxy HTTP na porta 8080 (igual a ZITADEL_EXTERNALPORT): o Kong envia o X-Forwarded-Host sem a porta, e o login do
-      # Zitadel (Next.js) recusa Server Actions cujo Origin traga outra porta.
-      - "127.0.0.1:${KONG_PROXY_HTTP_PORT:-8080}:8000"  # Proxy HTTP
-      - "127.0.0.1:${KONG_PROXY_HTTPS_PORT:-8443}:8443"  # Proxy HTTPS
-      - "127.0.0.1:${KONG_ADMIN_HTTP_PORT:-8001}:8001"  # Admin API HTTP
-      - "127.0.0.1:${KONG_ADMIN_HTTPS_PORT:-8444}:8444"  # Admin API HTTPS
-      - "127.0.0.1:${KONG_MANAGER_HTTP_PORT:-8002}:8002"  # Kong Manager HTTP (avaliação em dev)
-      - "127.0.0.1:${KONG_MANAGER_HTTPS_PORT:-8445}:8445"  # Kong Manager HTTPS (avaliação em dev)
+      # Proxy HTTP na porta 8080 (igual a ZITADEL_EXTERNALPORT): o Zitadel monta o issuer e as URLs
+      # públicas a partir do Host original, com a porta, e o login (Next.js) recusa Server Actions
+      # cujo Origin traga outra porta. Dentro da rede o proxy escuta em 8000 (os Receivers usam esta porta).
+      - "127.0.0.1:${APISIX_PROXY_HTTP_PORT:-8080}:8000"  # Proxy HTTP
+      # Admin API e console web (/ui), protegidos pela chave APISIX_ADMIN_KEY. Somente para desenvolvimento.
+      - "127.0.0.1:${APISIX_ADMIN_PORT:-9180}:9180"
     volumes:
-      - ./kong.conf:/etc/kong/kong.conf:ro
+      - ./config.yaml:/usr/local/apisix/conf/config.yaml:ro
     depends_on:
-      gateway-import:
-        condition: service_completed_successfully
+      gateway-etcd:
+        condition: service_healthy
     networks:
       external:
       internal:
@@ -88,10 +58,50 @@ services:
           - gateway.smarkee.internal
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "kong", "health"]
+      # Pronto = a Admin API responde 200 (o que exige o etcd). A imagem não tem curl nem wget;
+      # o bash fala HTTP pelo /dev/tcp.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9180 &&
+          printf 'GET /apisix/admin/routes HTTP/1.0\r\nX-API-KEY: %s\r\n\r\n' "$$APISIX_ADMIN_KEY" >&3 &&
+          head -n 1 <&3 | grep -q ' 200 '
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+
+  # Contêiner de inicialização (equivalente ao initContainer): aplica `bootstrap/adc.yaml` ao gateway.
+  # Repetível a cada subida. Reconcilia serviços e as rotas de dentro deles: o que existir no gateway
+  # nesse escopo e não estiver no arquivo é REMOVIDO. Rotas soltas (sem serviço), que é como o console
+  # as cria, NÃO são tocadas. Roda no `docker compose up -d` completo; num `up` com serviços nomeados,
+  # inclua `gateway-sync` e não use `--wait` (ele aborta ao ver o contêiner terminar; veja o README).
+  gateway-sync:
+    image: ${ADC_IMAGE_VERSION:-api7/adc:0.31.0}
+    container_name: gateway-sync.smarkee.internal
+    command: ["sync", "-f", "/bootstrap/adc.yaml"]
+    environment:
+      ADC_BACKEND: apisix
+      ADC_SERVER: http://gateway.smarkee.internal:9180
+      ADC_TOKEN: *apisix-admin-key
+      # Destino dos traces do plugin opentelemetry (host:porta do OTLP HTTP). Vira `collector.address` no adc.yaml.
+      APISIX_OTEL_COLLECTOR_ADDRESS: ${APISIX_OTEL_COLLECTOR_ADDRESS:-telemetry-gateway.smarkee.internal:4318}
+    volumes:
+      - ./bootstrap:/bootstrap:ro
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - internal
+    # Idempotente: se falhar (por exemplo, logo depois de o etcd ser recriado, quando o APISIX ainda
+    # não voltou a enxergá-lo), tenta de novo. Termina com código 0 e não reinicia.
+    restart: "on-failure:5"
+
+volumes:
+  gateway-etcd-data:
+    name: gateway-etcd-data
 
 networks:
   # Rede dos serviços, compartilhada por nome. Criada pelo primeiro serviço que subir; os

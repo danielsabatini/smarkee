@@ -55,7 +55,7 @@ services:
       <<: *identity-database-environment
       ZITADEL_MASTERKEY: ${ZITADEL_MASTERKEY:?Defina ZITADEL_MASTERKEY (32 caracteres) no .env}
       ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}
-      # O Zitadel é acessado pelo gateway; a porta externa deve ser a do proxy HTTP do Kong.
+      # O Zitadel é acessado pelo gateway; a porta externa deve ser a do proxy HTTP do gateway.
       ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8080}
       ZITADEL_EXTERNALSECURE: "false"
       # Lido também pelo healthcheck (`zitadel ready`), que não aceita --tlsMode.

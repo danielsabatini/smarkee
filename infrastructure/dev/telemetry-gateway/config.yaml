@@ -1,0 +1,50 @@
+# Configuração do OpenTelemetry Collector do gateway. O processador `transform/gateway-semconv` vem do
+# arquivo gateway-semconv.yaml (mesclado na linha de comando).
+extensions:
+  # Sonda de saúde (HTTP em 13133, rede `internal`).
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Protege a memória do contêiner quando a telemetria chega mais rápido do que sai.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  # Lotes curtos: em dev o objetivo é ler a saída logo.
+  batch:
+    timeout: 1s
+
+exporters:
+  # Ainda não há backend: tudo vai para o stdout. `detailed` mostra o conteúdo de cada span, métrica e log;
+  # `basic` mostra só as contagens.
+  debug:
+    verbosity: detailed
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+
+    # O processador do gateway entra depois do memory_limiter e antes de qualquer exporter, para que o que
+    # for gravado já esteja na semconv.
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/gateway-semconv, batch]
+      exporters: [debug]

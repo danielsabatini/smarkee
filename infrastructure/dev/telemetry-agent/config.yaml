@@ -1,0 +1,186 @@
+# OpenTelemetry Collector (contrib) — agente de coleta do desenvolvimento.
+#   - Métricas de contêiner ... docker_stats (container.*), só dos contêineres `*.smarkee.internal`
+#   - Logs ..................... file_log (json-file do Docker): as linhas JSON dos componentes (decisão 0045)
+#   - Destino .................. OTLP/gRPC no telemetry-gateway
+# Política enxuta, como no otel-agent da stack do desenvolvedor: cada métrica e cada fonte de log é explícita.
+
+extensions:
+  # Guarda a posição de leitura dos logs entre reinícios.
+  file_storage:
+    directory: /var/lib/otelcol/file_storage
+    create_directory: true
+
+receivers:
+  # ---------------------------------------------------------------------------
+  # Métricas de contêiner (API do Docker, somente leitura)
+  # ---------------------------------------------------------------------------
+  docker_stats:
+    endpoint: unix:///var/run/docker.sock
+    collection_interval: 30s
+    metrics:
+      container.cpu.usage.total: { enabled: true }
+      container.cpu.throttling_data.periods: { enabled: true }
+      container.cpu.throttling_data.throttled_periods: { enabled: true }
+      container.memory.usage.total: { enabled: true }
+      container.memory.usage.limit: { enabled: true }
+      container.network.io.usage.rx_bytes: { enabled: true }
+      container.network.io.usage.tx_bytes: { enabled: true }
+      container.cpu.utilization: { enabled: false }
+      container.cpu.usage.usermode: { enabled: false }
+      container.cpu.usage.kernelmode: { enabled: false }
+      container.memory.percent: { enabled: false }
+      container.memory.file: { enabled: false }
+      container.network.io.usage.rx_dropped: { enabled: false }
+      container.network.io.usage.tx_dropped: { enabled: false }
+      container.blockio.io_service_bytes_recursive: { enabled: false }
+
+  # ---------------------------------------------------------------------------
+  # Logs dos contêineres (driver json-file). Lê todos os contêineres do host; o que não é uma linha JSON de
+  # componente da plataforma (service.namespace = smarkee) é descartado no filtro, antes de sair do agente.
+  # ---------------------------------------------------------------------------
+  file_log/containers:
+    include: [/var/lib/docker/containers/*/*-json.log]
+    start_at: end
+    include_file_path: true
+    include_file_name: false
+    storage: file_storage
+    operators:
+      # Desembrulha o JSON do Docker ({"log": ..., "stream": ..., "time": ...}).
+      - type: container
+        format: docker
+        add_metadata_from_filepath: false
+      # container.id (semconv) a partir do caminho do arquivo.
+      - type: regex_parser
+        parse_from: attributes["log.file.path"]
+        regex: '^/var/lib/docker/containers/(?P<container_id>[0-9a-f]{64})/'
+        parse_to: resource
+      - type: move
+        from: resource.container_id
+        to: resource["container.id"]
+      - type: remove
+        field: attributes["log.file.path"]
+      # Linha do contrato 0045: JSON com timestamp, severity_*, body, scope, resource, attributes e event_name.
+      # O instante e a severidade já vão para os campos do LogRecord; o resto é movido pelo transform.
+      - type: json_parser
+        if: body matches '^\\{'
+        parse_from: body
+        # Linha que começa com { mas não é JSON válido segue como texto (e é descartada no filtro); sem isto o erro
+        # do parser contamina as linhas boas do mesmo lote.
+        on_error: send_quiet
+        # Inteiros continuam inteiros (code.line.number é int na semconv); sem isto todo número vira double.
+        parse_ints: true
+        timestamp:
+          parse_from: attributes.timestamp
+          layout_type: strptime
+          layout: '%Y-%m-%dT%H:%M:%S.%fZ'
+        severity:
+          parse_from: attributes.severity_text
+        # Escopo por registro: sem isto o escopo é um só para o lote lido do arquivo.
+        scope_name:
+          parse_from: attributes.scope.name
+      - type: move
+        if: attributes.body != nil
+        from: attributes.body
+        to: body
+      # Resource por registro. O file_log agrupa as linhas pelo Resource: movê-lo aqui (e não no transform, que
+      # alteraria o Resource compartilhado do lote) mantém cada linha com a identidade do seu processo, inclusive
+      # quando o contêiner reinicia e o arquivo de log passa a ter outro service.instance.id. As chaves são o
+      # conjunto fechado do schema (schemas/observability/log-record.v1.schema.json, `resource`).
+      - type: move
+        if: 'attributes.resource != nil and attributes.resource["service.name"] != nil'
+        from: attributes.resource["service.name"]
+        to: resource["service.name"]
+      - type: move
+        if: 'attributes.resource != nil and attributes.resource["service.namespace"] != nil'
+        from: attributes.resource["service.namespace"]
+        to: resource["service.namespace"]
+      - type: move
+        if: 'attributes.resource != nil and attributes.resource["service.version"] != nil'
+        from: attributes.resource["service.version"]
+        to: resource["service.version"]
+      - type: move
+        if: 'attributes.resource != nil and attributes.resource["service.instance.id"] != nil'
+        from: attributes.resource["service.instance.id"]
+        to: resource["service.instance.id"]
+      - type: move
+        if: 'attributes.resource != nil and attributes.resource["deployment.environment.name"] != nil'
+        from: attributes.resource["deployment.environment.name"]
+        to: resource["deployment.environment.name"]
+      - type: move
+        if: 'attributes.resource != nil and attributes.resource["smarkee.module"] != nil'
+        from: attributes.resource["smarkee.module"]
+        to: resource["smarkee.module"]
+      - type: move
+        if: 'attributes.resource != nil and attributes.resource["smarkee.resource.type"] != nil'
+        from: attributes.resource["smarkee.resource.type"]
+        to: resource["smarkee.resource.type"]
+      - type: move
+        if: 'attributes.resource != nil and attributes.resource["smarkee.component.role"] != nil'
+        from: attributes.resource["smarkee.component.role"]
+        to: resource["smarkee.component.role"]
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+
+  # deployment.environment.name vem de OTEL_RESOURCE_ATTRIBUTES. `override: false` preserva o que a fonte já trouxe.
+  resource_detection:
+    detectors: [env]
+    override: false
+
+  # Métricas só dos contêineres da plataforma (nome *.smarkee.internal); os de outros projetos do host saem.
+  filter/dev_containers:
+    error_mode: ignore
+    metrics:
+      metric:
+        - resource.attributes["container.name"] == nil or not IsMatch(resource.attributes["container.name"], "^.*\\.smarkee\\.internal$")
+
+  # Termina o LogRecord a partir da linha do contrato 0045: `event_name`, os ids de trace e a raiz de `attributes`
+  # (que o operador `move` do file_log não aceita como destino) são movidos aqui (docs/OBSERVABILITY.md §7).
+  # O Resource e o escopo são por registro e já saíram no file_log; mexer neles aqui afetaria o lote inteiro.
+  transform/smarkee_components:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        conditions:
+          - resource.attributes["service.namespace"] == "smarkee"
+        statements:
+          # A versão do escopo seria a do receiver (do Collector), e não a do logger do componente.
+          - set(instrumentation_scope.version, "")
+          - set(log.event_name, log.attributes["event_name"]) where log.attributes["event_name"] != nil
+          - set(log.trace_id.string, log.attributes["trace_id"]) where log.attributes["trace_id"] != nil
+          - set(log.span_id.string, log.attributes["span_id"]) where log.attributes["span_id"] != nil
+          - set(log.flags, Int(log.attributes["trace_flags"])) where log.attributes["trace_flags"] != nil
+          - merge_maps(log.attributes, log.attributes["attributes"], "upsert") where log.attributes["attributes"] != nil
+          - delete_matching_keys(log.attributes, "^(timestamp|severity_number|severity_text|event_name|scope|resource|attributes|trace_id|span_id|trace_flags)$")
+
+  # Só componentes da plataforma: o resto do host (outros projetos, linhas que não são JSON) é descartado.
+  filter/smarkee_components:
+    error_mode: ignore
+    logs:
+      log_record:
+        - resource.attributes["service.namespace"] != "smarkee"
+
+  batch: {}
+
+exporters:
+  otlp_grpc/telemetry_gateway:
+    endpoint: ${env:TELEMETRY_GATEWAY_ENDPOINT:-telemetry-gateway.smarkee.internal:4317}
+    # Rede interna de desenvolvimento, sem TLS. Em stg e prd, TLS e autenticação.
+    tls:
+      insecure: true
+
+service:
+  extensions: [file_storage]
+  pipelines:
+    metrics:
+      receivers: [docker_stats]
+      processors: [memory_limiter, filter/dev_containers, resource_detection, batch]
+      exporters: [otlp_grpc/telemetry_gateway]
+
+    logs:
+      receivers: [file_log/containers]
+      processors: [memory_limiter, filter/smarkee_components, transform/smarkee_components, batch]
+      exporters: [otlp_grpc/telemetry_gateway]

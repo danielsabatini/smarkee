@@ -1,0 +1,82 @@
+# Fragmento de configuração do OpenTelemetry Collector: ajusta os spans do gateway (plugin `opentelemetry` do
+# APISIX) às convenções semânticas (semconv v1.44.0, HTTP e Resource). Decisão 0050.
+#
+# Quem carrega: o `telemetry-gateway` deste diretório, que o mescla a `config.yaml` com um segundo
+# `--config` (o processador é usado na pipeline de traces de lá). Para usar em outro coletor (por exemplo, o
+# otel-gateway da stack de observabilidade do desenvolvedor), carregue o fragmento do mesmo modo, ou copie o
+# bloco `processors`, e coloque o processador na pipeline de ENTRADA de traces, logo depois do `memory_limiter`:
+#
+#   traces:
+#     receivers: [otlp]
+#     processors: [memory_limiter, transform/gateway-semconv]
+#     exporters: [service_graph, forward/sampling]
+#
+# A posição importa: o service graph e o tail sampling devem ver os spans já ajustados (por exemplo, o status
+# Error dos 5xx e o `server.address`).
+#
+# Escopo: só os spans do gateway (SDK `opentelemetry-lua`, `service.name = gateway`, `service.namespace =
+# smarkee`). Os de outros serviços não são alterados.
+#
+# O que faz, e por quê (o plugin do APISIX nomeia por variável do nginx e emite nomes depreciados):
+#   - Resource: `hostname` (fora da semconv) vira `host.name` e `service.instance.id`.
+#   - Escopo: `version` = `service.version` (o plugin é distribuído com o APISIX).
+#   - Método HTTP desconhecido vira `_OTHER` (original em `http.request.method_original`); o nome do span usa `HTTP`.
+#   - `server.address`/`server.port` saem do `Host`; `client.address` e `network.peer.*` do par TCP; o gateway é a
+#     borda e não confia em `X-Forwarded-*` enviados pelo cliente.
+#   - `network.protocol.version` ("HTTP/1.1" -> "1.1"; "HTTP/2.0" -> "2").
+#   - `url.query` com todos os VALORES substituídos por REDACTED (a query pode carregar códigos e tokens do OIDC).
+#   - `error.type` = código de status nos 5xx; a descrição do status (inferível do código) é apagada.
+#   - Remove os atributos depreciados do plugin (`http.method`, `http.scheme`, `http.target`, `http.user_agent`,
+#     `http.status_code`, `net.host.name`) e as variáveis auxiliares que o `adc.yaml` pede ao plugin.
+#
+# Verificado em 2026-10-17 (41 regras de conformidade) com o Collector contrib 0.163.1, a versão do
+# `telemetry-gateway`, e com a 0.162.0, a do otel-gateway da stack de observabilidade do desenvolvedor.
+processors:
+  transform/gateway-semconv:
+    # `ignore` não derruba o lote se uma instrução falhar; os testes de conformidade pegam a regressão.
+    error_mode: ignore
+    trace_statements:
+      - context: resource
+        conditions:
+          - resource.attributes["telemetry.sdk.name"] == "opentelemetry-lua" and resource.attributes["service.name"] == "gateway" and resource.attributes["service.namespace"] == "smarkee"
+        statements:
+          - set(resource.attributes["service.instance.id"], resource.attributes["hostname"]) where resource.attributes["hostname"] != nil and resource.attributes["service.instance.id"] == nil
+          - set(resource.attributes["host.name"], resource.attributes["hostname"]) where resource.attributes["hostname"] != nil
+          - delete_key(resource.attributes, "hostname")
+      - context: scope
+        conditions:
+          - resource.attributes["telemetry.sdk.name"] == "opentelemetry-lua" and resource.attributes["service.name"] == "gateway" and resource.attributes["service.namespace"] == "smarkee"
+        statements:
+          - set(scope.version, resource.attributes["service.version"]) where scope.version == "" and resource.attributes["service.version"] != nil
+      - context: span
+        conditions:
+          - resource.attributes["telemetry.sdk.name"] == "opentelemetry-lua" and resource.attributes["service.name"] == "gateway" and resource.attributes["service.namespace"] == "smarkee"
+        statements:
+          # Método desconhecido -> _OTHER, com o original preservado; o nome do span usa HTTP no lugar do método.
+          - set(span.attributes["http.request.method_original"], span.attributes["http.request.method"]) where span.attributes["http.request.method"] != nil and not IsMatch(span.attributes["http.request.method"], "^(CONNECT|DELETE|GET|HEAD|OPTIONS|PATCH|POST|PUT|TRACE|QUERY)$")
+          - set(span.attributes["http.request.method"], "_OTHER") where span.attributes["http.request.method_original"] != nil
+          - set(span.name, Concat(["HTTP", span.attributes["http.route"]], " ")) where span.attributes["http.request.method"] == "_OTHER" and span.attributes["http.route"] != nil
+          - set(span.name, "HTTP") where span.attributes["http.request.method"] == "_OTHER" and span.attributes["http.route"] == nil
+          # server.address e server.port, do cabeçalho Host (variável http_host). O ExtractPatterns devolve
+          # string vazia (e não nil) para o grupo opcional que não casou.
+          - set(span.cache["host"], ExtractPatterns(span.attributes["http_host"], "^(?:\\[(?P<h6>[^\\]]+)\\]|(?P<h>[^:\\[\\]]+))(?::(?P<p>[0-9]+))?$")) where span.attributes["http_host"] != nil
+          - set(span.attributes["server.address"], span.cache["host"]["h"]) where span.cache["host"]["h"] != nil and span.cache["host"]["h"] != ""
+          - set(span.attributes["server.address"], span.cache["host"]["h6"]) where span.cache["host"]["h6"] != nil and span.cache["host"]["h6"] != ""
+          - set(span.attributes["server.port"], Int(span.cache["host"]["p"])) where span.cache["host"]["p"] != nil and span.cache["host"]["p"] != ""
+          # Cliente e par de rede.
+          - set(span.attributes["client.address"], span.attributes["remote_addr"]) where span.attributes["remote_addr"] != nil
+          - set(span.attributes["network.peer.address"], span.attributes["realip_remote_addr"]) where span.attributes["realip_remote_addr"] != nil
+          - set(span.attributes["network.peer.port"], Int(span.attributes["realip_remote_port"])) where span.attributes["realip_remote_port"] != nil
+          # network.protocol.version.
+          - set(span.cache["proto"], ExtractPatterns(span.attributes["server_protocol"], "^HTTP/(?P<v>[0-9]+(?:\\.[0-9]+)?)$")) where span.attributes["server_protocol"] != nil
+          - set(span.attributes["network.protocol.version"], span.cache["proto"]["v"]) where span.cache["proto"]["v"] != nil and span.cache["proto"]["v"] != ""
+          - set(span.attributes["network.protocol.version"], "2") where span.attributes["network.protocol.version"] == "2.0"
+          - set(span.attributes["network.protocol.version"], "3") where span.attributes["network.protocol.version"] == "3.0"
+          # url.query: as chaves ficam e todos os valores viram REDACTED.
+          - set(span.attributes["url.query"], span.attributes["args"]) where span.attributes["args"] != nil and span.attributes["args"] != ""
+          - replace_pattern(span.attributes["url.query"], "=[^&]*", "=REDACTED") where span.attributes["url.query"] != nil
+          # error.type nos 5xx e status sem descrição.
+          - set(span.attributes["error.type"], Format("%d", [span.attributes["http.response.status_code"]])) where span.attributes["http.response.status_code"] != nil and span.attributes["http.response.status_code"] >= 500
+          - set(span.status.message, "") where span.status.code == STATUS_CODE_ERROR and span.attributes["http.response.status_code"] != nil
+          # Remove o depreciado e as variáveis auxiliares.
+          - delete_matching_keys(span.attributes, "^(http\\.method|http\\.scheme|http\\.target|http\\.user_agent|http\\.status_code|net\\.host\\.name|http_host|remote_addr|remote_port|realip_remote_addr|realip_remote_port|server_protocol|args)$")

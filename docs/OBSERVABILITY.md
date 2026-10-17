@@ -1,10 +1,10 @@
 # Observabilidade
 
-> **Escopo:** contrato de **logs** emitidos pelos componentes da plataforma (`features/*`). Métricas, traces e auditoria ainda não estão definidos aqui.
+> **Escopo:** contrato de **logs** emitidos pelos componentes da plataforma (`features/*`) e, na seção 11, o **span do gateway**. Métricas, traces dos componentes e auditoria ainda não estão definidos aqui.
 >
 > **Papel:** fonte de verdade do formato, dos campos e das proibições dos logs. O contrato executável é o schema [`schemas/observability/log-record.v1.schema.json`](../schemas/observability/log-record.v1.schema.json). As decisões que o originaram são a [`0045`](../.decisions/0045-contrato-de-logs-opentelemetry.md) e a [`0046`](../.decisions/0046-codigo-identico-gerado-de-fonte-unica.md). A segurança do que pode ou não ser registrado vem de [`RESOURCE-CONTROL-SECURITY.md`](RESOURCE-CONTROL-SECURITY.md) (§13) e de [`SCHEMA.md`](SCHEMA.md) (`sensitivity`).
 >
-> **Status:** os 18 componentes (`core.account`, `ipm.organization` e `sum.service`) seguem o contrato. A coleta (seção 7) ainda não existe: hoje o log fica no stdout (ver [`IMPLEMENTATION-STATUS.md`](IMPLEMENTATION-STATUS.md)).
+> **Status:** os 18 componentes (`core.account`, `ipm.organization` e `sum.service`) seguem o contrato. Em dev a coleta existe (seção 7: `telemetry-agent` → `telemetry-gateway`), mas o destino ainda só grava no stdout; não há armazenamento (ver [`IMPLEMENTATION-STATUS.md`](IMPLEMENTATION-STATUS.md)).
 
 # 1. Princípio
 
@@ -148,7 +148,7 @@ Um atributo novo segue a mesma regra: prefixo `smarkee.`, em inglês, sem colidi
 componente → stdout (JSON) → runtime do contêiner → coletor → destino
 ```
 
-- O stdout é capturado pelo runtime do contêiner. **Alguém precisa lê-lo**: em Kubernetes, um OpenTelemetry Collector em DaemonSet com o `filelog receiver` lendo os arquivos de log dos pods; em dev, `docker compose logs` basta e o coletor é opcional.
+- O stdout é capturado pelo runtime do contêiner. **Alguém precisa lê-lo**: em Kubernetes, um OpenTelemetry Collector em DaemonSet com o `filelog receiver` lendo os arquivos de log dos pods; em dev, o `telemetry-agent` (decisão [`0051`](../.decisions/0051-telemetry-agent-coleta-em-dev.md)) lê os arquivos de log dos contêineres e `docker compose logs` continua valendo.
 - O coletor interpreta a linha (JSON), converte `timestamp`, `severity_*`, `trace_id` e `span_id` para os campos do LogRecord, move `resource` e `attributes` para seus lugares e define `ObservedTimestamp`.
 - O componente nunca depende do coletor nem do destino: se eles caírem, o log continua no stdout.
 - **Requisitos verificados em 2026-10-16** (Collector `otel/opentelemetry-collector-contrib:0.162.0`, receiver `file_log`, linhas reais do formatter em Docker):
@@ -157,6 +157,14 @@ componente → stdout (JSON) → runtime do contêiner → coletor → destino
   - o pipeline que funcionou: operador `container` (formato `docker`), `json_parser` com `timestamp` (`%Y-%m-%dT%H:%M:%S.%fZ`) e `severity` (de `severity_text`), `move` de `attributes.body` para `body` e, no processador `transform` (OTTL), `scope.name`, `Resource`, `event_name` (campo `EventName`) e `attributes` movidos para seus lugares. O `move` do operador não aceita a raiz (`resource` ou `attributes`) como destino;
   - o resultado foi um LogRecord com `Timestamp`, `ObservedTimestamp`, `SeverityNumber` e `SeverityText`, `Body`, `EventName`, escopo, `Resource` e atributos corretos, e sem `exception.message`. O Collector acrescenta `log.iostream` e `log.file.name`.
   - Em Kubernetes o formato do arquivo é o do CRI (containerd), e não o do Docker; o operador `container` com `format: containerd` ou `cri-o` cobre isso, mas **não foi testado**.
+- **Coleta em dev** (`infrastructure/dev/telemetry-agent`, Collector contrib 0.163.1, verificada em 2026-10-17 contra os 18 componentes reais e contra um contêiner de teste): o agente lê `/var/lib/docker/containers/*/*-json.log` e envia por OTLP/gRPC ao `telemetry-gateway`. Diferenças em relação ao pipeline acima, descobertas na verificação:
+  - o `Resource` e o escopo têm de ser movidos **por registro, no próprio `file_log`** (`move` das 8 chaves de `resource`, que são o conjunto fechado do schema, e `scope_name` do `json_parser`), e não no `transform`: o `file_log` agrupa em um único `Resource` e um único escopo todas as linhas lidas do mesmo arquivo, e alterá-los no `transform` sobrescreve o do lote inteiro. Isso importa porque o contêiner reiniciado mantém o arquivo de log e passa a ter outro `service.instance.id`;
+  - `parse_ints: true` no `json_parser`, senão `code.line.number` (inteiro na semconv) sai como `double`;
+  - `on_error: send_quiet` no `json_parser`: uma linha que começa com `{` mas não é JSON segue como texto e é descartada no filtro;
+  - o filtro descarta tudo que não tem `service.namespace = smarkee` (outros projetos do host, texto puro), antes de sair do agente;
+  - a versão do escopo é zerada (o `file_log` coloca a do Collector);
+  - `trace_id`, `span_id` e `trace_flags` já são mapeados para os campos do LogRecord (testado com uma linha sintética; os componentes ainda não os emitem).
+  - Além dos logs, o agente envia as métricas de contêiner (`docker_stats`: CPU, memória, rede) dos contêineres `*.smarkee.internal`.
 - O destino (armazenamento, consulta, retenção) não faz parte deste documento.
 
 # 8. Conformidade
@@ -176,3 +184,38 @@ As páginas oficiais consultadas em 2026-10-16 não exibem um número de versão
 - Validar o `file_log` em Kubernetes (formato CRI). Em Docker já foi validado (seção 7).
 - `event_name` ainda não é usado por nenhum componente; definir os eventos nomeados ao precisar deles.
 - Confirmar nomes e estágios dos atributos contra a versão vigente da semconv (seção 9).
+- Coleta (seção 7): em stg e prd o agente é um DaemonSet que lê os logs do nó (formato CRI, não testado), sem o socket do Docker; o `telemetry-agent` de dev monta o socket do Docker e roda como root, o que não se repete lá.
+- Traces do gateway (seção 11): promover a verificação de conformidade a teste versionado; definir a propagação do `traceparent` nos componentes (hoje o Receiver não a extrai, e os logs seguem sem `trace_id`); decidir se o endereço IP do cliente fica nos spans.
+
+# 11. Traces do gateway
+
+Decisão [`0050`](../.decisions/0050-traces-do-gateway-opentelemetry.md). Vale só para o **span de servidor do gateway** (APISIX); os traces dos componentes do loop ainda não estão definidos.
+
+**Caminho:** plugin `opentelemetry` do APISIX → OTLP/HTTP → **`telemetry-gateway`** (`infrastructure/dev/telemetry-gateway`) → stdout (exporter `debug`; ainda não há backend). O plugin é aplicado a todas as rotas por uma regra global (`infrastructure/dev/gateway/bootstrap/adc.yaml`) e o destino vem de `APISIX_OTEL_COLLECTOR_ADDRESS`. Como o plugin emite nomes depreciados e nomeia atributos pelo nome da variável do nginx, o **coletor ajusta os spans** com o processador de [`infrastructure/dev/telemetry-gateway/gateway-semconv.yaml`](../infrastructure/dev/telemetry-gateway/gateway-semconv.yaml), colocado logo depois do `memory_limiter` e antes de qualquer exporter (em outro coletor, antes do service graph e do tail sampling). O processador só age em spans do gateway. As pipelines de métricas e de logs também existem, e hoje só saem no stdout. Leitura: `docker logs -f telemetry-gateway.smarkee.internal`.
+
+**Resource** (seção 4): `service.name = gateway`, `service.namespace = smarkee`, `service.version` (a do APISIX), `deployment.environment.name`; `service.instance.id` e `host.name` vêm do nome do contêiner, pelo coletor.
+
+**Span** (semconv HTTP v1.44.0, [span de servidor](https://opentelemetry.io/docs/specs/semconv/http/http-spans/#http-server-span)):
+
+| Item | Valor |
+|---|---|
+| Tipo e nome | `SERVER`; `{método} {http.route}`, ou só `{método}` sem rota; método fora da lista conhecida vira `_OTHER` (nome `HTTP ...`) |
+| Obrigatórios | `http.request.method`, `url.path`, `url.scheme`; `http.response.status_code`, `http.route` (só se a rota casou), `error.type` (nos 5xx, o código), `url.query` (quando há), `server.port` (quando o `Host` traz porta) |
+| Recomendados | `server.address`, `client.address`, `network.peer.address`, `network.peer.port`, `network.protocol.version`, `user_agent.original` |
+| Próprios | `apisix.route_id`, `apisix.route_name`, `apisix.service_id`, `apisix.service_name`, `apisix.response_source` |
+| Status | Não definido em 1xx a 4xx; `Error` nos 5xx, sem descrição |
+| Depreciados | Nenhum (`http.method`, `http.scheme`, `http.target`, `http.user_agent`, `http.status_code` e `net.host.name` são removidos) |
+
+**Privacidade e confiança:**
+- `url.query` mantém as chaves e troca **todos os valores** por `REDACTED` (a query do OIDC carrega `code`, `state` e `code_challenge`); `http.target`, que a trazia por inteiro, é removido.
+- `server.address`, `client.address` e `url.scheme` **não** usam `X-Forwarded-*` enviados pelo cliente: o gateway é a borda. Atrás de um balanceador (stg e prd), o IP real exige o plugin `real-ip`.
+- `client.address` e `network.peer.address` guardam o IP, que é dado pessoal: a decisão de mantê-lo está pendente (seção 10).
+
+**Propagação:** o gateway continua o `traceparent` recebido (mesmo `trace_id`, `parentSpanId` = o `span_id` recebido), registra o `tracestate` e repassa ao upstream um `traceparent` com o `span_id` do próprio span e o `tracestate`. A amostragem é `parent_base` com raiz `always_on`: um pai não amostrado não gera span.
+
+**Conformidade verificada em 2026-10-17** (APISIX 3.19.0, Collector contrib 0.162.0 e, de novo, 0.163.1, semconv v1.44.0, o fragmento do repositório): 41 regras aprovadas e nenhuma reprovada (21 obrigatórias, 2 "devem", 8 recomendadas, 6 de propagação e 4 do projeto), sobre 16 pedidos (sucesso, 4xx, 5xx, rota inexistente, método desconhecido, `Host` com porta, cabeçalhos `X-Forwarded-*` forjados, `traceparent` amostrado e não amostrado, HEAD e HTTP/1.0). Com o **plugin sem ajustes** (amostrador `always_on`, sem as variáveis extras e sem o processador) a mesma bateria reprova 7 regras obrigatórias, 1 "deve", 7 recomendadas, 1 de propagação e 1 do projeto. A verificação usou um coletor descartável e um validador que **não estão versionados**. Não cobre HTTP/2 e HTTP/3, WebSocket, gRPC, nem o comportamento atrás de balanceador.
+
+**Limites conhecidos:**
+- Só existe o span de servidor: sem o span de cliente da chamada ao upstream, o service graph não desenha a aresta gateway → componente.
+- O escopo de instrumentação mantém o nome `opentelemetry-lua`; a versão é a do serviço.
+- Com o coletor parado, o gateway registra um `[error] request failed: connection refused` por lote de spans, sem afetar as requisições.

@@ -1,0 +1,62 @@
+name: telemetry-agent
+
+# Agente de coleta do ambiente de desenvolvimento: lê as métricas (docker_stats) e os logs dos contêineres da
+# plataforma e das features e os envia, em OTLP/gRPC, ao telemetry-gateway. Os logs são os JSON dos
+# componentes (decisão 0045, docs/OBSERVABILITY.md §7); as métricas são as de contêiner (container.*) dos
+# contêineres `*.smarkee.internal`. Baseado no otel-agent da stack de observabilidade do desenvolvedor.
+# Depende do telemetry-gateway: o arquivo dele é incluído para que o `depends_on` funcione também no modo isolado.
+# O Compose trata inclusões repetidas do mesmo arquivo como um único serviço.
+include:
+  - path: ../telemetry-gateway/compose.yaml
+
+services:
+  telemetry-agent:
+    image: ${OTELCOL_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
+    container_name: telemetry-agent.smarkee.internal
+    # root só para ler /var/lib/docker/containers (arquivos 0600 do root) e o socket do Docker; sem nenhuma
+    # capability e sem escalonamento de privilégio. O socket, mesmo montado como leitura, dá acesso à API
+    # inteira do Docker: aceitável em dev, não em stg e prd (lá o agente lê os logs do nó e o kubelet).
+    user: "0:0"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges=true"]
+    environment:
+      # Identidade do ambiente nas métricas (os logs já trazem a dos componentes).
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=development
+      # Destino: OTLP gRPC do telemetry-gateway.
+      TELEMETRY_GATEWAY_ENDPOINT: ${TELEMETRY_GATEWAY_ENDPOINT:-telemetry-gateway.smarkee.internal:4317}
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+    volumes:
+      - ./config.yaml:/etc/otelcol-contrib/config.yaml:ro
+      # Métricas dos contêineres (API do Docker).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Logs dos contêineres (driver json-file; o padrão `local` do Docker Desktop não é lido pelo file_log).
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # Posição de leitura dos logs entre reinícios (file_storage).
+      - telemetry-agent-data:/var/lib/otelcol
+    depends_on:
+      telemetry-gateway:
+        condition: service_started
+    # Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7), com rotação. O agente lê
+    # o próprio log, mas só encaminha linhas JSON com service.namespace = smarkee, então não há laço.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      internal:
+        aliases:
+          - telemetry-agent.smarkee.internal
+    restart: unless-stopped
+    # Sem healthcheck do Compose: a imagem não tem shell nem wget/curl.
+    healthcheck:
+      disable: true
+
+volumes:
+  telemetry-agent-data:
+    name: telemetry-agent-data
+
+networks:
+  internal:
+    name: internal

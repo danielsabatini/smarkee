@@ -157,11 +157,11 @@ def test_integrity_detects_altered_missing_and_extra_files(tmp_path: Path) -> No
     ports, _ = make_ports(tmp_path)
     path = create_backup(ports, silent)
     (path / "db" / "identity.dump").write_bytes(b"adulterado")
-    (path / "db" / "gateway.dump").unlink()
+    (path / "db" / "smarkee.dump").unlink()
     (path / "db" / "extra.dump").write_bytes(b"x")
     problems = check_integrity(path)
     assert "arquivo alterado: db/identity.dump" in problems
-    assert "arquivo ausente: db/gateway.dump" in problems
+    assert "arquivo ausente: db/smarkee.dump" in problems
     assert "arquivo fora da lista de somas: db/extra.dump" in problems
 
 
@@ -178,11 +178,11 @@ def test_verify_passes_when_every_restored_database_matches(tmp_path: Path) -> N
 
 
 def test_verify_reports_the_database_that_does_not_restore_equal(tmp_path: Path) -> None:
-    ports, _ = make_ports(tmp_path, broken="gateway")
+    ports, _ = make_ports(tmp_path, broken="smarkee")
     path = create_backup(ports, silent)
     problems = verify(ports, path, silent)
     assert len(problems) == 1
-    assert problems[0].startswith("banco gateway:")
+    assert problems[0].startswith("banco smarkee:")
 
 
 def test_verify_stops_at_an_integrity_problem(tmp_path: Path) -> None:

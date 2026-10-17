@@ -261,7 +261,7 @@ Variáveis de ambiente `CORE_ACCOUNT_<PAPEL>_<SEÇÃO>_<CAMPO>` (decisão 0016),
 
 ```bash
 # 1. Plataforma (banco, broker, identidade, gateway, e-mail): infrastructure/dev
-cd infrastructure/dev && docker compose up -d --wait broker database gateway identity identity-login mail
+cd infrastructure/dev && docker compose up -d && docker compose up -d --wait broker database gateway identity identity-login mail
 
 # 2. Os componentes da Account
 cd features/core/account && cp -n .env.example .env   # preencha os valores vazios

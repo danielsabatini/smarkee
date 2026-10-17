@@ -1,0 +1,193 @@
+# Estado desejado do gateway (formato do ADC), aplicado pelo `gateway-sync` a cada `up`.
+# É a fonte da verdade dos serviços e das rotas dentro deles: o que não estiver aqui é removido do gateway.
+# Rotas soltas (sem serviço), que é como o console as cria, não são tocadas pelo ADC.
+#
+# Roteamento por host: o Zitadel atende somente ipm-dev.smarkee.com.br, e nenhum serviço ocupa
+# o caminho `/` de forma genérica. Novas APIs recebem host próprio (por exemplo, api.localhost).
+services:
+  # API e console do Zitadel. O Host original precisa ser preservado (`pass_host: pass`) porque
+  # o Zitadel resolve a instância pelo domínio externo (ipm-dev.smarkee.com.br).
+  - name: identity
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: identity.smarkee.internal
+          port: 8080
+          weight: 100
+    routes:
+      - name: identity
+        hosts:
+          - ipm-dev.smarkee.com.br
+        uris:
+          - /*
+        plugins:
+          # O Zitadel usa o cabeçalho próprio para montar o issuer e as URLs públicas, com o Host
+          # original (inclusive a porta). O valor enviado pelo cliente é substituído para não ser forjado.
+          proxy-rewrite:
+            headers:
+              set:
+                x-zitadel-public-host: $http_host
+
+  # Interface de login v2 do Zitadel (a rota de prioridade maior prevalece sobre `/*`).
+  - name: identity-login
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: identity-login.smarkee.internal
+          port: 3000
+          weight: 100
+    routes:
+      - name: identity-login
+        hosts:
+          - ipm-dev.smarkee.com.br
+        uris:
+          - /ui/v2/login*
+        priority: 10
+        plugins:
+          # Em desenvolvimento (HTTP), remove o atributo Secure dos cookies emitidos pelo
+          # Next.js (hardcoded no build de produção da imagem). Navegadores rejeitam cookies
+          # com Secure em origens HTTP que não sejam localhost (como ipm-dev.smarkee.com.br).
+          serverless-post-function:
+            phase: header_filter
+            functions:
+              - |
+                return function(conf, ctx)
+                  local cookies = ngx.header["Set-Cookie"]
+                  if cookies then
+                    if type(cookies) == "string" then
+                      ngx.header["Set-Cookie"] = ngx.re.gsub(cookies, ";\\s*[Ss]ecure", "", "jo")
+                    elseif type(cookies) == "table" then
+                      local new_cookies = {}
+                      for i, c in ipairs(cookies) do
+                        new_cookies[i] = ngx.re.gsub(c, ";\\s*[Ss]ecure", "", "jo")
+                      end
+                      ngx.header["Set-Cookie"] = new_cookies
+                    end
+                  end
+                end
+
+  # APIs da plataforma. Host próprio (api-dev.smarkee.com.br; em dev, aponte 127.0.0.1 em
+  # /etc/hosts). Só `/v1/...` é público: `/health/*` (e `/healthz`, na Organization) fica na rede interna.
+  # Cada Receiver só é alcançado por este gateway, que acrescenta o endereço do cliente a
+  # `X-Forwarded-For` (o Receiver usa o último valor para o limite de taxa das escritas anônimas).
+  # Uma rota por tipo de recurso (decisão 0015). Cada rota casa o caminho exato e os subcaminhos
+  # (`/v1/<módulo>/<tipos>` e `/v1/<módulo>/<tipos>/*`), nunca um prefixo parecido (decisão 0030).
+  - name: ipm-organization-receiver
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: ipm-organization-receiver.smarkee.internal
+          port: 8000
+          weight: 100
+    routes:
+      - name: ipm-organization-receiver
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/ipm/organizations
+          - /v1/ipm/organizations/*
+
+  # Receiver de sum.service (decisão 0033): a API `/v1/sum/services`.
+  - name: sum-service-receiver
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: sum-service-receiver.smarkee.internal
+          port: 8000
+          weight: 100
+    routes:
+      - name: sum-service-receiver
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/sum/services
+          - /v1/sum/services/*
+
+  - name: core-account-receiver
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: core-account-receiver.smarkee.internal
+          port: 8000
+          weight: 100
+    routes:
+      - name: core-account-receiver
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/core/accounts
+          - /v1/core/accounts/*
+      # Auto-cadastro (escrita anônima): limite de taxa por IP já no gateway, o primeiro nível
+      # de proteção (docs/RESOURCE-CONTROL-SECURITY.md §12). O Receiver aplica o segundo.
+      # O IP é o do par TCP (`remote_addr`); atrás de um balanceador (stg e prd) será preciso
+      # configurar o IP real do cliente (plugin `real-ip`).
+      - name: core-account-register
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/core/accounts
+        methods:
+          - POST
+        priority: 10
+        plugins:
+          limit-count:
+            count: 10
+            time_window: 60
+            key_type: var
+            key: remote_addr
+            rejected_code: 429
+          # O limit-count não envia `Retry-After` (só `X-RateLimit-Reset`), mas o contrato do
+          # cadastro prevê `429` com `Retry-After`. O valor é a janela inteira (`time_window`).
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 429
+            headers:
+              set:
+                Retry-After: "60"
+
+# Traces (decisão 0050): o plugin `opentelemetry` exporta OTLP/HTTP para o otel-gateway, que ajusta os spans
+# à semconv (`otel-gateway-semconv.yaml`). Vale para todas as rotas, inclusive as sem rota (404).
+global_rules:
+  opentelemetry:
+    # Segue a decisão de amostragem do chamador (traceparent); sem chamador, amostra tudo. O otel-gateway
+    # faz a amostragem final (tail sampling). Para stg e prd, troque o `root` por `trace_id_ratio`.
+    sampler:
+      name: parent_base
+      options:
+        root:
+          name: always_on
+    # O plugin nomeia o atributo pelo nome da variável do nginx; o otel-gateway os renomeia para a semconv
+    # (server.address, server.port, client.address, network.peer.*, network.protocol.version, url.query).
+    additional_attributes:
+      - http_host
+      - remote_addr
+      - remote_port
+      - realip_remote_addr
+      - realip_remote_port
+      - server_protocol
+      - args
+
+plugin_metadata:
+  opentelemetry:
+    # Resource do gateway (docs/OBSERVABILITY.md §4). `service.instance.id` e `host.name` vêm do otel-gateway.
+    resource:
+      service.name: gateway
+      service.namespace: smarkee
+      # Acompanha a versão do APISIX (APISIX_IMAGE_VERSION).
+      service.version: 3.19.0
+      deployment.environment.name: development
+    collector:
+      address: ${APISIX_OTEL_COLLECTOR_ADDRESS}
+      request_timeout: 3

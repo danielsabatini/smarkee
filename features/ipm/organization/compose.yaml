@@ -3,7 +3,7 @@ name: ipm-organization
 # Componentes de ipm.organization (decisões 0015 e 0019): migração, consumers, Receiver, Manager,
 # Publisher, Reconciler, Observer e Executor.
 # A plataforma (banco, broker, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
-# e saudável antes (`docker compose up -d --wait broker database gateway identity identity-login`
+# e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait broker database gateway identity identity-login`,
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
 
 # Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7): o padrão `local` do

@@ -68,7 +68,7 @@ Chamada HTTP:
 
 | Item | Valor |
 |---|---|
-| Rota | `POST https://api-dev.smarkee.com.br/v1/core/accounts` (o gateway encaminha `/v1/core/accounts` ao `core-account-receiver`; veja `infrastructure/dev/gateway/bootstrap/routes.yml`) |
+| Rota | `POST https://api-dev.smarkee.com.br/v1/core/accounts` (o gateway encaminha `/v1/core/accounts` ao `core-account-receiver`; veja `infrastructure/dev/gateway/bootstrap/adc.yaml`) |
 | Autenticação | **Nenhuma.** É a única escrita anônima; `requestedBy` vira `anonymous`. |
 | Cabeçalho `Idempotency-Key` | Não se aplica ao cadastro (o Receiver passa `idempotency_key=None`). |
 | Limite de taxa | Dois níveis: no gateway (por IP) e no Receiver (por origem). Estourou: `429` com `Retry-After`. |

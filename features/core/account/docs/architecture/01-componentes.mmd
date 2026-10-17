@@ -7,7 +7,7 @@ flowchart LR
     classDef store fill:#e0f2f1,stroke:#00695c,color:#003d33
 
     CLI["sk CLI<br/>sk register (sk account: a implementar)"]:::client
-    GW["Gateway Kong<br/>api-dev.smarkee.com.br<br/>limite 10/min por IP"]:::client
+    GW["Gateway APISIX<br/>api-dev.smarkee.com.br<br/>limite 10/min por IP"]:::client
     Receiver["core-account-receiver<br/>auth, validação, 202"]:::client
 
     subgraph BUS["NATS JetStream (um Stream por messageType)"]

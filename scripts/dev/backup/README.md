@@ -2,7 +2,7 @@
 
 Backup, verificação, restauração e reset seguro do **ambiente de desenvolvimento**. É uma **ferramenta de operação**, e não um componente da plataforma nem um teste.
 
-Guarda o que não se reconstrói só com o repositório: configurações feitas direto no Zitadel e no Kong ficam nos bancos, as chaves das service accounts ficam num volume, e o `ZITADEL_MASTERKEY` dos `.env` é o que decifra o banco do Zitadel.
+Guarda o que não se reconstrói só com o repositório: configurações feitas direto no Zitadel ficam no banco (o gateway se reconstrói a partir de `infrastructure/dev/gateway/bootstrap/adc.yaml` e não entra no backup), as chaves das service accounts ficam num volume, e o `ZITADEL_MASTERKEY` dos `.env` é o que decifra o banco do Zitadel.
 
 ```bash
 cd scripts/dev/backup && uv sync
@@ -21,7 +21,7 @@ uv run smarkee-dev-backup reset --apply    # backup, verificação e SÓ ENTÃO 
 
 | Item | Origem |
 |---|---|
-| Bancos `identity` (Zitadel), `gateway` (Kong) e `smarkee` (SSOT) | `pg_dump -Fc` no contêiner `database.smarkee.internal` |
+| Bancos `identity` (Zitadel) e `smarkee` (SSOT) | `pg_dump -Fc` no contêiner `database.smarkee.internal` |
 | Papéis do PostgreSQL | `pg_dumpall --globals-only` |
 | Volume `identity-bootstrap` (chaves das service accounts e PAT do login) | `tar` somente leitura |
 | `.env` de `infrastructure/dev/{broker,database,gateway,identity}` e das features | cópia (os que existirem) |
@@ -36,7 +36,7 @@ O backup fica em `~/.smarkee/backups/<AAAAMMDDTHHMMSSZ>/`, **fora do repositóri
 1. **Integridade:** as somas SHA-256 de todos os arquivos conferem, sem arquivo a mais nem a menos.
 2. **Restauração:** sobe um PostgreSQL descartável (rede padrão, sem porta publicada, senha aleatória), restaura os papéis e cada banco, e compara o conteúdo lógico (esquema e dados) do banco restaurado com o do dump. A comparação ignora o que muda a cada dump (data e o token `\restrict`) e a posição física das linhas. O contêiner é removido ao final.
 
-Isso prova que o backup restaura os **dados**. Não prova que os serviços sobem: para isso, suba o Zitadel e o Kong contra o banco restaurado, como foi feito na primeira validação (2026-10-16: organizações, usuários, projetos, apps, serviços, rotas e plugins iguais ao ambiente ativo).
+Isso prova que o backup restaura os **dados**. Não prova que os serviços sobem: para isso, suba o Zitadel contra o banco restaurado, como foi feito na primeira validação (2026-10-16, quando o gateway ainda era o Kong e entrava no backup: organizações, usuários, projetos, apps, serviços, rotas e plugins iguais ao ambiente ativo).
 
 ## Restauração
 
@@ -44,13 +44,13 @@ Isso prova que o backup restaura os **dados**. Não prova que os serviços sobem
 
 1. verifica o backup (integridade e restauração) e recusa se algo falhar;
 2. recusa se um `.env` existente **difere** do backup (resolva à mão; a masterkey do Zitadel precisa ser a do backup);
-3. para os componentes das features e `gateway`, `identity` e `identity-login`;
-4. recria os papéis e substitui os três bancos (`DROP DATABASE ... WITH (FORCE)` e `pg_restore --create`);
+3. para os componentes das features e `identity` e `identity-login`;
+4. recria os papéis e substitui os bancos (`DROP DATABASE ... WITH (FORCE)` e `pg_restore --create`);
 5. substitui o conteúdo do volume `identity-bootstrap`;
 6. copia os `.env` que faltam;
 7. sobe de novo os serviços parados.
 
-Depois de um `reset`, recrie o ambiente (plataforma e features, `docker compose up -d --build`) e rode `restore --apply`. Reinicie o `gateway` se recriar um Receiver.
+Depois de um `reset`, recrie o ambiente (plataforma e features, `docker compose up -d --build`) e rode `restore --apply`.
 
 ## Segurança
 
