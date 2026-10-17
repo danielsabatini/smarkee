@@ -6,7 +6,7 @@
 
 ## Contexto
 
-Os 18 componentes escrevem uma linha JSON por registro no stdout (decisão 0045), mas ninguém as lia: o destino para a telemetria (`telemetry-gateway`) já existia e só recebia os spans do gateway. Era preciso coletar os logs dos componentes e as métricas dos contêineres e levá-los ao `telemetry-gateway`, que por ora os grava no stdout (exporter `debug`).
+Os 18 componentes escrevem uma linha JSON por registro no stdout (decisão 0045), mas ninguém as lia: o destino para a telemetria (`telemetry-gateway`) já existia e só recebia os spans do gateway. Era preciso coletar os logs dos componentes e as métricas dos contêineres e levá-los ao `telemetry-gateway`, que por ora os grava em arquivos (exporter `file`, com rotação).
 
 A stack de observabilidade do desenvolvedor (`lgtm-stack-otel/otel-agent`) já faz essa coleta para o projeto dela, com `host_metrics`, `docker_stats` e `file_log`, e serviu de base.
 
@@ -27,6 +27,6 @@ A stack de observabilidade do desenvolvedor (`lgtm-stack-otel/otel-agent`) já f
 
 - **Superfície:** o socket do Docker montado como leitura ainda dá acesso à API inteira do Docker, e o agente roda como root. Aceitável em dev; **não** se repete em stg e prd (lá, um DaemonSet lê os logs do nó, no formato CRI, sem o socket).
 - **Cobertura de logs:** só os contêineres que usam o driver `json-file` e escrevem a linha do contrato. Os da plataforma (`broker`, `database`, `identity`, `gateway`, `mail`) usam o driver padrão do Docker Desktop, que o `file_log` não lê, e não escrevem o formato do contrato; ficam de fora. Suas métricas de contêiner entram.
-- **Volume:** o `telemetry-gateway` imprime tudo no stdout (`detailed`); com todos os níveis (INFO inclusive) o volume é alto, e os logs giram rápido (3 × 10 MB). O otel-agent do desenvolvedor descarta INFO e DEBUG; aqui não, porque o objetivo é ler.
+- **Volume:** o `telemetry-gateway` grava tudo em arquivos de 1 MB com 3 rotacionados por sinal; com todos os níveis (INFO inclusive) o volume é alto, e a janela guardada é curta (sob carga, minutos). O otel-agent do desenvolvedor descarta INFO e DEBUG; aqui não, porque o objetivo é ler.
 - **Sem laço:** o agente lê o próprio log e o do `telemetry-gateway`, mas são texto do Collector (não JSON com `service.namespace = smarkee`) e são descartados.
 - **Riscos aceitos, a revisar:** o formato CRI (Kubernetes) não foi testado; o campo `container.id` vem do caminho do arquivo; o OTLP entre os coletores é sem TLS; `trace_id` e `span_id` foram testados só com uma linha sintética, pois os componentes ainda não os emitem.

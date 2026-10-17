@@ -19,15 +19,36 @@ processors:
     check_interval: 1s
     limit_mib: 256
     spike_limit_mib: 64
-  # Lotes curtos: em dev o objetivo é ler a saída logo.
+  # Lotes curtos e com tamanho máximo: o exporter file, com rotação, REJEITA um lote maior que max_megabytes
+  # (1 MB). 200 itens (spans, registros de log ou pontos de métrica) ficam bem abaixo disso.
   batch:
     timeout: 1s
+    send_batch_size: 100
+    send_batch_max_size: 200
 
 exporters:
-  # Ainda não há backend: tudo vai para o stdout. `detailed` mostra o conteúdo de cada span, métrica e log;
-  # `basic` mostra só as contagens.
-  debug:
-    verbosity: detailed
+  # Ainda não há backend: cada sinal vai para arquivos em disco (uma linha OTLP JSON por lote), nas pastas
+  # logs/, metrics/ e traces/ deste diretório (montadas em /telemetry). Com `rotation`, o arquivo é fechado ao
+  # chegar a 1 MB e renomeado com a data e o motivo (por exemplo, traces-2026-10-17T15-02-14.173-size.jsonl);
+  # ficam no máximo 3 rotacionados, por no máximo 1 dia. Cada sinal ocupa, no máximo, 4 MB.
+  file/logs:
+    path: /telemetry/logs/logs.jsonl
+    rotation:
+      max_megabytes: 1
+      max_days: 1
+      max_backups: 3
+  file/metrics:
+    path: /telemetry/metrics/metrics.jsonl
+    rotation:
+      max_megabytes: 1
+      max_days: 1
+      max_backups: 3
+  file/traces:
+    path: /telemetry/traces/traces.jsonl
+    rotation:
+      max_megabytes: 1
+      max_days: 1
+      max_backups: 3
 
 service:
   extensions: [health_check]
@@ -35,16 +56,16 @@ service:
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [debug]
+      exporters: [file/metrics]
 
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [debug]
+      exporters: [file/logs]
 
     # O processador do gateway entra depois do memory_limiter e antes de qualquer exporter, para que o que
     # for gravado já esteja na semconv.
     traces:
       receivers: [otlp]
       processors: [memory_limiter, transform/gateway-semconv, batch]
-      exporters: [debug]
+      exporters: [file/traces]

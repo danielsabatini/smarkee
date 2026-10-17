@@ -1,8 +1,8 @@
 name: telemetry-gateway
 
 # OpenTelemetry Collector (distribuição contrib) que recebe a telemetria OTLP do gateway e dos componentes.
-# Ainda não há backend para gravar: os três sinais (métricas, logs e traces) saem no stdout pelo exporter
-# `debug`; leia com `docker logs -f telemetry-gateway.smarkee.internal`. O processador
+# Ainda não há backend para gravar: cada sinal (logs, métricas e traces) vai para arquivos, com rotação em 1 MB, pelo
+# exporter `file`, nas pastas logs/, metrics/ e traces/ deste diretório. O processador
 # `transform/gateway-semconv` (gateway-semconv.yaml) ajusta os spans do gateway à semconv (decisão 0050).
 services:
   telemetry-gateway:
@@ -21,8 +21,12 @@ services:
     volumes:
       - ./config.yaml:/etc/otelcol-contrib/config.yaml:ro
       - ./gateway-semconv.yaml:/etc/otelcol-contrib/gateway-semconv.yaml:ro
-    # Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7), com rotação: o exporter
-    # `debug` escreve bastante.
+      # Saída do exporter file. A imagem não tem sistema de arquivos gravável: as pastas precisam existir no host e
+      # ser graváveis pelo usuário 10001 (no Linux, `chmod o+rwx logs metrics traces`; no Docker Desktop já são).
+      - ./logs:/telemetry/logs
+      - ./metrics:/telemetry/metrics
+      - ./traces:/telemetry/traces
+    # Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7), com rotação.
     logging:
       driver: json-file
       options:
