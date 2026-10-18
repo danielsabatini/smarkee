@@ -120,7 +120,7 @@ Toda etapa deve responder:
 
 1. Que problema real ela resolve **se for a última**?
 2. O que ela deixa de fora, explicitamente?
-3. A etapa seguinte aproveita esta, ou a joga fora?
+3. A etapa seguinte aproveita esta, ou a joga fora? (§2.6)
 
 Uma etapa sem valor próprio só é aceita quando um requisito de segurança a exigir, e isso deve ser declarado.
 
@@ -150,6 +150,23 @@ Os quatro pilares valem em todo ambiente, mas o nível exigido de cada um varia:
 2. **Robustez e resiliência de código** (validação de entrada, idempotência, erros explícitos, escrita atômica, tolerância a mensagens duplicadas) não variam por ambiente, porque o mesmo código vai a prd. Somente a de **infraestrutura** (réplicas, fila persistente, backup, retenção, quarentena, alta disponibilidade) pode ser menor em dev.
 3. Toda redução em dev é uma **lacuna declarada**: o que falta, por que é aceitável em dev e a condição que a fecha antes do stg. O registro é o `docs/IMPLEMENTATION-STATUS.md`. Uma lacuna que não esteja declarada é uma violação do piso.
 4. O stg tem o mesmo piso do prd. Nada é promovido a stg com lacuna aberta.
+
+## 2.6 Caminho de evolução: do simples ao avançado
+
+A evolução segue um **caminho aditivo**: cada etapa mais avançada é construída **sobre** a anterior, e não no lugar dela. O trabalho de uma etapa é **reaproveitado e evoluído**; ele não é descartado para recomeçar do zero.
+
+Ao escolher a solução simples de hoje, escolha a que **o próximo passo possa estender**. Para cada etapa, declare:
+
+1. **O que permanece** na etapa seguinte (código, contrato, dado, configuração, teste).
+2. **O que é acrescentado**.
+3. **O que é substituído**, se algo for: o motivo, o custo e como migrar sem perda (§10, §31).
+
+Regras:
+
+* Uma solução simples que só serve se for descartada depois não é um degrau: é um desvio. Prefira outra.
+* Contratos, nomes e dados da etapa simples são os da etapa avançada. O que se estende não muda de nome nem de significado sem migração (§10).
+* Descartar é legítimo quando a direção estava errada ou quando o trabalho era um **experimento declarado**, feito em `.workspace/` (§23) e sem virar produto. Registre o que se aprendeu.
+* Esta regra **não autoriza** construir antecipadamente pontos de extensão nem flexibilidade hipotética (§6, §25). O caminho aditivo nasce de escolher bem o simples, e não de projetar o avançado agora.
 
 ---
 
