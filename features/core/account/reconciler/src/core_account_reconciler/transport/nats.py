@@ -19,6 +19,11 @@ from nats.js import JetStreamContext
 from nats.js.api import AckPolicy, ConsumerConfig, DeliverPolicy
 
 from core_account_reconciler.engine.reconciler import PublishError, Reconciler
+from core_account_reconciler.logging_config import (
+    TRACEPARENT_HEADER,
+    bind_traceparent,
+    current_traceparent,
+)
 from core_account_reconciler.settings import LoopSettings, NatsSettings
 
 logger = logging.getLogger(__name__)
@@ -50,12 +55,13 @@ class JetStreamPublisher:
         self._jetstream = jetstream
 
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
+        headers = {"Nats-Msg-Id": message_id}
+        traceparent = current_traceparent()
+        if traceparent is not None:
+            headers[TRACEPARENT_HEADER] = traceparent
         try:
             await self._jetstream.publish(
-                subject,
-                payload,
-                timeout=PUBLISH_TIMEOUT_SECONDS,
-                headers={"Nats-Msg-Id": message_id},
+                subject, payload, timeout=PUBLISH_TIMEOUT_SECONDS, headers=headers
             )
         except (nats.errors.Error, nats.js.errors.Error, TimeoutError, OSError) as error:
             raise PublishError(type(error).__name__) from error
@@ -115,8 +121,14 @@ class StateConsumer:
                 await asyncio.sleep(1.0)
                 continue
             for message in messages:
-                await self._reconciler.on_message(message.data)
-                await message.ack()
+                # Contexto de trace vem no header NATS (decisão 0055) e vale só para esta mensagem.
+                bind_traceparent((message.headers or {}).get(TRACEPARENT_HEADER))
+                try:
+                    await self._reconciler.on_message(message.data)
+                    await message.ack()
+                    logger.info("message handled", extra={"smarkee.outcome": "acknowledged"})
+                finally:
+                    bind_traceparent(None)
 
 
 async def periodic_reevaluation(

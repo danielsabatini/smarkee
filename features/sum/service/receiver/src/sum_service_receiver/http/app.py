@@ -53,6 +53,7 @@ from sum_service_receiver.domain.requests import (
     validate_version,
 )
 from sum_service_receiver.http.health import Health
+from sum_service_receiver.http.trace_context import TraceContextMiddleware
 from sum_service_receiver.ids import new_identifier, utc_now
 
 logger = logging.getLogger(__name__)
@@ -148,6 +149,7 @@ def create_app(deps: Dependencies) -> FastAPI:
         openapi_url=None,
     )
 
+    app.add_middleware(TraceContextMiddleware)
     _install_openapi(app)
 
     @app.exception_handler(ApiError)
@@ -247,6 +249,14 @@ def create_app(deps: Dependencies) -> FastAPI:
             occurred_at=deps.now(),
         )
         await deps.publisher.publish(subject, envelope, message_id=operation_id)
+        logger.info(
+            "request published",
+            extra={
+                "smarkee.resource.id": resource_id,
+                "smarkee.operation.name": operation_type,
+                "smarkee.outcome": "accepted",
+            },
+        )
         return _accepted(resource_id, operation_id)
 
     @app.get("/health/live")

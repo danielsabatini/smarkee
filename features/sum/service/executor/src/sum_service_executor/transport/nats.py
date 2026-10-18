@@ -15,6 +15,7 @@ from nats.js import JetStreamContext
 from pydantic import SecretStr
 
 from sum_service_executor.engine.executor import PublishError
+from sum_service_executor.logging_config import TRACEPARENT_HEADER, current_traceparent
 
 PUBLISH_TIMEOUT_SECONDS = 5.0
 
@@ -62,12 +63,13 @@ class JetStreamPublisher:
         self._jetstream = jetstream
 
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
+        headers = {"Nats-Msg-Id": message_id}
+        traceparent = current_traceparent()
+        if traceparent is not None:
+            headers[TRACEPARENT_HEADER] = traceparent
         try:
             await self._jetstream.publish(
-                subject,
-                payload,
-                timeout=PUBLISH_TIMEOUT_SECONDS,
-                headers={"Nats-Msg-Id": message_id},
+                subject, payload, timeout=PUBLISH_TIMEOUT_SECONDS, headers=headers
             )
         except (nats.errors.Error, nats.js.errors.Error, TimeoutError, OSError) as error:
             raise PublishError(type(error).__name__) from error

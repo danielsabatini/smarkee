@@ -111,7 +111,7 @@ A idempotência de `requested` é a chave primária `operation_id`. Não existe 
 
 ## 6.4 Tabela `<tipo>_outbox`
 
-`sequence` (identidade, chave primária), `message_id` (único), `resource_id`, `subject`, `payload` (`jsonb`, com limite de tamanho), `created_at`, `published_at`. Dois índices parciais: pendentes (`sequence` onde `published_at` é nulo) e publicados (`published_at` onde não é nulo).
+`sequence` (identidade, chave primária), `message_id` (único), `resource_id`, `subject`, `payload` (`jsonb`, com limite de tamanho), `created_at`, `published_at` e `traceparent` (texto, opcional: o contexto de trace W3C da requisição ou da mensagem que originou a linha, repassado pelo Publisher como header NATS; decisão 0055). Dois índices parciais: pendentes (`sequence` onde `published_at` é nulo) e publicados (`published_at` onde não é nulo).
 
 ## 6.5 Views de leitura do Receiver
 

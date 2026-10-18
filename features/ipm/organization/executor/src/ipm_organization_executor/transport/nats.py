@@ -16,9 +16,15 @@ import nats
 import nats.errors
 import nats.js.errors
 from nats.aio.client import Client as NatsClient
+from nats.aio.msg import Msg
 from nats.js import JetStreamContext
 
 from ipm_organization_executor.engine.executor import Disposition, Executor, PublishError
+from ipm_organization_executor.logging_config import (
+    TRACEPARENT_HEADER,
+    bind_traceparent,
+    current_traceparent,
+)
 from ipm_organization_executor.settings import NatsSettings
 
 logger = logging.getLogger(__name__)
@@ -49,12 +55,13 @@ class JetStreamPublisher:
         self._jetstream = jetstream
 
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
+        headers = {"Nats-Msg-Id": message_id}
+        traceparent = current_traceparent()
+        if traceparent is not None:
+            headers[TRACEPARENT_HEADER] = traceparent
         try:
             await self._jetstream.publish(
-                subject,
-                payload,
-                timeout=PUBLISH_TIMEOUT_SECONDS,
-                headers={"Nats-Msg-Id": message_id},
+                subject, payload, timeout=PUBLISH_TIMEOUT_SECONDS, headers=headers
             )
         except (nats.errors.Error, nats.js.errors.Error, TimeoutError, OSError) as error:
             raise PublishError(type(error).__name__) from error
@@ -125,17 +132,25 @@ class ActionConsumer:
                 await asyncio.sleep(1.0)
                 continue
             for message in messages:
+                # Contexto de trace vem no header NATS (decisão 0055) e vale só para esta mensagem.
+                bind_traceparent((message.headers or {}).get(TRACEPARENT_HEADER))
                 try:
-                    disposition = await self._executor.handle(message.data)
-                except (PublishError, nats.errors.Error, nats.js.errors.Error, OSError) as error:
-                    # Falha de infraestrutura (não do provedor): a action volta à fila.
-                    logger.warning(
-                        "action handling failed; it returns to the queue",
-                        exc_info=error,
-                    )
-                    await message.nak(delay=REDELIVERY_DELAY_SECONDS)
-                    continue
-                if disposition is Disposition.TERM:
-                    await message.term()
-                else:
-                    await message.ack()
+                    await self._settle(message)
+                finally:
+                    bind_traceparent(None)
+
+    async def _settle(self, message: Msg) -> None:
+        try:
+            disposition = await self._executor.handle(message.data)
+        except (PublishError, nats.errors.Error, nats.js.errors.Error, OSError) as error:
+            # Falha de infraestrutura (não do provedor): a action volta à fila.
+            logger.warning(
+                "action handling failed; it returns to the queue",
+                exc_info=error,
+            )
+            await message.nak(delay=REDELIVERY_DELAY_SECONDS)
+            return
+        if disposition is Disposition.TERM:
+            await message.term()
+        else:
+            await message.ack()

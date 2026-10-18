@@ -39,7 +39,7 @@
       "maxLength": 128
     },
     "trace_id": {
-      "description": "TraceId (W3C), 32 caracteres hexadecimais. Omitido enquanto não houver traces.",
+      "description": "TraceId (W3C), 32 caracteres hexadecimais, do `traceparent` recebido (decisão 0055). Omitido quando o registro não pertence a um trace.",
       "type": "string",
       "pattern": "^[0-9a-f]{32}$",
       "maxLength": 32

@@ -20,6 +20,8 @@ class DesiredState:
     lifecycle: str
     reconciliation: str
     service_roles: frozenset[str]
+    traceparent: str | None = None
+    """Contexto de trace do `desired` (decisão 0055): a action que ele causar o herda."""
 
 
 @dataclass(frozen=True, slots=True)

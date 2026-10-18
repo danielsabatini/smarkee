@@ -8,7 +8,13 @@ from typing import Any, cast
 import pytest
 from jsonschema import Draft202012Validator
 
-from sum_service_receiver.logging_config import EVENT_NAME_KEY, JsonFormatter, build_resource
+from sum_service_receiver.logging_config import (
+    EVENT_NAME_KEY,
+    JsonFormatter,
+    bind_traceparent,
+    build_resource,
+    current_traceparent,
+)
 
 _PACKAGE = "sum_service_receiver"
 _LOGGER_METHODS = {"debug", "info", "warning", "error", "critical", "exception", "log"}
@@ -163,3 +169,39 @@ def test_log_context_keys_are_attributes_allowed_by_the_schema() -> None:
             if not _is_allowed_key(key):
                 invalid.append(f"{path.relative_to(_SOURCE_ROOT)}:{line}")
     assert invalid == []
+
+
+_TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+
+def test_bound_traceparent_adds_trace_id_and_flags_to_every_log() -> None:
+    assert bind_traceparent(_TRACEPARENT) == _TRACEPARENT
+    try:
+        payload = format_line(record("with trace"))
+        assert payload["trace_id"] == "4bf92f3577b34da6a3ce929d0e0e4736"
+        assert payload["trace_flags"] == 1
+        assert "span_id" not in payload
+        assert current_traceparent() == _TRACEPARENT
+    finally:
+        bind_traceparent(None)
+    assert "trace_id" not in format_line(record("without trace"))
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "garbage",
+        "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        "00-00000000000000000000000000000000-00f067aa0ba902b7-01",
+        "00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01",
+        "00-4BF92F3577B34DA6A3CE929D0E0E4736-00f067aa0ba902b7-01",
+        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-extra",
+        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\n",
+    ],
+)
+def test_invalid_traceparent_is_dropped_and_clears_the_context(value: str) -> None:
+    bind_traceparent(_TRACEPARENT)
+    assert bind_traceparent(value) is None
+    assert current_traceparent() is None
+    assert "trace_id" not in format_line(record("invalid"))

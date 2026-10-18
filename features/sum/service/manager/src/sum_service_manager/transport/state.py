@@ -28,6 +28,7 @@ from sum_service_manager.handlers.state import (
     apply_observed,
     apply_result,
 )
+from sum_service_manager.logging_config import TRACEPARENT_HEADER, bind_traceparent
 from sum_service_manager.transport.requested import TRANSIENT_DATABASE_ERRORS, Disposition
 
 logger = logging.getLogger(__name__)
@@ -194,7 +195,13 @@ async def run_consumer(
 
 
 async def _settle(message: Msg, handle: Callable[[bytes], Awaitable[Disposition]]) -> None:
-    disposition = await handle(message.data)
+    # O contexto de trace vem no header NATS (decisão 0055); vale só para esta mensagem.
+    bind_traceparent((message.headers or {}).get(TRACEPARENT_HEADER))
+    try:
+        disposition = await handle(message.data)
+        logger.info("message handled", extra={"smarkee.outcome": disposition.value})
+    finally:
+        bind_traceparent(None)
     match disposition:
         case Disposition.ACK:
             await message.ack()

@@ -214,6 +214,8 @@ São mensagens de trabalho com **um único consumidor lógico**. A mensagem deve
 
 `ACTION` publica com o cabeçalho `Nats-Msg-Id` igual ao `actionId`. O broker descarta duplicatas dentro da janela de deduplicação (por padrão, 2 minutos). Isso é uma otimização: a deduplicação do Executor por `actionId` continua obrigatória.
 
+**Contexto de trace:** quando a origem traz um `traceparent` W3C, todas as publicações dos componentes o repassam no cabeçalho `traceparent`, sem alteração, ao lado de `Nats-Msg-Id`. Ele não faz parte do envelope e não influencia a deduplicação (decisão 0055).
+
 ## 6.4 `DESIRED` e `OBSERVED`: estado
 
 São mensagens de estado: a mais recente por recurso substitui as anteriores.

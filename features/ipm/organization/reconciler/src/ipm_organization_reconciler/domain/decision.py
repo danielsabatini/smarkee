@@ -21,6 +21,8 @@ class DesiredState:
     platform_access: str
     requested_by: str | None
     correlation_id: str | None
+    traceparent: str | None = None
+    """Contexto de trace do `desired` (decisão 0055): a action que ele causar o herda."""
 
 
 @dataclass(frozen=True, slots=True)

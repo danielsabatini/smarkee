@@ -25,6 +25,7 @@ from ipm_organization_reconciler.domain.decision import (
     decide,
 )
 from ipm_organization_reconciler.ids import new_identifier, utc_now
+from ipm_organization_reconciler.logging_config import bind_traceparent, current_traceparent
 from ipm_organization_reconciler.settings import LoopSettings
 
 MODULE = "ipm"
@@ -117,6 +118,7 @@ class Reconciler:
             platform_access=str(data.get("platformAccess", "granted")),
             requested_by=envelope.requested_by,
             correlation_id=envelope.correlation_id,
+            traceparent=current_traceparent(),
         )
         if current is None or generation != current.generation:
             state.pending = None  # a ação pendente era de uma especificação substituída
@@ -176,6 +178,17 @@ class Reconciler:
     async def evaluate(self, resource_id: str) -> None:
         state = self._states.get(resource_id)
         if state is None or state.desired is None:
+            return
+        # A action herda o trace do `desired` que a causou, mesmo quando sai de uma mensagem de
+        # `observed` ou da reavaliação periódica, que não têm contexto próprio (decisão 0055).
+        bind_traceparent(state.desired.traceparent)
+        try:
+            await self._evaluate(resource_id, state)
+        finally:
+            bind_traceparent(None)
+
+    async def _evaluate(self, resource_id: str, state: ResourceState) -> None:
+        if state.desired is None:
             return
         now = self._clock()
         decision = decide(state, now, self._settings)

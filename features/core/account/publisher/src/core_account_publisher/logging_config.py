@@ -15,8 +15,10 @@ import importlib.metadata
 import json
 import logging
 import os
+import re
 import sys
 import uuid
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from types import TracebackType
 from typing import Any
@@ -44,6 +46,28 @@ _STANDARD_ATTRIBUTES = frozenset(logging.LogRecord("", 0, "", 0, "", (), None)._
 
 # Chave de `extra` que vira o campo `EventName` do LogRecord, e não um atributo.
 EVENT_NAME_KEY = "event_name"
+
+# Contexto de trace W3C (`traceparent`) da requisição ou da mensagem em tratamento. Não há SDK de
+# tracing: o componente só repassa o contexto recebido e o grava nos logs (`trace_id` e
+# `trace_flags`).
+TRACEPARENT_HEADER = "traceparent"
+_TRACEPARENT = re.compile(r"^00-(?!0{32}-)([0-9a-f]{32})-(?!0{16}-)[0-9a-f]{16}-([0-9a-f]{2})\Z")
+_current_traceparent: ContextVar[str | None] = ContextVar("traceparent", default=None)
+
+
+def bind_traceparent(value: str | None) -> str | None:
+    """Associa o `traceparent` ao contexto atual, se for válido (W3C versão 00); senão, limpa.
+
+    Devolve o valor associado ou `None`. Um valor inválido nunca é repassado nem registrado.
+    """
+    valid = value if value is not None and _TRACEPARENT.match(value) else None
+    _current_traceparent.set(valid)
+    return valid
+
+
+def current_traceparent() -> str | None:
+    """`traceparent` associado ao contexto atual (para repassar em mensagens), ou `None`."""
+    return _current_traceparent.get()
 
 
 def build_resource() -> dict[str, str]:
@@ -128,6 +152,10 @@ class JsonFormatter(logging.Formatter):
         if event_name is not None:
             payload["event_name"] = event_name
         payload["scope"] = {"name": record.name}
+        traceparent = _current_traceparent.get()
+        if traceparent is not None:
+            payload["trace_id"] = traceparent[3:35]
+            payload["trace_flags"] = int(traceparent[-2:], 16)
         payload["resource"] = self._resource
         if attributes:
             payload["attributes"] = attributes

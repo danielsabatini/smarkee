@@ -22,6 +22,11 @@ from nats.js.api import AckPolicy, ConsumerConfig, DeliverPolicy
 from pydantic import SecretStr
 
 from sum_service_reconciler.engine.reconciler import PublishError, Reconciler
+from sum_service_reconciler.logging_config import (
+    TRACEPARENT_HEADER,
+    bind_traceparent,
+    current_traceparent,
+)
 from sum_service_reconciler.settings import LoopSettings
 
 logger = logging.getLogger(__name__)
@@ -58,12 +63,13 @@ class JetStreamPublisher:
         self._jetstream = jetstream
 
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
+        headers = {"Nats-Msg-Id": message_id}
+        traceparent = current_traceparent()
+        if traceparent is not None:
+            headers[TRACEPARENT_HEADER] = traceparent
         try:
             await self._jetstream.publish(
-                subject,
-                payload,
-                timeout=PUBLISH_TIMEOUT_SECONDS,
-                headers={"Nats-Msg-Id": message_id},
+                subject, payload, timeout=PUBLISH_TIMEOUT_SECONDS, headers=headers
             )
         except (nats.errors.Error, nats.js.errors.Error, TimeoutError, OSError) as error:
             raise PublishError(type(error).__name__) from error
@@ -126,6 +132,14 @@ class StateConsumer:
                 await self._settle(message)
 
     async def _settle(self, message: Msg) -> None:
+        # O contexto de trace vem no header NATS (decisão 0055); vale só para esta mensagem.
+        bind_traceparent((message.headers or {}).get(TRACEPARENT_HEADER))
+        try:
+            await self._settle_bound(message)
+        finally:
+            bind_traceparent(None)
+
+    async def _settle_bound(self, message: Msg) -> None:
         try:
             await self._handle(message.data)
         except Exception as error:  # um erro de processamento volta à fila; nunca derruba o laço
@@ -137,6 +151,13 @@ class StateConsumer:
             await message.nak(delay=REDELIVERY_DELAY_SECONDS)
             return
         await message.ack()
+        logger.info(
+            "message handled",
+            extra={
+                "messaging.consumer.group.name": self._durable,
+                "smarkee.outcome": "acknowledged",
+            },
+        )
 
 
 async def periodic_reevaluation(

@@ -16,6 +16,7 @@ from psycopg.types.json import Jsonb
 
 from core_account_manager.domain.errors import DuplicateWriteError
 from core_account_manager.domain.policy import UniqueValue
+from core_account_manager.logging_config import current_traceparent
 from core_account_manager.store.tables import Tables
 
 _ROW_COLUMNS = (
@@ -164,10 +165,10 @@ class PostgresStore:
     ) -> None:
         await self._connection.execute(
             sql.SQL(
-                "INSERT INTO {table} (message_id, resource_id, subject, payload)"
-                " VALUES (%s, %s, %s, %s)"
+                "INSERT INTO {table} (message_id, resource_id, subject, payload, traceparent)"
+                " VALUES (%s, %s, %s, %s, %s)"
             ).format(table=self._tables.outbox),
-            (message["messageId"], resource_id, subject, Jsonb(message)),
+            (message["messageId"], resource_id, subject, Jsonb(message), current_traceparent()),
         )
 
     # ------------------------------------------------------------------ observed e resultados

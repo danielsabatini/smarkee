@@ -8,6 +8,9 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [Unreleased]
 
 ### Added
+- Trace distribuído, fase 1 (decisão 0055): o `traceparent` que o gateway inicia é repassado pelo Receiver, pelo NATS (header `traceparent`), pelo outbox (coluna nova `traceparent`, migração aditiva em cada módulo), pelo Manager, Publisher, Reconciler e Executor, e os logs dos componentes passam a trazer `trace_id` e `trace_flags`. Um evento de log por unidade de trabalho torna o `trace_id` visível em cada papel. Sem SDK do OpenTelemetry e sem spans nos componentes.
+- IP real do cliente no gateway (decisão 0054): o plugin `real-ip` lê `X-Forwarded-For` só de `APISIX_TRUSTED_PROXIES` (um IP ou um CIDR; vazio em dev = não confia em ninguém), para o limite do cadastro e os spans valerem por cliente atrás de um balanceador.
+- Conformância do Zitadel de dev: teste que exige token opaco (Bearer) nas seis contas de serviço dos componentes.
 - Traces do gateway (decisão 0050): o plugin `opentelemetry` do APISIX exporta o span de servidor de cada requisição por OTLP/HTTP (`APISIX_OTEL_COLLECTOR_ADDRESS`), com amostragem `parent_base`, continuação do `traceparent` recebido e repasse ao upstream. O fragmento `infrastructure/dev/telemetry-gateway/gateway-semconv.yaml` ajusta os spans às convenções semânticas v1.44.0 (verificado em 41 regras) e redige os valores de `url.query`. Contrato em `docs/OBSERVABILITY.md` seção 11.
 - Logs de infra e separação da telemetria em infra e app (decisão 0053): o `telemetry-gateway` grava `logs/{app,infra}`, `metrics/{app,infra}` e `traces/`, com rotação em 10 MB; o `telemetry-agent` descarta os healthchecks e passa a coletar os logs dos contêineres da plataforma (`json-file` com as labels `com.docker.compose.service` e `smarkee.layer=infra`), só `WARN` ou acima.
 - Limites de recursos (CPU e memória) em todos os contêineres de longa duração da plataforma e dos 18 componentes, ajustáveis por variável de ambiente (decisão 0053).
@@ -63,6 +66,8 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Licença Apache-2.0 (`LICENSE`).
 
 ### Changed
+- O gateway inicia um trace novo em cada requisição: `traceparent` e `tracestate` do cliente são removidos na borda (decisão 0054).
+- As contas de serviço dos componentes usam token opaco (Bearer) em vez de JWT, o que elimina um `WARN` do Zitadel por chamada autenticada (decisão 0054).
 - **Quebra (desenvolvimento):** o gateway passou do Kong para o Apache APISIX 3.19 (decisão 0049), com a configuração no etcd e as rotas em `infrastructure/dev/gateway/bootstrap/adc.yaml`, aplicadas pelo ADC (`gateway-sync`) a cada `up`. A Admin API saiu da porta `8001` sem autenticação para a `9180` com chave (`X-API-KEY`), as variáveis `KONG_*` viram `APISIX_*` e o `.env` do gateway exige `APISIX_ADMIN_KEY`. Hosts, caminhos, o proxy interno `gateway.smarkee.internal:8000`, a porta `8080` e o limite de 10 cadastros por minuto por IP (`429` com `Retry-After`) não mudaram. Subir o gateway com `--wait` e o `gateway-sync` nomeados sai com erro: use `docker compose up -d` e depois `up -d --wait` nos demais serviços.
 - Depois de recriar o contêiner de um Receiver, o gateway volta a resolver o nome sozinho em poucos segundos, e não é mais preciso reiniciá-lo.
 - `scripts/dev/backup` deixa de guardar o banco `gateway` e de parar o `gateway` na restauração.

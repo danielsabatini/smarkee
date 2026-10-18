@@ -15,6 +15,7 @@ from core_account_receiver.domain.ratelimit import SlidingWindowLimiter
 from core_account_receiver.domain.records import OperationRecord, ResourceRecord
 from core_account_receiver.http.app import Dependencies, create_app
 from core_account_receiver.http.ports import PublishError
+from core_account_receiver.logging_config import current_traceparent
 from core_account_receiver.settings import ApiSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
@@ -428,3 +429,40 @@ async def test_operation_of_another_resource_is_404(harness: Harness) -> None:
         "/v1/core/accounts/outro/operations/op-1", headers=auth("ana")
     )
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------- contexto de trace (0055)
+
+TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+
+def capture_traceparent_at_publish(harness: Harness) -> list[str | None]:
+    seen: list[str | None] = []
+    original = harness.publisher.publish
+
+    async def publish(subject: str, payload: bytes, *, message_id: str) -> None:
+        seen.append(current_traceparent())
+        await original(subject, payload, message_id=message_id)
+
+    harness.publisher.publish = publish  # pyright: ignore[reportAttributeAccessIssue]
+    return seen
+
+
+async def test_the_gateway_traceparent_reaches_the_publisher(harness: Harness) -> None:
+    seen = capture_traceparent_at_publish(harness)
+    response = await harness.client.post(
+        "/v1/core/accounts", json=REGISTRATION, headers={"traceparent": TRACEPARENT}
+    )
+    assert response.status_code == 202
+    assert seen == [TRACEPARENT]
+
+
+@pytest.mark.parametrize("value", [None, "garbage", "00-" + "0" * 32 + "-00f067aa0ba902b7-01"])
+async def test_a_missing_or_invalid_traceparent_leaves_the_request_without_context(
+    harness: Harness, value: str | None
+) -> None:
+    seen = capture_traceparent_at_publish(harness)
+    headers = {} if value is None else {"traceparent": value}
+    response = await harness.client.post("/v1/core/accounts", json=REGISTRATION, headers=headers)
+    assert response.status_code == 202
+    assert seen == [None]

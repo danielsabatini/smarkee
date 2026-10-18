@@ -30,6 +30,7 @@ from ipm_organization_receiver.domain.records import ResourceRecord
 from ipm_organization_receiver.domain.requests import operation_id_for, request_digest
 from ipm_organization_receiver.domain.views import MODULE, operation_view, organization_view
 from ipm_organization_receiver.http.ports import Publisher, PublishError, Repository
+from ipm_organization_receiver.http.trace_context import TraceContextMiddleware
 from ipm_organization_receiver.ids import new_identifier, utc_now
 from ipm_organization_receiver.settings import ApiSettings
 
@@ -79,6 +80,7 @@ def create_app(deps: Dependencies) -> FastAPI:
         title="smarkee ipm organization api", docs_url=None, redoc_url=None, openapi_url=None
     )
     app.state.dependencies = deps
+    app.add_middleware(TraceContextMiddleware)
     _register_error_handlers(app)
     _register_routes(app, deps)
     return app
@@ -192,6 +194,14 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
                 "Não foi possível registrar o pedido agora. Tente novamente.",
                 headers={"Retry-After": "5"},
             ) from None
+        logger.info(
+            "request published",
+            extra={
+                "smarkee.resource.id": resource_id,
+                "smarkee.operation.name": operation,
+                "smarkee.outcome": "accepted",
+            },
+        )
         return generated.ApiAcceptedResponse.model_validate(
             {"resourceId": resource_id, "operationId": operation_id}
         )

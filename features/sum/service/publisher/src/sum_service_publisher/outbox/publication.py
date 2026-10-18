@@ -28,6 +28,7 @@ from sum_service_publisher.domain.publication import (
     PublishError,
 )
 from sum_service_publisher.ids import utc_now
+from sum_service_publisher.logging_config import bind_traceparent
 from sum_service_publisher.outbox.database import conninfo
 from sum_service_publisher.settings import DatabaseSettings
 
@@ -82,7 +83,7 @@ async def publish_pending(
     cursor = connection.cursor(row_factory=dict_row)
     await cursor.execute(
         sql.SQL(
-            "SELECT sequence, message_id, subject, payload FROM {table}"
+            "SELECT sequence, message_id, subject, payload, traceparent FROM {table}"
             " WHERE published_at IS NULL ORDER BY sequence LIMIT %s"
         ).format(table=OUTBOX_TABLE),
         (batch_size,),
@@ -93,9 +94,18 @@ async def publish_pending(
     for row in rows:
         if monotonic() - started > maximum_seconds:
             break
+        # O contexto de trace gravado pelo Manager acompanha a mensagem (decisão 0055).
+        bind_traceparent(row["traceparent"])
         try:
             body = publication_envelope(dict(row["payload"]), clock())
             await publisher.publish(row["subject"], body, message_id=row["message_id"])
+            logger.info(
+                "outbox message published",
+                extra={
+                    "smarkee.outbox.sequence": row["sequence"],
+                    "messaging.message.id": row["message_id"],
+                },
+            )
         except (PublicationRejectedError, PublishError) as error:
             permanent = isinstance(error, PublicationRejectedError) or error.permanent
             logger.log(

@@ -53,7 +53,7 @@ A linha é a representação, em JSON, dos campos do LogRecord. A conversão par
 | `severity_text` | `SeverityText` | Conforme a seção 3. |
 | `body` | `Body` | Texto **estável**, em inglês, sem valores variáveis (nada de interpolação). O que varia vai em `attributes`. |
 | `event_name` | `EventName` | Opcional. Presente quando o registro é uma ocorrência nomeada. Formato `smarkee.<assunto>.<ocorrência>`, minúsculas, sem valores dinâmicos. |
-| `trace_id`, `span_id`, `trace_flags` | `TraceId`, `SpanId`, `TraceFlags` | Opcionais; **omitidos** enquanto não houver traces. `span_id` só com `trace_id`. |
+| `trace_id`, `span_id`, `trace_flags` | `TraceId`, `SpanId`, `TraceFlags` | Opcionais. Os componentes emitem `trace_id` e `trace_flags` quando a requisição ou a mensagem em tratamento traz um `traceparent` (seção 12, decisão 0055); **não** emitem `span_id`, pois não criam spans. `span_id` só com `trace_id`. |
 | `scope.name` | `InstrumentationScope` | Nome do logger. |
 | `resource` | `Resource` | Seção 4. Idêntico em todas as linhas do processo. |
 | `attributes` | `Attributes` | Seção 5. Chaves em inglês, em minúsculas, com pontos. |
@@ -163,7 +163,7 @@ componente → stdout (JSON) → runtime do contêiner → coletor → destino
   - `on_error: send_quiet` no `json_parser`: uma linha que começa com `{` mas não é JSON segue como texto e é descartada no filtro;
   - o filtro descarta tudo que não tem `service.namespace = smarkee` (outros projetos do host, texto puro), antes de sair do agente;
   - a versão do escopo é zerada (o `file_log` coloca a do Collector);
-  - `trace_id`, `span_id` e `trace_flags` já são mapeados para os campos do LogRecord (testado com uma linha sintética; os componentes ainda não os emitem).
+  - `trace_id`, `span_id` e `trace_flags` já são mapeados para os campos do LogRecord (`trace_id` e `trace_flags` já saem dos componentes, seção 12).
   - Além dos logs, o agente envia as métricas de contêiner (`docker_stats`: CPU, memória, rede) dos contêineres `*.smarkee.internal`.
   - **Logs da plataforma (decisão 0053):** os contêineres de longa duração da plataforma usam o driver `json-file` com as labels `com.docker.compose.service` e `smarkee.layer=infra`; o agente usa a primeira como `service.name` e a segunda como gate. A severidade vem de cinco padrões (logfmt e JSON, NATS, PostgreSQL, nginx, Collector). Política enxuta: só `WARN` ou acima e sem as linhas de acesso do nginx; os logs de aplicação ficam inteiros.
   - **Healthchecks** (`/health/*`, `/healthz`, `/readyz`, `/livez` e o healthcheck da Admin API do APISIX) são descartados no agente. Eles eram 74% dos logs retidos.
@@ -188,9 +188,9 @@ As páginas oficiais consultadas em 2026-10-16 não exibem um número de versão
 - Confirmar nomes e estágios dos atributos contra a versão vigente da semconv (seção 9).
 - Coleta (seção 7): decidir o que fazer com os `WARN` benignos do Zitadel (`decrypt access token` e `Usuário não pôde ser encontrado`, 78% dos logs de infra): filtrar por mensagem ou baixar o nível de log do Zitadel.
 - Métricas de aplicação (`metrics/app` está vazio): definir o que medir (taxa e erro por componente, atraso dos consumers do NATS, duração do loop, tamanho do outbox) e como emitir.
-- Traces distribuídos: propagar o `traceparent` do gateway até o loop e pelas mensagens do NATS, e ligar os logs aos traces (`trace_id`).
+- Traces distribuídos, fase 2: spans de verdade nos componentes (exigiria o SDK do OpenTelemetry em cada um, uma dependência a aprovar), propagar também nas chamadas HTTP entre módulos (o Receiver do `sum` ao `ipm`) e dar um trace próprio à observação periódica.
 - Coleta (seção 7): em stg e prd o agente é um DaemonSet que lê os logs do nó (formato CRI, não testado), sem o socket do Docker; o `telemetry-agent` de dev monta o socket do Docker e roda como root, o que não se repete lá.
-- Traces do gateway (seção 11): promover a verificação de conformidade a teste versionado; definir a propagação do `traceparent` nos componentes (hoje o Receiver não a extrai, e os logs seguem sem `trace_id`); decidir se o endereço IP do cliente fica nos spans.
+- Traces do gateway (seção 11): promover a verificação de conformidade a teste versionado; decidir se o endereço IP do cliente fica nos spans.
 
 # 11. Traces do gateway
 
@@ -216,7 +216,7 @@ Decisão [`0050`](../.decisions/0050-traces-do-gateway-opentelemetry.md). Vale s
 - `server.address`, `client.address` e `url.scheme` **não** usam `X-Forwarded-*` enviados pelo cliente: o gateway é a borda. Atrás de um balanceador (stg e prd), o IP real exige o plugin `real-ip`.
 - `client.address` e `network.peer.address` guardam o IP, que é dado pessoal: a decisão de mantê-lo está pendente (seção 10).
 
-**Propagação:** o gateway continua o `traceparent` recebido (mesmo `trace_id`, `parentSpanId` = o `span_id` recebido), registra o `tracestate` e repassa ao upstream um `traceparent` com o `span_id` do próprio span e o `tracestate`. A amostragem é `parent_base` com raiz `always_on`: um pai não amostrado não gera span.
+**Propagação:** o gateway **inicia um trace novo** em cada requisição (decisão 0054): uma regra global `proxy-rewrite` remove `traceparent` e `tracestate` do cliente antes do plugin `opentelemetry`, então o cliente não escolhe o `trace_id` nem a amostragem. O gateway repassa ao upstream um `traceparent` com o `span_id` do próprio span. A amostragem é `parent_base` com raiz `always_on`.
 
 **Conformidade verificada em 2026-10-17** (APISIX 3.19.0, Collector contrib 0.162.0 e, de novo, 0.163.1, semconv v1.44.0, o fragmento do repositório): 41 regras aprovadas e nenhuma reprovada (21 obrigatórias, 2 "devem", 8 recomendadas, 6 de propagação e 4 do projeto), sobre 16 pedidos (sucesso, 4xx, 5xx, rota inexistente, método desconhecido, `Host` com porta, cabeçalhos `X-Forwarded-*` forjados, `traceparent` amostrado e não amostrado, HEAD e HTTP/1.0). Com o **plugin sem ajustes** (amostrador `always_on`, sem as variáveis extras e sem o processador) a mesma bateria reprova 7 regras obrigatórias, 1 "deve", 7 recomendadas, 1 de propagação e 1 do projeto. A verificação usou um coletor descartável e um validador que **não estão versionados**. Não cobre HTTP/2 e HTTP/3, WebSocket, gRPC, nem o comportamento atrás de balanceador.
 
@@ -224,3 +224,18 @@ Decisão [`0050`](../.decisions/0050-traces-do-gateway-opentelemetry.md). Vale s
 - Só existe o span de servidor: sem o span de cliente da chamada ao upstream, o service graph não desenha a aresta gateway → componente.
 - O escopo de instrumentação mantém o nome `opentelemetry-lua`; a versão é a do serviço.
 - Com o coletor parado, o gateway registra um `[error] request failed: connection refused` por lote de spans, sem afetar as requisições.
+
+# 12. Contexto de trace nos componentes
+
+Decisão [`0055`](../.decisions/0055-contexto-de-trace-nos-componentes.md). Os componentes **repassam** o `traceparent` W3C e o gravam nos logs; não criam spans nem usam o SDK do OpenTelemetry.
+
+**Caminho:** gateway (inicia o trace, seção 11) → Receiver (header HTTP) → NATS (header `traceparent`, ao lado de `Nats-Msg-Id`, fora do envelope) → Manager (consome e grava a coluna `traceparent` do outbox) → Publisher (lê a coluna e publica o header) → Reconciler (guarda o contexto do `desired` e o aplica à `action`) → Executor (consome a `action`, repassa o contexto ao `completed`/`failed`) → Manager (resultado) → Publisher. O Observer **não** propaga: suas observações são periódicas e não nascem de um pedido.
+
+**Regras:**
+
+- Só se aceita `traceparent` versão `00`, em minúsculas, com `trace_id` e `span_id` não nulos; qualquer outro valor é descartado, nunca repassado nem registrado.
+- O contexto vale só para a mensagem ou requisição em tratamento: cada consumidor o associa ao contexto da tarefa e o limpa ao terminar, para que logs entre mensagens não herdem o `trace_id` anterior.
+- O Reconciler guarda o contexto no estado do recurso (a `action` sai de uma mensagem `observed`, que não tem contexto, ou da reavaliação periódica).
+- Cada hop emite um evento de log por unidade de trabalho (`request published`, `message handled`, `outbox message published`, `action published`, `action handled`), com `trace_id`; sem eles o contexto não apareceria, pois os componentes quase não logam no fluxo normal.
+
+**Verificado em 2026-10-18:** um cadastro e as operações da jornada mostraram o mesmo `trace_id` do span do gateway nos logs de todos os papéis do `core/account`, do `ipm/organization` e do `sum/service`; um `traceparent` forjado pelo cliente não chegou aos componentes.

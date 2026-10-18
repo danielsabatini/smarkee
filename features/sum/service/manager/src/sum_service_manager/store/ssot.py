@@ -12,6 +12,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from sum_service_manager.domain.decision import Link
+from sum_service_manager.logging_config import current_traceparent
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,9 +139,9 @@ async def insert_outbox(
     payload: dict[str, Any],
 ) -> None:
     await conn.execute(
-        "INSERT INTO sum.service_outbox (message_id, resource_id, subject, payload) "
-        "VALUES (%s, %s, %s, %s)",
-        (message_id, resource_id, subject, Jsonb(payload)),
+        "INSERT INTO sum.service_outbox (message_id, resource_id, subject, payload, traceparent) "
+        "VALUES (%s, %s, %s, %s, %s)",
+        (message_id, resource_id, subject, Jsonb(payload), current_traceparent()),
     )
 
 

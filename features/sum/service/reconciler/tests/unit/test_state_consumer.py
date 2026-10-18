@@ -13,6 +13,7 @@ from sum_service_reconciler.transport.nats import STREAMS, StateConsumer, new_in
 @dataclass
 class FakeMessage:
     data: bytes
+    headers: dict[str, str] | None = None
     acked: bool = False
     nak_delay: float | None = None
 

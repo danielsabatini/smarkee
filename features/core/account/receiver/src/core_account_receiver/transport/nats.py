@@ -1,7 +1,8 @@
 """Publicação de `requested` no NATS JetStream (`docs/NATS.md`).
 
 Publicação com `Nats-Msg-Id` igual ao `messageId` e espera da confirmação do servidor. O Receiver só
-publica; nunca consome.
+publica; nunca consome. O `traceparent` da requisição, se houver, vai no header NATS de mesmo nome,
+sem alteração (decisão 0055); ele não faz parte do envelope.
 """
 
 import nats
@@ -11,6 +12,7 @@ from nats.aio.client import Client as NatsClient
 from nats.js import JetStreamContext
 
 from core_account_receiver.http.ports import PublishError
+from core_account_receiver.logging_config import TRACEPARENT_HEADER, current_traceparent
 from core_account_receiver.settings import NatsSettings
 
 PUBLISH_TIMEOUT_SECONDS = 5.0
@@ -36,12 +38,13 @@ class JetStreamPublisher:
         self._jetstream = jetstream
 
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
+        headers = {"Nats-Msg-Id": message_id}
+        traceparent = current_traceparent()
+        if traceparent is not None:
+            headers[TRACEPARENT_HEADER] = traceparent
         try:
             await self._jetstream.publish(
-                subject,
-                payload,
-                timeout=PUBLISH_TIMEOUT_SECONDS,
-                headers={"Nats-Msg-Id": message_id},
+                subject, payload, timeout=PUBLISH_TIMEOUT_SECONDS, headers=headers
             )
         except (nats.errors.Error, nats.js.errors.Error, TimeoutError, OSError) as error:
             # Stream cheio (`DiscardNew`), sem resposta ou indisponível: rejeição repetível.

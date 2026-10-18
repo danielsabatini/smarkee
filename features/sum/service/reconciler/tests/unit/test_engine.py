@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sum_service_reconciler.engine.reconciler import PublishError, Reconciler
+from sum_service_reconciler.logging_config import bind_traceparent, current_traceparent
 from sum_service_reconciler.settings import LoopSettings
 
 NOW = datetime(2026, 10, 15, 14, 0, tzinfo=UTC)
@@ -161,3 +162,26 @@ async def test_an_envelope_of_another_module_is_ignored() -> None:
     other["module"] = "core"
     assert await reconciler.on_message(json.dumps(other).encode()) is None
     assert recorder.sent == []
+
+
+TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+
+async def test_the_action_inherits_the_trace_of_the_desired_even_if_the_observation_has_none() -> (
+    None
+):
+    contexts: list[str | None] = []
+
+    class TracingRecorder(Recorder):
+        async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
+            contexts.append(current_traceparent())
+            await super().publish(subject, payload, message_id=message_id)
+
+    reconciler = engine(TracingRecorder())
+    bind_traceparent(TRACEPARENT)  # contexto do consumo do `desired`
+    await reconciler.on_message(desired(1))
+    bind_traceparent(None)  # a observação chega sem contexto
+    await reconciler.on_message(observed([], "m-observed"))
+
+    assert contexts == [TRACEPARENT]
+    assert current_traceparent() is None  # o contexto da action não vaza para o próximo evento

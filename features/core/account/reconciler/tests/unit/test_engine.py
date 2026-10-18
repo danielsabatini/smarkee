@@ -10,6 +10,7 @@ import pytest
 
 from core_account_reconciler.contracts import generated
 from core_account_reconciler.engine.reconciler import PublishError, Reconciler
+from core_account_reconciler.logging_config import bind_traceparent, current_traceparent
 from core_account_reconciler.settings import LoopSettings
 
 START = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
@@ -25,6 +26,17 @@ class FakePublisher:
         if self.fail:
             raise PublishError
         self.published.append((subject, json.loads(payload), message_id))
+
+
+@dataclass
+class TracingPublisher(FakePublisher):
+    """Guarda o contexto de trace vigente em cada publicação."""
+
+    contexts: list[str | None] = field(default_factory=lambda: [])
+
+    async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
+        self.contexts.append(current_traceparent())
+        await super().publish(subject, payload, message_id=message_id)
 
 
 @dataclass
@@ -278,3 +290,20 @@ async def test_messages_of_another_type_are_ignored(reconciler: Reconciler) -> N
     other = json.loads(desired())
     other["resourceType"] = "organization"
     assert await reconciler.on_message(json.dumps(other).encode()) is None
+
+
+TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+
+async def test_the_action_inherits_the_trace_of_the_desired_even_if_the_observation_has_none(
+    clock: Clock,
+) -> None:
+    publisher = TracingPublisher()
+    reconciler = Reconciler(publisher, LoopSettings(), clock=clock, identifiers=lambda: "msg-fixed")
+    bind_traceparent(TRACEPARENT)  # contexto do consumo do `desired`
+    await reconciler.on_message(desired())
+    bind_traceparent(None)  # a observação chega sem contexto
+    await reconciler.on_message(observed("absent", at=clock.now, message_id="obs-1"))
+
+    assert publisher.contexts == [TRACEPARENT]
+    assert current_traceparent() is None  # o contexto da action não vaza para o próximo evento

@@ -21,6 +21,7 @@ from psycopg.rows import dict_row
 
 from core_account_publisher.domain.publication import PublicationResult, PublishError
 from core_account_publisher.ids import utc_now
+from core_account_publisher.logging_config import bind_traceparent
 from core_account_publisher.outbox.database import conninfo
 from core_account_publisher.settings import DatabaseSettings
 
@@ -66,7 +67,7 @@ async def publish_pending(
     cursor = connection.cursor(row_factory=dict_row)
     await cursor.execute(
         sql.SQL(
-            "SELECT sequence, message_id, subject, payload FROM {table}"
+            "SELECT sequence, message_id, subject, payload, traceparent FROM {table}"
             " WHERE published_at IS NULL ORDER BY sequence LIMIT %s"
         ).format(table=OUTBOX_TABLE),
         (batch_size,),
@@ -82,9 +83,18 @@ async def publish_pending(
         payload: dict[str, Any] = dict(row["payload"])
         payload["publishedAt"] = clock().isoformat()
         payload["publishedBy"] = PUBLISHED_BY
+        # O contexto de trace gravado pelo Manager acompanha a mensagem (decisão 0055).
+        bind_traceparent(row["traceparent"])
         try:
             await publisher.publish(
                 row["subject"], json.dumps(payload).encode(), message_id=row["message_id"]
+            )
+            logger.info(
+                "outbox message published",
+                extra={
+                    "smarkee.outbox.sequence": row["sequence"],
+                    "messaging.message.id": row["message_id"],
+                },
             )
         except PublishError as error:
             logger.log(

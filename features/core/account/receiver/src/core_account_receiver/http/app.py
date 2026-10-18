@@ -37,6 +37,7 @@ from core_account_receiver.http.ports import (
     PublishError,
     Repository,
 )
+from core_account_receiver.http.trace_context import TraceContextMiddleware
 from core_account_receiver.ids import new_identifier, utc_now
 from core_account_receiver.settings import ApiSettings
 
@@ -80,6 +81,7 @@ VersionQuery = Annotated[str, Query(alias="resourceVersion", pattern=r"^[0-9]{1,
 def create_app(deps: Dependencies) -> FastAPI:
     app = FastAPI(title="smarkee core account api", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.dependencies = deps
+    app.add_middleware(TraceContextMiddleware)
     _register_error_handlers(app)
     _register_routes(app, deps)
     return app
@@ -193,6 +195,14 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
                 "Não foi possível registrar o pedido agora. Tente novamente.",
                 headers={"Retry-After": "5"},
             ) from None
+        logger.info(
+            "request published",
+            extra={
+                "smarkee.resource.id": resource_id,
+                "smarkee.operation.name": operation,
+                "smarkee.outcome": "accepted",
+            },
+        )
         return generated.ApiAcceptedResponse.model_validate(
             {"resourceId": resource_id, "operationId": operation_id}
         )

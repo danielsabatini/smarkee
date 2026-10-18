@@ -13,6 +13,8 @@ import nats.js.errors
 from nats.aio.msg import Msg
 from nats.js import JetStreamContext
 
+from sum_service_executor.logging_config import TRACEPARENT_HEADER, bind_traceparent
+
 logger = logging.getLogger(__name__)
 
 REDELIVERY_DELAY_SECONDS = 5.0
@@ -56,6 +58,14 @@ class PullConsumer:
                 await self._settle(message)
 
     async def _settle(self, message: Msg) -> None:
+        # O contexto de trace vem no header NATS (decisão 0055); vale só para esta mensagem.
+        bind_traceparent((message.headers or {}).get(TRACEPARENT_HEADER))
+        try:
+            await self._settle_bound(message)
+        finally:
+            bind_traceparent(None)
+
+    async def _settle_bound(self, message: Msg) -> None:
         try:
             await self._handle(message.data)
         except Exception as error:  # um erro de processamento volta à fila; nunca derruba o laço
@@ -67,3 +77,10 @@ class PullConsumer:
             await message.nak(delay=REDELIVERY_DELAY_SECONDS)
             return
         await message.ack()
+        logger.info(
+            "message handled",
+            extra={
+                "messaging.consumer.group.name": self._durable,
+                "smarkee.outcome": "acknowledged",
+            },
+        )
