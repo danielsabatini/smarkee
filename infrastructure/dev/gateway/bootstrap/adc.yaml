@@ -294,8 +294,8 @@ services:
             body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
       # Auto-cadastro (escrita anônima): limite de taxa por IP já no gateway, o primeiro nível
       # de proteção (docs/RESOURCE-CONTROL-SECURITY.md §12). O Receiver aplica o segundo.
-      # O IP é o do par TCP (`remote_addr`); atrás de um balanceador (stg e prd) será preciso
-      # configurar o IP real do cliente (plugin `real-ip`).
+      # O IP vem do plugin global `real-ip` (decisão 0054): em dev é o do par TCP; em stg e prd, atrás de
+      # um balanceador, é o do cliente, desde que `APISIX_TRUSTED_PROXIES` seja o do balanceador.
       - name: core-account-register
         hosts:
           - api-dev.smarkee.com.br
@@ -325,6 +325,29 @@ services:
 # Traces (decisão 0050): o plugin `opentelemetry` exporta OTLP/HTTP para o otel-gateway, que ajusta os spans
 # à semconv (`otel-gateway-semconv.yaml`). Vale para todas as rotas, inclusive as sem rota (404).
 global_rules:
+  # IP real do cliente (decisão 0054). Atrás de um balanceador, o par TCP é o balanceador, e o cliente vem no
+  # X-Forwarded-For. O gateway só confia nesse cabeçalho se o par estiver em `trusted_addresses`
+  # (APISIX_TRUSTED_PROXIES: um IP ou um CIDR; um CIDR cobre os balanceadores de uma sub-rede). O padrão é o loopback, que na prática não
+  # confia em ninguém: em dev o par é o NAT do Docker, e confiar nele deixaria qualquer um forjar o cabeçalho e
+  # burlar o limite de taxa do cadastro (que usa o IP). Com a confiança ligada, `remote_addr` passa a ser o cliente
+  # real (limite de taxa, `client.address`) e `realip_remote_addr` continua sendo o par (`network.peer.address`).
+  real-ip:
+    source: http_x_forwarded_for
+    recursive: true
+    trusted_addresses:
+      - ${APISIX_TRUSTED_PROXIES}
+
+  # Borda pública: o gateway inicia um trace novo e não continua o que o cliente enviar (o cliente escolheria o
+  # trace_id e a flag de amostragem). Roda antes do opentelemetry (prioridade 12009), que lê esses cabeçalhos. O
+  # gateway injeta no upstream o traceparent do próprio span. Decisão 0054.
+  proxy-rewrite:
+    _meta:
+      priority: 20000
+    headers:
+      remove:
+        - traceparent
+        - tracestate
+
   opentelemetry:
     # Segue a decisão de amostragem do chamador (traceparent); sem chamador, amostra tudo. O otel-gateway
     # faz a amostragem final (tail sampling). Para stg e prd, troque o `root` por `trace_id_ratio`.

@@ -304,6 +304,24 @@ def test_service_accounts_live_in_core(zitadel: Zitadel, orgs: dict[str, str]) -
     }
 
 
+def test_component_service_accounts_use_opaque_bearer_tokens(
+    zitadel: Zitadel, orgs: dict[str, str]
+) -> None:
+    """Token opaco (Bearer) nas contas de serviço dos componentes (decisão 0054): com JWT, o Zitadel
+    registra um WARN a cada chamada autenticada. A API v2 omite o valor padrão, então a ausência de
+    `machine.accessTokenType` significa Bearer."""
+    found = zitadel.search(
+        "/v2/users", {"queries": [{"organizationIdQuery": {"organizationId": orgs["core"]}}]}
+    )
+    token_types = {
+        u["username"]: (u.get("machine") or {}).get("accessTokenType", "ACCESS_TOKEN_TYPE_BEARER")
+        for u in found
+        if u["username"] in SERVICE_ACCOUNTS
+    }
+    assert set(token_types) == SERVICE_ACCOUNTS
+    assert {n: t for n, t in token_types.items() if t != "ACCESS_TOKEN_TYPE_BEARER"} == {}
+
+
 def test_executor_and_observer_have_roles_only_in_register(
     zitadel: Zitadel, orgs: dict[str, str]
 ) -> None:
