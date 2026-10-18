@@ -25,3 +25,4 @@ O `AGENTS.md` tinha três listas de prioridade que se sobrepunham: o §2 (segura
 
 - Toda decisão e plano passam a declarar, por etapa, o valor se ela for a última e o que ficou de fora.
 - Uma decisão futura que contrarie o §2 é inválida; para mudar o direcionamento, altera-se o `AGENTS.md`.
+- As decisões anteriores a esta (0031, 0032, 0034, 0045, 0049) chamam o 4º pilar de "disponibilidade". Para o §2.1, o nome é **resiliência**, e é isso que elas devem ser lidas como. As decisões antigas não foram reescritas, por serem registro histórico.

@@ -17,7 +17,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Estrutura interna (`domain/` puro, camadas, saúde) | Atende nos seis papéis, com teste de isolamento do `domain/` em cada projeto |
 | Resiliência | Atende para queda de Manager, Executor e Publisher (testes e2e com `E2E_CHAOS=1`); queda do NATS e do banco não é testada |
 | Segurança de transporte e identidade no barramento | **Alvo**: dev usa um só usuário NATS, sem TLS |
-| Observabilidade | Parcial: logs estruturados e probes de saúde, spans do gateway e métricas de contêiner; sem métricas nem traces de aplicação. Logs no formato OpenTelemetry (`OBSERVABILITY.md`, decisão 0045) nos 18 componentes; em dev o `telemetry-agent` os coleta (com as métricas de contêiner) e o `telemetry-gateway` os grava em arquivos com rotação (decisão 0051); o destino persistente ainda não existe |
+| Observabilidade | Parcial: logs estruturados e probes de saúde, spans do gateway e métricas de contêiner; o `traceparent` do gateway é propagado até os componentes e os logs trazem `trace_id` (decisão 0055); sem spans nem métricas de aplicação. Logs no formato OpenTelemetry (`OBSERVABILITY.md`, decisão 0045) nos 18 componentes; em dev o `telemetry-agent` os coleta (com as métricas de contêiner) e o `telemetry-gateway` os grava em arquivos com rotação (decisão 0051); o destino persistente ainda não existe |
 | Retenção, quarentena, backup e recuperação | Pendente |
 | Organization (`ipm`) | Atende para o loop completo (Receiver, Manager, Publisher, Reconciler, Observer e Executor), refeito a partir da Account (decisão 0038), com testes e2e contra a stack do dev e o Zitadel real: criar, renomear, desativar e reativar (`platformAccess`), remover e a queda de cada papel. O Executor escreve só a organização, sem Project Grant |
 | SUM (`sum.service`) | Atende para o loop completo (Receiver, Manager, Publisher, Reconciler, Observer e Executor) e a CLI `sk sum service`, com testes e2e contra a stack do dev: ligar, desligar e a queda de Manager, Executor e Publisher, e o reinício de Reconciler e Observer no meio de uma ligação; e o teste de jornada (`tests/e2e`: cadastro, ativação, `sk auth login` interativo, ligar e desligar o `ipm` com a CLI real e a renovação da sessão). Pendente: verificação de e-mail do solicitante (decisão aberta), a Operation não vira `failed`, retenção das linhas desligadas, kill switch e visão de operador (`features/sum/service/README.md` §10) |
@@ -109,7 +109,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Idempotência | Atende | `operationId`, `actionId`, `observedAt` |
 | TLS e autorização por menor privilégio | Alvo | dev: sem TLS e um só usuário |
 | Secrets fora do repositório | Atende | `.env` e `service-account*.json` no `.gitignore` |
-| Métricas e traces | Pendente | só logs e probes |
+| Métricas e traces | Parcial | o `traceparent` segue do gateway pelo Receiver, NATS e outbox até os demais papéis, e os logs trazem `trace_id` (decisão 0055); sem spans nem métricas de aplicação |
 | Streams e consumers gerenciados de forma controlada | Atende | `bootstrap/*.json` e serviço `<módulo>-<tipo>-consumer` |
 | Versão do NATS pinada | Atende | `nats:2.15.0-alpine` |
 
@@ -175,7 +175,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | CLI | `sk config`, `sk auth`, `sk register`, `sk sum service`, `sk ipm organization` e `sk account get\|delete` | `ROADMAP.md` |
 | `pinned_client` no Executor | Alvo antes de stg e prd | `NATS.md` §7.5 |
 | Partição do Observer | Na aplicação (`hash(resourceId) mod count`); o `DESIRED` não é particionado | decisão 0018 |
-| Quarentena, `ObservationStale`, limite de remoções, retenção, métricas e traces | Pendentes | seções 2 a 6 |
+| Quarentena, `ObservationStale`, limite de remoções, retenção, métricas de aplicação e spans nos componentes | Pendentes | seções 2 a 6 |
 | Ativação de ponta a ponta | Verificada em dev em 2026-10-12: a pessoa definiu a senha e confirmou o e-mail pelos links, e os reenvios pelo provedor funcionaram. Falta confirmar o `sk auth login` com esse usuário | `features/core/account/README.md` §4.7 |
 | Configuração do Zitadel | Aplicada em dev por script temporário e não versionado; o mecanismo para stg e prd não está decidido | `infrastructure/dev/README.md` |
 | Leitor tolerante | Implementado: os consumidores de mensagens internas (Manager, Reconciler, Observer e Executor da Account e da Organization) validam em modo tolerante, ignoram campos de `MINOR` mais novo e recusam `MAJOR` não suportado. A entrada de clientes e a publicação continuam estritas. Testes unitários em cada projeto e caso no e2e (`schemaVersion` 1.1 com campo desconhecido) | `schemas/`, `contracts/base.py` de cada componente, `tests/unit/test_tolerant_reader.py` |

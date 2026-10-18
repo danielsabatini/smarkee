@@ -38,7 +38,7 @@ Uma PoC (2026-10-17, APISIX 3.19.0 contra o Zitadel de dev) mostrou que o plugin
   - o backend do APISIX no ADC é declarado experimental e a lista de versões testadas vai até a 3.17; a 3.19 funcionou nos testes de dev;
   - o `kid` desconhecido provoca uma busca do JWKS por requisição (sem cache negativo) e o `limit-count` roda depois do `openid-connect`, então esse plugin não limita o caso;
   - o `401` por role ausente revela o nome da role na mensagem;
-  - o limite de taxa usa o IP do par TCP; atrás de balanceador será preciso o plugin `real-ip`;
+  - o limite de taxa usa o IP do par TCP; atrás de balanceador será preciso o plugin `real-ip` (resolvido na decisão 0054);
   - o etcd não tem autenticação nem TLS em dev, e a Admin API aceita conexões de toda a rede `internal` (com a chave);
   - o `etcd` em stg e prd exige autenticação, TLS e backup.
 - **Documentação:** `infrastructure/dev/README.md`, os READMEs das features, o backup, os diagramas do fluxo de `core.account` e o CHANGELOG foram atualizados.

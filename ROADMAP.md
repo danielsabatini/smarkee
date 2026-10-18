@@ -24,7 +24,7 @@ O que está sendo trabalhado ativamente neste momento.
 O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.
 - [ ] **`[Planned]` Implantação em Kubernetes:** CI/CD e GitOps por componente, com versão e imagem independentes.
 - [ ] **`[Planned]` Encerramento limpo dos componentes:** o Manager do User espera o `drain()` do NATS até o tempo limite (cerca de 30 s) e registra `task stopped unexpectedly` mesmo quando o encerramento foi pedido. O Manager do SUM já usa `close()` e só registra o erro sem pedido de parada; aplicar o mesmo ao User, e revisar os demais componentes que copiaram o padrão.
-- [ ] **`[Planned]` Observabilidade Básica:** Métricas e traces nos componentes (hoje há logs estruturados e probes de saúde).
+- [ ] **`[Planned]` Observabilidade Básica:** Métricas de aplicação e spans nos componentes (hoje há logs estruturados com `trace_id` ligado ao trace do gateway, spans do gateway, métricas de contêiner e probes de saúde).
 - [ ] **`[Planned]` Endurecimento para stg e prd:** `pinned_client` no Executor, papéis de instância menores para o Executor e o Observer da Organization (hoje `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER`), identidades e permissões por papel no NATS, TLS, quarentena de mensagens, retenção do SSOT, `ObservationStale`, limite de remoções e backup com recuperação (lacunas em `docs/IMPLEMENTATION-STATUS.md`).
 
 ### 🔴 Later (Exploratório / Longo Prazo)
