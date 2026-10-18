@@ -44,6 +44,15 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+        labels: com.docker.compose.service,smarkee.layer
+    labels:
+      smarkee.layer: infra
+    # Limites de recursos (decisão 0053): padrão calibrado com o consumo medido em dev; ajuste pelo ambiente.
+    deploy:
+      resources:
+        limits:
+          cpus: "${TELEMETRY_AGENT_CPUS:-0.5}"
+          memory: ${TELEMETRY_AGENT_MEMORY:-384M}
     networks:
       internal:
         aliases:

@@ -1,8 +1,8 @@
 name: telemetry-gateway
 
 # OpenTelemetry Collector (distribuição contrib) que recebe a telemetria OTLP do gateway e dos componentes.
-# Ainda não há backend para gravar: cada sinal (logs, métricas e traces) vai para arquivos, com rotação em 5 MB, pelo
-# exporter `file`, nas pastas logs/, metrics/ e traces/ deste diretório. O processador
+# Ainda não há backend para gravar: cada sinal vai para arquivos, com rotação em 10 MB, pelo exporter `file`, nas pastas
+# logs/{app,infra}, metrics/{app,infra} e traces/ deste diretório (decisão 0053). O processador
 # `transform/gateway-semconv` (gateway-semconv.yaml) ajusta os spans do gateway à semconv (decisão 0050).
 services:
   telemetry-gateway:
@@ -32,6 +32,15 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+        labels: com.docker.compose.service,smarkee.layer
+    labels:
+      smarkee.layer: infra
+    # Limites de recursos (decisão 0053): padrão calibrado com o consumo medido em dev; ajuste pelo ambiente.
+    deploy:
+      resources:
+        limits:
+          cpus: "${TELEMETRY_GATEWAY_CPUS:-0.5}"
+          memory: ${TELEMETRY_GATEWAY_MEMORY:-384M}
     networks:
       internal:
         aliases:

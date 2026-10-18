@@ -1,5 +1,12 @@
 # Configuração do OpenTelemetry Collector do gateway. O processador `transform/gateway-semconv` vem do
 # arquivo gateway-semconv.yaml (mesclado na linha de comando).
+#
+# Saída (decisão 0053): cada sinal vai para arquivos, separado em INFRA e APP.
+#   logs    -> logs/app     logs dos componentes da plataforma (contrato 0045: têm smarkee.component.role)
+#              logs/infra   logs dos contêineres da plataforma (broker, database, identity, gateway...)
+#   métricas-> metrics/infra métricas de contêiner e de sistema (container.*, system.*, process.*, k8s.*)
+#              metrics/app  as demais (métricas de aplicação, quando os componentes passarem a emiti-las)
+#   traces  -> traces/      (todos os spans são de aplicação)
 extensions:
   # Sonda de saúde (HTTP em 13133, rede `internal`).
   health_check:
@@ -20,48 +27,101 @@ processors:
     limit_mib: 256
     spike_limit_mib: 64
   # Lotes curtos e com tamanho máximo: o exporter file, com rotação, REJEITA um lote maior que max_megabytes
-  # (5 MB). 200 itens (spans, registros de log ou pontos de métrica) ficam bem abaixo disso.
+  # (10 MB). 200 itens (spans, registros de log ou pontos de métrica) ficam bem abaixo disso.
   batch:
     timeout: 1s
     send_batch_size: 100
     send_batch_max_size: 200
 
+  # Separação infra x app. O filter descarta o que casa; cada pipeline descarta o que não é dela.
+  # Métricas: infra é o que descreve o contêiner ou o sistema (prefixos da semconv); o resto é de aplicação.
+  filter/metrics_infra:
+    error_mode: ignore
+    metrics:
+      metric:
+        - not IsMatch(metric.name, "^(container|system|process|k8s)\\.")
+  filter/metrics_app:
+    error_mode: ignore
+    metrics:
+      metric:
+        - IsMatch(metric.name, "^(container|system|process|k8s)\\.")
+  # Logs: app é o que traz smarkee.component.role (obrigatório no contrato 0045); o resto vem dos contêineres da
+  # plataforma.
+  filter/logs_infra:
+    error_mode: ignore
+    logs:
+      log_record:
+        - resource.attributes["smarkee.component.role"] != nil
+  filter/logs_app:
+    error_mode: ignore
+    logs:
+      log_record:
+        - resource.attributes["smarkee.component.role"] == nil
+
 exporters:
   # Ainda não há backend: cada sinal vai para arquivos em disco (uma linha OTLP JSON por lote), nas pastas
-  # logs/, metrics/ e traces/ deste diretório (montadas em /telemetry). Com `rotation`, o arquivo é fechado ao
-  # chegar a 5 MB e renomeado com a data e o motivo (por exemplo, traces-2026-10-17T15-02-14.173-size.jsonl);
-  # ficam no máximo 3 rotacionados, por no máximo 1 dia. Cada sinal ocupa, no máximo, 20 MB.
-  file/logs:
-    path: /telemetry/logs/logs.jsonl
+  # logs/{app,infra}, metrics/{app,infra} e traces/ deste diretório (montadas em /telemetry). Com `rotation`, o
+  # arquivo é fechado ao chegar a 10 MB e renomeado com a data e o motivo (por exemplo,
+  # traces-2026-10-17T15-02-14.173-size.jsonl); ficam no máximo 3 rotacionados, por no máximo 1 dia. Cada
+  # arquivo de sinal ocupa, no máximo, 40 MB.
+  file/logs_app:
+    path: /telemetry/logs/app/logs.jsonl
+    create_directory: true
     rotation:
-      max_megabytes: 5
+      max_megabytes: 10
       max_days: 1
       max_backups: 3
-  file/metrics:
-    path: /telemetry/metrics/metrics.jsonl
+  file/logs_infra:
+    path: /telemetry/logs/infra/logs.jsonl
+    create_directory: true
     rotation:
-      max_megabytes: 5
+      max_megabytes: 10
+      max_days: 1
+      max_backups: 3
+  file/metrics_app:
+    path: /telemetry/metrics/app/metrics.jsonl
+    create_directory: true
+    rotation:
+      max_megabytes: 10
+      max_days: 1
+      max_backups: 3
+  file/metrics_infra:
+    path: /telemetry/metrics/infra/metrics.jsonl
+    create_directory: true
+    rotation:
+      max_megabytes: 10
       max_days: 1
       max_backups: 3
   file/traces:
     path: /telemetry/traces/traces.jsonl
+    create_directory: true
     rotation:
-      max_megabytes: 5
+      max_megabytes: 10
       max_days: 1
       max_backups: 3
 
 service:
   extensions: [health_check]
   pipelines:
-    metrics:
+    metrics/infra:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
-      exporters: [file/metrics]
+      processors: [memory_limiter, filter/metrics_infra, batch]
+      exporters: [file/metrics_infra]
 
-    logs:
+    metrics/app:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
-      exporters: [file/logs]
+      processors: [memory_limiter, filter/metrics_app, batch]
+      exporters: [file/metrics_app]
+
+    logs/infra:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/logs_infra, batch]
+      exporters: [file/logs_infra]
+
+    logs/app:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/logs_app, batch]
+      exporters: [file/logs_app]
 
     # O processador do gateway entra depois do memory_limiter e antes de qualquer exporter, para que o que
     # for gravado já esteja na semconv.

@@ -17,6 +17,15 @@ x-identity-database-environment: &identity-database-environment
   ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${ZITADEL_DATABASE_POSTGRES_USER_PASSWORD:?Defina ZITADEL_DATABASE_POSTGRES_USER_PASSWORD no .env}
   ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
 
+# Driver de log legível pelo telemetry-agent (decisão 0053, docs/OBSERVABILITY.md §7): json-file com rotação e as labels
+# que identificam o serviço e a camada (infra) em cada linha.
+x-infra-logging: &infra-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+    labels: com.docker.compose.service,smarkee.layer
+
 services:
   # Contêiner de inicialização (equivalente ao initContainer): cria os schemas internos do
   # Zitadel (eventstore, projections, system) com o próprio usuário `identity`. Repetível.
@@ -41,6 +50,15 @@ services:
   identity:
     image: ${ZITADEL_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.19.4}
     container_name: identity.smarkee.internal
+    labels:
+      smarkee.layer: infra
+    logging: *infra-logging
+    # Limites de recursos (decisão 0053): padrão calibrado com o consumo medido em dev; ajuste pelo ambiente.
+    deploy:
+      resources:
+        limits:
+          cpus: "${IDENTITY_CPUS:-1.0}"
+          memory: ${IDENTITY_MEMORY:-512M}
     # user 0: o volume identity-bootstrap precisa ser gravável pela API do Zitadel (PAT do cliente de login).
     user: "0"
     # `--config`: mapeamento de papéis de administração com o `ORG_USER_CREATOR` (decisão 0032).
@@ -142,6 +160,15 @@ services:
   identity-login:
     image: ${ZITADEL_LOGIN_IMAGE_VERSION:-ghcr.io/zitadel/zitadel-login:v4.19.4}
     container_name: identity-login.smarkee.internal
+    labels:
+      smarkee.layer: infra
+    logging: *infra-logging
+    # Limites de recursos (decisão 0053): padrão calibrado com o consumo medido em dev; ajuste pelo ambiente.
+    deploy:
+      resources:
+        limits:
+          cpus: "${IDENTITY_LOGIN_CPUS:-0.5}"
+          memory: ${IDENTITY_LOGIN_MEMORY:-512M}
     user: "0"
     environment:
       ZITADEL_API_URL: http://identity.smarkee.internal:8080

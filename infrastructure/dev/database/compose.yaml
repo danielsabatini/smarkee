@@ -1,8 +1,26 @@
 name: database
+# Driver de log legível pelo telemetry-agent (decisão 0053, docs/OBSERVABILITY.md §7): json-file com rotação e as labels
+# que identificam o serviço e a camada (infra) em cada linha.
+x-infra-logging: &infra-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+    labels: com.docker.compose.service,smarkee.layer
+
 services:
   database:
     image: ${POSTGRES_IMAGE_VERSION:-postgres:18.6-alpine}
     container_name: database.smarkee.internal
+    labels:
+      smarkee.layer: infra
+    logging: *infra-logging
+    # Limites de recursos (decisão 0053): padrão calibrado com o consumo medido em dev; ajuste pelo ambiente.
+    deploy:
+      resources:
+        limits:
+          cpus: "${DATABASE_CPUS:-1.0}"
+          memory: ${DATABASE_MEMORY:-512M}
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no .env (veja .env.example)}

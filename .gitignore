@@ -73,11 +73,11 @@ temp/
 # de cliente e caminhos de requisição; só o .gitkeep de cada pasta é versionado.
 # (a regra geral `logs/` acima ignoraria a pasta inteira, inclusive o .gitkeep; por isso a pasta é re-incluída)
 !infrastructure/dev/telemetry-gateway/logs/
-infrastructure/dev/telemetry-gateway/logs/*
-infrastructure/dev/telemetry-gateway/metrics/*
+infrastructure/dev/telemetry-gateway/logs/*/*
+infrastructure/dev/telemetry-gateway/metrics/*/*
 infrastructure/dev/telemetry-gateway/traces/*
-!infrastructure/dev/telemetry-gateway/logs/.gitkeep
-!infrastructure/dev/telemetry-gateway/metrics/.gitkeep
+!infrastructure/dev/telemetry-gateway/logs/*/.gitkeep
+!infrastructure/dev/telemetry-gateway/metrics/*/.gitkeep
 !infrastructure/dev/telemetry-gateway/traces/.gitkeep
 
 # ------------------------------------------------------------------------------

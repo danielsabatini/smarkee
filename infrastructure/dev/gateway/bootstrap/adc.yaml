@@ -16,19 +16,46 @@ services:
         - host: identity.smarkee.internal
           port: 8080
           weight: 100
+    plugins:
+      # O Zitadel usa o cabeçalho próprio para montar o issuer e as URLs públicas, com o Host
+      # original (inclusive a porta). O valor enviado pelo cliente é substituído para não ser forjado.
+      # No serviço, vale para todas as rotas dele.
+      proxy-rewrite:
+        headers:
+          set:
+            x-zitadel-public-host: $http_host
+    # Rotas nomeadas por função, para que http.route (spans) diga o que foi acessado em vez de `/*`. A de baixo
+    # (`identity`, `/*`) é a retaguarda: pega o que não tem rota própria, para nada deixar de funcionar. As APIs
+    # de gestão do Zitadel (/management, /admin, /v2...) os componentes chamam direto, pela rede interna, e não
+    # passam por aqui.
     routes:
+      - name: identity-oidc
+        hosts:
+          - ipm-dev.smarkee.com.br
+        uris:
+          - /.well-known/*
+          - /oauth/v2/*
+          - /oidc/v1/*
+        priority: 10
+      - name: identity-login-v1
+        hosts:
+          - ipm-dev.smarkee.com.br
+        uris:
+          - /ui/login
+          - /ui/login/*
+        priority: 10
+      - name: identity-console
+        hosts:
+          - ipm-dev.smarkee.com.br
+        uris:
+          - /ui/console
+          - /ui/console/*
+        priority: 10
       - name: identity
         hosts:
           - ipm-dev.smarkee.com.br
         uris:
           - /*
-        plugins:
-          # O Zitadel usa o cabeçalho próprio para montar o issuer e as URLs públicas, com o Host
-          # original (inclusive a porta). O valor enviado pelo cliente é substituído para não ser forjado.
-          proxy-rewrite:
-            headers:
-              set:
-                x-zitadel-public-host: $http_host
 
   # Interface de login v2 do Zitadel (a rota de prioridade maior prevalece sobre `/*`).
   - name: identity-login

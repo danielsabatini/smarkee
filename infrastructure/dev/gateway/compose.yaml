@@ -6,11 +6,29 @@ name: gateway
 
 x-apisix-admin-key: &apisix-admin-key ${APISIX_ADMIN_KEY:?Defina APISIX_ADMIN_KEY no .env (veja .env.example)}
 
+# Driver de log legível pelo telemetry-agent (decisão 0053, docs/OBSERVABILITY.md §7): json-file com rotação e as labels
+# que identificam o serviço e a camada (infra) em cada linha.
+x-infra-logging: &infra-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+    labels: com.docker.compose.service,smarkee.layer
+
 services:
   # Armazena a configuração do APISIX (rotas, serviços, plugins). Não é publicado no host.
   gateway-etcd:
     image: ${ETCD_IMAGE_VERSION:-quay.io/coreos/etcd:v3.7.2}
     container_name: gateway-etcd.smarkee.internal
+    labels:
+      smarkee.layer: infra
+    logging: *infra-logging
+    # Limites de recursos (decisão 0053): padrão calibrado com o consumo medido em dev; ajuste pelo ambiente.
+    deploy:
+      resources:
+        limits:
+          cpus: "${GATEWAY_ETCD_CPUS:-0.5}"
+          memory: ${GATEWAY_ETCD_MEMORY:-256M}
     command:
       - etcd
       - --name=gateway-etcd
@@ -33,6 +51,15 @@ services:
   gateway:
     image: ${APISIX_IMAGE_VERSION:-apache/apisix:3.19.0-debian}
     container_name: gateway.smarkee.internal
+    labels:
+      smarkee.layer: infra
+    logging: *infra-logging
+    # Limites de recursos (decisão 0053): padrão calibrado com o consumo medido em dev; ajuste pelo ambiente.
+    deploy:
+      resources:
+        limits:
+          cpus: "${GATEWAY_CPUS:-1.0}"
+          memory: ${GATEWAY_MEMORY:-384M}
     environment:
       APISIX_ADMIN_KEY: *apisix-admin-key
     # Só para apontar `APISIX_OTEL_COLLECTOR_ADDRESS` a um coletor publicado no host (por exemplo, o otel-gateway da

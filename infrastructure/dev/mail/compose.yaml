@@ -2,10 +2,28 @@ name: mail
 
 # Captura de e-mail só para desenvolvimento (decisão 0013): o Zitadel envia os e-mails de ativação e
 # de redefinição de senha para cá, e nada sai da máquina. Em stg e prd o SMTP é um serviço real.
+# Driver de log legível pelo telemetry-agent (decisão 0053, docs/OBSERVABILITY.md §7): json-file com rotação e as labels
+# que identificam o serviço e a camada (infra) em cada linha.
+x-infra-logging: &infra-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+    labels: com.docker.compose.service,smarkee.layer
+
 services:
   mail:
     image: ${MAILPIT_IMAGE_VERSION:-axllent/mailpit:v1.31.4}
     container_name: mail.smarkee.internal
+    labels:
+      smarkee.layer: infra
+    logging: *infra-logging
+    # Limites de recursos (decisão 0053): padrão calibrado com o consumo medido em dev; ajuste pelo ambiente.
+    deploy:
+      resources:
+        limits:
+          cpus: "${MAIL_CPUS:-0.25}"
+          memory: ${MAIL_MEMORY:-256M}
     ports:
       - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"  # Interface web (somente no host, em desenvolvimento)
     environment:

@@ -14,6 +14,14 @@ x-logging: &component-logging
     max-size: "10m"
     max-file: "3"
 
+# Limites de recursos dos componentes (decisão 0053): padrão calibrado com o consumo medido em dev (no máximo ~115 MiB de
+# memória e ~0,02 núcleo de CPU em média por componente). Ajuste pelo ambiente.
+x-deploy: &component-deploy
+  resources:
+    limits:
+      cpus: "${CORE_ACCOUNT_COMPONENT_CPUS:-0.5}"
+      memory: ${CORE_ACCOUNT_COMPONENT_MEMORY:-256M}
+
 services:
   # Consumer durável de trabalho do Manager para `requested` do tipo (docs/NATS.md §7.6). O manifesto
   # é do Manager (`manager/consumers/`). Inexistente é criado; existente com configuração idêntica
@@ -81,6 +89,7 @@ services:
     image: ${CORE_ACCOUNT_RECEIVER_IMAGE:-smarkee-core-account-receiver:dev}
     container_name: core-account-receiver.smarkee.internal
     logging: *component-logging
+    deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
@@ -117,6 +126,7 @@ services:
     image: ${CORE_ACCOUNT_MANAGER_IMAGE:-smarkee-core-account-manager:dev}
     container_name: core-account-manager.smarkee.internal
     logging: *component-logging
+    deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD: ${CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD:?Defina no .env}
@@ -150,6 +160,7 @@ services:
     image: ${CORE_ACCOUNT_RECONCILER_IMAGE:-smarkee-core-account-reconciler:dev}
     container_name: core-account-reconciler.smarkee.internal
     logging: *component-logging
+    deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_RECONCILER_NATS_PASSWORD: ${CORE_ACCOUNT_RECONCILER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
@@ -171,6 +182,7 @@ services:
     image: ${CORE_ACCOUNT_OBSERVER_IMAGE:-smarkee-core-account-observer:dev}
     container_name: core-account-observer.smarkee.internal
     logging: *component-logging
+    deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_OBSERVER_NATS_PASSWORD: ${CORE_ACCOUNT_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
@@ -200,6 +212,7 @@ services:
     image: ${CORE_ACCOUNT_EXECUTOR_IMAGE:-smarkee-core-account-executor:dev}
     container_name: core-account-executor.smarkee.internal
     logging: *component-logging
+    deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_EXECUTOR_NATS_PASSWORD: ${CORE_ACCOUNT_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
@@ -231,6 +244,7 @@ services:
     image: ${CORE_ACCOUNT_PUBLISHER_IMAGE:-smarkee-core-account-publisher:dev}
     container_name: core-account-publisher.smarkee.internal
     logging: *component-logging
+    deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD: ${CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}

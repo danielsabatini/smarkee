@@ -14,6 +14,14 @@ x-logging: &component-logging
     max-size: "10m"
     max-file: "3"
 
+# Limites de recursos dos componentes (decisão 0053): padrão calibrado com o consumo medido em dev (no máximo ~115 MiB de
+# memória e ~0,02 núcleo de CPU em média por componente). Ajuste pelo ambiente.
+x-deploy: &component-deploy
+  resources:
+    limits:
+      cpus: "${SUM_SERVICE_COMPONENT_CPUS:-0.5}"
+      memory: ${SUM_SERVICE_COMPONENT_MEMORY:-256M}
+
 services:
   # Consumers duráveis de trabalho de sum.service (docs/NATS.md §7.6): `requested`, `observed`, resultados e a
   # remoção da conta (`updated` de core.account) do Manager, e `action` do Executor. Os manifestos ficam em cada componente. O Reconciler e o Observer não
@@ -82,6 +90,7 @@ services:
     image: ${SUM_SERVICE_MANAGER_IMAGE:-smarkee-sum-service-manager:dev}
     container_name: sum-service-manager.smarkee.internal
     logging: *component-logging
+    deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_MANAGER_DATABASE_PASSWORD: ${SUM_SERVICE_MANAGER_DATABASE_PASSWORD:?Defina no .env}
@@ -117,6 +126,7 @@ services:
     image: ${SUM_SERVICE_RECEIVER_IMAGE:-smarkee-sum-service-receiver:dev}
     container_name: sum-service-receiver.smarkee.internal
     logging: *component-logging
+    deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_RECEIVER_DATABASE_PASSWORD: ${SUM_SERVICE_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
@@ -140,6 +150,7 @@ services:
     image: ${SUM_SERVICE_RECONCILER_IMAGE:-smarkee-sum-service-reconciler:dev}
     container_name: sum-service-reconciler.smarkee.internal
     logging: *component-logging
+    deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_RECONCILER_NATS_PASSWORD: ${SUM_SERVICE_RECONCILER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
@@ -161,6 +172,7 @@ services:
     image: ${SUM_SERVICE_OBSERVER_IMAGE:-smarkee-sum-service-observer:dev}
     container_name: sum-service-observer.smarkee.internal
     logging: *component-logging
+    deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_OBSERVER_NATS_PASSWORD: ${SUM_SERVICE_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
@@ -193,6 +205,7 @@ services:
     image: ${SUM_SERVICE_EXECUTOR_IMAGE:-smarkee-sum-service-executor:dev}
     container_name: sum-service-executor.smarkee.internal
     logging: *component-logging
+    deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_EXECUTOR_NATS_PASSWORD: ${SUM_SERVICE_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
@@ -224,6 +237,7 @@ services:
     image: ${SUM_SERVICE_PUBLISHER_IMAGE:-smarkee-sum-service-publisher:dev}
     container_name: sum-service-publisher.smarkee.internal
     logging: *component-logging
+    deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD: ${SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}

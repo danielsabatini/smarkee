@@ -17,10 +17,28 @@ x-broker-bootstrap: &broker-bootstrap
     - internal
   restart: "no"
 
+# Driver de log legível pelo telemetry-agent (decisão 0053, docs/OBSERVABILITY.md §7): json-file com rotação e as labels
+# que identificam o serviço e a camada (infra) em cada linha.
+x-infra-logging: &infra-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+    labels: com.docker.compose.service,smarkee.layer
+
 services:
   broker:
     image: ${NATS_IMAGE_VERSION:-nats:2.15.0-alpine}
     container_name: broker.smarkee.internal
+    labels:
+      smarkee.layer: infra
+    logging: *infra-logging
+    # Limites de recursos (decisão 0053): padrão calibrado com o consumo medido em dev; ajuste pelo ambiente.
+    deploy:
+      resources:
+        limits:
+          cpus: "${BROKER_CPUS:-0.5}"
+          memory: ${BROKER_MEMORY:-256M}
     ports:
       - "127.0.0.1:${NATS_CLIENT_PORT:-4222}:4222"  # Client port (somente para desenvolvimento no host)
       - "127.0.0.1:${NATS_MONITOR_PORT:-8222}:8222"  # Monitoring port
