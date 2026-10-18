@@ -240,6 +240,21 @@ processors:
       log_record:
         - resource.attributes["smarkee.component.role"] == nil and log.severity_number != SEVERITY_NUMBER_UNSPECIFIED and log.severity_number < SEVERITY_NUMBER_WARN
         - resource.attributes["smarkee.component.role"] == nil and IsMatch(log.body, "^\\S+ - \\S+ \\[[0-9]{2}/[A-Za-z]{3}/[0-9]{4}:")
+        # O WARN "missing translation" do Zitadel (e-mail sem tradução em `pt`) despeja o usuário inteiro nos argumentos:
+        # e-mail, nome e o código de verificação. Além de ser dado pessoal e credencial, é ruído (decisão 0058).
+        - resource.attributes["smarkee.component.role"] == nil and IsMatch(log.body, "msg=\"missing translation\"")
+
+  # Defesa em profundidade na infra (decisão 0058): os logs de infra não seguem o contrato 0045 e podem carregar dados
+  # pessoais de terceiros (Zitadel, gateway). Qualquer e-mail vira um marcador antes de sair do agente. Os logs de
+  # componentes já estão proibidos de trazer valores (contrato 0045) e ficam de fora.
+  transform/redact_infra:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        conditions:
+          - resource.attributes["smarkee.component.role"] == nil
+        statements:
+          - replace_pattern(log.body, "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}", "<redacted-email>")
 
   batch: {}
 
@@ -249,6 +264,20 @@ exporters:
     # Rede interna de desenvolvimento, sem TLS. Em stg e prd, TLS e autenticação.
     tls:
       insecure: true
+    # Fila e retry explícitos (decisão 0059). A fila fica em disco (mesma extensão `file_storage` do checkpoint dos
+    # logs), então um reinício do agente durante uma queda do telemetry-gateway não perde o que já foi lido: medido em
+    # dev, 31 de 150 registros se perdiam com a fila só em memória. Cheia, a fila descarta o dado novo (a leitura dos
+    # logs não é bloqueada). Passado o `max_elapsed_time`, o lote é descartado.
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      block_on_overflow: false
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 10m
 
 service:
   extensions: [file_storage]
@@ -260,5 +289,5 @@ service:
 
     logs:
       receivers: [file_log/containers]
-      processors: [memory_limiter, filter/health_checks, filter/platform_only, filter/infra_lean, transform/smarkee_components, resource_detection, batch]
+      processors: [memory_limiter, filter/health_checks, filter/platform_only, filter/infra_lean, transform/redact_infra, transform/smarkee_components, resource_detection, batch]
       exporters: [otlp_grpc/telemetry_gateway]

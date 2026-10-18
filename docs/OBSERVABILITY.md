@@ -166,6 +166,8 @@ componente → stdout (JSON) → runtime do contêiner → coletor → destino
   - `trace_id`, `span_id` e `trace_flags` já são mapeados para os campos do LogRecord (`trace_id` e `trace_flags` já saem dos componentes, seção 12).
   - Além dos logs, o agente envia as métricas de contêiner (`docker_stats`: CPU, memória, rede) dos contêineres `*.smarkee.internal`.
   - **Logs da plataforma (decisão 0053):** os contêineres de longa duração da plataforma usam o driver `json-file` com as labels `com.docker.compose.service` e `smarkee.layer=infra`; o agente usa a primeira como `service.name` e a segunda como gate. A severidade vem de cinco padrões (logfmt e JSON, NATS, PostgreSQL, nginx, Collector). Política enxuta: só `WARN` ou acima e sem as linhas de acesso do nginx; os logs de aplicação ficam inteiros.
+  - **Privacidade nos logs de infra (decisão 0059):** os logs de infra não seguem o contrato 0045 e podem carregar dados de terceiros. O agente descarta o `WARN` "missing translation" do Zitadel (despeja e-mail, nome e o código de verificação nos argumentos) e troca qualquer e-mail por `<redacted-email>` antes de enviar. Os logs de componentes ficam de fora: o contrato 0045 já proíbe valores.
+  - **Fila e retry do agente ao `telemetry-gateway` (decisão 0059):** explícitos. A fila fica em disco (`sending_queue.storage: file_storage`, 1000 lotes, sem bloquear a leitura quando cheia) e o retry vai até 10 minutos. Medido em dev: com a fila só em memória, reiniciar o agente durante uma queda do `telemetry-gateway` perdia 31 de 150 registros; com a fila em disco, 150 de 150, sem duplicatas.
   - **Healthchecks** (`/health/*`, `/healthz`, `/readyz`, `/livez` e o healthcheck da Admin API do APISIX) são descartados no agente. Eles eram 74% dos logs retidos.
 - O destino (armazenamento, consulta, retenção) não faz parte deste documento.
 
@@ -175,6 +177,7 @@ componente → stdout (JSON) → runtime do contêiner → coletor → destino
 - **A fonte única** está em `schemas/observability/python/`. `python schemas/observability/sync.py` regrava as cópias e `--check` as confere (decisão 0046). Alterar o formatter é alterar a fonte, sincronizar e rodar a suíte de cada componente. Um teste em `schemas/tests` falha se uma cópia divergir.
 - **O schema da linha** (`schemas/observability/log-record.v1.schema.json`) é o contrato verificável. Ele fecha os atributos aos nomes da semconv listados nele e ao namespace `smarkee.*`, e proíbe `exception.message` e `exception.stacktrace`. Atributo novo da semconv entra no schema, e atributo `smarkee.*` já é aceito pelo padrão.
 - O teste de cada componente verifica: que a linha emitida cumpre o schema; o mapeamento de severidade; `EventName`; a omissão de valores nulos; que a mensagem da exceção não aparece; o `Resource` derivado do pacote; e, por análise estática do código-fonte, que **toda chave de `extra` dos loggers é um atributo que o schema aceita** ou `event_name`.
+- **Teste de ponta a ponta da telemetria:** `infrastructure/dev/telemetry-gateway/conformance` (decisão 0059) faz um cadastro pelo gateway e confere nos arquivos: o mesmo `trace_id` do span do gateway em Receiver, Manager, Publisher, Reconciler e Executor; `traceparent` forjado ignorado; spans sem `args`, `http.target` e `url.full` e com `url.query` redigida; logs de infra sem e-mail nem código de verificação; e a redação do agente, por um contêiner sintético.
 - A CLI `sk` não emite logs neste formato: o que ela mostra ao usuário é saída de interface, em inglês (decisão `0035`).
 
 # 9. Versão de referência
@@ -186,11 +189,11 @@ As páginas oficiais consultadas em 2026-10-16 não exibem um número de versão
 - Validar o `file_log` em Kubernetes (formato CRI). Em Docker já foi validado (seção 7).
 - `event_name` ainda não é usado por nenhum componente; definir os eventos nomeados ao precisar deles.
 - Confirmar nomes e estágios dos atributos contra a versão vigente da semconv (seção 9).
-- Coleta (seção 7): decidir o que fazer com os `WARN` benignos do Zitadel (`decrypt access token` e `Usuário não pôde ser encontrado`, 78% dos logs de infra): filtrar por mensagem ou baixar o nível de log do Zitadel.
+- Coleta (seção 7): o `WARN` `decrypt access token` do Zitadel acabou com o token opaco das contas de serviço (decisão 0054). O `Usuário não pôde ser encontrado` continua enquanto o Observer consultar recursos já removidos (limpeza de tombstones pendente).
 - Métricas de aplicação (`metrics/app` está vazio): definir o que medir (taxa e erro por componente, atraso dos consumers do NATS, duração do loop, tamanho do outbox) e como emitir.
 - Traces distribuídos, fase 2: spans de verdade nos componentes (exigiria o SDK do OpenTelemetry em cada um, uma dependência a aprovar), propagar também nas chamadas HTTP entre módulos (o Receiver do `sum` ao `ipm`) e dar um trace próprio à observação periódica.
 - Coleta (seção 7): em stg e prd o agente é um DaemonSet que lê os logs do nó (formato CRI, não testado), sem o socket do Docker; o `telemetry-agent` de dev monta o socket do Docker e roda como root, o que não se repete lá.
-- Traces do gateway (seção 11): promover a verificação de conformidade a teste versionado; decidir se o endereço IP do cliente fica nos spans.
+- Traces do gateway (seção 11): a verificação de conformidade com a semconv (41 regras, feita à mão em 2026-10-17) ainda não é teste versionado; o teste versionado de hoje (`infrastructure/dev/telemetry-gateway/conformance`) cobre a correlação do `trace_id` e a ausência de dados sensíveis, não as 41 regras.
 
 # 11. Traces do gateway
 
@@ -213,8 +216,8 @@ Decisão [`0050`](../.decisions/0050-traces-do-gateway-opentelemetry.md). Vale s
 
 **Privacidade e confiança:**
 - `url.query` mantém as chaves e troca **todos os valores** por `REDACTED` (a query do OIDC carrega `code`, `state` e `code_challenge`); `http.target`, que a trazia por inteiro, é removido.
-- `server.address`, `client.address` e `url.scheme` **não** usam `X-Forwarded-*` enviados pelo cliente: o gateway é a borda. Atrás de um balanceador (stg e prd), o IP real exige o plugin `real-ip`.
-- `client.address` e `network.peer.address` guardam o IP, que é dado pessoal: a decisão de mantê-lo está pendente (seção 10).
+- `server.address`, `client.address` e `url.scheme` **não** usam `X-Forwarded-*` enviados pelo cliente: o gateway é a borda. Atrás de um balanceador (stg e prd), o IP real vem do plugin `real-ip` (decisão 0054).
+- `client.address` e `network.peer.address` guardam o IP, que é dado pessoal. **Decidido em 2026-10-18 (decisão 0059): o IP fica nos spans.** Em stg e prd, a retenção curta do backend e a base legal do tratamento precisam ser definidas antes de o dado ser guardado.
 
 **Propagação:** o gateway **inicia um trace novo** em cada requisição (decisão 0054): uma regra global `proxy-rewrite` remove `traceparent` e `tracestate` do cliente antes do plugin `opentelemetry`, então o cliente não escolhe o `trace_id` nem a amostragem. O gateway repassa ao upstream um `traceparent` com o `span_id` do próprio span. A amostragem é `parent_base` com raiz `always_on`.
 
