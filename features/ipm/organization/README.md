@@ -140,7 +140,7 @@ Os contratos estão em `schemas/ipm/organization/` (e `schemas/common/`), com o 
 
 - **Dono pelo token:** o `ownerAccountId` é o `sub` do token. O corpo do `POST` só aceita `name`; qualquer outro campo é recusado pelo contrato. O dono vive só no `desired` (no SSOT e na mensageria), nunca no Zitadel nem nas respostas ao usuário.
 - **Sem dados pessoais:** a Organization guarda só IDs e o nome. Não há e-mail, nome de pessoa nem token no banco, nas mensagens ou nos logs.
-- **Menor escrita:** o Executor escreve só a organização. Os papéis `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` são de instância (o Zitadel não tem papel menor para criar e listar organizações); estreitar com papéis customizados antes de prd (decisões 0010 e 0015).
+- **Menor escrita:** o Executor escreve só a organização. Os papéis `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` são de instância (o Zitadel não tem papel padrão menor para criar e listar organizações). **Exceção deliberada** (decisão 0060): ficam assim em todos os ambientes, até o Zitadel oferecer um papel padrão menor.
 - **Última barreira:** o Executor não confia em quem enviou a ação: confere o emissor, a versão e o `desired` vigente, e não assume `present` quando falta o `lifecycle`.
 - **Nomes:** nomes reservados e repetidos são recusados antes de o pedido chegar ao Zitadel; um nome já usado só no Zitadel (e não reservado) vira `failed` `Rejected` no Executor.
 - **Erros e logs:** nenhuma resposta ou log repete o valor enviado, senhas ou tokens; as configurações escondem os segredos (`SecretStr`).
@@ -179,7 +179,7 @@ Depois de recriar o contêiner do Receiver, o gateway volta a resolver o nome so
 - A Operation não vira `failed`: a falha aparece na fase `Failed` da Organization.
 - Logo depois do `202`, a leitura pode dar `404` até o Manager gravar a Operation (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1).
 - O Executor não cria Project Grant nem autoriza membros: a Organization de hoje só existe como organização no Zitadel. Membros e Agents, e os recursos derivados (OpenBao, Kubernetes), são de outras features.
-- Os papéis de instância `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` são mais largos que o necessário; estreitar antes de prd.
+- Os papéis de instância `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` são mais largos que o necessário, e ficam assim por exceção deliberada (decisão 0060).
 - Remover não tem retenção: a organização some do Zitadel e a linha é apagada ao convergir.
 - As chaves das contas de serviço vencem em 2030-01-01 e a rotação é manual (`infrastructure/dev/README.md`).
 - Endurecimento comum aos módulos, ainda pendente: `cap_drop` e `no-new-privileges` no Compose, limite de taxa e de tamanho nas rotas autenticadas do gateway, e `pinned_client` no Executor (`docs/IMPLEMENTATION-STATUS.md`).

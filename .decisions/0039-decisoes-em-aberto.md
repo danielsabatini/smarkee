@@ -20,6 +20,7 @@ A regra "só exclui sem recursos atrelados" e o `sk register get|delete` foram d
 
 - O Executor usa `IAM_ORG_MANAGER` e o Observer `IAM_OWNER_VIEWER`, ambos de **instância** (o Zitadel v4.19.4 não tem papel menor para criar e listar organizações). Estreitar com papéis customizados, no padrão do `ORG_USER_CREATOR` (decisão 0032), antes de prd.
 - **Gatilho:** antes de prd.
+- **Resolvido em 2026-10-18 (decisão 0060):** os papéis de instância ficam como estão, por exceção deliberada, porque o padrão do Zitadel não tem papel menor.
 
 ## 3. SUM: kill switch e visão de operador
 

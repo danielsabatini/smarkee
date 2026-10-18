@@ -171,7 +171,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Tema | Situação | Referência |
 |---|---|---|
-| Organization (`features/ipm/organization`) | Papéis de instância `IAM_ORG_MANAGER` (Executor) e `IAM_OWNER_VIEWER` (Observer): mais largos que o necessário. É segurança de configuração, que não varia por ambiente (AGENTS §2.5): ver 7.1. O nome `register` não é reservado (falha no Executor, `Rejected`) | `features/ipm/organization/README.md`, decisão 0038 |
+| Organization (`features/ipm/organization`) | Papéis de instância `IAM_ORG_MANAGER` (Executor) e `IAM_OWNER_VIEWER` (Observer): mais largos que o necessário, por exceção deliberada (AGENTS §4.3, decisão 0060): ver 7.1. O nome `register` não é reservado (falha no Executor, `Rejected`) | `features/ipm/organization/README.md`, decisão 0038 |
 | CLI | `sk config`, `sk auth`, `sk register`, `sk sum service`, `sk ipm organization` e `sk account get\|delete` | `ROADMAP.md` |
 | `pinned_client` no Executor | Alvo antes de stg e prd | `NATS.md` §7.5 |
 | Partição do Observer | Na aplicação (`hash(resourceId) mod count`); o `DESIRED` não é particionado | decisão 0018 |
@@ -194,15 +194,17 @@ Lacuna declarada: o que dev não tem, por que é aceitável em dev e a condiçã
 | PostgreSQL sem TLS nem proteção em repouso | Segurança, infraestrutura | sem certificados nem cofre em dev | TLS e proteção em repouso (seção 4 acima) |
 | `telemetry-agent` roda como root e monta o socket do Docker (somente leitura) | Segurança, infraestrutura | é o modo de ler os logs dos contêineres no Compose; `cap_drop: ALL` e `no-new-privileges` reduzem o risco | DaemonSet que lê os logs do nó, sem o socket do Docker e sem root (`OBSERVABILITY.md` seção 10) |
 | OTLP sem TLS nem autenticação entre APISIX, agente e `telemetry-gateway` | Segurança, infraestrutura | rede `internal` do Compose, sem certificados | TLS e autenticação no receptor OTLP |
-| `telemetry-gateway` único, sem backend: só arquivos com rotação em 10 MB (cerca de 4 h de métricas) | Resiliência, infraestrutura | não há consulta nem histórico longo em dev | backend persistente e alta disponibilidade do coletor; fila persistente entre agente e gateway |
+| `telemetry-gateway` único, sem backend: só arquivos com rotação em 10 MB (cerca de 4 h de métricas). A fila entre agente e gateway já é persistente (decisão 0059) | Resiliência, infraestrutura | não há consulta nem histórico longo em dev | backend persistente e alta disponibilidade do coletor |
 
-**Violações do piso a corrigir** (segurança de código e configuração: não são lacunas declaráveis, §2.5 item 1):
+**Violações do piso em aberto** (segurança de código e configuração: não são lacunas declaráveis, §2.5 item 1): nenhuma.
 
-| Violação | Evidência (2026-10-18) | Correção |
-|---|---|---|
-| Spans do gateway gravam a query inteira (`args`), com `code` OAuth, `state`, `code_challenge` e `userID` | 48 spans com `url.query`, 3 com `code=` | tirar `args` ou redigir os valores no `telemetry-gateway` |
-| Logs de infra com e-mail e nome (`WARN` "missing translation" do Zitadel e linhas de erro do gateway) | 23 de 624 registros de infra | redigir e-mail e nome no agente, ou descartar esse `WARN` |
-| Papéis de instância do Executor e do Observer da Organization mais largos que o necessário | `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` | papéis customizados menores no Zitadel, ou decisão registrada que justifique o papel |
+**Exceções deliberadas** (AGENTS §4.3: deliberada, explícita e justificável; valem em todos os ambientes, e não só em dev):
+
+| Exceção | Justificativa | Controles compensatórios | Quando rever |
+|---|---|---|---|
+| Papéis de instância `IAM_ORG_MANAGER` (Executor) e `IAM_OWNER_VIEWER` (Observer) da Organization, mais largos que o necessário (58 e 34 permissões; o primeiro inclui usuários, projetos e políticas) | O padrão do Zitadel v4.19.4 não tem papel menor para criar e listar organizações. Papéis customizados exigem substituir a lista inteira de `InternalAuthZ.RolePermissionMappings` (copiar e manter todos os padrões, valer só após `zitadel setup`), e não está confirmada a permissão do v2 para renomear, ativar, desativar e remover (o `AddOrganization` v2 exige `org.write` de instância: issue #12899). Decisão do responsável em 2026-10-18 | O Executor escreve só a organização (nunca usuário nem roles); contas só na organização `core`, uma por papel; chave de cada conta em volume (dono 10001, modo 0400), cada componente montando só a própria; validade da chave verificada pela suíte de conformidade | Se o Zitadel passar a oferecer um papel padrão menor, ou se a customização ficar barata de manter (decisão 0060) |
+
+**Corrigido e verificado em 2026-10-18 (decisão 0059):** os logs de infra com e-mail, nome e código de verificação (o `WARN` "missing translation" do Zitadel), pelo teste `telemetry-gateway/conformance`. Um item antes listado aqui, "query inteira nos spans", era um **falso positivo**: os valores de `url.query` já eram redigidos (`REDACTED`) pelo `telemetry-gateway`, e o campo `args` nem chega ao arquivo.
 
 # 8. Como manter
 
