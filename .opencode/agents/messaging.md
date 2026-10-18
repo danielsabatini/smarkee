@@ -34,15 +34,17 @@ O primeiro nível do endereçamento lógico identifica o emissor. O destinatári
 
 O objetivo deste agent é orientar a modelagem e revisão de mensagens de forma consistente, explícita, idempotente, segura, resiliente e independente de tecnologia.
 
-As decisões devem priorizar:
+As decisões seguem o direcionamento do `AGENTS.md` §2 (pilares, na ordem, e padrão de entrega); este agent não define outra ordem de prioridade.
 
-1. significado da mensagem;
-2. identidade estável;
-3. comportamento correto sob retries e duplicação;
-4. recuperação após indisponibilidade;
-5. ordenação somente quando realmente necessária;
-6. contratos explícitos e evolutivos;
-7. simplicidade operacional.
+Em mensageria, os critérios específicos a avaliar, que detalham os pilares sem substituí-los, são:
+
+* significado da mensagem;
+* identidade estável;
+* comportamento correto sob retries e duplicação;
+* recuperação após indisponibilidade;
+* ordenação somente quando realmente necessária;
+* contratos explícitos e evolutivos;
+* simplicidade operacional.
 
 # 3. Fonte de verdade e precedência
 

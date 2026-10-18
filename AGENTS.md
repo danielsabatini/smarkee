@@ -75,18 +75,15 @@ Skill
 
 O `AGENTS.md` é a autoridade máxima e deve prevalecer sobre qualquer regra existente em agents ou skills.
 
+As decisões em `.decisions/` registram escolhas do projeto: elas não são um nível de instrução e nunca sobrepõem o `AGENTS.md` (§2.4).
+
 ---
 
-# 2. Princípios Fundamentais
+# 2. Direcionamento para Tomada de Decisão
 
-Toda decisão deve priorizar, nesta ordem:
+Este é o critério que decide qualquer escolha neste repositório.
 
-1. **Segurança**
-2. **Simplicidade**
-3. **Robustez**
-4. **Resiliência**
-
-Esses princípios devem orientar decisões de:
+Ele vale para decisões de:
 
 * Arquitetura
 * Código
@@ -99,9 +96,45 @@ Esses princípios devem orientar decisões de:
 * Agentes
 * Ferramentas
 
-Uma solução mais sofisticada não deve ser considerada melhor apenas por ser mais sofisticada.
+## 2.1 Pilares, nesta ordem
 
-Prefira a menor solução capaz de atender corretamente aos requisitos conhecidos.
+1. **Segurança:** nada é aceito por comodidade. Segurança nunca é uma etapa posterior.
+2. **Simplicidade:** a menor solução capaz de atender corretamente aos requisitos conhecidos. Uma solução mais sofisticada não é melhor por ser mais sofisticada.
+3. **Robustez:** comportamento correto diante de entrada inválida, estado inesperado e erro, com invariantes e falhas explícitas.
+4. **Resiliência:** continuar funcionando e se recuperar de falhas, com retry, idempotência e tolerância a mensagens duplicadas, atrasadas ou perdidas.
+
+Quando dois pilares conflitam, vence o de número menor.
+
+## 2.2 Padrão de entrega: valor em cada etapa
+
+A evolução de um produto deve **entregar valor em cada etapa**, e não apenas aproximar o produto de sua versão final desejada.
+
+```text
+Errado:  roda → eixo → carroceria → carro
+Certo:   patinete → bicicleta → moto → carro
+```
+
+Cada passo do caminho certo já serve a quem o usa. No caminho errado, só o último serve (Henrik Kniberg).
+
+Toda etapa deve responder:
+
+1. Que problema real ela resolve **se for a última**?
+2. O que ela deixa de fora, explicitamente?
+3. A etapa seguinte aproveita esta, ou a joga fora?
+
+Uma etapa sem valor próprio só é aceita quando um requisito de segurança a exigir, e isso deve ser declarado.
+
+## 2.3 Como os dois se combinam
+
+Os pilares são o **piso de cada etapa**: o patinete também precisa ser seguro, simples, robusto e resiliente **no seu nível**.
+
+O padrão de entrega decide **em que pedaços** entregar. Ele nunca autoriza adiar um pilar para uma etapa futura.
+
+## 2.4 Precedência
+
+Este direcionamento **não pode ser sobreposto** por decisão em `.decisions/`, por agent, por skill ou por instrução de uma tarefa.
+
+Uma decisão registrada pode detalhar como aplicá-lo, mas nunca contradizê-lo. Somente uma alteração deste próprio arquivo muda este direcionamento.
 
 ---
 
@@ -198,29 +231,13 @@ Qualquer exceção deve ser deliberada, explícita e justificável.
 
 # 5. Correção antes de Otimização
 
-A prioridade é produzir comportamento correto.
+A prioridade é produzir comportamento correto e claro, antes de performance.
 
 Não otimize prematuramente.
 
-A sequência preferencial é:
-
-```text
-Corretude
-    ↓
-Clareza
-    ↓
-Simplicidade
-    ↓
-Robustez
-    ↓
-Resiliência
-    ↓
-Performance
-    ↓
-Otimização
-```
-
 Uma otimização que aumenta significativamente a complexidade deve possuir uma justificativa concreta.
+
+A ordem entre os pilares está no §2.1.
 
 ---
 
@@ -736,7 +753,7 @@ Na elaboração de documentações, na codificação e nas ações dos agentes e
 Sempre utilize a **versão mais nova e estável da API** de um serviço, produto ou biblioteca, em código novo e em código que esteja sendo alterado. Não adote uma API marcada como legada, obsoleta ou em manutenção quando existir uma versão mais nova que atenda ao requisito.
 
 * Confirme a versão vigente na documentação oficial antes de escolher a API.
-* Uma versão mais antiga só é aceitável quando a mais nova **não oferece** a capacidade necessária. Nesse caso, limite o uso ao que não tem equivalente, e registre a exceção e o motivo em `.decisions/`.
+* Uma versão mais antiga só é aceitável quando a mais nova **não oferece** a capacidade necessária. Nesse caso, limite o uso ao que não tem equivalente, e registre a exceção e o motivo em `.decisions/`. Essa exceção vale somente para a escolha da versão da API: nunca é exceção ao §2.
 * Uma API em estágio beta ou experimental não conta como "mais nova e estável": prefira a estável mais recente, e só use a beta com decisão registrada.
 * Ao tocar em código que usa uma API legada, migre-a quando isso couber no escopo da tarefa (§7); quando não couber, deixe a pendência explícita.
 * A migração de uma API em uso respeita a compatibilidade (§31) e é verificada contra o serviço real (§19).
@@ -921,18 +938,11 @@ Se algum desses pontos não puder ser atendido, o agente deve informar explicita
 
 # 34. Regra de Conflito
 
-Quando duas abordagens forem possíveis, prefira aquela que:
+Quando duas abordagens forem possíveis, decida pelo §2: aplique os pilares na ordem do §2.1 e o padrão de entrega do §2.2.
 
-1. É mais segura.
-2. É mais correta.
-3. É mais simples.
-4. É mais explícita.
-5. É mais fácil de verificar.
-6. É mais robusta.
-7. É mais resiliente.
-8. Introduz menos complexidade.
+Em caso de empate, prefira a abordagem mais explícita (§3) e a mais fácil de verificar (§19).
 
-Quando ainda houver dúvida, procure evidências antes de decidir.
+Quando ainda houver dúvida, procure evidências antes de decidir (§9).
 
 ---
 
@@ -993,6 +1003,8 @@ artifacts/
 
 Decisões arquiteturais e direcionamentos que afetam o projeto permanentemente devem ser registradas em `.decisions/`. 
 Isso isola o histórico de decisões da documentação oficial de uso do projeto.
+
+Toda decisão deve estar em conformidade com o §2 e nunca o sobrepõe.
 
 ## 36.2 Restrições de Fonte de Verdade
 
@@ -1105,10 +1117,9 @@ Agentes específicos devem adicionar contexto e conhecimento, não redefinir os 
 Quando houver dúvida:
 
 ```text
-Segurança sobre conveniência.
+Valor em cada etapa sobre entrega só no final.
 Corretude sobre velocidade.
 Explícito sobre implícito.
-Simples sobre complexo.
 Pequenas mudanças sobre grandes reescritas.
 Evidência sobre suposição.
 Menor privilégio sobre maior privilégio.
