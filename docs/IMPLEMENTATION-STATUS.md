@@ -171,7 +171,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Tema | Situação | Referência |
 |---|---|---|
-| Organization (`features/ipm/organization`) | Papéis de instância `IAM_ORG_MANAGER` (Executor) e `IAM_OWNER_VIEWER` (Observer): mais largos que o necessário; estreitar antes de prd. O nome `register` não é reservado (falha no Executor, `Rejected`) | `features/ipm/organization/README.md`, decisão 0038 |
+| Organization (`features/ipm/organization`) | Papéis de instância `IAM_ORG_MANAGER` (Executor) e `IAM_OWNER_VIEWER` (Observer): mais largos que o necessário. É segurança de configuração, que não varia por ambiente (AGENTS §2.5): ver 7.1. O nome `register` não é reservado (falha no Executor, `Rejected`) | `features/ipm/organization/README.md`, decisão 0038 |
 | CLI | `sk config`, `sk auth`, `sk register`, `sk sum service`, `sk ipm organization` e `sk account get\|delete` | `ROADMAP.md` |
 | `pinned_client` no Executor | Alvo antes de stg e prd | `NATS.md` §7.5 |
 | Partição do Observer | Na aplicação (`hash(resourceId) mod count`); o `DESIRED` não é particionado | decisão 0018 |
@@ -183,8 +183,30 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Retomada de `Failed` | A Account não tem `update`; a intervenção explícita não está definida | `features/core/account/README.md` §10 |
 | Imagens em `docs/images/` | O infográfico do fluxo é do desenho antigo (Tenant, `api.*`); a arquitetura Kubernetes é uma proposta | `docs/images/README.md` |
 
+## 7.1 Lacunas declaradas de dev e violações do piso (AGENTS §2.5)
+
+Lacuna declarada: o que dev não tem, por que é aceitável em dev e a condição que a fecha **antes do stg**. Nada é promovido a stg com uma linha aberta aqui.
+
+| Lacuna (dev) | Pilar | Por que é aceitável em dev | Condição de saída (antes do stg) |
+|---|---|---|---|
+| etcd do gateway sem autenticação nem TLS; a Admin API aceita a rede `internal` (com a chave) | Segurança, infraestrutura | rede interna do Compose, ambiente descartável | etcd com autenticação e TLS; Admin API fora da rede de carga (decisão 0049) |
+| NATS com um só usuário e sem TLS | Segurança, infraestrutura | sem certificados em dev | identidade por serviço e TLS (`NATS.md`, seção 3 acima) |
+| PostgreSQL sem TLS nem proteção em repouso | Segurança, infraestrutura | sem certificados nem cofre em dev | TLS e proteção em repouso (seção 4 acima) |
+| `telemetry-agent` roda como root e monta o socket do Docker (somente leitura) | Segurança, infraestrutura | é o modo de ler os logs dos contêineres no Compose; `cap_drop: ALL` e `no-new-privileges` reduzem o risco | DaemonSet que lê os logs do nó, sem o socket do Docker e sem root (`OBSERVABILITY.md` seção 10) |
+| OTLP sem TLS nem autenticação entre APISIX, agente e `telemetry-gateway` | Segurança, infraestrutura | rede `internal` do Compose, sem certificados | TLS e autenticação no receptor OTLP |
+| `telemetry-gateway` único, sem backend: só arquivos com rotação em 10 MB (cerca de 4 h de métricas) | Resiliência, infraestrutura | não há consulta nem histórico longo em dev | backend persistente e alta disponibilidade do coletor; fila persistente entre agente e gateway |
+
+**Violações do piso a corrigir** (segurança de código e configuração: não são lacunas declaráveis, §2.5 item 1):
+
+| Violação | Evidência (2026-10-18) | Correção |
+|---|---|---|
+| Spans do gateway gravam a query inteira (`args`), com `code` OAuth, `state`, `code_challenge` e `userID` | 48 spans com `url.query`, 3 com `code=` | tirar `args` ou redigir os valores no `telemetry-gateway` |
+| Logs de infra com e-mail e nome (`WARN` "missing translation" do Zitadel e linhas de erro do gateway) | 23 de 624 registros de infra | redigir e-mail e nome no agente, ou descartar esse `WARN` |
+| Papéis de instância do Executor e do Observer da Organization mais largos que o necessário | `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` | papéis customizados menores no Zitadel, ou decisão registrada que justifique o papel |
+
 # 8. Como manter
 
 - Mudou um comportamento especificado? Atualize a especificação, a implementação e a linha correspondente aqui.
 - Fechou uma lacuna? Troque a situação e cite a evidência (arquivo, teste ou comando).
 - Itens **Alvo** só passam a **Atende** com verificação em stg ou prd.
+- Uma lacuna de dev só é aceita se estiver na seção 7.1 com a condição de saída (AGENTS §2.5).
