@@ -28,11 +28,9 @@ def expected_files() -> dict[Path, str]:
     expected: dict[Path, str] = {}
     for project, package in components():
         expected[project / "src" / package / "common" / "logging_config.py"] = logging_source
-        expected[project / "tests" / "common" / "unit" / "test_logging.py"] = (
-            test_source.replace("PKG_LOGGING", f"{package}.common.logging_config").replace(
-                "PKG", package
-            )
-        )
+        expected[project / "tests" / "common" / "unit" / "test_logging.py"] = test_source.replace(
+            "PKG_LOGGING", f"{package}.common.logging_config"
+        ).replace("PKG", package)
     return expected
 
 

@@ -15,6 +15,7 @@
 | Como é o banco de um tipo real (diagrama de entidade e relacionamento, índices, quem grava o quê)? | [`features/core/account/README.md`](../features/core/account/README.md), seção 11 |
 | Como são os logs dos componentes (formato OpenTelemetry, campos, o que não registrar)? | [`OBSERVABILITY.md`](OBSERVABILITY.md) |
 | Como a telemetria é coletada, roteada e gravada (agente, roteador, telemeters, filas, Kubernetes)? | [`OBSERVABILITY-ARCHITECTURE.md`](OBSERVABILITY-ARCHITECTURE.md) |
+| Como começar uma feature nova (o que gerar, copiar e registrar)? | [`FEATURE-BOOTSTRAP.md`](FEATURE-BOOTSTRAP.md) |
 | O que já está implementado e o que falta, item a item? | [`IMPLEMENTATION-STATUS.md`](IMPLEMENTATION-STATUS.md) |
 | Por que foi decidido assim? | [`.decisions/`](../.decisions/) |
 

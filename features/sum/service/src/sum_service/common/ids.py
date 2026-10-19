@@ -1,14 +1,17 @@
-"""Identificadores e relógio do Receiver do SUM."""
+"""Identificadores e instantes.
+
+Instantes sempre com fuso explícito (UTC), e identificadores opacos em UUIDv7 minúsculo
+(`docs/MESSAGING.md` §6.5). Funções pequenas e separadas para serem substituídas nos testes.
+"""
 
 import uuid
 from datetime import UTC, datetime
 
 
 def new_identifier() -> str:
-    """UUIDv7: atribuído pelo Receiver ao recurso e à operação (`docs/RESOURCE-CONTROL-LOOP.md`)."""
+    """Novo identificador opaco (UUIDv7, minúsculo), válido como `resourceId` e `messageId`."""
     return str(uuid.uuid7())
 
 
 def utc_now() -> datetime:
-    """Instante atual em UTC, com fuso (o envelope exige fuso)."""
     return datetime.now(UTC)
