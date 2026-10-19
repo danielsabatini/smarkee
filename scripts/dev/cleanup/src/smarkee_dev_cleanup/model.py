@@ -7,8 +7,12 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Protocol
 
-# Organizations de teste: o nome começa por um destes prefixos e o ID é um UUID (o `resourceId`).
-TEST_ORGANIZATION_NAME = re.compile(r"^(conf|acme|loop|dup|chaos|e2e|probe|ver|cons)-")
+# Organizations de teste: o nome começa por um destes prefixos, ou é `org-` mais 10 hexadecimais
+# (o nome padrão dos testes de integração do Manager da Organization), e o ID é um UUID (o
+# `resourceId`). O `org-` sem os 10 hexadecimais não é de teste.
+TEST_ORGANIZATION_NAME = re.compile(
+    r"^(?:(?:conf|acme|loop|dup|chaos|e2e|probe|ver|cons)-|org-[0-9a-f]{10}$)"
+)
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 # Usuários de teste: o e-mail é de `example.com` e começa por um destes rótulos.
 TEST_USER_EMAIL = re.compile(r"^(e2e|loop|conf|chaos|cons|sa\.test)[.-][^@]*@example\.com$")

@@ -16,7 +16,7 @@ Nunca é "tudo": cada alvo é identificado por um padrão (`src/smarkee_dev_clea
 
 | Alvo | Padrão |
 |---|---|
-| Organization (Zitadel e SSOT) | nome começando por `conf-`, `acme-`, `loop-`, `dup-`, `chaos-`, `e2e-`, `probe-`, `ver-` ou `cons-` e, no Zitadel, ID em formato de UUID (o `resourceId`) |
+| Organization (Zitadel e SSOT) | nome começando por `conf-`, `acme-`, `loop-`, `dup-`, `chaos-`, `e2e-`, `probe-`, `ver-` ou `cons-`, ou `org-` seguido de 10 hexadecimais (o nome padrão dos testes de integração do Manager da Organization), e, no Zitadel, ID em formato de UUID (o `resourceId`) |
 | Usuário (Zitadel e SSOT) | e-mail de `example.com` começando por `e2e-`, `loop.`, `conf.`, `chaos.`, `cons.` ou `sa.test.` |
 | Ligação de serviço (SSOT) | dono de teste, ou dono que nem existe mais no Zitadel (órfã) |
 | Mensageria (NATS) | as mensagens dos recursos acima nos Streams `REQUESTED`, `DESIRED`, `OBSERVED`, `RESULT` e `UPDATED` (o `ACTION` é particionado pelo servidor e não dá para filtrar por recurso) |

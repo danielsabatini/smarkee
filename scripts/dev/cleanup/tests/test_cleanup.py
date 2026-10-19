@@ -132,7 +132,17 @@ def say_nothing(_: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["conf-ab12", "acme-1", "loop-x-b", "dup-1", "chaos-manager-1", "e2e-9", "probe-1"]
+    "name",
+    [
+        "conf-ab12",
+        "acme-1",
+        "loop-x-b",
+        "dup-1",
+        "chaos-manager-1",
+        "e2e-9",
+        "probe-1",
+        "org-0c6eef4158",
+    ],
 )
 def test_an_organization_with_a_test_name_and_a_uuid_is_test_data(name: str) -> None:
     assert is_test_organization(ORG_ID, name)
@@ -144,6 +154,9 @@ def test_an_organization_with_a_test_name_and_a_uuid_is_test_data(name: str) -> 
         ("394341608402780164", "acme-corp"),  # ID do Zitadel, e não o `resourceId` de um recurso
         (ORG_ID, "acme"),  # sem o hífen do padrão
         (ORG_ID, "minha-empresa"),
+        (ORG_ID, "org-acme-corp"),  # `org-` sem os 10 hexadecimais do nome de teste
+        (ORG_ID, "org-0c6eef41589"),  # hexadecimais a mais
+        (ORG_ID, "org-0c6eef415"),  # hexadecimais a menos
         (ORG_ID, "core"),
         (ORG_ID, "register"),
         (ORG_ID, "smarkee"),
