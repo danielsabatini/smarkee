@@ -25,7 +25,13 @@ from sum_service_reconciler.domain.decision import (
     decide,
 )
 from sum_service_reconciler.ids import new_identifier, utc_now
-from sum_service_reconciler.logging_config import bind_traceparent, current_traceparent
+from sum_service_reconciler.logging_config import (
+    bind_context,
+    bind_traceparent,
+    current_traceparent,
+    restore_context,
+    save_context,
+)
 from sum_service_reconciler.settings import LoopSettings
 
 MODULE = "sum"
@@ -171,11 +177,13 @@ class Reconciler:
             return
         # A action herda o trace do `desired` que a causou, mesmo quando sai de uma mensagem de
         # `observed` ou da reavaliação periódica, que não têm contexto próprio (decisão 0055).
+        saved = save_context()
         bind_traceparent(state.desired.traceparent)
+        bind_context(resource_id=resource_id, actor_type="system")
         try:
             await self._evaluate(resource_id, state)
         finally:
-            bind_traceparent(None)
+            restore_context(saved)
 
     async def _evaluate(self, resource_id: str, state: ResourceState) -> None:
         if state.desired is None:

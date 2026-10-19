@@ -39,6 +39,7 @@ from core_account_receiver.http.ports import (
 )
 from core_account_receiver.http.trace_context import TraceContextMiddleware
 from core_account_receiver.ids import new_identifier, utc_now
+from core_account_receiver.logging_config import bind_context
 from core_account_receiver.settings import ApiSettings
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,9 @@ async def authenticate(request: Request) -> Principal:
     scheme, _, token = request.headers.get("authorization", "").partition(" ")
     if scheme.lower() != "bearer" or not token.strip():
         raise unauthorized()
-    return await deps.authenticator.verify(token.strip())
+    principal = await deps.authenticator.verify(token.strip())
+    bind_context(requested_by=principal.subject)
+    return principal
 
 
 Authenticated = Annotated[Principal, Depends(authenticate)]
@@ -145,6 +148,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         idempotency_key: str | None,
     ) -> generated.ApiAcceptedResponse:
         """Gera a identidade da Operation, evita republicar e publica o `requested`."""
+        bind_context(requested_by=requested_by, resource_id=resource_id, operation=operation)
         operation_id = operation_id_for(
             module=MODULE,
             resource_type=RESOURCE_TYPE,

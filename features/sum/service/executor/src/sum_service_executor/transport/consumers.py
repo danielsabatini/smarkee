@@ -13,7 +13,11 @@ import nats.js.errors
 from nats.aio.msg import Msg
 from nats.js import JetStreamContext
 
-from sum_service_executor.logging_config import TRACEPARENT_HEADER, bind_traceparent
+from sum_service_executor.logging_config import (
+    TRACEPARENT_HEADER,
+    bind_message_context,
+    bind_traceparent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,7 @@ class PullConsumer:
     async def _settle(self, message: Msg) -> None:
         # O contexto de trace vem no header NATS (decisão 0055); vale só para esta mensagem.
         bind_traceparent((message.headers or {}).get(TRACEPARENT_HEADER))
+        bind_message_context(message.data)
         try:
             await self._settle_bound(message)
         finally:

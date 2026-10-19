@@ -24,6 +24,7 @@ from pydantic import SecretStr
 from sum_service_reconciler.engine.reconciler import PublishError, Reconciler
 from sum_service_reconciler.logging_config import (
     TRACEPARENT_HEADER,
+    bind_message_context,
     bind_traceparent,
     current_traceparent,
 )
@@ -134,6 +135,7 @@ class StateConsumer:
     async def _settle(self, message: Msg) -> None:
         # O contexto de trace vem no header NATS (decisão 0055); vale só para esta mensagem.
         bind_traceparent((message.headers or {}).get(TRACEPARENT_HEADER))
+        bind_message_context(message.data)
         try:
             await self._settle_bound(message)
         finally:

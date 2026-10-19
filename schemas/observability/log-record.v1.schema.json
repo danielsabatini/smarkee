@@ -116,7 +116,20 @@
         "code.file.path": {"type": "string", "maxLength": 1024},
         "code.line.number": {"type": "integer", "minimum": 0},
         "code.function.name": {"type": "string", "maxLength": 512},
-        "user.id": {"type": "string", "maxLength": 255},
+        "user.id": {
+          "description": "Ator autenticado (solicitante), identificador opaco e pseudonimizado. O formato não admite '@' nem '.', então e-mail e nome nunca passam (decisão 0061).",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$",
+          "maxLength": 128
+        },
+        "smarkee.actor.type": {
+          "description": "Tipo do ator: user (autenticado), anonymous (escrita anônima, sem id), service (conta de serviço) ou system (sem solicitante, como o Observer). 'anonymous' quer dizer não autenticado, e não anonimizado.",
+          "enum": ["user", "anonymous", "service", "system"]
+        },
+        "smarkee.resource.id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$", "maxLength": 128},
+        "smarkee.owner.id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$", "maxLength": 128},
+        "smarkee.organization.id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$", "maxLength": 128},
+        "smarkee.operation.name": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$", "maxLength": 64},
         "messaging.system": {"type": "string", "maxLength": 64},
         "messaging.destination.name": {"type": "string", "maxLength": 255},
         "messaging.message.id": {"type": "string", "maxLength": 255},

@@ -27,7 +27,11 @@ from core_account_manager.handlers.observed import ObservedHandler
 from core_account_manager.handlers.ports import Store
 from core_account_manager.handlers.requested import RequestedHandler
 from core_account_manager.handlers.result import ResultHandler
-from core_account_manager.logging_config import TRACEPARENT_HEADER, bind_traceparent
+from core_account_manager.logging_config import (
+    TRACEPARENT_HEADER,
+    bind_message_context,
+    bind_traceparent,
+)
 from core_account_manager.store.ssot import PostgresStore
 from core_account_manager.store.tables import tables_of
 
@@ -155,6 +159,7 @@ class StreamConsumer:
     async def _settle(self, message: Msg) -> None:
         # O contexto de trace vem no header NATS (decisão 0055); sem ele, segue sem trace.
         bind_traceparent((message.headers or {}).get(TRACEPARENT_HEADER))
+        bind_message_context(message.data)
         try:
             await self._dispose(message)
         finally:

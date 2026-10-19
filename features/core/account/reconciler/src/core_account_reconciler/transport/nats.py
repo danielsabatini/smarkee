@@ -21,6 +21,7 @@ from nats.js.api import AckPolicy, ConsumerConfig, DeliverPolicy
 from core_account_reconciler.engine.reconciler import PublishError, Reconciler
 from core_account_reconciler.logging_config import (
     TRACEPARENT_HEADER,
+    bind_message_context,
     bind_traceparent,
     current_traceparent,
 )
@@ -123,6 +124,7 @@ class StateConsumer:
             for message in messages:
                 # Contexto de trace vem no header NATS (decisão 0055) e vale só para esta mensagem.
                 bind_traceparent((message.headers or {}).get(TRACEPARENT_HEADER))
+                bind_message_context(message.data)
                 try:
                     await self._reconciler.on_message(message.data)
                     await message.ack()

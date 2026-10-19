@@ -22,6 +22,7 @@ from nats.js import JetStreamContext
 from ipm_organization_executor.engine.executor import Disposition, Executor, PublishError
 from ipm_organization_executor.logging_config import (
     TRACEPARENT_HEADER,
+    bind_message_context,
     bind_traceparent,
     current_traceparent,
 )
@@ -134,6 +135,7 @@ class ActionConsumer:
             for message in messages:
                 # Contexto de trace vem no header NATS (decisão 0055) e vale só para esta mensagem.
                 bind_traceparent((message.headers or {}).get(TRACEPARENT_HEADER))
+                bind_message_context(message.data)
                 try:
                     await self._settle(message)
                 finally:

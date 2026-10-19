@@ -25,7 +25,13 @@ from ipm_organization_reconciler.domain.decision import (
     decide,
 )
 from ipm_organization_reconciler.ids import new_identifier, utc_now
-from ipm_organization_reconciler.logging_config import bind_traceparent, current_traceparent
+from ipm_organization_reconciler.logging_config import (
+    bind_context,
+    bind_traceparent,
+    current_traceparent,
+    restore_context,
+    save_context,
+)
 from ipm_organization_reconciler.settings import LoopSettings
 
 MODULE = "ipm"
@@ -181,11 +187,15 @@ class Reconciler:
             return
         # A action herda o trace do `desired` que a causou, mesmo quando sai de uma mensagem de
         # `observed` ou da reavaliação periódica, que não têm contexto próprio (decisão 0055).
+        saved = save_context()
         bind_traceparent(state.desired.traceparent)
+        bind_context(
+            requested_by=state.desired.requested_by, resource_id=resource_id, actor_type="system"
+        )
         try:
             await self._evaluate(resource_id, state)
         finally:
-            bind_traceparent(None)
+            restore_context(saved)
 
     async def _evaluate(self, resource_id: str, state: ResourceState) -> None:
         if state.desired is None:

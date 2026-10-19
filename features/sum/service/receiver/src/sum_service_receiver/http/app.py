@@ -55,6 +55,7 @@ from sum_service_receiver.domain.requests import (
 from sum_service_receiver.http.health import Health
 from sum_service_receiver.http.trace_context import TraceContextMiddleware
 from sum_service_receiver.ids import new_identifier, utc_now
+from sum_service_receiver.logging_config import bind_context
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +182,9 @@ def create_app(deps: Dependencies) -> FastAPI:
     ) -> Principal:
         if authorization is None or not authorization.startswith("Bearer "):
             raise unauthorized()
-        return await deps.verifier.verify(authorization.removeprefix("Bearer ").strip())
+        principal = await deps.verifier.verify(authorization.removeprefix("Bearer ").strip())
+        bind_context(requested_by=principal.subject)
+        return principal
 
     def require(principal: Principal, role: str) -> None:
         if not principal.has_role(role):
@@ -227,6 +230,9 @@ def create_app(deps: Dependencies) -> FastAPI:
         idempotency_key: str | None,
         requested: Callable[[str], tuple[str, dict[str, Any]]],
     ) -> JSONResponse:
+        bind_context(
+            requested_by=principal.subject, resource_id=resource_id, operation=operation_type
+        )
         operation_id = (
             operation_id_for(principal.subject, idempotency_key)
             if idempotency_key is not None

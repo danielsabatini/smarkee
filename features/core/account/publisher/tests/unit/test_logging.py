@@ -11,9 +11,13 @@ from jsonschema import Draft202012Validator
 from core_account_publisher.logging_config import (
     EVENT_NAME_KEY,
     JsonFormatter,
+    bind_context,
+    bind_message_context,
     bind_traceparent,
     build_resource,
     current_traceparent,
+    restore_context,
+    save_context,
 )
 
 _PACKAGE = "core_account_publisher"
@@ -59,13 +63,25 @@ def format_line(log_record: logging.LogRecord) -> dict[str, Any]:
     return payload
 
 
+def attributes_of(payload: dict[str, Any]) -> dict[str, Any]:
+    return cast(dict[str, Any], payload.get("attributes", {}))
+
+
+def own_attributes(payload: dict[str, Any]) -> dict[str, Any]:
+    """Atributos sem o `system` que o Observer recebe por padrão (ele nunca tem solicitante)."""
+    attributes = dict(attributes_of(payload))
+    if _PACKAGE.endswith("_observer") and attributes.get("smarkee.actor.type") == "system":
+        del attributes["smarkee.actor.type"]
+    return attributes
+
+
 def test_event_is_one_json_line_with_the_log_record_fields() -> None:
     payload = format_line(record("requested handled", extra={"smarkee.outcome": "accepted"}))
     assert payload["body"] == "requested handled"
     assert payload["severity_number"] == 9
     assert payload["severity_text"] == "INFO"
     assert payload["scope"] == {"name": f"{_PACKAGE}.test"}
-    assert payload["attributes"] == {"smarkee.outcome": "accepted"}
+    assert own_attributes(payload) == {"smarkee.outcome": "accepted"}
     assert "event_name" not in payload
 
 
@@ -88,7 +104,7 @@ def test_severity_follows_the_log_data_model(level: int, number: int, text: str)
 def test_terminal_color_message_added_by_uvicorn_is_not_an_attribute() -> None:
     log_record = record("Started server", extra={"color_message": "\x1b[36mStarted\x1b[0m"})
     payload = format_line(log_record)
-    assert "attributes" not in payload
+    assert not own_attributes(payload)
 
 
 def test_event_name_is_a_field_and_none_values_are_omitted() -> None:
@@ -96,7 +112,7 @@ def test_event_name_is_a_field_and_none_values_are_omitted() -> None:
         record("x", extra={EVENT_NAME_KEY: "smarkee.message.rejected", "smarkee.reason": None})
     )
     assert payload["event_name"] == "smarkee.message.rejected"
-    assert "attributes" not in payload
+    assert not own_attributes(payload)
 
 
 def test_exception_message_is_never_logged_because_it_may_carry_values() -> None:
@@ -205,3 +221,139 @@ def test_invalid_traceparent_is_dropped_and_clears_the_context(value: str) -> No
     assert bind_traceparent(value) is None
     assert current_traceparent() is None
     assert "trace_id" not in format_line(record("invalid"))
+
+
+def test_the_request_context_adds_actor_resource_and_action_to_every_log() -> None:
+    bind_traceparent(None)
+    bind_context(requested_by="01a1506e-93bc-72c9", resource_id="res-1", operation="create")
+    try:
+        attributes = attributes_of(format_line(record("any event")))
+    finally:
+        bind_traceparent(None)
+    assert attributes["user.id"] == "01a1506e-93bc-72c9"
+    assert attributes["smarkee.actor.type"] == "user"
+    assert attributes["smarkee.resource.id"] == "res-1"
+    assert attributes["smarkee.operation.name"] == "create"
+    assert "smarkee.owner.id" not in attributes  # sem dono, o atributo é omitido
+
+
+def test_an_anonymous_request_has_the_anonymous_type_and_no_user_id() -> None:
+    bind_traceparent(None)
+    bind_context(requested_by="anonymous", resource_id="res-1", operation="create")
+    try:
+        attributes = attributes_of(format_line(record("any event")))
+    finally:
+        bind_traceparent(None)
+    assert attributes["smarkee.actor.type"] == "anonymous"
+    assert "user.id" not in attributes
+
+
+@pytest.mark.parametrize("value", ["ana@example.com", "Ana Souza", "a.b", "", "x" * 129])
+def test_an_actor_that_is_not_an_opaque_identifier_is_dropped_and_never_logged(value: str) -> None:
+    bind_traceparent(None)
+    bind_context(requested_by=value)
+    try:
+        line = format_line(record("any event"))
+    finally:
+        bind_traceparent(None)
+    assert "user.id" not in attributes_of(line)
+    assert "smarkee.actor.type" not in own_attributes(line)
+    assert value not in json.dumps(line) or value == ""
+
+
+def test_what_the_event_states_prevails_over_the_context() -> None:
+    bind_traceparent(None)
+    bind_context(resource_id="from-context", operation="update")
+    try:
+        attributes = attributes_of(
+            format_line(record("event", extra={"smarkee.resource.id": "from-event"}))
+        )
+    finally:
+        bind_traceparent(None)
+    assert attributes["smarkee.resource.id"] == "from-event"
+    assert attributes["smarkee.operation.name"] == "update"
+
+
+def test_binding_a_new_traceparent_starts_a_clean_context() -> None:
+    bind_context(requested_by="user-1", resource_id="res-1")
+    bind_traceparent(_TRACEPARENT)
+    try:
+        payload = format_line(record("event"))
+    finally:
+        bind_traceparent(None)
+    assert not own_attributes(payload)  # o contexto anterior foi descartado
+    assert payload["trace_id"] == "4bf92f3577b34da6a3ce929d0e0e4736"
+
+
+def test_the_message_context_comes_from_the_envelope() -> None:
+    envelope = {
+        "module": "ipm",
+        "resourceType": "organization",
+        "resourceId": "org-1",
+        "operation": "create",
+        "requestedBy": "user-1",
+        "data": {"ownerAccountId": "owner-1"},
+    }
+    bind_traceparent(_TRACEPARENT)
+    bind_message_context(json.dumps(envelope).encode())
+    try:
+        payload = format_line(record("event"))
+    finally:
+        bind_traceparent(None)
+    attributes = attributes_of(payload)
+    assert attributes["smarkee.resource.id"] == "org-1"
+    assert attributes["smarkee.organization.id"] == "org-1"  # o resourceId da Organization
+    assert attributes["smarkee.owner.id"] == "owner-1"
+    assert attributes["user.id"] == "user-1"
+    assert payload["trace_id"] == "4bf92f3577b34da6a3ce929d0e0e4736"  # o trace foi mantido
+
+
+def test_a_message_without_a_requester_is_a_system_actor() -> None:
+    bind_traceparent(None)
+    bind_message_context({"emitter": "manager", "resourceId": "res-1", "operation": "changed"})
+    try:
+        attributes = attributes_of(format_line(record("event")))
+    finally:
+        bind_traceparent(None)
+    assert attributes["smarkee.actor.type"] == "system"
+    assert "user.id" not in attributes
+
+
+def test_a_message_with_a_requester_is_not_a_system_actor() -> None:
+    bind_traceparent(None)
+    bind_message_context({"requestedBy": "user-1", "resourceId": "res-1", "emitter": "observer"})
+    try:
+        attributes = attributes_of(format_line(record("event")))
+    finally:
+        bind_traceparent(None)
+    assert attributes["smarkee.actor.type"] == "user"
+
+
+def test_a_saved_context_can_be_restored_after_a_temporary_one() -> None:
+    bind_traceparent(_TRACEPARENT)
+    bind_context(requested_by="user-1", resource_id="res-1")
+    saved = save_context()
+    try:
+        bind_traceparent(None)  # um contexto temporário, como o do `evaluate` do Reconciler
+        assert current_traceparent() is None
+        restore_context(saved)
+        payload = format_line(record("event"))
+    finally:
+        bind_traceparent(None)
+    assert payload["trace_id"] == "4bf92f3577b34da6a3ce929d0e0e4736"
+    assert attributes_of(payload)["user.id"] == "user-1"
+
+
+@pytest.mark.parametrize("message", [b"not json", b"[1, 2]", "42", {"data": "x", "resourceId": 7}])
+def test_an_unreadable_message_never_breaks_logging(message: Any) -> None:
+    bind_traceparent(None)
+    bind_message_context(message)
+    format_line(record("event"))
+
+
+def test_the_observer_is_a_system_actor_even_without_context() -> None:
+    bind_traceparent(None)
+    resource = {**build_resource(), "smarkee.component.role": "observer"}
+    line = cast(dict[str, Any], json.loads(JsonFormatter(resource).format(record("event"))))
+    _VALIDATOR.validate(line)  # pyright: ignore[reportUnknownMemberType]
+    assert attributes_of(line)["smarkee.actor.type"] == "system"

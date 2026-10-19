@@ -28,7 +28,10 @@ from sum_service_publisher.domain.publication import (
     PublishError,
 )
 from sum_service_publisher.ids import utc_now
-from sum_service_publisher.logging_config import bind_traceparent
+from sum_service_publisher.logging_config import (
+    bind_message_context,
+    bind_traceparent,
+)
 from sum_service_publisher.outbox.database import conninfo
 from sum_service_publisher.settings import DatabaseSettings
 
@@ -96,6 +99,7 @@ async def publish_pending(
             break
         # O contexto de trace gravado pelo Manager acompanha a mensagem (decisão 0055).
         bind_traceparent(row["traceparent"])
+        bind_message_context(row["payload"])
         try:
             body = publication_envelope(dict(row["payload"]), clock())
             await publisher.publish(row["subject"], body, message_id=row["message_id"])

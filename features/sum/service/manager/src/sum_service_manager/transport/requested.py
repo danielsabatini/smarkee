@@ -25,7 +25,11 @@ from sum_service_manager.contracts import generated
 from sum_service_manager.contracts.base import supports_major, validate_tolerant
 from sum_service_manager.domain.errors import PermanentMessageError
 from sum_service_manager.handlers.requested import RequestedHandler
-from sum_service_manager.logging_config import TRACEPARENT_HEADER, bind_traceparent
+from sum_service_manager.logging_config import (
+    TRACEPARENT_HEADER,
+    bind_message_context,
+    bind_traceparent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -224,6 +228,7 @@ class RequestedConsumer:
         """Processa e confirma uma mensagem. Usado pelos testes e pelo laço de `run`."""
         # O contexto de trace vem no header NATS (decisão 0055); vale só para esta mensagem.
         bind_traceparent((message.headers or {}).get(TRACEPARENT_HEADER))
+        bind_message_context(message.data)
         try:
             disposition = await process_request(self._pool, self._handler, message.data)
             logger.info(

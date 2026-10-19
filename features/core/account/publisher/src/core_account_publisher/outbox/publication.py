@@ -21,7 +21,10 @@ from psycopg.rows import dict_row
 
 from core_account_publisher.domain.publication import PublicationResult, PublishError
 from core_account_publisher.ids import utc_now
-from core_account_publisher.logging_config import bind_traceparent
+from core_account_publisher.logging_config import (
+    bind_message_context,
+    bind_traceparent,
+)
 from core_account_publisher.outbox.database import conninfo
 from core_account_publisher.settings import DatabaseSettings
 
@@ -85,6 +88,7 @@ async def publish_pending(
         payload["publishedBy"] = PUBLISHED_BY
         # O contexto de trace gravado pelo Manager acompanha a mensagem (decisão 0055).
         bind_traceparent(row["traceparent"])
+        bind_message_context(row["payload"])
         try:
             await publisher.publish(
                 row["subject"], json.dumps(payload).encode(), message_id=row["message_id"]
