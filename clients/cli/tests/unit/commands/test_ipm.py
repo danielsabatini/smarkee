@@ -683,3 +683,41 @@ def test_list_marks_the_active_organization(api: FakeApi, tmp_path: Path) -> Non
 
     assert result.exit_code == 0, result.stderr
     assert "active" in result.stdout and "*" in result.stdout
+
+
+def test_create_hint_has_no_operation_id_and_drops_resource_id_for_the_active_organization(
+    api: FakeApi, tmp_path: Path
+) -> None:
+    api.routes[("POST", PATH)] = accepted()
+
+    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme"])
+    text = " ".join(result.stdout.split())
+    assert f"Follow it with `sk ipm organization get --resource-id {RID}`." in text
+    assert "--operation-id" not in text
+
+    set_active(tmp_path, RID)
+    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme"])
+    assert "Follow it with `sk ipm organization get`." in " ".join(result.stdout.split())
+
+
+def test_a_rejected_request_shows_the_full_diagnostic_command(api: FakeApi) -> None:
+    api.routes[("POST", PATH)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("rejected", "validation")
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
+
+    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"])
+
+    assert result.exit_code == 1
+    text = " ".join(result.stderr.split())
+    assert f"sk ipm organization get --resource-id {RID} --operation-id {OPID}" in text
+
+
+def test_deleting_the_active_organization_warns_how_to_switch(api: FakeApi, tmp_path: Path) -> None:
+    set_active(tmp_path, RID)
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(protected=False))
+    api.routes[("DELETE", ORGANIZATION)] = accepted()
+
+    result = runner.invoke(app, ["ipm", "organization", "delete"])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert "This is the active Organization" in " ".join(result.stderr.split())

@@ -213,14 +213,24 @@ def _operation_rows(operation: OperationStatus) -> list[tuple[str, str]]:
     return rows
 
 
+def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> str:
+    """Comando `get` que acompanha o pedido. `--resource-id` só aparece quando a Organization
+    não é a ativa; `--operation-id` só no diagnóstico de um pedido que não concluiu."""
+    parts = ["sk ipm organization get"]
+    if accepted.resource_id != _active_organization():
+        parts.append(f"--resource-id {accepted.resource_id}")
+    if with_operation:
+        parts.append(f"--operation-id {accepted.operation_id}")
+    return " ".join(parts)
+
+
 def _timed_out(
     timeout: int, accepted: RequestAccepted, state: str = "is not visible yet"
 ) -> NoReturn:
     ui.error(
         "Timed out",
         f"{timeout} s passed and the Organization {state}.",
-        hint=f"The request is still in progress: `sk ipm organization get --resource-id "
-        f"{accepted.resource_id}`.",
+        hint=f"The request is still in progress: `{_get_command(accepted)}`.",
     )
     raise typer.Exit(EXIT_FAILURE)
 
@@ -283,9 +293,8 @@ def _wait_for_convergence(
                 "Request not completed",
                 f"The Operation ended as {operation.operation_status}"
                 + (f": {reason}" if reason else "."),
-                hint=REJECTION_HINTS.get(
-                    reason or "", "Inspect it with `sk ipm organization get`."
-                ),
+                hint=f"{REJECTION_HINTS.get(reason or '', 'Inspect the request.')} Details: "
+                f"`{_get_command(accepted, with_operation=True)}`.",
             )
             raise typer.Exit(EXIT_FAILURE)
         if operation.operation_status == "completed":
@@ -322,10 +331,7 @@ def _finish_request(
     Devolve a Organization convergida, ou `None` sem `--wait` e quando ela foi removida.
     """
     if not wait:
-        ui.note(
-            "Follow it with `sk ipm organization get --resource-id "
-            f"{accepted.resource_id} --operation-id {accepted.operation_id}`."
-        )
+        ui.note(f"Follow it with `{_get_command(accepted)}`.")
         return None
     organization = _wait_for_convergence(
         url, insecure, accepted, expect_name=expect_name, removal=removal, timeout=timeout
@@ -602,6 +608,11 @@ def delete_command(
             ("operationId", accepted.operation_id),
         ],
     )
+    if resource_id == _active_organization():
+        ui.warning(
+            "This is the active Organization. Once it is gone, point to another with "
+            f"`sk config set {ACTIVE_ORGANIZATION_KEY} VALUE`."
+        )
     _finish_request(
         url,
         insecure,
@@ -625,7 +636,8 @@ def get_command(
         typer.Option(
             "--operation-id",
             help=option(
-                "operationId of a request (returned by `create`, `update` or `delete`).",
+                "operationId of a request, to see why it was rejected or failed (returned by "
+                "`create`, `update` or `delete`).",
                 kind="String",
                 variable=None,
                 file=None,

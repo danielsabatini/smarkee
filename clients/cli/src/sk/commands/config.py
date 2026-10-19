@@ -80,8 +80,20 @@ def known_keys() -> dict[str, ConfigKey]:
     return keys
 
 
+def _describe(error: Exception) -> str:
+    """Texto do erro para a pessoa. Num `ValidationError`, só o que falhou: sem o valor informado
+    nem o endereço de documentação do pydantic."""
+    if isinstance(error, ValidationError):
+        return "; ".join(
+            f"{'.'.join(str(part) for part in item['loc'])}: "
+            f"{item['msg'].removeprefix('Value error, ')}"
+            for item in error.errors(include_input=False, include_url=False)
+        )
+    return str(error)
+
+
 def _exit_with(error: Exception, title: str, hint: str, code: int) -> NoReturn:
-    ui.error(title, str(error), hint=hint)
+    ui.error(title, _describe(error), hint=hint)
     raise typer.Exit(code) from error
 
 

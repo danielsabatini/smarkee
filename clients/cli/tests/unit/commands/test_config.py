@@ -132,6 +132,9 @@ def test_the_active_organization_is_settable_and_validated(tmp_path: Path) -> No
     refused = runner.invoke(app, ["config", "set", "ipm.organizationId", "../x?y"])
     assert refused.exit_code == 2
     assert not config_file(tmp_path).exists()
+    # Diz o que falhou, sem repetir o valor nem expor o texto bruto do pydantic.
+    assert "organizationId invalid" in " ".join(refused.stderr.split())
+    assert "../x" not in refused.stderr and "pydantic" not in refused.stderr
 
     saved = runner.invoke(app, ["config", "set", "ipm.organizationId", resource_id])
     assert saved.exit_code == 0, saved.stderr
