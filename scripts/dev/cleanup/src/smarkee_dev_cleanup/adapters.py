@@ -132,6 +132,23 @@ class PostgresSsot:
             found = connection.execute(query, (resource_id,)).fetchone()
         return None if found is None else str(found[0])
 
+    def history(self, kind: Kind) -> list[Row]:
+        outbox, operation, result = (self._table(name) for name in kind.support_tables)
+        label = sql.Literal(kind.label_field)
+        query = sql.SQL(
+            "WITH ids AS ("
+            "SELECT resource_id FROM {outbox} UNION "
+            "SELECT resource_id FROM {operation} UNION "
+            "SELECT resource_id FROM {result}) "
+            "SELECT i.resource_id, coalesce(("
+            "SELECT o.payload -> 'data' ->> {label} FROM {outbox} o "
+            "WHERE o.resource_id = i.resource_id AND o.payload -> 'data' ->> {label} IS NOT NULL "
+            "LIMIT 1), '') FROM ids i"
+        ).format(outbox=outbox, operation=operation, result=result, label=label)
+        with self._connect(kind.maintenance_role) as connection:
+            found = connection.execute(query).fetchall()
+        return [Row(str(row[0]), str(row[1])) for row in found]
+
     def delete(self, kind: Kind, resource_ids: set[str]) -> None:
         ids = sorted(resource_ids)
         delete = sql.SQL("DELETE FROM {table} WHERE resource_id = ANY(%s)")
@@ -211,6 +228,20 @@ class NatsBus:
 
     async def removed(self, kind: Kind, resource_id: str) -> bool:
         return bool((await self._updated(kind, resource_id)).get("removed"))
+
+    async def orphan_messages(self, live: dict[Kind, set[str]]) -> dict[Kind, set[str]]:
+        kinds = {(kind.module, kind.resource_type): kind for kind in live}
+        found: dict[Kind, set[str]] = {kind: set() for kind in live}
+        for stream, _ in STREAM_SUBJECTS:
+            info = await self._js.stream_info(stream, subjects_filter=">")
+            subjects: dict[str, int] = info.state.subjects or {}
+            for subject in subjects:
+                # `<emissor>.<tipo da mensagem>.<módulo>.<tipo>.<resourceId>[.<operação>]`
+                parts = subject.split(".")
+                kind = kinds.get((parts[2], parts[3])) if len(parts) >= 5 else None
+                if kind is not None and parts[4] not in live[kind]:
+                    found[kind].add(parts[4])
+        return found
 
     async def purge(self, kind: Kind, resource_ids: set[str]) -> None:
         for resource_id in sorted(resource_ids):

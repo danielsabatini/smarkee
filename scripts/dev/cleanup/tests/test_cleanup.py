@@ -54,6 +54,8 @@ class FakeSsot:
     tables: dict[Kind, list[Row]] = field(default_factory=lambda: {})
     deleted: list[tuple[str, set[str]]] = field(default_factory=lambda: [])
     never_unprotects: bool = False
+    support: dict[Kind, list[Row]] = field(default_factory=lambda: {})
+    """Histórico (outbox, Operations e resultados) por tipo, com o rótulo do outbox."""
 
     def rows(self, kind: Kind) -> list[Row]:
         return list(self.tables.get(kind, []))
@@ -61,10 +63,16 @@ class FakeSsot:
     def unprotected_version(self, kind: Kind, resource_id: str) -> str | None:
         return None if self.never_unprotects else "3"
 
+    def history(self, kind: Kind) -> list[Row]:
+        return list(self.support.get(kind, []))
+
     def delete(self, kind: Kind, resource_ids: set[str]) -> None:
         self.deleted.append((kind.table, set(resource_ids)))
         self.tables[kind] = [
             r for r in self.tables.get(kind, []) if r.resource_id not in resource_ids
+        ]
+        self.support[kind] = [
+            r for r in self.support.get(kind, []) if r.resource_id not in resource_ids
         ]
 
 
@@ -76,6 +84,8 @@ class FakeBus:
     unprotection_requested: list[str] = field(default_factory=lambda: [])
     purged: dict[str, set[str]] = field(default_factory=lambda: {})
     gone: set[str] = field(default_factory=lambda: set())
+    messages: dict[str, set[str]] = field(default_factory=lambda: {})
+    """`resourceId` com mensagens nos Streams, por módulo."""
 
     async def last_version(self, kind: Kind, resource_id: str) -> tuple[str, str] | None:
         phase = self.phases.get(resource_id)
@@ -96,6 +106,10 @@ class FakeBus:
 
     async def purge(self, kind: Kind, resource_ids: set[str]) -> None:
         self.purged.setdefault(kind.module, set()).update(resource_ids)
+        self.messages.get(kind.module, set()).difference_update(resource_ids)
+
+    async def orphan_messages(self, live: dict[Kind, set[str]]) -> dict[Kind, set[str]]:
+        return {kind: self.messages.get(kind.module, set()) - ids for kind, ids in live.items()}
 
 
 @dataclass
@@ -142,6 +156,7 @@ def say_nothing(_: str) -> None:
         "e2e-9",
         "probe-1",
         "org-0c6eef4158",
+        "renamed-e0a3d42379",
     ],
 )
 def test_an_organization_with_a_test_name_and_a_uuid_is_test_data(name: str) -> None:
@@ -157,6 +172,8 @@ def test_an_organization_with_a_test_name_and_a_uuid_is_test_data(name: str) -> 
         (ORG_ID, "org-acme-corp"),  # `org-` sem os 10 hexadecimais do nome de teste
         (ORG_ID, "org-0c6eef41589"),  # hexadecimais a mais
         (ORG_ID, "org-0c6eef415"),  # hexadecimais a menos
+        (ORG_ID, "renamed-acme"),  # `renamed-` sem os 10 hexadecimais do nome de teste
+        (ORG_ID, "renamed-e0a3d423791"),  # hexadecimais a mais
         (ORG_ID, "core"),
         (ORG_ID, "register"),
         (ORG_ID, "smarkee"),
@@ -382,3 +399,110 @@ async def test_without_unprotection_the_loop_is_skipped_and_the_direct_path_is_u
 
     assert world.bus.requested == []  # o delete nunca foi pedido ao loop
     assert world.identity.deleted == [f"org:{ORG_ID}"]
+
+
+# ---------------------------------------------------------------------- histórico de removidos
+
+
+def world_with_history() -> World:
+    """Recursos já removidos pelo loop: sem linha principal, só o histórico no SSOT."""
+    world = World()
+    world.ssot.support = {
+        ACCOUNTS: [
+            Row("a1", "e2e-1@example.com"),  # de teste
+            Row("a2", "ana@example.com"),  # fora do padrão de teste
+            Row("a3", ""),  # sem rótulo no outbox: não dá para saber
+        ],
+        ORGANIZATIONS: [Row("o1", "org-0c6eef4158"), Row("o2", "minha-org")],
+        SERVICES: [Row("s1", "a1"), Row("s2", "a2"), Row("s3", "dono-desconhecido")],
+    }
+    return world
+
+
+def test_history_of_removed_test_resources_is_found_and_the_rest_is_kept() -> None:
+    findings = find(world_with_history().ports())
+
+    assert {
+        k.resource_type: [r.resource_id for r in rows] for k, rows in findings.history.items()
+    } == {
+        "account": ["a1"],
+        "organization": ["o1"],
+        "service": ["s1"],  # a ligação do dono de teste; a do dono real e a sem dono ficam
+    }
+    assert findings.kept_history == {ACCOUNTS: 2, ORGANIZATIONS: 1, SERVICES: 2}
+    assert not findings.is_clean()
+    assert any("histórico" in line for line in findings.lines())
+
+
+def test_a_resource_that_still_has_a_main_row_is_not_history() -> None:
+    world = world_with_history()
+    world.ssot.tables = {ACCOUNTS: [Row("a1", "e2e-1@example.com")]}
+
+    findings = find(world.ports())
+
+    assert ACCOUNTS not in findings.history  # ainda existe: é resíduo vivo, não histórico
+    assert [r.resource_id for r in findings.account_rows] == ["a1"]
+
+
+async def test_apply_purges_the_history_and_the_messages_of_test_resources_only() -> None:
+    world = world_with_history()
+    lines: list[str] = []
+
+    code = await clean(world.ports(), apply_changes=True, say=lines.append)
+
+    assert code == 0, lines
+    assert world.bus.purged == {"core": {"a1"}, "ipm": {"o1"}, "sum": {"s1"}}
+    remaining = {
+        k.resource_type: [r.resource_id for r in rows] for k, rows in world.ssot.support.items()
+    }
+    assert remaining == {"account": ["a2", "a3"], "organization": ["o2"], "service": ["s2", "s3"]}
+    assert any("Histórico mantido" in line and "2 de core.account" in line for line in lines)
+
+
+async def test_a_clean_environment_still_mentions_the_history_it_kept() -> None:
+    world = world_with_history()
+    await clean(world.ports(), apply_changes=True, say=say_nothing)
+    lines: list[str] = []
+
+    code = await clean(world.ports(), apply_changes=False, say=lines.append)
+
+    assert code == 0  # o histórico mantido não é resíduo de teste
+    assert lines[0].startswith("Ambiente limpo")
+    assert any(line.startswith("Histórico mantido") for line in lines)
+
+
+async def test_orphans_mode_removes_all_history_and_orphan_messages_but_not_live_ones() -> None:
+    world = world_with_history()
+    world.ssot.tables = {ACCOUNTS: [Row("viva", "ana@example.com")]}
+    world.bus.messages = {"core": {"viva", "a2", "so-nats"}}
+    lines: list[str] = []
+
+    code = await clean(world.ports(), apply_changes=True, orphans=True, say=lines.append)
+
+    assert code == 0, lines
+    assert world.ssot.support == {ACCOUNTS: [], ORGANIZATIONS: [], SERVICES: []}
+    assert world.bus.messages == {"core": {"viva"}}
+    assert [r.resource_id for r in world.ssot.tables[ACCOUNTS]] == ["viva"]
+    assert not any("Histórico mantido" in line for line in lines)
+
+
+async def test_orphans_mode_without_apply_only_lists() -> None:
+    world = world_with_history()
+    world.bus.messages = {"core": {"so-nats"}}
+    lines: list[str] = []
+
+    code = await clean(world.ports(), apply_changes=False, orphans=True, say=lines.append)
+
+    assert code == 1
+    assert any("sem linha principal" in line for line in lines)
+    assert world.bus.messages == {"core": {"so-nats"}}
+
+
+async def test_default_mode_leaves_orphan_messages_alone() -> None:
+    world = World()
+    world.bus.messages = {"core": {"so-nats"}}
+
+    code = await clean(world.ports(), apply_changes=True, say=say_nothing)
+
+    assert code == 0
+    assert world.bus.messages == {"core": {"so-nats"}}

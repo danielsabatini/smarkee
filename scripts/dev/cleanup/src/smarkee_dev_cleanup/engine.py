@@ -15,6 +15,7 @@ from smarkee_dev_cleanup.model import (
     Findings,
     Kind,
     Ports,
+    Row,
 )
 
 
@@ -26,8 +27,11 @@ def is_test_user(email: str) -> bool:
     return bool(TEST_USER_EMAIL.match(email))
 
 
-def find(ports: Ports) -> Findings:
-    """O que é resíduo de teste agora, em todos os lugares."""
+def find(ports: Ports, *, orphans: bool = False) -> Findings:
+    """O que é resíduo de teste agora, em todos os lugares.
+
+    Com `orphans`, o histórico de todo recurso removido (de teste ou não) também entra.
+    """
     findings = Findings()
     users = ports.identity.register_users()
     findings.zitadel_users = {rid: mail for rid, mail in users.items() if is_test_user(mail)}
@@ -48,7 +52,48 @@ def find(ports: Ports) -> Findings:
         for row in ports.ssot.rows(SERVICES)
         if row.label in test_owners or row.label not in users
     ]
+    _find_history(ports, findings, test_owners, everything=orphans)
     findings.mails = ports.mail.count()
+    return findings
+
+
+def _find_history(
+    ports: Ports, findings: Findings, test_owners: set[str], *, everything: bool
+) -> None:
+    """Histórico de recursos de teste que o loop já removeu (sem linha principal).
+
+    O recurso removido sai da tabela principal e deixa o outbox, as Operations e os resultados.
+    Só é de teste o que o rótulo gravado no outbox identifica como tal; o resto é mantido.
+    """
+    orphans: dict[Kind, list[Row]] = {}
+    for kind in (ACCOUNTS, ORGANIZATIONS, SERVICES):
+        live = {row.resource_id for row in ports.ssot.rows(kind)}
+        orphans[kind] = [row for row in ports.ssot.history(kind) if row.resource_id not in live]
+    test: dict[Kind, list[Row]] = {
+        ACCOUNTS: [row for row in orphans[ACCOUNTS] if is_test_user(row.label)],
+        ORGANIZATIONS: [
+            row for row in orphans[ORGANIZATIONS] if TEST_ORGANIZATION_NAME.match(row.label)
+        ],
+    }
+    # Uma ligação é de teste se o dono é uma conta de teste (viva ou já removida).
+    owners = test_owners | {row.resource_id for row in test[ACCOUNTS]}
+    test[SERVICES] = [row for row in orphans[SERVICES] if row.label in owners]
+    if everything:  # `--orphans`: todo histórico de removido, reconhecido como de teste ou não
+        test = {kind: list(rows) for kind, rows in orphans.items()}
+    findings.history = {kind: rows for kind, rows in test.items() if rows}
+    findings.kept_history = {kind: len(orphans[kind]) - len(test[kind]) for kind in orphans}
+
+
+async def find_everywhere(ports: Ports, *, orphans: bool) -> Findings:
+    """`find` e, no modo `--orphans`, as mensagens dos Streams de recursos sem linha principal."""
+    findings = find(ports, orphans=orphans)
+    if orphans:
+        live = {
+            kind: {row.resource_id for row in ports.ssot.rows(kind)}
+            for kind in (ACCOUNTS, ORGANIZATIONS, SERVICES)
+        }
+        found = await ports.bus.orphan_messages(live)
+        findings.message_orphans = {kind: ids for kind, ids in found.items() if ids}
     return findings
 
 
@@ -90,7 +135,9 @@ async def remove_through_the_loop(
     return False
 
 
-async def apply(ports: Ports, findings: Findings, say: Callable[[str], None]) -> None:
+async def apply(
+    ports: Ports, findings: Findings, say: Callable[[str], None], *, orphans: bool = False
+) -> None:
     """Remove o resíduo: primeiro pelo loop, depois direto o que sobrou, e limpa a mensageria."""
     say("1. Pelo loop (organizações e usuários que ainda estão `Ready`)")
     for kind, rows in (
@@ -101,7 +148,7 @@ async def apply(ports: Ports, findings: Findings, say: Callable[[str], None]) ->
             await remove_through_the_loop(ports, kind, row.resource_id, say)
 
     say("2. Direto, o que o loop não removeu")
-    remaining = find(ports)
+    remaining = await find_everywhere(ports, orphans=orphans)
     for rid, name in remaining.zitadel_organizations.items():
         ports.identity.delete_organization(rid)
         say(f"  Zitadel: organização {name} ({rid})")
@@ -117,8 +164,18 @@ async def apply(ports: Ports, findings: Findings, say: Callable[[str], None]) ->
             ports.ssot.delete(kind, {row.resource_id for row in rows})
             say(f"  SSOT: {len(rows)} linha(s) de {kind.module}.{kind.resource_type}")
 
+    for kind in (SERVICES, ORGANIZATIONS, ACCOUNTS):
+        ids = {row.resource_id for row in remaining.history.get(kind, [])}
+        if ids:
+            ports.ssot.delete(kind, ids)
+            say(f"  SSOT: histórico de {len(ids)} recurso(s) removido(s) de {kind.table}")
+
     say("3. Mensageria e e-mails")
-    for kind, ids in findings.resource_ids().items():
+    affected: dict[Kind, set[str]] = {}
+    for source in (findings, remaining):
+        for kind, ids in source.resource_ids().items():
+            affected.setdefault(kind, set()).update(ids)
+    for kind, ids in affected.items():
         if ids:
             await ports.bus.purge(kind, ids)
             say(f"  NATS: mensagens de {len(ids)} recurso(s) de {kind.module}.{kind.resource_type}")
@@ -127,11 +184,21 @@ async def apply(ports: Ports, findings: Findings, say: Callable[[str], None]) ->
         say(f"  Mailpit: {remaining.mails} mensagem(ns)")
 
 
-async def clean(ports: Ports, *, apply_changes: bool, say: Callable[[str], None]) -> int:
+async def clean(
+    ports: Ports,
+    *,
+    apply_changes: bool,
+    say: Callable[[str], None],
+    orphans: bool = False,
+) -> int:
     """Mostra o resíduo e, com `apply_changes`, remove. Código de saída: 0 limpo, 1 com resíduo."""
-    findings = find(ports)
+    if orphans:
+        say("Modo --orphans: inclui o histórico de TODO recurso removido, de teste ou não.")
+    findings = await find_everywhere(ports, orphans=orphans)
     if findings.is_clean():
         say("Ambiente limpo: nenhum resíduo de teste.")
+        if note := findings.kept_history_note():
+            say(note)
         return 0
     say(f"Resíduo de teste encontrado ({len(findings.lines())}):")
     for line in findings.lines():
@@ -139,10 +206,12 @@ async def clean(ports: Ports, *, apply_changes: bool, say: Callable[[str], None]
     if not apply_changes:
         say("Nada foi removido. Use --apply para remover.")
         return 1
-    await apply(ports, findings, say)
-    left = find(ports)
+    await apply(ports, findings, say, orphans=orphans)
+    left = await find_everywhere(ports, orphans=orphans)
     if left.is_clean():
         say("Pronto: ambiente limpo.")
+        if note := left.kept_history_note():
+            say(note)
         return 0
     say("Ainda sobrou resíduo:")
     for line in left.lines():

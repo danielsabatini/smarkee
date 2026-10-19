@@ -7,11 +7,12 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Protocol
 
-# Organizations de teste: o nome começa por um destes prefixos, ou é `org-` mais 10 hexadecimais
-# (o nome padrão dos testes de integração do Manager da Organization), e o ID é um UUID (o
-# `resourceId`). O `org-` sem os 10 hexadecimais não é de teste.
+# Organizations de teste: o nome começa por um destes prefixos, ou é `org-` ou `renamed-` mais 10
+# hexadecimais (os nomes dos testes de integração do Manager da Organization: o padrão e o do teste
+# de renomear), e o ID é um UUID (o `resourceId`). Esses dois prefixos sem os 10 hexadecimais não
+# são de teste.
 TEST_ORGANIZATION_NAME = re.compile(
-    r"^(?:(?:conf|acme|loop|dup|chaos|e2e|probe|ver|cons)-|org-[0-9a-f]{10}$)"
+    r"^(?:(?:conf|acme|loop|dup|chaos|e2e|probe|ver|cons)-|(?:org|renamed)-[0-9a-f]{10}$)"
 )
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 # Usuários de teste: o e-mail é de `example.com` e começa por um destes rótulos.
@@ -97,6 +98,12 @@ class Findings:
     account_rows: list[Row] = field(default_factory=lambda: [])
     service_rows: list[Row] = field(default_factory=lambda: [])
     organization_rows: list[Row] = field(default_factory=lambda: [])
+    history: dict[Kind, list[Row]] = field(default_factory=lambda: {})
+    """Histórico (outbox, Operations e resultados) de recursos de teste já removidos."""
+    kept_history: dict[Kind, int] = field(default_factory=lambda: {})
+    """Recursos removidos cujo histórico NÃO é reconhecido como de teste: ficam como estão."""
+    message_orphans: dict[Kind, set[str]] = field(default_factory=lambda: {})
+    """Só no modo `--orphans`: recursos com mensagens nos Streams e sem linha principal."""
     mails: int = 0
 
     def is_clean(self) -> bool:
@@ -106,8 +113,20 @@ class Findings:
             or self.account_rows
             or self.service_rows
             or self.organization_rows
+            or any(self.history.values())
+            or any(self.message_orphans.values())
             or self.mails
         )
+
+    def kept_history_note(self) -> str | None:
+        """Aviso do histórico mantido (não é resíduo de teste identificável), ou `None`."""
+        kept = {kind: count for kind, count in self.kept_history.items() if count}
+        if not kept:
+            return None
+        parts = ", ".join(
+            f"{count} de {kind.module}.{kind.resource_type}" for kind, count in kept.items()
+        )
+        return f"Histórico mantido (removidos que não são de teste): {parts}."
 
     def lines(self) -> list[str]:
         found = [
@@ -123,6 +142,18 @@ class Findings:
                 for row in self.organization_rows
             ),
         ]
+        found.extend(
+            f"SSOT histórico de {len(rows)} recurso(s) de teste removido(s) de "
+            f"{kind.module}.{kind.resource_type} (outbox, Operations e resultados)"
+            for kind, rows in self.history.items()
+            if rows
+        )
+        found.extend(
+            f"NATS mensagens de {len(ids)} recurso(s) sem linha principal de "
+            f"{kind.module}.{kind.resource_type}"
+            for kind, ids in self.message_orphans.items()
+            if ids
+        )
         if self.mails:
             found.append(f"Mailpit {self.mails} mensagem(ns) de teste")
         return found
@@ -130,11 +161,21 @@ class Findings:
     def resource_ids(self) -> dict[Kind, set[str]]:
         """Os `resourceId` afetados, por tipo (para a mensageria)."""
         return {
-            ACCOUNTS: set(self.zitadel_users) | {row.resource_id for row in self.account_rows},
-            SERVICES: {row.resource_id for row in self.service_rows},
+            ACCOUNTS: set(self.zitadel_users)
+            | {row.resource_id for row in self.account_rows}
+            | self._history_ids(ACCOUNTS)
+            | self.message_orphans.get(ACCOUNTS, set()),
+            SERVICES: {row.resource_id for row in self.service_rows}
+            | self._history_ids(SERVICES)
+            | self.message_orphans.get(SERVICES, set()),
             ORGANIZATIONS: set(self.zitadel_organizations)
-            | {row.resource_id for row in self.organization_rows},
+            | {row.resource_id for row in self.organization_rows}
+            | self._history_ids(ORGANIZATIONS)
+            | self.message_orphans.get(ORGANIZATIONS, set()),
         }
+
+    def _history_ids(self, kind: Kind) -> set[str]:
+        return {row.resource_id for row in self.history.get(kind, [])}
 
 
 # ---------------------------------------------------------------- portas (trocáveis nos testes)
@@ -163,6 +204,13 @@ class Ssot(Protocol):
         """`resourceVersion` da linha já desprotegida, ou `None` enquanto ainda está protegida."""
         ...
 
+    def history(self, kind: Kind) -> list[Row]:
+        """Recursos com outbox, Operation ou resultado, com o rótulo do outbox (`''` se não há).
+
+        Inclui os que ainda têm linha principal; quem decide o que é órfão é o chamador.
+        """
+        ...
+
     def delete(self, kind: Kind, resource_ids: set[str]) -> None:
         """Apaga as linhas e o apoio (outbox, Operations e resultados) dos recursos."""
         ...
@@ -180,6 +228,10 @@ class Bus(Protocol):
     async def removed(self, kind: Kind, resource_id: str) -> bool: ...
 
     async def purge(self, kind: Kind, resource_ids: set[str]) -> None: ...
+
+    async def orphan_messages(self, live: dict[Kind, set[str]]) -> dict[Kind, set[str]]:
+        """`resourceId` com mensagens nos Streams que não estão em `live` (sem linha principal)."""
+        ...
 
 
 class Mail(Protocol):

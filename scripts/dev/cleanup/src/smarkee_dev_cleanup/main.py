@@ -8,7 +8,10 @@ Segurança:
 - só roda no ambiente de dev (recusa outro endereço de Zitadel, banco, NATS ou Mailpit);
 - por padrão **não apaga nada**: mostra o plano e sai com 1 se houver resíduo (0 se estiver limpo);
   `--apply` remove, e sai com 1 se, depois de remover, ainda sobrar algo;
-- nunca usa "tudo": cada alvo é identificado por um padrão de nome ou de e-mail de teste;
+- nunca usa "tudo": cada alvo é identificado por um padrão de nome ou de e-mail de teste. A única
+  exceção é `--orphans`, que você pede de forma explícita: inclui o histórico (outbox, Operations
+  e resultados) e as mensagens dos Streams de TODO recurso que já não tem linha principal, tenha ou
+  não rótulo de teste. Rode antes sem `--apply` para ver o que seria removido;
 - usa o caminho nativo primeiro (pedido de remoção pelo loop) e só apaga direto o que o loop não
   removeu;
 - a chave do `platform-bootstrap` é lida do volume da identidade, na memória, e nunca é impressa.
@@ -59,12 +62,12 @@ def nats_password() -> str:
     password = os.environ.get("CLEANUP_NATS_PASSWORD")
     if password:
         return password
-    env = REPOSITORY / "infrastructure" / "dev" / "broker" / ".env"
+    env = REPOSITORY / "infrastructure" / "dev" / "messaging" / ".env"
     for line in env.read_text(encoding="utf-8").splitlines():
         if line.startswith("NATS_PASSWORD="):
             return line.partition("=")[2].strip()
     raise SystemExit(
-        "defina CLEANUP_NATS_PASSWORD ou o NATS_PASSWORD de infrastructure/dev/broker/.env"
+        "defina CLEANUP_NATS_PASSWORD ou o NATS_PASSWORD de infrastructure/dev/messaging/.env"
     )
 
 
@@ -80,7 +83,9 @@ def refuse_outside_development() -> None:
             raise SystemExit(f"{name} não é aceita: este script só roda no ambiente de dev local")
 
 
-async def run(*, apply_changes: bool, say: Callable[[str], None] = print) -> int:
+async def run(
+    *, apply_changes: bool, orphans: bool = False, say: Callable[[str], None] = print
+) -> int:
     refuse_outside_development()
     client = await nats.connect(  # pyright: ignore[reportUnknownMemberType]
         servers=["nats://localhost:4222"], user="smarkee", password=nats_password(), name="cleanup"
@@ -92,7 +97,7 @@ async def run(*, apply_changes: bool, say: Callable[[str], None] = print) -> int
             bus=NatsBus(client.jetstream()),  # pyright: ignore[reportUnknownMemberType]
             mail=MailpitMail(),
         )
-        return await clean(ports, apply_changes=apply_changes, say=say)
+        return await clean(ports, apply_changes=apply_changes, say=say, orphans=orphans)
     finally:
         await client.drain()
 
@@ -102,8 +107,16 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument("--apply", action="store_true", help="remove o resíduo (padrão: só mostra)")
+    parser.add_argument(
+        "--orphans",
+        action="store_true",
+        help=(
+            "inclui o histórico e as mensagens de TODO recurso sem linha principal, de teste ou\n"
+            "não (explícito: sem esta opção só o que é reconhecido como de teste)"
+        ),
+    )
     arguments = parser.parse_args()
-    sys.exit(asyncio.run(run(apply_changes=arguments.apply)))
+    sys.exit(asyncio.run(run(apply_changes=arguments.apply, orphans=arguments.orphans)))
 
 
 if __name__ == "__main__":
