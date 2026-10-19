@@ -128,7 +128,7 @@ services:
       # O padrão (loopback) não confia em ninguém. Em stg e prd, o CIDR do balanceador (decisão 0054).
       APISIX_TRUSTED_PROXIES: ${APISIX_TRUSTED_PROXIES:-127.0.0.1}
       # Destino dos traces do plugin opentelemetry (host:porta do OTLP HTTP). Vira `collector.address` no adc.yaml.
-      APISIX_OTEL_COLLECTOR_ADDRESS: ${APISIX_OTEL_COLLECTOR_ADDRESS:-telemetry-gateway.smarkee.internal:4318}
+      APISIX_OTEL_COLLECTOR_ADDRESS: ${APISIX_OTEL_COLLECTOR_ADDRESS:-telemetry-router.smarkee.internal:4318}
     volumes:
       - ./bootstrap:/bootstrap:ro
     depends_on:

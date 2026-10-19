@@ -1,7 +1,7 @@
 # Fragmento de configuração do OpenTelemetry Collector: ajusta os spans do gateway (plugin `opentelemetry` do
 # APISIX) às convenções semânticas (semconv v1.44.0, HTTP e Resource). Decisão 0050.
 #
-# Quem carrega: o `telemetry-gateway` deste diretório, que o mescla a `config.yaml` com um segundo
+# Quem carrega: o `telemetry-router` deste diretório, que o mescla a `config.yaml` com um segundo
 # `--config` (o processador é usado na pipeline de traces de lá). Para usar em outro coletor (por exemplo, o
 # otel-gateway da stack de observabilidade do desenvolvedor), carregue o fragmento do mesmo modo, ou copie o
 # bloco `processors`, e coloque o processador na pipeline de ENTRADA de traces, logo depois do `memory_limiter`:
@@ -30,7 +30,7 @@
 #     `http.status_code`, `net.host.name`) e as variáveis auxiliares que o `adc.yaml` pede ao plugin.
 #
 # Verificado em 2026-10-17 (41 regras de conformidade) com o Collector contrib 0.163.1, a versão do
-# `telemetry-gateway`, e com a 0.162.0, a do otel-gateway da stack de observabilidade do desenvolvedor.
+# `telemetry-router` (então `telemetry-gateway`), e com a 0.162.0, a do otel-gateway da stack de observabilidade do desenvolvedor.
 processors:
   transform/gateway-semconv:
     # `ignore` não derruba o lote se uma instrução falhar; os testes de conformidade pegam a regressão.

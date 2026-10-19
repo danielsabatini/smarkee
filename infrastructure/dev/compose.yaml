@@ -13,5 +13,6 @@ include:
   - path: identity/compose.yaml
     env_file: identity/.env
   - path: mail/compose.yaml
-  - path: telemetry-gateway/compose.yaml
+  - path: platform-telemeter/compose.yaml
+  - path: telemetry-router/compose.yaml
   - path: telemetry-agent/compose.yaml

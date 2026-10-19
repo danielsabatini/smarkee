@@ -255,6 +255,45 @@ services:
     restart: unless-stopped
     healthcheck: *service-healthcheck
 
+  # Telemeter de app de ipm.organization (decisão 0062, docs/OBSERVABILITY.md §14): recebe por OTLP, do
+  # telemetry-router da plataforma, os logs e os spans de app desta feature e os grava em `telemeter/logs/` e `telemeter/traces/`. Não lê logs de
+  # contêineres nem usa o socket do Docker (isso é do telemetry-agent). Sem privilégios e sem escrita fora da pasta.
+  ipm-organization-telemeter:
+    image: ${OTELCOL_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
+    container_name: ipm-organization-telemeter.smarkee.internal
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges=true"]
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+    volumes:
+      - ./telemeter/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+      # Saída do exporter file. A imagem não tem sistema de arquivos gravável: a pasta precisa existir no host e ser
+      # gravável pelo usuário 10001 (no Linux, `chmod o+rwx telemeter/logs telemeter/traces`; no Docker Desktop já é).
+      - ./telemeter/logs:/telemetry/logs
+      - ./telemeter/traces:/telemetry/traces
+    # O log do próprio coletor é de infra (o telemetry-agent o coleta pelas labels, só WARN ou acima).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: com.docker.compose.service,smarkee.layer
+    labels:
+      smarkee.layer: infra
+    deploy:
+      resources:
+        limits:
+          cpus: "${IPM_ORGANIZATION_TELEMETER_CPUS:-0.25}"
+          memory: ${IPM_ORGANIZATION_TELEMETER_MEMORY:-192M}
+    networks:
+      internal:
+        aliases:
+          - ipm-organization-telemeter.smarkee.internal
+    restart: unless-stopped
+    # Sem healthcheck do Compose: a imagem não tem shell nem wget/curl. A extensão `health_check` responde em 13133.
+    healthcheck:
+      disable: true
+
 volumes:
   # Volume da identidade (chaves das contas de serviço), criado por `infrastructure/dev/identity`.
   identity-bootstrap:

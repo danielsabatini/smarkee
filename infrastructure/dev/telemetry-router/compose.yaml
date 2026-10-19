@@ -1,0 +1,55 @@
+name: telemetry-router
+
+# Telemetry-router (OpenTelemetry Collector, distribuição contrib): roteia cada sinal ao telemeter que o grava e **não
+# grava em nenhum backend** (decisão 0062). Recebe do telemetry-agent (OTLP gRPC) e do APISIX (OTLP HTTP) e envia, por
+# OTLP gRPC e com fila em disco, ao `platform-telemeter` da plataforma ou ao telemeter da feature dona do sinal.
+# O processador `transform/gateway-semconv` (gateway-semconv.yaml) ajusta os spans do APISIX à semconv (decisão 0050)
+# antes do roteamento.
+services:
+  telemetry-router:
+    image: ${OTELCOL_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
+    container_name: telemetry-router.smarkee.internal
+    # Sem capabilities e sem escalonamento de privilégio (o coletor escuta em portas altas e roda como 10001).
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges=true"]
+    # Os dois arquivos são mesclados: config.yaml (receivers, exporters, roteamento e pipelines) e o fragmento
+    # gateway-semconv.yaml (o processador usado nas pipelines de spans).
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+      - --config=/etc/otelcol-contrib/gateway-semconv.yaml
+    # OTLP gRPC (4317) e HTTP (4318) só na rede `internal`; não há porta no host (a stack de observabilidade
+    # do desenvolvedor, quando está no ar, já usa 4317 e 4318 no host).
+    volumes:
+      - ./config.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - ./gateway-semconv.yaml:/etc/otelcol-contrib/gateway-semconv.yaml:ro
+      # Fila em disco do envio a cada telemeter (decisões 0059 e 0062). A imagem não tem sistema de arquivos gravável:
+      # a pasta precisa existir no host e ser gravável pelo usuário 10001 (no Linux, `chmod o+rwx data`).
+      - ./data:/var/lib/otelcol
+    # Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7), com rotação.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: com.docker.compose.service,smarkee.layer
+    labels:
+      smarkee.layer: infra
+    # Limites de recursos (decisão 0053): padrão calibrado com o consumo medido em dev; ajuste pelo ambiente.
+    deploy:
+      resources:
+        limits:
+          cpus: "${TELEMETRY_ROUTER_CPUS:-0.5}"
+          memory: ${TELEMETRY_ROUTER_MEMORY:-256M}
+    networks:
+      internal:
+        aliases:
+          - telemetry-router.smarkee.internal
+    restart: unless-stopped
+    # Sem healthcheck do Compose: a imagem não tem shell nem wget/curl. A extensão `health_check` responde em
+    # 13133 (rede `internal`) para sondas externas.
+    healthcheck:
+      disable: true
+
+networks:
+  internal:
+    name: internal

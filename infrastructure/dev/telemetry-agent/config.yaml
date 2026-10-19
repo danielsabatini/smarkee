@@ -4,7 +4,7 @@
 #   - Logs de infra ............ file_log: os contêineres da plataforma (broker, database, identity, gateway...), que
 #                                o compose marca com a label smarkee.layer=infra (decisão 0053); só WARN ou acima
 #   - Healthchecks ............. descartados aqui (uvicorn /health/*, linha do healthcheck da Admin API do APISIX)
-#   - Destino .................. OTLP/gRPC no telemetry-gateway
+#   - Destino .................. OTLP/gRPC no telemetry-router
 # Política enxuta, como no otel-agent da stack do desenvolvedor: cada métrica e cada fonte de log é explícita.
 
 extensions:
@@ -260,12 +260,12 @@ processors:
 
 exporters:
   otlp_grpc/telemetry_gateway:
-    endpoint: ${env:TELEMETRY_GATEWAY_ENDPOINT:-telemetry-gateway.smarkee.internal:4317}
+    endpoint: ${env:TELEMETRY_ROUTER_ENDPOINT:-telemetry-router.smarkee.internal:4317}
     # Rede interna de desenvolvimento, sem TLS. Em stg e prd, TLS e autenticação.
     tls:
       insecure: true
     # Fila e retry explícitos (decisão 0059). A fila fica em disco (mesma extensão `file_storage` do checkpoint dos
-    # logs), então um reinício do agente durante uma queda do telemetry-gateway não perde o que já foi lido: medido em
+    # logs), então um reinício do agente durante uma queda do telemetry-router não perde o que já foi lido: medido em
     # dev, 31 de 150 registros se perdiam com a fila só em memória. Cheia, a fila descarta o dado novo (a leitura dos
     # logs não é bloqueada). Passado o `max_elapsed_time`, o lote é descartado.
     sending_queue:

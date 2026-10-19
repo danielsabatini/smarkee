@@ -1,0 +1,40 @@
+flowchart LR
+    classDef src fill:#eceff1,stroke:#455a64,color:#1c2a30
+    classDef read fill:#ffebee,stroke:#c62828,color:#4a1010
+    classDef route fill:#fff8e1,stroke:#ef6c00,color:#5a2d00
+    classDef write fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
+    classDef out fill:#e0f2f1,stroke:#00695c,color:#003d33
+
+    subgraph FONTES["Fontes (dev: Docker · stg e prd: Kubernetes)"]
+        APPS["Componentes das features<br/>(stdout, JSON do contrato 0045)"]:::src
+        INFRA["Infra: banco, broker, Zitadel,<br/>gateway, mail, coletores"]:::src
+        APISIX["APISIX<br/>(plugin opentelemetry: spans)"]:::src
+    end
+
+    AGENT["telemetry-agent<br/><b>LÊ</b><br/>único por nó · privilegiado (declarado)"]:::read
+    ROUTER["telemetry-router<br/><b>ROTEIA</b><br/>não grava em backend<br/>ajusta os spans à semconv"]:::route
+
+    subgraph TELEMETERS["Telemeters: processam e GRAVAM"]
+        CORE["core-account-telemeter<br/>logs e spans de core/account"]:::write
+        IPM["ipm-organization-telemeter<br/>logs e spans de ipm/organization"]:::write
+        SUM["sum-service-telemeter<br/>logs e spans de sum/service"]:::write
+        PLAT["platform-telemeter<br/>infra · app sem telemeter próprio"]:::write
+    end
+
+    OUTCORE[("features/core/account/telemeter/<br/>logs/ · traces/")]:::out
+    OUTIPM[("features/ipm/organization/telemeter/<br/>logs/ · traces/")]:::out
+    OUTSUM[("features/sum/service/telemeter/<br/>logs/ · traces/")]:::out
+    OUTPLAT[("platform-telemeter/<br/>logs/{app,infra} · metrics/{app,infra} · traces/")]:::out
+
+    APPS -- "arquivos de log do contêiner" --> AGENT
+    INFRA -- "logs · métricas de contêiner" --> AGENT
+    AGENT -- "OTLP gRPC · fila em disco" --> ROUTER
+    APISIX -- "OTLP HTTP" --> ROUTER
+    ROUTER -- "logs: módulo e tipo<br/>spans: apisix.service_name" --> CORE
+    ROUTER -- "idem" --> IPM
+    ROUTER -- "idem" --> SUM
+    ROUTER -- "todo o resto · métricas" --> PLAT
+    CORE --> OUTCORE
+    IPM --> OUTIPM
+    SUM --> OUTSUM
+    PLAT --> OUTPLAT

@@ -14,6 +14,7 @@ Decisões que definem este módulo: `.decisions/0014-user-no-modulo-core-com-aut
 | Reconciler | `reconciler/` (`core-account-reconciler`) | Implementado |
 | Observer | `observer/` (`core-account-observer`) | Implementado |
 | Executor | `executor/` (`core-account-executor`) | Implementado |
+| Telemeter (observabilidade, **não é papel do loop**) | `telemeter/` (`core-account-telemeter`) | Implementado: recebe os logs e os spans de app da feature (do `telemetry-router`) e os grava em `telemeter/logs/` e `telemeter/traces/` (`telemeter/README.md`, decisão 0062) |
 | Testes e2e | `tests/e2e/` | Implementados: 8 testes de conformidade e 3 de resiliência (`E2E_CHAOS=1`); **não são um componente** |
 | CLI | `clients/cli` | `sk register` (cadastro anônimo) e `sk account get\|delete` (consulta e exclusão segura; veja `clients/cli/README.md`) |
 

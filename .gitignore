@@ -69,16 +69,37 @@ temp/
 .cache/
 .workspace/
 .journal/
-# Saída do telemetry-gateway (exporter file, infrastructure/dev/telemetry-gateway): dado de execução, pode ter IP
+# Saída do platform-telemeter da plataforma (exporter file, infrastructure/dev/platform-telemeter): dado de execução, pode ter IP
 # de cliente e caminhos de requisição; só o .gitkeep de cada pasta é versionado.
 # (a regra geral `logs/` acima ignoraria a pasta inteira, inclusive o .gitkeep; por isso a pasta é re-incluída)
-!infrastructure/dev/telemetry-gateway/logs/
-infrastructure/dev/telemetry-gateway/logs/*/*
-infrastructure/dev/telemetry-gateway/metrics/*/*
-infrastructure/dev/telemetry-gateway/traces/*
-!infrastructure/dev/telemetry-gateway/logs/*/.gitkeep
-!infrastructure/dev/telemetry-gateway/metrics/*/.gitkeep
-!infrastructure/dev/telemetry-gateway/traces/.gitkeep
+!infrastructure/dev/platform-telemeter/logs/
+infrastructure/dev/platform-telemeter/logs/*/*
+infrastructure/dev/platform-telemeter/metrics/*/*
+infrastructure/dev/platform-telemeter/traces/*
+!infrastructure/dev/platform-telemeter/logs/*/.gitkeep
+!infrastructure/dev/platform-telemeter/metrics/*/.gitkeep
+!infrastructure/dev/platform-telemeter/traces/.gitkeep
+# Fila persistente do telemetry-router (estado de execução; só o .gitkeep é versionado).
+infrastructure/dev/telemetry-router/data/*
+!infrastructure/dev/telemetry-router/data/.gitkeep
+# Saída do coletor de telemetria de app de core.account (decisão 0062), mesma regra do platform-telemeter.
+!features/core/account/telemeter/logs/
+features/core/account/telemeter/logs/*
+!features/core/account/telemeter/logs/.gitkeep
+features/core/account/telemeter/traces/*
+!features/core/account/telemeter/traces/.gitkeep
+# Saída do telemeter de ipm.organization (decisão 0062), mesma regra.
+!features/ipm/organization/telemeter/logs/
+features/ipm/organization/telemeter/logs/*
+!features/ipm/organization/telemeter/logs/.gitkeep
+features/ipm/organization/telemeter/traces/*
+!features/ipm/organization/telemeter/traces/.gitkeep
+# Saída do telemeter de sum.service (decisão 0062), mesma regra.
+!features/sum/service/telemeter/logs/
+features/sum/service/telemeter/logs/*
+!features/sum/service/telemeter/logs/.gitkeep
+features/sum/service/telemeter/traces/*
+!features/sum/service/telemeter/traces/.gitkeep
 
 # ------------------------------------------------------------------------------
 # 4. Sistemas Operacionais

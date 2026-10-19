@@ -1,0 +1,29 @@
+flowchart LR
+    classDef dec fill:#fff8e1,stroke:#ef6c00,color:#5a2d00
+    classDef dst fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
+    classDef sig fill:#eceff1,stroke:#455a64,color:#1c2a30
+    classDef note fill:#e0f2f1,stroke:#00695c,color:#003d33
+
+    subgraph LOGS["Logs"]
+        direction LR
+        L0["log"]:::sig --> L1{"Resource: module e type<br/>= core/account, ipm/organization<br/>ou sum/service?"}:::dec
+        L1 -- "sim" --> LC["telemeter da feature<br/>(core-account, ipm-organization<br/>ou sum-service)"]:::dst
+        L1 -- "não" --> LP["platform-telemeter"]:::dst
+    end
+
+    subgraph SPANS["Spans do APISIX"]
+        direction LR
+        S0["span"]:::sig --> S1{"apisix.service_name =<br/>&lt;módulo&gt;-&lt;tipo&gt;-receiver?"}:::dec
+        S1 -- "sim" --> SC["telemeter da feature"]:::dst
+        S1 -- "não" --> SP["platform-telemeter"]:::dst
+    end
+
+    subgraph METRICS["Métricas"]
+        direction LR
+        M0["métrica"]:::sig --> MP["platform-telemeter"]:::dst
+    end
+
+    NOTE["O platform-telemeter separa e grava:<br/>logs/app (log com smarkee.component.role)<br/>logs/infra (log sem role)<br/>metrics/infra (container.* system.* process.* k8s.*)<br/>metrics/app (as demais)<br/>traces/"]:::note
+    LP --> NOTE
+    SP --> NOTE
+    MP --> NOTE

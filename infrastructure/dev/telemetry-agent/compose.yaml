@@ -1,13 +1,13 @@
 name: telemetry-agent
 
 # Agente de coleta do ambiente de desenvolvimento: lê as métricas (docker_stats) e os logs dos contêineres da
-# plataforma e das features e os envia, em OTLP/gRPC, ao telemetry-gateway. Os logs são os JSON dos
+# plataforma e das features e os envia, em OTLP/gRPC, ao telemetry-router. Os logs são os JSON dos
 # componentes (decisão 0045, docs/OBSERVABILITY.md §7); as métricas são as de contêiner (container.*) dos
 # contêineres `*.smarkee.internal`. Baseado no otel-agent da stack de observabilidade do desenvolvedor.
-# Depende do telemetry-gateway: o arquivo dele é incluído para que o `depends_on` funcione também no modo isolado.
+# Depende do telemetry-router: o arquivo dele é incluído para que o `depends_on` funcione também no modo isolado.
 # O Compose trata inclusões repetidas do mesmo arquivo como um único serviço.
 include:
-  - path: ../telemetry-gateway/compose.yaml
+  - path: ../telemetry-router/compose.yaml
 
 services:
   telemetry-agent:
@@ -22,8 +22,8 @@ services:
     environment:
       # Identidade do ambiente nas métricas (os logs já trazem a dos componentes).
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=development
-      # Destino: OTLP gRPC do telemetry-gateway.
-      TELEMETRY_GATEWAY_ENDPOINT: ${TELEMETRY_GATEWAY_ENDPOINT:-telemetry-gateway.smarkee.internal:4317}
+      # Destino: OTLP gRPC do telemetry-router.
+      TELEMETRY_ROUTER_ENDPOINT: ${TELEMETRY_ROUTER_ENDPOINT:-telemetry-router.smarkee.internal:4317}
     command:
       - --config=/etc/otelcol-contrib/config.yaml
     volumes:
@@ -35,7 +35,7 @@ services:
       # Posição de leitura dos logs entre reinícios (file_storage).
       - telemetry-agent-data:/var/lib/otelcol
     depends_on:
-      telemetry-gateway:
+      telemetry-router:
         condition: service_started
     # Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7), com rotação. O agente lê
     # o próprio log, mas só encaminha linhas JSON com service.namespace = smarkee, então não há laço.

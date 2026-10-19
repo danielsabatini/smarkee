@@ -1,8 +1,8 @@
-"""Conformidade da telemetria de dev (decisões 0045, 0050, 0054, 0055 e 0059).
+"""Conformidade da telemetria de dev (decisões 0045, 0050, 0054, 0055, 0059 e 0062).
 
-Caixa-preta: faz um cadastro pelo gateway e lê os arquivos que o `telemetry-gateway` grava. Exige a
-plataforma de dev no ar. O cadastro cria um usuário `conf.*@example.com`, que o
-`smarkee-dev-cleanup` remove.
+Caixa-preta: faz um cadastro pelo gateway de borda e lê os arquivos que os telemeters gravam (o da
+plataforma e o de cada feature; o `telemetry-router` só roteia). Exige a plataforma de dev no ar.
+O cadastro cria um usuário `conf.*@example.com`, que o `smarkee-dev-cleanup` remove.
 """
 
 import json
@@ -12,15 +12,39 @@ import subprocess
 import time
 import uuid
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
 import httpx
 import pytest
 
+REPOSITORY = Path(__file__).resolve().parents[3]
+# Saída do platform-telemeter da plataforma (infra e o app sem telemeter próprio).
 TELEMETRY_DIR = Path(
-    os.environ.get("CONFORMANCE_TELEMETRY_DIR", Path(__file__).resolve().parents[2])
+    os.environ.get(
+        "CONFORMANCE_TELEMETRY_DIR", REPOSITORY / "infrastructure" / "dev" / "platform-telemeter"
+    )
 )
+# Pastas de saída dos telemeters das features (decisão 0062): os logs de app de cada uma
+# vão para a sua.
+FEATURE_TELEMETRY_DIRS = [
+    Path(directory)
+    for directory in os.environ.get(
+        "CONFORMANCE_FEATURE_TELEMETRY_DIRS",
+        os.pathsep.join(
+            str(REPOSITORY / "features" / module / kind / "telemeter")
+            for module, kind in (("core", "account"), ("ipm", "organization"), ("sum", "service"))
+        ),
+    ).split(os.pathsep)
+]
+# Onde cada telemeter grava: o da plataforma separa `logs/app` e `logs/infra`; o de uma feature só
+# recebe sinais de app, então grava direto em `logs/` e `traces/` (decisão 0062).
+PLATFORM_APP_LOGS = TELEMETRY_DIR / "logs" / "app"
+PLATFORM_INFRA_LOGS = TELEMETRY_DIR / "logs" / "infra"
+FEATURE_APP_LOGS = [directory / "logs" for directory in FEATURE_TELEMETRY_DIRS]
+PLATFORM_TRACES = TELEMETRY_DIR / "traces"
+FEATURE_TRACES = [directory / "traces" for directory in FEATURE_TELEMETRY_DIRS]
 API_URL = os.environ.get("CONFORMANCE_API_URL", "http://localhost:8080")
 API_HOST = os.environ.get("CONFORMANCE_API_HOST", "api-dev.smarkee.com.br")
 WAIT_SECONDS = 90.0
@@ -38,17 +62,18 @@ def attributes_of(items: list[dict[str, Any]]) -> dict[str, Any]:
     return {item["key"]: next(iter(item["value"].values())) for item in items}
 
 
-def read_lines(subdirectory: str) -> Iterator[dict[str, Any]]:
-    for path in sorted((TELEMETRY_DIR / subdirectory).glob("*.jsonl")):
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                yield cast("dict[str, Any]", json.loads(line))
+def read_lines(*directories: Path) -> Iterator[dict[str, Any]]:
+    for directory in directories:
+        for path in sorted(directory.glob("*.jsonl")):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    yield cast("dict[str, Any]", json.loads(line))
 
 
-def logs(subdirectory: str) -> list[Record]:
-    """Registros de log (`logs/app` ou `logs/infra`) já achatados."""
+def logs(*directories: Path) -> list[Record]:
+    """Registros de log achatados, lidos das pastas dadas."""
     found: list[Record] = []
-    for line in read_lines(subdirectory):
+    for line in read_lines(*directories):
         for resource_logs in line.get("resourceLogs", []):
             resource = attributes_of(resource_logs["resource"].get("attributes", []))
             for scope_logs in resource_logs.get("scopeLogs", []):
@@ -66,9 +91,19 @@ def logs(subdirectory: str) -> list[Record]:
     return found
 
 
-def spans() -> list[Record]:
+def app_logs() -> list[Record]:
+    """Logs de app: o arquivo compartilhado da plataforma e a pasta de cada telemeter de feature."""
+    return logs(PLATFORM_APP_LOGS, *FEATURE_APP_LOGS)
+
+
+def infra_logs() -> list[Record]:
+    return logs(PLATFORM_INFRA_LOGS)
+
+
+def spans(*directories: Path) -> list[Record]:
+    """Spans do gateway de borda (padrão: o `platform-telemeter` e os das features)."""
     found: list[Record] = []
-    for line in read_lines("traces"):
+    for line in read_lines(*(directories or (PLATFORM_TRACES, *FEATURE_TRACES))):
         for resource_spans in line.get("resourceSpans", []):
             for scope_spans in resource_spans.get("scopeSpans", []):
                 for span in scope_spans.get("spans", []):
@@ -132,7 +167,7 @@ def register(headers: dict[str, str]) -> str:
 
 def trace_id_of_request(resource_id: str) -> str:
     def probe() -> str | None:
-        for record in logs("logs/app"):
+        for record in app_logs():
             if (
                 record["body"] == "request published"
                 and record["attributes"].get("smarkee.resource.id") == resource_id
@@ -173,7 +208,7 @@ def test_the_trace_of_the_gateway_reaches_every_role_of_the_loop(
     _, trace_id = registration
 
     def roles_seen() -> set[str] | None:
-        roles = {r["role"] for r in logs("logs/app") if r["trace_id"] == trace_id}
+        roles = {r["role"] for r in app_logs() if r["trace_id"] == trace_id}
         return roles if roles >= ROLES_OF_THE_LOOP else None
 
     wait_for(f"logs de {sorted(ROLES_OF_THE_LOOP)} com o trace_id {trace_id}", roles_seen)
@@ -193,9 +228,7 @@ def test_an_anonymous_registration_carries_its_business_context_in_every_hop(
     resource_id, trace_id = registration
 
     def events() -> list[Record] | None:
-        found = [
-            r for r in logs("logs/app") if r["trace_id"] == trace_id and r["body"] in CONTEXT_EVENTS
-        ]
+        found = [r for r in app_logs() if r["trace_id"] == trace_id and r["body"] in CONTEXT_EVENTS]
         return found if {r["body"] for r in found} >= set(CONTEXT_EVENTS) else None
 
     for record in wait_for(f"eventos {CONTEXT_EVENTS} do trace {trace_id}", events):
@@ -211,7 +244,7 @@ def test_app_logs_hold_no_email_and_every_actor_id_is_opaque(
     started_ns: int, registration: tuple[str, str]
 ) -> None:
     del registration
-    recent = [r for r in logs("logs/app") if r["time_ns"] >= started_ns]
+    recent = [r for r in app_logs() if r["time_ns"] >= started_ns]
     assert recent, "nenhum log de app desde o início do teste"
     for record in recent:
         values = [record["body"], *[str(v) for v in record["attributes"].values()]]
@@ -222,12 +255,156 @@ def test_app_logs_hold_no_email_and_every_actor_id_is_opaque(
         )
 
 
+def test_core_account_app_logs_go_to_its_own_telemeter_and_not_to_the_shared_file(
+    registration: tuple[str, str],
+) -> None:
+    _, trace_id = registration
+
+    def in_the_feature() -> list[Record] | None:
+        found = [r for r in logs(*FEATURE_APP_LOGS) if r["trace_id"] == trace_id]
+        return found if {r["role"] for r in found} >= ROLES_OF_THE_LOOP else None
+
+    wait_for("logs de core/account na pasta do telemeter da feature", in_the_feature)
+    # Um trace atravessa features (o Manager do sum também trata o fato da conta): o log de cada uma
+    # vai ao gateway do seu dono. Aqui só importa que nenhum log de core-account caiu no arquivo
+    # compartilhado.
+    shared = logs(PLATFORM_APP_LOGS)
+    leaked = [
+        r
+        for r in shared
+        if r["trace_id"] == trace_id and str(r["service"]).startswith("core-account")
+    ]
+    assert leaked == [], "log de core-account no arquivo compartilhado"
+
+
+def test_core_account_spans_go_to_its_own_telemeter_and_not_to_the_platform_one(
+    registration: tuple[str, str],
+) -> None:
+    _, trace_id = registration
+
+    def in_the_feature() -> list[Record] | None:
+        found = [s for s in spans(*FEATURE_TRACES) if s["trace_id"] == trace_id]
+        return found or None
+
+    wait_for("span de core/account na pasta do telemeter da feature", in_the_feature)
+    leaked = [s for s in spans(PLATFORM_TRACES) if s["trace_id"] == trace_id]
+    assert leaked == [], "span de core-account no `platform-telemeter`"
+
+
+def emit_probe_log(module: str, kind: str) -> str:
+    """Sobe um contêiner sintético que emite um log de app no formato do contrato (0045) da feature.
+
+    Determinístico: um log de app só existe quando a feature está ativa, e o Observer de uma
+    feature sem recursos fica calado. Devolve o marcador que o corpo do log carrega."""
+    marker = uuid.uuid4().hex[:10]
+    name = f"probe-route-{marker}"
+    record = {
+        "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.000000Z"),
+        "severity_number": 9,
+        "severity_text": "INFO",
+        "body": f"probe route {marker}",
+        "scope": {"name": "probe"},
+        "resource": {
+            "service.name": f"{module}-{kind}-probe",
+            "service.namespace": "smarkee",
+            "service.instance.id": "probe-1",
+            "smarkee.module": module,
+            "smarkee.resource.type": kind,
+            "smarkee.component.role": "manager",
+        },
+    }
+    script = f"sleep 4; echo '{json.dumps(record)}'; sleep 20"
+    try:
+        subprocess.run(
+            [
+                "docker",
+                "run",
+                "-d",
+                "--rm",
+                "--name",
+                name,
+                "--log-driver",
+                "json-file",
+                "alpine",
+                "sh",
+                "-c",
+                script,
+            ],
+            check=True,
+            capture_output=True,
+        )
+    except OSError, subprocess.CalledProcessError:
+        pytest.skip("docker indisponível")
+    return marker
+
+
+def feature_prefix(telemeter: Path) -> str:
+    """`<módulo>-<tipo>` da feature dona da pasta `features/<módulo>/<tipo>/telemeter`."""
+    return f"{telemeter.parent.parent.name}-{telemeter.parent.name}"
+
+
+# Uma rota sem token de cada feature: o gateway responde 401, e o span dela é o que o teste procura.
+FEATURE_ROUTES = {
+    "core-account": "/v1/core/accounts/probe",
+    "ipm-organization": "/v1/ipm/organizations",
+    "sum-service": "/v1/sum/services",
+}
+
+
+@pytest.mark.parametrize("telemeter", FEATURE_TELEMETRY_DIRS, ids=feature_prefix)
+def test_each_feature_telemeter_gets_only_its_own_app_logs_and_spans(
+    telemeter: Path, started_ns: int
+) -> None:
+    prefix = feature_prefix(telemeter)
+    httpx.get(f"{API_URL}{FEATURE_ROUTES[prefix]}", headers={"Host": API_HOST}, timeout=10.0)
+    route = f"{prefix}-receiver"
+
+    marker = emit_probe_log(telemeter.parent.parent.name, telemeter.parent.name)
+
+    def logs_arrived() -> bool | None:
+        return any(marker in r["body"] for r in logs(telemeter / "logs")) or None
+
+    def span_arrived() -> bool | None:
+        found = spans(telemeter / "traces")
+        return (
+            any(
+                s["start_ns"] >= started_ns and s["attributes"].get("apisix.service_name") == route
+                for s in found
+            )
+            or None
+        )
+
+    wait_for(f"log sintético de {prefix} no telemeter da feature", logs_arrived)
+    wait_for(f"span da rota {route} no telemeter da feature", span_arrived)
+
+    own_logs = logs(telemeter / "logs")
+    assert [r["service"] for r in own_logs if not str(r["service"]).startswith(prefix)] == []
+    own_spans = spans(telemeter / "traces")
+    assert {s["attributes"].get("apisix.service_name") for s in own_spans} <= {route}
+    leaked_logs = [r for r in logs(PLATFORM_APP_LOGS) if marker in r["body"]]
+    leaked_spans = [
+        s
+        for s in spans(PLATFORM_TRACES)
+        if s["start_ns"] >= started_ns and s["attributes"].get("apisix.service_name") == route
+    ]
+    assert leaked_logs == [] and leaked_spans == [], f"sinal de {prefix} no platform-telemeter"
+
+
+def test_the_feature_telemeter_configs_are_identical() -> None:
+    """Os `config.yaml` dos telemeters das features não podem divergir (decisão 0062)."""
+    configs = {
+        directory: (directory / "config.yaml").read_text(encoding="utf-8")
+        for directory in FEATURE_TELEMETRY_DIRS
+    }
+    assert len(set(configs.values())) == 1, f"configs divergentes: {sorted(map(str, configs))}"
+
+
 def test_a_trace_context_forged_by_the_client_is_ignored() -> None:
     forged = f"00-{FORGED_TRACE_ID}-{'b' * 16}-01"
     resource_id = register({"traceparent": forged, "tracestate": "forjado=1"})
     trace_id = trace_id_of_request(resource_id)
     assert trace_id != FORGED_TRACE_ID
-    assert not any(r["trace_id"] == FORGED_TRACE_ID for r in logs("logs/app"))
+    assert not any(r["trace_id"] == FORGED_TRACE_ID for r in app_logs())
     assert not any(s["trace_id"] == FORGED_TRACE_ID for s in spans())
 
 
@@ -250,7 +427,7 @@ def test_infra_logs_hold_no_email_or_verification_code(
     started_ns: int, registration: tuple[str, str]
 ) -> None:
     del registration
-    recent = [r for r in logs("logs/infra") if r["time_ns"] >= started_ns]
+    recent = [r for r in infra_logs() if r["time_ns"] >= started_ns]
     leaks = [
         r["service"]
         for r in recent
@@ -301,7 +478,7 @@ def test_the_agent_redacts_an_email_and_drops_the_zitadel_translation_warning() 
     try:
 
         def probe() -> list[str] | None:
-            bodies = [r["body"] for r in logs("logs/infra") if r["service"] == name]
+            bodies = [r["body"] for r in infra_logs() if r["service"] == name]
             return bodies if any(f"probe {marker}" in b for b in bodies) else None
 
         bodies = wait_for("registro do contêiner sintético em logs/infra", probe)

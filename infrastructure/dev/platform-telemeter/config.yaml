@@ -1,12 +1,14 @@
-# Configuração do OpenTelemetry Collector do gateway. O processador `transform/gateway-semconv` vem do
-# arquivo gateway-semconv.yaml (mesclado na linha de comando).
+# `platform-telemeter` (decisão 0062): destino da telemetria de INFRA e dos sinais de APP que nenhum telemeter de
+# feature reivindica. Recebe do telemetry-router (OTLP gRPC, rede `internal`) e grava em arquivos, até haver backend.
+# Não lê arquivos nem roteia: quem lê é o telemetry-agent; quem roteia é o telemetry-router.
 #
 # Saída (decisão 0053): cada sinal vai para arquivos, separado em INFRA e APP.
-#   logs    -> logs/app     logs dos componentes da plataforma (contrato 0045: têm smarkee.component.role)
+#   logs    -> logs/app     logs dos componentes de features SEM telemeter próprio (contrato 0045: têm
+#                           smarkee.component.role); as features com telemeter (core.account) gravam no dele
 #              logs/infra   logs dos contêineres da plataforma (broker, database, identity, gateway...)
 #   métricas-> metrics/infra métricas de contêiner e de sistema (container.*, system.*, process.*, k8s.*)
 #              metrics/app  as demais (métricas de aplicação, quando os componentes passarem a emiti-las)
-#   traces  -> traces/      (todos os spans são de aplicação)
+#   traces  -> traces/      spans de rotas sem telemeter próprio (a infra, como a identidade, e features sem telemeter)
 extensions:
   # Sonda de saúde (HTTP em 13133, rede `internal`).
   health_check:
@@ -17,8 +19,6 @@ receivers:
     protocols:
       grpc:
         endpoint: 0.0.0.0:4317
-      http:
-        endpoint: 0.0.0.0:4318
 
 processors:
   # Protege a memória do contêiner quando a telemetria chega mais rápido do que sai.
@@ -61,9 +61,8 @@ processors:
 exporters:
   # Ainda não há backend: cada sinal vai para arquivos em disco (uma linha OTLP JSON por lote), nas pastas
   # logs/{app,infra}, metrics/{app,infra} e traces/ deste diretório (montadas em /telemetry). Com `rotation`, o
-  # arquivo é fechado ao chegar a 10 MB e renomeado com a data e o motivo (por exemplo,
-  # traces-2026-10-17T15-02-14.173-size.jsonl); ficam no máximo 3 rotacionados, por no máximo 1 dia. Cada
-  # arquivo de sinal ocupa, no máximo, 40 MB.
+  # arquivo é fechado ao chegar a 10 MB e renomeado com a data e o motivo; ficam no máximo 3 rotacionados, por no máximo
+  # 1 dia. Cada arquivo de sinal ocupa, no máximo, 40 MB.
   file/logs_app:
     path: /telemetry/logs/app/logs.jsonl
     create_directory: true
@@ -123,9 +122,8 @@ service:
       processors: [memory_limiter, filter/logs_app, batch]
       exporters: [file/logs_app]
 
-    # O processador do gateway entra depois do memory_limiter e antes de qualquer exporter, para que o que
-    # for gravado já esteja na semconv.
+    # Os spans já chegam ajustados à semconv: o telemetry-router aplica o `transform/gateway-semconv` antes de rotear.
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, transform/gateway-semconv, batch]
+      processors: [memory_limiter, batch]
       exporters: [file/traces]

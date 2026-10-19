@@ -1,0 +1,184 @@
+# Telemetry-router (decisão 0062): roteia cada sinal ao telemeter certo e **não grava em nenhum backend**.
+#
+# Entrada: OTLP gRPC (4317, do telemetry-agent) e OTLP HTTP (4318, do APISIX).
+# Saída: OTLP gRPC para o telemeter que grava:
+#   - o telemeter da feature dona do sinal (`core-account-telemeter`, `ipm-organization-telemeter` e
+#     `sum-service-telemeter`): os logs de app e os spans da feature;
+#   - `platform-telemeter` (plataforma): tudo o mais (a infra, as métricas e o app/spans de quem não tem telemeter).
+#
+# O que o roteador faz além de rotear é só a normalização dos spans do APISIX à semconv (`transform/gateway-semconv`,
+# arquivo gateway-semconv.yaml, mesclado na linha de comando), antes do roteamento, para cada telemeter receber o
+# span já conforme. O agente não conhece as features; o roteamento usa o que os sinais já trazem:
+#   logs  -> Resource: `smarkee.module` e `smarkee.resource.type` (contrato 0045)
+#   spans -> atributo do span: `apisix.service_name` (o ADC define um serviço por feature)
+# Para acrescentar uma feature com telemeter: uma linha na tabela de cada conector, uma pipeline por sinal e um exporter.
+extensions:
+  # Sonda de saúde (HTTP em 13133, rede `internal`).
+  health_check:
+    endpoint: 0.0.0.0:13133
+  # Fila em disco do envio a cada telemeter (decisões 0059 e 0062): sobrevive ao reinício deste roteador durante uma
+  # queda do telemeter de destino.
+  file_storage:
+    directory: /var/lib/otelcol/file_storage
+    create_directory: true
+
+connectors:
+  routing/logs:
+    default_pipelines: [logs/platform]
+    error_mode: ignore
+    table:
+      - context: resource
+        condition: attributes["smarkee.module"] == "core" and attributes["smarkee.resource.type"] == "account"
+        pipelines: [logs/core_account]
+      - context: resource
+        condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "organization"
+        pipelines: [logs/ipm_organization]
+      - context: resource
+        condition: attributes["smarkee.module"] == "sum" and attributes["smarkee.resource.type"] == "service"
+        pipelines: [logs/sum_service]
+  routing/traces:
+    default_pipelines: [traces/platform]
+    error_mode: ignore
+    table:
+      - context: span
+        condition: attributes["apisix.service_name"] == "core-account-receiver"
+        pipelines: [traces/core_account]
+      - context: span
+        condition: attributes["apisix.service_name"] == "ipm-organization-receiver"
+        pipelines: [traces/ipm_organization]
+      - context: span
+        condition: attributes["apisix.service_name"] == "sum-service-receiver"
+        pipelines: [traces/sum_service]
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Protege a memória do contêiner quando a telemetria chega mais rápido do que sai.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  # Lotes curtos e com tamanho máximo (o exporter file dos telemeters, com rotação, rejeita lote maior que 10 MB).
+  batch:
+    timeout: 1s
+    send_batch_size: 100
+    send_batch_max_size: 200
+
+exporters:
+  # Destinos: OTLP gRPC na rede interna de desenvolvimento, sem TLS (lacuna de dev declarada; em stg e prd, TLS e
+  # autenticação). Fila e retry explícitos, com a fila em disco. Cheia, descarta o dado novo sem bloquear; passado o
+  # `max_elapsed_time`, o lote é descartado. Se o telemeter de destino não existir, o que era dele se perde após a fila.
+  otlp_grpc/platform:
+    endpoint: platform-telemeter.smarkee.internal:4317
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      block_on_overflow: false
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 10m
+  otlp_grpc/core_account:
+    endpoint: core-account-telemeter.smarkee.internal:4317
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      block_on_overflow: false
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 10m
+  otlp_grpc/ipm_organization:
+    endpoint: ipm-organization-telemeter.smarkee.internal:4317
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      block_on_overflow: false
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 10m
+  otlp_grpc/sum_service:
+    endpoint: sum-service-telemeter.smarkee.internal:4317
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      block_on_overflow: false
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 10m
+
+service:
+  extensions: [health_check, file_storage]
+  pipelines:
+    # Métricas: ainda todas para a plataforma (as de contêiner são de infra; ainda não há métrica de app).
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_grpc/platform]
+
+    logs/in:
+      receivers: [otlp]
+      processors: [memory_limiter]
+      exporters: [routing/logs]
+    logs/platform:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [otlp_grpc/platform]
+    logs/core_account:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [otlp_grpc/core_account]
+    logs/ipm_organization:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [otlp_grpc/ipm_organization]
+    logs/sum_service:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [otlp_grpc/sum_service]
+
+    # Os spans são ajustados à semconv aqui, antes de rotear (gateway-semconv.yaml).
+    traces/in:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/gateway-semconv]
+      exporters: [routing/traces]
+    traces/platform:
+      receivers: [routing/traces]
+      processors: [batch]
+      exporters: [otlp_grpc/platform]
+    traces/core_account:
+      receivers: [routing/traces]
+      processors: [batch]
+      exporters: [otlp_grpc/core_account]
+    traces/ipm_organization:
+      receivers: [routing/traces]
+      processors: [batch]
+      exporters: [otlp_grpc/ipm_organization]
+    traces/sum_service:
+      receivers: [routing/traces]
+      processors: [batch]
+      exporters: [otlp_grpc/sum_service]
