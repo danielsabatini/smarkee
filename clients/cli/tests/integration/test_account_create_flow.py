@@ -1,4 +1,4 @@
-"""`sk register` contra um servidor HTTP real (loopback), sem nenhum token enviado.
+"""`sk account create` contra um servidor HTTP real (loopback), sem nenhum token enviado.
 
 Simula a API do cadastro: responde `202` ao pedido bem formado e registra o que chegou. Não
 substitui o teste contra a plataforma de dev (`features/core/account/tests/e2e`).
@@ -76,7 +76,8 @@ def test_the_request_reaches_the_api_without_any_token(
     result = runner.invoke(
         app,
         [
-            "register",
+            "account",
+            "create",
             "--name",
             "Ana",
             "--surname",
@@ -107,7 +108,8 @@ def test_plain_http_without_permission_sends_nothing(
     result = runner.invoke(
         app,
         [
-            "register",
+            "account",
+            "create",
             "--name",
             "Ana",
             "--surname",

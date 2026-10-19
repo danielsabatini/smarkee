@@ -1500,7 +1500,7 @@ O comando `sk ipm organization` pertence ao CLI da plataforma (`clients/cli`), q
 
 ## 46.1 Aplicação à Account
 
-A Account é um recurso da plataforma, no módulo `core` (decisão 0014), criado pelo auto-cadastro (`sk register`), uma escrita anônima (seção 6.1.2). O Executor escreve em um único sistema externo, o Zitadel:
+A Account é um recurso da plataforma, no módulo `core` (decisão 0014), criado pelo auto-cadastro (`sk account create`), uma escrita anônima (seção 6.1.2). O Executor escreve em um único sistema externo, o Zitadel:
 
 1. cria o usuário na organização `register`, com o `resourceId` como ID e **sem senha**: o `desired` da Account não tem senha, porque `desired` fica retido no SSOT e na mensageria (`SCHEMA.md`);
 2. o Zitadel envia o e-mail "Verificar e-mail" na criação, e a pessoa confirma o e-mail e define a senha na página desse link (um e-mail só; o Executor não pede `password_reset`). A senha nunca passa por CLI, Receiver, SSOT nem mensageria;
@@ -1508,7 +1508,7 @@ A Account é um recurso da plataforma, no módulo `core` (decisão 0014), criado
 
 Quando o e-mail já está cadastrado no SSOT, o Manager rejeita o pedido (`validation`) sem criar nada; quando ele só existe no Zitadel, a criação do Executor falha de forma permanente (`Rejected`). O Zitadel responde `AlreadyExisting` (HTTP 400, id `COMMAND-7yiox1isql`, verificado na v4.19.4) a um ID ou e-mail já usado, e o Executor lê o usuário pelo ID: se existe com o e-mail esperado, é sucesso idempotente. Em todos os casos o solicitante anônimo recebe o mesmo `202`, sem revelar se o e-mail existia. O `desired` com `lifecycle = absent` não carrega dados pessoais (decisão 0014).
 
-Componentes (projetos em `features/core/account/`): `core-account-receiver`, `core-account-manager`, `core-account-publisher`, `core-account-observer`, `core-account-reconciler` e `core-account-executor`. Os comandos `sk register` e `sk user` pertencem ao CLI da plataforma.
+Componentes (projetos em `features/core/account/`): `core-account-receiver`, `core-account-manager`, `core-account-publisher`, `core-account-observer`, `core-account-reconciler` e `core-account-executor`. O comando `sk account create` pertence ao CLI da plataforma.
 
 # 47. Aplicação a outros recursos
 

@@ -1,6 +1,6 @@
 # core.account
 
-O **Account** é a identidade da plataforma: a pessoa que se cadastra sozinha (`sk register`) e depois se autentica (`sk auth login`) para criar Organizations. É um recurso do módulo `core`, gerenciado pelo Resource Control Loop (`docs/RESOURCE-CONTROL-LOOP.md`), e vive na organização de sistema `core` do Zitadel.
+O **Account** é a identidade da plataforma: a pessoa que se cadastra sozinha (`sk account create`) e depois se autentica (`sk auth login`) para criar Organizations. É um recurso do módulo `core`, gerenciado pelo Resource Control Loop (`docs/RESOURCE-CONTROL-LOOP.md`), e vive na organização de sistema `core` do Zitadel.
 
 Decisões que definem este módulo: `.decisions/0014-user-no-modulo-core-com-auto-cadastro.md` (Account, auto-cadastro sem senha), `0013` (API → CLI → console, Zitadel protegido), `0010` (roles e dono), `0015` (componentes por papel), `0017` (estrutura interna dos componentes e testes e2e), `0018` (partição do `ACTION`, saúde e erro permanente do Publisher), `0019` (Publisher como sexto papel) e `0020` (Receiver em lugar de API). **Esta é a primeira feature e o modelo das demais.**
 
@@ -16,7 +16,7 @@ Decisões que definem este módulo: `.decisions/0014-user-no-modulo-core-com-aut
 | Executor | `executor/` (`core-account-executor`) | Implementado |
 | Telemeter (observabilidade, **não é papel do loop**) | `telemeter/` (`core-account-telemeter`) | Implementado: recebe os logs e os spans de app da feature (do `telemetry-router`) e os grava em `telemeter/logs/` e `telemeter/traces/` (`telemeter/README.md`, decisão 0062) |
 | Testes e2e | `tests/e2e/` | Implementados: 8 testes de conformidade e 3 de resiliência (`E2E_CHAOS=1`); **não são um componente** |
-| CLI | `clients/cli` | `sk register` (cadastro anônimo) e `sk account get\|delete` (consulta e exclusão segura; veja `clients/cli/README.md`) |
+| CLI | `clients/cli` | `sk account create` (cadastro anônimo) e `sk account get|delete` (consulta e exclusão segura; veja `clients/cli/README.md`) |
 
 **Estrutura interna.** Os seis papéis seguem a decisão 0017 (camadas `domain/` puro, orquestração, adaptadores e `main.py`, com um teste por projeto que falha se o `domain/` importar um adaptador) e a decisão 0018 (`/health/live`, `/health/ready` e `/health/startup` em cada componente; no Publisher, a readiness também cai diante de recusa permanente do transporte; o Stream `ACTION` é particionado por `resourceId`). Verificado em 2026-10-11: testes de cada projeto, `ruff`, `pyright` e os testes e2e contra o Zitadel e o Mailpit reais.
 
@@ -137,7 +137,7 @@ Não é um componente nem vai para produção. É um projeto de **testes black-b
 
 Cada fluxo é uma sequência numerada (quem publica, quem consome, qual subject), no estilo do infográfico histórico de `docs/images/` (nomenclatura anterior; veja `docs/images/README.md`). As imagens estão em [`docs/flow/`](docs/flow/), com o fonte `.mmd` ao lado.
 
-## 4.1 Caminho perfeito: do `sk register` ao aviso à pessoa
+## 4.1 Caminho perfeito: do `sk account create` ao aviso à pessoa
 
 ![Caminho perfeito](docs/flow/01-caminho-perfeito.svg)
 
@@ -181,7 +181,7 @@ Cada fluxo é uma sequência numerada (quem publica, quem consome, qual subject)
 
 ### Como ativar a conta (senha e e-mail)
 
-Depois do `sk register`, a pessoa tem uma conta criada, mas sem senha e com o e-mail não verificado. Ela ativa a conta assim:
+Depois do `sk account create`, a pessoa tem uma conta criada, mas sem senha e com o e-mail não verificado. Ela ativa a conta assim:
 
 1. **Abra o e-mail "Verificar e-mail"** mais recente do provedor e use o botão. A página do Zitadel confirma o e-mail e já pede a senha: informe e confirme (a política de senha da instância se aplica). Um e-mail só.
 2. **Entre.** Com o e-mail confirmado e a senha definida, `sk auth login` autentica a pessoa.
@@ -205,7 +205,7 @@ Esses reenvios não passam pela plataforma, de propósito: um reenvio anônimo r
 
 ## 4.9 Fluxo de dados
 
-[`docs/CORE-ACCOUNT-DATA-FLOW.md`](docs/CORE-ACCOUNT-DATA-FLOW.md) (padrão da decisão 0024) segue os **dados** do `sk register` até `Ready`: a chamada à API, o payload de cada mensagem, as queries do Manager e as linhas gravadas em cada tabela.
+[`docs/CORE-ACCOUNT-DATA-FLOW.md`](docs/CORE-ACCOUNT-DATA-FLOW.md) (padrão da decisão 0024) segue os **dados** do `sk account create` até `Ready`: a chamada à API, o payload de cada mensagem, as queries do Manager e as linhas gravadas em cada tabela.
 
 # 5. Estados
 
@@ -284,7 +284,7 @@ Os e-mails do Zitadel de dev são capturados pelo Mailpit (http://localhost:8025
 
 # 10. Limitações e pendências
 
-- **CLI:** `sk register` confirma que o pedido foi aceito e orienta a verificar o e-mail; `sk account get|delete` consulta e exclui a própria conta (exclusão segura, decisão 0040).
+- **CLI:** `sk account create` confirma que o pedido foi aceito e orienta a verificar o e-mail; `sk account get|delete` consulta e exclui a própria conta (exclusão segura, decisão 0040).
 - **E-mail:** o loop não garante a entrega; falha de SMTP, endereço errado e spam estão fora da garantia (fluxo 4.6). É um e-mail só ("Verificar e-mail"), com texto do Zitadel a revisar.
 - **Retomada de `Failed`:** a Account não tem `update`; falta definir a intervenção explícita.
 - **Remoção com dependentes:** a ordem de remoção entre recursos dependentes (um usuário dono de Organizations) não está definida.

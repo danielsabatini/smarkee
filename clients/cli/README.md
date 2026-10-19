@@ -146,7 +146,7 @@ uv run sk sum service disable --resource-id ID [--wait] [--timeout SEGUNDOS]
 uv run sk sum service list
 ```
 
-O endereço da API e a permissão de HTTP sem TLS **não têm opção de linha de comando** (decisão 0041): vêm de `SK_API_URL` e `SK_API_ALLOW_INSECURE_HTTP=true`, de `[api]` no arquivo ou do padrão de produção, como no `sk register`. `resourceId` e `operationId` precisam seguir o padrão do contrato (letras minúsculas, números e hífen, até 128 caracteres): outro valor é recusado antes de qualquer chamada, porque entra no caminho da URL.
+O endereço da API e a permissão de HTTP sem TLS **não têm opção de linha de comando** (decisão 0041): vêm de `SK_API_URL` e `SK_API_ALLOW_INSECURE_HTTP=true`, de `[api]` no arquivo ou do padrão de produção, como no `sk account create`. `resourceId` e `operationId` precisam seguir o padrão do contrato (letras minúsculas, números e hífen, até 128 caracteres): outro valor é recusado antes de qualquer chamada, porque entra no caminho da URL.
 
 | Comando | Requisição | Resultado |
 |---|---|---|
@@ -190,10 +190,10 @@ As escritas são assíncronas, como as do SUM: o comando confirma o aceite e mos
 
 Códigos de saída: como em `sk sum service`.
 
-## Cadastro (`sk register`)
+## Cadastro (`sk account create`)
 
 ```bash
-uv run sk register --name Ana --surname Souza --email ana@dominio.com
+uv run sk account create --name Ana --surname Souza --email ana@dominio.com
 ```
 
 Pede o cadastro de um usuário pela API do módulo `core`. É **anônimo**: não exige login, não envia token (mesmo que existam credenciais salvas) e não pede senha. A pessoa define a senha depois, na página do provedor, a partir do e-mail de ativação. O cadastro é assíncrono: o comando confirma que o pedido foi aceito (`resourceId` e `operationId`), e não que a conta já existe.
@@ -225,7 +225,7 @@ uv run sk account unprotect [--wait] [--timeout SEGUNDOS]
 uv run sk account delete --yes [--wait] [--timeout SEGUNDOS]
 ```
 
-Agem sobre a conta da sessão (`sk auth login`); o `resourceId` é o `sub` do token. A conta **nasce protegida contra exclusão** (decisão 0043): `unprotect` precede o `delete` (sem ele, a API responde `409 DeletionProtected` e a saída aponta o comando), e `protect` religa a proteção; ambos são idempotentes e `--wait` espera a Operation `completed`. `delete` exige `--yes` (a exclusão não se desfaz) e lê a `resourceVersion` antes de pedir. **A exclusão é segura (decisão 0040):** a API recusa (`409`) enquanto a conta tiver Organizations ou serviços habilitados, e a saída diz o que remover antes (`sk ipm organization delete`, depois `sk sum service disable --service ipm`). Com `--wait`, o comando espera a Operation `completed` (ou o token deixar de valer, porque o usuário já saiu do provedor) e **esquece a sessão local**. `get` mostra `resourceId`, `name`, `email`, `phase`, `platformAccess` e `protected`. O cadastro (`sk register --name ...`, sem subcomando) continua igual.
+Agem sobre a conta da sessão (`sk auth login`); o `resourceId` é o `sub` do token. A conta **nasce protegida contra exclusão** (decisão 0043): `unprotect` precede o `delete` (sem ele, a API responde `409 DeletionProtected` e a saída aponta o comando), e `protect` religa a proteção; ambos são idempotentes e `--wait` espera a Operation `completed`. `delete` exige `--yes` (a exclusão não se desfaz) e lê a `resourceVersion` antes de pedir. **A exclusão é segura (decisão 0040):** a API recusa (`409`) enquanto a conta tiver Organizations ou serviços habilitados, e a saída diz o que remover antes (`sk ipm organization delete`, depois `sk sum service disable --service ipm`). Com `--wait`, o comando espera a Operation `completed` (ou o token deixar de valer, porque o usuário já saiu do provedor) e **esquece a sessão local**. `get` mostra `resourceId`, `name`, `email`, `phase`, `platformAccess` e `protected`. O cadastro anônimo agora é `sk account create`.
 
 ## Saída no terminal
 

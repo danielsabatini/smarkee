@@ -1,9 +1,9 @@
-"""Comandos `sk account`: consultar, proteger e excluir a própria conta.
+"""Comandos `sk account`: criar, consultar, proteger e excluir a própria conta.
 
-Agem sobre a conta da sessão (`sk auth login`). A exclusão é segura (decisão 0040): a API recusa
-enquanto houver Organizations ou serviços habilitados da conta, e a CLI diz o que remover antes.
-A conta nasce protegida contra exclusão (decisão 0043): `sk account unprotect` precede o `delete`.
-O cadastro é `sk register`.
+Agem sobre a conta da sessão (`sk auth login`), exceto a criação (anônima). A exclusão é segura
+(decisão 0040): a API recusa enquanto houver Organizations ou serviços habilitados da conta, e a
+CLI diz o que remover antes. A conta nasce protegida contra exclusão (decisão 0043):
+`sk account unprotect` precede o `delete`.
 """
 
 import time
@@ -23,6 +23,7 @@ from sk.commands.shared import (
     bad_address,
     fail_api,
     load_api,
+    require,
     session_token,
 )
 from sk.features.core.account import (
@@ -31,10 +32,12 @@ from sk.features.core.account import (
     get_account,
     get_operation,
     set_account_protection,
+    submit_registration,
     token_subject,
+    validate_registration,
 )
 from sk.help import command, option
-from sk.http import ApiError, ApiRejectedError
+from sk.http import ApiError, ApiRejectedError, ApiUnavailableError
 from sk.identity.credentials import default_credentials_path
 from sk.identity.oidc import OidcError
 
@@ -349,3 +352,121 @@ def delete_command(
     _wait_until_gone(url, insecure, resource_id, accepted.operation_id, timeout=timeout)
     default_credentials_path().unlink(missing_ok=True)  # a sessão não vale mais
     ui.panel("Account deleted", [("resourceId", resource_id), ("session", "forgotten")])
+
+@account_app.command(
+    "create",
+    help=command(
+        "Register a new account to get started on the platform. "
+        "Afterwards, open the link in the e-mail sent to it to confirm the address and set the "
+        "password."
+    ),
+)
+def create_account(
+    name: Annotated[
+        str | None,
+        typer.Option(
+            "--name",
+            help=option(
+                "Name (up to 256 characters).",
+                kind="String",
+                variable=None,
+                file=None,
+                default="none",
+            ),
+        ),
+    ] = None,
+    surname: Annotated[
+        str | None,
+        typer.Option(
+            "--surname",
+            help=option(
+                "Surname (up to 256 characters).",
+                kind="String",
+                variable=None,
+                file=None,
+                default="none",
+            ),
+        ),
+    ] = None,
+    email: Annotated[
+        str | None,
+        typer.Option(
+            "--email",
+            help=option(
+                "Account e-mail. It is also the login name.",
+                kind="String",
+                variable=None,
+                file=None,
+                default="none",
+            ),
+        ),
+    ] = None,
+) -> None:
+    # Obrigatórias por validação do próprio comando (não pelo Typer), para não exibir "[required]".
+    name = require(name, "--name")
+    surname = require(surname, "--surname")
+    email = require(email, "--email")
+    url, insecure = load_api()
+    try:
+        # Validação local antes de qualquer chamada: o comando, e não só o cliente, a garante.
+        validate_registration(name, surname, email)
+        accepted = submit_registration(
+            url,
+            given_name=name,
+            family_name=surname,
+            email=email,
+            allow_insecure_http=insecure,
+        )
+    except ValueError as error:
+        ui.error("Value not accepted", str(error), hint="Fix the given value and repeat.")
+        raise typer.Exit(EXIT_USAGE_ERROR) from error
+    except OidcError as error:
+        ui.error(
+            "API address refused",
+            str(error),
+            hint="Use HTTPS, or set SK_API_ALLOW_INSECURE_HTTP=true in development.",
+        )
+        raise typer.Exit(EXIT_USAGE_ERROR) from error
+    except ApiRejectedError as error:
+        if error.status == 429:
+            wait = error.retry_after_seconds
+            ui.error(
+                "Too many requests",
+                "Registration has a request limit per origin.",
+                hint=f"Wait {wait} seconds and repeat." if wait else "Try again later.",
+            )
+            raise typer.Exit(EXIT_FAILURE) from error
+        if error.field:
+            ui.error(
+                "Field refused by the API",
+                f"{error.field}: {error}",
+                hint="Fix the field and repeat.",
+            )
+            raise typer.Exit(EXIT_USAGE_ERROR if error.status == 400 else EXIT_FAILURE) from error
+        ui.error(
+            "Request refused by the API",
+            str(error),
+            hint=f"HTTP {error.status} ({error.error_code}).",
+        )
+        raise typer.Exit(EXIT_USAGE_ERROR if error.status == 400 else EXIT_FAILURE) from error
+    except ApiUnavailableError as error:
+        ui.error("Service unavailable", str(error), hint="Try again in a few minutes.")
+        raise typer.Exit(EXIT_FAILURE) from error
+    except ApiError as error:  # pragma: no cover (nova subclasse sem tratamento explícito)
+        ui.error("Registration failed", str(error))
+        raise typer.Exit(EXIT_FAILURE) from error
+
+    ui.panel(
+        "Registration requested",
+        [
+            ("name", f"{name.strip()} {surname.strip()}"),
+            ("email", email.strip()),
+            ("resourceId", accepted.resource_id),
+            ("operationId", accepted.operation_id),
+        ],
+    )
+    ui.note(
+        "Next steps: open the link in the e-mail the provider sent to confirm the address and set "
+        "the password. "
+        "Then run `sk auth login`."
+    )

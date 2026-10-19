@@ -168,7 +168,7 @@ class ApiSettings(BaseModel):
 
 
 class CoreSettings(BaseModel):
-    """Seção `core`: o módulo core (`sk register`)."""
+    """Seção `core`: o módulo core (`sk account create`)."""
 
     model_config = ConfigDict(extra="forbid")
 

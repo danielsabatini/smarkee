@@ -17,10 +17,10 @@ Dois pontos limitam o desenho:
 
 ## Decisão
 
-- **User é um recurso da plataforma, no módulo `core`** (decisão 0009, em que o User ficou em `core`; a Organization voltou ao `ipm` pela 0016): subjects `*.core.user.*`, serviços `core-user-*`, rotas `/v1/users`, comandos `sk register` (auto-cadastro) e `sk user get`.
+- **User é um recurso da plataforma, no módulo `core`** (decisão 0009, em que o User ficou em `core`; a Organization voltou ao `ipm` pela 0016): subjects `*.core.user.*`, serviços `core-user-*`, rotas `/v1/users`, comandos `sk account create` (auto-cadastro) e `sk account get`.
 - **`resourceId` do User é o ID do usuário no Zitadel**, informado na criação (`user_id`), pela mesma regra da Organization (decisão 0006).
 - **Organização `core` no Zitadel.** É uma organização de sistema, separada da `smarkee` dos operadores. Nela vivem os usuários cadastrados e as service accounts dos Executors do módulo `core`. Não é uma Organization da plataforma: sem dono e sem cota. O nome `core` é reservado.
-- **Sem senha na mensagem.** O `desired` do User não tem senha. O Executor cria o usuário no Zitadel sem senha, e o Zitadel envia o e-mail "Verificar e-mail"; em seguida o Executor pede o link de definição de senha (`password_reset` com `sendLink`), que o Zitadel envia no e-mail "Redefinir senha". A pessoa define a senha na página do Zitadel. A senha nunca passa por CLI, Receiver, SSOT nem NATS. Por isso o comando é `sk register --name --surname --email`, sem `--password`.
+- **Sem senha na mensagem.** O `desired` do User não tem senha. O Executor cria o usuário no Zitadel sem senha, e o Zitadel envia o e-mail "Verificar e-mail"; em seguida o Executor pede o link de definição de senha (`password_reset` com `sendLink`), que o Zitadel envia no e-mail "Redefinir senha". A pessoa define a senha na página do Zitadel. A senha nunca passa por CLI, Receiver, SSOT nem NATS. Por isso o comando é `sk account create --name --surname --email`, sem `--password`.
 - **Solicitante anônimo no cadastro:** o `requestedBy` é o literal `anonymous`. Proteções obrigatórias do endpoint anônimo (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.2):
   - limite de taxa por origem no gateway e no Receiver;
   - **resposta uniforme**: o mesmo `202` e o mesmo corpo, exista ou não o e-mail;
@@ -39,6 +39,6 @@ Dois pontos limitam o desenho:
 ## Consequências
 
 - **Retenção de dados pessoais:** o `desired` do User, com e-mail e nome, fica retido no SSOT e em `DESIRED`. O `desired` com `lifecycle = absent` não carrega dados pessoais (a regra entra no contrato do User), e a limpeza do tombstone (`docs/NATS.md`) precisa cobrir esse caso.
-- O cliente anônimo não acompanha a Operation: `sk register` não tem `--wait` e orienta a verificar o e-mail.
+- O cliente anônimo não acompanha a Operation: `sk account create` não tem `--wait` e orienta a verificar o e-mail.
 - **Verificado em dev (Zitadel v4.19.4, 2026-10-11):** `POST /v2/users/human` com `userId` informado cria o usuário ativo, sem senha e com o e-mail não verificado, e envia "Verificar e-mail"; `POST /v2/users/{id}/password_reset` com `sendLink` envia "Redefinir senha". O loop completo (criação, os dois e-mails no Mailpit, observação `userState = initial`, `Ready` e remoção) está coberto pelo teste e2e. **Ainda não verificado:** a pessoa seguindo os links, definindo a senha e fazendo `sk auth login` com o usuário novo.
 - O módulo `ipm` fica com o que vier depois, como membros de uma Organization.

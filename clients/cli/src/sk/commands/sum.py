@@ -1,7 +1,7 @@
 """Comandos `sk sum service`: ligar, desligar e consultar os serviços do solicitante (decisão 0033).
 
 Usam o token da sessão (`sk auth login`), renovado quando está para vencer. A API é a mesma do
-`sk register` (`[api] url`). Ligar e desligar são assíncronos: o comando confirma o aceite e
+`sk account create` (`[api] url`). Ligar e desligar são assíncronos: o comando garante o
 mostra como acompanhar a Operation. Com `--wait`, ele espera a ligação convergir e renova a sessão:
 o token só traz as roles que existiam quando foi emitido, e as do serviço chegam depois do aceite.
 """

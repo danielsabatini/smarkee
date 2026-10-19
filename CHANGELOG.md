@@ -7,6 +7,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 ### Changed
+- CLI: Renomeado o comando `sk register` para `sk account create`, consolidando as operações de conta no namespace `account` (seguindo o padrão `<module> <resource> <action>`).
 - Rebaixamento do nível do log `message handled` nos consumers (de INFO para DEBUG) para reduzir ruído na telemetria.
 - Adição de tratamento explícito no `_api_error` dos Receivers para logar a requisição como rejeitada (`request rejected`, `outcome=rejected`).
 

@@ -1,7 +1,7 @@
 sequenceDiagram
     autonumber
     actor U as Pessoa
-    participant CLI as sk register
+    participant CLI as sk account create
     participant GW as Gateway APISIX
     participant Receiver as core-account-receiver
     participant N as NATS JetStream
@@ -10,7 +10,7 @@ sequenceDiagram
 
     rect rgb(255,243,224)
     Note over CLI,Receiver: A. Pedido inválido
-    U->>CLI: sk register --email nao-e-um-email
+    U->>CLI: sk account create --email nao-e-um-email
     CLI-->>U: "Dados não aceitos" (validação local, código de saída 2) e nenhuma chamada é feita
     U->>CLI: pedido que passa na validação local, mas a API recusa
     CLI->>GW: POST /v1/core/accounts

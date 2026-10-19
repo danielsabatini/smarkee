@@ -83,7 +83,7 @@ def test_sources_are_labeled_and_in_resolution_order() -> None:
 def test_options_without_other_sources_have_no_sources_block() -> None:
     for name, command in _commands():
         for param in _options(command):
-            if name == "register" and param.name in {"name", "surname", "email"}:
+            if name == "account create" and param.name in {"name", "surname", "email"}:
                 match = OPTION_FORMAT.search(_help_text(param))
                 assert match is not None, f"{name} {param.name}"
                 assert match.group(2) is None, f"{name} {param.name}"
@@ -132,7 +132,7 @@ def test_options_with_environment_variables_say_which_one() -> None:
 
 def test_bracketed_names_are_shown_literally() -> None:
     # Os colchetes do formato e dos valores aparecem como texto, e não viram tags do Rich.
-    result = runner.invoke(app, ["register", "--help"], env={"COLUMNS": "200"})
+    result = runner.invoke(app, ["account", "create", "--help"], env={"COLUMNS": "200"})
     assert result.exit_code == 0
     assert "[String]" in result.stdout and "[required]" in result.stdout
     wait = runner.invoke(app, ["ipm", "organization", "create", "--help"], env={"COLUMNS": "200"})
@@ -141,14 +141,14 @@ def test_bracketed_names_are_shown_literally() -> None:
 
 def test_register_required_options_are_checked_by_the_command() -> None:
     # Sem o "required" do Typer, a ausência é recusada pelo comando, com código 2.
-    result = runner.invoke(app, ["register", "--surname", "B", "--email", "a@b.com"])
+    result = runner.invoke(app, ["account", "create", "--surname", "B", "--email", "a@b.com"])
     assert result.exit_code == 2
     assert "--name" in result.output
     assert "Missing required option" in result.output
 
 
 def test_required_options_show_a_single_required_marker() -> None:
-    result = runner.invoke(app, ["register", "--help"])
+    result = runner.invoke(app, ["account", "create", "--help"])
     assert result.exit_code == 0
     # O nosso marcador tem o mesmo texto do do Typer: cada opção obrigatória mostra um só.
     options = ["--name", "--surname", "--email"]

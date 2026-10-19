@@ -1,7 +1,7 @@
 """Comandos `sk ipm organization`: criar, consultar, renomear e remover Organizations.
 
 Usam o token da sessão (`sk auth login`), renovado quando está para vencer. A API é a mesma do
-`sk register` (`[api] url`). Criar, renomear e remover são assíncronos: o comando confirma o aceite
+`sk account create` (`[api] url`). Criar, renomear e remover são assíncronos: o comando garante o
 e mostra como acompanhar a Operation. Com `--wait`, ele espera a Organization convergir. O token
 precisa trazer as roles `ipm.organization.*`, que vêm de `sk sum service enable --service ipm`
 (com `--wait`, a sessão já é renovada).
