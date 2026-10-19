@@ -10,6 +10,8 @@ teste. O cadastro cria um usuário `conf.telemetry-*@example.com`, que o `smarke
 | `traceparent` e `tracestate` forjados pelo cliente são ignorados: o `trace_id` forjado não aparece em nenhum log nem span | 0054 |
 | Os spans não têm `args`, `http.target` nem `url.full`, e todo valor de `url.query` é `REDACTED` | 0050 |
 | Os logs de infra criados durante o teste não têm e-mail nem código de verificação | 0059 |
+| Um cadastro anônimo carrega o contexto de negócio em cada hop: `smarkee.actor.type = anonymous`, sem `user.id`, `smarkee.resource.id` e `smarkee.operation.name = create` (Receiver, Manager, Reconciler e Executor) | 0061 |
+| Os logs de app não têm e-mail e todo `user.id` é um identificador opaco | 0061 |
 | Redação provada de forma determinística: um contêiner sintético de infra tem o e-mail trocado por `<redacted-email>`, e o `WARN` "missing translation" do Zitadel é descartado | 0059 |
 
 Execução, na raiz deste diretório: `uv run pytest -q`. Variáveis opcionais: `CONFORMANCE_API_URL` (padrão

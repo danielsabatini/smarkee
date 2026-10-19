@@ -8,6 +8,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [Unreleased]
 
 ### Added
+- Contexto de negócio nos logs dos apps (decisão 0061): cada log dos 18 componentes passa a trazer o ator (`user.id` opaco e `smarkee.actor.type`: `user`, `anonymous` ou `system`), o recurso, a ação, o dono e a organização, para o drill-down; a infra segue sem dono. Ids com formato de e-mail são descartados. As três features ficam com o mesmo conjunto de atributos.
 - Trace distribuído, fase 1 (decisão 0055): o `traceparent` que o gateway inicia é repassado pelo Receiver, pelo NATS (header `traceparent`), pelo outbox (coluna nova `traceparent`, migração aditiva em cada módulo), pelo Manager, Publisher, Reconciler e Executor, e os logs dos componentes passam a trazer `trace_id` e `trace_flags`. Um evento de log por unidade de trabalho torna o `trace_id` visível em cada papel. Sem SDK do OpenTelemetry e sem spans nos componentes.
 - IP real do cliente no gateway (decisão 0054): o plugin `real-ip` lê `X-Forwarded-For` só de `APISIX_TRUSTED_PROXIES` (um IP ou um CIDR; vazio em dev = não confia em ninguém), para o limite do cadastro e os spans valerem por cliente atrás de um balanceador.
 - Conformância do Zitadel de dev: teste que exige token opaco (Bearer) nas seis contas de serviço dos componentes.

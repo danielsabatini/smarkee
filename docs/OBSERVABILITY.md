@@ -96,13 +96,13 @@ Atributos de infraestrutura (`k8s.*`, `container.*`, `host.*`) são acrescentado
 | `error.type` | Classe do erro quando o registro descreve uma falha. Nome qualificado pelo módulo (`<módulo>.<Classe>`), exceto nas classes *builtin* (`ValueError`). Baixa cardinalidade. |
 | `exception.type` | Classe da exceção capturada, no mesmo formato. |
 | `code.file.path`, `code.line.number`, `code.function.name` | Local onde a exceção foi levantada (último quadro da pilha). |
-
-O código de produção **não** monta `error.type`, `exception.type` e `code.*` à mão: ao registrar uma exceção, passa `exc_info=error` ao logger, e o formatter emite os quatro atributos sem a mensagem nem a pilha.
-| `user.id` | O solicitante (`requestedBy`), identificador opaco ou `anonymous`. |
+| `user.id` | O ator autenticado (o solicitante, `requestedBy`): identificador opaco e pseudonimizado, nunca e-mail nem nome; o schema valida o formato. Vem do **contexto de negócio** (seção 13). Quem não é autenticado não tem `user.id`. |
 | `messaging.system` | `nats` (valor próprio: a semconv não define um valor para NATS). |
 | `messaging.destination.name` | Subject, quando o registro é de uma mensagem. |
 | `messaging.message.id` | `messageId` do envelope. |
 | `messaging.consumer.group.name` | Nome do consumer durável do JetStream. |
+
+O código de produção **não** monta `error.type`, `exception.type` e `code.*` à mão: ao registrar uma exceção, passa `exc_info=error` ao logger, e o formatter emite os quatro atributos sem a mensagem nem a pilha.
 
 Os atributos `messaging.*` e `user.*` estão em estágio *development* na semconv; podem ser renomeados. A revisão da versão da semconv é uma tarefa explícita (seção 9).
 
@@ -112,8 +112,10 @@ Tudo o que a semconv não cobre usa o prefixo `smarkee.`.
 
 | Atributo | Significado |
 |---|---|
-| `smarkee.resource.id` | `resourceId` do recurso tratado. |
-| `smarkee.organization.id` | `organizationId`, quando existir no contexto. |
+| `smarkee.resource.id` | `resourceId` do recurso tratado. Vem do contexto de negócio (seção 13) quando o evento não o informa. |
+| `smarkee.organization.id` | Identificador da Organization: no `ipm.organization` é o próprio `resourceId`. Omitido quando o recurso não é uma Organization. |
+| `smarkee.owner.id` | Dono do recurso (`ownerAccountId`), quando a mensagem o traz. Omitido nos demais. |
+| `smarkee.actor.type` | Tipo do ator: `user`, `anonymous`, `service` ou `system`. Baixa cardinalidade; é o único dado do ator permitido em métrica (seção 13). |
 | `smarkee.correlation.id` | `correlationId` do envelope. |
 | `smarkee.causation.id` | `causationId` do envelope. |
 | `smarkee.operation.id` | `operationId`. |
@@ -121,7 +123,7 @@ Tudo o que a semconv não cobre usa o prefixo `smarkee.`.
 | `smarkee.task.name` | Tarefa interna do processo (consumer, servidor de saúde, publicação). |
 | `smarkee.outcome` | Desfecho curto e de baixa cardinalidade (por exemplo, `accepted`, `rejected`). |
 | `smarkee.reason` | Motivo de um desfecho ou de uma rejeição. Só texto de erro de **domínio próprio**, construído sem valores (nomes de campos, nome da operação); nunca `str(error)` de uma biblioteca (seção 6). |
-| `smarkee.operation.name` | Operação do recurso (`create`, `delete`, ...). |
+| `smarkee.operation.name` | Operação do recurso (`create`, `update`, `delete`) ou, nas mensagens de estado e fatos, a operação do envelope (por exemplo, `changed`). |
 | `smarkee.observation.presence` | `presence` da observação (`present`, `absent`, `unknown`). |
 | `smarkee.result.type` | Tipo do resultado tratado (`completed`, `failed`). |
 | `smarkee.desired.generation` | Geração do `desired`. |
@@ -242,3 +244,32 @@ Decisão [`0055`](../.decisions/0055-contexto-de-trace-nos-componentes.md). Os c
 - Cada hop emite um evento de log por unidade de trabalho (`request published`, `message handled`, `outbox message published`, `action published`, `action handled`), com `trace_id`; sem eles o contexto não apareceria, pois os componentes quase não logam no fluxo normal.
 
 **Verificado em 2026-10-18:** um cadastro e as operações da jornada mostraram o mesmo `trace_id` do span do gateway nos logs de todos os papéis do `core/account`, do `ipm/organization` e do `sum/service`; um `traceparent` forjado pelo cliente não chegou aos componentes.
+
+# 13. Contexto de negócio nos logs dos apps
+
+Decisão [`0061`](../.decisions/0061-contexto-de-negocio-nos-logs-dos-apps.md). Os logs dos **apps** (os 18 componentes) carregam **quem pediu, qual recurso, qual ação, o dono e a organização**, para o drill-down. A **infra** continua sem dono: atende vários clientes. Isto **não** é auditoria (a auditoria é outro produto, com garantias de completude e retenção que a telemetria não tem).
+
+**Atributos** (do contexto da requisição ou da mensagem em tratamento; o que o evento informa explicitamente prevalece):
+
+| Atributo | De onde vem | Quando falta |
+|---|---|---|
+| `user.id` | `principal` validado do Receiver; `requestedBy` do envelope nos demais papéis | omitido |
+| `smarkee.actor.type` | `user` (id opaco válido), `anonymous` (escrita anônima), `system` (mensagem sem solicitante: as `observed`, os fatos `updated`, o Observer e a reavaliação periódica) | omitido |
+| `smarkee.resource.id` | o `resourceId` da requisição ou da mensagem | omitido |
+| `smarkee.operation.name` | rota (`create`, `update`, `delete`) ou `operation` do envelope | omitido |
+| `smarkee.owner.id` | `data.ownerAccountId`, quando a mensagem o traz | omitido |
+| `smarkee.organization.id` | o `resourceId`, quando o recurso é uma Organization | omitido |
+
+**Regras:**
+
+- **Desconhecido é omitido**, e não escrito como `unknown` (padrão OpenTelemetry). A exceção é o tipo do ator, de baixa cardinalidade, que é sempre explícito quando há contexto.
+- **Só identificador opaco**: o formato de `user.id`, `smarkee.owner.id` e demais ids não admite `@` nem `.`; um valor fora do formato (por exemplo, um e-mail) é descartado e nunca registrado. O schema e o teste de conformidade vigiam.
+- **O ator vem só do dado validado** (o token que o Receiver verificou; o `requestedBy` do envelope), nunca de um valor enviado pelo cliente.
+- **`anonymous` quer dizer não autenticado**, e não anonimizado. O id do ator é **pseudonimizado** (o `sub`, um UUID opaco). Um hash com chave (HMAC) é um passo posterior e aditivo, útil se o backend for de terceiros.
+- **Em métricas**, o id do ator, do recurso e da organização **não** podem ser atributo (cardinalidade ilimitada); só o tipo do ator e dimensões de baixa cardinalidade. O drill-down é métrica → trace → logs.
+- **Quem executou** não precisa de atributo novo: o `service.name` do Resource (`<módulo>-<tipo>-<papel>`) é o nome da conta de serviço do Zitadel.
+
+**Como funciona:** o `logging_config.py` (a fonte única, decisão 0046) mantém um contexto por requisição ou mensagem. O Receiver o preenche na autenticação e ao publicar; Manager, Reconciler e Executor o preenchem a partir do envelope, no mesmo ponto em que já ligam o `traceparent`; o Publisher, a partir da linha do outbox. `bind_traceparent` inicia um contexto novo e é o que os consumidores usam para limpar (`finally`); o Reconciler guarda e restaura o contexto ao reavaliar.
+
+**Limites declarados:** o span do gateway e as métricas ainda não têm este contexto (etapas seguintes do plano). Nas mensagens de estado, a ação do envelope é `changed`; a ação original (`create`) aparece nos hops que a carregam. O fato `updated` não traz `requestedBy`, então fica `system`. O dono só aparece onde a mensagem o traz. **Verificado em 2026-10-19** com três donos e cinco organizações: 99% dos logs de app com tipo de ator, `user.id` por conta e `smarkee.organization.id` por organização, e nenhum `user.id` com formato de e-mail.
+

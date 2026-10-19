@@ -183,6 +183,45 @@ def test_the_trace_of_the_gateway_reaches_every_role_of_the_loop(
     assert gateway_spans[0]["parent_span_id"] == "", "o gateway inicia o trace: sem span pai"
 
 
+CONTEXT_EVENTS = ("request published", "requested handled", "action published", "action handled")
+OPAQUE_IDENTIFIER = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def test_an_anonymous_registration_carries_its_business_context_in_every_hop(
+    registration: tuple[str, str],
+) -> None:
+    resource_id, trace_id = registration
+
+    def events() -> list[Record] | None:
+        found = [
+            r for r in logs("logs/app") if r["trace_id"] == trace_id and r["body"] in CONTEXT_EVENTS
+        ]
+        return found if {r["body"] for r in found} >= set(CONTEXT_EVENTS) else None
+
+    for record in wait_for(f"eventos {CONTEXT_EVENTS} do trace {trace_id}", events):
+        attributes = record["attributes"]
+        where = f"{record['role']}: {record['body']}"
+        assert attributes.get("smarkee.actor.type") == "anonymous", where
+        assert "user.id" not in attributes, f"{where}: anônimo não tem id de ator"
+        assert attributes.get("smarkee.resource.id") == resource_id, where
+        assert attributes.get("smarkee.operation.name") == "create", where
+
+
+def test_app_logs_hold_no_email_and_every_actor_id_is_opaque(
+    started_ns: int, registration: tuple[str, str]
+) -> None:
+    del registration
+    recent = [r for r in logs("logs/app") if r["time_ns"] >= started_ns]
+    assert recent, "nenhum log de app desde o início do teste"
+    for record in recent:
+        values = [record["body"], *[str(v) for v in record["attributes"].values()]]
+        assert not any(EMAIL.search(value) for value in values), f"e-mail em: {record['body']}"
+        actor = record["attributes"].get("user.id")
+        assert actor is None or OPAQUE_IDENTIFIER.match(actor), (
+            "user.id deve ser identificador opaco"
+        )
+
+
 def test_a_trace_context_forged_by_the_client_is_ignored() -> None:
     forged = f"00-{FORGED_TRACE_ID}-{'b' * 16}-01"
     resource_id = register({"traceparent": forged, "tracestate": "forjado=1"})

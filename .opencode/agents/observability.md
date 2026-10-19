@@ -48,10 +48,11 @@ Ao revisar código ou arquitetura de telemetria, verifique:
 1. **Estrutura (Logs):** A linha segue o formato OTLP, em JSON puro? O `message` (body) é uma constante de evento (ex: `recurso_atualizado_provider`) e nunca carrega valor variável interpolado?
 2. **Métricas:** As métricas de domínio adotam o prefixo `smarkee_` (ex: `smarkee_ssot_*`, `smarkee_messaging_*`, `smarkee_control_loop_*`) e as labels corretas (`module`, `resource_type`)?
 3. **Tracing:** O `traceparent` propaga ponta a ponta (gateway -> Receiver -> NATS -> outbox -> demais papéis, `docs/OBSERVABILITY.md` §12)? A borda descarta o do cliente (§11)? Os logs trazem `trace_id`? 
-4. **Sigilo de Dados (Mandatório):** Algum campo classificado como `confidential` ou `secretReference` foi registrado no log ou atributo do span? Há credenciais ou strings de conexões sensíveis? Houve *dump* via `DEBUG`? Exceções do provedor externo estão vazando em texto bruto em vez de mensagens de erro neutras?
-5. **Semântica:** O nome do atributo existe nas Semantic Conventions vigentes? Se for customizado do domínio, usa o namespace correto?
-6. **Infraestrutura:** A arquitetura empurra (push) a telemetria via OTLP para o Grafana Alloy? 
-7. **Independência (Decisão 0015):** Uma alteração no log formatter do Python foi feita na pasta canônica e sincronizada (`sync.py`), ou editada de forma fragmentada no componente?
+4. **Contexto de negócio (apps):** Os logs de app trazem ator (`user.id` opaco e `smarkee.actor.type`), recurso, ação, dono e organização, na forma de `docs/OBSERVABILITY.md` §13? Id de ator, recurso ou organização fora de métrica (só tipo do ator e baixa cardinalidade)? A infra segue sem dono?
+5. **Sigilo de Dados (Mandatório):** Algum campo classificado como `confidential` ou `secretReference` foi registrado no log ou atributo do span? Há credenciais ou strings de conexões sensíveis? Houve *dump* via `DEBUG`? Exceções do provedor externo estão vazando em texto bruto em vez de mensagens de erro neutras?
+6. **Semântica:** O nome do atributo existe nas Semantic Conventions vigentes? Se for customizado do domínio, usa o namespace correto?
+7. **Infraestrutura:** A arquitetura empurra (push) a telemetria via OTLP para o Grafana Alloy? 
+8. **Independência (Decisão 0015):** Uma alteração no log formatter do Python foi feita na pasta canônica e sincronizada (`sync.py`), ou editada de forma fragmentada no componente?
 
 # 3. Verificação contra a Semantic Convention (semconv)
 
