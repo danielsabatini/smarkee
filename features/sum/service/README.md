@@ -104,6 +104,8 @@ src/sum_service/
   common/      o que é igual em todos os papéis: settings, messaging, lifecycle, database, identity
                (token da conta de serviço), ports, resource (módulo, tipo e versão), contracts/
                (modelos gerados, base e envelope), logging_config, ids e http/health
+               Os arquivos de common/ (exceto resource.py e contracts/generated.py) são gerados do
+               template (templates/feature, decisão 0064): altere o modelo, não a cópia.
   receiver/  manager/  publisher/  observer/  reconciler/  executor/    (cada um com o seu README)
 tests/
   common/  receiver/  manager/  publisher/  observer/  reconciler/  executor/    (unit, contract e integration)
@@ -114,30 +116,22 @@ consumers/     manifestos dos consumers do Manager e do Executor
 
 Um papel nunca importa outro (`tests/common/unit/test_role_isolation.py`); só o `common/`. Comandos de desenvolvimento, na raiz da feature: `uv sync`, `uv run ruff check . && uv run ruff format --check . && uv run pyright` e `uv run pytest` (a suíte e2e, em `tests/e2e`, tem projeto próprio).
 
-## 3.7 Estrutura interna do Manager e do Publisher
+## 3.7 Estrutura interna dos papéis
 
-```text
-src/sum_service/manager/
-  domain/        regras puras: catálogo, decisão de criar e desligar, convergência da fase
-  handlers/      requested.py (criar e desligar), state.py (observed e resultados)
-  store/         ssot.py: SQL do SSOT, em transação
-  transport/     requested.py e state.py (consumo, ACK, TERM, RETRY)
-  http/          health.py (probes /health/*)
-src/sum_service/publisher/
-  domain/        PublishError, PublicationResult (puros)
-  outbox/        database.py (conexão dedicada), publication.py (lote, trava de sessão)
-```
+Cada papel é um subpacote com `main.py`, `settings.py` e `domain/` puro e sem I/O (decisão 0017): a dependência vai em um sentido só (`main → orquestração → domain`), e o `domain` nunca importa um adaptador (`tests/common/unit/test_domain_isolation.py` garante isso para todos os papéis). As pastas de cada papel:
 
-## 3.8 Estrutura interna dos demais papéis
+| Papel | Pastas | README |
+|---|---|---|
+| Receiver | `auth/`, `domain/`, `http/`, `store/`, `transport/` | [`receiver`](src/sum_service/receiver/README.md) |
+| Manager | `domain/`, `handlers/`, `store/`, `transport/` | [`manager`](src/sum_service/manager/README.md) |
+| Publisher | `domain/`, `outbox/` | [`publisher`](src/sum_service/publisher/README.md) |
+| Reconciler | `domain/`, `engine/`, `transport/` | [`reconciler`](src/sum_service/reconciler/README.md) |
+| Observer | `domain/`, `engine/`, `provider/`, `transport/` | [`observer`](src/sum_service/observer/README.md) |
+| Executor | `actions/`, `domain/`, `engine/`, `provider/`, `transport/` | [`executor`](src/sum_service/executor/README.md) |
 
-| Papel | Camadas |
-|---|---|
-| Receiver | `auth/` (token), `domain/` (principal, validações, erros), `store/` (leitura das views), `http/` (app, saúde, `openapi.py`), `transport/` (NATS) |
-| Reconciler | `domain/decision.py` (puro), `engine/` (motor), `transport/` (consumers por instância, publicação) |
-| Observer | `domain/` (observação, autorização, catálogo; puros), `provider/` (Zitadel), `engine/`, `transport/` |
-| Executor | `domain/` (revalidação, erros, catálogo; puros), `actions/` (ligar e desligar), `provider/` (Zitadel), `engine/`, `transport/` |
+A saúde (`/health/*`) é de `common/http/health.py`, igual em todos os papéis.
 
-## 3.9 Testes e2e (`tests/e2e`)
+## 3.8 Testes e2e (`tests/e2e`)
 
 Suíte black-box (decisão 0017): fala só com o gateway, o SSOT (limpeza) e o Docker (caos), e valida contra os schemas. Ver
 [`tests/e2e/README.md`](tests/e2e/README.md).

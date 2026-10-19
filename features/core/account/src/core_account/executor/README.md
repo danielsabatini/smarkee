@@ -23,11 +23,10 @@ src/core_account/executor/
   provider/    escritor do Zitadel (HTTP, JWT da conta de serviço)
   engine/      fluxo de cada action e publicação do resultado
   transport/   consumers por partição, Direct Get e publicação no NATS
-  http/        servidor de saúde (/health/live, /health/ready, /health/startup)
   main.py
 ```
 
-`tests/executor/unit/test_domain_isolation.py` falha se o `domain/` importar um adaptador.
+`tests/common/unit/test_domain_isolation.py` falha se o `domain/` importar um adaptador.
 
 ## Configuração
 

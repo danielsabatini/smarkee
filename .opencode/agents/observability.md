@@ -52,7 +52,7 @@ Ao revisar código ou arquitetura de telemetria, verifique:
 5. **Sigilo de Dados (Mandatório):** Algum campo classificado como `confidential` ou `secretReference` foi registrado no log ou atributo do span? Há credenciais ou strings de conexões sensíveis? Houve *dump* via `DEBUG`? Exceções do provedor externo estão vazando em texto bruto em vez de mensagens de erro neutras?
 6. **Semântica:** O nome do atributo existe nas Semantic Conventions vigentes? Se for customizado do domínio, usa o namespace correto?
 7. **Infraestrutura:** A arquitetura empurra (push) a telemetria via OTLP para o Grafana Alloy? 
-8. **Independência (Decisão 0015):** Uma alteração no log formatter do Python foi feita na pasta canônica e sincronizada (`sync.py`), ou editada de forma fragmentada no componente?
+8. **Independência (Decisão 0015):** Uma alteração no log formatter do Python foi feita no modelo de `templates/feature/files/` e sincronizada (`templates/feature/sync.py`), ou editada à mão na cópia de uma feature?
 
 # 3. Verificação contra a Semantic Convention (semconv)
 

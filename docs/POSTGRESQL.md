@@ -45,7 +45,7 @@ Este documento não fixa uma versão. O DDL de referência foi exercitado em Pos
 | Nomes | `snake_case`, minúsculas, sem hífen. Um tipo cujo nome é palavra reservada do PostgreSQL (por exemplo, `user`) mantém o nome do tipo, e a tabela do tipo é sempre citada (`core.account`); as demais tabelas e views (`user_operation`, `user_v1`) não precisam de aspas |
 | Papéis | Um por serviço, mapeando a identidade `<módulo>-<tipo>-<papel>` para `<módulo>_<tipo>_<papel>` (o Publisher tem o papel `<módulo>_<tipo>_publisher`) |
 
-As tabelas e as views de cada tipo seguem **um único modelo** (o DDL de referência da seção 6.6) e o contrato do recurso. Como os componentes não compartilham código (decisão 0015), o Manager de cada tipo versiona as suas migrações a partir desse modelo (hoje escritas à mão, sem gerador), e os testes de integração do Manager e os testes e2e verificam o comportamento do resultado. O objeto criado não é editado manualmente (`AGENTS.md`, arquivos gerados).
+As tabelas e as views de cada tipo seguem **um único modelo** (o DDL de referência da seção 6.6) e o contrato do recurso. Como as features não compartilham código (decisões 0015 e 0063), cada tipo versiona as suas migrações a partir desse modelo (hoje escritas à mão, sem gerador), e os testes de integração do Manager e os testes e2e verificam o comportamento do resultado. O objeto criado não é editado manualmente (`AGENTS.md`, arquivos gerados).
 
 Motivo do banco único: o SSOT é um só sistema, com um só procedimento de backup, de recuperação e de migração. O isolamento entre módulos e tipos é feito por schema, por tabela e por `GRANT`, e não por banco. Bancos separados por módulo multiplicariam conexões, backups e procedimentos sem acrescentar isolamento que os privilégios já não garantam.
 
@@ -531,7 +531,7 @@ O isolamento entre tipos de recurso é obtido por privilégios por tabela e por 
 
 # 15. Migrações
 
-- migrações são **versionadas, revisadas e executadas por infraestrutura** com o proprietário dos objetos, como etapa de implantação. O código delas fica no projeto do Manager do tipo (decisão 0015). Serviços de runtime não executam DDL, e o papel de runtime do Manager não tem privilégio de DDL;
+- migrações são **versionadas, revisadas e executadas por infraestrutura** com o proprietário dos objetos, como etapa de implantação. O código delas fica no projeto da feature, na pasta `migrations/` (decisões 0015 e 0063). Serviços de runtime não executam DDL, e o papel de runtime do Manager não tem privilégio de DDL;
 - cada tipo tem o seu controle de versão das migrações, obrigatório antes de stg e prd; uma mudança no modelo de referência é aplicada a cada tipo pelo Manager correspondente;
 - a evolução segue **expandir → migrar → contrair**: adicionar de forma compatível, migrar o conteúdo e só então remover o antigo. É a tradução, para o banco, da sequência de `SCHEMA.md`;
 - as views de leitura isolam o Receiver das migrações da tabela; uma view só muda quando o contrato de leitura muda, e uma mudança incompatível cria a view do novo `MAJOR`;

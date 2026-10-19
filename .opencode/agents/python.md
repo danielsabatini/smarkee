@@ -532,7 +532,7 @@ O CLI `sk` usa **Typer** para os comandos e **pydantic-settings** para a configu
 
 # 21. Testes e Estrutura do Componente
 
-Cada componente tem os seus testes (`unit` e `integration`), no próprio projeto. Os testes e2e do contrato (black-box, pela rede) ficam em `features/<módulo>/<tipo>/tests/e2e`, como um projeto de testes, e não importam o código dos componentes (decisões 0015 e 0017). Eles não são um componente.
+Cada feature tem os seus testes (`unit`, `contract` e `integration`), no próprio projeto, em `tests/<papel>/` e `tests/common/`. Os testes e2e do contrato (black-box, pela rede) ficam em `features/<módulo>/<tipo>/tests/e2e`, como um projeto de testes, e não importam o código da feature (decisões 0015, 0017 e 0063). Eles não são um componente.
 
 Quando um componente possuir múltiplos entrypoints, os testes podem acompanhar essa separação:
 
@@ -592,7 +592,7 @@ As regras de contrato, mensageria e persistência pertencem aos documentos de `d
 - **Idempotência:** todo consumidor trata a mesma mensagem mais de uma vez sem efeito nocivo. Confirme a mensagem apenas após o processamento durável.
 - **Logs e erros:** nunca registre campos `confidential`, segredos ou referências resolvidas (`docs/SCHEMA.md`). Mensagens de erro identificam a regra violada, e não repetem valores sensíveis.
 - **Testes:** além de unidade e integração, cubra testes de contrato, de idempotência do consumidor (mensagem duplicada) e de concorrência otimista.
-- **Sem biblioteca interna comum:** um componente não importa outro nem uma biblioteca interna compartilhada. Modelos são gerados dos schemas em cada componente, e o contrato comum é verificado pelos testes e2e (decisões 0015 e 0017).
+- **Sem biblioteca interna comum:** uma feature não importa outra nem uma biblioteca interna compartilhada. O que é idêntico entre features vem do template (`templates/feature`, decisão 0064); modelos são gerados dos schemas em cada feature, e o contrato comum é verificado pelos testes e2e (decisões 0015 e 0017).
 - **Clientes de mensageria e de banco:** a escolha das bibliotecas segue a seção de dependências e deve ser registrada como decisão em `.decisions/`. Não escolha por conveniência.
 
 ---

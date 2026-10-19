@@ -14,11 +14,10 @@ src/core_account/manager/
   handlers/    uma unidade atômica por mensagem; portas do SSOT em ports.py
   store/       único código com SQL do SSOT (SsotStore)
   transport/   adaptadores NATS (consumers de requested, observed e resultados)
-  http/        servidor de saúde (decisão 0018)
   main.py
 ```
 
-A dependência vai em um sentido só (`main → handlers → domain`); `tests/manager/unit/test_domain_isolation.py` falha se o `domain/` importar um adaptador.
+A dependência vai em um sentido só (`main → handlers → domain`); `tests/common/unit/test_domain_isolation.py` falha se o `domain/` importar um adaptador.
 
 ## Saúde
 

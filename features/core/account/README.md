@@ -58,7 +58,7 @@ Não há listagem (`GET /v1/core/accounts`) nem `PATCH`: a Account não tem `upd
 
 ## 3.3 Publisher (`core-account-publisher`)
 
-Publica no NATS, em ordem e de forma sequencial, as mensagens que o Manager gravou no **outbox**. Uma instância ativa por vez (trava consultiva de sessão); marca `published_at` só depois da confirmação do transporte (entrega *pelo menos uma vez*, deduplicada por `Nats-Msg-Id`). Não executa regra de negócio. É o sexto papel (decisão 0019), em projeto e processo próprios, para manter o menor privilégio: o Manager só insere no outbox (papel `core_account_manager`), e o Publisher só lê e marca (papel `core_account_publisher`, identidade NATS `core-account-publisher`). Uma recusa permanente do transporte bloqueia a fila na ordem e tira o Publisher de `ready` (decisão 0018). Detalhes em [`publisher/README.md`](publisher/README.md).
+Publica no NATS, em ordem e de forma sequencial, as mensagens que o Manager gravou no **outbox**. Uma instância ativa por vez (trava consultiva de sessão); marca `published_at` só depois da confirmação do transporte (entrega *pelo menos uma vez*, deduplicada por `Nats-Msg-Id`). Não executa regra de negócio. É o sexto papel (decisão 0019), em projeto e processo próprios, para manter o menor privilégio: o Manager só insere no outbox (papel `core_account_manager`), e o Publisher só lê e marca (papel `core_account_publisher`, identidade NATS `core-account-publisher`). Uma recusa permanente do transporte bloqueia a fila na ordem e tira o Publisher de `ready` (decisão 0018). Detalhes em [`publisher/README.md`](src/core_account/publisher/README.md).
 
 ## 3.4 Reconciler (`core-account-reconciler`)
 
@@ -99,6 +99,8 @@ src/core_account/
                  resource.py    módulo, tipo e versão do contrato desta feature
                  contracts/     modelos gerados, base e leitura do envelope
                  logging_config.py, ids.py, http/health.py
+               Os arquivos de common/ (exceto resource.py e contracts/generated.py) são gerados do
+               template (templates/feature, decisão 0064): altere o modelo, não a cópia.
   receiver/  manager/  publisher/  observer/  reconciler/  executor/    (cada um com o seu README)
 tests/
   common/  receiver/  manager/  publisher/  observer/  reconciler/  executor/    (unit, contract e integration)
@@ -109,49 +111,24 @@ consumers/     manifestos dos consumers do Manager e do Executor
 
 Um papel nunca importa outro (`tests/common/unit/test_role_isolation.py`); só o `common/`. Comandos de desenvolvimento, na raiz da feature: `uv sync`, `uv run ruff check . && uv run ruff format --check . && uv run pyright` e `uv run pytest` (a suíte e2e, em `tests/e2e`, tem projeto próprio).
 
-## 3.7 Estrutura interna do Manager e do Publisher
+## 3.7 Estrutura interna dos papéis
 
-Manager e Publisher são papéis separados (processos e contêineres próprios, mesma imagem, decisão 0063), cada um em camadas (decisão 0017):
+Cada papel é um subpacote com `main.py`, `settings.py` e `domain/` puro e sem I/O (decisão 0017): a dependência vai em um sentido só (`main → orquestração → domain`), e o `domain` nunca importa um adaptador (cada papel tem um teste que garante isso). A estrutura de pastas de cada papel está no README dele:
 
-```text
-src/core_account/manager/
-  domain/      política da Account (e-mail único, convergência), puro, sem I/O
-  handlers/    uma unidade atômica por mensagem (requested, observed, result)
-  store/       SQL (recurso, operation, action_result) e escrita no outbox
-  http/        servidor de saúde (/health/live, /health/ready, /health/startup)
-  transport/   adaptadores NATS (consumers de requested, observed e resultados)
-  main.py
-
-src/core_account/publisher/
-  domain/      PublishError e PublicationResult, puros
-  outbox/      leitura, trava consultiva, publicação em ordem, marcação
-  transport/   conexão e publicação no NATS
-  http/        servidor de saúde
-  main.py
-```
-
-| Camada | Função do Manager | Observação |
+| Papel | Camadas | README |
 |---|---|---|
-| `domain/` | Regras da Account | Puro; testável sem banco |
-| `handlers/` | Orquestra cada mensagem | Usa o `domain` e o `store` |
-| `store/` | Único código que **escreve** no SSOT | Insere no outbox, nunca lê dele |
-| `outbox/` (Publisher) | Publicação do outbox | Outro papel de banco; sem regra de negócio |
-| `transport/` | Adaptadores NATS | Sem regra de negócio |
+| Receiver | `domain/`, `http/`, `auth/`, `store/` (leitura pelas views), `transport/` | [`receiver`](src/core_account/receiver/README.md) |
+| Manager | `domain/`, `handlers/`, `store/` (único código que escreve no SSOT), `transport/` | [`manager`](src/core_account/manager/README.md) |
+| Publisher | `domain/`, `outbox/` | [`publisher`](src/core_account/publisher/README.md) |
+| Reconciler | `domain/` (a decisão), `engine/`, `transport/` | [`reconciler`](src/core_account/reconciler/README.md) |
+| Observer | `domain/`, `provider/` (leitura no provedor de identidade), `engine/`, `transport/` | [`observer`](src/core_account/observer/README.md) |
+| Executor | `domain/`, `provider/` (escrita no provedor de identidade), `actions/`, `engine/`, `transport/` | [`executor`](src/core_account/executor/README.md) |
+
+A saúde (`/health/*`) é de `common/http/health.py`, igual em todos os papéis.
 
 O outbox existe porque o Manager grava o recurso **e** a mensagem na mesma transação (senão haveria "gravado, mas nunca publicado"); alguém precisa levá-lo ao NATS, e isso é o Publisher. Ele é um processo à parte do Manager por ter privilégio de banco diferente, uma instância ativa por trava (enquanto o Manager escala) e domínio de falha próprio.
 
-## 3.8 Estrutura interna dos demais papéis
-
-Mesmo princípio: `domain/` puro e sem I/O, orquestração, adaptadores e `main.py`; a dependência vai em um sentido só (`main → orquestração → domain`) e o `domain` nunca importa um adaptador (cada papel tem um teste que garante isso).
-
-| Papel | Camadas |
-|---|---|
-| Receiver | `domain/` (cota, dono, autorização), `http/`, `auth/`, `store/` (leitura pelas views), `transport/` |
-| Reconciler | `domain/` (a decisão), `engine/`, `transport/` |
-| Observer | `domain/` (mapeamento do `observed`), `provider/` (leitura do Zitadel), `engine/`, `transport/` |
-| Executor | `domain/` (revalidação), `provider/` (escrita no Zitadel), `actions/`, `engine/`, `transport/` |
-
-## 3.9 Testes e2e (`tests/e2e`)
+## 3.8 Testes e2e (`tests/e2e`)
 
 Não é um componente nem vai para produção. É um projeto de **testes black-box** do contrato da Account: exercita o Receiver (HTTP), o NATS e o Zitadel pela rede e valida as mensagens e as respostas contra os JSON Schemas de `schemas/`, **sem importar o código dos componentes**. É o que permite trocar um componente de linguagem (por exemplo, o Receiver de Python para Go) e provar que o contrato continua igual. Os testes de contrato (schemas e modelos gerados) ficam em `tests/common/contract` e `tests/receiver/contract`.
 

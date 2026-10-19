@@ -568,7 +568,7 @@ O `emitter` identifica o autor da decisão, e não o processo que a transportou 
 - o **Manager** responde pela decisão e pela gravação: valida, aplica, grava e registra no outbox. Não tem credencial para publicar no NATS;
 - o **Publisher** responde pela entrega: ordem, confirmação, repetição e visibilidade do bloqueio. Não decide nem altera o conteúdo (apenas preenche `publishedAt` no instante da entrega) e só pode publicar os Subjects `manager.desired.<m>.<t>.>` e `manager.updated.<m>.<t>.>` do seu tipo. Ele preenche `publishedAt` e `publishedBy` no instante da entrega; `emitter` e o resto do conteúdo vêm do Manager e não são alterados.
 
-O Publisher é um projeto próprio, autocontido, com imagem, processo e *deployment* próprios, e com papel de banco e identidade de mensageria próprios, para manter o menor privilégio:
+O Publisher é um papel próprio da feature, com contêiner e *deployment* próprios (a imagem é a da feature, decisão 0063) e com papel de banco e identidade de mensageria próprios, para manter o menor privilégio:
 
 - o **Manager** só **insere** no outbox; consome `requested`, `observed` e `completed`/`failed`;
 - o **Publisher** só **lê** o outbox e atualiza `published_at`; entrega a mensagem no Subject do emissor `manager` (o autor da decisão; veja 6.6.2), em ordem por recurso, com uma instância ativa por outbox (trava consultiva de sessão), e só marca a publicação depois da confirmação do transporte.
@@ -1485,7 +1485,7 @@ O Executor cria a organização no Zitadel informando o `resourceId` como ID da 
 
 Antes de publicar `requested`, o Receiver exige solicitante autenticado, com e-mail verificado e a role `ipm.organization.create`. A **cota** de Organizations por dono é aplicada pelo Manager, na mesma unidade atômica do pedido, com trava consultiva por dono (decisão 0010): a pré-checagem do Receiver não basta para criações concorrentes. Nomes reservados e já existentes são rejeitados como `validation`.
 
-Componentes (projetos em `features/ipm/organization/`, decisão 0015):
+Papéis (um projeto e uma imagem em `features/ipm/organization/`, decisão 0063):
 
 ```text
 ipm-organization-receiver

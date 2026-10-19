@@ -6,7 +6,7 @@
 >
 > **Papel:** fonte de verdade do formato, dos campos e das proibições dos logs. O contrato executável é o schema [`schemas/observability/log-record.v1.schema.json`](../schemas/observability/log-record.v1.schema.json). As decisões que o originaram são a [`0045`](../.decisions/0045-contrato-de-logs-opentelemetry.md) e a [`0046`](../.decisions/0046-codigo-identico-gerado-de-fonte-unica.md). A segurança do que pode ou não ser registrado vem de [`RESOURCE-CONTROL-SECURITY.md`](RESOURCE-CONTROL-SECURITY.md) (§13) e de [`SCHEMA.md`](SCHEMA.md) (`sensitivity`).
 >
-> **Status:** os 18 componentes (`core.account`, `ipm.organization` e `sum.service`) seguem o contrato. Em dev a coleta existe (seção 7 e [`OBSERVABILITY-ARCHITECTURE.md`](OBSERVABILITY-ARCHITECTURE.md): `telemetry-agent` → `telemetry-router` → telemeters), mas o destino ainda só grava em arquivos com rotação (10 MB), separados em infra e app; não há armazenamento persistente (ver [`IMPLEMENTATION-STATUS.md`](IMPLEMENTATION-STATUS.md)).
+> **Status:** os 18 contêineres das três features (`core.account`, `ipm.organization` e `sum.service`) seguem o contrato. Em dev a coleta existe (seção 7 e [`OBSERVABILITY-ARCHITECTURE.md`](OBSERVABILITY-ARCHITECTURE.md): `telemetry-agent` → `telemetry-router` → telemeters), mas o destino ainda só grava em arquivos com rotação (10 MB), separados em infra e app; não há armazenamento persistente (ver [`IMPLEMENTATION-STATUS.md`](IMPLEMENTATION-STATUS.md)).
 
 # 1. Princípio
 
@@ -156,12 +156,12 @@ componente → stdout (JSON) → runtime do contêiner → coletor → destino
 - O coletor interpreta a linha (JSON), converte `timestamp`, `severity_*`, `trace_id` e `span_id` para os campos do LogRecord, move `resource` e `attributes` para seus lugares e define `ObservedTimestamp`.
 - O componente nunca depende do coletor nem do destino: se eles caírem, o log continua no stdout.
 - **Requisitos verificados em 2026-10-16** (Collector `otel/opentelemetry-collector-contrib:0.162.0`, receiver `file_log`, linhas reais do formatter em Docker):
-  - o contêiner precisa usar o driver de log **`json-file`**. O padrão do Docker Desktop é `local`, que grava `container.log` em formato próprio e **não** é lido pelo `file_log`. Os `compose.yaml` das features configuram `json-file` (rotação de 10 MB e 3 arquivos) nos 18 componentes;
+  - o contêiner precisa usar o driver de log **`json-file`**. O padrão do Docker Desktop é `local`, que grava `container.log` em formato próprio e **não** é lido pelo `file_log`. Os `compose.yaml` das features configuram `json-file` (rotação de 10 MB e 3 arquivos) nos 18 contêineres;
   - o Collector precisa ler `/var/lib/docker/containers` como root (os arquivos são 0600 do root);
   - o pipeline que funcionou: operador `container` (formato `docker`), `json_parser` com `timestamp` (`%Y-%m-%dT%H:%M:%S.%fZ`) e `severity` (de `severity_text`), `move` de `attributes.body` para `body` e, no processador `transform` (OTTL), `scope.name`, `Resource`, `event_name` (campo `EventName`) e `attributes` movidos para seus lugares. O `move` do operador não aceita a raiz (`resource` ou `attributes`) como destino;
   - o resultado foi um LogRecord com `Timestamp`, `ObservedTimestamp`, `SeverityNumber` e `SeverityText`, `Body`, `EventName`, escopo, `Resource` e atributos corretos, e sem `exception.message`. O Collector acrescenta `log.iostream` e `log.file.name`.
   - Em Kubernetes o formato do arquivo é o do CRI (containerd), e não o do Docker; o operador `container` com `format: containerd` ou `cri-o` cobre isso, mas **não foi testado**.
-- **Coleta em dev** (`infrastructure/dev/telemetry-agent`, Collector contrib 0.163.1, verificada em 2026-10-17 contra os 18 componentes reais e contra um contêiner de teste): o agente lê `/var/lib/docker/containers/*/*-json.log` e envia por OTLP/gRPC ao `telemetry-router`. Diferenças em relação ao pipeline acima, descobertas na verificação:
+- **Coleta em dev** (`infrastructure/dev/telemetry-agent`, Collector contrib 0.163.1, verificada em 2026-10-17 contra os 18 contêineres reais e contra um contêiner de teste): o agente lê `/var/lib/docker/containers/*/*-json.log` e envia por OTLP/gRPC ao `telemetry-router`. Diferenças em relação ao pipeline acima, descobertas na verificação:
   - o `Resource` e o escopo têm de ser movidos **por registro, no próprio `file_log`** (`move` das 8 chaves de `resource`, que são o conjunto fechado do schema, e `scope_name` do `json_parser`), e não no `transform`: o `file_log` agrupa em um único `Resource` e um único escopo todas as linhas lidas do mesmo arquivo, e alterá-los no `transform` sobrescreve o do lote inteiro. Isso importa porque o contêiner reiniciado mantém o arquivo de log e passa a ter outro `service.instance.id`;
   - `parse_ints: true` no `json_parser`, senão `code.line.number` (inteiro na semconv) sai como `double`;
   - `on_error: send_quiet` no `json_parser`: uma linha que começa com `{` mas não é JSON segue como texto e é descartada no filtro;
@@ -178,7 +178,7 @@ componente → stdout (JSON) → runtime do contêiner → coletor → destino
 
 # 8. Conformidade
 
-- Cada componente mantém seu próprio `logging_config.py` (decisão [`0015`](../.decisions/0015-componentes-por-papel-autocontidos.md)): não há biblioteca de log compartilhada. As cópias são **idênticas** (a identidade vem do nome do pacote), assim como o `tests/unit/test_logging.py` de cada componente, exceto pelo nome do pacote.
+- Cada feature mantém o seu próprio `common/logging_config.py` (decisões [`0015`](../.decisions/0015-componentes-por-papel-autocontidos.md) e 0063): não há biblioteca de log compartilhada. As cópias são **idênticas** (a identidade vem do nome do pacote), assim como o `tests/common/unit/test_logging.py` de cada feature, exceto pelo nome do pacote.
 - **A fonte única** está em `templates/feature/files/`. `python templates/feature/sync.py` regrava as cópias e `--check` as confere (decisão 0046). Alterar o formatter é alterar a fonte, sincronizar e rodar a suíte de cada componente. Um teste em `schemas/tests` falha se uma cópia divergir.
 - **O schema da linha** (`schemas/observability/log-record.v1.schema.json`) é o contrato verificável. Ele fecha os atributos aos nomes da semconv listados nele e ao namespace `smarkee.*`, e proíbe `exception.message` e `exception.stacktrace`. Atributo novo da semconv entra no schema, e atributo `smarkee.*` já é aceito pelo padrão.
 - O teste de cada componente verifica: que a linha emitida cumpre o schema; o mapeamento de severidade; `EventName`; a omissão de valores nulos; que a mensagem da exceção não aparece; o `Resource` derivado do pacote; e, por análise estática do código-fonte, que **toda chave de `extra` dos loggers é um atributo que o schema aceita** ou `event_name`.
@@ -250,7 +250,7 @@ Decisão [`0055`](../.decisions/0055-contexto-de-trace-nos-componentes.md). Os c
 
 # 13. Contexto de negócio nos logs dos apps
 
-Decisão [`0061`](../.decisions/0061-contexto-de-negocio-nos-logs-dos-apps.md). Os logs dos **apps** (os 18 componentes) carregam **quem pediu, qual recurso, qual ação, o dono e a organização**, para o drill-down. A **infra** continua sem dono: atende vários clientes. Isto **não** é auditoria (a auditoria é outro produto, com garantias de completude e retenção que a telemetria não tem).
+Decisão [`0061`](../.decisions/0061-contexto-de-negocio-nos-logs-dos-apps.md). Os logs dos **apps** (os 18 contêineres das três features) carregam **quem pediu, qual recurso, qual ação, o dono e a organização**, para o drill-down. A **infra** continua sem dono: atende vários clientes. Isto **não** é auditoria (a auditoria é outro produto, com garantias de completude e retenção que a telemetria não tem).
 
 **Atributos** (do contexto da requisição ou da mensagem em tratamento; o que o evento informa explicitamente prevalece):
 

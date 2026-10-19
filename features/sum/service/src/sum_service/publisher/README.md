@@ -6,7 +6,7 @@ gravado pelo Manager e publica no NATS (decisão 0033).
 ## Regras
 
 - Uma instância publica por vez, por trava consultiva de sessão, mantida enquanto publica e reconquistada se a conexão cair.
-- Estrutura: `domain/` (tipos puros), `outbox/` (conexão dedicada e publicação do lote) e `transport/` (JetStream).
+- Estrutura: `domain/` (tipos puros) e `outbox/` (conexão dedicada, validação do envelope e publicação do lote).
 - O envelope é validado de forma estrita antes de sair; o Publisher acrescenta `publishedAt` e
   `publishedBy` (`sum-service-publisher`). O `emitter` continua `manager`.
 - O `Nats-Msg-Id` é o `messageId`: o transporte deduplica reenvios.

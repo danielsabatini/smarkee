@@ -12,7 +12,6 @@ src/ipm_organization/observer/
   provider/    leitor do Zitadel (HTTP, JWT da conta de serviço)
   engine/      estado em memória, partição, limite de leituras e publicação
   transport/   consumers de estado por instância e publicação no NATS
-  http/        servidor de saúde (/health/live, /health/ready, /health/startup; decisão 0018)
   main.py
 ```
 

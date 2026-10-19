@@ -290,7 +290,7 @@ Operações concluídas têm retenção limitada. O que precisa ser mantido a lo
 
 # 16. Segurança
 
-- somente o Manager do tipo escreve nos registros do tipo; o Receiver lê; o Publisher lê e marca publicação; a execução das migrações do esquema pertence à infraestrutura, com o código no projeto do Manager do tipo (decisão 0015);
+- somente o Manager do tipo escreve nos registros do tipo; o Receiver lê; o Publisher lê e marca publicação; a execução das migrações do esquema pertence à infraestrutura, com o código no projeto da feature (decisões 0015 e 0063);
 - cada serviço usa identidade própria e privilégios mínimos, escopados ao seu tipo de recurso;
 - nenhum serviço do loop possui privilégio de alterar a estrutura nem de remover registros fora do seu papel;
 - dados `confidential` e `secretReference` seguem `SCHEMA.md`: não aparecem em log, erro nem métrica, e referências a segredo nunca são resolvidas pelo SSOT;

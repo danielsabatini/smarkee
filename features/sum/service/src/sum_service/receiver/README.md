@@ -32,11 +32,11 @@ sem a role, `404` inexistente ou de outro dono, `409` serviço já ligado ou ver
 
 Assinatura pelas chaves do JWKS, `iss`, `exp` e `aud` (o projeto de roles do SUM, `roles-sum`). As roles vêm do
 claim `urn:zitadel:iam:org:project:<roles-sum>:roles`: o cliente precisa pedir o escopo
-`urn:zitadel:iam:org:projects:roles`. Token de outro projeto é `401` (`tests/unit/test_auth.py`).
+`urn:zitadel:iam:org:projects:roles`. Token de outro projeto é `401` (`tests/receiver/unit/test_auth.py`).
 
 ## Estado
 
-- Testado com dependências simuladas (`tests/unit/test_api.py`), a verificação de token (`tests/unit/test_auth.py`), o
+- Testado com dependências simuladas (`tests/receiver/unit/test_api.py`), a verificação de token (`tests/receiver/unit/test_auth.py`), o
   contrato (`tests/contract/`: modelos gerados e OpenAPI) e o repositório contra o banco de dev (`tests/integration/`).
 - As respostas de sucesso e de erro são validadas contra os modelos do contrato (`test_api.py`, e no e2e contra os schemas).
 - No ar no dev (Compose), atrás do gateway, verificado pela suíte e2e (`../../../tests/e2e`).

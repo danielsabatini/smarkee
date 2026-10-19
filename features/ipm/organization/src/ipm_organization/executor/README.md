@@ -23,7 +23,6 @@ src/ipm_organization/executor/
   provider/    escritor do Zitadel (HTTP, JWT da conta de serviço)
   engine/      fluxo de cada action e publicação do resultado
   transport/   consumers por partição, Direct Get e publicação no NATS
-  http/        servidor de saúde (/health/live, /health/ready, /health/startup)
   main.py
 ```
 

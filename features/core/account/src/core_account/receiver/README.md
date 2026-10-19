@@ -11,14 +11,14 @@ Autentica e autoriza o solicitante, valida o pedido, gera as identidades (`resou
 ```text
 src/core_account/receiver/
   domain/      regras puras: Principal e roles, limite de taxa, digest e identidade da Operation, views, erros
-  http/        FastAPI (app), portas dos adaptadores (ports.py) e OpenAPI
+  http/        FastAPI (app), dependências, publicação do `requested` (submission.py), probes e OpenAPI
   auth/        validação do token (JWKS)
   store/       leitura das views do SSOT
   transport/   publicação de `requested` no NATS
   main.py
 ```
 
-`tests/receiver/unit/test_domain_isolation.py` falha se o `domain/` importar um adaptador. Saúde (decisão 0018): `GET /health/live`, `/health/ready` (inclui o NATS) e `/health/startup`, só pela rede interna; o gateway publica apenas `/v1/core/accounts`.
+`tests/common/unit/test_domain_isolation.py` falha se o `domain/` importar um adaptador. Saúde (decisão 0018): `GET /health/live`, `/health/ready` (inclui o NATS) e `/health/startup`, só pela rede interna; o gateway publica apenas `/v1/core/accounts`.
 
 ## Configuração
 

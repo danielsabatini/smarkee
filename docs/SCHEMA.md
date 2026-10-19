@@ -650,7 +650,7 @@ Modelos de código, validadores, documentação da API (OpenAPI) de cada Receive
 3. o artefato é regenerado;
 4. a CI regenera e compara: qualquer diferença entre o artefato versionado e o gerado falha a pipeline.
 
-Cada componente gera os seus próprios modelos a partir de `schemas/`; não existe pacote de modelos compartilhado entre componentes (decisão 0015). O contrato comum é verificado pelos testes de contrato de cada componente e pelos testes e2e de cada tipo (decisão 0017).
+Cada feature gera os seus próprios modelos a partir de `schemas/`; não existe pacote de modelos compartilhado entre features (decisões 0015 e 0063). O contrato comum é verificado pelos testes de contrato de cada feature e pelos testes e2e de cada tipo (decisão 0017).
 
 A estrutura de persistência (por exemplo, tabelas do SSOT) é uma representação mapeada do contrato e não é o contrato. Os testes de contrato verificam que o mapeamento preserva a semântica. O modelo lógico e o dicionário de dados do SSOT estão em `SSOT.md`.
 

@@ -281,7 +281,7 @@ O agent especialista deve permanecer responsável por seu próprio domínio.
 Os documentos do projeto atribuem à infraestrutura (e não aos serviços de runtime) as seguintes responsabilidades. Não as duplique aqui: consulte a fonte.
 
 * criar Streams e Consumers duráveis a partir de manifesto por tipo de recurso, e manter a identidade administrativa e a limpeza de tombstones: `docs/NATS.md`;
-* criar o banco `smarkee` e o seu proprietário, executar as migrações do schema do SSOT (o código delas fica no projeto do Manager de cada tipo, decisão 0015), criar os papéis por serviço e os parâmetros de sessão dos papéis de login, e manter a retenção de outbox, resultados de ação e operações: `docs/POSTGRESQL.md`;
+* criar o banco `smarkee` e o seu proprietário, executar as migrações do schema do SSOT (o código delas fica no projeto da feature, em `migrations/`, decisões 0015 e 0063), criar os papéis por serviço e os parâmetros de sessão dos papéis de login, e manter a retenção de outbox, resultados de ação e operações: `docs/POSTGRESQL.md`;
 * executar o procedimento de recuperação do SSOT após uma restauração, antes de liberar o Manager e o Publisher: `docs/SSOT.md` e `docs/POSTGRESQL.md`;
 * fornecer credenciais por gestão de segredos e proteção em repouso: `docs/RESOURCE-CONTROL-SECURITY.md` e `docs/POSTGRESQL.md`;
 * definir backup com recuperação a um ponto no tempo, teste de restauração e alta disponibilidade: `docs/POSTGRESQL.md` e `docs/NATS.md`;
@@ -399,7 +399,7 @@ Como é recuperado?
 
 Somente depois determine sua implementação específica.
 
-Os componentes do Resource Control Loop são projetos autocontidos por papel (receiver, manager, publisher, observer, reconciler e executor) e por tipo de recurso, implantados e versionados de forma independente (decisões 0017 e 0019), com Docker Compose em dev espelhando o Kubernetes de stg e prd (`.decisions/0015-componentes-por-papel-autocontidos.md` e `0017`). A infraestrutura deve tratar cada componente como unidade de imagem, versão, configuração, identidade e escala; não repita aqui as regras da decisão.
+Cada tipo de recurso é uma feature: um projeto e uma imagem com seis papéis (receiver, manager, publisher, observer, reconciler e executor), cada um em contêiner próprio escolhido pelo `command`, com a sua configuração, identidade e escala (decisões 0017, 0019 e 0063). O Docker Compose em dev espelha o Kubernetes de stg e prd. A infraestrutura deve tratar cada papel como unidade de execução, configuração, identidade e escala, e a feature como unidade de imagem e versão; não repita aqui as regras da decisão.
 
 ---
 

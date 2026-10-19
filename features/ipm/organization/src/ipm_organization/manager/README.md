@@ -16,7 +16,6 @@ src/ipm_organization/manager/
   handlers/    uma unidade atômica por mensagem; portas do SSOT em ports.py
   store/       único código com SQL do SSOT (SsotStore)
   transport/   adaptadores NATS (consumers de requested, observed e resultados)
-  http/        servidor de saúde (decisão 0018)
   main.py
 ```
 
