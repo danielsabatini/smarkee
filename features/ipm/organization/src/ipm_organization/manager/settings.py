@@ -3,10 +3,10 @@
 Ordem: variável de ambiente → default (seções comuns em `common/settings.py`).
 
 Nome da variável: `IPM_ORGANIZATION_MANAGER_<SEÇÃO>_<CAMPO>`, por exemplo
-`IPM_ORGANIZATION_MANAGER_NATS_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
+`IPM_ORGANIZATION_MANAGER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from ipm_organization.common.settings import DatabaseSettings as CommonDatabaseSettings
 from ipm_organization.common.settings import (
@@ -14,6 +14,7 @@ from ipm_organization.common.settings import (
     MessagingSettings,
     Section,
     missing_variables,
+    role_config,
 )
 
 
@@ -28,16 +29,10 @@ class LoopSettings(Section):
 
 
 class OrganizationManagerSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="IPM_ORGANIZATION_MANAGER_",
-        # IPM_ORGANIZATION_MANAGER_NATS_URL → nats.url: separa somente a seção do campo.
-        env_nested_delimiter="_",
-        env_nested_max_split=1,
-        extra="forbid",
-    )
+    model_config = role_config("manager")
 
     database: DatabaseSettings = DatabaseSettings()
-    nats: MessagingSettings = MessagingSettings()
+    messaging: MessagingSettings = MessagingSettings()
     loop: LoopSettings = LoopSettings()
     health: HealthSettings = HealthSettings()
 
@@ -47,7 +42,7 @@ def missing_required(settings: OrganizationManagerSettings) -> list[str]:
     return missing_variables(
         "IPM_ORGANIZATION_MANAGER_",
         {
-            "NATS_PASSWORD": settings.nats.password is not None,
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
         },
     )

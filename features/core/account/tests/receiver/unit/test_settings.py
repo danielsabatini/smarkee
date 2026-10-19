@@ -8,7 +8,7 @@ from core_account.receiver.settings import (
 
 REQUIRED_SECRETS = (
     "CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE",
-    "CORE_ACCOUNT_RECEIVER_NATS_PASSWORD",
+    "CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD",
     "CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD",
 )
 
@@ -16,7 +16,7 @@ REQUIRED_SECRETS = (
 def test_defaults_have_no_secrets() -> None:
     settings = AccountReceiverSettings()
     assert settings.database.password is None
-    assert settings.nats.password is None
+    assert settings.messaging.password is None
     assert settings.auth.audience is None
     assert settings.api.anonymous_rate_limit == 5
 
@@ -24,11 +24,11 @@ def test_defaults_have_no_secrets() -> None:
 def test_environment_variables_follow_the_prefix_section_and_field_pattern(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("CORE_ACCOUNT_RECEIVER_NATS_URL", "nats://example:4222")
+    monkeypatch.setenv("CORE_ACCOUNT_RECEIVER_MESSAGING_URL", "nats://example:4222")
     monkeypatch.setenv("CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD", "segredo")
     monkeypatch.setenv("CORE_ACCOUNT_RECEIVER_API_ANONYMOUS_RATE_LIMIT", "3")
     settings = AccountReceiverSettings()
-    assert settings.nats.url == "nats://example:4222"
+    assert settings.messaging.url == "nats://example:4222"
     assert settings.api.anonymous_rate_limit == 3
     assert settings.database.password is not None
     assert settings.database.password.get_secret_value() == "segredo"
@@ -36,7 +36,7 @@ def test_environment_variables_follow_the_prefix_section_and_field_pattern(
 
 
 def test_unknown_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("CORE_ACCOUNT_RECEIVER_NATS_TYPO", "x")
+    monkeypatch.setenv("CORE_ACCOUNT_RECEIVER_MESSAGING_TYPO", "x")
     with pytest.raises(ValidationError):
         AccountReceiverSettings()
 

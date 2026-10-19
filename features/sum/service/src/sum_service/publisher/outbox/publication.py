@@ -29,7 +29,10 @@ from sum_service.common.logging_config import (
     bind_traceparent,
 )
 from sum_service.common.ports import Publisher, PublishError
-from sum_service.publisher.domain.publication import PublicationRejectedError, PublicationResult
+from sum_service.publisher.domain.publication import (
+    PublicationRejectedError,
+    PublicationResult,
+)
 from sum_service.publisher.settings import DatabaseSettings
 
 logger = logging.getLogger(__name__)

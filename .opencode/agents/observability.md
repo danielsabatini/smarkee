@@ -35,7 +35,7 @@ motivos e adoção de agentes e gateway
 ```
 
 As definições e contratos estão **somente** em `docs/OBSERVABILITY.md`. A arquitetura de coleta (agente, roteador, telemeters) está em `docs/OBSERVABILITY-ARCHITECTURE.md`.
-O schema executável de logs base fica em `schemas/observability/log-record.v1.schema.json`. O formatter e o teste canônicos estão em `schemas/observability/python/`; as cópias dos componentes são geradas por `schemas/observability/sync.py` (decisão 0046) e nunca editadas à mão. 
+O schema executável de logs base fica em `schemas/observability/log-record.v1.schema.json`. O formatter e o teste canônicos são modelos em `templates/feature/files/`; as cópias das features são geradas por `templates/feature/sync.py` (decisões 0046 e 0064) e nunca editadas à mão. 
 
 A segurança do que pode ser registrado vem de `docs/RESOURCE-CONTROL-SECURITY.md` §13 e de `docs/SCHEMA.md` (`sensitivity`). Os campos de correlação (como `messageId`, `causationId`) vêm de `docs/MESSAGING.md`.
 

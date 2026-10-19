@@ -22,7 +22,7 @@ src/core_account/observer/
 
 ## Configuração
 
-Variáveis `CORE_ACCOUNT_OBSERVER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_ACCOUNT_OBSERVER_NATS_PASSWORD` e `CORE_ACCOUNT_OBSERVER_ZITADEL_REGISTER_ORGANIZATION_ID`. Ele lê as roles do usuário em todos os projetos de roles, pela organização `register`. A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`). Os demais valores e defaults estão em `src/core_account/observer/settings.py`.
+Variáveis `CORE_ACCOUNT_OBSERVER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD` e `CORE_ACCOUNT_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID`. Ele lê as roles do usuário em todos os projetos de roles, pela organização `register`. A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`). Os demais valores e defaults estão em `src/core_account/observer/settings.py`.
 
 ## Desenvolvimento
 

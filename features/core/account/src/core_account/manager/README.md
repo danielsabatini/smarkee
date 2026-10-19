@@ -26,7 +26,7 @@ A dependência vai em um sentido só (`main → handlers → domain`); `tests/ma
 
 ## Configuração
 
-Variáveis de ambiente `CORE_ACCOUNT_MANAGER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD`, `CORE_ACCOUNT_MANAGER_NATS_PASSWORD`. `CORE_ACCOUNT_MANAGER_PLATFORM_ROLES` (lista em JSON) define as roles gravadas no `desired` do usuário cadastrado (decisão 0025); o default (decisões 0025, 0032 e 0033) é `core.account.delete|get` mais as roles base do SUM, `sum.ipm.enable|disable|get`, que só permitem pedir a ligação de um serviço. Os demais valores e defaults estão em `src/core_account/manager/settings.py`.
+Variáveis de ambiente `CORE_ACCOUNT_MANAGER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD`, `CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD`. `CORE_ACCOUNT_MANAGER_PLATFORM_ROLES` (lista em JSON) define as roles gravadas no `desired` do usuário cadastrado (decisão 0025); o default (decisões 0025, 0032 e 0033) é `core.account.delete|get` mais as roles base do SUM, `sum.ipm.enable|disable|get`, que só permitem pedir a ligação de um serviço. Os demais valores e defaults estão em `src/core_account/manager/settings.py`.
 
 ## Desenvolvimento
 

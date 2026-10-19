@@ -5,7 +5,7 @@ Zitadel e o catálogo.
 """
 
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from sum_service.common.identity import IdentitySettings as CommonIdentitySettings
 from sum_service.common.settings import (
@@ -13,6 +13,7 @@ from sum_service.common.settings import (
     MessagingSettings,
     Section,
     missing_variables,
+    role_config,
 )
 
 
@@ -37,15 +38,10 @@ class PartitionSettings(Section):
 
 
 class SumServiceExecutorSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="SUM_SERVICE_EXECUTOR_",
-        env_nested_delimiter="_",
-        env_nested_max_split=1,
-        extra="forbid",
-    )
+    model_config = role_config("executor")
 
-    nats: MessagingSettings = MessagingSettings()
-    zitadel: IdentitySettings = IdentitySettings()
+    messaging: MessagingSettings = MessagingSettings()
+    identity: IdentitySettings = IdentitySettings()
     catalog: CatalogSettings = CatalogSettings()
     partition: PartitionSettings = PartitionSettings()
     health: HealthSettings = HealthSettings()
@@ -56,9 +52,9 @@ def missing_required(settings: SumServiceExecutorSettings) -> list[str]:
     return missing_variables(
         "SUM_SERVICE_EXECUTOR_",
         {
-            "NATS_PASSWORD": settings.nats.password is not None,
-            "ZITADEL_REGISTER_ORGANIZATION_ID": bool(settings.zitadel.register_organization_id),
-            "ZITADEL_PROJECT_IDS": bool(settings.zitadel.project_ids),
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
+            "IDENTITY_REGISTER_ORGANIZATION_ID": bool(settings.identity.register_organization_id),
+            "IDENTITY_PROJECT_IDS": bool(settings.identity.project_ids),
             "CATALOG_ROLES": bool(settings.catalog.roles),
         },
     )

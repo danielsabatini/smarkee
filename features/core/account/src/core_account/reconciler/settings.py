@@ -1,17 +1,19 @@
 """Configuração do Reconciler de Account (decisões 0015 e 0063).
 
 Ordem: variável de ambiente → default. Nome da variável:
-`CORE_ACCOUNT_RECONCILER_<SEÇÃO>_<CAMPO>`, por exemplo `CORE_ACCOUNT_RECONCILER_NATS_URL`
+`CORE_ACCOUNT_RECONCILER_<SEÇÃO>_<CAMPO>`, por exemplo
+`CORE_ACCOUNT_RECONCILER_MESSAGING_URL`
 (`docs/SCHEMA.md` §8.3). A senha do NATS não tem default. O Reconciler não acessa o SSOT.
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from core_account.common.settings import (
     HealthSettings,
     Section,
     StateMessagingSettings,
     missing_variables,
+    role_config,
 )
 
 
@@ -35,14 +37,9 @@ class LoopSettings(Section):
 
 
 class AccountReconcilerSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="CORE_ACCOUNT_RECONCILER_",
-        env_nested_delimiter="_",
-        env_nested_max_split=1,
-        extra="forbid",
-    )
+    model_config = role_config("reconciler")
 
-    nats: StateMessagingSettings = StateMessagingSettings()
+    messaging: StateMessagingSettings = StateMessagingSettings()
     loop: LoopSettings = LoopSettings()
     health: HealthSettings = HealthSettings()
 
@@ -50,5 +47,5 @@ class AccountReconcilerSettings(BaseSettings):
 def missing_required(settings: AccountReconcilerSettings) -> list[str]:
     """Nomes das variáveis obrigatórias (sem default) que não foram informadas."""
     return missing_variables(
-        "CORE_ACCOUNT_RECONCILER_", {"NATS_PASSWORD": settings.nats.password is not None}
+        "CORE_ACCOUNT_RECONCILER_", {"MESSAGING_PASSWORD": settings.messaging.password is not None}
     )

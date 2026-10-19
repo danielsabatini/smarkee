@@ -6,26 +6,26 @@ from ipm_organization.executor.settings import (
     missing_required,
 )
 
-REQUIRED_SECRETS = ("IPM_ORGANIZATION_EXECUTOR_NATS_PASSWORD",)
+REQUIRED_SECRETS = ("IPM_ORGANIZATION_EXECUTOR_MESSAGING_PASSWORD",)
 
 
 def test_defaults_have_no_secrets() -> None:
     settings = OrganizationExecutorSettings()
-    assert settings.nats.password is None
+    assert settings.messaging.password is None
 
 
 def test_environment_variables_follow_the_prefix_section_and_field_pattern(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("IPM_ORGANIZATION_EXECUTOR_ZITADEL_TIMEOUT_SECONDS", "7")
-    monkeypatch.setenv("IPM_ORGANIZATION_EXECUTOR_NATS_PASSWORD", "segredo")
+    monkeypatch.setenv("IPM_ORGANIZATION_EXECUTOR_IDENTITY_TIMEOUT_SECONDS", "7")
+    monkeypatch.setenv("IPM_ORGANIZATION_EXECUTOR_MESSAGING_PASSWORD", "segredo")
     settings = OrganizationExecutorSettings()
-    assert settings.zitadel.timeout_seconds == 7.0
+    assert settings.identity.timeout_seconds == 7.0
     assert "segredo" not in repr(settings)
 
 
 def test_unknown_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("IPM_ORGANIZATION_EXECUTOR_NATS_TYPO", "x")
+    monkeypatch.setenv("IPM_ORGANIZATION_EXECUTOR_MESSAGING_TYPO", "x")
     with pytest.raises(ValidationError):
         OrganizationExecutorSettings()
 

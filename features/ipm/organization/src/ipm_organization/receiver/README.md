@@ -8,7 +8,7 @@ Autentica e autoriza o solicitante, valida o pedido, gera as identidades (`resou
 
 ## Configuração
 
-Variáveis de ambiente `IPM_ORGANIZATION_RECEIVER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `IPM_ORGANIZATION_RECEIVER_DATABASE_PASSWORD`, `IPM_ORGANIZATION_RECEIVER_NATS_PASSWORD`, `IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE`. Os demais valores e defaults estão em `src/ipm_organization/receiver/settings.py`.
+Variáveis de ambiente `IPM_ORGANIZATION_RECEIVER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `IPM_ORGANIZATION_RECEIVER_DATABASE_PASSWORD`, `IPM_ORGANIZATION_RECEIVER_MESSAGING_PASSWORD`, `IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE`. Os demais valores e defaults estão em `src/ipm_organization/receiver/settings.py`.
 
 ## Desenvolvimento
 

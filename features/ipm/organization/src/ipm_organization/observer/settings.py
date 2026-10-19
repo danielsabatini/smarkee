@@ -1,12 +1,13 @@
 """Configuração do Observer de Organization (decisões 0015 e 0063).
 
 Ordem: variável de ambiente → default. Nome da variável:
-`IPM_ORGANIZATION_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo `IPM_ORGANIZATION_OBSERVER_NATS_URL`
+`IPM_ORGANIZATION_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo
+`IPM_ORGANIZATION_OBSERVER_MESSAGING_URL`
 (`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Observer
 não acessa o SSOT e só **lê** o Zitadel (conta `ipm-organization-observer`, somente leitura).
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from ipm_organization.common.identity import IdentitySettings
 from ipm_organization.common.settings import (
@@ -14,6 +15,7 @@ from ipm_organization.common.settings import (
     Section,
     StateMessagingSettings,
     missing_variables,
+    role_config,
 )
 
 
@@ -33,15 +35,10 @@ class LoopSettings(Section):
 
 
 class OrganizationObserverSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="IPM_ORGANIZATION_OBSERVER_",
-        env_nested_delimiter="_",
-        env_nested_max_split=1,
-        extra="forbid",
-    )
+    model_config = role_config("observer")
 
-    nats: StateMessagingSettings = StateMessagingSettings()
-    zitadel: IdentitySettings = IdentitySettings()
+    messaging: StateMessagingSettings = StateMessagingSettings()
+    identity: IdentitySettings = IdentitySettings()
     partition: PartitionSettings = PartitionSettings()
     health: HealthSettings = HealthSettings()
     loop: LoopSettings = LoopSettings()
@@ -52,6 +49,6 @@ def missing_required(settings: OrganizationObserverSettings) -> list[str]:
     return missing_variables(
         "IPM_ORGANIZATION_OBSERVER_",
         {
-            "NATS_PASSWORD": settings.nats.password is not None,
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
         },
     )

@@ -21,10 +21,14 @@ def test_feature_copies_match_the_template() -> None:
     assert divergent == [], [str(path) for path in divergent]
 
 
-def test_every_feature_receives_the_template() -> None:
-    expected = cast(dict[Path, str], _load_sync().expected_files())
-    features = cast(list[Any], _load_sync().features())
-    assert len(features) >= 3
-    assert len(expected) == len(features) * sum(
-        1 for path in (TEMPLATE / "files").rglob("*") if path.is_file()
-    )
+def test_every_profile_names_existing_features() -> None:
+    module = _load_sync()
+    existing = {f"{path.parent.name}/{path.name}" for path, _ in cast(list[Any], module.features())}
+    for profile, names in cast(dict[str, tuple[str, ...]], module.PROFILES).items():
+        assert set(names) <= existing, profile
+        assert (TEMPLATE / "optional" / profile).is_dir()
+
+
+def test_all_features_are_found() -> None:
+    packages = {values["@@PACKAGE@@"] for _, values in cast(list[Any], _load_sync().features())}
+    assert packages == {"core_account", "ipm_organization", "sum_service"}

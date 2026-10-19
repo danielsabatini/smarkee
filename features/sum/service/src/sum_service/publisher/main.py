@@ -1,5 +1,6 @@
-"""Entrypoint do Publisher de `sum.service` (`sum-service-publisher`, decisões 0015 e 0033).
+"""Entrypoint do Publisher de `sum.service` (decisões 0015 e 0033).
 
+Contêiner `sum-service-publisher`.
 Lê o outbox do tipo e publica no transporte, em ordem; uma instância ativa por trava consultiva.
 Só inicializa e encerra: valida a configuração, conecta ao NATS e roda o Publisher. Uma recusa
 permanente não derruba o processo: o Publisher sai de `ready` e quem opera é avisado (decisão 0018).
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 async def run(settings: SumServicePublisherSettings) -> int:
     stop = stop_on_signals()
     health = Health()
-    messaging_client = await connect(settings.nats, name="sum-service-publisher")
+    messaging_client = await connect(settings.messaging, name="sum-service-publisher")
     publisher = OutboxPublisher(
         settings.database, StreamPublisher(stream_of(messaging_client)), on_cycle=health.beat
     )

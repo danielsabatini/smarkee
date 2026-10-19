@@ -46,7 +46,7 @@ async def _serve_until_stopped(server: _Server, stop: asyncio.Event) -> None:
 async def run(settings: OrganizationReceiverSettings) -> int:
     stop = stop_on_signals()
     async with httpx.AsyncClient(timeout=5.0) as http:
-        messaging_client = await connect(settings.nats, name="ipm-organization-receiver")
+        messaging_client = await connect(settings.messaging, name="ipm-organization-receiver")
         pool = await open_pool(settings.database)
         api = settings.api
         server = _Server(

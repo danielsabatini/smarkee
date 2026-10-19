@@ -45,7 +45,7 @@ claim `urn:zitadel:iam:org:project:<roles-sum>:roles`: o cliente precisa pedir o
 ## Configuração
 
 `SUM_SERVICE_RECEIVER_<SEÇÃO>_<CAMPO>`. Obrigatórias: `AUTH_AUDIENCE` (ID do `roles-sum`),
-`NATS_PASSWORD` e `DATABASE_PASSWORD` (papel `sum_service_receiver_login`, só leitura das views).
+`MESSAGING_PASSWORD` e `DATABASE_PASSWORD` (papel `sum_service_receiver_login`, só leitura das views).
 
 ## Testes
 

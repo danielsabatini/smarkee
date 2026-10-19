@@ -3,8 +3,8 @@
 Variáveis (sem elas, o teste é pulado): `SUM_SERVICE_PUBLISHER_TEST_URL` (papel do Publisher),
 `SUM_SERVICE_PUBLISHER_TEST_MANAGER_URL` (papel do Manager, só para gravar a linha do outbox),
 `SUM_SERVICE_PUBLISHER_TEST_MAINTENANCE_URL` (limpeza e leitura de `published_at`), e
-`SUM_SERVICE_PUBLISHER_TEST_NATS_*` para o messaging. O teste usa um Stream temporário e não toca no
-`DESIRED` real.
+`SUM_SERVICE_PUBLISHER_TEST_MESSAGING_*` para o messaging. O teste usa um Stream temporário e não
+toca no `DESIRED` real.
 """
 
 import json
@@ -145,9 +145,9 @@ async def test_a_permanent_refusal_from_the_transport_keeps_the_message_pending(
 
 
 async def test_a_valid_message_is_published_once_on_a_temporary_stream_and_marked() -> None:
-    url = os.environ.get("SUM_SERVICE_PUBLISHER_TEST_NATS_URL")
-    user = os.environ.get("SUM_SERVICE_PUBLISHER_TEST_NATS_USER")
-    password = os.environ.get("SUM_SERVICE_PUBLISHER_TEST_NATS_PASSWORD")
+    url = os.environ.get("SUM_SERVICE_PUBLISHER_TEST_MESSAGING_URL")
+    user = os.environ.get("SUM_SERVICE_PUBLISHER_TEST_MESSAGING_USER")
+    password = os.environ.get("SUM_SERVICE_PUBLISHER_TEST_MESSAGING_PASSWORD")
     if not (url and user and password):
         pytest.skip("messaging de dev não configurado para o teste")
     suffix = uuid.uuid4().hex[:8]

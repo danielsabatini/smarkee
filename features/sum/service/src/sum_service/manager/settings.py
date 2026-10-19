@@ -4,10 +4,10 @@ Ordem: variável de ambiente → default. Não há arquivo de configuração: o 
 contêiner, e os segredos entram por variável (ou arquivo montado), nunca no código.
 
 Nome da variável: `SUM_SERVICE_MANAGER_<SEÇÃO>_<CAMPO>`, por exemplo
-`SUM_SERVICE_MANAGER_NATS_URL`. As senhas e o catálogo não têm default.
+`SUM_SERVICE_MANAGER_MESSAGING_URL`. As senhas e o catálogo não têm default.
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from sum_service.common.settings import DatabaseSettings as CommonDatabaseSettings
 from sum_service.common.settings import (
@@ -15,6 +15,7 @@ from sum_service.common.settings import (
     MessagingSettings,
     Section,
     missing_variables,
+    role_config,
 )
 
 
@@ -30,16 +31,10 @@ class CatalogSettings(Section):
 
 
 class SumServiceManagerSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="SUM_SERVICE_MANAGER_",
-        # SUM_SERVICE_MANAGER_NATS_URL → nats.url: separa somente a seção do campo.
-        env_nested_delimiter="_",
-        env_nested_max_split=1,
-        extra="forbid",
-    )
+    model_config = role_config("manager")
 
     database: DatabaseSettings = DatabaseSettings()
-    nats: MessagingSettings = MessagingSettings()
+    messaging: MessagingSettings = MessagingSettings()
     catalog: CatalogSettings = CatalogSettings()
     health: HealthSettings = HealthSettings()
 
@@ -49,7 +44,7 @@ def missing_required(settings: SumServiceManagerSettings) -> list[str]:
     return missing_variables(
         "SUM_SERVICE_MANAGER_",
         {
-            "NATS_PASSWORD": settings.nats.password is not None,
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
             "CATALOG_ROLES": bool(settings.catalog.roles),
         },

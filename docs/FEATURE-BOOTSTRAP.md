@@ -30,8 +30,7 @@ O que é igual em todas as features **não é copiado à mão**: vem do template
 3. Gere o que é comum, a partir das fontes únicas:
 
    ```bash
-   python templates/feature/sync.py          # common/, testes comuns, Dockerfile, .dockerignore, telemeter/config.yaml (decisão 0064)
-   python schemas/observability/sync.py      # logging_config.py e test_logging.py (decisão 0046)
+   python templates/feature/sync.py          # common/ (inclusive logging_config.py), testes comuns, Dockerfile, .dockerignore, telemeter/config.yaml (decisões 0046 e 0064)
    cd features/<módulo>/<tipo> && uv lock && uv run datamodel-codegen   # modelos Pydantic dos schemas (decisão 0012)
    ```
 
@@ -80,7 +79,7 @@ Os Streams (`REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT`, `UPDATED`) s
 ## 11. Verificação antes de avançar
 
 ```bash
-python templates/feature/sync.py --check && python schemas/observability/sync.py --check
+python templates/feature/sync.py --check
 cd features/<módulo>/<tipo>
 uv run ruff check . && uv run ruff format --check . && uv run pyright
 uv run pytest tests/*/unit tests/*/contract          # integração e e2e pedem a stack de dev no ar

@@ -4,13 +4,13 @@ Ordem: variável de ambiente → default. Não há arquivo de configuração: o 
 contêiner, e os segredos entram por variável (ou arquivo montado), nunca no código.
 
 Nome da variável: `CORE_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>`, por exemplo
-`CORE_ACCOUNT_RECEIVER_NATS_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
+`CORE_ACCOUNT_RECEIVER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from core_account.common.settings import DatabaseSettings as CommonDatabaseSettings
-from core_account.common.settings import MessagingSettings, Section, missing_variables
+from core_account.common.settings import MessagingSettings, Section, missing_variables, role_config
 
 
 class DatabaseSettings(CommonDatabaseSettings):
@@ -52,16 +52,10 @@ class PeersSettings(Section):
 
 
 class AccountReceiverSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="CORE_ACCOUNT_RECEIVER_",
-        # CORE_ACCOUNT_RECEIVER_NATS_URL → nats.url: separa somente a seção do campo.
-        env_nested_delimiter="_",
-        env_nested_max_split=1,
-        extra="forbid",
-    )
+    model_config = role_config("receiver")
 
     database: DatabaseSettings = DatabaseSettings()
-    nats: MessagingSettings = MessagingSettings()
+    messaging: MessagingSettings = MessagingSettings()
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
     peers: PeersSettings = PeersSettings()
@@ -73,7 +67,7 @@ def missing_required(settings: AccountReceiverSettings) -> list[str]:
         "CORE_ACCOUNT_RECEIVER_",
         {
             "AUTH_AUDIENCE": bool(settings.auth.audience),
-            "NATS_PASSWORD": settings.nats.password is not None,
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
         },
     )

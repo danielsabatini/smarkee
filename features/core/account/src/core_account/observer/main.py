@@ -31,13 +31,13 @@ logger = logging.getLogger(__name__)
 
 async def run(settings: AccountObserverSettings) -> int:
     stop = stop_on_signals()
-    async with httpx.AsyncClient(timeout=settings.zitadel.timeout_seconds) as http:
-        messaging_client = await connect(settings.nats, name="core-account-observer")
+    async with httpx.AsyncClient(timeout=settings.identity.timeout_seconds) as http:
+        messaging_client = await connect(settings.messaging, name="core-account-observer")
         health = Health()
         health.add_check("nats", lambda: messaging_client.is_connected)
         jetstream = stream_of(messaging_client)
         observer = Observer(
-            IdentityReader(settings.zitadel, http), StreamPublisher(jetstream), settings
+            IdentityReader(settings.identity, http), StreamPublisher(jetstream), settings
         )
         instance = new_instance_name()
         tasks = {
@@ -48,7 +48,7 @@ async def run(settings: AccountObserverSettings) -> int:
                     durable=f"core-account-observer-{suffix}-{instance}",
                     stream=stream,
                     filter_subject=subject,
-                    inactive_threshold_seconds=settings.nats.consumer_inactive_threshold_seconds,
+                    inactive_threshold_seconds=settings.messaging.consumer_inactive_threshold_seconds,
                     traced=False,
                     on_cycle=health.beat,
                 ).run(stop)

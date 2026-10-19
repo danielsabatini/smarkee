@@ -24,7 +24,7 @@ Requer a chave da conta `platform-bootstrap`. Grave-a fora do repositório (em `
 mkdir -p ../../../../.workspace/zitadel
 docker run --rm -v identity-bootstrap:/b:ro alpine cat /b/service-account-platform-bootstrap.json \
   > ../../../../.workspace/zitadel/platform-bootstrap.json
-export CONFORMANCE_ZITADEL_KEY_FILE=$PWD/../../../../.workspace/zitadel/platform-bootstrap.json
+export CONFORMANCE_IDENTITY_KEY_FILE=$PWD/../../../../.workspace/zitadel/platform-bootstrap.json
 uv sync
 uv run pytest
 rm ../../../../.workspace/zitadel/platform-bootstrap.json
@@ -32,7 +32,7 @@ rm ../../../../.workspace/zitadel/platform-bootstrap.json
 
 | Variável | Padrão | Uso |
 |---|---|---|
-| `CONFORMANCE_ZITADEL_KEY_FILE` | (sem padrão; sem ela, os testes são pulados) | Chave JSON do `platform-bootstrap` |
-| `CONFORMANCE_ZITADEL_URL` | `http://localhost:8080` | Gateway do Zitadel |
-| `CONFORMANCE_ZITADEL_HOST` | `ipm-dev.smarkee.com.br:8080` | Cabeçalho `Host` |
-| `CONFORMANCE_ZITADEL_ISSUER` | `http://ipm-dev.smarkee.com.br:8080` | Audience da assertion |
+| `CONFORMANCE_IDENTITY_KEY_FILE` | (sem padrão; sem ela, os testes são pulados) | Chave JSON do `platform-bootstrap` |
+| `CONFORMANCE_IDENTITY_URL` | `http://localhost:8080` | Gateway do Zitadel |
+| `CONFORMANCE_IDENTITY_HOST` | `ipm-dev.smarkee.com.br:8080` | Cabeçalho `Host` |
+| `CONFORMANCE_IDENTITY_ISSUER` | `http://ipm-dev.smarkee.com.br:8080` | Audience da assertion |

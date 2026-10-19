@@ -3,6 +3,10 @@
 from dataclasses import dataclass
 
 
+class PublicationRejectedError(Exception):
+    """Uma mensagem do outbox não atende ao envelope. É uma falha permanente da mensagem."""
+
+
 @dataclass(frozen=True, slots=True)
 class PublicationResult:
     published: int

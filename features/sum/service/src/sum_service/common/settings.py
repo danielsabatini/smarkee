@@ -9,6 +9,24 @@ abaixo; o nome da variável é `<PREFIXO><SEÇÃO>_<CAMPO>` (`docs/SCHEMA.md` §
 from collections.abc import Mapping
 
 from pydantic import BaseModel, ConfigDict, SecretStr
+from pydantic_settings import SettingsConfigDict
+
+ENV_PREFIX = "SUM_SERVICE_"
+"""Prefixo das variáveis de ambiente da feature; cada papel acrescenta o seu nome."""
+
+
+def role_config(role: str) -> SettingsConfigDict:
+    """Configuração do `BaseSettings` de um papel: variáveis `<ENV_PREFIX><PAPEL>_<SEÇÃO>_<CAMPO>`.
+
+    `<ENV_PREFIX><PAPEL>_MESSAGING_URL` vira `messaging.url`: o delimitador separa somente a
+    seção do campo.
+    """
+    return SettingsConfigDict(
+        env_prefix=f"{ENV_PREFIX}{role.upper()}_",
+        env_nested_delimiter="_",
+        env_nested_max_split=1,
+        extra="forbid",
+    )
 
 
 class Section(BaseModel):
@@ -48,6 +66,6 @@ class DatabaseSettings(Section):
 def missing_variables(prefix: str, present: Mapping[str, bool]) -> list[str]:
     """Nomes completos das variáveis obrigatórias (sem default) que não foram informadas.
 
-    `present` mapeia o sufixo da variável (por exemplo, `NATS_PASSWORD`) para "foi informada".
+    `present` mapeia o sufixo da variável (por exemplo, `MESSAGING_PASSWORD`) para "foi informada".
     """
     return [f"{prefix}{name}" for name, informed in present.items() if not informed]

@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 async def run(settings: SumServiceReconcilerSettings) -> int:
     stop = stop_on_signals()
-    messaging_client = await connect(settings.nats, name="sum-service-reconciler")
+    messaging_client = await connect(settings.messaging, name="sum-service-reconciler")
     jetstream = stream_of(messaging_client)
     health = Health()
     health.add_check("nats", lambda: messaging_client.is_connected)
@@ -40,7 +40,7 @@ async def run(settings: SumServiceReconcilerSettings) -> int:
                 durable=f"sum-service-reconciler-{suffix}-{instance}",
                 stream=stream,
                 filter_subject=subject,
-                inactive_threshold_seconds=settings.nats.consumer_inactive_threshold_seconds,
+                inactive_threshold_seconds=settings.messaging.consumer_inactive_threshold_seconds,
                 traced=True,
                 on_cycle=health.beat,
             ).run(stop)

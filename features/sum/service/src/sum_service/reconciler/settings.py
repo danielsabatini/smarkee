@@ -4,13 +4,14 @@ Nome da variável: `SUM_SERVICE_RECONCILER_<SEÇÃO>_<CAMPO>`. Os parâmetros do
 contrato `desired` (`x-resourceParameters`). Só a senha do NATS não tem default.
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from sum_service.common.settings import (
     HealthSettings,
     Section,
     StateMessagingSettings,
     missing_variables,
+    role_config,
 )
 
 
@@ -30,14 +31,9 @@ class LoopSettings(Section):
 
 
 class SumServiceReconcilerSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="SUM_SERVICE_RECONCILER_",
-        env_nested_delimiter="_",
-        env_nested_max_split=1,
-        extra="forbid",
-    )
+    model_config = role_config("reconciler")
 
-    nats: StateMessagingSettings = StateMessagingSettings()
+    messaging: StateMessagingSettings = StateMessagingSettings()
     health: HealthSettings = HealthSettings()
     loop: LoopSettings = LoopSettings()
 
@@ -47,6 +43,6 @@ def missing_required(settings: SumServiceReconcilerSettings) -> list[str]:
     return missing_variables(
         "SUM_SERVICE_RECONCILER_",
         {
-            "NATS_PASSWORD": settings.nats.password is not None,
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
         },
     )

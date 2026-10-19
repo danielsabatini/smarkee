@@ -17,8 +17,8 @@ from nats.js import JetStreamContext
 
 API_URL = os.environ.get("CONFORMANCE_API_URL", "http://localhost:8080")
 API_HOST = os.environ.get("CONFORMANCE_API_HOST", "api-dev.smarkee.com.br")
-NATS_URL = os.environ.get("CONFORMANCE_NATS_URL", "nats://localhost:4222")
-NATS_PASSWORD = os.environ.get("CONFORMANCE_NATS_PASSWORD")
+NATS_URL = os.environ.get("CONFORMANCE_MESSAGING_URL", "nats://localhost:4222")
+NATS_PASSWORD = os.environ.get("CONFORMANCE_MESSAGING_PASSWORD")
 ACCESS_TOKEN = os.environ.get("CONFORMANCE_ACCESS_TOKEN")
 DATABASE_HOST = os.environ.get("CONFORMANCE_DATABASE_HOST", "localhost")
 DATABASE_PORT = os.environ.get("CONFORMANCE_DATABASE_PORT", "5432")
@@ -46,7 +46,7 @@ def authorization() -> dict[str, str]:
 @pytest_asyncio.fixture
 async def jetstream() -> AsyncIterator[JetStreamContext]:
     if NATS_PASSWORD is None:
-        pytest.skip("CONFORMANCE_NATS_PASSWORD não definida")
+        pytest.skip("CONFORMANCE_MESSAGING_PASSWORD não definida")
     client = await nats.connect(  # pyright: ignore[reportUnknownMemberType]
         servers=[NATS_URL], user="smarkee", password=NATS_PASSWORD, name="conformance"
     )

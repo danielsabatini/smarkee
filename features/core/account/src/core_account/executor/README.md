@@ -31,7 +31,7 @@ src/core_account/executor/
 
 ## Configuração
 
-Variáveis `CORE_ACCOUNT_EXECUTOR_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_ACCOUNT_EXECUTOR_NATS_PASSWORD`, `CORE_ACCOUNT_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID` e `CORE_ACCOUNT_EXECUTOR_ZITADEL_PROJECT_IDS` (JSON módulo → ID do projeto de roles, por exemplo `{"core":"…","sum":"…"}`). A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`), só desta conta.
+Variáveis `CORE_ACCOUNT_EXECUTOR_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD`, `CORE_ACCOUNT_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID` e `CORE_ACCOUNT_EXECUTOR_IDENTITY_PROJECT_IDS` (JSON módulo → ID do projeto de roles, por exemplo `{"core":"…","sum":"…"}`). A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`), só desta conta.
 
 ## Desenvolvimento
 

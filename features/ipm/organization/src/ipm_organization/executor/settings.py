@@ -1,12 +1,13 @@
 """Configuração do Executor de Organization (decisões 0015 e 0063).
 
 Ordem: variável de ambiente → default. Nome da variável:
-`IPM_ORGANIZATION_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo `IPM_ORGANIZATION_EXECUTOR_NATS_URL`
+`IPM_ORGANIZATION_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
+`IPM_ORGANIZATION_EXECUTOR_MESSAGING_URL`
 (`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Executor
 **não acessa o SSOT** e escreve só a organização no Zitadel.
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from ipm_organization.common.identity import IdentitySettings as CommonIdentitySettings
 from ipm_organization.common.settings import (
@@ -14,6 +15,7 @@ from ipm_organization.common.settings import (
     MessagingSettings,
     Section,
     missing_variables,
+    role_config,
 )
 
 
@@ -29,15 +31,10 @@ class PartitionSettings(Section):
 
 
 class OrganizationExecutorSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="IPM_ORGANIZATION_EXECUTOR_",
-        env_nested_delimiter="_",
-        env_nested_max_split=1,
-        extra="forbid",
-    )
+    model_config = role_config("executor")
 
-    nats: MessagingSettings = MessagingSettings()
-    zitadel: IdentitySettings = IdentitySettings()
+    messaging: MessagingSettings = MessagingSettings()
+    identity: IdentitySettings = IdentitySettings()
     partition: PartitionSettings = PartitionSettings()
     health: HealthSettings = HealthSettings()
 
@@ -47,6 +44,6 @@ def missing_required(settings: OrganizationExecutorSettings) -> list[str]:
     return missing_variables(
         "IPM_ORGANIZATION_EXECUTOR_",
         {
-            "NATS_PASSWORD": settings.nats.password is not None,
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
         },
     )

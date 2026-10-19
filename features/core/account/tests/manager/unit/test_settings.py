@@ -7,7 +7,7 @@ from core_account.manager.settings import (
 )
 
 REQUIRED_SECRETS = (
-    "CORE_ACCOUNT_MANAGER_NATS_PASSWORD",
+    "CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD",
     "CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD",
 )
 
@@ -15,23 +15,23 @@ REQUIRED_SECRETS = (
 def test_defaults_have_no_secrets() -> None:
     settings = AccountManagerSettings()
     assert settings.database.password is None
-    assert settings.nats.password is None
+    assert settings.messaging.password is None
 
 
 def test_environment_variables_follow_the_prefix_section_and_field_pattern(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("CORE_ACCOUNT_MANAGER_NATS_URL", "nats://example:4222")
+    monkeypatch.setenv("CORE_ACCOUNT_MANAGER_MESSAGING_URL", "nats://example:4222")
     monkeypatch.setenv("CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD", "segredo")
     settings = AccountManagerSettings()
-    assert settings.nats.url == "nats://example:4222"
+    assert settings.messaging.url == "nats://example:4222"
     assert settings.database.password is not None
     assert settings.database.password.get_secret_value() == "segredo"
     assert "segredo" not in repr(settings)
 
 
 def test_unknown_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("CORE_ACCOUNT_MANAGER_NATS_TYPO", "x")
+    monkeypatch.setenv("CORE_ACCOUNT_MANAGER_MESSAGING_TYPO", "x")
     with pytest.raises(ValidationError):
         AccountManagerSettings()
 

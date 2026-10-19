@@ -25,7 +25,7 @@ src/ipm_organization/publisher/
 
 ## Configuração
 
-Variáveis `IPM_ORGANIZATION_PUBLISHER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD`, `IPM_ORGANIZATION_PUBLISHER_NATS_PASSWORD`. Os demais valores e defaults estão em `src/ipm_organization/publisher/settings.py`.
+Variáveis `IPM_ORGANIZATION_PUBLISHER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD`, `IPM_ORGANIZATION_PUBLISHER_MESSAGING_PASSWORD`. Os demais valores e defaults estão em `src/ipm_organization/publisher/settings.py`.
 
 ## Desenvolvimento
 

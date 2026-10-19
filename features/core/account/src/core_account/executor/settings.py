@@ -1,13 +1,14 @@
 """Configuração do Executor de Account (decisões 0015 e 0063).
 
 Ordem: variável de ambiente → default. Nome da variável:
-`CORE_ACCOUNT_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo `CORE_ACCOUNT_EXECUTOR_NATS_URL`
+`CORE_ACCOUNT_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
+`CORE_ACCOUNT_EXECUTOR_MESSAGING_URL`
 (`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS e os identificadores do Zitadel. O Executor
 **não acessa o SSOT** e é a única identidade com escrita no Zitadel.
 """
 
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from core_account.common.identity import IdentitySettings as CommonIdentitySettings
 from core_account.common.settings import (
@@ -15,6 +16,7 @@ from core_account.common.settings import (
     MessagingSettings,
     Section,
     missing_variables,
+    role_config,
 )
 
 
@@ -46,15 +48,10 @@ class PartitionSettings(Section):
 
 
 class AccountExecutorSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="CORE_ACCOUNT_EXECUTOR_",
-        env_nested_delimiter="_",
-        env_nested_max_split=1,
-        extra="forbid",
-    )
+    model_config = role_config("executor")
 
-    nats: MessagingSettings = MessagingSettings()
-    zitadel: IdentitySettings = IdentitySettings()
+    messaging: MessagingSettings = MessagingSettings()
+    identity: IdentitySettings = IdentitySettings()
     partition: PartitionSettings = PartitionSettings()
     health: HealthSettings = HealthSettings()
 
@@ -64,8 +61,8 @@ def missing_required(settings: AccountExecutorSettings) -> list[str]:
     return missing_variables(
         "CORE_ACCOUNT_EXECUTOR_",
         {
-            "NATS_PASSWORD": settings.nats.password is not None,
-            "ZITADEL_REGISTER_ORGANIZATION_ID": bool(settings.zitadel.register_organization_id),
-            "ZITADEL_PROJECT_IDS": bool(settings.zitadel.project_ids),
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
+            "IDENTITY_REGISTER_ORGANIZATION_ID": bool(settings.identity.register_organization_id),
+            "IDENTITY_PROJECT_IDS": bool(settings.identity.project_ids),
         },
     )

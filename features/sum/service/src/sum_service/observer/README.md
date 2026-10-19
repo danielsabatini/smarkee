@@ -26,8 +26,8 @@ iniciar.
 
 ## Configuração
 
-`SUM_SERVICE_OBSERVER_<SEÇÃO>_<CAMPO>`. Obrigatórias: `NATS_PASSWORD`, `ZITADEL_REGISTER_ORGANIZATION_ID`,
-`ZITADEL_PROJECT_IDS` (JSON módulo → projeto de roles) e `CATALOG_ROLES` (o mesmo catálogo do Manager).
+`SUM_SERVICE_OBSERVER_<SEÇÃO>_<CAMPO>`. Obrigatórias: `MESSAGING_PASSWORD`, `IDENTITY_REGISTER_ORGANIZATION_ID`,
+`IDENTITY_PROJECT_IDS` (JSON módulo → projeto de roles) e `CATALOG_ROLES` (o mesmo catálogo do Manager).
 
 ## Verificação
 

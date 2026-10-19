@@ -12,7 +12,7 @@ Campos gerenciados da Account: `lifecycle`, `platformAccess` e `platformRoles` (
 
 ## Configuração
 
-Variáveis `CORE_ACCOUNT_RECONCILER_<SEÇÃO>_<CAMPO>`. Obrigatória, sem default: `CORE_ACCOUNT_RECONCILER_NATS_PASSWORD`. Os parâmetros do loop (`LOOP_*`) têm como padrão os `x-resourceParameters` do contrato.
+Variáveis `CORE_ACCOUNT_RECONCILER_<SEÇÃO>_<CAMPO>`. Obrigatória, sem default: `CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD`. Os parâmetros do loop (`LOOP_*`) têm como padrão os `x-resourceParameters` do contrato.
 
 ## Desenvolvimento
 

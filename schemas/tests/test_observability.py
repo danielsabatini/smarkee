@@ -4,10 +4,8 @@ Cobre o schema da linha de log e a igualdade das cópias do formatter nos compon
 """
 
 import copy
-import importlib.util
 import json
 from pathlib import Path
-from types import ModuleType
 from typing import Any, cast
 
 import pytest
@@ -141,23 +139,3 @@ def test_resource_identifies_the_component(missing: str) -> None:
 def test_unknown_top_level_field_is_rejected() -> None:
     assert not _is_valid(_with({"message": "legacy key"}))
     assert not _is_valid(_with({"time": "2026-10-16T14:03:22.123456Z"}))
-
-
-def _load_sync() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("observability_sync", OBSERVABILITY / "sync.py")
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def test_all_components_are_found() -> None:
-    packages = {package for _, package in cast(list[Any], _load_sync().components())}
-    assert packages == {"core_account", "ipm_organization", "sum_service"}
-
-
-def test_component_copies_match_the_canonical_source() -> None:
-    """Se falhar: `python schemas/observability/sync.py` regrava as cópias (decisão 0046)."""
-    divergent = cast(list[Path], _load_sync().divergent_files())
-    assert divergent == [], [str(path) for path in divergent]

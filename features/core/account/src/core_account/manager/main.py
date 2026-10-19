@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 async def run(settings: AccountManagerSettings) -> int:
     stop = stop_on_signals()
     health = Health()
-    messaging_client = await connect(settings.nats, name="core-account-manager")
+    messaging_client = await connect(settings.messaging, name="core-account-manager")
     pool = await open_pool(settings.database)
     jetstream = stream_of(messaging_client)
     account = account_kind(settings.platform.roles)

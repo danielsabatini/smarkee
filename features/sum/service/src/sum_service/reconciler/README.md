@@ -34,9 +34,9 @@ espera o backoff.
 
 ## Configuração
 
-`SUM_SERVICE_RECONCILER_<SEÇÃO>_<CAMPO>`. Obrigatória: `NATS_PASSWORD`. Os parâmetros do loop (`LOOP_*`) estão em
+`SUM_SERVICE_RECONCILER_<SEÇÃO>_<CAMPO>`. Obrigatória: `MESSAGING_PASSWORD`. Os parâmetros do loop (`LOOP_*`) estão em
 `settings.py` e são os de `schemas/sum/service/desired.v1.schema.json`, mais o período e o jitter da reavaliação.
-`NATS_CONSUMER_INACTIVE_THRESHOLD_SECONDS` define quando o servidor remove o consumer de uma instância parada.
+`MESSAGING_CONSUMER_INACTIVE_THRESHOLD_SECONDS` define quando o servidor remove o consumer de uma instância parada.
 
 ## Testes
 

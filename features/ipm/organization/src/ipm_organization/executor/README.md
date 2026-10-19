@@ -31,7 +31,7 @@ src/ipm_organization/executor/
 
 ## Configuração
 
-Variáveis `IPM_ORGANIZATION_EXECUTOR_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatória, sem default: `IPM_ORGANIZATION_EXECUTOR_NATS_PASSWORD`. A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`), só desta conta.
+Variáveis `IPM_ORGANIZATION_EXECUTOR_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatória, sem default: `IPM_ORGANIZATION_EXECUTOR_MESSAGING_PASSWORD`. A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`), só desta conta.
 
 ## Desenvolvimento
 

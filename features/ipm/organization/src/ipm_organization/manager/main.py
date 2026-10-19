@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 async def run(settings: OrganizationManagerSettings) -> int:
     stop = stop_on_signals()
     health = Health()
-    messaging_client = await connect(settings.nats, name="ipm-organization-manager")
+    messaging_client = await connect(settings.messaging, name="ipm-organization-manager")
     pool = await open_pool(settings.database)
     jetstream = stream_of(messaging_client)
     organization = ORGANIZATION

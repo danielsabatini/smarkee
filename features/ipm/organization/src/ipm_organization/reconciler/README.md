@@ -12,7 +12,7 @@ Campos gerenciados da Organization: `lifecycle`, `name` e `platformAccess` (este
 
 ## Configuração
 
-Variáveis `IPM_ORGANIZATION_RECONCILER_<SEÇÃO>_<CAMPO>`. Obrigatória, sem default: `IPM_ORGANIZATION_RECONCILER_NATS_PASSWORD`. Os parâmetros do loop (`LOOP_*`) têm como padrão os `x-resourceParameters` do contrato.
+Variáveis `IPM_ORGANIZATION_RECONCILER_<SEÇÃO>_<CAMPO>`. Obrigatória, sem default: `IPM_ORGANIZATION_RECONCILER_MESSAGING_PASSWORD`. Os parâmetros do loop (`LOOP_*`) têm como padrão os `x-resourceParameters` do contrato.
 
 ## Desenvolvimento
 

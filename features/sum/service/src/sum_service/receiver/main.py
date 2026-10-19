@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 async def serve(settings: SumServiceReceiverSettings) -> int:
     health = Health()
-    messaging_client = await connect(settings.nats, name="sum-service-receiver")
+    messaging_client = await connect(settings.messaging, name="sum-service-receiver")
     pool = await open_pool(settings.database, row_factory=dict_row)
     health.add_check("nats", lambda: messaging_client.is_connected)
     async with httpx.AsyncClient(timeout=5.0) as client:

@@ -3,10 +3,10 @@
 Ordem: variável de ambiente → default (seções comuns em `common/settings.py`).
 
 Nome da variável: `CORE_ACCOUNT_MANAGER_<SEÇÃO>_<CAMPO>`, por exemplo
-`CORE_ACCOUNT_MANAGER_NATS_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
+`CORE_ACCOUNT_MANAGER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from core_account.common.settings import DatabaseSettings as CommonDatabaseSettings
 from core_account.common.settings import (
@@ -14,6 +14,7 @@ from core_account.common.settings import (
     MessagingSettings,
     Section,
     missing_variables,
+    role_config,
 )
 from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES
 
@@ -34,16 +35,10 @@ class PlatformSettings(Section):
 
 
 class AccountManagerSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="CORE_ACCOUNT_MANAGER_",
-        # CORE_ACCOUNT_MANAGER_NATS_URL → nats.url: separa somente a seção do campo.
-        env_nested_delimiter="_",
-        env_nested_max_split=1,
-        extra="forbid",
-    )
+    model_config = role_config("manager")
 
     database: DatabaseSettings = DatabaseSettings()
-    nats: MessagingSettings = MessagingSettings()
+    messaging: MessagingSettings = MessagingSettings()
     loop: LoopSettings = LoopSettings()
     platform: PlatformSettings = PlatformSettings()
     health: HealthSettings = HealthSettings()
@@ -54,7 +49,7 @@ def missing_required(settings: AccountManagerSettings) -> list[str]:
     return missing_variables(
         "CORE_ACCOUNT_MANAGER_",
         {
-            "NATS_PASSWORD": settings.nats.password is not None,
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
         },
     )

@@ -17,7 +17,7 @@ gravado pelo Manager e publica no NATS (decisão 0033).
 
 ## Configuração
 
-`SUM_SERVICE_PUBLISHER_<SEÇÃO>_<CAMPO>`: `DATABASE_PASSWORD` e `NATS_PASSWORD` são obrigatórias. Papel do banco:
+`SUM_SERVICE_PUBLISHER_<SEÇÃO>_<CAMPO>`: `DATABASE_PASSWORD` e `MESSAGING_PASSWORD` são obrigatórias. Papel do banco:
 `sum_service_publisher_login` (lê o outbox e atualiza só `published_at`).
 
 ## Testes
@@ -29,7 +29,7 @@ uv run ruff check . && uv run pyright
 
 Variáveis dos testes de integração: `SUM_SERVICE_PUBLISHER_TEST_URL`, `..._TEST_MANAGER_URL` (grava a linha
 do outbox), `..._TEST_MAINTENANCE_URL` (limpeza) e `..._TEST_NATS_URL`, `..._TEST_NATS_USER`,
-`..._TEST_NATS_PASSWORD`. O teste de publicação usa um Stream temporário e não toca no `DESIRED`.
+`..._TEST_MESSAGING_PASSWORD`. O teste de publicação usa um Stream temporário e não toca no `DESIRED`.
 
 ## Verificação
 

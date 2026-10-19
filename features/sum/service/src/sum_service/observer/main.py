@@ -57,11 +57,11 @@ async def run(settings: SumServiceObserverSettings) -> int:
     stop = stop_on_signals()
     catalog = parse_catalog(settings.catalog.roles or "")
     health = Health()
-    messaging_client = await connect(settings.nats, name="sum-service-observer")
+    messaging_client = await connect(settings.messaging, name="sum-service-observer")
     jetstream = stream_of(messaging_client)
     health.add_check("nats", lambda: messaging_client.is_connected)
-    async with httpx.AsyncClient(timeout=settings.zitadel.timeout_seconds) as client:
-        reader = IdentityReader(settings.zitadel, client)
+    async with httpx.AsyncClient(timeout=settings.identity.timeout_seconds) as client:
+        reader = IdentityReader(settings.identity, client)
         observer = Observer(
             reader,
             StreamPublisher(jetstream),
@@ -78,7 +78,7 @@ async def run(settings: SumServiceObserverSettings) -> int:
                     durable=f"sum-service-observer-{suffix}-{instance}",
                     stream=stream,
                     filter_subject=subject,
-                    inactive_threshold_seconds=settings.nats.consumer_inactive_threshold_seconds,
+                    inactive_threshold_seconds=settings.messaging.consumer_inactive_threshold_seconds,
                     traced=False,
                     on_cycle=health.beat,
                 ).run(stop)

@@ -1,10 +1,11 @@
-"""Publicação do outbox (`docs/POSTGRESQL.md` §11).
+"""Publicação do outbox de `core.account` (`docs/POSTGRESQL.md` §11; decisão 0033).
 
 Publica, em ordem de `sequence`, as mensagens que o Manager gravou no outbox, e só marca
-`published_at` depois da confirmação do transporte (entrega *pelo menos uma vez*; o transporte
-deduplica por `Nats-Msg-Id`). Uma única instância publica por vez, por tabela de outbox, por
-trava consultiva **de sessão**: a conexão do Publisher é dedicada e direta (sem *pooling* de
-transação). Antes de cada lote a instância confirma que ainda detém a trava.
+`published_at` depois da confirmação do transporte (entrega pelo menos uma vez; o transporte
+deduplica por `Nats-Msg-Id`). Uma única instância publica por vez, por trava consultiva de sessão:
+a conexão do Publisher é dedicada e direta. Antes de cada lote a instância confirma que ainda
+detém a trava. Uma mensagem fora do envelope é uma falha permanente: o lote para, ela continua
+pendente (a ordem é preservada) e o Publisher sai de `ready` (decisão 0018).
 """
 
 import asyncio
@@ -18,7 +19,9 @@ from typing import Any
 import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
+from pydantic import ValidationError
 
+from core_account.common.contracts import generated
 from core_account.common.database import conninfo
 from core_account.common.ids import utc_now
 from core_account.common.logging_config import (
@@ -26,7 +29,10 @@ from core_account.common.logging_config import (
     bind_traceparent,
 )
 from core_account.common.ports import Publisher, PublishError
-from core_account.publisher.domain.publication import PublicationResult
+from core_account.publisher.domain.publication import (
+    PublicationRejectedError,
+    PublicationResult,
+)
 from core_account.publisher.settings import DatabaseSettings
 
 logger = logging.getLogger(__name__)
@@ -39,13 +45,22 @@ LOCK_RETRY_SECONDS = 2.0
 MAXIMUM_BATCH_SECONDS = 30.0
 MAXIMUM_BACKOFF_SECONDS = 30.0
 
-
 PUBLISHED_BY = "core-account-publisher"
-"""Identidade de mensageria desta instância (`publishedBy`): quem entregou a mensagem. O `emitter`
-da mensagem continua sendo `manager`, o autor da decisão."""
+"""Identidade de mensageria desta instância (`publishedBy`). O `emitter` continua `manager`."""
 OUTBOX_TABLE = sql.Identifier("core", "account_outbox")
 LOCK_KEY = "core.account_outbox"
 """Chave da trava consultiva de sessão: uma por tabela de outbox (`docs/POSTGRESQL.md` §11.4)."""
+
+
+def publication_envelope(payload: dict[str, Any], published_at: datetime) -> bytes:
+    """Envelope completo da mensagem, validado de forma estrita antes de sair."""
+    try:
+        envelope = generated.MessageEnvelope.model_validate(
+            {**payload, "publishedAt": published_at, "publishedBy": PUBLISHED_BY}
+        )
+    except ValidationError:
+        raise PublicationRejectedError("mensagem do outbox fora do envelope") from None
+    return json.dumps(envelope.model_dump(by_alias=True, mode="json")).encode()
 
 
 async def publish_pending(
@@ -68,22 +83,16 @@ async def publish_pending(
     )
     rows = await cursor.fetchall()
     started = monotonic()
-    confirmed: list[int] = []
-    failed = False
-    permanent = False
+    published = 0
     for row in rows:
         if monotonic() - started > maximum_seconds:
             break
-        payload: dict[str, Any] = dict(row["payload"])
-        payload["publishedAt"] = clock().isoformat()
-        payload["publishedBy"] = PUBLISHED_BY
         # O contexto de trace gravado pelo Manager acompanha a mensagem (decisão 0055).
         bind_traceparent(row["traceparent"])
         bind_message_context(row["payload"])
         try:
-            await publisher.publish(
-                row["subject"], json.dumps(payload).encode(), message_id=row["message_id"]
-            )
+            body = publication_envelope(dict(row["payload"]), clock())
+            await publisher.publish(row["subject"], body, message_id=row["message_id"])
             logger.info(
                 "outbox message published",
                 extra={
@@ -91,29 +100,28 @@ async def publish_pending(
                     "messaging.message.id": row["message_id"],
                 },
             )
-        except PublishError as error:
+        except (PublicationRejectedError, PublishError) as error:
+            permanent = isinstance(error, PublicationRejectedError) or error.permanent
             logger.log(
-                logging.ERROR if error.permanent else logging.WARNING,
+                logging.ERROR if permanent else logging.WARNING,
                 "outbox publication failed; the batch is interrupted",
                 extra={
                     "smarkee.outbox.sequence": row["sequence"],
                     "messaging.message.id": row["message_id"],
                     "error.type": str(error),
-                    "smarkee.failure.permanent": error.permanent,
+                    "smarkee.failure.permanent": permanent,
                 },
             )
-            failed = True
-            permanent = error.permanent
-            break
-        confirmed.append(row["sequence"])
-    if confirmed:
+            return PublicationResult(published=published, failed=True, permanent_failure=permanent)
+        # Marca cada mensagem logo após a confirmação: uma queda no meio do lote repete o mínimo.
         await connection.execute(
-            sql.SQL("UPDATE {table} SET published_at = now() WHERE sequence = ANY(%s)").format(
+            sql.SQL("UPDATE {table} SET published_at = now() WHERE sequence = %s").format(
                 table=OUTBOX_TABLE
             ),
-            (confirmed,),
+            (row["sequence"],),
         )
-    return PublicationResult(published=len(confirmed), failed=failed, permanent_failure=permanent)
+        published += 1
+    return PublicationResult(published=published, failed=False)
 
 
 async def holds_lock(connection: psycopg.AsyncConnection[Any], lock_key: str = LOCK_KEY) -> bool:

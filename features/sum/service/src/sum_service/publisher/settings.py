@@ -1,16 +1,19 @@
 """Configuração do Publisher de `sum.service` (decisões 0015 e 0019).
 
-Ordem: variável de ambiente → default. Nome da variável: `SUM_SERVICE_PUBLISHER_<SEÇÃO>_<CAMPO>`,
-por exemplo `SUM_SERVICE_PUBLISHER_NATS_URL`. As senhas não têm default.
+Ordem: variável de ambiente → default. Nome da variável:
+`SUM_SERVICE_PUBLISHER_<SEÇÃO>_<CAMPO>`, por exemplo
+`SUM_SERVICE_PUBLISHER_MESSAGING_URL`.
+As senhas não têm default.
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from sum_service.common.settings import DatabaseSettings as CommonDatabaseSettings
 from sum_service.common.settings import (
     HealthSettings,
     MessagingSettings,
     missing_variables,
+    role_config,
 )
 
 
@@ -20,15 +23,10 @@ class DatabaseSettings(CommonDatabaseSettings):
 
 
 class SumServicePublisherSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="SUM_SERVICE_PUBLISHER_",
-        env_nested_delimiter="_",
-        env_nested_max_split=1,
-        extra="forbid",
-    )
+    model_config = role_config("publisher")
 
     database: DatabaseSettings = DatabaseSettings()
-    nats: MessagingSettings = MessagingSettings()
+    messaging: MessagingSettings = MessagingSettings()
     health: HealthSettings = HealthSettings()
 
 
@@ -37,7 +35,7 @@ def missing_required(settings: SumServicePublisherSettings) -> list[str]:
     return missing_variables(
         "SUM_SERVICE_PUBLISHER_",
         {
-            "NATS_PASSWORD": settings.nats.password is not None,
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
         },
     )

@@ -6,30 +6,30 @@ from sum_service.reconciler.settings import (
     missing_required,
 )
 
-REQUIRED_SECRETS = ("SUM_SERVICE_RECONCILER_NATS_PASSWORD",)
+REQUIRED_SECRETS = ("SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD",)
 
 
 def test_defaults_follow_the_resource_parameters_of_the_contract() -> None:
     loop = SumServiceReconcilerSettings().loop
     assert loop.observation_validity_seconds == 600  # PT10M
     assert loop.action_deadline_seconds == 120  # PT2M
-    assert SumServiceReconcilerSettings().nats.password is None
+    assert SumServiceReconcilerSettings().messaging.password is None
 
 
 def test_environment_variables_follow_the_prefix_section_and_field_pattern(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("SUM_SERVICE_RECONCILER_NATS_URL", "nats://example:4222")
-    monkeypatch.setenv("SUM_SERVICE_RECONCILER_NATS_PASSWORD", "segredo")
+    monkeypatch.setenv("SUM_SERVICE_RECONCILER_MESSAGING_URL", "nats://example:4222")
+    monkeypatch.setenv("SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD", "segredo")
     monkeypatch.setenv("SUM_SERVICE_RECONCILER_LOOP_ACTION_DEADLINE_SECONDS", "30")
     settings = SumServiceReconcilerSettings()
-    assert settings.nats.url == "nats://example:4222"
+    assert settings.messaging.url == "nats://example:4222"
     assert settings.loop.action_deadline_seconds == 30
     assert "segredo" not in repr(settings)
 
 
 def test_unknown_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SUM_SERVICE_RECONCILER_NATS_TYPO", "x")
+    monkeypatch.setenv("SUM_SERVICE_RECONCILER_MESSAGING_TYPO", "x")
     with pytest.raises(ValidationError):
         SumServiceReconcilerSettings()
 

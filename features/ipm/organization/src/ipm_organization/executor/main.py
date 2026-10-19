@@ -22,11 +22,11 @@ logger = logging.getLogger(__name__)
 
 async def run(settings: OrganizationExecutorSettings) -> int:
     stop = stop_on_signals()
-    async with httpx.AsyncClient(timeout=settings.zitadel.timeout_seconds) as http:
-        messaging_client = await connect(settings.nats, name="ipm-organization-executor")
+    async with httpx.AsyncClient(timeout=settings.identity.timeout_seconds) as http:
+        messaging_client = await connect(settings.messaging, name="ipm-organization-executor")
         jetstream = stream_of(messaging_client)
         executor = Executor(
-            IdentityWriter(settings.zitadel, http),
+            IdentityWriter(settings.identity, http),
             StreamPublisher(jetstream),
             DirectStateReader(jetstream),
         )

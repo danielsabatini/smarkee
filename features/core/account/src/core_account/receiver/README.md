@@ -22,7 +22,7 @@ src/core_account/receiver/
 
 ## Configuração
 
-Variáveis de ambiente `CORE_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD`, `CORE_ACCOUNT_RECEIVER_NATS_PASSWORD`, `CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE`. Os demais valores e defaults estão em `src/core_account/receiver/settings.py`.
+Variáveis de ambiente `CORE_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD`, `CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD`, `CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE`. Os demais valores e defaults estão em `src/core_account/receiver/settings.py`.
 
 ## Desenvolvimento
 

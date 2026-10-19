@@ -7,7 +7,7 @@ from sum_service.manager.settings import (
 )
 
 REQUIRED_SECRETS = (
-    "SUM_SERVICE_MANAGER_NATS_PASSWORD",
+    "SUM_SERVICE_MANAGER_MESSAGING_PASSWORD",
     "SUM_SERVICE_MANAGER_DATABASE_PASSWORD",
     "SUM_SERVICE_MANAGER_CATALOG_ROLES",
 )
@@ -16,23 +16,23 @@ REQUIRED_SECRETS = (
 def test_defaults_have_no_secrets() -> None:
     settings = SumServiceManagerSettings()
     assert settings.database.password is None
-    assert settings.nats.password is None
+    assert settings.messaging.password is None
 
 
 def test_environment_variables_follow_the_prefix_section_and_field_pattern(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("SUM_SERVICE_MANAGER_NATS_URL", "nats://example:4222")
+    monkeypatch.setenv("SUM_SERVICE_MANAGER_MESSAGING_URL", "nats://example:4222")
     monkeypatch.setenv("SUM_SERVICE_MANAGER_DATABASE_PASSWORD", "segredo")
     settings = SumServiceManagerSettings()
-    assert settings.nats.url == "nats://example:4222"
+    assert settings.messaging.url == "nats://example:4222"
     assert settings.database.password is not None
     assert settings.database.password.get_secret_value() == "segredo"
     assert "segredo" not in repr(settings)
 
 
 def test_unknown_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SUM_SERVICE_MANAGER_NATS_TYPO", "x")
+    monkeypatch.setenv("SUM_SERVICE_MANAGER_MESSAGING_TYPO", "x")
     with pytest.raises(ValidationError):
         SumServiceManagerSettings()
 

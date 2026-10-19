@@ -25,7 +25,7 @@ src/core_account/publisher/
 
 ## Configuração
 
-Variáveis `CORE_ACCOUNT_PUBLISHER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD`, `CORE_ACCOUNT_PUBLISHER_NATS_PASSWORD`. Os demais valores e defaults estão em `src/core_account/publisher/settings.py`.
+Variáveis `CORE_ACCOUNT_PUBLISHER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD`, `CORE_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD`. Os demais valores e defaults estão em `src/core_account/publisher/settings.py`.
 
 ## Desenvolvimento
 

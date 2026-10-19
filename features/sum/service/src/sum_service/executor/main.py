@@ -32,11 +32,11 @@ async def run(settings: SumServiceExecutorSettings) -> int:
     stop = stop_on_signals()
     catalog = parse_catalog(settings.catalog.roles or "")
     health = Health()
-    messaging_client = await connect(settings.nats, name="sum-service-executor")
+    messaging_client = await connect(settings.messaging, name="sum-service-executor")
     jetstream = stream_of(messaging_client)
     health.add_check("nats", lambda: messaging_client.is_connected)
-    async with httpx.AsyncClient(timeout=settings.zitadel.timeout_seconds) as client:
-        granter = IdentityGranter(settings.zitadel, client)
+    async with httpx.AsyncClient(timeout=settings.identity.timeout_seconds) as client:
+        granter = IdentityGranter(settings.identity, client)
         executor = Executor(
             granter,
             DirectStateReader(jetstream),

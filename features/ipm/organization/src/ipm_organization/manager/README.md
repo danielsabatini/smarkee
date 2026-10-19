@@ -28,7 +28,7 @@ A dependência vai em um sentido só (`main → handlers → domain`); `tests/co
 
 ## Configuração
 
-Variáveis de ambiente `IPM_ORGANIZATION_MANAGER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD`, `IPM_ORGANIZATION_MANAGER_NATS_PASSWORD`. Os demais valores e defaults estão em `src/ipm_organization/manager/settings.py`.
+Variáveis de ambiente `IPM_ORGANIZATION_MANAGER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD`, `IPM_ORGANIZATION_MANAGER_MESSAGING_PASSWORD`. Os demais valores e defaults estão em `src/ipm_organization/manager/settings.py`.
 
 ## Desenvolvimento
 

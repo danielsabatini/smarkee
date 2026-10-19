@@ -8,7 +8,7 @@ from typing import Any, cast
 import pytest
 from jsonschema import Draft202012Validator
 
-from PKG_LOGGING import (
+from @@PACKAGE@@.common.logging_config import (
     EVENT_NAME_KEY,
     JsonFormatter,
     bind_context,
@@ -20,7 +20,7 @@ from PKG_LOGGING import (
     save_context,
 )
 
-_PACKAGE = "PKG"
+_PACKAGE = "@@PACKAGE@@"
 _PACKAGE_PARTS = _PACKAGE.split("_")
 # O papel é informado a `build_resource` por cada entrypoint (decisão 0063); aqui, o Receiver.
 _ROLE = "receiver"

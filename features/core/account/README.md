@@ -298,7 +298,7 @@ docker compose up -d --build
 cd receiver && uv sync && uv run ruff check . && uv run pyright && uv run pytest   # idem manager, publisher, reconciler, observer, executor
 # 4. Testes e2e (stack no ar)
 cd tests/e2e
-  CONFORMANCE_NATS_PASSWORD=... CONFORMANCE_MAILPIT_URL=http://localhost:8025 uv run pytest
+  CONFORMANCE_MESSAGING_PASSWORD=... CONFORMANCE_MAILPIT_URL=http://localhost:8025 uv run pytest
   # resiliência (derruba Manager, Executor e Publisher, um por vez): acrescente E2E_CHAOS=1
 ```
 

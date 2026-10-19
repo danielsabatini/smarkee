@@ -43,7 +43,7 @@ services:
     environment:
       NATS_URL: nats://messaging.smarkee.internal:4222
       NATS_USER: ${NATS_USER:-smarkee}
-      NATS_PASSWORD: ${SUM_SERVICE_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      NATS_PASSWORD: ${SUM_SERVICE_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
     command:
       - sh
       - -c
@@ -99,7 +99,7 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_MANAGER_DATABASE_PASSWORD: ${SUM_SERVICE_MANAGER_DATABASE_PASSWORD:?Defina no .env}
-      SUM_SERVICE_MANAGER_NATS_PASSWORD: ${SUM_SERVICE_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      SUM_SERVICE_MANAGER_MESSAGING_PASSWORD: ${SUM_SERVICE_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
       SUM_SERVICE_MANAGER_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (JSON serviço → roles, decisão 0033)}
     depends_on:
       sum-service-migrate:
@@ -134,7 +134,7 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_RECEIVER_DATABASE_PASSWORD: ${SUM_SERVICE_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
-      SUM_SERVICE_RECEIVER_NATS_PASSWORD: ${SUM_SERVICE_RECEIVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD: ${SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
       SUM_SERVICE_RECEIVER_AUTH_AUDIENCE: ${SUM_SERVICE_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-sum)}
     depends_on:
       sum-service-consumer:
@@ -156,7 +156,7 @@ services:
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SUM_SERVICE_RECONCILER_NATS_PASSWORD: ${SUM_SERVICE_RECONCILER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD: ${SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
     depends_on:
       sum-service-consumer:
         condition: service_completed_successfully
@@ -177,9 +177,9 @@ services:
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SUM_SERVICE_OBSERVER_NATS_PASSWORD: ${SUM_SERVICE_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
-      SUM_SERVICE_OBSERVER_ZITADEL_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_ZITADEL_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
-      SUM_SERVICE_OBSERVER_ZITADEL_PROJECT_IDS: ${SUM_SERVICE_ZITADEL_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
+      SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD: ${SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      SUM_SERVICE_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
+      SUM_SERVICE_OBSERVER_IDENTITY_PROJECT_IDS: ${SUM_SERVICE_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
       SUM_SERVICE_OBSERVER_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (o mesmo catálogo do Manager)}
     volumes:
       - type: volume
@@ -209,9 +209,9 @@ services:
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SUM_SERVICE_EXECUTOR_NATS_PASSWORD: ${SUM_SERVICE_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
-      SUM_SERVICE_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_ZITADEL_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
-      SUM_SERVICE_EXECUTOR_ZITADEL_PROJECT_IDS: ${SUM_SERVICE_ZITADEL_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
+      SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD: ${SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      SUM_SERVICE_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
+      SUM_SERVICE_EXECUTOR_IDENTITY_PROJECT_IDS: ${SUM_SERVICE_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
       SUM_SERVICE_EXECUTOR_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (o mesmo catálogo do Manager)}
     volumes:
       - type: volume
@@ -241,7 +241,7 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD: ${SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
-      SUM_SERVICE_PUBLISHER_NATS_PASSWORD: ${SUM_SERVICE_PUBLISHER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      SUM_SERVICE_PUBLISHER_MESSAGING_PASSWORD: ${SUM_SERVICE_PUBLISHER_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
     depends_on:
       sum-service-migrate:
         condition: service_completed_successfully

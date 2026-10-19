@@ -19,8 +19,7 @@ from fastapi.responses import JSONResponse
 from ipm_organization.common.contracts import generated
 from ipm_organization.common.ids import new_identifier, utc_now
 from ipm_organization.common.logging_config import bind_context
-from ipm_organization.common.ports import Publisher, PublishError
-from ipm_organization.common.resource import MODULE, RESOURCE_TYPE
+from ipm_organization.common.ports import Publisher
 from ipm_organization.receiver.domain import principal as roles
 from ipm_organization.receiver.domain.errors import (
     ApiError,
@@ -31,9 +30,10 @@ from ipm_organization.receiver.domain.errors import (
 )
 from ipm_organization.receiver.domain.principal import Principal
 from ipm_organization.receiver.domain.records import ResourceRecord
-from ipm_organization.receiver.domain.requests import operation_id_for, request_digest
 from ipm_organization.receiver.domain.views import operation_view, organization_view
+from ipm_organization.receiver.http.health_routes import register_health_routes
 from ipm_organization.receiver.http.ports import Repository
+from ipm_organization.receiver.http.submission import submit
 from ipm_organization.receiver.http.trace_context import TraceContextMiddleware
 from ipm_organization.receiver.settings import ApiSettings
 
@@ -87,6 +87,7 @@ def create_app(deps: Dependencies) -> FastAPI:
     app.add_middleware(TraceContextMiddleware)
     _register_error_handlers(app)
     _register_routes(app, deps)
+    register_health_routes(app, lambda: deps.is_ready())
     return app
 
 
@@ -138,84 +139,6 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         if not principal.has_role(role):
             raise forbidden()
 
-    async def submit(
-        *,
-        resource_id: str,
-        operation: str,
-        requested_by: str,
-        digest_content: dict[str, Any],
-        extra_data: dict[str, Any],
-        idempotency_key: str | None,
-    ) -> generated.ApiAcceptedResponse:
-        """Gera a identidade da Operation, evita republicar e publica o `requested`."""
-        bind_context(
-            requested_by=requested_by,
-            resource_id=resource_id,
-            operation=operation,
-            organization_id=resource_id,
-        )
-        operation_id = operation_id_for(
-            module=MODULE,
-            resource_type=RESOURCE_TYPE,
-            requested_by=requested_by,
-            idempotency_key=idempotency_key,
-        )
-        digest = request_digest(digest_content)
-        if idempotency_key is not None:
-            existing = await deps.repository.find_operation(operation_id)
-            if existing is not None:
-                if existing.request_digest != digest:
-                    raise ApiError(
-                        HTTPStatus.UNPROCESSABLE_ENTITY,
-                        "IdempotencyKeyReused",
-                        "A Idempotency-Key já foi usada com outro conteúdo.",
-                    )
-                return generated.ApiAcceptedResponse.model_validate(
-                    {"resourceId": existing.resource_id, "operationId": existing.operation_id}
-                )
-        now = deps.clock()
-        message_id = deps.identifiers()
-        envelope = generated.MessageEnvelope.model_validate(
-            {
-                "messageId": message_id,
-                "schemaVersion": "1.0",
-                "messageType": "requested",
-                "emitter": "receiver",
-                "module": MODULE,
-                "resourceType": RESOURCE_TYPE,
-                "resourceId": resource_id,
-                "operation": operation,
-                "requestedBy": requested_by,
-                "correlationId": deps.identifiers(),
-                "occurredAt": now.isoformat(),
-                "publishedAt": now.isoformat(),
-                "data": {"operationId": operation_id, "requestDigest": digest, **extra_data},
-            }
-        )
-        subject = f"receiver.requested.{MODULE}.{RESOURCE_TYPE}.{resource_id}.{operation}"
-        try:
-            await deps.publisher.publish(
-                subject, envelope.model_dump_json(exclude_none=True).encode(), message_id=message_id
-            )
-        except PublishError:
-            raise ApiError(
-                HTTPStatus.SERVICE_UNAVAILABLE,
-                "ServiceUnavailable",
-                "Não foi possível registrar o pedido agora. Tente novamente.",
-                headers={"Retry-After": "5"},
-            ) from None
-        logger.info(
-            "request published",
-            extra={
-                "smarkee.resource.id": resource_id,
-                "smarkee.operation.name": operation,
-                "smarkee.outcome": "accepted",
-            },
-        )
-        return generated.ApiAcceptedResponse.model_validate(
-            {"resourceId": resource_id, "operationId": operation_id}
-        )
-
     def is_owner(principal: Principal, record: ResourceRecord) -> bool:
         return principal.is_operator or record.desired.get("ownerAccountId") == principal.subject
 
@@ -261,8 +184,11 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
                     HTTPStatus.FORBIDDEN, "QuotaExceeded", "Limite de Organizations atingido."
                 )
         specification = {"name": body.name, "platformAccess": "granted"}
+        new_organization_id = deps.identifiers()
         return await submit(
-            resource_id=deps.identifiers(),
+            deps,
+            log_context={"organization_id": new_organization_id},
+            resource_id=new_organization_id,
             operation="create",
             requested_by=principal.subject,
             digest_content={"operation": "create", "specification": specification},
@@ -353,6 +279,8 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         if reconciliation is not None:
             content["reconciliation"] = data["reconciliation"] = reconciliation
         return await submit(
+            deps,
+            log_context={"organization_id": organization_id},
             resource_id=organization_id,
             operation="update",
             requested_by=principal.subject,
@@ -383,6 +311,8 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
                 "A Organization está protegida contra exclusão. Desproteja-a antes de excluir.",
             )
         return await submit(
+            deps,
+            log_context={"organization_id": organization_id},
             resource_id=organization_id,
             operation="delete",
             requested_by=principal.subject,
@@ -414,21 +344,3 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         ):
             raise not_found()
         return operation_view(record)
-
-    # Probes (decisão 0018): só pela rede interna; o gateway publica apenas `/v1/...`. A liveness
-    # não consulta dependências; a readiness inclui o NATS.
-    @app.get("/health/live")
-    async def health_live() -> dict[str, str]:
-        return {"status": "UP"}
-
-    @app.get("/health/startup")
-    async def health_startup() -> dict[str, str]:
-        return {"status": "UP"}
-
-    @app.get("/health/ready")
-    async def health_ready() -> JSONResponse:
-        ready = deps.is_ready()
-        return JSONResponse(
-            {"status": "UP" if ready else "DOWN", "checks": {"nats": "UP" if ready else "DOWN"}},
-            status_code=HTTPStatus.OK if ready else HTTPStatus.SERVICE_UNAVAILABLE,
-        )

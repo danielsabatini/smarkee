@@ -1,7 +1,7 @@
 # 0046 — Código idêntico entre componentes é gerado de uma fonte única e conferido
 
 - **Data:** 2026-10-16
-- **Status:** Aceita e implementada para o formatter de logs. Ajusta a 0015 (duplicação aceita): a duplicação continua, mas passa a ter fonte e verificação. Não decide se os componentes serão juntados ou separados (decisão futura, após a auditoria entre módulos).
+- **Status:** Aceita e implementada para o formatter de logs. A fonte e o `sync.py` passaram para `templates/feature/` na decisão 0064. Ajusta a 0015 (duplicação aceita): a duplicação continua, mas passa a ter fonte e verificação. Não decide se os componentes serão juntados ou separados (decisão futura, após a auditoria entre módulos).
 
 ## Contexto
 

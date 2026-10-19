@@ -6,21 +6,15 @@ views do SSOT. Toda escrita responde `202 Accepted` com o `operationId`.
 """
 
 import logging
-from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import datetime
 from http import HTTPStatus
-from typing import Annotated, Any, Protocol
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from core_account.common.contracts import generated
-from core_account.common.ids import new_identifier, utc_now
 from core_account.common.logging_config import bind_context
-from core_account.common.ports import Publisher, PublishError
-from core_account.common.resource import MODULE, RESOURCE_TYPE
 from core_account.receiver.domain import principal as roles
 from core_account.receiver.domain.attachments import AttachmentCheckError, describe_all
 from core_account.receiver.domain.errors import (
@@ -31,35 +25,18 @@ from core_account.receiver.domain.errors import (
     unauthorized,
 )
 from core_account.receiver.domain.principal import Principal
-from core_account.receiver.domain.ratelimit import SlidingWindowLimiter
 from core_account.receiver.domain.records import ResourceRecord
-from core_account.receiver.domain.requests import operation_id_for, request_digest
 from core_account.receiver.domain.views import account_view, operation_view
-from core_account.receiver.http.ports import AttachedResources, Repository
+from core_account.receiver.http.dependencies import Authenticator, Dependencies
+from core_account.receiver.http.health_routes import register_health_routes
+from core_account.receiver.http.submission import submit
 from core_account.receiver.http.trace_context import TraceContextMiddleware
-from core_account.receiver.settings import ApiSettings
 
 logger = logging.getLogger(__name__)
 
 ANONYMOUS = "anonymous"
 
-
-class Authenticator(Protocol):
-    async def verify(self, token: str) -> Principal: ...
-
-
-@dataclass(frozen=True)
-class Dependencies:
-    settings: ApiSettings
-    authenticator: Authenticator
-    repository: Repository
-    publisher: Publisher
-    limiter: SlidingWindowLimiter
-    resources: AttachedResources
-    is_ready: Callable[[], bool] = lambda: True
-    """Prontidão das dependências críticas (NATS); usada por `/health/ready`."""
-    clock: Callable[[], datetime] = utc_now
-    identifiers: Callable[[], str] = new_identifier
+__all__ = ["Authenticator", "Dependencies", "create_app"]
 
 
 async def authenticate(request: Request) -> Principal:
@@ -83,6 +60,7 @@ def create_app(deps: Dependencies) -> FastAPI:
     app.add_middleware(TraceContextMiddleware)
     _register_error_handlers(app)
     _register_routes(app, deps)
+    register_health_routes(app, lambda: deps.is_ready())
     return app
 
 
@@ -133,79 +111,6 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     def require(principal: Principal, role: str) -> None:
         if not principal.has_role(role):
             raise forbidden()
-
-    async def submit(
-        *,
-        resource_id: str,
-        operation: str,
-        requested_by: str,
-        digest_content: dict[str, Any],
-        extra_data: dict[str, Any],
-        idempotency_key: str | None,
-    ) -> generated.ApiAcceptedResponse:
-        """Gera a identidade da Operation, evita republicar e publica o `requested`."""
-        bind_context(requested_by=requested_by, resource_id=resource_id, operation=operation)
-        operation_id = operation_id_for(
-            module=MODULE,
-            resource_type=RESOURCE_TYPE,
-            requested_by=requested_by,
-            idempotency_key=idempotency_key,
-        )
-        digest = request_digest(digest_content)
-        if idempotency_key is not None:
-            existing = await deps.repository.find_operation(operation_id)
-            if existing is not None:
-                if existing.request_digest != digest:
-                    raise ApiError(
-                        HTTPStatus.UNPROCESSABLE_ENTITY,
-                        "IdempotencyKeyReused",
-                        "A Idempotency-Key já foi usada com outro conteúdo.",
-                    )
-                return generated.ApiAcceptedResponse.model_validate(
-                    {"resourceId": existing.resource_id, "operationId": existing.operation_id}
-                )
-        now = deps.clock()
-        message_id = deps.identifiers()
-        envelope = generated.MessageEnvelope.model_validate(
-            {
-                "messageId": message_id,
-                "schemaVersion": "1.0",
-                "messageType": "requested",
-                "emitter": "receiver",
-                "module": MODULE,
-                "resourceType": RESOURCE_TYPE,
-                "resourceId": resource_id,
-                "operation": operation,
-                "requestedBy": requested_by,
-                "correlationId": deps.identifiers(),
-                "occurredAt": now.isoformat(),
-                "publishedAt": now.isoformat(),
-                "data": {"operationId": operation_id, "requestDigest": digest, **extra_data},
-            }
-        )
-        subject = f"receiver.requested.{MODULE}.{RESOURCE_TYPE}.{resource_id}.{operation}"
-        try:
-            await deps.publisher.publish(
-                subject, envelope.model_dump_json(exclude_none=True).encode(), message_id=message_id
-            )
-        except PublishError:
-            raise ApiError(
-                HTTPStatus.SERVICE_UNAVAILABLE,
-                "ServiceUnavailable",
-                "Não foi possível registrar o pedido agora. Tente novamente.",
-                headers={"Retry-After": "5"},
-            ) from None
-        logger.info(
-            "request published",
-            extra={
-                "smarkee.resource.id": resource_id,
-                "smarkee.operation.name": operation,
-                "smarkee.outcome": "accepted",
-            },
-        )
-        return generated.ApiAcceptedResponse.model_validate(
-            {"resourceId": resource_id, "operationId": operation_id}
-        )
 
     async def own_account(principal: Principal, account_id: str) -> ResourceRecord:
         record = await deps.repository.get_account(account_id)
@@ -293,6 +198,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             "email": str(body.email),
         }
         return await submit(
+            deps,
             resource_id=deps.identifiers(),
             operation="create",
             requested_by=ANONYMOUS,
@@ -331,6 +237,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         check_version(record, body.resource_version)
         specification = {"deletionProtection": body.deletion_protection}
         return await submit(
+            deps,
             resource_id=account_id,
             operation="update",
             requested_by=principal.subject,
@@ -367,6 +274,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             )
         await require_nothing_attached(principal, account_id)
         return await submit(
+            deps,
             resource_id=account_id,
             operation="delete",
             requested_by=principal.subject,
@@ -399,21 +307,3 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         ):
             raise not_found()
         return operation_view(record)
-
-    # Probes (decisão 0018): só pela rede interna; o gateway publica apenas `/v1/...`. A liveness
-    # não consulta dependências; a readiness inclui o NATS.
-    @app.get("/health/live")
-    async def health_live() -> dict[str, str]:
-        return {"status": "UP"}
-
-    @app.get("/health/startup")
-    async def health_startup() -> dict[str, str]:
-        return {"status": "UP"}
-
-    @app.get("/health/ready")
-    async def health_ready() -> JSONResponse:
-        ready = deps.is_ready()
-        return JSONResponse(
-            {"status": "UP" if ready else "DOWN", "checks": {"nats": "UP" if ready else "DOWN"}},
-            status_code=HTTPStatus.OK if ready else HTTPStatus.SERVICE_UNAVAILABLE,
-        )

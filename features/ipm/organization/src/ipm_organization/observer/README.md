@@ -20,7 +20,7 @@ src/ipm_organization/observer/
 
 ## Configuração
 
-Variáveis `IPM_ORGANIZATION_OBSERVER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatória, sem default: `IPM_ORGANIZATION_OBSERVER_NATS_PASSWORD`. A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`). Os demais valores e defaults estão em `src/ipm_organization/observer/settings.py`.
+Variáveis `IPM_ORGANIZATION_OBSERVER_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatória, sem default: `IPM_ORGANIZATION_OBSERVER_MESSAGING_PASSWORD`. A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`). Os demais valores e defaults estão em `src/ipm_organization/observer/settings.py`.
 
 ## Desenvolvimento
 

@@ -1,12 +1,13 @@
 """Configuração do Observer de Account (decisões 0015 e 0063).
 
 Ordem: variável de ambiente → default. Nome da variável:
-`CORE_ACCOUNT_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo `CORE_ACCOUNT_OBSERVER_NATS_URL`
+`CORE_ACCOUNT_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo
+`CORE_ACCOUNT_OBSERVER_MESSAGING_URL`
 (`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS e os identificadores do Zitadel. O Observer
 não acessa o SSOT e só **lê** o Zitadel (conta de serviço `core-account-observer`, somente leitura).
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from core_account.common.identity import IdentitySettings as CommonIdentitySettings
 from core_account.common.settings import (
@@ -14,6 +15,7 @@ from core_account.common.settings import (
     Section,
     StateMessagingSettings,
     missing_variables,
+    role_config,
 )
 
 
@@ -40,15 +42,10 @@ class LoopSettings(Section):
 
 
 class AccountObserverSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="CORE_ACCOUNT_OBSERVER_",
-        env_nested_delimiter="_",
-        env_nested_max_split=1,
-        extra="forbid",
-    )
+    model_config = role_config("observer")
 
-    nats: StateMessagingSettings = StateMessagingSettings()
-    zitadel: IdentitySettings = IdentitySettings()
+    messaging: StateMessagingSettings = StateMessagingSettings()
+    identity: IdentitySettings = IdentitySettings()
     partition: PartitionSettings = PartitionSettings()
     health: HealthSettings = HealthSettings()
     loop: LoopSettings = LoopSettings()
@@ -59,7 +56,7 @@ def missing_required(settings: AccountObserverSettings) -> list[str]:
     return missing_variables(
         "CORE_ACCOUNT_OBSERVER_",
         {
-            "NATS_PASSWORD": settings.nats.password is not None,
-            "ZITADEL_REGISTER_ORGANIZATION_ID": bool(settings.zitadel.register_organization_id),
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
+            "IDENTITY_REGISTER_ORGANIZATION_ID": bool(settings.identity.register_organization_id),
         },
     )

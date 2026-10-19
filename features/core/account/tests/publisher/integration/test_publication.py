@@ -36,11 +36,19 @@ async def seed(cleanup: Cleanup, manager: Connection, count: int) -> list[str]:
         message_id = str(uuid.uuid7())
         payload = {
             "messageId": message_id,
+            "schemaVersion": "1.0",
             "messageType": "desired",
+            "emitter": "manager",
+            "module": "core",
+            "resourceType": "account",
             "resourceId": resource_id,
-            "occurredAt": "2026-10-10T12:00:00+00:00",
-            "publishedAt": "2026-10-10T12:00:00+00:00",
-            "data": {"name": "relay-" + unique_suffix()},
+            "operation": "changed",
+            "desiredGeneration": 1,
+            "requestedBy": str(uuid.uuid7()),
+            "correlationId": str(uuid.uuid7()),
+            "causationId": str(uuid.uuid7()),
+            "occurredAt": "2026-10-10T12:00:00Z",
+            "data": {"lifecycle": "present", "reconciliation": "active"},
         }
         await manager.execute(
             "INSERT INTO core.account_outbox (message_id, resource_id, subject, payload)"

@@ -4,13 +4,14 @@ Ordem: variável de ambiente → default. Nome: `SUM_SERVICE_RECEIVER_<SEÇÃO>_
 audience não têm default.
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 from sum_service.common.settings import DatabaseSettings as CommonDatabaseSettings
 from sum_service.common.settings import (
     MessagingSettings,
     Section,
     missing_variables,
+    role_config,
 )
 
 
@@ -44,15 +45,10 @@ class PeersSettings(Section):
 
 
 class SumServiceReceiverSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="SUM_SERVICE_RECEIVER_",
-        env_nested_delimiter="_",
-        env_nested_max_split=1,
-        extra="forbid",
-    )
+    model_config = role_config("receiver")
 
     database: DatabaseSettings = DatabaseSettings()
-    nats: MessagingSettings = MessagingSettings()
+    messaging: MessagingSettings = MessagingSettings()
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
     peers: PeersSettings = PeersSettings()
@@ -64,7 +60,7 @@ def missing_required(settings: SumServiceReceiverSettings) -> list[str]:
         "SUM_SERVICE_RECEIVER_",
         {
             "AUTH_AUDIENCE": bool(settings.auth.audience),
-            "NATS_PASSWORD": settings.nats.password is not None,
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
         },
     )

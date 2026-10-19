@@ -48,7 +48,7 @@ async def _serve_until_stopped(server: _Server, stop: asyncio.Event) -> None:
 async def run(settings: AccountReceiverSettings) -> int:
     stop = stop_on_signals()
     async with httpx.AsyncClient(timeout=5.0) as http:
-        messaging_client = await connect(settings.nats, name="core-account-receiver")
+        messaging_client = await connect(settings.messaging, name="core-account-receiver")
         pool = await open_pool(settings.database)
         api = settings.api
         server = _Server(

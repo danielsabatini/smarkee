@@ -41,7 +41,7 @@ async def run(settings: SumServiceManagerSettings) -> int:
     stop = stop_on_signals()
     health = Health()
     catalog = parse_catalog(settings.catalog.roles or "")
-    messaging_client = await connect(settings.nats, name="sum-service-manager")
+    messaging_client = await connect(settings.messaging, name="sum-service-manager")
     pool = await open_pool(settings.database)
     health.add_check("nats", lambda: messaging_client.is_connected)
     consumer = RequestedConsumer(

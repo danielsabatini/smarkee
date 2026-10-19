@@ -2,7 +2,7 @@
 
 Usa só a API v2 do Zitadel (decisão 0029).
 
-Somente leitura: usa a chave da conta `platform-bootstrap` (`CONFORMANCE_ZITADEL_KEY_FILE`) e não
+Somente leitura: usa a chave da conta `platform-bootstrap` (`CONFORMANCE_IDENTITY_KEY_FILE`) e não
 altera nada.
 Sem a chave, os testes são pulados. A estrutura é criada à mão (ver `infrastructure/dev/README.md`);
 estes testes dizem se ela está como o desenho manda.
@@ -20,10 +20,10 @@ import httpx
 import jwt
 import pytest
 
-ISSUER = os.environ.get("CONFORMANCE_ZITADEL_ISSUER", "http://ipm-dev.smarkee.com.br:8080")
-BASE_URL = os.environ.get("CONFORMANCE_ZITADEL_URL", "http://localhost:8080")
-HOST = os.environ.get("CONFORMANCE_ZITADEL_HOST", "ipm-dev.smarkee.com.br:8080")
-KEY_FILE = os.environ.get("CONFORMANCE_ZITADEL_KEY_FILE")
+ISSUER = os.environ.get("CONFORMANCE_IDENTITY_ISSUER", "http://ipm-dev.smarkee.com.br:8080")
+BASE_URL = os.environ.get("CONFORMANCE_IDENTITY_URL", "http://localhost:8080")
+HOST = os.environ.get("CONFORMANCE_IDENTITY_HOST", "ipm-dev.smarkee.com.br:8080")
+KEY_FILE = os.environ.get("CONFORMANCE_IDENTITY_KEY_FILE")
 
 # Um projeto de roles por módulo, na organização `core` (decisão 0032): as roles de ação (delegadas
 # à `register` por Project Grant) e a role de operador `*.admin`, que fica fora do Grant.
@@ -67,7 +67,7 @@ SERVICE_ACCOUNTS = {
 SUM_EXECUTOR_GRANT_PROJECT = "roles-ipm"
 
 pytestmark = pytest.mark.skipif(
-    not KEY_FILE, reason="CONFORMANCE_ZITADEL_KEY_FILE não definida (chave do platform-bootstrap)"
+    not KEY_FILE, reason="CONFORMANCE_IDENTITY_KEY_FILE não definida (chave do platform-bootstrap)"
 )
 
 
@@ -195,7 +195,7 @@ def test_public_registration_is_off(zitadel: Zitadel) -> None:
 
 
 def test_one_roles_project_per_module_asserts_and_checks_roles(
-    zitadel: Zitadel, orgs: dict[str, str]
+    identity: Zitadel, orgs: dict[str, str]
 ) -> None:
     projects = projects_owned_by(zitadel, orgs["core"])
     roles_projects = {name: p for name, p in projects.items() if name.startswith("roles-")}
@@ -208,7 +208,7 @@ def test_one_roles_project_per_module_asserts_and_checks_roles(
 
 
 def test_the_clients_project_has_no_roles_and_does_not_require_one_to_sign_in(
-    zitadel: Zitadel, orgs: dict[str, str]
+    identity: Zitadel, orgs: dict[str, str]
 ) -> None:
     """A aplicação do `sk` mora num projeto sem roles (decisão 0034).
 
@@ -229,7 +229,7 @@ def test_the_clients_project_has_no_roles_and_does_not_require_one_to_sign_in(
 
 
 def test_roles_follow_the_naming_standard_and_group_by_module(
-    zitadel: Zitadel, project_ids: dict[str, str]
+    identity: Zitadel, project_ids: dict[str, str]
 ) -> None:
     for name, project_id in project_ids.items():
         roles = zitadel.connect(PROJECT_SERVICE, "ListProjectRoles", {"projectId": project_id})[
@@ -246,7 +246,7 @@ def test_roles_follow_the_naming_standard_and_group_by_module(
 
 
 def test_cli_application_is_a_public_native_client_with_jwt(
-    zitadel: Zitadel, orgs: dict[str, str]
+    identity: Zitadel, orgs: dict[str, str]
 ) -> None:
     clients = projects_owned_by(zitadel, orgs["core"])["clients"]
     found = zitadel.connect(
@@ -268,7 +268,7 @@ def test_cli_application_is_a_public_native_client_with_jwt(
 
 
 def test_no_roles_project_holds_an_application(
-    zitadel: Zitadel, project_ids: dict[str, str]
+    identity: Zitadel, project_ids: dict[str, str]
 ) -> None:
     """As aplicações moram no `clients` (decisão 0034): um projeto de roles não tem nenhuma."""
     for name, project_id in project_ids.items():
@@ -281,7 +281,7 @@ def test_no_roles_project_holds_an_application(
 
 
 def test_each_project_grant_to_register_delegates_only_its_action_roles(
-    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+    identity: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
 ) -> None:
     grants = zitadel.connect(PROJECT_SERVICE, "ListProjectGrants")["projectGrants"]
     to_register = {
@@ -305,7 +305,7 @@ def test_service_accounts_live_in_core(zitadel: Zitadel, orgs: dict[str, str]) -
 
 
 def test_component_service_accounts_use_opaque_bearer_tokens(
-    zitadel: Zitadel, orgs: dict[str, str]
+    identity: Zitadel, orgs: dict[str, str]
 ) -> None:
     """Token opaco (Bearer) nas contas de serviço dos componentes (decisão 0054): com JWT, o Zitadel
     registra um WARN a cada chamada autenticada. A API v2 omite o valor padrão, então a ausência de
@@ -323,7 +323,7 @@ def test_component_service_accounts_use_opaque_bearer_tokens(
 
 
 def test_executor_and_observer_have_roles_only_in_register(
-    zitadel: Zitadel, orgs: dict[str, str]
+    identity: Zitadel, orgs: dict[str, str]
 ) -> None:
     in_register = members(zitadel, orgs["register"])
     # `ORG_USER_CREATOR` cria e remove usuários, mas não concede roles (decisão 0032).
@@ -343,7 +343,7 @@ def test_executor_and_observer_have_roles_only_in_register(
 
 
 def test_user_executor_grants_roles_only_in_its_modules(
-    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+    identity: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
 ) -> None:
     """O isolamento do SUM: o Executor do User é `PROJECT_GRANT_OWNER` só nos Grants dos módulos
     `core` e `sum`; no do `ipm` ele não é, e o Zitadel nega a concessão (decisão 0032)."""
@@ -357,7 +357,7 @@ def test_user_executor_grants_roles_only_in_its_modules(
 
 
 def test_sum_executor_is_project_grant_owner_only_in_the_ipm_grant(
-    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+    identity: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
 ) -> None:
     """O Executor do SUM só concede as roles do `ipm` (decisão 0032): é `PROJECT_GRANT_OWNER` só
     no Grant de `roles-ipm` para a `register`, e em nenhum outro projeto."""
@@ -371,7 +371,7 @@ def test_sum_executor_is_project_grant_owner_only_in_the_ipm_grant(
 
 
 def test_service_account_keys_exist_and_are_not_close_to_expiry(
-    zitadel: Zitadel, orgs: dict[str, str]
+    identity: Zitadel, orgs: dict[str, str]
 ) -> None:
     """Cada conta de serviço tem chave, e nenhuma vence em menos de `KEY_EXPIRATION_WARNING`.
 
@@ -405,7 +405,7 @@ def test_instance_members(zitadel: Zitadel) -> None:
 
 
 def operator_authorizations(
-    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+    identity: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
 ) -> dict[str, dict[str, set[str]]]:
     """Autorizações dos projetos de roles na `core`: nome de login → projeto → roles."""
     names = {project_id: name for name, project_id in project_ids.items()}
@@ -424,7 +424,7 @@ def operator_authorizations(
 
 
 def test_only_operators_are_authorized_in_core(
-    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+    identity: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
 ) -> None:
     """Na `core` só há operadores: cada autorização tem a role `*.admin` do projeto (escopo) e,
     além dela, as roles de ação que o operador exerce (decisão 0031). Usuários cadastrados são
@@ -439,7 +439,7 @@ def test_only_operators_are_authorized_in_core(
 
 
 def test_default_operator_holds_every_role_of_each_project_with_an_admin_role(
-    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+    identity: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
 ) -> None:
     """O operador padrão tem `*.admin` e as roles de ação de cada projeto que administra: o
     Receiver exige as duas coisas (o que pode fazer e em quais recursos)."""
@@ -472,12 +472,12 @@ EXPECTED_AUDIENCE = {
     "ipm.organization": ("IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
 }
 EXPECTED_REGISTER = {
-    "core.account": "CORE_ZITADEL_REGISTER_ORGANIZATION_ID",
-    "sum.service": "SUM_SERVICE_ZITADEL_REGISTER_ORGANIZATION_ID",
+    "core.account": "CORE_IDENTITY_REGISTER_ORGANIZATION_ID",
+    "sum.service": "SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID",
 }
 EXPECTED_PROJECT_IDS = {
-    "core.account": "CORE_ZITADEL_PROJECT_IDS",
-    "sum.service": "SUM_SERVICE_ZITADEL_PROJECT_IDS",
+    "core.account": "CORE_IDENTITY_PROJECT_IDS",
+    "sum.service": "SUM_SERVICE_IDENTITY_PROJECT_IDS",
 }
 CLI_PROJECTS = {
     "SK_CORE_PROJECT_ID": "roles-core",
@@ -509,7 +509,7 @@ def assert_same(
 
 
 def test_the_ids_in_the_env_files_match_the_instance(
-    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+    identity: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
 ) -> None:
     """Ao recriar a instância os IDs mudam; este teste aponta o `.env` que ficou desatualizado."""
     drifts: list[str] = []

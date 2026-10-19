@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 
 import pytest
@@ -20,19 +21,11 @@ VALID = {
     "correlationId": "0199c8b0-2d4e-7f10-8a3b-6c7d8e9f0a1d",
     "causationId": "0199c8b0-2d4e-7f10-8a3b-6c7d8e9f0a1e",
     "occurredAt": "2026-10-15T14:00:00Z",
-    "data": {
-        "lifecycle": "present",
-        "reconciliation": "active",
-        "ownerAccountId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
-        "service": "ipm",
-        "serviceRoles": ["ipm.organization.get"],
-    },
+    "data": {"lifecycle": "present", "reconciliation": "active"},
 }
 
 
 def test_the_publication_adds_the_publisher_identity_and_the_time() -> None:
-    import json
-
     body = json.loads(publication_envelope(VALID, WHEN))
     assert body["publishedBy"] == PUBLISHED_BY
     assert body["publishedAt"].startswith("2026-10-15T14:00:01")

@@ -12,7 +12,7 @@ A auditoria do `core/account` (2026-10-19), com as três features em uma imagem 
 - **Fonte única** em `templates/feature/files/`: o modelo de cada arquivo, com marcadores no lugar dos nomes da feature (`@@PACKAGE@@`, `@@KEBAB@@`, `@@UPPER@@`, `@@DOTTED@@`, `@@MODULE@@`; no caminho, o diretório `PACKAGE`).
 - **`templates/feature/sync.py`** (só biblioteca padrão) grava as cópias em cada `features/<módulo>/<tipo>/` ou, com `--check`, as confere. Um teste em `schemas/tests/test_feature_template.py` falha se alguma cópia divergir.
 - **Cada feature continua com os seus arquivos**: sem dependência de runtime entre features nem biblioteca interna, e o contexto de build do Docker não muda (a 0046 e a 0063 se mantêm).
-- **Fora do template** (é da feature): `common/resource.py`, `common/contracts/generated.py`, `service_rules.py`, `logging_config.py` (fonte da 0046), `pyproject.toml`, `compose.yaml`, `.env.example`, `sonar-project.properties` e tudo dos papéis (`receiver/`, `manager/`, etc.).
+- **Fora do template** (é da feature): `common/resource.py`, `common/contracts/generated.py`, `service_rules.py`, `pyproject.toml`, `compose.yaml`, `.env.example`, `sonar-project.properties` e tudo dos papéis (`receiver/`, `manager/`, etc.).
 - **Uma feature nova**: criar o `pyproject.toml` e o `resource.py`, rodar `python templates/feature/sync.py` e escrever os papéis.
 - Para alterar o template: editar o modelo, rodar o `sync.py` e a suíte de cada feature (AGENTS §22).
 
@@ -21,3 +21,7 @@ A auditoria do `core/account` (2026-10-19), com as três features em uma imagem 
 - Divergência vira falha de teste, e uma correção no `common/` ou nos testes comuns é feita uma vez.
 - Os motores dos papéis (Publisher, Reconciler, handlers do Manager), 96 a 100% idênticos entre `core/account` e `ipm/organization`, **não** entram: variam entre features (`sum`) e a escolha entre geração e biblioteca comum fica para uma decisão própria antes da quarta feature.
 - Nesta decisão, só `ids.py` e a docstring de `messaging.py` mudaram de texto nas cópias existentes; nenhum comportamento mudou.
+
+## Ajuste (2026-10-19): o formatter de logs também vive no template
+
+O `logging_config.py` e o `test_logging.py`, que a 0046 mantinha em `schemas/observability/python/` com um `sync.py` próprio, passaram para `templates/feature/files/`, e o `schemas/observability/sync.py` foi removido. `schemas/observability/` guarda só o contrato (o schema da linha de log e o exemplo), e toda geração de código fica em `templates/`. A 0046 continua valendo no que decide (fonte única, cópias geradas e conferidas); mudou onde a fonte mora e qual script a grava.
