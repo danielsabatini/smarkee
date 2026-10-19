@@ -2,10 +2,11 @@ import pytest
 from pydantic import ValidationError
 
 from core_account.reconciler.settings import (
-    REQUIRED_SECRETS,
     AccountReconcilerSettings,
     missing_required,
 )
+
+REQUIRED_SECRETS = ("CORE_ACCOUNT_RECONCILER_NATS_PASSWORD",)
 
 
 def test_defaults_follow_the_resource_parameters_of_the_contract() -> None:

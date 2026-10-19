@@ -3,19 +3,6 @@
 from dataclasses import dataclass
 
 
-class PublishError(Exception):
-    """O transporte recusou ou não confirmou a publicação.
-
-    `permanent` indica uma recusa que repetir não resolve (mensagem grande demais ou inválida).
-    Ambas mantêm a mensagem pendente no outbox, para preservar a ordem; a permanente exige
-    atuação humana e deixa o Publisher fora de `ready` (decisão 0018).
-    """
-
-    def __init__(self, reason: str, *, permanent: bool = False) -> None:
-        super().__init__(reason)
-        self.permanent = permanent
-
-
 @dataclass(frozen=True, slots=True)
 class PublicationResult:
     published: int

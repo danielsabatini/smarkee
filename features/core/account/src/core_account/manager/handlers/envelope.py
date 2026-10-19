@@ -3,29 +3,20 @@
 from collections.abc import Mapping
 from typing import Any
 
-from pydantic import ValidationError
-
 from core_account.common.contracts import generated
-from core_account.common.contracts.base import supports_major, validate_tolerant
+from core_account.common.contracts.envelope import EnvelopeError, read_envelope
+from core_account.common.resource import MODULE
 from core_account.manager.domain.errors import PermanentMessageError
-from core_account.manager.domain.kind import MODULE, ResourceKind
-
-SCHEMA_VERSION = "1.0"
-
-
-def fields_of(error: ValidationError) -> str:
-    return ", ".join(".".join(str(part) for part in item["loc"]) for item in error.errors())
+from core_account.manager.domain.kind import ResourceKind
 
 
 def parse_envelope(
     kind: ResourceKind, raw_message: Mapping[str, Any], *, message_type: str, emitter: str
 ) -> generated.MessageEnvelope:
     try:
-        envelope = validate_tolerant(generated.MessageEnvelope, raw_message)
-    except ValidationError as error:
-        raise PermanentMessageError(f"envelope inválido nos campos: {fields_of(error)}") from None
-    if not supports_major(envelope.schema_version):
-        raise PermanentMessageError("MAJOR de schemaVersion não suportado")
+        envelope = read_envelope(raw_message)
+    except EnvelopeError as error:
+        raise PermanentMessageError(error.reason) from None
     if (
         envelope.message_type.value != message_type
         or envelope.emitter.value != emitter

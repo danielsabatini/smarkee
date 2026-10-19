@@ -2,9 +2,13 @@ import pytest
 from pydantic import ValidationError
 
 from core_account.manager.settings import (
-    REQUIRED_SECRETS,
     AccountManagerSettings,
     missing_required,
+)
+
+REQUIRED_SECRETS = (
+    "CORE_ACCOUNT_MANAGER_NATS_PASSWORD",
+    "CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD",
 )
 
 

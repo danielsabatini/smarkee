@@ -6,10 +6,9 @@ Nunca expõe campos internos (`failure_count`, `requested_by`).
 from typing import Any
 
 from core_account.common.contracts import generated
+from core_account.common.resource import MODULE, RESOURCE_TYPE
 from core_account.receiver.domain.records import OperationRecord, ResourceRecord
 
-MODULE = "core"
-RESOURCE_TYPE = "account"
 USER_DESIRED_FIELDS = ("givenName", "familyName", "email")
 
 

@@ -161,7 +161,7 @@ Campos do envelope (comuns a **todas** as mensagens deste documento): `messageId
 
 ## 3. Manager consome `requested` e grava no banco
 
-Código: `manager/src/core_account_manager/handlers/requested.py` e `store/ssot.py`. O Manager consome o Stream `REQUESTED` pelo consumer durável `core-account-manager-requested`. Cada mensagem é **uma única transação**; o `ACK` só acontece **depois do `COMMIT`**.
+Código: `src/core_account/manager/handlers/requested.py` e `store/ssot.py`. O Manager consome o Stream `REQUESTED` pelo consumer durável `core-account-manager-requested`. Cada mensagem é **uma única transação**; o `ACK` só acontece **depois do `COMMIT`**.
 
 ### 3.1 Interpretação antes de gravar
 
@@ -343,7 +343,7 @@ Diferenças em relação ao `requested`: o `emitter` é `manager`, há `desiredG
 
 ## 5. Publisher: do outbox ao NATS
 
-Código: `publisher/src/core_account_publisher/outbox/publication.py`. Conecta com o papel `core_account_publisher`, que só **lê** o outbox e **atualiza** `published_at`.
+Código: `src/core_account/publisher/outbox/publication.py`. Conecta com o papel `core_account_publisher`, que só **lê** o outbox e **atualiza** `published_at`.
 
 **Uma única instância publica por vez**, por trava consultiva de sessão:
 

@@ -13,19 +13,20 @@ import logging
 import time
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Protocol
+from typing import Any
 
 import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
 
+from core_account.common.database import conninfo
 from core_account.common.ids import utc_now
 from core_account.common.logging_config import (
     bind_message_context,
     bind_traceparent,
 )
-from core_account.publisher.domain.publication import PublicationResult, PublishError
-from core_account.publisher.outbox.database import conninfo
+from core_account.common.ports import Publisher, PublishError
+from core_account.publisher.domain.publication import PublicationResult
 from core_account.publisher.settings import DatabaseSettings
 
 logger = logging.getLogger(__name__)
@@ -39,20 +40,10 @@ MAXIMUM_BATCH_SECONDS = 30.0
 MAXIMUM_BACKOFF_SECONDS = 30.0
 
 
-class Publisher(Protocol):
-    async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
-        """Publica e aguarda a confirmação do transporte.
-
-        `message_id` é a chave de deduplicação do transporte (`Nats-Msg-Id`).
-        """
-        ...
-
-
 PUBLISHED_BY = "core-account-publisher"
 """Identidade de mensageria desta instância (`publishedBy`): quem entregou a mensagem. O `emitter`
 da mensagem continua sendo `manager`, o autor da decisão."""
 OUTBOX_TABLE = sql.Identifier("core", "account_outbox")
-RESOURCE_TYPE = "account"
 LOCK_KEY = "core.account_outbox"
 """Chave da trava consultiva de sessão: uma por tabela de outbox (`docs/POSTGRESQL.md` §11.4)."""
 

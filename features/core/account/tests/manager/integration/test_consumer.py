@@ -9,15 +9,15 @@ import psycopg
 import psycopg_pool
 import pytest
 import pytest_asyncio
-from support_manager import DEFAULT_DIGEST, Cleanup, dsn, requested_message, unique_suffix
+from support_manager import ACCOUNT, DEFAULT_DIGEST, Cleanup, dsn, requested_message, unique_suffix
 
 from core_account.manager.domain.errors import PermanentMessageError
-from core_account.manager.domain.kind import ACCOUNT, ResourceKind
+from core_account.manager.domain.kind import ResourceKind
 from core_account.manager.domain.outcome import Outcome, OutcomeKind
 from core_account.manager.handlers.ports import Store
 from core_account.manager.handlers.requested import RequestedHandler
 from core_account.manager.transport import consumers as messaging
-from core_account.manager.transport.consumers import Disposition, process_requested
+from core_account.manager.transport.consumers import Disposition, apply_message
 
 
 @pytest_asyncio.fixture
@@ -78,7 +78,7 @@ class FlakyHandler(RequestedHandler):
 async def test_valid_message_is_acked_and_applied(
     cleanup: Cleanup, pool: psycopg_pool.AsyncConnectionPool[Any]
 ) -> None:
-    disposition = await process_requested(pool, RequestedHandler(), ACCOUNT, valid_message(cleanup))
+    disposition = await apply_message(pool, RequestedHandler(), ACCOUNT, valid_message(cleanup))
     assert disposition is Disposition.ACK
 
 
@@ -86,12 +86,12 @@ async def test_valid_message_is_acked_and_applied(
 async def test_invalid_messages_are_terminated(
     pool: psycopg_pool.AsyncConnectionPool[Any], data: bytes
 ) -> None:
-    assert await process_requested(pool, RequestedHandler(), ACCOUNT, data) is Disposition.TERM
+    assert await apply_message(pool, RequestedHandler(), ACCOUNT, data) is Disposition.TERM
 
 
 async def test_permanent_error_is_terminated(pool: psycopg_pool.AsyncConnectionPool[Any]) -> None:
     handler = FlakyHandler(PermanentMessageError("campo inválido"), failures=99)
-    assert await process_requested(pool, handler, ACCOUNT, b"{}") is Disposition.TERM
+    assert await apply_message(pool, handler, ACCOUNT, b"{}") is Disposition.TERM
     assert handler.calls == 1
 
 
@@ -100,7 +100,7 @@ async def test_transient_error_is_retried_in_place_then_acked(
 ) -> None:
     monkeypatch.setattr(messaging, "TRANSIENT_RETRY_DELAYS_SECONDS", (0.0, 0.0, 0.0))
     handler = FlakyHandler(psycopg.errors.DeadlockDetected("deadlock"), failures=2)
-    assert await process_requested(pool, handler, ACCOUNT, b"{}") is Disposition.ACK
+    assert await apply_message(pool, handler, ACCOUNT, b"{}") is Disposition.ACK
     assert handler.calls == 3
 
 
@@ -109,5 +109,5 @@ async def test_persistent_transient_error_goes_back_to_the_queue(
 ) -> None:
     monkeypatch.setattr(messaging, "TRANSIENT_RETRY_DELAYS_SECONDS", (0.0, 0.0, 0.0))
     handler = FlakyHandler(psycopg.errors.LockNotAvailable("lock_timeout"), failures=99)
-    assert await process_requested(pool, handler, ACCOUNT, b"{}") is Disposition.RETRY
+    assert await apply_message(pool, handler, ACCOUNT, b"{}") is Disposition.RETRY
     assert handler.calls == 4

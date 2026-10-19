@@ -9,8 +9,9 @@ from datetime import datetime
 from typing import Any
 
 from core_account.common.contracts import generated
-from core_account.manager.domain.kind import MODULE, ResourceKind
-from core_account.manager.handlers.envelope import SCHEMA_VERSION, require
+from core_account.common.resource import MODULE, SCHEMA_VERSION
+from core_account.manager.domain.kind import ResourceKind
+from core_account.manager.handlers.envelope import require
 from core_account.manager.handlers.ports import Store
 
 

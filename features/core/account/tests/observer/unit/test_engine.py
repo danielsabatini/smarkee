@@ -9,8 +9,9 @@ from typing import Any
 import pytest
 
 from core_account.common.contracts import generated
+from core_account.common.ports import PublishError
 from core_account.observer.domain.observation import Observation
-from core_account.observer.engine.observer import Observer, PublishError, owns
+from core_account.observer.engine.observer import Observer, owns
 from core_account.observer.settings import AccountObserverSettings, PartitionSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
@@ -24,7 +25,7 @@ class FakePublisher:
 
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
         if self.fail:
-            raise PublishError
+            raise PublishError("unavailable")
         self.published.append((subject, json.loads(payload), message_id))
 
 

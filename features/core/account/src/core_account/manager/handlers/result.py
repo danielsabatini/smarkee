@@ -9,16 +9,14 @@ from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any
 
-from pydantic import ValidationError
-
 from core_account.common.contracts import generated
-from core_account.common.contracts.base import validate_tolerant
+from core_account.common.contracts.envelope import EnvelopeError, read_envelope
 from core_account.common.ids import new_identifier, utc_now
 from core_account.manager.domain.convergence import decide_result
 from core_account.manager.domain.errors import DuplicateWriteError, PermanentMessageError
 from core_account.manager.domain.kind import ResourceKind
 from core_account.manager.domain.outcome import Outcome, OutcomeKind
-from core_account.manager.handlers.envelope import fields_of, parse_envelope
+from core_account.manager.handlers.envelope import parse_envelope
 from core_account.manager.handlers.ports import Store
 from core_account.manager.handlers.publishing import Publishing
 
@@ -43,11 +41,9 @@ class ResultHandler:
         self, store: Store, kind: ResourceKind, raw_message: Mapping[str, Any]
     ) -> Outcome:
         try:
-            envelope = validate_tolerant(generated.MessageEnvelope, raw_message)
-        except ValidationError as error:
-            raise PermanentMessageError(
-                f"envelope inválido nos campos: {fields_of(error)}"
-            ) from None
+            envelope = read_envelope(raw_message)
+        except EnvelopeError as error:
+            raise PermanentMessageError(error.reason) from None
         if envelope.message_type.value not in ("completed", "failed"):
             raise PermanentMessageError("a mensagem não é um resultado de ação")
         parse_envelope(

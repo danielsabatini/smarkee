@@ -10,7 +10,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from core_account.common.contracts import generated
-from core_account.common.contracts.base import ContractModel, validate_tolerant
+from core_account.common.contracts.base import ContractModel, fields_of, validate_tolerant
 from core_account.manager.domain.errors import PermanentMessageError
 from core_account.manager.domain.policy import Request, UniqueValue
 
@@ -19,8 +19,7 @@ def _validated[M: ContractModel](model: type[M], data: Mapping[str, Any], *, lab
     try:
         return validate_tolerant(model, data)
     except ValidationError as error:
-        fields = ", ".join(".".join(str(part) for part in item["loc"]) for item in error.errors())
-        raise PermanentMessageError(f"{label} inválido nos campos: {fields}") from None
+        raise PermanentMessageError(f"{label} inválido nos campos: {fields_of(error)}") from None
 
 
 def normalize_email(email: str) -> str:

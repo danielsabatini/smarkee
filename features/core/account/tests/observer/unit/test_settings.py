@@ -2,9 +2,13 @@ import pytest
 from pydantic import ValidationError
 
 from core_account.observer.settings import (
-    REQUIRED_SECRETS,
     AccountObserverSettings,
     missing_required,
+)
+
+REQUIRED_SECRETS = (
+    "CORE_ACCOUNT_OBSERVER_NATS_PASSWORD",
+    "CORE_ACCOUNT_OBSERVER_ZITADEL_REGISTER_ORGANIZATION_ID",
 )
 
 

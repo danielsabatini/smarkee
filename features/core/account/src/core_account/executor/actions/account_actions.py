@@ -28,9 +28,9 @@ class Writer(Protocol):
 
     async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None: ...
 
-    async def update_grant(self, user_id: str, grant_id: str, roles: list[str]) -> None: ...
+    async def update_grant(self, grant_id: str, roles: list[str]) -> None: ...
 
-    async def remove_grant(self, user_id: str, grant_id: str) -> None: ...
+    async def remove_grant(self, grant_id: str) -> None: ...
 
 
 async def execute(
@@ -94,7 +94,7 @@ async def _update(user_id: str, desired: Mapping[str, Any], writer: Writer) -> N
         raise ActionFailedError("Rejected", retryable=False, message="account does not exist")
     if desired.get("platformAccess") == "revoked":
         for grant in await writer.grants(user_id):
-            await writer.remove_grant(user_id, grant.grant_id)
+            await writer.remove_grant(grant.grant_id)
         return
     await _ensure_grant(user_id, writer, _platform_roles(desired))
 
@@ -117,6 +117,6 @@ async def _ensure_grant(user_id: str, writer: Writer, expected: frozenset[str]) 
         if current is not None and roles <= current.roles:
             continue
         if current is not None:
-            await writer.update_grant(user_id, current.grant_id, sorted(roles | current.roles))
+            await writer.update_grant(current.grant_id, sorted(roles | current.roles))
         else:
             await writer.create_grant(user_id, project_id, sorted(roles))

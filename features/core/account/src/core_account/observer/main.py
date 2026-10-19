@@ -1,43 +1,38 @@
-"""Entrypoint do Observer de Account (`core-account-observer`, decisão 0015).
+"""Entrypoint do Observer de Account (`core-account-observer`, decisões 0015 e 0063).
 
 Só inicializa e encerra: valida a configuração, conecta ao NATS, cria os consumers de estado da
 instância e roda a observação periódica. O Observer não acessa o SSOT e só lê o Zitadel.
+
+Os logs do Observer não carregam o `traceparent` das mensagens que ele consome: a observação é
+periódica e não consequência de uma requisição (`traced=False`, decisão 0055).
 """
 
 import asyncio
 import logging
-import signal
-import sys
 
 import httpx
 
 from core_account.common.http.health import Health, serve_health
-from core_account.common.logging_config import configure_logging
-from core_account.observer.engine.observer import Observer, periodic_observation
-from core_account.observer.provider.zitadel import ZitadelReader
-from core_account.observer.settings import AccountObserverSettings, missing_required
-from core_account.observer.transport.nats import (
-    STREAMS,
+from core_account.common.lifecycle import start_role, stop_on_signals, supervise
+from core_account.common.messaging import (
     JetStreamPublisher,
     StateConsumer,
     connect,
     jetstream_of,
     new_instance_name,
 )
-
-EXIT_INVALID_CONFIGURATION = 2
+from core_account.observer.engine.observer import Observer, periodic_observation
+from core_account.observer.provider.zitadel import ZitadelReader
+from core_account.observer.settings import AccountObserverSettings, missing_required
+from core_account.observer.transport.streams import STREAMS
 
 logger = logging.getLogger(__name__)
 
 
 async def run(settings: AccountObserverSettings) -> int:
-    stop = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for signal_number in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(signal_number, stop.set)
-
+    stop = stop_on_signals()
     async with httpx.AsyncClient(timeout=settings.zitadel.timeout_seconds) as http:
-        nats_client = await connect(settings.nats)
+        nats_client = await connect(settings.nats, name="core-account-observer")
         health = Health()
         health.add_check("nats", lambda: nats_client.is_connected)
         jetstream = jetstream_of(nats_client)
@@ -50,11 +45,11 @@ async def run(settings: AccountObserverSettings) -> int:
                 StateConsumer(
                     jetstream,
                     observer,
+                    durable=f"core-account-observer-{suffix}-{instance}",
                     stream=stream,
                     filter_subject=subject,
-                    name_suffix=suffix,
-                    instance=instance,
                     inactive_threshold_seconds=settings.nats.consumer_inactive_threshold_seconds,
+                    traced=False,
                     on_cycle=health.beat,
                 ).run(stop)
             )
@@ -72,35 +67,13 @@ async def run(settings: AccountObserverSettings) -> int:
                 "smarkee.partition": f"{settings.partition.index}/{settings.partition.count}",
             },
         )
-        waiter = asyncio.create_task(stop.wait())
-        done, _ = await asyncio.wait({waiter, *tasks.values()}, return_when=asyncio.FIRST_COMPLETED)
-
-        exit_code = 0
-        for name, task in tasks.items():
-            if task in done:
-                exit_code = 1
-                logger.error("task stopped unexpectedly", extra={"smarkee.task.name": name})
-        stop.set()
-        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
-        for name, result in zip(tasks, results, strict=True):
-            if isinstance(result, BaseException):
-                logger.error("task failed", extra={"smarkee.task.name": name}, exc_info=result)
-                exit_code = 1
-        waiter.cancel()
+        exit_code = await supervise(tasks, stop)
         await nats_client.drain()
     return exit_code
 
 
 def main() -> None:
-    configure_logging(role="observer")
-    settings = AccountObserverSettings()
-    missing = missing_required(settings)
-    if missing:
-        logger.error(
-            "missing required configuration", extra={"smarkee.config.missing_variables": missing}
-        )
-        sys.exit(EXIT_INVALID_CONFIGURATION)
-    sys.exit(asyncio.run(run(settings)))
+    start_role("observer", AccountObserverSettings, missing_required, run)
 
 
 if __name__ == "__main__":

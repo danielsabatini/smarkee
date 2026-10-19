@@ -1,6 +1,7 @@
-"""Conexão do Receiver com o SSOT, com o papel de leitura do tipo (`docs/POSTGRESQL.md` §14.2).
+"""Conexão com o SSOT, com o papel de login de cada papel (`docs/POSTGRESQL.md` §14.2).
 
-Os parâmetros de sessão (`search_path`, timeouts) vêm do papel de login (§14.3).
+Os parâmetros de sessão (`search_path`, timeouts) vêm do papel de login (§14.3). As conexões do pool
+são `autocommit`: toda gravação abre a sua transação explícita (`connection.transaction()`).
 """
 
 from typing import Any
@@ -8,7 +9,7 @@ from typing import Any
 from psycopg.conninfo import make_conninfo
 from psycopg_pool import AsyncConnectionPool
 
-from core_account.receiver.settings import DatabaseSettings
+from core_account.common.settings import DatabaseSettings
 
 
 def conninfo(settings: DatabaseSettings) -> str:

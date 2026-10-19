@@ -1,4 +1,4 @@
-"""Entrypoint do Publisher de Account (`core-account-publisher`, decisões 0015 e 0019).
+"""Entrypoint do Publisher de Account (`core-account-publisher`, decisões 0015, 0019 e 0063).
 
 Lê o outbox do tipo e publica no transporte, em ordem; uma instância ativa por trava consultiva.
 Só inicializa e encerra: valida a configuração, conecta ao NATS e roda o Publisher.
@@ -6,29 +6,20 @@ Só inicializa e encerra: valida a configuração, conecta ao NATS e roda o Publ
 
 import asyncio
 import logging
-import signal
-import sys
 
 from core_account.common.http.health import Health, serve_health
-from core_account.common.logging_config import configure_logging
+from core_account.common.lifecycle import start_role, stop_on_signals, supervise
+from core_account.common.messaging import JetStreamPublisher, connect, jetstream_of
 from core_account.publisher.outbox.publication import OutboxPublisher
 from core_account.publisher.settings import AccountPublisherSettings, missing_required
-from core_account.publisher.transport.nats import connect, jetstream_of
-from core_account.publisher.transport.publisher import JetStreamPublisher
-
-EXIT_INVALID_CONFIGURATION = 2
 
 logger = logging.getLogger(__name__)
 
 
 async def run(settings: AccountPublisherSettings) -> int:
-    stop = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for signal_number in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(signal_number, stop.set)
-
+    stop = stop_on_signals()
     health = Health()
-    nats_client = await connect(settings.nats)
+    nats_client = await connect(settings.nats, name="core-account-publisher")
     publisher = OutboxPublisher(
         settings.database, JetStreamPublisher(jetstream_of(nats_client)), on_cycle=health.beat
     )
@@ -40,35 +31,13 @@ async def run(settings: AccountPublisherSettings) -> int:
     }
     health.mark_started()
     logger.info("account publisher started")
-    waiter = asyncio.create_task(stop.wait())
-    done, _ = await asyncio.wait({waiter, *tasks.values()}, return_when=asyncio.FIRST_COMPLETED)
-
-    exit_code = 0
-    for name, task in tasks.items():
-        if task in done:
-            exit_code = 1
-            logger.error("task stopped unexpectedly", extra={"smarkee.task.name": name})
-    stop.set()
-    results = await asyncio.gather(*tasks.values(), return_exceptions=True)
-    for name, result in zip(tasks, results, strict=True):
-        if isinstance(result, BaseException):
-            logger.error("task failed", extra={"smarkee.task.name": name}, exc_info=result)
-            exit_code = 1
-    waiter.cancel()
+    exit_code = await supervise(tasks, stop)
     await nats_client.drain()
     return exit_code
 
 
 def main() -> None:
-    configure_logging(role="publisher")
-    settings = AccountPublisherSettings()
-    missing = missing_required(settings)
-    if missing:
-        logger.error(
-            "missing required configuration", extra={"smarkee.config.missing_variables": missing}
-        )
-        sys.exit(EXIT_INVALID_CONFIGURATION)
-    sys.exit(asyncio.run(run(settings)))
+    start_role("publisher", AccountPublisherSettings, missing_required, run)
 
 
 if __name__ == "__main__":

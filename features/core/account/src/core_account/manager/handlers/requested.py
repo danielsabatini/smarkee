@@ -17,11 +17,12 @@ from typing import Any
 
 from core_account.common.contracts import generated
 from core_account.common.ids import new_identifier, utc_now
+from core_account.common.resource import SCHEMA_VERSION
 from core_account.manager.domain.errors import DuplicateWriteError, PermanentMessageError
 from core_account.manager.domain.kind import ResourceKind
 from core_account.manager.domain.outcome import Outcome, OutcomeKind, RejectionReason
 from core_account.manager.domain.policy import Request
-from core_account.manager.handlers.envelope import SCHEMA_VERSION, parse_envelope, require
+from core_account.manager.handlers.envelope import parse_envelope, require
 from core_account.manager.handlers.ports import Store
 from core_account.manager.handlers.publishing import Publishing
 

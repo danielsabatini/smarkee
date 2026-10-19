@@ -2,9 +2,14 @@ import pytest
 from pydantic import ValidationError
 
 from core_account.executor.settings import (
-    REQUIRED_SECRETS,
     AccountExecutorSettings,
     missing_required,
+)
+
+REQUIRED_SECRETS = (
+    "CORE_ACCOUNT_EXECUTOR_NATS_PASSWORD",
+    "CORE_ACCOUNT_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID",
+    "CORE_ACCOUNT_EXECUTOR_ZITADEL_PROJECT_IDS",
 )
 
 

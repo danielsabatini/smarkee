@@ -13,8 +13,8 @@ import pytest_asyncio
 from pydantic import SecretStr
 from support_receiver import DATABASE_HOST, DATABASE_PORT, connect
 
+from core_account.common.database import open_pool
 from core_account.receiver.settings import DatabaseSettings
-from core_account.receiver.store.database import open_pool
 from core_account.receiver.store.repository import PostgresRepository
 
 

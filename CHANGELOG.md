@@ -7,9 +7,6 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
-### Changed
-- `core.account` passa a ser um projeto e uma imagem (`smarkee-core-account`), com um contêiner por papel (Receiver, Manager, Publisher, Observer, Reconciler e Executor) escolhido pelo `command` (piloto da decisão 0063). Nomes dos contêineres, variáveis, papéis de banco, identidades no NATS, subjects, rotas e contratos não mudam. O código comum dos papéis (logging, ids, saúde e contratos gerados) existe uma vez, em `common/`. A variável `CORE_ACCOUNT_<PAPEL>_IMAGE` de cada papel é substituída por `CORE_ACCOUNT_IMAGE`.
-
 ### Added
 - Coleta de telemetria em duas camadas (decisão 0062): o `telemetry-agent` lê, o novo `telemetry-router` só roteia (não grava em backend) e quem grava são os telemeters: o `platform-telemeter` (infra e o app sem telemeter próprio) e, em cada feature (`core/account`, `ipm/organization` e `sum/service`), o `<módulo>-<tipo>-telemeter` (logs e spans da feature, em `telemeter/logs` e `telemeter/traces`). O roteamento é por módulo e tipo (logs) e por serviço do gateway de borda (spans), com fila em disco entre o roteador e cada telemeter.
 - Contexto de negócio nos logs dos apps (decisão 0061): cada log dos 18 componentes passa a trazer o ator (`user.id` opaco e `smarkee.actor.type`: `user`, `anonymous` ou `system`), o recurso, a ação, o dono e a organização, para o drill-down; a infra segue sem dono. Ids com formato de e-mail são descartados. As três features ficam com o mesmo conjunto de atributos.
@@ -71,6 +68,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Licença Apache-2.0 (`LICENSE`).
 
 ### Changed
+- `core.account` passa a ser um projeto e uma imagem (`smarkee-core-account`), com um contêiner por papel (Receiver, Manager, Publisher, Observer, Reconciler e Executor) escolhido pelo `command` (piloto da decisão 0063). Nomes dos contêineres, variáveis, papéis de banco, identidades no NATS, subjects, rotas e contratos não mudam. O código comum dos papéis (logging, ids, saúde e contratos gerados) existe uma vez, em `common/`. A variável `CORE_ACCOUNT_<PAPEL>_IMAGE` de cada papel é substituída por `CORE_ACCOUNT_IMAGE`.
 - O gateway inicia um trace novo em cada requisição: `traceparent` e `tracestate` do cliente são removidos na borda (decisão 0054).
 - As contas de serviço dos componentes usam token opaco (Bearer) em vez de JWT, o que elimina um `WARN` do Zitadel por chamada autenticada (decisão 0054).
 - **Quebra (desenvolvimento):** o gateway passou do Kong para o Apache APISIX 3.19 (decisão 0049), com a configuração no etcd e as rotas em `infrastructure/dev/gateway/bootstrap/adc.yaml`, aplicadas pelo ADC (`gateway-sync`) a cada `up`. A Admin API saiu da porta `8001` sem autenticação para a `9180` com chave (`X-API-KEY`), as variáveis `KONG_*` viram `APISIX_*` e o `.env` do gateway exige `APISIX_ADMIN_KEY`. Hosts, caminhos, o proxy interno `gateway.smarkee.internal:8000`, a porta `8080` e o limite de 10 cadastros por minuto por IP (`429` com `Retry-After`) não mudaram. Subir o gateway com `--wait` e o `gateway-sync` nomeados sai com erro: use `docker compose up -d` e depois `up -d --wait` nos demais serviços.
@@ -127,11 +125,13 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Infraestrutura de desenvolvimento: o administrador do PostgreSQL passa a ser `postgres`, e o banco do SSOT é criado pela inicialização (`infrastructure/dev`).
 
 ### Removed
+- `core.account`: a variável `CORE_ACCOUNT_OBSERVER_LOOP_MINIMUM_SECONDS_BETWEEN_READS` (nunca teve efeito: o único limite de leitura contra o Zitadel é `..._LOOP_MAXIMUM_CONCURRENT_READS`) e as variáveis `CORE_ACCOUNT_RECEIVER_AUTH_USERINFO_URL` e `..._AUTH_USERINFO_CACHE_SECONDS` (a verificação de e-mail do solicitante não era usada no Receiver).
 - Kong, o banco e o papel `gateway` do PostgreSQL (`database/bootstrap/gateway.sql`), o Kong Manager e o proxy HTTPS de desenvolvimento (`8443`). O banco de um volume existente permanece até ser removido à mão.
 - `sk init`: o arquivo de configuração deixa de ser um passo obrigatório. Quem o usava em script passa a usar `sk config set` (decisão 0036).
 - SSOT: tabela de inbox; a idempotência de entrada é garantida pelas regras semânticas (`docs/SSOT.md`, `docs/POSTGRESQL.md`).
 
 ### Fixed
+- `core.account`: o desligamento normal (SIGTERM) de qualquer papel registrava `task stopped unexpectedly` em nível ERROR e saía com código 1. Agora sai com 0, e só registra o erro quando uma tarefa termina sem pedido de parada.
 - SUM: habilitar de novo um serviço já desabilitado reaproveita o mesmo recurso (mesmo `resourceId`, geração seguinte), em vez de criar uma linha nova a cada habilitação. Antes, `sk sum service list` acumulava uma linha desabilitada por ciclo de habilitar e desabilitar. O recurso é o par usuário + serviço (decisão 0033); o histórico fica nas Operations.
 - `sk config set` não apaga mais a seção `[sum]` do arquivo de configuração ao gravar outra chave.
 - `sk sum service`: `--resource-id` e `--operation-id` agora precisam seguir o padrão do contrato (letras minúsculas, números e hífen) e são recusados antes de qualquer chamada (antes, texto livre entrava no caminho da URL junto com o token da sessão). Uma ligação sem `resourceVersion` na resposta deixa de ser aceita. O `404` da Operation não é mais mostrado como ligação inexistente, o `409` ao ligar um serviço já ligado deixa de dizer que "a ligação mudou desde a última leitura", e o `429` e o campo recusado pela API aparecem na mensagem. Endereço sem HTTPS agora termina com mensagem e código `2`, em vez de erro técnico.

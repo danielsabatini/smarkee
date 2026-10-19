@@ -1,4 +1,4 @@
-"""Configuração do Executor de Account (decisão 0015).
+"""Configuração do Executor de Account (decisões 0015 e 0063).
 
 Ordem: variável de ambiente → default. Nome da variável:
 `CORE_ACCOUNT_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo `CORE_ACCOUNT_EXECUTOR_NATS_URL`
@@ -6,42 +6,26 @@ Ordem: variável de ambiente → default. Nome da variável:
 **não acessa o SSOT** e é a única identidade com escrita no Zitadel.
 """
 
-from pydantic import BaseModel, ConfigDict, SecretStr
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
-class _Section(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class NatsSettings(_Section):
-    url: str = "nats://broker.smarkee.internal:4222"
-    user: str = "smarkee"
-    password: SecretStr | None = None
+from core_account.common.settings import (
+    HealthSettings,
+    NatsSettings,
+    Section,
+    missing_variables,
+)
+from core_account.common.zitadel import ZitadelSettings as CommonZitadelSettings
 
 
-class ZitadelSettings(_Section):
-    base_url: str = "http://identity.smarkee.internal:8080"
-    """Endereço da API do Zitadel na rede interna (não passa pelo gateway público)."""
-
-    host_header: str = "ipm-dev.smarkee.com.br:8080"
-    """`Host` enviado ao Zitadel: ele resolve a instância pelo domínio externo."""
-
-    issuer: str = "http://ipm-dev.smarkee.com.br:8080"
-    """Audience da assertion JWT da conta de serviço."""
-
-    key_file: str = "/run/secrets/zitadel-key.json"
-    """Chave JSON da conta `core-account-executor`.
+class ZitadelSettings(CommonZitadelSettings):
+    """Zitadel do Executor, com a conta de serviço `core-account-executor`.
 
     Papéis dela: `ORG_USER_CREATOR` na `register` (cria e remove usuários, sem conceder roles) e
     `PROJECT_GRANT_OWNER` nos Project Grants dos projetos de `project_ids` (decisão 0032).
     """
 
-    register_organization_id: str | None = None
-    """ID da organização `register`: onde os usuários são criados e recebem as autorizações.
-    Sem default."""
-
-    project_ids: dict[str, str] = {}
+    project_ids: dict[str, str] = Field(default_factory=dict)
     """IDs dos projetos de roles que o Executor pode conceder, por módulo (`{"core": "<ID>", ...}`).
 
     A role `<módulo>.<tipo>.<ação>` vai para o projeto do seu módulo. Um módulo ausente aqui é
@@ -52,14 +36,9 @@ class ZitadelSettings(_Section):
     timeout_seconds: float = 10.0
 
 
-class PartitionSettings(_Section):
+class PartitionSettings(Section):
     count: int = 4
     """Partições do Stream `ACTION` (bootstrap do broker): um consumer e um laço por partição."""
-
-
-class HealthSettings(_Section):
-    port: int = 8000
-    """Porta das probes `/health/*` (decisão 0018)."""
 
 
 class AccountExecutorSettings(BaseSettings):
@@ -76,20 +55,13 @@ class AccountExecutorSettings(BaseSettings):
     health: HealthSettings = HealthSettings()
 
 
-REQUIRED_SECRETS = (
-    "CORE_ACCOUNT_EXECUTOR_NATS_PASSWORD",
-    "CORE_ACCOUNT_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID",
-    "CORE_ACCOUNT_EXECUTOR_ZITADEL_PROJECT_IDS",
-)
-
-
 def missing_required(settings: AccountExecutorSettings) -> list[str]:
     """Nomes das variáveis obrigatórias (sem default) que não foram informadas."""
-    present = {
-        "CORE_ACCOUNT_EXECUTOR_NATS_PASSWORD": settings.nats.password is not None,
-        "CORE_ACCOUNT_EXECUTOR_ZITADEL_REGISTER_ORGANIZATION_ID": bool(
-            settings.zitadel.register_organization_id
-        ),
-        "CORE_ACCOUNT_EXECUTOR_ZITADEL_PROJECT_IDS": bool(settings.zitadel.project_ids),
-    }
-    return [name for name in REQUIRED_SECRETS if not present[name]]
+    return missing_variables(
+        "CORE_ACCOUNT_EXECUTOR_",
+        {
+            "NATS_PASSWORD": settings.nats.password is not None,
+            "ZITADEL_REGISTER_ORGANIZATION_ID": bool(settings.zitadel.register_organization_id),
+            "ZITADEL_PROJECT_IDS": bool(settings.zitadel.project_ids),
+        },
+    )

@@ -158,8 +158,8 @@ async def test_grants_and_their_mutations_use_the_v2_authorization_service(
         ("g-1", "proj-core", {"core.account.get"})
     ]
     await z.create_grant("u-1", "proj-core", ["a", "b"])
-    await z.update_grant("u-1", "g-1", ["a"])
-    await z.remove_grant("u-1", "g-1")
+    await z.update_grant("g-1", ["a"])
+    await z.remove_grant("g-1")
 
     service = "/zitadel.authorization.v2.AuthorizationService"
     assert [(c.method, c.url.path) for c in calls] == [
@@ -213,7 +213,7 @@ async def test_creating_an_existing_authorization_is_success_and_other_errors_ar
 
 async def test_removing_a_missing_authorization_is_success(key_file: Path) -> None:
     missing = {"code": "not_found", "message": "x", "details": [{"id": "COMMAND-3M9sd"}]}
-    await writer(key_file, lambda r: httpx.Response(404, json=missing)).remove_grant("u-1", "g-1")
+    await writer(key_file, lambda r: httpx.Response(404, json=missing)).remove_grant("g-1")
 
 
 async def test_token_is_cached_and_a_missing_key_is_unauthorized(

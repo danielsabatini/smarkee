@@ -4,6 +4,8 @@ Observer de `core.account` (`core-account-observer`), um dos seis papéis da ima
 
 Lê o usuário e as roles no Zitadel com uma conta de serviço **somente leitura** (`core-account-observer`, papel `ORG_OWNER_VIEWER`) e publica `observed` (`presence`: `present`, `absent` ou `unknown`). Qualquer falha de leitura vira `unknown`, nunca `absent`: `absent` só com `404` do Zitadel cujo corpo traz o código `5` e `details`. Observa quando o `desired` é novo, depois de cada resultado de ação e periodicamente (5 min, com jitter), só os recursos da sua partição (`hash(resourceId) mod count`).
 
+Os logs do Observer **não** carregam o `traceparent` das mensagens que ele consome (`traced=False`): a observação é periódica e não consequência de uma requisição, então ligá-la ao trace de quem causou o `desired` misturaria origens (decisão 0055).
+
 ## Estrutura (decisão 0017)
 
 ```text

@@ -13,18 +13,12 @@ from collections.abc import Callable, Mapping
 from enum import StrEnum
 from typing import Any, Protocol
 
-import nats.errors
-import nats.js.errors
 import psycopg
 import psycopg_pool
 from nats.aio.msg import Msg
 from nats.js import JetStreamContext
 
-from core_account.common.logging_config import (
-    TRACEPARENT_HEADER,
-    bind_message_context,
-    bind_traceparent,
-)
+from core_account.common.messaging import consume
 from core_account.manager.domain.errors import PermanentMessageError
 from core_account.manager.domain.kind import ResourceKind
 from core_account.manager.domain.outcome import Outcome
@@ -66,7 +60,7 @@ class MessageHandler(Protocol):
     ) -> Outcome: ...
 
 
-async def process_requested(
+async def apply_message(
     pool: psycopg_pool.AsyncConnectionPool[Any],
     handler: MessageHandler,
     kind: ResourceKind,
@@ -76,9 +70,7 @@ async def process_requested(
     try:
         message: Mapping[str, Any] = json.loads(data)
     except ValueError:
-        logger.error(
-            "message is not valid JSON",
-        )
+        logger.error("message is not valid JSON")
         return Disposition.TERM
     for attempt, delay in enumerate((*TRANSIENT_RETRY_DELAYS_SECONDS, None)):
         try:
@@ -143,30 +135,17 @@ class StreamConsumer:
         subscription = await self._jetstream.pull_subscribe_bind(
             consumer=self.durable_name, stream=self._stream
         )
-        while not stop.is_set():
-            self._on_cycle()  # sinal de vida do laço (liveness)
-            try:
-                messages = await subscription.fetch(self._batch_size, timeout=self._fetch_timeout)
-            except TimeoutError:
-                continue
-            except (nats.errors.Error, nats.js.errors.Error) as error:
-                logger.warning("fetch failed", exc_info=error)
-                await asyncio.sleep(1.0)
-                continue
-            for message in messages:
-                await self._settle(message)
-
-    async def _settle(self, message: Msg) -> None:
-        # O contexto de trace vem no header NATS (decisão 0055); sem ele, segue sem trace.
-        bind_traceparent((message.headers or {}).get(TRACEPARENT_HEADER))
-        bind_message_context(message.data)
-        try:
-            await self._dispose(message)
-        finally:
-            bind_traceparent(None)
+        await consume(
+            subscription,
+            self._dispose,
+            stop,
+            batch_size=self._batch_size,
+            fetch_timeout_seconds=self._fetch_timeout,
+            on_cycle=self._on_cycle,
+        )
 
     async def _dispose(self, message: Msg) -> None:
-        disposition = await process_requested(self._pool, self._handler, self._kind, message.data)
+        disposition = await apply_message(self._pool, self._handler, self._kind, message.data)
         logger.info(
             "message handled",
             extra={

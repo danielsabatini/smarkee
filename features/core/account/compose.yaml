@@ -112,7 +112,7 @@ services:
         aliases:
           - core-account-receiver.smarkee.internal
     restart: unless-stopped
-    healthcheck:
+    healthcheck: &component-healthcheck
       test:
         - CMD
         - python
@@ -145,16 +145,7 @@ services:
         aliases:
           - core-account-manager.smarkee.internal
     restart: unless-stopped
-    healthcheck: &manager-healthcheck
-      test:
-        - CMD
-        - python
-        - -c
-        - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)"
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 10s
+    healthcheck: *component-healthcheck
 
   # Reconciler (`core-account-reconciler`): decide a `action` a partir de `desired` e `observed`.
   # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/NATS.md §7.4).
@@ -175,7 +166,7 @@ services:
         aliases:
           - core-account-reconciler.smarkee.internal
     restart: unless-stopped
-    healthcheck: *manager-healthcheck
+    healthcheck: *component-healthcheck
 
   # Observer (`core-account-observer`): lê o Zitadel (conta somente leitura) e publica `observed`.
   # Monta só a própria chave do volume da identidade (nunca a de bootstrap nem a do Executor).
@@ -204,7 +195,7 @@ services:
         aliases:
           - core-account-observer.smarkee.internal
     restart: unless-stopped
-    healthcheck: *manager-healthcheck
+    healthcheck: *component-healthcheck
 
   # Executor (`core-account-executor`): única identidade com escrita no Zitadel (conta
   # core-account-executor, papel ORG_USER_MANAGER). Monta só a própria chave.
@@ -234,7 +225,7 @@ services:
         aliases:
           - core-account-executor.smarkee.internal
     restart: unless-stopped
-    healthcheck: *manager-healthcheck
+    healthcheck: *component-healthcheck
 
   # Publisher (`core-account-publisher`): publica o outbox do tipo (uma instância ativa por trava
   # consultiva). Papel de banco `core_account_publisher`, que só lê o outbox e marca `published_at`, e
@@ -257,7 +248,7 @@ services:
         aliases:
           - core-account-publisher.smarkee.internal
     restart: unless-stopped
-    healthcheck: *manager-healthcheck
+    healthcheck: *component-healthcheck
 
   # Telemeter de app de core.account (decisão 0062, docs/OBSERVABILITY.md §14): recebe por OTLP, do
   # telemetry-router da plataforma, os logs e os spans de app desta feature e os grava em `telemeter/logs/` e `telemeter/traces/`. Não lê logs de

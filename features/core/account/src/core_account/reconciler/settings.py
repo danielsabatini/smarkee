@@ -1,27 +1,21 @@
-"""Configuração do Reconciler de Account (decisão 0015).
+"""Configuração do Reconciler de Account (decisões 0015 e 0063).
 
 Ordem: variável de ambiente → default. Nome da variável:
 `CORE_ACCOUNT_RECONCILER_<SEÇÃO>_<CAMPO>`, por exemplo `CORE_ACCOUNT_RECONCILER_NATS_URL`
 (`docs/SCHEMA.md` §8.3). A senha do NATS não tem default. O Reconciler não acessa o SSOT.
 """
 
-from pydantic import BaseModel, ConfigDict, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
-class _Section(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class NatsSettings(_Section):
-    url: str = "nats://broker.smarkee.internal:4222"
-    user: str = "smarkee"
-    password: SecretStr | None = None
-    consumer_inactive_threshold_seconds: int = 300
-    """Tempo sem uso após o qual o servidor remove o consumer da instância (`docs/NATS.md` §7.4)."""
+from core_account.common.settings import (
+    HealthSettings,
+    Section,
+    StateNatsSettings,
+    missing_variables,
+)
 
 
-class LoopSettings(_Section):
+class LoopSettings(Section):
     """Parâmetros do loop do tipo (`x-resourceParameters` de `schemas/core/account/desired`)."""
 
     observation_validity_seconds: int = 600
@@ -40,11 +34,6 @@ class LoopSettings(_Section):
     failure_backoff_maximum_seconds: int = 300
 
 
-class HealthSettings(_Section):
-    port: int = 8000
-    """Porta das probes `/health/*` (decisão 0018)."""
-
-
 class AccountReconcilerSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="CORE_ACCOUNT_RECONCILER_",
@@ -53,15 +42,13 @@ class AccountReconcilerSettings(BaseSettings):
         extra="forbid",
     )
 
-    nats: NatsSettings = NatsSettings()
+    nats: StateNatsSettings = StateNatsSettings()
     loop: LoopSettings = LoopSettings()
     health: HealthSettings = HealthSettings()
 
 
-REQUIRED_SECRETS = ("CORE_ACCOUNT_RECONCILER_NATS_PASSWORD",)
-
-
 def missing_required(settings: AccountReconcilerSettings) -> list[str]:
     """Nomes das variáveis obrigatórias (sem default) que não foram informadas."""
-    present = {"CORE_ACCOUNT_RECONCILER_NATS_PASSWORD": settings.nats.password is not None}
-    return [name for name in REQUIRED_SECRETS if not present[name]]
+    return missing_variables(
+        "CORE_ACCOUNT_RECONCILER_", {"NATS_PASSWORD": settings.nats.password is not None}
+    )

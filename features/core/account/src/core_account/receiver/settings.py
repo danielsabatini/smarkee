@@ -7,38 +7,23 @@ Nome da variável: `CORE_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>`, por exemplo
 `CORE_ACCOUNT_RECEIVER_NATS_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
-from pydantic import BaseModel, ConfigDict, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from core_account.common.settings import DatabaseSettings as CommonDatabaseSettings
+from core_account.common.settings import NatsSettings, Section, missing_variables
 
-class _Section(BaseModel):
-    model_config = ConfigDict(extra="forbid")
 
-
-class DatabaseSettings(_Section):
-    host: str = "database.smarkee.internal"
-    port: int = 5432
-    name: str = "smarkee"
+class DatabaseSettings(CommonDatabaseSettings):
     user: str = "core_account_receiver_login"
     """Papel de login do Receiver: só `SELECT` nas views do tipo (`docs/POSTGRESQL.md` §14.2)."""
 
-    password: SecretStr | None = None
 
-
-class NatsSettings(_Section):
-    url: str = "nats://broker.smarkee.internal:4222"
-    user: str = "smarkee"
-    password: SecretStr | None = None
-
-
-class AuthSettings(_Section):
+class AuthSettings(Section):
     issuer: str = "http://ipm-dev.smarkee.com.br:8080"
     """Valor esperado de `iss`: o endereço público do provedor de identidade."""
 
     jwks_url: str = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
     """Endereço (da rede interna) em que as chaves públicas são buscadas."""
-
-    userinfo_url: str = "http://gateway.smarkee.internal:8000/oidc/v1/userinfo"
 
     host_header: str = "ipm-dev.smarkee.com.br:8080"
     """`Host` enviado ao provedor nas chamadas internas: ele resolve a instância por esse valor."""
@@ -47,10 +32,9 @@ class AuthSettings(_Section):
     """ID do projeto da plataforma (audience dos access tokens). Sem default."""
 
     jwks_cache_seconds: int = 300
-    userinfo_cache_seconds: int = 300
 
 
-class ApiSettings(_Section):
+class ApiSettings(Section):
     host: str = "0.0.0.0"  # noqa: S104 (o componente escuta dentro do contêiner; o acesso é pelo gateway)
     port: int = 8000
     anonymous_rate_limit: int = 5
@@ -59,7 +43,7 @@ class ApiSettings(_Section):
     """Cabeçalho com o endereço do cliente, definido pelo gateway (único acesso ao serviço)."""
 
 
-class PeersSettings(_Section):
+class PeersSettings(Section):
     """Receivers dos outros módulos, na rede interna, consultados na exclusão da conta."""
 
     organizations_url: str = "http://ipm-organization-receiver.smarkee.internal:8000"
@@ -83,18 +67,13 @@ class AccountReceiverSettings(BaseSettings):
     peers: PeersSettings = PeersSettings()
 
 
-REQUIRED_SECRETS = (
-    "CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE",
-    "CORE_ACCOUNT_RECEIVER_NATS_PASSWORD",
-    "CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD",
-)
-
-
 def missing_required(settings: AccountReceiverSettings) -> list[str]:
     """Nomes das variáveis obrigatórias (sem default) que não foram informadas."""
-    present = {
-        "CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE": bool(settings.auth.audience),
-        "CORE_ACCOUNT_RECEIVER_NATS_PASSWORD": settings.nats.password is not None,
-        "CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD": settings.database.password is not None,
-    }
-    return [name for name in REQUIRED_SECRETS if not present[name]]
+    return missing_variables(
+        "CORE_ACCOUNT_RECEIVER_",
+        {
+            "AUTH_AUDIENCE": bool(settings.auth.audience),
+            "NATS_PASSWORD": settings.nats.password is not None,
+            "DATABASE_PASSWORD": settings.database.password is not None,
+        },
+    )

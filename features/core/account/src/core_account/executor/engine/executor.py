@@ -7,7 +7,6 @@ reconciliação ativa) e o desfecho já registrado do `actionId`. Falhas do prov
 (com `retryable`), e o retry é do Reconciler, sob backoff.
 """
 
-import json
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -15,29 +14,17 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, Protocol
 
-from pydantic import ValidationError
-
 from core_account.common.contracts import generated
-from core_account.common.contracts.base import supports_major, validate_tolerant
+from core_account.common.contracts.envelope import EnvelopeError, read_envelope
 from core_account.common.ids import new_identifier, utc_now
+from core_account.common.ports import Publisher
+from core_account.common.resource import MODULE, RESOURCE_TYPE, SCHEMA_VERSION
 from core_account.executor.actions.account_actions import Writer, execute
 from core_account.executor.domain.errors import ActionFailedError
 from core_account.executor.domain.identity import ProviderError
 from core_account.executor.domain.revalidation import revalidate
 
-MODULE = "core"
-RESOURCE_TYPE = "account"
-SCHEMA_VERSION = "1.0"
-
 logger = logging.getLogger(__name__)
-
-
-class PublishError(Exception):
-    """O transporte não confirmou a publicação: a `action` volta à fila (NAK) e é repetida."""
-
-
-class Publisher(Protocol):
-    async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None: ...
 
 
 class StateReader(Protocol):
@@ -121,12 +108,9 @@ class Executor:
     @staticmethod
     def _parse(data: bytes) -> generated.MessageEnvelope | None:
         try:
-            envelope = validate_tolerant(generated.MessageEnvelope, json.loads(data))
-        except ValueError, ValidationError:
-            logger.error("action is not a valid envelope")
-            return None
-        if not supports_major(envelope.schema_version):
-            logger.error("schemaVersion MAJOR is not supported")
+            envelope = read_envelope(data)
+        except EnvelopeError as error:
+            logger.error("action rejected", extra={"smarkee.reason": error.reason})
             return None
         if (
             envelope.message_type.value != "action"

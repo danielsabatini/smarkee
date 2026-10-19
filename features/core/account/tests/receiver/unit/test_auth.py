@@ -10,9 +10,8 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jwt.algorithms import RSAAlgorithm
 
-from core_account.receiver.auth.tokens import EmailVerification, TokenVerifier
+from core_account.receiver.auth.tokens import TokenVerifier
 from core_account.receiver.domain.errors import ApiError
-from core_account.receiver.domain.principal import Principal
 from core_account.receiver.settings import AuthSettings
 
 ISSUER = "http://issuer.example"
@@ -50,10 +49,9 @@ def make_token(
 
 @dataclass
 class Provider:
-    """Provedor de identidade simulado: JWKS e userinfo."""
+    """Provedor de identidade simulado: JWKS."""
 
     keys: list[dict[str, Any]]
-    userinfo: dict[str, Any] = field(default_factory=lambda: {"email_verified": True})
     fail: bool = False
     requests: list[httpx.Request] = field(default_factory=lambda: [])
 
@@ -61,16 +59,13 @@ class Provider:
         self.requests.append(request)
         if self.fail:
             return httpx.Response(503)
-        if request.url.path.endswith("/keys"):
-            return httpx.Response(200, json={"keys": self.keys})
-        return httpx.Response(200, json=self.userinfo)
+        return httpx.Response(200, json={"keys": self.keys})
 
 
 def settings() -> AuthSettings:
     return AuthSettings(
         issuer=ISSUER,
         jwks_url="http://provider.internal/oauth/v2/keys",
-        userinfo_url="http://provider.internal/oidc/v1/userinfo",
         host_header="issuer.example",
         audience=PROJECT_ID,
     )
@@ -195,38 +190,3 @@ async def test_provider_outage_makes_unknown_keys_unauthorized_but_keeps_known_o
 def test_audience_is_required() -> None:
     with pytest.raises(ValueError, match="audience"):
         TokenVerifier(AuthSettings(), httpx.AsyncClient())
-
-
-def principal() -> Principal:
-    return Principal(subject="account-1", roles=frozenset(), access_token="token-1")
-
-
-async def test_email_verification_caches_only_positive_results() -> None:
-    provider = Provider([], userinfo={"email_verified": True})
-    clock = [0.0]
-    checker = EmailVerification(
-        settings(),
-        httpx.AsyncClient(transport=httpx.MockTransport(provider.handler)),
-        monotonic=lambda: clock[0],
-    )
-    assert await checker.is_verified(principal())
-    assert await checker.is_verified(principal())
-    assert len(provider.requests) == 1
-    assert provider.requests[0].headers["authorization"] == "Bearer token-1"
-    clock[0] = 301.0
-    assert await checker.is_verified(principal())
-    assert len(provider.requests) == 2
-
-    provider.userinfo = {"email_verified": False}
-    other = Principal(subject="account-2", roles=frozenset(), access_token="token-2")
-    assert not await checker.is_verified(other)
-    assert not await checker.is_verified(other)
-    assert len(provider.requests) == 4  # negativo não é guardado
-
-
-async def test_email_verification_fails_closed_on_errors() -> None:
-    provider = Provider([], fail=True)
-    checker = EmailVerification(
-        settings(), httpx.AsyncClient(transport=httpx.MockTransport(provider.handler))
-    )
-    assert not await checker.is_verified(principal())

@@ -1,6 +1,6 @@
 # core-account-publisher
 
-Publisher de `core.account` (`core-account-publisher`), componente autocontido e sexto papel do loop (`.decisions/0019-publisher-como-sexto-papel.md`).
+Publisher de `core.account` (`core-account-publisher`), um dos seis papéis da imagem única `core-account` (decisão 0063) e sexto papel do loop (`.decisions/0019-publisher-como-sexto-papel.md`).
 
 Publica no transporte, em ordem e de forma sequencial, o que o Manager registrou no **outbox** do tipo (`core.account_outbox`). **Não executa regra de negócio**: o Subject e o payload já estão na linha do outbox.
 

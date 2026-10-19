@@ -8,20 +8,16 @@ Os erros viram `ProviderError`, com a causa e se a mesma decisão pode ser tenta
 Nenhum dado pessoal entra em mensagens de erro.
 """
 
-import json
 import time
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any, cast
 
 import httpx
-import jwt
 
+from core_account.common.zitadel import ServiceAccountToken, TokenError
 from core_account.executor.domain.identity import Grant, ProviderError, ZitadelUser
 from core_account.executor.settings import ZitadelSettings
 
-SCOPE = "openid urn:zitadel:iam:org:project:id:zitadel:aud"
-TOKEN_SAFETY_SECONDS = 60
 NOT_FOUND_CODE = 5  # código gRPC NotFound
 HTTP_NOT_FOUND = 404
 HTTP_BAD_REQUEST = 400
@@ -34,7 +30,7 @@ ALREADY_EXISTING_AUTHORIZATION_ID = "V3-DKcYh"  # autorização já existe (Zita
 AUTHORIZATION_SERVICE = "/zitadel.authorization.v2.AuthorizationService"
 
 
-def _classify(status: int, text: str = "") -> ProviderError:
+def _classify(status: int) -> ProviderError:
     if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
         return ProviderError("Unauthorized", retryable=False, detail=f"HTTP {status}")
     if status == HTTP_TOO_MANY_REQUESTS or status >= HTTP_SERVER_ERROR:
@@ -52,9 +48,7 @@ class ZitadelWriter:
     ) -> None:
         self._settings = settings
         self._client = client
-        self._clock = clock
-        self._token: str | None = None
-        self._token_expires_at = 0.0
+        self._token_source = ServiceAccountToken(settings, client, clock=clock)
 
     # ------------------------------------------------------------------ usuário
 
@@ -151,7 +145,7 @@ class ZitadelWriter:
                 return
             raise
 
-    async def update_grant(self, user_id: str, grant_id: str, roles: list[str]) -> None:
+    async def update_grant(self, grant_id: str, roles: list[str]) -> None:
         """Substitui a lista de roles da autorização (as que faltarem são revogadas)."""
         await self._call(
             "POST",
@@ -159,7 +153,7 @@ class ZitadelWriter:
             {"id": grant_id, "roleKeys": roles},
         )
 
-    async def remove_grant(self, user_id: str, grant_id: str) -> None:
+    async def remove_grant(self, grant_id: str) -> None:
         await self._call(
             "POST",
             f"{AUTHORIZATION_SERVICE}/DeleteAuthorization",
@@ -243,43 +237,11 @@ class ZitadelWriter:
         return cast("dict[str, Any]", document)
 
     async def _access_token(self) -> str:
-        now = self._clock()
-        if self._token is not None and now < self._token_expires_at - TOKEN_SAFETY_SECONDS:
-            return self._token
         try:
-            key = json.loads(Path(self._settings.key_file).read_text(encoding="utf-8"))
-            assertion = jwt.encode(
-                {
-                    "iss": key["userId"],
-                    "sub": key["userId"],
-                    "aud": self._settings.issuer,
-                    "iat": int(now),
-                    "exp": int(now) + 300,
-                },
-                key["key"],
-                algorithm="RS256",
-                headers={"kid": key["keyId"]},
-            )
-        except (OSError, ValueError, KeyError) as error:
+            return await self._token_source.get()
+        except TokenError as error:
+            if error.kind == "key":
+                raise ProviderError("Unauthorized", retryable=False, detail=error.detail) from None
             raise ProviderError(
-                "Unauthorized", retryable=False, detail=f"key unavailable: {type(error).__name__}"
+                "ProviderUnavailable", retryable=True, detail=error.detail
             ) from None
-        try:
-            response = await self._client.post(
-                self._settings.base_url + "/oauth/v2/token",
-                headers={"Host": self._settings.host_header},
-                data={
-                    "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-                    "scope": SCOPE,
-                    "assertion": assertion,
-                },
-            )
-            response.raise_for_status()
-            payload = response.json()
-        except (httpx.HTTPError, ValueError) as error:
-            raise ProviderError(
-                "ProviderUnavailable", retryable=True, detail=f"token: {type(error).__name__}"
-            ) from None
-        self._token = str(payload["access_token"])
-        self._token_expires_at = now + float(payload.get("expires_in", 300))
-        return self._token

@@ -7,6 +7,7 @@ from typing import Any
 import psycopg
 import pytest
 from support_manager import (
+    ACCOUNT,
     DEFAULT_DIGEST,
     Cleanup,
     fetch_all,
@@ -18,7 +19,6 @@ from support_manager import (
 
 from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES
 from core_account.manager.domain.errors import PermanentMessageError
-from core_account.manager.domain.kind import ACCOUNT
 from core_account.manager.domain.outcome import OutcomeKind
 from core_account.manager.handlers.observed import ObservedHandler
 from core_account.manager.handlers.requested import RequestedHandler

@@ -2,9 +2,13 @@ import pytest
 from pydantic import ValidationError
 
 from core_account.publisher.settings import (
-    REQUIRED_SECRETS,
     AccountPublisherSettings,
     missing_required,
+)
+
+REQUIRED_SECRETS = (
+    "CORE_ACCOUNT_PUBLISHER_NATS_PASSWORD",
+    "CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD",
 )
 
 

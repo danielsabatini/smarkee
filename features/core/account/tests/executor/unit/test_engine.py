@@ -8,9 +8,10 @@ from typing import Any
 import pytest
 
 from core_account.common.contracts import generated
+from core_account.common.ports import PublishError
 from core_account.executor.domain.errors import ActionFailedError
 from core_account.executor.domain.identity import Grant, ProviderError, ZitadelUser
-from core_account.executor.engine.executor import Disposition, Executor, PublishError
+from core_account.executor.engine.executor import Disposition, Executor
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
 RESOURCE = "account-1"
@@ -24,7 +25,7 @@ class FakePublisher:
 
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
         if self.fail:
-            raise PublishError
+            raise PublishError("unavailable")
         self.published.append((subject, json.loads(payload)))
 
 
@@ -73,10 +74,10 @@ class FakeWriter:
     async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None:
         self.calls.append("create_grant")
 
-    async def update_grant(self, user_id: str, grant_id: str, roles: list[str]) -> None:
+    async def update_grant(self, grant_id: str, roles: list[str]) -> None:
         self.calls.append("update_grant")
 
-    async def remove_grant(self, user_id: str, grant_id: str) -> None:
+    async def remove_grant(self, grant_id: str) -> None:
         self.calls.append("remove_grant")
 
 

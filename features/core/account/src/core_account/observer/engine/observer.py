@@ -11,35 +11,22 @@ um recurso (`docs/RESOURCE-CONTROL-LOOP.md` §6.3, §10, §25 e §26.1):
 
 import asyncio
 import hashlib
-import json
 import logging
 import random
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Protocol
-
-from pydantic import ValidationError
+from typing import Any
 
 from core_account.common.contracts import generated
-from core_account.common.contracts.base import supports_major, validate_tolerant
+from core_account.common.contracts.envelope import EnvelopeError, read_envelope
 from core_account.common.ids import new_identifier, utc_now
+from core_account.common.ports import Publisher, PublishError
+from core_account.common.resource import MODULE, RESOURCE_TYPE, SCHEMA_VERSION
 from core_account.observer.domain.observation import Observation, Reader, observe
 from core_account.observer.settings import AccountObserverSettings
 
-MODULE = "core"
-RESOURCE_TYPE = "account"
-SCHEMA_VERSION = "1.0"
-
 logger = logging.getLogger(__name__)
-
-
-class PublishError(Exception):
-    """O transporte não confirmou a publicação; a observação é refeita na próxima rodada."""
-
-
-class Publisher(Protocol):
-    async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None: ...
 
 
 @dataclass(slots=True)
@@ -108,12 +95,9 @@ class Observer:
     @staticmethod
     def _parse(data: bytes) -> generated.MessageEnvelope | None:
         try:
-            envelope = validate_tolerant(generated.MessageEnvelope, json.loads(data))
-        except ValueError, ValidationError:
-            logger.error("message is not a valid envelope")
-            return None
-        if not supports_major(envelope.schema_version):
-            logger.error("schemaVersion MAJOR is not supported")
+            envelope = read_envelope(data)
+        except EnvelopeError as error:
+            logger.error("message rejected", extra={"smarkee.reason": error.reason})
             return None
         if envelope.module != MODULE or envelope.resource_type != RESOURCE_TYPE:
             return None

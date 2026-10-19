@@ -5,40 +5,53 @@ lógica fica nos módulos de cada responsabilidade.
 """
 
 import asyncio
-import contextlib
 import logging
-import signal
-import sys
+from collections.abc import Generator
+from contextlib import contextmanager
 
 import httpx
 import uvicorn
 
-from core_account.common.logging_config import configure_logging
+from core_account.common.database import open_pool
+from core_account.common.lifecycle import start_role, stop_on_signals, supervise
+from core_account.common.messaging import JetStreamPublisher, connect, jetstream_of
 from core_account.receiver.auth.tokens import TokenVerifier
 from core_account.receiver.domain.ratelimit import SlidingWindowLimiter
 from core_account.receiver.http.app import Dependencies, create_app
 from core_account.receiver.settings import AccountReceiverSettings, missing_required
-from core_account.receiver.store.database import open_pool
 from core_account.receiver.store.repository import PostgresRepository
-from core_account.receiver.transport.nats import JetStreamPublisher, connect, jetstream_of
 from core_account.receiver.transport.peers import PeerResources
-
-EXIT_INVALID_CONFIGURATION = 2
 
 logger = logging.getLogger(__name__)
 
 
-async def run(settings: AccountReceiverSettings) -> int:
-    stop = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for signal_number in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(signal_number, stop.set)
+class _Server(uvicorn.Server):
+    """Servidor sem os handlers de sinal do uvicorn: o encerramento é conduzido por `lifecycle`."""
 
+    @contextmanager
+    def capture_signals(self) -> Generator[None]:
+        yield
+
+
+async def _serve_until_stopped(server: _Server, stop: asyncio.Event) -> None:
+    async def request_exit() -> None:
+        await stop.wait()
+        server.should_exit = True
+
+    watcher = asyncio.create_task(request_exit())
+    try:
+        await server.serve()
+    finally:
+        watcher.cancel()
+
+
+async def run(settings: AccountReceiverSettings) -> int:
+    stop = stop_on_signals()
     async with httpx.AsyncClient(timeout=5.0) as http:
-        nats_client = await connect(settings.nats)
+        nats_client = await connect(settings.nats, name="core-account-receiver")
         pool = await open_pool(settings.database)
         api = settings.api
-        server = uvicorn.Server(
+        server = _Server(
             uvicorn.Config(
                 create_app(
                     Dependencies(
@@ -59,39 +72,16 @@ async def run(settings: AccountReceiverSettings) -> int:
                 access_log=False,
             )
         )
-        # O encerramento é conduzido por este módulo; o uvicorn não instala os seus handlers.
-        server.install_signal_handlers = lambda: contextlib.nullcontext()  # type: ignore[method-assign]
-
-        serving = asyncio.create_task(server.serve())
+        tasks = {"http": asyncio.create_task(_serve_until_stopped(server, stop))}
         logger.info("account api started")
-        waiter = asyncio.create_task(stop.wait())
-        done, _ = await asyncio.wait({waiter, serving}, return_when=asyncio.FIRST_COMPLETED)
-
-        exit_code = 1 if serving in done else 0
-        if exit_code:
-            logger.error("http server stopped unexpectedly")
-        server.should_exit = True
-        stop.set()
-        result = (await asyncio.gather(serving, return_exceptions=True))[0]
-        if isinstance(result, BaseException):
-            logger.error("http server failed", exc_info=result)
-            exit_code = 1
-        waiter.cancel()
+        exit_code = await supervise(tasks, stop)
         await nats_client.drain()
         await pool.close()
     return exit_code
 
 
 def main() -> None:
-    configure_logging(role="receiver")
-    settings = AccountReceiverSettings()
-    missing = missing_required(settings)
-    if missing:
-        logger.error(
-            "missing required configuration", extra={"smarkee.config.missing_variables": missing}
-        )
-        sys.exit(EXIT_INVALID_CONFIGURATION)
-    sys.exit(asyncio.run(run(settings)))
+    start_role("receiver", AccountReceiverSettings, missing_required, run)
 
 
 if __name__ == "__main__":

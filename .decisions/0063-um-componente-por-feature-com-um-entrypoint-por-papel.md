@@ -66,3 +66,30 @@ A opção adotada reduz a duplicação onde ela é maior (entre os papéis da me
 **Verificado.** `ruff` e `pyright` (strict) sem erros; 400 testes unitários e de contrato e 31 de integração (banco e NATS reais) passaram; `docker compose` sobe os seis papéis da imagem única, todos saudáveis; `tests/e2e` de `core/account` com `E2E_CHAOS=1` (11 testes, 147 s) e `tests/telemetry` (13 testes) passaram; `schemas` (397 testes) e os testes de log dos 12 componentes de `ipm/organization` e `sum/service`, com a fonte canônica nova, passaram.
 
 **Não verificado.** A jornada e2e completa (`tests/e2e` da raiz, com a CLI e o `sum`), o build em Kubernetes e o tempo de build a frio. A medição de superfície de CVEs da imagem maior não foi feita.
+
+## Auditoria do piloto e consolidação do `common/` (2026-10-19)
+
+Antes de migrar `ipm/organization` e `sum/service`, `core/account` foi auditado (duplicação entre papéis, código sem uso, testes repetidos, documentação) e consolidado.
+
+**Passou para `common/`** (cada item existia em 2 a 6 cópias nos papéis): `settings.py` (seções NATS, saúde e banco, e `missing_variables`), `messaging.py` (conexão, `JetStreamPublisher`, `consume`, `StateConsumer`, `message_scope`), `lifecycle.py` (`start_role`, sinais e supervisão), `database.py`, `zitadel.py` (configuração e token da conta de serviço, compartilhados por Observer e Executor; o tratamento de erro continua de cada papel), `ports.py` (`PublishError` e `Publisher`), `resource.py` (módulo, tipo e `SCHEMA_VERSION`) e `contracts/envelope.py` (leitura do envelope). Os `main.py` ficaram com a montagem das tarefas de cada papel.
+
+**Defeitos que a consolidação revelou**, existentes desde antes do piloto:
+- **Desligamento normal reportado como falha.** Com SIGTERM, as tarefas terminavam junto com o aviso de parada e eram registradas como `task stopped unexpectedly` (ERROR), com saída 1. Corrigido em `supervise`.
+- **Encerramento à força.** A assinatura *pull* ativa fazia o `drain()` do NATS esperar o tempo limite inteiro (30 s); Manager, Reconciler, Observer e Executor eram mortos pelo Docker (saída 137). `consume` agora cancela a assinatura ao terminar. Medido: os seis papéis encerram com saída 0 em 0 a 2 s.
+
+**Decididos pelo responsável do trabalho** (podem ser revertidos):
+- Removida a variável `..._OBSERVER_LOOP_MINIMUM_SECONDS_BETWEEN_READS`, que nunca teve efeito (a única proteção contra o provedor é `maximum_concurrent_reads`), e o descritor que sobrara colado a outro campo.
+- Removida a `EmailVerification` do Receiver e as variáveis `userinfo_*`: código sem uso em produção e sem requisito (AGENTS §25). Em `ipm` e `sum` ela ainda existe, e em `sum` há uma decisão aberta sobre verificar o e-mail do solicitante; ao migrá-los, decidir lá.
+- O Observer continua sem ligar o `traceparent` das mensagens aos seus logs (`traced=False`), agora documentado: a observação é periódica, e não consequência da requisição.
+
+**Testes.** Os repetidos (saúde, leitura tolerante, isolamento do `domain/`, headers do NATS) viraram um só em `tests/common/`; o isolamento é parametrizado por papel e também barra os módulos comuns que fazem I/O. Novos: `lifecycle`, `messaging`, `settings`, `zitadel`, `consumer` do Executor. Cobertura de `core_account`: de 89% para 92%.
+
+**Medido (sem os modelos gerados):** `src/` de 6.949 para 6.417 linhas; testes de 5.817 para 5.772 linhas, já com os testes novos.
+
+**Ficou fora, de propósito:**
+- `receiver/http/app.py`: `_register_routes` tem 74 instruções (complexidade 30). Dividir em roteadores é uma refatoração própria, sem relação com duplicação.
+- `watch_of` (Observer) e `state_of` (Reconciler) só existem para teste.
+- Cobertura ainda menor no transporte do Executor (79%) e nos motores do Observer (82%) e do Reconciler (87%).
+- Os testes de integração do Publisher usam o banco compartilhado de dev, onde o Publisher em execução também publica: falharam de forma intermitente enquanto eu derrubava contêineres da mesma stack, e passaram 5 de 5 com a stack estável.
+
+**Para migrar `ipm/organization` e `sum/service`:** copiar o `common/` e ajustar só o que é da feature (`resource.py`, o papel de login em `settings`, as seções específicas do Zitadel e do Receiver). Quais arquivos de `common/` são idênticos entre features e entram na fonte do `sync.py` (0046) fica para decidir na primeira migração.

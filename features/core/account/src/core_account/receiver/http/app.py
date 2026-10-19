@@ -19,6 +19,8 @@ from fastapi.responses import JSONResponse
 from core_account.common.contracts import generated
 from core_account.common.ids import new_identifier, utc_now
 from core_account.common.logging_config import bind_context
+from core_account.common.ports import Publisher, PublishError
+from core_account.common.resource import MODULE, RESOURCE_TYPE
 from core_account.receiver.domain import principal as roles
 from core_account.receiver.domain.attachments import AttachmentCheckError, describe_all
 from core_account.receiver.domain.errors import (
@@ -32,20 +34,14 @@ from core_account.receiver.domain.principal import Principal
 from core_account.receiver.domain.ratelimit import SlidingWindowLimiter
 from core_account.receiver.domain.records import ResourceRecord
 from core_account.receiver.domain.requests import operation_id_for, request_digest
-from core_account.receiver.domain.views import MODULE, account_view, operation_view
-from core_account.receiver.http.ports import (
-    AttachedResources,
-    Publisher,
-    PublishError,
-    Repository,
-)
+from core_account.receiver.domain.views import account_view, operation_view
+from core_account.receiver.http.ports import AttachedResources, Repository
 from core_account.receiver.http.trace_context import TraceContextMiddleware
 from core_account.receiver.settings import ApiSettings
 
 logger = logging.getLogger(__name__)
 
 ANONYMOUS = "anonymous"
-RESOURCE_TYPE = "account"
 
 
 class Authenticator(Protocol):

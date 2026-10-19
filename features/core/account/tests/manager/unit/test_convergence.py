@@ -3,9 +3,11 @@
 from datetime import UTC, datetime
 from typing import Any
 
+from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES
 from core_account.manager.domain.convergence import decide_observed, decide_result
-from core_account.manager.domain.kind import ACCOUNT
+from core_account.manager.domain.kind import account_kind
 
+ACCOUNT = account_kind(DEFAULT_PLATFORM_ROLES)
 NOW = datetime(2026, 10, 11, 12, 0, tzinfo=UTC)
 ROLES = ["ipm.organization.get", "core.account.get"]
 DESIRED_PRESENT = {"lifecycle": "present", "platformAccess": "granted", "platformRoles": ROLES}

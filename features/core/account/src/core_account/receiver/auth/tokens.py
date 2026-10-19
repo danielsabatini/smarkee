@@ -7,7 +7,6 @@ projeto da plataforma) e `exp`. Ela não tem credencial de escrita no provedor
 da plataforma: o pertencimento é decidido pelo dono guardado no SSOT (decisão 0010).
 """
 
-import hashlib
 import time
 from collections.abc import Callable
 from typing import Any, cast
@@ -113,46 +112,3 @@ class TokenVerifier:
         if keys:
             self._keys = keys
             self._loaded_at = now
-
-
-class EmailVerification:
-    """Confere, no `userinfo` do provedor, se o e-mail do solicitante foi verificado.
-
-    Só resultados positivos são guardados (por TTL): quem verifica o e-mail no meio da sessão
-    passa a ser aceito na próxima chamada.
-    """
-
-    def __init__(
-        self,
-        settings: AuthSettings,
-        client: httpx.AsyncClient,
-        *,
-        monotonic: Callable[[], float] = time.monotonic,
-    ) -> None:
-        self._settings = settings
-        self._client = client
-        self._monotonic = monotonic
-        self._verified_until: dict[str, float] = {}
-
-    async def is_verified(self, principal: Principal) -> bool:
-        cache_key = hashlib.sha256(
-            f"{principal.subject}\0{principal.access_token}".encode()
-        ).hexdigest()
-        now = self._monotonic()
-        if self._verified_until.get(cache_key, 0.0) > now:
-            return True
-        try:
-            response = await self._client.get(
-                self._settings.userinfo_url,
-                headers={
-                    "Host": self._settings.host_header,
-                    "Authorization": f"Bearer {principal.access_token}",
-                },
-            )
-            response.raise_for_status()
-            verified = response.json().get("email_verified") is True
-        except httpx.HTTPError, ValueError:
-            return False
-        if verified:
-            self._verified_until[cache_key] = now + self._settings.userinfo_cache_seconds
-        return verified

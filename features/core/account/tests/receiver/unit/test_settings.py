@@ -2,9 +2,14 @@ import pytest
 from pydantic import ValidationError
 
 from core_account.receiver.settings import (
-    REQUIRED_SECRETS,
     AccountReceiverSettings,
     missing_required,
+)
+
+REQUIRED_SECRETS = (
+    "CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE",
+    "CORE_ACCOUNT_RECEIVER_NATS_PASSWORD",
+    "CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD",
 )
 
 

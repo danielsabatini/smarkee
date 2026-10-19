@@ -9,7 +9,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 from support_publisher import Cleanup, connect, fetch_all, unique_suffix
 
-from core_account.publisher.domain.publication import PublishError
+from core_account.common.ports import PublishError
 from core_account.publisher.outbox.publication import holds_lock, publish_pending, try_acquire_lock
 
 Connection = psycopg.AsyncConnection[Any]

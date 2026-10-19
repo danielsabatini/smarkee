@@ -6,20 +6,15 @@ Toda falha de leitura vira `ProviderError`, e o chamador a trata como `unknown`:
 (timeout, 5xx, 401/403, limite de taxa) **nunca** é `absent`. Só um 404 do usuário exato é ausência.
 """
 
-import json
 import time
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any, cast
 
 import httpx
-import jwt
 
+from core_account.common.zitadel import ServiceAccountToken, TokenError, ZitadelSettings
 from core_account.observer.domain.identity import ProviderError, ZitadelUser
-from core_account.observer.settings import ZitadelSettings
 
-SCOPE = "openid urn:zitadel:iam:org:project:id:zitadel:aud"
-TOKEN_SAFETY_SECONDS = 60
 NOT_FOUND_CODE = 5  # código gRPC NotFound
 HTTP_NOT_FOUND = 404
 HTTP_BAD_REQUEST = 400
@@ -35,9 +30,7 @@ class ZitadelReader:
     ) -> None:
         self._settings = settings
         self._client = client
-        self._clock = clock
-        self._token: str | None = None
-        self._token_expires_at = 0.0
+        self._token_source = ServiceAccountToken(settings, client, clock=clock)
 
     async def get_user(self, user_id: str) -> ZitadelUser | None:
         """O usuário, ou `None` se o Zitadel confirmou (404) que ele não existe."""
@@ -132,39 +125,7 @@ class ZitadelReader:
         return cast("dict[str, Any]", document)
 
     async def _access_token(self) -> str:
-        now = self._clock()
-        if self._token is not None and now < self._token_expires_at - TOKEN_SAFETY_SECONDS:
-            return self._token
         try:
-            key = json.loads(Path(self._settings.key_file).read_text(encoding="utf-8"))
-            assertion = jwt.encode(
-                {
-                    "iss": key["userId"],
-                    "sub": key["userId"],
-                    "aud": self._settings.issuer,
-                    "iat": int(now),
-                    "exp": int(now) + 300,
-                },
-                key["key"],
-                algorithm="RS256",
-                headers={"kid": key["keyId"]},
-            )
-        except (OSError, ValueError, KeyError) as error:
-            raise ProviderError(f"key unavailable: {type(error).__name__}") from None
-        try:
-            response = await self._client.post(
-                self._settings.base_url + "/oauth/v2/token",
-                headers={"Host": self._settings.host_header},
-                data={
-                    "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-                    "scope": SCOPE,
-                    "assertion": assertion,
-                },
-            )
-            response.raise_for_status()
-            payload = response.json()
-        except (httpx.HTTPError, ValueError) as error:
-            raise ProviderError(f"token: {type(error).__name__}") from None
-        self._token = str(payload["access_token"])
-        self._token_expires_at = now + float(payload.get("expires_in", 300))
-        return self._token
+            return await self._token_source.get()
+        except TokenError as error:
+            raise ProviderError(error.detail) from None

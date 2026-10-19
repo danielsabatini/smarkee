@@ -28,7 +28,7 @@ O loop completo foi verificado em desenvolvimento contra o Zitadel e o Mailpit r
 
 *Fonte: [`docs/architecture/01-componentes.mmd`](docs/architecture/01-componentes.mmd). Cores: azul = cliente e borda, verde = módulo, roxo = mensageria, vermelho = sistema externo.*
 
-Cada papel é um projeto autocontido (`.decisions/0015`): código, dependências, testes, imagem e versão próprios, **sem biblioteca compartilhada**. O que os une é a mensageria, o SSOT (cada papel com o seu privilégio) e os contratos neutros de `schemas/`.
+Os seis papéis são **um projeto e uma imagem** (`.decisions/0063`), cada um rodando como processo e contêiner próprios, com o seu privilégio. O código que é igual em todos fica em `common/`, e nenhum papel importa outro. O que os une é a mensageria, o SSOT (cada papel com o seu privilégio) e os contratos neutros de `schemas/`.
 
 # 3. Papéis e componentes
 
@@ -89,7 +89,16 @@ Publica `completed` ou `failed {reason, retryable}`. O retry é do Reconciler. C
 
 ```text
 src/core_account/
-  common/      código idêntico dos papéis: logging (contrato 0045), ids, saúde (http/health.py), contratos gerados
+  common/      o que é igual em todos os papéis:
+                 settings.py    seções de configuração (NATS, banco, saúde) e missing_variables
+                 messaging.py   conexão NATS, JetStreamPublisher, consume (laço de pull), StateConsumer
+                 lifecycle.py   start_role, sinais e supervisão das tarefas
+                 database.py    conexão e pool do SSOT
+                 zitadel.py     configuração e token da conta de serviço (Observer e Executor)
+                 ports.py       PublishError e Publisher
+                 resource.py    módulo, tipo e versão do contrato desta feature
+                 contracts/     modelos gerados, base e leitura do envelope
+                 logging_config.py, ids.py, http/health.py
   receiver/  manager/  publisher/  observer/  reconciler/  executor/    (cada um com o seu README)
 tests/
   common/  receiver/  manager/  publisher/  observer/  reconciler/  executor/    (unit, contract e integration)

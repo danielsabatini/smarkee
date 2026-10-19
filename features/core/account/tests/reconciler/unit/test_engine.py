@@ -10,7 +10,8 @@ import pytest
 
 from core_account.common.contracts import generated
 from core_account.common.logging_config import bind_traceparent, current_traceparent
-from core_account.reconciler.engine.reconciler import PublishError, Reconciler
+from core_account.common.ports import PublishError
+from core_account.reconciler.engine.reconciler import Reconciler
 from core_account.reconciler.settings import LoopSettings
 
 START = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
@@ -24,7 +25,7 @@ class FakePublisher:
 
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
         if self.fail:
-            raise PublishError
+            raise PublishError("unavailable")
         self.published.append((subject, json.loads(payload), message_id))
 
 

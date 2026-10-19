@@ -67,18 +67,18 @@ class FakeWriter:
             Grant(f"g-{project_id}", project_id, frozenset(roles))
         )
 
-    async def update_grant(self, user_id: str, grant_id: str, roles: list[str]) -> None:
+    async def update_grant(self, grant_id: str, roles: list[str]) -> None:
         self.calls.append(("update_grant", grant_id, sorted(roles)))
-        self.grants_by_user[user_id] = [
-            Grant(g.grant_id, g.project_id, frozenset(roles)) if g.grant_id == grant_id else g
-            for g in self.grants_by_user.get(user_id, [])
-        ]
+        for user_id, grants in self.grants_by_user.items():
+            self.grants_by_user[user_id] = [
+                Grant(g.grant_id, g.project_id, frozenset(roles)) if g.grant_id == grant_id else g
+                for g in grants
+            ]
 
-    async def remove_grant(self, user_id: str, grant_id: str) -> None:
+    async def remove_grant(self, grant_id: str) -> None:
         self.calls.append(("remove_grant", grant_id))
-        self.grants_by_user[user_id] = [
-            g for g in self.grants_by_user.get(user_id, []) if g.grant_id != grant_id
-        ]
+        for user_id, grants in self.grants_by_user.items():
+            self.grants_by_user[user_id] = [g for g in grants if g.grant_id != grant_id]
 
 
 def names(writer: FakeWriter) -> list[str]:

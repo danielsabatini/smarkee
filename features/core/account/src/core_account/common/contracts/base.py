@@ -14,7 +14,7 @@ são `snake_case` (`observed_generation`); no JSON, os contratos são camelCase
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 
 class ContractModel(BaseModel):
@@ -46,3 +46,8 @@ def validate_tolerant[M: BaseModel](model: type[M], data: Any) -> M:
 def supports_major(schema_version: str) -> bool:
     """Verdadeiro se o `MAJOR` de `schemaVersion` (`MAJOR.MINOR`) é o suportado."""
     return schema_version.split(".", 1)[0] == str(SUPPORTED_MAJOR)
+
+
+def fields_of(error: ValidationError) -> str:
+    """Nomes dos campos inválidos, sem os valores (que podem ser `confidential`)."""
+    return ", ".join(".".join(str(part) for part in item["loc"]) for item in error.errors())

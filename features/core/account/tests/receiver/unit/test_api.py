@@ -9,13 +9,13 @@ import pytest
 
 from core_account.common.contracts import generated
 from core_account.common.logging_config import current_traceparent
+from core_account.common.ports import PublishError
 from core_account.receiver.domain.attachments import Attachment, AttachmentCheckError
 from core_account.receiver.domain.errors import unauthorized
 from core_account.receiver.domain.principal import Principal
 from core_account.receiver.domain.ratelimit import SlidingWindowLimiter
 from core_account.receiver.domain.records import OperationRecord, ResourceRecord
 from core_account.receiver.http.app import Dependencies, create_app
-from core_account.receiver.http.ports import PublishError
 from core_account.receiver.settings import ApiSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
@@ -50,7 +50,7 @@ class FakePublisher:
 
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
         if self.fail:
-            raise PublishError
+            raise PublishError("unavailable")
         self.published.append((subject, json.loads(payload), message_id))
 
 

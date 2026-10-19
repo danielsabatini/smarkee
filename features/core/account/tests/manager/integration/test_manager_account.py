@@ -6,6 +6,7 @@ from typing import Any
 
 import psycopg
 from support_manager import (
+    ACCOUNT,
     DEFAULT_DIGEST,
     Cleanup,
     fetch_all,
@@ -16,7 +17,6 @@ from support_manager import (
 )
 
 from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES
-from core_account.manager.domain.kind import ACCOUNT
 from core_account.manager.domain.outcome import OutcomeKind, RejectionReason
 from core_account.manager.handlers.requested import RequestedHandler
 
