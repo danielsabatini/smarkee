@@ -75,7 +75,7 @@ altera só o `name`; `platformAccess` e `reconciliation` são do operador), `DEL
 `GET .../operations/{operationId}`. Erros no formato `api-error`: `400` entrada inválida (sem repetir o valor enviado), `401`,
 `403` (sem a role, e-mail não verificado, cota), `404`, `409` versão desatualizada, `422` reuso da `Idempotency-Key`, `503`
 pedido não registrado (com `Retry-After`). Logo depois do `202`, a leitura pode dar `404` até o Manager gravar a Operation.
-Diagrama: [`flow/02-validacao-e-borda.svg`](flow/02-validacao-e-borda.svg). O contrato descritivo é `receiver/openapi.json`.
+Diagrama: [`flow/02-validacao-e-borda.svg`](flow/02-validacao-e-borda.svg). O contrato descritivo é `openapi.json`.
 
 ## 2. Manager consome `requested` e grava
 

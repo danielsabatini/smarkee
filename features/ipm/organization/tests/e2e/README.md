@@ -2,7 +2,7 @@
 
 Esta suíte é um **teste**, e não um componente (decisão 0017).
 
-Testes **black-box** do contrato de `ipm.organization` (`.decisions/0015-componentes-por-papel-autocontidos.md`):
+Testes **black-box** do contrato de `ipm.organization` (`.decisions/0015-componentes-por-papel-autocontidos.md` e `.decisions/0063-um-componente-por-feature-com-um-entrypoint-por-papel.md`):
 exercitam o Receiver (HTTP), o transporte (NATS) e o SSOT pela rede, e validam as mensagens e as respostas contra
 os JSON Schemas de `schemas/`. **Não importam o código dos componentes**, e por isso valem para qualquer
 implementação, em qualquer linguagem.

@@ -68,6 +68,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Licença Apache-2.0 (`LICENSE`).
 
 ### Changed
+- `ipm.organization` e `sum.service` seguem o mesmo layout (decisão 0063): um projeto e uma imagem por feature (`smarkee-ipm-organization` e `smarkee-sum-service`), com um contêiner por papel. As variáveis `IPM_ORGANIZATION_<PAPEL>_IMAGE` e `SUM_SERVICE_<PAPEL>_IMAGE` são substituídas por `IPM_ORGANIZATION_IMAGE` e `SUM_SERVICE_IMAGE`; o resto do contrato (nomes, variáveis, papéis de banco, identidades e subjects) não muda.
 - `core.account` passa a ser um projeto e uma imagem (`smarkee-core-account`), com um contêiner por papel (Receiver, Manager, Publisher, Observer, Reconciler e Executor) escolhido pelo `command` (piloto da decisão 0063). Nomes dos contêineres, variáveis, papéis de banco, identidades no NATS, subjects, rotas e contratos não mudam. O código comum dos papéis (logging, ids, saúde e contratos gerados) existe uma vez, em `common/`. A variável `CORE_ACCOUNT_<PAPEL>_IMAGE` de cada papel é substituída por `CORE_ACCOUNT_IMAGE`.
 - O gateway inicia um trace novo em cada requisição: `traceparent` e `tracestate` do cliente são removidos na borda (decisão 0054).
 - As contas de serviço dos componentes usam token opaco (Bearer) em vez de JWT, o que elimina um `WARN` do Zitadel por chamada autenticada (decisão 0054).
@@ -131,7 +132,10 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - SSOT: tabela de inbox; a idempotência de entrada é garantida pelas regras semânticas (`docs/SSOT.md`, `docs/POSTGRESQL.md`).
 
 ### Fixed
-- `core.account`: o desligamento normal (SIGTERM) de qualquer papel registrava `task stopped unexpectedly` em nível ERROR e saía com código 1. Agora sai com 0, e só registra o erro quando uma tarefa termina sem pedido de parada.
+- `sum.service`: o Executor não supervisionava as suas tarefas; se um consumer terminasse, o processo seguia no ar sem consumir. Agora sai com erro e é reiniciado.
+- Processar uma mensagem de estado que falha (Reconciler e Observer de `core.account` e `ipm.organization`) a devolve à fila e mantém o consumer, em vez de derrubá-lo.
+- `core.account` e `ipm.organization`: o desligamento normal (SIGTERM) de qualquer papel registrava `task stopped unexpectedly` em nível ERROR e saía com código 1. Agora sai com 0, e só registra o erro quando uma tarefa termina sem pedido de parada.
+- `core.account` e `ipm.organization`: Manager, Reconciler, Observer e Executor esperavam 30 s no `drain()` do NATS por causa da assinatura *pull* ativa e eram encerrados à força (saída 137). A assinatura agora é cancelada ao fim do laço, e os seis papéis de cada feature saem com código 0 em até 2 s.
 - SUM: habilitar de novo um serviço já desabilitado reaproveita o mesmo recurso (mesmo `resourceId`, geração seguinte), em vez de criar uma linha nova a cada habilitação. Antes, `sk sum service list` acumulava uma linha desabilitada por ciclo de habilitar e desabilitar. O recurso é o par usuário + serviço (decisão 0033); o histórico fica nas Operations.
 - `sk config set` não apaga mais a seção `[sum]` do arquivo de configuração ao gravar outra chave.
 - `sk sum service`: `--resource-id` e `--operation-id` agora precisam seguir o padrão do contrato (letras minúsculas, números e hífen) e são recusados antes de qualquer chamada (antes, texto livre entrava no caminho da URL junto com o token da sessão). Uma ligação sem `resourceVersion` na resposta deixa de ser aceita. O `404` da Operation não é mais mostrado como ligação inexistente, o `409` ao ligar um serviço já ligado deixa de dizer que "a ligação mudou desde a última leitura", e o `429` e o campo recusado pela API aparecem na mensagem. Endereço sem HTTPS agora termina com mensagem e código `2`, em vez de erro técnico.

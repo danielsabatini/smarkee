@@ -86,9 +86,13 @@ class FakeMessage:
     headers: dict[str, str] | None = None
     data: bytes = b"{}"
     acked: bool = False
+    naked_with_delay: float | None = None
 
     async def ack(self) -> None:
         self.acked = True
+
+    async def nak(self, delay: float | None = None) -> None:
+        self.naked_with_delay = delay
 
 
 def as_msg(message: FakeMessage) -> Msg:
@@ -294,3 +298,35 @@ async def test_an_error_while_cancelling_the_subscription_does_not_hide_the_shut
 
     await consume(cast(JetStreamContext.PullSubscription, subscription), settle, stop, batch_size=1)
     assert subscription.unsubscribed
+
+
+class FailingSink:
+    async def on_message(self, data: bytes) -> None:
+        raise RuntimeError("falha de processamento")
+
+
+async def test_a_processing_error_returns_the_message_to_the_queue_and_keeps_the_loop(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stop = asyncio.Event()
+    failing, healthy = FakeMessage(None, b"ruim"), FakeMessage(None, b"bom")
+    jetstream = FakeStateJetStream(FakeSubscription(stop, [[failing, healthy]]))
+    consumer = StateConsumer(
+        cast(JetStreamContext, jetstream),
+        FailingSink(),
+        durable="core-account-x-desired-abc",
+        stream="DESIRED",
+        filter_subject="manager.desired.core.account.>",
+        inactive_threshold_seconds=300,
+        traced=True,
+    )
+    with caplog.at_level(logging.ERROR, logger=messaging.logger.name):
+        await consumer.run(stop)
+
+    assert not failing.acked
+    assert failing.naked_with_delay == messaging.REDELIVERY_DELAY_SECONDS
+    assert healthy.naked_with_delay == messaging.REDELIVERY_DELAY_SECONDS  # o laço seguiu
+    failed = [r for r in caplog.records if r.getMessage().startswith("message processing failed")]
+    assert len(failed) == 2
+    assert failed[0].exc_info is not None
+    assert failed[0].exc_info[0] is RuntimeError

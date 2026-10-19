@@ -25,6 +25,10 @@ class ZitadelSettings(CommonZitadelSettings):
     `PROJECT_GRANT_OWNER` nos Project Grants dos projetos de `project_ids` (decisão 0032).
     """
 
+    register_organization_id: str | None = None
+    """ID da organização `register`: onde os usuários são criados e recebem as autorizações.
+    Sem default."""
+
     project_ids: dict[str, str] = Field(default_factory=dict)
     """IDs dos projetos de roles que o Executor pode conceder, por módulo (`{"core": "<ID>", ...}`).
 

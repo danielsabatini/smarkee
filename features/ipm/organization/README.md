@@ -28,7 +28,7 @@ Fonte: [`01-componentes.mmd`](docs/architecture/01-componentes.mmd). O fluxo de 
 
 # 3. Papéis e componentes
 
-Cada componente é autocontido (decisão 0015): tem o próprio papel de banco (`ipm_organization_<papel>`, em `infrastructure/dev/database/bootstrap/ipm.sql`), a própria identidade no NATS e, quando usa o Zitadel, a própria conta de serviço. Não há código compartilhado entre eles.
+Os seis papéis são **um projeto e uma imagem** (decisão 0063), cada um rodando como processo e contêiner próprios: cada papel tem o próprio papel de banco (`ipm_organization_<papel>`, em `infrastructure/dev/database/bootstrap/ipm.sql`), a própria identidade no NATS e, quando usa o Zitadel, a própria conta de serviço. O código igual em todos fica em `common/`, e nenhum papel importa outro.
 
 | Componente | Serviço no Compose | Papel de banco | Conta no Zitadel | Escreve |
 |---|---|---|---|---|
@@ -72,16 +72,35 @@ Cada componente é autocontido (decisão 0015): tem o próprio papel de banco (`
 - Único componente que escreve a organização no Zitadel, por `IAM_ORG_MANAGER`. **Só a organização**: não cria usuários, não autoriza o dono e não cria Project Grant (decisão 0038). O ID da organização é o `resourceId`, então repetir a criação não duplica.
 - Valida a mensagem (emissor `reconciler`, tipo, módulo, versão `MAJOR`), não repete um `actionId` já concluído e revalida a ação contra o `desired` vigente (geração, `suspended`, `lifecycle`). Ação velha ou recusada vira `failed` permanente; erro transitório vira `failed` com `retryable`, e o retry é do Reconciler. Um consumer e um laço por partição do `ACTION`.
 
+## 3.6.1 Um projeto, uma imagem, seis contêineres (decisão 0063)
+
+`ipm.organization` é **um projeto** (`pyproject.toml`, `uv.lock`, `Dockerfile`) e **uma imagem** (`smarkee-ipm-organization`), que contém o código dos seis papéis. Cada papel roda como **contêiner próprio**, escolhido pelo `command` (`ipm-organization-receiver`, `-manager`, `-publisher`, `-observer`, `-reconciler` e `-executor`), com as suas próprias variáveis, segredos, papel de banco e identidade no NATS. Ter o código de um papel na imagem de outro não dá privilégio: ele vem da credencial.
+
+```text
+src/ipm_organization/
+  common/      o que é igual em todos os papéis: settings, messaging, lifecycle, database, zitadel
+               (token da conta de serviço), ports, resource (módulo, tipo e versão), contracts/
+               (modelos gerados, base e envelope), logging_config, ids e http/health
+  receiver/  manager/  publisher/  observer/  reconciler/  executor/    (cada um com o seu README)
+tests/
+  common/  receiver/  manager/  publisher/  observer/  reconciler/  executor/    (unit, contract e integration)
+  e2e/                                                                             (projeto à parte, black-box)
+migrations/    SQL do Manager, aplicado pelo serviço ipm-organization-migrate
+consumers/     manifestos dos consumers do Manager e do Executor
+```
+
+Um papel nunca importa outro (`tests/common/unit/test_role_isolation.py`); só o `common/`. Comandos de desenvolvimento, na raiz da feature: `uv sync`, `uv run ruff check . && uv run ruff format --check . && uv run pyright` e `uv run pytest` (a suíte e2e, em `tests/e2e`, tem projeto próprio).
+
 ## 3.7 Estrutura interna do Manager e do Publisher
 
 ```text
-manager/src/ipm_organization_manager/
+src/ipm_organization/manager/
   domain/        regras puras: política da Organization, convergência da fase, resultado de ação
   handlers/      requested.py, observed.py, result.py; portas do SSOT em ports.py
   store/         ssot.py: SQL do SSOT, em transação
   transport/     consumers.py (consumo, ACK, TERM, RETRY), nats.py
   http/          health.py (probes /health/*)
-publisher/src/ipm_organization_publisher/
+src/ipm_organization/publisher/
   domain/        PublishError, PublicationResult (puros)
   outbox/        database.py (conexão dedicada), publication.py (lote, trava de sessão)
   transport/     nats.py, publisher.py (JetStream, classifica recusa permanente)
@@ -128,13 +147,13 @@ O fluxo de dados completo, passo a passo, está em [`docs/IPM-ORGANIZATION-DATA-
 | `RESULT` | `executor.*.ipm.organization.>` | `ipm-organization-manager-result` (durável); `ipm-organization-{reconciler,observer}-result-<instância>` | Manager, Reconciler, Observer |
 | `ACTION` | `reconciler.action.ipm.organization.<partição>.>` | `ipm-organization-executor-action-p0..p3` (duráveis) | Executor |
 
-Os consumers de trabalho (Manager e Executor) são duráveis, compartilhados e declarados pelo serviço `ipm-organization-consumer`, a partir dos manifestos em `manager/consumers/` e `executor/consumers/`. O Reconciler e o Observer não têm manifesto: cada instância cria os próprios consumers de estado, com nome único por execução, `DeliverLastPerSubject` e `inactive_threshold`, e reconstrói o estado da mensageria (`docs/NATS.md` §7.4).
+Os consumers de trabalho (Manager e Executor) são duráveis, compartilhados e declarados pelo serviço `ipm-organization-consumer`, a partir dos manifestos em `consumers/`. O Reconciler e o Observer não têm manifesto: cada instância cria os próprios consumers de estado, com nome único por execução, `DeliverLastPerSubject` e `inactive_threshold`, e reconstrói o estado da mensageria (`docs/NATS.md` §7.4).
 
 No `ACTION`, a partição é aplicada pelo servidor (`subject_transform`, decisão 0018), com `max_ack_pending = 1`: uma ação por recurso por vez.
 
 # 7. Contratos
 
-Os contratos estão em `schemas/ipm/organization/` (e `schemas/common/`), com o índice `schemas/ipm.organization.index.json`: `desired`, `observed`, `requested-create|update|delete`, `api-create-request`, `api-update-request`, `resource` e `resource-list`. Os modelos Pydantic de cada componente são gerados (`uv run datamodel-codegen`, decisão 0012) e conferidos por teste de contrato no Manager e no Receiver. A API HTTP é descrita em [`receiver/openapi.json`](receiver/openapi.json), gerado por `uv run python -m ipm_organization_receiver.http.openapi` e conferido por teste.
+Os contratos estão em `schemas/ipm/organization/` (e `schemas/common/`), com o índice `schemas/ipm.organization.index.json`: `desired`, `observed`, `requested-create|update|delete`, `api-create-request`, `api-update-request`, `resource` e `resource-list`. Os modelos Pydantic de cada componente são gerados (`uv run datamodel-codegen`, decisão 0012) e conferidos por teste de contrato no Manager e no Receiver. A API HTTP é descrita em [`openapi.json`](openapi.json), gerado por `uv run python -m ipm_organization_receiver.http.openapi` e conferido por teste.
 
 # 8. Segurança e privacidade
 
@@ -165,12 +184,12 @@ Variáveis `IPM_ORGANIZATION_<COMPONENTE>_<SEÇÃO>_<CAMPO>`, sem arquivo de con
 # 2. Os componentes da Organization
 cd features/ipm/organization && cp -n .env.example .env   # preencha os valores vazios
 docker compose up -d --build
-# 3. Testes de cada projeto
-cd receiver && uv sync && uv run ruff check . && uv run pyright && uv run pytest   # idem os demais
+# 3. Testes do projeto
+uv sync && uv run ruff check . && uv run pyright && uv run pytest   # na raiz da feature (projeto único)
 # 4. Testes e2e (stack no ar): ver tests/e2e/README.md
 ```
 
-Os papéis `ipm_organization_*` e o esquema `ipm` são criados por `infrastructure/dev/database/bootstrap/ipm.sql` e pelas migrações de `manager/migrations/`. O dono do esquema é `smarkee`. Nos bancos de dev já existentes, o bootstrap só roda na criação do volume: aplique-o à mão. Os testes de integração de `manager/` e `publisher/` usam os papéis de login do banco de dev (`IPM_TEST_DATABASE_HOST` e `_PORT`); sem o banco, são pulados.
+Os papéis `ipm_organization_*` e o esquema `ipm` são criados por `infrastructure/dev/database/bootstrap/ipm.sql` e pelas migrações de `migrations/`. O dono do esquema é `smarkee`. Nos bancos de dev já existentes, o bootstrap só roda na criação do volume: aplique-o à mão. Os testes de integração de `manager/` e `publisher/` usam os papéis de login do banco de dev (`IPM_TEST_DATABASE_HOST` e `_PORT`); sem o banco, são pulados.
 
 Depois de recriar o contêiner do Receiver, o gateway volta a resolver o nome sozinho em poucos segundos (com `502` nesse intervalo); não é preciso reiniciá-lo.
 
@@ -219,7 +238,7 @@ O Receiver lê pelas views `ipm.organization_v1` (sem `failure_count`) e `ipm.or
 
 ## 11.5 Quem grava o quê
 
-Ver o mapa em [`docs/IPM-ORGANIZATION-DATA-FLOW.md`](docs/IPM-ORGANIZATION-DATA-FLOW.md) §9 e os privilégios em `manager/migrations/0001-organization.sql`.
+Ver o mapa em [`docs/IPM-ORGANIZATION-DATA-FLOW.md`](docs/IPM-ORGANIZATION-DATA-FLOW.md) §9 e os privilégios em `migrations/0001-organization.sql`.
 
 ## 11.6 Dados pessoais no banco
 

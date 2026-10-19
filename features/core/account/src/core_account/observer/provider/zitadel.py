@@ -12,8 +12,9 @@ from typing import Any, cast
 
 import httpx
 
-from core_account.common.zitadel import ServiceAccountToken, TokenError, ZitadelSettings
+from core_account.common.zitadel import ServiceAccountToken, TokenError
 from core_account.observer.domain.identity import ProviderError, ZitadelUser
+from core_account.observer.settings import ZitadelSettings
 
 NOT_FOUND_CODE = 5  # código gRPC NotFound
 HTTP_NOT_FOUND = 404

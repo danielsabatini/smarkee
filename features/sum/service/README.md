@@ -30,9 +30,10 @@ Fonte: [`01-componentes.mmd`](docs/architecture/01-componentes.mmd). O fluxo de 
 
 # 3. Papéis e componentes
 
-Cada componente é autocontido (decisão 0015): tem o próprio papel de banco (`sum_service_<papel>`, em
+Os seis papéis são **um projeto e uma imagem** (decisão 0063), cada um rodando como processo e contêiner
+próprios: cada papel tem o próprio papel de banco (`sum_service_<papel>`, em
 `infrastructure/dev/database/bootstrap/sum.sql`), a própria identidade no NATS e, quando usa o Zitadel, a
-própria conta de serviço. Não há código compartilhado entre eles.
+própria conta de serviço. O código igual em todos fica em `common/`, e nenhum papel importa outro.
 
 | Componente | Serviço no Compose | Papel de banco | Conta no Zitadel | Escreve |
 |---|---|---|---|---|
@@ -94,16 +95,35 @@ própria conta de serviço. Não há código compartilhado entre eles.
   revalida a ação contra o `desired` vigente (geração, `suspended`, `lifecycle`). Ação velha ou recusada vira `failed`
   permanente; erro transitório volta à fila. Um consumer e um laço por partição do `ACTION`.
 
+## 3.6.1 Um projeto, uma imagem, seis contêineres (decisão 0063)
+
+`sum.service` é **um projeto** (`pyproject.toml`, `uv.lock`, `Dockerfile`) e **uma imagem** (`smarkee-sum-service`), que contém o código dos seis papéis. Cada papel roda como **contêiner próprio**, escolhido pelo `command` (`sum-service-receiver`, `-manager`, `-publisher`, `-observer`, `-reconciler` e `-executor`), com as suas próprias variáveis, segredos, papel de banco e identidade no NATS. Ter o código de um papel na imagem de outro não dá privilégio: ele vem da credencial.
+
+```text
+src/sum_service/
+  common/      o que é igual em todos os papéis: settings, messaging, lifecycle, database, zitadel
+               (token da conta de serviço), ports, resource (módulo, tipo e versão), contracts/
+               (modelos gerados, base e envelope), logging_config, ids e http/health
+  receiver/  manager/  publisher/  observer/  reconciler/  executor/    (cada um com o seu README)
+tests/
+  common/  receiver/  manager/  publisher/  observer/  reconciler/  executor/    (unit, contract e integration)
+  e2e/                                                                             (projeto à parte, black-box)
+migrations/    SQL do Manager, aplicado pelo serviço sum-service-migrate
+consumers/     manifestos dos consumers do Manager e do Executor
+```
+
+Um papel nunca importa outro (`tests/common/unit/test_role_isolation.py`); só o `common/`. Comandos de desenvolvimento, na raiz da feature: `uv sync`, `uv run ruff check . && uv run ruff format --check . && uv run pyright` e `uv run pytest` (a suíte e2e, em `tests/e2e`, tem projeto próprio).
+
 ## 3.7 Estrutura interna do Manager e do Publisher
 
 ```text
-manager/src/sum_service_manager/
+src/sum_service/manager/
   domain/        regras puras: catálogo, decisão de criar e desligar, convergência da fase
   handlers/      requested.py (criar e desligar), state.py (observed e resultados)
   store/         ssot.py: SQL do SSOT, em transação
   transport/     requested.py e state.py (consumo, ACK, TERM, RETRY), nats.py
   http/          health.py (probes /health/*)
-publisher/src/sum_service_publisher/
+src/sum_service/publisher/
   domain/        PublishError, PublicationResult (puros)
   outbox/        database.py (conexão dedicada), publication.py (lote, trava de sessão)
   transport/     nats.py, publisher.py (JetStream, classifica recusa permanente)
@@ -152,7 +172,7 @@ O fluxo de dados completo, passo a passo, está em [`docs/SUM-SERVICE-DATA-FLOW.
 | `ACTION` | `reconciler.action.sum.service.<partição>.>` | `sum-service-executor-action-p0..p3` (duráveis) | Executor |
 
 Os consumers de trabalho (Manager e Executor) são duráveis, compartilhados e declarados pelo serviço
-`sum-service-consumer`, a partir dos manifestos em `manager/consumers/` e `executor/consumers/`. O Reconciler e o
+`sum-service-consumer`, a partir dos manifestos em `consumers/`. O Reconciler e o
 Observer não têm manifesto: cada instância cria os próprios consumers de estado, com nome único por execução,
 `DeliverLastPerSubject` e `inactive_threshold`, e reconstrói o estado da mensageria (`docs/NATS.md` §7.4).
 
@@ -164,8 +184,8 @@ ação por recurso por vez. O Executor roda um laço por partição, no mesmo pr
 Os contratos estão em `schemas/sum/service/` (e `schemas/common/`), com o índice `schemas/sum.service.index.json`:
 `desired`, `observed`, `requested-create`, `requested-delete`, `api-create-request`, `api-list-response` e `resource`.
 Os modelos Pydantic de cada componente são gerados (`uv run datamodel-codegen`, decisão 0012) e conferidos por teste de
-contrato no Manager e no Receiver. A API HTTP é descrita em [`receiver/openapi.json`](receiver/openapi.json), gerado
-por `uv run python -m sum_service_receiver.http.openapi` e conferido por teste.
+contrato no Manager e no Receiver. A API HTTP é descrita em [`openapi.json`](openapi.json), gerado
+por `uv run python -m sum_service.receiver.http.openapi` e conferido por teste.
 
 # 8. Segurança e privacidade
 
@@ -202,13 +222,13 @@ Manager e do Executor, e os IDs no Zitadel (Observer e Executor).
 # 2. Os componentes do SUM
 cd features/sum/service && cp -n .env.example .env   # preencha os valores vazios
 docker compose up -d --build
-# 3. Testes de cada projeto
-cd receiver && uv sync && uv run ruff check . && uv run pyright && uv run pytest   # idem os demais
+# 3. Testes do projeto
+uv sync && uv run ruff check . && uv run pyright && uv run pytest   # na raiz da feature (projeto único)
 # 4. Testes e2e (stack no ar): ver tests/e2e/README.md
 ```
 
 O papel `sum_service_*` e o esquema `sum` são criados por `infrastructure/dev/database/bootstrap/sum.sql` e pelas migrações
-de `manager/migrations/`. O dono do esquema é `smarkee`. Nos bancos de dev já existentes, o bootstrap só roda na criação do
+de `migrations/`. O dono do esquema é `smarkee`. Nos bancos de dev já existentes, o bootstrap só roda na criação do
 volume: aplique-o à mão. Os testes de integração de `manager/` e `publisher/` pedem as URLs dos papéis e as credenciais do
 broker de dev (ver o README de cada componente); sem elas, são pulados.
 
@@ -269,7 +289,7 @@ autorizar a leitura).
 ## 11.5 Quem grava o quê
 
 Ver o mapa em [`docs/SUM-SERVICE-DATA-FLOW.md`](docs/SUM-SERVICE-DATA-FLOW.md) §9 e os privilégios em
-`manager/migrations/0001-service.sql`.
+`migrations/0001-service.sql`.
 
 ## 11.6 Dados pessoais no banco
 

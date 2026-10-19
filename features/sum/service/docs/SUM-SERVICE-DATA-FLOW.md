@@ -41,7 +41,7 @@ O corpo do `POST` é `{"service": "<nome>"}` (`schemas/sum/service/api-create-re
 `requestDigest` e publica `requested-create` em `receiver.requested.sum.service.<resourceId>.create`, com
 `Nats-Msg-Id` igual ao `operationId`. O `ownerAccountId` vem do `sub` do token. O desligamento é `DELETE`, que confere
 a `resourceVersion` e publica `requested-delete` (`.delete`). Detalhes da API: `receiver/README.md`; o contrato
-descritivo é `receiver/openapi.json`.
+descritivo é `openapi.json`.
 
 Erros, todos no formato `api-error`: `400` entrada inválida (sem repetir o valor enviado), `401` sem token válido, `403`
 sem a role da ação, `404` inexistente ou de outro dono, `409` serviço já ligado ou versão desatualizada, `422` reuso da

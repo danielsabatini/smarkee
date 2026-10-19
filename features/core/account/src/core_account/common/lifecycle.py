@@ -19,6 +19,14 @@ EXIT_INVALID_CONFIGURATION = 2
 logger = logging.getLogger(__name__)
 
 
+class InvalidConfigurationError(Exception):
+    """A configuração está completa, mas não é válida. `reason` nunca contém segredos."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
 def stop_on_signals() -> asyncio.Event:
     """Evento que passa a valer quando o processo recebe SIGINT ou SIGTERM."""
     stop = asyncio.Event()
@@ -58,8 +66,15 @@ def start_role[S: BaseSettings](
     settings_type: type[S],
     missing_required: Callable[[S], list[str]],
     run: Callable[[S], Awaitable[int]],
+    *,
+    validate: Callable[[S], None] | None = None,
 ) -> NoReturn:
-    """Entrypoint comum: configura o log do papel, valida a configuração e roda até encerrar."""
+    """Entrypoint comum: configura o log do papel, valida a configuração e roda até encerrar.
+
+    `validate`, se houver, confere o que não é só presença (por exemplo, um catálogo em JSON) e
+    levanta `InvalidConfigurationError`; o processo sai sem rodar, com o código de configuração
+    inválida.
+    """
     configure_logging(role=role)
     settings = settings_type()
     missing = missing_required(settings)
@@ -68,4 +83,10 @@ def start_role[S: BaseSettings](
             "missing required configuration", extra={"smarkee.config.missing_variables": missing}
         )
         sys.exit(EXIT_INVALID_CONFIGURATION)
+    if validate is not None:
+        try:
+            validate(settings)
+        except InvalidConfigurationError as error:
+            logger.error("invalid configuration", extra={"smarkee.reason": error.reason})
+            sys.exit(EXIT_INVALID_CONFIGURATION)
     sys.exit(asyncio.run(run(settings)))

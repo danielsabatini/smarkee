@@ -17,7 +17,7 @@ Adotamos a metodologia **Now, Next, Later** para o planejamento. Em vez de datas
 O que está sendo trabalhado ativamente neste momento.
 - [ ] **`[In Progress]` Contratos e Mensageria:** Modelagem semântica da troca assíncrona de mensagens e dos schemas de contrato (`docs/MESSAGING.md`, `docs/NATS.md` e `docs/SCHEMA.md`), já exercitada pelo User.
 - [ ] **`[In Progress]` Resource Control Loop:** Modelo de reconciliação entre `desired` e `observed` e sua segurança (`docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`).
-- [ ] **`[In Progress]` Primeira Fatia Vertical (`core`/`user`, `sum`/`service` e `ipm`/`organization` completos):** componentes autocontidos por papel (`receiver`, `manager`, `publisher`, `observer`, `reconciler` e `executor`), com servidor de saúde, partição do `ACTION` e testes e2e black-box (incluindo falhas de componentes), validando os contratos especificados (`docs/RESOURCE-CONTROL-LOOP.md`, seção 48).
+- [ ] **`[In Progress]` Primeira Fatia Vertical (`core`/`user`, `sum`/`service` e `ipm`/`organization` completos):** um projeto e uma imagem por feature, com um contêiner por papel (`receiver`, `manager`, `publisher`, `observer`, `reconciler` e `executor`), com servidor de saúde, partição do `ACTION` e testes e2e black-box (incluindo falhas de componentes), validando os contratos especificados (`docs/RESOURCE-CONTROL-LOOP.md`, seção 48).
 - [ ] **`[In Progress]` SSOT e Persistência:** Modelo e garantias de gravação do SSOT e sua implementação de referência em PostgreSQL com `jsonb` (`docs/SSOT.md` e `docs/POSTGRESQL.md`).
 
 ### 🟡 Next (Próximos Passos / Médio Prazo)

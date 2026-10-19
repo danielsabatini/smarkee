@@ -27,7 +27,7 @@ Não redefina aqui as regras dessas ferramentas.
 
 Determine qual componente Python deve ser analisado.
 
-O componente pode ser qualquer projeto ou componente Python que siga as convenções definidas em `python.md`. Cada papel de cada tipo de recurso (`features/<módulo>/<tipo>/<papel>`) é um projeto próprio (`.decisions/0015-componentes-por-papel-autocontidos.md`) e é validado separadamente, a partir do seu diretório.
+O componente pode ser qualquer projeto ou componente Python que siga as convenções definidas em `python.md`. Cada feature (`features/<módulo>/<tipo>`) é um projeto próprio, com um entrypoint por papel (`.decisions/0063-um-componente-por-feature-com-um-entrypoint-por-papel.md`), e é validada a partir do seu diretório.
 
 Execute a validação a partir do diretório do projeto Python correspondente ou utilizando o workspace configurado pelo projeto.
 

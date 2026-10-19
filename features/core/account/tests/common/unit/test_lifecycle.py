@@ -11,6 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from core_account.common import lifecycle
 from core_account.common.lifecycle import (
     EXIT_INVALID_CONFIGURATION,
+    InvalidConfigurationError,
     start_role,
     stop_on_signals,
     supervise,
@@ -134,3 +135,28 @@ def test_a_complete_configuration_runs_the_role_and_exits_with_its_code(
         start_role("dummy", DummySettings, missing, run)
     assert raised.value.code == code
     assert seen == ["valor"]
+
+
+def test_an_invalid_configuration_exits_with_the_invalid_configuration_code_without_running(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("DUMMY_ROLE_SECRET", "valor")
+    ran = False
+
+    async def run(settings: DummySettings) -> int:
+        nonlocal ran
+        ran = True
+        return 0
+
+    def validate(settings: DummySettings) -> None:
+        raise InvalidConfigurationError("catalog is not valid JSON")
+
+    with (
+        caplog.at_level(logging.ERROR, logger=lifecycle.logger.name),
+        pytest.raises(SystemExit) as raised,
+    ):
+        start_role("dummy", DummySettings, missing, run, validate=validate)
+    assert raised.value.code == EXIT_INVALID_CONFIGURATION
+    assert not ran
+    record = next(r for r in caplog.records if r.getMessage() == "invalid configuration")
+    assert record.__dict__["smarkee.reason"] == "catalog is not valid JSON"

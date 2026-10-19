@@ -180,7 +180,7 @@ Component C
 
 O padrão define **responsabilidades arquiteturais**: Receiver, Manager, Publisher, Observer, Reconciler e Executor. A publicação do outbox é do Publisher, o sexto papel (seção 6.6).
 
-Na plataforma, cada papel de cada tipo de recurso é um **componente autocontido**: um projeto com código, dependências, testes, imagem, versão e configuração próprios (decisão 0015). Os componentes não compartilham código de runtime e se comunicam pela mensageria, pelo SSOT (nos limites de cada papel) e por artefatos neutros de linguagem (*Componentes autocontidos*, seção 48).
+Na plataforma, cada papel de cada tipo de recurso é um **componente com processo e contêiner próprios**; a feature (módulo × tipo) é um projeto e uma imagem, com um entrypoint por papel (decisões 0015 e 0063). Os papéis não importam uns aos outros: usam só o `common/` da feature, e se comunicam pela mensageria, pelo SSOT (nos limites de cada papel) e por artefatos neutros de linguagem (*Componentes por papel*, seção 48).
 
 Os critérios que justificam a separação são:
 
@@ -1522,20 +1522,20 @@ O mesmo padrão se aplica a Agent, Runner e Tool. Mudam apenas o sistema externo
 
 Cada recurso possui seu próprio `desired`, `observed`, Reconciler, Executor e Observer.
 
-# 48. Componentes autocontidos
+# 48. Componentes por papel
 
-A plataforma implementa **cada papel de cada tipo de recurso como um componente independente** (decisão 0015). Um componente é um projeto autocontido: código, dependências, testes, `Dockerfile`, imagem, versão e configuração próprios. Fica em `features/<módulo>/<tipo>/<papel>/`.
+A plataforma implementa **cada papel de cada tipo de recurso como um componente com processo e contêiner próprios** (decisões 0015 e 0063). A feature (`<módulo>/<tipo>`) é **um projeto e uma imagem**: código, dependências, testes, `Dockerfile`, versão e configuração são da feature, e cada papel roda como contêiner à parte, escolhido pelo `command`. Fica em `features/<módulo>/<tipo>/`, com `src/<módulo>_<tipo>/<papel>/` e `src/<módulo>_<tipo>/common/`.
 
 Regras:
 
-- **Sem código de runtime compartilhado.** Um componente não importa outro nem uma biblioteca interna comum, para que cada um possa mudar de linguagem, de versão de dependência e de ritmo de implantação sem afetar os demais. A duplicação de infraestrutura (validação de token, configuração, logging, clientes) é aceita.
+- **Papéis isolados pela credencial, não pela imagem.** Cada papel tem o seu processo, as suas variáveis e segredos, o seu papel de banco, a sua identidade no NATS e a sua conta no provedor; ter o código de um papel na imagem de outro não dá privilégio. Nenhum papel importa outro (um teste confere): só o `common/`, que reúne o que é igual em todos (configuração, mensageria, ciclo de vida, banco, token da conta de serviço, contratos gerados e logging). O código comum existe uma vez por feature; entre features continua duplicado, com fonte única onde houver (decisão 0046).
 - **Artefatos neutros compartilhados.** O que é comum é independente de linguagem: contratos em JSON Schema, OpenAPI de cada Receiver, SQL (tabelas, outbox e views), a especificação das mensagens, as convenções de log, métrica e trace, e uma **suíte de testes e2e black-box** por tipo (`features/<módulo>/<tipo>/tests/e2e`, não é um componente), que valida o contrato pela rede e deve passar para qualquer implementação.
-- **Estrutura interna.** Todo componente separa regra (`domain/`, pura e sem I/O), orquestração (`handlers/` ou `engine/`), adaptadores (`store/`, `provider/`, `transport/`, `http/`) e a entrada (`main.py`), com a dependência em um sentido só e o `domain` sem importar adaptadores (decisão 0017).
+- **Estrutura interna.** Todo componente separa regra (`domain/`, pura e sem I/O), orquestração (`handlers/` ou `engine/`), adaptadores (`store/`, `provider/`, `transport/`, `http/`) e a entrada (o `main.py` de cada papel), com a dependência em um sentido só e o `domain` sem importar adaptadores (decisão 0017).
 - **Comunicação.** Somente pela mensageria. Exceção: o SSOT, em que o Manager escreve, o Receiver lê as views e o Publisher lê e marca o outbox (seção 44).
 - **O Receiver contém a sua autenticação e autorização.** Não há serviço de autenticação compartilhado no caminho de uma requisição.
-- **O Manager é dono do esquema do tipo.** O código das migrações pertence ao projeto do Manager e executa como etapa de implantação com o papel administrativo do banco, nunca com o papel de runtime (`SSOT.md`, seção 16).
+- **O Manager é dono do esquema do tipo.** O código das migrações é do Manager, fica em `migrations/` da feature e executa como etapa de implantação com o papel administrativo do banco, nunca com o papel de runtime (`SSOT.md`, seção 16).
 - **Criação incremental.** Um componente é criado quando o seu papel é necessário. A ordem usual é `receiver`, `manager` e `publisher`, depois `observer`, `reconciler` e `executor`. Um papel ainda inexistente não é uma lacuna do padrão, mas uma etapa do recurso.
-- **Ambientes.** Em dev, Docker Compose espelha o que será implantado: um serviço por componente. Em stg e prd, Kubernetes com CI/CD e GitOps, com versão e pipeline por componente.
+- **Ambientes.** Em dev, Docker Compose espelha o que será implantado: um serviço por papel, todos com a imagem da feature. Em stg e prd, Kubernetes com CI/CD e GitOps, com um Deployment por papel e a versão da imagem da feature.
 
 O padrão continua definindo **responsabilidades** (seção 3.7). Dois papéis só voltam ao mesmo processo por decisão registrada que mostre, com evidência, que a separação não se justifica.
 
@@ -1744,7 +1744,7 @@ Antes de considerar um novo recurso conforme ao padrão, verificar:
 
 ### Componentes
 
-- [ ] Cada papel é um projeto autocontido, sem importar outro componente nem biblioteca interna comum?
+- [ ] Cada papel roda como processo e contêiner próprios, sem importar outro papel (só o `common/` da feature)?
 - [ ] O Receiver tem a sua autenticação e autorização?
 - [ ] O Manager é dono do código das migrações do tipo, executadas como etapa de implantação com papel administrativo?
 - [ ] O Publisher é um papel próprio, com papel de banco e identidade de mensageria próprios?

@@ -54,7 +54,7 @@ Não há listagem (`GET /v1/core/accounts`) nem `PATCH`: a Account não tem `upd
 - `observed`: guarda a observação (nunca retrocede), recalcula `conditions` e `phase` (`Reconciling`, `Ready`, `Deleting`), conclui a Operation e, na remoção convergida, apaga a linha.
 - `completed` e `failed`: registra o `actionId` (idempotência), conta falhas por geração e, no limite (5), marca `Failed` e republica o `desired` com a reconciliação suspensa.
 
-É dono do esquema do tipo: o código das migrações está em `manager/migrations/` e roda como etapa de implantação com o papel administrativo, nunca com o papel de runtime do Manager.
+É dono do esquema do tipo: o código das migrações está em `migrations/` e roda como etapa de implantação com o papel administrativo, nunca com o papel de runtime do Manager.
 
 ## 3.3 Publisher (`core-account-publisher`)
 
@@ -250,7 +250,7 @@ Gramática: `<emitter>.<messageType>.<module>.<resourceType>.<resourceId>.<opera
 | `completed` / `failed` | `executor.completed\|failed.core.account.<id>.<op>` | Executor | Manager, Observer, Reconciler | `RESULT` |
 | `updated` | `manager.updated.core.account.<id>.changed` | Publisher | Console, auditoria, métricas | `UPDATED` |
 
-Consumers: Manager `core-account-manager-{requested,observed,result}` (duráveis, compartilhados); Executor `core-account-executor-action-p{0..3}` (duráveis, um por partição do Stream `ACTION`, `max_ack_pending = 1`); Reconciler e Observer criam consumers de estado **por instância** (`core-account-<papel>-<stream>-<instância>`). Os manifestos dos consumers duráveis estão em `manager/consumers/` e `executor/consumers/`.
+Consumers: Manager `core-account-manager-{requested,observed,result}` (duráveis, compartilhados); Executor `core-account-executor-action-p{0..3}` (duráveis, um por partição do Stream `ACTION`, `max_ack_pending = 1`); Reconciler e Observer criam consumers de estado **por instância** (`core-account-<papel>-<stream>-<instância>`). Os manifestos dos consumers duráveis estão em `consumers/`.
 
 # 7. Contratos
 

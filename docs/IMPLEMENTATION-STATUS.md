@@ -71,11 +71,11 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Limita taxa e concorrência contra o provider | Parcial | concorrência limitada a 4 partições; sem limite de taxa explícito (429 do Zitadel vira falha retentável) |
 | Idempotência, publica `completed`/`failed`, não decide o estado desejado | Atende | `actions/user_actions.py` |
 
-## 2.6 Componentes autocontidos (seção 48)
+## 2.6 Componentes por papel (seção 48)
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Cada papel é um projeto autocontido, sem biblioteca comum | Atende (`ipm.organization` e `sum.service`); **piloto da decisão 0063 em `core.account`**: um projeto e uma imagem com um entrypoint e um contêiner por papel, sem importação entre papéis (`tests/common/unit/test_role_isolation.py`) | seis projetos em `features/ipm/organization/` e `features/sum/service/`; um projeto em `features/core/account/` |
+| Cada papel roda como processo e contêiner próprios; a feature é um projeto e uma imagem (decisão 0063), sem um papel importar outro | Atende nas três features: um projeto e uma imagem por feature (`core-account`, `ipm-organization`, `sum-service`), seis contêineres cada um, e `tests/common/unit/test_role_isolation.py` | `features/core/account/`, `features/ipm/organization/` e `features/sum/service/` |
 | Receiver com autenticação e autorização próprias | Atende | `receiver/auth/tokens.py` (JWKS) e `receiver/domain/principal.py`, em `features/core/account/src/core_account/` |
 | Manager dono das migrações, executadas como etapa de implantação | Atende | `features/core/account/migrations/`, serviço `core-account-migrate` |
 | Publisher como papel próprio, com papel de banco e identidade próprios | Atende | `features/core/account/src/core_account/publisher/`, papel de banco `core_account_publisher` |

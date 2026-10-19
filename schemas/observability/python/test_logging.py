@@ -22,11 +22,8 @@ from PKG_LOGGING import (
 
 _PACKAGE = "PKG"
 _PACKAGE_PARTS = _PACKAGE.split("_")
-# Layout por papel (decisão 0015): o papel está no nome do pacote. Layout por feature (decisão
-# 0063): o papel é informado a `build_resource`; os testes usam o Receiver como papel padrão.
-_PER_ROLE_LAYOUT = len(_PACKAGE_PARTS) == 3
-_ROLE = _PACKAGE_PARTS[2] if _PER_ROLE_LAYOUT else "receiver"
-_ROLE_ARGUMENT = None if _PER_ROLE_LAYOUT else _ROLE
+# O papel é informado a `build_resource` por cada entrypoint (decisão 0063); aqui, o Receiver.
+_ROLE = "receiver"
 _ROLES = ("receiver", "manager", "publisher", "observer", "reconciler", "executor")
 _LOGGER_METHODS = {"debug", "info", "warning", "error", "critical", "exception", "log"}
 _SOURCE_ROOT = (
@@ -65,7 +62,7 @@ def record(
 
 def format_line(log_record: logging.LogRecord) -> dict[str, Any]:
     """Formata o registro e exige que a linha cumpra o schema `log-record.v1`."""
-    line = JsonFormatter(build_resource(_ROLE_ARGUMENT)).format(log_record)
+    line = JsonFormatter(build_resource(_ROLE)).format(log_record)
     assert "\n" not in line
     payload = cast(dict[str, Any], json.loads(line))
     _VALIDATOR.validate(payload)  # pyright: ignore[reportUnknownMemberType]
@@ -77,11 +74,8 @@ def attributes_of(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def own_attributes(payload: dict[str, Any]) -> dict[str, Any]:
-    """Atributos sem o `system` que o Observer recebe por padrão (ele nunca tem solicitante)."""
-    attributes = dict(attributes_of(payload))
-    if _ROLE == "observer" and attributes.get("smarkee.actor.type") == "system":
-        del attributes["smarkee.actor.type"]
-    return attributes
+    """Atributos do evento (o Receiver não tem o `system` padrão do Observer)."""
+    return dict(attributes_of(payload))
 
 
 def test_event_is_one_json_line_with_the_log_record_fields() -> None:
@@ -143,7 +137,7 @@ def test_resource_identifies_the_component_from_the_package_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SMARKEE_ENVIRONMENT", "stg")
-    resource = build_resource(_ROLE_ARGUMENT)
+    resource = build_resource(_ROLE)
     module, resource_type = _PACKAGE_PARTS[:2]
     assert resource["service.name"] == f"{module}-{resource_type}-{_ROLE}"
     assert resource["smarkee.module"] == module
@@ -152,7 +146,6 @@ def test_resource_identifies_the_component_from_the_package_name(
     assert resource["deployment.environment.name"] == "staging"
 
 
-@pytest.mark.skipif(_PER_ROLE_LAYOUT, reason="o papel só é informado no layout por feature")
 @pytest.mark.parametrize("role", _ROLES)
 def test_resource_uses_the_role_given_by_each_entrypoint(role: str) -> None:
     resource = build_resource(role)
@@ -161,13 +154,11 @@ def test_resource_uses_the_role_given_by_each_entrypoint(role: str) -> None:
     assert resource["smarkee.component.role"] == role
 
 
-@pytest.mark.skipif(_PER_ROLE_LAYOUT, reason="o papel só é informado no layout por feature")
-def test_resource_requires_an_explicit_role_in_the_per_feature_layout() -> None:
-    with pytest.raises(ValueError):
-        build_resource()
+def test_resource_requires_an_explicit_role() -> None:
+    with pytest.raises(TypeError):
+        build_resource()  # pyright: ignore[reportCallIssue]
 
 
-@pytest.mark.skipif(_PER_ROLE_LAYOUT, reason="o papel só é informado no layout por feature")
 def test_observer_logs_as_system_without_a_requester() -> None:
     line = JsonFormatter(build_resource("observer")).format(record("observed"))
     assert json.loads(line)["attributes"]["smarkee.actor.type"] == "system"
@@ -178,7 +169,7 @@ def test_unknown_environment_is_omitted(monkeypatch: pytest.MonkeyPatch, value: 
     monkeypatch.delenv("SMARKEE_ENVIRONMENT", raising=False)
     if value is not None:
         monkeypatch.setenv("SMARKEE_ENVIRONMENT", value)
-    assert "deployment.environment.name" not in build_resource(_ROLE_ARGUMENT)
+    assert "deployment.environment.name" not in build_resource(_ROLE)
 
 
 def _extra_keys(tree: ast.AST) -> list[tuple[int, ast.expr | None]]:
@@ -383,7 +374,7 @@ def test_an_unreadable_message_never_breaks_logging(message: Any) -> None:
 
 def test_the_observer_is_a_system_actor_even_without_context() -> None:
     bind_traceparent(None)
-    resource = {**build_resource(_ROLE_ARGUMENT), "smarkee.component.role": "observer"}
+    resource = {**build_resource(_ROLE), "smarkee.component.role": "observer"}
     line = cast(dict[str, Any], json.loads(JsonFormatter(resource).format(record("event"))))
     _VALIDATOR.validate(line)  # pyright: ignore[reportUnknownMemberType]
     assert attributes_of(line)["smarkee.actor.type"] == "system"

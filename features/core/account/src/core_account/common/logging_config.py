@@ -212,23 +212,16 @@ def _context_attributes(role: str | None) -> dict[str, str]:
     return found
 
 
-def build_resource(role: str | None = None) -> dict[str, str]:
+def build_resource(role: str) -> dict[str, str]:
     """Atributos de `Resource` do componente, fixos durante o processo (`OBSERVABILITY.md` §4).
 
     O pacote nomeia a feature (`<módulo>_<tipo>`, decisão 0063) e o papel é informado por quem
-    chama. No layout anterior (decisão 0015), o pacote é `<módulo>_<tipo>_<papel>` e o papel
-    sai do nome; `role` não é informado.
+    chama (o entrypoint de cada papel).
     """
     package_parts = __name__.partition(".")[0].split("_")
-    if role is None and len(package_parts) == 3:
-        module, resource_type, role = package_parts
-    elif role is not None and len(package_parts) == 2:
-        module, resource_type = package_parts
-    else:
-        raise ValueError(
-            "package name must be <module>_<type> with an explicit role, "
-            f"or <module>_<type>_<role> without one: {'_'.join(package_parts)} / {role}"
-        )
+    if len(package_parts) != 2:
+        raise ValueError(f"package name must be <module>_<type>: {'_'.join(package_parts)}")
+    module, resource_type = package_parts
     resource = {
         "service.name": f"{module}-{resource_type}-{role}",
         "service.namespace": "smarkee",
@@ -317,7 +310,7 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str, ensure_ascii=False)
 
 
-def configure_logging(level: int = logging.INFO, role: str | None = None) -> None:
+def configure_logging(role: str, level: int = logging.INFO) -> None:
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter(build_resource(role)))
     root = logging.getLogger()

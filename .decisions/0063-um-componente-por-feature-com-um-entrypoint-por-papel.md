@@ -1,7 +1,7 @@
 # 0063 — Um componente por feature, com um entrypoint por papel
 
 - **Data:** 2026-10-19
-- **Status:** Proposta; piloto implementado e verificado em `core/account` (seção *Piloto*); aguarda a decisão de migrar `ipm/organization` e `sum/service`. Se aceita, ajusta a 0015 (unidade do componente) e responde a pergunta que a 0046 deixou em aberto (juntar ou separar). Não altera a 0017, a 0019 nem a 0062.
+- **Status:** Aceita e implementada nas três features (`core/account`, `ipm/organization` e `sum/service`). Ajusta a 0015 (unidade do componente) e responde a pergunta que a 0046 deixou em aberto (juntar ou separar). Não altera a 0017, a 0019 nem a 0062.
 - **Origem:** o responsável considerou os componentes totalmente autocontidos complexos demais e pediu um meio-termo que reduza a duplicação, sem perder a separação.
 
 ## Contexto
@@ -93,3 +93,20 @@ Antes de migrar `ipm/organization` e `sum/service`, `core/account` foi auditado 
 - Os testes de integração do Publisher usam o banco compartilhado de dev, onde o Publisher em execução também publica: falharam de forma intermitente enquanto eu derrubava contêineres da mesma stack, e passaram 5 de 5 com a stack estável.
 
 **Para migrar `ipm/organization` e `sum/service`:** copiar o `common/` e ajustar só o que é da feature (`resource.py`, o papel de login em `settings`, as seções específicas do Zitadel e do Receiver). Quais arquivos de `common/` são idênticos entre features e entram na fonte do `sync.py` (0046) fica para decidir na primeira migração.
+
+## Migração de `ipm/organization` e `sum/service` (2026-10-19)
+
+As duas features seguiram o `core/account`: um projeto e uma imagem por feature (`smarkee-ipm-organization` e `smarkee-sum-service`), seis contêineres cada, `common/` com o que é igual em todos os papéis. Nomes de contêiner, variáveis (exceto as imagens, que viram `IPM_ORGANIZATION_IMAGE` e `SUM_SERVICE_IMAGE`), papéis de banco, identidades no NATS, subjects, rotas e contratos não mudaram.
+
+**O que ficou da feature, e não do `common/`:** `resource.py` (módulo, tipo e versão), o papel de login de cada `settings`, as seções específicas do Zitadel (`register_organization_id`, `project_ids`, o catálogo do SUM), o Receiver, o Manager e os motores, com a regra de cada tipo. No `ipm`, a verificação do e-mail do solicitante (`EmailVerification`) continua, porque o Receiver da Organization a usa; no `core/account` ela foi removida por não ter uso.
+
+**O que o `sum` ensinou ao `common/`** (o `sum` já tinha resolvido, melhor, o que o `core/account` tinha deixado simples):
+- `StateConsumer`: um erro ao processar uma mensagem a devolve à fila (`nak` com atraso) e o laço segue, em vez de derrubar o consumer.
+- `start_role(..., validate=...)`: confere o que não é só presença (o catálogo de serviços do SUM) e sai com o código de configuração inválida.
+- `open_pool(..., row_factory=...)`: o Receiver do SUM lê as linhas como dicionários.
+
+**Defeitos corrigidos na migração do `sum`:** o Executor do SUM esperava só o sinal de parada e não supervisionava as tarefas, então um consumer que morria deixava o processo no ar sem consumir; agora o processo sai com erro e é reiniciado. O Manager, o Observer e o Executor do SUM encerravam com `close()` por causa do `drain()` de 30 s; com a assinatura cancelada pelo laço comum, usam `drain()` como os demais.
+
+**Simplificações feitas ao fim:** a fonte canônica do formatter de logs e o `sync.py` deixaram o modo duplo (papel no nome do pacote ou explícito); só existe o layout por feature, com o papel informado a `configure_logging(role=...)`.
+
+**Verificado (dev):** `ruff`, `pyright` (strict) e os testes das três features (453, 493 e 413 passam, mais 22 de integração do SUM que dependem de variáveis de ambiente e passaram com elas: 435 no total); `tests/e2e` de `core/account` e de `ipm/organization` (com `E2E_CHAOS=1`); a jornada completa da raiz (`tests/e2e`, com a CLI real, cobrindo as três features); `tests/telemetry`; os seis papéis de cada feature encerram com saída 0 em 0 a 2 s. **Não verificado:** os testes de caos do `sum` e os autenticados dos e2e de `ipm` e `sum`, que pedem um access token (`CONFORMANCE_ACCESS_TOKEN`) não configurado; o build em Kubernetes.

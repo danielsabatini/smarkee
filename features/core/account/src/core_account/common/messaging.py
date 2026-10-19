@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 PUBLISH_TIMEOUT_SECONDS = 5.0
 FETCH_ERROR_PAUSE_SECONDS = 1.0
+REDELIVERY_DELAY_SECONDS = 5.0
 
 # Recusas que repetir não resolve: a mensagem nunca será aceita como está.
 _PERMANENT_ERRORS = (nats.errors.MaxPayloadError, nats.js.errors.BadRequestError)
@@ -200,7 +201,22 @@ class StateConsumer:
         )
 
     async def _settle(self, message: Msg) -> None:
-        await self._sink.on_message(message.data)
+        try:
+            await self._sink.on_message(message.data)
+        except Exception as error:  # um erro de processamento volta à fila; nunca derruba o laço
+            logger.error(
+                "message processing failed; it will be redelivered",
+                extra={"messaging.consumer.group.name": self._durable},
+                exc_info=error,
+            )
+            await message.nak(delay=REDELIVERY_DELAY_SECONDS)
+            return
         await message.ack()
         if self._traced:
-            logger.info("message handled", extra={"smarkee.outcome": "acknowledged"})
+            logger.info(
+                "message handled",
+                extra={
+                    "messaging.consumer.group.name": self._durable,
+                    "smarkee.outcome": "acknowledged",
+                },
+            )

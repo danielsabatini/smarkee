@@ -14,7 +14,14 @@ from core_account.common.settings import (
     StateNatsSettings,
     missing_variables,
 )
-from core_account.common.zitadel import ZitadelSettings
+from core_account.common.zitadel import ZitadelSettings as CommonZitadelSettings
+
+
+class ZitadelSettings(CommonZitadelSettings):
+    """Zitadel do Observer, com a conta de serviço `core-account-observer` (somente leitura)."""
+
+    register_organization_id: str | None = None
+    """ID da organização `register`: onde estão os usuários e as autorizações deles. Sem default."""
 
 
 class PartitionSettings(Section):

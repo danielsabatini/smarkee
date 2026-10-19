@@ -2,7 +2,7 @@
 
 Documento de fluxo de dados da feature, no padrão da [decisão 0024](../../../../.decisions/0024-data-flow-por-feature.md). Segue **os dados** de um auto-cadastro de `core.account`, passo a passo: qual rota é chamada, qual é o payload de cada mensagem, o que cada componente grava no banco e com qual query. Os diagramas de [`01-caminho-perfeito`](flow/01-caminho-perfeito.mmd) e dos demais fluxos mostram *quem fala com quem*; aqui está *o que trafega e o que é gravado*.
 
-**Origem dos exemplos.** Os exemplos foram montados a partir do código e dos schemas, **não** de uma execução. Os valores (UUIDs, e-mail, horários) são fictícios, e o `requestDigest` do exemplo foi calculado com o algoritmo do Receiver. Fontes de verdade: contratos em [`schemas/`](../../../../schemas), tabelas em [`manager/migrations/0001-account.sql`](../manager/migrations/0001-account.sql), semântica em [`docs/MESSAGING.md`](../../../../docs/MESSAGING.md), [`docs/NATS.md`](../../../../docs/NATS.md), [`docs/SSOT.md`](../../../../docs/SSOT.md) e [`docs/POSTGRESQL.md`](../../../../docs/POSTGRESQL.md). Este arquivo não as substitui: mostra um caso concreto.
+**Origem dos exemplos.** Os exemplos foram montados a partir do código e dos schemas, **não** de uma execução. Os valores (UUIDs, e-mail, horários) são fictícios, e o `requestDigest` do exemplo foi calculado com o algoritmo do Receiver. Fontes de verdade: contratos em [`schemas/`](../../../../schemas), tabelas em [`migrations/0001-account.sql`](../migrations/0001-account.sql), semântica em [`docs/MESSAGING.md`](../../../../docs/MESSAGING.md), [`docs/NATS.md`](../../../../docs/NATS.md), [`docs/SSOT.md`](../../../../docs/SSOT.md) e [`docs/POSTGRESQL.md`](../../../../docs/POSTGRESQL.md). Este arquivo não as substitui: mostra um caso concreto.
 
 **Comando.** `sk register` (`clients/cli/src/sk/commands/register.py`) é o cliente deste fluxo. O passo 1 mostra o que ele envia e como trata a resposta.
 
@@ -704,6 +704,6 @@ RETURNING desired_generation;
 | `core_account_publisher` | `SELECT` em `account_outbox` e `UPDATE (published_at)` |
 | `core_maintenance` | `SELECT`/`DELETE` em `account_outbox`, `account_action_result` e `account_operation` |
 
-Origem: bloco `GRANT` de [`manager/migrations/0001-account.sql`](../manager/migrations/0001-account.sql). O schema físico completo está em [`database/01-er-fisico.mmd`](database/01-er-fisico.mmd).
+Origem: bloco `GRANT` de [`migrations/0001-account.sql`](../migrations/0001-account.sql). O schema físico completo está em [`database/01-er-fisico.mmd`](database/01-er-fisico.mmd).
 
 > **Atenção ao ler o diagrama físico.** O ER físico usa nomes como `core_account_operation` e `core_account_outbox`, e descreve `operation_type` como "create ou delete (sem update)". A migração cria `core.account_operation` e `core.account_outbox` (schema `core`, tabela `account_...`) e o seu `CHECK` aceita também `'update'`. Em caso de divergência, vale a migração.

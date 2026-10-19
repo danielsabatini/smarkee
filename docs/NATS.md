@@ -269,7 +269,7 @@ Consumers mantêm o estado de entrega por leitor e controlam como mensagens pers
 
 ## 7.1 Serviço e consumer
 
-A plataforma é composta por muitos serviços pequenos. Cada serviço é um componente autocontido (decisão 0015); o Publisher é o sexto papel (decisão 0019). Para cada módulo e tipo de recurso existe o mesmo conjunto de papéis, criados à medida que se tornam necessários:
+A plataforma é composta por muitos serviços pequenos. Cada papel é um serviço com contêiner próprio (decisões 0015 e 0063); o Publisher é o sexto papel (decisão 0019). Para cada módulo e tipo de recurso existe o mesmo conjunto de papéis, criados à medida que se tornam necessários:
 
 ```text
 <módulo>-<tipo>-receiver

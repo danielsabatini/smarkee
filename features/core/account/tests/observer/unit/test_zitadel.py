@@ -10,9 +10,9 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from core_account.common.zitadel import ZitadelSettings
 from core_account.observer.domain.identity import ProviderError
 from core_account.observer.provider.zitadel import ZitadelReader
+from core_account.observer.settings import ZitadelSettings
 
 USER_NOT_FOUND = {
     "code": 5,

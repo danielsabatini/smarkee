@@ -22,6 +22,13 @@ x-deploy: &component-deploy
       cpus: "${SUM_SERVICE_COMPONENT_CPUS:-0.5}"
       memory: ${SUM_SERVICE_COMPONENT_MEMORY:-256M}
 
+# Imagem única da feature (decisão 0063): contém o código dos seis papéis, e cada serviço escolhe o
+# seu pelo `command`. Cada contêiner recebe só as variáveis e os segredos do seu papel.
+x-image: &component-image
+  build:
+    context: .
+  image: ${SUM_SERVICE_IMAGE:-smarkee-sum-service:dev}
+
 services:
   # Consumers duráveis de trabalho de sum.service (docs/NATS.md §7.6): `requested`, `observed`, resultados e a
   # remoção da conta (`updated` de core.account) do Manager, e `action` do Executor. Os manifestos ficam em cada componente. O Reconciler e o Observer não
@@ -47,11 +54,10 @@ services:
         nats consumer add RESULT --config /consumers/sum-service-manager-failed.json &&
         nats consumer add UPDATED --config /consumers/sum-service-manager-account-removed.json &&
         for partition in 0 1 2 3; do
-          nats consumer add ACTION --config /consumers-executor/sum-service-executor-action-p$$partition.json || exit 1;
+          nats consumer add ACTION --config /consumers/sum-service-executor-action-p$$partition.json || exit 1;
         done
     volumes:
-      - ./manager/consumers:/consumers:ro
-      - ./executor/consumers:/consumers-executor:ro
+      - ./consumers:/consumers:ro
     networks:
       - internal
     restart: "no"
@@ -75,7 +81,7 @@ services:
       - -c
       - for migration in /migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1; done
     volumes:
-      - ./manager/migrations:/migrations:ro
+      - ./migrations:/migrations:ro
     networks:
       internal:
         aliases:
@@ -85,9 +91,8 @@ services:
   # Manager (`sum-service-manager`): único escritor do SSOT de sum.service. Consome `requested`, grava a
   # ligação, a Operation e o outbox. O catálogo serviço → roles é obrigatório (decisão 0033).
   sum-service-manager:
-    build:
-      context: ./manager
-    image: ${SUM_SERVICE_MANAGER_IMAGE:-smarkee-sum-service-manager:dev}
+    <<: *component-image
+    command: [sum-service-manager]
     container_name: sum-service-manager.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
@@ -106,7 +111,7 @@ services:
         aliases:
           - sum-service-manager.smarkee.internal
     restart: unless-stopped
-    healthcheck: &probe
+    healthcheck: &component-healthcheck
       test:
         - CMD
         - python
@@ -121,9 +126,8 @@ services:
   # publicada no host. Valida o token (audience = projeto `roles-sum`), confere a role da ação e publica
   # `requested` (decisão 0033).
   sum-service-receiver:
-    build:
-      context: ./receiver
-    image: ${SUM_SERVICE_RECEIVER_IMAGE:-smarkee-sum-service-receiver:dev}
+    <<: *component-image
+    command: [sum-service-receiver]
     container_name: sum-service-receiver.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
@@ -140,14 +144,13 @@ services:
         aliases:
           - sum-service-receiver.smarkee.internal
     restart: unless-stopped
-    healthcheck: *probe
+    healthcheck: *component-healthcheck
 
   # Reconciler (`sum-service-reconciler`): decide e publica as `action`. Sem chave de Zitadel: não escreve
   # nem lê o provedor. Os consumers são criados pelo `sum-service-consumer`.
   sum-service-reconciler:
-    build:
-      context: ./reconciler
-    image: ${SUM_SERVICE_RECONCILER_IMAGE:-smarkee-sum-service-reconciler:dev}
+    <<: *component-image
+    command: [sum-service-reconciler]
     container_name: sum-service-reconciler.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
@@ -162,14 +165,13 @@ services:
         aliases:
           - sum-service-reconciler.smarkee.internal
     restart: unless-stopped
-    healthcheck: *probe
+    healthcheck: *component-healthcheck
 
   # Observer (`sum-service-observer`): lê o Zitadel só de leitura (conta `sum-service-observer`) e publica
   # `observed`. Monta só a própria chave do volume da identidade.
   sum-service-observer:
-    build:
-      context: ./observer
-    image: ${SUM_SERVICE_OBSERVER_IMAGE:-smarkee-sum-service-observer:dev}
+    <<: *component-image
+    command: [sum-service-observer]
     container_name: sum-service-observer.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
@@ -194,15 +196,14 @@ services:
         aliases:
           - sum-service-observer.smarkee.internal
     restart: unless-stopped
-    healthcheck: *probe
+    healthcheck: *component-healthcheck
 
   # Executor (`sum-service-executor`): único componente que concede e revoga roles de serviço no Zitadel. Conta
   # `sum-service-executor`, com `PROJECT_GRANT_OWNER` só no Grant de `roles-ipm` (decisão 0032). Consome todas as
   # partições do ACTION, um laço por partição, no mesmo processo (decisão 0018).
   sum-service-executor:
-    build:
-      context: ./executor
-    image: ${SUM_SERVICE_EXECUTOR_IMAGE:-smarkee-sum-service-executor:dev}
+    <<: *component-image
+    command: [sum-service-executor]
     container_name: sum-service-executor.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
@@ -227,14 +228,13 @@ services:
         aliases:
           - sum-service-executor.smarkee.internal
     restart: unless-stopped
-    healthcheck: *probe
+    healthcheck: *component-healthcheck
 
   # Publisher (`sum-service-publisher`): publica o outbox de sum.service (uma instância ativa por trava
   # consultiva). Papel de banco `sum_service_publisher`, que só lê o outbox e marca `published_at`.
   sum-service-publisher:
-    build:
-      context: ./publisher
-    image: ${SUM_SERVICE_PUBLISHER_IMAGE:-smarkee-sum-service-publisher:dev}
+    <<: *component-image
+    command: [sum-service-publisher]
     container_name: sum-service-publisher.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
@@ -250,7 +250,7 @@ services:
         aliases:
           - sum-service-publisher.smarkee.internal
     restart: unless-stopped
-    healthcheck: *probe
+    healthcheck: *component-healthcheck
 
   # Telemeter de app de sum.service (decisão 0062, docs/OBSERVABILITY.md §14): recebe por OTLP, do
   # telemetry-router da plataforma, os logs e os spans de app desta feature e os grava em `telemeter/logs/` e `telemeter/traces/`. Não lê logs de

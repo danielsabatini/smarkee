@@ -34,9 +34,6 @@ class ZitadelSettings(Section):
     key_file: str = "/run/secrets/zitadel-key.json"
     """Chave JSON da conta de serviço do papel (montada só no contêiner dele)."""
 
-    register_organization_id: str | None = None
-    """ID da organização `register`: onde estão os usuários e as autorizações deles. Sem default."""
-
     timeout_seconds: float = 5.0
 
 
