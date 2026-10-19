@@ -1,6 +1,2 @@
 {
-    "sonarlint.connectedMode.project": {
-        "connectionId": "http-localhost-9000-",
-        "projectKey": "smarkee-core-account"
-    }
 }
