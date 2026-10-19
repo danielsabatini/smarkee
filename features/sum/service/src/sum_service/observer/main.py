@@ -11,20 +11,17 @@ import random
 
 import httpx
 
-from sum_service.common.http.health import Health, serve_health
+from sum_service.common.http.health import Health
 from sum_service.common.lifecycle import (
     InvalidConfigurationError,
     start_role,
-    stop_on_signals,
-    supervise,
 )
 from sum_service.common.messaging import (
     StateConsumer,
     StreamPublisher,
-    connect,
     new_instance_name,
-    stream_of,
 )
+from sum_service.common.runtime import role_runtime
 from sum_service.common.service_rules import CatalogError, parse_catalog
 from sum_service.observer.engine.observer import Observer
 from sum_service.observer.provider.identity import IdentityReader
@@ -54,42 +51,36 @@ async def _observe_periodically(
 
 
 async def run(settings: SumServiceObserverSettings) -> int:
-    stop = stop_on_signals()
     catalog = parse_catalog(settings.catalog.roles or "")
-    health = Health()
-    messaging_client = await connect(settings.messaging, name="sum-service-observer")
-    jetstream = stream_of(messaging_client)
-    health.add_check("nats", lambda: messaging_client.is_connected)
-    async with httpx.AsyncClient(timeout=settings.identity.timeout_seconds) as client:
-        reader = IdentityReader(settings.identity, client)
+    async with role_runtime(settings.messaging, name="sum-service-observer") as runtime:
+        http = httpx.AsyncClient(timeout=settings.identity.timeout_seconds)
+        runtime.close_after(http.aclose)
         observer = Observer(
-            reader,
-            StreamPublisher(jetstream),
+            IdentityReader(settings.identity, http),
+            StreamPublisher(runtime.stream),
             catalog,
             partition_index=settings.partition.index,
             partition_count=settings.partition.count,
         )
         instance = new_instance_name()
-        tasks = {
-            suffix: asyncio.create_task(
+        for stream, subject, suffix in STREAMS:
+            runtime.start(
+                suffix,
                 StateConsumer(
-                    jetstream,
+                    runtime.stream,
                     observer,
                     durable=f"sum-service-observer-{suffix}-{instance}",
                     stream=stream,
                     filter_subject=subject,
                     inactive_threshold_seconds=settings.messaging.consumer_inactive_threshold_seconds,
                     traced=False,
-                    on_cycle=health.beat,
-                ).run(stop)
+                    on_cycle=runtime.health.beat,
+                ).run(runtime.stop),
             )
-            for stream, subject, suffix in STREAMS
-        }
-        tasks["periodic"] = asyncio.create_task(
-            _observe_periodically(observer, settings.loop, stop, health)
+        runtime.start(
+            "periodic",
+            _observe_periodically(observer, settings.loop, runtime.stop, runtime.health),
         )
-        tasks["health"] = asyncio.create_task(serve_health(health, settings.health.port, stop))
-        health.mark_started()
         logger.info(
             "sum service observer started",
             extra={
@@ -97,9 +88,7 @@ async def run(settings: SumServiceObserverSettings) -> int:
                 "smarkee.partition": f"{settings.partition.index}/{settings.partition.count}",
             },
         )
-        exit_code = await supervise(tasks, stop)
-        await messaging_client.drain()
-    return exit_code
+        return await runtime.serve(health_port=settings.health.port)
 
 
 def validate(settings: SumServiceObserverSettings) -> None:

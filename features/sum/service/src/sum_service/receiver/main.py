@@ -8,13 +8,12 @@ valida a configuração, abre as conexões e serve a API.
 import logging
 
 import httpx
-import uvicorn
 from psycopg.rows import dict_row
 
 from sum_service.common.database import open_pool
-from sum_service.common.http.health import Health
+from sum_service.common.http.server import serve_http
 from sum_service.common.lifecycle import start_role
-from sum_service.common.messaging import connect, stream_of
+from sum_service.common.runtime import role_runtime
 from sum_service.receiver.auth.tokens import TokenVerifier
 from sum_service.receiver.http.app import Dependencies, create_app
 from sum_service.receiver.settings import SumServiceReceiverSettings, missing_required
@@ -25,34 +24,32 @@ from sum_service.receiver.transport.messaging import RequestedPublisher
 logger = logging.getLogger(__name__)
 
 
-async def serve(settings: SumServiceReceiverSettings) -> int:
-    health = Health()
-    messaging_client = await connect(settings.messaging, name="sum-service-receiver")
-    pool = await open_pool(settings.database, row_factory=dict_row)
-    health.add_check("nats", lambda: messaging_client.is_connected)
-    async with httpx.AsyncClient(timeout=5.0) as client:
+async def run(settings: SumServiceReceiverSettings) -> int:
+    async with role_runtime(settings.messaging, name="sum-service-receiver") as runtime:
+        http = httpx.AsyncClient(timeout=5.0)
+        runtime.close_after(http.aclose)
+        pool = await open_pool(settings.database, row_factory=dict_row)
+        runtime.close_after(pool.close)
         app = create_app(
             Dependencies(
-                verifier=TokenVerifier(settings.auth, client),
+                verifier=TokenVerifier(settings.auth, http),
                 repository=Repository(pool),
-                publisher=RequestedPublisher(stream_of(messaging_client)),
-                health=health,
-                dependents=PeerDependents(settings.peers, client),
+                publisher=RequestedPublisher(runtime.stream),
+                health=runtime.health,
+                dependents=PeerDependents(settings.peers, http),
             )
         )
-        health.mark_started()
-        logger.info("sum service receiver started")
-        config = uvicorn.Config(
-            app, host=settings.api.host, port=settings.api.port, log_config=None
+        runtime.start(
+            "http",
+            serve_http(app, host=settings.api.host, port=settings.api.port, stop=runtime.stop),
         )
-        await uvicorn.Server(config).serve()
-    await messaging_client.drain()
-    await pool.close()
-    return 0
+        logger.info("sum service receiver started")
+        # As probes são rotas da própria aplicação HTTP (`http/app.py`).
+        return await runtime.serve(health_port=None)
 
 
 def main() -> None:
-    start_role("receiver", SumServiceReceiverSettings, missing_required, serve)
+    start_role("receiver", SumServiceReceiverSettings, missing_required, run)
 
 
 if __name__ == "__main__":

@@ -93,12 +93,13 @@ src/core_account/
                  settings.py    seções de configuração (NATS, banco, saúde) e missing_variables
                  messaging.py   conexão NATS, StreamPublisher, consume (laço de pull), StateConsumer
                  lifecycle.py   start_role, sinais e supervisão das tarefas
+                 runtime.py     role_runtime: conexão, saúde, tarefas e encerramento de cada papel
                  database.py    conexão e pool do SSOT
                  identity.py     configuração e token da conta de serviço (Observer e Executor)
                  ports.py       PublishError e Publisher
                  resource.py    módulo, tipo e versão do contrato desta feature
                  contracts/     modelos gerados, base e leitura do envelope
-                 logging_config.py, ids.py, http/health.py
+                 logging_config.py, ids.py, http/health.py, http/server.py (uvicorn do Receiver)
                Os arquivos de common/ (exceto resource.py e contracts/generated.py) são gerados do
                template (templates/feature, decisão 0064): altere o modelo, não a cópia.
   receiver/  manager/  publisher/  observer/  reconciler/  executor/    (cada um com o seu README)

@@ -42,3 +42,10 @@ def test_a_message_outside_the_envelope_is_rejected(field: str) -> None:
 def test_an_unknown_field_is_rejected() -> None:
     with pytest.raises(PublicationRejectedError):
         publication_envelope({**VALID, "campoNovo": "x"}, WHEN)
+
+
+def test_an_absent_optional_field_is_not_published_as_null() -> None:
+    # O schema do envelope recusa `null`: campo opcional ausente continua ausente.
+    body = json.loads(publication_envelope(VALID, WHEN))
+    assert "observedGeneration" not in body
+    assert None not in body.values()

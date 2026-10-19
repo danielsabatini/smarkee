@@ -19,7 +19,15 @@ FORBIDDEN_ROOTS = {
     "httpx",
     "pydantic_settings",
 }
-FORBIDDEN_COMMON = {"database", "http", "lifecycle", "messaging", "settings", "identity"}
+FORBIDDEN_COMMON = {
+    "database",
+    "http",
+    "lifecycle",
+    "messaging",
+    "runtime",
+    "settings",
+    "identity",
+}
 FORBIDDEN_LAYERS = {
     "receiver": {"http", "auth", "store", "transport", "main", "settings"},
     "manager": {"handlers", "store", "outbox", "transport", "http", "main", "settings"},

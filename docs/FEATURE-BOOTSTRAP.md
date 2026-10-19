@@ -43,7 +43,8 @@ Em `src/<módulo>_<tipo>/` cada papel é um subpacote com `main.py`, `settings.p
 
 - A regra de negócio fica em `domain/` (sem I/O); o isolamento é verificado por `tests/common/unit/test_domain_isolation.py` e `test_role_isolation.py`, que vêm do template.
 - Cada papel usa o seu papel de login no banco (`<módulo>_<tipo>_<papel>_login`) e a sua identidade no broker; o `command` do contêiner escolhe o papel.
-- Variáveis: `<MÓDULO>_<TIPO>_<PAPEL>_<SEÇÃO>_<CAMPO>`; senhas sem default.
+- O `main.py` só monta as tarefas do papel dentro de `role_runtime` (`common/runtime.py`), que conecta ao broker, registra a saúde, supervisiona e encerra (drena o broker e fecha o que for registrado em `close_after`). O Publisher vem pronto do template; os demais seguem o mesmo molde do `core/account`.
+- Variáveis: `<MÓDULO>_<TIPO>_<PAPEL>_<SEÇÃO>_<CAMPO>` (`role_config`); senhas sem default.
 
 ## 5. Banco de dados
 

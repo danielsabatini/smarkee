@@ -4,14 +4,13 @@ Só inicializa e encerra: valida a configuração, conecta ao NATS e roda o cons
 O Executor não acessa o SSOT; é o único com credencial de escrita no Zitadel.
 """
 
-import asyncio
 import logging
 
 import httpx
 
-from ipm_organization.common.http.health import Health, serve_health
-from ipm_organization.common.lifecycle import start_role, stop_on_signals, supervise
-from ipm_organization.common.messaging import StreamPublisher, connect, stream_of
+from ipm_organization.common.lifecycle import start_role
+from ipm_organization.common.messaging import StreamPublisher
+from ipm_organization.common.runtime import role_runtime
 from ipm_organization.executor.engine.executor import Executor
 from ipm_organization.executor.provider.identity import IdentityWriter
 from ipm_organization.executor.settings import OrganizationExecutorSettings, missing_required
@@ -21,31 +20,23 @@ logger = logging.getLogger(__name__)
 
 
 async def run(settings: OrganizationExecutorSettings) -> int:
-    stop = stop_on_signals()
-    async with httpx.AsyncClient(timeout=settings.identity.timeout_seconds) as http:
-        messaging_client = await connect(settings.messaging, name="ipm-organization-executor")
-        jetstream = stream_of(messaging_client)
+    async with role_runtime(settings.messaging, name="ipm-organization-executor") as runtime:
+        http = httpx.AsyncClient(timeout=settings.identity.timeout_seconds)
+        runtime.close_after(http.aclose)
         executor = Executor(
             IdentityWriter(settings.identity, http),
-            StreamPublisher(jetstream),
-            DirectStateReader(jetstream),
+            StreamPublisher(runtime.stream),
+            DirectStateReader(runtime.stream),
         )
-        health = Health()
-        health.add_check("nats", lambda: messaging_client.is_connected)
-        tasks = {
-            f"action-p{partition}": asyncio.create_task(
-                ActionConsumer(jetstream, executor, partition=partition, on_cycle=health.beat).run(
-                    stop
-                )
+        for partition in range(settings.partition.count):
+            runtime.start(
+                f"action-p{partition}",
+                ActionConsumer(
+                    runtime.stream, executor, partition=partition, on_cycle=runtime.health.beat
+                ).run(runtime.stop),
             )
-            for partition in range(settings.partition.count)
-        }
-        tasks["health"] = asyncio.create_task(serve_health(health, settings.health.port, stop))
-        health.mark_started()
         logger.info("organization executor started")
-        exit_code = await supervise(tasks, stop)
-        await messaging_client.drain()
-    return exit_code
+        return await runtime.serve(health_port=settings.health.port)
 
 
 def main() -> None:

@@ -60,7 +60,7 @@ def publication_envelope(payload: dict[str, Any], published_at: datetime) -> byt
         )
     except ValidationError:
         raise PublicationRejectedError("mensagem do outbox fora do envelope") from None
-    return json.dumps(envelope.model_dump(by_alias=True, mode="json")).encode()
+    return json.dumps(envelope.model_dump(by_alias=True, mode="json", exclude_none=True)).encode()
 
 
 async def publish_pending(

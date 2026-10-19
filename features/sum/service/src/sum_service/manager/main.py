@@ -5,18 +5,14 @@ que é outro processo. Só inicializa e encerra: valida a configuração, abre a
 consumer.
 """
 
-import asyncio
 import logging
 
 from sum_service.common.database import open_pool
-from sum_service.common.http.health import Health, serve_health
 from sum_service.common.lifecycle import (
     InvalidConfigurationError,
     start_role,
-    stop_on_signals,
-    supervise,
 )
-from sum_service.common.messaging import connect, stream_of
+from sum_service.common.runtime import role_runtime
 from sum_service.common.service_rules import CatalogError, parse_catalog
 from sum_service.manager.handlers.requested import RequestedHandler
 from sum_service.manager.settings import SumServiceManagerSettings, missing_required
@@ -38,83 +34,53 @@ logger = logging.getLogger(__name__)
 
 
 async def run(settings: SumServiceManagerSettings) -> int:
-    stop = stop_on_signals()
-    health = Health()
     catalog = parse_catalog(settings.catalog.roles or "")
-    messaging_client = await connect(settings.messaging, name="sum-service-manager")
-    pool = await open_pool(settings.database)
-    health.add_check("nats", lambda: messaging_client.is_connected)
-    consumer = RequestedConsumer(
-        stream_of(messaging_client),
-        pool,
-        RequestedHandler(catalog=catalog),
-        durable_name=DURABLE_REQUESTED,
-        on_cycle=health.beat,
-    )
-    jetstream = stream_of(messaging_client)
+    async with role_runtime(settings.messaging, name="sum-service-manager") as runtime:
+        pool = await open_pool(settings.database)
+        runtime.close_after(pool.close)
 
-    async def handle_observed(data: bytes) -> Disposition:
-        return await process_observed(pool, data)
+        async def handle_observed(data: bytes) -> Disposition:
+            return await process_observed(pool, data)
 
-    async def handle_completed(data: bytes) -> Disposition:
-        return await process_result(pool, data, "completed")
+        async def handle_completed(data: bytes) -> Disposition:
+            return await process_result(pool, data, "completed")
 
-    async def handle_failed(data: bytes) -> Disposition:
-        return await process_result(pool, data, "failed")
+        async def handle_failed(data: bytes) -> Disposition:
+            return await process_result(pool, data, "failed")
 
-    async def handle_account_removed(data: bytes) -> Disposition:
-        return await process_account_removed(pool, data)
+        async def handle_account_removed(data: bytes) -> Disposition:
+            return await process_account_removed(pool, data)
 
-    tasks = {
-        "requested": asyncio.create_task(consumer.run(stop)),
-        "observed": asyncio.create_task(
-            run_consumer(
-                jetstream,
-                stream="OBSERVED",
-                durable=DURABLE_OBSERVED,
-                handle=handle_observed,
-                stop=stop,
-                on_cycle=health.beat,
+        runtime.start(
+            "requested",
+            RequestedConsumer(
+                runtime.stream,
+                pool,
+                RequestedHandler(catalog=catalog),
+                durable_name=DURABLE_REQUESTED,
+                on_cycle=runtime.health.beat,
+            ).run(runtime.stop),
+        )
+        # Estado observado e resultados: um consumer durável por fluxo, cada um com o seu handler.
+        for name, stream, durable, handle in (
+            ("observed", "OBSERVED", DURABLE_OBSERVED, handle_observed),
+            ("completed", "RESULT", DURABLE_COMPLETED, handle_completed),
+            ("failed", "RESULT", DURABLE_FAILED, handle_failed),
+            ("account_removed", "UPDATED", DURABLE_ACCOUNT_REMOVED, handle_account_removed),
+        ):
+            runtime.start(
+                name,
+                run_consumer(
+                    runtime.stream,
+                    stream=stream,
+                    durable=durable,
+                    handle=handle,
+                    stop=runtime.stop,
+                    on_cycle=runtime.health.beat,
+                ),
             )
-        ),
-        "completed": asyncio.create_task(
-            run_consumer(
-                jetstream,
-                stream="RESULT",
-                durable=DURABLE_COMPLETED,
-                handle=handle_completed,
-                stop=stop,
-                on_cycle=health.beat,
-            )
-        ),
-        "failed": asyncio.create_task(
-            run_consumer(
-                jetstream,
-                stream="RESULT",
-                durable=DURABLE_FAILED,
-                handle=handle_failed,
-                stop=stop,
-                on_cycle=health.beat,
-            )
-        ),
-        "account_removed": asyncio.create_task(
-            run_consumer(
-                jetstream,
-                stream="UPDATED",
-                durable=DURABLE_ACCOUNT_REMOVED,
-                handle=handle_account_removed,
-                stop=stop,
-                on_cycle=health.beat,
-            )
-        ),
-        "health": asyncio.create_task(serve_health(health, settings.health.port, stop)),
-    }
-    health.mark_started()
-    logger.info("sum service manager started")
-    exit_code = await supervise(tasks, stop)
-    await messaging_client.drain()
-    await pool.close()
-    return exit_code
+        logger.info("sum service manager started")
+        return await runtime.serve(health_port=settings.health.port)
 
 
 def validate(settings: SumServiceManagerSettings) -> None:

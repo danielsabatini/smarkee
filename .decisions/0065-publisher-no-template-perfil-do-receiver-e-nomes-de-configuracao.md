@@ -19,3 +19,9 @@ A auditoria do `core/account` (2026-10-19) mostrou que o Publisher é igual nas 
 
 - **Contrato incompatível** (AGENTS §10): as variáveis antigas deixam de valer. Impacto restrito ao desenvolvimento (compose e `.env` das features); stg e prd ainda não existem. Migração: renomear no `.env` local (feito nos arquivos do repositório). Os recursos da infraestrutura (`NATS_PASSWORD`, `NATS_USER` do servidor de mensageria e as variáveis do Zitadel) mantêm o nome do produto, por serem do próprio produto.
 - As decisões anteriores e o CHANGELOG citam os nomes antigos como registro histórico.
+
+## Ajuste (2026-10-19): ciclo de vida dos papéis e correção do Publisher
+
+- **`common/runtime.py` (`role_runtime`)**, no template: o que os 18 `main.py` repetiam (sinais, conexão ao broker, saúde com o teste do broker, criação e supervisão das tarefas, drenagem e fechamento) é escrito uma vez. Cada `main.py` monta só as suas tarefas; o banco e os clientes HTTP são fechados por `close_after`, depois da drenagem, na ordem inversa. O encerramento passa a acontecer também quando a montagem falha no meio (antes, a conexão ficava aberta).
+- **`common/http/server.py` (`serve_http`)**, no template: o uvicorn do Receiver sem os handlers de sinal próprios, parado pelo pedido de parada do papel. O Receiver do `sum/service` deixa de encerrar pelo uvicorn e de sair sempre com 0; passa a ser supervisionado como os demais, e os logs de acesso do uvicorn ficam desligados nele também (a borda os registra).
+- **Correção:** o Publisher unificado publicava os campos opcionais ausentes como `null` (por exemplo, `observedGeneration`), que o schema do envelope recusa; o e2e de contrato apontou. Ele passa a omiti-los (`exclude_none`), com teste unitário.

@@ -7,20 +7,13 @@ Os logs do Observer não carregam o `traceparent` das mensagens que ele consome:
 periódica e não consequência de uma requisição (`traced=False`, decisão 0055).
 """
 
-import asyncio
 import logging
 
 import httpx
 
-from core_account.common.http.health import Health, serve_health
-from core_account.common.lifecycle import start_role, stop_on_signals, supervise
-from core_account.common.messaging import (
-    StateConsumer,
-    StreamPublisher,
-    connect,
-    new_instance_name,
-    stream_of,
-)
+from core_account.common.lifecycle import start_role
+from core_account.common.messaging import StateConsumer, StreamPublisher, new_instance_name
+from core_account.common.runtime import role_runtime
 from core_account.observer.engine.observer import Observer, periodic_observation
 from core_account.observer.provider.identity import IdentityReader
 from core_account.observer.settings import AccountObserverSettings, missing_required
@@ -30,36 +23,31 @@ logger = logging.getLogger(__name__)
 
 
 async def run(settings: AccountObserverSettings) -> int:
-    stop = stop_on_signals()
-    async with httpx.AsyncClient(timeout=settings.identity.timeout_seconds) as http:
-        messaging_client = await connect(settings.messaging, name="core-account-observer")
-        health = Health()
-        health.add_check("nats", lambda: messaging_client.is_connected)
-        jetstream = stream_of(messaging_client)
+    async with role_runtime(settings.messaging, name="core-account-observer") as runtime:
+        http = httpx.AsyncClient(timeout=settings.identity.timeout_seconds)
+        runtime.close_after(http.aclose)
         observer = Observer(
-            IdentityReader(settings.identity, http), StreamPublisher(jetstream), settings
+            IdentityReader(settings.identity, http), StreamPublisher(runtime.stream), settings
         )
         instance = new_instance_name()
-        tasks = {
-            suffix: asyncio.create_task(
+        for stream, subject, suffix in STREAMS:
+            runtime.start(
+                suffix,
                 StateConsumer(
-                    jetstream,
+                    runtime.stream,
                     observer,
                     durable=f"core-account-observer-{suffix}-{instance}",
                     stream=stream,
                     filter_subject=subject,
                     inactive_threshold_seconds=settings.messaging.consumer_inactive_threshold_seconds,
                     traced=False,
-                    on_cycle=health.beat,
-                ).run(stop)
+                    on_cycle=runtime.health.beat,
+                ).run(runtime.stop),
             )
-            for stream, subject, suffix in STREAMS
-        }
-        tasks["periodic"] = asyncio.create_task(
-            periodic_observation(observer, settings, stop, on_cycle=health.beat)
+        runtime.start(
+            "periodic",
+            periodic_observation(observer, settings, runtime.stop, on_cycle=runtime.health.beat),
         )
-        tasks["health"] = asyncio.create_task(serve_health(health, settings.health.port, stop))
-        health.mark_started()
         logger.info(
             "account observer started",
             extra={
@@ -67,9 +55,7 @@ async def run(settings: AccountObserverSettings) -> int:
                 "smarkee.partition": f"{settings.partition.index}/{settings.partition.count}",
             },
         )
-        exit_code = await supervise(tasks, stop)
-        await messaging_client.drain()
-    return exit_code
+        return await runtime.serve(health_port=settings.health.port)
 
 
 def main() -> None:
