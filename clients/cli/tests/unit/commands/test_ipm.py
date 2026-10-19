@@ -75,6 +75,7 @@ def http_error(status: int, error_code: str, message: str) -> urllib.error.HTTPE
 def api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[FakeApi]:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     monkeypatch.delenv("SK_API_URL", raising=False)
+    monkeypatch.delenv("SK_IPM_ORGANIZATION_ID", raising=False)
     (tmp_path / "sk").mkdir()
     (tmp_path / "sk" / "config.toml").write_text(f'[api]\nurl = "{API}"\n', encoding="utf-8")
     fake = FakeApi()
@@ -536,3 +537,149 @@ def test_wait_times_out_when_the_request_never_becomes_visible(
 
     assert result.exit_code == 1
     assert "Timed out" in result.stderr and "not visible yet" in result.stderr
+
+
+OTHER_RID = "02b25279-c6ae-7586-9ec9-d6d068fb211c"
+
+
+def config_path(tmp_path: Path) -> Path:
+    return tmp_path / "sk" / "config.toml"
+
+
+def set_active(tmp_path: Path, resource_id: str) -> None:
+    with config_path(tmp_path).open("a", encoding="utf-8") as file:
+        file.write(f'[ipm]\norganizationId = "{resource_id}"\n')
+
+
+def test_commands_use_the_active_organization_when_no_resource_id_is_given(
+    api: FakeApi, tmp_path: Path
+) -> None:
+    set_active(tmp_path, RID)
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
+
+    result = runner.invoke(app, ["ipm", "organization", "get"])
+
+    assert result.exit_code == 0, result.stderr
+    assert api.requests[-1].full_url == f"{API}{ORGANIZATION}"
+
+
+def test_the_environment_variable_sets_the_active_organization(
+    api: FakeApi, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SK_IPM_ORGANIZATION_ID", RID)
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
+
+    result = runner.invoke(app, ["ipm", "organization", "get"])
+
+    assert result.exit_code == 0, result.stderr
+    assert api.requests[-1].full_url == f"{API}{ORGANIZATION}"
+
+
+def test_resource_id_wins_over_the_active_organization(api: FakeApi, tmp_path: Path) -> None:
+    set_active(tmp_path, OTHER_RID)
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
+
+    result = runner.invoke(app, ["ipm", "organization", "get", "--resource-id", RID])
+
+    assert result.exit_code == 0, result.stderr
+    assert api.requests[-1].full_url == f"{API}{ORGANIZATION}"
+
+
+def test_without_resource_id_and_without_an_active_organization_it_says_how_to_choose(
+    api: FakeApi,
+) -> None:
+    result = runner.invoke(app, ["ipm", "organization", "get"])
+
+    assert result.exit_code == 2
+    text = " ".join(result.stderr.split())
+    assert "--resource-id" in text and "sk config set ipm.organizationId" in text
+    assert api.requests == []
+
+
+def test_an_active_organization_outside_the_contract_is_refused_by_the_configuration(
+    api: FakeApi, tmp_path: Path
+) -> None:
+    set_active(tmp_path, "../x?y")
+
+    result = runner.invoke(app, ["ipm", "organization", "get"])
+
+    assert result.exit_code == 2
+    assert "Invalid configuration" in result.stderr
+    assert api.requests == []
+
+
+def test_create_wait_saves_the_organization_as_the_active_one(api: FakeApi, tmp_path: Path) -> None:
+    api.routes[("POST", PATH)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
+
+    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert "Saved as the active Organization" in result.stdout
+    text = config_path(tmp_path).read_text(encoding="utf-8")
+    assert f'organizationId = "{RID}"' in text
+    assert f'url = "{API}"' in text  # as demais sobrescritas continuam
+    assert config_path(tmp_path).stat().st_mode & 0o777 == 0o600
+
+
+def test_create_wait_keeps_the_organization_that_is_already_active(
+    api: FakeApi, tmp_path: Path
+) -> None:
+    set_active(tmp_path, OTHER_RID)
+    api.routes[("POST", PATH)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
+
+    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    text = " ".join(result.stdout.split())
+    assert "The active Organization was kept" in text
+    assert f"sk config set ipm.organizationId {RID}" in text
+    assert f'organizationId = "{OTHER_RID}"' in config_path(tmp_path).read_text(encoding="utf-8")
+
+
+def test_create_without_wait_does_not_save_and_points_to_config_set(
+    api: FakeApi, tmp_path: Path
+) -> None:
+    api.routes[("POST", PATH)] = accepted()
+    before = config_path(tmp_path).read_text(encoding="utf-8")
+
+    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme"])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert f"sk config set ipm.organizationId {RID}" in " ".join(result.stdout.split())
+    assert config_path(tmp_path).read_text(encoding="utf-8") == before
+
+
+def test_create_wait_still_succeeds_when_saving_the_active_organization_fails(
+    api: FakeApi, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    api.routes[("POST", PATH)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
+
+    def refuse(*_: object, **__: object) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr("sk.commands.ipm.store_value", refuse)
+
+    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"])
+
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert "Organization created" in result.stdout
+    assert "Could not save the active Organization (Permission denied)" in " ".join(
+        result.stderr.split()
+    )
+    assert f"sk config set ipm.organizationId {RID}" in " ".join(result.stderr.split())
+
+
+def test_list_marks_the_active_organization(api: FakeApi, tmp_path: Path) -> None:
+    set_active(tmp_path, RID)
+    api.routes[("GET", PATH)] = Response(200, {"items": [organization_document()]})
+
+    result = runner.invoke(app, ["ipm", "organization", "list"])
+
+    assert result.exit_code == 0, result.stderr
+    assert "active" in result.stdout and "*" in result.stdout

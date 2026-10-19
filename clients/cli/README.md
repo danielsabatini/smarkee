@@ -25,7 +25,7 @@ uv run sk config get api.url                   # só o valor efetivo, para uso e
 uv run sk config set api.url http://api-dev.smarkee.com.br:8080   # cria o arquivo, se não existir
 ```
 
-Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `api.url`, `api.allowInsecureHttp`, `core.projectId`, `sum.projectId` e `ipm.projectId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro **só com as sobrescritas**: um valor que ficou no padrão não vai para o arquivo, e comentários feitos à mão não são preservados. Não há `unset`: para voltar ao padrão, apague a chave do arquivo.
+Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `api.url`, `api.allowInsecureHttp`, `core.projectId`, `sum.projectId`, `ipm.projectId` e `ipm.organizationId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro **só com as sobrescritas**: um valor que ficou no padrão não vai para o arquivo, e comentários feitos à mão não são preservados. Não há `unset`: para voltar ao padrão, apague a chave do arquivo.
 
 **O que ainda não tem padrão de produção:** o client ID e os IDs dos projetos de roles só nascem quando o Zitadel de produção for provisionado. Até lá o padrão é o marcador `000000000000000000` (18 zeros), e `sk auth login` recusa o login dizendo quais valores faltam (em vez de seguir e falhar adiante). Em desenvolvimento, sobrescreva cada um:
 
@@ -163,12 +163,12 @@ Códigos de saída: `0` sucesso; `1` sessão ausente, API recusou ou indisponív
 
 ```bash
 uv run sk ipm organization create --name NOME [--wait] [--timeout SEGUNDOS]
-uv run sk ipm organization get --resource-id ID [--operation-id OPERACAO]
+uv run sk ipm organization get [--resource-id ID] [--operation-id OPERACAO]
 uv run sk ipm organization list
-uv run sk ipm organization update --resource-id ID --name NOVO-NOME [--wait] [--timeout SEGUNDOS]
-uv run sk ipm organization protect --resource-id ID [--wait] [--timeout SEGUNDOS]
-uv run sk ipm organization unprotect --resource-id ID [--wait] [--timeout SEGUNDOS]
-uv run sk ipm organization delete --resource-id ID [--wait] [--timeout SEGUNDOS]
+uv run sk ipm organization update [--resource-id ID] --name NOVO-NOME [--wait] [--timeout SEGUNDOS]
+uv run sk ipm organization protect [--resource-id ID] [--wait] [--timeout SEGUNDOS]
+uv run sk ipm organization unprotect [--resource-id ID] [--wait] [--timeout SEGUNDOS]
+uv run sk ipm organization delete [--resource-id ID] [--wait] [--timeout SEGUNDOS]
 ```
 
 O endereço da API vem do ambiente, do arquivo ou do padrão, sem opção de linha de comando (decisão 0041), e os identificadores seguem o padrão do contrato, como em `sk sum service`. O nome (`--name`) segue o contrato: letras minúsculas, números e hífen, de 1 a 63 caracteres, começando e terminando com letra ou número; outro valor é recusado antes de qualquer chamada, sem repetir o valor.
@@ -181,6 +181,8 @@ O endereço da API vem do ambiente, do arquivo ou do padrão, sem opção de lin
 | `delete --resource-id ID` | `GET` (para ler a `resourceVersion`), depois `DELETE`; a Organization nasce protegida e o `409 DeletionProtected` pede o `unprotect` antes (decisão 0043) | `202`: o `operationId`; com `--wait`, espera a Operation `completed` e a Organization sumir (`state removed`) |
 | `get --resource-id ID` | `GET` da Organization (e da Operation, se `--operation-id`) | `name`, `state` (`active`, `inactive` ou `unknown` enquanto não observada), `phase`, `platformAccess` e `protected` (`yes` ou `no`) |
 | `list` | `GET /v1/ipm/organizations`, seguindo o cursor | Uma linha por Organization do solicitante |
+
+**Organization ativa.** Como o projeto ativo do `gcloud`, a Organization ativa dispensa repetir o `--resource-id`: sem a opção, os comandos usam `[ipm] organizationId` (ou `SK_IPM_ORGANIZATION_ID`, que prevalece sobre o arquivo); `--resource-id` sempre prevalece sobre os dois. Quem grava e troca a Organization ativa é o `sk config set ipm.organizationId ID`: `organization` não tem comando próprio para isso. A única gravação automática é a do `create --wait`: quando a Organization converge e **ainda não há uma ativa** (do ambiente ou do arquivo), ela vira a ativa e a saída avisa; havendo uma, nada muda e a saída mostra o `sk config set` para trocar. Sem `--wait`, o `create` não grava e a saída indica o `sk config set`. Se a gravação falhar, o `create` continua com sucesso e avisa. `list` marca com `*` a Organization ativa. O `sk config set` só confere o formato do `resourceId`: um id que não é seu falha com `404` no primeiro comando que o usar.
 
 As escritas são assíncronas, como as do SUM: o comando confirma o aceite e mostra como acompanhar. Com `--wait`, ele espera a Operation `completed` (até `--timeout`, 60 s por padrão) e trata o `404` logo depois do `202` como espera, porque o Manager ainda pode não ter gravado o pedido. A sessão não precisa ser renovada: criar uma Organization não muda as roles do token. O dono altera só o `name`; `platformAccess` é do operador e não tem comando nesta CLI.
 

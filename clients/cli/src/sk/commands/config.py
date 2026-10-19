@@ -7,6 +7,7 @@ dos valores validados, e comentários feitos à mão não são preservados.
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Annotated, Any, NoReturn, cast
 
 import typer
@@ -184,6 +185,32 @@ def _source_of(key: ConfigKey, document: dict[str, Any]) -> str:
     return "file" if _stored_value(document, key) is not None else "default"
 
 
+def store_value(
+    key: ConfigKey, value: str | bool, document: dict[str, Any], *, path: Path
+) -> dict[str, BaseModel]:
+    """Grava `value` em `key` no arquivo `path`, a partir do `document` lido dele.
+
+    É o que `sk config set` faz, e também o que outros comandos usam quando precisam gravar uma
+    configuração (por exemplo `sk ipm organization create --wait`). Valida o documento inteiro,
+    como o carregamento faz. Devolve as seções validadas. Levanta `ValidationError` ou
+    `ConfigurationError` se o valor ou o arquivo não valem, e `OSError` se a gravação falha.
+    """
+    section = dict(document.get(key.section, {}))
+    section[key.file_name] = value
+    document = {**document, key.section: section}
+    values = convert_file_document(SkSettings, document, path=path)
+    sections = {
+        name: model.model_validate(values.get(name, {})) for name, model in SECTION_MODELS.items()
+    }
+    # Todas as seções são regravadas, mas só com os campos que o arquivo tem (as sobrescritas):
+    # um valor que ficou no padrão não vai para o arquivo.
+    content = "\n".join(
+        render_section(name, model) for name, model in sections.items() if model.model_fields_set
+    )
+    write_private_file(path, content)
+    return sections
+
+
 @config_app.command(
     "list", help="Show every key, its effective value and where the value comes from."
 )
@@ -239,26 +266,10 @@ def set_command(
     value = _parse_value(key, value_text)
 
     document = _read_or_exit()
-    section = dict(document.get(key.section, {}))
-    section[key.file_name] = value
-    document[key.section] = section
     try:
-        # Valida o documento inteiro, como o carregamento faz: chaves e valores.
-        values = convert_file_document(SkSettings, document, path=path)
-        sections = {
-            name: model.model_validate(values.get(name, {}))
-            for name, model in SECTION_MODELS.items()
-        }
+        sections = store_value(key, value, document, path=path)
     except (ValidationError, ConfigurationError) as error:
         _exit_with(error, "Value refused", "Fix the value and repeat.", EXIT_USAGE_ERROR)
-
-    # Todas as seções são regravadas, mas só com os campos que o arquivo tem (as sobrescritas):
-    # um valor que ficou no padrão não vai para o arquivo.
-    content = "\n".join(
-        render_section(name, model) for name, model in sections.items() if model.model_fields_set
-    )
-    try:
-        write_private_file(path, content)
     except OSError as error:
         ui.error("Could not write the configuration", f"{path}: {error.strerror}")
         raise typer.Exit(EXIT_FAILURE) from error

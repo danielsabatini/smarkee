@@ -125,6 +125,19 @@ def test_the_project_ids_of_the_modules_are_settable_and_survive_other_changes(
     assert runner.invoke(app, ["config", "get", "ipm.projectId"]).stdout.strip() == "333"
 
 
+def test_the_active_organization_is_settable_and_validated(tmp_path: Path) -> None:
+    assert "ipm.organizationId" in known_keys()
+    resource_id = "01a14168-b59d-7475-8db7-c5cf57fa100b"
+
+    refused = runner.invoke(app, ["config", "set", "ipm.organizationId", "../x?y"])
+    assert refused.exit_code == 2
+    assert not config_file(tmp_path).exists()
+
+    saved = runner.invoke(app, ["config", "set", "ipm.organizationId", resource_id])
+    assert saved.exit_code == 0, saved.stderr
+    assert runner.invoke(app, ["config", "get", "ipm.organizationId"]).stdout.strip() == resource_id
+
+
 def test_set_boolean_accepts_true_and_false(tmp_path: Path) -> None:
     result = runner.invoke(app, ["config", "set", "auth.allowInsecureHttp", "true"])
     assert result.exit_code == 0, result.stderr

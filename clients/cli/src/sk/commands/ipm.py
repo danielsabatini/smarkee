@@ -12,9 +12,11 @@ import uuid
 from typing import Annotated, NoReturn
 
 import typer
+from pydantic import ValidationError
 from rich.text import Text
 
 from sk import ui
+from sk.commands.config import known_keys, store_value
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
     EXIT_FAILURE,
@@ -43,6 +45,9 @@ from sk.features.ipm.organization import (
 from sk.help import command, option
 from sk.http import ApiError, ApiRejectedError
 from sk.identity.oidc import OidcError
+from sk.settings import ConfigurationError, SkSettings, config_file_path, read_config_document
+
+ACTIVE_ORGANIZATION_KEY = "ipm.organizationId"
 
 IPM_HELP = command("Resources of the ipm service.")
 ORGANIZATION_HELP = command(
@@ -111,11 +116,12 @@ ResourceIdOption = Annotated[
     typer.Option(
         "--resource-id",
         help=option(
-            "resourceId of the Organization (returned by `create` or `list`).",
+            "resourceId of the Organization (returned by `create` or `list`). Without it, the "
+            "active Organization is used (`sk config set ipm.organizationId`).",
             kind="String",
             variable=None,
             file=None,
-            default="none",
+            default="the active Organization",
         ),
     ),
 ]
@@ -136,6 +142,33 @@ def _identifier(value: str | None, option_name: str, *, what: str) -> str:
     except ValueError as error:
         ui.error("Value not accepted", str(error), hint=f"Fix {option_name} and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
+
+
+def _active_organization() -> str:
+    """`resourceId` da Organization ativa (ambiente ou arquivo); vazio se nenhuma foi escolhida."""
+    try:
+        return SkSettings().ipm.organization_id
+    except (ValidationError, ConfigurationError) as error:
+        ui.error("Invalid configuration", str(error), hint="Fix the indicated file and repeat.")
+        raise typer.Exit(EXIT_USAGE_ERROR) from error
+
+
+def _organization_identifier(value: str | None) -> str:
+    """`resourceId` da Organization: `--resource-id` ou, na falta dele, a Organization ativa."""
+    if value is None:
+        value = _active_organization()
+        if not value:
+            ui.error(
+                "Missing Organization",
+                "No --resource-id was given and no Organization is active.",
+                hint=(
+                    "Repeat with --resource-id VALUE, or make one active with "
+                    f"`sk config set {ACTIVE_ORGANIZATION_KEY} VALUE` "
+                    "(or set SK_IPM_ORGANIZATION_ID)."
+                ),
+            )
+            raise typer.Exit(EXIT_USAGE_ERROR)
+    return _identifier(value, "--resource-id", what="resourceId")
 
 
 def _name(value: str | None) -> str:
@@ -283,21 +316,52 @@ def _finish_request(
     removal: bool,
     wait: bool,
     timeout: int,
-) -> None:
-    """Fim de `create`, `update` e `delete`: orienta o acompanhamento ou, com `--wait`, espera."""
+) -> Organization | None:
+    """Fim de `create`, `update` e `delete`: orienta o acompanhamento ou, com `--wait`, espera.
+
+    Devolve a Organization convergida, ou `None` sem `--wait` e quando ela foi removida.
+    """
     if not wait:
         ui.note(
             "Follow it with `sk ipm organization get --resource-id "
             f"{accepted.resource_id} --operation-id {accepted.operation_id}`."
         )
-        return
+        return None
     organization = _wait_for_convergence(
         url, insecure, accepted, expect_name=expect_name, removal=removal, timeout=timeout
     )
     if organization is None:
         ui.panel(title, [("resourceId", accepted.resource_id), ("state", "removed")])
-        return
+        return None
     ui.panel(title, _rows(organization))
+    return organization
+
+
+def _activate_if_none(resource_id: str) -> None:
+    """Grava a Organization recém-criada como a ativa (`[ipm] organizationId`), se não há uma.
+
+    Uma Organization já ativa, vinda do ambiente ou do arquivo, nunca é trocada: trocar é do
+    `sk config set`. Falhar aqui não desfaz nada (a Organization já existe): vira aviso.
+    """
+    switch_hint = f"`sk config set {ACTIVE_ORGANIZATION_KEY} {resource_id}`"
+    try:
+        if SkSettings().ipm.organization_id:
+            ui.note(f"The active Organization was kept. To switch to this one, run {switch_hint}.")
+            return
+        path = config_file_path()
+        store_value(
+            known_keys()[ACTIVE_ORGANIZATION_KEY],
+            resource_id,
+            read_config_document(path),
+            path=path,
+        )
+    except (ValidationError, ConfigurationError, OSError) as error:
+        reason = getattr(error, "strerror", None) or str(error).splitlines()[0]
+        ui.warning(
+            f"Could not save the active Organization ({reason}). To do it, run {switch_hint}."
+        )
+        return
+    ui.note(f"Saved as the active Organization in {path}.")
 
 
 @organization_app.command(
@@ -345,7 +409,7 @@ def create_command(
             ("operationId", accepted.operation_id),
         ],
     )
-    _finish_request(
+    organization = _finish_request(
         url,
         insecure,
         accepted,
@@ -355,6 +419,13 @@ def create_command(
         wait=wait,
         timeout=timeout,
     )
+    if organization is not None:
+        _activate_if_none(organization.resource_id)
+    elif not wait:
+        ui.note(
+            "To make it the active Organization, run "
+            f"`sk config set {ACTIVE_ORGANIZATION_KEY} {accepted.resource_id}`."
+        )
 
 
 @organization_app.command(
@@ -379,7 +450,7 @@ def update_command(
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    resource_id = _organization_identifier(resource_id)
     name = _name(name)
     url, insecure = load_api()
     token = session_token()
@@ -425,7 +496,7 @@ def update_command(
 
 
 def _set_protection(resource_id: str | None, *, protected: bool, wait: bool, timeout: int) -> None:
-    resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    resource_id = _organization_identifier(resource_id)
     url, insecure = load_api()
     token = session_token()
     try:
@@ -504,7 +575,7 @@ def delete_command(
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    resource_id = _organization_identifier(resource_id)
     url, insecure = load_api()
     token = session_token()
     try:
@@ -563,7 +634,7 @@ def get_command(
         ),
     ] = None,
 ) -> None:
-    resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    resource_id = _organization_identifier(resource_id)
     if operation_id is not None:
         operation_id = _identifier(operation_id, "--operation-id", what="operationId")
     url, insecure = load_api()
@@ -609,11 +680,13 @@ def list_command() -> None:
     if not organizations:
         ui.note("No Organizations.")
         return
+    active = _active_organization()
     ui.table(
         "Organizations",
-        ["resourceId", "name", "state", "phase"],
+        ["active", "resourceId", "name", "state", "phase"],
         [
             [
+                "*" if organization.resource_id == active else "",
                 organization.resource_id,
                 organization.name,
                 _styled_state(organization),

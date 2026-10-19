@@ -29,7 +29,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic.alias_generators import to_camel
 from pydantic.fields import FieldInfo
 from pydantic_settings import (
@@ -46,6 +46,7 @@ from sk.defaults import (
     PRD_ISSUER,
     PRD_SUM_PROJECT_ID,
 )
+from sk.features.api_contract import validate_identifier
 
 CONFIG_DIRECTORY_NAME = "sk"
 CONFIG_FILE_NAME = "config.toml"
@@ -191,6 +192,16 @@ class IpmSettings(BaseModel):
 
     project_id: str = PRD_IPM_PROJECT_ID
     """ID do projeto de roles do ipm (`roles-ipm`): audience dos tokens do Receiver do ipm."""
+
+    organization_id: str = ""
+    """`resourceId` da Organization ativa: a que os comandos de `sk ipm organization` usam quando
+    `--resource-id` não é informado. Vazio quando nenhuma foi escolhida."""
+
+    @field_validator("organization_id")
+    @classmethod
+    def _organization_id_follows_the_contract(cls, value: str) -> str:
+        # Entra no caminho da URL: o mesmo padrão do `resourceId` do contrato.
+        return validate_identifier(value, what="organizationId") if value else value
 
 
 class SkSettings(BaseSettings):
