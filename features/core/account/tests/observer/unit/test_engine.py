@@ -1,6 +1,7 @@
 """Motor do Observer: gatilhos de observação, partição e publicação de `observed`."""
 
 import json
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -9,6 +10,7 @@ from typing import Any
 import pytest
 
 from core_account.common.contracts import generated
+from core_account.common.logging_config import JsonFormatter, build_resource
 from core_account.common.ports import PublishError
 from core_account.observer.domain.observation import Observation
 from core_account.observer.engine.observer import Observer, owns
@@ -207,3 +209,35 @@ async def test_messages_of_another_type_are_ignored() -> None:
     other["resourceType"] = "organization"
     await build(FakeObservation(), publisher).on_message(json.dumps(other).encode())
     assert publisher.published == []
+
+
+async def test_the_log_of_a_periodic_read_carries_the_observed_resource() -> None:
+    """A rodada periódica não nasce de uma mensagem: o recurso vem do próprio Observer."""
+    seen: list[dict[str, Any]] = []
+
+    class Capturing(FakeObservation):
+        async def __call__(self, reader: object, resource_id: str) -> Observation:
+            line = JsonFormatter(build_resource("observer")).format(
+                logging.LogRecord("httpx", logging.INFO, "", 0, "HTTP Request", None, None)
+            )
+            seen.append(json.loads(line)["attributes"])
+            return await super().__call__(reader, resource_id)
+
+    observer = build(Capturing([Observation("present", {})]), FakePublisher())
+    await observer.on_message(desired("acc-periodic"))
+    seen.clear()
+
+    await observer.observe_all()
+
+    assert seen[0]["smarkee.resource.id"] == "acc-periodic"
+    assert seen[0]["smarkee.actor.type"] == "system"
+    assert "smarkee.organization.id" not in seen[0]  # Account não é Organization
+
+
+async def test_the_observation_context_does_not_leak_to_the_caller() -> None:
+    from core_account.common.logging_config import save_context
+
+    before = save_context()
+    observer = build(FakeObservation([Observation("present", {})]), FakePublisher())
+    await observer.observe_resource("other", causation_id=None)
+    assert save_context() == before

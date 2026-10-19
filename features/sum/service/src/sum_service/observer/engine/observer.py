@@ -12,7 +12,8 @@ Para de observar uma ligação desligada cuja remoção convergiu (sem roles do 
 import hashlib
 import json
 import logging
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Generator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -20,12 +21,29 @@ from typing import Any
 from sum_service.common.contracts import generated
 from sum_service.common.contracts.envelope import EnvelopeError, read_envelope
 from sum_service.common.ids import new_identifier, utc_now
+from sum_service.common.logging_config import bind_context, restore_context, save_context
 from sum_service.common.ports import Publisher, PublishError
 from sum_service.common.resource import MODULE, RESOURCE_TYPE
 from sum_service.observer.domain.observation import Observation, Reader, observe
 from sum_service.observer.message import observed_envelope, subject_of
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def observation_context(resource_id: str, **identifiers: str) -> Generator[None]:
+    """Liga a ligação observada ao contexto de log durante a observação.
+
+    Sem isso, os logs das leituras ao sistema externo (por exemplo, a chamada HTTP ao Zitadel) saem
+    sem `smarkee.resource.id`, porque a rodada periódica não nasce de uma mensagem. O contexto
+    anterior é restaurado ao sair, para não vazar para o consumidor que chamou.
+    """
+    saved = save_context()
+    bind_context(resource_id=resource_id, **identifiers)
+    try:
+        yield
+    finally:
+        restore_context(saved)
 
 
 def owns(resource_id: str, index: int, count: int) -> bool:
@@ -130,12 +148,13 @@ class Observer:
         watch = self._watches.get(resource_id)
         if watch is None:
             return  # sem o `desired`, o Observer não sabe o que observar
-        observation: Observation = await observe(
-            self._reader, watch.owner_account_id, watch.service, self._catalog
-        )
-        if _removal_converged(watch, observation):
-            watch.tombstone = True  # remoção convergida: deixa de observar
-        await self._publish(resource_id, watch, observation, causation_id)
+        with observation_context(resource_id, owner_id=watch.owner_account_id):
+            observation: Observation = await observe(
+                self._reader, watch.owner_account_id, watch.service, self._catalog
+            )
+            if _removal_converged(watch, observation):
+                watch.tombstone = True  # remoção convergida: deixa de observar
+            await self._publish(resource_id, watch, observation, causation_id)
 
     async def observe_all(self) -> None:
         """Rodada periódica: todas as ligações que ainda são observadas."""

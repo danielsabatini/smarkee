@@ -1,0 +1,44 @@
+[project]
+name = "smarkee-dev-telemetry-reset"
+version = "0.1.0"
+description = "Apaga os sinais de telemetria gravados em disco pelos telemeters do ambiente de desenvolvimento."
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+smarkee-dev-telemetry-reset = "smarkee_dev_telemetry_reset.main:main"
+
+[build-system]
+requires = ["uv_build>=0.11.19,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "smarkee_dev_telemetry_reset"
+# Sem __init__.py: o pacote é um namespace package, como nos demais projetos.
+namespace = true
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+]

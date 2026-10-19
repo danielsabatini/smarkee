@@ -1,7 +1,9 @@
 import json
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from sum_service.common.logging_config import JsonFormatter, build_resource, save_context
 from sum_service.observer.domain.authorization import Authorization, ProviderError
 from sum_service.observer.engine.observer import Observer, owns
 
@@ -198,3 +200,36 @@ async def test_a_desired_without_a_valid_lifecycle_is_not_observed() -> None:
         await watcher.on_message(envelope("desired", "m", desiredGeneration=1, data=data))
     assert recorder.sent == []
     assert watcher.watch_of(RID) is None
+
+
+async def test_the_log_of_a_read_carries_the_service_link_and_its_owner() -> None:
+    """A leitura ao Zitadel não nasce de uma mensagem: a ligação vem do próprio Observer."""
+    seen: list[dict[str, Any]] = []
+
+    class Capturing(FakeReader):
+        async def user_exists(self, user_id: str) -> bool:
+            line = JsonFormatter(build_resource("observer")).format(
+                logging.LogRecord("httpx", logging.INFO, "", 0, "HTTP Request", None, None)
+            )
+            seen.append(json.loads(line)["attributes"])
+            return await super().user_exists(user_id)
+
+    watcher = observer(Capturing(), Recorder())
+    await watcher.on_message(desired(1))
+    seen.clear()
+
+    await watcher.observe_all()
+
+    assert seen[0]["smarkee.resource.id"] == RID
+    assert seen[0]["smarkee.owner.id"] == OWNER
+    assert seen[0]["smarkee.actor.type"] == "system"
+
+
+async def test_the_observation_context_does_not_leak_to_the_caller() -> None:
+    watcher = observer(FakeReader(), Recorder())
+    await watcher.on_message(desired(1))
+    before = save_context()
+
+    await watcher.observe_resource(RID, causation_id=None)
+
+    assert save_context() == before

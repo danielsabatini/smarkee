@@ -13,7 +13,8 @@ import asyncio
 import hashlib
 import logging
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -21,6 +22,7 @@ from typing import Any
 from core_account.common.contracts import generated
 from core_account.common.contracts.envelope import EnvelopeError, read_envelope
 from core_account.common.ids import new_identifier, utc_now
+from core_account.common.logging_config import bind_context, restore_context, save_context
 from core_account.common.ports import Publisher, PublishError
 from core_account.common.resource import MODULE, RESOURCE_TYPE, SCHEMA_VERSION
 from core_account.observer.domain.observation import Observation, Reader, observe
@@ -38,6 +40,22 @@ class Watch:
     correlation_id: str | None = None
     tombstone: bool = False
     """`lifecycle = absent` já convergido: não há mais o que observar."""
+
+
+@contextmanager
+def observation_context(resource_id: str, **identifiers: str) -> Generator[None]:
+    """Liga o recurso observado ao contexto de log durante a observação.
+
+    Sem isso, os logs das leituras ao sistema externo (por exemplo, a chamada HTTP ao Zitadel) saem
+    sem `smarkee.resource.id`, porque a rodada periódica não nasce de uma mensagem. O contexto
+    anterior é restaurado ao sair, para não vazar para o consumidor que chamou.
+    """
+    saved = save_context()
+    bind_context(resource_id=resource_id, **identifiers)
+    try:
+        yield
+    finally:
+        restore_context(saved)
 
 
 def owns(resource_id: str, index: int, count: int) -> bool:
@@ -123,11 +141,12 @@ class Observer:
 
     async def observe_resource(self, resource_id: str, *, causation_id: str | None) -> None:
         watch = self._watches.setdefault(resource_id, Watch())
-        async with self._reads:
-            observation: Observation = await self._observe(self._reader, resource_id)
-        if watch.lifecycle == "absent" and observation.presence == "absent":
-            watch.tombstone = True  # remoção convergida: deixa de observar
-        await self._publish(resource_id, watch, observation, causation_id)
+        with observation_context(resource_id):
+            async with self._reads:
+                observation: Observation = await self._observe(self._reader, resource_id)
+            if watch.lifecycle == "absent" and observation.presence == "absent":
+                watch.tombstone = True  # remoção convergida: deixa de observar
+            await self._publish(resource_id, watch, observation, causation_id)
 
     async def observe_all(self) -> None:
         """Rodada periódica: todos os recursos da partição que ainda existem."""
