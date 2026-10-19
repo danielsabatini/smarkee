@@ -541,6 +541,24 @@ A regra não é utilizar nomes longos.
 
 A regra é utilizar nomes **inequívocos**.
 
+## 15.1 Nome da solução, não nome do produto
+
+Arquivos, módulos, pacotes, classes, funções e variáveis do código próprio recebem o nome do **papel** que a tecnologia cumpre, e não o nome do produto que hoje a implementa. Trocar o produto não deve exigir renomear o código.
+
+| Papel | Nome |
+|---|---|
+| Mensageria | `messaging` |
+| Banco de dados relacional | `database` |
+| Provedor de identidade (IdP) | `identity` |
+| E-mail | `mail` |
+
+Regras:
+
+* Vale para o código novo e para o que for alterado; o que já existe é migrado quando couber no escopo da tarefa (§7).
+* Continuam com o nome do produto o que é **identificador externo**: bibliotecas importadas, headers e rotas do protocolo, URNs, arquivos de configuração do próprio produto (ex.: `nats.conf`) e o nome da ferramenta em decisões e documentos que a descrevem.
+* Variáveis de ambiente, configurações e demais contratos seguem o §10: renomeá-los exige migração e compatibilidade, e não é feito de forma silenciosa.
+* Um papel novo, ainda sem nome neste quadro, é nomeado pelo papel e acrescentado aqui.
+
 ---
 
 # 16. Código e Padrão de Desenvolvimento

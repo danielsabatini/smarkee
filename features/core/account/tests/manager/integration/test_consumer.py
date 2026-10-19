@@ -16,7 +16,7 @@ from core_account.manager.domain.kind import ResourceKind
 from core_account.manager.domain.outcome import Outcome, OutcomeKind
 from core_account.manager.handlers.ports import Store
 from core_account.manager.handlers.requested import RequestedHandler
-from core_account.manager.transport import consumers as messaging
+from core_account.manager.transport import consumers as manager_consumers
 from core_account.manager.transport.consumers import Disposition, apply_message
 
 
@@ -98,7 +98,7 @@ async def test_permanent_error_is_terminated(pool: psycopg_pool.AsyncConnectionP
 async def test_transient_error_is_retried_in_place_then_acked(
     pool: psycopg_pool.AsyncConnectionPool[Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(messaging, "TRANSIENT_RETRY_DELAYS_SECONDS", (0.0, 0.0, 0.0))
+    monkeypatch.setattr(manager_consumers, "TRANSIENT_RETRY_DELAYS_SECONDS", (0.0, 0.0, 0.0))
     handler = FlakyHandler(psycopg.errors.DeadlockDetected("deadlock"), failures=2)
     assert await apply_message(pool, handler, ACCOUNT, b"{}") is Disposition.ACK
     assert handler.calls == 3
@@ -107,7 +107,7 @@ async def test_transient_error_is_retried_in_place_then_acked(
 async def test_persistent_transient_error_goes_back_to_the_queue(
     pool: psycopg_pool.AsyncConnectionPool[Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(messaging, "TRANSIENT_RETRY_DELAYS_SECONDS", (0.0, 0.0, 0.0))
+    monkeypatch.setattr(manager_consumers, "TRANSIENT_RETRY_DELAYS_SECONDS", (0.0, 0.0, 0.0))
     handler = FlakyHandler(psycopg.errors.LockNotAvailable("lock_timeout"), failures=99)
     assert await apply_message(pool, handler, ACCOUNT, b"{}") is Disposition.RETRY
     assert handler.calls == 4

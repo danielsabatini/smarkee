@@ -11,11 +11,11 @@ import logging
 from sum_service.common.http.health import Health, serve_health
 from sum_service.common.lifecycle import start_role, stop_on_signals, supervise
 from sum_service.common.messaging import (
-    JetStreamPublisher,
     StateConsumer,
+    StreamPublisher,
     connect,
-    jetstream_of,
     new_instance_name,
+    stream_of,
 )
 from sum_service.reconciler.engine.reconciler import Reconciler, periodic_reevaluation
 from sum_service.reconciler.settings import SumServiceReconcilerSettings, missing_required
@@ -26,11 +26,11 @@ logger = logging.getLogger(__name__)
 
 async def run(settings: SumServiceReconcilerSettings) -> int:
     stop = stop_on_signals()
-    nats_client = await connect(settings.nats, name="sum-service-reconciler")
-    jetstream = jetstream_of(nats_client)
+    messaging_client = await connect(settings.nats, name="sum-service-reconciler")
+    jetstream = stream_of(messaging_client)
     health = Health()
-    health.add_check("nats", lambda: nats_client.is_connected)
-    reconciler = Reconciler(JetStreamPublisher(jetstream), settings.loop)
+    health.add_check("nats", lambda: messaging_client.is_connected)
+    reconciler = Reconciler(StreamPublisher(jetstream), settings.loop)
     instance = new_instance_name()
     tasks = {
         suffix: asyncio.create_task(
@@ -54,7 +54,7 @@ async def run(settings: SumServiceReconcilerSettings) -> int:
     health.mark_started()
     logger.info("sum service reconciler started", extra={"smarkee.instance.name": instance})
     exit_code = await supervise(tasks, stop)
-    await nats_client.drain()
+    await messaging_client.drain()
     return exit_code
 
 

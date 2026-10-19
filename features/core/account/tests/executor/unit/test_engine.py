@@ -10,7 +10,7 @@ import pytest
 from core_account.common.contracts import generated
 from core_account.common.ports import PublishError
 from core_account.executor.domain.errors import ActionFailedError
-from core_account.executor.domain.identity import Grant, ProviderError, ZitadelUser
+from core_account.executor.domain.identity import Grant, IdentityUser, ProviderError
 from core_account.executor.engine.executor import Disposition, Executor
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
@@ -47,9 +47,9 @@ class FakeState:
 class FakeWriter:
     calls: list[str] = field(default_factory=lambda: [])
     error: Exception | None = None
-    users: dict[str, ZitadelUser] = field(default_factory=lambda: {})
+    users: dict[str, IdentityUser] = field(default_factory=lambda: {})
 
-    async def get_user(self, user_id: str) -> ZitadelUser | None:
+    async def get_user(self, user_id: str) -> IdentityUser | None:
         return self.users.get(user_id)
 
     async def create_user(

@@ -7,14 +7,14 @@ O `traceparent` da requisição, se houver, vai no header NATS de mesmo nome, se
 
 from nats.js import JetStreamContext
 
-from sum_service.common.messaging import JetStreamPublisher
+from sum_service.common.messaging import StreamPublisher
 from sum_service.common.ports import PublishError
 from sum_service.receiver.domain.errors import unavailable
 
 
 class RequestedPublisher:
     def __init__(self, jetstream: JetStreamContext) -> None:
-        self._publisher = JetStreamPublisher(jetstream)
+        self._publisher = StreamPublisher(jetstream)
 
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None:
         """Recusa do transporte vira 503 com `Retry-After`: o cliente repete com a mesma chave."""

@@ -7,7 +7,7 @@ flowchart LR
 
     subgraph FONTES["Fontes (dev: Docker · stg e prd: Kubernetes)"]
         APPS["Componentes das features<br/>(stdout, JSON do contrato 0045)"]:::src
-        INFRA["Infra: banco, broker, Zitadel,<br/>gateway, mail, coletores"]:::src
+        INFRA["Infra: banco, messaging, Zitadel,<br/>gateway, mail, coletores"]:::src
         APISIX["APISIX<br/>(plugin opentelemetry: spans)"]:::src
     end
 

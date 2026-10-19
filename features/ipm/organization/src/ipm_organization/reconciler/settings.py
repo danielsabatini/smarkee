@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from ipm_organization.common.settings import (
     HealthSettings,
     Section,
-    StateNatsSettings,
+    StateMessagingSettings,
     missing_variables,
 )
 
@@ -42,7 +42,7 @@ class OrganizationReconcilerSettings(BaseSettings):
         extra="forbid",
     )
 
-    nats: StateNatsSettings = StateNatsSettings()
+    nats: StateMessagingSettings = StateMessagingSettings()
     loop: LoopSettings = LoopSettings()
     health: HealthSettings = HealthSettings()
 

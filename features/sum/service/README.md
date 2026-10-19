@@ -101,7 +101,7 @@ própria conta de serviço. O código igual em todos fica em `common/`, e nenhum
 
 ```text
 src/sum_service/
-  common/      o que é igual em todos os papéis: settings, messaging, lifecycle, database, zitadel
+  common/      o que é igual em todos os papéis: settings, messaging, lifecycle, database, identity
                (token da conta de serviço), ports, resource (módulo, tipo e versão), contracts/
                (modelos gerados, base e envelope), logging_config, ids e http/health
   receiver/  manager/  publisher/  observer/  reconciler/  executor/    (cada um com o seu README)
@@ -121,12 +121,11 @@ src/sum_service/manager/
   domain/        regras puras: catálogo, decisão de criar e desligar, convergência da fase
   handlers/      requested.py (criar e desligar), state.py (observed e resultados)
   store/         ssot.py: SQL do SSOT, em transação
-  transport/     requested.py e state.py (consumo, ACK, TERM, RETRY), nats.py
+  transport/     requested.py e state.py (consumo, ACK, TERM, RETRY)
   http/          health.py (probes /health/*)
 src/sum_service/publisher/
   domain/        PublishError, PublicationResult (puros)
   outbox/        database.py (conexão dedicada), publication.py (lote, trava de sessão)
-  transport/     nats.py, publisher.py (JetStream, classifica recusa permanente)
 ```
 
 ## 3.8 Estrutura interna dos demais papéis
@@ -218,7 +217,7 @@ a senha do NATS (todos), as senhas dos papéis do banco (Receiver, Manager, Publ
 Manager e do Executor, e os IDs no Zitadel (Observer e Executor).
 
 ```bash
-# 1. Plataforma (banco, broker, identidade, gateway): infrastructure/dev, no ar e saudável
+# 1. Plataforma (banco, messaging, identidade, gateway): infrastructure/dev, no ar e saudável
 # 2. Os componentes do SUM
 cd features/sum/service && cp -n .env.example .env   # preencha os valores vazios
 docker compose up -d --build
@@ -230,7 +229,7 @@ uv sync && uv run ruff check . && uv run pyright && uv run pytest   # na raiz da
 O papel `sum_service_*` e o esquema `sum` são criados por `infrastructure/dev/database/bootstrap/sum.sql` e pelas migrações
 de `migrations/`. O dono do esquema é `smarkee`. Nos bancos de dev já existentes, o bootstrap só roda na criação do
 volume: aplique-o à mão. Os testes de integração de `manager/` e `publisher/` pedem as URLs dos papéis e as credenciais do
-broker de dev (ver o README de cada componente); sem elas, são pulados.
+messaging de dev (ver o README de cada componente); sem elas, são pulados.
 
 Depois de recriar o contêiner do Receiver, o gateway volta a resolver o nome sozinho em poucos segundos (com `502` nesse
 intervalo); não é preciso reiniciá-lo.

@@ -8,7 +8,7 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
-from ipm_organization.manager.store.ssot import PostgresStore
+from ipm_organization.manager.store.ssot import SsotStore
 from ipm_organization.manager.store.tables import tables_of
 
 DATABASE_HOST = os.environ.get("IPM_TEST_DATABASE_HOST", "localhost")
@@ -85,6 +85,6 @@ def requested_message(
     }
 
 
-def ssot(connection: psycopg.AsyncConnection[Any]) -> PostgresStore:
+def ssot(connection: psycopg.AsyncConnection[Any]) -> SsotStore:
     """Adaptador do SSOT da Organization sobre a conexão do teste."""
-    return PostgresStore(connection, tables_of("organization"))
+    return SsotStore(connection, tables_of("organization"))

@@ -231,7 +231,7 @@ async def mails_to(address: str, *, timeout: float = 20.0) -> list[str]:
     return subjects
 
 
-async def test_the_whole_loop_runs_against_zitadel_and_the_account_is_removed_at_the_end(
+async def test_the_whole_loop_runs_against_identity_provider_and_the_account_is_removed_at_the_end(
     api: httpx.AsyncClient, jetstream: JetStreamContext, created: list[str]
 ) -> None:
     """Os componentes reais (Receiver a Executor) e o Zitadel."""

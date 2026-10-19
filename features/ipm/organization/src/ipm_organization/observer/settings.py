@@ -8,13 +8,13 @@ não acessa o SSOT e só **lê** o Zitadel (conta `ipm-organization-observer`, s
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from ipm_organization.common.identity import IdentitySettings
 from ipm_organization.common.settings import (
     HealthSettings,
     Section,
-    StateNatsSettings,
+    StateMessagingSettings,
     missing_variables,
 )
-from ipm_organization.common.zitadel import ZitadelSettings
 
 
 class PartitionSettings(Section):
@@ -40,8 +40,8 @@ class OrganizationObserverSettings(BaseSettings):
         extra="forbid",
     )
 
-    nats: StateNatsSettings = StateNatsSettings()
-    zitadel: ZitadelSettings = ZitadelSettings()
+    nats: StateMessagingSettings = StateMessagingSettings()
+    zitadel: IdentitySettings = IdentitySettings()
     partition: PartitionSettings = PartitionSettings()
     health: HealthSettings = HealthSettings()
     loop: LoopSettings = LoopSettings()

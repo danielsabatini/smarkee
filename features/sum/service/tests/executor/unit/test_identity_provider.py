@@ -7,8 +7,8 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from sum_service.executor.provider.zitadel import ProviderError, ZitadelGranter
-from sum_service.executor.settings import ZitadelSettings
+from sum_service.executor.provider.identity import IdentityGranter, ProviderError
+from sum_service.executor.settings import IdentitySettings
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def granter(
     key_file: Path,
     handler: Callable[[httpx.Request], httpx.Response],
     calls: list[httpx.Request] | None = None,
-) -> ZitadelGranter:
+) -> IdentityGranter:
     def route(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/oauth/v2/token":
             return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
@@ -34,13 +34,13 @@ def granter(
             calls.append(request)
         return handler(request)
 
-    settings = ZitadelSettings(
+    settings = IdentitySettings(
         key_file=str(key_file),
         base_url="http://z",
         register_organization_id="org-r",
         project_ids={"ipm": "proj-ipm"},
     )
-    return ZitadelGranter(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
+    return IdentityGranter(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
 
 
 async def test_grants_are_read_from_the_register_and_only_the_configured_projects(
@@ -74,7 +74,7 @@ async def test_creating_an_existing_authorization_is_success(key_file: Path) -> 
     )
 
 
-async def test_a_refusal_of_the_zitadel_is_a_permanent_rejection(key_file: Path) -> None:
+async def test_a_refusal_of_the_identity_provider_is_a_permanent_rejection(key_file: Path) -> None:
     with pytest.raises(ProviderError) as raised:
         await granter(key_file, lambda _request: httpx.Response(403, json={})).create_grant(
             "u-1", "proj-ipm", ["ipm.organization.get"]
@@ -87,7 +87,7 @@ async def test_removing_a_missing_authorization_is_success(key_file: Path) -> No
     await granter(key_file, lambda _request: httpx.Response(404, json=missing)).remove_grant("g-1")
 
 
-async def test_a_module_without_a_project_is_refused_without_calling_the_zitadel(
+async def test_a_module_without_a_project_is_refused_without_calling_the_identity_provider(
     key_file: Path,
 ) -> None:
     calls: list[httpx.Request] = []

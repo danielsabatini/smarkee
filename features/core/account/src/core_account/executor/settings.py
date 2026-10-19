@@ -9,16 +9,16 @@ Ordem: variável de ambiente → default. Nome da variável:
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from core_account.common.identity import IdentitySettings as CommonIdentitySettings
 from core_account.common.settings import (
     HealthSettings,
-    NatsSettings,
+    MessagingSettings,
     Section,
     missing_variables,
 )
-from core_account.common.zitadel import ZitadelSettings as CommonZitadelSettings
 
 
-class ZitadelSettings(CommonZitadelSettings):
+class IdentitySettings(CommonIdentitySettings):
     """Zitadel do Executor, com a conta de serviço `core-account-executor`.
 
     Papéis dela: `ORG_USER_CREATOR` na `register` (cria e remove usuários, sem conceder roles) e
@@ -42,7 +42,7 @@ class ZitadelSettings(CommonZitadelSettings):
 
 class PartitionSettings(Section):
     count: int = 4
-    """Partições do Stream `ACTION` (bootstrap do broker): um consumer e um laço por partição."""
+    """Partições do Stream `ACTION` (bootstrap do messaging): um consumer e um laço por partição."""
 
 
 class AccountExecutorSettings(BaseSettings):
@@ -53,8 +53,8 @@ class AccountExecutorSettings(BaseSettings):
         extra="forbid",
     )
 
-    nats: NatsSettings = NatsSettings()
-    zitadel: ZitadelSettings = ZitadelSettings()
+    nats: MessagingSettings = MessagingSettings()
+    zitadel: IdentitySettings = IdentitySettings()
     partition: PartitionSettings = PartitionSettings()
     health: HealthSettings = HealthSettings()
 

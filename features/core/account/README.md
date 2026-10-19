@@ -91,10 +91,10 @@ Publica `completed` ou `failed {reason, retryable}`. O retry é do Reconciler. C
 src/core_account/
   common/      o que é igual em todos os papéis:
                  settings.py    seções de configuração (NATS, banco, saúde) e missing_variables
-                 messaging.py   conexão NATS, JetStreamPublisher, consume (laço de pull), StateConsumer
+                 messaging.py   conexão NATS, StreamPublisher, consume (laço de pull), StateConsumer
                  lifecycle.py   start_role, sinais e supervisão das tarefas
                  database.py    conexão e pool do SSOT
-                 zitadel.py     configuração e token da conta de serviço (Observer e Executor)
+                 identity.py     configuração e token da conta de serviço (Observer e Executor)
                  ports.py       PublishError e Publisher
                  resource.py    módulo, tipo e versão do contrato desta feature
                  contracts/     modelos gerados, base e leitura do envelope
@@ -287,8 +287,8 @@ Etapas de implantação (executam e terminam): `core-account-migrate` (migraçõ
 Variáveis de ambiente `CORE_ACCOUNT_<PAPEL>_<SEÇÃO>_<CAMPO>` (decisão 0016), sem arquivo de configuração. Cada projeto documenta as suas no `README.md` e em `settings.py`. Obrigatórias: senha do NATS (todos), senhas dos papéis do banco (Receiver, Manager, Publisher), `AUTH_AUDIENCE` (Receiver) e os IDs no Zitadel: a organização `register` (Observer e Executor) e os projetos de roles dos módulos (`PROJECT_IDS`, só no Executor).
 
 ```bash
-# 1. Plataforma (banco, broker, identidade, gateway, e-mail): infrastructure/dev
-cd infrastructure/dev && docker compose up -d && docker compose up -d --wait broker database gateway identity identity-login mail
+# 1. Plataforma (banco, messaging, identidade, gateway, e-mail): infrastructure/dev
+cd infrastructure/dev && docker compose up -d && docker compose up -d --wait messaging database gateway identity identity-login mail
 
 # 2. Os componentes da Account
 cd features/core/account && cp -n .env.example .env   # preencha os valores vazios
@@ -311,7 +311,7 @@ Os e-mails do Zitadel de dev são capturados pelo Mailpit (http://localhost:8025
 - **Retomada de `Failed`:** a Account não tem `update`; falta definir a intervenção explícita.
 - **Remoção com dependentes:** a ordem de remoção entre recursos dependentes (um usuário dono de Organizations) não está definida.
 - **Quarentena e `ObservationStale`:** mensagens esgotadas não têm quarentena, e a condition `ObservationStale` ainda não é registrada pelo Manager.
-- **Executor:** os consumers de `ACTION` usam `max_ack_pending = 1` sem `pinned_client` (a validar no servidor, `docs/NATS.md` §7.5). O número de partições (4) é fixado no bootstrap do broker.
+- **Executor:** os consumers de `ACTION` usam `max_ack_pending = 1` sem `pinned_client` (a validar no servidor, `docs/NATS.md` §7.5). O número de partições (4) é fixado no bootstrap do messaging.
 - **Migrações:** sem controle de versão (obrigatório antes de stg e prd).
 - **Observer:** em dev, uma só partição (`0/1`, aplicada na aplicação por `hash(resourceId) mod count`); com mais réplicas, defina `CORE_ACCOUNT_OBSERVER_PARTITION_INDEX` e `CORE_ACCOUNT_OBSERVER_PARTITION_COUNT` por réplica (por exemplo, `StatefulSet` no Kubernetes).
 - **Identidades no NATS em dev:** os componentes se conectam com um único usuário (`smarkee`) e a senha da plataforma; o nome de conexão é o `core-account-<papel>`. As identidades e permissões por papel (`docs/NATS.md` §18 e §26) são o alvo para stg e prd.

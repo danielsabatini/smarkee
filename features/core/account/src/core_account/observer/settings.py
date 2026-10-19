@@ -8,16 +8,16 @@ não acessa o SSOT e só **lê** o Zitadel (conta de serviço `core-account-obse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from core_account.common.identity import IdentitySettings as CommonIdentitySettings
 from core_account.common.settings import (
     HealthSettings,
     Section,
-    StateNatsSettings,
+    StateMessagingSettings,
     missing_variables,
 )
-from core_account.common.zitadel import ZitadelSettings as CommonZitadelSettings
 
 
-class ZitadelSettings(CommonZitadelSettings):
+class IdentitySettings(CommonIdentitySettings):
     """Zitadel do Observer, com a conta de serviço `core-account-observer` (somente leitura)."""
 
     register_organization_id: str | None = None
@@ -47,8 +47,8 @@ class AccountObserverSettings(BaseSettings):
         extra="forbid",
     )
 
-    nats: StateNatsSettings = StateNatsSettings()
-    zitadel: ZitadelSettings = ZitadelSettings()
+    nats: StateMessagingSettings = StateMessagingSettings()
+    zitadel: IdentitySettings = IdentitySettings()
     partition: PartitionSettings = PartitionSettings()
     health: HealthSettings = HealthSettings()
     loop: LoopSettings = LoopSettings()

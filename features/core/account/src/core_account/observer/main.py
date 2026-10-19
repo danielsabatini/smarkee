@@ -15,14 +15,14 @@ import httpx
 from core_account.common.http.health import Health, serve_health
 from core_account.common.lifecycle import start_role, stop_on_signals, supervise
 from core_account.common.messaging import (
-    JetStreamPublisher,
     StateConsumer,
+    StreamPublisher,
     connect,
-    jetstream_of,
     new_instance_name,
+    stream_of,
 )
 from core_account.observer.engine.observer import Observer, periodic_observation
-from core_account.observer.provider.zitadel import ZitadelReader
+from core_account.observer.provider.identity import IdentityReader
 from core_account.observer.settings import AccountObserverSettings, missing_required
 from core_account.observer.transport.streams import STREAMS
 
@@ -32,12 +32,12 @@ logger = logging.getLogger(__name__)
 async def run(settings: AccountObserverSettings) -> int:
     stop = stop_on_signals()
     async with httpx.AsyncClient(timeout=settings.zitadel.timeout_seconds) as http:
-        nats_client = await connect(settings.nats, name="core-account-observer")
+        messaging_client = await connect(settings.nats, name="core-account-observer")
         health = Health()
-        health.add_check("nats", lambda: nats_client.is_connected)
-        jetstream = jetstream_of(nats_client)
+        health.add_check("nats", lambda: messaging_client.is_connected)
+        jetstream = stream_of(messaging_client)
         observer = Observer(
-            ZitadelReader(settings.zitadel, http), JetStreamPublisher(jetstream), settings
+            IdentityReader(settings.zitadel, http), StreamPublisher(jetstream), settings
         )
         instance = new_instance_name()
         tasks = {
@@ -68,7 +68,7 @@ async def run(settings: AccountObserverSettings) -> int:
             },
         )
         exit_code = await supervise(tasks, stop)
-        await nats_client.drain()
+        await messaging_client.drain()
     return exit_code
 
 

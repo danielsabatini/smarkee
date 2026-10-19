@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from sum_service.executor.engine.executor import Executor, PublishError, TransientFailureError
-from sum_service.executor.provider.zitadel import Grant, ProviderError
+from sum_service.executor.provider.identity import Grant, ProviderError
 
 OWNER = "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e"
 RID = "0199c8b0-2d4e-7f10-8a3b-6c7d8e9f0a1b"

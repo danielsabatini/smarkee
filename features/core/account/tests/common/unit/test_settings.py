@@ -6,8 +6,8 @@ from pydantic import ValidationError
 from core_account.common.settings import (
     DatabaseSettings,
     HealthSettings,
-    NatsSettings,
-    StateNatsSettings,
+    MessagingSettings,
+    StateMessagingSettings,
     missing_variables,
 )
 
@@ -28,12 +28,12 @@ def test_the_database_login_role_has_no_default_so_each_role_must_name_its_own()
 
 
 def test_sections_reject_unknown_fields() -> None:
-    for section in (NatsSettings, HealthSettings, StateNatsSettings):
+    for section in (MessagingSettings, HealthSettings, StateMessagingSettings):
         with pytest.raises(ValidationError):
             section(unknown="x")  # pyright: ignore[reportCallIssue]
 
 
-def test_defaults_have_no_secrets_and_the_state_nats_adds_the_consumer_inactivity() -> None:
-    assert NatsSettings().password is None
-    assert StateNatsSettings().consumer_inactive_threshold_seconds == 300
+def test_defaults_have_no_secrets_and_the_state_messaging_adds_the_consumer_inactivity() -> None:
+    assert MessagingSettings().password is None
+    assert StateMessagingSettings().consumer_inactive_threshold_seconds == 300
     assert HealthSettings().port == 8000

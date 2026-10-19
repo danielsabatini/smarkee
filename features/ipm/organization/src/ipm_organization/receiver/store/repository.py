@@ -21,7 +21,7 @@ OPERATION_COLUMNS = (
 )
 
 
-class PostgresRepository:
+class SsotRepository:
     """Leitura das views do tipo, com o papel `ipm_organization.receiver`."""
 
     def __init__(self, pool: AsyncConnectionPool[Any]) -> None:

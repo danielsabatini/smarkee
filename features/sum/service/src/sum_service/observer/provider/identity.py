@@ -12,9 +12,9 @@ from typing import Any, cast
 
 import httpx
 
-from sum_service.common.zitadel import ServiceAccountToken, TokenError
+from sum_service.common.identity import ServiceAccountToken, TokenError
 from sum_service.observer.domain.authorization import Authorization, ProviderError
-from sum_service.observer.settings import ZitadelSettings
+from sum_service.observer.settings import IdentitySettings
 
 AUTHORIZATION_SERVICE = "/zitadel.authorization.v2.AuthorizationService"
 NOT_FOUND_CODE = 5
@@ -22,10 +22,10 @@ HTTP_NOT_FOUND = 404
 HTTP_BAD_REQUEST = 400
 
 
-class ZitadelReader:
+class IdentityReader:
     def __init__(
         self,
-        settings: ZitadelSettings,
+        settings: IdentitySettings,
         client: httpx.AsyncClient,
         *,
         clock: Callable[[], float] = time.time,

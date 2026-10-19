@@ -11,7 +11,7 @@ import logging
 from ipm_organization.common.database import open_pool
 from ipm_organization.common.http.health import Health, serve_health
 from ipm_organization.common.lifecycle import start_role, stop_on_signals, supervise
-from ipm_organization.common.messaging import connect, jetstream_of
+from ipm_organization.common.messaging import connect, stream_of
 from ipm_organization.manager.domain.kind import ORGANIZATION
 from ipm_organization.manager.handlers.observed import ObservedHandler
 from ipm_organization.manager.handlers.requested import RequestedHandler
@@ -29,11 +29,11 @@ logger = logging.getLogger(__name__)
 async def run(settings: OrganizationManagerSettings) -> int:
     stop = stop_on_signals()
     health = Health()
-    nats_client = await connect(settings.nats, name="ipm-organization-manager")
+    messaging_client = await connect(settings.nats, name="ipm-organization-manager")
     pool = await open_pool(settings.database)
-    jetstream = jetstream_of(nats_client)
+    jetstream = stream_of(messaging_client)
     organization = ORGANIZATION
-    health.add_check("nats", lambda: nats_client.is_connected)
+    health.add_check("nats", lambda: messaging_client.is_connected)
     consumers = {
         "requested": RequestedConsumer(
             jetstream, pool, organization, handler=RequestedHandler(), on_cycle=health.beat
@@ -54,7 +54,7 @@ async def run(settings: OrganizationManagerSettings) -> int:
     health.mark_started()
     logger.info("organization manager started")
     exit_code = await supervise(tasks, stop)
-    await nats_client.drain()
+    await messaging_client.drain()
     await pool.close()
     return exit_code
 

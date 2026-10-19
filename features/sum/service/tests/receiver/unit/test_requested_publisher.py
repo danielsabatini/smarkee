@@ -7,10 +7,10 @@ import pytest
 from nats.js import JetStreamContext
 
 from sum_service.receiver.domain.errors import ApiError
-from sum_service.receiver.transport.nats import RequestedPublisher
+from sum_service.receiver.transport.messaging import RequestedPublisher
 
 
-class FakeJetStream:
+class FakeStream:
     def __init__(self, error: Exception | None = None) -> None:
         self.error = error
         self.published: list[tuple[str, bytes, dict[str, Any]]] = []
@@ -22,7 +22,7 @@ class FakeJetStream:
 
 
 async def test_the_request_is_published_with_the_operation_id_as_the_message_id() -> None:
-    jetstream = FakeJetStream()
+    jetstream = FakeStream()
     await RequestedPublisher(cast(JetStreamContext, jetstream)).publish(
         "receiver.requested.sum.service.r-1.create", b"{}", message_id="op-1"
     )
@@ -33,7 +33,7 @@ async def test_the_request_is_published_with_the_operation_id_as_the_message_id(
 
 @pytest.mark.parametrize("error", [TimeoutError(), OSError(), nats.errors.NoServersError()])
 async def test_a_refusal_of_the_transport_becomes_a_retryable_503(error: Exception) -> None:
-    publisher = RequestedPublisher(cast(JetStreamContext, FakeJetStream(error)))
+    publisher = RequestedPublisher(cast(JetStreamContext, FakeStream(error)))
     with pytest.raises(ApiError) as raised:
         await publisher.publish("s", b"{}", message_id="op-1")
     assert raised.value.status == 503

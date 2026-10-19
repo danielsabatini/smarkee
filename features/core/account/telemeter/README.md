@@ -14,7 +14,7 @@ Ele **não é um dos seis papéis do loop** (Receiver, Manager, Publisher, Recon
 
 - **Não lê logs de contêineres** nem usa o socket do Docker: isso é do `telemetry-agent`. Por isso roda **sem privilégios**.
 - **Não roteia**: quem decide o destino de cada sinal é o `telemetry-router`.
-- **Não recebe telemetria de infra** (banco, broker, Zitadel, gateway): ela fica no `platform-telemeter`, sem dono.
+- **Não recebe telemetria de infra** (banco, messaging, Zitadel, gateway): ela fica no `platform-telemeter`, sem dono.
 - **Não é auditoria.** A telemetria pode perder dado (a fila descarta quando cheia, a rotação apaga em cerca de 1 dia). A auditoria é outro produto, alimentado pelos fatos de negócio duráveis.
 - **Não separa clientes.** "Por feature" não é "por cliente": a separação por dono é o contexto de negócio dos logs (`user.id`, `smarkee.owner.id`, decisão 0061).
 

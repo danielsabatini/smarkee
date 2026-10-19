@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from sum_service.common.settings import DatabaseSettings as CommonDatabaseSettings
 from sum_service.common.settings import (
-    NatsSettings,
+    MessagingSettings,
     Section,
     missing_variables,
 )
@@ -52,7 +52,7 @@ class SumServiceReceiverSettings(BaseSettings):
     )
 
     database: DatabaseSettings = DatabaseSettings()
-    nats: NatsSettings = NatsSettings()
+    nats: MessagingSettings = MessagingSettings()
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
     peers: PeersSettings = PeersSettings()

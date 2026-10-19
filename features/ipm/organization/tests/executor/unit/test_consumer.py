@@ -10,8 +10,8 @@ from nats.js import JetStreamContext
 
 from ipm_organization.common.ports import PublishError
 from ipm_organization.executor.engine.executor import Disposition, Executor
-from ipm_organization.executor.transport import nats as executor_nats
-from ipm_organization.executor.transport.nats import ActionConsumer
+from ipm_organization.executor.transport import messaging as executor_messaging
+from ipm_organization.executor.transport.messaging import ActionConsumer
 
 
 @dataclass
@@ -54,9 +54,12 @@ async def settle(outcome: Disposition | Exception) -> list[str]:
     [
         (Disposition.ACK, ["ack"]),
         (Disposition.TERM, ["term"]),
-        (PublishError("TimeoutError"), [f"nak:{executor_nats.REDELIVERY_DELAY_SECONDS}"]),
-        (nats.errors.ConnectionClosedError(), [f"nak:{executor_nats.REDELIVERY_DELAY_SECONDS}"]),
-        (OSError(), [f"nak:{executor_nats.REDELIVERY_DELAY_SECONDS}"]),
+        (PublishError("TimeoutError"), [f"nak:{executor_messaging.REDELIVERY_DELAY_SECONDS}"]),
+        (
+            nats.errors.ConnectionClosedError(),
+            [f"nak:{executor_messaging.REDELIVERY_DELAY_SECONDS}"],
+        ),
+        (OSError(), [f"nak:{executor_messaging.REDELIVERY_DELAY_SECONDS}"]),
     ],
 )
 async def test_the_message_is_acked_terminated_or_returned_to_the_queue(

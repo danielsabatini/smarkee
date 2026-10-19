@@ -5,7 +5,7 @@ Executor de `sum.service` (`sum-service-executor`), um dos seis papéis da image
 
 ## O que faz
 
-- `provider/zitadel.py`: o único cliente de escrita do Zitadel do SUM. Autentica com a conta de serviço
+- `provider/identity.py`: o único cliente de escrita do Zitadel do SUM. Autentica com a conta de serviço
   por assertion JWT e usa a API v2 de autorizações (decisão 0029). Só conhece os projetos configurados em
   `SUM_SERVICE_EXECUTOR_ZITADEL_PROJECT_IDS` (hoje `ipm`).
 - `actions/service_roles.py`: `enable` (garante as roles, sem apagar as outras) e `disable` (tira só as
@@ -46,7 +46,7 @@ No ar no dev (Compose), no ciclo de ligar e desligar e com o Executor parado dur
 `SUM_SERVICE_EXECUTOR_<SEÇÃO>_<CAMPO>`. Obrigatórias: `NATS_PASSWORD`, `ZITADEL_REGISTER_ORGANIZATION_ID`,
 `ZITADEL_PROJECT_IDS` e `CATALOG_ROLES`. A chave da conta `sum-service-executor` é montada do volume `identity-bootstrap`
 (`/run/secrets/zitadel-key.json`); a rotação está em `infrastructure/dev/README.md`. `PARTITION_COUNT` (padrão 4) é o número
-de partições do `ACTION`, definido no bootstrap do broker.
+de partições do `ACTION`, definido no bootstrap do messaging.
 
 ## Testes
 

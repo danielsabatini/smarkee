@@ -8,7 +8,7 @@ autorização fica sem roles, ela é removida. Repetir qualquer um dos dois não
 from collections.abc import Iterable
 from typing import Protocol
 
-from sum_service.executor.provider.zitadel import Grant
+from sum_service.executor.provider.identity import Grant
 
 
 class Granter(Protocol):

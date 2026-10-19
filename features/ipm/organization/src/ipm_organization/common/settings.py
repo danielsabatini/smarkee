@@ -17,13 +17,13 @@ class Section(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class NatsSettings(Section):
-    url: str = "nats://broker.smarkee.internal:4222"
+class MessagingSettings(Section):
+    url: str = "nats://messaging.smarkee.internal:4222"
     user: str = "smarkee"
     password: SecretStr | None = None
 
 
-class StateNatsSettings(NatsSettings):
+class StateMessagingSettings(MessagingSettings):
     """NATS dos papéis com estado em memória e um consumer por instância (`NATS.md` §7.4)."""
 
     consumer_inactive_threshold_seconds: int = 300

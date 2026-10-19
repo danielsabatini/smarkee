@@ -1,6 +1,6 @@
 """Mapeamento do Zitadel para `observed`: a leitura falha vira `unknown`, nunca `absent`."""
 
-from core_account.observer.domain.identity import ProviderError, ZitadelUser
+from core_account.observer.domain.identity import IdentityUser, ProviderError
 from core_account.observer.domain.observation import account_state, observe
 
 ROLES = {"ipm.organization.create", "ipm.organization.get", "core.account.get"}
@@ -9,7 +9,7 @@ ROLES = {"ipm.organization.create", "ipm.organization.get", "core.account.get"}
 class FakeReader:
     def __init__(
         self,
-        user: ZitadelUser | None,
+        user: IdentityUser | None,
         roles: set[str] | None = None,
         error: ProviderError | None = None,
         roles_error: ProviderError | None = None,
@@ -17,7 +17,7 @@ class FakeReader:
         self._user, self._roles = user, roles or set()
         self._error, self._roles_error = error, roles_error
 
-    async def get_user(self, user_id: str) -> ZitadelUser | None:
+    async def get_user(self, user_id: str) -> IdentityUser | None:
         if self._error:
             raise self._error
         return self._user
@@ -28,8 +28,8 @@ class FakeReader:
         return self._roles
 
 
-def active(*, password: bool = True, verified: bool = True) -> ZitadelUser:
-    return ZitadelUser("USER_STATE_ACTIVE", verified, password)
+def active(*, password: bool = True, verified: bool = True) -> IdentityUser:
+    return IdentityUser("USER_STATE_ACTIVE", verified, password)
 
 
 async def test_absent_user() -> None:
@@ -78,7 +78,7 @@ async def test_read_failures_are_unknown() -> None:
 
 
 def test_state_mapping() -> None:
-    assert account_state(ZitadelUser("USER_STATE_INACTIVE", True, True)) == "inactive"
-    assert account_state(ZitadelUser("USER_STATE_LOCKED", True, True)) == "locked"
-    assert account_state(ZitadelUser("USER_STATE_ACTIVE", True, False)) == "initial"
-    assert account_state(ZitadelUser("USER_STATE_DELETED", True, True)) == "inactive"
+    assert account_state(IdentityUser("USER_STATE_INACTIVE", True, True)) == "inactive"
+    assert account_state(IdentityUser("USER_STATE_LOCKED", True, True)) == "locked"
+    assert account_state(IdentityUser("USER_STATE_ACTIVE", True, False)) == "initial"
+    assert account_state(IdentityUser("USER_STATE_DELETED", True, True)) == "inactive"

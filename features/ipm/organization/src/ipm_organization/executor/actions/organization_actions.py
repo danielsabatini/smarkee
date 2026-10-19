@@ -10,11 +10,11 @@ from collections.abc import Mapping
 from typing import Any, Protocol
 
 from ipm_organization.executor.domain.errors import ActionFailedError
-from ipm_organization.executor.domain.identity import ZitadelOrganization
+from ipm_organization.executor.domain.identity import IdentityOrganization
 
 
 class Writer(Protocol):
-    async def get_organization(self, organization_id: str) -> ZitadelOrganization | None: ...
+    async def get_organization(self, organization_id: str) -> IdentityOrganization | None: ...
 
     async def create_organization(self, organization_id: str, *, name: str) -> bool: ...
 
@@ -88,7 +88,7 @@ async def _ensure_access(
     desired: Mapping[str, Any],
     writer: Writer,
     *,
-    known: ZitadelOrganization | None = None,
+    known: IdentityOrganization | None = None,
 ) -> None:
     """Deixa a organização ativa (`granted`) ou desativada (`revoked`), só se for preciso."""
     organization = known or await writer.get_organization(organization_id)

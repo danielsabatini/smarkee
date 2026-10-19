@@ -8,8 +8,8 @@ include:
     env_file: gateway/.env
   - path: database/compose.yaml
     env_file: database/.env
-  - path: broker/compose.yaml
-    env_file: broker/.env
+  - path: messaging/compose.yaml
+    env_file: messaging/.env
   - path: identity/compose.yaml
     env_file: identity/.env
   - path: mail/compose.yaml

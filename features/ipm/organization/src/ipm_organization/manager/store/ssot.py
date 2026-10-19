@@ -25,7 +25,7 @@ _ROW_COLUMNS = (
 )
 
 
-class PostgresStore:
+class SsotStore:
     """Gravações do Manager sobre uma conexão `autocommit` e as tabelas do tipo."""
 
     def __init__(self, connection: AsyncConnection[Any], tables: Tables) -> None:

@@ -3,7 +3,7 @@
 Variáveis (sem elas, o teste é pulado): `SUM_SERVICE_PUBLISHER_TEST_URL` (papel do Publisher),
 `SUM_SERVICE_PUBLISHER_TEST_MANAGER_URL` (papel do Manager, só para gravar a linha do outbox),
 `SUM_SERVICE_PUBLISHER_TEST_MAINTENANCE_URL` (limpeza e leitura de `published_at`), e
-`SUM_SERVICE_PUBLISHER_TEST_NATS_*` para o broker. O teste usa um Stream temporário e não toca no
+`SUM_SERVICE_PUBLISHER_TEST_NATS_*` para o messaging. O teste usa um Stream temporário e não toca no
 `DESIRED` real.
 """
 
@@ -18,9 +18,9 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from pydantic import SecretStr
 
-from sum_service.common.messaging import JetStreamPublisher, connect, jetstream_of
+from sum_service.common.messaging import StreamPublisher, connect, stream_of
 from sum_service.common.ports import PublishError
-from sum_service.common.settings import NatsSettings
+from sum_service.common.settings import MessagingSettings
 from sum_service.publisher.outbox.publication import publish_pending
 
 REQUIRED = (
@@ -149,16 +149,16 @@ async def test_a_valid_message_is_published_once_on_a_temporary_stream_and_marke
     user = os.environ.get("SUM_SERVICE_PUBLISHER_TEST_NATS_USER")
     password = os.environ.get("SUM_SERVICE_PUBLISHER_TEST_NATS_PASSWORD")
     if not (url and user and password):
-        pytest.skip("broker de dev não configurado para o teste")
+        pytest.skip("messaging de dev não configurado para o teste")
     suffix = uuid.uuid4().hex[:8]
     stream, subject = f"TEST_SUM_PUBLISHER_{suffix}", f"test.sum.service.{suffix}.changed"
     resource_id, message_id = _uuid(), _uuid()
     payload = {**ENVELOPE_FIELDS, "messageId": message_id, "resourceId": resource_id}
     client = await connect(
-        NatsSettings(url=url, user=user, password=SecretStr(password)),
+        MessagingSettings(url=url, user=user, password=SecretStr(password)),
         name="sum-service-publisher-test",
     )
-    jetstream = jetstream_of(client)
+    jetstream = stream_of(client)
     add_stream: Any = cast(Any, jetstream).add_stream
     await add_stream(name=stream, subjects=[subject])
     await _insert_outbox(subject, resource_id, message_id, payload)
@@ -166,7 +166,7 @@ async def test_a_valid_message_is_published_once_on_a_temporary_stream_and_marke
         os.environ["SUM_SERVICE_PUBLISHER_TEST_URL"], autocommit=True
     )
     try:
-        first = await publish_pending(connection, JetStreamPublisher(jetstream))
+        first = await publish_pending(connection, StreamPublisher(jetstream))
         assert first.published >= 1 and not first.failed
         assert await _published_at(resource_id) is not None
         info = await jetstream.stream_info(stream)
@@ -178,7 +178,7 @@ async def test_a_valid_message_is_published_once_on_a_temporary_stream_and_marke
             envelope["messageId"] == message_id
             and envelope["publishedBy"] == "sum-service-publisher"
         )
-        again = await publish_pending(connection, JetStreamPublisher(jetstream))
+        again = await publish_pending(connection, StreamPublisher(jetstream))
         assert again.published == 0  # já marcada
     finally:
         await connection.close()

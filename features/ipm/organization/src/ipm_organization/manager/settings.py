@@ -11,7 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from ipm_organization.common.settings import DatabaseSettings as CommonDatabaseSettings
 from ipm_organization.common.settings import (
     HealthSettings,
-    NatsSettings,
+    MessagingSettings,
     Section,
     missing_variables,
 )
@@ -37,7 +37,7 @@ class OrganizationManagerSettings(BaseSettings):
     )
 
     database: DatabaseSettings = DatabaseSettings()
-    nats: NatsSettings = NatsSettings()
+    nats: MessagingSettings = MessagingSettings()
     loop: LoopSettings = LoopSettings()
     health: HealthSettings = HealthSettings()
 

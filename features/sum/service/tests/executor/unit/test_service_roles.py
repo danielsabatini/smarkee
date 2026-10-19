@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from sum_service.executor.actions.service_roles import disable, enable
-from sum_service.executor.provider.zitadel import Grant, ProviderError
+from sum_service.executor.provider.identity import Grant, ProviderError
 
 PROJECTS = {"ipm": "proj-ipm"}
 ROLES = ["ipm.organization.get", "ipm.organization.list"]

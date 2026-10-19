@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from core_account.observer.domain.identity import ProviderError, ZitadelUser
+from core_account.observer.domain.identity import IdentityUser, ProviderError
 
 _STATE = {
     "USER_STATE_ACTIVE": "active",
@@ -14,9 +14,9 @@ _STATE = {
 
 
 class Reader(Protocol):
-    """Leitura do provedor de identidade (implementada por `ZitadelReader`)."""
+    """Leitura do provedor de identidade (implementada por `IdentityReader`)."""
 
-    async def get_user(self, user_id: str) -> ZitadelUser | None: ...
+    async def get_user(self, user_id: str) -> IdentityUser | None: ...
 
     async def granted_roles(self, user_id: str) -> set[str]: ...
 
@@ -29,7 +29,7 @@ class Observation:
     data: dict[str, Any]
 
 
-def account_state(user: ZitadelUser) -> str:
+def account_state(user: IdentityUser) -> str:
     """`initial` enquanto a senha não foi definida (a ativação não terminou)."""
     mapped = _STATE.get(user.state, "inactive")
     if mapped == "active" and not user.password_set:

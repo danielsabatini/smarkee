@@ -12,7 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sum_service.common.settings import DatabaseSettings as CommonDatabaseSettings
 from sum_service.common.settings import (
     HealthSettings,
-    NatsSettings,
+    MessagingSettings,
     Section,
     missing_variables,
 )
@@ -39,7 +39,7 @@ class SumServiceManagerSettings(BaseSettings):
     )
 
     database: DatabaseSettings = DatabaseSettings()
-    nats: NatsSettings = NatsSettings()
+    nats: MessagingSettings = MessagingSettings()
     catalog: CatalogSettings = CatalogSettings()
     health: HealthSettings = HealthSettings()
 

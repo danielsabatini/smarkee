@@ -14,7 +14,7 @@ from typing import Protocol
 import nats
 import nats.errors
 import nats.js.errors
-from nats.aio.client import Client as NatsClient
+from nats.aio.client import Client as MessagingClient
 from nats.aio.msg import Msg
 from nats.js import JetStreamContext
 from nats.js.api import AckPolicy, ConsumerConfig, DeliverPolicy
@@ -26,7 +26,7 @@ from sum_service.common.logging_config import (
     current_traceparent,
 )
 from sum_service.common.ports import PublishError
-from sum_service.common.settings import NatsSettings
+from sum_service.common.settings import MessagingSettings
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ REDELIVERY_DELAY_SECONDS = 5.0
 _PERMANENT_ERRORS = (nats.errors.MaxPayloadError, nats.js.errors.BadRequestError)
 
 
-async def connect(settings: NatsSettings, *, name: str) -> NatsClient:
+async def connect(settings: MessagingSettings, *, name: str) -> MessagingClient:
     """Conecta com a identidade do papel (`name`, por exemplo `core-account-manager`)."""
     password = settings.password.get_secret_value() if settings.password else None
     # `nats.connect` aceita opções livres; o pyright não as conhece.
@@ -47,12 +47,12 @@ async def connect(settings: NatsSettings, *, name: str) -> NatsClient:
     )
 
 
-def jetstream_of(client: NatsClient) -> JetStreamContext:
+def stream_of(client: MessagingClient) -> JetStreamContext:
     """Contexto JetStream da conexão (o pyright não conhece as opções livres do nats-py)."""
     return client.jetstream()  # pyright: ignore[reportUnknownMemberType]
 
 
-class JetStreamPublisher:
+class StreamPublisher:
     """Publica no JetStream e espera a confirmação, com deduplicação pelo `messageId`.
 
     O `traceparent` corrente, se houver, vai no header NATS de mesmo nome, sem alteração

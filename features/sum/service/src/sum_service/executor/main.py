@@ -17,13 +17,13 @@ from sum_service.common.lifecycle import (
     stop_on_signals,
     supervise,
 )
-from sum_service.common.messaging import JetStreamPublisher, connect, jetstream_of
+from sum_service.common.messaging import StreamPublisher, connect, stream_of
 from sum_service.common.service_rules import CatalogError, parse_catalog
 from sum_service.executor.engine.executor import Executor
-from sum_service.executor.provider.zitadel import ZitadelGranter
+from sum_service.executor.provider.identity import IdentityGranter
 from sum_service.executor.settings import SumServiceExecutorSettings, missing_required
 from sum_service.executor.transport.consumers import PullConsumer
-from sum_service.executor.transport.nats import DirectStateReader
+from sum_service.executor.transport.messaging import DirectStateReader
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +32,15 @@ async def run(settings: SumServiceExecutorSettings) -> int:
     stop = stop_on_signals()
     catalog = parse_catalog(settings.catalog.roles or "")
     health = Health()
-    nats_client = await connect(settings.nats, name="sum-service-executor")
-    jetstream = jetstream_of(nats_client)
-    health.add_check("nats", lambda: nats_client.is_connected)
+    messaging_client = await connect(settings.nats, name="sum-service-executor")
+    jetstream = stream_of(messaging_client)
+    health.add_check("nats", lambda: messaging_client.is_connected)
     async with httpx.AsyncClient(timeout=settings.zitadel.timeout_seconds) as client:
-        granter = ZitadelGranter(settings.zitadel, client)
+        granter = IdentityGranter(settings.zitadel, client)
         executor = Executor(
             granter,
             DirectStateReader(jetstream),
-            JetStreamPublisher(jetstream),
+            StreamPublisher(jetstream),
             catalog,
         )
 
@@ -68,7 +68,7 @@ async def run(settings: SumServiceExecutorSettings) -> int:
             extra={"smarkee.partition.count": settings.partition.count},
         )
         exit_code = await supervise(tasks, stop)
-        await nats_client.drain()
+        await messaging_client.drain()
     return exit_code
 
 

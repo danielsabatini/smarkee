@@ -26,7 +26,7 @@ from core_account.manager.handlers.observed import ObservedHandler
 from core_account.manager.handlers.ports import Store
 from core_account.manager.handlers.requested import RequestedHandler
 from core_account.manager.handlers.result import ResultHandler
-from core_account.manager.store.ssot import PostgresStore
+from core_account.manager.store.ssot import SsotStore
 from core_account.manager.store.tables import tables_of
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,7 @@ async def apply_message(
         try:
             async with pool.connection() as connection:
                 await handler.handle(
-                    PostgresStore(connection, tables_of(kind.resource_type)), kind, message
+                    SsotStore(connection, tables_of(kind.resource_type)), kind, message
                 )
             return Disposition.ACK
         except PermanentMessageError as error:

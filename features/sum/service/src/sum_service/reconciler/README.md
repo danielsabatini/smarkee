@@ -10,7 +10,7 @@ quando há divergência.
 - `engine/reconciler.py`: o motor. Recebe `desired`, `observed` e resultados (`completed` e `failed`), mantém
   o estado de cada recurso, decide e publica a `action` em `reconciler.action.sum.service.<resourceId>.<operação>`,
   com `Nats-Msg-Id` igual ao `actionId`. Reavalia os recursos periodicamente (validade e prazos dependem do tempo).
-- `transport/nats.py`: os consumers de estado da instância, a publicação da `action` e a reavaliação periódica, com jitter.
+- `transport/streams.py`: os consumers de estado da instância, a publicação da `action` e a reavaliação periódica, com jitter.
 - `main.py`: o processo. Cria um consumer por Stream (`DESIRED`, `OBSERVED` e `RESULT`) com nome único por execução,
   `DeliverLastPerSubject` e `inactive_threshold`, confirma (ACK) depois do motor e devolve à fila (`nak`) a mensagem
   que o motor não conseguiu processar. Não há manifesto de consumer: a instância cria os próprios.

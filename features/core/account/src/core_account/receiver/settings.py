@@ -10,7 +10,7 @@ Nome da variável: `CORE_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>`, por exemplo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from core_account.common.settings import DatabaseSettings as CommonDatabaseSettings
-from core_account.common.settings import NatsSettings, Section, missing_variables
+from core_account.common.settings import MessagingSettings, Section, missing_variables
 
 
 class DatabaseSettings(CommonDatabaseSettings):
@@ -61,7 +61,7 @@ class AccountReceiverSettings(BaseSettings):
     )
 
     database: DatabaseSettings = DatabaseSettings()
-    nats: NatsSettings = NatsSettings()
+    nats: MessagingSettings = MessagingSettings()
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
     peers: PeersSettings = PeersSettings()

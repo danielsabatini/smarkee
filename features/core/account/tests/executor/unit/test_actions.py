@@ -7,7 +7,7 @@ import pytest
 
 from core_account.executor.actions.account_actions import execute
 from core_account.executor.domain.errors import ActionFailedError
-from core_account.executor.domain.identity import Grant, ProviderError, ZitadelUser
+from core_account.executor.domain.identity import Grant, IdentityUser, ProviderError
 
 ROLES = frozenset({"core.account.delete", "core.account.get", "sum.ipm.get"})
 PROJECTS = {"core": "p-core", "sum": "p-sum"}
@@ -23,7 +23,7 @@ DESIRED = {
 
 @dataclass
 class FakeWriter:
-    users: dict[str, ZitadelUser] = field(default_factory=lambda: {})
+    users: dict[str, IdentityUser] = field(default_factory=lambda: {})
     grants_by_user: dict[str, list[Grant]] = field(default_factory=lambda: {})
     taken_emails: set[str] = field(default_factory=lambda: set())
     calls: list[tuple[Any, ...]] = field(default_factory=lambda: [])
@@ -33,7 +33,7 @@ class FakeWriter:
         if self.fail_on == name:
             raise ProviderError("ProviderUnavailable", retryable=True)
 
-    async def get_user(self, user_id: str) -> ZitadelUser | None:
+    async def get_user(self, user_id: str) -> IdentityUser | None:
         return self.users.get(user_id)
 
     async def create_user(
@@ -43,7 +43,7 @@ class FakeWriter:
         self.calls.append(("create_user", user_id))
         if user_id in self.users or email.lower() in self.taken_emails:
             return False
-        self.users[user_id] = ZitadelUser(email)
+        self.users[user_id] = IdentityUser(email)
         self.taken_emails.add(email.lower())
         return True
 
@@ -97,7 +97,7 @@ async def test_create_makes_the_user_without_password_and_grants_roles() -> None
 async def test_create_repeated_after_success_is_idempotent() -> None:
     writer = FakeWriter()
     await execute("create", "u-1", DESIRED, writer)
-    writer.users["u-1"] = ZitadelUser("Ana@Example.com")
+    writer.users["u-1"] = IdentityUser("Ana@Example.com")
     writer.calls.clear()
 
     await execute("create", "u-1", DESIRED, writer)
@@ -133,7 +133,7 @@ async def test_email_in_use_by_another_user_is_a_permanent_rejection() -> None:
 
 
 async def test_user_id_in_use_by_another_email_is_a_permanent_rejection() -> None:
-    writer = FakeWriter(users={"u-1": ZitadelUser("outra@example.com")})
+    writer = FakeWriter(users={"u-1": IdentityUser("outra@example.com")})
     with pytest.raises(ActionFailedError) as raised:
         await execute("create", "u-1", DESIRED, writer)
     assert raised.value.retryable is False
@@ -150,7 +150,7 @@ async def test_create_without_the_user_data_is_rejected_and_calls_nothing(missin
 
 async def test_a_partial_grant_is_completed_keeping_the_extra_roles() -> None:
     writer = FakeWriter(
-        users={"u-1": ZitadelUser("a@x.com")},
+        users={"u-1": IdentityUser("a@x.com")},
         grants_by_user={
             "u-1": [Grant("g-1", "p-core", frozenset({"core.account.get", "core.account.admin"}))]
         },
@@ -168,7 +168,7 @@ async def test_a_partial_grant_is_completed_keeping_the_extra_roles() -> None:
 
 async def test_update_revoked_removes_the_grants() -> None:
     writer = FakeWriter(
-        users={"u-1": ZitadelUser("a@x.com")},
+        users={"u-1": IdentityUser("a@x.com")},
         grants_by_user={
             "u-1": [
                 Grant("g-1", "p-core", frozenset({"core.account.get"})),
@@ -186,7 +186,7 @@ async def test_update_of_a_missing_user_is_a_permanent_rejection() -> None:
 
 
 async def test_delete_is_idempotent() -> None:
-    writer = FakeWriter(users={"u-1": ZitadelUser("a@x.com")})
+    writer = FakeWriter(users={"u-1": IdentityUser("a@x.com")})
     await execute("delete", "u-1", {"lifecycle": "absent"}, writer)
     await execute("delete", "u-1", {"lifecycle": "absent"}, writer)
     assert names(writer) == ["delete_user", "delete_user"]

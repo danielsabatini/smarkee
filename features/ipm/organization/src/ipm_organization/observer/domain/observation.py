@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from ipm_organization.observer.domain.identity import ProviderError, ZitadelOrganization
+from ipm_organization.observer.domain.identity import IdentityOrganization, ProviderError
 
 _STATE = {
     "ORGANIZATION_STATE_ACTIVE": "active",
@@ -12,9 +12,9 @@ _STATE = {
 
 
 class Reader(Protocol):
-    """Leitura do provedor de identidade (implementada por `ZitadelReader`)."""
+    """Leitura do provedor de identidade (implementada por `IdentityReader`)."""
 
-    async def get_organization(self, organization_id: str) -> ZitadelOrganization | None: ...
+    async def get_organization(self, organization_id: str) -> IdentityOrganization | None: ...
 
 
 @dataclass(frozen=True, slots=True)

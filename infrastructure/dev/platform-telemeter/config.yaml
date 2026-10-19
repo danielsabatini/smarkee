@@ -5,7 +5,7 @@
 # Saída (decisão 0053): cada sinal vai para arquivos, separado em INFRA e APP.
 #   logs    -> logs/app     logs dos componentes de features SEM telemeter próprio (contrato 0045: têm
 #                           smarkee.component.role); as features com telemeter (core.account) gravam no dele
-#              logs/infra   logs dos contêineres da plataforma (broker, database, identity, gateway...)
+#              logs/infra   logs dos contêineres da plataforma (messaging, database, identity, gateway...)
 #   métricas-> metrics/infra métricas de contêiner e de sistema (container.*, system.*, process.*, k8s.*)
 #              metrics/app  as demais (métricas de aplicação, quando os componentes passarem a emiti-las)
 #   traces  -> traces/      spans de rotas sem telemeter próprio (a infra, como a identidade, e features sem telemeter)

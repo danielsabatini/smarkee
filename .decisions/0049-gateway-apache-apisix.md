@@ -30,7 +30,7 @@ Uma PoC (2026-10-17, APISIX 3.19.0 contra o Zitadel de dev) mostrou que o plugin
 ## Consequências
 
 - **Contratos de desenvolvimento alterados:** a Admin API sai da `8001` sem autenticação para a `9180` com chave; o Kong Manager (`8002`) é substituído pelo console em `9180/ui`; o proxy HTTPS (`8443`) deixa de existir em dev; as variáveis `KONG_*` viram `APISIX_*`. O corpo do `429` agora é HTML (o contrato é o status e o `Retry-After`).
-- **Subida:** `gateway-sync` é um contêiner de inicialização; `docker compose up -d --wait` com ele nomeado sai com erro (mesma regra do broker). Use `up -d` e, depois, `up -d --wait` nos serviços de longa duração.
+- **Subida:** `gateway-sync` é um contêiner de inicialização; `docker compose up -d --wait` com ele nomeado sai com erro (mesma regra do messaging). Use `up -d` e, depois, `up -d --wait` nos serviços de longa duração.
 - **Corrida ao recriar o etcd:** logo depois de o etcd ser recriado, o APISIX leva alguns segundos para voltar a enxergá-lo e o primeiro `adc sync` falha com `503`; o `gateway-sync` tenta até 5 vezes (`restart: on-failure:5`) e convergiu na 4ª tentativa no teste.
 - **Reconciliação parcial:** o ADC cria, atualiza e **remove** serviços e as rotas de dentro deles, mas não toca em rotas soltas (sem serviço), que é como o console as cria. Elas ficam só no etcd.
 - **Banco `gateway`:** o `gateway.sql` foi removido e o backup deixou de incluir o banco `gateway`. O banco e o papel de um volume existente do PostgreSQL permanecem até serem removidos à mão (operação destrutiva, não executada).

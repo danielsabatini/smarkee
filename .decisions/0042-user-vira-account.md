@@ -10,7 +10,7 @@ O tipo do módulo `core` se chamava `user`, e o `ipm` ganharia um vínculo entre
 ## Decisão
 
 - **O tipo é `account`** (a conta da pessoa na plataforma): `core.account`, `/v1/core/accounts`, `sk account get|delete`. O cadastro continua sendo `sk register`, uma ação de topo.
-- **"User" fica só para o que é do Zitadel** (usuário, na organização `register`, que é a conta vista do provedor de identidade): `ZitadelUser`, `create_user` e `delete_user` do Executor, `userinfo`.
+- **"User" fica só para o que é do Zitadel** (usuário, na organização `register`, que é a conta vista do provedor de identidade): `IdentityUser`, `create_user` e `delete_user` do Executor, `userinfo`.
 - **O que mudou de nome**, em todo o repositório:
   - pasta e componentes: `features/core/user` → `features/core/account`; pacotes `core_account_*`; serviços, contêineres e imagens `core-account-*`; variáveis `CORE_ACCOUNT_*`;
   - contratos: `schemas/core/account`, `schemas/core.account.index.json`, os modelos (`Account*`), o campo `userState` → `accountState` e `ownerUserId` → `ownerAccountId` (e `owner_user_id` → `owner_account_id`) em `ipm.organization` e `sum.service`;

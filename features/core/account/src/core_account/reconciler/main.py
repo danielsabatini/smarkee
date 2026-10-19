@@ -10,11 +10,11 @@ import logging
 from core_account.common.http.health import Health, serve_health
 from core_account.common.lifecycle import start_role, stop_on_signals, supervise
 from core_account.common.messaging import (
-    JetStreamPublisher,
     StateConsumer,
+    StreamPublisher,
     connect,
-    jetstream_of,
     new_instance_name,
+    stream_of,
 )
 from core_account.reconciler.engine.reconciler import Reconciler, periodic_reevaluation
 from core_account.reconciler.settings import AccountReconcilerSettings, missing_required
@@ -25,11 +25,11 @@ logger = logging.getLogger(__name__)
 
 async def run(settings: AccountReconcilerSettings) -> int:
     stop = stop_on_signals()
-    nats_client = await connect(settings.nats, name="core-account-reconciler")
-    jetstream = jetstream_of(nats_client)
+    messaging_client = await connect(settings.nats, name="core-account-reconciler")
+    jetstream = stream_of(messaging_client)
     health = Health()
-    health.add_check("nats", lambda: nats_client.is_connected)
-    reconciler = Reconciler(JetStreamPublisher(jetstream), settings.loop)
+    health.add_check("nats", lambda: messaging_client.is_connected)
+    reconciler = Reconciler(StreamPublisher(jetstream), settings.loop)
     instance = new_instance_name()
     tasks = {
         suffix: asyncio.create_task(
@@ -53,7 +53,7 @@ async def run(settings: AccountReconcilerSettings) -> int:
     health.mark_started()
     logger.info("account reconciler started", extra={"smarkee.instance.name": instance})
     exit_code = await supervise(tasks, stop)
-    await nats_client.drain()
+    await messaging_client.drain()
     return exit_code
 
 

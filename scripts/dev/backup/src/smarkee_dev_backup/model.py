@@ -16,7 +16,7 @@ DATABASE_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 VOLUMES = ("identity-bootstrap",)
 # Arquivos `.env` (fora do git). O `ZITADEL_MASTERKEY` deles é o que decifra o banco do Zitadel.
 ENV_FILES = (
-    "infrastructure/dev/broker/.env",
+    "infrastructure/dev/messaging/.env",
     "infrastructure/dev/database/.env",
     "infrastructure/dev/gateway/.env",
     "infrastructure/dev/identity/.env",

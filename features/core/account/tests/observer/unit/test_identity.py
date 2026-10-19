@@ -1,4 +1,4 @@
-"""Cliente de leitura do Zitadel: ausência só com 404 inequívoco; o resto é falha de leitura."""
+"""Cliente de leitura do provedor de identidade: ausência só com 404 inequívoco; o resto é falha."""
 
 import json
 from collections.abc import Callable
@@ -11,8 +11,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from core_account.observer.domain.identity import ProviderError
-from core_account.observer.provider.zitadel import ZitadelReader
-from core_account.observer.settings import ZitadelSettings
+from core_account.observer.provider.identity import IdentityReader
+from core_account.observer.settings import IdentitySettings
 
 USER_NOT_FOUND = {
     "code": 5,
@@ -34,8 +34,8 @@ def key_file(tmp_path: Path) -> Path:
     return path
 
 
-def settings(key_file: Path) -> ZitadelSettings:
-    return ZitadelSettings(
+def settings(key_file: Path) -> IdentitySettings:
+    return IdentitySettings(
         key_file=str(key_file),
         register_organization_id="org-1",
         base_url="http://z",
@@ -47,7 +47,7 @@ def reader(
     handler: Callable[[httpx.Request], httpx.Response],
     *,
     calls: list[httpx.Request] | None = None,
-) -> ZitadelReader:
+) -> IdentityReader:
     def route(request: httpx.Request) -> httpx.Response:
         if calls is not None:
             calls.append(request)
@@ -56,18 +56,18 @@ def reader(
         return handler(request)
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(route))
-    return ZitadelReader(settings(key_file), client)
+    return IdentityReader(settings(key_file), client)
 
 
 async def test_it_authenticates_with_a_jwt_assertion_and_reuses_the_token(key_file: Path) -> None:
     calls: list[httpx.Request] = []
-    zitadel = reader(
+    identity = reader(
         key_file,
         lambda r: httpx.Response(200, json={"user": {"state": "USER_STATE_ACTIVE"}}),
         calls=calls,
     )
-    await zitadel.get_user("u-1")
-    await zitadel.get_user("u-2")
+    await identity.get_user("u-1")
+    await identity.get_user("u-2")
 
     token_calls = [c for c in calls if c.url.path == "/oauth/v2/token"]
     assert len(token_calls) == 1  # token em cache
@@ -101,8 +101,8 @@ async def test_unverified_email_and_no_password(key_file: Path) -> None:
 
 
 async def test_an_unambiguous_404_means_the_user_does_not_exist(key_file: Path) -> None:
-    zitadel = reader(key_file, lambda r: httpx.Response(404, json=USER_NOT_FOUND))
-    assert await zitadel.get_user("u-1") is None
+    identity = reader(key_file, lambda r: httpx.Response(404, json=USER_NOT_FOUND))
+    assert await identity.get_user("u-1") is None
 
 
 @pytest.mark.parametrize(
@@ -133,8 +133,8 @@ async def test_network_failures_are_provider_errors(key_file: Path) -> None:
 
 
 async def test_missing_key_file_or_token_failure_is_a_provider_error(tmp_path: Path) -> None:
-    missing = ZitadelReader(
-        ZitadelSettings(key_file=str(tmp_path / "nao-existe.json")),
+    missing = IdentityReader(
+        IdentitySettings(key_file=str(tmp_path / "nao-existe.json")),
         httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200))),
     )
     with pytest.raises(ProviderError):
@@ -149,9 +149,9 @@ async def test_granted_roles_are_the_union_across_the_projects(key_file: Path) -
             {"roles": [{"key": "core.account.get"}]},
         ]
     }
-    zitadel = reader(key_file, lambda r: httpx.Response(200, json=body), calls=calls)
+    identity = reader(key_file, lambda r: httpx.Response(200, json=body), calls=calls)
 
-    assert await zitadel.granted_roles("u-1") == {"core.account.get", "core.account.delete"}
+    assert await identity.granted_roles("u-1") == {"core.account.get", "core.account.delete"}
     request = next(c for c in calls if "ListAuthorizations" in c.url.path)
     assert request.url.path == "/zitadel.authorization.v2.AuthorizationService/ListAuthorizations"
     assert request.headers["Connect-Protocol-Version"] == "1"

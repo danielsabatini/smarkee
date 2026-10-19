@@ -11,7 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from core_account.common.settings import DatabaseSettings as CommonDatabaseSettings
 from core_account.common.settings import (
     HealthSettings,
-    NatsSettings,
+    MessagingSettings,
     Section,
     missing_variables,
 )
@@ -43,7 +43,7 @@ class AccountManagerSettings(BaseSettings):
     )
 
     database: DatabaseSettings = DatabaseSettings()
-    nats: NatsSettings = NatsSettings()
+    nats: MessagingSettings = MessagingSettings()
     loop: LoopSettings = LoopSettings()
     platform: PlatformSettings = PlatformSettings()
     health: HealthSettings = HealthSettings()

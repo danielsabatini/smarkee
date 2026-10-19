@@ -22,7 +22,7 @@ from sum_service.common.service_rules import roles_of
 from sum_service.executor.actions.service_roles import Granter, disable, enable
 from sum_service.executor.domain.errors import ActionFailedError
 from sum_service.executor.domain.revalidation import revalidate
-from sum_service.executor.provider.zitadel import ProviderError
+from sum_service.executor.provider.identity import ProviderError
 
 PUBLISHED_BY = "sum-service-executor"
 

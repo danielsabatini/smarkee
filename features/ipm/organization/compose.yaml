@@ -2,8 +2,8 @@ name: ipm-organization
 
 # Componentes de ipm.organization (decisões 0015 e 0019): migração, consumers, Receiver, Manager,
 # Publisher, Reconciler, Observer e Executor.
-# A plataforma (banco, broker, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
-# e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait broker database gateway identity identity-login`,
+# A plataforma (banco, messaging, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
+# e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait messaging database gateway identity identity-login`,
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
 
 # Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7): o padrão `local` do
@@ -33,7 +33,7 @@ services:
   # Consumers duráveis de trabalho do tipo: o Manager (`requested`, `observed` e `result`) e o
   # Executor (`action`, um por partição) (docs/NATS.md §7.5 e §7.6). Os manifestos são do Manager (`consumers/`). Inexistente é criado;
   # existente com configuração idêntica não muda; configuração diferente falha de forma explícita.
-  # Exige os Streams REQUESTED, OBSERVED, RESULT e ACTION, criados pelo broker da plataforma. Os
+  # Exige os Streams REQUESTED, OBSERVED, RESULT e ACTION, criados pelo messaging da plataforma. Os
   # consumers do Executor (um por partição) são do Executor (`consumers/`).
   ipm-organization-consumer:
     build:
@@ -41,9 +41,9 @@ services:
     image: ${NATS_CLIENT_IMAGE:-smarkee-nats-client:dev}
     container_name: ipm-organization-consumer.smarkee.internal
     environment:
-      NATS_URL: nats://broker.smarkee.internal:4222
+      NATS_URL: nats://messaging.smarkee.internal:4222
       NATS_USER: ${NATS_USER:-smarkee}
-      NATS_PASSWORD: ${IPM_ORGANIZATION_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      NATS_PASSWORD: ${IPM_ORGANIZATION_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
     command:
       - sh
       - -c
@@ -101,7 +101,7 @@ services:
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
       # defaults do componente (IPM_ORGANIZATION_RECEIVER_<SEÇÃO>_<CAMPO>).
       IPM_ORGANIZATION_RECEIVER_DATABASE_PASSWORD: ${IPM_ORGANIZATION_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
-      IPM_ORGANIZATION_RECEIVER_NATS_PASSWORD: ${IPM_ORGANIZATION_RECEIVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      IPM_ORGANIZATION_RECEIVER_NATS_PASSWORD: ${IPM_ORGANIZATION_RECEIVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
       IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE: ${IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-ipm, org core)}
     depends_on:
       ipm-organization-migrate:
@@ -134,7 +134,7 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD: ${IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD:?Defina no .env}
-      IPM_ORGANIZATION_MANAGER_NATS_PASSWORD: ${IPM_ORGANIZATION_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      IPM_ORGANIZATION_MANAGER_NATS_PASSWORD: ${IPM_ORGANIZATION_MANAGER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
     depends_on:
       ipm-organization-migrate:
         condition: service_completed_successfully
@@ -158,7 +158,7 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD: ${IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
-      IPM_ORGANIZATION_PUBLISHER_NATS_PASSWORD: ${IPM_ORGANIZATION_PUBLISHER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      IPM_ORGANIZATION_PUBLISHER_NATS_PASSWORD: ${IPM_ORGANIZATION_PUBLISHER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
     depends_on:
       ipm-organization-migrate:
         condition: service_completed_successfully
@@ -179,7 +179,7 @@ services:
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      IPM_ORGANIZATION_RECONCILER_NATS_PASSWORD: ${IPM_ORGANIZATION_RECONCILER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      IPM_ORGANIZATION_RECONCILER_NATS_PASSWORD: ${IPM_ORGANIZATION_RECONCILER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
     depends_on:
       ipm-organization-consumer:
         condition: service_completed_successfully
@@ -200,7 +200,7 @@ services:
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      IPM_ORGANIZATION_OBSERVER_NATS_PASSWORD: ${IPM_ORGANIZATION_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      IPM_ORGANIZATION_OBSERVER_NATS_PASSWORD: ${IPM_ORGANIZATION_OBSERVER_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
     volumes:
       - type: volume
         source: identity-bootstrap
@@ -228,7 +228,7 @@ services:
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      IPM_ORGANIZATION_EXECUTOR_NATS_PASSWORD: ${IPM_ORGANIZATION_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de broker/.env)}
+      IPM_ORGANIZATION_EXECUTOR_NATS_PASSWORD: ${IPM_ORGANIZATION_EXECUTOR_NATS_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
     volumes:
       - type: volume
         source: identity-bootstrap

@@ -12,7 +12,7 @@ Publica `completed` ou `failed {reason, retryable}`; o retry é do Reconciler.
 
 ## Partições (decisão 0018)
 
-O Stream `ACTION` é particionado por `resourceId` (4 partições). O Executor roda um laço e um consumer por partição (`core-account-executor-action-p<N>`, `max_ack_pending=1`): uma `action` por vez em cada recurso, até 4 recursos em paralelo. `CORE_ACCOUNT_EXECUTOR_PARTITION_COUNT` deve ser igual ao do bootstrap do broker. Os manifestos estão em `consumers/`.
+O Stream `ACTION` é particionado por `resourceId` (4 partições). O Executor roda um laço e um consumer por partição (`core-account-executor-action-p<N>`, `max_ack_pending=1`): uma `action` por vez em cada recurso, até 4 recursos em paralelo. `CORE_ACCOUNT_EXECUTOR_PARTITION_COUNT` deve ser igual ao do bootstrap do messaging. Os manifestos estão em `consumers/`.
 
 ## Estrutura (decisão 0017)
 

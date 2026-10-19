@@ -27,7 +27,7 @@ from ipm_organization.manager.handlers.observed import ObservedHandler
 from ipm_organization.manager.handlers.ports import Store
 from ipm_organization.manager.handlers.requested import RequestedHandler
 from ipm_organization.manager.handlers.result import ResultHandler
-from ipm_organization.manager.store.ssot import PostgresStore
+from ipm_organization.manager.store.ssot import SsotStore
 from ipm_organization.manager.store.tables import tables_of
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ async def apply_message(
         try:
             async with pool.connection() as connection:
                 await handler.handle(
-                    PostgresStore(connection, tables_of(kind.resource_type)), kind, message
+                    SsotStore(connection, tables_of(kind.resource_type)), kind, message
                 )
             return Disposition.ACK
         except PermanentMessageError as error:

@@ -15,7 +15,7 @@ from support_receiver import DATABASE_HOST, DATABASE_PORT, connect
 
 from core_account.common.database import open_pool
 from core_account.receiver.settings import DatabaseSettings
-from core_account.receiver.store.repository import PostgresRepository
+from core_account.receiver.store.repository import SsotRepository
 
 
 @pytest_asyncio.fixture
@@ -49,12 +49,12 @@ async def cleanup(manager: psycopg.AsyncConnection[Any]) -> AsyncIterator[list[s
 
 
 @pytest_asyncio.fixture
-async def repository(manager: psycopg.AsyncConnection[Any]) -> AsyncIterator[PostgresRepository]:
+async def repository(manager: psycopg.AsyncConnection[Any]) -> AsyncIterator[SsotRepository]:
     settings = DatabaseSettings(
         host=DATABASE_HOST,
         port=int(DATABASE_PORT),
         password=SecretStr("core_account_receiver_login"),
     )
     pool = await open_pool(settings, max_size=2)
-    yield PostgresRepository(pool)
+    yield SsotRepository(pool)
     await pool.close()

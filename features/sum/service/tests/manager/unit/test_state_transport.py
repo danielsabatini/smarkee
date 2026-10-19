@@ -245,7 +245,7 @@ class FakeSubscription:
         self.unsubscribed = True
 
 
-class FakeJetStream:
+class FakeStream:
     def __init__(self, subscription: FakeSubscription) -> None:
         self.subscription = subscription
         self.bound: dict[str, Any] = {}
@@ -259,7 +259,7 @@ async def test_the_consumer_loop_binds_to_the_durable_and_settles_every_message(
     stop = asyncio.Event()
     first, second = FakeMessage(b"1"), FakeMessage(b"2")
     subscription = FakeSubscription(stop, [[first, second]])
-    jetstream = FakeJetStream(subscription)
+    jetstream = FakeStream(subscription)
 
     async def handle(data: bytes) -> Disposition:
         return Disposition.TERM if data == b"2" else Disposition.ACK

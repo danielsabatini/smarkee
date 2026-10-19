@@ -9,7 +9,7 @@ import logging
 
 from core_account.common.http.health import Health, serve_health
 from core_account.common.lifecycle import start_role, stop_on_signals, supervise
-from core_account.common.messaging import JetStreamPublisher, connect, jetstream_of
+from core_account.common.messaging import StreamPublisher, connect, stream_of
 from core_account.publisher.outbox.publication import OutboxPublisher
 from core_account.publisher.settings import AccountPublisherSettings, missing_required
 
@@ -19,11 +19,11 @@ logger = logging.getLogger(__name__)
 async def run(settings: AccountPublisherSettings) -> int:
     stop = stop_on_signals()
     health = Health()
-    nats_client = await connect(settings.nats, name="core-account-publisher")
+    messaging_client = await connect(settings.nats, name="core-account-publisher")
     publisher = OutboxPublisher(
-        settings.database, JetStreamPublisher(jetstream_of(nats_client)), on_cycle=health.beat
+        settings.database, StreamPublisher(stream_of(messaging_client)), on_cycle=health.beat
     )
-    health.add_check("nats", lambda: nats_client.is_connected)
+    health.add_check("nats", lambda: messaging_client.is_connected)
     health.add_check("publication", lambda: not publisher.blocked_by_permanent_failure)
     tasks = {
         "publisher": asyncio.create_task(publisher.run(stop)),
@@ -32,7 +32,7 @@ async def run(settings: AccountPublisherSettings) -> int:
     health.mark_started()
     logger.info("account publisher started")
     exit_code = await supervise(tasks, stop)
-    await nats_client.drain()
+    await messaging_client.drain()
     return exit_code
 
 

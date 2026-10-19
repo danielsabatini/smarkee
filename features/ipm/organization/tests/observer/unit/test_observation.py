@@ -1,24 +1,24 @@
 """Mapeamento do Zitadel para `observed`: a leitura falha vira `unknown`, nunca `absent`."""
 
-from ipm_organization.observer.domain.identity import ProviderError, ZitadelOrganization
+from ipm_organization.observer.domain.identity import IdentityOrganization, ProviderError
 from ipm_organization.observer.domain.observation import observe
 
 
 class FakeReader:
     def __init__(
-        self, organization: ZitadelOrganization | None, error: ProviderError | None = None
+        self, organization: IdentityOrganization | None, error: ProviderError | None = None
     ) -> None:
         self._organization = organization
         self._error = error
 
-    async def get_organization(self, organization_id: str) -> ZitadelOrganization | None:
+    async def get_organization(self, organization_id: str) -> IdentityOrganization | None:
         if self._error:
             raise self._error
         return self._organization
 
 
-def organization(state: str = "ORGANIZATION_STATE_ACTIVE") -> ZitadelOrganization:
-    return ZitadelOrganization("acme", state)
+def organization(state: str = "ORGANIZATION_STATE_ACTIVE") -> IdentityOrganization:
+    return IdentityOrganization("acme", state)
 
 
 async def test_absent_organization() -> None:

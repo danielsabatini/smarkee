@@ -14,7 +14,7 @@ Regras próprias da Organization, aplicadas na mesma unidade atômica: o nome n�
 src/ipm_organization/manager/
   domain/      regras da Organization, puras (política, convergência, resultado de ação)
   handlers/    uma unidade atômica por mensagem; portas do SSOT em ports.py
-  store/       único código com SQL do SSOT (PostgresStore)
+  store/       único código com SQL do SSOT (SsotStore)
   transport/   adaptadores NATS (consumers de requested, observed e resultados)
   http/        servidor de saúde (decisão 0018)
   main.py

@@ -10,7 +10,7 @@ Nome da variável: `IPM_ORGANIZATION_RECEIVER_<SEÇÃO>_<CAMPO>`, por exemplo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from ipm_organization.common.settings import DatabaseSettings as CommonDatabaseSettings
-from ipm_organization.common.settings import NatsSettings, Section, missing_variables
+from ipm_organization.common.settings import MessagingSettings, Section, missing_variables
 
 
 class DatabaseSettings(CommonDatabaseSettings):
@@ -54,7 +54,7 @@ class OrganizationReceiverSettings(BaseSettings):
     )
 
     database: DatabaseSettings = DatabaseSettings()
-    nats: NatsSettings = NatsSettings()
+    nats: MessagingSettings = MessagingSettings()
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
 

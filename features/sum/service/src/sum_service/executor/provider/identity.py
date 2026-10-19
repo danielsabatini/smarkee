@@ -17,8 +17,8 @@ from typing import Any, cast
 
 import httpx
 
-from sum_service.common.zitadel import ServiceAccountToken, TokenError
-from sum_service.executor.settings import ZitadelSettings
+from sum_service.common.identity import ServiceAccountToken, TokenError
+from sum_service.executor.settings import IdentitySettings
 
 AUTHORIZATION_SERVICE = "/zitadel.authorization.v2.AuthorizationService"
 NOT_FOUND_CODE = 5
@@ -52,10 +52,10 @@ def module_of(role: str) -> str:
     return role.split(".", 1)[0]
 
 
-class ZitadelGranter:
+class IdentityGranter:
     def __init__(
         self,
-        settings: ZitadelSettings,
+        settings: IdentitySettings,
         client: httpx.AsyncClient,
         *,
         clock: Callable[[], float] = time.time,

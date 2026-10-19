@@ -14,9 +14,9 @@ from typing import Any, cast
 
 import httpx
 
-from ipm_organization.common.zitadel import ServiceAccountToken, TokenError
-from ipm_organization.executor.domain.identity import ProviderError, ZitadelOrganization
-from ipm_organization.executor.settings import ZitadelSettings
+from ipm_organization.common.identity import ServiceAccountToken, TokenError
+from ipm_organization.executor.domain.identity import IdentityOrganization, ProviderError
+from ipm_organization.executor.settings import IdentitySettings
 
 NOT_FOUND_CODE = 5  # código gRPC NotFound
 HTTP_NOT_FOUND = 404
@@ -42,10 +42,10 @@ def _classify(status: int, text: str = "") -> ProviderError:
     return ProviderError("Rejected", retryable=False, detail=f"HTTP {status}")
 
 
-class ZitadelWriter:
+class IdentityWriter:
     def __init__(
         self,
-        settings: ZitadelSettings,
+        settings: IdentitySettings,
         client: httpx.AsyncClient,
         *,
         clock: Callable[[], float] = time.time,
@@ -58,7 +58,7 @@ class ZitadelWriter:
     # API v2 de organizações (`zitadel.org.v2.OrganizationService`, verificada na v4.19.4). O
     # `organizationId` informado vira o ID no Zitadel, então repetir a criação não duplica.
 
-    async def get_organization(self, organization_id: str) -> ZitadelOrganization | None:
+    async def get_organization(self, organization_id: str) -> IdentityOrganization | None:
         response = await self._call(
             "POST",
             f"{ORGANIZATION_SERVICE}/ListOrganizations",
@@ -68,7 +68,7 @@ class ZitadelWriter:
         found = cast("list[dict[str, Any]]", self._json(response).get("result") or [])
         for organization in found:
             if organization.get("id") == organization_id:
-                return ZitadelOrganization(
+                return IdentityOrganization(
                     name=str(organization.get("name", "")),
                     active=organization.get("state") == ACTIVE_STATE,
                 )

@@ -10,11 +10,11 @@ from collections.abc import Mapping
 from typing import Any, Protocol, cast
 
 from core_account.executor.domain.errors import ActionFailedError
-from core_account.executor.domain.identity import Grant, ZitadelUser
+from core_account.executor.domain.identity import Grant, IdentityUser
 
 
 class Writer(Protocol):
-    async def get_user(self, user_id: str) -> ZitadelUser | None: ...
+    async def get_user(self, user_id: str) -> IdentityUser | None: ...
 
     async def create_user(
         self, user_id: str, *, given_name: str, family_name: str, email: str

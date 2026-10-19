@@ -21,7 +21,7 @@ TOKEN_SAFETY_SECONDS = 60
 ASSERTION_LIFETIME_SECONDS = 300
 
 
-class ZitadelSettings(Section):
+class IdentitySettings(Section):
     base_url: str = "http://identity.smarkee.internal:8080"
     """Endereço da API do Zitadel na rede interna (não passa pelo gateway público)."""
 
@@ -51,7 +51,7 @@ class ServiceAccountToken:
 
     def __init__(
         self,
-        settings: ZitadelSettings,
+        settings: IdentitySettings,
         client: httpx.AsyncClient,
         *,
         clock: Callable[[], float] = time.time,

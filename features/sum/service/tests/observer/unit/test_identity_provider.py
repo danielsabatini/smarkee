@@ -10,8 +10,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from sum_service.observer.domain.authorization import Authorization, ProviderError
-from sum_service.observer.provider.zitadel import ZitadelReader
-from sum_service.observer.settings import ZitadelSettings
+from sum_service.observer.provider.identity import IdentityReader
+from sum_service.observer.settings import IdentitySettings
 
 USER_NOT_FOUND = {"code": 5, "message": "não encontrado", "details": [{"id": "QUERY-Dfbg2"}]}
 
@@ -31,7 +31,7 @@ def reader(
     key_file: Path,
     handler: Callable[[httpx.Request], httpx.Response],
     calls: list[httpx.Request] | None = None,
-) -> ZitadelReader:
+) -> IdentityReader:
     def route(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/oauth/v2/token":
             return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
@@ -39,29 +39,29 @@ def reader(
             calls.append(request)
         return handler(request)
 
-    settings = ZitadelSettings(
+    settings = IdentitySettings(
         key_file=str(key_file),
         base_url="http://z",
         register_organization_id="org-r",
         project_ids={"ipm": "proj-ipm"},
     )
-    return ZitadelReader(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
+    return IdentityReader(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
 
 
 async def test_an_existing_user_exists_and_the_request_carries_the_token_and_the_host(
     key_file: Path,
 ) -> None:
     calls: list[httpx.Request] = []
-    zitadel = reader(key_file, lambda _r: httpx.Response(200, json={"user": {}}), calls)
-    assert await zitadel.user_exists("u-1") is True
+    identity = reader(key_file, lambda _r: httpx.Response(200, json={"user": {}}), calls)
+    assert await identity.user_exists("u-1") is True
     assert calls[0].url.path == "/v2/users/u-1"
     assert calls[0].headers["authorization"] == "Bearer tok"
     assert calls[0].headers["host"] == "ipm-dev.smarkee.com.br:8080"
 
 
 async def test_only_an_unambiguous_404_means_the_user_is_absent(key_file: Path) -> None:
-    zitadel = reader(key_file, lambda _r: httpx.Response(404, json=USER_NOT_FOUND))
-    assert await zitadel.user_exists("u-1") is False
+    identity = reader(key_file, lambda _r: httpx.Response(404, json=USER_NOT_FOUND))
+    assert await identity.user_exists("u-1") is False
 
 
 @pytest.mark.parametrize(
@@ -78,9 +78,9 @@ async def test_only_an_unambiguous_404_means_the_user_is_absent(key_file: Path) 
 async def test_any_other_failure_is_a_read_error_never_an_absence(
     key_file: Path, response: httpx.Response
 ) -> None:
-    zitadel = reader(key_file, lambda _r: response)
+    identity = reader(key_file, lambda _r: response)
     with pytest.raises(ProviderError):
-        await zitadel.user_exists("u-1")
+        await identity.user_exists("u-1")
 
 
 async def test_a_network_error_is_a_read_error(key_file: Path) -> None:
@@ -125,6 +125,6 @@ async def test_a_malformed_authorization_response_is_a_read_error(
 
 
 async def test_a_token_failure_is_a_read_error(tmp_path: Path) -> None:
-    zitadel = reader(tmp_path / "nao-existe.json", lambda _r: httpx.Response(200, json={}))
+    identity = reader(tmp_path / "nao-existe.json", lambda _r: httpx.Response(200, json={}))
     with pytest.raises(ProviderError, match="key unavailable"):
-        await zitadel.user_exists("u-1")
+        await identity.user_exists("u-1")

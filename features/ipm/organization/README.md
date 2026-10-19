@@ -78,7 +78,7 @@ Os seis papéis são **um projeto e uma imagem** (decisão 0063), cada um rodand
 
 ```text
 src/ipm_organization/
-  common/      o que é igual em todos os papéis: settings, messaging, lifecycle, database, zitadel
+  common/      o que é igual em todos os papéis: settings, messaging, lifecycle, database, identity
                (token da conta de serviço), ports, resource (módulo, tipo e versão), contracts/
                (modelos gerados, base e envelope), logging_config, ids e http/health
   receiver/  manager/  publisher/  observer/  reconciler/  executor/    (cada um com o seu README)
@@ -98,12 +98,11 @@ src/ipm_organization/manager/
   domain/        regras puras: política da Organization, convergência da fase, resultado de ação
   handlers/      requested.py, observed.py, result.py; portas do SSOT em ports.py
   store/         ssot.py: SQL do SSOT, em transação
-  transport/     consumers.py (consumo, ACK, TERM, RETRY), nats.py
+  transport/     consumers.py (consumo, ACK, TERM, RETRY)
   http/          health.py (probes /health/*)
 src/ipm_organization/publisher/
   domain/        PublishError, PublicationResult (puros)
   outbox/        database.py (conexão dedicada), publication.py (lote, trava de sessão)
-  transport/     nats.py, publisher.py (JetStream, classifica recusa permanente)
 ```
 
 ## 3.8 Estrutura interna dos demais papéis
@@ -180,7 +179,7 @@ Os contratos estão em `schemas/ipm/organization/` (e `schemas/common/`), com o 
 Variáveis `IPM_ORGANIZATION_<COMPONENTE>_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. O `.env.example` lista as obrigatórias: a senha do NATS (todos), as senhas dos papéis do banco (Receiver, Manager, Publisher) e a audience do Receiver. As chaves das contas de serviço do Zitadel (Observer e Executor) são arquivos montados do volume `identity-bootstrap`, cada componente com a sua.
 
 ```bash
-# 1. Plataforma (banco, broker, identidade, gateway): infrastructure/dev, no ar e saudável
+# 1. Plataforma (banco, messaging, identidade, gateway): infrastructure/dev, no ar e saudável
 # 2. Os componentes da Organization
 cd features/ipm/organization && cp -n .env.example .env   # preencha os valores vazios
 docker compose up -d --build

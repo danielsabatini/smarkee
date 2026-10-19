@@ -14,8 +14,8 @@ from nats.js.api import ConsumerConfig, DeliverPolicy
 from sum_service.common import messaging
 from sum_service.common.logging_config import bind_traceparent, current_traceparent
 from sum_service.common.messaging import (
-    JetStreamPublisher,
     StateConsumer,
+    StreamPublisher,
     consume,
     message_scope,
     new_instance_name,
@@ -28,7 +28,7 @@ TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 # ---------------------------------------------------------------- publicação
 
 
-class FakeJetStream:
+class FakeStream:
     def __init__(self, error: Exception | None = None) -> None:
         self.error = error
         self.headers: list[dict[str, str]] = []
@@ -40,10 +40,10 @@ class FakeJetStream:
 
 
 async def publish_with(traceparent: str | None) -> dict[str, str]:
-    jetstream = FakeJetStream()
+    jetstream = FakeStream()
     bind_traceparent(traceparent)
     try:
-        await JetStreamPublisher(cast(JetStreamContext, jetstream)).publish(
+        await StreamPublisher(cast(JetStreamContext, jetstream)).publish(
             "s", b"{}", message_id="m-1"
         )
     finally:
@@ -71,7 +71,7 @@ async def test_without_context_only_the_message_id_is_sent() -> None:
 async def test_a_refused_publication_becomes_a_publish_error(
     error: Exception, permanent: bool
 ) -> None:
-    publisher = JetStreamPublisher(cast(JetStreamContext, FakeJetStream(error)))
+    publisher = StreamPublisher(cast(JetStreamContext, FakeStream(error)))
     with pytest.raises(PublishError) as raised:
         await publisher.publish("s", b"{}", message_id="m-1")
     assert raised.value.permanent is permanent
@@ -214,7 +214,7 @@ async def test_a_failed_fetch_is_logged_and_the_loop_goes_on(
 # ---------------------------------------------------------------- consumer de estado
 
 
-class FakeStateJetStream:
+class FakeStateStream:
     def __init__(self, subscription: FakeSubscription) -> None:
         self.subscription = subscription
         self.calls: list[tuple[str, dict[str, Any]]] = []
@@ -238,7 +238,7 @@ async def test_the_state_consumer_replays_the_last_message_per_subject_and_acks(
 ) -> None:
     stop = asyncio.Event()
     message = FakeMessage(None, b"estado")
-    jetstream = FakeStateJetStream(FakeSubscription(stop, [[message]]))
+    jetstream = FakeStateStream(FakeSubscription(stop, [[message]]))
     sink = RecordingSink()
     consumer = StateConsumer(
         cast(JetStreamContext, jetstream),
@@ -310,7 +310,7 @@ async def test_a_processing_error_returns_the_message_to_the_queue_and_keeps_the
 ) -> None:
     stop = asyncio.Event()
     failing, healthy = FakeMessage(None, b"ruim"), FakeMessage(None, b"bom")
-    jetstream = FakeStateJetStream(FakeSubscription(stop, [[failing, healthy]]))
+    jetstream = FakeStateStream(FakeSubscription(stop, [[failing, healthy]]))
     consumer = StateConsumer(
         cast(JetStreamContext, jetstream),
         FailingSink(),

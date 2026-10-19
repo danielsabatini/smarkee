@@ -1,4 +1,4 @@
-"""Cliente de escrita do Zitadel: operações idempotentes e classificação dos erros."""
+"""Cliente de escrita do provedor de identidade: operações idempotentes e erros."""
 
 import json
 from collections.abc import Callable
@@ -10,8 +10,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from core_account.executor.domain.identity import ProviderError
-from core_account.executor.provider.zitadel import ZitadelWriter
-from core_account.executor.settings import ZitadelSettings
+from core_account.executor.provider.identity import IdentityWriter
+from core_account.executor.settings import IdentitySettings
 
 NOT_FOUND = {"code": 5, "message": "x (QUERY-Dfbg2)", "details": [{"id": "QUERY-Dfbg2"}]}
 ALREADY = {"code": 9, "message": "x", "details": [{"id": "COMMAND-7yiox1isql"}]}
@@ -34,7 +34,7 @@ def writer(
     key_file: Path,
     handler: Callable[[httpx.Request], httpx.Response],
     calls: list[httpx.Request] | None = None,
-) -> ZitadelWriter:
+) -> IdentityWriter:
     def route(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/oauth/v2/token":
             return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
@@ -42,13 +42,13 @@ def writer(
             calls.append(request)
         return handler(request)
 
-    settings = ZitadelSettings(
+    settings = IdentitySettings(
         key_file=str(key_file),
         register_organization_id="org-r",
         project_ids={"core": "proj-core", "sum": "proj-sum"},
         base_url="http://z",
     )
-    return ZitadelWriter(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
+    return IdentityWriter(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
 
 
 async def test_create_user_has_no_password_and_uses_the_resource_id(key_file: Path) -> None:
@@ -101,7 +101,7 @@ async def test_network_errors_are_retryable(key_file: Path) -> None:
     assert (raised.value.reason, raised.value.retryable) == ("ProviderUnavailable", True)
 
 
-async def test_error_text_never_carries_the_zitadel_message(key_file: Path) -> None:
+async def test_error_text_never_carries_the_identity_provider_message(key_file: Path) -> None:
     secret = "ana@example.com"
     z = writer(
         key_file,
@@ -227,14 +227,14 @@ async def test_token_is_cached_and_a_missing_key_is_unauthorized(
             return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
         return httpx.Response(200, json={})
 
-    settings = ZitadelSettings(key_file=str(key_file), base_url="http://z")
-    z = ZitadelWriter(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
+    settings = IdentitySettings(key_file=str(key_file), base_url="http://z")
+    z = IdentityWriter(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
     await z.delete_user("u-1")
     await z.delete_user("u-2")
     assert len(tokens) == 1
 
-    broken = ZitadelWriter(
-        ZitadelSettings(key_file=str(tmp_path / "x.json")),
+    broken = IdentityWriter(
+        IdentitySettings(key_file=str(tmp_path / "x.json")),
         httpx.AsyncClient(transport=httpx.MockTransport(route)),
     )
     with pytest.raises(ProviderError) as raised:

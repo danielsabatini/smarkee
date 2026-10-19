@@ -1,7 +1,7 @@
 # OpenTelemetry Collector (contrib) — agente de coleta do desenvolvimento.
 #   - Métricas de contêiner ... docker_stats (container.*), só dos contêineres `*.smarkee.internal`
 #   - Logs de aplicação ........ file_log (json-file do Docker): as linhas JSON dos componentes (decisão 0045)
-#   - Logs de infra ............ file_log: os contêineres da plataforma (broker, database, identity, gateway...), que
+#   - Logs de infra ............ file_log: os contêineres da plataforma (messaging, database, identity, gateway...), que
 #                                o compose marca com a label smarkee.layer=infra (decisão 0053); só WARN ou acima
 #   - Healthchecks ............. descartados aqui (uvicorn /health/*, linha do healthcheck da Admin API do APISIX)
 #   - Destino .................. OTLP/gRPC no telemetry-router

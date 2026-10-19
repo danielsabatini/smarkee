@@ -17,7 +17,7 @@ echo "127.0.0.1 ipm-dev.smarkee.com.br api-dev.smarkee.com.br" | sudo tee -a /et
 Cada serviço lê o seu `.env` (fora do git), criado a partir do exemplo:
 
 ```bash
-for s in database broker identity gateway; do cp -n $s/.env.example $s/.env; done
+for s in database messaging identity gateway; do cp -n $s/.env.example $s/.env; done
 ```
 
 Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
@@ -27,12 +27,12 @@ Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
 | `database/.env` | `POSTGRES_PASSWORD` | Senha do administrador `postgres`: `openssl rand -hex 16` |
 | `gateway/.env` | `APISIX_ADMIN_KEY` | Chave da Admin API e do console web do gateway: `openssl rand -hex 16` |
 | `gateway/.env` | `APISIX_AUTH_AUDIENCE_CORE_ACCOUNT`, `APISIX_AUTH_AUDIENCE_IPM_ORGANIZATION`, `APISIX_AUTH_AUDIENCE_SUM_SERVICE` | Depois de provisionar o Zitadel: o ID do projeto de roles de cada módulo, o mesmo `*_AUTH_AUDIENCE` do Receiver correspondente. Vazios, o gateway rejeita todo token nessa API (falha fechada); aplique com `docker compose up -d gateway-sync` |
-| `broker/.env` | `NATS_PASSWORD` | Senha do usuário do NATS: `openssl rand -hex 16` |
+| `messaging/.env` | `NATS_PASSWORD` | Senha do usuário do NATS: `openssl rand -hex 16` |
 | `identity/.env` | `ZITADEL_MASTERKEY` | Exatamente 32 caracteres: `openssl rand -hex 16`. Não altere depois da primeira subida |
 | `identity/.env` | `ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD` | Senha inicial do administrador do Zitadel, com maiúscula, minúscula, número e símbolo |
 | `identity/.env` | `ZITADEL_SESSION_COOKIE_SECRET` | `openssl rand -hex 32` |
-| `features/core/account/.env` | `CORE_ACCOUNT_<PAPEL>_NATS_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`, `RECONCILER`, `OBSERVER`, `EXECUTOR`) | A mesma `NATS_PASSWORD` de `broker/.env` |
-| `features/ipm/organization/.env` | `IPM_ORGANIZATION_<PAPEL>_NATS_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`) | A mesma `NATS_PASSWORD` de `broker/.env` |
+| `features/core/account/.env` | `CORE_ACCOUNT_<PAPEL>_NATS_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`, `RECONCILER`, `OBSERVER`, `EXECUTOR`) | A mesma `NATS_PASSWORD` de `messaging/.env` |
+| `features/ipm/organization/.env` | `IPM_ORGANIZATION_<PAPEL>_NATS_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`) | A mesma `NATS_PASSWORD` de `messaging/.env` |
 | `features/core/account/.env` e `features/ipm/organization/.env` | `CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE`, `IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE` | ID do projeto de roles do módulo no Zitadel (organização `core`): `roles-core` para a Account, `roles-ipm` para a Organization (decisão 0032) |
 
 Os componentes das features (Account e Organization) **não são subidos por este diretório**: cada feature tem o seu `compose.yaml` e o seu `.env` (`cp .env.example .env` em `features/core/account` e `features/ipm/organization`), e eles esperam a plataforma abaixo no ar. Suba a plataforma primeiro e depois cada feature (`docker compose up -d --build` na pasta dela). Se recriar o Receiver de uma feature, o `gateway` volta a resolver o endereço sozinho em poucos segundos; não é preciso reiniciá-lo.
@@ -59,7 +59,7 @@ O serviço `mail` captura o SMTP do Zitadel (`mail.smarkee.internal:1025`, só n
 
 ```bash
 docker compose up -d                                                 # sobe tudo, inclusive os contêineres de inicialização
-docker compose up -d --wait broker gateway identity identity-login mail   # espera os serviços de longa duração ficarem saudáveis
+docker compose up -d --wait messaging gateway identity identity-login mail   # espera os serviços de longa duração ficarem saudáveis
 docker compose ps                                                    # estado e saúde
 docker compose down              # derruba, preservando os volumes
 docker compose down -v           # derruba e APAGA os dados
@@ -83,7 +83,7 @@ Com a stack de pé (`docker compose ps`) e o `/etc/hosts` configurado:
 | Console web do gateway (APISIX) | http://localhost:9180/ui | `APISIX_ADMIN_KEY` de `gateway/.env` (digitada no login do console) |
 | Admin API do gateway | http://localhost:9180/apisix/admin | Cabeçalho `X-API-KEY` com a mesma chave |
 | PostgreSQL | `psql "postgresql://smarkee:smarkee@localhost:5432/smarkee"` | Ver "Credenciais" |
-| NATS | `nats://smarkee:<NATS_PASSWORD>@localhost:4222` · monitoramento em http://localhost:8222 | `NATS_PASSWORD` de `broker/.env` |
+| NATS | `nats://smarkee:<NATS_PASSWORD>@localhost:4222` · monitoramento em http://localhost:8222 | `NATS_PASSWORD` de `messaging/.env` |
 
 - Use o nome `ipm-dev.smarkee.com.br` **com a porta `:8080`** no navegador. O endereço `localhost:8080` não é roteado (o gateway roteia por host) e responde 404.
 - De um contêiner na rede `internal`, use os nomes `*.smarkee.internal` da coluna **Rede `internal`** do mapa abaixo; `localhost` ali aponta para o próprio contêiner.
@@ -112,8 +112,8 @@ Do host, use a coluna **Host**. De um container na rede `internal` (por exemplo,
 | Agente de telemetria (`telemetry-agent`) | — (sem porta no host) | `telemetry-agent.smarkee.internal` | **Lê** as métricas de contêiner (`docker_stats`) e os logs JSON dos componentes (`json-file`) e envia por OTLP/gRPC ao `telemetry-router` (`TELEMETRY_ROUTER_ENDPOINT`, porta `4317`); é o único leitor privilegiado e não conhece as features (decisões 0051 e 0062). Monta o socket do Docker e roda como root: só para dev |
 | etcd do gateway | — (não publicado) | http://gateway-etcd.smarkee.internal:2379 | Guarda a configuração do APISIX; sem autenticação (dev) |
 | PostgreSQL | `localhost:5432` | `database.smarkee.internal:5432` | Senha obrigatória por TCP (SCRAM) |
-| NATS (cliente) | `nats://localhost:4222` | `nats://broker.smarkee.internal:4222` | Usuário e senha obrigatórios |
-| NATS (monitoramento) | http://localhost:8222 | http://broker.smarkee.internal:8222 | `/healthz`, `/varz`, `/jsz`; sem autenticação |
+| NATS (cliente) | `nats://localhost:4222` | `nats://messaging.smarkee.internal:4222` | Usuário e senha obrigatórios |
+| NATS (monitoramento) | http://localhost:8222 | http://messaging.smarkee.internal:8222 | `/healthz`, `/varz`, `/jsz`; sem autenticação |
 
 O gateway trata somente HTTP (sem HTTPS em dev) e roteia por host: o Zitadel atende `ipm-dev.smarkee.com.br`, e cada novo Receiver recebe um host próprio (por exemplo, `api.localhost`). No host, aponte `127.0.0.1 ipm-dev.smarkee.com.br` em `/etc/hosts`. O NATS e o PostgreSQL são acessados diretamente, sem o gateway.
 
@@ -133,7 +133,7 @@ Valores sensíveis ficam nos arquivos `.env` (fora do git). As senhas dos bancos
 | PostgreSQL, banco `identity` | `identity` | `identity` | `database/bootstrap/identity.sql` (o Zitadel usa só este usuário, sem credencial de administrador) |
 | PostgreSQL, banco `smarkee` (módulo `core`, Account) | `core_account_manager_login`, `core_account_receiver_login`, `core_account_publisher_login`, `core_maintenance_login` | igual ao usuário | `database/bootstrap/core.sql` |
 | PostgreSQL, banco `smarkee` (módulo `ipm`, Organization) | `ipm_organization_manager_login`, `ipm_organization_receiver_login`, `ipm_organization_publisher_login`, `ipm_maintenance_login` | igual ao usuário | `database/bootstrap/ipm.sql` |
-| NATS | `NATS_USER` (`smarkee`) | `NATS_PASSWORD` | `broker/.env` (um único usuário em dev, compartilhado pelos serviços) |
+| NATS | `NATS_USER` (`smarkee`) | `NATS_PASSWORD` | `messaging/.env` (um único usuário em dev, compartilhado pelos serviços) |
 | Gateway (APISIX), Admin API e console web | — | `APISIX_ADMIN_KEY` | `gateway/.env` (chave obrigatória, sem padrão) |
 
 O usuário `smarkee` é o proprietário do SSOT, destinado a migrações (`docs/POSTGRESQL.md`). Cada serviço usa um papel de login próprio, membro de um papel de função sem login (`docs/POSTGRESQL.md` §14.2 e §14.3). Criar papéis exige `CREATEROLE`, que o `smarkee` não tem: os papéis são criados como administrador em `database/bootstrap/<módulo>.sql`, e os privilégios são concedidos pela migração do módulo.
@@ -143,7 +143,7 @@ O usuário `smarkee` é o proprietário do SSOT, destinado a migrações (`docs/
 | Destino | Do host | Da rede `internal` |
 |---|---|---|
 | SSOT (proprietário) | `postgresql://smarkee:smarkee@localhost:5432/smarkee` | `postgresql://smarkee:smarkee@database.smarkee.internal:5432/smarkee` |
-| NATS | `nats://smarkee:<NATS_PASSWORD>@localhost:4222` | `nats://smarkee:<NATS_PASSWORD>@broker.smarkee.internal:4222` |
+| NATS | `nats://smarkee:<NATS_PASSWORD>@localhost:4222` | `nats://smarkee:<NATS_PASSWORD>@messaging.smarkee.internal:4222` |
 
 Não há TLS em dev (`sslmode=disable` quando o cliente exigir o parâmetro).
 
@@ -258,10 +258,10 @@ Faça a rotação antes do aviso da suíte (90 dias antes do vencimento). A vali
 
 ## Bootstrap
 
-O estado inicial é configurado, em primeiro lugar, **por variáveis de ambiente ou pela forma mais simples que a ferramenta oferecer**. Arquivo de bootstrap é o último recurso, usado só quando não há alternativa; nesse caso, o serviço guarda o seu **estado inicial declarado** em `bootstrap/`: arquivos direto na raiz da pasta, cada um com o nome do que configura, em formato nativo da ferramenta e sem scripts. Por isso o Zitadel não tem pasta (primeira instância por `ZITADEL_FIRSTINSTANCE_*` e `ZITADEL_DEFAULTINSTANCE_*` em `identity/compose.yaml`), e database, broker e gateway têm:
+O estado inicial é configurado, em primeiro lugar, **por variáveis de ambiente ou pela forma mais simples que a ferramenta oferecer**. Arquivo de bootstrap é o último recurso, usado só quando não há alternativa; nesse caso, o serviço guarda o seu **estado inicial declarado** em `bootstrap/`: arquivos direto na raiz da pasta, cada um com o nome do que configura, em formato nativo da ferramenta e sem scripts. Por isso o Zitadel não tem pasta (primeira instância por `ZITADEL_FIRSTINSTANCE_*` e `ZITADEL_DEFAULTINSTANCE_*` em `identity/compose.yaml`), e database, messaging e gateway têm:
 
 - database: as variáveis da imagem criam um único banco e usuário; são necessários três bancos com donos próprios, a localidade do `smarkee` e as revogações de `PUBLIC`;
-- broker: o `nats-server` não declara Streams por configuração nem por variável, e serviços de runtime não podem criá-los (`docs/NATS.md`);
+- messaging: o `nats-server` não declara Streams por configuração nem por variável, e serviços de runtime não podem criá-los (`docs/NATS.md`);
 - gateway: o console web do APISIX exige a Admin API e o etcd (modo tradicional), que não aceitam um arquivo de rotas; o estado é aplicado pelo ADC a partir de `adc.yaml`. A configuração do servidor (`nats.conf`, `postgresql.conf`, `pg_hba.conf`, `pg_ident.conf`, `config.yaml` do gateway) fica fora de `bootstrap/`. Decisão em `.decisions/0005-bootstrap-declarativo-da-infraestrutura.md`.
 
 | Serviço | Fonte | Quem aplica | Quando | Efeito de alterar um arquivo depois |
@@ -269,7 +269,7 @@ O estado inicial é configurado, em primeiro lugar, **por variáveis de ambiente
 | database | `bootstrap/smarkee.sql`, `identity.sql`, `core.sql` e `ipm.sql` (papéis de serviço dos módulos `core` e `ipm`: um por componente de cada tipo, inclusive o Publisher da Account e o da Organization) | A própria imagem (`/docker-entrypoint-initdb.d`) | Só na primeira inicialização do volume | Nenhum, até recriar o volume ou aplicar manualmente (pontos de atenção) |
 | identity | Sem pasta: variáveis `ZITADEL_FIRSTINSTANCE_*` e `ZITADEL_DEFAULTINSTANCE_*` (nome da instância, marca d'água e textos de e-mail) em `identity/compose.yaml` | `identity-init` (`zitadel init zitadel`: schemas internos) → `identity` (`start-from-setup`) | Só na primeira inicialização da instância | Nenhum, até recriar a instância (`docker compose down -v`) |
 | gateway | `bootstrap/adc.yaml` (formato do ADC: serviços, rotas e plugins) | `gateway-etcd` → `gateway` → `gateway-sync` (`adc sync`) | A cada `up`, depois que o `gateway` fica saudável | Reaplica na hora, sem reiniciar; remove do gateway o que saiu do arquivo (pontos de atenção) |
-| broker | `bootstrap/<stream>.json` (Stream do JetStream). Os consumers duráveis de cada tipo são das features (`consumers/` e `<módulo>-<tipo>-consumer` no `compose.yaml` delas) | Um serviço `broker-bootstrap-<nome>` por arquivo | A cada `up`, depois que o broker fica saudável | Falha de forma explícita até a alteração deliberada (abaixo) |
+| messaging | `bootstrap/<stream>.json` (Stream do JetStream). Os consumers duráveis de cada tipo são das features (`consumers/` e `<módulo>-<tipo>-consumer` no `compose.yaml` delas) | Um serviço `messaging-bootstrap-<nome>` por arquivo | A cada `up`, depois que o messaging fica saudável | Falha de forma explícita até a alteração deliberada (abaixo) |
 | features (fora deste diretório) | `features/core/account/migrations/*.sql` (schema `core`) e `features/ipm/organization/migrations/*.sql` (schema `ipm`): tabelas, views e privilégios no SSOT. O código é do Manager de cada tipo (decisão 0015) | `core-account-migrate` e `ipm-organization-migrate`, no `compose.yaml` da feature (`psql` como o dono `smarkee`, arquivos em ordem) | A cada `up`, depois que o banco fica saudável | Aplicado no próximo `up`; as migrações são idempotentes e seguem expandir → migrar → contrair (`docs/POSTGRESQL.md` §15) |
 
 Os contêineres de inicialização equivalem a *initContainers*: cada um executa um único comando da CLI oficial e termina; o serviço seguinte declara `depends_on` com `service_completed_successfully`.
@@ -277,21 +277,21 @@ Os contêineres de inicialização equivalem a *initContainers*: cada um executa
 NATS:
 
 - Os seis Streams operacionais de `docs/NATS.md` são `REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT` e `UPDATED`. O `nats-server` não declara Streams no `nats.conf`; por isso, a criação é pela CLI oficial (imagem mínima `smarkee-nats-client:dev`, em `infrastructure/tools/nats-client`).
-- **Todo arquivo novo em `broker/bootstrap/` exige o seu serviço `broker-bootstrap-<stream>`** em `broker/compose.yaml` (âncora `x-broker-bootstrap`); sem ele, o arquivo é ignorado.
+- **Todo arquivo novo em `messaging/bootstrap/` exige o seu serviço `messaging-bootstrap-<stream>`** em `messaging/compose.yaml` (âncora `x-messaging-bootstrap`); sem ele, o arquivo é ignorado.
 - O Stream `ACTION` é **particionado** por `resourceId` (`subject_transform` em `bootstrap/action.json`, 4 partições, decisão 0018): o Subject armazenado ganha o token da partição, e cada Executor tem um consumer por partição. Mudar o número de partições exige recriar o Stream e os consumers.
 - Stream inexistente é criado; existente com a mesma configuração não muda. Com configuração diferente, o contêiner falha (`stream name already in use with a different configuration`). Para aplicar a alteração de forma deliberada:
 
   ```bash
-  NATS_PASSWORD=$(grep '^NATS_PASSWORD=' broker/.env | cut -d= -f2)
-  docker run --rm --network internal -v "$PWD/broker/bootstrap:/bootstrap:ro" smarkee-nats-client:dev \
-    nats -s nats://broker.smarkee.internal:4222 --user smarkee --password "$NATS_PASSWORD" stream edit OBSERVED --config /bootstrap/observed.json --force
+  NATS_PASSWORD=$(grep '^NATS_PASSWORD=' messaging/.env | cut -d= -f2)
+  docker run --rm --network internal -v "$PWD/messaging/bootstrap:/bootstrap:ro" smarkee-nats-client:dev \
+    nats -s nats://messaging.smarkee.internal:4222 --user smarkee --password "$NATS_PASSWORD" stream edit OBSERVED --config /bootstrap/observed.json --force
   ```
 
   Campos imutáveis (`retention`, `storage`) não podem ser editados: o Stream precisa ser removido e recriado, com perda das mensagens.
 - Os limites são valores de desenvolvimento. `DESIRED` não possui limite de tamanho nem de quantidade total: com descarte do mais antigo, um limite apagaria o estado de outros recursos.
 - Os consumers duráveis de cada tipo são das features: os manifestos ficam em `consumers/`, e o serviço `<módulo>-<tipo>-consumer` do `compose.yaml` da feature os cria (por exemplo, `core-account-manager-{requested,observed,result}` e `core-account-executor-action-p{0..3}`).
 - Valores aplicados em dev (`bootstrap/*.json`): todos os Streams em arquivo, 1 réplica, janela de deduplicação de 2 min e `max_msg_size` de 1 MiB. `REQUESTED` e `ACTION`: `workqueue`, `discard new`, 100.000 mensagens e 1 GiB. `DESIRED`: `limits`, 1 mensagem por Subject, `allow_direct`, sem limite de idade. `OBSERVED`: 1 mensagem por Subject, idade máxima de 24 h. `RESULT`: `allow_direct`, 1 GiB, idade máxima de 3 dias. `UPDATED`: 1 GiB, idade máxima de 24 h.
-- **Neste diretório, não use `docker compose up -d --wait` sem nomear serviços.** O `--wait` só aceita um contêiner de inicialização terminado quando outro serviço depende dele: ao ver um `broker-bootstrap-*` terminar, ele **interrompe a espera** com `container broker-bootstrap-<stream> exited (0)`, antes de os demais ficarem saudáveis. Use os dois comandos de "Subir e derrubar": o primeiro sobe tudo; o segundo espera somente os serviços de longa duração. Confira a inicialização com `docker compose ps -a` (todos os contêineres de inicialização com `Exited (0)`).
+- **Neste diretório, não use `docker compose up -d --wait` sem nomear serviços.** O `--wait` só aceita um contêiner de inicialização terminado quando outro serviço depende dele: ao ver um `messaging-bootstrap-*` terminar, ele **interrompe a espera** com `container messaging-bootstrap-<stream> exited (0)`, antes de os demais ficarem saudáveis. Use os dois comandos de "Subir e derrubar": o primeiro sobe tudo; o segundo espera somente os serviços de longa duração. Confira a inicialização com `docker compose ps -a` (todos os contêineres de inicialização com `Exited (0)`).
 
 Zitadel: o volume `identity-bootstrap` (`/zitadel/bootstrap` no contêiner) guarda o PAT gerado do cliente de login, que o `identity-login` usa para se autenticar na API do Zitadel, e a chave da conta de bootstrap da plataforma (`service-account-platform-bootstrap.json`). É estado de runtime, e não configuração.
 
@@ -312,7 +312,7 @@ docker exec -it database.smarkee.internal psql -U postgres            # administ
 NATS (sem a CLI `nats` no host, use a imagem mínima `smarkee-nats-client:dev` com a rede do host):
 
 ```bash
-NATS_PASSWORD=$(grep '^NATS_PASSWORD=' broker/.env | cut -d= -f2)
+NATS_PASSWORD=$(grep '^NATS_PASSWORD=' messaging/.env | cut -d= -f2)
 docker run --rm --network host smarkee-nats-client:dev nats -s nats://localhost:4222 --user smarkee --password "$NATS_PASSWORD" account info
 docker run --rm --network host smarkee-nats-client:dev nats -s nats://localhost:4222 --user smarkee --password "$NATS_PASSWORD" stream ls
 ```
@@ -353,13 +353,13 @@ docker run --rm --network internal curlimages/curl -s -H 'Host: ipm-dev.smarkee.
 - Desenvolvimento apenas: o Zitadel roda como root, não há TLS e não há arquivamento de WAL (o procedimento de recuperação do SSOT não é testável aqui).
 - O PostgreSQL registra esperas por bloqueio (`log_lock_waits`) e comandos acima de 500 ms, sem os valores dos parâmetros: `docker logs database.smarkee.internal`.
 - Traces (decisão 0050): o plugin `opentelemetry` está ligado em todas as rotas e exporta para o `telemetry-router`, que o roteia ao telemeter dono (a rota de `core/account`, ao `core-account-telemeter`; as demais, ao `platform-telemeter`), e os telemeters gravam em arquivos até haver um backend: `platform-telemeter/logs/app` e `logs/infra`, `metrics/app` e `metrics/infra`, e `traces/` (decisão 0053; o ativo é `<sinal>.jsonl`, uma linha OTLP JSON por lote; ao chegar a 10 MB é renomeado `<sinal>-<data>-size.jsonl`, e ficam 3 rotacionados, por até 1 dia; o conteúdo é ignorado pelo git). **App** é o que traz `smarkee.component.role` (logs dos componentes) e o que não é `container.*`/`system.*`/`process.*`/`k8s.*` (métricas); o resto é **infra**. O limite está em `rotation` de cada exporter `file` em `platform-telemeter/config.yaml` (e `features/core/account/telemeter/config.yaml`). No Linux, as pastas precisam ser graváveis pelo usuário 10001 (`chmod -R o+rwx`). Um registro único acima de 10 MB é rejeitado (erro no log do coletor; quem envia ainda recebe 200). Com o coletor parado o gateway registra um `[error] request failed: connection refused` por lote de spans, sem afetar as requisições. O processador `telemetry-router/gateway-semconv.yaml` ajusta os spans à semconv e redige a query; um coletor que o dispense recebe os spans fora da semconv e com a query sem redação (`http.target`). O coletor não publica portas no host: a stack de observabilidade do desenvolvedor, quando está no ar, já usa 4317 e 4318. A imagem não tem shell, por isso não há healthcheck do Compose.
-- Telemetria dos contêineres (decisão 0051): o `telemetry-agent` envia ao `telemetry-router` as métricas de CPU, memória e rede dos contêineres `*.smarkee.internal` e os logs JSON dos componentes das features (os 18 que usam o driver `json-file` e o formato da decisão 0045). Os contêineres da plataforma (`broker`, `database`, `identity`, `gateway`, `mail`) usam o driver `local` do Docker Desktop, que o `file_log` não lê: só as métricas deles entram. O agente descarta o que não é um componente da plataforma. Ele monta o socket do Docker e `/var/lib/docker/containers` e roda como root (sem capabilities), o que vale só em dev. Para ver o que chega: `tail -f infrastructure/dev/platform-telemeter/logs/app/logs.jsonl` (ou, para `core/account`, `features/core/account/telemeter/logs/logs.jsonl`). Os healthchecks são descartados no agente; os logs de infra só guardam `WARN` ou acima (política enxuta inicial) e sem as linhas de acesso do nginx. Declarar `plugins:` no `gateway/config.yaml` substitui a lista padrão do APISIX; ao atualizar a imagem, compare com a lista padrão da nova versão.
+- Telemetria dos contêineres (decisão 0051): o `telemetry-agent` envia ao `telemetry-router` as métricas de CPU, memória e rede dos contêineres `*.smarkee.internal` e os logs JSON dos componentes das features (os 18 que usam o driver `json-file` e o formato da decisão 0045). Os contêineres da plataforma (`messaging`, `database`, `identity`, `gateway`, `mail`) usam o driver `local` do Docker Desktop, que o `file_log` não lê: só as métricas deles entram. O agente descarta o que não é um componente da plataforma. Ele monta o socket do Docker e `/var/lib/docker/containers` e roda como root (sem capabilities), o que vale só em dev. Para ver o que chega: `tail -f infrastructure/dev/platform-telemeter/logs/app/logs.jsonl` (ou, para `core/account`, `features/core/account/telemeter/logs/logs.jsonl`). Os healthchecks são descartados no agente; os logs de infra só guardam `WARN` ou acima (política enxuta inicial) e sem as linhas de acesso do nginx. Declarar `plugins:` no `gateway/config.yaml` substitui a lista padrão do APISIX; ao atualizar a imagem, compare com a lista padrão da nova versão.
 - Autenticação na borda (decisão 0052): o plugin `openid-connect` valida o token nas rotas de API (`/v1/core/accounts/*` e demais métodos de `/v1/core/accounts`, `/v1/ipm/organizations*` e `/v1/sum/services*`): assinatura RS256 pelo JWKS do Zitadel, emissor, audiência do módulo (`APISIX_AUTH_AUDIENCE_*`), `exp`, `sub`, `iss` e `aud`. Continuam públicas as rotas do Zitadel e o cadastro (`POST /v1/core/accounts`). O gateway só **autentica**: as roles e o dono continuam nos Receivers, que repetem a validação do token. O `401` do gateway segue o contrato `ApiError` (`WWW-Authenticate: Bearer realm="smarkee"`, sem descrição do erro); o motivo fica no log do gateway (`OIDC introspection failed: ...`), e o `401` do próprio Receiver passa intacto.
 - O gateway busca o discovery e o JWKS no endereço do issuer (`http://ipm-dev.smarkee.com.br:8080`). Dentro da rede esse nome é um alias do próprio `gateway`, que atende a porta `8080` (além da `8000`) e encaminha ao Zitadel; mantenha o alias, a porta e `ZITADEL_EXTERNALDOMAIN`/`ZITADEL_EXTERNALPORT` iguais. Todo contêiner da rede `internal` passa a resolver `ipm-dev.smarkee.com.br` para o gateway.
 - Zitadel parado: com o gateway reiniciado a frio, as rotas autenticadas respondem `401` (falha fechada) até o discovery voltar; depois que o Zitadel volta, o gateway se recupera sozinho em cerca de 16 s (medido). O JWKS fica em cache por 1 h (`jwk_expires_in`): uma chave nova é reconhecida na hora (o `kid` desconhecido força a busca), mas uma chave retirada do JWKS ainda deve valer por até 1 h (não medido).
 - A validação é local, sem consultar o Zitadel a cada pedido: um token de usuário desativado ou com sessão encerrada vale até o `exp` (15 minutos). O gateway não verifica `nbf` (os Receivers sim).
-- Limites de recursos (decisão 0053): todo contêiner de longa duração tem `deploy.resources.limits` calibrados com o consumo medido em dev, ajustáveis por variável de ambiente (`<SERVIÇO>_CPUS` e `<SERVIÇO>_MEMORY`, por exemplo `DATABASE_MEMORY`; nas features, `<MÓDULO>_<TIPO>_COMPONENT_CPUS` e `_MEMORY`). Padrões: componentes 0,5 CPU e 256 MiB; `database` e `identity` 1,0 CPU e 512 MiB; `identity-login` 0,5 CPU e 512 MiB; `gateway` 1,0 CPU e 384 MiB; `broker` e `gateway-etcd` 0,5 CPU e 256 MiB; `mail` 0,25 CPU e 256 MiB; `telemetry-router` 0,5 CPU e 256 MiB; `platform-telemeter` e `telemetry-agent` 0,5 CPU e 384 MiB; `core-account-telemeter` 0,25 CPU e 192 MiB. Medido: pior uso de memória 36% do limite. O *throttling* de CPU que aparece nos componentes (6 períodos por 30 s) vem do healthcheck `python -c` a cada 10 s, não do trabalho do componente.
-- Logs da plataforma (decisão 0053): `broker`, `database`, `identity`, `identity-login`, `gateway`, `gateway-etcd`, `mail` e os dois coletores usam `json-file` com as labels `com.docker.compose.service` e `smarkee.layer=infra` (o agente só lê os que têm a segunda); um contêiner novo da plataforma precisa do mesmo bloco `logging` e da label para ter os logs coletados. Fora o que o agente descarta (healthchecks, `INFO` da infra), os `WARN` do Zitadel `decrypt access token` e `Usuário não pôde ser encontrado` são benignos e frequentes.
+- Limites de recursos (decisão 0053): todo contêiner de longa duração tem `deploy.resources.limits` calibrados com o consumo medido em dev, ajustáveis por variável de ambiente (`<SERVIÇO>_CPUS` e `<SERVIÇO>_MEMORY`, por exemplo `DATABASE_MEMORY`; nas features, `<MÓDULO>_<TIPO>_COMPONENT_CPUS` e `_MEMORY`). Padrões: componentes 0,5 CPU e 256 MiB; `database` e `identity` 1,0 CPU e 512 MiB; `identity-login` 0,5 CPU e 512 MiB; `gateway` 1,0 CPU e 384 MiB; `messaging` e `gateway-etcd` 0,5 CPU e 256 MiB; `mail` 0,25 CPU e 256 MiB; `telemetry-router` 0,5 CPU e 256 MiB; `platform-telemeter` e `telemetry-agent` 0,5 CPU e 384 MiB; `core-account-telemeter` 0,25 CPU e 192 MiB. Medido: pior uso de memória 36% do limite. O *throttling* de CPU que aparece nos componentes (6 períodos por 30 s) vem do healthcheck `python -c` a cada 10 s, não do trabalho do componente.
+- Logs da plataforma (decisão 0053): `messaging`, `database`, `identity`, `identity-login`, `gateway`, `gateway-etcd`, `mail` e os dois coletores usam `json-file` com as labels `com.docker.compose.service` e `smarkee.layer=infra` (o agente só lê os que têm a segunda); um contêiner novo da plataforma precisa do mesmo bloco `logging` e da label para ter os logs coletados. Fora o que o agente descarta (healthchecks, `INFO` da infra), os `WARN` do Zitadel `decrypt access token` e `Usuário não pôde ser encontrado` são benignos e frequentes.
 - A Admin API e o console web exigem a `APISIX_ADMIN_KEY`, mas o etcd não tem autenticação e a Admin API aceita conexões de toda a rede `internal`; não exponha as portas `9180` e `2379` fora de `127.0.0.1` e da rede de dev.
 - **Depois de recriar um Receiver** (o contêiner ganha outro IP), o gateway pode continuar enviando ao IP antigo até o cache de DNS dele expirar, e a requisição cai em outro contêiner (observado em 2026-10-19: `405` vindo de um serviço que só aceita `GET`). Reinicie o gateway (`docker compose restart gateway` nesta pasta) ou aguarde alguns minutos.
 - O limite de taxa do cadastro usa o IP do cliente dado pelo plugin `real-ip` (decisão 0054). Em dev, `APISIX_TRUSTED_PROXIES` fica vazio e vale o IP do par TCP (o NAT do Docker esconde o real); atrás de um balanceador (stg e prd) defina nela o IP ou o CIDR do balanceador. O `429` do plugin `limit-count` não traz `Retry-After`; a rota `core-account-register` o acrescenta com `response-rewrite` (60 s, a janela inteira).

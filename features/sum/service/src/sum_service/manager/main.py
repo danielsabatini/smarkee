@@ -16,7 +16,7 @@ from sum_service.common.lifecycle import (
     stop_on_signals,
     supervise,
 )
-from sum_service.common.messaging import connect, jetstream_of
+from sum_service.common.messaging import connect, stream_of
 from sum_service.common.service_rules import CatalogError, parse_catalog
 from sum_service.manager.handlers.requested import RequestedHandler
 from sum_service.manager.settings import SumServiceManagerSettings, missing_required
@@ -41,17 +41,17 @@ async def run(settings: SumServiceManagerSettings) -> int:
     stop = stop_on_signals()
     health = Health()
     catalog = parse_catalog(settings.catalog.roles or "")
-    nats_client = await connect(settings.nats, name="sum-service-manager")
+    messaging_client = await connect(settings.nats, name="sum-service-manager")
     pool = await open_pool(settings.database)
-    health.add_check("nats", lambda: nats_client.is_connected)
+    health.add_check("nats", lambda: messaging_client.is_connected)
     consumer = RequestedConsumer(
-        jetstream_of(nats_client),
+        stream_of(messaging_client),
         pool,
         RequestedHandler(catalog=catalog),
         durable_name=DURABLE_REQUESTED,
         on_cycle=health.beat,
     )
-    jetstream = jetstream_of(nats_client)
+    jetstream = stream_of(messaging_client)
 
     async def handle_observed(data: bytes) -> Disposition:
         return await process_observed(pool, data)
@@ -112,7 +112,7 @@ async def run(settings: SumServiceManagerSettings) -> int:
     health.mark_started()
     logger.info("sum service manager started")
     exit_code = await supervise(tasks, stop)
-    await nats_client.drain()
+    await messaging_client.drain()
     await pool.close()
     return exit_code
 

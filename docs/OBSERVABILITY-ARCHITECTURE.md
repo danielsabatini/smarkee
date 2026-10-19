@@ -59,7 +59,7 @@ O `telemeter` **não é um dos seis papéis do loop** (Receiver, Manager, Publis
 | Sinal | Origem | Chave de roteamento | Telemeter da feature | Padrão |
 |---|---|---|---|---|
 | **Logs de app** | os 18 componentes (stdout, JSON do contrato 0045) | Resource: `smarkee.module` e `smarkee.resource.type` | o da feature (`core-account-telemeter`, `ipm-organization-telemeter` ou `sum-service-telemeter`) | `platform-telemeter` |
-| **Logs de infra** | broker, banco, Zitadel, gateway, mail, coletores | não têm `smarkee.module` | — | `platform-telemeter` |
+| **Logs de infra** | messaging, banco, Zitadel, gateway, mail, coletores | não têm `smarkee.module` | — | `platform-telemeter` |
 | **Spans** | plugin `opentelemetry` do APISIX | atributo `apisix.service_name` (o ADC define um serviço por feature) | o da feature (`<módulo>-<tipo>-receiver` → `<módulo>-<tipo>-telemeter`) | `platform-telemeter` (identidade e rotas sem feature) |
 | **Métricas** | `docker_stats` do agente (`container.*`) | — | — (ainda não há métrica de app) | `platform-telemeter` |
 

@@ -11,11 +11,11 @@ import httpx
 
 from ipm_organization.common.http.health import Health, serve_health
 from ipm_organization.common.lifecycle import start_role, stop_on_signals, supervise
-from ipm_organization.common.messaging import JetStreamPublisher, connect, jetstream_of
+from ipm_organization.common.messaging import StreamPublisher, connect, stream_of
 from ipm_organization.executor.engine.executor import Executor
-from ipm_organization.executor.provider.zitadel import ZitadelWriter
+from ipm_organization.executor.provider.identity import IdentityWriter
 from ipm_organization.executor.settings import OrganizationExecutorSettings, missing_required
-from ipm_organization.executor.transport.nats import ActionConsumer, DirectStateReader
+from ipm_organization.executor.transport.messaging import ActionConsumer, DirectStateReader
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +23,15 @@ logger = logging.getLogger(__name__)
 async def run(settings: OrganizationExecutorSettings) -> int:
     stop = stop_on_signals()
     async with httpx.AsyncClient(timeout=settings.zitadel.timeout_seconds) as http:
-        nats_client = await connect(settings.nats, name="ipm-organization-executor")
-        jetstream = jetstream_of(nats_client)
+        messaging_client = await connect(settings.nats, name="ipm-organization-executor")
+        jetstream = stream_of(messaging_client)
         executor = Executor(
-            ZitadelWriter(settings.zitadel, http),
-            JetStreamPublisher(jetstream),
+            IdentityWriter(settings.zitadel, http),
+            StreamPublisher(jetstream),
             DirectStateReader(jetstream),
         )
         health = Health()
-        health.add_check("nats", lambda: nats_client.is_connected)
+        health.add_check("nats", lambda: messaging_client.is_connected)
         tasks = {
             f"action-p{partition}": asyncio.create_task(
                 ActionConsumer(jetstream, executor, partition=partition, on_cycle=health.beat).run(
@@ -44,7 +44,7 @@ async def run(settings: OrganizationExecutorSettings) -> int:
         health.mark_started()
         logger.info("organization executor started")
         exit_code = await supervise(tasks, stop)
-        await nats_client.drain()
+        await messaging_client.drain()
     return exit_code
 
 

@@ -7,7 +7,7 @@
 
 Surgiu a ideia de reunir as configurações globais (banco, NATS, Zitadel, endereços) em uma pasta na raiz (`settings/`), com pydantic e `Enum`. Medi o que existe hoje:
 
-- **8 arquivos `.env`** (e os `.env.example`), com cerca de 78 variáveis: 4 da infraestrutura (`broker`, `database`, `gateway`, `identity`), 3 das features (`core/user`, `ipm/organization`, `sum/service`) e o da CLI. Cada componente lê a sua configuração por variáveis `<PREFIXO>_<SEÇÃO>_<CAMPO>` (pydantic-settings, decisão 0017).
+- **8 arquivos `.env`** (e os `.env.example`), com cerca de 78 variáveis: 4 da infraestrutura (`messaging`, `database`, `gateway`, `identity`), 3 das features (`core/user`, `ipm/organization`, `sum/service`) e o da CLI. Cada componente lê a sua configuração por variáveis `<PREFIXO>_<SEÇÃO>_<CAMPO>` (pydantic-settings, decisão 0017).
 - **Nenhum nome de variável se repete.** Repetem-se **valores** sob nomes diferentes: os IDs dos três projetos de roles (na CLI e no `AUTH_AUDIENCE` de cada Receiver), o ID da organização `register` (User e SUM), o host do Postgres (`database`, `gateway`, `identity`) e a senha de dev do NATS (uma variável por componente, todas iguais em dev).
 - **O prejuízo real é o desvio**, e não estar em vários arquivos: ao recriar a instância de dev (`docker compose down -v`), os IDs do Zitadel mudam e cerca de cinco lugares precisam ser atualizados à mão. Já tivemos um erro por isso (o `ipm.projectId` ausente na configuração da CLI).
 

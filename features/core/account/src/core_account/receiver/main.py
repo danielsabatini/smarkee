@@ -14,12 +14,12 @@ import uvicorn
 
 from core_account.common.database import open_pool
 from core_account.common.lifecycle import start_role, stop_on_signals, supervise
-from core_account.common.messaging import JetStreamPublisher, connect, jetstream_of
+from core_account.common.messaging import StreamPublisher, connect, stream_of
 from core_account.receiver.auth.tokens import TokenVerifier
 from core_account.receiver.domain.ratelimit import SlidingWindowLimiter
 from core_account.receiver.http.app import Dependencies, create_app
 from core_account.receiver.settings import AccountReceiverSettings, missing_required
-from core_account.receiver.store.repository import PostgresRepository
+from core_account.receiver.store.repository import SsotRepository
 from core_account.receiver.transport.peers import PeerResources
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ async def _serve_until_stopped(server: _Server, stop: asyncio.Event) -> None:
 async def run(settings: AccountReceiverSettings) -> int:
     stop = stop_on_signals()
     async with httpx.AsyncClient(timeout=5.0) as http:
-        nats_client = await connect(settings.nats, name="core-account-receiver")
+        messaging_client = await connect(settings.nats, name="core-account-receiver")
         pool = await open_pool(settings.database)
         api = settings.api
         server = _Server(
@@ -57,10 +57,10 @@ async def run(settings: AccountReceiverSettings) -> int:
                     Dependencies(
                         settings=api,
                         authenticator=TokenVerifier(settings.auth, http),
-                        repository=PostgresRepository(pool),
-                        publisher=JetStreamPublisher(jetstream_of(nats_client)),
+                        repository=SsotRepository(pool),
+                        publisher=StreamPublisher(stream_of(messaging_client)),
                         resources=PeerResources(settings.peers, http),
-                        is_ready=lambda: nats_client.is_connected,
+                        is_ready=lambda: messaging_client.is_connected,
                         limiter=SlidingWindowLimiter(
                             api.anonymous_rate_limit, api.anonymous_rate_window_seconds
                         ),
@@ -75,7 +75,7 @@ async def run(settings: AccountReceiverSettings) -> int:
         tasks = {"http": asyncio.create_task(_serve_until_stopped(server, stop))}
         logger.info("account api started")
         exit_code = await supervise(tasks, stop)
-        await nats_client.drain()
+        await messaging_client.drain()
         await pool.close()
     return exit_code
 

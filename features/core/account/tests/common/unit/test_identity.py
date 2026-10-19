@@ -1,4 +1,4 @@
-"""Token da conta de serviço do Zitadel: assertion JWT, cache e falhas (decisão 0063)."""
+"""Token da conta de serviço do provedor de identidade: assertion JWT, cache e falhas."""
 
 import json
 from pathlib import Path
@@ -9,7 +9,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from core_account.common.zitadel import ServiceAccountToken, TokenError, ZitadelSettings
+from core_account.common.identity import IdentitySettings, ServiceAccountToken, TokenError
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def key_file(tmp_path: Path) -> Path:
     return path
 
 
-class Zitadel:
+class FakeIdentityProvider:
     """Endpoint de token simulado; guarda as chamadas recebidas."""
 
     def __init__(self, response: httpx.Response | None = None) -> None:
@@ -40,12 +40,12 @@ class Zitadel:
 
 
 def source(
-    key_file: Path, zitadel: Zitadel, clock: list[float] | None = None
+    key_file: Path, identity: FakeIdentityProvider, clock: list[float] | None = None
 ) -> ServiceAccountToken:
     now = clock if clock is not None else [1000.0]
     return ServiceAccountToken(
-        ZitadelSettings(key_file=str(key_file), base_url="http://z"),
-        httpx.AsyncClient(transport=httpx.MockTransport(zitadel.handler)),
+        IdentitySettings(key_file=str(key_file), base_url="http://z"),
+        httpx.AsyncClient(transport=httpx.MockTransport(identity.handler)),
         clock=lambda: now[0],
     )
 
@@ -53,10 +53,10 @@ def source(
 async def test_it_trades_a_signed_assertion_for_a_token_and_sends_the_host_header(
     key_file: Path,
 ) -> None:
-    zitadel = Zitadel()
-    assert await source(key_file, zitadel).get() == "tok"
+    identity = FakeIdentityProvider()
+    assert await source(key_file, identity).get() == "tok"
 
-    request = zitadel.requests[0]
+    request = identity.requests[0]
     assert request.url == "http://z/oauth/v2/token"
     assert request.headers["host"] == "ipm-dev.smarkee.com.br:8080"
     form = dict(item.split("=") for item in request.content.decode().split("&"))
@@ -69,16 +69,16 @@ async def test_it_trades_a_signed_assertion_for_a_token_and_sends_the_host_heade
 
 
 async def test_the_token_is_reused_until_a_minute_before_it_expires(key_file: Path) -> None:
-    zitadel = Zitadel()
+    identity = FakeIdentityProvider()
     clock = [1000.0]
-    tokens = source(key_file, zitadel, clock)
+    tokens = source(key_file, identity, clock)
     await tokens.get()
     clock[0] = 1000.0 + 3600 - 61
     await tokens.get()
-    assert len(zitadel.requests) == 1
+    assert len(identity.requests) == 1
     clock[0] = 1000.0 + 3600 - 59
     await tokens.get()
-    assert len(zitadel.requests) == 2
+    assert len(identity.requests) == 2
 
 
 @pytest.mark.parametrize("content", [None, "não é json", "{}", '{"userId": "u", "keyId": "k"}'])
@@ -88,7 +88,7 @@ async def test_an_unusable_key_file_is_a_key_error_without_leaking_its_content(
     path = tmp_path / "key.json"
     if content is not None:
         path.write_text(content)
-    tokens = source(path, Zitadel())
+    tokens = source(path, FakeIdentityProvider())
     with pytest.raises(TokenError) as raised:
         await tokens.get()
     assert raised.value.kind == "key"
@@ -108,6 +108,6 @@ async def test_a_failed_exchange_is_an_exchange_error(
     key_file: Path, response: httpx.Response
 ) -> None:
     with pytest.raises(TokenError) as raised:
-        await source(key_file, Zitadel(response)).get()
+        await source(key_file, FakeIdentityProvider(response)).get()
     assert raised.value.kind == "exchange"
     assert raised.value.detail.startswith("token: ")

@@ -7,16 +7,16 @@ Zitadel.
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from sum_service.common.identity import IdentitySettings as CommonIdentitySettings
 from sum_service.common.settings import (
     HealthSettings,
     Section,
-    StateNatsSettings,
+    StateMessagingSettings,
     missing_variables,
 )
-from sum_service.common.zitadel import ZitadelSettings as CommonZitadelSettings
 
 
-class ZitadelSettings(CommonZitadelSettings):
+class IdentitySettings(CommonIdentitySettings):
     """Zitadel do Observer: conta `sum-service-observer` (somente leitura)."""
 
     register_organization_id: str | None = None
@@ -57,8 +57,8 @@ class SumServiceObserverSettings(BaseSettings):
         extra="forbid",
     )
 
-    zitadel: ZitadelSettings = ZitadelSettings()
-    nats: StateNatsSettings = StateNatsSettings()
+    zitadel: IdentitySettings = IdentitySettings()
+    nats: StateMessagingSettings = StateMessagingSettings()
     catalog: CatalogSettings = CatalogSettings()
     health: HealthSettings = HealthSettings()
     loop: LoopSettings = LoopSettings()

@@ -13,17 +13,17 @@ from typing import Any, cast
 
 import httpx
 
-from ipm_organization.common.zitadel import ServiceAccountToken, TokenError
-from ipm_organization.observer.domain.identity import ProviderError, ZitadelOrganization
-from ipm_organization.observer.settings import ZitadelSettings
+from ipm_organization.common.identity import ServiceAccountToken, TokenError
+from ipm_organization.observer.domain.identity import IdentityOrganization, ProviderError
+from ipm_organization.observer.settings import IdentitySettings
 
 HTTP_BAD_REQUEST = 400
 
 
-class ZitadelReader:
+class IdentityReader:
     def __init__(
         self,
-        settings: ZitadelSettings,
+        settings: IdentitySettings,
         client: httpx.AsyncClient,
         *,
         clock: Callable[[], float] = time.time,
@@ -32,7 +32,7 @@ class ZitadelReader:
         self._client = client
         self._token_source = ServiceAccountToken(settings, client, clock=clock)
 
-    async def get_organization(self, organization_id: str) -> ZitadelOrganization | None:
+    async def get_organization(self, organization_id: str) -> IdentityOrganization | None:
         """A organização, ou `None` se a consulta pelo ID terminou sem resultado.
 
         A ausência é uma resposta bem-sucedida e vazia; qualquer erro (permissão, indisponibilidade,
@@ -46,7 +46,7 @@ class ZitadelReader:
         found = cast("list[dict[str, Any]]", self._json(response).get("result") or [])
         for organization in found:
             if organization.get("id") == organization_id:
-                return ZitadelOrganization(
+                return IdentityOrganization(
                     name=str(organization.get("name", "")),
                     state=str(organization.get("state", "")),
                 )

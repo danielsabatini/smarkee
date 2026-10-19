@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sum_service.common.settings import (
     HealthSettings,
     Section,
-    StateNatsSettings,
+    StateMessagingSettings,
     missing_variables,
 )
 
@@ -37,7 +37,7 @@ class SumServiceReconcilerSettings(BaseSettings):
         extra="forbid",
     )
 
-    nats: StateNatsSettings = StateNatsSettings()
+    nats: StateMessagingSettings = StateMessagingSettings()
     health: HealthSettings = HealthSettings()
     loop: LoopSettings = LoopSettings()
 

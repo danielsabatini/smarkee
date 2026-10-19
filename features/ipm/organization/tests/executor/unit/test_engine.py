@@ -10,7 +10,7 @@ import pytest
 from ipm_organization.common.contracts import generated
 from ipm_organization.common.ports import PublishError
 from ipm_organization.executor.domain.errors import ActionFailedError
-from ipm_organization.executor.domain.identity import ProviderError, ZitadelOrganization
+from ipm_organization.executor.domain.identity import IdentityOrganization, ProviderError
 from ipm_organization.executor.engine.executor import Disposition, Executor
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
@@ -47,9 +47,9 @@ class FakeState:
 class FakeWriter:
     calls: list[str] = field(default_factory=lambda: [])
     error: Exception | None = None
-    organizations: dict[str, ZitadelOrganization] = field(default_factory=lambda: {})
+    organizations: dict[str, IdentityOrganization] = field(default_factory=lambda: {})
 
-    async def get_organization(self, organization_id: str) -> ZitadelOrganization | None:
+    async def get_organization(self, organization_id: str) -> IdentityOrganization | None:
         return self.organizations.get(organization_id)
 
     async def create_organization(self, organization_id: str, *, name: str) -> bool:

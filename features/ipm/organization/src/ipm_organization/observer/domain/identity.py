@@ -8,7 +8,7 @@ class ProviderError(Exception):
 
 
 @dataclass(frozen=True, slots=True)
-class ZitadelOrganization:
+class IdentityOrganization:
     name: str
     state: str
     """Estado como o Zitadel informa (por exemplo, `ORGANIZATION_STATE_ACTIVE`)."""

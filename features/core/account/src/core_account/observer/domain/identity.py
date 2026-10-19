@@ -8,7 +8,7 @@ class ProviderError(Exception):
 
 
 @dataclass(frozen=True, slots=True)
-class ZitadelUser:
+class IdentityUser:
     state: str
     email_verified: bool
     password_set: bool

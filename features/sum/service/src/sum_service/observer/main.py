@@ -19,15 +19,15 @@ from sum_service.common.lifecycle import (
     supervise,
 )
 from sum_service.common.messaging import (
-    JetStreamPublisher,
     StateConsumer,
+    StreamPublisher,
     connect,
-    jetstream_of,
     new_instance_name,
+    stream_of,
 )
 from sum_service.common.service_rules import CatalogError, parse_catalog
 from sum_service.observer.engine.observer import Observer
-from sum_service.observer.provider.zitadel import ZitadelReader
+from sum_service.observer.provider.identity import IdentityReader
 from sum_service.observer.settings import (
     LoopSettings,
     SumServiceObserverSettings,
@@ -57,14 +57,14 @@ async def run(settings: SumServiceObserverSettings) -> int:
     stop = stop_on_signals()
     catalog = parse_catalog(settings.catalog.roles or "")
     health = Health()
-    nats_client = await connect(settings.nats, name="sum-service-observer")
-    jetstream = jetstream_of(nats_client)
-    health.add_check("nats", lambda: nats_client.is_connected)
+    messaging_client = await connect(settings.nats, name="sum-service-observer")
+    jetstream = stream_of(messaging_client)
+    health.add_check("nats", lambda: messaging_client.is_connected)
     async with httpx.AsyncClient(timeout=settings.zitadel.timeout_seconds) as client:
-        reader = ZitadelReader(settings.zitadel, client)
+        reader = IdentityReader(settings.zitadel, client)
         observer = Observer(
             reader,
-            JetStreamPublisher(jetstream),
+            StreamPublisher(jetstream),
             catalog,
             partition_index=settings.partition.index,
             partition_count=settings.partition.count,
@@ -98,7 +98,7 @@ async def run(settings: SumServiceObserverSettings) -> int:
             },
         )
         exit_code = await supervise(tasks, stop)
-        await nats_client.drain()
+        await messaging_client.drain()
     return exit_code
 
 

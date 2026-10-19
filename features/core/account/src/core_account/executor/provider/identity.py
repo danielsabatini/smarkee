@@ -14,9 +14,9 @@ from typing import Any, cast
 
 import httpx
 
-from core_account.common.zitadel import ServiceAccountToken, TokenError
-from core_account.executor.domain.identity import Grant, ProviderError, ZitadelUser
-from core_account.executor.settings import ZitadelSettings
+from core_account.common.identity import ServiceAccountToken, TokenError
+from core_account.executor.domain.identity import Grant, IdentityUser, ProviderError
+from core_account.executor.settings import IdentitySettings
 
 NOT_FOUND_CODE = 5  # código gRPC NotFound
 HTTP_NOT_FOUND = 404
@@ -38,10 +38,10 @@ def _classify(status: int) -> ProviderError:
     return ProviderError("Rejected", retryable=False, detail=f"HTTP {status}")
 
 
-class ZitadelWriter:
+class IdentityWriter:
     def __init__(
         self,
-        settings: ZitadelSettings,
+        settings: IdentitySettings,
         client: httpx.AsyncClient,
         *,
         clock: Callable[[], float] = time.time,
@@ -52,14 +52,14 @@ class ZitadelWriter:
 
     # ------------------------------------------------------------------ usuário
 
-    async def get_user(self, user_id: str) -> ZitadelUser | None:
+    async def get_user(self, user_id: str) -> IdentityUser | None:
         response = await self._call("GET", f"/v2/users/{user_id}", accept_not_found=True)
         if response is None:
             return None
         user = cast("dict[str, Any]", self._json(response).get("user") or {})
         human = cast("dict[str, Any]", user.get("human") or {})
         email = cast("dict[str, Any]", human.get("email") or {})
-        return ZitadelUser(email=str(email.get("email", "")))
+        return IdentityUser(email=str(email.get("email", "")))
 
     async def create_user(
         self, user_id: str, *, given_name: str, family_name: str, email: str

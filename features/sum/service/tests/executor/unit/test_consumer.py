@@ -11,7 +11,7 @@ from nats.js import JetStreamContext
 
 from sum_service.common.messaging import REDELIVERY_DELAY_SECONDS
 from sum_service.executor.transport.consumers import PullConsumer
-from sum_service.executor.transport.nats import DirectStateReader
+from sum_service.executor.transport.messaging import DirectStateReader
 
 
 @dataclass
@@ -70,7 +70,7 @@ class FakeSubscription:
         self.unsubscribed = True
 
 
-class FakeJetStream:
+class FakeStream:
     def __init__(self, subscription: FakeSubscription) -> None:
         self.subscription = subscription
         self.bound: dict[str, Any] = {}
@@ -84,7 +84,7 @@ async def test_the_consumer_binds_to_the_declared_durable_and_settles_each_messa
     stop = asyncio.Event()
     message = FakeMessage()
     subscription = FakeSubscription(stop, [[message]])
-    jetstream = FakeJetStream(subscription)
+    jetstream = FakeStream(subscription)
     handled: list[bytes] = []
 
     async def handle(data: bytes) -> object:
@@ -108,7 +108,7 @@ class FakeStored:
     data: bytes | None
 
 
-class FakeStateJetStream:
+class FakeStateStream:
     def __init__(self, stored: dict[tuple[str, str], FakeStored]) -> None:
         self.stored = stored
 
@@ -120,7 +120,7 @@ class FakeStateJetStream:
 
 
 async def test_the_last_desired_and_the_last_result_are_read_from_their_subjects() -> None:
-    jetstream = FakeStateJetStream(
+    jetstream = FakeStateStream(
         {
             ("DESIRED", "manager.desired.sum.service.r-1.changed"): FakeStored(b'{"d": 1}'),
             ("RESULT", "executor.completed.sum.service.r-1"): FakeStored(b'{"r": 1}'),
@@ -134,9 +134,7 @@ async def test_the_last_desired_and_the_last_result_are_read_from_their_subjects
 async def test_a_subject_without_message_reads_as_absent_and_an_empty_payload_as_empty_bytes() -> (
     None
 ):
-    jetstream = FakeStateJetStream(
-        {("RESULT", "executor.failed.sum.service.r-2"): FakeStored(None)}
-    )
+    jetstream = FakeStateStream({("RESULT", "executor.failed.sum.service.r-2"): FakeStored(None)})
     reader = DirectStateReader(cast(JetStreamContext, jetstream))
     assert await reader.last_desired("r-2") is None
     assert await reader.last_result("r-2", "failed") == b""

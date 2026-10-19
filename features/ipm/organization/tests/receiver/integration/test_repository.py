@@ -5,13 +5,13 @@ from typing import Any
 import psycopg
 from support_receiver import seed_organization, unique_suffix
 
-from ipm_organization.receiver.store.repository import PostgresRepository
+from ipm_organization.receiver.store.repository import SsotRepository
 
 Connection = psycopg.AsyncConnection[Any]
 
 
 async def test_organization_is_read_through_the_view(
-    manager: Connection, cleanup: list[str], repository: PostgresRepository
+    manager: Connection, cleanup: list[str], repository: SsotRepository
 ) -> None:
     resource_id, _ = await seed_organization(
         manager, owner="repo-owner", name="repo-" + unique_suffix()
@@ -27,7 +27,7 @@ async def test_organization_is_read_through_the_view(
 
 
 async def test_list_filters_by_owner_and_paginates_by_resource_id(
-    manager: Connection, cleanup: list[str], repository: PostgresRepository
+    manager: Connection, cleanup: list[str], repository: SsotRepository
 ) -> None:
     owner = "list-" + unique_suffix()
     ids: list[str] = []
@@ -50,7 +50,7 @@ async def test_list_filters_by_owner_and_paginates_by_resource_id(
 
 
 async def test_operation_is_found_with_the_requester(
-    manager: Connection, cleanup: list[str], repository: PostgresRepository
+    manager: Connection, cleanup: list[str], repository: SsotRepository
 ) -> None:
     resource_id, operation_id = await seed_organization(
         manager, owner="op-owner", name="op-" + unique_suffix()

@@ -13,7 +13,7 @@ class ProviderError(Exception):
 
 
 @dataclass(frozen=True, slots=True)
-class ZitadelOrganization:
+class IdentityOrganization:
     name: str
     active: bool
     """`True` com a organização ativa; `False` com ela desativada."""

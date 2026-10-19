@@ -94,7 +94,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Item | Situação | Evidência ou observação |
 |---|---|---|
 | Subject, emissor e destinatário (não embutido) | Atende | emissores `receiver`, `manager`, `observer`, `reconciler`, `executor`; o Publisher publica no emissor `manager` |
-| Um Stream por `messageType`, com a retenção da classe | Atende | `infrastructure/dev/broker/bootstrap/` (seis Streams) |
+| Um Stream por `messageType`, com a retenção da classe | Atende | `infrastructure/dev/messaging/bootstrap/` (seis Streams) |
 | `desired` e `observed` com a operação `changed` | Atende | `manager.desired.core.account.<id>.changed` |
 | `WorkQueue` com `DiscardNew` e consumers sem filtro sobreposto | Atende | `REQUESTED` e `ACTION`; no `ACTION`, um consumer por partição, de filtros disjuntos |
 | Consumer de estado por instância (`DeliverLastPerSubject`, nome único, `inactive_threshold`) | Atende | Reconciler e Observer |

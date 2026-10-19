@@ -10,7 +10,7 @@ from psycopg.rows import dict_row
 
 from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES
 from core_account.manager.domain.kind import account_kind
-from core_account.manager.store.ssot import PostgresStore
+from core_account.manager.store.ssot import SsotStore
 from core_account.manager.store.tables import tables_of
 
 DATABASE_HOST = os.environ.get("CORE_TEST_DATABASE_HOST", "localhost")
@@ -88,6 +88,6 @@ def requested_message(
     }
 
 
-def ssot(connection: psycopg.AsyncConnection[Any]) -> PostgresStore:
+def ssot(connection: psycopg.AsyncConnection[Any]) -> SsotStore:
     """Adaptador do SSOT da Account sobre a conexão do teste."""
-    return PostgresStore(connection, tables_of("account"))
+    return SsotStore(connection, tables_of("account"))

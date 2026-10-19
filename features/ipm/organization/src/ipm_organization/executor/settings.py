@@ -8,16 +8,16 @@ Ordem: variável de ambiente → default. Nome da variável:
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from ipm_organization.common.identity import IdentitySettings as CommonIdentitySettings
 from ipm_organization.common.settings import (
     HealthSettings,
-    NatsSettings,
+    MessagingSettings,
     Section,
     missing_variables,
 )
-from ipm_organization.common.zitadel import ZitadelSettings as CommonZitadelSettings
 
 
-class ZitadelSettings(CommonZitadelSettings):
+class IdentitySettings(CommonIdentitySettings):
     """Zitadel do Executor: conta `ipm-organization-executor` (`IAM_ORG_MANAGER`, de instância)."""
 
     timeout_seconds: float = 10.0
@@ -25,7 +25,7 @@ class ZitadelSettings(CommonZitadelSettings):
 
 class PartitionSettings(Section):
     count: int = 4
-    """Partições do Stream `ACTION` (bootstrap do broker): um consumer e um laço por partição."""
+    """Partições do Stream `ACTION` (bootstrap do messaging): um consumer e um laço por partição."""
 
 
 class OrganizationExecutorSettings(BaseSettings):
@@ -36,8 +36,8 @@ class OrganizationExecutorSettings(BaseSettings):
         extra="forbid",
     )
 
-    nats: NatsSettings = NatsSettings()
-    zitadel: ZitadelSettings = ZitadelSettings()
+    nats: MessagingSettings = MessagingSettings()
+    zitadel: IdentitySettings = IdentitySettings()
     partition: PartitionSettings = PartitionSettings()
     health: HealthSettings = HealthSettings()
 

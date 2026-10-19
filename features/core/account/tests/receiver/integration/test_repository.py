@@ -5,13 +5,13 @@ from typing import Any
 import psycopg
 from support_receiver import seed_account, unique_suffix
 
-from core_account.receiver.store.repository import PostgresRepository
+from core_account.receiver.store.repository import SsotRepository
 
 Connection = psycopg.AsyncConnection[Any]
 
 
 async def test_account_is_read_through_the_view(
-    manager: Connection, cleanup: list[str], repository: PostgresRepository
+    manager: Connection, cleanup: list[str], repository: SsotRepository
 ) -> None:
     resource_id, _ = await seed_account(manager, email=f"repo.{unique_suffix()}@example.com")
     cleanup.append(resource_id)
@@ -25,7 +25,7 @@ async def test_account_is_read_through_the_view(
 
 
 async def test_operation_is_found_with_the_requester(
-    manager: Connection, cleanup: list[str], repository: PostgresRepository
+    manager: Connection, cleanup: list[str], repository: SsotRepository
 ) -> None:
     resource_id, operation_id = await seed_account(
         manager, email=f"op.{unique_suffix()}@example.com"

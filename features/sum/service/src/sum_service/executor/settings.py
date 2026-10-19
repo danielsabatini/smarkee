@@ -7,16 +7,16 @@ Zitadel e o catálogo.
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from sum_service.common.identity import IdentitySettings as CommonIdentitySettings
 from sum_service.common.settings import (
     HealthSettings,
-    NatsSettings,
+    MessagingSettings,
     Section,
     missing_variables,
 )
-from sum_service.common.zitadel import ZitadelSettings as CommonZitadelSettings
 
 
-class ZitadelSettings(CommonZitadelSettings):
+class IdentitySettings(CommonIdentitySettings):
     """Zitadel do Executor: conta `sum-service-executor` (`PROJECT_GRANT_OWNER` em `roles-ipm`)."""
 
     register_organization_id: str | None = None
@@ -33,7 +33,7 @@ class CatalogSettings(Section):
 
 class PartitionSettings(Section):
     count: int = 4
-    """Partições do Stream `ACTION` (bootstrap do broker): um consumer e um laço por partição."""
+    """Partições do Stream `ACTION` (bootstrap do messaging): um consumer e um laço por partição."""
 
 
 class SumServiceExecutorSettings(BaseSettings):
@@ -44,8 +44,8 @@ class SumServiceExecutorSettings(BaseSettings):
         extra="forbid",
     )
 
-    nats: NatsSettings = NatsSettings()
-    zitadel: ZitadelSettings = ZitadelSettings()
+    nats: MessagingSettings = MessagingSettings()
+    zitadel: IdentitySettings = IdentitySettings()
     catalog: CatalogSettings = CatalogSettings()
     partition: PartitionSettings = PartitionSettings()
     health: HealthSettings = HealthSettings()

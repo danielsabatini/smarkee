@@ -1,6 +1,6 @@
 # platform-telemeter
 
-O **platform-telemeter** **processa e grava** a telemetria que **não é de nenhuma feature com telemeter próprio**: a **infra** (banco, broker, Zitadel, gateway, mail e os próprios coletores) e o **app** das features que ainda não têm telemeter. Decisão [`0062`](../../../.decisions/0062-coleta-de-telemetria-em-duas-camadas.md).
+O **platform-telemeter** **processa e grava** a telemetria que **não é de nenhuma feature com telemeter próprio**: a **infra** (banco, messaging, Zitadel, gateway, mail e os próprios coletores) e o **app** das features que ainda não têm telemeter. Decisão [`0062`](../../../.decisions/0062-coleta-de-telemetria-em-duas-camadas.md).
 
 ## Função
 

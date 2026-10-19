@@ -12,19 +12,19 @@ from typing import Any, cast
 
 import httpx
 
-from core_account.common.zitadel import ServiceAccountToken, TokenError
-from core_account.observer.domain.identity import ProviderError, ZitadelUser
-from core_account.observer.settings import ZitadelSettings
+from core_account.common.identity import ServiceAccountToken, TokenError
+from core_account.observer.domain.identity import IdentityUser, ProviderError
+from core_account.observer.settings import IdentitySettings
 
 NOT_FOUND_CODE = 5  # código gRPC NotFound
 HTTP_NOT_FOUND = 404
 HTTP_BAD_REQUEST = 400
 
 
-class ZitadelReader:
+class IdentityReader:
     def __init__(
         self,
-        settings: ZitadelSettings,
+        settings: IdentitySettings,
         client: httpx.AsyncClient,
         *,
         clock: Callable[[], float] = time.time,
@@ -33,7 +33,7 @@ class ZitadelReader:
         self._client = client
         self._token_source = ServiceAccountToken(settings, client, clock=clock)
 
-    async def get_user(self, user_id: str) -> ZitadelUser | None:
+    async def get_user(self, user_id: str) -> IdentityUser | None:
         """O usuário, ou `None` se o Zitadel confirmou (404) que ele não existe."""
         response = await self._request("GET", f"/v2/users/{user_id}")
         if response.status_code == HTTP_NOT_FOUND:
@@ -42,7 +42,7 @@ class ZitadelReader:
         user = cast("dict[str, Any]", document.get("user") or {})
         human = cast("dict[str, Any]", user.get("human") or {})
         email = cast("dict[str, Any]", human.get("email") or {})
-        return ZitadelUser(
+        return IdentityUser(
             state=str(user.get("state", "")),
             email_verified=email.get("isVerified") is True,
             password_set="passwordChanged" in human,

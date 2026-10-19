@@ -24,10 +24,10 @@ uv run smarkee-dev-backup reset --apply    # backup, verificação e SÓ ENTÃO 
 | Bancos `identity` (Zitadel) e `smarkee` (SSOT) | `pg_dump -Fc` no contêiner `database.smarkee.internal` |
 | Papéis do PostgreSQL | `pg_dumpall --globals-only` |
 | Volume `identity-bootstrap` (chaves das service accounts e PAT do login) | `tar` somente leitura |
-| `.env` de `infrastructure/dev/{broker,database,gateway,identity}` e das features | cópia (os que existirem) |
+| `.env` de `infrastructure/dev/{messaging,database,gateway,identity}` e das features | cópia (os que existirem) |
 | `manifest.json` e `SHA256SUMS` | commit do git, versão do PostgreSQL, lista e somas dos arquivos |
 
-**Não entram:** o estado do NATS (JetStream, volume `broker-data`) e o Mailpit (`mail-data`). Um `reset` os perde. Os volumes de outros projetos nunca são tocados (a lista de volumes é fixa).
+**Não entram:** o estado do NATS (JetStream, volume `messaging-data`) e o Mailpit (`mail-data`). Um `reset` os perde. Os volumes de outros projetos nunca são tocados (a lista de volumes é fixa).
 
 O backup fica em `~/.smarkee/backups/<AAAAMMDDTHHMMSSZ>/`, **fora do repositório e do Docker**: um `docker system prune --volumes` não o apaga. A pasta e os arquivos são só do dono (0700/0600): há hashes de senha, chaves e a masterkey. Nada é impresso.
 

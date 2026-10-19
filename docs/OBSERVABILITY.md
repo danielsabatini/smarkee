@@ -39,7 +39,7 @@ A linha é a representação, em JSON, dos campos do LogRecord. A conversão par
   "attributes": {
     "error.type": "ConnectionError",
     "exception.type": "ConnectionError",
-    "code.file.path": "core_account_manager/transport/nats.py",
+    "code.file.path": "core_account_manager/transport/messaging.py",
     "code.line.number": 88,
     "code.function.name": "core_account_manager.transport.nats.connect",
     "smarkee.task.name": "consumer"
