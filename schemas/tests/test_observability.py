@@ -154,7 +154,10 @@ def _load_sync() -> ModuleType:
 
 def test_all_components_are_found() -> None:
     components = cast(list[Any], _load_sync().components())
-    assert len(components) >= 18
+    packages = {package for _, package in components}
+    # 12 projetos por papel (ipm.organization e sum.service) e o projeto por feature de core.account (decisão 0063).
+    assert len(components) >= 13
+    assert "core_account" in packages
 
 
 def test_component_copies_match_the_canonical_source() -> None:

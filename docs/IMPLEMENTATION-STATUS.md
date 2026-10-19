@@ -36,7 +36,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Dono do SSOT e do lifecycle; publica `desired`; processa `observed`; não executa provider | Atende | `manager/src/core_account_manager/handlers/` |
+| Dono do SSOT e do lifecycle; publica `desired`; processa `observed`; não executa provider | Atende | `features/core/account/src/core_account/manager/handlers/` |
 | Outbox na mesma transação | Atende | `store/ssot.py`, `handlers/publishing.py`; testes de integração |
 | Conta falhas por geração, marca `Failed` e suspende no `desired` | Atende | `domain/convergence.py` (`decide_result`), limite 5 |
 | Registra `ObservationStale` | Pendente | A condition não é registrada |
@@ -75,12 +75,12 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Cada papel é um projeto autocontido, sem biblioteca comum | Atende | seis projetos em `features/core/account/` |
-| Receiver com autenticação e autorização próprias | Atende | `receiver/.../auth/tokens.py` (JWKS) e `domain/principal.py` |
-| Manager dono das migrações, executadas como etapa de implantação | Atende | `manager/migrations/`, serviço `core-account-migrate` |
-| Publisher como papel próprio, com papel de banco e identidade próprios | Atende | `publisher/`, `core_account_publisher` |
+| Cada papel é um projeto autocontido, sem biblioteca comum | Atende (`ipm.organization` e `sum.service`); **piloto da decisão 0063 em `core.account`**: um projeto e uma imagem com um entrypoint e um contêiner por papel, sem importação entre papéis (`tests/common/unit/test_role_isolation.py`) | seis projetos em `features/ipm/organization/` e `features/sum/service/`; um projeto em `features/core/account/` |
+| Receiver com autenticação e autorização próprias | Atende | `receiver/auth/tokens.py` (JWKS) e `receiver/domain/principal.py`, em `features/core/account/src/core_account/` |
+| Manager dono das migrações, executadas como etapa de implantação | Atende | `features/core/account/migrations/`, serviço `core-account-migrate` |
+| Publisher como papel próprio, com papel de banco e identidade próprios | Atende | `features/core/account/src/core_account/publisher/`, papel de banco `core_account_publisher` |
 | Contratos verificados por testes e2e black-box | Atende | `features/core/account/tests/e2e` |
-| Estrutura interna da decisão 0017 | Atende | teste `test_domain_isolation.py` em cada projeto |
+| Estrutura interna da decisão 0017 | Atende | teste `test_domain_isolation.py` em cada papel (`tests/<papel>/unit/` em `core.account`) |
 
 ## 2.7 Mensagens
 

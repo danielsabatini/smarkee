@@ -44,7 +44,7 @@ Porta de entrada HTTP. Autentica o token (JWKS do Zitadel), autoriza pela role d
 | `DELETE /v1/core/accounts/{id}?resourceVersion=` | Remove (cabeçalho opcional `Idempotency-Key`); a conta **nasce protegida**: recusa com `409 DeletionProtected` até desproteger (decisão 0043); depois, **recusa com `409` enquanto a conta tiver Organizations ou serviços habilitados** (decisão 0040) | O próprio usuário ou `core.account.admin`, role `core.account.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422` (`Idempotency-Key` reutilizada com outro conteúdo), `503` |
 | `GET /v1/core/accounts/{id}/operations/{operationId}` | Acompanha a Operation | Solicitante ou `core.account.admin` (a do cadastro anônimo só operadores) | `200`, `401`, `404` |
 
-Não há listagem (`GET /v1/core/accounts`) nem `PATCH`: a Account não tem `update` (decisão 0014). O contrato descritivo é [`receiver/openapi.json`](receiver/openapi.json). Erros: `{errorCode, message, field?}` (`schemas/common/api-error`; códigos `ValidationFailed`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `IdempotencyKeyReused`, `ServiceUnavailable` e `InternalError`), sem repetir valores enviados. Um usuário que não é o dono recebe `404`, e não `403`, para não revelar a existência.
+Não há listagem (`GET /v1/core/accounts`) nem `PATCH`: a Account não tem `update` (decisão 0014). O contrato descritivo é [`openapi.json`](openapi.json). Erros: `{errorCode, message, field?}` (`schemas/common/api-error`; códigos `ValidationFailed`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `IdempotencyKeyReused`, `ServiceUnavailable` e `InternalError`), sem repetir valores enviados. Um usuário que não é o dono recebe `404`, e não `403`, para não revelar a existência.
 
 ## 3.2 Manager (`core-account-manager`)
 
@@ -83,12 +83,29 @@ A **única identidade com escrita no Zitadel** (conta `core-account-executor`: `
 
 Publica `completed` ou `failed {reason, retryable}`. O retry é do Reconciler. Consome `ACTION` em 4 partições por `resourceId` (um laço e um consumer por partição, `max_ack_pending = 1`): uma `action` por vez em cada recurso, até 4 recursos em paralelo.
 
-## 3.7 Estrutura interna do Manager e do Publisher
+## 3.6.1 Um projeto, uma imagem, seis contêineres (decisão 0063)
 
-Manager e Publisher são projetos separados, cada um em camadas (decisão 0017):
+`core.account` é **um projeto** (`pyproject.toml`, `uv.lock`, `Dockerfile`) e **uma imagem** (`smarkee-core-account`), que contém o código dos seis papéis. Cada papel roda como **contêiner próprio**, escolhido pelo `command` (`core-account-receiver`, `core-account-manager`, `core-account-publisher`, `core-account-observer`, `core-account-reconciler` e `core-account-executor`), com as suas próprias variáveis, segredos, papel de banco e identidade no NATS. Ter o código de um papel na imagem de outro não dá privilégio: ele vem da credencial.
 
 ```text
-core_account_manager/
+src/core_account/
+  common/      código idêntico dos papéis: logging (contrato 0045), ids, saúde (http/health.py), contratos gerados
+  receiver/  manager/  publisher/  observer/  reconciler/  executor/    (cada um com o seu README)
+tests/
+  common/  receiver/  manager/  publisher/  observer/  reconciler/  executor/    (unit, contract e integration)
+  e2e/                                                                             (projeto à parte, black-box)
+migrations/    SQL do Manager, aplicado pelo serviço core-account-migrate
+consumers/     manifestos dos consumers do Manager e do Executor
+```
+
+Um papel nunca importa outro (`tests/common/unit/test_role_isolation.py`); só o `common/`. Comandos de desenvolvimento, na raiz da feature: `uv sync`, `uv run ruff check . && uv run ruff format --check . && uv run pyright` e `uv run pytest` (a suíte e2e, em `tests/e2e`, tem projeto próprio).
+
+## 3.7 Estrutura interna do Manager e do Publisher
+
+Manager e Publisher são papéis separados (processos e contêineres próprios, mesma imagem, decisão 0063), cada um em camadas (decisão 0017):
+
+```text
+src/core_account/manager/
   domain/      política da Account (e-mail único, convergência), puro, sem I/O
   handlers/    uma unidade atômica por mensagem (requested, observed, result)
   store/       SQL (recurso, operation, action_result) e escrita no outbox
@@ -96,7 +113,7 @@ core_account_manager/
   transport/   adaptadores NATS (consumers de requested, observed e resultados)
   main.py
 
-core_account_publisher/
+src/core_account/publisher/
   domain/      PublishError e PublicationResult, puros
   outbox/      leitura, trava consultiva, publicação em ordem, marcação
   transport/   conexão e publicação no NATS
@@ -116,7 +133,7 @@ O outbox existe porque o Manager grava o recurso **e** a mensagem na mesma trans
 
 ## 3.8 Estrutura interna dos demais papéis
 
-Mesmo princípio: `domain/` puro e sem I/O, orquestração, adaptadores e `main.py`; a dependência vai em um sentido só (`main → orquestração → domain`) e o `domain` nunca importa um adaptador (cada projeto tem um teste que garante isso).
+Mesmo princípio: `domain/` puro e sem I/O, orquestração, adaptadores e `main.py`; a dependência vai em um sentido só (`main → orquestração → domain`) e o `domain` nunca importa um adaptador (cada papel tem um teste que garante isso).
 
 | Papel | Camadas |
 |---|---|
@@ -127,7 +144,7 @@ Mesmo princípio: `domain/` puro e sem I/O, orquestração, adaptadores e `main.
 
 ## 3.9 Testes e2e (`tests/e2e`)
 
-Não é um componente nem vai para produção. É um projeto de **testes black-box** do contrato da Account: exercita o Receiver (HTTP), o NATS e o Zitadel pela rede e valida as mensagens e as respostas contra os JSON Schemas de `schemas/`, **sem importar o código dos componentes**. É o que permite trocar um componente de linguagem (por exemplo, o Receiver de Python para Go) e provar que o contrato continua igual. Os testes de contrato de cada componente (schemas e modelos gerados) ficam nos próprios projetos.
+Não é um componente nem vai para produção. É um projeto de **testes black-box** do contrato da Account: exercita o Receiver (HTTP), o NATS e o Zitadel pela rede e valida as mensagens e as respostas contra os JSON Schemas de `schemas/`, **sem importar o código dos componentes**. É o que permite trocar um componente de linguagem (por exemplo, o Receiver de Python para Go) e provar que o contrato continua igual. Os testes de contrato (schemas e modelos gerados) ficam em `tests/common/contract` e `tests/receiver/contract`.
 
 # 4. Fluxos
 
@@ -294,7 +311,7 @@ Os e-mails do Zitadel de dev são capturados pelo Mailpit (http://localhost:8025
 
 O SSOT da Account é o schema `core` do banco PostgreSQL `smarkee` (decisão 0001), de propriedade do usuário `smarkee`, que só migra e recupera. A especificação lógica está em [`docs/SSOT.md`](../../../docs/SSOT.md) e a física, em [`docs/POSTGRESQL.md`](../../../docs/POSTGRESQL.md); esta seção descreve o que existe de fato para o tipo `account`.
 
-- **Criação:** a migração [`manager/migrations/0001-account.sql`](manager/migrations/0001-account.sql) (código do Manager, decisão 0015) é aplicada pelo serviço `core-account-migrate`, com o papel administrativo, a cada `up`; é idempotente. Os papéis de serviço vêm de [`infrastructure/dev/database/bootstrap/core.sql`](../../../infrastructure/dev/database/bootstrap/core.sql).
+- **Criação:** a migração [`migrations/0001-account.sql`](migrations/0001-account.sql) (código do Manager, decisões 0015 e 0063) é aplicada pelo serviço `core-account-migrate`, com o papel administrativo, a cada `up`; é idempotente. Os papéis de serviço vêm de [`infrastructure/dev/database/bootstrap/core.sql`](../../../infrastructure/dev/database/bootstrap/core.sql).
 - **Nomes:** a tabela do tipo é `core.account`, e as demais são `core.account_operation`, `core.account_action_result` e `core.account_outbox`; as views (`core.account_v1`, `core.account_operation_v1`) não precisam de aspas.
 
 ## 11.1 Entidade e relacionamento

@@ -7,6 +7,9 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+### Changed
+- `core.account` passa a ser um projeto e uma imagem (`smarkee-core-account`), com um contêiner por papel (Receiver, Manager, Publisher, Observer, Reconciler e Executor) escolhido pelo `command` (piloto da decisão 0063). Nomes dos contêineres, variáveis, papéis de banco, identidades no NATS, subjects, rotas e contratos não mudam. O código comum dos papéis (logging, ids, saúde e contratos gerados) existe uma vez, em `common/`. A variável `CORE_ACCOUNT_<PAPEL>_IMAGE` de cada papel é substituída por `CORE_ACCOUNT_IMAGE`.
+
 ### Added
 - Coleta de telemetria em duas camadas (decisão 0062): o `telemetry-agent` lê, o novo `telemetry-router` só roteia (não grava em backend) e quem grava são os telemeters: o `platform-telemeter` (infra e o app sem telemeter próprio) e, em cada feature (`core/account`, `ipm/organization` e `sum/service`), o `<módulo>-<tipo>-telemeter` (logs e spans da feature, em `telemeter/logs` e `telemeter/traces`). O roteamento é por módulo e tipo (logs) e por serviço do gateway de borda (spans), com fila em disco entre o roteador e cada telemeter.
 - Contexto de negócio nos logs dos apps (decisão 0061): cada log dos 18 componentes passa a trazer o ator (`user.id` opaco e `smarkee.actor.type`: `user`, `anonymous` ou `system`), o recurso, a ação, o dono e a organização, para o drill-down; a infra segue sem dono. Ids com formato de e-mail são descartados. As três features ficam com o mesmo conjunto de atributos.
