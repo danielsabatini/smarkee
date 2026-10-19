@@ -61,7 +61,7 @@ class PullConsumer:
             await message.nak(delay=REDELIVERY_DELAY_SECONDS)
             return
         await message.ack()
-        logger.info(
+        logger.debug(
             "message handled",
             extra={
                 "messaging.consumer.group.name": self._durable,

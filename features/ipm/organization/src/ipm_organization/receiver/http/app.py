@@ -112,6 +112,10 @@ def _error_response(error: ApiError) -> JSONResponse:
 def _register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def handle_api_error(_: Request, error: ApiError) -> JSONResponse:  # pyright: ignore[reportUnusedFunction]
+        logger.warning(
+            "request rejected",
+            extra={"smarkee": {"outcome": "rejected", "error.code": error.error_code}},
+        )
         return _error_response(error)
 
     @app.exception_handler(RequestValidationError)

@@ -8,7 +8,7 @@ Em conformidade com o `AGENTS.md` (§35.1): só o que o próximo agente precisa 
 
 ## Próximos passos
 1. ADR `.decisions/0066-ipm-member.md` (fecha 0039 §5): membro = vínculo Account↔Organization só no SSOT (sem escrita no Zitadel), identificação por e-mail com resposta neutra, só papel `admin`, última admin não removível (409), dono vira o primeiro membro, `organization delete` exige org vazia. Depois a feature `features/ipm/member` (roteiro `docs/FEATURE-BOOTSTRAP.md`) e `sk ipm organization member add|list|remove` usando a org ativa.
-2. Telemetria (achados da auditoria): logar recusas do Receiver com `outcome=rejected` e `errorCode`; rebaixar `message handled` para DEBUG; investigar o 2º `DELETE` da org; 401 do gateway como warn; rodar o caos do `sum` com token de teste.
+2. Telemetria (achados da auditoria): 401 do gateway como warn; rodar o caos do `sum` com token de teste.
 
 ## Pendências herdadas (não reverificadas hoje)
 - Antes de stg/prd: `pinned_client`; controle de versão das migrações (`*-migrate` reaplicam tudo); allowlist de caminhos do Zitadel; substituir papéis de instância dos executors; `restore/reset --apply` do backup nunca rodados no dev ativo.

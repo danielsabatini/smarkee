@@ -6,6 +6,9 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
+### Changed
+- Rebaixamento do nível do log `message handled` nos consumers (de INFO para DEBUG) para reduzir ruído na telemetria.
+- Adição de tratamento explícito no `_api_error` dos Receivers para logar a requisição como rejeitada (`request rejected`, `outcome=rejected`).
 
 ### Added
 - `scripts/dev/telemetry-reset` (`smarkee-dev-telemetry-reset`): zera os sinais de telemetria gravados em disco pelos telemeters de dev (logs, métricas e traces do `platform-telemeter` e de cada feature), para uma nova rodada de testes começar sem o histórico. Por padrão só lista; `--apply` remove os arquivos rotacionados e trunca o ativo (o coletor o mantém aberto).

@@ -213,7 +213,7 @@ class StateConsumer:
             return
         await message.ack()
         if self._traced:
-            logger.info(
+            logger.debug(
                 "message handled",
                 extra={
                     "messaging.consumer.group.name": self._durable,

@@ -146,7 +146,7 @@ class StreamConsumer:
 
     async def _dispose(self, message: Msg) -> None:
         disposition = await apply_message(self._pool, self._handler, self._kind, message.data)
-        logger.info(
+        logger.debug(
             "message handled",
             extra={
                 "messaging.consumer.group.name": self.durable_name,
