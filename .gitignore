@@ -200,6 +200,10 @@ target/
 # 7. Testes e Cobertura de Código
 # ------------------------------------------------------------------------------
 coverage/
+coverage.xml
 .nyc_output/
 *.lcov
 *.coverage
+
+# Análise do SonarQube (diretório de trabalho do scanner)
+.scannerwork/

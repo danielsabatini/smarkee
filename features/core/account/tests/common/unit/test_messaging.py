@@ -261,13 +261,12 @@ async def test_the_state_consumer_replays_the_last_message_per_subject_and_acks(
 
 
 def test_each_process_run_gets_its_own_instance_name() -> None:
-    assert new_instance_name() != new_instance_name()
-    assert len(new_instance_name()) == 8
+    first, second = new_instance_name(), new_instance_name()
+    assert first != second
+    assert len(first) == len(second) == 8
 
 
-async def test_the_subscription_is_cancelled_when_the_loop_ends_so_that_drain_does_not_wait() -> (
-    None
-):
+async def test_the_subscription_is_cancelled_when_the_loop_ends() -> None:
     _, _, subscription = await run_consume([[FakeMessage(None, b"1")]])
     assert subscription.unsubscribed
 
