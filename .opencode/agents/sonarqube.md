@@ -65,13 +65,14 @@ O SonarQube deve ser tratado como uma fonte externa de evidências sobre a quali
 
 A análise pode utilizar:
 
-- Scanner do SonarQube
+- Scanner do SonarQube (`sonar-scanner`), que **produz** a análise
 - SonarQube Server local
-- Web API do SonarQube
+- **Servidor MCP `sonarqube`**, a ferramenta deste agent para **consultar** o resultado (Quality Gate, métricas, issues, hotspots, cobertura e duplicação)
+- Web API do SonarQube, como alternativa quando o MCP não estiver disponível
 - Resultados de Quality Gate
 - Métricas e issues retornadas pelo SonarQube
 
-A implementação concreta do scanner pode variar conforme a linguagem ou componente. Cada componente da plataforma é um projeto independente (`.decisions/0015-componentes-por-papel-autocontidos.md`) e deve ter o seu próprio projeto no SonarQube, com o seu Quality Gate.
+A implementação concreta do scanner pode variar conforme a linguagem ou componente. Cada feature da plataforma (módulo × tipo) é um projeto independente (`.decisions/0063-um-componente-por-feature-com-um-entrypoint-por-papel.md`) e deve ter o seu próprio projeto no SonarQube, com o seu Quality Gate. O `sonar-project.properties` fica na raiz da feature (modelo: `features/core/account/sonar-project.properties`).
 
 ---
 
@@ -101,27 +102,27 @@ As condições efetivas do Quality Gate são definidas no SonarQube e não devem
 
 ---
 
-# 4. Consulta do Quality Gate via API
+# 4. Consulta do Quality Gate pelo MCP
 
-A consulta do Quality Gate deve ser realizada **via Web API do SonarQube**.
+A consulta do Quality Gate deve ser realizada **pelas ferramentas do servidor MCP `sonarqube`**. O MCP lê o resultado; quem executa a análise é o scanner (o MCP não roda o `sonar-scanner` do projeto).
 
-Endpoint padrão:
+| Para | Ferramenta do MCP |
+|---|---|
+| Descobrir a project key | `search_my_sonarqube_projects` (depois de procurar `sonar.projectKey` no `sonar-project.properties` da feature) |
+| Quality Gate | `get_project_quality_gate_status` (`projectKey`; `branch` ou `pullRequest`, nunca os dois; `analysisId` quando conhecido) |
+| Métricas (cobertura, bugs, vulnerabilidades, linhas, duplicação) | `get_component_measures` e `search_metrics` |
+| Issues | `search_sonar_issues_in_projects` (filtros de severidade, qualidade de software, status e `inNewCodePeriod`) e `show_rule` para entender a regra |
+| Security Hotspots | `search_security_hotspots` e `show_security_hotspot` |
+| Cobertura por arquivo | `get_file_coverage_details` e `search_files_by_coverage` |
+| Duplicação | `get_duplications` e `search_duplicated_files` |
+| Branches e pull requests | `list_branches` e `list_pull_requests` |
+| Quality Gates definidos | `list_quality_gates` |
 
-```text
-GET /api/qualitygates/project_status
-```
+Quando a análise estiver associada a uma branch ou pull request, utilize o parâmetro correspondente. Sem eles, a consulta é da branch principal.
 
-Para um projeto:
+**Ferramentas que alteram o SonarQube** (`change_sonar_issue_status`, `change_security_hotspot_status`, `toggle_automatic_analysis`) só são usadas por instrução explícita do responsável, com o motivo registrado no comentário da issue e, quando a causa for uma lacuna de infraestrutura, declarada no `docs/IMPLEMENTATION-STATUS.md` (`AGENTS.md`, seção 2.5). Mudar o status de uma issue para fazer o Quality Gate passar, sem esse registro, é ocultar um problema.
 
-```text
-/api/qualitygates/project_status?projectKey=<PROJECT_KEY>
-```
-
-Quando a análise estiver associada a uma branch ou pull request, utilize os parâmetros correspondentes.
-
-Quando houver um `analysisId` conhecido e relacionado à análise atual, ele pode ser utilizado para consultar o resultado específico dessa análise.
-
-O agent deve utilizar a API para obter o resultado efetivo do Quality Gate.
+**Alternativa.** Se o MCP não estiver disponível, o mesmo resultado vem da Web API (`GET /api/qualitygates/project_status?projectKey=<PROJECT_KEY>`), com a credencial fornecida de forma segura (seção 15). O MCP indisponível não autoriza estimar o resultado (seção 21).
 
 Não considere a abertura da interface web como verificação suficiente.
 
@@ -145,7 +146,7 @@ Quality Gate disponível
 
 O agent deve aguardar o processamento necessário antes de consultar o Quality Gate.
 
-Quando existir um identificador da tarefa de processamento, utilize-o para acompanhar o processamento antes da consulta final.
+Quando existir um identificador da tarefa de processamento, utilize-o para acompanhar o processamento antes da consulta final. O scanner grava o identificador (`ceTaskId`) em `.scannerwork/report-task.txt`; o estado da tarefa sai de `GET /api/ce/task?id=<ceTaskId>` (o MCP não tem ferramenta para isso). Sem esperar a tarefa terminar, `get_project_quality_gate_status` pode devolver o resultado da análise anterior.
 
 Não considere um resultado anterior como resultado da execução atual.
 
@@ -179,7 +180,7 @@ Quando houver qualquer estado que impeça a determinação confiável do resulta
 
 # 7. Conditions
 
-Quando o Quality Gate não for aprovado, o agent deve analisar as condições retornadas pela API.
+Quando o Quality Gate não for aprovado, o agent deve analisar as condições retornadas pela consulta.
 
 As conditions devem ser usadas para identificar:
 
@@ -204,7 +205,7 @@ Quando o processo exigir validação de qualidade via SonarQube:
 ```text
 Análise executada
         ↓
-Quality Gate consultado via API
+Quality Gate consultado pelo MCP
         ↓
 Resultado avaliado
 ```
@@ -229,7 +230,7 @@ Quando o Quality Gate falhar:
 3. Determine a natureza do problema.
 4. Corrija o problema quando ele fizer parte do escopo.
 5. Execute uma nova análise.
-6. Consulte novamente o Quality Gate via API.
+6. Consulte novamente o Quality Gate pelo MCP.
 
 Não considere o problema resolvido apenas porque o código foi alterado.
 
@@ -335,22 +336,26 @@ Nunca:
 
 ---
 
-# 15. API e Autenticação
+# 15. Acesso e Autenticação
 
-A autenticação utilizada para consultar o SonarQube deve utilizar o mecanismo configurado para o ambiente.
+A autenticação utilizada para consultar o SonarQube deve utilizar o mecanismo configurado para o ambiente: o token do servidor MCP fica na configuração do próprio servidor MCP (variável `SONARQUBE_TOKEN`), e o do scanner na variável de ambiente `SONAR_TOKEN`.
 
 As credenciais devem ser fornecidas de forma segura.
 
 Não assuma credenciais, URLs ou project keys.
 
-Não inclua tokens na linha de comando, em URLs, em logs ou no resultado reportado (`AGENTS.md`, seção 4.1). Forneça a credencial por variável de ambiente ou por arquivo de configuração protegido, e mascare-a em qualquer saída.
+Não inclua tokens na linha de comando, em URLs, em logs ou no resultado reportado (`AGENTS.md`, seção 4.1). Forneça a credencial por variável de ambiente ou por arquivo de configuração protegido, e mascare-a em qualquer saída. Ao inspecionar a configuração do MCP, não imprima o bloco `env`.
 
-Quando a API retornar:
+**Endereço do SonarQube para o MCP.** O servidor MCP oficial roda em um contêiner Docker. Dentro dele, `localhost` é o próprio contêiner, então um SonarQube local precisa ser acessado por `http://host.docker.internal:<porta>` (Docker Desktop). Com `localhost`, o MCP inicia, mas não conecta e nenhuma ferramenta de consulta funciona. O scanner, que roda no host, usa `http://localhost:<porta>`.
+
+Quando uma ferramenta do MCP ou a API retornar:
 
 ```text
 401
 403
 404
+timeout
+erro de conexão
 ```
 
 ou outro erro inesperado, o agent deve identificar a falha de acesso ou configuração em vez de interpretar a ausência do resultado como aprovação.
@@ -399,7 +404,7 @@ Quando solicitado a executar ou validar qualidade de código, siga o processo:
         ↓
 4. Confirmar que a análise foi processada
         ↓
-5. Consultar Quality Gate via API
+5. Consultar Quality Gate pelo MCP
         ↓
 6. Interpretar o resultado
         ↓
@@ -409,7 +414,7 @@ Quando solicitado a executar ou validar qualidade de código, siga o processo:
         ↓
 9. Executar nova análise
         ↓
-10. Consultar novamente a API
+10. Consultar novamente o Quality Gate pelo MCP
 ```
 
 Não pule a consulta final do Quality Gate.
@@ -500,14 +505,15 @@ Este agent é responsável por fornecer o resultado de qualidade, não por inven
 Quando o Quality Gate não puder ser obtido, investigue nesta ordem:
 
 ```text
-1. A análise foi executada?
-2. A análise foi processada?
-3. O project key está correto?
-4. A branch ou pull request está correta?
-5. A credencial possui acesso?
-6. A API está acessível?
-7. O projeto existe no SonarQube?
-8. O resultado da análise está disponível?
+1. O servidor MCP `sonarqube` está conectado e lista as suas ferramentas (ou, sem MCP, a API responde)?
+2. O MCP alcança o SonarQube (`host.docker.internal`, e não `localhost`, se o MCP roda em contêiner)?
+3. A análise foi executada?
+4. A análise foi processada (tarefa `ceTaskId` concluída)?
+5. O project key está correto?
+6. A branch ou pull request está correta?
+7. A credencial possui acesso?
+8. O projeto existe no SonarQube?
+9. O resultado da análise está disponível?
 ```
 
 Não substitua um erro de integração por um resultado estimado.

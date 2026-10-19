@@ -25,7 +25,7 @@ from sum_service.common.messaging import (
     jetstream_of,
     new_instance_name,
 )
-from sum_service.observer.domain.service import CatalogError, parse_catalog
+from sum_service.common.service_rules import CatalogError, parse_catalog
 from sum_service.observer.engine.observer import Observer
 from sum_service.observer.provider.zitadel import ZitadelReader
 from sum_service.observer.settings import (

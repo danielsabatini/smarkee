@@ -1,7 +1,7 @@
 import pytest
 
 from sum_service.common.contracts import generated
-from sum_service.manager.domain.service import (
+from sum_service.common.service_rules import (
     CatalogError,
     ServiceNotAvailableError,
     disable_desired,

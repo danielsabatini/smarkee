@@ -44,7 +44,8 @@ class TokenVerifier:
 
     async def verify(self, token: str) -> Principal:
         try:
-            header = jwt.get_unverified_header(token)
+            # Só lê o `kid` para escolher a chave; a assinatura é verificada em `jwt.decode`.
+            header = jwt.get_unverified_header(token)  # NOSONAR python:S5659
         except jwt.InvalidTokenError:
             raise unauthorized() from None
         key_id = header.get("kid")

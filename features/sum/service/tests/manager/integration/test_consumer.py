@@ -19,7 +19,7 @@ import pytest
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
-from sum_service.manager.domain.service import parse_catalog
+from sum_service.common.service_rules import parse_catalog
 from sum_service.manager.handlers.requested import (
     RequestedHandler,
     desired_envelope,
@@ -148,7 +148,7 @@ async def test_a_desired_envelope_built_by_the_handler_matches_the_contract() ->
     from datetime import UTC, datetime
 
     from sum_service.common.contracts import generated
-    from sum_service.manager.domain.service import enable_desired
+    from sum_service.common.service_rules import enable_desired
 
     owner = _uuid()
     desired = enable_desired(owner, "ipm", CATALOG)

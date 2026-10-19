@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from sum_service.manager.domain.service import (
+from sum_service.common.service_rules import (
     ServiceNotAvailableError,
     disable_desired,
     enable_desired,

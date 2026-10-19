@@ -14,7 +14,7 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
-from sum_service.manager.domain.service import parse_catalog
+from sum_service.common.service_rules import parse_catalog
 from sum_service.manager.handlers.requested import Duplicate, Recorded, RequestedHandler
 
 DATABASE_URL = os.environ.get("SUM_MANAGER_TEST_DATABASE_URL")

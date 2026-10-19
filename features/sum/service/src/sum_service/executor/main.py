@@ -18,7 +18,7 @@ from sum_service.common.lifecycle import (
     supervise,
 )
 from sum_service.common.messaging import JetStreamPublisher, connect, jetstream_of
-from sum_service.executor.domain.service import CatalogError, parse_catalog
+from sum_service.common.service_rules import CatalogError, parse_catalog
 from sum_service.executor.engine.executor import Executor
 from sum_service.executor.provider.zitadel import ZitadelGranter
 from sum_service.executor.settings import SumServiceExecutorSettings, missing_required

@@ -18,10 +18,10 @@ from sum_service.common.contracts.envelope import EnvelopeError, read_envelope
 from sum_service.common.ids import new_identifier, utc_now
 from sum_service.common.ports import Publisher, PublishError
 from sum_service.common.resource import MODULE, RESOURCE_TYPE, SCHEMA_VERSION
+from sum_service.common.service_rules import roles_of
 from sum_service.executor.actions.service_roles import Granter, disable, enable
 from sum_service.executor.domain.errors import ActionFailedError
 from sum_service.executor.domain.revalidation import revalidate
-from sum_service.executor.domain.service import roles_of
 from sum_service.executor.provider.zitadel import ProviderError
 
 PUBLISHED_BY = "sum-service-executor"

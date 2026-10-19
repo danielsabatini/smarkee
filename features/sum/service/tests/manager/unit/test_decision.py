@@ -3,6 +3,7 @@ from typing import Any
 import pytest
 
 from sum_service.common.contracts import generated
+from sum_service.common.service_rules import enable_desired, parse_catalog
 from sum_service.manager.domain.decision import (
     Accepted,
     Link,
@@ -10,7 +11,6 @@ from sum_service.manager.domain.decision import (
     decide_create,
     decide_delete,
 )
-from sum_service.manager.domain.service import enable_desired, parse_catalog
 
 CATALOG = parse_catalog('{"ipm": ["ipm.organization.get", "ipm.organization.list"]}')
 OWNER = "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e"

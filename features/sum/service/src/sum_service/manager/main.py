@@ -17,7 +17,7 @@ from sum_service.common.lifecycle import (
     supervise,
 )
 from sum_service.common.messaging import connect, jetstream_of
-from sum_service.manager.domain.service import CatalogError, parse_catalog
+from sum_service.common.service_rules import CatalogError, parse_catalog
 from sum_service.manager.handlers.requested import RequestedHandler
 from sum_service.manager.settings import SumServiceManagerSettings, missing_required
 from sum_service.manager.transport.requested import Disposition, RequestedConsumer
