@@ -192,6 +192,8 @@ def test_real_or_system_organizations_are_never_test_data(organization_id: str, 
         "chaos.manager.1234abcd@example.com",
         "cons.ab12@example.com",
         "sa.test.ab12cd34@example.com",
+        "ana.d8cf979f97@example.com",  # testes de integração do Manager da Account
+        "dup.16a54b90a9@example.com",
     ],
 )
 def test_a_test_email_is_recognized(email: str) -> None:
@@ -205,6 +207,10 @@ def test_a_test_email_is_recognized(email: str) -> None:
         "e2e-6a67549d@empresa.com.br",  # só `example.com` é de teste
         "daniel@smarkee.internal",
         "e2e@example.com",  # sem o separador depois do rótulo
+        "ana.souza@example.com",  # `ana.` só é de teste com 10 hexadecimais
+        "ana.d8cf979f9@example.com",  # 9 hexadecimais
+        "ana.d8cf979f97x@example.com",
+        "dup.16a54b90a9@empresa.com.br",
         "",
     ],
 )

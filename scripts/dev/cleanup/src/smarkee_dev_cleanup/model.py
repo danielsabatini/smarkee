@@ -15,8 +15,12 @@ TEST_ORGANIZATION_NAME = re.compile(
     r"^(?:(?:conf|acme|loop|dup|chaos|e2e|probe|ver|cons)-|(?:org|renamed)-[0-9a-f]{10}$)"
 )
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
-# Usuários de teste: o e-mail é de `example.com` e começa por um destes rótulos.
-TEST_USER_EMAIL = re.compile(r"^(e2e|loop|conf|chaos|cons|sa\.test)[.-][^@]*@example\.com$")
+# Usuários de teste: o e-mail é de `example.com` e começa por um destes rótulos, ou é `ana.` ou
+# `dup.` mais 10 hexadecimais (os e-mails dos testes de integração do Manager da Account). `ana@` e
+# `ana.<nome>@` sem os 10 hexadecimais não são de teste.
+TEST_USER_EMAIL = re.compile(
+    r"^(?:(?:e2e|loop|conf|chaos|cons|sa\.test)[.-][^@]*|(?:ana|dup)\.[0-9a-f]{10})@example\.com$"
+)
 MAIL_QUERIES = ("to:e2e-", "to:loop.", "to:conf.", "to:chaos.", "to:cons.", "to:sa.test.")
 
 # Streams e prefixos de Subject por mensagem (`docs/NATS.md`); o `ACTION` é particionado pelo
