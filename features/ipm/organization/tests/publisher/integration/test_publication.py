@@ -145,6 +145,9 @@ async def test_only_one_instance_holds_the_session_lock(database_available: None
         assert not await try_acquire_lock(second, lock_key)
         assert not await holds_lock(second, lock_key)
         await first.close()  # failover: a trava some com a sessão
+        import asyncio
+
+        await asyncio.sleep(0.1)
         assert await try_acquire_lock(second, lock_key)
     finally:
         await second.close()

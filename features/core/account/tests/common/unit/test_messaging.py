@@ -249,7 +249,7 @@ async def test_the_state_consumer_replays_the_last_message_per_subject_and_acks(
         inactive_threshold_seconds=300,
         traced=traced,
     )
-    with caplog.at_level(logging.INFO, logger=messaging.logger.name):
+    with caplog.at_level(logging.DEBUG, logger=messaging.logger.name):
         await consumer.run(stop)
 
     subject, options = jetstream.calls[0]

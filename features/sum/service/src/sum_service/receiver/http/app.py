@@ -155,7 +155,7 @@ def create_app(deps: Dependencies) -> FastAPI:
     async def _api_error(_request: Request, error: ApiError) -> JSONResponse:
         logger.warning(
             "request rejected",
-            extra={"smarkee": {"outcome": "rejected", "error.code": error.error_code}},
+            extra={"smarkee.outcome": "rejected", "error.type": error.error_code},
         )
         body: dict[str, Any] = {"errorCode": error.error_code, "message": error.message}
         if error.field is not None:
