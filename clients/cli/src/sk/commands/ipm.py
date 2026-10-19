@@ -49,7 +49,7 @@ from sk.settings import ConfigurationError, SkSettings, config_file_path, read_c
 
 ACTIVE_ORGANIZATION_KEY = "ipm.organizationId"
 
-IPM_HELP = command("Resources of the ipm service.")
+IPM_HELP = command("Resources of the Identity Provider Manager (IPM).")
 ORGANIZATION_HELP = command(
     "Create, inspect, rename, protect and delete the requester's Organizations."
 )

@@ -41,7 +41,7 @@ from sk.http import ApiError, ApiRejectedError, ApiUnavailableError
 from sk.identity.credentials import default_credentials_path
 from sk.identity.oidc import OidcError
 
-ACCOUNT_HELP = command("Show, protect or delete your own account.")
+ACCOUNT_HELP = command("Manage your personal account (create, show, protect, delete).")
 
 account_app = typer.Typer(
     help=ACCOUNT_HELP,

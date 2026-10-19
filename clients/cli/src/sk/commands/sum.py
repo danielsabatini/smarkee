@@ -58,7 +58,7 @@ WaitOption = Annotated[
         ),
     ),
 ]
-SUM_HELP = command("Services of the Service Usage Manager (SUM).")
+SUM_HELP = command("Resources of the Service Usage Manager (SUM).")
 SERVICE_HELP = command("Enable, disable and inspect the requester's services.")
 
 sum_app = typer.Typer(
