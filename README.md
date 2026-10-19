@@ -26,7 +26,7 @@ Para evitar duplicidade e conflitos operacionais, o projeto consolida o conhecim
 | [`CHANGELOG.md`](CHANGELOG.md) | **Histórico de Releases.** Registro cronológico (SemVer) e semântico das novidades, correções e remoções. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | **Guia de Contribuição.** Fluxo prático e burocrático (Pull Requests, regras locais) para quem deseja colocar a mão na massa. |
 
-*Notas sobre execução:* Pastas como `.workspace/` e `.journal/` são reservadas para arquivos temporários e logs da plataforma, respectivamente. A área de transferência de contexto para as IAs fica restrita ao arquivo `MEMORY.md`.
+*Notas sobre execução:* `.workspace/` é reservada para arquivos temporários. `MEMORY.md` e `.journal/` são de uso das IAs, existem só na branch `dev` e estão definidos no `AGENTS.md` (§35).
 
 ## 4. Primeiros Passos
 

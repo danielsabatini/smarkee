@@ -1000,11 +1000,11 @@ Quando ainda houver dúvida, procure evidências antes de decidir (§9).
 
 # 35. Memória e Journal
 
-A gestão de contexto e histórico de execução deve obedecer a uma clara separação de responsabilidades para evitar que os agentes percam contexto ou alucinem regras.
+Este é o único lugar que define `MEMORY.md` e `.journal/`. A gestão de contexto e de histórico de execução obedece a uma separação clara de responsabilidades, para que os agentes não percam contexto nem inventem regras.
 
 ```text
 MEMORY.md
-→ estado operacional atual (transferência de contexto)
+→ estado operacional atual
 
 .journal/
 → histórico detalhado de execução
@@ -1024,10 +1024,18 @@ O `MEMORY.md` é a área de transferência de contexto entre sessões. Ele deve 
 
 O diretório `.journal/` (se utilizado pela plataforma) registra o rastreamento longo:
 
-> O que aconteceu durante as execuções passadas?
+> O que aconteceu durante a execução?
 
-*   Não é fonte normativa ou de decisão arquitetural.
+*   Não é fonte de governança, documentação ou decisão arquitetural.
 *   Secrets **nunca** devem ser persistidos no journal.
+
+## 35.3 Onde existem
+
+`MEMORY.md` e `.journal/` pertencem somente ao desenvolvimento: existem **apenas na branch `dev`**, e **nunca em `stg` nem em `main`**.
+
+*   O `.journal/` não é versionado (está no `.gitignore`): fica só no ambiente local de quem o produz.
+*   O `MEMORY.md` é versionado apenas em `dev`. A promoção de `dev` para `stg` e de `stg` para `main` não o leva.
+*   Nada que `stg` ou `main` precise (regra, contrato, decisão, documentação) pode depender de `MEMORY.md` ou de `.journal/`: o que importa fica em `AGENTS.md`, `docs/` ou `.decisions/` (§36).
 
 ---
 
@@ -1060,8 +1068,7 @@ Toda decisão deve estar em conformidade com o §2 e nunca o sobrepõe.
 
 Não utilize:
 - Diretórios temporários (`.workspace/`) como fonte de regras.
-- `MEMORY.md` como documentação do sistema.
-- `.journal/` como governança do projeto.
+- `MEMORY.md` e `.journal/` como regra, documentação ou governança do projeto (§35).
 - `artifacts/` como documentação oficial permanente.
 
 ## 36.3 Informações Exclusivas de Produtos (CHANGELOG.md, CONTRIBUTING.md e ROADMAP.md)

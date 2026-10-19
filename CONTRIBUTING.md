@@ -23,7 +23,7 @@ Nossa arquitetura de arquivos tem propósitos estritos baseados na regra de Font
 *   **`ROADMAP.md`**: O que estamos fazendo `Now`, o que faremos `Next` e o que fica para `Later`.
 *   **`CHANGELOG.md`**: Histórico de mudanças focado em humanos (mantido sob o padrão *Keep a Changelog*).
 *   **`.workspace/`**: Nossa "sandbox". Use este diretório para arquivos temporários, scripts de uso único ou experimentos. Nunca suje a raiz do projeto.
-*   **`MEMORY.md`**: Área de transferência de contexto para a Inteligência Artificial. Não a utilize como documentação.
+*   **`MEMORY.md`** e **`.journal/`**: contexto e histórico de execução das IAs, só na branch `dev`; não são documentação (`AGENTS.md` §35).
 
 ## 3. Como relatar Bugs e solicitar Features
 
@@ -51,7 +51,7 @@ Ao preparar uma release, as versões devem seguir o formato `MAJOR.MINOR.PATCH`:
 ## 6. Configuração do Ambiente de Desenvolvimento
 
 *Arquivos temporários*: Lembre-se, ao rodar testes ou criar artefatos secundários localmente, garanta que eles ocorram em `/tmp/opencode` ou na pasta local `.workspace/`. O `.workspace/` já está no `.gitignore` para evitar vazamentos de lixo geracional.
-*Segurança*: **Nunca** comite chaves privadas, secrets ou credenciais. O `.journal/` não rastreia secrets e você também não deve.
+*Segurança*: **Nunca** comite chaves privadas, secrets ou credenciais. Isso vale também para o `.journal/` e o `MEMORY.md` (`AGENTS.md` §35).
 
 ---
 
