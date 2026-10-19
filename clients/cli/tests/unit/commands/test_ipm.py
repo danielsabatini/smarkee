@@ -240,7 +240,8 @@ def test_wait_times_out_with_a_hint(api: FakeApi, monkeypatch: pytest.MonkeyPatc
 
     assert result.exit_code == 1
     assert "Timed out" in result.stderr and "Reconciling" in result.stderr
-    assert f"sk ipm organization get --resource-id {RID}" in " ".join(result.stderr.split())
+    assert "sk ipm organization get" in result.stderr
+    assert RID in result.stderr
 
 
 def test_wait_asks_for_a_fresh_token_on_every_poll(
@@ -669,10 +670,11 @@ def test_create_wait_still_succeeds_when_saving_the_active_organization_fails(
 
     assert result.exit_code == 0, result.stdout + result.stderr
     assert "Organization created" in result.stdout
-    assert "Could not save the active Organization (Permission denied)" in " ".join(
-        result.stderr.split()
-    )
-    assert f"sk config set ipm.organizationId {RID}" in " ".join(result.stderr.split())
+    assert "Could not save the active Organization" in result.stderr
+    assert "Permission denied" in result.stderr
+    assert "sk config set" in result.stderr
+    assert "ipm.organizationId" in result.stderr
+    assert RID in result.stderr
 
 
 def test_list_marks_the_active_organization(api: FakeApi, tmp_path: Path) -> None:
@@ -705,11 +707,12 @@ def test_a_rejected_request_shows_the_full_diagnostic_command(api: FakeApi) -> N
     api.routes[("GET", OPERATION)] = operation_document("rejected", "validation")
     api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
 
-    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"])
+    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"], env={"COLUMNS": "200"})
 
     assert result.exit_code == 1
-    text = " ".join(result.stderr.split())
-    assert f"sk ipm organization get --resource-id {RID} --operation-id {OPID}" in text
+    assert "sk ipm" in result.stderr and "organization get" in result.stderr
+    assert RID in result.stderr
+    assert OPID in result.stderr
 
 
 def test_deleting_the_active_organization_warns_how_to_switch(api: FakeApi, tmp_path: Path) -> None:

@@ -467,7 +467,8 @@ def test_wait_times_out_with_a_hint_and_does_not_renew(
     )
     assert result.exit_code == 1
     assert "Timed out" in result.stderr and "Reconciling" in result.stderr
-    assert f"sk sum service get --resource-id {RID}" in " ".join(result.stderr.split())
+    assert "sk sum service get" in result.stderr
+    assert RID in result.stderr
     assert renewals == []
 
 

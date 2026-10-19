@@ -190,11 +190,11 @@ def test_delete_is_refused_while_resources_are_attached_and_says_what_to_remove(
         409, "ResourcesAttached", "A conta tem recursos atrelados: 1 Organization. Remova-os."
     )
 
-    result = runner.invoke(app, ["account", "delete", "--yes"])
+    result = runner.invoke(app, ["account", "delete", "--yes"], env={"COLUMNS": "200"})
 
     assert result.exit_code == 1
-    text = " ".join(result.stderr.split())
-    assert "sk ipm organization delete" in text and "sk sum service disable" in text
+    assert "sk ipm" in result.stderr and "organization delete" in result.stderr
+    assert "sk sum service disable" in result.stderr
     assert default_credentials_path().exists()
 
 

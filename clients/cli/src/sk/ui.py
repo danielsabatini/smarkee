@@ -75,16 +75,34 @@ def note(text: str) -> None:
 
 
 def error(title: str, detail: str, *, hint: str | None = None) -> None:
-    """Erro na saída de erro: título vermelho, causa e, quando houver, a dica de correção."""
-    console = _console(stderr=True)
-    console.print(Text(f"✗ {title}", style="bold red"))
-    console.print(Text(f"  {detail}"))
+    """Erro na saída de erro: painel com borda vermelha, causa e, quando houver, a dica."""
+    content = Text(detail)
     if hint:
-        console.print(Text(f"  → {hint}", style="dim"))
+        content.append(f"\n→ {hint}", style="dim")
+    _console(stderr=True).print(
+        Panel(
+            content,
+            title=Text(f"✗ {title}", style="bold red"),
+            title_align="left",
+            border_style="red",
+            box=box.ROUNDED,
+            padding=(0, 1),
+        )
+    )
 
 
 def warning(text: str) -> None:
-    _console(stderr=True).print(Text(f"! {text}", style="yellow"))
+    """Aviso na saída de erro: painel com borda amarela e o texto."""
+    _console(stderr=True).print(
+        Panel(
+            Text(text),
+            title=Text("! Warning", style="bold yellow"),
+            title_align="left",
+            border_style="yellow",
+            box=box.ROUNDED,
+            padding=(0, 1),
+        )
+    )
 
 
 def url_panel(title: str, url: str) -> None:
