@@ -100,9 +100,10 @@ services:
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
       # defaults do componente (CORE_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>).
-      CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD: ${CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
-      CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
       CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE: ${CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-core, org core)}
+    secrets:
+      - CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD
+      - CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
@@ -137,8 +138,9 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD: ${CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD:?Defina no .env}
-      CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
+    secrets:
+      - CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD
+      - CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
@@ -164,7 +166,8 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
+    secrets:
+      - CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
@@ -188,8 +191,9 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
       CORE_ACCOUNT_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID: ${CORE_ACCOUNT_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
+    secrets:
+      - CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
       - type: volume
@@ -219,9 +223,10 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD: ${CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
       CORE_ACCOUNT_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID: ${CORE_ACCOUNT_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
       CORE_ACCOUNT_EXECUTOR_IDENTITY_PROJECT_IDS: ${CORE_ACCOUNT_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles que o Executor concede)}
+    secrets:
+      - CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
       - type: volume
@@ -252,8 +257,9 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD: ${CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
-      CORE_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
+    secrets:
+      - CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD
+      - CORE_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
@@ -304,6 +310,28 @@ services:
     # Sem healthcheck do Compose: a imagem não tem shell nem wget/curl. A extensão `health_check` responde em 13133.
     healthcheck:
       disable: true
+
+# Senhas montadas em /run/secrets/<VARIÁVEL> (arquivo somente leitura, lido pelo `SecretFilesSource`; decisão 0070).
+# A origem em dev é o .env; cada papel recebe só a sua. Em stg e prd a origem passa a ser o cofre de segredos.
+secrets:
+  CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD:
+    environment: CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD
+  CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD:
+    environment: CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD
+  CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD:
+    environment: CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD
+  CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD:
+    environment: CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD
+  CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD:
+    environment: CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD
+  CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD:
+    environment: CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD
+  CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD:
+    environment: CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD
+  CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD:
+    environment: CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD
+  CORE_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD:
+    environment: CORE_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD
 
 volumes:
   # Volume da identidade (chaves das contas de serviço), criado por `infrastructure/dev/identity`.

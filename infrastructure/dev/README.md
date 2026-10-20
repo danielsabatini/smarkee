@@ -37,6 +37,8 @@ Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
 
 Os componentes das features (Account e Organization) **não são subidos por este diretório**: cada feature tem o seu `compose.yaml` e o seu `.env` (`cp .env.example .env` em `features/core/account` e `features/ipm/organization`), e eles esperam a plataforma abaixo no ar. Suba a plataforma primeiro e depois cada feature (`docker compose up -d --build` na pasta dela). Se recriar o Receiver de uma feature, o `gateway` volta a resolver o endereço sozinho em poucos segundos; não é preciso reiniciá-lo.
 
+Nas features, as senhas dos papéis do `.env` chegam aos contêineres como arquivos em `/run/secrets/<VARIÁVEL>`, e não como variáveis de ambiente (decisão [`0070`](../../.decisions/0070-senhas-dos-servicos-como-arquivos-montados.md)). Edite o `.env` e recrie os contêineres (`docker compose up -d`).
+
 Variáveis adicionais configuradas no `identity/.env`:
 - `SMARKEE_IDENTITY_INSTANCE_NAME`: Nome da instância exibido no console (padrão: `IPM`).
 - `SMARKEE_IDENTITY_ORG_NAME`: Nome da organização inicial (padrão: `smarkee.internal`).

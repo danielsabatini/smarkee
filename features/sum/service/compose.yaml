@@ -99,9 +99,10 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      SUM_SERVICE_MANAGER_DATABASE_PASSWORD: ${SUM_SERVICE_MANAGER_DATABASE_PASSWORD:?Defina no .env}
-      SUM_SERVICE_MANAGER_MESSAGING_PASSWORD: ${SUM_SERVICE_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
       SUM_SERVICE_MANAGER_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (JSON serviço → roles, decisão 0033)}
+    secrets:
+      - SUM_SERVICE_MANAGER_DATABASE_PASSWORD
+      - SUM_SERVICE_MANAGER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
@@ -137,9 +138,10 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      SUM_SERVICE_RECEIVER_DATABASE_PASSWORD: ${SUM_SERVICE_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
-      SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD: ${SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
       SUM_SERVICE_RECEIVER_AUTH_AUDIENCE: ${SUM_SERVICE_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-sum)}
+    secrets:
+      - SUM_SERVICE_RECEIVER_DATABASE_PASSWORD
+      - SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
@@ -163,7 +165,8 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD: ${SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
+    secrets:
+      - SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
@@ -187,10 +190,11 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD: ${SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
       SUM_SERVICE_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
       SUM_SERVICE_OBSERVER_IDENTITY_PROJECT_IDS: ${SUM_SERVICE_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
       SUM_SERVICE_OBSERVER_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (o mesmo catálogo do Manager)}
+    secrets:
+      - SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
       - type: volume
@@ -221,10 +225,11 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD: ${SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
       SUM_SERVICE_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
       SUM_SERVICE_EXECUTOR_IDENTITY_PROJECT_IDS: ${SUM_SERVICE_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
       SUM_SERVICE_EXECUTOR_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (o mesmo catálogo do Manager)}
+    secrets:
+      - SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
       - type: volume
@@ -254,8 +259,9 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD: ${SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
-      SUM_SERVICE_PUBLISHER_MESSAGING_PASSWORD: ${SUM_SERVICE_PUBLISHER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
+    secrets:
+      - SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD
+      - SUM_SERVICE_PUBLISHER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
@@ -306,6 +312,28 @@ services:
     # Sem healthcheck do Compose: a imagem não tem shell nem wget/curl. A extensão `health_check` responde em 13133.
     healthcheck:
       disable: true
+
+# Senhas montadas em /run/secrets/<VARIÁVEL> (arquivo somente leitura, lido pelo `SecretFilesSource`; decisão 0070).
+# A origem em dev é o .env; cada papel recebe só a sua. Em stg e prd a origem passa a ser o cofre de segredos.
+secrets:
+  SUM_SERVICE_MANAGER_DATABASE_PASSWORD:
+    environment: SUM_SERVICE_MANAGER_DATABASE_PASSWORD
+  SUM_SERVICE_MANAGER_MESSAGING_PASSWORD:
+    environment: SUM_SERVICE_MANAGER_MESSAGING_PASSWORD
+  SUM_SERVICE_RECEIVER_DATABASE_PASSWORD:
+    environment: SUM_SERVICE_RECEIVER_DATABASE_PASSWORD
+  SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD:
+    environment: SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD
+  SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD:
+    environment: SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD
+  SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD:
+    environment: SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD
+  SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD:
+    environment: SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD
+  SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD:
+    environment: SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD
+  SUM_SERVICE_PUBLISHER_MESSAGING_PASSWORD:
+    environment: SUM_SERVICE_PUBLISHER_MESSAGING_PASSWORD
 
 volumes:
   # Volume da identidade (chaves das contas de serviço), criado por `infrastructure/dev/identity`.
