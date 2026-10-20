@@ -17,9 +17,9 @@ Este agent **cria uma feature nova** (`features/<módulo>/<tipo>`) e a leva até
 Em conformidade com o `AGENTS.md` (§1.1 e §24.1), este arquivo define apenas a atuação do agent. A fonte da verdade de cada tema está fora dele e não é repetida aqui:
 
 * roteiro completo, ordem dos passos, nomes derivados e o que ainda é manual: [`docs/FEATURE-BOOTSTRAP.md`](../../docs/FEATURE-BOOTSTRAP.md);
-* template, marcadores, perfis e o que é da feature: [`.decisions/0064`](../../.decisions/0064-template-das-features-gerado-de-fonte-unica.md) e [`0065`](../../.decisions/0065-publisher-no-template-perfil-do-receiver-e-nomes-de-configuracao.md), `templates/feature/sync.py`;
+* template, marcadores, perfis e o que é da feature: [`.decisions/0064`](../../.decisions/0064-template-das-features-gerado-de-fonte-unica.md), [`0065`](../../.decisions/0065-publisher-no-template-perfil-do-receiver-e-nomes-de-configuracao.md) e [`0075`](../../.decisions/0075-motores-identicos-gerados-do-template.md) (motores idênticos gerados do template), `templates/feature/sync.py`;
 * um componente por feature, um entrypoint por papel: [`.decisions/0063`](../../.decisions/0063-um-componente-por-feature-com-um-entrypoint-por-papel.md);
-* loop de controle, papéis e segurança: `docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`;
+* loop de controle, papéis e segurança: `docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`; toda alteração pelo loop e geração confirmada pela observação: [`.decisions/0072`](../../.decisions/0072-toda-alteracao-percorre-o-loop-e-geracao-observada.md); `provider/` e `drivers/` espelhados entre Executor e Observer: [`0073`](../../.decisions/0073-drivers-espelhados-no-executor-e-no-observer.md); proteção contra exclusão como metadado no provedor: [`0074`](../../.decisions/0074-protecao-contra-exclusao-como-metadado-no-provedor.md);
 * contratos e mensagens: `docs/SCHEMA.md` e `docs/MESSAGING.md`; SSOT e banco: `docs/SSOT.md` e `docs/POSTGRESQL.md`; broker: `docs/NATS.md`;
 * telemetria: `docs/OBSERVABILITY.md` e `docs/OBSERVABILITY-ARCHITECTURE.md`.
 * procedimentos que o agent usa: skills `feature-bootstrap` (ordem e verificação de cada passo) e `feature-registers` (registros fora da pasta da feature).
@@ -49,7 +49,7 @@ Verifique antes de criar qualquer arquivo. Se alguma falhar, **pare e informe** 
 
 1. **A feature não existe.** `features/<módulo>/<tipo>` e `schemas/<módulo>.<tipo>.index.json` não existem. Nunca sobrescreva uma feature existente (`AGENTS.md` §20).
 2. **O template está íntegro.** `python templates/feature/sync.py --check` sai com 0 antes da mudança. Divergência prévia não é do escopo: reporte.
-3. **Quarta feature em diante.** O roteiro e a decisão 0064 deixam em aberto, "antes da quarta feature", a escolha entre gerar os motores dos papéis e extraí-los para uma biblioteca comum. Conte as pastas `features/*/*/pyproject.toml`: com **três ou mais** features existentes, procure em `.decisions/` uma decisão que feche essa escolha. Se não houver, **não crie a feature**: informe que a decisão é pré-requisito e proponha registrá-la antes (`AGENTS.md` §25).
+3. **Motores dos papéis.** A escolha entre gerar os motores e extraí-los para uma biblioteca comum, que a 0064 deixou "para antes da quarta feature", está fechada pela [`0075`](../../.decisions/0075-motores-identicos-gerados-do-template.md): o que é idêntico vem do template, por perfil, e não há biblioteca comum. Confira que a 0075 continua com status "Aceita". Se o recurso pedir um motor que não cabe nos perfis, não contorne: proponha a decisão da divergência ao responsável (`AGENTS.md` §25) antes de escrever o motor.
 4. **Árvore de trabalho conhecida.** Rode `git status`. Arquivos alterados que não são seus são trabalho do usuário: não os toque nem os inclua no resultado.
 5. **Nome e escopo conferidos com o responsável** quando houver qualquer ambiguidade.
 
@@ -70,7 +70,8 @@ Regras de execução, que complementam o roteiro:
 * **Contrato primeiro.** Sem schemas válidos, nenhum código de papel é escrito. Rode os testes de `schemas/`.
 * **Comece por `python templates/feature/sync.py --new <módulo> <tipo>`.** O comando cria a pasta, grava a semente (`pyproject.toml`, `compose.yaml`, `config.toml`, `.env.example`, `consumers/`) e as cópias do template. Não crie esses arquivos à mão.
 * **O que é do template vem do `sync.py`.** Nunca copie à mão um arquivo que o template gera, e nunca edite a cópia: altere o modelo e sincronize (`AGENTS.md` §22). Alterar o template é uma mudança de escopo maior: só com pedido explícito.
-* **Perfis opcionais.** `receiver-http` e `manager-handlers` entram em `PROFILES` (`templates/feature/sync.py`) só quando o código da feature já for igual ao do modelo; informe a mudança. Se divergir, não declare: a feature segue com o seu código.
+* **Perfis opcionais.** Se a feature segue um modelo que declara os perfis (`core/account` ou `ipm/organization`), declare os mesmos perfis (`receiver-http`, `manager-handlers`, `loop-engines`, `identity-metadata`) em `PROFILES` logo depois do `--new` e rode o `sync.py`: os motores chegam do template, e o agent escreve o contrato de cada perfil (tabela do roteiro, passo 3) até o `pyright` não acusar import não resolvido. Declarar o perfil de uma feature nova é parte do roteiro e não conta como alteração do template; informe a mudança em `PROFILES` no resultado.
+* **Invariantes do loop.** Com o perfil `loop-engines`, o envio do `observedGeneration` e o teste dele vêm do template. Ficam a cargo do agent (roteiro, passos 4 e 5): o handler de `requested` do Manager só conclui a Operation sem geração nova já confirmada, e a `0001` da feature nasce com o estado atual de **todas** as migrações do modelo (inclusive `observed_generation`). A prova final é o e2e do tipo: sem ele, declare o que não foi verificado.
 * **A semente é da feature.** Depois de criada, `pyproject.toml`, `compose.yaml`, `config.toml`, `.env.example` e `consumers/` são ajustados ao recurso (dependências, papéis sem identidade, consumers a mais). Os motores e a regra de negócio (`domain/`, `service_rules.py`, `executor/actions/`) são copiados do modelo escolhido e ajustados: copie o **molde**, e nunca a regra de negócio do modelo.
 * **Registros fora da pasta da feature** (gateway, telemetria, bootstrap do banco, CLI, `scripts/dev`) são alterações em arquivos compartilhados. Faça só o que o roteiro manda, com a menor mudança, e liste cada arquivo compartilhado tocado no resultado (`AGENTS.md` §7).
 * **Segurança desde o início** (`AGENTS.md` §4): menor privilégio por papel de banco e de broker, senhas sem default, nenhum segredo em arquivo versionado ou em `.env.example` além dos valores de dev já convencionados. Credencial e endereço de conexão não têm default no código: vêm do `config.toml` por papel ou do ambiente (decisão [`0067`](../../.decisions/0067-configuracao-por-papel-com-config-toml-e-segredos-em-arquivo.md)), e as senhas chegam ao contêiner como arquivos em `/run/secrets` (decisão [`0070`](../../.decisions/0070-senhas-dos-servicos-como-arquivos-montados.md)); o roteiro (passo 4) tem o detalhe.
@@ -125,9 +126,9 @@ Se o roteiro estiver desatualizado ou errado no que o agent encontrou, **corrija
 O agent **não**:
 
 * define regra de negócio, política de acesso ou ciclo de vida do recurso;
-* altera o template, o loop de controle ou uma feature existente, salvo o mínimo que o roteiro exige (e declarado);
+* altera os modelos do template, o loop de controle ou uma feature existente, salvo o mínimo que o roteiro exige (e declarado); declarar a feature nova em `PROFILES` é parte do roteiro;
 * cria Stream (os Streams são da plataforma, roteiro passo 6);
-* decide a extração de uma biblioteca comum ou a geração dos motores (decisão própria, seção 2, item 3);
+* muda a estratégia dos motores (gerados do template, decisão 0075) nem cria biblioteca comum; uma divergência de motor é decisão do responsável (seção 2, item 3);
 * aplica migrações, sobe a stack ou executa e2e contra o ambiente sem o responsável saber;
 * faz commit, push ou publicação.
 

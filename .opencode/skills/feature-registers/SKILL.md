@@ -41,8 +41,8 @@ Confira cada linha. Se a feature `core/account` já aparece num arquivo, a featu
 | Conformidade de identidade | `infrastructure/dev/identity/conformance/tests/test_structure.py` | sempre: `ENV_FILES` e `EXPECTED_AUDIENCE`; com Observer e Executor com identidade, `EXPECTED_REGISTER` e `EXPECTED_PROJECT_IDS` |
 | Projeto de roles e contas de serviço | provedor de identidade (Zitadel) | módulo novo: projeto novo; contas do Observer e do Executor |
 | Backup | `scripts/dev/backup/src/smarkee_dev_backup/model.py` | sempre: `ENV_FILES` e `FEATURE_DIRECTORIES` |
-| Limpeza de testes | `scripts/dev/cleanup/src/smarkee_dev_cleanup/model.py` | se o recurso criar dados em teste: `Kind` e padrões de nome |
-| Perfis do template | `templates/feature/sync.py` (`PROFILES`) | só se o código da feature for igual ao do modelo |
+| Limpeza de testes | `scripts/dev/cleanup/src/smarkee_dev_cleanup/model.py` | se o recurso criar dados em teste: `Kind` e padrões de nome. A limpeza pelo loop espera `observed_generation = desired_generation` na tabela do tipo (decisão 0072) |
+| Perfis do template | `templates/feature/sync.py` (`PROFILES`) | feita no passo 3 (skill `feature-bootstrap`): os perfis do modelo (`receiver-http`, `manager-handlers`, `loop-engines`, `identity-metadata`); aqui só confira que a feature está nas tuplas certas |
 | CLI `sk` | `clients/cli/src/sk/features/<módulo>/` e `sk/commands/` | se o recurso tiver comando; textos da CLI em inglês (decisão 0035) |
 
 O `.gitignore` do telemeter e o teste de pacotes de `schemas/tests/test_feature_template.py` **não** precisam de edição: valem para qualquer feature.

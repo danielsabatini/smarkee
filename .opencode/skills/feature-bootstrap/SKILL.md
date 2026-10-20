@@ -11,7 +11,7 @@ Esta skill é um **guia de procedimentos** que chama ferramentas (`templates/fea
 
 ```text
 Fonte da verdade do tema → docs/FEATURE-BOOTSTRAP.md (roteiro, nomes derivados, o que é manual)
-Template e semente       → .decisions/0064 e 0065, templates/feature/sync.py
+Template, semente, perfis → .decisions/0064, 0065 e 0075, templates/feature/sync.py
 Estrutura da feature     → .decisions/0063
 Atuação do agent         → .opencode/agents/feature.md
 Registros compartilhados → skill feature-registers
@@ -36,10 +36,10 @@ Pare e informe se alguma falhar:
 test ! -e features/<módulo>/<tipo> && test ! -e schemas/<módulo>.<tipo>.index.json && echo livre
 python templates/feature/sync.py --check; echo $?        # deve ser 0
 git status --short                                       # o que não for seu é do usuário
-ls features/*/*/pyproject.toml | wc -l                   # 3 ou mais: ver a nota abaixo
+grep -m1 "Status" .decisions/0075-motores-identicos-gerados-do-template.md   # deve ser "Aceita"
 ```
 
-Com três ou mais features, procure em `.decisions/` a decisão que fecha "gerar os motores ou extrair uma biblioteca comum" (0064). Sem ela, não prossiga sozinho: pergunte (`feature.md`, seção 2).
+A escolha entre gerar os motores e extrair uma biblioteca comum está fechada pela 0075 (motores idênticos vêm do template, por perfil). Se o recurso pedir um motor fora dos perfis, pare e pergunte (`feature.md`, seção 2).
 
 ---
 
@@ -50,11 +50,12 @@ Cada passo termina verificado antes do seguinte. O conteúdo de cada passo está
 | Passo do roteiro | Feito quando | Verificação |
 |---|---|---|
 | 2. Contrato | schemas e índice existem, com exemplos | `cd schemas && uv run pytest -q` |
-| 3. Projeto | pasta criada, semente ajustada, modelos gerados | `python templates/feature/sync.py --new <módulo> <tipo>`; `cd features/<módulo>/<tipo> && uv lock && uv run datamodel-codegen`; `python templates/feature/sync.py --check` |
-| 4. Papéis | seis papéis com `main.py`, `settings.py` e `domain/` puro | `uv run ruff check . && uv run ruff format --check . && uv run pyright` |
+| 3. Projeto | pasta criada, semente ajustada, perfis do modelo declarados em `PROFILES`, modelos gerados | `python templates/feature/sync.py --new <módulo> <tipo>`; acrescente `"<módulo>/<tipo>"` aos perfis do modelo e rode `python templates/feature/sync.py`; `cd features/<módulo>/<tipo> && uv lock && uv run datamodel-codegen`; `python templates/feature/sync.py --check` |
+| 4. Papéis | seis papéis com `main.py`, `settings.py` e `domain/` puro; Executor e Observer com `provider/` e `drivers/` espelhados; contrato de cada perfil escrito (roteiro, passo 3) | `uv run pyright` sem `Import ... could not be resolved`; depois `uv run ruff check . && uv run ruff format --check . && uv run pyright` |
+| 4. Invariantes do loop | o Observer envia `observedGeneration` (motor do perfil `loop-engines`); o handler de `requested` do Manager só conclui a Operation sem geração nova já confirmada | `uv run pytest tests/observer/unit/test_engine.py -q` (vem do template); teste de integração do Manager no molde do modelo (`test_protection_change_completes_only_on_the_observation_of_its_generation`); prova final no e2e (passo 11) |
 | 4. Guia de parâmetros | `docs/CONFIGURATION.md` gerado dos `settings.py` | `uv run python ../../../templates/feature/configuration_guide.py` e depois `... --check` (rc 0) |
 | 4. Testes | testes unitários dos motores e `test_role_entrypoints.py` | `uv run pytest tests/*/unit tests/*/contract -q` |
-| 5. Banco | migração `0001-<tipo>.sql`; papéis do módulo | skill `postgresql` |
+| 5. Banco | migração `0001-<tipo>.sql` com o estado atual de todas as migrações do modelo; papéis do módulo | `grep -n observed_generation migrations/0001-<tipo>.sql`; skill `postgresql` |
 | 6. Mensageria | `consumers/*.json` ajustados; nenhum Stream criado | skill `nats` |
 | 7 a 9. Registros | cada arquivo compartilhado tocado | skill `feature-registers` |
 | 10. Documentação | README, DATA-FLOW, diagramas, `IMPLEMENTATION-STATUS` | revisão contra o roteiro |
@@ -64,7 +65,7 @@ Regras que valem em todos os passos (fontes no `feature.md` e no `AGENTS.md`):
 
 * o que o `sync.py` grava não é copiado nem editado à mão: altere o modelo e sincronize (§22);
 * a semente (`pyproject.toml`, `compose.yaml`, `config.toml`, `.env.example`, `consumers/`) é da feature depois de criada;
-* declarar um perfil em `PROFILES` só se o código da feature já for igual ao do modelo;
+* a feature nova declara em `PROFILES` os perfis do modelo logo depois do `--new` e escreve o contrato de cada um (roteiro, passo 3); uma feature existente só entra num perfil quando o código dela já é igual ao do modelo;
 * temporários ficam em `.workspace/` (§23); sem commit, push ou operação destrutiva sem pedido (§20).
 
 ---

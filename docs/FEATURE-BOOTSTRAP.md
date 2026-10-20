@@ -13,10 +13,12 @@ O que é da regra de negócio do recurso (`domain/`, `service_rules.py`, `execut
 | Se o recurso... | Copie de | Motivo |
 |---|---|---|
 | tem identidade própria no provedor de identidade e proteção contra exclusão | `core/account` | a mais completa e documentada (referência de toda a estrutura) |
-| é uma entidade simples ligada a uma Organization | `ipm/organization` | o mesmo molde, com outra regra de negócio |
+| é uma entidade simples ligada a uma Organization | `ipm/organization` | o mesmo molde, com outra regra de negócio (também tem proteção contra exclusão) |
 | é uma ligação ou concessão entre recursos, com catálogo | `sum/service` | tem catálogo e regras de dependência (`common/service_rules.py`) |
 
 O que é igual em todas as features **não é copiado à mão**: vem do template (passo 3) e da semente (`--new`).
+
+Todo recurso que pode ser apagado de verdade **nasce protegido** (`deletionProtection: true` no `desired`, decisão `0043`), e a proteção é **campo gerenciado**: gravada como metadado `deletionProtection` no provedor e reconciliada (decisão `0074`). No schema, `x-managed: true` no `desired` e o campo opcional no `observed`.
 
 ## 2. Contrato primeiro
 
@@ -42,22 +44,34 @@ O que é igual em todas as features **não é copiado à mão**: vem do template
    Arquivos gerados não são editados à mão (AGENTS §22): altere a fonte e gere de novo. Depois de alterar o template, rode `python templates/feature/sync.py` para regravar as cópias.
 4. `sonar-project.properties` vem do template: confira a chave e o nome ([`.opencode/agents/sonarqube.md`](../.opencode/agents/sonarqube.md)).
 
-O que o template grava: `common/` (inclusive `resource.py` e `logging_config.py`), testes comuns (inclusive `test_http_server.py`, `test_outbox_publisher.py` e `test_tolerant_reader.py`), o Publisher, o `openapi.py` e o `trace_context.py` do Receiver, os `streams.py` do Reconciler, a suíte e2e base (`tests/e2e/tests/contracts.py`), `Dockerfile`, `.dockerignore`, `sonar-project.properties` e `telemeter/` (decisões 0046, 0064 e 0065). Os perfis `receiver-http` e `manager-handlers` entram nas features que os declaram em `PROFILES`.
+O que o template grava: `common/` (inclusive `resource.py` e `logging_config.py`), testes comuns (inclusive `test_http_server.py`, `test_outbox_publisher.py` e `test_tolerant_reader.py`), o Publisher, o `openapi.py` e o `trace_context.py` do Receiver, os `streams.py` do Reconciler, a suíte e2e base (`tests/e2e/tests/contracts.py`), `Dockerfile`, `.dockerignore`, `sonar-project.properties` e `telemeter/` (decisões 0046, 0064 e 0065).
+
+Os perfis opcionais trazem os motores e os módulos sem regra do tipo (decisões `0064` e [`0075`](../.decisions/0075-motores-identicos-gerados-do-template.md)). Uma feature nova começa sem nenhum. **Se ela segue um modelo que declara os perfis** (`core/account` ou `ipm/organization`), declare os mesmos perfis logo depois do `--new`, acrescentando `"<módulo>/<tipo>"` a cada tupla de `PROFILES` em `templates/feature/sync.py`, e rode `python templates/feature/sync.py`. Os motores chegam do template, e o que falta escrever é o contrato de cada perfil, na tabela abaixo. O `uv run pyright` lista o que ainda não existe (`Import ... could not be resolved`), e a lista zera quando o contrato está completo. Se um papel do recurso precisar de um motor diferente, não declare o perfil dele: a feature escreve o seu e registra a divergência numa decisão.
+
+| Perfil | O que o template grava | O que a feature escreve (contrato) |
+|---|---|---|
+| `receiver-http` | `receiver/http/health_routes.py`, `submission.py` e `receiver/domain/{errors,records,requests}.py` | `receiver/http/app.py` (com `Dependencies` e `create_app`, usado pelo `openapi.py`), o restante do Receiver no molde do modelo |
+| `manager-handlers` | `manager/domain/outcome.py` e `manager/handlers/{envelope,observed,publishing,result}.py` | `manager/domain/kind.py` (`ResourceKind`), `manager/domain/policy.py` (`ResourcePolicy`), `manager/handlers/ports.py` (`Store`) e `manager/store/ssot.py` com `observed_generation` (`lock_resource` a devolve; `save_observation(..., observed_generation=...)`), e a coluna na migração (passo 5) |
+| `loop-engines` | `observer/engine/observer.py` (com o envio do `observedGeneration`), `executor/engine/executor.py`, `executor/domain/{revalidation,errors}.py`, `manager/domain/{convergence,errors}.py` e o teste `tests/observer/unit/test_engine.py` | `observer/settings.py` com `<Tipo>ObserverSettings` (`partition` e `loop`), `observer/domain/observation.py` com `Drivers`, `Observation`, `observe` e `log_identifiers`, `executor/actions/<tipo>_actions.py` com `Drivers` e `execute`, `executor/domain/identity.py` com `ProviderError`, e `manager/domain/policy.py` (usado pela convergência) |
+| `identity-metadata` | `executor/drivers/metadata.py` e `observer/drivers/metadata.py`, com os testes | `executor/provider/identity.py` com `IdentityConnection.call(...)`, `observer/provider/identity.py` com `IdentityConnection.request(...)` e `json(...)`, `ProviderError` em `executor/domain/identity.py` e `observer/domain/identity.py`, e `executor/settings.py` e `observer/settings.py` com `IdentitySettings` (decisões `0073` e `0074`) |
 
 ## 4. Escreva os papéis
 
 Em `src/<módulo>_<tipo>/` cada papel é um subpacote com `main.py`, `settings.py` e `domain/` puro: `receiver`, `manager`, `publisher`, `reconciler`, `observer`, `executor`. O que o loop exige de cada um está em [`RESOURCE-CONTROL-LOOP.md`](RESOURCE-CONTROL-LOOP.md) e [`RESOURCE-CONTROL-SECURITY.md`](RESOURCE-CONTROL-SECURITY.md); a estrutura interna, no README da feature modelo.
 
 - A regra de negócio fica em `domain/` (sem I/O); o isolamento é verificado por `tests/common/unit/test_domain_isolation.py` e `test_role_isolation.py`, que vêm do template.
+- **Executor e Observer espelhados** (decisão [`0073`](../.decisions/0073-drivers-espelhados-no-executor-e-no-observer.md)): `provider/identity.py` é só a conexão autenticada (`IdentityConnection`), e `drivers/<sub-recurso>.py` tem um driver por sub-recurso do provedor, com o mesmo nome nos dois papéis (escrita no Executor, só leitura no Observer). As `actions/` do Executor e o `domain/observation.py` do Observer recebem um pacote `Drivers` montado no `main.py`.
+- **Toda alteração percorre o loop** (decisão [`0072`](../.decisions/0072-toda-alteracao-percorre-o-loop-e-geracao-observada.md)): o Manager não conclui uma Operation no `requested` (só um pedido sem geração nova, com a geração vigente já confirmada); ela conclui quando a observação confirma a geração.
+- **O Observer envia `observedGeneration`** no envelope `observed`: a geração do `desired` que ele conhecia **antes** de ler o provedor. Sem isso o Manager nunca confirma uma geração e toda Operation fica `accepted`. Com o perfil `loop-engines`, o motor e o teste que cobre essa regra vêm do template. Sem o perfil, a feature escreve o motor e o teste, no molde do template (`templates/feature/optional/loop-engines/`).
 - Cada papel usa o seu papel de login no banco (`<módulo>_<tipo>_<papel>_login`) e a sua identidade no broker; o `command` do contêiner escolhe o papel.
-- O `main.py` só monta as tarefas do papel dentro de `role_runtime` (`common/runtime.py`), que conecta ao broker, registra a saúde, supervisiona e encerra (drena o broker e fecha o que for registrado em `close_after`). O Publisher vem pronto do template, e o Manager traz do perfil `manager-handlers` o envelope e a persistência de `observed` e do resultado; o restante dos papéis segue o molde do `core/account`.
+- O `main.py` só monta as tarefas do papel dentro de `role_runtime` (`common/runtime.py`), que conecta ao broker, registra a saúde, supervisiona e encerra (drena o broker e fecha o que for registrado em `close_after`). O Publisher vem pronto do template; com os perfis do passo 3, chegam também os motores do Observer e do Executor, a convergência e os handlers do Manager e o domínio comum do Receiver. O restante dos papéis segue o molde do `core/account`.
 - Variáveis de infraestrutura levam a **função** como prefixo (`DATABASE_`, `MESSAGING_`, `GATEWAY_`, `TELEMETRY_`...), não o produto (decisão [`0068`](../.decisions/0068-variaveis-de-infraestrutura-nomeadas-pela-funcao.md)).
 - Variáveis: `<MÓDULO>_<TIPO>_<PAPEL>_<SEÇÃO>_<CAMPO>` (`role_config`); senhas sem default. No compose, cada senha de papel é montada como arquivo em `/run/secrets/<VARIÁVEL>` (bloco `secrets:`, decisão [`0070`](../.decisions/0070-senhas-dos-servicos-como-arquivos-montados.md)); o manifesto não define a variável `*_PASSWORD`. Cada papel herda `RoleSettings` (CLI → ambiente → `config.toml` → arquivos de segredo → default, decisão [`0067`](../.decisions/0067-configuracao-por-papel-com-config-toml-e-segredos-em-arquivo.md)); os valores de dev da feature ficam no `config.toml` (semente), tabela `[tool.<módulo>.<tipo>.<papel>.<seção>]`.
 - Testes por feature (não vêm do template, porque dependem dos papéis e dos motores): `tests/common/unit/test_role_entrypoints.py` (um por feature, modelo no `core/account`) e os testes dos motores de cada papel. Sem eles a cobertura do código novo não passa o Quality Gate. Os testes de `http_server` e do `outbox_publisher` já vêm do template.
 
 ## 5. Banco de dados
 
-1. Migrações em `migrations/` (`0001-<tipo>.sql`): tabela principal, `outbox`, `operation` e `action_result`, views e privilégios por papel. Modelo e regras em [`SSOT.md`](SSOT.md) e [`POSTGRESQL.md`](POSTGRESQL.md).
+1. Migrações em `migrations/` (`0001-<tipo>.sql`): tabela principal, `outbox`, `operation` e `action_result`, views e privilégios por papel. Modelo e regras em [`SSOT.md`](SSOT.md) e [`POSTGRESQL.md`](POSTGRESQL.md) (a tabela de exemplo de lá é a referência atual). **Não copie só o `0001` do modelo:** o modelo evoluiu em migrações aditivas, e o `0001` dele não tem o que veio depois. A `0001` da feature nova já nasce com o estado atual de todas, em especial a coluna `observed_generation` com o `CHECK (observed_generation IS NULL OR (observed_generation >= 1 AND observed_generation <= desired_generation))` (decisão `0072`), o motivo de rejeição `protected` (decisão `0043`) e a coluna `traceparent` do outbox (decisão `0055`). Confira contra todas as migrações do modelo (`migrations/*.sql`).
 2. Papéis do módulo em `infrastructure/dev/database/bootstrap/<módulo>.sql` — só se o **módulo** é novo; para um tipo novo de módulo existente, acrescente o papel do tipo à lista do arquivo existente.
 
 ## 6. Mensageria
@@ -82,7 +96,7 @@ Os Streams (`REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT`, `UPDATED`) s
 - `scripts/dev/backup`: acrescente o que a feature guarda de novo (`.env`, volumes): o `.env` em `ENV_FILES` e a pasta em `FEATURE_DIRECTORIES` (`model.py`).
 - `.gitignore`: nada a fazer; a regra da saída do telemeter vale para qualquer `features/<módulo>/<tipo>` (decisão `0062`).
 - `infrastructure/dev/identity/conformance/tests/test_structure.py`: acrescente a feature a `ENV_FILES`, `EXPECTED_AUDIENCE` (e, se houver contas de serviço do Observer e do Executor, `EXPECTED_REGISTER` e `EXPECTED_PROJECT_IDS`), para o desvio de configuração ser detectado (decisão `0037`).
-- `PROFILES` em `templates/feature/sync.py`: declare `receiver-http` e `manager-handlers` somente se o código da feature for igual ao do modelo. Se não for, não declare: a feature segue com o seu código.
+- `PROFILES` em `templates/feature/sync.py`: os perfis da feature nova já foram declarados no passo 3. Confira que o contrato de cada um está completo (`pyright` sem import não resolvido). Uma feature existente só entra num perfil quando o código dela já é igual ao do modelo.
 
 ## 10. Documentação e registro
 
@@ -103,4 +117,4 @@ Depois: análise do SonarQube (Quality Gate e cobertura acima de 80%) e o e2e do
 
 ## O que ainda é manual
 
-O template e a semente cobrem o que é **idêntico** entre as features (medido em 2026-10-19: o restante varia por recurso). Seguem manuais, porque diferem entre as features: a regra de negócio, os motores do Reconciler, do Executor e do Observer, os `settings.py` e `main.py` dos papéis, `contracts/generated.py` (gerado do contrato), `service_rules.py`, as rotas do gateway e as entradas da telemetria. Gerá-los, ou extrair os motores para uma biblioteca comum, continua sendo a decisão em aberto da [`.decisions/0064`](../.decisions/0064-template-das-features-gerado-de-fonte-unica.md), a tomar com evidência de que a quarta feature repete os motores.
+O template, a semente e os perfis cobrem o que é **idêntico** entre as features, inclusive os motores do Observer e do Executor e a convergência do Manager (medição de 2026-10-20, decisão [`0075`](../.decisions/0075-motores-identicos-gerados-do-template.md): gerar do template, sem biblioteca comum). Seguem manuais, porque têm regra do tipo: a regra de negócio, o motor e a decisão do Reconciler, o Manager fora do perfil `manager-handlers` (store, `requested`, consumers, política), as `actions` e os drivers do provedor, a observação, os `settings.py` e `main.py` dos papéis, o `app.py` do Receiver, `contracts/generated.py` (gerado do contrato), `service_rules.py`, as rotas do gateway e as entradas da telemetria. Quando uma feature nova repetir um deles, meça de novo e leve ao template pelo mesmo critério.
