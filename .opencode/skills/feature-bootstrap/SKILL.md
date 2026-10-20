@@ -52,6 +52,7 @@ Cada passo termina verificado antes do seguinte. O conteúdo de cada passo está
 | 2. Contrato | schemas e índice existem, com exemplos | `cd schemas && uv run pytest -q` |
 | 3. Projeto | pasta criada, semente ajustada, modelos gerados | `python templates/feature/sync.py --new <módulo> <tipo>`; `cd features/<módulo>/<tipo> && uv lock && uv run datamodel-codegen`; `python templates/feature/sync.py --check` |
 | 4. Papéis | seis papéis com `main.py`, `settings.py` e `domain/` puro | `uv run ruff check . && uv run ruff format --check . && uv run pyright` |
+| 4. Guia de parâmetros | `docs/CONFIGURATION.md` gerado dos `settings.py` | `uv run python ../../../templates/feature/configuration_guide.py` e depois `... --check` (rc 0) |
 | 4. Testes | testes unitários dos motores e `test_role_entrypoints.py` | `uv run pytest tests/*/unit tests/*/contract -q` |
 | 5. Banco | migração `0001-<tipo>.sql`; papéis do módulo | skill `postgresql` |
 | 6. Mensageria | `consumers/*.json` ajustados; nenhum Stream criado | skill `nats` |

@@ -102,6 +102,7 @@ Quando não puder delegar, aplique os documentos de cada tema diretamente e regi
 A feature só está pronta quando o roteiro (passo 11) passou. Execute e reporte o resultado **de cada item**:
 
 * `python templates/feature/sync.py --check`;
+* `docs/CONFIGURATION.md` gerado e em dia: `cd features/<módulo>/<tipo> && uv run python ../../../templates/feature/configuration_guide.py --check` (regere sem `--check` depois de mudar um `settings.py`; o guia é gerado, nunca editado);
 * `ruff check`, `ruff format --check` e `pyright` na feature;
 * testes unitários e de contrato da feature; os de integração e e2e exigem a stack de dev no ar. Se ela não estiver, declare o que **não** foi verificado;
 * testes de `schemas/` (inclusive o do template);

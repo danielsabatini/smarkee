@@ -1,8 +1,9 @@
+<!-- Gerado por templates/feature/configuration_guide.py a partir dos settings.py dos papéis. Não edite: altere o código e regenere. -->
 # Configuração de sum.service: guia de parâmetros
 
-Referência de **todas** as configurações dos 6 papéis de `sum.service` (`sum-service-receiver`, `-manager`, `-publisher`, `-reconciler`, `-observer` e `-executor`), na ordem de precedência, e de como executar cada um. Decisões: [`0067`](../../../../.decisions/0067-configuracao-por-papel-com-config-toml-e-segredos-em-arquivo.md) (configuração), [`0069`](../../../../.decisions/0069-prefixo-smarkee-nas-variaveis-de-infraestrutura.md) (prefixo) e [`0070`](../../../../.decisions/0070-senhas-dos-servicos-como-arquivos-montados.md) (senhas como arquivos).
+Referência de **todas** as configurações dos papéis de `sum.service` (`sum-service-<papel>`), na ordem de precedência, e de como executar cada um. Decisões: [`0067`](../../../../.decisions/0067-configuracao-por-papel-com-config-toml-e-segredos-em-arquivo.md) (configuração), [`0069`](../../../../.decisions/0069-prefixo-smarkee-nas-variaveis-de-infraestrutura.md) (prefixo) e [`0070`](../../../../.decisions/0070-senhas-dos-servicos-como-arquivos-montados.md) (senhas como arquivos).
 
-> As tabelas de campos são geradas dos `settings.py` de cada papel (`src/sum_service/<papel>/settings.py` e `common/settings.py`). Ao mudar um campo, atualize este guia.
+> Gerado dos `settings.py` de `src/sum_service/<papel>/` e de `common/settings.py`. Para atualizar: `cd features/sum/service && uv run python ../../../templates/feature/configuration_guide.py`.
 
 ## 1. Precedência
 
@@ -19,7 +20,7 @@ Cada campo é resolvido pela **primeira** fonte que o informa, da maior para a m
 Pontos que costumam surpreender:
 
 - O **ambiente vence o arquivo de segredo**. Uma variável `*_PASSWORD` definida no ambiente anula o segredo montado: os manifestos não devem defini-las.
-- **Sem default no código**: `database.host|port|name|user|password` e `messaging.url|user|password`, além do que cada papel marca como obrigatório (seções 3 a 8). Faltando algum, o serviço sai com `missing required configuration` e lista as variáveis.
+- **Sem default no código**: `database.host|port|name|user|password` e `messaging.url|user|password`, além do que cada papel marca como obrigatório. Faltando algum, o serviço sai com `missing required configuration` e lista as variáveis.
 - **Campo desconhecido** é rejeitado (`extra="forbid"`): variável, chave do `config.toml` ou flag com nome errado falha, em vez de ser ignorada.
 - O nome da variável separa só a **seção** do **campo**: `MESSAGING_URL` é `messaging.url`; `LOOP_REEVALUATION_INTERVAL_SECONDS` é `loop.reevaluation_interval_seconds`.
 - Valores compostos (listas e dicionários) vão como **JSON** na variável e na flag.
@@ -74,14 +75,14 @@ Entrypoint do Receiver de `sum.service` (`sum-service-receiver`, decisões 0015 
 | `messaging.user` | `SUM_SERVICE_RECEIVER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.password` | `SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
 | `auth.issuer` | `SUM_SERVICE_RECEIVER_AUTH_ISSUER` | `--auth.issuer` | `str` | `'http://localhost:8080'` | Valor esperado de `iss`: o endereço público do provedor de identidade. |
-| `auth.jwks_url` | `SUM_SERVICE_RECEIVER_AUTH_JWKS_URL` | `--auth.jwks_url` | `str` | `'http://localhost:8000/oauth/v2/keys'` | |
-| `auth.host_header` | `SUM_SERVICE_RECEIVER_AUTH_HOST_HEADER` | `--auth.host_header` | `str` | `'localhost:8080'` | |
+| `auth.jwks_url` | `SUM_SERVICE_RECEIVER_AUTH_JWKS_URL` | `--auth.jwks_url` | `str` | `'http://localhost:8000/oauth/v2/keys'` |  |
+| `auth.host_header` | `SUM_SERVICE_RECEIVER_AUTH_HOST_HEADER` | `--auth.host_header` | `str` | `'localhost:8080'` |  |
 | `auth.audience` | `SUM_SERVICE_RECEIVER_AUTH_AUDIENCE` | `--auth.audience` | `str \| None` | — | Obrigatória. ID do projeto de roles do SUM (`roles-sum`): audience dos tokens aceitos. |
-| `auth.jwks_cache_seconds` | `SUM_SERVICE_RECEIVER_AUTH_JWKS_CACHE_SECONDS` | `--auth.jwks_cache_seconds` | `int` | `300` | |
-| `api.host` | `SUM_SERVICE_RECEIVER_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` | |
-| `api.port` | `SUM_SERVICE_RECEIVER_API_PORT` | `--api.port` | `int` | `8000` | |
-| `peers.organizations_url` | `SUM_SERVICE_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` | |
-| `peers.timeout_seconds` | `SUM_SERVICE_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` | |
+| `auth.jwks_cache_seconds` | `SUM_SERVICE_RECEIVER_AUTH_JWKS_CACHE_SECONDS` | `--auth.jwks_cache_seconds` | `int` | `300` |  |
+| `api.host` | `SUM_SERVICE_RECEIVER_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
+| `api.port` | `SUM_SERVICE_RECEIVER_API_PORT` | `--api.port` | `int` | `8000` |  |
+| `peers.organizations_url` | `SUM_SERVICE_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.timeout_seconds` | `SUM_SERVICE_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
 **Definido no `config.toml` de dev:**
 
@@ -112,14 +113,14 @@ organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
 docker compose up -d sum-service-receiver
 docker compose logs -f sum-service-receiver
 
-# Host, com o ambiente do .env
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
 uv run --env-file .env sum-service-receiver \
     --api.port 8001 \
     --database.host localhost \
     --messaging.url nats://localhost:4222
 
 # Lista todas as flags aceitas pelo papel
-uv run --env-file .env sum-service-receiver --help
+uv run sum-service-receiver --help
 ```
 
 ## 4. `sum-service-manager`
@@ -176,14 +177,14 @@ user = "smarkee"
 docker compose up -d sum-service-manager
 docker compose logs -f sum-service-manager
 
-# Host, com o ambiente do .env
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
 uv run --env-file .env sum-service-manager \
     --health.port 8002 \
     --database.host localhost \
     --messaging.url nats://localhost:4222
 
 # Lista todas as flags aceitas pelo papel
-uv run --env-file .env sum-service-manager --help
+uv run sum-service-manager --help
 ```
 
 ## 5. `sum-service-publisher`
@@ -238,14 +239,14 @@ user = "smarkee"
 docker compose up -d sum-service-publisher
 docker compose logs -f sum-service-publisher
 
-# Host, com o ambiente do .env
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
 uv run --env-file .env sum-service-publisher \
     --health.port 8003 \
     --database.host localhost \
     --messaging.url nats://localhost:4222
 
 # Lista todas as flags aceitas pelo papel
-uv run --env-file .env sum-service-publisher --help
+uv run sum-service-publisher --help
 ```
 
 ## 6. `sum-service-reconciler`
@@ -269,14 +270,14 @@ Entrypoint do Reconciler de `sum.service` (`sum-service-reconciler`, decisões 0
 | `messaging.password` | `SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
 | `messaging.consumer_inactive_threshold_seconds` | `SUM_SERVICE_RECONCILER_MESSAGING_CONSUMER_INACTIVE_THRESHOLD_SECONDS` | `--messaging.consumer_inactive_threshold_seconds` | `int` | `300` | Tempo sem uso após o qual o servidor remove o consumer da instância. |
 | `health.port` | `SUM_SERVICE_RECONCILER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
-| `loop.observation_interval_seconds` | `SUM_SERVICE_RECONCILER_LOOP_OBSERVATION_INTERVAL_SECONDS` | `--loop.observation_interval_seconds` | `int` | `300` | |
-| `loop.observation_validity_seconds` | `SUM_SERVICE_RECONCILER_LOOP_OBSERVATION_VALIDITY_SECONDS` | `--loop.observation_validity_seconds` | `int` | `600` | |
-| `loop.action_deadline_seconds` | `SUM_SERVICE_RECONCILER_LOOP_ACTION_DEADLINE_SECONDS` | `--loop.action_deadline_seconds` | `int` | `120` | |
-| `loop.failure_limit` | `SUM_SERVICE_RECONCILER_LOOP_FAILURE_LIMIT` | `--loop.failure_limit` | `int` | `5` | |
-| `loop.failure_backoff_seconds` | `SUM_SERVICE_RECONCILER_LOOP_FAILURE_BACKOFF_SECONDS` | `--loop.failure_backoff_seconds` | `int` | `30` | |
-| `loop.failure_backoff_maximum_seconds` | `SUM_SERVICE_RECONCILER_LOOP_FAILURE_BACKOFF_MAXIMUM_SECONDS` | `--loop.failure_backoff_maximum_seconds` | `int` | `600` | |
+| `loop.observation_interval_seconds` | `SUM_SERVICE_RECONCILER_LOOP_OBSERVATION_INTERVAL_SECONDS` | `--loop.observation_interval_seconds` | `int` | `300` |  |
+| `loop.observation_validity_seconds` | `SUM_SERVICE_RECONCILER_LOOP_OBSERVATION_VALIDITY_SECONDS` | `--loop.observation_validity_seconds` | `int` | `600` |  |
+| `loop.action_deadline_seconds` | `SUM_SERVICE_RECONCILER_LOOP_ACTION_DEADLINE_SECONDS` | `--loop.action_deadline_seconds` | `int` | `120` |  |
+| `loop.failure_limit` | `SUM_SERVICE_RECONCILER_LOOP_FAILURE_LIMIT` | `--loop.failure_limit` | `int` | `5` |  |
+| `loop.failure_backoff_seconds` | `SUM_SERVICE_RECONCILER_LOOP_FAILURE_BACKOFF_SECONDS` | `--loop.failure_backoff_seconds` | `int` | `30` |  |
+| `loop.failure_backoff_maximum_seconds` | `SUM_SERVICE_RECONCILER_LOOP_FAILURE_BACKOFF_MAXIMUM_SECONDS` | `--loop.failure_backoff_maximum_seconds` | `int` | `600` |  |
 | `loop.reevaluation_interval_seconds` | `SUM_SERVICE_RECONCILER_LOOP_REEVALUATION_INTERVAL_SECONDS` | `--loop.reevaluation_interval_seconds` | `int` | `15` | Período da reavaliação periódica de todos os recursos (com jitter). |
-| `loop.reevaluation_jitter` | `SUM_SERVICE_RECONCILER_LOOP_REEVALUATION_JITTER` | `--loop.reevaluation_jitter` | `float` | `0.2` | |
+| `loop.reevaluation_jitter` | `SUM_SERVICE_RECONCILER_LOOP_REEVALUATION_JITTER` | `--loop.reevaluation_jitter` | `float` | `0.2` |  |
 
 **Definido no `config.toml` de dev:**
 
@@ -293,14 +294,14 @@ user = "smarkee"
 docker compose up -d sum-service-reconciler
 docker compose logs -f sum-service-reconciler
 
-# Host, com o ambiente do .env
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
 uv run --env-file .env sum-service-reconciler \
     --health.port 8004 \
     --messaging.url nats://localhost:4222 \
     --loop.failure_limit 3
 
 # Lista todas as flags aceitas pelo papel
-uv run --env-file .env sum-service-reconciler --help
+uv run sum-service-reconciler --help
 ```
 
 ## 7. `sum-service-observer`
@@ -326,7 +327,7 @@ Entrypoint do Observer de `sum.service` (`sum-service-observer`, decisões 0015 
 | `identity.host_header` | `SUM_SERVICE_OBSERVER_IDENTITY_HOST_HEADER` | `--identity.host_header` | `str` | `'localhost:8080'` | `Host` enviado ao Zitadel: ele resolve a instância pelo domínio externo. |
 | `identity.issuer` | `SUM_SERVICE_OBSERVER_IDENTITY_ISSUER` | `--identity.issuer` | `str` | `'http://localhost:8080'` | Audience da assertion JWT da conta de serviço. |
 | `identity.key_file` | `SUM_SERVICE_OBSERVER_IDENTITY_KEY_FILE` | `--identity.key_file` | `str` | `'/run/secrets/zitadel-key.json'` | Chave JSON da conta de serviço do papel (montada só no contêiner dele). |
-| `identity.timeout_seconds` | `SUM_SERVICE_OBSERVER_IDENTITY_TIMEOUT_SECONDS` | `--identity.timeout_seconds` | `float` | `5.0` | |
+| `identity.timeout_seconds` | `SUM_SERVICE_OBSERVER_IDENTITY_TIMEOUT_SECONDS` | `--identity.timeout_seconds` | `float` | `5.0` |  |
 | `identity.register_organization_id` | `SUM_SERVICE_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID` | `--identity.register_organization_id` | `str \| None` | — | Obrigatória. |
 | `identity.project_ids` | `SUM_SERVICE_OBSERVER_IDENTITY_PROJECT_IDS` | `--identity.project_ids` | `dict[str, str]` | `{}` | Obrigatória. Módulo → projeto de roles que o Observer lê (decisão 0032). |
 | `messaging.url` | `SUM_SERVICE_OBSERVER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
@@ -337,7 +338,7 @@ Entrypoint do Observer de `sum.service` (`sum-service-observer`, decisões 0015 
 | `health.port` | `SUM_SERVICE_OBSERVER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 | `loop.observation_interval_seconds` | `SUM_SERVICE_OBSERVER_LOOP_OBSERVATION_INTERVAL_SECONDS` | `--loop.observation_interval_seconds` | `int` | `300` | Intervalo da observação periódica (`observationInterval` do `desired`). |
 | `loop.observation_jitter` | `SUM_SERVICE_OBSERVER_LOOP_OBSERVATION_JITTER` | `--loop.observation_jitter` | `float` | `0.2` | Fração de variação do intervalo, para as instâncias não observarem todas ao mesmo tempo. |
-| `partition.index` | `SUM_SERVICE_OBSERVER_PARTITION_INDEX` | `--partition.index` | `int` | `0` | |
+| `partition.index` | `SUM_SERVICE_OBSERVER_PARTITION_INDEX` | `--partition.index` | `int` | `0` |  |
 | `partition.count` | `SUM_SERVICE_OBSERVER_PARTITION_COUNT` | `--partition.count` | `int` | `1` | Partição por `resourceId`: a instância observa só `hash mod count == index`. |
 
 **Definido no `config.toml` de dev:**
@@ -360,7 +361,7 @@ user = "smarkee"
 docker compose up -d sum-service-observer
 docker compose logs -f sum-service-observer
 
-# Host, com o ambiente do .env
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
 uv run --env-file .env sum-service-observer \
     --health.port 8005 \
     --messaging.url nats://localhost:4222 \
@@ -368,7 +369,7 @@ uv run --env-file .env sum-service-observer \
     --loop.observation_interval_seconds 60
 
 # Lista todas as flags aceitas pelo papel
-uv run --env-file .env sum-service-observer --help
+uv run sum-service-observer --help
 ```
 
 ## 8. `sum-service-executor`
@@ -397,7 +398,7 @@ Entrypoint do Executor de `sum.service` (`sum-service-executor`, decisões 0015,
 | `identity.host_header` | `SUM_SERVICE_EXECUTOR_IDENTITY_HOST_HEADER` | `--identity.host_header` | `str` | `'localhost:8080'` | `Host` enviado ao Zitadel: ele resolve a instância pelo domínio externo. |
 | `identity.issuer` | `SUM_SERVICE_EXECUTOR_IDENTITY_ISSUER` | `--identity.issuer` | `str` | `'http://localhost:8080'` | Audience da assertion JWT da conta de serviço. |
 | `identity.key_file` | `SUM_SERVICE_EXECUTOR_IDENTITY_KEY_FILE` | `--identity.key_file` | `str` | `'/run/secrets/zitadel-key.json'` | Chave JSON da conta de serviço do papel (montada só no contêiner dele). |
-| `identity.timeout_seconds` | `SUM_SERVICE_EXECUTOR_IDENTITY_TIMEOUT_SECONDS` | `--identity.timeout_seconds` | `float` | `10.0` | |
+| `identity.timeout_seconds` | `SUM_SERVICE_EXECUTOR_IDENTITY_TIMEOUT_SECONDS` | `--identity.timeout_seconds` | `float` | `10.0` |  |
 | `identity.register_organization_id` | `SUM_SERVICE_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID` | `--identity.register_organization_id` | `str \| None` | — | Obrigatória. |
 | `identity.project_ids` | `SUM_SERVICE_EXECUTOR_IDENTITY_PROJECT_IDS` | `--identity.project_ids` | `dict[str, str]` | `{}` | Obrigatória. Módulo → projeto de roles que o Executor pode conceder (decisão 0032). Hoje só `ipm`. |
 | `catalog.roles` | `SUM_SERVICE_EXECUTOR_CATALOG_ROLES` | `--catalog.roles` | `str \| None` | — | Obrigatória. Mesmo catálogo do Manager: as roles de um serviço, para revogar ao desligar. |
@@ -424,7 +425,7 @@ user = "smarkee"
 docker compose up -d sum-service-executor
 docker compose logs -f sum-service-executor
 
-# Host, com o ambiente do .env
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
 uv run --env-file .env sum-service-executor \
     --health.port 8006 \
     --messaging.url nats://localhost:4222 \
@@ -432,5 +433,5 @@ uv run --env-file .env sum-service-executor \
     --partition.count 4
 
 # Lista todas as flags aceitas pelo papel
-uv run --env-file .env sum-service-executor --help
+uv run sum-service-executor --help
 ```

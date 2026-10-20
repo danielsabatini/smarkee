@@ -1,8 +1,9 @@
+<!-- Gerado por templates/feature/configuration_guide.py a partir dos settings.py dos papéis. Não edite: altere o código e regenere. -->
 # Configuração de core.account: guia de parâmetros
 
-Referência de **todas** as configurações dos 6 papéis de `core.account` (`core-account-receiver`, `-manager`, `-publisher`, `-reconciler`, `-observer` e `-executor`), na ordem de precedência, e de como executar cada um. Decisões: [`0067`](../../../../.decisions/0067-configuracao-por-papel-com-config-toml-e-segredos-em-arquivo.md) (configuração), [`0069`](../../../../.decisions/0069-prefixo-smarkee-nas-variaveis-de-infraestrutura.md) (prefixo) e [`0070`](../../../../.decisions/0070-senhas-dos-servicos-como-arquivos-montados.md) (senhas como arquivos).
+Referência de **todas** as configurações dos papéis de `core.account` (`core-account-<papel>`), na ordem de precedência, e de como executar cada um. Decisões: [`0067`](../../../../.decisions/0067-configuracao-por-papel-com-config-toml-e-segredos-em-arquivo.md) (configuração), [`0069`](../../../../.decisions/0069-prefixo-smarkee-nas-variaveis-de-infraestrutura.md) (prefixo) e [`0070`](../../../../.decisions/0070-senhas-dos-servicos-como-arquivos-montados.md) (senhas como arquivos).
 
-> As tabelas de campos são geradas dos `settings.py` de cada papel (`src/core_account/<papel>/settings.py` e `common/settings.py`). Ao mudar um campo, atualize este guia.
+> Gerado dos `settings.py` de `src/core_account/<papel>/` e de `common/settings.py`. Para atualizar: `cd features/core/account && uv run python ../../../templates/feature/configuration_guide.py`.
 
 ## 1. Precedência
 
@@ -19,7 +20,7 @@ Cada campo é resolvido pela **primeira** fonte que o informa, da maior para a m
 Pontos que costumam surpreender:
 
 - O **ambiente vence o arquivo de segredo**. Uma variável `*_PASSWORD` definida no ambiente anula o segredo montado: os manifestos não devem defini-las.
-- **Sem default no código**: `database.host|port|name|user|password` e `messaging.url|user|password`, além do que cada papel marca como obrigatório (seções 3 a 8). Faltando algum, o serviço sai com `missing required configuration` e lista as variáveis.
+- **Sem default no código**: `database.host|port|name|user|password` e `messaging.url|user|password`, além do que cada papel marca como obrigatório. Faltando algum, o serviço sai com `missing required configuration` e lista as variáveis.
 - **Campo desconhecido** é rejeitado (`extra="forbid"`): variável, chave do `config.toml` ou flag com nome errado falha, em vez de ser ignorada.
 - O nome da variável separa só a **seção** do **campo**: `MESSAGING_URL` é `messaging.url`; `LOOP_REEVALUATION_INTERVAL_SECONDS` é `loop.reevaluation_interval_seconds`.
 - Valores compostos (listas e dicionários) vão como **JSON** na variável e na flag.
@@ -77,15 +78,15 @@ Entrypoint do Receiver de Account (`core-account-receiver`, decisão 0015).
 | `auth.jwks_url` | `CORE_ACCOUNT_RECEIVER_AUTH_JWKS_URL` | `--auth.jwks_url` | `str` | `'http://localhost:8000/oauth/v2/keys'` | Endereço (da rede interna) em que as chaves públicas são buscadas. |
 | `auth.host_header` | `CORE_ACCOUNT_RECEIVER_AUTH_HOST_HEADER` | `--auth.host_header` | `str` | `'localhost:8080'` | `Host` enviado ao provedor nas chamadas internas: ele resolve a instância por esse valor. |
 | `auth.audience` | `CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE` | `--auth.audience` | `str \| None` | — | Obrigatória. ID do projeto da plataforma (audience dos access tokens). Sem default. |
-| `auth.jwks_cache_seconds` | `CORE_ACCOUNT_RECEIVER_AUTH_JWKS_CACHE_SECONDS` | `--auth.jwks_cache_seconds` | `int` | `300` | |
-| `api.host` | `CORE_ACCOUNT_RECEIVER_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` | |
-| `api.port` | `CORE_ACCOUNT_RECEIVER_API_PORT` | `--api.port` | `int` | `8000` | |
-| `api.anonymous_rate_limit` | `CORE_ACCOUNT_RECEIVER_API_ANONYMOUS_RATE_LIMIT` | `--api.anonymous_rate_limit` | `int` | `5` | |
-| `api.anonymous_rate_window_seconds` | `CORE_ACCOUNT_RECEIVER_API_ANONYMOUS_RATE_WINDOW_SECONDS` | `--api.anonymous_rate_window_seconds` | `int` | `60` | |
+| `auth.jwks_cache_seconds` | `CORE_ACCOUNT_RECEIVER_AUTH_JWKS_CACHE_SECONDS` | `--auth.jwks_cache_seconds` | `int` | `300` |  |
+| `api.host` | `CORE_ACCOUNT_RECEIVER_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
+| `api.port` | `CORE_ACCOUNT_RECEIVER_API_PORT` | `--api.port` | `int` | `8000` |  |
+| `api.anonymous_rate_limit` | `CORE_ACCOUNT_RECEIVER_API_ANONYMOUS_RATE_LIMIT` | `--api.anonymous_rate_limit` | `int` | `5` |  |
+| `api.anonymous_rate_window_seconds` | `CORE_ACCOUNT_RECEIVER_API_ANONYMOUS_RATE_WINDOW_SECONDS` | `--api.anonymous_rate_window_seconds` | `int` | `60` |  |
 | `api.client_address_header` | `CORE_ACCOUNT_RECEIVER_API_CLIENT_ADDRESS_HEADER` | `--api.client_address_header` | `str \| None` | `'x-forwarded-for'` | Cabeçalho com o endereço do cliente, definido pelo gateway (único acesso ao serviço). |
-| `peers.organizations_url` | `CORE_ACCOUNT_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` | |
-| `peers.services_url` | `CORE_ACCOUNT_RECEIVER_PEERS_SERVICES_URL` | `--peers.services_url` | `str` | `'http://localhost:8000'` | |
-| `peers.timeout_seconds` | `CORE_ACCOUNT_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` | |
+| `peers.organizations_url` | `CORE_ACCOUNT_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.services_url` | `CORE_ACCOUNT_RECEIVER_PEERS_SERVICES_URL` | `--peers.services_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.timeout_seconds` | `CORE_ACCOUNT_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
 **Definido no `config.toml` de dev:**
 
@@ -117,14 +118,14 @@ services_url = "http://sum-service-receiver.smarkee.internal:8000"
 docker compose up -d core-account-receiver
 docker compose logs -f core-account-receiver
 
-# Host, com o ambiente do .env
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
 uv run --env-file .env core-account-receiver \
     --api.port 8001 \
     --database.host localhost \
     --messaging.url nats://localhost:4222
 
 # Lista todas as flags aceitas pelo papel
-uv run --env-file .env core-account-receiver --help
+uv run core-account-receiver --help
 ```
 
 ## 4. `core-account-manager`
@@ -181,7 +182,7 @@ user = "smarkee"
 docker compose up -d core-account-manager
 docker compose logs -f core-account-manager
 
-# Host, com o ambiente do .env
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
 uv run --env-file .env core-account-manager \
     --health.port 8002 \
     --database.host localhost \
@@ -189,7 +190,7 @@ uv run --env-file .env core-account-manager \
     --loop.failure_limit 3
 
 # Lista todas as flags aceitas pelo papel
-uv run --env-file .env core-account-manager --help
+uv run core-account-manager --help
 ```
 
 ## 5. `core-account-publisher`
@@ -244,14 +245,14 @@ user = "smarkee"
 docker compose up -d core-account-publisher
 docker compose logs -f core-account-publisher
 
-# Host, com o ambiente do .env
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
 uv run --env-file .env core-account-publisher \
     --health.port 8003 \
     --database.host localhost \
     --messaging.url nats://localhost:4222
 
 # Lista todas as flags aceitas pelo papel
-uv run --env-file .env core-account-publisher --help
+uv run core-account-publisher --help
 ```
 
 ## 6. `core-account-reconciler`
@@ -277,9 +278,9 @@ Entrypoint do Reconciler de Account (`core-account-reconciler`, decisões 0015 e
 | `loop.observation_validity_seconds` | `CORE_ACCOUNT_RECONCILER_LOOP_OBSERVATION_VALIDITY_SECONDS` | `--loop.observation_validity_seconds` | `int` | `600` | `observationValidity` (PT10M): idade máxima de um `observed` para decidir. |
 | `loop.action_deadline_seconds` | `CORE_ACCOUNT_RECONCILER_LOOP_ACTION_DEADLINE_SECONDS` | `--loop.action_deadline_seconds` | `int` | `120` | `actionDeadline` (PT2M): prazo da `action` pendente e da espera pela observação causada. |
 | `loop.reevaluation_interval_seconds` | `CORE_ACCOUNT_RECONCILER_LOOP_REEVALUATION_INTERVAL_SECONDS` | `--loop.reevaluation_interval_seconds` | `int` | `30` | Período da reavaliação periódica de todos os recursos (com jitter). |
-| `loop.reevaluation_jitter` | `CORE_ACCOUNT_RECONCILER_LOOP_REEVALUATION_JITTER` | `--loop.reevaluation_jitter` | `float` | `0.2` | |
+| `loop.reevaluation_jitter` | `CORE_ACCOUNT_RECONCILER_LOOP_REEVALUATION_JITTER` | `--loop.reevaluation_jitter` | `float` | `0.2` |  |
 | `loop.failure_backoff_seconds` | `CORE_ACCOUNT_RECONCILER_LOOP_FAILURE_BACKOFF_SECONDS` | `--loop.failure_backoff_seconds` | `int` | `5` | Atraso após o primeiro `failed`; dobra a cada falha seguida, até o máximo. |
-| `loop.failure_backoff_maximum_seconds` | `CORE_ACCOUNT_RECONCILER_LOOP_FAILURE_BACKOFF_MAXIMUM_SECONDS` | `--loop.failure_backoff_maximum_seconds` | `int` | `300` | |
+| `loop.failure_backoff_maximum_seconds` | `CORE_ACCOUNT_RECONCILER_LOOP_FAILURE_BACKOFF_MAXIMUM_SECONDS` | `--loop.failure_backoff_maximum_seconds` | `int` | `300` |  |
 | `health.port` | `CORE_ACCOUNT_RECONCILER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 
 **Definido no `config.toml` de dev:**
@@ -297,14 +298,14 @@ user = "smarkee"
 docker compose up -d core-account-reconciler
 docker compose logs -f core-account-reconciler
 
-# Host, com o ambiente do .env
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
 uv run --env-file .env core-account-reconciler \
     --health.port 8004 \
     --messaging.url nats://localhost:4222 \
     --loop.reevaluation_interval_seconds 10
 
 # Lista todas as flags aceitas pelo papel
-uv run --env-file .env core-account-reconciler --help
+uv run core-account-reconciler --help
 ```
 
 ## 7. `core-account-observer`
@@ -332,13 +333,13 @@ Entrypoint do Observer de Account (`core-account-observer`, decisões 0015 e 006
 | `identity.host_header` | `CORE_ACCOUNT_OBSERVER_IDENTITY_HOST_HEADER` | `--identity.host_header` | `str` | `'localhost:8080'` | `Host` enviado ao Zitadel: ele resolve a instância pelo domínio externo. |
 | `identity.issuer` | `CORE_ACCOUNT_OBSERVER_IDENTITY_ISSUER` | `--identity.issuer` | `str` | `'http://localhost:8080'` | Audience da assertion JWT da conta de serviço. |
 | `identity.key_file` | `CORE_ACCOUNT_OBSERVER_IDENTITY_KEY_FILE` | `--identity.key_file` | `str` | `'/run/secrets/zitadel-key.json'` | Chave JSON da conta de serviço do papel (montada só no contêiner dele). |
-| `identity.timeout_seconds` | `CORE_ACCOUNT_OBSERVER_IDENTITY_TIMEOUT_SECONDS` | `--identity.timeout_seconds` | `float` | `5.0` | |
+| `identity.timeout_seconds` | `CORE_ACCOUNT_OBSERVER_IDENTITY_TIMEOUT_SECONDS` | `--identity.timeout_seconds` | `float` | `5.0` |  |
 | `identity.register_organization_id` | `CORE_ACCOUNT_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID` | `--identity.register_organization_id` | `str \| None` | — | Obrigatória. ID da organização `register`: onde estão os usuários e as autorizações deles. Sem default. |
-| `partition.index` | `CORE_ACCOUNT_OBSERVER_PARTITION_INDEX` | `--partition.index` | `int` | `0` | |
+| `partition.index` | `CORE_ACCOUNT_OBSERVER_PARTITION_INDEX` | `--partition.index` | `int` | `0` |  |
 | `partition.count` | `CORE_ACCOUNT_OBSERVER_PARTITION_COUNT` | `--partition.count` | `int` | `1` | Partição por `resourceId`: a instância observa só `hash mod count == index`. |
 | `health.port` | `CORE_ACCOUNT_OBSERVER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 | `loop.observation_interval_seconds` | `CORE_ACCOUNT_OBSERVER_LOOP_OBSERVATION_INTERVAL_SECONDS` | `--loop.observation_interval_seconds` | `int` | `300` | `observationInterval` (PT5M) de `schemas/core/account/desired`. |
-| `loop.observation_jitter` | `CORE_ACCOUNT_OBSERVER_LOOP_OBSERVATION_JITTER` | `--loop.observation_jitter` | `float` | `0.2` | |
+| `loop.observation_jitter` | `CORE_ACCOUNT_OBSERVER_LOOP_OBSERVATION_JITTER` | `--loop.observation_jitter` | `float` | `0.2` |  |
 | `loop.maximum_concurrent_reads` | `CORE_ACCOUNT_OBSERVER_LOOP_MAXIMUM_CONCURRENT_READS` | `--loop.maximum_concurrent_reads` | `int` | `4` | Leituras simultâneas no Zitadel: limita a pressão sobre o provedor. |
 
 **Definido no `config.toml` de dev:**
@@ -361,7 +362,7 @@ user = "smarkee"
 docker compose up -d core-account-observer
 docker compose logs -f core-account-observer
 
-# Host, com o ambiente do .env
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
 uv run --env-file .env core-account-observer \
     --health.port 8005 \
     --messaging.url nats://localhost:4222 \
@@ -369,7 +370,7 @@ uv run --env-file .env core-account-observer \
     --loop.observation_interval_seconds 60
 
 # Lista todas as flags aceitas pelo papel
-uv run --env-file .env core-account-observer --help
+uv run core-account-observer --help
 ```
 
 ## 8. `core-account-executor`
@@ -397,7 +398,7 @@ Entrypoint do Executor de Account (`core-account-executor`, decisões 0015 e 006
 | `identity.host_header` | `CORE_ACCOUNT_EXECUTOR_IDENTITY_HOST_HEADER` | `--identity.host_header` | `str` | `'localhost:8080'` | `Host` enviado ao Zitadel: ele resolve a instância pelo domínio externo. |
 | `identity.issuer` | `CORE_ACCOUNT_EXECUTOR_IDENTITY_ISSUER` | `--identity.issuer` | `str` | `'http://localhost:8080'` | Audience da assertion JWT da conta de serviço. |
 | `identity.key_file` | `CORE_ACCOUNT_EXECUTOR_IDENTITY_KEY_FILE` | `--identity.key_file` | `str` | `'/run/secrets/zitadel-key.json'` | Chave JSON da conta de serviço do papel (montada só no contêiner dele). |
-| `identity.timeout_seconds` | `CORE_ACCOUNT_EXECUTOR_IDENTITY_TIMEOUT_SECONDS` | `--identity.timeout_seconds` | `float` | `10.0` | |
+| `identity.timeout_seconds` | `CORE_ACCOUNT_EXECUTOR_IDENTITY_TIMEOUT_SECONDS` | `--identity.timeout_seconds` | `float` | `10.0` |  |
 | `identity.register_organization_id` | `CORE_ACCOUNT_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID` | `--identity.register_organization_id` | `str \| None` | — | Obrigatória. ID da organização `register`: onde os usuários são criados e recebem as autorizações. Sem default. |
 | `identity.project_ids` | `CORE_ACCOUNT_EXECUTOR_IDENTITY_PROJECT_IDS` | `--identity.project_ids` | `dict[str, str]` | `{}` | Obrigatória. IDs dos projetos de roles que o Executor pode conceder, por módulo (`{"core": "<ID>", ...}`). A role `<módulo>.<tipo>.<ação>` vai para o projeto do seu módulo. Um módulo ausente aqui é rejeitado antes de chamar o Zitadel; o Zitadel também nega o que o Executor não tem como `PROJECT_GRANT_OWNER` (decisão 0032). Sem default. |
 | `partition.count` | `CORE_ACCOUNT_EXECUTOR_PARTITION_COUNT` | `--partition.count` | `int` | `4` | Partições do Stream `ACTION` (bootstrap do messaging): um consumer e um laço por partição. |
@@ -423,7 +424,7 @@ user = "smarkee"
 docker compose up -d core-account-executor
 docker compose logs -f core-account-executor
 
-# Host, com o ambiente do .env
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
 uv run --env-file .env core-account-executor \
     --health.port 8006 \
     --messaging.url nats://localhost:4222 \
@@ -431,5 +432,5 @@ uv run --env-file .env core-account-executor \
     --partition.count 4
 
 # Lista todas as flags aceitas pelo papel
-uv run --env-file .env core-account-executor --help
+uv run core-account-executor --help
 ```

@@ -87,6 +87,7 @@ Os Streams (`REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT`, `UPDATED`) s
 ## 10. Documentação e registro
 
 - `README.md` da feature (papéis, estrutura, banco, como rodar) e o `DATA-FLOW` ([`.decisions/0024`](../.decisions/0024-data-flow-por-feature.md)); diagramas em `docs/` da feature.
+- `docs/CONFIGURATION.md` (guia de parâmetros: precedência, campos e execução de cada papel). É **gerado** dos `settings.py` pelo template, depois que os papéis existem: `cd features/<módulo>/<tipo> && uv run python ../../../templates/feature/configuration_guide.py`. Não se edita à mão, e o teste `tests/common/unit/test_configuration_guide.py` falha quando ele diverge dos `settings.py`.
 - Decisão em `.decisions/` se houver escolha relevante; atualize [`IMPLEMENTATION-STATUS.md`](IMPLEMENTATION-STATUS.md) e, no que for do produto, o `CHANGELOG.md` e o `ROADMAP.md` (AGENTS §36.3, §37, §38).
 
 ## 11. Verificação antes de avançar
