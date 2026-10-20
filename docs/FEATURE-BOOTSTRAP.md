@@ -31,7 +31,7 @@ O que é igual em todas as features **não é copiado à mão**: vem do template
    python templates/feature/sync.py --new <módulo> <tipo>
    ```
 
-   Cria a pasta e grava duas coisas: a **semente** (`templates/feature/seed/`: `pyproject.toml`, `compose.yaml`, `.env.example` e os manifestos de `consumers/`, que a feature passa a ter como dela e ajusta) e as **cópias** do template (`files/` e os perfis). Recusa nome inválido e feature que já existe.
+   Cria a pasta e grava duas coisas: a **semente** (`templates/feature/seed/`: `pyproject.toml`, `compose.yaml`, `config.toml`, `.env.example` e os manifestos de `consumers/`, que a feature passa a ter como dela e ajusta) e as **cópias** do template (`files/` e os perfis). Recusa nome inválido e feature que já existe.
 2. Ajuste o que a semente não sabe: em `pyproject.toml`, as dependências do recurso (por exemplo `pydantic[email]` se o schema tiver `format: email`); em `compose.yaml` e `.env.example`, os papéis que o recurso não tem (o `core/account` e o `ipm/organization` têm Observer e Executor com identidade; o `sum/service` tem consumers a mais) e a audience do projeto de roles.
 3. Gere o que depende do contrato, depois do índice do passo 2:
 

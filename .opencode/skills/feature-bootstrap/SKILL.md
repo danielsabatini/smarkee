@@ -63,7 +63,7 @@ Cada passo termina verificado antes do seguinte. O conteúdo de cada passo está
 Regras que valem em todos os passos (fontes no `feature.md` e no `AGENTS.md`):
 
 * o que o `sync.py` grava não é copiado nem editado à mão: altere o modelo e sincronize (§22);
-* a semente (`pyproject.toml`, `compose.yaml`, `.env.example`, `consumers/`) é da feature depois de criada;
+* a semente (`pyproject.toml`, `compose.yaml`, `config.toml`, `.env.example`, `consumers/`) é da feature depois de criada;
 * declarar um perfil em `PROFILES` só se o código da feature já for igual ao do modelo;
 * temporários ficam em `.workspace/` (§23); sem commit, push ou operação destrutiva sem pedido (§20).
 
@@ -75,6 +75,7 @@ Regras que valem em todos os passos (fontes no `feature.md` e no `AGENTS.md`):
 python templates/feature/sync.py --check
 cd features/<módulo>/<tipo>
 uv run ruff check . && uv run ruff format --check . && uv run pyright
+uv run python ../../../templates/feature/configuration_guide.py --check   # guia de parâmetros em dia (rc 0)
 uv run pytest tests/*/unit tests/*/contract -q
 cd ../../../schemas && uv run pytest -q
 ```
