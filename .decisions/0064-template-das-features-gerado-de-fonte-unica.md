@@ -25,3 +25,15 @@ A auditoria do `core/account` (2026-10-19), com as três features em uma imagem 
 ## Ajuste (2026-10-19): o formatter de logs também vive no template
 
 O `logging_config.py` e o `test_logging.py`, que a 0046 mantinha em `schemas/observability/python/` com um `sync.py` próprio, passaram para `templates/feature/files/`, e o `schemas/observability/sync.py` foi removido. `schemas/observability/` guarda só o contrato (o schema da linha de log e o exemplo), e toda geração de código fica em `templates/`. A 0046 continua valendo no que decide (fonte única, cópias geradas e conferidas); mudou onde a fonte mora e qual script a grava.
+
+## Ajuste (2026-10-19): semente, `--new` e mais arquivos no template
+
+Uma nova medição (arquivos comparados entre as três features, com os nomes normalizados) mostrou mais arquivos idênticos, e que `pyproject.toml`, `compose.yaml`, `.env.example` e `consumers/` são iguais a menos do nome e de poucas linhas por recurso.
+
+- **Entram em `files/`** (idênticos nas três): `common/resource.py`, `sonar-project.properties`, `receiver/http/openapi.py` e `trace_context.py`, `reconciler/transport/streams.py`, `telemeter/{logs,traces}/.gitkeep`, `tests/common/unit/test_tolerant_reader.py`, `tests/e2e/tests/contracts.py` e `tests/receiver/unit/test_trace_context.py`.
+- **Perfil `manager-handlers`** (`core/account` e `ipm/organization`): `manager/domain/outcome.py` e `manager/handlers/{envelope,observed,publishing,result}.py`. O `sum/service` tem outro Manager e não o declara.
+- **Semente** (`templates/feature/seed/`): `pyproject.toml`, `compose.yaml`, `.env.example` e `consumers/*.json`. Diferem entre features em poucas linhas, então não são mantidos pelo `sync.py`: o `--new <módulo> <tipo>` os grava **uma vez** (e recusa feature existente), e a feature passa a ser dona deles. O `--check` não os cobre, de propósito.
+- **Escopo do `--new`:** cria só a pasta da feature. Não altera arquivos compartilhados (gateway, telemetria, bootstrap do banco, CLI, `scripts/dev`): são o passo 9 do roteiro.
+- **`.gitignore`** passa a ter uma regra única para `features/*/*/telemeter/`, no lugar de uma por feature.
+- **Continua em aberto** gerar ou extrair os motores do Reconciler, do Executor e do Observer, os `settings.py` e `main.py`: a medição entre `core/account` e `ipm/organization` mostrou cerca de 85% de linhas iguais, mas as diferenças estão dentro dos motores (`receiver/http/app.py`, `executor/provider/identity.py`, `observer/domain/observation.py`), e extrair agora fixaria uma divisão sem evidência da quarta feature (§6, §25).
+

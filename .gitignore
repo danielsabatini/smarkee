@@ -82,24 +82,17 @@ infrastructure/dev/platform-telemeter/traces/*
 # Fila persistente do telemetry-router (estado de execução; só o .gitkeep é versionado).
 infrastructure/dev/telemetry-router/data/*
 !infrastructure/dev/telemetry-router/data/.gitkeep
-# Saída do coletor de telemetria de app de core.account (decisão 0062), mesma regra do platform-telemeter.
-!features/core/account/telemeter/logs/
-features/core/account/telemeter/logs/*
-!features/core/account/telemeter/logs/.gitkeep
-features/core/account/telemeter/traces/*
-!features/core/account/telemeter/traces/.gitkeep
-# Saída do telemeter de ipm.organization (decisão 0062), mesma regra.
-!features/ipm/organization/telemeter/logs/
-features/ipm/organization/telemeter/logs/*
-!features/ipm/organization/telemeter/logs/.gitkeep
-features/ipm/organization/telemeter/traces/*
-!features/ipm/organization/telemeter/traces/.gitkeep
-# Saída do telemeter de sum.service (decisão 0062), mesma regra.
-!features/sum/service/telemeter/logs/
-features/sum/service/telemeter/logs/*
-!features/sum/service/telemeter/logs/.gitkeep
-features/sum/service/telemeter/traces/*
-!features/sum/service/telemeter/traces/.gitkeep
+# Modelo das pastas do telemeter de cada feature (templates/feature, decisão 0064): só os .gitkeep.
+!templates/feature/files/telemeter/logs/
+!templates/feature/files/telemeter/logs/.gitkeep
+!templates/feature/files/telemeter/traces/.gitkeep
+# Saída do telemeter de app de cada feature (decisão 0062), mesma regra do platform-telemeter: vale para
+# qualquer `features/<módulo>/<tipo>`, sem entrada por feature.
+!features/*/*/telemeter/logs/
+features/*/*/telemeter/logs/*
+!features/*/*/telemeter/logs/.gitkeep
+features/*/*/telemeter/traces/*
+!features/*/*/telemeter/traces/.gitkeep
 
 # ------------------------------------------------------------------------------
 # 4. Sistemas Operacionais

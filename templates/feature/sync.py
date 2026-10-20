@@ -1,4 +1,6 @@
-"""Sincroniza o template das features a partir da fonte única `templates/feature/files/` (decisão 0064).
+"""Sincroniza o template das features a partir da fonte única `templates/feature/files/`.
+
+Decisão 0064.
 
 Cada arquivo de `files/` é o modelo de um arquivo idêntico em todas as features, e cada arquivo de
 `optional/<perfil>/`, de um arquivo idêntico nas features que declaram o perfil em `PROFILES`. Os
@@ -12,21 +14,32 @@ marcadores ocupam o lugar dos nomes da feature:
 - `@@CLASS@@` prefixo de classe (`CoreAccount`) e `@@SPACED@@` nome em texto (`core account`).
 
 Sem argumentos, grava as cópias em cada `features/<módulo>/<tipo>/`; com `--check`, falha se alguma
-divergir da fonte. Usa apenas a biblioteca padrão. Alterar o template: editar o modelo, rodar este
-script e rodar a suíte de cada feature (AGENTS §22).
+divergir da fonte. Com `--new <módulo> <tipo>`, cria a pasta da feature com os arquivos da
+semente (`seed/`, gravada uma única vez porque cada feature o ajusta) e grava as cópias. Usa apenas
+a biblioteca padrão. Alterar o template: editar o modelo, rodar este script e rodar a suíte de cada
+feature (AGENTS §22).
 """
 
+import re
 import sys
 from pathlib import Path
 
 FEATURES = Path(__file__).resolve().parents[2] / "features"
 SOURCE = Path(__file__).resolve().parent / "files"
 OPTIONAL = Path(__file__).resolve().parent / "optional"
+SEED = Path(__file__).resolve().parent / "seed"
+
+# Nome de módulo e de tipo: uma palavra em minúsculas, porque entra no pacote Python, no nome do
+# projeto, no prefixo das variáveis de ambiente e no subject (`<módulo>_<tipo>`, `<módulo>-<tipo>`).
+NAME = re.compile(r"[a-z][a-z0-9]*")
 
 # Perfis opcionais: arquivos idênticos só nas features que os declaram aqui (`<módulo>/<tipo>`).
-# Uma feature entra num perfil quando o seu código já é igual ao do modelo; as demais seguem com os seus.
+# Uma feature entra num perfil quando o seu código já é igual ao do modelo; as demais seguem com
+# os seus.
 PROFILES: dict[str, tuple[str, ...]] = {
     "receiver-http": ("core/account", "ipm/organization"),  # publicação do `requested` e probes
+    # Envelope, publicação e persistência de `observed` e do resultado, sem regra do tipo.
+    "manager-handlers": ("core/account", "ipm/organization"),
 }
 
 
@@ -35,22 +48,22 @@ def features() -> list[tuple[Path, dict[str, str]]]:
     found: list[tuple[Path, dict[str, str]]] = []
     for pyproject in sorted(FEATURES.glob("*/*/pyproject.toml")):
         module, resource_type = pyproject.parent.parent.name, pyproject.parent.name
-        found.append(
-            (
-                pyproject.parent,
-                {
-                    "@@PACKAGE@@": f"{module}_{resource_type}",
-                    "@@KEBAB@@": f"{module}-{resource_type}",
-                    "@@UPPER@@": f"{module}_{resource_type}".upper(),
-                    "@@DOTTED@@": f"{module}.{resource_type}",
-                    "@@MODULE@@": module,
-                    "@@TYPE@@": resource_type,
-                    "@@CLASS@@": f"{module.title()}{resource_type.title()}",
-                    "@@SPACED@@": f"{module} {resource_type}",
-                },
-            )
-        )
+        found.append((pyproject.parent, marker_values(module, resource_type)))
     return found
+
+
+def marker_values(module: str, resource_type: str) -> dict[str, str]:
+    """Valor de cada marcador para a feature `<módulo>/<tipo>`."""
+    return {
+        "@@PACKAGE@@": f"{module}_{resource_type}",
+        "@@KEBAB@@": f"{module}-{resource_type}",
+        "@@UPPER@@": f"{module}_{resource_type}".upper(),
+        "@@DOTTED@@": f"{module}.{resource_type}",
+        "@@MODULE@@": module,
+        "@@TYPE@@": resource_type,
+        "@@CLASS@@": f"{module.title()}{resource_type.title()}",
+        "@@SPACED@@": f"{module} {resource_type}",
+    }
 
 
 def render(template: str, values: dict[str, str]) -> str:
@@ -75,7 +88,9 @@ def expected_files() -> dict[Path, str]:
                     values["@@PACKAGE@@"] if part == "PACKAGE" else part
                     for part in source.relative_to(root).parts
                 )
-                expected[project / Path(*parts)] = render(source.read_text(encoding="utf-8"), values)
+                expected[project / Path(*parts)] = render(
+                    source.read_text(encoding="utf-8"), values
+                )
     return expected
 
 
@@ -87,8 +102,35 @@ def divergent_files() -> list[Path]:
     ]
 
 
+def new_feature(module: str, resource_type: str) -> Path:
+    """Cria a pasta da feature com os arquivos da semente; recusa uma feature que já existe."""
+    for label, value in (("módulo", module), ("tipo", resource_type)):
+        if not NAME.fullmatch(value):
+            raise ValueError(f"{label} inválido: {value!r} (uma palavra em minúsculas e dígitos)")
+    project = FEATURES / module / resource_type
+    if project.exists():
+        raise FileExistsError(f"a feature já existe: {project}")
+    values = marker_values(module, resource_type)
+    for source in sorted(path for path in SEED.rglob("*") if path.is_file()):
+        target = project / render(str(source.relative_to(SEED)), values)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(render(source.read_text(encoding="utf-8"), values), encoding="utf-8")
+    return project
+
+
 def main() -> int:
-    if "--check" in sys.argv[1:]:
+    arguments = sys.argv[1:]
+    if arguments[:1] == ["--new"]:
+        if len(arguments) != 3:
+            print("uso: sync.py --new <módulo> <tipo>", file=sys.stderr)
+            return 2
+        try:
+            project = new_feature(arguments[1], arguments[2])
+        except (ValueError, FileExistsError) as error:
+            print(f"erro: {error}", file=sys.stderr)
+            return 2
+        print(f"criada: {project.relative_to(FEATURES)}")
+    if "--check" in arguments:
         divergent = divergent_files()
         for path in divergent:
             print(f"divergente: {path.relative_to(FEATURES)}")
