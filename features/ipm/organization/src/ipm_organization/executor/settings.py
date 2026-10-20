@@ -1,18 +1,17 @@
 """Configuração do Executor de Organization (decisões 0015 e 0063).
 
-Ordem: variável de ambiente → default. Nome da variável:
-`IPM_ORGANIZATION_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
+Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
+Nome da variável: `IPM_ORGANIZATION_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
 `IPM_ORGANIZATION_EXECUTOR_MESSAGING_URL`
 (`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Executor
 **não acessa o SSOT** e escreve só a organização no Zitadel.
 """
 
-from pydantic_settings import BaseSettings
-
 from ipm_organization.common.identity import IdentitySettings as CommonIdentitySettings
 from ipm_organization.common.settings import (
     HealthSettings,
     MessagingSettings,
+    RoleSettings,
     Section,
     missing_variables,
     role_config,
@@ -30,7 +29,7 @@ class PartitionSettings(Section):
     """Partições do Stream `ACTION` (bootstrap do messaging): um consumer e um laço por partição."""
 
 
-class OrganizationExecutorSettings(BaseSettings):
+class OrganizationExecutorSettings(RoleSettings):
     model_config = role_config("executor")
 
     messaging: MessagingSettings = MessagingSettings()

@@ -7,7 +7,7 @@ name: telemetry-router
 # antes do roteamento.
 services:
   telemetry-router:
-    image: ${OTELCOL_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
+    image: ${TELEMETRY_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
     container_name: telemetry-router.smarkee.internal
     # Sem capabilities e sem escalonamento de privilégio (o coletor escuta em portas altas e roda como 10001).
     cap_drop: [ALL]

@@ -2,7 +2,7 @@
 
 Backup, verificação, restauração e reset seguro do **ambiente de desenvolvimento**. É uma **ferramenta de operação**, e não um componente da plataforma nem um teste.
 
-Guarda o que não se reconstrói só com o repositório: configurações feitas direto no Zitadel ficam no banco (o gateway se reconstrói a partir de `infrastructure/dev/gateway/bootstrap/adc.yaml` e não entra no backup), as chaves das service accounts ficam num volume, e o `ZITADEL_MASTERKEY` dos `.env` é o que decifra o banco do Zitadel.
+Guarda o que não se reconstrói só com o repositório: configurações feitas direto no Zitadel ficam no banco (o gateway se reconstrói a partir de `infrastructure/dev/gateway/bootstrap/adc.yaml` e não entra no backup), as chaves das service accounts ficam num volume, e o `IDENTITY_MASTERKEY` dos `.env` é o que decifra o banco do Zitadel.
 
 ```bash
 cd scripts/dev/backup && uv sync

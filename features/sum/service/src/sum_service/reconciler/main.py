@@ -6,6 +6,7 @@ consumers de estado da instância e roda a reavaliação periódica. O Reconcile
 """
 
 import logging
+import sys
 
 from sum_service.common.lifecycle import start_role
 from sum_service.common.messaging import (
@@ -50,7 +51,9 @@ async def run(settings: SumServiceReconcilerSettings) -> int:
 
 
 def main() -> None:
-    start_role("reconciler", SumServiceReconcilerSettings, missing_required, run)
+    start_role(
+        "reconciler", SumServiceReconcilerSettings, missing_required, run, cli_args=sys.argv[1:]
+    )
 
 
 if __name__ == "__main__":

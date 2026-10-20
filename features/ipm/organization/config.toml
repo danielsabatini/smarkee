@@ -1,0 +1,45 @@
+# Configuração de dev de ipm.organization (decisão 0067). Sem segredos: eles vêm do ambiente ou de /run/secrets.
+# Tabela por papel: [tool.ipm.organization.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
+
+[tool.ipm.organization.receiver.auth]
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
+userinfo_url = "http://gateway.smarkee.internal:8000/oidc/v1/userinfo"
+
+[tool.ipm.organization.receiver.database]
+host = "database.smarkee.internal"
+
+[tool.ipm.organization.receiver.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+
+[tool.ipm.organization.manager.database]
+host = "database.smarkee.internal"
+
+[tool.ipm.organization.manager.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+
+[tool.ipm.organization.publisher.database]
+host = "database.smarkee.internal"
+
+[tool.ipm.organization.publisher.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+
+[tool.ipm.organization.observer.identity]
+base_url = "http://identity.smarkee.internal:8080"
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+
+[tool.ipm.organization.observer.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+
+[tool.ipm.organization.reconciler.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+
+[tool.ipm.organization.executor.identity]
+base_url = "http://identity.smarkee.internal:8080"
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+
+[tool.ipm.organization.executor.messaging]
+url = "nats://messaging.smarkee.internal:4222"

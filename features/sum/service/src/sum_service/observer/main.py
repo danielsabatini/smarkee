@@ -8,6 +8,7 @@ encerra: cria os consumers de estado da instância, que reconstroem o que observ
 import asyncio
 import logging
 import random
+import sys
 
 import httpx
 
@@ -99,7 +100,14 @@ def validate(settings: SumServiceObserverSettings) -> None:
 
 
 def main() -> None:
-    start_role("observer", SumServiceObserverSettings, missing_required, run, validate=validate)
+    start_role(
+        "observer",
+        SumServiceObserverSettings,
+        missing_required,
+        run,
+        validate=validate,
+        cli_args=sys.argv[1:],
+    )
 
 
 if __name__ == "__main__":

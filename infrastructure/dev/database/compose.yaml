@@ -10,7 +10,7 @@ x-infra-logging: &infra-logging
 
 services:
   database:
-    image: ${POSTGRES_IMAGE_VERSION:-postgres:18.6-alpine}
+    image: ${DATABASE_IMAGE_VERSION:-postgres:18.6-alpine}
     container_name: database.smarkee.internal
     labels:
       smarkee.layer: infra
@@ -22,11 +22,11 @@ services:
           cpus: "${DATABASE_CPUS:-1.0}"
           memory: ${DATABASE_MEMORY:-512M}
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no .env (veja .env.example)}
-      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_USER: ${DATABASE_USER:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?Defina DATABASE_PASSWORD no .env (veja .env.example)}
+      POSTGRES_DB: ${DATABASE_NAME:-postgres}
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"  # Somente para desenvolvimento no host
+      - "127.0.0.1:${DATABASE_PORT:-5432}:5432"  # Somente para desenvolvimento no host
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     volumes:
       # PostgreSQL 18+ grava os dados em /var/lib/postgresql/18/docker;
@@ -46,7 +46,7 @@ services:
     healthcheck:
       # Por TCP: durante a inicialização (initdb.d), o servidor temporário só escuta no socket local;
       # pelo socket, o healthcheck indicaria pronto antes de o banco aceitar conexões dos serviços.
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${DATABASE_USER:-postgres} -d ${DATABASE_NAME:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5

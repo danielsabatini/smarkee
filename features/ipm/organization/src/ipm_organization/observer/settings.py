@@ -1,17 +1,16 @@
 """Configuração do Observer de Organization (decisões 0015 e 0063).
 
-Ordem: variável de ambiente → default. Nome da variável:
-`IPM_ORGANIZATION_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo
+Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
+Nome da variável: `IPM_ORGANIZATION_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo
 `IPM_ORGANIZATION_OBSERVER_MESSAGING_URL`
 (`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Observer
 não acessa o SSOT e só **lê** o Zitadel (conta `ipm-organization-observer`, somente leitura).
 """
 
-from pydantic_settings import BaseSettings
-
 from ipm_organization.common.identity import IdentitySettings
 from ipm_organization.common.settings import (
     HealthSettings,
+    RoleSettings,
     Section,
     StateMessagingSettings,
     missing_variables,
@@ -34,7 +33,7 @@ class LoopSettings(Section):
     """Leituras simultâneas no Zitadel: limita a pressão sobre o provedor."""
 
 
-class OrganizationObserverSettings(BaseSettings):
+class OrganizationObserverSettings(RoleSettings):
     model_config = role_config("observer")
 
     messaging: StateMessagingSettings = StateMessagingSettings()

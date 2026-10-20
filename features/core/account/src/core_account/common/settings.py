@@ -1,18 +1,47 @@
-"""Seções de configuração comuns aos papéis (decisão 0063).
+"""Seções e fontes de configuração comuns aos papéis (decisão 0063).
 
-Ordem: variável de ambiente → default. Não há arquivo de configuração: o componente roda em
-contêiner, e os segredos entram por variável (ou arquivo montado), nunca no código. Cada papel
-declara a sua classe `BaseSettings` com o prefixo `CORE_ACCOUNT_<PAPEL>_` e compõe as seções
-abaixo; o nome da variável é `<PREFIXO><SEÇÃO>_<CAMPO>` (`docs/SCHEMA.md` §8.3).
+Cada papel declara a sua classe `RoleSettings` com o prefixo `CORE_ACCOUNT_<PAPEL>_` e compõe as
+seções abaixo. Precedência, da maior para a menor:
+
+1. argumentos da linha de comando (só pelo entrypoint, via `load_settings`; nunca segredos);
+2. variáveis de ambiente `<PREFIXO><SEÇÃO>_<CAMPO>` (`docs/SCHEMA.md` §8.3);
+3. `config.toml`, tabela `[tool.core.account.<papel>.<seção>]`, no caminho de
+   `SMARKEE_CONFIG_PATH` (padrão `config.toml`);
+4. arquivos de segredo, um por variável completa, em `SMARKEE_SECRETS_DIR` (padrão
+   `/run/secrets`);
+5. o default do código: `localhost`, portas e timeouts padrão. Segredo nunca tem default.
+
+Segredos não entram no `config.toml` nem na linha de comando (ela aparece em `ps`).
 """
 
-from collections.abc import Mapping
+import os
+from collections.abc import Mapping, Sequence
+from importlib.resources.abc import Traversable
+from pathlib import Path
+from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, SecretStr
-from pydantic_settings import SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    CliApp,
+    EnvSettingsSource,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    TomlConfigSettingsSource,
+)
 
 ENV_PREFIX = "CORE_ACCOUNT_"
 """Prefixo das variáveis de ambiente da feature; cada papel acrescenta o seu nome."""
+
+CONFIG_PATH_VARIABLE = "SMARKEE_CONFIG_PATH"
+DEFAULT_CONFIG_PATH = "config.toml"
+SECRETS_DIR_VARIABLE = "SMARKEE_SECRETS_DIR"
+DEFAULT_SECRETS_DIR = "/run/secrets"
+CONFIG_TABLE = ("tool", "core", "account")
+"""Tabela do `config.toml` desta feature; cada papel acrescenta o seu nome."""
+
+SECRET_FIELD_NAME = "password"  # noqa: S105 (nome de campo, não um segredo)
+"""Nome do campo de segredo das seções; a linha de comando que o cita é recusada."""
 
 
 def role_config(role: str) -> SettingsConfigDict:
@@ -29,6 +58,79 @@ def role_config(role: str) -> SettingsConfigDict:
     )
 
 
+class ConfigTomlSource(TomlConfigSettingsSource):
+    """Lê do `config.toml` somente a tabela do papel. Arquivo ausente equivale a tabela vazia."""
+
+    def __init__(self, settings_cls: type[BaseSettings], table: tuple[str, ...]) -> None:
+        self.table = table
+        path = os.environ.get(CONFIG_PATH_VARIABLE, DEFAULT_CONFIG_PATH)
+        super().__init__(settings_cls, toml_file=path)
+
+    def _read_file(self, file_path: Path | Traversable) -> dict[str, Any]:
+        data: Any = super()._read_file(file_path)
+        for key in self.table:
+            if not isinstance(data, dict):
+                return {}
+            data = cast("dict[str, Any]", data).get(key, {})
+        return cast("dict[str, Any]", data) if isinstance(data, dict) else {}
+
+
+class SecretFilesSource(EnvSettingsSource):
+    """Lê segredos de arquivos: o nome do arquivo é o da variável de ambiente completa.
+
+    Diretório ausente equivale a nenhum segredo (em dev os segredos vêm do ambiente).
+    """
+
+    def __init__(self, settings_cls: type[BaseSettings]) -> None:
+        self.directory = Path(os.environ.get(SECRETS_DIR_VARIABLE, DEFAULT_SECRETS_DIR))
+        super().__init__(settings_cls)
+
+    def _load_env_vars(self) -> Mapping[str, str | None]:
+        if not self.directory.is_dir():
+            return {}
+        return {
+            path.name.lower(): path.read_text(encoding="utf-8").strip()
+            for path in self.directory.iterdir()
+            if path.is_file()
+        }
+
+
+class RoleSettings(BaseSettings):
+    """Base da configuração de um papel: define as fontes e a precedência (ver o módulo)."""
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        prefix = str(settings_cls.model_config.get("env_prefix", ""))
+        role = prefix.removeprefix(ENV_PREFIX).rstrip("_").lower()
+        return (
+            init_settings,
+            env_settings,
+            ConfigTomlSource(settings_cls, (*CONFIG_TABLE, role)),
+            SecretFilesSource(settings_cls),
+        )
+
+
+def load_settings[S: BaseSettings](settings_type: type[S], cli_args: Sequence[str] = ()) -> S:
+    """Monta a configuração do papel; `cli_args` é `sys.argv[1:]` do entrypoint (vazio nos testes).
+
+    Segredo na linha de comando é recusado: ele apareceria em `ps` e no histórico do shell.
+    """
+    for argument in cli_args:
+        if SECRET_FIELD_NAME in argument.lower():
+            name = argument.split("=")[0]
+            raise SystemExit(
+                f"invalid command line: secrets are not accepted as arguments ({name})"
+            )
+    return CliApp.run(settings_type, cli_args=list(cli_args))
+
+
 class Section(BaseModel):
     """Seção de configuração: campo desconhecido é rejeitado."""
 
@@ -36,7 +138,7 @@ class Section(BaseModel):
 
 
 class MessagingSettings(Section):
-    url: str = "nats://messaging.smarkee.internal:4222"
+    url: str = "nats://localhost:4222"
     user: str = "smarkee"
     password: SecretStr | None = None
 
@@ -56,7 +158,7 @@ class HealthSettings(Section):
 class DatabaseSettings(Section):
     """Conexão com o SSOT. O papel de login (`user`) é de cada papel e não tem default aqui."""
 
-    host: str = "database.smarkee.internal"
+    host: str = "localhost"
     port: int = 5432
     name: str = "smarkee"
     user: str

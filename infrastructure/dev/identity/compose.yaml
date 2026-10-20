@@ -10,11 +10,11 @@ include:
 # Conexão com o banco `identity`, criado com o usuário `identity` por database/bootstrap/identity.sql.
 # O Zitadel não recebe credencial de administrador do PostgreSQL.
 x-identity-database-environment: &identity-database-environment
-  ZITADEL_DATABASE_POSTGRES_HOST: ${ZITADEL_DATABASE_POSTGRES_HOST:-database.smarkee.internal}
-  ZITADEL_DATABASE_POSTGRES_PORT: ${ZITADEL_DATABASE_POSTGRES_PORT:-5432}
-  ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_DATABASE_POSTGRES_DATABASE:-identity}
-  ZITADEL_DATABASE_POSTGRES_USER_USERNAME: ${ZITADEL_DATABASE_POSTGRES_USER_USERNAME:-identity}
-  ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${ZITADEL_DATABASE_POSTGRES_USER_PASSWORD:?Defina ZITADEL_DATABASE_POSTGRES_USER_PASSWORD no .env}
+  ZITADEL_DATABASE_POSTGRES_HOST: ${IDENTITY_DATABASE_HOST:-database.smarkee.internal}
+  ZITADEL_DATABASE_POSTGRES_PORT: ${IDENTITY_DATABASE_PORT:-5432}
+  ZITADEL_DATABASE_POSTGRES_DATABASE: ${IDENTITY_DATABASE_NAME:-identity}
+  ZITADEL_DATABASE_POSTGRES_USER_USERNAME: ${IDENTITY_DATABASE_USER:-identity}
+  ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${IDENTITY_DATABASE_PASSWORD:?Defina IDENTITY_DATABASE_PASSWORD no .env}
   ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
 
 # Driver de log legível pelo telemetry-agent (decisão 0053, docs/OBSERVABILITY.md §7): json-file com rotação e as labels
@@ -31,7 +31,7 @@ services:
   # Zitadel (eventstore, projections, system) com o próprio usuário `identity`. Repetível.
   # Requer o `database` aceitando conexões (veja o README).
   identity-init:
-    image: ${ZITADEL_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.19.4}
+    image: ${IDENTITY_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.19.4}
     container_name: identity-init.smarkee.internal
     command: ["init", "zitadel"]
     environment:
@@ -48,7 +48,7 @@ services:
   # API do Zitadel. O start-from-setup aplica as migrações e, na primeira vez, cria a instância
   # descrita pelas variáveis ZITADEL_FIRSTINSTANCE_* (aplicadas só na primeira inicialização).
   identity:
-    image: ${ZITADEL_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.19.4}
+    image: ${IDENTITY_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.19.4}
     container_name: identity.smarkee.internal
     labels:
       smarkee.layer: infra
@@ -71,30 +71,30 @@ services:
       - /zitadel/config/role-permissions.yaml
     environment:
       <<: *identity-database-environment
-      ZITADEL_MASTERKEY: ${ZITADEL_MASTERKEY:?Defina ZITADEL_MASTERKEY (32 caracteres) no .env}
-      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}
+      ZITADEL_MASTERKEY: ${IDENTITY_MASTERKEY:?Defina IDENTITY_MASTERKEY (32 caracteres) no .env}
+      ZITADEL_EXTERNALDOMAIN: ${IDENTITY_EXTERNAL_DOMAIN:-ipm-dev.smarkee.com.br}
       # O Zitadel é acessado pelo gateway; a porta externa deve ser a do proxy HTTP do gateway.
-      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8080}
+      ZITADEL_EXTERNALPORT: ${IDENTITY_EXTERNAL_PORT:-8080}
       ZITADEL_EXTERNALSECURE: "false"
       # Lido também pelo healthcheck (`zitadel ready`), que não aceita --tlsMode.
       ZITADEL_TLS_ENABLED: "false"
       # Primeira instância: administrador humano e cliente de login (usuário de serviço com PAT,
       # gravado no volume identity-bootstrap e lido pelo identity-login).
       # Nome da instância exibido no console (forma curta da marca: IPM = Identity Provider Manager).
-      ZITADEL_FIRSTINSTANCE_INSTANCENAME: ${ZITADEL_FIRSTINSTANCE_INSTANCENAME:-IPM}
-      ZITADEL_FIRSTINSTANCE_ORG_NAME: ${ZITADEL_FIRSTINSTANCE_ORG_NAME:-smarkee.internal}
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME:-admin}
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD:?Defina ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD no .env}
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS: ${ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL:-admin@smarkee.internal}
+      ZITADEL_FIRSTINSTANCE_INSTANCENAME: ${IDENTITY_INSTANCE_NAME:-IPM}
+      ZITADEL_FIRSTINSTANCE_ORG_NAME: ${IDENTITY_ORG_NAME:-smarkee.internal}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${IDENTITY_ADMIN_USERNAME:-admin}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${IDENTITY_ADMIN_PASSWORD:?Defina IDENTITY_ADMIN_PASSWORD no .env}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS: ${IDENTITY_ADMIN_EMAIL:-admin@smarkee.internal}
       # Já é o padrão do Zitadel; explícito por ser configuração de segurança.
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "true"
       # Servidor de e-mail de desenvolvimento (captura): o Mailpit de `mail/`. Só vale na primeira
       # inicialização da instância; numa instância existente, a configuração SMTP é feita pela
       # Admin API (veja o README). O remetente deve pertencer ao domínio externo da instância.
-      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_HOST: ${ZITADEL_SMTP_HOST:-mail.smarkee.internal:1025}
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_HOST: ${IDENTITY_SMTP_HOST:-mail.smarkee.internal:1025}
       ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_TLS: "false"
-      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROM: ${ZITADEL_SMTP_FROM:-ipm-dev@smarkee.internal}
-      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROMNAME: ${ZITADEL_SMTP_FROMNAME:-IPM-DEV}
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROM: ${IDENTITY_SMTP_FROM:-ipm-dev@smarkee.internal}
+      ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROMNAME: ${IDENTITY_SMTP_FROMNAME:-IPM-DEV}
       ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
       ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: Login Client
@@ -111,10 +111,10 @@ services:
       ZITADEL_FIRSTINSTANCE_MACHINEKEYPATH: /zitadel/bootstrap/service-account-platform-bootstrap.json
       # Login v2 (desativado para manter suporte nativo ao cadastro de organization e links no v1)
       ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "false"
-      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-8080}/ui/v2/login/
-      ZITADEL_OIDC_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-8080}/ui/v2/login/login?authRequest=
-      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-8080}/ui/v2/login/logout?post_logout_redirect=
-      ZITADEL_SAML_DEFAULTLOGINURLV2: http://${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br}:${ZITADEL_EXTERNALPORT:-8080}/ui/v2/login/login?samlRequest=
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://${IDENTITY_EXTERNAL_DOMAIN:-ipm-dev.smarkee.com.br}:${IDENTITY_EXTERNAL_PORT:-8080}/ui/v2/login/
+      ZITADEL_OIDC_DEFAULTLOGINURLV2: http://${IDENTITY_EXTERNAL_DOMAIN:-ipm-dev.smarkee.com.br}:${IDENTITY_EXTERNAL_PORT:-8080}/ui/v2/login/login?authRequest=
+      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://${IDENTITY_EXTERNAL_DOMAIN:-ipm-dev.smarkee.com.br}:${IDENTITY_EXTERNAL_PORT:-8080}/ui/v2/login/logout?post_logout_redirect=
+      ZITADEL_SAML_DEFAULTLOGINURLV2: http://${IDENTITY_EXTERNAL_DOMAIN:-ipm-dev.smarkee.com.br}:${IDENTITY_EXTERNAL_PORT:-8080}/ui/v2/login/login?samlRequest=
       # Access token de 15 minutos (decisão 0033): uma revogação de role chega ao token em até esse
       # prazo, e a CLI renova a sessão pelo refresh token. Aplicado só na criação da instância; numa
       # instância existente, é a Admin API v1 (`infrastructure/dev/README.md`).
@@ -158,7 +158,7 @@ services:
 
   # Interface de login (login v2). Autentica na API do Zitadel com o PAT gerado pelo identity.
   identity-login:
-    image: ${ZITADEL_LOGIN_IMAGE_VERSION:-ghcr.io/zitadel/zitadel-login:v4.19.4}
+    image: ${IDENTITY_LOGIN_IMAGE_VERSION:-ghcr.io/zitadel/zitadel-login:v4.19.4}
     container_name: identity-login.smarkee.internal
     labels:
       smarkee.layer: infra
@@ -174,9 +174,9 @@ services:
       ZITADEL_API_URL: http://identity.smarkee.internal:8080
       NEXT_PUBLIC_BASE_PATH: /ui/v2/login
       ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel/bootstrap/login-client.pat
-      ZITADEL_SESSION_COOKIE_SECRET: ${ZITADEL_SESSION_COOKIE_SECRET:?Defina ZITADEL_SESSION_COOKIE_SECRET no .env}
+      ZITADEL_SESSION_COOKIE_SECRET: ${IDENTITY_SESSION_COOKIE_SECRET:?Defina IDENTITY_SESSION_COOKIE_SECRET no .env}
       # Preserva o domínio público nas chamadas à API do Zitadel (a instância é resolvida pelo Host).
-      CUSTOM_REQUEST_HEADERS: Host:${ZITADEL_EXTERNALDOMAIN:-ipm-dev.smarkee.com.br},X-Forwarded-Proto:http
+      CUSTOM_REQUEST_HEADERS: Host:${IDENTITY_EXTERNAL_DOMAIN:-ipm-dev.smarkee.com.br},X-Forwarded-Proto:http
     volumes:
       - identity-bootstrap:/zitadel/bootstrap:ro
     depends_on:

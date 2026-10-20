@@ -1,17 +1,16 @@
 """Configuração do Publisher de `core.account` (decisões 0015 e 0019).
 
-Ordem: variável de ambiente → default. Nome da variável:
-`CORE_ACCOUNT_PUBLISHER_<SEÇÃO>_<CAMPO>`, por exemplo
+Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
+Nome da variável: `CORE_ACCOUNT_PUBLISHER_<SEÇÃO>_<CAMPO>`, por exemplo
 `CORE_ACCOUNT_PUBLISHER_MESSAGING_URL`.
 As senhas não têm default.
 """
-
-from pydantic_settings import BaseSettings
 
 from core_account.common.settings import DatabaseSettings as CommonDatabaseSettings
 from core_account.common.settings import (
     HealthSettings,
     MessagingSettings,
+    RoleSettings,
     missing_variables,
     role_config,
 )
@@ -22,7 +21,7 @@ class DatabaseSettings(CommonDatabaseSettings):
     """Papel de login do Publisher (lê o outbox e marca `published_at`)."""
 
 
-class CoreAccountPublisherSettings(BaseSettings):
+class CoreAccountPublisherSettings(RoleSettings):
     model_config = role_config("publisher")
 
     database: DatabaseSettings = DatabaseSettings()

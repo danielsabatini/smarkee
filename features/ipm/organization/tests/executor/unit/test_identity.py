@@ -60,7 +60,7 @@ async def test_create_organization_uses_the_resource_id_as_the_organization_id(
     assert (calls[0].method, calls[0].url.path) == ("POST", "/v2/organizations")
     assert json.loads(calls[0].content) == {"name": "acme", "organizationId": "o-1"}
     assert calls[0].headers["authorization"] == "Bearer tok"
-    assert calls[0].headers["host"] == "ipm-dev.smarkee.com.br:8080"
+    assert calls[0].headers["host"] == "localhost:8080"
 
 
 async def test_create_organization_that_already_exists_is_reported_not_raised(

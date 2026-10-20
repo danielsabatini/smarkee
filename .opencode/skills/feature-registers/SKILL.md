@@ -36,7 +36,7 @@ Confira cada linha. Se a feature `core/account` já aparece num arquivo, a featu
 |---|---|---|
 | Papéis de banco do módulo | `infrastructure/dev/database/bootstrap/<módulo>.sql` | módulo novo: arquivo novo; tipo novo: acrescenta o papel do tipo |
 | Rota da API | `infrastructure/dev/gateway/bootstrap/adc.yaml` | sempre, uma por tipo |
-| Audience da rota | `infrastructure/dev/gateway/.env.example` e `compose.yaml` do gateway | sempre: `APISIX_AUTH_AUDIENCE_<MÓDULO>_<TIPO>` |
+| Audience da rota | `infrastructure/dev/gateway/.env.example` e `compose.yaml` do gateway | sempre: `GATEWAY_AUTH_AUDIENCE_<MÓDULO>_<TIPO>` |
 | Telemetria | `infrastructure/dev/telemetry-router/config.yaml` | sempre: log, trace e exportador `<módulo>-<tipo>-telemeter` |
 | Conformidade de identidade | `infrastructure/dev/identity/conformance/tests/test_structure.py` | sempre: `ENV_FILES` e `EXPECTED_AUDIENCE`; com Observer e Executor com identidade, `EXPECTED_REGISTER` e `EXPECTED_PROJECT_IDS` |
 | Projeto de roles e contas de serviço | provedor de identidade (Zitadel) | módulo novo: projeto novo; contas do Observer e do Executor |

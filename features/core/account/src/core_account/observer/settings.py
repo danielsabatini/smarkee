@@ -1,17 +1,16 @@
 """Configuração do Observer de Account (decisões 0015 e 0063).
 
-Ordem: variável de ambiente → default. Nome da variável:
-`CORE_ACCOUNT_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo
+Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
+Nome da variável: `CORE_ACCOUNT_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo
 `CORE_ACCOUNT_OBSERVER_MESSAGING_URL`
 (`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS e os identificadores do Zitadel. O Observer
 não acessa o SSOT e só **lê** o Zitadel (conta de serviço `core-account-observer`, somente leitura).
 """
 
-from pydantic_settings import BaseSettings
-
 from core_account.common.identity import IdentitySettings as CommonIdentitySettings
 from core_account.common.settings import (
     HealthSettings,
+    RoleSettings,
     Section,
     StateMessagingSettings,
     missing_variables,
@@ -41,7 +40,7 @@ class LoopSettings(Section):
     """Leituras simultâneas no Zitadel: limita a pressão sobre o provedor."""
 
 
-class AccountObserverSettings(BaseSettings):
+class AccountObserverSettings(RoleSettings):
     model_config = role_config("observer")
 
     messaging: StateMessagingSettings = StateMessagingSettings()

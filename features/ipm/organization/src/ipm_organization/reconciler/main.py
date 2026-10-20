@@ -5,6 +5,7 @@ instância e roda a reavaliação periódica. O Reconciler não acessa o SSOT.
 """
 
 import logging
+import sys
 
 from ipm_organization.common.lifecycle import start_role
 from ipm_organization.common.messaging import (
@@ -49,7 +50,9 @@ async def run(settings: OrganizationReconcilerSettings) -> int:
 
 
 def main() -> None:
-    start_role("reconciler", OrganizationReconcilerSettings, missing_required, run)
+    start_role(
+        "reconciler", OrganizationReconcilerSettings, missing_required, run, cli_args=sys.argv[1:]
+    )
 
 
 if __name__ == "__main__":

@@ -25,7 +25,7 @@ from smarkee_dev_backup.engine import (
 from smarkee_dev_backup.main import refuse_outside_development
 from smarkee_dev_backup.model import DATABASES, ENV_FILES, VOLUMES, BackupError, Ports, Scratch
 
-MASTERKEY_ENV = "ZITADEL_MASTERKEY=0123456789abcdef0123456789abcdef\n"
+MASTERKEY_ENV = "IDENTITY_MASTERKEY=0123456789abcdef0123456789abcdef\n"
 
 
 @dataclass
@@ -240,7 +240,7 @@ def test_restore_refuses_an_env_file_that_differs_from_the_backup(tmp_path: Path
     ports, stack = make_ports(tmp_path)
     path = create_backup(ports, silent)
     (ports.repository / "infrastructure/dev/identity/.env").write_text(
-        "ZITADEL_MASTERKEY=outra\n", encoding="utf-8"
+        "IDENTITY_MASTERKEY=outra\n", encoding="utf-8"
     )
     assert restore(ports, path, apply_changes=True, say=silent) == 1
     assert stack.calls == []

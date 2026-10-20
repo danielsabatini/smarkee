@@ -63,7 +63,7 @@ async def test_create_user_has_no_password_and_uses_the_resource_id(key_file: Pa
     assert body["userId"] == "u-1" and body["organization"] == {"orgId": "org-r"}
     assert body["username"] == "a@x.com" and "password" not in body
     assert calls[0].headers["authorization"] == "Bearer tok"
-    assert calls[0].headers["host"] == "ipm-dev.smarkee.com.br:8080"
+    assert calls[0].headers["host"] == "localhost:8080"
 
 
 async def test_create_user_that_already_exists_is_reported_not_raised(key_file: Path) -> None:

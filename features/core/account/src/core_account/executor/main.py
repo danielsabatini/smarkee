@@ -5,6 +5,7 @@ O Executor não acessa o SSOT; é o único com credencial de escrita no Zitadel.
 """
 
 import logging
+import sys
 
 import httpx
 
@@ -40,7 +41,7 @@ async def run(settings: AccountExecutorSettings) -> int:
 
 
 def main() -> None:
-    start_role("executor", AccountExecutorSettings, missing_required, run)
+    start_role("executor", AccountExecutorSettings, missing_required, run, cli_args=sys.argv[1:])
 
 
 if __name__ == "__main__":

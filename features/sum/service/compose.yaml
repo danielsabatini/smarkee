@@ -38,12 +38,12 @@ services:
   sum-service-consumer:
     build:
       context: ../../../infrastructure/tools/nats-client
-    image: ${NATS_CLIENT_IMAGE:-smarkee-nats-client:dev}
+    image: ${MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}
     container_name: sum-service-consumer.smarkee.internal
     environment:
       NATS_URL: nats://messaging.smarkee.internal:4222
-      NATS_USER: ${NATS_USER:-smarkee}
-      NATS_PASSWORD: ${SUM_SERVICE_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      NATS_USER: ${MESSAGING_USER:-smarkee}
+      NATS_PASSWORD: ${SUM_SERVICE_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
     command:
       - sh
       - -c
@@ -67,7 +67,7 @@ services:
   sum-service-migrate:
     build:
       context: ../../../infrastructure/tools/psql-client
-    image: ${POSTGRES_CLIENT_IMAGE:-smarkee-psql-client:dev}
+    image: ${DATABASE_CLIENT_IMAGE:-smarkee-psql-client:dev}
     container_name: sum-service-migrate.smarkee.internal
     environment:
       PGHOST: database.smarkee.internal
@@ -98,9 +98,12 @@ services:
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       SUM_SERVICE_MANAGER_DATABASE_PASSWORD: ${SUM_SERVICE_MANAGER_DATABASE_PASSWORD:?Defina no .env}
-      SUM_SERVICE_MANAGER_MESSAGING_PASSWORD: ${SUM_SERVICE_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      SUM_SERVICE_MANAGER_MESSAGING_PASSWORD: ${SUM_SERVICE_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
       SUM_SERVICE_MANAGER_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (JSON serviço → roles, decisão 0033)}
+    volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
       sum-service-migrate:
         condition: service_completed_successfully
@@ -133,9 +136,12 @@ services:
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       SUM_SERVICE_RECEIVER_DATABASE_PASSWORD: ${SUM_SERVICE_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
-      SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD: ${SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD: ${SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
       SUM_SERVICE_RECEIVER_AUTH_AUDIENCE: ${SUM_SERVICE_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-sum)}
+    volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
       sum-service-consumer:
         condition: service_completed_successfully
@@ -156,7 +162,10 @@ services:
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD: ${SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+      SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD: ${SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
+    volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
       sum-service-consumer:
         condition: service_completed_successfully
@@ -177,11 +186,13 @@ services:
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD: ${SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+      SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD: ${SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
       SUM_SERVICE_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
       SUM_SERVICE_OBSERVER_IDENTITY_PROJECT_IDS: ${SUM_SERVICE_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
       SUM_SERVICE_OBSERVER_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (o mesmo catálogo do Manager)}
     volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
       - type: volume
         source: identity-bootstrap
         target: /run/secrets/zitadel-key.json
@@ -209,11 +220,13 @@ services:
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD: ${SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+      SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD: ${SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
       SUM_SERVICE_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
       SUM_SERVICE_EXECUTOR_IDENTITY_PROJECT_IDS: ${SUM_SERVICE_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
       SUM_SERVICE_EXECUTOR_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (o mesmo catálogo do Manager)}
     volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
       - type: volume
         source: identity-bootstrap
         target: /run/secrets/zitadel-key.json
@@ -240,8 +253,11 @@ services:
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD: ${SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
-      SUM_SERVICE_PUBLISHER_MESSAGING_PASSWORD: ${SUM_SERVICE_PUBLISHER_MESSAGING_PASSWORD:?Defina no .env (a mesma NATS_PASSWORD de messaging/.env)}
+      SUM_SERVICE_PUBLISHER_MESSAGING_PASSWORD: ${SUM_SERVICE_PUBLISHER_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
+    volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
       sum-service-migrate:
         condition: service_completed_successfully
@@ -256,7 +272,7 @@ services:
   # telemetry-router da plataforma, os logs e os spans de app desta feature e os grava em `telemeter/logs/` e `telemeter/traces/`. Não lê logs de
   # contêineres nem usa o socket do Docker (isso é do telemetry-agent). Sem privilégios e sem escrita fora da pasta.
   sum-service-telemeter:
-    image: ${OTELCOL_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
+    image: ${TELEMETRY_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
     container_name: sum-service-telemeter.smarkee.internal
     cap_drop: [ALL]
     security_opt: ["no-new-privileges=true"]

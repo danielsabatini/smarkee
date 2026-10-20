@@ -6,6 +6,7 @@ configuração, abre as conexões e roda os consumers.
 """
 
 import logging
+import sys
 
 from ipm_organization.common.database import open_pool
 from ipm_organization.common.lifecycle import start_role
@@ -58,7 +59,7 @@ async def run(settings: OrganizationManagerSettings) -> int:
 
 
 def main() -> None:
-    start_role("manager", OrganizationManagerSettings, missing_required, run)
+    start_role("manager", OrganizationManagerSettings, missing_required, run, cli_args=sys.argv[1:])
 
 
 if __name__ == "__main__":

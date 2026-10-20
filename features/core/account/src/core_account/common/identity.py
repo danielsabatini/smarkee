@@ -22,13 +22,13 @@ ASSERTION_LIFETIME_SECONDS = 300
 
 
 class IdentitySettings(Section):
-    base_url: str = "http://identity.smarkee.internal:8080"
+    base_url: str = "http://localhost:8080"
     """Endereço da API do Zitadel na rede interna (não passa pelo gateway público)."""
 
-    host_header: str = "ipm-dev.smarkee.com.br:8080"
+    host_header: str = "localhost:8080"
     """`Host` enviado ao Zitadel: ele resolve a instância pelo domínio externo."""
 
-    issuer: str = "http://ipm-dev.smarkee.com.br:8080"
+    issuer: str = "http://localhost:8080"
     """Audience da assertion JWT da conta de serviço."""
 
     key_file: str = "/run/secrets/zitadel-key.json"

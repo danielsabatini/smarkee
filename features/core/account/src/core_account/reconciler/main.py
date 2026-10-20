@@ -5,6 +5,7 @@ instância e roda a reavaliação periódica. O Reconciler não acessa o SSOT.
 """
 
 import logging
+import sys
 
 from core_account.common.lifecycle import start_role
 from core_account.common.messaging import StateConsumer, StreamPublisher, new_instance_name
@@ -45,7 +46,9 @@ async def run(settings: AccountReconcilerSettings) -> int:
 
 
 def main() -> None:
-    start_role("reconciler", AccountReconcilerSettings, missing_required, run)
+    start_role(
+        "reconciler", AccountReconcilerSettings, missing_required, run, cli_args=sys.argv[1:]
+    )
 
 
 if __name__ == "__main__":

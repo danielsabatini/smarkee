@@ -7,12 +7,13 @@ import asyncio
 import logging
 import signal
 import sys
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import NoReturn
 
 from pydantic_settings import BaseSettings
 
 from ipm_organization.common.logging_config import configure_logging
+from ipm_organization.common.settings import load_settings
 
 EXIT_INVALID_CONFIGURATION = 2
 
@@ -68,15 +69,16 @@ def start_role[S: BaseSettings](
     run: Callable[[S], Awaitable[int]],
     *,
     validate: Callable[[S], None] | None = None,
+    cli_args: Sequence[str] = (),
 ) -> NoReturn:
     """Entrypoint comum: configura o log do papel, valida a configuração e roda até encerrar.
 
     `validate`, se houver, confere o que não é só presença (por exemplo, um catálogo em JSON) e
     levanta `InvalidConfigurationError`; o processo sai sem rodar, com o código de configuração
-    inválida.
+    inválida. `cli_args` são os argumentos da linha de comando (`sys.argv[1:]` do entrypoint).
     """
     configure_logging(role=role)
-    settings = settings_type()
+    settings = load_settings(settings_type, cli_args)
     missing = missing_required(settings)
     if missing:
         logger.error(

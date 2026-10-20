@@ -8,6 +8,7 @@ periódica e não consequência de uma requisição (`traced=False`, decisão 00
 """
 
 import logging
+import sys
 
 import httpx
 
@@ -59,7 +60,7 @@ async def run(settings: AccountObserverSettings) -> int:
 
 
 def main() -> None:
-    start_role("observer", AccountObserverSettings, missing_required, run)
+    start_role("observer", AccountObserverSettings, missing_required, run, cli_args=sys.argv[1:])
 
 
 if __name__ == "__main__":

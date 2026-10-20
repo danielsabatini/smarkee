@@ -5,12 +5,12 @@ Zitadel e o catálogo.
 """
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
 
 from sum_service.common.identity import IdentitySettings as CommonIdentitySettings
 from sum_service.common.settings import (
     HealthSettings,
     MessagingSettings,
+    RoleSettings,
     Section,
     missing_variables,
     role_config,
@@ -37,7 +37,7 @@ class PartitionSettings(Section):
     """Partições do Stream `ACTION` (bootstrap do messaging): um consumer e um laço por partição."""
 
 
-class SumServiceExecutorSettings(BaseSettings):
+class SumServiceExecutorSettings(RoleSettings):
     model_config = role_config("executor")
 
     messaging: MessagingSettings = MessagingSettings()

@@ -1,17 +1,16 @@
 """Configuração do Manager de Organization (decisões 0015, 0019 e 0063).
 
-Ordem: variável de ambiente → default (seções comuns em `common/settings.py`).
+Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 
 Nome da variável: `IPM_ORGANIZATION_MANAGER_<SEÇÃO>_<CAMPO>`, por exemplo
 `IPM_ORGANIZATION_MANAGER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
-from pydantic_settings import BaseSettings
-
 from ipm_organization.common.settings import DatabaseSettings as CommonDatabaseSettings
 from ipm_organization.common.settings import (
     HealthSettings,
     MessagingSettings,
+    RoleSettings,
     Section,
     missing_variables,
     role_config,
@@ -28,7 +27,7 @@ class LoopSettings(Section):
     """Falhas por geração antes de `Failed` (`schemas/ipm/organization/desired`, `failureLimit`)."""
 
 
-class OrganizationManagerSettings(BaseSettings):
+class OrganizationManagerSettings(RoleSettings):
     model_config = role_config("manager")
 
     database: DatabaseSettings = DatabaseSettings()

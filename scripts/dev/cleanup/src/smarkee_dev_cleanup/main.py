@@ -64,10 +64,10 @@ def nats_password() -> str:
         return password
     env = REPOSITORY / "infrastructure" / "dev" / "messaging" / ".env"
     for line in env.read_text(encoding="utf-8").splitlines():
-        if line.startswith("NATS_PASSWORD="):
+        if line.startswith("MESSAGING_PASSWORD="):
             return line.partition("=")[2].strip()
     raise SystemExit(
-        "defina CLEANUP_NATS_PASSWORD ou o NATS_PASSWORD de infrastructure/dev/messaging/.env"
+        "defina CLEANUP_NATS_PASSWORD ou o MESSAGING_PASSWORD de infrastructure/dev/messaging/.env"
     )
 
 

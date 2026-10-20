@@ -6,6 +6,7 @@ configuração, abre as conexões e roda os consumers.
 """
 
 import logging
+import sys
 
 from core_account.common.database import open_pool
 from core_account.common.lifecycle import start_role
@@ -59,7 +60,7 @@ async def run(settings: AccountManagerSettings) -> int:
 
 
 def main() -> None:
-    start_role("manager", AccountManagerSettings, missing_required, run)
+    start_role("manager", AccountManagerSettings, missing_required, run, cli_args=sys.argv[1:])
 
 
 if __name__ == "__main__":

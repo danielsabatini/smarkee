@@ -1,5 +1,5 @@
 -- Papel e banco do Identity (Zitadel) (apenas desenvolvimento local; credenciais triviais).
--- A senha deve coincidir com ZITADEL_DATABASE_POSTGRES_USER_PASSWORD em identity/.env.
+-- A senha deve coincidir com IDENTITY_DATABASE_PASSWORD em identity/.env.
 -- Idempotente: pode ser reaplicado sem erro.
 
 DO $$

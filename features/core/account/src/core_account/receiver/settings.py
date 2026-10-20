@@ -1,16 +1,19 @@
 """Configuração do Receiver de Account (decisão 0015).
 
-Ordem: variável de ambiente → default. Não há arquivo de configuração: o componente roda em
-contêiner, e os segredos entram por variável (ou arquivo montado), nunca no código.
+Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 
 Nome da variável: `CORE_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>`, por exemplo
 `CORE_ACCOUNT_RECEIVER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
-from pydantic_settings import BaseSettings
-
 from core_account.common.settings import DatabaseSettings as CommonDatabaseSettings
-from core_account.common.settings import MessagingSettings, Section, missing_variables, role_config
+from core_account.common.settings import (
+    MessagingSettings,
+    RoleSettings,
+    Section,
+    missing_variables,
+    role_config,
+)
 
 
 class DatabaseSettings(CommonDatabaseSettings):
@@ -19,13 +22,13 @@ class DatabaseSettings(CommonDatabaseSettings):
 
 
 class AuthSettings(Section):
-    issuer: str = "http://ipm-dev.smarkee.com.br:8080"
+    issuer: str = "http://localhost:8080"
     """Valor esperado de `iss`: o endereço público do provedor de identidade."""
 
-    jwks_url: str = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
+    jwks_url: str = "http://localhost:8000/oauth/v2/keys"
     """Endereço (da rede interna) em que as chaves públicas são buscadas."""
 
-    host_header: str = "ipm-dev.smarkee.com.br:8080"
+    host_header: str = "localhost:8080"
     """`Host` enviado ao provedor nas chamadas internas: ele resolve a instância por esse valor."""
 
     audience: str | None = None
@@ -46,12 +49,12 @@ class ApiSettings(Section):
 class PeersSettings(Section):
     """Receivers dos outros módulos, na rede interna, consultados na exclusão da conta."""
 
-    organizations_url: str = "http://ipm-organization-receiver.smarkee.internal:8000"
-    services_url: str = "http://sum-service-receiver.smarkee.internal:8000"
+    organizations_url: str = "http://localhost:8000"
+    services_url: str = "http://localhost:8000"
     timeout_seconds: float = 5.0
 
 
-class AccountReceiverSettings(BaseSettings):
+class AccountReceiverSettings(RoleSettings):
     model_config = role_config("receiver")
 
     database: DatabaseSettings = DatabaseSettings()

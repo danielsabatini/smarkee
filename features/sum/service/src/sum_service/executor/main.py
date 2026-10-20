@@ -6,6 +6,7 @@ roles de serviço) e publica `completed` ou `failed`. Só inicializa e encerra.
 """
 
 import logging
+import sys
 
 import httpx
 
@@ -68,7 +69,14 @@ def validate(settings: SumServiceExecutorSettings) -> None:
 
 
 def main() -> None:
-    start_role("executor", SumServiceExecutorSettings, missing_required, run, validate=validate)
+    start_role(
+        "executor",
+        SumServiceExecutorSettings,
+        missing_required,
+        run,
+        validate=validate,
+        cli_args=sys.argv[1:],
+    )
 
 
 if __name__ == "__main__":

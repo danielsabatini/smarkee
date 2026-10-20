@@ -11,7 +11,7 @@ include:
 
 services:
   telemetry-agent:
-    image: ${OTELCOL_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
+    image: ${TELEMETRY_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
     container_name: telemetry-agent.smarkee.internal
     # root só para ler /var/lib/docker/containers (arquivos 0600 do root) e o socket do Docker; sem nenhuma
     # capability e sem escalonamento de privilégio. O socket, mesmo montado como leitura, dá acesso à API

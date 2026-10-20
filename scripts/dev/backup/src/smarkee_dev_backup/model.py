@@ -14,7 +14,7 @@ DATABASES = ("identity", "smarkee")
 DATABASE_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 # Volume com as chaves das service accounts e o PAT do login (gerados na primeira subida).
 VOLUMES = ("identity-bootstrap",)
-# Arquivos `.env` (fora do git). O `ZITADEL_MASTERKEY` deles é o que decifra o banco do Zitadel.
+# Arquivos `.env` (fora do git). O `IDENTITY_MASTERKEY` deles é o que decifra o banco do Zitadel.
 ENV_FILES = (
     "infrastructure/dev/messaging/.env",
     "infrastructure/dev/database/.env",

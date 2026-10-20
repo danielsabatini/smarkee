@@ -58,12 +58,12 @@ async def test_it_trades_a_signed_assertion_for_a_token_and_sends_the_host_heade
 
     request = identity.requests[0]
     assert request.url == "http://z/oauth/v2/token"
-    assert request.headers["host"] == "ipm-dev.smarkee.com.br:8080"
+    assert request.headers["host"] == "localhost:8080"
     form = dict(item.split("=") for item in request.content.decode().split("&"))
     assert form["grant_type"].startswith("urn%3Aietf")
     claims = jwt.decode(form["assertion"], options={"verify_signature": False})
     assert (claims["iss"], claims["sub"]) == ("svc-1", "svc-1")
-    assert claims["aud"] == "http://ipm-dev.smarkee.com.br:8080"
+    assert claims["aud"] == "http://localhost:8080"
     assert (claims["iat"], claims["exp"]) == (1000, 1300)
     assert jwt.get_unverified_header(form["assertion"])["kid"] == "key-1"
 

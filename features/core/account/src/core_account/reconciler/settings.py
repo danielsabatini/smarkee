@@ -1,15 +1,14 @@
 """Configuração do Reconciler de Account (decisões 0015 e 0063).
 
-Ordem: variável de ambiente → default. Nome da variável:
-`CORE_ACCOUNT_RECONCILER_<SEÇÃO>_<CAMPO>`, por exemplo
+Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
+Nome da variável: `CORE_ACCOUNT_RECONCILER_<SEÇÃO>_<CAMPO>`, por exemplo
 `CORE_ACCOUNT_RECONCILER_MESSAGING_URL`
 (`docs/SCHEMA.md` §8.3). A senha do NATS não tem default. O Reconciler não acessa o SSOT.
 """
 
-from pydantic_settings import BaseSettings
-
 from core_account.common.settings import (
     HealthSettings,
+    RoleSettings,
     Section,
     StateMessagingSettings,
     missing_variables,
@@ -36,7 +35,7 @@ class LoopSettings(Section):
     failure_backoff_maximum_seconds: int = 300
 
 
-class AccountReconcilerSettings(BaseSettings):
+class AccountReconcilerSettings(RoleSettings):
     model_config = role_config("reconciler")
 
     messaging: StateMessagingSettings = StateMessagingSettings()

@@ -67,11 +67,11 @@ async def test_it_authenticates_with_a_jwt_assertion_and_reuses_the_token(key_fi
     form = dict(item.split("=") for item in token_calls[0].content.decode().split("&"))
     claims = jwt.decode(form["assertion"], options={"verify_signature": False})
     assert (claims["iss"], claims["sub"]) == ("svc-1", "svc-1")
-    assert claims["aud"] == "http://ipm-dev.smarkee.com.br:8080"
+    assert claims["aud"] == "http://localhost:8080"
     assert jwt.get_unverified_header(form["assertion"])["kid"] == "key-1"
     api = [c for c in calls if c.url.path.startswith("/zitadel.org.v2.")]
     assert api[0].headers["authorization"] == "Bearer tok"
-    assert api[0].headers["host"] == "ipm-dev.smarkee.com.br:8080"
+    assert api[0].headers["host"] == "localhost:8080"
 
 
 def found(**fields: str) -> dict[str, object]:

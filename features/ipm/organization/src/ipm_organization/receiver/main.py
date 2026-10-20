@@ -5,6 +5,7 @@ lógica fica nos módulos de cada responsabilidade.
 """
 
 import logging
+import sys
 
 import httpx
 
@@ -45,7 +46,9 @@ async def run(settings: OrganizationReceiverSettings) -> int:
 
 
 def main() -> None:
-    start_role("receiver", OrganizationReceiverSettings, missing_required, run)
+    start_role(
+        "receiver", OrganizationReceiverSettings, missing_required, run, cli_args=sys.argv[1:]
+    )
 
 
 if __name__ == "__main__":

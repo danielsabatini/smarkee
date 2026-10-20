@@ -6,6 +6,7 @@ valida a configuração, abre as conexões e serve a API.
 """
 
 import logging
+import sys
 
 import httpx
 from psycopg.rows import dict_row
@@ -49,7 +50,7 @@ async def run(settings: SumServiceReceiverSettings) -> int:
 
 
 def main() -> None:
-    start_role("receiver", SumServiceReceiverSettings, missing_required, run)
+    start_role("receiver", SumServiceReceiverSettings, missing_required, run, cli_args=sys.argv[1:])
 
 
 if __name__ == "__main__":

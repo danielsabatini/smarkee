@@ -7,6 +7,7 @@ permanente não derruba o processo: o Publisher sai de `ready` e quem opera é a
 """
 
 import logging
+import sys
 
 from @@PACKAGE@@.common.lifecycle import start_role
 from @@PACKAGE@@.common.messaging import StreamPublisher
@@ -29,7 +30,9 @@ async def run(settings: @@CLASS@@PublisherSettings) -> int:
 
 
 def main() -> None:
-    start_role("publisher", @@CLASS@@PublisherSettings, missing_required, run)
+    start_role(
+        "publisher", @@CLASS@@PublisherSettings, missing_required, run, cli_args=sys.argv[1:]
+    )
 
 
 if __name__ == "__main__":

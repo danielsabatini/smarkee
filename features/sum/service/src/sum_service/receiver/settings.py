@@ -1,14 +1,13 @@
 """Configuração do Receiver de `sum.service` (decisões 0015 e 0033).
 
-Ordem: variável de ambiente → default. Nome: `SUM_SERVICE_RECEIVER_<SEÇÃO>_<CAMPO>`. As senhas e a
+Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 audience não têm default.
 """
-
-from pydantic_settings import BaseSettings
 
 from sum_service.common.settings import DatabaseSettings as CommonDatabaseSettings
 from sum_service.common.settings import (
     MessagingSettings,
+    RoleSettings,
     Section,
     missing_variables,
     role_config,
@@ -21,11 +20,11 @@ class DatabaseSettings(CommonDatabaseSettings):
 
 
 class AuthSettings(Section):
-    issuer: str = "http://ipm-dev.smarkee.com.br:8080"
+    issuer: str = "http://localhost:8080"
     """Valor esperado de `iss`: o endereço público do provedor de identidade."""
 
-    jwks_url: str = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
-    host_header: str = "ipm-dev.smarkee.com.br:8080"
+    jwks_url: str = "http://localhost:8000/oauth/v2/keys"
+    host_header: str = "localhost:8080"
     audience: str | None = None
     """ID do projeto de roles do SUM (`roles-sum`): audience dos tokens aceitos."""
 
@@ -40,11 +39,11 @@ class ApiSettings(Section):
 class PeersSettings(Section):
     """Receivers dos outros módulos, na rede interna, consultados ao desabilitar um serviço."""
 
-    organizations_url: str = "http://ipm-organization-receiver.smarkee.internal:8000"
+    organizations_url: str = "http://localhost:8000"
     timeout_seconds: float = 5.0
 
 
-class SumServiceReceiverSettings(BaseSettings):
+class SumServiceReceiverSettings(RoleSettings):
     model_config = role_config("receiver")
 
     database: DatabaseSettings = DatabaseSettings()

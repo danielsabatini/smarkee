@@ -6,7 +6,7 @@ name: platform-telemeter
 # diretório (decisão 0053). Não lê logs de contêineres e não roteia.
 services:
   platform-telemeter:
-    image: ${OTELCOL_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
+    image: ${TELEMETRY_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
     container_name: platform-telemeter.smarkee.internal
     # Sem capabilities e sem escalonamento de privilégio (o coletor escuta em portas altas e roda como 10001).
     cap_drop: [ALL]

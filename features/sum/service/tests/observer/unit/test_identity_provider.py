@@ -56,7 +56,7 @@ async def test_an_existing_user_exists_and_the_request_carries_the_token_and_the
     assert await identity.user_exists("u-1") is True
     assert calls[0].url.path == "/v2/users/u-1"
     assert calls[0].headers["authorization"] == "Bearer tok"
-    assert calls[0].headers["host"] == "ipm-dev.smarkee.com.br:8080"
+    assert calls[0].headers["host"] == "localhost:8080"
 
 
 async def test_only_an_unambiguous_404_means_the_user_is_absent(key_file: Path) -> None:

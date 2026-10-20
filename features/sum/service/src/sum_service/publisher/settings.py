@@ -1,17 +1,16 @@
 """Configuração do Publisher de `sum.service` (decisões 0015 e 0019).
 
-Ordem: variável de ambiente → default. Nome da variável:
-`SUM_SERVICE_PUBLISHER_<SEÇÃO>_<CAMPO>`, por exemplo
+Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
+Nome da variável: `SUM_SERVICE_PUBLISHER_<SEÇÃO>_<CAMPO>`, por exemplo
 `SUM_SERVICE_PUBLISHER_MESSAGING_URL`.
 As senhas não têm default.
 """
-
-from pydantic_settings import BaseSettings
 
 from sum_service.common.settings import DatabaseSettings as CommonDatabaseSettings
 from sum_service.common.settings import (
     HealthSettings,
     MessagingSettings,
+    RoleSettings,
     missing_variables,
     role_config,
 )
@@ -22,7 +21,7 @@ class DatabaseSettings(CommonDatabaseSettings):
     """Papel de login do Publisher (lê o outbox e marca `published_at`)."""
 
 
-class SumServicePublisherSettings(BaseSettings):
+class SumServicePublisherSettings(RoleSettings):
     model_config = role_config("publisher")
 
     database: DatabaseSettings = DatabaseSettings()

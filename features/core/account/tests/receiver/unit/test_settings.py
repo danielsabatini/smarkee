@@ -51,7 +51,7 @@ def test_missing_required_is_empty_when_everything_is_set(monkeypatch: pytest.Mo
     assert missing_required(AccountReceiverSettings()) == []
 
 
-def test_peers_default_to_the_internal_receivers_of_the_other_modules() -> None:
+def test_peers_default_to_localhost() -> None:
     peers = AccountReceiverSettings().peers
-    assert peers.organizations_url == "http://ipm-organization-receiver.smarkee.internal:8000"
-    assert peers.services_url == "http://sum-service-receiver.smarkee.internal:8000"
+    assert peers.organizations_url == "http://localhost:8000"
+    assert peers.services_url == "http://localhost:8000"

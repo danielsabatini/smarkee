@@ -6,6 +6,7 @@ consumer.
 """
 
 import logging
+import sys
 
 from sum_service.common.database import open_pool
 from sum_service.common.lifecycle import (
@@ -91,7 +92,14 @@ def validate(settings: SumServiceManagerSettings) -> None:
 
 
 def main() -> None:
-    start_role("manager", SumServiceManagerSettings, missing_required, run, validate=validate)
+    start_role(
+        "manager",
+        SumServiceManagerSettings,
+        missing_required,
+        run,
+        validate=validate,
+        cli_args=sys.argv[1:],
+    )
 
 
 if __name__ == "__main__":

@@ -1,17 +1,16 @@
 """Configuração do Manager de Account (decisões 0015, 0019 e 0063).
 
-Ordem: variável de ambiente → default (seções comuns em `common/settings.py`).
+Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 
 Nome da variável: `CORE_ACCOUNT_MANAGER_<SEÇÃO>_<CAMPO>`, por exemplo
 `CORE_ACCOUNT_MANAGER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
-from pydantic_settings import BaseSettings
-
 from core_account.common.settings import DatabaseSettings as CommonDatabaseSettings
 from core_account.common.settings import (
     HealthSettings,
     MessagingSettings,
+    RoleSettings,
     Section,
     missing_variables,
     role_config,
@@ -34,7 +33,7 @@ class PlatformSettings(Section):
     """Roles de ação gravadas no `desired` do usuário cadastrado (decisão 0025). Lista em JSON."""
 
 
-class AccountManagerSettings(BaseSettings):
+class AccountManagerSettings(RoleSettings):
     model_config = role_config("manager")
 
     database: DatabaseSettings = DatabaseSettings()

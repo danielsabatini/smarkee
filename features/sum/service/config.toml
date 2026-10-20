@@ -1,0 +1,47 @@
+# Configuração de dev de sum.service (decisão 0067). Sem segredos: eles vêm do ambiente ou de /run/secrets.
+# Tabela por papel: [tool.sum.service.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
+
+[tool.sum.service.receiver.auth]
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
+
+[tool.sum.service.receiver.database]
+host = "database.smarkee.internal"
+
+[tool.sum.service.receiver.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+
+[tool.sum.service.receiver.peers]
+organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
+
+[tool.sum.service.manager.database]
+host = "database.smarkee.internal"
+
+[tool.sum.service.manager.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+
+[tool.sum.service.publisher.database]
+host = "database.smarkee.internal"
+
+[tool.sum.service.publisher.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+
+[tool.sum.service.observer.identity]
+base_url = "http://identity.smarkee.internal:8080"
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+
+[tool.sum.service.observer.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+
+[tool.sum.service.reconciler.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+
+[tool.sum.service.executor.identity]
+base_url = "http://identity.smarkee.internal:8080"
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+
+[tool.sum.service.executor.messaging]
+url = "nats://messaging.smarkee.internal:4222"

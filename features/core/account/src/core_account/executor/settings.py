@@ -1,19 +1,19 @@
 """Configuração do Executor de Account (decisões 0015 e 0063).
 
-Ordem: variável de ambiente → default. Nome da variável:
-`CORE_ACCOUNT_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
+Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
+Nome da variável: `CORE_ACCOUNT_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
 `CORE_ACCOUNT_EXECUTOR_MESSAGING_URL`
 (`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS e os identificadores do Zitadel. O Executor
 **não acessa o SSOT** e é a única identidade com escrita no Zitadel.
 """
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
 
 from core_account.common.identity import IdentitySettings as CommonIdentitySettings
 from core_account.common.settings import (
     HealthSettings,
     MessagingSettings,
+    RoleSettings,
     Section,
     missing_variables,
     role_config,
@@ -47,7 +47,7 @@ class PartitionSettings(Section):
     """Partições do Stream `ACTION` (bootstrap do messaging): um consumer e um laço por partição."""
 
 
-class AccountExecutorSettings(BaseSettings):
+class AccountExecutorSettings(RoleSettings):
     model_config = role_config("executor")
 
     messaging: MessagingSettings = MessagingSettings()

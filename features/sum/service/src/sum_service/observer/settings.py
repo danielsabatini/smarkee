@@ -5,11 +5,11 @@ Zitadel.
 """
 
 from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings
 
 from sum_service.common.identity import IdentitySettings as CommonIdentitySettings
 from sum_service.common.settings import (
     HealthSettings,
+    RoleSettings,
     Section,
     StateMessagingSettings,
     missing_variables,
@@ -50,7 +50,7 @@ class LoopSettings(Section):
     """Fração de variação do intervalo, para as instâncias não observarem todas ao mesmo tempo."""
 
 
-class SumServiceObserverSettings(BaseSettings):
+class SumServiceObserverSettings(RoleSettings):
     model_config = role_config("observer")
 
     identity: IdentitySettings = IdentitySettings()

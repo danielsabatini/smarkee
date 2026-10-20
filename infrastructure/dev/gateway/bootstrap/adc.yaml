@@ -125,7 +125,7 @@ services:
         plugins:
           # Autentica o token na porta de entrada (decisão 0052). Os Receivers repetem a validação e decidem as roles.
           openid-connect:
-            client_id: ${APISIX_AUTH_AUDIENCE_IPM_ORGANIZATION}
+            client_id: ${GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION}
             discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
             bearer_only: true
             use_jwks: true
@@ -146,10 +146,10 @@ services:
                 aud:
                   anyOf:
                     - type: string
-                      const: ${APISIX_AUTH_AUDIENCE_IPM_ORGANIZATION}
+                      const: ${GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION}
                     - type: array
                       contains:
-                        const: ${APISIX_AUTH_AUDIENCE_IPM_ORGANIZATION}
+                        const: ${GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION}
           # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
           # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
           response-rewrite:
@@ -188,7 +188,7 @@ services:
         plugins:
           # Autentica o token na porta de entrada (decisão 0052). Os Receivers repetem a validação e decidem as roles.
           openid-connect:
-            client_id: ${APISIX_AUTH_AUDIENCE_SUM_SERVICE}
+            client_id: ${GATEWAY_AUTH_AUDIENCE_SUM_SERVICE}
             discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
             bearer_only: true
             use_jwks: true
@@ -209,10 +209,10 @@ services:
                 aud:
                   anyOf:
                     - type: string
-                      const: ${APISIX_AUTH_AUDIENCE_SUM_SERVICE}
+                      const: ${GATEWAY_AUTH_AUDIENCE_SUM_SERVICE}
                     - type: array
                       contains:
-                        const: ${APISIX_AUTH_AUDIENCE_SUM_SERVICE}
+                        const: ${GATEWAY_AUTH_AUDIENCE_SUM_SERVICE}
           # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
           # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
           response-rewrite:
@@ -250,7 +250,7 @@ services:
         plugins:
           # Autentica o token na porta de entrada (decisão 0052). Os Receivers repetem a validação e decidem as roles.
           openid-connect:
-            client_id: ${APISIX_AUTH_AUDIENCE_CORE_ACCOUNT}
+            client_id: ${GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT}
             discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
             bearer_only: true
             use_jwks: true
@@ -271,10 +271,10 @@ services:
                 aud:
                   anyOf:
                     - type: string
-                      const: ${APISIX_AUTH_AUDIENCE_CORE_ACCOUNT}
+                      const: ${GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT}
                     - type: array
                       contains:
-                        const: ${APISIX_AUTH_AUDIENCE_CORE_ACCOUNT}
+                        const: ${GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT}
           # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
           # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
           response-rewrite:
@@ -295,7 +295,7 @@ services:
       # Auto-cadastro (escrita anônima): limite de taxa por IP já no gateway, o primeiro nível
       # de proteção (docs/RESOURCE-CONTROL-SECURITY.md §12). O Receiver aplica o segundo.
       # O IP vem do plugin global `real-ip` (decisão 0054): em dev é o do par TCP; em stg e prd, atrás de
-      # um balanceador, é o do cliente, desde que `APISIX_TRUSTED_PROXIES` seja o do balanceador.
+      # um balanceador, é o do cliente, desde que `GATEWAY_TRUSTED_PROXIES` seja o do balanceador.
       - name: core-account-register
         hosts:
           - api-dev.smarkee.com.br
@@ -327,7 +327,7 @@ services:
 global_rules:
   # IP real do cliente (decisão 0054). Atrás de um balanceador, o par TCP é o balanceador, e o cliente vem no
   # X-Forwarded-For. O gateway só confia nesse cabeçalho se o par estiver em `trusted_addresses`
-  # (APISIX_TRUSTED_PROXIES: um IP ou um CIDR; um CIDR cobre os balanceadores de uma sub-rede). O padrão é o loopback, que na prática não
+  # (GATEWAY_TRUSTED_PROXIES: um IP ou um CIDR; um CIDR cobre os balanceadores de uma sub-rede). O padrão é o loopback, que na prática não
   # confia em ninguém: em dev o par é o NAT do Docker, e confiar nele deixaria qualquer um forjar o cabeçalho e
   # burlar o limite de taxa do cadastro (que usa o IP). Com a confiança ligada, `remote_addr` passa a ser o cliente
   # real (limite de taxa, `client.address`) e `realip_remote_addr` continua sendo o par (`network.peer.address`).
@@ -335,7 +335,7 @@ global_rules:
     source: http_x_forwarded_for
     recursive: true
     trusted_addresses:
-      - ${APISIX_TRUSTED_PROXIES}
+      - ${GATEWAY_TRUSTED_PROXIES}
 
   # Borda pública: o gateway inicia um trace novo e não continua o que o cliente enviar (o cliente escolheria o
   # trace_id e a flag de amostragem). Roda antes do opentelemetry (prioridade 12009), que lê esses cabeçalhos. O
@@ -373,9 +373,9 @@ plugin_metadata:
     resource:
       service.name: gateway
       service.namespace: smarkee
-      # Acompanha a versão do APISIX (APISIX_IMAGE_VERSION).
+      # Acompanha a versão do APISIX (GATEWAY_IMAGE_VERSION).
       service.version: 3.19.0
       deployment.environment.name: development
     collector:
-      address: ${APISIX_OTEL_COLLECTOR_ADDRESS}
+      address: ${GATEWAY_TELEMETRY_ADDRESS}
       request_timeout: 3

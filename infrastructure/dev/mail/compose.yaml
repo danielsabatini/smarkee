@@ -13,7 +13,7 @@ x-infra-logging: &infra-logging
 
 services:
   mail:
-    image: ${MAILPIT_IMAGE_VERSION:-axllent/mailpit:v1.31.4}
+    image: ${MAIL_IMAGE_VERSION:-axllent/mailpit:v1.31.4}
     container_name: mail.smarkee.internal
     labels:
       smarkee.layer: infra
@@ -25,7 +25,7 @@ services:
           cpus: "${MAIL_CPUS:-0.25}"
           memory: ${MAIL_MEMORY:-256M}
     ports:
-      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"  # Interface web (somente no host, em desenvolvimento)
+      - "127.0.0.1:${MAIL_UI_PORT:-8025}:8025"  # Interface web (somente no host, em desenvolvimento)
     environment:
       # Aceita qualquer remetente e destinatário; sem autenticação (rede interna de dev).
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
