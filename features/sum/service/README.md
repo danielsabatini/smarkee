@@ -206,7 +206,7 @@ por `uv run python -m sum_service.receiver.http.openapi` e conferido por teste.
 
 # 9. Configuração, execução e testes
 
-Variáveis `SUM_SERVICE_<COMPONENTE>_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. O `.env.example` lista as obrigatórias:
+Variáveis `SUM_SERVICE_<PAPEL>_<SEÇÃO>_<CAMPO>`, com `config.toml` por papel e senhas em `/run/secrets`. Todos os parâmetros de cada papel, a ordem de precedência (linha de comando → ambiente → `config.toml` → arquivos de segredo → default) e um exemplo de execução por papel estão em [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) (decisões 0067 e 0070). O `.env.example` lista as obrigatórias:
 a senha do NATS (todos), as senhas dos papéis do banco (Receiver, Manager, Publisher), a audience do Receiver, o catálogo do
 Manager e do Executor, e os IDs no Zitadel (Observer e Executor).
 

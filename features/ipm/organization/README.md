@@ -170,7 +170,7 @@ Os contratos estão em `schemas/ipm/organization/` (e `schemas/common/`), com o 
 
 # 9. Configuração, execução e testes
 
-Variáveis `IPM_ORGANIZATION_<COMPONENTE>_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. O `.env.example` lista as obrigatórias: a senha do NATS (todos), as senhas dos papéis do banco (Receiver, Manager, Publisher) e a audience do Receiver. As chaves das contas de serviço do Zitadel (Observer e Executor) são arquivos montados do volume `identity-bootstrap`, cada componente com a sua.
+Variáveis `IPM_ORGANIZATION_<PAPEL>_<SEÇÃO>_<CAMPO>`, com `config.toml` por papel e senhas em `/run/secrets`. Todos os parâmetros de cada papel, a ordem de precedência (linha de comando → ambiente → `config.toml` → arquivos de segredo → default) e um exemplo de execução por papel estão em [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) (decisões 0067 e 0070). O `.env.example` lista as obrigatórias: a senha do NATS (todos), as senhas dos papéis do banco (Receiver, Manager, Publisher) e a audience do Receiver. As chaves das contas de serviço do Zitadel (Observer e Executor) são arquivos montados do volume `identity-bootstrap`, cada componente com a sua.
 
 ```bash
 # 1. Plataforma (banco, messaging, identidade, gateway): infrastructure/dev, no ar e saudável
