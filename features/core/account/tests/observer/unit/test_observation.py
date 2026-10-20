@@ -1,7 +1,12 @@
 """Mapeamento do Zitadel para `observed`: a leitura falha vira `unknown`, nunca `absent`."""
 
 from core_account.observer.domain.identity import IdentityUser, ProviderError
-from core_account.observer.domain.observation import Drivers, account_state, observe
+from core_account.observer.domain.observation import (
+    Drivers,
+    account_state,
+    log_identifiers,
+    observe,
+)
 
 ROLES = {"ipm.organization.create", "ipm.organization.get", "core.account.get"}
 
@@ -114,3 +119,7 @@ def test_state_mapping() -> None:
     assert account_state(IdentityUser("USER_STATE_LOCKED", True, True)) == "locked"
     assert account_state(IdentityUser("USER_STATE_ACTIVE", True, False)) == "initial"
     assert account_state(IdentityUser("USER_STATE_DELETED", True, True)) == "inactive"
+
+
+def test_log_identifiers_of_the_observation() -> None:
+    assert log_identifiers("acc-1") == {}  # a Account não é uma Organization

@@ -25,7 +25,12 @@ from ipm_organization.common.ids import new_identifier, utc_now
 from ipm_organization.common.logging_config import bind_context, restore_context, save_context
 from ipm_organization.common.ports import Publisher, PublishError
 from ipm_organization.common.resource import MODULE, RESOURCE_TYPE, SCHEMA_VERSION
-from ipm_organization.observer.domain.observation import Drivers, Observation, observe
+from ipm_organization.observer.domain.observation import (
+    Drivers,
+    Observation,
+    log_identifiers,
+    observe,
+)
 from ipm_organization.observer.settings import OrganizationObserverSettings
 
 logger = logging.getLogger(__name__)
@@ -145,7 +150,7 @@ class Observer:
         # desejado quando o provedor foi lido (decisão 0072). Um `desired` que chegue durante a
         # leitura não é atribuído a ela.
         generation = watch.generation
-        with observation_context(resource_id, organization_id=resource_id):
+        with observation_context(resource_id, **log_identifiers(resource_id)):
             async with self._reads:
                 observation: Observation = await self._observe(self._drivers, resource_id)
             if watch.lifecycle == "absent" and observation.presence == "absent":

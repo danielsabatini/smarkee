@@ -11,7 +11,7 @@ A auditoria do `core/account` (2026-10-19) mostrou que o Publisher é igual nas 
 
 - **Publisher no template** (`templates/feature/files/`), na versão do `sum`: a mensagem do outbox é validada contra o envelope antes de sair, e uma recusa é falha permanente (o lote para e o Publisher sai de `ready`, decisão 0018). `core/account` e `ipm/organization` passam a se comportar assim.
 - **Perfis opcionais** (`templates/feature/optional/<perfil>/`): arquivos idênticos só nas features que o declaram em `PROFILES` (`sync.py`). O perfil `receiver-http` (`submission.py` e `health_routes.py`) vale para `core/account` e `ipm/organization`; o `sum/service` entra quando o seu Receiver for alinhado.
-- **Os demais motores** (Reconciler e handlers do Manager) **não** entram no template: variam no `sum`, e não há evidência de que a quarta feature os repita.
+- **Os demais motores** (Reconciler e handlers do Manager) **não** entram no template: variam no `sum`, e não há evidência de que a quarta feature os repita. *(Revisto pela decisão 0075: os motores idênticos entre `core/account` e `ipm/organization` entram como perfil; o do Reconciler segue na feature.)*
 - **`role_config(role)`** em `common/settings.py` substitui o bloco de configuração repetido nos `settings.py` de cada papel.
 - **Nomes de configuração:** `settings.messaging` e `settings.identity`; variáveis `<FEATURE>_<PAPEL>_MESSAGING_*` e `<FEATURE>_<PAPEL>_IDENTITY_*`; `<FEATURE>_IDENTITY_REGISTER_ORGANIZATION_ID` e `<FEATURE>_IDENTITY_PROJECT_IDS` no `.env` da feature (eram `CORE_IDENTITY_*`); `CONFORMANCE_MESSAGING_*` e `CONFORMANCE_IDENTITY_*` nos e2e.
 

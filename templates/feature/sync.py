@@ -11,7 +11,8 @@ marcadores ocupam o lugar dos nomes da feature:
 - `@@UPPER@@` prefixo das variáveis de ambiente (`CORE_ACCOUNT`);
 - `@@DOTTED@@` módulo e tipo do recurso (`core.account`);
 - `@@MODULE@@` módulo (`core`) e `@@TYPE@@` tipo do recurso (`account`);
-- `@@CLASS@@` prefixo de classe (`CoreAccount`) e `@@SPACED@@` nome em texto (`core account`).
+- `@@CLASS@@` prefixo de classe (`CoreAccount`), `@@TYPE_CLASS@@` prefixo de classe do tipo
+  (`Account`, como em `AccountObserverSettings`) e `@@SPACED@@` nome em texto (`core account`).
 
 Sem argumentos, grava as cópias em cada `features/<módulo>/<tipo>/`; com `--check`, falha se alguma
 divergir da fonte. Com `--new <módulo> <tipo>`, cria a pasta da feature com os arquivos da
@@ -37,11 +38,16 @@ NAME = re.compile(r"[a-z][a-z0-9]*")
 # Uma feature entra num perfil quando o seu código já é igual ao do modelo; as demais seguem com
 # os seus.
 PROFILES: dict[str, tuple[str, ...]] = {
-    "receiver-http": ("core/account", "ipm/organization"),  # publicação do `requested` e probes
+    # Publicação do `requested`, probes e os tipos do domínio do Receiver (erros, linhas das views
+    # e pedidos), sem regra do tipo.
+    "receiver-http": ("core/account", "ipm/organization"),
     # Envelope, publicação e persistência de `observed` e do resultado, sem regra do tipo.
     "manager-handlers": ("core/account", "ipm/organization"),
     # Driver de metadado do provedor de identidade, escrita (Executor) e leitura (Observer).
     "identity-metadata": ("core/account", "ipm/organization"),
+    # Motores sem regra do tipo: Observer, Executor (com a revalidação) e a convergência do
+    # Manager, com o teste do motor do Observer (decisão 0075).
+    "loop-engines": ("core/account", "ipm/organization"),
 }
 
 
@@ -64,6 +70,7 @@ def marker_values(module: str, resource_type: str) -> dict[str, str]:
         "@@MODULE@@": module,
         "@@TYPE@@": resource_type,
         "@@CLASS@@": f"{module.title()}{resource_type.title()}",
+        "@@TYPE_CLASS@@": resource_type.title(),
         "@@SPACED@@": f"{module} {resource_type}",
     }
 

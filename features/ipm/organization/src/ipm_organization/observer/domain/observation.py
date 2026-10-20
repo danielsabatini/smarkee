@@ -79,3 +79,12 @@ def deletion_protection(value: str | None) -> dict[str, bool]:
     """
     protected = _PROTECTION.get(value or "")
     return {} if protected is None else {"deletionProtection": protected}
+
+
+def log_identifiers(resource_id: str) -> dict[str, str]:
+    """Identificadores de negócio extras nos logs de cada observação (decisão 0061).
+
+    Gancho que o motor do Observer (template, perfil `loop-engines`) chama. O recurso é a própria
+    Organization: o `resourceId` é também o `organization_id`.
+    """
+    return {"organization_id": resource_id}

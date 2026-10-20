@@ -37,3 +37,6 @@ Uma nova medição (arquivos comparados entre as três features, com os nomes no
 - **`.gitignore`** passa a ter uma regra única para `features/*/*/telemeter/`, no lugar de uma por feature.
 - **Continua em aberto** gerar ou extrair os motores do Reconciler, do Executor e do Observer, os `settings.py` e `main.py`: a medição entre `core/account` e `ipm/organization` mostrou cerca de 85% de linhas iguais, mas as diferenças estão dentro dos motores (`receiver/http/app.py`, `executor/provider/identity.py`, `observer/domain/observation.py`), e extrair agora fixaria uma divisão sem evidência da quarta feature (§6, §25).
 
+## Ajuste (2026-10-20): questão dos motores fechada pela 0075
+
+A escolha que ficou "em aberto" (gerar ou extrair os motores) foi fechada pela decisão 0075: o que é idêntico entre as features, inclusive os motores do Observer e do Executor e a convergência do Manager, vai para o template como perfil (`loop-engines`, e `receiver-http` ampliado), sem biblioteca comum. O que tem regra do tipo continua na feature.

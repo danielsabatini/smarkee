@@ -25,7 +25,12 @@ from core_account.common.ids import new_identifier, utc_now
 from core_account.common.logging_config import bind_context, restore_context, save_context
 from core_account.common.ports import Publisher, PublishError
 from core_account.common.resource import MODULE, RESOURCE_TYPE, SCHEMA_VERSION
-from core_account.observer.domain.observation import Drivers, Observation, observe
+from core_account.observer.domain.observation import (
+    Drivers,
+    Observation,
+    log_identifiers,
+    observe,
+)
 from core_account.observer.settings import AccountObserverSettings
 
 logger = logging.getLogger(__name__)
@@ -145,7 +150,7 @@ class Observer:
         # desejado quando o provedor foi lido (decisão 0072). Um `desired` que chegue durante a
         # leitura não é atribuído a ela.
         generation = watch.generation
-        with observation_context(resource_id):
+        with observation_context(resource_id, **log_identifiers(resource_id)):
             async with self._reads:
                 observation: Observation = await self._observe(self._drivers, resource_id)
             if watch.lifecycle == "absent" and observation.presence == "absent":

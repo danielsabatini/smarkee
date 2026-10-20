@@ -1,7 +1,7 @@
 """Mapeamento do Zitadel para `observed`: a leitura falha vira `unknown`, nunca `absent`."""
 
 from ipm_organization.observer.domain.identity import IdentityOrganization, ProviderError
-from ipm_organization.observer.domain.observation import Drivers, observe
+from ipm_organization.observer.domain.observation import Drivers, log_identifiers, observe
 
 
 class FakeReader:
@@ -90,3 +90,7 @@ async def test_a_metadata_read_failure_is_unknown() -> None:
     failing = FakeMetadata(error=ProviderError("HTTP 503"))
     result = await observe(drivers(FakeReader(organization()), failing), "o-1")
     assert (result.presence, result.data) == ("unknown", {})
+
+
+def test_log_identifiers_of_the_observation() -> None:
+    assert log_identifiers("org-1") == {"organization_id": "org-1"}  # é a própria Organization

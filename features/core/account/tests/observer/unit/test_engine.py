@@ -36,8 +36,8 @@ class FakeObservation:
     results: list[Observation] = field(default_factory=lambda: [Observation("absent", {})])
     reads: list[str] = field(default_factory=lambda: [])
 
-    async def __call__(self, reader: object, user_id: str) -> Observation:
-        self.reads.append(user_id)
+    async def __call__(self, reader: object, resource_id: str) -> Observation:
+        self.reads.append(resource_id)
         return self.results[min(len(self.reads), len(self.results)) - 1]
 
 
@@ -206,7 +206,7 @@ async def test_invalid_messages_are_ignored(payload: bytes) -> None:
 async def test_messages_of_another_type_are_ignored() -> None:
     publisher = FakePublisher()
     other = json.loads(desired())
-    other["resourceType"] = "organization"
+    other["resourceType"] = "another"
     await build(FakeObservation(), publisher).on_message(json.dumps(other).encode())
     assert publisher.published == []
 
@@ -224,14 +224,13 @@ async def test_the_log_of_a_periodic_read_carries_the_observed_resource() -> Non
             return await super().__call__(reader, resource_id)
 
     observer = build(Capturing([Observation("present", {})]), FakePublisher())
-    await observer.on_message(desired("acc-periodic"))
+    await observer.on_message(desired("periodic-1"))
     seen.clear()
 
     await observer.observe_all()
 
-    assert seen[0]["smarkee.resource.id"] == "acc-periodic"
+    assert seen[0]["smarkee.resource.id"] == "periodic-1"
     assert seen[0]["smarkee.actor.type"] == "system"
-    assert "smarkee.organization.id" not in seen[0]  # Account não é Organization
 
 
 async def test_the_observation_context_does_not_leak_to_the_caller() -> None:
