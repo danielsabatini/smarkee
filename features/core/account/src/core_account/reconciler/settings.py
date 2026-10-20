@@ -48,6 +48,7 @@ def missing_required(settings: AccountReconcilerSettings) -> list[str]:
     return missing_variables(
         "CORE_ACCOUNT_RECONCILER_",
         {
+            "MESSAGING_URL": settings.messaging.url is not None,
             "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
         },

@@ -8,8 +8,12 @@ from ipm_organization.receiver.settings import (
 
 REQUIRED_SECRETS = (
     "IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE",
+    "IPM_ORGANIZATION_RECEIVER_MESSAGING_URL",
     "IPM_ORGANIZATION_RECEIVER_MESSAGING_USER",
     "IPM_ORGANIZATION_RECEIVER_MESSAGING_PASSWORD",
+    "IPM_ORGANIZATION_RECEIVER_DATABASE_HOST",
+    "IPM_ORGANIZATION_RECEIVER_DATABASE_PORT",
+    "IPM_ORGANIZATION_RECEIVER_DATABASE_NAME",
     "IPM_ORGANIZATION_RECEIVER_DATABASE_USER",
     "IPM_ORGANIZATION_RECEIVER_DATABASE_PASSWORD",
 )
@@ -49,5 +53,5 @@ def test_missing_required_lists_every_secret_without_default() -> None:
 
 def test_missing_required_is_empty_when_everything_is_set(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in REQUIRED_SECRETS:
-        monkeypatch.setenv(name, "valor")
+        monkeypatch.setenv(name, "5432" if name.endswith("_PORT") else "valor")
     assert missing_required(OrganizationReceiverSettings()) == []

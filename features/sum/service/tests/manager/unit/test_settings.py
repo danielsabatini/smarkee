@@ -7,8 +7,12 @@ from sum_service.manager.settings import (
 )
 
 REQUIRED_SECRETS = (
+    "SUM_SERVICE_MANAGER_MESSAGING_URL",
     "SUM_SERVICE_MANAGER_MESSAGING_USER",
     "SUM_SERVICE_MANAGER_MESSAGING_PASSWORD",
+    "SUM_SERVICE_MANAGER_DATABASE_HOST",
+    "SUM_SERVICE_MANAGER_DATABASE_PORT",
+    "SUM_SERVICE_MANAGER_DATABASE_NAME",
     "SUM_SERVICE_MANAGER_DATABASE_USER",
     "SUM_SERVICE_MANAGER_DATABASE_PASSWORD",
     "SUM_SERVICE_MANAGER_CATALOG_ROLES",
@@ -45,5 +49,5 @@ def test_missing_required_lists_every_secret_without_default() -> None:
 
 def test_missing_required_is_empty_when_everything_is_set(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in REQUIRED_SECRETS:
-        monkeypatch.setenv(name, "valor")
+        monkeypatch.setenv(name, "5432" if name.endswith("_PORT") else "valor")
     assert missing_required(SumServiceManagerSettings()) == []

@@ -7,6 +7,7 @@ from core_account.observer.settings import (
 )
 
 REQUIRED_SECRETS = (
+    "CORE_ACCOUNT_OBSERVER_MESSAGING_URL",
     "CORE_ACCOUNT_OBSERVER_MESSAGING_USER",
     "CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD",
     "CORE_ACCOUNT_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID",
@@ -46,5 +47,5 @@ def test_missing_required_lists_every_value_without_default(
 ) -> None:
     assert missing_required(AccountObserverSettings()) == list(REQUIRED_SECRETS)
     for name in REQUIRED_SECRETS:
-        monkeypatch.setenv(name, "valor")
+        monkeypatch.setenv(name, "5432" if name.endswith("_PORT") else "valor")
     assert missing_required(AccountObserverSettings()) == []

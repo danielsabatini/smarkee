@@ -7,6 +7,7 @@ from core_account.reconciler.settings import (
 )
 
 REQUIRED_SECRETS = (
+    "CORE_ACCOUNT_RECONCILER_MESSAGING_URL",
     "CORE_ACCOUNT_RECONCILER_MESSAGING_USER",
     "CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD",
 )
@@ -40,5 +41,5 @@ def test_unknown_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_missing_required_lists_the_nats_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     assert missing_required(AccountReconcilerSettings()) == list(REQUIRED_SECRETS)
     for name in REQUIRED_SECRETS:
-        monkeypatch.setenv(name, "valor")
+        monkeypatch.setenv(name, "5432" if name.endswith("_PORT") else "valor")
     assert missing_required(AccountReconcilerSettings()) == []

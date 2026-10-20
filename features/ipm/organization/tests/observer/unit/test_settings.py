@@ -7,6 +7,7 @@ from ipm_organization.observer.settings import (
 )
 
 REQUIRED_SECRETS = (
+    "IPM_ORGANIZATION_OBSERVER_MESSAGING_URL",
     "IPM_ORGANIZATION_OBSERVER_MESSAGING_USER",
     "IPM_ORGANIZATION_OBSERVER_MESSAGING_PASSWORD",
 )
@@ -42,5 +43,5 @@ def test_missing_required_lists_every_value_without_default(
 ) -> None:
     assert missing_required(OrganizationObserverSettings()) == list(REQUIRED_SECRETS)
     for name in REQUIRED_SECRETS:
-        monkeypatch.setenv(name, "valor")
+        monkeypatch.setenv(name, "5432" if name.endswith("_PORT") else "valor")
     assert missing_required(OrganizationObserverSettings()) == []

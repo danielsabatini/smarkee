@@ -43,6 +43,7 @@ def missing_required(settings: OrganizationExecutorSettings) -> list[str]:
     return missing_variables(
         "IPM_ORGANIZATION_EXECUTOR_",
         {
+            "MESSAGING_URL": settings.messaging.url is not None,
             "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
         },

@@ -7,8 +7,12 @@ from @@PACKAGE@@.publisher.settings import (
 )
 
 REQUIRED = (
+    "@@UPPER@@_PUBLISHER_MESSAGING_URL",
     "@@UPPER@@_PUBLISHER_MESSAGING_USER",
     "@@UPPER@@_PUBLISHER_MESSAGING_PASSWORD",
+    "@@UPPER@@_PUBLISHER_DATABASE_HOST",
+    "@@UPPER@@_PUBLISHER_DATABASE_PORT",
+    "@@UPPER@@_PUBLISHER_DATABASE_NAME",
     "@@UPPER@@_PUBLISHER_DATABASE_USER",
     "@@UPPER@@_PUBLISHER_DATABASE_PASSWORD",
 )
@@ -46,5 +50,5 @@ def test_missing_required_lists_every_credential_without_default() -> None:
 
 def test_missing_required_is_empty_when_everything_is_set(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in REQUIRED:
-        monkeypatch.setenv(name, "valor")
+        monkeypatch.setenv(name, "5432" if name.endswith("_PORT") else "valor")
     assert missing_required(@@CLASS@@PublisherSettings()) == []

@@ -48,6 +48,7 @@ def missing_required(settings: OrganizationReconcilerSettings) -> list[str]:
     return missing_variables(
         "IPM_ORGANIZATION_RECONCILER_",
         {
+            "MESSAGING_URL": settings.messaging.url is not None,
             "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
         },

@@ -52,6 +52,7 @@ def missing_required(settings: SumServiceExecutorSettings) -> list[str]:
     return missing_variables(
         "SUM_SERVICE_EXECUTOR_",
         {
+            "MESSAGING_URL": settings.messaging.url is not None,
             "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
             "IDENTITY_REGISTER_ORGANIZATION_ID": bool(settings.identity.register_organization_id),

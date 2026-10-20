@@ -21,6 +21,7 @@ from @@PACKAGE@@.common.messaging import (
     new_instance_name,
 )
 from @@PACKAGE@@.common.ports import PublishError
+from @@PACKAGE@@.common.settings import MessagingSettings
 
 TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 
@@ -330,3 +331,8 @@ async def test_a_processing_error_returns_the_message_to_the_queue_and_keeps_the
     assert len(failed) == 2
     assert failed[0].exc_info is not None
     assert failed[0].exc_info[0] is RuntimeError
+
+
+async def test_connect_refuses_to_guess_the_address_when_the_url_was_not_informed() -> None:
+    with pytest.raises(ValueError, match=r"messaging\.url"):
+        await messaging.connect(MessagingSettings(), name="x-manager")

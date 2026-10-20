@@ -27,11 +27,12 @@ def test_missing_variables_prefixes_and_keeps_the_order_of_the_ones_not_informed
     assert missing_variables("SUM_SERVICE_X_", {"A": True}) == []
 
 
-def test_credentials_have_no_default_in_the_code() -> None:
-    assert DatabaseSettings().user is None
-    assert DatabaseSettings().password is None
-    assert MessagingSettings().user is None
-    assert MessagingSettings().password is None
+def test_connection_and_credentials_have_no_default_in_the_code() -> None:
+    database = DatabaseSettings()
+    assert (database.host, database.port, database.name) == (None, None, None)
+    assert (database.user, database.password) == (None, None)
+    messaging = MessagingSettings()
+    assert (messaging.url, messaging.user, messaging.password) == (None, None, None)
 
 
 def test_sections_reject_unknown_fields() -> None:
@@ -50,7 +51,7 @@ def test_defaults_have_no_secrets_and_the_state_messaging_adds_the_consumer_inac
 
 
 class _Messaging(Section):
-    url: str = "nats://localhost:4222"
+    url: str | None = None
     user: str | None = None
     password: SecretStr | None = None
 
@@ -80,7 +81,7 @@ def secrets_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 
 
 def test_without_file_secrets_or_environment_the_defaults_apply() -> None:
-    assert _Settings().messaging.url == "nats://localhost:4222"
+    assert _Settings().messaging.url is None
 
 
 def test_config_toml_overrides_the_default_using_only_the_table_of_the_role(
@@ -104,7 +105,7 @@ def test_environment_overrides_config_toml(
 
 def test_config_toml_without_the_table_of_the_role_is_ignored(config_toml: Path) -> None:
     config_toml.write_text('[tool.outro]\nurl = "x"\n', encoding="utf-8")
-    assert _Settings().messaging.url == "nats://localhost:4222"
+    assert _Settings().messaging.url is None
 
 
 def test_user_comes_from_config_toml_and_the_environment_overrides_it(
@@ -155,4 +156,4 @@ def test_secret_on_the_command_line_is_refused() -> None:
 
 
 def test_without_arguments_the_pytest_command_line_is_not_parsed() -> None:
-    assert load_settings(_Settings).messaging.url == "nats://localhost:4222"
+    assert load_settings(_Settings).messaging.url is None

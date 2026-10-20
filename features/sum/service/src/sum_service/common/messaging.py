@@ -40,6 +40,8 @@ _PERMANENT_ERRORS = (nats.errors.MaxPayloadError, nats.js.errors.BadRequestError
 
 async def connect(settings: MessagingSettings, *, name: str) -> MessagingClient:
     """Conecta com a identidade do papel (`name`, por exemplo `sum-service-manager`)."""
+    if settings.url is None:
+        raise ValueError("o endereço do NATS (messaging.url) não foi informado")
     password = settings.password.get_secret_value() if settings.password else None
     # `nats.connect` aceita opções livres; o pyright não as conhece.
     return await nats.connect(  # pyright: ignore[reportUnknownMemberType]

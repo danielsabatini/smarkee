@@ -13,7 +13,11 @@ from sum_service.common.settings import DatabaseSettings
 
 def settings(password: str | None = None) -> DatabaseSettings:
     return DatabaseSettings(
-        user="sum_service_x_login", password=SecretStr(password) if password else None
+        host="localhost",
+        port=5432,
+        name="smarkee",
+        user="sum_service_x_login",
+        password=SecretStr(password) if password else None,
     )
 
 

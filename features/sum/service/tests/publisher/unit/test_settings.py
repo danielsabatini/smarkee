@@ -7,8 +7,12 @@ from sum_service.publisher.settings import (
 )
 
 REQUIRED = (
+    "SUM_SERVICE_PUBLISHER_MESSAGING_URL",
     "SUM_SERVICE_PUBLISHER_MESSAGING_USER",
     "SUM_SERVICE_PUBLISHER_MESSAGING_PASSWORD",
+    "SUM_SERVICE_PUBLISHER_DATABASE_HOST",
+    "SUM_SERVICE_PUBLISHER_DATABASE_PORT",
+    "SUM_SERVICE_PUBLISHER_DATABASE_NAME",
     "SUM_SERVICE_PUBLISHER_DATABASE_USER",
     "SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD",
 )
@@ -46,5 +50,5 @@ def test_missing_required_lists_every_credential_without_default() -> None:
 
 def test_missing_required_is_empty_when_everything_is_set(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in REQUIRED:
-        monkeypatch.setenv(name, "valor")
+        monkeypatch.setenv(name, "5432" if name.endswith("_PORT") else "valor")
     assert missing_required(SumServicePublisherSettings()) == []

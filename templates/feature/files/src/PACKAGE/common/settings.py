@@ -138,7 +138,9 @@ class Section(BaseModel):
 
 
 class MessagingSettings(Section):
-    url: str = "nats://localhost:4222"
+    url: str | None = None
+    """Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`."""
+
     user: str | None = None
     """Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`."""
 
@@ -160,9 +162,11 @@ class HealthSettings(Section):
 class DatabaseSettings(Section):
     """Conexão com o SSOT."""
 
-    host: str = "localhost"
-    port: int = 5432
-    name: str = "smarkee"
+    host: str | None = None
+    """Endereço do banco. Sem default: vem do ambiente ou do `config.toml`."""
+
+    port: int | None = None
+    name: str | None = None
     user: str | None = None
     """Papel de login do banco, um por papel. Sem default: vem do ambiente ou do `config.toml`."""
 

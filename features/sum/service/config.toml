@@ -8,6 +8,8 @@ jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
 [tool.sum.service.receiver.database]
 host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
 user = "sum_service_receiver_login"
 
 [tool.sum.service.receiver.messaging]
@@ -19,6 +21,8 @@ organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
 
 [tool.sum.service.manager.database]
 host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
 user = "sum_service_manager_login"
 
 [tool.sum.service.manager.messaging]
@@ -27,6 +31,8 @@ user = "smarkee"
 
 [tool.sum.service.publisher.database]
 host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
 user = "sum_service_publisher_login"
 
 [tool.sum.service.publisher.messaging]

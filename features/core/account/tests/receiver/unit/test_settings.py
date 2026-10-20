@@ -8,8 +8,12 @@ from core_account.receiver.settings import (
 
 REQUIRED_SECRETS = (
     "CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE",
+    "CORE_ACCOUNT_RECEIVER_MESSAGING_URL",
     "CORE_ACCOUNT_RECEIVER_MESSAGING_USER",
     "CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD",
+    "CORE_ACCOUNT_RECEIVER_DATABASE_HOST",
+    "CORE_ACCOUNT_RECEIVER_DATABASE_PORT",
+    "CORE_ACCOUNT_RECEIVER_DATABASE_NAME",
     "CORE_ACCOUNT_RECEIVER_DATABASE_USER",
     "CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD",
 )
@@ -49,7 +53,7 @@ def test_missing_required_lists_every_secret_without_default() -> None:
 
 def test_missing_required_is_empty_when_everything_is_set(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in REQUIRED_SECRETS:
-        monkeypatch.setenv(name, "valor")
+        monkeypatch.setenv(name, "5432" if name.endswith("_PORT") else "valor")
     assert missing_required(AccountReceiverSettings()) == []
 
 
