@@ -66,6 +66,7 @@ class Store(Protocol):
         observed_at: Any,
         conditions: list[dict[str, Any]],
         phase: str,
+        observed_generation: int | None,
     ) -> int: ...
 
     async def delete_resource(self, resource_id: str) -> None: ...

@@ -165,7 +165,8 @@ async def unprotect_through_the_loop(
 ) -> str:
     """Pede o `update` que tira a proteção contra exclusão e devolve a versão seguinte.
 
-    A proteção conclui na hora (decisão 0043) e não gera `updated`; a versão nova vem do SSOT.
+    A proteção percorre o loop como qualquer alteração (decisão 0072): conclui quando o Manager
+    confirma a nova geração (`observed_generation = desired_generation`). A versão nova vem do SSOT.
     Sem acesso ao SSOT, devolve a versão recebida e o `delete` segue por conta e risco.
     """
     now = datetime.now(UTC).isoformat()
@@ -203,24 +204,17 @@ async def unprotect_through_the_loop(
     except psycopg.OperationalError:
         return resource_version
     try:
-        deadline = asyncio.get_running_loop().time() + 20.0
+        deadline = asyncio.get_running_loop().time() + 40.0
         while asyncio.get_running_loop().time() < deadline:
             cursor = await connection.execute(
-                f"SELECT resource_version, desired FROM {TABLE} WHERE resource_id = %s",  # noqa: S608
+                f"SELECT resource_version FROM {TABLE} WHERE resource_id = %s"  # noqa: S608
+                " AND (desired->>'deletionProtection')::boolean IS FALSE"
+                " AND observed_generation = desired_generation",
                 (resource_id,),
             )
             row = await cursor.fetchone()
-            if row is not None and row[1].get("deletionProtection") is False:
-                # O Manager ainda grava resultados e observações seguintes: espera a versão parar.
-                await asyncio.sleep(2.0)
-                cursor = await connection.execute(
-                    f"SELECT resource_version FROM {TABLE} WHERE resource_id = %s",  # noqa: S608
-                    (resource_id,),
-                )
-                stable = await cursor.fetchone()
-                if stable is not None and str(stable[0]) == str(row[0]):
-                    return str(row[0])
-                continue
+            if row is not None:
+                return str(row[0])
             await asyncio.sleep(0.3)
     finally:
         await connection.close()

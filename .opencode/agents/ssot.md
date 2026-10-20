@@ -294,7 +294,8 @@ As definições de `desiredGeneration`, `observedGeneration` e `resourceVersion`
 Pontos de atenção na revisão:
 
 * `desiredGeneration` só muda quando a **especificação** muda;
-* a convergência é decidida por comparação de conteúdo entre `desired` e `observed`, e não por `observedGeneration`;
+* a convergência exige conteúdo igual entre `desired` e `observed` **e** uma observação feita depois da geração (o `observedGeneration` do envelope `observed`); o Manager grava a geração confirmada e a publica no `updated` (decisão 0072, `docs/RESOURCE-CONTROL-LOOP.md` §36);
+* toda alteração do `desired`, inclusive de campo da plataforma, percorre o loop: não existe Operation que conclua sem a observação da geração (decisão 0072);
 * `resourceVersion` serve ao controle de concorrência e não representa geração;
 * `conditions` seguem o contrato comum e o dicionário de `docs/SSOT.md`, e a saúde operacional é representada por elas e por `phase`.
 

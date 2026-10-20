@@ -3,15 +3,19 @@
 `enable` garante que o usuário tem as roles pedidas em cada projeto do módulo delas. `disable`
 tira só essas roles e mantém as demais (o usuário pode ter roles de outros serviços). Quando uma
 autorização fica sem roles, ela é removida. Repetir qualquer um dos dois não muda nada.
+Compõe os drivers de `executor/drivers/`; não chama o provedor direto.
 """
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Protocol
 
-from sum_service.executor.provider.identity import Grant
+from sum_service.executor.domain.identity import Grant
 
 
-class Granter(Protocol):
+class Authorizations(Protocol):
+    """Driver da autorização nos projetos de roles (`executor/drivers/authorization.py`)."""
+
     def project_of(self, role: str) -> str: ...
     async def grants(self, user_id: str) -> list[Grant]: ...
     async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None: ...
@@ -19,14 +23,21 @@ class Granter(Protocol):
     async def remove_grant(self, grant_id: str) -> None: ...
 
 
-def _by_project(granter: Granter, roles: Iterable[str]) -> dict[str, set[str]]:
+@dataclass(frozen=True, slots=True)
+class Drivers:
+    """Os drivers de escrita que as operações do serviço usam."""
+
+    authorizations: Authorizations
+
+
+def _by_project(granter: Authorizations, roles: Iterable[str]) -> dict[str, set[str]]:
     grouped: dict[str, set[str]] = {}
     for role in roles:
         grouped.setdefault(granter.project_of(role), set()).add(role)
     return grouped
 
 
-async def enable(granter: Granter, user_id: str, roles: Iterable[str]) -> None:
+async def enable(granter: Authorizations, user_id: str, roles: Iterable[str]) -> None:
     """O usuário passa a ter as roles, em cada projeto do módulo delas."""
     wanted_by_project = _by_project(granter, roles)
     grants = await granter.grants(user_id)
@@ -40,7 +51,7 @@ async def enable(granter: Granter, user_id: str, roles: Iterable[str]) -> None:
             await granter.update_grant(current.grant_id, sorted(current.roles | wanted))
 
 
-async def disable(granter: Granter, user_id: str, roles: Iterable[str]) -> None:
+async def disable(granter: Authorizations, user_id: str, roles: Iterable[str]) -> None:
     """Tira as roles pedidas e mantém as demais. Autorização sem roles restantes é removida."""
     unwanted_by_project = _by_project(granter, roles)
     grants = await granter.grants(user_id)

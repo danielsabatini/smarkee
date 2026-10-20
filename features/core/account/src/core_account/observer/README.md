@@ -11,7 +11,8 @@ Os logs do Observer **não** carregam o `traceparent` das mensagens que ele cons
 ```text
 src/core_account/observer/
   domain/      mapeamento do Zitadel para o `observed` (observation.py) e tipos do provedor (identity.py)
-  provider/    leitor do Zitadel (HTTP, JWT da conta de serviço)
+  drivers/     leitura no Zitadel, um por sub-recurso (user.py, authorization.py; espelho do Executor, decisão 0073)
+  provider/    conexão só de leitura com o Zitadel (HTTP, JWT da conta de serviço)
   engine/      estado em memória, partição, limite de leituras e publicação
   transport/   consumers de estado por instância e publicação no NATS
   main.py

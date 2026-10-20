@@ -19,6 +19,7 @@ erDiagram
         text phase "CHECK 5 fases"
         jsonb conditions "array, DEFAULT []"
         int failure_count "CHECK >= 0"
+        bigint observed_generation "nula ou entre 1 e desired_generation"
         timestamptz created_at
         timestamptz updated_at
     }

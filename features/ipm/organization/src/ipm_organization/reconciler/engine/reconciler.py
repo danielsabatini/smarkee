@@ -111,6 +111,7 @@ class Reconciler:
             requested_by=envelope.requested_by,
             correlation_id=envelope.correlation_id,
             traceparent=current_traceparent(),
+            deletion_protection=data.get("deletionProtection", True) is not False,
         )
         if current is None or generation != current.generation:
             state.pending = None  # a ação pendente era de uma especificação substituída
@@ -126,6 +127,7 @@ class Reconciler:
         data: Mapping[str, Any] = envelope.data
         name = data.get("name")
         platform_access = data.get("platformAccess")
+        protection = data.get("deletionProtection")
         state.observed = ObservedState(
             message_id=envelope.message_id,
             presence=envelope.presence.value,
@@ -133,6 +135,7 @@ class Reconciler:
             causation_id=envelope.causation_id,
             name=str(name) if name is not None else None,
             platform_access=str(platform_access) if platform_access is not None else None,
+            deletion_protection=protection if isinstance(protection, bool) else None,
         )
         if (
             state.awaiting_observation_of is not None

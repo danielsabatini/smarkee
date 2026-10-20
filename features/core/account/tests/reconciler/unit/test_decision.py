@@ -1,5 +1,6 @@
 """Decisão de reconciliação da Account: regras de `docs/RESOURCE-CONTROL-LOOP.md` e de segurança."""
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -36,12 +37,21 @@ def observed(
     access: str | None = None,
     roles: frozenset[str] | None = None,
     causation: str | None = None,
+    protected: bool | None = True,
 ) -> ObservedState:
     # `access="granted"` sem `roles` observa exatamente as roles desejadas.
     held: frozenset[str] = (
         roles if roles is not None else (ROLES if access == "granted" else frozenset[str]())
     )
-    return ObservedState("o-1", presence, NOW - timedelta(seconds=age), causation, access, held)
+    return ObservedState(
+        "o-1",
+        presence,
+        NOW - timedelta(seconds=age),
+        causation,
+        access,
+        held,
+        deletion_protection=protected,
+    )
 
 
 def state(d: DesiredState | None, o: ObservedState | None, **kwargs: object) -> ResourceState:
@@ -66,6 +76,19 @@ def test_present_without_platform_access_is_updated() -> None:
 
 def test_converged_account_needs_no_action() -> None:
     assert operation_of(state(desired(), observed("present", access="granted"))) is None
+
+
+def test_a_different_deletion_protection_is_drift() -> None:
+    """A proteção é campo gerenciado, lida do metadado do usuário (decisão 0074)."""
+    for held in (False, None):
+        decision = decide(
+            state(desired(), observed("present", access="granted", protected=held)), NOW, SETTINGS
+        )
+        assert decision is not None
+        assert (decision.operation, decision.reason) == ("update", "Drift")
+    unprotected = replace(desired(), deletion_protection=False)
+    converged = observed("present", access="granted", protected=False)
+    assert operation_of(state(unprotected, converged)) is None
 
 
 def test_a_missing_desired_role_is_drift_and_extra_roles_are_not() -> None:

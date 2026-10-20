@@ -956,8 +956,11 @@ Exemplo:
 ```text
 phase = Ready
 desiredGeneration = 1
-condition = Ready=True (desiredGeneration = 1)
+observedGeneration = 1
+condition = Ready=True (observedGeneration = 1)
 ```
+
+O Manager só confirma a geração (`observedGeneration`) com uma observação feita depois dela (seção 36).
 
 # 20. Fluxo completo da Organization
 
@@ -1013,6 +1016,8 @@ sequenceDiagram
 # 21. Fluxo de atualização
 
 Uma alteração do `desired` incrementa `desiredGeneration`. O Reconciler compara o novo `desired` com o último `observed`, que ainda reflete a geração anterior, e decide `update`. Após a execução, o Observer observa o novo conteúdo e o Reconciler confirma a convergência pela comparação de conteúdo (ver *Comparação entre Desired e Observed*).
+
+**Toda alteração percorre o mesmo caminho** (decisão 0072), inclusive a de um campo da plataforma que o provedor não tem (`x-managed: false`): nova geração, fase `Reconciling`, Operation `accepted` e `desired` no outbox. O Reconciler decide `update` se houver divergência em campo gerenciado, ou não faz nada se não houver. Nos dois casos, a Operation conclui quando a observação da nova geração a confirma (seção 36), e o Manager publica o `updated`. Não existe uma alteração que conclua sem passar pelo loop. Um controle da plataforma que precise aparecer no provedor vira campo gerenciado e é gravado como metadado (por exemplo, `deletionProtection`, decisão 0074).
 
 # 22. Fluxo de remoção
 
@@ -1283,14 +1288,27 @@ O Reconciler deve evitar aplicar uma decisão baseada em uma geração antiga qu
 
 # 36. ObservedGeneration
 
-O sistema externo não conhece a geração do `desired`. Por isso, a convergência **não** é determinada por `observedGeneration`, e sim pela comparação de conteúdo entre `desired` e `observed` (ver *Comparação entre Desired e Observed*).
+O modelo é o do Kubernetes (`metadata.generation` e `status.observedGeneration`; decisões 0071 e 0072). `observedGeneration` é a **última geração cuja convergência o Manager confirmou**. "Terminou" significa `observedGeneration == desiredGeneration` com `phase = Ready`.
 
-A geração serve para:
+O sistema externo não conhece a geração do `desired`. Por isso, a confirmação depende de duas condições, conferidas pelo Manager na unidade atômica do `observed`:
+
+1. **conteúdo:** a comparação entre `desired` e `observed` converge (ver *Comparação entre Desired e Observed*);
+2. **tempo causal:** a observação foi feita **depois** da geração. O Observer informa no `observedGeneration` do envelope `observed` a geração que conhecia **antes** de ler o provedor. Um `desired` que chegue durante a leitura não é atribuído a ela.
+
+Uma leitura anterior à geração não a confirma, mesmo com o conteúdo igual. É o que acontece numa alteração só em campo da plataforma (`x-managed: false`), que o provedor não tem: o Reconciler não encontra o que fazer (noop), e quem conclui é a observação da nova geração.
+
+Regras:
+
+- `observedGeneration` só cresce e nunca passa de `desiredGeneration` (restrição no banco);
+- o Manager grava o par na mesma unidade atômica do estado e o publica no `updated` (`desiredGeneration` e `observedGeneration`), para que Console, CLI e outros consumidores saibam qual geração terminou;
+- a Operation de uma geração conclui quando essa geração é confirmada.
+
+A geração também serve para:
 
 - descartar uma `action` baseada em geração obsoleta;
 - identificar a que geração uma condition se refere.
 
-`observedGeneration` só é confiável quando a geração é registrada no próprio recurso externo (por exemplo, como metadado gravado pelo Executor) e lida pelo Observer:
+Quando o provider permite gravar a geração no próprio recurso externo (por exemplo, como metadado gravado pelo Executor), ela pode ser lida pelo Observer como evidência adicional:
 
 ```text
 Desired:
@@ -1300,9 +1318,7 @@ Recurso externo (metadado gravado pelo Executor):
 generation = 4
 ```
 
-Indica que o recurso externo ainda não reflete a geração 5.
-
-Quando o provider não permite esse registro, `observedGeneration` não deve ser usado como evidência de convergência.
+Isso indica que o recurso externo ainda não reflete a geração 5.
 
 # 37. Lifecycle
 
@@ -1530,7 +1546,7 @@ Regras:
 
 - **Papéis isolados pela credencial, não pela imagem.** Cada papel tem o seu processo, as suas variáveis e segredos, o seu papel de banco, a sua identidade no NATS e a sua conta no provedor; ter o código de um papel na imagem de outro não dá privilégio. Nenhum papel importa outro (um teste confere): só o `common/`, que reúne o que é igual em todos (configuração, mensageria, ciclo de vida, banco, token da conta de serviço, contratos gerados e logging). O código comum existe uma vez por feature; entre features continua duplicado, com fonte única onde houver (decisão 0046).
 - **Artefatos neutros compartilhados.** O que é comum é independente de linguagem: contratos em JSON Schema, OpenAPI de cada Receiver, SQL (tabelas, outbox e views), a especificação das mensagens, as convenções de log, métrica e trace, e uma **suíte de testes e2e black-box** por tipo (`features/<módulo>/<tipo>/tests/e2e`, não é um componente), que valida o contrato pela rede e deve passar para qualquer implementação.
-- **Estrutura interna.** Todo componente separa regra (`domain/`, pura e sem I/O), orquestração (`handlers/` ou `engine/`), adaptadores (`store/`, `provider/`, `transport/`, `http/`) e a entrada (o `main.py` de cada papel), com a dependência em um sentido só e o `domain` sem importar adaptadores (decisão 0017).
+- **Estrutura interna.** Todo componente separa regra (`domain/`, pura e sem I/O), orquestração (`handlers/` ou `engine/`), adaptadores (`store/`, `provider/`, `transport/`, `http/`) e a entrada (o `main.py` de cada papel), com a dependência em um sentido só e o `domain` sem importar adaptadores (decisão 0017). No Executor e no Observer, o acesso ao sistema externo é dividido em `provider/` (só a conexão autenticada) e `drivers/` (um por sub-recurso, escrita no Executor e leitura no Observer, espelhados pelo nome; decisão 0073).
 - **Comunicação.** Somente pela mensageria. Exceção: o SSOT, em que o Manager escreve, o Receiver lê as views e o Publisher lê e marca o outbox (seção 44).
 - **O Receiver contém a sua autenticação e autorização.** Não há serviço de autenticação compartilhado no caminho de uma requisição.
 - **O Manager é dono do esquema do tipo.** O código das migrações é do Manager, fica em `migrations/` da feature e executa como etapa de implantação com o papel administrativo do banco, nunca com o papel de runtime (`SSOT.md`, seção 16).

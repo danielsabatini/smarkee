@@ -1,9 +1,8 @@
-"""Cliente de escrita do Zitadel para o Executor (única identidade com escrita da Organization).
+"""Conexão de escrita com o Zitadel para o Executor (única identidade com escrita da Organization).
 
-Autentica com a conta de serviço `ipm-organization-executor` (papel de instância `IAM_ORG_MANAGER`)
-por assertion JWT. Cada operação é **idempotente**: o `organization_id` é o `resourceId`, e a
-repetição de um passo já feito é tratada como sucesso
-(`docs/RESOURCE-CONTROL-LOOP.md` §26).
+Só o transporte autenticado: a conta de serviço `ipm-organization-executor` (papel de instância
+`IAM_ORG_MANAGER`) por assertion JWT, a chamada HTTP e a classificação dos erros. Não conhece
+recurso: as operações de cada sub-recurso ficam em `executor/drivers/`.
 Os erros viram `ProviderError`, com a causa e se a mesma decisão pode ser tentada de novo.
 Nenhum dado do pedido entra em mensagens de erro.
 """
@@ -15,7 +14,7 @@ from typing import Any, cast
 import httpx
 
 from ipm_organization.common.identity import ServiceAccountToken, TokenError
-from ipm_organization.executor.domain.identity import IdentityOrganization, ProviderError
+from ipm_organization.executor.domain.identity import ProviderError
 from ipm_organization.executor.settings import IdentitySettings
 
 NOT_FOUND_CODE = 5  # código gRPC NotFound
@@ -26,15 +25,9 @@ HTTP_UNAUTHORIZED = 401
 HTTP_FORBIDDEN = 403
 HTTP_TOO_MANY_REQUESTS = 429
 HTTP_SERVER_ERROR = 500
-ORGANIZATION_SERVICE = "/zitadel.org.v2.OrganizationService"
-ACTIVE_STATE = "ORGANIZATION_STATE_ACTIVE"
-# Identificadores estáveis dos erros de "já feito" do Zitadel v4.19.4 (a mensagem é localizada).
-NOT_CHANGED_ID = "ORG-4VSdf"  # a organização já tem o nome pedido
-ALREADY_ACTIVE_ID = "EVENT-bfnrh"
-ALREADY_INACTIVE_ID = "EVENT-Dbs2g"
 
 
-def _classify(status: int, text: str = "") -> ProviderError:
+def _classify(status: int) -> ProviderError:
     if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
         return ProviderError("Unauthorized", retryable=False, detail=f"HTTP {status}")
     if status == HTTP_TOO_MANY_REQUESTS or status >= HTTP_SERVER_ERROR:
@@ -42,7 +35,7 @@ def _classify(status: int, text: str = "") -> ProviderError:
     return ProviderError("Rejected", retryable=False, detail=f"HTTP {status}")
 
 
-class IdentityWriter:
+class IdentityConnection:
     def __init__(
         self,
         settings: IdentitySettings,
@@ -54,68 +47,7 @@ class IdentityWriter:
         self._client = client
         self._token_source = ServiceAccountToken(settings, client, clock=clock)
 
-    # ------------------------------------------------------------------ organização
-    # API v2 de organizações (`zitadel.org.v2.OrganizationService`, verificada na v4.19.4). O
-    # `organizationId` informado vira o ID no Zitadel, então repetir a criação não duplica.
-
-    async def get_organization(self, organization_id: str) -> IdentityOrganization | None:
-        response = await self._call(
-            "POST",
-            f"{ORGANIZATION_SERVICE}/ListOrganizations",
-            {"queries": [{"idQuery": {"id": organization_id}}]},
-        )
-        assert response is not None  # noqa: S101 (sem accept_not_found)
-        found = cast("list[dict[str, Any]]", self._json(response).get("result") or [])
-        for organization in found:
-            if organization.get("id") == organization_id:
-                return IdentityOrganization(
-                    name=str(organization.get("name", "")),
-                    active=organization.get("state") == ACTIVE_STATE,
-                )
-        return None
-
-    async def create_organization(self, organization_id: str, *, name: str) -> bool:
-        """Cria a organização com o `resourceId` como ID. `False` se o ID ou o nome já existem."""
-        response = await self._call(
-            "POST",
-            "/v2/organizations",
-            {"name": name, "organizationId": organization_id},
-            accept_conflict=True,
-        )
-        return response is not None
-
-    async def rename_organization(self, organization_id: str, *, name: str) -> None:
-        await self._call_idempotent(
-            "POST", f"/v2/organizations/{organization_id}", {"name": name}, NOT_CHANGED_ID
-        )
-
-    async def activate_organization(self, organization_id: str) -> None:
-        await self._call_idempotent(
-            "POST", f"/v2/organizations/{organization_id}/activate", {}, ALREADY_ACTIVE_ID
-        )
-
-    async def deactivate_organization(self, organization_id: str) -> None:
-        await self._call_idempotent(
-            "POST", f"/v2/organizations/{organization_id}/deactivate", {}, ALREADY_INACTIVE_ID
-        )
-
-    async def delete_organization(self, organization_id: str) -> None:
-        await self._call("DELETE", f"/v2/organizations/{organization_id}", accept_not_found=True)
-
-    async def _call_idempotent(
-        self, method: str, path: str, body: dict[str, Any], already_done_id: str
-    ) -> None:
-        """Chamada cujo resultado já alcançado (erro `already_done_id`) conta como sucesso."""
-        try:
-            await self._call(method, path, body)
-        except ProviderError as error:
-            if error.reason == "Rejected" and already_done_id in str(error):
-                return
-            raise
-
-    # ------------------------------------------------------------------ HTTP
-
-    async def _call(
+    async def call(
         self,
         method: str,
         path: str,
@@ -124,6 +56,7 @@ class IdentityWriter:
         accept_not_found: bool = False,
         accept_conflict: bool = False,
     ) -> httpx.Response | None:
+        """A resposta; `None` no 404 inequívoco ou no 409, quando aceitos pelo chamador."""
         headers = {
             "Host": self._settings.host_header,
             "Authorization": f"Bearer {await self._access_token()}",
@@ -149,6 +82,29 @@ class IdentityWriter:
                 error.reason, retryable=error.retryable, detail=detail or f"HTTP {status}"
             )
         return response
+
+    async def call_idempotent(
+        self, method: str, path: str, body: dict[str, Any], already_done_id: str
+    ) -> None:
+        """Chamada cujo resultado já alcançado (erro `already_done_id`) conta como sucesso."""
+        try:
+            await self.call(method, path, body)
+        except ProviderError as error:
+            if error.reason == "Rejected" and already_done_id in str(error):
+                return
+            raise
+
+    @staticmethod
+    def json(response: httpx.Response) -> dict[str, Any]:
+        try:
+            document = response.json()
+        except ValueError:
+            raise ProviderError(
+                "ProviderUnavailable", retryable=True, detail="invalid JSON"
+            ) from None
+        if not isinstance(document, dict):
+            raise ProviderError("ProviderUnavailable", retryable=True, detail="unexpected response")
+        return cast("dict[str, Any]", document)
 
     @staticmethod
     def _error_id(response: httpx.Response) -> str:
@@ -178,18 +134,6 @@ class IdentityWriter:
         return document.get("code") in (NOT_FOUND_CODE, "not_found") and bool(
             document.get("details")
         )
-
-    @staticmethod
-    def _json(response: httpx.Response) -> dict[str, Any]:
-        try:
-            document = response.json()
-        except ValueError:
-            raise ProviderError(
-                "ProviderUnavailable", retryable=True, detail="invalid JSON"
-            ) from None
-        if not isinstance(document, dict):
-            raise ProviderError("ProviderUnavailable", retryable=True, detail="unexpected response")
-        return cast("dict[str, Any]", document)
 
     async def _access_token(self) -> str:
         try:

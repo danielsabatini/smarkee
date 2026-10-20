@@ -12,8 +12,12 @@ import httpx
 from core_account.common.lifecycle import start_role
 from core_account.common.messaging import StreamPublisher
 from core_account.common.runtime import role_runtime
+from core_account.executor.actions.account_actions import Drivers
+from core_account.executor.drivers.authorization import AuthorizationDriver
+from core_account.executor.drivers.metadata import MetadataDriver
+from core_account.executor.drivers.user import UserDriver
 from core_account.executor.engine.executor import Executor
-from core_account.executor.provider.identity import IdentityWriter
+from core_account.executor.provider.identity import IdentityConnection
 from core_account.executor.settings import AccountExecutorSettings, missing_required
 from core_account.executor.transport.messaging import ActionConsumer, DirectStateReader
 
@@ -24,8 +28,13 @@ async def run(settings: AccountExecutorSettings) -> int:
     async with role_runtime(settings.messaging, name="core-account-executor") as runtime:
         http = httpx.AsyncClient(timeout=settings.identity.timeout_seconds)
         runtime.close_after(http.aclose)
+        connection = IdentityConnection(settings.identity, http)
         executor = Executor(
-            IdentityWriter(settings.identity, http),
+            Drivers(
+                users=UserDriver(connection, settings.identity),
+                authorizations=AuthorizationDriver(connection, settings.identity),
+                metadata=MetadataDriver(connection, "users"),
+            ),
             StreamPublisher(runtime.stream),
             DirectStateReader(runtime.stream),
         )

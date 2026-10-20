@@ -30,7 +30,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Item | Situação | Evidência |
 |---|---|---|
 | `resourceId` estável, `desired`, `observed`, `desiredGeneration`, lifecycle, conditions | Atende | `schemas/core/account/`, migração `core.account` |
-| `observedGeneration` | Atende | Existe na `condition` (`observedGeneration`); o `observed` da Account não precisa dele |
+| `observedGeneration` | Atende | Coluna `observed_generation` (migração `0008`), preenchida pelo Manager só com uma observação feita depois da geração (o Observer envia o `observedGeneration` no envelope); publicada no `updated` com `desiredGeneration` e na `condition` (decisão 0072). Ainda não exposta na view do Receiver |
 
 ## 2.2 Manager
 

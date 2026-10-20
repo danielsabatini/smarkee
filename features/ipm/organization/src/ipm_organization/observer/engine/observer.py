@@ -25,7 +25,7 @@ from ipm_organization.common.ids import new_identifier, utc_now
 from ipm_organization.common.logging_config import bind_context, restore_context, save_context
 from ipm_organization.common.ports import Publisher, PublishError
 from ipm_organization.common.resource import MODULE, RESOURCE_TYPE, SCHEMA_VERSION
-from ipm_organization.observer.domain.observation import Observation, Reader, observe
+from ipm_organization.observer.domain.observation import Drivers, Observation, observe
 from ipm_organization.observer.settings import OrganizationObserverSettings
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ def owns(resource_id: str, index: int, count: int) -> bool:
 class Observer:
     def __init__(
         self,
-        reader: Reader,
+        drivers: Drivers,
         publisher: Publisher,
         settings: OrganizationObserverSettings,
         *,
@@ -75,7 +75,7 @@ class Observer:
         identifiers: Callable[[], str] = new_identifier,
         observe_resource: Callable[..., Any] = observe,
     ) -> None:
-        self._reader = reader
+        self._drivers = drivers
         self._publisher = publisher
         self._settings = settings
         self._clock = clock
@@ -141,12 +141,16 @@ class Observer:
 
     async def observe_resource(self, resource_id: str, *, causation_id: str | None) -> None:
         watch = self._watches.setdefault(resource_id, Watch())
+        # A geração conhecida **antes** da leitura: a observação só pode confirmar o que já era
+        # desejado quando o provedor foi lido (decisão 0072). Um `desired` que chegue durante a
+        # leitura não é atribuído a ela.
+        generation = watch.generation
         with observation_context(resource_id, organization_id=resource_id):
             async with self._reads:
-                observation: Observation = await self._observe(self._reader, resource_id)
+                observation: Observation = await self._observe(self._drivers, resource_id)
             if watch.lifecycle == "absent" and observation.presence == "absent":
                 watch.tombstone = True  # remoção convergida: deixa de observar
-            await self._publish(resource_id, watch, observation, causation_id)
+            await self._publish(resource_id, watch, observation, causation_id, generation)
 
     async def observe_all(self) -> None:
         """Rodada periódica: todos os recursos da partição que ainda existem."""
@@ -158,7 +162,12 @@ class Observer:
         await asyncio.gather(*pending)
 
     async def _publish(
-        self, resource_id: str, watch: Watch, observation: Observation, causation_id: str | None
+        self,
+        resource_id: str,
+        watch: Watch,
+        observation: Observation,
+        causation_id: str | None,
+        generation: int,
     ) -> None:
         now = self._clock()
         envelope = generated.MessageEnvelope.model_validate(
@@ -173,6 +182,7 @@ class Observer:
                 "operation": "changed",
                 "presence": observation.presence,
                 "observedAt": now.isoformat(),
+                **({"observedGeneration": generation} if generation > 0 else {}),
                 **({"causationId": causation_id} if causation_id else {}),
                 "correlationId": watch.correlation_id or self._identifiers(),
                 "occurredAt": now.isoformat(),

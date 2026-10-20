@@ -271,6 +271,7 @@ async def test_the_whole_loop_runs_against_identity_provider_and_the_account_is_
     assert desired["data"]["platformRoles"]
     assert set(desired["data"]["platformRoles"]) <= set(observed["data"]["platformRoles"])
     assert observed["data"]["accountState"] == "initial"  # a senha ainda não foi definida
+    assert observed["data"]["deletionProtection"] is True  # metadado no Zitadel (decisão 0074)
     assert observed["data"]["emailVerified"] is False
 
     # 4. A pessoa recebe o e-mail do Zitadel: o de verificação, que também define a senha.

@@ -19,8 +19,11 @@ from ipm_organization.common.messaging import (
     new_instance_name,
 )
 from ipm_organization.common.runtime import role_runtime
+from ipm_organization.observer.domain.observation import Drivers
+from ipm_organization.observer.drivers.metadata import MetadataDriver
+from ipm_organization.observer.drivers.organization import OrganizationDriver
 from ipm_organization.observer.engine.observer import Observer, periodic_observation
-from ipm_organization.observer.provider.identity import IdentityReader
+from ipm_organization.observer.provider.identity import IdentityConnection
 from ipm_organization.observer.settings import OrganizationObserverSettings, missing_required
 from ipm_organization.observer.transport.streams import STREAMS
 
@@ -31,8 +34,14 @@ async def run(settings: OrganizationObserverSettings) -> int:
     async with role_runtime(settings.messaging, name="ipm-organization-observer") as runtime:
         http = httpx.AsyncClient(timeout=settings.identity.timeout_seconds)
         runtime.close_after(http.aclose)
+        connection = IdentityConnection(settings.identity, http)
         observer = Observer(
-            IdentityReader(settings.identity, http), StreamPublisher(runtime.stream), settings
+            Drivers(
+                organizations=OrganizationDriver(connection),
+                metadata=MetadataDriver(connection, "organizations"),
+            ),
+            StreamPublisher(runtime.stream),
+            settings,
         )
         instance = new_instance_name()
         for stream, subject, suffix in STREAMS:

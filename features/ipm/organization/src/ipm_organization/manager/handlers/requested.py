@@ -141,26 +141,29 @@ class RequestedHandler:
             return await self._reject(store, envelope, request, now, rejection)
 
         specification_changed = desired != current
-        # Só a mudança de campo gerenciado tem o que reconciliar; a de campo da plataforma (a
-        # proteção contra exclusão) conclui na hora, com nova geração e sem voltar a reconciliar.
-        managed_changed = kind.policy.managed_changed(current, desired)
         # Nova geração volta a reconciliar, salvo declaração em contrário (docs/SSOT.md §10.4).
         reconciliation = request.reconciliation or (
-            "active" if managed_changed else row["reconciliation"]
+            "active" if specification_changed else row["reconciliation"]
         )
+        # Sem geração nova (nada mudou, ou só a `reconciliation` do operador), a Operation acompanha
+        # a geração vigente: conclui já se ela estiver confirmada pela observação, senão quando for.
+        confirmed = row["observed_generation"] == row["desired_generation"]
         if not specification_changed and reconciliation == row["reconciliation"]:
             await self._record_operation(
                 store,
                 envelope,
                 request,
                 now,
-                status="completed",
+                status="completed" if confirmed else "accepted",
                 generation=row["desired_generation"],
             )
-            return Outcome(OutcomeKind.COMPLETED)
+            return Outcome(OutcomeKind.COMPLETED if confirmed else OutcomeKind.ACCEPTED)
 
+        # Toda alteração do `desired` percorre o loop, inclusive a de campo da plataforma (como a
+        # proteção contra exclusão): o Reconciler decide (action ou noop) e a Operation conclui na
+        # observação da nova geração, como no Kubernetes (decisão 0072).
         phase = row["phase"]
-        if managed_changed:
+        if specification_changed:
             phase = "Deleting" if desired["lifecycle"] == "absent" else "Reconciling"
         generation = await store.change_desired(
             envelope.resource_id,
@@ -172,12 +175,13 @@ class RequestedHandler:
         if generation is None:
             # Defensivo: a linha está bloqueada e a versão foi conferida; zero linhas = conflito.
             return await self._reject(store, envelope, request, now, RejectionReason.CONFLICT)
+        done = not specification_changed and confirmed
         await self._record_operation(
             store,
             envelope,
             request,
             now,
-            status="accepted" if managed_changed else "completed",
+            status="completed" if done else "accepted",
             generation=generation,
         )
         await self._publishing.desired(
@@ -188,7 +192,7 @@ class RequestedHandler:
             reconciliation=reconciliation,
             generation=generation,
         )
-        return Outcome(OutcomeKind.ACCEPTED if managed_changed else OutcomeKind.COMPLETED)
+        return Outcome(OutcomeKind.COMPLETED if done else OutcomeKind.ACCEPTED)
 
     @staticmethod
     async def _rejection(

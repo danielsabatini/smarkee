@@ -9,6 +9,7 @@ import pytest
 
 from ipm_organization.common.contracts import generated
 from ipm_organization.common.ports import PublishError
+from ipm_organization.executor.actions.organization_actions import Drivers
 from ipm_organization.executor.domain.errors import ActionFailedError
 from ipm_organization.executor.domain.identity import IdentityOrganization, ProviderError
 from ipm_organization.executor.engine.executor import Disposition, Executor
@@ -44,7 +45,7 @@ class FakeState:
 
 
 @dataclass
-class FakeWriter:
+class FakeOrganizationDriver:
     calls: list[str] = field(default_factory=lambda: [])
     error: Exception | None = None
     organizations: dict[str, IdentityOrganization] = field(default_factory=lambda: {})
@@ -113,12 +114,23 @@ def action(
     return json.dumps(message).encode()
 
 
-def build(writer: FakeWriter, state: FakeState, publisher: FakePublisher) -> Executor:
-    return Executor(writer, publisher, state, clock=lambda: NOW, identifiers=lambda: "msg-1")
+class FakeMetadata:
+    async def set_value(self, owner_id: str, key: str, value: str) -> None:
+        return None
+
+
+def build(writer: FakeOrganizationDriver, state: FakeState, publisher: FakePublisher) -> Executor:
+    return Executor(
+        Drivers(organizations=writer, metadata=FakeMetadata()),
+        publisher,
+        state,
+        clock=lambda: NOW,
+        identifiers=lambda: "msg-1",
+    )
 
 
 async def test_a_valid_create_executes_and_publishes_a_valid_completed() -> None:
-    writer, publisher = FakeWriter(), FakePublisher()
+    writer, publisher = FakeOrganizationDriver(), FakePublisher()
     state = FakeState(desired=desired_message())
 
     disposition = await build(writer, state, publisher).handle(action())
@@ -148,7 +160,7 @@ async def test_a_valid_create_executes_and_publishes_a_valid_completed() -> None
 async def test_an_action_that_fails_revalidation_never_touches_the_provider(
     state_desired: dict[str, Any] | None, operation: str, reason: str
 ) -> None:
-    writer, publisher = FakeWriter(), FakePublisher()
+    writer, publisher = FakeOrganizationDriver(), FakePublisher()
     state = FakeState(desired=state_desired)
 
     await build(writer, state, publisher).handle(action(operation))
@@ -160,7 +172,7 @@ async def test_an_action_that_fails_revalidation_never_touches_the_provider(
 
 
 async def test_a_completed_outcome_for_the_same_action_is_republished_without_executing() -> None:
-    writer, publisher = FakeWriter(), FakePublisher()
+    writer, publisher = FakeOrganizationDriver(), FakePublisher()
     state = FakeState(
         desired=desired_message(),
         results={("create", "completed"): {"actionId": ACTION_ID, "data": {}}},
@@ -171,7 +183,7 @@ async def test_a_completed_outcome_for_the_same_action_is_republished_without_ex
 
 
 async def test_a_permanent_failure_for_the_same_action_is_republished_without_executing() -> None:
-    writer, publisher = FakeWriter(), FakePublisher()
+    writer, publisher = FakeOrganizationDriver(), FakePublisher()
     previous = {
         "actionId": ACTION_ID,
         "data": {"reason": "Rejected", "retryable": False, "message": "x"},
@@ -183,7 +195,7 @@ async def test_a_permanent_failure_for_the_same_action_is_republished_without_ex
 
 
 async def test_a_retryable_failure_for_the_same_action_does_not_block_the_retry() -> None:
-    writer, publisher = FakeWriter(), FakePublisher()
+    writer, publisher = FakeOrganizationDriver(), FakePublisher()
     previous = {"actionId": ACTION_ID, "data": {"reason": "ProviderUnavailable", "retryable": True}}
     state = FakeState(desired=desired_message(), results={("create", "failed"): previous})
     await build(writer, state, publisher).handle(action())
@@ -192,7 +204,7 @@ async def test_a_retryable_failure_for_the_same_action_does_not_block_the_retry(
 
 
 async def test_a_completed_outcome_of_another_action_does_not_block() -> None:
-    writer, publisher = FakeWriter(), FakePublisher()
+    writer, publisher = FakeOrganizationDriver(), FakePublisher()
     state = FakeState(
         desired=desired_message(),
         results={("create", "completed"): {"actionId": "outra", "data": {}}},
@@ -212,7 +224,7 @@ async def test_a_completed_outcome_of_another_action_does_not_block() -> None:
 async def test_provider_failures_become_failed_messages_and_are_acked(
     error: Exception, reason: str, retryable: bool
 ) -> None:
-    writer, publisher = FakeWriter(error=error), FakePublisher()
+    writer, publisher = FakeOrganizationDriver(error=error), FakePublisher()
     state = FakeState(desired=desired_message())
 
     disposition = await build(writer, state, publisher).handle(action())
@@ -225,14 +237,14 @@ async def test_provider_failures_become_failed_messages_and_are_acked(
 
 
 async def test_delete_executes_for_an_absent_desired() -> None:
-    writer, publisher = FakeWriter(), FakePublisher()
+    writer, publisher = FakeOrganizationDriver(), FakePublisher()
     state = FakeState(desired=desired_message(lifecycle="absent"))
     await build(writer, state, publisher).handle(action("delete"))
     assert writer.calls == ["delete_organization"]
 
 
 async def test_a_publish_failure_propagates_so_the_action_returns_to_the_queue() -> None:
-    writer, publisher = FakeWriter(), FakePublisher(fail=True)
+    writer, publisher = FakeOrganizationDriver(), FakePublisher(fail=True)
     state = FakeState(desired=desired_message())
     with pytest.raises(PublishError):
         await build(writer, state, publisher).handle(action())
@@ -249,7 +261,7 @@ async def test_a_publish_failure_propagates_so_the_action_returns_to_the_queue()
     ],
 )
 async def test_invalid_or_foreign_messages_are_terminated(payload: bytes) -> None:
-    writer, publisher = FakeWriter(), FakePublisher()
+    writer, publisher = FakeOrganizationDriver(), FakePublisher()
     disposition = await build(writer, FakeState(desired=desired_message()), publisher).handle(
         payload
     )

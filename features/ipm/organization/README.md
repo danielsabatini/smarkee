@@ -13,7 +13,7 @@ Os seis componentes do loop e a CLI estão implementados e rodam no dev (Compose
 | Receiver | `receiver/` (`ipm-organization-receiver`) | API `/v1/ipm/organizations`: autentica, confere a role, o e-mail verificado e a cota, publica `requested`. Contrato em `openapi.json` |
 | Manager | `manager/` (`ipm-organization-manager`) | Consome `requested`, `observed` e `completed`/`failed`; nomes reservados, unicidade e cota por dono na unidade atômica |
 | Publisher | `publisher/` (`ipm-organization-publisher`) | Publica o outbox no NATS, com trava de sessão, envelope estrito e `Nats-Msg-Id` (decisão 0019) |
-| Reconciler | `reconciler/` (`ipm-organization-reconciler`) | Compara `name` e `platformAccess` e decide `create`, `update` ou `delete`; estado reconstruído da mensageria |
+| Reconciler | `reconciler/` (`ipm-organization-reconciler`) | Compara `name`, `platformAccess` e `deletionProtection` e decide `create`, `update` ou `delete`; estado reconstruído da mensageria |
 | Observer | `observer/` (`ipm-organization-observer`) | Lê a organização no Zitadel (somente leitura) e publica `observed`; partição por `resourceId` |
 | Executor | `executor/` (`ipm-organization-executor`) | Escreve só a organização no Zitadel; revalida cada ação; um laço por partição |
 | Testes e2e | `tests/e2e/` | Black-box: contrato, loop completo e caos (os cinco papéis de runtime) |
@@ -43,7 +43,7 @@ Os seis papéis são **um projeto e uma imagem** (decisão 0063), cada um rodand
 
 - Rotas sob `/v1/ipm/organizations`: `POST` cria, `GET` lista, `GET /{resourceId}` lê, `PATCH /{resourceId}` altera, `DELETE /{resourceId}?resourceVersion=` remove e `GET /{resourceId}/operations/{operationId}` acompanha a Operation.
 - Valida o token (assinatura por JWKS, `iss`, `aud` = projeto `roles-ipm`, `exp`). O dono é o `sub`: nunca vem do corpo, que só tem `name`. Cada ação exige a role `ipm.organization.<create|get|list|update|delete>`. Para criar, o solicitante precisa de **e-mail verificado** e de cota (`IPM_ORGANIZATION_RECEIVER_API_ORGANIZATION_QUOTA`, padrão 1); o operador (`ipm.organization.admin`) não tem cota.
-- O dono altera o `name` e a proteção contra exclusão (`deletionProtection`); `platformAccess` e `reconciliation` são do operador. A Organization **nasce protegida** (decisão 0043): o `DELETE` responde `409 DeletionProtected` até um `PATCH` com `deletionProtection: false`; alterar só a proteção conclui na hora, sem reconciliar. Registro sem o campo vale como protegido. Uma Organization de outro dono responde `404`, para não revelar que existe. `Idempotency-Key` torna o `POST`, o `PATCH` e o `DELETE` repetíveis.
+- O dono altera o `name` e a proteção contra exclusão (`deletionProtection`); `platformAccess` e `reconciliation` são do operador. A Organization **nasce protegida** (decisão 0043): o `DELETE` responde `409 DeletionProtected` até um `PATCH` com `deletionProtection: false`; alterar só a proteção percorre o loop como qualquer alteração e conclui quando a observação confirma a nova geração (decisão 0072). Registro sem o campo vale como protegido. Uma Organization de outro dono responde `404`, para não revelar que existe. `Idempotency-Key` torna o `POST`, o `PATCH` e o `DELETE` repetíveis.
 - Só lê o SSOT, pelas views `ipm.organization_v1` e `ipm.organization_operation_v1`. Não expõe `/docs` nem `/openapi.json`: o contrato descritivo é o arquivo versionado `openapi.json`, conferido por teste. Erros no formato `api-error`; a entrada inválida é `400` e nunca repete o valor enviado.
 
 ## 3.2 Manager (`ipm-organization-manager`)
@@ -103,8 +103,8 @@ Cada papel é um subpacote com `main.py`, `settings.py` e `domain/` puro e sem I
 | Manager | `domain/`, `handlers/`, `store/`, `transport/` | [`manager`](src/ipm_organization/manager/README.md) |
 | Publisher | `domain/`, `outbox/` | [`publisher`](src/ipm_organization/publisher/README.md) |
 | Reconciler | `domain/`, `engine/`, `transport/` | [`reconciler`](src/ipm_organization/reconciler/README.md) |
-| Observer | `domain/`, `engine/`, `provider/`, `transport/` | [`observer`](src/ipm_organization/observer/README.md) |
-| Executor | `actions/`, `domain/`, `engine/`, `provider/`, `transport/` | [`executor`](src/ipm_organization/executor/README.md) |
+| Observer | `domain/`, `drivers/` (leitura: `organization`), `engine/`, `provider/` (conexão só de leitura), `transport/` | [`observer`](src/ipm_organization/observer/README.md) |
+| Executor | `actions/`, `domain/`, `drivers/` (escrita: `organization`), `engine/`, `provider/` (conexão de escrita), `transport/` | [`executor`](src/ipm_organization/executor/README.md) |
 
 A saúde (`/health/*`) é de `common/http/health.py`, igual em todos os papéis.
 
@@ -218,7 +218,7 @@ O Receiver lê pelas views `ipm.organization_v1` (sem `failure_count`) e `ipm.or
 ## 11.3 O que cada coluna `jsonb` guarda
 
 - `organization.desired`: `lifecycle`, `reconciliation`, `name`, `platformAccess`, `deletionProtection` e `ownerAccountId`.
-- `organization.observed`: `name`, `platformAccess` e `organizationState` lidos do Zitadel.
+- `organization.observed`: `name`, `platformAccess`, `organizationState` e `deletionProtection` (metadado da organização, decisão 0074) lidos do Zitadel.
 - `organization.conditions`: lista de condições do recurso.
 - `organization_outbox.payload`: o envelope publicado, sem `publishedAt` e `publishedBy` (o Publisher os preenche).
 

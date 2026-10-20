@@ -127,6 +127,7 @@ class PostgresSsot:
         query = sql.SQL(
             "SELECT resource_version FROM {table}"
             " WHERE resource_id = %s AND desired -> 'deletionProtection' = 'false'::jsonb"
+            " AND observed_generation = desired_generation"
         ).format(table=self._table(kind.table))
         with self._connect(kind.manager_role) as connection:
             found = connection.execute(query, (resource_id,)).fetchone()

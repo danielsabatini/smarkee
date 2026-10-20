@@ -1,10 +1,11 @@
-"""Cliente somente leitura do Zitadel para o Observer (`docs/RESOURCE-CONTROL-SECURITY.md` §8, §9).
+"""Conexão só de leitura com o Zitadel para o Observer (`docs/RESOURCE-CONTROL-SECURITY.md` §8).
 
-Autentica com a conta de serviço `ipm-organization-observer` (papel `IAM_OWNER_VIEWER`, de instância
-e somente leitura) por assertion JWT.
+Só o transporte autenticado: a conta de serviço `ipm-organization-observer` (papel
+`IAM_OWNER_VIEWER`, de instância e somente leitura) por assertion JWT e a chamada HTTP. Não conhece
+recurso: as leituras de cada sub-recurso ficam em `observer/drivers/`, espelhando os drivers de
+escrita do Executor.
 Toda falha de leitura vira `ProviderError`, e o chamador a trata como `unknown`: erro de leitura
-(timeout, 5xx, 401/403, limite de taxa) **nunca** é `absent`. Só uma consulta bem-sucedida, pelo ID
-exato, sem resultado é ausência.
+(timeout, 5xx, 401/403, limite de taxa) **nunca** é `absent`.
 """
 
 import time
@@ -14,13 +15,13 @@ from typing import Any, cast
 import httpx
 
 from ipm_organization.common.identity import ServiceAccountToken, TokenError
-from ipm_organization.observer.domain.identity import IdentityOrganization, ProviderError
+from ipm_organization.observer.domain.identity import ProviderError
 from ipm_organization.observer.settings import IdentitySettings
 
 HTTP_BAD_REQUEST = 400
 
 
-class IdentityReader:
+class IdentityConnection:
     def __init__(
         self,
         settings: IdentitySettings,
@@ -32,29 +33,7 @@ class IdentityReader:
         self._client = client
         self._token_source = ServiceAccountToken(settings, client, clock=clock)
 
-    async def get_organization(self, organization_id: str) -> IdentityOrganization | None:
-        """A organização, ou `None` se a consulta pelo ID terminou sem resultado.
-
-        A ausência é uma resposta bem-sucedida e vazia; qualquer erro (permissão, indisponibilidade,
-        limite de taxa) vira `ProviderError`, e o chamador o trata como `unknown`.
-        """
-        response = await self._request(
-            "POST",
-            "/zitadel.org.v2.OrganizationService/ListOrganizations",
-            {"queries": [{"idQuery": {"id": organization_id}}]},
-        )
-        found = cast("list[dict[str, Any]]", self._json(response).get("result") or [])
-        for organization in found:
-            if organization.get("id") == organization_id:
-                return IdentityOrganization(
-                    name=str(organization.get("name", "")),
-                    state=str(organization.get("state", "")),
-                )
-        return None
-
-    # ------------------------------------------------------------------ HTTP
-
-    async def _request(
+    async def request(
         self,
         method: str,
         path: str,
@@ -76,7 +55,7 @@ class IdentityReader:
         return response
 
     @staticmethod
-    def _json(response: httpx.Response) -> dict[str, Any]:
+    def json(response: httpx.Response) -> dict[str, Any]:
         try:
             document = response.json()
         except ValueError:

@@ -95,6 +95,7 @@ O SSOT não compartilha banco com componentes de terceiros (por exemplo, gateway
 | `phase` | `text` | `Pending`, `Reconciling`, `Ready`, `Failed`, `Deleting` |
 | `conditions` | `jsonb` | Array |
 | `failure_count` | `integer` | Falhas da geração corrente |
+| `observed_generation` | `bigint` | Última geração confirmada pela observação (decisão 0072); nula até a primeira confirmação, só cresce e nunca passa de `desired_generation` (`CHECK`) |
 | `created_at`, `updated_at` | `timestamptz` | |
 
 `lifecycle`, `reconciliation`, `presence` e `phase` são colunas (não campos do `jsonb`) porque participam do controle, de restrições e de consulta. O `resource_version` é um contador interno; a interface o apresenta como texto opaco, sem semântica de ordenação.
@@ -145,9 +146,12 @@ CREATE TABLE sample.item (
   phase              text        NOT NULL CHECK (phase IN ('Pending', 'Reconciling', 'Ready', 'Failed', 'Deleting')),
   conditions         jsonb       NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(conditions) = 'array'),
   failure_count      integer     NOT NULL DEFAULT 0 CHECK (failure_count >= 0),
+  observed_generation bigint,
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now(),
-  CHECK ((presence IS NULL) = (observed_at IS NULL))
+  CHECK ((presence IS NULL) = (observed_at IS NULL)),
+  CHECK (observed_generation IS NULL
+         OR (observed_generation >= 1 AND observed_generation <= desired_generation))
 );
 
 CREATE TABLE sample.item_operation (
@@ -320,13 +324,14 @@ Monotonia de `observed_at`, com a linha já bloqueada:
 UPDATE sample.item
    SET observed = $observed, presence = $presence, observed_at = $observed_at,
        conditions = $conditions, phase = $phase,
+       observed_generation = GREATEST(observed_generation, $geracao_confirmada),
        resource_version = resource_version + 1, updated_at = now()
  WHERE resource_id = $id
    AND (observed_at IS NULL OR observed_at < $observed_at)
 RETURNING resource_version;
 ```
 
-Zero linhas afetadas significa observação não mais recente: a mensagem é descartada como já refletida. `conditions` e `phase` são calculados pela aplicação a partir do estado lido sob bloqueio.
+Zero linhas afetadas significa observação não mais recente: a mensagem é descartada como já refletida. `conditions` e `phase` são calculados pela aplicação a partir do estado lido sob bloqueio. `$geracao_confirmada` é a `desired_generation` lida sob bloqueio quando a observação converge **e** traz essa geração no `observedGeneration` (feita depois dela), e nulo caso contrário; `GREATEST` ignora o nulo (decisão 0072).
 
 ## 10.3 `completed` e `failed`
 

@@ -1,4 +1,4 @@
-"""Cliente de leitura do provedor de identidade: ausência só com consulta vazia; o resto é falha."""
+"""Driver de leitura da organização sobre a conexão do Observer: ausência só com consulta vazia."""
 
 import json
 from collections.abc import Callable
@@ -11,7 +11,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from ipm_organization.observer.domain.identity import ProviderError
-from ipm_organization.observer.provider.identity import IdentityReader
+from ipm_organization.observer.drivers.organization import OrganizationDriver
+from ipm_organization.observer.provider.identity import IdentityConnection
 from ipm_organization.observer.settings import IdentitySettings
 
 
@@ -40,7 +41,7 @@ def reader(
     handler: Callable[[httpx.Request], httpx.Response],
     *,
     calls: list[httpx.Request] | None = None,
-) -> IdentityReader:
+) -> OrganizationDriver:
     def route(request: httpx.Request) -> httpx.Response:
         if calls is not None:
             calls.append(request)
@@ -49,7 +50,7 @@ def reader(
         return handler(request)
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(route))
-    return IdentityReader(settings(key_file), client)
+    return OrganizationDriver(IdentityConnection(settings(key_file), client))
 
 
 async def test_it_authenticates_with_a_jwt_assertion_and_reuses_the_token(key_file: Path) -> None:
@@ -141,9 +142,11 @@ async def test_network_failures_are_provider_errors(key_file: Path) -> None:
 
 
 async def test_missing_key_file_or_token_failure_is_a_provider_error(tmp_path: Path) -> None:
-    missing = IdentityReader(
-        IdentitySettings(key_file=str(tmp_path / "nao-existe.json")),
-        httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200))),
+    missing = OrganizationDriver(
+        IdentityConnection(
+            IdentitySettings(key_file=str(tmp_path / "nao-existe.json")),
+            httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200))),
+        )
     )
     with pytest.raises(ProviderError):
         await missing.get_organization("o-1")

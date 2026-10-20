@@ -205,7 +205,11 @@ class Ssot(Protocol):
         ...
 
     def unprotected_version(self, kind: Kind, resource_id: str) -> str | None:
-        """`resourceVersion` da linha já desprotegida, ou `None` enquanto ainda está protegida."""
+        """`resourceVersion` da linha desprotegida e com a geração confirmada pelo loop, ou `None`.
+
+        A proteção percorre o loop como qualquer alteração (decisão 0072): só conclui quando a
+        observação confirma a nova geração (`observed_generation = desired_generation`).
+        """
         ...
 
     def history(self, kind: Kind) -> list[Row]:

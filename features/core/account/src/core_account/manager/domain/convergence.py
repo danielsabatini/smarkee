@@ -55,6 +55,7 @@ def decide_observed(
     desired: Mapping[str, Any],
     lifecycle: str,
     generation: int,
+    observation_generation: int | None,
     presence: str,
     observed: Mapping[str, Any],
     previous_phase: str,
@@ -73,7 +74,13 @@ def decide_observed(
         )
         return ObservedDecision(previous_phase, conditions, converged=False, remove=False)
 
-    converged = policy.is_converged(desired, presence, observed)
+    # Converge só com o conteúdo igual **e** com uma observação feita depois da geração vigente
+    # (o Observer informa a geração que conhecia antes de ler o provedor). Uma leitura anterior à
+    # geração não a confirma, mesmo com o conteúdo igual: é o caso de uma alteração só em campo da
+    # plataforma, que o provedor não tem (decisão 0072).
+    converged = observation_generation == generation and policy.is_converged(
+        desired, presence, observed
+    )
     if lifecycle == "absent" and converged:
         return ObservedDecision(previous_phase, previous_conditions, converged=True, remove=True)
     if converged:

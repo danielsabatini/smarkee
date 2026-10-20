@@ -13,12 +13,31 @@ _STATE = {
 }
 
 
-class Reader(Protocol):
-    """Leitura do provedor de identidade (implementada por `IdentityReader`)."""
+class Users(Protocol):
+    """Driver de leitura do usuário (`observer/drivers/user.py`)."""
 
     async def get_user(self, user_id: str) -> IdentityUser | None: ...
 
+
+class Authorizations(Protocol):
+    """Driver de leitura da autorização (`observer/drivers/authorization.py`)."""
+
     async def granted_roles(self, user_id: str) -> set[str]: ...
+
+
+class Metadata(Protocol):
+    """Driver de leitura do metadado do provedor (`observer/drivers/metadata.py`)."""
+
+    async def get_value(self, owner_id: str, key: str) -> str | None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class Drivers:
+    """Os drivers de leitura que a observação usa: espelho dos drivers de escrita do Executor."""
+
+    users: Users
+    authorizations: Authorizations
+    metadata: Metadata
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,7 +56,7 @@ def account_state(user: IdentityUser) -> str:
     return mapped
 
 
-async def observe(reader: Reader, user_id: str) -> Observation:
+async def observe(drivers: Drivers, user_id: str) -> Observation:
     """Lê o usuário e as roles. Qualquer falha de leitura é `unknown`, nunca `absent`.
 
     `platformRoles` são as roles que o usuário tem no projeto da plataforma (decisão 0025);
@@ -45,10 +64,11 @@ async def observe(reader: Reader, user_id: str) -> Observation:
     Reconciler.
     """
     try:
-        user = await reader.get_user(user_id)
+        user = await drivers.users.get_user(user_id)
         if user is None:
             return Observation("absent", {})
-        roles = await reader.granted_roles(user_id)
+        roles = await drivers.authorizations.granted_roles(user_id)
+        protection = await drivers.metadata.get_value(user_id, DELETION_PROTECTION_KEY)
     except ProviderError:
         return Observation("unknown", {})
     return Observation(
@@ -58,5 +78,20 @@ async def observe(reader: Reader, user_id: str) -> Observation:
             "accountState": account_state(user),
             "platformAccess": "granted" if roles else "revoked",
             "platformRoles": sorted(roles),
+            **deletion_protection(protection),
         },
     )
+
+
+DELETION_PROTECTION_KEY = "deletionProtection"
+_PROTECTION = {"true": True, "false": False}
+
+
+def deletion_protection(value: str | None) -> dict[str, bool]:
+    """O campo `deletionProtection` do `observed`, a partir do metadado (decisão 0074).
+
+    Metadado ausente ou com outro valor fica fora do `observed`: o Reconciler o vê como divergência
+    e o Executor o regrava. Não se inventa um valor que o provedor não tem.
+    """
+    protected = _PROTECTION.get(value or "")
+    return {} if protected is None else {"deletionProtection": protected}

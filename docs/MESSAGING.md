@@ -325,7 +325,7 @@ Características:
 - factual;
 - identifica quando a observação ocorreu (`observedAt`, obrigatório);
 - uma mensagem de estado: a observação mais recente do recurso substitui as anteriores. A operação é sempre `changed`;
-- pode identificar qual `desiredGeneration` está relacionada à observação;
+- identifica, em `observedGeneration`, a geração desejada que o Observer conhecia antes de ler o provedor; só uma observação posterior à geração a confirma (decisão 0072);
 - deve ser segura para replay;
 - pode ser consumida por vários componentes.
 
@@ -381,6 +381,8 @@ manager.updated.ipm.organization.<organizationId>.changed
 ```
 
 O `updated` é útil para consumidores interessados em projeções, auditoria, métricas ou notificações.
+
+O `data` do `updated` traz `desiredGeneration` e `observedGeneration` (decisão 0072, modelo do Kubernetes). Iguais, com `phase = Ready`: a última alteração terminou. `observedGeneration` menor: a alteração está em andamento. `observedGeneration` nunca é maior que `desiredGeneration`, e o par é gravado pelo Manager na mesma unidade atômica do estado (`RESOURCE-CONTROL-LOOP.md`, seção 36).
 
 Não deve ser utilizado como substituto de `desired` ou `observed`.
 
@@ -741,8 +743,8 @@ Para `observed`:
 | `resourceType` | Sim | Recursos | Tipo de recurso |
 | `resourceId` | Sim | Mensagens específicas de recurso | Identidade do recurso |
 | `operation` | Sim | Todos | Operação ou resultado semântico associado |
-| `desiredGeneration` | Condicional | `desired` | Geração do estado desejado |
-| `observedGeneration` | Condicional | `observed` | Geração desejada relacionada à observação |
+| `desiredGeneration` | Condicional | `desired`, `action`, `completed`, `failed` | Geração do estado desejado |
+| `observedGeneration` | Condicional | `observed` | Geração desejada que o Observer conhecia **antes** de ler o provedor. O Manager só confirma uma geração com uma observação que a traga (decisão 0072) |
 | `presence` | Sim | `observed` | Resultado da observação: `present`, `absent` ou `unknown` |
 | `actionId` | Condicional | `action`, `completed`, `failed` | Identidade determinística da decisão de reconciliação |
 | `requestedBy` | Condicional | Fluxo originado por uma solicitação | Identificador opaco do solicitante autenticado, ou `anonymous` nas escritas anônimas permitidas |

@@ -10,7 +10,10 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from sum_service.observer.domain.authorization import Authorization, ProviderError
-from sum_service.observer.provider.identity import IdentityReader
+from sum_service.observer.domain.observation import Drivers
+from sum_service.observer.drivers.authorization import AuthorizationDriver
+from sum_service.observer.drivers.user import UserDriver
+from sum_service.observer.provider.identity import IdentityConnection
 from sum_service.observer.settings import IdentitySettings
 
 USER_NOT_FOUND = {"code": 5, "message": "não encontrado", "details": [{"id": "QUERY-Dfbg2"}]}
@@ -31,7 +34,7 @@ def reader(
     key_file: Path,
     handler: Callable[[httpx.Request], httpx.Response],
     calls: list[httpx.Request] | None = None,
-) -> IdentityReader:
+) -> Drivers:
     def route(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/oauth/v2/token":
             return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
@@ -45,7 +48,12 @@ def reader(
         register_organization_id="org-r",
         project_ids={"ipm": "proj-ipm"},
     )
-    return IdentityReader(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
+    connection = IdentityConnection(
+        settings, httpx.AsyncClient(transport=httpx.MockTransport(route))
+    )
+    return Drivers(
+        users=UserDriver(connection), authorizations=AuthorizationDriver(connection, settings)
+    )
 
 
 async def test_an_existing_user_exists_and_the_request_carries_the_token_and_the_host(
@@ -53,7 +61,7 @@ async def test_an_existing_user_exists_and_the_request_carries_the_token_and_the
 ) -> None:
     calls: list[httpx.Request] = []
     identity = reader(key_file, lambda _r: httpx.Response(200, json={"user": {}}), calls)
-    assert await identity.user_exists("u-1") is True
+    assert await identity.users.user_exists("u-1") is True
     assert calls[0].url.path == "/v2/users/u-1"
     assert calls[0].headers["authorization"] == "Bearer tok"
     assert calls[0].headers["host"] == "localhost:8080"
@@ -61,7 +69,7 @@ async def test_an_existing_user_exists_and_the_request_carries_the_token_and_the
 
 async def test_only_an_unambiguous_404_means_the_user_is_absent(key_file: Path) -> None:
     identity = reader(key_file, lambda _r: httpx.Response(404, json=USER_NOT_FOUND))
-    assert await identity.user_exists("u-1") is False
+    assert await identity.users.user_exists("u-1") is False
 
 
 @pytest.mark.parametrize(
@@ -80,7 +88,7 @@ async def test_any_other_failure_is_a_read_error_never_an_absence(
 ) -> None:
     identity = reader(key_file, lambda _r: response)
     with pytest.raises(ProviderError):
-        await identity.user_exists("u-1")
+        await identity.users.user_exists("u-1")
 
 
 async def test_a_network_error_is_a_read_error(key_file: Path) -> None:
@@ -88,7 +96,7 @@ async def test_a_network_error_is_a_read_error(key_file: Path) -> None:
         raise httpx.ConnectError("sem rede", request=request)
 
     with pytest.raises(ProviderError, match="ConnectError"):
-        await reader(key_file, refuse).user_exists("u-1")
+        await reader(key_file, refuse).users.user_exists("u-1")
 
 
 async def test_authorizations_keep_only_the_configured_projects_with_their_roles(
@@ -102,9 +110,9 @@ async def test_authorizations_keep_only_the_configured_projects_with_their_roles
             {"project": {"id": "proj-ipm"}},  # sem roles
         ]
     }
-    found = await reader(key_file, lambda _r: httpx.Response(200, json=body), calls).authorizations(
-        "u-1"
-    )
+    found = await reader(
+        key_file, lambda _r: httpx.Response(200, json=body), calls
+    ).authorizations.authorizations("u-1")
     assert found == [
         Authorization("proj-ipm", frozenset({"ipm.organization.get"})),
         Authorization("proj-ipm", frozenset()),
@@ -121,10 +129,10 @@ async def test_a_malformed_authorization_response_is_a_read_error(
     key_file: Path, response: httpx.Response
 ) -> None:
     with pytest.raises(ProviderError):
-        await reader(key_file, lambda _r: response).authorizations("u-1")
+        await reader(key_file, lambda _r: response).authorizations.authorizations("u-1")
 
 
 async def test_a_token_failure_is_a_read_error(tmp_path: Path) -> None:
     identity = reader(tmp_path / "nao-existe.json", lambda _r: httpx.Response(200, json={}))
     with pytest.raises(ProviderError, match="key unavailable"):
-        await identity.user_exists("u-1")
+        await identity.users.user_exists("u-1")

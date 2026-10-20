@@ -186,25 +186,30 @@ async def test_delete_of_a_protected_account_is_rejected(
     assert (row["lifecycle"], row["desired_generation"]) == ("present", 1)
 
 
-async def test_protection_only_update_completes_at_once_and_is_reversible(
+async def test_protection_only_update_goes_through_the_loop_and_is_reversible(
     cleanup: Cleanup, account_manager: Connection
 ) -> None:
+    """Campo da plataforma segue o mesmo fluxo de qualquer alteração (decisão 0072)."""
     message = register_message(cleanup)
     await handler.handle(ssot(account_manager), ACCOUNT, message)
-    before = await account_row(account_manager, message["resourceId"])
     outcome = await handler.handle(
         ssot(account_manager), ACCOUNT, protection_message(message, version="1", protected=False)
     )
     after = await account_row(account_manager, message["resourceId"])
 
-    assert outcome.kind is OutcomeKind.COMPLETED
-    assert before is not None and after is not None
+    assert outcome.kind is OutcomeKind.ACCEPTED
+    assert after is not None
     assert after["desired"]["deletionProtection"] is False
-    assert (after["resource_version"], after["phase"]) == (2, before["phase"])
+    assert (after["resource_version"], after["desired_generation"], after["phase"]) == (
+        2,
+        2,
+        "Reconciling",
+    )
 
     again = await handler.handle(
         ssot(account_manager), ACCOUNT, protection_message(message, version="2", protected=True)
     )
-    assert again.kind is OutcomeKind.COMPLETED
+    assert again.kind is OutcomeKind.ACCEPTED
     restored = await account_row(account_manager, message["resourceId"])
     assert restored is not None and restored["desired"]["deletionProtection"] is True
+    assert restored["desired_generation"] == 3

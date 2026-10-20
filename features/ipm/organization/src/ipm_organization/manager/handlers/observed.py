@@ -4,6 +4,10 @@ Cada mensagem é uma unidade atômica de gravação: a linha do recurso é bloqu
 leitura de estado (invariante 9), a idempotência é semântica (monotonia de `observedAt`) e a
 mensagem `updated` vai para o outbox na mesma transação. A confirmação ao transporte é de quem
 chama, depois do retorno (depois do `COMMIT`).
+
+Uma geração só é confirmada (`observed_generation`) por uma observação feita depois dela: o
+Observer informa no `observedGeneration` do envelope a geração que conhecia antes de ler o
+provedor, como o `status.observedGeneration` do Kubernetes. A Operation conclui nessa confirmação.
 """
 
 import logging
@@ -71,6 +75,7 @@ class ObservedHandler:
             desired=row["desired"],
             lifecycle=lifecycle,
             generation=generation,
+            observation_generation=envelope.observed_generation,
             presence=envelope.presence.value,
             observed=observed_data,
             previous_phase=row["phase"],
@@ -88,6 +93,7 @@ class ObservedHandler:
             observed_at=envelope.observed_at,
             conditions=decision.conditions,
             phase=decision.phase,
+            observed_generation=generation if decision.converged else None,
         )
         await store.settle_operations(
             envelope.resource_id, generation, converged=decision.converged
@@ -99,6 +105,8 @@ class ObservedHandler:
             lifecycle=lifecycle,
             phase=decision.phase,
             resource_version=resource_version,
+            desired_generation=generation,
+            observed_generation=generation if decision.converged else row["observed_generation"],
         )
         return Outcome(OutcomeKind.APPLIED)
 
@@ -121,6 +129,8 @@ class ObservedHandler:
             lifecycle="absent",
             phase="Deleting",
             resource_version=row["resource_version"] + 1,
+            desired_generation=row["desired_generation"],
+            observed_generation=row["desired_generation"],
             removed=True,
         )
         return Outcome(OutcomeKind.APPLIED)

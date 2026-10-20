@@ -5,16 +5,17 @@ Executor de `sum.service` (`sum-service-executor`), um dos seis papéis da image
 
 ## O que faz
 
-- `provider/identity.py`: o único cliente de escrita do Zitadel do SUM. Autentica com a conta de serviço
-  por assertion JWT e usa a API v2 de autorizações (decisão 0029). Só conhece os projetos configurados em
-  `SUM_SERVICE_EXECUTOR_IDENTITY_PROJECT_IDS` (hoje `ipm`).
+- `provider/identity.py`: a conexão de escrita com o Zitadel (a única do SUM): token da conta de serviço por
+  assertion JWT, HTTP e classificação dos erros. Não conhece recurso (decisão 0073).
+- `drivers/authorization.py`: a escrita das autorizações (API v2, decisão 0029). Só conhece os projetos configurados
+  em `SUM_SERVICE_EXECUTOR_IDENTITY_PROJECT_IDS` (hoje `ipm`).
 - `actions/service_roles.py`: `enable` (garante as roles, sem apagar as outras) e `disable` (tira só as
   roles do serviço; remove a autorização quando não sobra nenhuma). Ambas são idempotentes.
 
 ## Isolamento (decisão 0032)
 
 A conta `sum-service-executor` tem `PROJECT_GRANT_OWNER` só no Project Grant de `roles-ipm`. O Zitadel
-recusa a concessão de qualquer outra role, e o provider recusa módulos sem projeto configurado antes de
+recusa a concessão de qualquer outra role, e o driver de autorização recusa módulos sem projeto configurado antes de
 chamar o Zitadel.
 
 Verificado no Zitadel de dev (2026-10-15) com o provider real e uma conta temporária com esse papel:

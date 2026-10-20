@@ -24,7 +24,7 @@ from sum_service.common.ids import new_identifier, utc_now
 from sum_service.common.logging_config import bind_context, restore_context, save_context
 from sum_service.common.ports import Publisher, PublishError
 from sum_service.common.resource import MODULE, RESOURCE_TYPE
-from sum_service.observer.domain.observation import Observation, Reader, observe
+from sum_service.observer.domain.observation import Drivers, Observation, observe
 from sum_service.observer.message import observed_envelope, subject_of
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ def _removal_converged(watch: Watch, observation: Observation) -> bool:
 class Observer:
     def __init__(
         self,
-        reader: Reader,
+        drivers: Drivers,
         publisher: Publisher,
         catalog: Mapping[str, tuple[str, ...]],
         *,
@@ -81,7 +81,7 @@ class Observer:
         identifiers: Callable[[], str] = new_identifier,
     ) -> None:
         self._partition = (partition_index, partition_count)
-        self._reader = reader
+        self._drivers = drivers
         self._publisher = publisher
         self._catalog = catalog
         self._clock = clock
@@ -150,7 +150,7 @@ class Observer:
             return  # sem o `desired`, o Observer não sabe o que observar
         with observation_context(resource_id, owner_id=watch.owner_account_id):
             observation: Observation = await observe(
-                self._reader, watch.owner_account_id, watch.service, self._catalog
+                self._drivers, watch.owner_account_id, watch.service, self._catalog
             )
             if _removal_converged(watch, observation):
                 watch.tombstone = True  # remoção convergida: deixa de observar

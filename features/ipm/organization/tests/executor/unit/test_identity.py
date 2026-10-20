@@ -1,4 +1,4 @@
-"""Cliente de escrita do provedor de identidade: operações idempotentes e erros."""
+"""Driver de escrita da organização sobre a conexão do Executor: operações idempotentes e erros."""
 
 import json
 from collections.abc import Callable
@@ -10,7 +10,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from ipm_organization.executor.domain.identity import IdentityOrganization, ProviderError
-from ipm_organization.executor.provider.identity import IdentityWriter
+from ipm_organization.executor.drivers.organization import OrganizationDriver
+from ipm_organization.executor.provider.identity import IdentityConnection
 from ipm_organization.executor.settings import IdentitySettings
 
 NOT_FOUND = {"code": 5, "message": "x (QUERY-Dfbg2)", "details": [{"id": "QUERY-Dfbg2"}]}
@@ -33,7 +34,7 @@ def writer(
     key_file: Path,
     handler: Callable[[httpx.Request], httpx.Response],
     calls: list[httpx.Request] | None = None,
-) -> IdentityWriter:
+) -> OrganizationDriver:
     def route(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/oauth/v2/token":
             return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
@@ -45,7 +46,8 @@ def writer(
         key_file=str(key_file),
         base_url="http://z",
     )
-    return IdentityWriter(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
+    client = httpx.AsyncClient(transport=httpx.MockTransport(route))
+    return OrganizationDriver(IdentityConnection(settings, client))
 
 
 async def test_create_organization_uses_the_resource_id_as_the_organization_id(

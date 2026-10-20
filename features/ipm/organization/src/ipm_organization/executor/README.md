@@ -5,6 +5,7 @@ Executor de `ipm.organization` (`ipm-organization-executor`), um dos seis papéi
 Única identidade com escrita da Organization no Zitadel (conta `ipm-organization-executor`, papel de instância `IAM_ORG_MANAGER`). Escreve **só a organização**: não cria usuários, não autoriza o dono e não cria Project Grant (`.decisions/0038`). Consome a `action` do Reconciler, **revalida** contra o `desired` vigente (geração, coerência da operação, reconciliação ativa), confere o desfecho já registrado do `actionId` por Direct Get (idempotência) e executa, pela API v2 de organizações (`zitadel.org.v2.OrganizationService`):
 
 - `create`: cria a organização com o `resourceId` como ID e o `name` do `desired`. Um `409` (ID ou nome já usado) leva a ler a organização pelo ID: se existe com o nome esperado, é sucesso idempotente; senão, falha permanente (`Rejected`). Depois, deixa a organização ativa ou desativada conforme `platformAccess`;
+- em `create` e `update`, grava o metadado `deletionProtection` da organização com o valor do `desired` (decisão 0074; repetir é idempotente);
 - `update`: renomeia quando o nome difere e ativa (`granted`) ou desativa (`revoked`) quando o estado difere. Só chama o Zitadel quando há diferença; o "já feito" do Zitadel (nome igual, já ativa, já desativada) também conta como sucesso;
 - `delete`: remove a organização (ausente é sucesso).
 
@@ -19,8 +20,9 @@ O Stream `ACTION` é particionado por `resourceId` (4 partições). O Executor r
 ```text
 src/ipm_organization/executor/
   domain/      revalidação da action, erros e tipos do provedor
-  actions/     execução de cada operação sobre o provedor (idempotente)
-  provider/    escritor do Zitadel (HTTP, JWT da conta de serviço)
+  actions/     cada operação, compondo os drivers (idempotente)
+  drivers/     escrita no Zitadel, um por sub-recurso (organization.py; decisão 0073)
+  provider/    conexão de escrita com o Zitadel (HTTP, JWT da conta de serviço)
   engine/      fluxo de cada action e publicação do resultado
   transport/   consumers por partição, Direct Get e publicação no NATS
   main.py

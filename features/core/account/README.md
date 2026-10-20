@@ -40,11 +40,11 @@ Porta de entrada HTTP. Autentica o token (JWKS do Zitadel), autoriza pela role d
 |---|---|---|---|
 | `POST /v1/core/accounts` | Auto-cadastro (**anônimo**) | Qualquer pessoa | `202` uniforme, `400`, `429` (com `Retry-After`), `503` (com `Retry-After`) |
 | `GET /v1/core/accounts/{id}` | Lê o usuário | O próprio usuário ou `core.account.admin`, role `core.account.get` | `200`, `401`, `403`, `404` |
-| `PATCH /v1/core/accounts/{id}` | Liga ou desliga a proteção contra exclusão (corpo `{resourceVersion, deletionProtection}`; cabeçalho opcional `Idempotency-Key`). Conclui na hora, sem reconciliar (decisão 0043) | O próprio usuário ou `core.account.admin`, role `core.account.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422`, `503` |
+| `PATCH /v1/core/accounts/{id}` | Liga ou desliga a proteção contra exclusão (corpo `{resourceVersion, deletionProtection}`; cabeçalho opcional `Idempotency-Key`). Percorre o loop como qualquer alteração e conclui quando a observação confirma a nova geração (decisões 0043 e 0072) | O próprio usuário ou `core.account.admin`, role `core.account.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422`, `503` |
 | `DELETE /v1/core/accounts/{id}?resourceVersion=` | Remove (cabeçalho opcional `Idempotency-Key`); a conta **nasce protegida**: recusa com `409 DeletionProtected` até desproteger (decisão 0043); depois, **recusa com `409` enquanto a conta tiver Organizations ou serviços habilitados** (decisão 0040) | O próprio usuário ou `core.account.admin`, role `core.account.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422` (`Idempotency-Key` reutilizada com outro conteúdo), `503` |
 | `GET /v1/core/accounts/{id}/operations/{operationId}` | Acompanha a Operation | Solicitante ou `core.account.admin` (a do cadastro anônimo só operadores) | `200`, `401`, `404` |
 
-Não há listagem (`GET /v1/core/accounts`) nem `PATCH`: a Account não tem `update` (decisão 0014). O contrato descritivo é [`openapi.json`](openapi.json). Erros: `{errorCode, message, field?}` (`schemas/common/api-error`; códigos `ValidationFailed`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `IdempotencyKeyReused`, `ServiceUnavailable` e `InternalError`), sem repetir valores enviados. Um usuário que não é o dono recebe `404`, e não `403`, para não revelar a existência.
+Não há listagem (`GET /v1/core/accounts`). O único `update` da Account é o `PATCH` da proteção contra exclusão (decisões 0014 e 0043). O contrato descritivo é [`openapi.json`](openapi.json). Erros: `{errorCode, message, field?}` (`schemas/common/api-error`; códigos `ValidationFailed`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `IdempotencyKeyReused`, `ServiceUnavailable` e `InternalError`), sem repetir valores enviados. Um usuário que não é o dono recebe `404`, e não `403`, para não revelar a existência.
 
 ## 3.2 Manager (`core-account-manager`)
 
@@ -62,14 +62,14 @@ Publica no NATS, em ordem e de forma sequencial, as mensagens que o Manager grav
 
 ## 3.4 Reconciler (`core-account-reconciler`)
 
-Compara o último `desired` e o último `observed` de cada usuário (campos gerenciados: `lifecycle`, `platformAccess` e `platformRoles`) e decide `create`, `update` ou `delete`. Não executa e **não acessa o SSOT**: o estado é um cache em memória reconstruído da mensageria (consumers de estado por instância, `DeliverLastPerSubject`). Não decide com `observed` `unknown` ou antigo (10 min; 5 min para `delete`), com `desired` suspenso, nem enquanto há ação pendente (prazo de 2 min); espera a observação causada por cada resultado e aplica *backoff* após falha (5 s, dobrando até 300 s).
+Compara o último `desired` e o último `observed` de cada usuário (campos gerenciados: `lifecycle`, `platformAccess`, `platformRoles` e `deletionProtection`) e decide `create`, `update` ou `delete`. Não executa e **não acessa o SSOT**: o estado é um cache em memória reconstruído da mensageria (consumers de estado por instância, `DeliverLastPerSubject`). Não decide com `observed` `unknown` ou antigo (10 min; 5 min para `delete`), com `desired` suspenso, nem enquanto há ação pendente (prazo de 2 min); espera a observação causada por cada resultado e aplica *backoff* após falha (5 s, dobrando até 300 s).
 
 ## 3.5 Observer (`core-account-observer`)
 
 Lê o Zitadel (conta de serviço **somente leitura**, `ORG_OWNER_VIEWER`) e publica `observed`:
 
 - `absent` **só** com 404 inequívoco do usuário exato (código 5 com detalhe do erro); qualquer outra falha (timeout, 5xx, 401/403, 429, corpo inesperado) é `unknown`;
-- `present` com `emailVerified`, `accountState` (`initial` até a senha ser definida) `platformAccess` (`granted` quando há ao menos uma role no projeto) e `platformRoles` (as roles que o usuário tem no projeto).
+- `present` com `emailVerified`, `accountState` (`initial` até a senha ser definida) `platformAccess` (`granted` quando há ao menos uma role no projeto), `platformRoles` (as roles que o usuário tem no projeto) e `deletionProtection` (o metadado de mesmo nome do usuário, decisão 0074; ausente quando não há metadado válido).
 
 Observa quando o `desired` é novo, depois de cada `completed`/`failed` (com `causationId` do resultado) e periodicamente (5 min, com jitter), só os recursos da sua partição (`hash(resourceId) mod count`).
 
@@ -122,8 +122,8 @@ Cada papel é um subpacote com `main.py`, `settings.py` e `domain/` puro e sem I
 | Manager | `domain/`, `handlers/`, `store/` (único código que escreve no SSOT), `transport/` | [`manager`](src/core_account/manager/README.md) |
 | Publisher | `domain/`, `outbox/` | [`publisher`](src/core_account/publisher/README.md) |
 | Reconciler | `domain/` (a decisão), `engine/`, `transport/` | [`reconciler`](src/core_account/reconciler/README.md) |
-| Observer | `domain/`, `provider/` (leitura no provedor de identidade), `engine/`, `transport/` | [`observer`](src/core_account/observer/README.md) |
-| Executor | `domain/`, `provider/` (escrita no provedor de identidade), `actions/`, `engine/`, `transport/` | [`executor`](src/core_account/executor/README.md) |
+| Observer | `domain/`, `drivers/` (leitura: `user`, `authorization`), `provider/` (conexão só de leitura), `engine/`, `transport/` | [`observer`](src/core_account/observer/README.md) |
+| Executor | `domain/`, `actions/`, `drivers/` (escrita: `user`, `authorization`), `provider/` (conexão de escrita), `engine/`, `transport/` | [`executor`](src/core_account/executor/README.md) |
 
 A saúde (`/health/*`) é de `common/http/health.py`, igual em todos os papéis.
 

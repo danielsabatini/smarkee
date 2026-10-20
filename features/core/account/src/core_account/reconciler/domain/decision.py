@@ -24,6 +24,9 @@ class DesiredState:
     traceparent: str | None = None
     """Contexto de trace do `desired` (decisão 0055): a action que ele causar o herda."""
 
+    deletion_protection: bool = True
+    """Proteção contra exclusão desejada; sem o campo, vale protegido (decisão 0043)."""
+
 
 @dataclass(frozen=True, slots=True)
 class ObservedState:
@@ -33,6 +36,8 @@ class ObservedState:
     causation_id: str | None
     platform_access: str | None
     platform_roles: frozenset[str]
+    deletion_protection: bool | None = None
+    """Proteção lida do metadado do provedor; `None` quando ele não existe (decisão 0074)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,9 +143,11 @@ def decide(state: ResourceState, now: datetime, settings: LoopParameters) -> Dec
 
 
 def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
-    """Compara os campos gerenciados da Account: `lifecycle`, `platformAccess` e `platformRoles`.
+    """Compara os campos gerenciados da Account: `lifecycle`, `platformAccess`, `platformRoles` e
+    `deletionProtection`.
 
     As roles desejadas precisam estar contidas nas observadas: roles a mais não são divergência.
+    `deletionProtection` é observado pelo metadado de mesmo nome no usuário (decisão 0074).
     """
     if desired.lifecycle == "absent":
         if observed.presence == "present":
@@ -152,6 +159,10 @@ def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
         desired.platform_roles <= observed.platform_roles
     ):
         return Decision("update", "Drift", "The account lacks the expected platform access.")
+    if observed.deletion_protection != desired.deletion_protection:
+        return Decision(
+            "update", "Drift", "The deletion protection in the identity provider differs."
+        )
     return None
 
 

@@ -5,8 +5,10 @@ leitura e publica `observed`; nunca altera o sistema externo.
 
 ## O que faz
 
-- `provider/identity.py`: leitura somente de leitura do Zitadel (sem nenhuma escrita), com a conta `sum-service-observer`
-  (`ORG_OWNER_VIEWER` na `register`). Lê se o usuário existe e as autorizações nos projetos de roles configurados.
+- `provider/identity.py`: a conexão só de leitura com o Zitadel (sem nenhuma escrita), com a conta `sum-service-observer`
+  (`ORG_OWNER_VIEWER` na `register`). Não conhece recurso (decisão 0073).
+- `drivers/`: `user.py` lê se o usuário existe; `authorization.py` lê as autorizações nos projetos de roles configurados.
+  Espelham os drivers de escrita do Executor.
 - `domain/`: `observation.py` traduz a leitura para `present` (com as roles do serviço), `absent` (só quando o Zitadel
   confirma que o usuário não existe) ou `unknown` (qualquer falha de leitura, nunca `absent`). `authorization.py` tem os
   tipos da leitura (`Authorization`, `ProviderError`) e `service.py` o catálogo. O domínio não importa o adaptador.

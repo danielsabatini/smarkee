@@ -32,7 +32,12 @@ BASE_TIME = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
 def granted(message: dict[str, Any]) -> dict[str, Any]:
     """O que o Observer leria no Zitadel quando a organização já converge para o desejado."""
     name = message["data"]["specification"]["name"]
-    return {"name": name, "platformAccess": "granted", "organizationState": "active"}
+    return {
+        "name": name,
+        "platformAccess": "granted",
+        "organizationState": "active",
+        "deletionProtection": True,
+    }
 
 
 def register(cleanup: Cleanup) -> dict[str, Any]:
@@ -50,8 +55,14 @@ def register(cleanup: Cleanup) -> dict[str, Any]:
 
 
 def observed(
-    resource_id: str, presence: str, *, seconds: int, data: dict[str, Any] | None = None
+    resource_id: str,
+    presence: str,
+    *,
+    seconds: int,
+    data: dict[str, Any] | None = None,
+    generation: int | None = 1,
 ) -> dict[str, Any]:
+    """`generation`: a geração que o Observer conhecia antes de ler o provedor (decisão 0072)."""
     moment = (BASE_TIME + timedelta(seconds=seconds)).isoformat()
     return {
         "messageId": str(uuid.uuid7()),
@@ -64,6 +75,7 @@ def observed(
         "operation": "changed",
         "presence": presence,
         "observedAt": moment,
+        **({"observedGeneration": generation} if generation is not None else {}),
         "correlationId": str(uuid.uuid7()),
         "occurredAt": moment,
         "publishedAt": moment,
@@ -265,6 +277,18 @@ async def test_removal_converged_deletes_the_record_and_publishes_removed(
         },
     )
     await requested_handler.handle(ssot(organization_manager), ORGANIZATION, unprotect)
+    # O Observer observa a nova geração; é essa observação que conclui o unprotect (decisão 0072).
+    await observed_handler.handle(
+        ssot(organization_manager),
+        ORGANIZATION,
+        observed(
+            resource_id,
+            "present",
+            seconds=2,
+            data={**granted(message), "deletionProtection": False},
+            generation=2,
+        ),
+    )
     unprotected = await row(organization_manager, resource_id)
     assert unprotected is not None
     delete = requested_message(
@@ -283,7 +307,9 @@ async def test_removal_converged_deletes_the_record_and_publishes_removed(
     assert during is not None and during["phase"] == "Deleting"
 
     await observed_handler.handle(
-        ssot(organization_manager), ORGANIZATION, observed(resource_id, "absent", seconds=2)
+        ssot(organization_manager),
+        ORGANIZATION,
+        observed(resource_id, "absent", seconds=3, generation=3),
     )
 
     assert await row(organization_manager, resource_id) is None
@@ -403,3 +429,93 @@ async def test_a_message_that_is_not_an_executor_result_is_permanently_invalid(
     message = {**result(str(uuid.uuid7()), "completed", generation=1), **bad}
     with pytest.raises(PermanentMessageError):
         await ResultHandler().handle(ssot(organization_manager), ORGANIZATION, message)
+
+
+async def updated_generations(outbox_reader: Connection, resource_id: str) -> list[dict[str, Any]]:
+    rows = await fetch_all(
+        outbox_reader,
+        "SELECT payload FROM ipm.organization_outbox WHERE resource_id = %s"
+        " AND subject LIKE 'manager.updated.%%' ORDER BY sequence",
+        resource_id,
+    )
+    return [
+        {
+            key: item["payload"]["data"].get(key)
+            for key in ("desiredGeneration", "observedGeneration")
+        }
+        for item in rows
+    ]
+
+
+async def test_protection_change_completes_only_on_the_observation_of_its_generation(
+    cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection
+) -> None:
+    """Mesmo fluxo de qualquer alteração: requested → desired → observed → updated (decisão 0072).
+
+    O provedor não tem `deletionProtection`, então o conteúdo observado já é igual ao desejado:
+    só uma observação feita depois da nova geração conclui a Operation.
+    """
+    message = await created(cleanup, organization_manager)
+    resource_id = message["resourceId"]
+    await observed_handler.handle(
+        ssot(organization_manager),
+        ORGANIZATION,
+        observed(resource_id, "present", seconds=1, data=granted(message)),
+    )
+    converged = await row(organization_manager, resource_id)
+    assert converged is not None and converged["phase"] == "Ready"
+
+    unprotect = requested_message(
+        resource_type="organization",
+        resource_id=resource_id,
+        operation="update",
+        requested_by="owner-1",
+        data={
+            "operationId": str(uuid.uuid7()),
+            "requestDigest": DEFAULT_DIGEST,
+            "resourceVersion": str(converged["resource_version"]),
+            "specification": {"deletionProtection": False},
+        },
+    )
+    outcome = await requested_handler.handle(ssot(organization_manager), ORGANIZATION, unprotect)
+    assert outcome.kind is OutcomeKind.ACCEPTED
+    pending = await row(organization_manager, resource_id)
+    assert pending is not None and pending["phase"] == "Reconciling"
+    assert await operation_status(organization_manager, resource_id) == ["completed", "accepted"]
+
+    # Leitura feita antes da geração 2 (conteúdo igual): não confirma a geração nova.
+    await observed_handler.handle(
+        ssot(organization_manager),
+        ORGANIZATION,
+        observed(
+            resource_id,
+            "present",
+            seconds=2,
+            data={**granted(message), "deletionProtection": False},
+            generation=1,
+        ),
+    )
+    stale = await row(organization_manager, resource_id)
+    assert stale is not None and stale["phase"] == "Reconciling"
+    assert await operation_status(organization_manager, resource_id) == ["completed", "in_progress"]
+
+    # Observação feita depois da geração 2: conclui.
+    await observed_handler.handle(
+        ssot(organization_manager),
+        ORGANIZATION,
+        observed(
+            resource_id,
+            "present",
+            seconds=3,
+            data={**granted(message), "deletionProtection": False},
+            generation=2,
+        ),
+    )
+    done = await row(organization_manager, resource_id)
+    assert done is not None and done["phase"] == "Ready"
+    assert await operation_status(organization_manager, resource_id) == ["completed", "completed"]
+    assert await updated_generations(outbox_reader, resource_id) == [
+        {"desiredGeneration": 1, "observedGeneration": 1},
+        {"desiredGeneration": 2, "observedGeneration": 1},
+        {"desiredGeneration": 2, "observedGeneration": 2},
+    ]

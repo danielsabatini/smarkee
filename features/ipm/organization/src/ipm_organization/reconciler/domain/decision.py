@@ -24,6 +24,9 @@ class DesiredState:
     traceparent: str | None = None
     """Contexto de trace do `desired` (decisão 0055): a action que ele causar o herda."""
 
+    deletion_protection: bool = True
+    """Proteção contra exclusão desejada; sem o campo, vale protegido (decisão 0043)."""
+
 
 @dataclass(frozen=True, slots=True)
 class ObservedState:
@@ -33,6 +36,8 @@ class ObservedState:
     causation_id: str | None
     name: str | None
     platform_access: str | None
+    deletion_protection: bool | None = None
+    """Proteção lida do metadado do provedor; `None` quando ele não existe (decisão 0074)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,9 +143,11 @@ def decide(state: ResourceState, now: datetime, settings: LoopParameters) -> Dec
 
 
 def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
-    """Compara os campos gerenciados da Organization: `lifecycle`, `name` e `platformAccess`.
+    """Compara os campos gerenciados da Organization: `lifecycle`, `name`, `platformAccess` e
+    `deletionProtection`.
 
-    `platformAccess` é observado pelo estado da organização no provedor (`active` ↔ `granted`).
+    `platformAccess` é observado pelo estado da organização no provedor (`active` ↔ `granted`), e
+    `deletionProtection`, pelo metadado de mesmo nome (decisão 0074).
     """
     if desired.lifecycle == "absent":
         if observed.presence == "present":
@@ -155,6 +162,10 @@ def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
     if observed.platform_access != desired.platform_access:
         return Decision(
             "update", "Drift", "The organization state differs from the desired platform access."
+        )
+    if observed.deletion_protection != desired.deletion_protection:
+        return Decision(
+            "update", "Drift", "The deletion protection in the identity provider differs."
         )
     return None
 

@@ -1,9 +1,9 @@
-"""Cliente de escrita do Zitadel para o Executor (única identidade com escrita, decisão 0014).
+"""Conexão de escrita com o Zitadel para o Executor (única identidade com escrita, decisão 0014).
 
-Autentica com a conta de serviço `core-account-executor` (papéis `ORG_USER_CREATOR` na `register` e
-`PROJECT_GRANT_OWNER` nos Grants dos módulos) por assertion JWT. Cada operação é **idempotente**:
-o `user_id` é o `resourceId`, e a repetição de um passo já feito é tratada como sucesso
-(`docs/RESOURCE-CONTROL-LOOP.md` §26).
+Só o transporte autenticado: a conta de serviço `core-account-executor` (papéis `ORG_USER_CREATOR`
+na `register` e `PROJECT_GRANT_OWNER` nos Grants dos módulos) por assertion JWT, a chamada HTTP e a
+classificação dos erros. Não conhece recurso: as operações de cada sub-recurso ficam em
+`executor/drivers/` (usuário e autorização).
 Os erros viram `ProviderError`, com a causa e se a mesma decisão pode ser tentada de novo.
 Nenhum dado pessoal entra em mensagens de erro.
 """
@@ -15,7 +15,7 @@ from typing import Any, cast
 import httpx
 
 from core_account.common.identity import ServiceAccountToken, TokenError
-from core_account.executor.domain.identity import Grant, IdentityUser, ProviderError
+from core_account.executor.domain.identity import ProviderError
 from core_account.executor.settings import IdentitySettings
 
 NOT_FOUND_CODE = 5  # código gRPC NotFound
@@ -25,9 +25,6 @@ HTTP_UNAUTHORIZED = 401
 HTTP_FORBIDDEN = 403
 HTTP_TOO_MANY_REQUESTS = 429
 HTTP_SERVER_ERROR = 500
-ALREADY_EXISTING_ID = "COMMAND-7yiox1isql"  # Errors.Account.AlreadyExisting (Zitadel v4.19.4)
-ALREADY_EXISTING_AUTHORIZATION_ID = "V3-DKcYh"  # autorização já existe (Zitadel v4.19.4)
-AUTHORIZATION_SERVICE = "/zitadel.authorization.v2.AuthorizationService"
 
 
 def _classify(status: int) -> ProviderError:
@@ -38,7 +35,7 @@ def _classify(status: int) -> ProviderError:
     return ProviderError("Rejected", retryable=False, detail=f"HTTP {status}")
 
 
-class IdentityWriter:
+class IdentityConnection:
     def __init__(
         self,
         settings: IdentitySettings,
@@ -50,120 +47,7 @@ class IdentityWriter:
         self._client = client
         self._token_source = ServiceAccountToken(settings, client, clock=clock)
 
-    # ------------------------------------------------------------------ usuário
-
-    async def get_user(self, user_id: str) -> IdentityUser | None:
-        response = await self._call("GET", f"/v2/users/{user_id}", accept_not_found=True)
-        if response is None:
-            return None
-        user = cast("dict[str, Any]", self._json(response).get("user") or {})
-        human = cast("dict[str, Any]", user.get("human") or {})
-        email = cast("dict[str, Any]", human.get("email") or {})
-        return IdentityUser(email=str(email.get("email", "")))
-
-    async def create_user(
-        self, user_id: str, *, given_name: str, family_name: str, email: str
-    ) -> bool:
-        """Cria o usuário **sem senha**, com o `resourceId` como ID. `False` se já existe."""
-        body = {
-            "userId": user_id,
-            "organization": {"orgId": self._settings.register_organization_id},
-            "username": email,
-            "profile": {"givenName": given_name, "familyName": family_name},
-            "email": {"email": email},
-        }
-        try:
-            await self._call("POST", "/v2/users/human", body)
-        except ProviderError as error:
-            if error.reason == "Rejected" and ALREADY_EXISTING_ID in str(error):
-                return False
-            raise
-        return True
-
-    async def delete_user(self, user_id: str) -> None:
-        await self._call("DELETE", f"/v2/users/{user_id}", accept_not_found=True)
-
-    # ------------------------------------------------------------------ autorização nos projetos
-    # API v2 de autorizações (Connect por POST; a organização vai no corpo, decisão 0029). Cada
-    # módulo tem o próprio projeto de roles, e o Executor só concede nos projetos de `project_ids`
-    # (`PROJECT_GRANT_OWNER` nos Grants deles). O Zitadel nega qualquer outro (decisão 0032).
-
-    def project_of(self, role: str) -> str:
-        """Projeto de roles da role (módulo = primeiro segmento). Módulo não configurado: erro."""
-        module = role.split(".", 1)[0]
-        project_id = self._settings.project_ids.get(module)
-        if project_id is None:
-            raise ProviderError(
-                "Rejected", retryable=False, detail=f"no roles project for module {module}"
-            )
-        return project_id
-
-    async def grants(self, user_id: str) -> list[Grant]:
-        """Autorizações do usuário nos projetos configurados (uma por projeto)."""
-        response = await self._call(
-            "POST",
-            f"{AUTHORIZATION_SERVICE}/ListAuthorizations",
-            {
-                "filters": [
-                    {"inUserIds": {"ids": [user_id]}},
-                    {"organizationId": {"id": self._settings.register_organization_id}},
-                ]
-            },
-        )
-        assert response is not None  # noqa: S101 (sem accept_not_found)
-        configured = set(self._settings.project_ids.values())
-        items = cast("list[dict[str, Any]]", self._json(response).get("authorizations") or [])
-        return [
-            Grant(
-                grant_id=str(item["id"]),
-                project_id=str(cast("dict[str, Any]", item["project"])["id"]),
-                roles=frozenset(
-                    str(cast("dict[str, Any]", r)["key"])
-                    for r in cast("list[Any]", item.get("roles") or [])
-                ),
-            )
-            for item in items
-            if cast("dict[str, Any]", item["project"])["id"] in configured
-        ]
-
-    async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None:
-        try:
-            await self._call(
-                "POST",
-                f"{AUTHORIZATION_SERVICE}/CreateAuthorization",
-                {
-                    "userId": user_id,
-                    "projectId": project_id,
-                    "organizationId": self._settings.register_organization_id,
-                    "roleKeys": roles,
-                },
-            )
-        except ProviderError as error:
-            # Repetição de um passo já feito é sucesso (idempotência); a role certa é conferida
-            # pelo Observer na leitura seguinte.
-            if error.reason == "Rejected" and ALREADY_EXISTING_AUTHORIZATION_ID in str(error):
-                return
-            raise
-
-    async def update_grant(self, grant_id: str, roles: list[str]) -> None:
-        """Substitui a lista de roles da autorização (as que faltarem são revogadas)."""
-        await self._call(
-            "POST",
-            f"{AUTHORIZATION_SERVICE}/UpdateAuthorization",
-            {"id": grant_id, "roleKeys": roles},
-        )
-
-    async def remove_grant(self, grant_id: str) -> None:
-        await self._call(
-            "POST",
-            f"{AUTHORIZATION_SERVICE}/DeleteAuthorization",
-            {"id": grant_id},
-            accept_not_found=True,
-        )
-
-    # ------------------------------------------------------------------ HTTP
-
-    async def _call(
+    async def call(
         self,
         method: str,
         path: str,
@@ -225,7 +109,7 @@ class IdentityWriter:
         )
 
     @staticmethod
-    def _json(response: httpx.Response) -> dict[str, Any]:
+    def json(response: httpx.Response) -> dict[str, Any]:
         try:
             document = response.json()
         except ValueError:

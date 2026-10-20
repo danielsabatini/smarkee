@@ -1,7 +1,7 @@
 # 0043 — Proteção contra exclusão (`deletionProtection`)
 
 - **Data:** 2026-10-16
-- **Status:** Aceita e implementada para `ipm.organization` e `core.account`. Origem: decisão 0039 §6.
+- **Status:** Aceita e implementada para `ipm.organization` e `core.account`. Origem: decisão 0039 §6. **Revisada pela decisão 0072** no ponto "alterar só a proteção conclui na hora": a alteração percorre o loop como qualquer outra. **Detalhada pela decisão 0074:** a proteção é gravada como metadado `deletionProtection` no Zitadel (organização e usuário) e reconciliada.
 
 ## Contexto
 
@@ -15,7 +15,7 @@ Apagar uma Organization remove a organização no Zitadel com todo o conteúdo, 
   - o Receiver recusa o `DELETE` com `409 DeletionProtected` (na Account, antes da checagem de recursos atrelados da decisão 0040);
   - o Manager revalida na mesma unidade atômica do `delete` e rejeita a Operation com o motivo `protected` (depois de `not_found` e `conflict`).
 - **Quem (des)protege:** o dono, com a mesma regra do `update` (Organization) e a role `core.account.delete` (Account, sem role nova). Na Account, o `PATCH /v1/core/accounts/{id}` é novo e só aceita `deletionProtection`.
-- **Alterar só a proteção conclui na hora**: a Operation vira `completed` na própria unidade atômica, com nova geração, e o recurso não volta a `Reconciling` (o campo é da plataforma, não há o que reconciliar no provedor).
+- ~~**Alterar só a proteção conclui na hora**~~ (substituído pela decisão 0072: conclui na observação da nova geração): a Operation vira `completed` na própria unidade atômica, com nova geração, e o recurso não volta a `Reconciling` (o campo é da plataforma, não há o que reconciliar no provedor).
 - **CLI, um comando por sentido:** `sk ipm organization protect|unprotect --resource-id X` e `sk account protect|unprotect`, com `--wait/--timeout`; pedir o estado que já vale não é erro. `get` mostra `protected`.
 - **Fora do escopo:** a ligação de serviço do SUM, porque desabilitar não apaga (é reversível). Reconsiderar se o SUM passar a apagar dados ao desabilitar (decisão 0033).
 

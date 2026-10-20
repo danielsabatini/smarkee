@@ -16,6 +16,7 @@ erDiagram
         text phase "Pending, Reconciling, Ready, Failed, Deleting"
         jsonb conditions "Ready e outras"
         int failure_count "falhas da geração corrente"
+        int observed_generation "última geração confirmada pela observação"
     }
     OPERATION {
         text operation_id PK "idempotência do pedido"

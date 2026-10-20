@@ -105,8 +105,16 @@ class Publishing:
         lifecycle: str,
         phase: str,
         resource_version: int,
+        desired_generation: int,
+        observed_generation: int | None,
         removed: bool = False,
     ) -> None:
+        """`updated` com o par de gerações (semântica do Kubernetes).
+
+        `observedGeneration` igual a `desiredGeneration`, com a fase `Ready`, indica que a última
+        alteração terminou; menor, que ainda está em andamento. O par sai da mesma transação, com a
+        linha bloqueada, em que o Manager gravou o estado.
+        """
         now = self._clock()
         message = generated.MessageEnvelope.model_validate(
             {
@@ -126,6 +134,12 @@ class Publishing:
                     "phase": phase,
                     "lifecycle": lifecycle,
                     "resourceVersion": str(resource_version),
+                    "desiredGeneration": desired_generation,
+                    **(
+                        {"observedGeneration": observed_generation}
+                        if observed_generation is not None
+                        else {}
+                    ),
                     **({"removed": True} if removed else {}),
                 },
             }

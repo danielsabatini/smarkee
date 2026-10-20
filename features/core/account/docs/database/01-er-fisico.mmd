@@ -19,6 +19,7 @@ erDiagram
         text phase "Pending, Reconciling, Ready, Failed, Deleting"
         jsonb conditions "Ready"
         int failure_count
+        bigint observed_generation "última geração confirmada pela observação (decisão 0072)"
         timestamptz created_at
         timestamptz updated_at
     }

@@ -337,9 +337,10 @@ async def test_unknown_resource_is_not_found(
     assert (outcome.kind, outcome.reason) == (OutcomeKind.REJECTED, RejectionReason.NOT_FOUND)
 
 
-async def test_update_without_effective_change_completes_without_new_generation(
+async def test_update_without_effective_change_keeps_the_generation(
     cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection
 ) -> None:
+    """Sem geração nova, a Operation acompanha a vigente, ainda não observada (decisão 0072)."""
     create = create_message(cleanup, owner="user-1")
     await handler.handle(ssot(organization_manager), ORGANIZATION, create)
     outcome = await handler.handle(
@@ -353,7 +354,7 @@ async def test_update_without_effective_change_completes_without_new_generation(
             specification={"name": create["data"]["specification"]["name"]},
         ),
     )
-    assert outcome.kind is OutcomeKind.COMPLETED
+    assert outcome.kind is OutcomeKind.ACCEPTED
     row = await resource_row(organization_manager, create["resourceId"])
     assert row is not None
     assert (row["resource_version"], row["desired_generation"]) == (1, 1)
@@ -372,7 +373,7 @@ async def test_reconciliation_change_alone_keeps_generation(
             cleanup, create=create, operation="update", version="1", reconciliation="suspended"
         ),
     )
-    assert outcome.kind is OutcomeKind.COMPLETED
+    assert outcome.kind is OutcomeKind.ACCEPTED  # a geração 1 ainda não foi observada
     row = await resource_row(organization_manager, create["resourceId"])
     assert row is not None
     assert (row["resource_version"], row["desired_generation"], row["reconciliation"]) == (
@@ -401,7 +402,7 @@ async def unprotect(
             specification={"deletionProtection": False},
         ),
     )
-    assert outcome.kind is OutcomeKind.COMPLETED
+    assert outcome.kind is OutcomeKind.ACCEPTED
 
 
 async def test_delete_of_a_protected_organization_is_rejected(
@@ -420,18 +421,21 @@ async def test_delete_of_a_protected_organization_is_rejected(
     assert (row["lifecycle"], row["desired_generation"]) == ("present", 1)
 
 
-async def test_protection_only_update_completes_at_once_without_new_reconciliation(
+async def test_protection_only_update_goes_through_the_loop(
     cleanup: Cleanup, organization_manager: Connection
 ) -> None:
+    """Campo da plataforma segue o mesmo fluxo de qualquer alteração (decisão 0072)."""
     create = create_message(cleanup, owner="user-1")
     await handler.handle(ssot(organization_manager), ORGANIZATION, create)
-    before = await resource_row(organization_manager, create["resourceId"])
     await unprotect(cleanup, organization_manager, create, "1")
     after = await resource_row(organization_manager, create["resourceId"])
-    assert before is not None and after is not None
+    assert after is not None
     assert after["desired"]["deletionProtection"] is False
-    assert after["resource_version"] == 2
-    assert after["phase"] == before["phase"]
+    assert (after["resource_version"], after["desired_generation"], after["phase"]) == (
+        2,
+        2,
+        "Reconciling",
+    )
 
 
 async def test_delete_declares_absence_and_is_idempotent(
@@ -455,7 +459,7 @@ async def test_delete_declares_absence_and_is_idempotent(
         ORGANIZATION,
         change_message(cleanup, create=create, operation="delete", version="3"),
     )
-    assert repeated.kind is OutcomeKind.COMPLETED
+    assert repeated.kind is OutcomeKind.ACCEPTED  # sem geração nova; a 3 ainda não foi observada
     after = await handler.handle(
         ssot(organization_manager),
         ORGANIZATION,

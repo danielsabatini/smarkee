@@ -15,14 +15,27 @@ DESIRED_PRESENT: dict[str, Any] = {
 }
 
 
-def observe(presence: str, *, desired: dict[str, Any], lifecycle: str, phase: str = "Pending"):
+def observe(
+    presence: str,
+    *,
+    desired: dict[str, Any],
+    lifecycle: str,
+    phase: str = "Pending",
+    observation_generation: int | None = 1,
+):
     return decide_observed(
         ORGANIZATION.policy,
         desired=desired,
         lifecycle=lifecycle,
         generation=1,
+        observation_generation=observation_generation,
         presence=presence,
-        observed={"name": "acme", "platformAccess": "granted", "organizationState": "active"},
+        observed={
+            "name": "acme",
+            "platformAccess": "granted",
+            "organizationState": "active",
+            "deletionProtection": True,
+        },
         previous_phase=phase,
         previous_conditions=[],
         now=NOW,
@@ -105,3 +118,31 @@ def test_the_owner_is_not_a_managed_field() -> None:
     desired = {**DESIRED_PRESENT, "ownerAccountId": "0199c8a4-0000-7000-8000-00000000beef"}
     decision = observe("present", desired=desired, lifecycle="present")
     assert decision.converged  # `ownerAccountId` não existe no Zitadel: não gera divergência
+
+
+def test_observation_older_than_the_generation_does_not_converge() -> None:
+    """Conteúdo igual não basta: a observação precisa ser posterior à geração (decisão 0072)."""
+    for observation_generation in (None,):
+        decision = observe(
+            "present",
+            desired=DESIRED_PRESENT,
+            lifecycle="present",
+            phase="Reconciling",
+            observation_generation=observation_generation,
+        )
+        assert not decision.converged and decision.phase == "Reconciling"
+
+
+def test_removal_needs_an_observation_of_the_removal_generation() -> None:
+    desired = {**DESIRED_PRESENT, "lifecycle": "absent"}
+    decision = observe(
+        "absent", desired=desired, lifecycle="absent", phase="Deleting", observation_generation=None
+    )
+    assert not decision.converged and not decision.remove
+
+
+def test_a_different_deletion_protection_keeps_reconciling() -> None:
+    """A proteção é campo gerenciado: o metadado do provedor precisa bater (decisão 0074)."""
+    unprotected = {**DESIRED_PRESENT, "deletionProtection": False}
+    decision = observe("present", desired=unprotected, lifecycle="present", phase="Reconciling")
+    assert not decision.converged and decision.phase == "Reconciling"

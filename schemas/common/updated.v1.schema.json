@@ -22,6 +22,18 @@
       "x-writer": "server",
       "x-sensitivity": "internal"
     },
+    "desiredGeneration": {
+      "$ref": "definitions.v1.schema.json#/$defs/generation",
+      "description": "Geração do desired vigente no SSOT quando o updated foi gravado.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "observedGeneration": {
+      "$ref": "definitions.v1.schema.json#/$defs/generation",
+      "description": "Última geração cuja convergência o Manager confirmou com uma observação feita depois dela (semântica do status.observedGeneration do Kubernetes). Nunca maior que desiredGeneration; igual a ela, com phase Ready, a última alteração terminou. Ausente enquanto nenhuma geração foi confirmada.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
     "removed": {
       "description": "true quando o recurso foi removido do SSOT (remoção convergida).",
       "type": "boolean",

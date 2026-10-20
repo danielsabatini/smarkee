@@ -208,6 +208,7 @@ async def test_a_completed_result_waits_for_the_observation_it_caused(
             data={
                 "platformAccess": "granted",
                 "name": "acme",
+                "deletionProtection": True,
             },
         )
     )

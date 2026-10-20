@@ -5,6 +5,7 @@ from typing import Any
 
 from sum_service.common.logging_config import JsonFormatter, build_resource, save_context
 from sum_service.observer.domain.authorization import Authorization, ProviderError
+from sum_service.observer.domain.observation import Drivers
 from sum_service.observer.engine.observer import Observer, owns
 
 OWNER = "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e"
@@ -75,7 +76,12 @@ def result(message_type: str, message_id: str) -> bytes:
 
 def observer(reader: FakeReader, recorder: Recorder) -> Observer:
     ids = iter(f"id-{n}" for n in range(1, 1000))
-    return Observer(reader, recorder, CATALOG, identifiers=lambda: next(ids))
+    return Observer(
+        Drivers(users=reader, authorizations=reader),
+        recorder,
+        CATALOG,
+        identifiers=lambda: next(ids),
+    )
 
 
 async def test_a_new_desired_generation_is_observed_once_with_the_roles_of_the_service() -> None:
@@ -153,7 +159,7 @@ async def test_an_absent_user_is_published_as_absent() -> None:
 
 def partitioned(reader: FakeReader, recorder: Recorder, index: int, count: int) -> Observer:
     return Observer(
-        reader,
+        Drivers(users=reader, authorizations=reader),
         recorder,
         CATALOG,
         partition_index=index,

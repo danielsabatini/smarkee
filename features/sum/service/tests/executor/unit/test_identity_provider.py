@@ -7,7 +7,9 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from sum_service.executor.provider.identity import IdentityGranter, ProviderError
+from sum_service.executor.domain.identity import ProviderError
+from sum_service.executor.drivers.authorization import AuthorizationDriver
+from sum_service.executor.provider.identity import IdentityConnection
 from sum_service.executor.settings import IdentitySettings
 
 
@@ -26,7 +28,7 @@ def granter(
     key_file: Path,
     handler: Callable[[httpx.Request], httpx.Response],
     calls: list[httpx.Request] | None = None,
-) -> IdentityGranter:
+) -> AuthorizationDriver:
     def route(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/oauth/v2/token":
             return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
@@ -40,7 +42,8 @@ def granter(
         register_organization_id="org-r",
         project_ids={"ipm": "proj-ipm"},
     )
-    return IdentityGranter(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
+    client = httpx.AsyncClient(transport=httpx.MockTransport(route))
+    return AuthorizationDriver(IdentityConnection(settings, client), settings)
 
 
 async def test_grants_are_read_from_the_register_and_only_the_configured_projects(

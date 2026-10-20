@@ -168,6 +168,7 @@ Registro de cada `actionId` cujo resultado (`completed` ou `failed`) já foi con
 | `phase` | Fase consolidada | enumeração fechada: `Pending`, `Reconciling`, `Ready`, `Failed`, `Deleting` | Sim | Mutável | Manager | `internal` |
 | `conditions` | Fatos consolidados do recurso | lista de condition | Sim | Mutável | Manager | `internal` |
 | `failureCount` | Falhas da geração corrente | inteiro | Sim | Automática | Manager | `internal` |
+| `observedGeneration` | Última geração cuja convergência foi confirmada por uma observação feita depois dela (decisão 0072) | inteiro crescente | Não (nula até a primeira confirmação) | Automática | Manager | `internal` |
 | `schemaVersion` | Versão do contrato do conteúdo | `MAJOR.MINOR` | Sim | Mutável | Manager | `internal` |
 | `createdAt`, `updatedAt` | Instantes de criação e de alteração | instante | Sim | Automática | Manager | `internal` |
 
@@ -186,6 +187,7 @@ Campos de `desired` e `observed` herdam a sensibilidade declarada no contrato do
 9. **As unidades atômicas de um mesmo recurso são serializadas.** Duas mensagens sobre o mesmo recurso nunca são aplicadas sobre o mesmo estado lido.
 10. **Uma geração publicada nunca é reutilizada com outro conteúdo.** Consumidores tratam a mesma geração como idempotente; reutilizá-la com conteúdo diferente causaria divergência silenciosa.
 11. **O registro reflete o último `desired` registrado no outbox.** Toda mensagem `desired` corresponde ao conteúdo e ao controle gravados no registro na mesma unidade.
+12. **`observedGeneration` só cresce e nunca passa de `desiredGeneration`.** Uma geração só é confirmada por uma observação feita depois dela, com o conteúdo convergido (decisão 0072).
 
 # 10. Unidade Atômica de Gravação
 
@@ -200,7 +202,7 @@ Toda unidade **começa obtendo acesso exclusivo ao registro do recurso** e só e
 3. validar o pedido e as regras de negócio; em violação, registrar a Operation como `rejected` (`validation` ou `not_found`); a proteção contra exclusão (`protected`) é conferida depois de `not_found` e `conflict`;
 4. conferir a `resourceVersion` informada (atualizações); se estiver desatualizada, registrar a Operation como `rejected` (`conflict`);
 5. gravar o recurso: incrementar `desiredGeneration` somente se a especificação mudou;
-6. registrar a Operation como `accepted`;
+6. registrar a Operation como `accepted`. Toda alteração do `desired` percorre o loop, inclusive a de um campo da plataforma (`x-managed: false`): a Operation conclui quando a observação confirma a nova geração (seção 10.2; decisão 0072). Um pedido que não gera geração nova (nada mudou, ou só `reconciliation`) acompanha a geração vigente: `completed` se ela já estiver confirmada, senão `accepted` até a confirmação;
 7. registrar no outbox a mensagem `desired`;
 8. confirmar a gravação e, então, confirmar a mensagem ao transporte.
 
@@ -212,8 +214,8 @@ Antes de publicar, o Receiver consulta a Operation pelo `operationId`: se ela ex
 
 1. obter acesso exclusivo ao registro; se o recurso não existir, descartar a mensagem;
 2. descartar a mensagem se `observedAt` não for mais recente que o gravado;
-3. gravar `observed`, `presence` e `observedAt`, e recalcular `conditions` e `phase`;
-4. registrar no outbox a mensagem `updated`;
+3. gravar `observed`, `presence` e `observedAt`, e recalcular `conditions` e `phase`. A geração vigente só é confirmada (`observedGeneration`, `phase = Ready`, Operations da geração `completed`) quando o conteúdo converge **e** a observação traz essa geração no `observedGeneration` do envelope, isto é, foi feita depois dela (decisão 0072);
+4. registrar no outbox a mensagem `updated`, com `desiredGeneration` e `observedGeneration`;
 5. confirmar.
 
 A monotonia por `observedAt` compara instantes do Observer. Ela é válida porque um recurso é observado por uma instância por vez (partição por `resourceId`, `RESOURCE-CONTROL-LOOP.md`) e porque os relógios do ambiente são sincronizados. Durante a redistribuição de partições, duas instâncias podem observar o mesmo recurso; um desvio de relógio entre elas menor que o `observationInterval` do contrato faz, no pior caso, uma observação ser descartada e substituída pela próxima.

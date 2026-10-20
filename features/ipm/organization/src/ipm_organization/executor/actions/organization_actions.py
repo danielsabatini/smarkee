@@ -1,5 +1,6 @@
 """Execução das operações da Organization no Zitadel (`docs/RESOURCE-CONTROL-LOOP.md` §46).
 
+Compõe os drivers de `executor/drivers/` (um por sub-recurso); não chama o provedor direto.
 O Executor escreve só a organização: não cria usuários, não autoriza o dono e não cria Project
 Grant. Cada operação é idempotente e usa o `resourceId` como ID da organização. `platformAccess`
 se traduz no estado da organização: `granted` a mantém ativa e `revoked` a desativa
@@ -7,13 +8,16 @@ se traduz no estado da organização: `granted` a mantém ativa e `revoked` a de
 """
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from ipm_organization.executor.domain.errors import ActionFailedError
 from ipm_organization.executor.domain.identity import IdentityOrganization
 
 
-class Writer(Protocol):
+class Organizations(Protocol):
+    """Driver da organização (`executor/drivers/organization.py`)."""
+
     async def get_organization(self, organization_id: str) -> IdentityOrganization | None: ...
 
     async def create_organization(self, organization_id: str, *, name: str) -> bool: ...
@@ -27,17 +31,34 @@ class Writer(Protocol):
     async def delete_organization(self, organization_id: str) -> None: ...
 
 
+class Metadata(Protocol):
+    """Driver do metadado do provedor (`executor/drivers/metadata.py`)."""
+
+    async def set_value(self, owner_id: str, key: str, value: str) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class Drivers:
+    """Os drivers de escrita que as operações da Organization usam."""
+
+    organizations: Organizations
+    metadata: Metadata
+
+
 async def execute(
     operation: str,
     organization_id: str,
     desired: Mapping[str, Any],
-    writer: Writer,
+    drivers: Drivers,
 ) -> None:
+    writer = drivers.organizations
     match operation:
         case "create":
             await _create(organization_id, desired, writer)
+            await _ensure_deletion_protection(organization_id, desired, drivers.metadata)
         case "update":
             await _update(organization_id, desired, writer)
+            await _ensure_deletion_protection(organization_id, desired, drivers.metadata)
         case "delete":
             await writer.delete_organization(organization_id)  # ausente é sucesso idempotente
         case _:
@@ -56,7 +77,7 @@ def _wants_access(desired: Mapping[str, Any]) -> bool:
     return desired.get("platformAccess") != "revoked"
 
 
-async def _create(organization_id: str, desired: Mapping[str, Any], writer: Writer) -> None:
+async def _create(organization_id: str, desired: Mapping[str, Any], writer: Organizations) -> None:
     name = _name_of(desired)
     created = await writer.create_organization(organization_id, name=name)
     if not created:
@@ -73,7 +94,7 @@ async def _create(organization_id: str, desired: Mapping[str, Any], writer: Writ
     await _ensure_access(organization_id, desired, writer)
 
 
-async def _update(organization_id: str, desired: Mapping[str, Any], writer: Writer) -> None:
+async def _update(organization_id: str, desired: Mapping[str, Any], writer: Organizations) -> None:
     name = _name_of(desired)
     existing = await writer.get_organization(organization_id)
     if existing is None:
@@ -86,7 +107,7 @@ async def _update(organization_id: str, desired: Mapping[str, Any], writer: Writ
 async def _ensure_access(
     organization_id: str,
     desired: Mapping[str, Any],
-    writer: Writer,
+    writer: Organizations,
     *,
     known: IdentityOrganization | None = None,
 ) -> None:
@@ -97,3 +118,17 @@ async def _ensure_access(
         await writer.activate_organization(organization_id)
     elif not _wants_access(desired) and active:
         await writer.deactivate_organization(organization_id)
+
+
+DELETION_PROTECTION_KEY = "deletionProtection"
+
+
+async def _ensure_deletion_protection(
+    resource_id: str, desired: Mapping[str, Any], metadata: Metadata
+) -> None:
+    """Grava no provedor a proteção contra exclusão do `desired` (decisão 0074).
+
+    Registro sem o campo vale como protegido. A gravação é idempotente: repetir não muda nada.
+    """
+    protected = desired.get("deletionProtection", True) is not False
+    await metadata.set_value(resource_id, DELETION_PROTECTION_KEY, "true" if protected else "false")

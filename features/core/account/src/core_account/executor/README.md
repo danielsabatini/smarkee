@@ -6,6 +6,7 @@ Executor de `core.account` (`core-account-executor`), um dos seis papéis da ima
 
 - `create`: cria o usuário **sem senha**, envia o link para definir a senha (`password_reset`) e concede, em cada projeto de roles (uma autorização por módulo), as roles de `desired.platformRoles` (não há lista de roles na configuração do Executor); a senha nunca passa por CLI, Receiver, SSOT nem NATS;
 - `update`: ajusta ou revoga as roles (`platformAccess`);
+- em `create` e `update`, grava o metadado `deletionProtection` do usuário com o valor do `desired` (decisão 0074);
 - `delete`: remove o usuário (ausente é sucesso).
 
 Publica `completed` ou `failed {reason, retryable}`; o retry é do Reconciler.
@@ -19,8 +20,9 @@ O Stream `ACTION` é particionado por `resourceId` (4 partições). O Executor r
 ```text
 src/core_account/executor/
   domain/      revalidação da action, erros e tipos do provedor
-  actions/     execução de cada operação sobre o provedor (idempotente)
-  provider/    escritor do Zitadel (HTTP, JWT da conta de serviço)
+  actions/     cada operação, compondo os drivers (idempotente)
+  drivers/     escrita no Zitadel, um por sub-recurso (user.py, authorization.py; decisão 0073)
+  provider/    conexão de escrita com o Zitadel (HTTP, JWT da conta de serviço)
   engine/      fluxo de cada action e publicação do resultado
   transport/   consumers por partição, Direct Get e publicação no NATS
   main.py

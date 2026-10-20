@@ -1,5 +1,6 @@
 {
   "name": "acme",
   "platformAccess": "granted",
-  "organizationState": "active"
+  "organizationState": "active",
+  "deletionProtection": true
 }

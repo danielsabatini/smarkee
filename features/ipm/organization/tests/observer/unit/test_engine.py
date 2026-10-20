@@ -243,3 +243,32 @@ async def test_the_observation_context_does_not_leak_to_the_caller() -> None:
     observer = build(FakeObservation([Observation("present", {})]), FakePublisher())
     await observer.observe_resource("other", causation_id=None)
     assert save_context() == before
+
+
+async def test_observed_carries_the_generation_known_before_the_read() -> None:
+    """O Manager só confirma uma geração com uma observação posterior a ela (decisão 0072)."""
+    publisher, observation = FakePublisher(), FakeObservation()
+    observer = build(observation, publisher)
+
+    await observer.on_message(desired(generation=3))
+
+    ((_, payload, _),) = publisher.published
+    assert payload["observedGeneration"] == 3
+
+
+async def test_a_desired_arriving_during_the_read_is_not_attributed_to_it() -> None:
+    publisher = FakePublisher()
+
+    class GenerationChangesDuringRead:
+        async def __call__(self, reader: object, resource_id: str) -> Observation:
+            watch = observer.watch_of(resource_id)
+            assert watch is not None
+            watch.generation = 2  # um `desired` novo chegou enquanto o provedor era lido
+            return Observation("absent", {})
+
+    observer = build(GenerationChangesDuringRead(), publisher)  # type: ignore[arg-type]
+
+    await observer.on_message(desired(generation=1))
+
+    ((_, payload, _),) = publisher.published
+    assert payload["observedGeneration"] == 1

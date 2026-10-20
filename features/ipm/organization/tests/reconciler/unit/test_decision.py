@@ -1,5 +1,6 @@
 """Decisão de reconciliação da Organization (`docs/RESOURCE-CONTROL-LOOP.md` e segurança)."""
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -41,10 +42,19 @@ def observed(
     access: str | None = None,
     name: str | None = None,
     causation: str | None = None,
+    protected: bool | None = True,
 ) -> ObservedState:
     # `access="granted"` sem `name` observa o nome desejado.
     held = name if name is not None else (NAME if access is not None else None)
-    return ObservedState("o-1", presence, NOW - timedelta(seconds=age), causation, held, access)
+    return ObservedState(
+        "o-1",
+        presence,
+        NOW - timedelta(seconds=age),
+        causation,
+        held,
+        access,
+        deletion_protection=protected,
+    )
 
 
 def state(d: DesiredState | None, o: ObservedState | None, **kwargs: object) -> ResourceState:
@@ -72,6 +82,19 @@ def test_converged_organization_needs_no_action() -> None:
     assert operation_of(state(desired(), observed("present", access="granted"))) is None
     revoked = desired(access="revoked")
     assert operation_of(state(revoked, observed("present", access="revoked"))) is None
+
+
+def test_a_different_deletion_protection_is_drift() -> None:
+    """A proteção é campo gerenciado, lida do metadado do provedor (decisão 0074)."""
+    for held in (False, None):
+        decision = decide(
+            state(desired(), observed("present", access="granted", protected=held)), NOW, SETTINGS
+        )
+        assert decision is not None
+        assert (decision.operation, decision.reason) == ("update", "Drift")
+    unprotected = replace(desired(), deletion_protection=False)
+    converged = observed("present", access="granted", protected=False)
+    assert operation_of(state(unprotected, converged)) is None
 
 
 def test_a_different_name_is_drift() -> None:

@@ -24,8 +24,11 @@ from sum_service.common.messaging import (
 )
 from sum_service.common.runtime import role_runtime
 from sum_service.common.service_rules import CatalogError, parse_catalog
+from sum_service.observer.domain.observation import Drivers
+from sum_service.observer.drivers.authorization import AuthorizationDriver
+from sum_service.observer.drivers.user import UserDriver
 from sum_service.observer.engine.observer import Observer
-from sum_service.observer.provider.identity import IdentityReader
+from sum_service.observer.provider.identity import IdentityConnection
 from sum_service.observer.settings import (
     LoopSettings,
     SumServiceObserverSettings,
@@ -56,8 +59,12 @@ async def run(settings: SumServiceObserverSettings) -> int:
     async with role_runtime(settings.messaging, name="sum-service-observer") as runtime:
         http = httpx.AsyncClient(timeout=settings.identity.timeout_seconds)
         runtime.close_after(http.aclose)
+        connection = IdentityConnection(settings.identity, http)
         observer = Observer(
-            IdentityReader(settings.identity, http),
+            Drivers(
+                users=UserDriver(connection),
+                authorizations=AuthorizationDriver(connection, settings.identity),
+            ),
             StreamPublisher(runtime.stream),
             catalog,
             partition_index=settings.partition.index,

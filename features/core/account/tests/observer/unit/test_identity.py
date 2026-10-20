@@ -11,7 +11,11 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from core_account.observer.domain.identity import ProviderError
-from core_account.observer.provider.identity import IdentityReader
+from core_account.observer.domain.observation import Drivers
+from core_account.observer.drivers.authorization import AuthorizationDriver
+from core_account.observer.drivers.metadata import MetadataDriver
+from core_account.observer.drivers.user import UserDriver
+from core_account.observer.provider.identity import IdentityConnection
 from core_account.observer.settings import IdentitySettings
 
 USER_NOT_FOUND = {
@@ -42,12 +46,22 @@ def settings(key_file: Path) -> IdentitySettings:
     )
 
 
+def drivers(identity: IdentitySettings, client: httpx.AsyncClient) -> Drivers:
+    """Os drivers de leitura sobre uma conexão só, como no `main` do Observer."""
+    connection = IdentityConnection(identity, client)
+    return Drivers(
+        users=UserDriver(connection),
+        authorizations=AuthorizationDriver(connection, identity),
+        metadata=MetadataDriver(connection, "users"),
+    )
+
+
 def reader(
     key_file: Path,
     handler: Callable[[httpx.Request], httpx.Response],
     *,
     calls: list[httpx.Request] | None = None,
-) -> IdentityReader:
+) -> Drivers:
     def route(request: httpx.Request) -> httpx.Response:
         if calls is not None:
             calls.append(request)
@@ -56,7 +70,7 @@ def reader(
         return handler(request)
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(route))
-    return IdentityReader(settings(key_file), client)
+    return drivers(settings(key_file), client)
 
 
 async def test_it_authenticates_with_a_jwt_assertion_and_reuses_the_token(key_file: Path) -> None:
@@ -66,8 +80,8 @@ async def test_it_authenticates_with_a_jwt_assertion_and_reuses_the_token(key_fi
         lambda r: httpx.Response(200, json={"user": {"state": "USER_STATE_ACTIVE"}}),
         calls=calls,
     )
-    await identity.get_user("u-1")
-    await identity.get_user("u-2")
+    await identity.users.get_user("u-1")
+    await identity.users.get_user("u-2")
 
     token_calls = [c for c in calls if c.url.path == "/oauth/v2/token"]
     assert len(token_calls) == 1  # token em cache
@@ -88,21 +102,21 @@ async def test_get_user_maps_the_fields(key_file: Path) -> None:
             "human": {"email": {"email": "a@x.com", "isVerified": True}, "passwordChanged": "t"},
         }
     }
-    user = await reader(key_file, lambda r: httpx.Response(200, json=body)).get_user("u-1")
+    user = await reader(key_file, lambda r: httpx.Response(200, json=body)).users.get_user("u-1")
     assert user is not None
     assert (user.state, user.email_verified, user.password_set) == ("USER_STATE_ACTIVE", True, True)
 
 
 async def test_unverified_email_and_no_password(key_file: Path) -> None:
     body = {"user": {"state": "USER_STATE_ACTIVE", "human": {"email": {"email": "a@x.com"}}}}
-    user = await reader(key_file, lambda r: httpx.Response(200, json=body)).get_user("u-1")
+    user = await reader(key_file, lambda r: httpx.Response(200, json=body)).users.get_user("u-1")
     assert user is not None
     assert (user.email_verified, user.password_set) == (False, False)
 
 
 async def test_an_unambiguous_404_means_the_user_does_not_exist(key_file: Path) -> None:
     identity = reader(key_file, lambda r: httpx.Response(404, json=USER_NOT_FOUND))
-    assert await identity.get_user("u-1") is None
+    assert await identity.users.get_user("u-1") is None
 
 
 @pytest.mark.parametrize(
@@ -121,7 +135,7 @@ async def test_every_other_failure_is_a_provider_error_never_absence(
     key_file: Path, response: httpx.Response
 ) -> None:
     with pytest.raises(ProviderError):
-        await reader(key_file, lambda r: response).get_user("u-1")
+        await reader(key_file, lambda r: response).users.get_user("u-1")
 
 
 async def test_network_failures_are_provider_errors(key_file: Path) -> None:
@@ -129,16 +143,16 @@ async def test_network_failures_are_provider_errors(key_file: Path) -> None:
         raise httpx.ConnectTimeout("timeout")
 
     with pytest.raises(ProviderError):
-        await reader(key_file, boom).get_user("u-1")
+        await reader(key_file, boom).users.get_user("u-1")
 
 
 async def test_missing_key_file_or_token_failure_is_a_provider_error(tmp_path: Path) -> None:
-    missing = IdentityReader(
+    missing = drivers(
         IdentitySettings(key_file=str(tmp_path / "nao-existe.json")),
         httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200))),
     )
     with pytest.raises(ProviderError):
-        await missing.get_user("u-1")
+        await missing.users.get_user("u-1")
 
 
 async def test_granted_roles_are_the_union_across_the_projects(key_file: Path) -> None:
@@ -151,7 +165,10 @@ async def test_granted_roles_are_the_union_across_the_projects(key_file: Path) -
     }
     identity = reader(key_file, lambda r: httpx.Response(200, json=body), calls=calls)
 
-    assert await identity.granted_roles("u-1") == {"core.account.get", "core.account.delete"}
+    assert await identity.authorizations.granted_roles("u-1") == {
+        "core.account.get",
+        "core.account.delete",
+    }
     request = next(c for c in calls if "ListAuthorizations" in c.url.path)
     assert request.url.path == "/zitadel.authorization.v2.AuthorizationService/ListAuthorizations"
     assert request.headers["Connect-Protocol-Version"] == "1"

@@ -76,14 +76,6 @@ class ResourcePolicy(Protocol):
         """`True` enquanto o recurso está protegido contra exclusão (campo ausente vale `True`)."""
         ...
 
-    def managed_changed(self, current: Mapping[str, Any], desired: Mapping[str, Any]) -> bool:
-        """`True` se mudou algum campo gerenciado no provedor (`docs/SCHEMA.md` §9.1).
-
-        Mudança só em campo da plataforma (como a proteção contra exclusão) não tem o que
-        reconciliar: a Operation conclui na hora.
-        """
-        ...
-
     def message_data(self, desired: Mapping[str, Any], reconciliation: str) -> dict[str, Any]: ...
 
     def is_converged(

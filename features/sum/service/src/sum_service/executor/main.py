@@ -17,8 +17,10 @@ from sum_service.common.lifecycle import (
 from sum_service.common.messaging import StreamPublisher
 from sum_service.common.runtime import role_runtime
 from sum_service.common.service_rules import CatalogError, parse_catalog
+from sum_service.executor.actions.service_roles import Drivers
+from sum_service.executor.drivers.authorization import AuthorizationDriver
 from sum_service.executor.engine.executor import Executor
-from sum_service.executor.provider.identity import IdentityGranter
+from sum_service.executor.provider.identity import IdentityConnection
 from sum_service.executor.settings import SumServiceExecutorSettings, missing_required
 from sum_service.executor.transport.consumers import PullConsumer
 from sum_service.executor.transport.messaging import DirectStateReader
@@ -31,8 +33,9 @@ async def run(settings: SumServiceExecutorSettings) -> int:
     async with role_runtime(settings.messaging, name="sum-service-executor") as runtime:
         http = httpx.AsyncClient(timeout=settings.identity.timeout_seconds)
         runtime.close_after(http.aclose)
+        connection = IdentityConnection(settings.identity, http)
         executor = Executor(
-            IdentityGranter(settings.identity, http),
+            Drivers(authorizations=AuthorizationDriver(connection, settings.identity)),
             DirectStateReader(runtime.stream),
             StreamPublisher(runtime.stream),
             catalog,

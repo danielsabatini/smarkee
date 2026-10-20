@@ -177,7 +177,7 @@ O endereço da API vem do ambiente, do arquivo ou do padrão, sem opção de lin
 |---|---|---|
 | `create --name NOME` | `POST /v1/ipm/organizations`, com `Idempotency-Key` gerada por pedido | `202`: o `resourceId` e o `operationId`; com `--wait`, espera `Ready` e mostra a Organization |
 | `update --resource-id ID --name NOVO` | `GET` (para ler a `resourceVersion`), depois `PATCH`; se o nome já é esse, não faz nada | `202`: o `operationId` (ou "nada a fazer", saída `0`); com `--wait`, espera `Ready` com o nome novo |
-| `protect` / `unprotect --resource-id ID` | `GET` (para ler a `resourceVersion`), depois `PATCH` com `deletionProtection`; se já está no estado pedido, não faz nada | `202`: o `operationId` (ou "nada a fazer", saída `0`); conclui na hora, e `--wait` mostra a Organization |
+| `protect` / `unprotect --resource-id ID` | `GET` (para ler a `resourceVersion`), depois `PATCH` com `deletionProtection`; se já está no estado pedido, não faz nada | `202`: o `operationId` (ou "nada a fazer", saída `0`); com `--wait`, espera a Operation `completed` (a observação da nova geração, decisão 0072) e mostra a Organization |
 | `delete --resource-id ID` | `GET` (para ler a `resourceVersion`), depois `DELETE`; a Organization nasce protegida e o `409 DeletionProtected` pede o `unprotect` antes (decisão 0043) | `202`: o `operationId`; com `--wait`, espera a Operation `completed` e a Organization sumir (`state removed`) |
 | `get --resource-id ID` | `GET` da Organization (e da Operation, se `--operation-id`) | `name`, `state` (`active`, `inactive` ou `unknown` enquanto não observada), `phase`, `platformAccess` e `protected` (`yes` ou `no`) |
 | `list` | `GET /v1/ipm/organizations`, seguindo o cursor | Uma linha por Organization do solicitante |

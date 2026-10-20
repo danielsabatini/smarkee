@@ -182,7 +182,7 @@ A lógica de negócio não deve ser concentrada em `main.py`.
 
 ## 5.1 Estrutura interna dos componentes
 
-A estrutura interna dos componentes (`domain/` puro e sem I/O, orquestração em `handlers/` ou `engine/`, adaptadores em `store/`, `provider/`, `transport/`, `http/` e `outbox/`, e `main.py`) e a regra de dependência (`main → orquestração → domain`, o `domain` sem importar adaptador) estão em `.decisions/0017-estrutura-interna-dos-componentes-e-relay-no-manager.md`; não as repita aqui. Em Python:
+A estrutura interna dos componentes (`domain/` puro e sem I/O, orquestração em `handlers/` ou `engine/`, adaptadores em `store/`, `provider/`, `transport/`, `http/` e `outbox/`, e `main.py`) e a regra de dependência (`main → orquestração → domain`, o `domain` sem importar adaptador) estão em `.decisions/0017-estrutura-interna-dos-componentes-e-relay-no-manager.md`, e a divisão `provider/` (conexão) e `drivers/` (um por sub-recurso, espelhados entre Executor e Observer) em `.decisions/0073-drivers-espelhados-no-executor-e-no-observer.md`; não as repita aqui. Em Python:
 
 - o `domain/` não importa `psycopg`, `nats`, `httpx`, `fastapi` nem módulos de adaptadores; cada projeto tem um teste que falha se isso acontecer;
 - as portas (contratos entre orquestração e adaptadores) são `Protocol` definidos junto de quem as usa;

@@ -19,7 +19,7 @@ from ipm_organization.common.contracts.envelope import EnvelopeError, read_envel
 from ipm_organization.common.ids import new_identifier, utc_now
 from ipm_organization.common.ports import Publisher
 from ipm_organization.common.resource import MODULE, RESOURCE_TYPE, SCHEMA_VERSION
-from ipm_organization.executor.actions.organization_actions import Writer, execute
+from ipm_organization.executor.actions.organization_actions import Drivers, execute
 from ipm_organization.executor.domain.errors import ActionFailedError
 from ipm_organization.executor.domain.identity import ProviderError
 from ipm_organization.executor.domain.revalidation import revalidate
@@ -52,14 +52,14 @@ class Disposition(StrEnum):
 class Executor:
     def __init__(
         self,
-        writer: Writer,
+        drivers: Drivers,
         publisher: Publisher,
         state: StateReader,
         *,
         clock: Callable[[], datetime] = utc_now,
         identifiers: Callable[[], str] = new_identifier,
     ) -> None:
-        self._writer = writer
+        self._drivers = drivers
         self._publisher = publisher
         self._state = state
         self._clock = clock
@@ -84,7 +84,7 @@ class Executor:
         if failure is None and desired is not None:
             data_: Mapping[str, Any] = desired.get("data") or {}
             try:
-                await execute(operation, resource_id, data_, self._writer)
+                await execute(operation, resource_id, data_, self._drivers)
             except ActionFailedError as error:
                 failure = error
             except ProviderError as error:

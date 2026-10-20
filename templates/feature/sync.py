@@ -40,6 +40,8 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "receiver-http": ("core/account", "ipm/organization"),  # publicação do `requested` e probes
     # Envelope, publicação e persistência de `observed` e do resultado, sem regra do tipo.
     "manager-handlers": ("core/account", "ipm/organization"),
+    # Driver de metadado do provedor de identidade, escrita (Executor) e leitura (Observer).
+    "identity-metadata": ("core/account", "ipm/organization"),
 }
 
 

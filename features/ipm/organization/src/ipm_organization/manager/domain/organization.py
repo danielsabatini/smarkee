@@ -137,12 +137,6 @@ class OrganizationPolicy:
     def deletion_protected(self, current: Mapping[str, Any]) -> bool:
         return current.get("deletionProtection", True) is not False
 
-    def managed_changed(self, current: Mapping[str, Any], desired: Mapping[str, Any]) -> bool:
-        # Campos gerenciados no Zitadel: `lifecycle`, `name` e `platformAccess`.
-        return any(
-            current.get(key) != desired.get(key) for key in ("lifecycle", "name", "platformAccess")
-        )
-
     def message_data(self, desired: Mapping[str, Any], reconciliation: str) -> dict[str, Any]:
         model = generated.OrganizationDesiredData.model_validate(
             {**desired, "reconciliation": reconciliation}
@@ -152,9 +146,9 @@ class OrganizationPolicy:
     def is_converged(
         self, desired: Mapping[str, Any], presence: str, observed: Mapping[str, Any] | None
     ) -> bool:
-        # Campos gerenciados da Organization: `lifecycle`, `name` e `platformAccess`
-        # (schemas/ipm/organization/desired). `ownerAccountId` e `deletionProtection` não são
-        # gerenciados: não existem no Zitadel.
+        # Campos gerenciados da Organization: `lifecycle`, `name`, `platformAccess` e
+        # `deletionProtection`, este pelo metadado (schemas/ipm/organization/desired; decisão 0074).
+        # `ownerAccountId` não é gerenciado: não existe no Zitadel.
         if desired["lifecycle"] == "absent":
             return presence == "absent"
         return (
@@ -162,4 +156,5 @@ class OrganizationPolicy:
             and observed is not None
             and observed.get("name") == desired["name"]
             and observed.get("platformAccess") == desired["platformAccess"]
+            and observed.get("deletionProtection") == self.deletion_protected(desired)
         )

@@ -9,8 +9,12 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from core_account.executor.actions.account_actions import Drivers
 from core_account.executor.domain.identity import ProviderError
-from core_account.executor.provider.identity import IdentityWriter
+from core_account.executor.drivers.authorization import AuthorizationDriver
+from core_account.executor.drivers.metadata import MetadataDriver
+from core_account.executor.drivers.user import UserDriver
+from core_account.executor.provider.identity import IdentityConnection
 from core_account.executor.settings import IdentitySettings
 
 NOT_FOUND = {"code": 5, "message": "x (QUERY-Dfbg2)", "details": [{"id": "QUERY-Dfbg2"}]}
@@ -30,11 +34,21 @@ def key_file(tmp_path: Path) -> Path:
     return path
 
 
+def drivers(settings: IdentitySettings, client: httpx.AsyncClient) -> Drivers:
+    """Os drivers de escrita sobre uma conexão só, como no `main` do Executor."""
+    connection = IdentityConnection(settings, client)
+    return Drivers(
+        users=UserDriver(connection, settings),
+        authorizations=AuthorizationDriver(connection, settings),
+        metadata=MetadataDriver(connection, "users"),
+    )
+
+
 def writer(
     key_file: Path,
     handler: Callable[[httpx.Request], httpx.Response],
     calls: list[httpx.Request] | None = None,
-) -> IdentityWriter:
+) -> Drivers:
     def route(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/oauth/v2/token":
             return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
@@ -48,14 +62,16 @@ def writer(
         project_ids={"core": "proj-core", "sum": "proj-sum"},
         base_url="http://z",
     )
-    return IdentityWriter(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
+    return drivers(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
 
 
 async def test_create_user_has_no_password_and_uses_the_resource_id(key_file: Path) -> None:
     calls: list[httpx.Request] = []
     z = writer(key_file, lambda r: httpx.Response(201, json={"userId": "u-1"}), calls)
 
-    created = await z.create_user("u-1", given_name="Ana", family_name="Souza", email="a@x.com")
+    created = await z.users.create_user(
+        "u-1", given_name="Ana", family_name="Souza", email="a@x.com"
+    )
 
     assert created is True
     body = json.loads(calls[0].content)
@@ -68,7 +84,9 @@ async def test_create_user_has_no_password_and_uses_the_resource_id(key_file: Pa
 
 async def test_create_user_that_already_exists_is_reported_not_raised(key_file: Path) -> None:
     z = writer(key_file, lambda r: httpx.Response(400, json=ALREADY))
-    assert await z.create_user("u-1", given_name="A", family_name="B", email="a@x.com") is False
+    assert (
+        await z.users.create_user("u-1", given_name="A", family_name="B", email="a@x.com") is False
+    )
 
 
 @pytest.mark.parametrize(
@@ -88,7 +106,7 @@ async def test_errors_are_classified(
 ) -> None:
     z = writer(key_file, lambda r: httpx.Response(status, json={"code": 3, "details": []}))
     with pytest.raises(ProviderError) as raised:
-        await z.delete_user("u-1")
+        await z.users.delete_user("u-1")
     assert (raised.value.reason, raised.value.retryable) == (reason, retryable)
 
 
@@ -97,7 +115,7 @@ async def test_network_errors_are_retryable(key_file: Path) -> None:
         raise httpx.ReadTimeout("timeout")
 
     with pytest.raises(ProviderError) as raised:
-        await writer(key_file, boom).delete_user("u-1")
+        await writer(key_file, boom).users.delete_user("u-1")
     assert (raised.value.reason, raised.value.retryable) == ("ProviderUnavailable", True)
 
 
@@ -110,22 +128,23 @@ async def test_error_text_never_carries_the_identity_provider_message(key_file: 
         ),
     )
     with pytest.raises(ProviderError) as raised:
-        await z.create_user("u-1", given_name="A", family_name="B", email=secret)
+        await z.users.create_user("u-1", given_name="A", family_name="B", email=secret)
     assert secret not in str(raised.value)
 
 
 async def test_delete_user_missing_is_success_but_ambiguous_404_is_an_error(key_file: Path) -> None:
-    await writer(key_file, lambda r: httpx.Response(404, json=NOT_FOUND)).delete_user("u-1")
+    await writer(key_file, lambda r: httpx.Response(404, json=NOT_FOUND)).users.delete_user("u-1")
     with pytest.raises(ProviderError):
-        await writer(key_file, lambda r: httpx.Response(404, text="nginx")).delete_user("u-1")
+        await writer(key_file, lambda r: httpx.Response(404, text="nginx")).users.delete_user("u-1")
 
 
 async def test_get_user_reads_the_email(key_file: Path) -> None:
     body = {"user": {"human": {"email": {"email": "a@x.com"}}}}
-    user = await writer(key_file, lambda r: httpx.Response(200, json=body)).get_user("u-1")
+    user = await writer(key_file, lambda r: httpx.Response(200, json=body)).users.get_user("u-1")
     assert user is not None and user.email == "a@x.com"
     assert (
-        await writer(key_file, lambda r: httpx.Response(404, json=NOT_FOUND)).get_user("u") is None
+        await writer(key_file, lambda r: httpx.Response(404, json=NOT_FOUND)).users.get_user("u")
+        is None
     )
 
 
@@ -153,13 +172,13 @@ async def test_grants_and_their_mutations_use_the_v2_authorization_service(
         return httpx.Response(200, json={})
 
     z = writer(key_file, handler, calls)
-    grants = await z.grants("u-1")
+    grants = await z.authorizations.grants("u-1")
     assert [(g.grant_id, g.project_id, set(g.roles)) for g in grants] == [
         ("g-1", "proj-core", {"core.account.get"})
     ]
-    await z.create_grant("u-1", "proj-core", ["a", "b"])
-    await z.update_grant("g-1", ["a"])
-    await z.remove_grant("g-1")
+    await z.authorizations.create_grant("u-1", "proj-core", ["a", "b"])
+    await z.authorizations.update_grant("g-1", ["a"])
+    await z.authorizations.remove_grant("g-1")
 
     service = "/zitadel.authorization.v2.AuthorizationService"
     assert [(c.method, c.url.path) for c in calls] == [
@@ -187,11 +206,11 @@ async def test_grants_and_their_mutations_use_the_v2_authorization_service(
 
 async def test_the_project_of_a_role_comes_from_its_module(key_file: Path) -> None:
     z = writer(key_file, lambda r: httpx.Response(200, json={}))
-    assert z.project_of("core.account.get") == "proj-core"
-    assert z.project_of("sum.ipm.enable") == "proj-sum"
+    assert z.authorizations.project_of("core.account.get") == "proj-core"
+    assert z.authorizations.project_of("sum.ipm.enable") == "proj-sum"
     # `ipm` não está em `project_ids`: o Executor da Account não concede roles dele (decisão 0032).
     with pytest.raises(ProviderError) as raised:
-        z.project_of("ipm.organization.get")
+        z.authorizations.project_of("ipm.organization.get")
     assert (raised.value.reason, raised.value.retryable) == ("Rejected", False)
 
 
@@ -202,18 +221,20 @@ async def test_creating_an_existing_authorization_is_success_and_other_errors_ar
         "code": "already_exists",
         "details": [{"debug": {"id": "V3-DKcYh"}, "id": "V3-DKcYh"}],
     }
-    await writer(key_file, lambda r: httpx.Response(409, json=exists)).create_grant(
+    await writer(key_file, lambda r: httpx.Response(409, json=exists)).authorizations.create_grant(
         "u-1", "proj-core", ["a"]
     )
     with pytest.raises(ProviderError):
-        await writer(key_file, lambda r: httpx.Response(403, json={})).create_grant(
+        await writer(key_file, lambda r: httpx.Response(403, json={})).authorizations.create_grant(
             "u-1", "proj-core", ["a"]
         )
 
 
 async def test_removing_a_missing_authorization_is_success(key_file: Path) -> None:
     missing = {"code": "not_found", "message": "x", "details": [{"id": "COMMAND-3M9sd"}]}
-    await writer(key_file, lambda r: httpx.Response(404, json=missing)).remove_grant("g-1")
+    await writer(key_file, lambda r: httpx.Response(404, json=missing)).authorizations.remove_grant(
+        "g-1"
+    )
 
 
 async def test_token_is_cached_and_a_missing_key_is_unauthorized(
@@ -228,15 +249,15 @@ async def test_token_is_cached_and_a_missing_key_is_unauthorized(
         return httpx.Response(200, json={})
 
     settings = IdentitySettings(key_file=str(key_file), base_url="http://z")
-    z = IdentityWriter(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
-    await z.delete_user("u-1")
-    await z.delete_user("u-2")
+    z = drivers(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
+    await z.users.delete_user("u-1")
+    await z.users.delete_user("u-2")
     assert len(tokens) == 1
 
-    broken = IdentityWriter(
+    broken = drivers(
         IdentitySettings(key_file=str(tmp_path / "x.json")),
         httpx.AsyncClient(transport=httpx.MockTransport(route)),
     )
     with pytest.raises(ProviderError) as raised:
-        await broken.delete_user("u-1")
+        await broken.users.delete_user("u-1")
     assert (raised.value.reason, raised.value.retryable) == ("Unauthorized", False)

@@ -126,8 +126,8 @@ Cada papel é um subpacote com `main.py`, `settings.py` e `domain/` puro e sem I
 | Manager | `domain/`, `handlers/`, `store/`, `transport/` | [`manager`](src/sum_service/manager/README.md) |
 | Publisher | `domain/`, `outbox/` | [`publisher`](src/sum_service/publisher/README.md) |
 | Reconciler | `domain/`, `engine/`, `transport/` | [`reconciler`](src/sum_service/reconciler/README.md) |
-| Observer | `domain/`, `engine/`, `provider/`, `transport/` | [`observer`](src/sum_service/observer/README.md) |
-| Executor | `actions/`, `domain/`, `engine/`, `provider/`, `transport/` | [`executor`](src/sum_service/executor/README.md) |
+| Observer | `domain/`, `drivers/` (leitura: `user`, `authorization`), `engine/`, `provider/` (conexão só de leitura), `transport/` | [`observer`](src/sum_service/observer/README.md) |
+| Executor | `actions/`, `domain/`, `drivers/` (escrita: `authorization`), `engine/`, `provider/` (conexão de escrita), `transport/` | [`executor`](src/sum_service/executor/README.md) |
 
 A saúde (`/health/*`) é de `common/http/health.py`, igual em todos os papéis.
 

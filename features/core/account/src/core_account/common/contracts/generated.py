@@ -213,6 +213,18 @@ class UpdatedData(ContractModel):
     """
     Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
     """
+    desired_generation: Annotated[
+        int | None, Field(alias="desiredGeneration", ge=1, le=9007199254740991)
+    ] = None
+    """
+    Geração do desired vigente no SSOT quando o updated foi gravado.
+    """
+    observed_generation: Annotated[
+        int | None, Field(alias="observedGeneration", ge=1, le=9007199254740991)
+    ] = None
+    """
+    Última geração cuja convergência o Manager confirmou com uma observação feita depois dela (semântica do status.observedGeneration do Kubernetes). Nunca maior que desiredGeneration; igual a ela, com phase Ready, a última alteração terminou. Ausente enquanto nenhuma geração foi confirmada.
+    """
     removed: bool | None = None
     """
     true quando o recurso foi removido do SSOT (remoção convergida).
@@ -720,6 +732,10 @@ class AccountObservedData(ContractModel):
     ] = None
     """
     Roles de ação que o usuário tem hoje no projeto da plataforma, lidas do provedor de identidade. platformAccess é granted quando há ao menos uma.
+    """
+    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
+    """
+    Proteção contra exclusão lida do metadado `deletionProtection` do provedor de identidade (decisão 0074). Ausente quando o metadado não existe ou tem valor que não é true nem false: o Reconciler trata como divergência e o Executor o regrava.
     """
 
 

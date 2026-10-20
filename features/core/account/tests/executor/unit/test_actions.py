@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from core_account.executor.actions.account_actions import execute
+from core_account.executor.actions.account_actions import Drivers, execute
 from core_account.executor.domain.errors import ActionFailedError
 from core_account.executor.domain.identity import Grant, IdentityUser, ProviderError
 
@@ -81,13 +81,26 @@ class FakeWriter:
             self.grants_by_user[user_id] = [g for g in grants if g.grant_id != grant_id]
 
 
+@dataclass
+class FakeMetadata:
+    values: dict[tuple[str, str], str] = field(default_factory=lambda: {})
+
+    async def set_value(self, owner_id: str, key: str, value: str) -> None:
+        self.values[(owner_id, key)] = value
+
+
+def both(fake: FakeWriter, metadata: FakeMetadata | None = None) -> Drivers:
+    """O mesmo fake atende aos dois drivers (usuário e autorização); o metadado é à parte."""
+    return Drivers(users=fake, authorizations=fake, metadata=metadata or FakeMetadata())
+
+
 def names(writer: FakeWriter) -> list[str]:
     return [str(call[0]) for call in writer.calls]
 
 
 async def test_create_makes_the_user_without_password_and_grants_roles() -> None:
     writer = FakeWriter()
-    await execute("create", "u-1", DESIRED, writer)
+    await execute("create", "u-1", DESIRED, both(writer))
     assert names(writer) == ["create_user", "create_grant", "create_grant"]
     # Uma autorização por projeto: cada role vai para o projeto do seu módulo.
     assert ("create_grant", "p-core", ["core.account.delete", "core.account.get"]) in writer.calls
@@ -96,20 +109,20 @@ async def test_create_makes_the_user_without_password_and_grants_roles() -> None
 
 async def test_create_repeated_after_success_is_idempotent() -> None:
     writer = FakeWriter()
-    await execute("create", "u-1", DESIRED, writer)
+    await execute("create", "u-1", DESIRED, both(writer))
     writer.users["u-1"] = IdentityUser("Ana@Example.com")
     writer.calls.clear()
 
-    await execute("create", "u-1", DESIRED, writer)
+    await execute("create", "u-1", DESIRED, both(writer))
 
     assert names(writer) == ["create_user"]  # o usuário já tem senha e as roles
 
 
 async def test_a_retry_before_activation_sends_no_second_email_and_keeps_the_grants() -> None:
     writer = FakeWriter()
-    await execute("create", "u-1", DESIRED, writer)
+    await execute("create", "u-1", DESIRED, both(writer))
     writer.calls.clear()
-    await execute("create", "u-1", DESIRED, writer)
+    await execute("create", "u-1", DESIRED, both(writer))
     # O e-mail de verificação saiu na criação; repetir o `create` não manda outro.
     assert names(writer) == ["create_user"]  # a autorização já existe
 
@@ -117,17 +130,17 @@ async def test_a_retry_before_activation_sends_no_second_email_and_keeps_the_gra
 async def test_a_retry_after_a_partial_failure_completes_the_missing_steps() -> None:
     writer = FakeWriter(fail_on="grants")
     with pytest.raises(ProviderError):
-        await execute("create", "u-1", DESIRED, writer)
+        await execute("create", "u-1", DESIRED, both(writer))
     assert "u-1" in writer.users  # o usuário já foi criado
     writer.fail_on = None
-    await execute("create", "u-1", DESIRED, writer)
+    await execute("create", "u-1", DESIRED, both(writer))
     assert {r for g in writer.grants_by_user["u-1"] for r in g.roles} == ROLES
 
 
 async def test_email_in_use_by_another_user_is_a_permanent_rejection() -> None:
     writer = FakeWriter(taken_emails={"ana@example.com"})
     with pytest.raises(ActionFailedError) as raised:
-        await execute("create", "u-1", DESIRED, writer)
+        await execute("create", "u-1", DESIRED, both(writer))
     assert (raised.value.reason, raised.value.retryable) == ("Rejected", False)
     assert names(writer) == ["create_user"]  # recusado: nada é concedido
 
@@ -135,7 +148,7 @@ async def test_email_in_use_by_another_user_is_a_permanent_rejection() -> None:
 async def test_user_id_in_use_by_another_email_is_a_permanent_rejection() -> None:
     writer = FakeWriter(users={"u-1": IdentityUser("outra@example.com")})
     with pytest.raises(ActionFailedError) as raised:
-        await execute("create", "u-1", DESIRED, writer)
+        await execute("create", "u-1", DESIRED, both(writer))
     assert raised.value.retryable is False
 
 
@@ -144,7 +157,7 @@ async def test_create_without_the_user_data_is_rejected_and_calls_nothing(missin
     writer = FakeWriter()
     desired = {key: value for key, value in DESIRED.items() if key != missing}
     with pytest.raises(ActionFailedError):
-        await execute("create", "u-1", desired, writer)
+        await execute("create", "u-1", desired, both(writer))
     assert writer.calls == []
 
 
@@ -155,7 +168,7 @@ async def test_a_partial_grant_is_completed_keeping_the_extra_roles() -> None:
             "u-1": [Grant("g-1", "p-core", frozenset({"core.account.get", "core.account.admin"}))]
         },
     )
-    await execute("update", "u-1", DESIRED, writer)
+    await execute("update", "u-1", DESIRED, both(writer))
     roles_by_project = {g.project_id: g.roles for g in writer.grants_by_user["u-1"]}
     assert roles_by_project["p-core"] == {
         "core.account.get",
@@ -176,39 +189,39 @@ async def test_update_revoked_removes_the_grants() -> None:
             ]
         },
     )
-    await execute("update", "u-1", {**DESIRED, "platformAccess": "revoked"}, writer)
+    await execute("update", "u-1", {**DESIRED, "platformAccess": "revoked"}, both(writer))
     assert names(writer) == ["remove_grant", "remove_grant"]
 
 
 async def test_update_of_a_missing_user_is_a_permanent_rejection() -> None:
     with pytest.raises(ActionFailedError):
-        await execute("update", "u-1", DESIRED, FakeWriter())
+        await execute("update", "u-1", DESIRED, both(FakeWriter()))
 
 
 async def test_delete_is_idempotent() -> None:
     writer = FakeWriter(users={"u-1": IdentityUser("a@x.com")})
-    await execute("delete", "u-1", {"lifecycle": "absent"}, writer)
-    await execute("delete", "u-1", {"lifecycle": "absent"}, writer)
+    await execute("delete", "u-1", {"lifecycle": "absent"}, both(writer))
+    await execute("delete", "u-1", {"lifecycle": "absent"}, both(writer))
     assert names(writer) == ["delete_user", "delete_user"]
 
 
 async def test_an_unknown_operation_is_rejected() -> None:
     with pytest.raises(ActionFailedError):
-        await execute("noop", "u-1", DESIRED, FakeWriter())
+        await execute("noop", "u-1", DESIRED, both(FakeWriter()))
 
 
 async def test_create_without_platform_roles_is_rejected_without_touching_the_provider() -> None:
     writer = FakeWriter()
     desired = {key: value for key, value in DESIRED.items() if key != "platformRoles"}
     with pytest.raises(ActionFailedError) as error:
-        await execute("create", "u-1", desired, writer)
+        await execute("create", "u-1", desired, both(writer))
     assert error.value.retryable is False
     assert writer.calls == []
 
 
 async def test_roles_come_only_from_the_desired_platform_roles() -> None:
     writer = FakeWriter()
-    await execute("create", "u-1", {**DESIRED, "platformRoles": ["core.account.get"]}, writer)
+    await execute("create", "u-1", {**DESIRED, "platformRoles": ["core.account.get"]}, both(writer))
     assert ("create_grant", "p-core", ["core.account.get"]) in writer.calls
 
 
@@ -217,7 +230,18 @@ async def test_a_role_of_a_module_without_a_roles_project_is_rejected_before_any
     writer = FakeWriter()
     with pytest.raises(ProviderError) as raised:
         await execute(
-            "create", "u-1", {**DESIRED, "platformRoles": ["ipm.organization.get"]}, writer
+            "create", "u-1", {**DESIRED, "platformRoles": ["ipm.organization.get"]}, both(writer)
         )
     assert (raised.value.reason, raised.value.retryable) == ("Rejected", False)
     assert "create_grant" not in names(writer)
+
+
+async def test_create_and_update_write_the_deletion_protection_as_metadata() -> None:
+    """A proteção é campo gerenciado: vai para o metadado do usuário (decisão 0074)."""
+    writer, metadata = FakeWriter(), FakeMetadata()
+    await execute("create", "u-1", DESIRED, both(writer, metadata))
+    assert metadata.values == {("u-1", "deletionProtection"): "true"}
+
+    unprotected = {**DESIRED, "deletionProtection": False}
+    await execute("update", "u-1", unprotected, both(writer, metadata))
+    assert metadata.values == {("u-1", "deletionProtection"): "false"}

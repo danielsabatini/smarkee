@@ -1,58 +1,33 @@
-"""Cliente de escrita do Zitadel para o Executor de `sum.service` (decisões 0032 e 0033).
+"""Conexão de escrita com o Zitadel para o Executor de `sum.service` (decisões 0032 e 0033).
 
-Autentica com a conta de serviço `sum-service-executor` por assertion JWT. Seu papel é
-`PROJECT_GRANT_OWNER` só no Project Grant de `roles-ipm` (decisão 0032). O Zitadel nega
-qualquer outra concessão: um Executor comprometido não concede roles de outro módulo, nem cria
-usuário.
-
-Cada operação é idempotente: repetir uma concessão já feita é sucesso, e revogar algo que não
-existe também. Erros viram `ProviderError`, com a causa e se a decisão pode ser tentada de novo.
-Nenhum dado pessoal entra em mensagens de erro.
+Só o transporte autenticado: a conta de serviço `sum-service-executor` por assertion JWT, a chamada
+HTTP e a classificação dos erros. Seu papel é `PROJECT_GRANT_OWNER` só no Project Grant de
+`roles-ipm` (decisão 0032): o Zitadel nega qualquer outra concessão, e um Executor comprometido não
+concede roles de outro módulo nem cria usuário. Não conhece recurso: as operações ficam em
+`executor/drivers/`.
+Erros viram `ProviderError`, com a causa e se a decisão pode ser tentada de novo. Nenhum dado
+pessoal entra em mensagens de erro.
 """
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any, cast
 
 import httpx
 
 from sum_service.common.identity import ServiceAccountToken, TokenError
+from sum_service.executor.domain.identity import ProviderError
 from sum_service.executor.settings import IdentitySettings
 
-AUTHORIZATION_SERVICE = "/zitadel.authorization.v2.AuthorizationService"
 NOT_FOUND_CODE = 5
 HTTP_BAD_REQUEST = 400
 HTTP_UNAUTHORIZED = 401
 HTTP_FORBIDDEN = 403
 HTTP_TOO_MANY_REQUESTS = 429
 HTTP_SERVER_ERROR = 500
-ALREADY_EXISTING_AUTHORIZATION_ID = "V3-DKcYh"  # autorização já existe (Zitadel v4.19.4)
 
 
-class ProviderError(Exception):
-    """A chamada ao Zitadel falhou. `reason` e `retryable` seguem o contrato `failed`."""
-
-    def __init__(self, reason: str, *, retryable: bool, detail: str = "") -> None:
-        super().__init__(f"{reason}: {detail}" if detail else reason)
-        self.reason = reason
-        self.retryable = retryable
-
-
-@dataclass(frozen=True, slots=True)
-class Grant:
-    """Autorização do usuário num projeto de roles (uma por projeto)."""
-
-    grant_id: str
-    project_id: str
-    roles: frozenset[str]
-
-
-def module_of(role: str) -> str:
-    return role.split(".", 1)[0]
-
-
-class IdentityGranter:
+class IdentityConnection:
     def __init__(
         self,
         settings: IdentitySettings,
@@ -64,76 +39,7 @@ class IdentityGranter:
         self._client = client
         self._token_source = ServiceAccountToken(settings, client, clock=clock)
 
-    def project_of(self, role: str) -> str:
-        """Projeto de roles do módulo da role. Módulo sem projeto configurado: recusa explícita."""
-        project_id = self._settings.project_ids.get(module_of(role))
-        if project_id is None:
-            raise ProviderError(
-                "Rejected", retryable=False, detail=f"no roles project for module {module_of(role)}"
-            )
-        return project_id
-
-    async def grants(self, user_id: str) -> list[Grant]:
-        """Autorizações do usuário nos projetos configurados, na organização `register`."""
-        response = await self._call(
-            "POST",
-            f"{AUTHORIZATION_SERVICE}/ListAuthorizations",
-            {
-                "filters": [
-                    {"inUserIds": {"ids": [user_id]}},
-                    {"organizationId": {"id": self._settings.register_organization_id}},
-                ]
-            },
-        )
-        configured = set(self._settings.project_ids.values())
-        items = cast("list[dict[str, Any]]", response.get("authorizations") or [])
-        return [
-            Grant(
-                grant_id=str(item["id"]),
-                project_id=str(cast("dict[str, Any]", item["project"])["id"]),
-                roles=frozenset(
-                    str(cast("dict[str, Any]", role)["key"])
-                    for role in cast("list[Any]", item.get("roles") or [])
-                ),
-            )
-            for item in items
-            if str(cast("dict[str, Any]", item["project"])["id"]) in configured
-        ]
-
-    async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None:
-        try:
-            await self._call(
-                "POST",
-                f"{AUTHORIZATION_SERVICE}/CreateAuthorization",
-                {
-                    "userId": user_id,
-                    "projectId": project_id,
-                    "organizationId": self._settings.register_organization_id,
-                    "roleKeys": roles,
-                },
-            )
-        except ProviderError as error:
-            if error.reason == "Rejected" and ALREADY_EXISTING_AUTHORIZATION_ID in str(error):
-                return
-            raise
-
-    async def update_grant(self, grant_id: str, roles: list[str]) -> None:
-        """Substitui a lista de roles da autorização."""
-        await self._call(
-            "POST",
-            f"{AUTHORIZATION_SERVICE}/UpdateAuthorization",
-            {"id": grant_id, "roleKeys": roles},
-        )
-
-    async def remove_grant(self, grant_id: str) -> None:
-        await self._call(
-            "POST",
-            f"{AUTHORIZATION_SERVICE}/DeleteAuthorization",
-            {"id": grant_id},
-            accept_not_found=True,
-        )
-
-    async def _call(
+    async def call(
         self,
         method: str,
         path: str,
@@ -162,7 +68,7 @@ class IdentityGranter:
             raise ProviderError(
                 _reason(status), retryable=_retryable(status), detail=detail or f"HTTP {status}"
             )
-        return self._json(response)
+        return self.json(response)
 
     @staticmethod
     def _error_id(response: httpx.Response) -> str:
@@ -194,7 +100,7 @@ class IdentityGranter:
         )
 
     @staticmethod
-    def _json(response: httpx.Response) -> dict[str, Any]:
+    def json(response: httpx.Response) -> dict[str, Any]:
         try:
             document = response.json()
         except ValueError:

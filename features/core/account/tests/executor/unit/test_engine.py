@@ -9,6 +9,7 @@ import pytest
 
 from core_account.common.contracts import generated
 from core_account.common.ports import PublishError
+from core_account.executor.actions.account_actions import Drivers
 from core_account.executor.domain.errors import ActionFailedError
 from core_account.executor.domain.identity import Grant, IdentityUser, ProviderError
 from core_account.executor.engine.executor import Disposition, Executor
@@ -123,8 +124,19 @@ def action(
     return json.dumps(message).encode()
 
 
+class FakeMetadata:
+    async def set_value(self, owner_id: str, key: str, value: str) -> None:
+        return None
+
+
 def build(writer: FakeWriter, state: FakeState, publisher: FakePublisher) -> Executor:
-    return Executor(writer, publisher, state, clock=lambda: NOW, identifiers=lambda: "msg-1")
+    return Executor(
+        Drivers(users=writer, authorizations=writer, metadata=FakeMetadata()),
+        publisher,
+        state,
+        clock=lambda: NOW,
+        identifiers=lambda: "msg-1",
+    )
 
 
 async def test_a_valid_create_executes_and_publishes_a_valid_completed() -> None:

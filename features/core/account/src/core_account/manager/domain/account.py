@@ -130,13 +130,6 @@ class AccountPolicy:
     def deletion_protected(self, current: Mapping[str, Any]) -> bool:
         return current.get("deletionProtection", True) is not False
 
-    def managed_changed(self, current: Mapping[str, Any], desired: Mapping[str, Any]) -> bool:
-        # Campos gerenciados no Zitadel: `lifecycle`, `platformAccess` e `platformRoles`.
-        return any(
-            current.get(key) != desired.get(key)
-            for key in ("lifecycle", "platformAccess", "platformRoles")
-        )
-
     def message_data(self, desired: Mapping[str, Any], reconciliation: str) -> dict[str, Any]:
         model = generated.AccountDesiredData.model_validate(
             {**desired, "reconciliation": reconciliation}
@@ -146,9 +139,9 @@ class AccountPolicy:
     def is_converged(
         self, desired: Mapping[str, Any], presence: str, observed: Mapping[str, Any] | None
     ) -> bool:
-        # Campos gerenciados da Account: `lifecycle`, `platformAccess` e `platformRoles`
-        # (schemas/core/account/desired). As roles desejadas precisam estar contidas nas observadas:
-        # roles a mais no provedor não geram divergência.
+        # Campos gerenciados da Account: `lifecycle`, `platformAccess`, `platformRoles` e
+        # `deletionProtection`, este pelo metadado (schemas/core/account/desired; decisão 0074). As
+        # roles desejadas precisam estar contidas nas observadas: roles a mais não divergem.
         if desired["lifecycle"] == "absent":
             return presence == "absent"
         return (
@@ -156,4 +149,5 @@ class AccountPolicy:
             and observed is not None
             and observed.get("platformAccess") == desired["platformAccess"]
             and set(desired["platformRoles"]) <= set(observed.get("platformRoles", ()))
+            and observed.get("deletionProtection") == self.deletion_protected(desired)
         )

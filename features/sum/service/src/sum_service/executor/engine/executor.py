@@ -19,10 +19,10 @@ from sum_service.common.ids import new_identifier, utc_now
 from sum_service.common.ports import Publisher, PublishError
 from sum_service.common.resource import MODULE, RESOURCE_TYPE, SCHEMA_VERSION
 from sum_service.common.service_rules import roles_of
-from sum_service.executor.actions.service_roles import Granter, disable, enable
+from sum_service.executor.actions.service_roles import Drivers, disable, enable
 from sum_service.executor.domain.errors import ActionFailedError
+from sum_service.executor.domain.identity import ProviderError
 from sum_service.executor.domain.revalidation import revalidate
-from sum_service.executor.provider.identity import ProviderError
 
 PUBLISHED_BY = "sum-service-executor"
 
@@ -55,7 +55,7 @@ class TransientFailureError(Exception):
 class Executor:
     def __init__(
         self,
-        granter: Granter,
+        drivers: Drivers,
         state: StateReader,
         publisher: Publisher,
         catalog: Mapping[str, tuple[str, ...]],
@@ -63,7 +63,7 @@ class Executor:
         clock: Callable[[], Any] = utc_now,
         identifiers: Callable[[], str] = new_identifier,
     ) -> None:
-        self._granter = granter
+        self._drivers = drivers
         self._state = state
         self._publisher = publisher
         self._catalog = catalog
@@ -158,10 +158,10 @@ class Executor:
     async def _apply(self, resource_id: str, desired: dict[str, Any]) -> None:
         owner, service = desired["owner"], desired["service"]
         if desired["lifecycle"] == "present":
-            await enable(self._granter, owner, desired["roles"])
+            await enable(self._drivers.authorizations, owner, desired["roles"])
             return
         # Desligada: as roles são as do catálogo do serviço (a lista de `desired` vem vazia).
-        await disable(self._granter, owner, roles_of(self._catalog, service))
+        await disable(self._drivers.authorizations, owner, roles_of(self._catalog, service))
         logger.info("service roles revoked", extra={"smarkee.resource.id": resource_id})
 
     async def _publish_result(self, action: _Action, failure: ActionFailedError | None) -> None:

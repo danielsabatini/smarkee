@@ -52,7 +52,7 @@
       "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
       "x-writer": "client",
       "x-mutability": "mutable",
-      "x-managed": false,
+      "x-managed": true,
       "x-sensitivity": "internal"
     },
     "ownerAccountId": {

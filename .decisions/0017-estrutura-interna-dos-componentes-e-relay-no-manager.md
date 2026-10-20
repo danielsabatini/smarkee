@@ -36,8 +36,8 @@ Camadas por papel (não se cria pasta vazia ou sem sentido, `python.md` §3):
 | `manager` | `domain/`, `handlers/`, `store/`, `transport/`, `http/`, `main.py` |
 | `publisher` (decisão 0019) | `domain/` (tipos puros da publicação), `outbox/`, `transport/`, `http/`, `main.py` |
 | `reconciler` | `domain/` (a decisão), `engine/`, `transport/` |
-| `observer` | `domain/` (mapeamento do `observed`), `provider/` (leitura do provedor), `engine/`, `transport/` |
-| `executor` | `domain/` (revalidação), `provider/` (escrita no provedor), `actions/`, `engine/`, `transport/` |
+| `observer` | `domain/` (mapeamento do `observed`), `drivers/` (leitura, um por sub-recurso), `provider/` (conexão só de leitura), `engine/`, `transport/` (decisão 0073) |
+| `executor` | `domain/` (revalidação), `actions/` (compõem drivers), `drivers/` (escrita, um por sub-recurso), `provider/` (conexão de escrita), `engine/`, `transport/` (decisão 0073) |
 
 A regra é **verificável**: cada projeto tem um teste que falha se `domain/` importar um adaptador. Uma ferramenta de análise de imports só entra com decisão própria (`AGENTS.md` §21).
 

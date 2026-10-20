@@ -13,14 +13,26 @@ ROLES = ["ipm.organization.get", "core.account.get"]
 DESIRED_PRESENT = {"lifecycle": "present", "platformAccess": "granted", "platformRoles": ROLES}
 
 
-def observe(presence: str, *, desired: dict[str, Any], lifecycle: str, phase: str = "Pending"):
+def observe(
+    presence: str,
+    *,
+    desired: dict[str, Any],
+    lifecycle: str,
+    phase: str = "Pending",
+    observation_generation: int | None = 1,
+):
     return decide_observed(
         ACCOUNT.policy,
         desired=desired,
         lifecycle=lifecycle,
         generation=1,
+        observation_generation=observation_generation,
         presence=presence,
-        observed={"platformAccess": "granted", "platformRoles": [*ROLES, "core.account.admin"]},
+        observed={
+            "platformAccess": "granted",
+            "platformRoles": [*ROLES, "core.account.admin"],
+            "deletionProtection": True,
+        },
         previous_phase=phase,
         previous_conditions=[],
         now=NOW,
@@ -104,4 +116,32 @@ def test_already_suspended_does_not_suspend_again() -> None:
 def test_missing_a_desired_role_keeps_reconciling() -> None:
     desired = {**DESIRED_PRESENT, "platformRoles": [*ROLES, "ipm.organization.create"]}
     decision = observe("present", desired=desired, lifecycle="present")
+    assert not decision.converged and decision.phase == "Reconciling"
+
+
+def test_observation_older_than_the_generation_does_not_converge() -> None:
+    """Conteúdo igual não basta: a observação precisa ser posterior à geração (decisão 0072)."""
+    for observation_generation in (None,):
+        decision = observe(
+            "present",
+            desired=DESIRED_PRESENT,
+            lifecycle="present",
+            phase="Reconciling",
+            observation_generation=observation_generation,
+        )
+        assert not decision.converged and decision.phase == "Reconciling"
+
+
+def test_removal_needs_an_observation_of_the_removal_generation() -> None:
+    desired = {**DESIRED_PRESENT, "lifecycle": "absent"}
+    decision = observe(
+        "absent", desired=desired, lifecycle="absent", phase="Deleting", observation_generation=None
+    )
+    assert not decision.converged and not decision.remove
+
+
+def test_a_different_deletion_protection_keeps_reconciling() -> None:
+    """A proteção é campo gerenciado: o metadado do provedor precisa bater (decisão 0074)."""
+    unprotected = {**DESIRED_PRESENT, "deletionProtection": False}
+    decision = observe("present", desired=unprotected, lifecycle="present", phase="Reconciling")
     assert not decision.converged and decision.phase == "Reconciling"

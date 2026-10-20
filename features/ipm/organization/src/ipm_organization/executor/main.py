@@ -12,8 +12,11 @@ import httpx
 from ipm_organization.common.lifecycle import start_role
 from ipm_organization.common.messaging import StreamPublisher
 from ipm_organization.common.runtime import role_runtime
+from ipm_organization.executor.actions.organization_actions import Drivers
+from ipm_organization.executor.drivers.metadata import MetadataDriver
+from ipm_organization.executor.drivers.organization import OrganizationDriver
 from ipm_organization.executor.engine.executor import Executor
-from ipm_organization.executor.provider.identity import IdentityWriter
+from ipm_organization.executor.provider.identity import IdentityConnection
 from ipm_organization.executor.settings import OrganizationExecutorSettings, missing_required
 from ipm_organization.executor.transport.messaging import ActionConsumer, DirectStateReader
 
@@ -24,8 +27,12 @@ async def run(settings: OrganizationExecutorSettings) -> int:
     async with role_runtime(settings.messaging, name="ipm-organization-executor") as runtime:
         http = httpx.AsyncClient(timeout=settings.identity.timeout_seconds)
         runtime.close_after(http.aclose)
+        connection = IdentityConnection(settings.identity, http)
         executor = Executor(
-            IdentityWriter(settings.identity, http),
+            Drivers(
+                organizations=OrganizationDriver(connection),
+                metadata=MetadataDriver(connection, "organizations"),
+            ),
             StreamPublisher(runtime.stream),
             DirectStateReader(runtime.stream),
         )

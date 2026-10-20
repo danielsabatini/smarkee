@@ -1,5 +1,7 @@
 {
   "phase": "Ready",
   "lifecycle": "present",
-  "resourceVersion": "3"
+  "resourceVersion": "3",
+  "desiredGeneration": 2,
+  "observedGeneration": 2
 }

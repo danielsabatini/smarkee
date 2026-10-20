@@ -11,10 +11,24 @@ _STATE = {
 }
 
 
-class Reader(Protocol):
-    """Leitura do provedor de identidade (implementada por `IdentityReader`)."""
+class Organizations(Protocol):
+    """Driver de leitura da organização (`observer/drivers/organization.py`)."""
 
     async def get_organization(self, organization_id: str) -> IdentityOrganization | None: ...
+
+
+class Metadata(Protocol):
+    """Driver de leitura do metadado do provedor (`observer/drivers/metadata.py`)."""
+
+    async def get_value(self, owner_id: str, key: str) -> str | None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class Drivers:
+    """Os drivers de leitura que a observação usa: espelho dos drivers de escrita do Executor."""
+
+    organizations: Organizations
+    metadata: Metadata
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,7 +39,7 @@ class Observation:
     data: dict[str, Any]
 
 
-async def observe(reader: Reader, organization_id: str) -> Observation:
+async def observe(drivers: Drivers, organization_id: str) -> Observation:
     """Lê a organização. Qualquer falha de leitura é `unknown`, nunca `absent`.
 
     `platformAccess` é `granted` quando a organização está ativa e `revoked` quando está
@@ -33,11 +47,12 @@ async def observe(reader: Reader, organization_id: str) -> Observation:
     (`unknown`), e não um valor inventado. Quem compara com o `desired` é o Reconciler.
     """
     try:
-        organization = await reader.get_organization(organization_id)
+        organization = await drivers.organizations.get_organization(organization_id)
+        if organization is None:
+            return Observation("absent", {})
+        protection = await drivers.metadata.get_value(organization_id, DELETION_PROTECTION_KEY)
     except ProviderError:
         return Observation("unknown", {})
-    if organization is None:
-        return Observation("absent", {})
     state = _STATE.get(organization.state)
     if state is None:
         return Observation("unknown", {})
@@ -47,5 +62,20 @@ async def observe(reader: Reader, organization_id: str) -> Observation:
             "name": organization.name,
             "platformAccess": "granted" if state == "active" else "revoked",
             "organizationState": state,
+            **deletion_protection(protection),
         },
     )
+
+
+DELETION_PROTECTION_KEY = "deletionProtection"
+_PROTECTION = {"true": True, "false": False}
+
+
+def deletion_protection(value: str | None) -> dict[str, bool]:
+    """O campo `deletionProtection` do `observed`, a partir do metadado (decisão 0074).
+
+    Metadado ausente ou com outro valor fica fora do `observed`: o Reconciler o vê como divergência
+    e o Executor o regrava. Não se inventa um valor que o provedor não tem.
+    """
+    protected = _PROTECTION.get(value or "")
+    return {} if protected is None else {"deletionProtection": protected}

@@ -95,7 +95,7 @@ O consumer durável `ipm-organization-manager-requested` (pull, ACK explícito) 
 | atualizar ou remover | Organization inexistente ou já removida | recusa `not_found` |
 | atualizar ou remover | `resourceVersion` diferente da atual | recusa `conflict` |
 | remover | `deletionProtection` diferente de `false` (a Organization nasce protegida; registro sem o campo vale como protegido) | recusa `protected` (decisão 0043); antes dela, o Receiver já responde `409 DeletionProtected` |
-| atualizar | só `deletionProtection` mudou (campo da plataforma, sem o que reconciliar) | conclui na hora: Operation `completed`, nova geração, a fase não muda |
+| atualizar | só `deletionProtection` mudou (campo gerenciado, metadado `deletionProtection` da organização) | aceita como qualquer alteração (decisões 0072 e 0074): nova geração, fase `Reconciling`, Operation `accepted`; o Reconciler decide `update`, o Executor grava o metadado e a observação da nova geração conclui |
 | qualquer | senão | aceita: `desired` com a nova geração (`lifecycle absent` ao remover) |
 
 ### 2.2 Gravação (`store/ssot.py`, `handlers/requested.py`)
@@ -192,10 +192,13 @@ O Manager também consome `OBSERVED` e `RESULT` (`ipm-organization-manager-obser
 numa unidade atômica com a linha bloqueada:
 
 - **`observed`:** ignorado se mais antigo que o último aplicado (`observedAt`). `unknown` só atualiza `presence` e `observed_at`.
-  Senão grava `observed` e calcula a fase: `Ready` quando convergiu (`name` e `platformAccess` iguais aos do `desired`),
-  `Reconciling` quando não, e `Deleting` com `lifecycle absent`. Remoção convergida (`absent`) **apaga a linha** e publica
+  Senão grava `observed` e calcula a fase: `Ready` quando convergiu (`name`, `platformAccess` e `deletionProtection` iguais aos do `desired`, **e** a
+  observação traz a geração atual no `observedGeneration`, isto é, foi feita depois dela; decisão 0072), `Reconciling` quando
+  não, e `Deleting` com `lifecycle absent`. A geração confirmada vai para `observed_generation`. Remoção convergida (`absent`) **apaga a linha** e publica
   `updated` com `removed`.
 - **Operation:** `Reconciling` marca as pendentes até a geração atual como `in_progress`; `Ready` as conclui (`completed`).
+- **`updated`:** sai a cada `observed` e resultado aplicados, com `desiredGeneration` e `observedGeneration`. Iguais, com `phase`
+  `Ready`, a última alteração terminou.
 - **Resultado:** registrado uma vez por `actionId` (`ipm.organization_action_result`). Um `failed` marca a fase `Failed` da geração e
   soma `failure_count`; no limite (5) a `reconciliation` vira `suspended`, e o Reconciler para de decidir até um operador voltar
   para `active`.

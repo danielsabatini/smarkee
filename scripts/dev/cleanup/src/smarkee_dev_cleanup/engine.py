@@ -119,7 +119,7 @@ async def remove_through_the_loop(
         return False  # sem `Ready` o loop não remove com segurança: segue o caminho direto
     version = current[1]
     if kind.deletion_protected:
-        # A proteção conclui na hora e não gera `updated`: a versão nova vem do SSOT.
+        # A proteção percorre o loop (decisão 0072): espera a geração confirmada, no SSOT.
         await ports.bus.request_unprotection(kind, resource_id, version)
         unprotected = await _wait_unprotected(ports, kind, resource_id)
         if unprotected is None:

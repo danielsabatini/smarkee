@@ -21,7 +21,7 @@ from core_account.manager.store.tables import Tables
 
 _ROW_COLUMNS = (
     "resource_version, desired_generation, lifecycle, reconciliation, desired, phase,"
-    " conditions, failure_count, observed_at"
+    " conditions, failure_count, observed_at, observed_generation"
 )
 
 
@@ -82,8 +82,8 @@ class SsotStore:
         cursor = self._connection.cursor(row_factory=dict_row)
         await cursor.execute(
             sql.SQL(
-                "SELECT resource_version, desired_generation, lifecycle, reconciliation,"
-                " desired, phase FROM {table} WHERE resource_id = %s FOR UPDATE"
+                "SELECT resource_version, desired_generation, observed_generation, lifecycle,"
+                " reconciliation, desired, phase FROM {table} WHERE resource_id = %s FOR UPDATE"
             ).format(table=self._tables.resource),
             (resource_id,),
         )
@@ -192,16 +192,32 @@ class SsotStore:
         observed_at: Any,
         conditions: list[dict[str, Any]],
         phase: str,
+        observed_generation: int | None,
     ) -> int:
-        """Grava a observação e devolve o novo `resource_version`."""
+        """Grava a observação e devolve o novo `resource_version`.
+
+        `observed_generation` é a geração confirmada por esta observação, ou `None` se ela não
+        confirma nenhuma. A coluna só cresce (`GREATEST` ignora o nulo), e o banco recusa um valor
+        maior que `desired_generation`.
+        """
         cursor = self._connection.cursor(row_factory=dict_row)
         await cursor.execute(
             sql.SQL(
                 "UPDATE {table} SET observed = %s, presence = %s, observed_at = %s,"
-                " conditions = %s, phase = %s, resource_version = resource_version + 1,"
+                " conditions = %s, phase = %s,"
+                " observed_generation = GREATEST(observed_generation, %s),"
+                " resource_version = resource_version + 1,"
                 " updated_at = now() WHERE resource_id = %s RETURNING resource_version"
             ).format(table=self._tables.resource),
-            (Jsonb(observed), presence, observed_at, Jsonb(conditions), phase, resource_id),
+            (
+                Jsonb(observed),
+                presence,
+                observed_at,
+                Jsonb(conditions),
+                phase,
+                observed_generation,
+                resource_id,
+            ),
         )
         updated = await cursor.fetchone()
         assert updated is not None  # noqa: S101 (a linha está bloqueada)

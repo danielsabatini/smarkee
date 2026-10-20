@@ -122,5 +122,7 @@ class ResultHandler:
             lifecycle=row["lifecycle"],
             phase=decision.phase,
             resource_version=resource_version,
+            desired_generation=generation,
+            observed_generation=row["observed_generation"],
         )
         return Outcome(OutcomeKind.APPLIED)

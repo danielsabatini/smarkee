@@ -15,8 +15,12 @@ import httpx
 from core_account.common.lifecycle import start_role
 from core_account.common.messaging import StateConsumer, StreamPublisher, new_instance_name
 from core_account.common.runtime import role_runtime
+from core_account.observer.domain.observation import Drivers
+from core_account.observer.drivers.authorization import AuthorizationDriver
+from core_account.observer.drivers.metadata import MetadataDriver
+from core_account.observer.drivers.user import UserDriver
 from core_account.observer.engine.observer import Observer, periodic_observation
-from core_account.observer.provider.identity import IdentityReader
+from core_account.observer.provider.identity import IdentityConnection
 from core_account.observer.settings import AccountObserverSettings, missing_required
 from core_account.observer.transport.streams import STREAMS
 
@@ -27,8 +31,15 @@ async def run(settings: AccountObserverSettings) -> int:
     async with role_runtime(settings.messaging, name="core-account-observer") as runtime:
         http = httpx.AsyncClient(timeout=settings.identity.timeout_seconds)
         runtime.close_after(http.aclose)
+        connection = IdentityConnection(settings.identity, http)
         observer = Observer(
-            IdentityReader(settings.identity, http), StreamPublisher(runtime.stream), settings
+            Drivers(
+                users=UserDriver(connection),
+                authorizations=AuthorizationDriver(connection, settings.identity),
+                metadata=MetadataDriver(connection, "users"),
+            ),
+            StreamPublisher(runtime.stream),
+            settings,
         )
         instance = new_instance_name()
         for stream, subject, suffix in STREAMS:

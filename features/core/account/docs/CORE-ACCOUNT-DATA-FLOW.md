@@ -406,6 +406,7 @@ O Observer lê o Zitadel (conta somente leitura). Como o usuário ainda não exi
   "operation": "changed",
   "presence": "absent",
   "observedAt": "2026-10-09T14:00:02+00:00",
+  "observedGeneration": 1,
   "correlationId": "0199c8b3-0a1b-7c2d-8e3f-4a5b6c7d8e02",
   "occurredAt": "2026-10-09T14:00:02+00:00",
   "publishedAt": "2026-10-09T14:00:02+00:00",
@@ -413,23 +414,24 @@ O Observer lê o Zitadel (conta somente leitura). Como o usuário ainda não exi
 }
 ```
 
-Valores de `presence`: `present`, `absent` ou `unknown` (qualquer falha do Zitadel que não seja o 404 inequívoco é `unknown`, nunca `absent`).
+Valores de `presence`: `present`, `absent` ou `unknown` (qualquer falha do Zitadel que não seja o 404 inequívoco é `unknown`, nunca `absent`). `observedGeneration` é a geração que o Observer conhecia **antes** de ler o Zitadel (decisão 0072): só uma observação feita depois de uma geração pode confirmá-la.
 
-**Manager aplica o `observed`** (`handlers/observed.py`; uma transação): trava a linha, ignora a observação se `observed_at` gravado for igual ou mais recente, recalcula `phase` e `conditions` e grava.
+**Manager aplica o `observed`** (`handlers/observed.py`; uma transação): trava a linha, ignora a observação se `observed_at` gravado for igual ou mais recente, recalcula `phase` e `conditions` e grava. A geração atual só é **confirmada** quando o conteúdo converge **e** o `observedGeneration` da mensagem é igual a `desired_generation` (decisão 0072); então `observed_generation` recebe a geração.
 
 ```sql
 SELECT resource_version, desired_generation, lifecycle, reconciliation, desired, phase,
-       conditions, failure_count, observed_at
+       conditions, failure_count, observed_at, observed_generation
   FROM core.account WHERE resource_id = %s FOR UPDATE;
 
 UPDATE core.account
    SET observed = %s, presence = %s, observed_at = %s, conditions = %s, phase = %s,
+       observed_generation = GREATEST(observed_generation, %s),  -- a geração confirmada, ou nulo
        resource_version = resource_version + 1, updated_at = now()
  WHERE resource_id = %s
 RETURNING resource_version;
 ```
 
-Em seguida acerta as Operations da geração atual (`settle_operations`): as de geração **anterior** ainda abertas viram `failed`; as da atual viram `completed` se convergiu, senão `in_progress`:
+Em seguida acerta as Operations da geração atual (`settle_operations`): as de geração **anterior** ainda abertas viram `failed`; as da atual viram `completed` se a geração foi confirmada, senão `in_progress`:
 
 ```sql
 UPDATE core.account_operation SET operation_status = 'failed', updated_at = now(), completed_at = now()
@@ -591,7 +593,7 @@ Depois do `completed` o Observer observa o usuário de novo (`causationId` = `me
 | `platformAccess` | `granted` se o usuário tem ao menos uma role no projeto; senão `revoked` |
 | `platformRoles` | Roles que o usuário tem no projeto `roles`, em ordem alfabética (inclui roles a mais, como `core.account.admin` de um operador) |
 
-O Manager aplica pela mesma sequência da seção 6.1. **Convergência** da Account: `presence = present`, `observed.platformAccess == desired.platformAccess` **e** `desired.platformRoles ⊆ observed.platformRoles` (roles a mais não divergem; role faltando gera `update` com `reason = Drift`); `emailVerified` e `accountState` **não** entram na comparação. Convergiu, então:
+O Manager aplica pela mesma sequência da seção 6.1. **Convergência** da Account: `presence = present`, `observed.platformAccess == desired.platformAccess` **e** `desired.platformRoles ⊆ observed.platformRoles` (roles a mais não divergem; role faltando gera `update` com `reason = Drift`) **e** `observed.deletionProtection` igual à do `desired` (metadado do usuário, decisão 0074); `emailVerified` e `accountState` **não** entram na comparação. Convergiu, então:
 
 | Onde | Valor final |
 |---|---|
@@ -627,7 +629,9 @@ Subject: `manager.updated.core.account.<resourceId>.changed`. Contrato do `data`
   "data": {
     "phase": "Ready",
     "lifecycle": "present",
-    "resourceVersion": "4"
+    "resourceVersion": "4",
+    "desiredGeneration": 1,
+    "observedGeneration": 1
   }
 }
 ```
@@ -667,7 +671,7 @@ SELECT sequence, subject, published_at FROM core.account_outbox ORDER BY sequenc
 
 ## 8. Remoção: `DELETE /v1/core/accounts/{id}?resourceVersion=`
 
-**Proteção contra exclusão (decisão 0043).** A conta nasce com `desired.deletionProtection = true`. `PATCH /v1/core/accounts/{id}` (corpo `{resourceVersion, deletionProtection}`, role `core.account.delete`, só a própria conta ou `core.account.admin`) publica `requested` com `operation = update` e `specification = {deletionProtection}`; o Manager grava o novo `desired` com nova geração e conclui a Operation na hora (`completed`), sem voltar a `Reconciling`, porque o campo é da plataforma e não existe no provedor. O `DELETE` só segue com a proteção desligada.
+**Proteção contra exclusão (decisões 0043, 0072 e 0074).** A conta nasce com `desired.deletionProtection = true`. `PATCH /v1/core/accounts/{id}` (corpo `{resourceVersion, deletionProtection}`, role `core.account.delete`, só a própria conta ou `core.account.admin`) publica `requested` com `operation = update` e `specification = {deletionProtection}`. A alteração percorre o loop como qualquer outra: o Manager grava o novo `desired` com nova geração, fase `Reconciling` e Operation `accepted`; o Reconciler vê a divergência com o metadado `deletionProtection` do usuário e decide `update`; o Executor grava o metadado; o Observer observa a nova geração e o `observed` conclui a Operation (`completed`, fase `Ready`) e gera o `updated` com `desiredGeneration` e `observedGeneration` iguais. O `DELETE` só segue com a proteção desligada.
 
 Resumo dos dados (fluxo completo: [`08-remocao`](flow/08-remocao.mmd)). Exige token com a role `core.account.delete`; o dono ou `core.account.admin`. `resourceVersion` é obrigatório e deve ser o da última leitura (senão `409`). Aceita `Idempotency-Key` (o mesmo valor com outro conteúdo devolve `422`).
 

@@ -145,6 +145,7 @@ async def test_the_whole_loop_creates_updates_and_removes_the_organization(
         "name": name,
         "platformAccess": "granted",
         "organizationState": "active",
+        "deletionProtection": True,  # metadado no Zitadel (decisão 0074)
     }
     raw = await jetstream.get_last_msg(
         "RESULT", f"executor.completed.ipm.organization.{resource_id}.create"
@@ -199,6 +200,9 @@ async def test_the_whole_loop_creates_updates_and_removes_the_organization(
     await asyncio.sleep(3.0)
     assert not (await last(jetstream, "updated", resource_id))["data"].get("removed")
     version = await unprotect_through_the_loop(jetstream, resource_id, version)
+    # Desproteger percorre o loop: o Executor grava o metadado e o Observer o lê (decisão 0074).
+    unprotected = await last(jetstream, "observed", resource_id)
+    assert unprotected["data"]["deletionProtection"] is False
     await send(jetstream, request(resource_id, "delete", {"resourceVersion": version}))
     removed = await wait_for(
         jetstream, "updated", resource_id, lambda m: m["data"].get("removed") is True

@@ -8,7 +8,7 @@ Regras (`docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`): 
 
 A `action` é publicada no Subject canônico `reconciler.action.ipm.organization.<id>.<operação>`; o Stream `ACTION` o armazena com o token da partição (decisão 0018).
 
-Campos gerenciados da Organization: `lifecycle`, `name` e `platformAccess` (este observado pelo estado da organização no provedor: `active` ↔ `granted`) (`schemas/ipm/organization/desired.v1.schema.json`).
+Campos gerenciados da Organization: `lifecycle`, `name`, `deletionProtection` (o metadado de mesmo nome, decisão 0074) e `platformAccess` (este observado pelo estado da organização no provedor: `active` ↔ `granted`) (`schemas/ipm/organization/desired.v1.schema.json`).
 
 ## Configuração
 
