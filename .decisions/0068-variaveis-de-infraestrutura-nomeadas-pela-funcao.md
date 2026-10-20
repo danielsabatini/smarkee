@@ -1,7 +1,7 @@
 # 0068 — Variáveis de infraestrutura nomeadas pela função, não pelo produto
 
 - **Data:** 2026-10-20
-- **Status:** Aceita e implementada. Aplica o §15.1 do `AGENTS.md` às variáveis de `infrastructure/`. Estende a 0016 e a 0067 (que cobrem as variáveis de aplicação). Não contradiz o §2.
+- **Status:** Aceita e implementada. Aplica o §15.1 do `AGENTS.md` às variáveis de `infrastructure/`. Estende a 0016 e a 0067 (que cobrem as variáveis de aplicação). Não contradiz o §2. O prefixo `SMARKEE_` foi acrescentado pela 0069.
 
 ## Contexto
 

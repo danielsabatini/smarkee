@@ -4,7 +4,7 @@ name: gateway
 # O console e a Admin API exigem o etcd; o estado desejado vive em `bootstrap/adc.yaml` e é
 # aplicado pelo `gateway-sync` (decisão 0049).
 
-x-apisix-admin-key: &apisix-admin-key ${GATEWAY_ADMIN_KEY:?Defina GATEWAY_ADMIN_KEY no .env (veja .env.example)}
+x-apisix-admin-key: &apisix-admin-key ${SMARKEE_GATEWAY_ADMIN_KEY:?Defina SMARKEE_GATEWAY_ADMIN_KEY no .env (veja .env.example)}
 
 # Driver de log legível pelo telemetry-agent (decisão 0053, docs/OBSERVABILITY.md §7): json-file com rotação e as labels
 # que identificam o serviço e a camada (infra) em cada linha.
@@ -18,7 +18,7 @@ x-infra-logging: &infra-logging
 services:
   # Armazena a configuração do APISIX (rotas, serviços, plugins). Não é publicado no host.
   gateway-etcd:
-    image: ${GATEWAY_ETCD_IMAGE_VERSION:-quay.io/coreos/etcd:v3.7.2}
+    image: ${SMARKEE_GATEWAY_ETCD_IMAGE_VERSION:-quay.io/coreos/etcd:v3.7.2}
     container_name: gateway-etcd.smarkee.internal
     labels:
       smarkee.layer: infra
@@ -27,8 +27,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "${GATEWAY_ETCD_CPUS:-0.5}"
-          memory: ${GATEWAY_ETCD_MEMORY:-256M}
+          cpus: "${SMARKEE_GATEWAY_ETCD_CPUS:-0.5}"
+          memory: ${SMARKEE_GATEWAY_ETCD_MEMORY:-256M}
     command:
       - etcd
       - --name=gateway-etcd
@@ -49,7 +49,7 @@ services:
       retries: 5
 
   gateway:
-    image: ${GATEWAY_IMAGE_VERSION:-apache/apisix:3.19.0-debian}
+    image: ${SMARKEE_GATEWAY_IMAGE_VERSION:-apache/apisix:3.19.0-debian}
     container_name: gateway.smarkee.internal
     labels:
       smarkee.layer: infra
@@ -58,21 +58,21 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "${GATEWAY_CPUS:-1.0}"
-          memory: ${GATEWAY_MEMORY:-384M}
+          cpus: "${SMARKEE_GATEWAY_CPUS:-1.0}"
+          memory: ${SMARKEE_GATEWAY_MEMORY:-384M}
     environment:
       APISIX_ADMIN_KEY: *apisix-admin-key
-    # Só para apontar `GATEWAY_TELEMETRY_ADDRESS` a um coletor publicado no host (por exemplo, o otel-gateway da
+    # Só para apontar `SMARKEE_GATEWAY_TELEMETRY_ADDRESS` a um coletor publicado no host (por exemplo, o otel-gateway da
     # stack de observabilidade do desenvolvedor); no Docker Desktop o nome já existe, no Linux não.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      # Proxy HTTP na porta 8080 (igual a IDENTITY_EXTERNAL_PORT): o Zitadel monta o issuer e as URLs
+      # Proxy HTTP na porta 8080 (igual a SMARKEE_IDENTITY_EXTERNAL_PORT): o Zitadel monta o issuer e as URLs
       # públicas a partir do Host original, com a porta, e o login (Next.js) recusa Server Actions
       # cujo Origin traga outra porta. Dentro da rede o proxy escuta em 8000 (os Receivers usam esta porta).
-      - "127.0.0.1:${GATEWAY_PROXY_HTTP_PORT:-8080}:8000"  # Proxy HTTP
-      # Admin API e console web (/ui), protegidos pela chave GATEWAY_ADMIN_KEY. Somente para desenvolvimento.
-      - "127.0.0.1:${GATEWAY_ADMIN_PORT:-9180}:9180"
+      - "127.0.0.1:${SMARKEE_GATEWAY_PROXY_HTTP_PORT:-8080}:8000"  # Proxy HTTP
+      # Admin API e console web (/ui), protegidos pela chave SMARKEE_GATEWAY_ADMIN_KEY. Somente para desenvolvimento.
+      - "127.0.0.1:${SMARKEE_GATEWAY_ADMIN_PORT:-9180}:9180"
     volumes:
       - ./config.yaml:/usr/local/apisix/conf/config.yaml:ro
     depends_on:
@@ -86,7 +86,7 @@ services:
           # O plugin openid-connect busca o discovery e o JWKS no endereço do issuer
           # (http://ipm-dev.smarkee.com.br:8080) e o Zitadel escolhe a instância pelo Host. Dentro da rede, esse nome
           # aponta para o próprio gateway, que atende a porta 8080 e encaminha ao Zitadel (decisão 0052). Deve ser
-          # igual a IDENTITY_EXTERNAL_DOMAIN.
+          # igual a SMARKEE_IDENTITY_EXTERNAL_DOMAIN.
           - ipm-dev.smarkee.com.br
     restart: unless-stopped
     healthcheck:
@@ -111,7 +111,7 @@ services:
   # as cria, NÃO são tocadas. Roda no `docker compose up -d` completo; num `up` com serviços nomeados,
   # inclua `gateway-sync` e não use `--wait` (ele aborta ao ver o contêiner terminar; veja o README).
   gateway-sync:
-    image: ${GATEWAY_ADC_IMAGE_VERSION:-api7/adc:0.31.0}
+    image: ${SMARKEE_GATEWAY_ADC_IMAGE_VERSION:-api7/adc:0.31.0}
     container_name: gateway-sync.smarkee.internal
     command: ["sync", "-f", "/bootstrap/adc.yaml"]
     environment:
@@ -121,14 +121,14 @@ services:
       # Audiência (ID do projeto de roles do módulo no Zitadel) aceita em cada API. É a mesma `*_AUTH_AUDIENCE` do
       # Receiver correspondente. Sem valor, o padrão não casa com nenhum token: a API rejeita tudo (falha fechada),
       # e as rotas do Zitadel seguem funcionando para que o ID possa ser obtido.
-      GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT: ${GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT:-nao-configurada}
-      GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION: ${GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION:-nao-configurada}
-      GATEWAY_AUTH_AUDIENCE_SUM_SERVICE: ${GATEWAY_AUTH_AUDIENCE_SUM_SERVICE:-nao-configurada}
+      SMARKEE_GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT:-nao-configurada}
+      SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION:-nao-configurada}
+      SMARKEE_GATEWAY_AUTH_AUDIENCE_SUM_SERVICE: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_SUM_SERVICE:-nao-configurada}
       # Proxy (balanceador) em que o gateway confia para ler o IP real do cliente no X-Forwarded-For: um IP ou um CIDR.
       # O padrão (loopback) não confia em ninguém. Em stg e prd, o CIDR do balanceador (decisão 0054).
-      GATEWAY_TRUSTED_PROXIES: ${GATEWAY_TRUSTED_PROXIES:-127.0.0.1}
+      SMARKEE_GATEWAY_TRUSTED_PROXIES: ${SMARKEE_GATEWAY_TRUSTED_PROXIES:-127.0.0.1}
       # Destino dos traces do plugin opentelemetry (host:porta do OTLP HTTP). Vira `collector.address` no adc.yaml.
-      GATEWAY_TELEMETRY_ADDRESS: ${GATEWAY_TELEMETRY_ADDRESS:-telemetry-router.smarkee.internal:4318}
+      SMARKEE_GATEWAY_TELEMETRY_ADDRESS: ${SMARKEE_GATEWAY_TELEMETRY_ADDRESS:-telemetry-router.smarkee.internal:4318}
     volumes:
       - ./bootstrap:/bootstrap:ro
     depends_on:

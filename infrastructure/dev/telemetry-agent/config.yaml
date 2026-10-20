@@ -260,7 +260,7 @@ processors:
 
 exporters:
   otlp_grpc/telemetry_gateway:
-    endpoint: ${env:TELEMETRY_ROUTER_ENDPOINT:-telemetry-router.smarkee.internal:4317}
+    endpoint: ${env:SMARKEE_TELEMETRY_ROUTER_ENDPOINT:-telemetry-router.smarkee.internal:4317}
     # Rede interna de desenvolvimento, sem TLS. Em stg e prd, TLS e autenticação.
     tls:
       insecure: true

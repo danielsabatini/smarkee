@@ -137,7 +137,7 @@ A configuração do roteador e dos telemeters é a **mesma** nos dois ambientes 
 - `telemetry-agent` e `telemetry-router`: nomes por função, em `infrastructure/dev`. "Gateway" foi evitado porque neste repositório já designa o APISIX.
 - `telemeter` (nome escolhido pelo responsável): quem **processa e grava**, **por dono**. `platform-telemeter` é o da plataforma; `<módulo>-<tipo>-telemeter` é o da feature, como os papéis (pasta `features/<módulo>/<tipo>/telemeter/`, contêiner `<módulo>-<tipo>-telemeter`).
 - A saída do telemeter da feature (`telemeter/logs/`, `telemeter/traces/`) só tem sinais de app, então não há subpasta `app`. A do `platform-telemeter` separa `logs/{app,infra}` e `metrics/{app,infra}`.
-- Variáveis de limites: `TELEMETRY_ROUTER_CPUS|MEMORY`, `PLATFORM_TELEMETER_CPUS|MEMORY`, `<MÓDULO>_<TIPO>_TELEMETER_CPUS|MEMORY`; endereço do agente ao roteador: `TELEMETRY_ROUTER_ENDPOINT`; do APISIX ao roteador: `GATEWAY_TELEMETRY_ADDRESS`.
+- Variáveis de limites: `SMARKEE_TELEMETRY_ROUTER_CPUS|MEMORY`, `SMARKEE_PLATFORM_TELEMETER_CPUS|MEMORY`, `<MÓDULO>_<TIPO>_TELEMETER_CPUS|MEMORY`; endereço do agente ao roteador: `SMARKEE_TELEMETRY_ROUTER_ENDPOINT`; do APISIX ao roteador: `SMARKEE_GATEWAY_TELEMETRY_ADDRESS`.
 
 # 9. Como acrescentar uma feature com telemeter
 

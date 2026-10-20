@@ -35,4 +35,4 @@ Cada destino tem `sending_queue` em disco (1000 lotes, sem bloquear quando cheia
 | `gateway-semconv.yaml` | processador que ajusta os spans do APISIX à semconv (mesclado na linha de comando) |
 | `data/` | fila em disco (estado de execução, ignorado pelo git). Precisa ser gravável pelo usuário `10001` (no Linux, `chmod o+rwx data`) |
 
-Limites: `TELEMETRY_ROUTER_CPUS` (0,5) e `TELEMETRY_ROUTER_MEMORY` (256M). Cuidado: ao recriar um telemeter, o IP muda e o roteador pode usar o antigo até o cache de DNS expirar; reiniciar o roteador resolve.
+Limites: `SMARKEE_TELEMETRY_ROUTER_CPUS` (0,5) e `SMARKEE_TELEMETRY_ROUTER_MEMORY` (256M). Cuidado: ao recriar um telemeter, o IP muda e o roteador pode usar o antigo até o cache de DNS expirar; reiniciar o roteador resolve.

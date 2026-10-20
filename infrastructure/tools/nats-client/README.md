@@ -22,7 +22,7 @@ docker build -t smarkee-nats-client:dev infrastructure/tools/nats-client
 # outra versão da CLI: --build-arg NATS_CLI_VERSION=<versão>
 ```
 
-Uso nos `compose.yaml` (messaging e features): `build.context` aponta para este diretório e `image: ${MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}`. A CLI lê `NATS_URL`, `NATS_USER` e `NATS_PASSWORD` do ambiente.
+Uso nos `compose.yaml` (messaging e features): `build.context` aponta para este diretório e `image: ${SMARKEE_MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}`. A CLI lê `NATS_URL`, `NATS_USER` e `NATS_PASSWORD` do ambiente.
 
 ```bash
 ```

@@ -24,28 +24,28 @@ Preencha os valores obrigatórios (vazios no exemplo) antes de subir:
 
 | Arquivo | Variável | Valor |
 |---|---|---|
-| `database/.env` | `DATABASE_PASSWORD` | Senha do administrador `postgres`: `openssl rand -hex 16` |
-| `gateway/.env` | `GATEWAY_ADMIN_KEY` | Chave da Admin API e do console web do gateway: `openssl rand -hex 16` |
-| `gateway/.env` | `GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT`, `GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION`, `GATEWAY_AUTH_AUDIENCE_SUM_SERVICE` | Depois de provisionar o Zitadel: o ID do projeto de roles de cada módulo, o mesmo `*_AUTH_AUDIENCE` do Receiver correspondente. Vazios, o gateway rejeita todo token nessa API (falha fechada); aplique com `docker compose up -d gateway-sync` |
-| `messaging/.env` | `MESSAGING_PASSWORD` | Senha do usuário do NATS: `openssl rand -hex 16` |
-| `identity/.env` | `IDENTITY_MASTERKEY` | Exatamente 32 caracteres: `openssl rand -hex 16`. Não altere depois da primeira subida |
-| `identity/.env` | `IDENTITY_ADMIN_PASSWORD` | Senha inicial do administrador do Zitadel, com maiúscula, minúscula, número e símbolo |
-| `identity/.env` | `IDENTITY_SESSION_COOKIE_SECRET` | `openssl rand -hex 32` |
-| `features/core/account/.env` | `CORE_ACCOUNT_<PAPEL>_MESSAGING_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`, `RECONCILER`, `OBSERVER`, `EXECUTOR`) | A mesma `MESSAGING_PASSWORD` de `messaging/.env` |
-| `features/ipm/organization/.env` | `IPM_ORGANIZATION_<PAPEL>_MESSAGING_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`) | A mesma `MESSAGING_PASSWORD` de `messaging/.env` |
+| `database/.env` | `SMARKEE_DATABASE_PASSWORD` | Senha do administrador `postgres`: `openssl rand -hex 16` |
+| `gateway/.env` | `SMARKEE_GATEWAY_ADMIN_KEY` | Chave da Admin API e do console web do gateway: `openssl rand -hex 16` |
+| `gateway/.env` | `SMARKEE_GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT`, `SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION`, `SMARKEE_GATEWAY_AUTH_AUDIENCE_SUM_SERVICE` | Depois de provisionar o Zitadel: o ID do projeto de roles de cada módulo, o mesmo `*_AUTH_AUDIENCE` do Receiver correspondente. Vazios, o gateway rejeita todo token nessa API (falha fechada); aplique com `docker compose up -d gateway-sync` |
+| `messaging/.env` | `SMARKEE_MESSAGING_PASSWORD` | Senha do usuário do NATS: `openssl rand -hex 16` |
+| `identity/.env` | `SMARKEE_IDENTITY_MASTERKEY` | Exatamente 32 caracteres: `openssl rand -hex 16`. Não altere depois da primeira subida |
+| `identity/.env` | `SMARKEE_IDENTITY_ADMIN_PASSWORD` | Senha inicial do administrador do Zitadel, com maiúscula, minúscula, número e símbolo |
+| `identity/.env` | `SMARKEE_IDENTITY_SESSION_COOKIE_SECRET` | `openssl rand -hex 32` |
+| `features/core/account/.env` | `CORE_ACCOUNT_<PAPEL>_MESSAGING_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`, `RECONCILER`, `OBSERVER`, `EXECUTOR`) | A mesma `SMARKEE_MESSAGING_PASSWORD` de `messaging/.env` |
+| `features/ipm/organization/.env` | `IPM_ORGANIZATION_<PAPEL>_MESSAGING_PASSWORD` (`RECEIVER`, `MANAGER`, `PUBLISHER`) | A mesma `SMARKEE_MESSAGING_PASSWORD` de `messaging/.env` |
 | `features/core/account/.env` e `features/ipm/organization/.env` | `CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE`, `IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE` | ID do projeto de roles do módulo no Zitadel (organização `core`): `roles-core` para a Account, `roles-ipm` para a Organization (decisão 0032) |
 
 Os componentes das features (Account e Organization) **não são subidos por este diretório**: cada feature tem o seu `compose.yaml` e o seu `.env` (`cp .env.example .env` em `features/core/account` e `features/ipm/organization`), e eles esperam a plataforma abaixo no ar. Suba a plataforma primeiro e depois cada feature (`docker compose up -d --build` na pasta dela). Se recriar o Receiver de uma feature, o `gateway` volta a resolver o endereço sozinho em poucos segundos; não é preciso reiniciá-lo.
 
 Variáveis adicionais configuradas no `identity/.env`:
-- `IDENTITY_INSTANCE_NAME`: Nome da instância exibido no console (padrão: `IPM`).
-- `IDENTITY_ORG_NAME`: Nome da organização inicial (padrão: `smarkee.internal`).
-- `IDENTITY_ADMIN_USERNAME`: Nome do usuário administrador (padrão: `admin`).
-- `IDENTITY_ADMIN_EMAIL`: E-mail do administrador (padrão: `admin@smarkee.internal`).
-- `IDENTITY_EXTERNAL_DOMAIN`: Domínio público de acesso (padrão: `ipm-dev.smarkee.com.br`).
-- `IDENTITY_EXTERNAL_PORT`: Porta pública de acesso (padrão: `8080`, igual a `GATEWAY_PROXY_HTTP_PORT`).
+- `SMARKEE_IDENTITY_INSTANCE_NAME`: Nome da instância exibido no console (padrão: `IPM`).
+- `SMARKEE_IDENTITY_ORG_NAME`: Nome da organização inicial (padrão: `smarkee.internal`).
+- `SMARKEE_IDENTITY_ADMIN_USERNAME`: Nome do usuário administrador (padrão: `admin`).
+- `SMARKEE_IDENTITY_ADMIN_EMAIL`: E-mail do administrador (padrão: `admin@smarkee.internal`).
+- `SMARKEE_IDENTITY_EXTERNAL_DOMAIN`: Domínio público de acesso (padrão: `ipm-dev.smarkee.com.br`).
+- `SMARKEE_IDENTITY_EXTERNAL_PORT`: Porta pública de acesso (padrão: `8080`, igual a `SMARKEE_GATEWAY_PROXY_HTTP_PORT`).
 
-No `gateway/.env`, só `GATEWAY_ADMIN_KEY` é obrigatória para subir (`GATEWAY_PROXY_HTTP_PORT=8080` e `GATEWAY_ADMIN_PORT=9180` por padrão); as três `GATEWAY_AUTH_AUDIENCE_*` só existem depois do Zitadel provisionado.
+No `gateway/.env`, só `SMARKEE_GATEWAY_ADMIN_KEY` é obrigatória para subir (`SMARKEE_GATEWAY_PROXY_HTTP_PORT=8080` e `SMARKEE_GATEWAY_ADMIN_PORT=9180` por padrão); as três `SMARKEE_GATEWAY_AUTH_AUDIENCE_*` só existem depois do Zitadel provisionado.
 
 ## E-mail de desenvolvimento (Mailpit)
 
@@ -77,19 +77,19 @@ Com a stack de pé (`docker compose ps`) e o `/etc/hosts` configurado:
 
 | O que | Endereço | Credencial |
 |---|---|---|
-| Console do Zitadel | http://ipm-dev.smarkee.com.br:8080/ui/console/ | Usuário `admin@smarkee.internal` (ou `admin@smarkee.ipm-dev.smarkee.com.br`) e a senha `IDENTITY_ADMIN_PASSWORD` de `identity/.env` (troca obrigatória no primeiro acesso) |
+| Console do Zitadel | http://ipm-dev.smarkee.com.br:8080/ui/console/ | Usuário `admin@smarkee.internal` (ou `admin@smarkee.ipm-dev.smarkee.com.br`) e a senha `SMARKEE_IDENTITY_ADMIN_PASSWORD` de `identity/.env` (troca obrigatória no primeiro acesso) |
 | Cadastro de nova organização (Zitadel) | http://ipm-dev.smarkee.com.br:8080/ui/login/register/org | **Desligado** (decisão 0013): o cadastro público foi desativado na política de login; usuários e organizações nascem pelo Receiver |
 | API da plataforma | http://api-dev.smarkee.com.br:8080/v1/ | Token do `sk auth login` (`Authorization: Bearer`), validado já no gateway (decisão 0052); o cadastro (`POST /v1/core/accounts`) é anônimo, com limite de taxa |
-| Console web do gateway (APISIX) | http://localhost:9180/ui | `GATEWAY_ADMIN_KEY` de `gateway/.env` (digitada no login do console) |
+| Console web do gateway (APISIX) | http://localhost:9180/ui | `SMARKEE_GATEWAY_ADMIN_KEY` de `gateway/.env` (digitada no login do console) |
 | Admin API do gateway | http://localhost:9180/apisix/admin | Cabeçalho `X-API-KEY` com a mesma chave |
 | PostgreSQL | `psql "postgresql://smarkee:smarkee@localhost:5432/smarkee"` | Ver "Credenciais" |
-| NATS | `nats://smarkee:<MESSAGING_PASSWORD>@localhost:4222` · monitoramento em http://localhost:8222 | `MESSAGING_PASSWORD` de `messaging/.env` |
+| NATS | `nats://smarkee:<SMARKEE_MESSAGING_PASSWORD>@localhost:4222` · monitoramento em http://localhost:8222 | `SMARKEE_MESSAGING_PASSWORD` de `messaging/.env` |
 
 - Use o nome `ipm-dev.smarkee.com.br` **com a porta `:8080`** no navegador. O endereço `localhost:8080` não é roteado (o gateway roteia por host) e responde 404.
 - De um contêiner na rede `internal`, use os nomes `*.smarkee.internal` da coluna **Rede `internal`** do mapa abaixo; `localhost` ali aponta para o próprio contêiner.
 - Todas as portas são publicadas apenas em `127.0.0.1`.
 - **Nome de login no Zitadel:** informe o nome completo, `usuário@domínio-da-organização`, ou o e-mail do usuário. Digitar só `admin` retorna "usuário não encontrado". Para o administrador: `admin@smarkee.internal` ou `admin@smarkee.ipm-dev.smarkee.com.br`. O domínio de uma organização é `<nome-da-organização>.ipm-dev.smarkee.com.br` (por exemplo, `core.ipm-dev.smarkee.com.br`, confirmado no token); o e-mail do usuário também funciona.
-- O cadastro público do Zitadel (usuário e organização) está **desligado**: usuários e organizações nascem pela API da plataforma (decisões 0013 e 0014). A porta faz parte do endereço (`IDENTITY_EXTERNAL_PORT`); em outros ambientes o endereço será outro.
+- O cadastro público do Zitadel (usuário e organização) está **desligado**: usuários e organizações nascem pela API da plataforma (decisões 0013 e 0014). A porta faz parte do endereço (`SMARKEE_IDENTITY_EXTERNAL_PORT`); em outros ambientes o endereço será outro.
 
 ## Mapa de acesso
 
@@ -105,11 +105,11 @@ Do host, use a coluna **Host**. De um container na rede `internal` (por exemplo,
 | Gateway, proxy HTTP (APISIX) | http://ipm-dev.smarkee.com.br:8080 | http://gateway.smarkee.internal:8000 | Roteia por host (`gateway/bootstrap/adc.yaml`); host desconhecido responde 404 |
 | Receiver de Account (`core`) | http://api-dev.smarkee.com.br:8080/v1/core/accounts (só `/v1/core/accounts`) | http://core-account-receiver.smarkee.internal:8000 | `/health/*` só na rede interna. O cadastro anônimo (`POST /v1/core/accounts`) tem limite de 10 por minuto por IP no gateway (rota `core-account-register`) e de 5 por 60 s por origem no Receiver |
 | Receiver de Organization (`ipm`) | http://api-dev.smarkee.com.br:8080/v1/ipm/organizations (só `/v1/ipm/organizations`) | http://ipm-organization-receiver.smarkee.internal:8000 | `/health/live`, `/health/ready` e `/health/startup`, só na rede interna |
-| Gateway, Admin API e console web (`/ui`) | http://localhost:9180 | http://gateway.smarkee.internal:9180 | Chave `GATEWAY_ADMIN_KEY` obrigatória (cabeçalho `X-API-KEY`); qualquer contêiner da rede `internal` a alcança |
-| Roteador da telemetria (`telemetry-router`) | — (sem porta no host) | `telemetry-router.smarkee.internal`: OTLP HTTP `4318`, gRPC `4317`, saúde `13133` | **Só roteia, não grava em backend** (decisão 0062): recebe do agente e do gateway de borda (`GATEWAY_TELEMETRY_ADDRESS`), ajusta os spans do APISIX à semconv (decisão 0050) e envia cada sinal ao telemeter dono (logs por módulo e tipo, spans por `apisix.service_name`), com fila em disco (`telemetry-router/data/`). Função em `telemetry-router/README.md` |
+| Gateway, Admin API e console web (`/ui`) | http://localhost:9180 | http://gateway.smarkee.internal:9180 | Chave `SMARKEE_GATEWAY_ADMIN_KEY` obrigatória (cabeçalho `X-API-KEY`); qualquer contêiner da rede `internal` a alcança |
+| Roteador da telemetria (`telemetry-router`) | — (sem porta no host) | `telemetry-router.smarkee.internal`: OTLP HTTP `4318`, gRPC `4317`, saúde `13133` | **Só roteia, não grava em backend** (decisão 0062): recebe do agente e do gateway de borda (`SMARKEE_GATEWAY_TELEMETRY_ADDRESS`), ajusta os spans do APISIX à semconv (decisão 0050) e envia cada sinal ao telemeter dono (logs por módulo e tipo, spans por `apisix.service_name`), com fila em disco (`telemetry-router/data/`). Função em `telemetry-router/README.md` |
 | Telemeter da plataforma (`platform-telemeter`) | — (sem porta no host) | `platform-telemeter.smarkee.internal`: OTLP gRPC `4317`, saúde `13133` | **Processa e grava** a **infra** e o app que não tem telemeter próprio: separa infra e app e grava `platform-telemeter/logs/{app,infra}`, `metrics/{app,infra}` e `traces/` (exporter `file`, rotação em 10 MB; decisão 0053). Função em `platform-telemeter/README.md` |
 | Telemeter de uma feature (`<módulo>-<tipo>-telemeter`) | — (sem porta no host) | `core-account-telemeter.smarkee.internal` (e `ipm-organization-…`, `sum-service-…`): OTLP gRPC `4317`, saúde `13133` | **Processa e grava** os sinais de **app** da feature (logs e spans), sem privilégios: aplica a política da feature e grava em `features/core/account/telemeter/{logs,traces}/`. Vive no `compose.yaml` da feature; função em `features/core/account/telemeter/README.md` (decisão 0062) |
-| Agente de telemetria (`telemetry-agent`) | — (sem porta no host) | `telemetry-agent.smarkee.internal` | **Lê** as métricas de contêiner (`docker_stats`) e os logs JSON dos componentes (`json-file`) e envia por OTLP/gRPC ao `telemetry-router` (`TELEMETRY_ROUTER_ENDPOINT`, porta `4317`); é o único leitor privilegiado e não conhece as features (decisões 0051 e 0062). Monta o socket do Docker e roda como root: só para dev |
+| Agente de telemetria (`telemetry-agent`) | — (sem porta no host) | `telemetry-agent.smarkee.internal` | **Lê** as métricas de contêiner (`docker_stats`) e os logs JSON dos componentes (`json-file`) e envia por OTLP/gRPC ao `telemetry-router` (`SMARKEE_TELEMETRY_ROUTER_ENDPOINT`, porta `4317`); é o único leitor privilegiado e não conhece as features (decisões 0051 e 0062). Monta o socket do Docker e roda como root: só para dev |
 | etcd do gateway | — (não publicado) | http://gateway-etcd.smarkee.internal:2379 | Guarda a configuração do APISIX; sem autenticação (dev) |
 | PostgreSQL | `localhost:5432` | `database.smarkee.internal:5432` | Senha obrigatória por TCP (SCRAM) |
 | NATS (cliente) | `nats://localhost:4222` | `nats://messaging.smarkee.internal:4222` | Usuário e senha obrigatórios |
@@ -117,7 +117,7 @@ Do host, use a coluna **Host**. De um container na rede `internal` (por exemplo,
 
 O gateway trata somente HTTP (sem HTTPS em dev) e roteia por host: o Zitadel atende `ipm-dev.smarkee.com.br`, e cada novo Receiver recebe um host próprio (por exemplo, `api.localhost`). No host, aponte `127.0.0.1 ipm-dev.smarkee.com.br` em `/etc/hosts`. O NATS e o PostgreSQL são acessados diretamente, sem o gateway.
 
-O proxy HTTP do gateway é publicado na porta 8080 do host (no container, continua na 8000). A porta 80 não é usada porque costuma estar ocupada por outros serviços locais (por exemplo, ingress de clusters Kubernetes locais). O `IDENTITY_EXTERNAL_PORT` precisa ser igual à porta publicada do proxy (ver pontos de atenção).
+O proxy HTTP do gateway é publicado na porta 8080 do host (no container, continua na 8000). A porta 80 não é usada porque costuma estar ocupada por outros serviços locais (por exemplo, ingress de clusters Kubernetes locais). O `SMARKEE_IDENTITY_EXTERNAL_PORT` precisa ser igual à porta publicada do proxy (ver pontos de atenção).
 
 Somente o gateway publica portas do Zitadel. O acesso direto ao `identity` e ao `identity-login` existe apenas na rede `internal`, e o Zitadel escolhe a instância pelo domínio, por isso o cabeçalho `Host` é obrigatório e **deve incluir a porta** (`Host: ipm-dev.smarkee.com.br:8080`): sem a porta, o issuer devolvido perde o `:8080` e não confere com o dos tokens emitidos pelo navegador. O navegador (console e login) deve sempre passar pelo gateway: os redirecionamentos e o issuer apontam para `http://ipm-dev.smarkee.com.br:8080`, e só o gateway reúne o Receiver e o login no mesmo domínio.
 
@@ -127,14 +127,14 @@ Valores sensíveis ficam nos arquivos `.env` (fora do git). As senhas dos bancos
 
 | Sistema | Usuário | Senha | Onde está |
 |---|---|---|---|
-| Zitadel (administrador) | `admin@smarkee.internal` ou `admin@smarkee.ipm-dev.smarkee.com.br` | `IDENTITY_ADMIN_PASSWORD` | `identity/.env` (troca obrigatória no primeiro acesso) |
-| PostgreSQL (administrador) | `postgres` | `DATABASE_PASSWORD` | `database/.env` |
+| Zitadel (administrador) | `admin@smarkee.internal` ou `admin@smarkee.ipm-dev.smarkee.com.br` | `SMARKEE_IDENTITY_ADMIN_PASSWORD` | `identity/.env` (troca obrigatória no primeiro acesso) |
+| PostgreSQL (administrador) | `postgres` | `SMARKEE_DATABASE_PASSWORD` | `database/.env` |
 | PostgreSQL, banco `smarkee` (SSOT, proprietário) | `smarkee` | `smarkee` | `database/bootstrap/smarkee.sql` |
 | PostgreSQL, banco `identity` | `identity` | `identity` | `database/bootstrap/identity.sql` (o Zitadel usa só este usuário, sem credencial de administrador) |
 | PostgreSQL, banco `smarkee` (módulo `core`, Account) | `core_account_manager_login`, `core_account_receiver_login`, `core_account_publisher_login`, `core_maintenance_login` | igual ao usuário | `database/bootstrap/core.sql` |
 | PostgreSQL, banco `smarkee` (módulo `ipm`, Organization) | `ipm_organization_manager_login`, `ipm_organization_receiver_login`, `ipm_organization_publisher_login`, `ipm_maintenance_login` | igual ao usuário | `database/bootstrap/ipm.sql` |
-| NATS | `MESSAGING_USER` (`smarkee`) | `MESSAGING_PASSWORD` | `messaging/.env` (um único usuário em dev, compartilhado pelos serviços) |
-| Gateway (APISIX), Admin API e console web | — | `GATEWAY_ADMIN_KEY` | `gateway/.env` (chave obrigatória, sem padrão) |
+| NATS | `SMARKEE_MESSAGING_USER` (`smarkee`) | `SMARKEE_MESSAGING_PASSWORD` | `messaging/.env` (um único usuário em dev, compartilhado pelos serviços) |
+| Gateway (APISIX), Admin API e console web | — | `SMARKEE_GATEWAY_ADMIN_KEY` | `gateway/.env` (chave obrigatória, sem padrão) |
 
 O usuário `smarkee` é o proprietário do SSOT, destinado a migrações (`docs/POSTGRESQL.md`). Cada serviço usa um papel de login próprio, membro de um papel de função sem login (`docs/POSTGRESQL.md` §14.2 e §14.3). Criar papéis exige `CREATEROLE`, que o `smarkee` não tem: os papéis são criados como administrador em `database/bootstrap/<módulo>.sql`, e os privilégios são concedidos pela migração do módulo.
 
@@ -143,7 +143,7 @@ O usuário `smarkee` é o proprietário do SSOT, destinado a migrações (`docs/
 | Destino | Do host | Da rede `internal` |
 |---|---|---|
 | SSOT (proprietário) | `postgresql://smarkee:smarkee@localhost:5432/smarkee` | `postgresql://smarkee:smarkee@database.smarkee.internal:5432/smarkee` |
-| NATS | `nats://smarkee:<MESSAGING_PASSWORD>@localhost:4222` | `nats://smarkee:<MESSAGING_PASSWORD>@messaging.smarkee.internal:4222` |
+| NATS | `nats://smarkee:<SMARKEE_MESSAGING_PASSWORD>@localhost:4222` | `nats://smarkee:<SMARKEE_MESSAGING_PASSWORD>@messaging.smarkee.internal:4222` |
 
 Não há TLS em dev (`sslmode=disable` quando o cliente exigir o parâmetro).
 
@@ -180,7 +180,7 @@ Estado aplicado no dev em 2026-10-10 (pela API do Zitadel, com a conta de bootst
 - **Service accounts da Organization na organização `core`** (decisão 0038, criadas e renomeadas em 2026-10-16): `ipm-organization-executor` (papel de **instância** `IAM_ORG_MANAGER`: cria, renomeia, ativa, desativa e remove organizações; era `core-organization-executor`, renomeada com o mesmo ID e a mesma chave) e `ipm-organization-observer` (papel de **instância** `IAM_OWNER_VIEWER`, somente leitura, usado para listar organizações). Sem papel na `core` nem na `register`; chaves no volume `identity-bootstrap` (dono 10001, modo 0400), cada componente montando só a própria, e vencem em 2030-01-01. Os dois papéis são de instância e mais largos que o necessário; ficam assim por exceção deliberada, porque o Zitadel não tem papel padrão menor (decisão 0060).
 - **Service accounts do SUM na organização `core`** (criadas em 2026-10-15): `sum-service-executor` (`PROJECT_GRANT_OWNER` só no Grant de `roles-ipm` para a `register`) e `sum-service-observer` (`ORG_OWNER_VIEWER` só na `register`, somente leitura); sem papel na `core`, com as chaves no volume `identity-bootstrap` (dono 10001, modo 0400), cada componente montando só a própria. As chaves vencem em 2027-10-15: a rotação é a seção "Rotação das chaves das contas de serviço", e a suíte de conformidade avisa 90 dias antes.
 - **Tipo de token das contas de serviço dos componentes** (decisão 0054, 2026-10-18): as seis (`*-executor` e `*-observer`) usam token **opaco (Bearer)**, o padrão do Zitadel para usuário de máquina (a API v2 omite o valor). Com JWT, o Zitadel registra um `WARN` por chamada. Ao criar uma conta de serviço, deixe o tipo em Bearer; a suíte de conformidade verifica. O `platform-bootstrap` segue JWT.
-- **IP real no gateway:** `gateway/.env` aceita `GATEWAY_TRUSTED_PROXIES` (um IP ou um CIDR, o do balanceador em stg/prd). Em dev, deixe vazio: o NAT do Docker esconde o IP real e confiar nele permitiria forjar `X-Forwarded-For`.
+- **IP real no gateway:** `gateway/.env` aceita `SMARKEE_GATEWAY_TRUSTED_PROXIES` (um IP ou um CIDR, o do balanceador em stg/prd). Em dev, deixe vazio: o NAT do Docker esconde o IP real e confiar nele permitiria forjar `X-Forwarded-For`.
 - **Nomes:** o projeto das roles do `core` se chama `roles-core` (decisão 0032; era `roles`, o ID não mudou) e a organização `register` guarda os usuários (decisões 0026 e 0027).
 - **Autorizações dos projetos de roles na `core`:** só de operadores (decisão 0031): a role `*.admin` do tipo (escopo: qualquer instância) mais as roles de ação que ele exerce. O operador padrão tem todas. Usuários cadastrados são autorizados no contexto da `register`.
 - **Project Grants → `register`:** um por projeto, com só as roles de ação (sem `*.admin`): `roles-core` (2 roles), `roles-ipm` (5) e `roles-sum` (3). O Zitadel aplica o Grant como teto (API v2, decisão 0029).
@@ -282,9 +282,9 @@ NATS:
 - Stream inexistente é criado; existente com a mesma configuração não muda. Com configuração diferente, o contêiner falha (`stream name already in use with a different configuration`). Para aplicar a alteração de forma deliberada:
 
   ```bash
-  MESSAGING_PASSWORD=$(grep '^MESSAGING_PASSWORD=' messaging/.env | cut -d= -f2)
+  SMARKEE_MESSAGING_PASSWORD=$(grep '^SMARKEE_MESSAGING_PASSWORD=' messaging/.env | cut -d= -f2)
   docker run --rm --network internal -v "$PWD/messaging/bootstrap:/bootstrap:ro" smarkee-nats-client:dev \
-    nats -s nats://messaging.smarkee.internal:4222 --user smarkee --password "$MESSAGING_PASSWORD" stream edit OBSERVED --config /bootstrap/observed.json --force
+    nats -s nats://messaging.smarkee.internal:4222 --user smarkee --password "$SMARKEE_MESSAGING_PASSWORD" stream edit OBSERVED --config /bootstrap/observed.json --force
   ```
 
   Campos imutáveis (`retention`, `storage`) não podem ser editados: o Stream precisa ser removido e recriado, com perda das mensagens.
@@ -312,16 +312,16 @@ docker exec -it database.smarkee.internal psql -U postgres            # administ
 NATS (sem a CLI `nats` no host, use a imagem mínima `smarkee-nats-client:dev` com a rede do host):
 
 ```bash
-MESSAGING_PASSWORD=$(grep '^MESSAGING_PASSWORD=' messaging/.env | cut -d= -f2)
-docker run --rm --network host smarkee-nats-client:dev nats -s nats://localhost:4222 --user smarkee --password "$MESSAGING_PASSWORD" account info
-docker run --rm --network host smarkee-nats-client:dev nats -s nats://localhost:4222 --user smarkee --password "$MESSAGING_PASSWORD" stream ls
+SMARKEE_MESSAGING_PASSWORD=$(grep '^SMARKEE_MESSAGING_PASSWORD=' messaging/.env | cut -d= -f2)
+docker run --rm --network host smarkee-nats-client:dev nats -s nats://localhost:4222 --user smarkee --password "$SMARKEE_MESSAGING_PASSWORD" account info
+docker run --rm --network host smarkee-nats-client:dev nats -s nats://localhost:4222 --user smarkee --password "$SMARKEE_MESSAGING_PASSWORD" stream ls
 ```
 
 Zitadel e gateway:
 
 ```bash
 curl -s http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration   # discovery OIDC
-KEY=$(grep ^GATEWAY_ADMIN_KEY= gateway/.env | cut -d= -f2)
+KEY=$(grep ^SMARKEE_GATEWAY_ADMIN_KEY= gateway/.env | cut -d= -f2)
 curl -s -H "X-API-KEY: $KEY" http://localhost:9180/apisix/admin/services      # serviços do gateway
 curl -s -H "X-API-KEY: $KEY" http://localhost:9180/apisix/admin/routes        # rotas do gateway
 ```
@@ -337,7 +337,7 @@ docker run --rm --network internal curlimages/curl -s -H 'Host: ipm-dev.smarkee.
 - O gateway guarda a configuração no etcd (volume `gateway-etcd-data`). O `gateway-sync` (ADC) é uma reconciliação: a cada `up` ele cria, atualiza e **remove** serviços e as rotas de dentro deles para igualar `gateway/bootstrap/adc.yaml`. Rotas **soltas** (sem serviço), que é como o console web as cria, não são tocadas pelo ADC e ficam só no etcd; para uma rota durável, declare-a no `adc.yaml`. Depois de alterar o arquivo, reaplique com `docker compose up -d gateway-sync` (ou `docker compose run --rm gateway-sync`); não é preciso reiniciar o gateway. O `gateway-sync` tenta até 5 vezes: depois de recriar o etcd (por exemplo, ao trocar a versão da imagem), o APISIX demora alguns segundos para voltar a enxergá-lo, e as primeiras tentativas falham com `503`.
 - O ADC marca o backend do APISIX como experimental e a documentação dele lista as versões do APISIX testadas até a 3.17; a 3.19 funciona em dev (decisão 0049), mas confira o `gateway-sync` ao atualizar o APISIX.
 - A inicialização do Zitadel (`identity-init`) aguarda o PostgreSQL aceitar conexões (`depends_on` com `service_healthy`), declarado no próprio `compose.yaml` de cada recurso, que inclui o `database/compose.yaml`.
-- O gateway envia o `X-Forwarded-Host` sem a porta. O login do Zitadel (Next.js) usa esse cabeçalho nos redirecionamentos e o compara com o `Origin` do navegador (proteção das Server Actions). Com o proxy em porta diferente da 80, os redirecionamentos podem perder a porta e o envio do usuário falhar com "erro interno" (`x-forwarded-host ... does not match origin` no log do `identity-login`); isso foi observado quando o proxy estava em outra porta. O login do administrador na porta 8080 foi confirmado no navegador. `GATEWAY_PROXY_HTTP_PORT` e `IDENTITY_EXTERNAL_PORT` devem permanecer iguais; a instância do Zitadel guarda a porta da primeira inicialização.
+- O gateway envia o `X-Forwarded-Host` sem a porta. O login do Zitadel (Next.js) usa esse cabeçalho nos redirecionamentos e o compara com o `Origin` do navegador (proteção das Server Actions). Com o proxy em porta diferente da 80, os redirecionamentos podem perder a porta e o envio do usuário falhar com "erro interno" (`x-forwarded-host ... does not match origin` no log do `identity-login`); isso foi observado quando o proxy estava em outra porta. O login do administrador na porta 8080 foi confirmado no navegador. `SMARKEE_GATEWAY_PROXY_HTTP_PORT` e `SMARKEE_IDENTITY_EXTERNAL_PORT` devem permanecer iguais; a instância do Zitadel guarda a porta da primeira inicialização.
 - O nome de login do Zitadel é `usuário@domínio-da-organização`. Nesta instância o sufixo da organização está ligado (*Configurações da instância → Domain settings → Add Organization Domain as suffix to loginnames*) e a organização foi renomeada para `smarkee`; por isso `admin` sozinho não é aceito. O administrador entra por `admin@smarkee.internal` (o e-mail) ou `admin@smarkee.ipm-dev.smarkee.com.br`. Essas alterações (sufixo ligado e nome da organização) ficam gravadas no banco do Zitadel: `docker compose down -v` as desfaz, e a instância nova volta aos valores de `identity/.env` (`ZITADEL_FIRSTINSTANCE_*`), com o sufixo desligado. A opção *Organization Domain verification required* deve ficar desligada em dev, pois exige desafio por DNS ou HTTP.
 - O Zitadel monta o issuer e as URLs públicas a partir do cabeçalho `x-zitadel-public-host`, preenchido pelo gateway com o `Host` original (plugin `proxy-rewrite` da rota `identity`).
 - Os arquivos de `database/bootstrap/` só rodam na primeira inicialização do volume. Em um volume existente, aplique-os manualmente:
@@ -354,12 +354,12 @@ docker run --rm --network internal curlimages/curl -s -H 'Host: ipm-dev.smarkee.
 - O PostgreSQL registra esperas por bloqueio (`log_lock_waits`) e comandos acima de 500 ms, sem os valores dos parâmetros: `docker logs database.smarkee.internal`.
 - Traces (decisão 0050): o plugin `opentelemetry` está ligado em todas as rotas e exporta para o `telemetry-router`, que o roteia ao telemeter dono (a rota de `core/account`, ao `core-account-telemeter`; as demais, ao `platform-telemeter`), e os telemeters gravam em arquivos até haver um backend: `platform-telemeter/logs/app` e `logs/infra`, `metrics/app` e `metrics/infra`, e `traces/` (decisão 0053; o ativo é `<sinal>.jsonl`, uma linha OTLP JSON por lote; ao chegar a 10 MB é renomeado `<sinal>-<data>-size.jsonl`, e ficam 3 rotacionados, por até 1 dia; o conteúdo é ignorado pelo git). **App** é o que traz `smarkee.component.role` (logs dos componentes) e o que não é `container.*`/`system.*`/`process.*`/`k8s.*` (métricas); o resto é **infra**. O limite está em `rotation` de cada exporter `file` em `platform-telemeter/config.yaml` (e `features/core/account/telemeter/config.yaml`). No Linux, as pastas precisam ser graváveis pelo usuário 10001 (`chmod -R o+rwx`). Um registro único acima de 10 MB é rejeitado (erro no log do coletor; quem envia ainda recebe 200). Com o coletor parado o gateway registra um `[error] request failed: connection refused` por lote de spans, sem afetar as requisições. O processador `telemetry-router/gateway-semconv.yaml` ajusta os spans à semconv e redige a query; um coletor que o dispense recebe os spans fora da semconv e com a query sem redação (`http.target`). O coletor não publica portas no host: a stack de observabilidade do desenvolvedor, quando está no ar, já usa 4317 e 4318. A imagem não tem shell, por isso não há healthcheck do Compose.
 - Telemetria dos contêineres (decisão 0051): o `telemetry-agent` envia ao `telemetry-router` as métricas de CPU, memória e rede dos contêineres `*.smarkee.internal` e os logs JSON dos componentes das features (os 18 que usam o driver `json-file` e o formato da decisão 0045). Os contêineres da plataforma (`messaging`, `database`, `identity`, `gateway`, `mail`) usam o driver `local` do Docker Desktop, que o `file_log` não lê: só as métricas deles entram. O agente descarta o que não é um componente da plataforma. Ele monta o socket do Docker e `/var/lib/docker/containers` e roda como root (sem capabilities), o que vale só em dev. Para ver o que chega: `tail -f infrastructure/dev/platform-telemeter/logs/app/logs.jsonl` (ou, para `core/account`, `features/core/account/telemeter/logs/logs.jsonl`). Os healthchecks são descartados no agente; os logs de infra só guardam `WARN` ou acima (política enxuta inicial) e sem as linhas de acesso do nginx. Declarar `plugins:` no `gateway/config.yaml` substitui a lista padrão do APISIX; ao atualizar a imagem, compare com a lista padrão da nova versão.
-- Autenticação na borda (decisão 0052): o plugin `openid-connect` valida o token nas rotas de API (`/v1/core/accounts/*` e demais métodos de `/v1/core/accounts`, `/v1/ipm/organizations*` e `/v1/sum/services*`): assinatura RS256 pelo JWKS do Zitadel, emissor, audiência do módulo (`GATEWAY_AUTH_AUDIENCE_*`), `exp`, `sub`, `iss` e `aud`. Continuam públicas as rotas do Zitadel e o cadastro (`POST /v1/core/accounts`). O gateway só **autentica**: as roles e o dono continuam nos Receivers, que repetem a validação do token. O `401` do gateway segue o contrato `ApiError` (`WWW-Authenticate: Bearer realm="smarkee"`, sem descrição do erro); o motivo fica no log do gateway (`OIDC introspection failed: ...`), e o `401` do próprio Receiver passa intacto.
-- O gateway busca o discovery e o JWKS no endereço do issuer (`http://ipm-dev.smarkee.com.br:8080`). Dentro da rede esse nome é um alias do próprio `gateway`, que atende a porta `8080` (além da `8000`) e encaminha ao Zitadel; mantenha o alias, a porta e `IDENTITY_EXTERNAL_DOMAIN`/`IDENTITY_EXTERNAL_PORT` iguais. Todo contêiner da rede `internal` passa a resolver `ipm-dev.smarkee.com.br` para o gateway.
+- Autenticação na borda (decisão 0052): o plugin `openid-connect` valida o token nas rotas de API (`/v1/core/accounts/*` e demais métodos de `/v1/core/accounts`, `/v1/ipm/organizations*` e `/v1/sum/services*`): assinatura RS256 pelo JWKS do Zitadel, emissor, audiência do módulo (`SMARKEE_GATEWAY_AUTH_AUDIENCE_*`), `exp`, `sub`, `iss` e `aud`. Continuam públicas as rotas do Zitadel e o cadastro (`POST /v1/core/accounts`). O gateway só **autentica**: as roles e o dono continuam nos Receivers, que repetem a validação do token. O `401` do gateway segue o contrato `ApiError` (`WWW-Authenticate: Bearer realm="smarkee"`, sem descrição do erro); o motivo fica no log do gateway (`OIDC introspection failed: ...`), e o `401` do próprio Receiver passa intacto.
+- O gateway busca o discovery e o JWKS no endereço do issuer (`http://ipm-dev.smarkee.com.br:8080`). Dentro da rede esse nome é um alias do próprio `gateway`, que atende a porta `8080` (além da `8000`) e encaminha ao Zitadel; mantenha o alias, a porta e `SMARKEE_IDENTITY_EXTERNAL_DOMAIN`/`SMARKEE_IDENTITY_EXTERNAL_PORT` iguais. Todo contêiner da rede `internal` passa a resolver `ipm-dev.smarkee.com.br` para o gateway.
 - Zitadel parado: com o gateway reiniciado a frio, as rotas autenticadas respondem `401` (falha fechada) até o discovery voltar; depois que o Zitadel volta, o gateway se recupera sozinho em cerca de 16 s (medido). O JWKS fica em cache por 1 h (`jwk_expires_in`): uma chave nova é reconhecida na hora (o `kid` desconhecido força a busca), mas uma chave retirada do JWKS ainda deve valer por até 1 h (não medido).
 - A validação é local, sem consultar o Zitadel a cada pedido: um token de usuário desativado ou com sessão encerrada vale até o `exp` (15 minutos). O gateway não verifica `nbf` (os Receivers sim).
-- Limites de recursos (decisão 0053): todo contêiner de longa duração tem `deploy.resources.limits` calibrados com o consumo medido em dev, ajustáveis por variável de ambiente (`<SERVIÇO>_CPUS` e `<SERVIÇO>_MEMORY`, por exemplo `DATABASE_MEMORY`; nas features, `<MÓDULO>_<TIPO>_COMPONENT_CPUS` e `_MEMORY`). Padrões: componentes 0,5 CPU e 256 MiB; `database` e `identity` 1,0 CPU e 512 MiB; `identity-login` 0,5 CPU e 512 MiB; `gateway` 1,0 CPU e 384 MiB; `messaging` e `gateway-etcd` 0,5 CPU e 256 MiB; `mail` 0,25 CPU e 256 MiB; `telemetry-router` 0,5 CPU e 256 MiB; `platform-telemeter` e `telemetry-agent` 0,5 CPU e 384 MiB; `core-account-telemeter` 0,25 CPU e 192 MiB. Medido: pior uso de memória 36% do limite. O *throttling* de CPU que aparece nos componentes (6 períodos por 30 s) vem do healthcheck `python -c` a cada 10 s, não do trabalho do componente.
+- Limites de recursos (decisão 0053): todo contêiner de longa duração tem `deploy.resources.limits` calibrados com o consumo medido em dev, ajustáveis por variável de ambiente (`<SERVIÇO>_CPUS` e `<SERVIÇO>_MEMORY`, por exemplo `SMARKEE_DATABASE_MEMORY`; nas features, `<MÓDULO>_<TIPO>_COMPONENT_CPUS` e `_MEMORY`). Padrões: componentes 0,5 CPU e 256 MiB; `database` e `identity` 1,0 CPU e 512 MiB; `identity-login` 0,5 CPU e 512 MiB; `gateway` 1,0 CPU e 384 MiB; `messaging` e `gateway-etcd` 0,5 CPU e 256 MiB; `mail` 0,25 CPU e 256 MiB; `telemetry-router` 0,5 CPU e 256 MiB; `platform-telemeter` e `telemetry-agent` 0,5 CPU e 384 MiB; `core-account-telemeter` 0,25 CPU e 192 MiB. Medido: pior uso de memória 36% do limite. O *throttling* de CPU que aparece nos componentes (6 períodos por 30 s) vem do healthcheck `python -c` a cada 10 s, não do trabalho do componente.
 - Logs da plataforma (decisão 0053): `messaging`, `database`, `identity`, `identity-login`, `gateway`, `gateway-etcd`, `mail` e os dois coletores usam `json-file` com as labels `com.docker.compose.service` e `smarkee.layer=infra` (o agente só lê os que têm a segunda); um contêiner novo da plataforma precisa do mesmo bloco `logging` e da label para ter os logs coletados. Fora o que o agente descarta (healthchecks, `INFO` da infra), os `WARN` do Zitadel `decrypt access token` e `Usuário não pôde ser encontrado` são benignos e frequentes.
-- A Admin API e o console web exigem a `GATEWAY_ADMIN_KEY`, mas o etcd não tem autenticação e a Admin API aceita conexões de toda a rede `internal`; não exponha as portas `9180` e `2379` fora de `127.0.0.1` e da rede de dev.
+- A Admin API e o console web exigem a `SMARKEE_GATEWAY_ADMIN_KEY`, mas o etcd não tem autenticação e a Admin API aceita conexões de toda a rede `internal`; não exponha as portas `9180` e `2379` fora de `127.0.0.1` e da rede de dev.
 - **Depois de recriar um Receiver** (o contêiner ganha outro IP), o gateway pode continuar enviando ao IP antigo até o cache de DNS dele expirar, e a requisição cai em outro contêiner (observado em 2026-10-19: `405` vindo de um serviço que só aceita `GET`). Reinicie o gateway (`docker compose restart gateway` nesta pasta) ou aguarde alguns minutos.
-- O limite de taxa do cadastro usa o IP do cliente dado pelo plugin `real-ip` (decisão 0054). Em dev, `GATEWAY_TRUSTED_PROXIES` fica vazio e vale o IP do par TCP (o NAT do Docker esconde o real); atrás de um balanceador (stg e prd) defina nela o IP ou o CIDR do balanceador. O `429` do plugin `limit-count` não traz `Retry-After`; a rota `core-account-register` o acrescenta com `response-rewrite` (60 s, a janela inteira).
+- O limite de taxa do cadastro usa o IP do cliente dado pelo plugin `real-ip` (decisão 0054). Em dev, `SMARKEE_GATEWAY_TRUSTED_PROXIES` fica vazio e vale o IP do par TCP (o NAT do Docker esconde o real); atrás de um balanceador (stg e prd) defina nela o IP ou o CIDR do balanceador. O `429` do plugin `limit-count` não traz `Retry-After`; a rota `core-account-register` o acrescenta com `response-rewrite` (60 s, a janela inteira).

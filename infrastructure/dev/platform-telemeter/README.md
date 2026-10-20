@@ -21,4 +21,4 @@ O **platform-telemeter** **processa e grava** a telemetria que **não é de nenh
 | `config.yaml` | receptor OTLP, filtros infra x app, exportadores de arquivo e pipelines |
 | `logs/`, `metrics/`, `traces/` | saída (dado de execução, ignorado pelo git; só o `.gitkeep` é versionado). Precisam ser graváveis pelo usuário `10001` (no Linux, `chmod -R o+rwx logs metrics traces`) |
 
-Limites: `PLATFORM_TELEMETER_CPUS` (0,5) e `PLATFORM_TELEMETER_MEMORY` (384M). Para ver o que chega: `tail -f logs/app/logs.jsonl`.
+Limites: `SMARKEE_PLATFORM_TELEMETER_CPUS` (0,5) e `SMARKEE_PLATFORM_TELEMETER_MEMORY` (384M). Para ver o que chega: `tail -f logs/app/logs.jsonl`.

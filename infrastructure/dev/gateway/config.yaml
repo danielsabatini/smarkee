@@ -4,7 +4,7 @@ apisix:
   # Proxy HTTP dentro da rede. A 8000 é a dos Receivers (buscam o JWKS do Zitadel em
   # gateway.smarkee.internal:8000). A 8080 existe só para o próprio gateway buscar o discovery e o JWKS do Zitadel
   # pelo endereço público (o issuer tem a porta 8080; veja o alias de rede no compose.yaml). Mantenha-a igual a
-  # IDENTITY_EXTERNAL_PORT.
+  # SMARKEE_IDENTITY_EXTERNAL_PORT.
   node_listen:
     - 8000
     - 8080

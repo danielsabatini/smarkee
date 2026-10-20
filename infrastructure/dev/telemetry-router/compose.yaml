@@ -7,7 +7,7 @@ name: telemetry-router
 # antes do roteamento.
 services:
   telemetry-router:
-    image: ${TELEMETRY_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
+    image: ${SMARKEE_TELEMETRY_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
     container_name: telemetry-router.smarkee.internal
     # Sem capabilities e sem escalonamento de privilégio (o coletor escuta em portas altas e roda como 10001).
     cap_drop: [ALL]
@@ -38,8 +38,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "${TELEMETRY_ROUTER_CPUS:-0.5}"
-          memory: ${TELEMETRY_ROUTER_MEMORY:-256M}
+          cpus: "${SMARKEE_TELEMETRY_ROUTER_CPUS:-0.5}"
+          memory: ${SMARKEE_TELEMETRY_ROUTER_MEMORY:-256M}
     networks:
       internal:
         aliases:

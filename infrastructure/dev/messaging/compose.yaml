@@ -3,11 +3,11 @@ name: messaging
 x-messaging-bootstrap: &messaging-bootstrap
   build:
     context: ../../tools/nats-client
-  image: ${MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}
+  image: ${SMARKEE_MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}
   environment:
     NATS_URL: nats://messaging.smarkee.internal:4222
-    NATS_USER: ${MESSAGING_USER:-smarkee}
-    NATS_PASSWORD: ${MESSAGING_PASSWORD:?Defina MESSAGING_PASSWORD no .env (veja .env.example)}
+    NATS_USER: ${SMARKEE_MESSAGING_USER:-smarkee}
+    NATS_PASSWORD: ${SMARKEE_MESSAGING_PASSWORD:?Defina SMARKEE_MESSAGING_PASSWORD no .env (veja .env.example)}
   volumes:
     - ./bootstrap:/bootstrap:ro
   depends_on:
@@ -28,7 +28,7 @@ x-infra-logging: &infra-logging
 
 services:
   messaging:
-    image: ${MESSAGING_IMAGE_VERSION:-nats:2.15.0-alpine}
+    image: ${SMARKEE_MESSAGING_IMAGE_VERSION:-nats:2.15.0-alpine}
     container_name: messaging.smarkee.internal
     labels:
       smarkee.layer: infra
@@ -37,15 +37,15 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "${MESSAGING_CPUS:-0.5}"
-          memory: ${MESSAGING_MEMORY:-256M}
+          cpus: "${SMARKEE_MESSAGING_CPUS:-0.5}"
+          memory: ${SMARKEE_MESSAGING_MEMORY:-256M}
     ports:
-      - "127.0.0.1:${MESSAGING_CLIENT_PORT:-4222}:4222"  # Client port (somente para desenvolvimento no host)
-      - "127.0.0.1:${MESSAGING_MONITOR_PORT:-8222}:8222"  # Monitoring port
+      - "127.0.0.1:${SMARKEE_MESSAGING_CLIENT_PORT:-4222}:4222"  # Client port (somente para desenvolvimento no host)
+      - "127.0.0.1:${SMARKEE_MESSAGING_MONITOR_PORT:-8222}:8222"  # Monitoring port
     command: ["-c", "/etc/nats/nats.conf"]
     environment:
-      NATS_USER: ${MESSAGING_USER:-smarkee}
-      NATS_PASSWORD: ${MESSAGING_PASSWORD:?Defina MESSAGING_PASSWORD no .env (veja .env.example)}
+      NATS_USER: ${SMARKEE_MESSAGING_USER:-smarkee}
+      NATS_PASSWORD: ${SMARKEE_MESSAGING_PASSWORD:?Defina SMARKEE_MESSAGING_PASSWORD no .env (veja .env.example)}
     volumes:
       - messaging-data:/data
       - ./nats.conf:/etc/nats/nats.conf:ro

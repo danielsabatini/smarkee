@@ -20,7 +20,7 @@ Esta imagem é destinada exclusivamente à execução de scripts de migração D
 docker build -t smarkee-psql-client:dev infrastructure/tools/psql-client
 ```
 
-Uso nos `compose.yaml` das features (serviço `<módulo>-<tipo>-migrate`): `build.context` aponta para este diretório, `image: ${DATABASE_CLIENT_IMAGE:-smarkee-psql-client:dev}` e a conexão vem de `PGHOST`, `PGDATABASE`, `PGUSER` e `PGPASSWORD`.
+Uso nos `compose.yaml` das features (serviço `<módulo>-<tipo>-migrate`): `build.context` aponta para este diretório, `image: ${SMARKEE_DATABASE_CLIENT_IMAGE:-smarkee-psql-client:dev}` e a conexão vem de `PGHOST`, `PGDATABASE`, `PGUSER` e `PGPASSWORD`.
 
 ```bash
 ```

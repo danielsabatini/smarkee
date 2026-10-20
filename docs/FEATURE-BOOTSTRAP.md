@@ -67,7 +67,7 @@ Os Streams (`REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT`, `UPDATED`) s
 ## 7. Identidade e acesso
 
 - Um projeto de roles por módulo no provedor de identidade e contas de serviço do Observer e do Executor ([`.decisions/0032`](../.decisions/0032-projetos-de-roles-por-modulo-e-papel-sem-grant.md), [`0028`](../.decisions/0028-padrao-de-nomes-das-roles.md)). Módulo novo exige o projeto novo; tipo novo de módulo existente reutiliza o do módulo.
-- Rota da API em `infrastructure/dev/gateway/bootstrap/adc.yaml`: **uma por tipo** (decisões `0015`, `0030`, `0052`), com a variável `GATEWAY_AUTH_AUDIENCE_<MÓDULO>_<TIPO>` em `infrastructure/dev/gateway/.env.example` e no `compose.yaml` do gateway.
+- Rota da API em `infrastructure/dev/gateway/bootstrap/adc.yaml`: **uma por tipo** (decisões `0015`, `0030`, `0052`), com a variável `SMARKEE_GATEWAY_AUTH_AUDIENCE_<MÓDULO>_<TIPO>` em `infrastructure/dev/gateway/.env.example` e no `compose.yaml` do gateway.
 
 ## 8. Execução em dev
 

@@ -1,5 +1,5 @@
 -- Papel e banco do Identity (Zitadel) (apenas desenvolvimento local; credenciais triviais).
--- A senha deve coincidir com IDENTITY_DATABASE_PASSWORD em identity/.env.
+-- A senha deve coincidir com SMARKEE_IDENTITY_DATABASE_PASSWORD em identity/.env.
 -- Idempotente: pode ser reaplicado sem erro.
 
 DO $$

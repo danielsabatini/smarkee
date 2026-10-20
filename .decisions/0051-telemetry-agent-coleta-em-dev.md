@@ -12,7 +12,7 @@ A stack de observabilidade do desenvolvedor (`lgtm-stack-otel/otel-agent`) já f
 
 ## Decisão
 
-- **Serviço `telemetry-agent`** em `infrastructure/dev`, com o Collector contrib `0.163.1` (a mesma imagem do `telemetry-gateway`), na rede `internal`, sem porta no host, enviando OTLP/gRPC a `telemetry-gateway.smarkee.internal:4317` (`TELEMETRY_GATEWAY_ENDPOINT`).
+- **Serviço `telemetry-agent`** em `infrastructure/dev`, com o Collector contrib `0.163.1` (a mesma imagem do `telemetry-gateway`), na rede `internal`, sem porta no host, enviando OTLP/gRPC a `telemetry-gateway.smarkee.internal:4317` (`SMARKEE_TELEMETRY_GATEWAY_ENDPOINT`).
 - **Métricas:** `docker_stats` (somente CPU, memória e rede, a política enxuta do otel-agent), só dos contêineres `*.smarkee.internal`. Sem `host_metrics`: isso exigiria montar o sistema de arquivos do host, e o pedido é por dados do Docker.
 - **Logs:** `file_log` sobre `/var/lib/docker/containers/*/*-json.log` com a posição guardada em volume (`file_storage`). O pipeline do contrato 0045 §7 foi refeito com ajustes descobertos na verificação (abaixo). Tudo que não tem `service.namespace = smarkee` (outros projetos do host, texto puro, JSON de terceiros) é descartado no próprio agente.
 - **Hardening:** `cap_drop: [ALL]` e `no-new-privileges`. Roda como root, só para ler os arquivos de log (0600 do root) e o socket do Docker.

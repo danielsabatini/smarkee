@@ -37,12 +37,12 @@ services:
   core-account-consumer:
     build:
       context: ../../../infrastructure/tools/nats-client
-    image: ${MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}
+    image: ${SMARKEE_MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}
     container_name: core-account-consumer.smarkee.internal
     environment:
       NATS_URL: nats://messaging.smarkee.internal:4222
-      NATS_USER: ${MESSAGING_USER:-smarkee}
-      NATS_PASSWORD: ${CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
+      NATS_USER: ${SMARKEE_MESSAGING_USER:-smarkee}
+      NATS_PASSWORD: ${CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
     command:
       - sh
       - -c
@@ -67,7 +67,7 @@ services:
   core-account-migrate:
     build:
       context: ../../../infrastructure/tools/psql-client
-    image: ${DATABASE_CLIENT_IMAGE:-smarkee-psql-client:dev}
+    image: ${SMARKEE_DATABASE_CLIENT_IMAGE:-smarkee-psql-client:dev}
     container_name: core-account-migrate.smarkee.internal
     environment:
       PGHOST: database.smarkee.internal
@@ -101,7 +101,7 @@ services:
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
       # defaults do componente (CORE_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>).
       CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD: ${CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD:?Defina no .env}
-      CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
+      CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
       CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE: ${CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-core, org core)}
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
@@ -138,7 +138,7 @@ services:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD: ${CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD:?Defina no .env}
-      CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
+      CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
@@ -164,7 +164,7 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
+      CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
@@ -188,7 +188,7 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
+      CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
       CORE_ACCOUNT_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID: ${CORE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
@@ -219,7 +219,7 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD: ${CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
+      CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD: ${CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
       CORE_ACCOUNT_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID: ${CORE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
       CORE_ACCOUNT_EXECUTOR_IDENTITY_PROJECT_IDS: ${CORE_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles que o Executor concede)}
     volumes:
@@ -253,7 +253,7 @@ services:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD: ${CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD:?Defina no .env}
-      CORE_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD:?Defina no .env (a mesma MESSAGING_PASSWORD de messaging/.env)}
+      CORE_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
@@ -270,7 +270,7 @@ services:
   # telemetry-router da plataforma, os logs e os spans de app desta feature e os grava em `telemeter/logs/` e `telemeter/traces/`. Não lê logs de
   # contêineres nem usa o socket do Docker (isso é do telemetry-agent). Sem privilégios e sem escrita fora da pasta.
   core-account-telemeter:
-    image: ${TELEMETRY_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
+    image: ${SMARKEE_TELEMETRY_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
     container_name: core-account-telemeter.smarkee.internal
     cap_drop: [ALL]
     security_opt: ["no-new-privileges=true"]

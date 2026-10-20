@@ -11,7 +11,7 @@ include:
 
 services:
   telemetry-agent:
-    image: ${TELEMETRY_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
+    image: ${SMARKEE_TELEMETRY_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
     container_name: telemetry-agent.smarkee.internal
     # root só para ler /var/lib/docker/containers (arquivos 0600 do root) e o socket do Docker; sem nenhuma
     # capability e sem escalonamento de privilégio. O socket, mesmo montado como leitura, dá acesso à API
@@ -23,7 +23,7 @@ services:
       # Identidade do ambiente nas métricas (os logs já trazem a dos componentes).
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=development
       # Destino: OTLP gRPC do telemetry-router.
-      TELEMETRY_ROUTER_ENDPOINT: ${TELEMETRY_ROUTER_ENDPOINT:-telemetry-router.smarkee.internal:4317}
+      SMARKEE_TELEMETRY_ROUTER_ENDPOINT: ${SMARKEE_TELEMETRY_ROUTER_ENDPOINT:-telemetry-router.smarkee.internal:4317}
     command:
       - --config=/etc/otelcol-contrib/config.yaml
     volumes:
@@ -51,8 +51,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "${TELEMETRY_AGENT_CPUS:-0.5}"
-          memory: ${TELEMETRY_AGENT_MEMORY:-384M}
+          cpus: "${SMARKEE_TELEMETRY_AGENT_CPUS:-0.5}"
+          memory: ${SMARKEE_TELEMETRY_AGENT_MEMORY:-384M}
     networks:
       internal:
         aliases:
