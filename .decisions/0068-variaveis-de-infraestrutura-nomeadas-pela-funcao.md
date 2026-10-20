@@ -41,5 +41,5 @@ Consumidores afetados: `.env` e `.env.example` de `infrastructure/dev/*` e das f
 ## Fora desta decisão
 
 - Variáveis internas do Zitadel que o compose fixa e que não vêm do `.env` (`ZITADEL_FIRSTINSTANCE_*` de máquina, `ZITADEL_DEFAULTINSTANCE_*`, `ZITADEL_TLS_ENABLED`...) ficam como estão.
-- `CORE_IDENTITY_*` segue fora do padrão (pendência da 0067).
+- `CORE_IDENTITY_*` foi renomeada para `CORE_ACCOUNT_IDENTITY_*` (pendência da 0067 fechada); são variáveis de aplicação, e não de infraestrutura.
 - Scripts de `scripts/dev` que leem o `.env` (`cleanup` lê `MESSAGING_PASSWORD`; `backup` compara `.env` inteiros) foram ajustados à chave nova.

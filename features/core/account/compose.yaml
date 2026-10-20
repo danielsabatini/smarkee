@@ -189,7 +189,7 @@ services:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD: ${CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
-      CORE_ACCOUNT_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID: ${CORE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
+      CORE_ACCOUNT_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID: ${CORE_ACCOUNT_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
       - type: volume
@@ -220,8 +220,8 @@ services:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD: ${CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
-      CORE_ACCOUNT_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID: ${CORE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
-      CORE_ACCOUNT_EXECUTOR_IDENTITY_PROJECT_IDS: ${CORE_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles que o Executor concede)}
+      CORE_ACCOUNT_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID: ${CORE_ACCOUNT_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
+      CORE_ACCOUNT_EXECUTOR_IDENTITY_PROJECT_IDS: ${CORE_ACCOUNT_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles que o Executor concede)}
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
       - type: volume

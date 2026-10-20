@@ -26,7 +26,7 @@ A configuração efetiva dos 18 papéis (dump do modelo, com valores fictícios 
 
 ## Fora desta decisão (pendências declaradas)
 
-- As variáveis `CORE_IDENTITY_*` do compose não seguem `<MÓDULO>_<TIPO>_<PAPEL>_`; renomear é quebra de contrato (§10) e exige migração.
+- As variáveis `CORE_IDENTITY_*` do compose não seguiam o padrão da feature; foram renomeadas para `CORE_ACCOUNT_IDENTITY_*` (como `SUM_SERVICE_IDENTITY_*`), quebra de dev registrada no CHANGELOG.
 - Não há K8s nem Helm no repositório; o `config.toml` e os segredos montados já são o formato esperado para um ConfigMap e um Secret. Lacuna de dev, fecha antes do stg.
 - Ainda não se monta `/run/secrets` com um arquivo por senha no compose de dev (as senhas seguem por variável); a leitura está pronta e testada.
 
