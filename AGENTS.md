@@ -168,6 +168,20 @@ Regras:
 * Descartar é legítimo quando a direção estava errada ou quando o trabalho era um **experimento declarado**, feito em `.workspace/` (§23) e sem virar produto. Registre o que se aprendeu.
 * Esta regra **não autoriza** construir antecipadamente pontos de extensão nem flexibilidade hipotética (§6, §25). O caminho aditivo nasce de escolher bem o simples, e não de projetar o avançado agora.
 
+## 2.7 Referência de mercado: seguir o que já é reconhecido e funciona
+
+Quando houver dúvida sobre **como** resolver um problema, siga o caminho de uma solução **reconhecida e comprovada em produção pelo mercado** para o mesmo problema, em vez de inventar um modelo próprio.
+
+Exemplo: para controle de recursos por reconciliação (estado desejado, estado observado, gerações, condições e conclusão de alterações), a referência é o **Kubernetes** e os controladores do seu ecossistema.
+
+Regras:
+
+* Identifique a referência e **como ela resolve** o problema, com evidência da documentação oficial (§9). Não presuma o comportamento da referência.
+* Adote o **modelo** (conceitos, nomes, semântica, invariantes), e não necessariamente o produto: a referência orienta a solução, mas não é dependência (§21).
+* Ao divergir da referência, declare **onde** diverge e **por quê**, na decisão em `.decisions/`.
+* A referência **não sobrepõe os pilares** (§2.1): se ela conflitar com segurança, simplicidade, robustez ou resiliência no contexto do projeto, prevalece o pilar, e a divergência é registrada.
+* Prefira **um único modo** de executar o que é do mesmo tipo, como a referência faz. Casos especiais exigem justificativa explícita.
+
 ---
 
 # 3. Explícito sobre Implícito
@@ -992,7 +1006,7 @@ Quando duas abordagens forem possíveis, decida pelo §2: aplique os pilares na 
 
 Em caso de empate, prefira a abordagem mais explícita (§3) e a mais fácil de verificar (§19).
 
-Quando ainda houver dúvida, procure evidências antes de decidir (§9).
+Quando ainda houver dúvida, procure evidências antes de decidir (§9) e siga o caminho da solução reconhecida pelo mercado (§2.7).
 
 ---
 
@@ -1179,6 +1193,7 @@ Corretude sobre velocidade.
 Explícito sobre implícito.
 Pequenas mudanças sobre grandes reescritas.
 Evidência sobre suposição.
+Solução reconhecida pelo mercado sobre modelo inventado.
 Menor privilégio sobre maior privilégio.
 Idempotência sobre fragilidade.
 Observabilidade sobre opacidade.
