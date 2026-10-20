@@ -61,6 +61,7 @@ def missing_required(settings: AccountExecutorSettings) -> list[str]:
     return missing_variables(
         "CORE_ACCOUNT_EXECUTOR_",
         {
+            "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
             "IDENTITY_REGISTER_ORGANIZATION_ID": bool(settings.identity.register_organization_id),
             "IDENTITY_PROJECT_IDS": bool(settings.identity.project_ids),

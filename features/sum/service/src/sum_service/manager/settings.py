@@ -6,8 +6,8 @@ Nome da variável: `SUM_SERVICE_MANAGER_<SEÇÃO>_<CAMPO>`, por exemplo
 `SUM_SERVICE_MANAGER_MESSAGING_URL`. As senhas e o catálogo não têm default.
 """
 
-from sum_service.common.settings import DatabaseSettings as CommonDatabaseSettings
 from sum_service.common.settings import (
+    DatabaseSettings,
     HealthSettings,
     MessagingSettings,
     RoleSettings,
@@ -15,11 +15,6 @@ from sum_service.common.settings import (
     missing_variables,
     role_config,
 )
-
-
-class DatabaseSettings(CommonDatabaseSettings):
-    user: str = "sum_service_manager_login"
-    """Papel de login do Manager do tipo (`infrastructure/dev/database/bootstrap/sum.sql`)."""
 
 
 class CatalogSettings(Section):
@@ -42,7 +37,9 @@ def missing_required(settings: SumServiceManagerSettings) -> list[str]:
     return missing_variables(
         "SUM_SERVICE_MANAGER_",
         {
+            "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
+            "DATABASE_USER": settings.database.user is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
             "CATALOG_ROLES": bool(settings.catalog.roles),
         },

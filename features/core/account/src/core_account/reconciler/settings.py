@@ -46,5 +46,9 @@ class AccountReconcilerSettings(RoleSettings):
 def missing_required(settings: AccountReconcilerSettings) -> list[str]:
     """Nomes das variáveis obrigatórias (sem default) que não foram informadas."""
     return missing_variables(
-        "CORE_ACCOUNT_RECONCILER_", {"MESSAGING_PASSWORD": settings.messaging.password is not None}
+        "CORE_ACCOUNT_RECONCILER_",
+        {
+            "MESSAGING_USER": settings.messaging.user is not None,
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
+        },
     )

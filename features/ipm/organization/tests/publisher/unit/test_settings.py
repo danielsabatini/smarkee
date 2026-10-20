@@ -6,17 +6,20 @@ from ipm_organization.publisher.settings import (
     missing_required,
 )
 
-REQUIRED_SECRETS = (
+REQUIRED = (
+    "IPM_ORGANIZATION_PUBLISHER_MESSAGING_USER",
     "IPM_ORGANIZATION_PUBLISHER_MESSAGING_PASSWORD",
+    "IPM_ORGANIZATION_PUBLISHER_DATABASE_USER",
     "IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD",
 )
 
 
-def test_defaults_have_no_secrets_and_use_the_publisher_role() -> None:
+def test_defaults_carry_no_credentials() -> None:
     settings = IpmOrganizationPublisherSettings()
+    assert settings.database.user is None
     assert settings.database.password is None
+    assert settings.messaging.user is None
     assert settings.messaging.password is None
-    assert settings.database.user == "ipm_organization_publisher_login"
 
 
 def test_environment_variables_follow_the_prefix_section_and_field_pattern(
@@ -37,11 +40,11 @@ def test_unknown_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
         IpmOrganizationPublisherSettings()
 
 
-def test_missing_required_lists_every_secret_without_default() -> None:
-    assert missing_required(IpmOrganizationPublisherSettings()) == list(REQUIRED_SECRETS)
+def test_missing_required_lists_every_credential_without_default() -> None:
+    assert missing_required(IpmOrganizationPublisherSettings()) == list(REQUIRED)
 
 
 def test_missing_required_is_empty_when_everything_is_set(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in REQUIRED_SECRETS:
+    for name in REQUIRED:
         monkeypatch.setenv(name, "valor")
     assert missing_required(IpmOrganizationPublisherSettings()) == []

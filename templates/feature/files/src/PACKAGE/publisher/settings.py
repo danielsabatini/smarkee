@@ -6,19 +6,14 @@ Nome da variável: `@@UPPER@@_PUBLISHER_<SEÇÃO>_<CAMPO>`, por exemplo
 As senhas não têm default.
 """
 
-from @@PACKAGE@@.common.settings import DatabaseSettings as CommonDatabaseSettings
 from @@PACKAGE@@.common.settings import (
+    DatabaseSettings,
     HealthSettings,
     MessagingSettings,
     RoleSettings,
     missing_variables,
     role_config,
 )
-
-
-class DatabaseSettings(CommonDatabaseSettings):
-    user: str = "@@PACKAGE@@_publisher_login"
-    """Papel de login do Publisher (lê o outbox e marca `published_at`)."""
 
 
 class @@CLASS@@PublisherSettings(RoleSettings):
@@ -34,7 +29,9 @@ def missing_required(settings: @@CLASS@@PublisherSettings) -> list[str]:
     return missing_variables(
         "@@UPPER@@_PUBLISHER_",
         {
+            "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
+            "DATABASE_USER": settings.database.user is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
         },
     )

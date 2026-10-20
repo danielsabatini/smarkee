@@ -6,7 +6,10 @@ from ipm_organization.executor.settings import (
     missing_required,
 )
 
-REQUIRED_SECRETS = ("IPM_ORGANIZATION_EXECUTOR_MESSAGING_PASSWORD",)
+REQUIRED_SECRETS = (
+    "IPM_ORGANIZATION_EXECUTOR_MESSAGING_USER",
+    "IPM_ORGANIZATION_EXECUTOR_MESSAGING_PASSWORD",
+)
 
 
 def test_defaults_have_no_secrets() -> None:

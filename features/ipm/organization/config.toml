@@ -9,21 +9,27 @@ userinfo_url = "http://gateway.smarkee.internal:8000/oidc/v1/userinfo"
 
 [tool.ipm.organization.receiver.database]
 host = "database.smarkee.internal"
+user = "ipm_organization_receiver_login"
 
 [tool.ipm.organization.receiver.messaging]
 url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
 
 [tool.ipm.organization.manager.database]
 host = "database.smarkee.internal"
+user = "ipm_organization_manager_login"
 
 [tool.ipm.organization.manager.messaging]
 url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
 
 [tool.ipm.organization.publisher.database]
 host = "database.smarkee.internal"
+user = "ipm_organization_publisher_login"
 
 [tool.ipm.organization.publisher.messaging]
 url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
 
 [tool.ipm.organization.observer.identity]
 base_url = "http://identity.smarkee.internal:8080"
@@ -32,9 +38,11 @@ issuer = "http://ipm-dev.smarkee.com.br:8080"
 
 [tool.ipm.organization.observer.messaging]
 url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
 
 [tool.ipm.organization.reconciler.messaging]
 url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
 
 [tool.ipm.organization.executor.identity]
 base_url = "http://identity.smarkee.internal:8080"
@@ -43,3 +51,5 @@ issuer = "http://ipm-dev.smarkee.com.br:8080"
 
 [tool.ipm.organization.executor.messaging]
 url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+

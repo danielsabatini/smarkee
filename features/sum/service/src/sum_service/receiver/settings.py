@@ -4,19 +4,14 @@ Precedência: CLI → ambiente → config.toml → segredos → default (`common
 audience não têm default.
 """
 
-from sum_service.common.settings import DatabaseSettings as CommonDatabaseSettings
 from sum_service.common.settings import (
+    DatabaseSettings,
     MessagingSettings,
     RoleSettings,
     Section,
     missing_variables,
     role_config,
 )
-
-
-class DatabaseSettings(CommonDatabaseSettings):
-    user: str = "sum_service_receiver_login"
-    """Papel de login do Receiver: só `SELECT` nas views de `sum.service` (decisão 0033)."""
 
 
 class AuthSettings(Section):
@@ -59,7 +54,9 @@ def missing_required(settings: SumServiceReceiverSettings) -> list[str]:
         "SUM_SERVICE_RECEIVER_",
         {
             "AUTH_AUDIENCE": bool(settings.auth.audience),
+            "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
+            "DATABASE_USER": settings.database.user is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
         },
     )

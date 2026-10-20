@@ -6,7 +6,10 @@ from sum_service.reconciler.settings import (
     missing_required,
 )
 
-REQUIRED_SECRETS = ("SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD",)
+REQUIRED_SECRETS = (
+    "SUM_SERVICE_RECONCILER_MESSAGING_USER",
+    "SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD",
+)
 
 
 def test_defaults_follow_the_resource_parameters_of_the_contract() -> None:
@@ -34,7 +37,8 @@ def test_unknown_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
         SumServiceReconcilerSettings()
 
 
-def test_missing_required_lists_the_nats_password(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_missing_required_lists_the_nats_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     assert missing_required(SumServiceReconcilerSettings()) == list(REQUIRED_SECRETS)
-    monkeypatch.setenv(REQUIRED_SECRETS[0], "valor")
+    for name in REQUIRED_SECRETS:
+        monkeypatch.setenv(name, "valor")
     assert missing_required(SumServiceReconcilerSettings()) == []

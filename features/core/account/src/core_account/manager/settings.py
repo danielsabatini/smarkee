@@ -6,8 +6,8 @@ Nome da variável: `CORE_ACCOUNT_MANAGER_<SEÇÃO>_<CAMPO>`, por exemplo
 `CORE_ACCOUNT_MANAGER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
-from core_account.common.settings import DatabaseSettings as CommonDatabaseSettings
 from core_account.common.settings import (
+    DatabaseSettings,
     HealthSettings,
     MessagingSettings,
     RoleSettings,
@@ -16,11 +16,6 @@ from core_account.common.settings import (
     role_config,
 )
 from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES
-
-
-class DatabaseSettings(CommonDatabaseSettings):
-    user: str = "core_account_manager_login"
-    """Papel de login do Manager do tipo (`docs/POSTGRESQL.md` §14.2)."""
 
 
 class LoopSettings(Section):
@@ -48,7 +43,9 @@ def missing_required(settings: AccountManagerSettings) -> list[str]:
     return missing_variables(
         "CORE_ACCOUNT_MANAGER_",
         {
+            "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
+            "DATABASE_USER": settings.database.user is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
         },
     )

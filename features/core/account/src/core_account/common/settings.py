@@ -139,7 +139,9 @@ class Section(BaseModel):
 
 class MessagingSettings(Section):
     url: str = "nats://localhost:4222"
-    user: str = "smarkee"
+    user: str | None = None
+    """Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`."""
+
     password: SecretStr | None = None
 
 
@@ -156,12 +158,14 @@ class HealthSettings(Section):
 
 
 class DatabaseSettings(Section):
-    """Conexão com o SSOT. O papel de login (`user`) é de cada papel e não tem default aqui."""
+    """Conexão com o SSOT."""
 
     host: str = "localhost"
     port: int = 5432
     name: str = "smarkee"
-    user: str
+    user: str | None = None
+    """Papel de login do banco, um por papel. Sem default: vem do ambiente ou do `config.toml`."""
+
     password: SecretStr | None = None
 
 

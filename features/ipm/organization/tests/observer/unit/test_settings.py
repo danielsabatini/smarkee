@@ -6,7 +6,10 @@ from ipm_organization.observer.settings import (
     missing_required,
 )
 
-REQUIRED_SECRETS = ("IPM_ORGANIZATION_OBSERVER_MESSAGING_PASSWORD",)
+REQUIRED_SECRETS = (
+    "IPM_ORGANIZATION_OBSERVER_MESSAGING_USER",
+    "IPM_ORGANIZATION_OBSERVER_MESSAGING_PASSWORD",
+)
 
 
 def test_defaults_follow_the_contract_and_have_no_secrets() -> None:

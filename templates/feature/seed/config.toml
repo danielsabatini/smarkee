@@ -8,24 +8,30 @@ jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
 [tool.@@DOTTED@@.receiver.database]
 host = "database.smarkee.internal"
+user = "@@PACKAGE@@_receiver_login"
 
 [tool.@@DOTTED@@.receiver.messaging]
 url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
 
 [tool.@@DOTTED@@.receiver.peers]
 organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
 
 [tool.@@DOTTED@@.manager.database]
 host = "database.smarkee.internal"
+user = "@@PACKAGE@@_manager_login"
 
 [tool.@@DOTTED@@.manager.messaging]
 url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
 
 [tool.@@DOTTED@@.publisher.database]
 host = "database.smarkee.internal"
+user = "@@PACKAGE@@_publisher_login"
 
 [tool.@@DOTTED@@.publisher.messaging]
 url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
 
 [tool.@@DOTTED@@.observer.identity]
 base_url = "http://identity.smarkee.internal:8080"
@@ -34,9 +40,11 @@ issuer = "http://ipm-dev.smarkee.com.br:8080"
 
 [tool.@@DOTTED@@.observer.messaging]
 url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
 
 [tool.@@DOTTED@@.reconciler.messaging]
 url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
 
 [tool.@@DOTTED@@.executor.identity]
 base_url = "http://identity.smarkee.internal:8080"
@@ -45,3 +53,5 @@ issuer = "http://ipm-dev.smarkee.com.br:8080"
 
 [tool.@@DOTTED@@.executor.messaging]
 url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+

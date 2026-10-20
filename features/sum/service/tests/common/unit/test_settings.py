@@ -27,10 +27,11 @@ def test_missing_variables_prefixes_and_keeps_the_order_of_the_ones_not_informed
     assert missing_variables("SUM_SERVICE_X_", {"A": True}) == []
 
 
-def test_the_database_login_role_has_no_default_so_each_role_must_name_its_own() -> None:
-    with pytest.raises(ValidationError):
-        DatabaseSettings()  # pyright: ignore[reportCallIssue]
-    assert DatabaseSettings(user="sum_service_x_login").password is None
+def test_credentials_have_no_default_in_the_code() -> None:
+    assert DatabaseSettings().user is None
+    assert DatabaseSettings().password is None
+    assert MessagingSettings().user is None
+    assert MessagingSettings().password is None
 
 
 def test_sections_reject_unknown_fields() -> None:
@@ -50,6 +51,7 @@ def test_defaults_have_no_secrets_and_the_state_messaging_adds_the_consumer_inac
 
 class _Messaging(Section):
     url: str = "nats://localhost:4222"
+    user: str | None = None
     password: SecretStr | None = None
 
 
@@ -103,6 +105,15 @@ def test_environment_overrides_config_toml(
 def test_config_toml_without_the_table_of_the_role_is_ignored(config_toml: Path) -> None:
     config_toml.write_text('[tool.outro]\nurl = "x"\n', encoding="utf-8")
     assert _Settings().messaging.url == "nats://localhost:4222"
+
+
+def test_user_comes_from_config_toml_and_the_environment_overrides_it(
+    config_toml: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_toml.write_text(f'{TABLE}\nuser = "do-toml"\n', encoding="utf-8")
+    assert _Settings().messaging.user == "do-toml"
+    monkeypatch.setenv("SUM_SERVICE_RECEIVER_MESSAGING_USER", "do-ambiente")
+    assert _Settings().messaging.user == "do-ambiente"
 
 
 def test_unknown_field_in_config_toml_is_rejected(config_toml: Path) -> None:

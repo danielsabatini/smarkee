@@ -6,19 +6,14 @@ Nome da variável: `IPM_ORGANIZATION_RECEIVER_<SEÇÃO>_<CAMPO>`, por exemplo
 `IPM_ORGANIZATION_RECEIVER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
-from ipm_organization.common.settings import DatabaseSettings as CommonDatabaseSettings
 from ipm_organization.common.settings import (
+    DatabaseSettings,
     MessagingSettings,
     RoleSettings,
     Section,
     missing_variables,
     role_config,
 )
-
-
-class DatabaseSettings(CommonDatabaseSettings):
-    user: str = "ipm_organization_receiver_login"
-    """Papel de login do Receiver: só `SELECT` nas views do tipo (`docs/POSTGRESQL.md` §14.2)."""
 
 
 class AuthSettings(Section):
@@ -62,7 +57,9 @@ def missing_required(settings: OrganizationReceiverSettings) -> list[str]:
         "IPM_ORGANIZATION_RECEIVER_",
         {
             "AUTH_AUDIENCE": bool(settings.auth.audience),
+            "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
+            "DATABASE_USER": settings.database.user is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
         },
     )

@@ -6,19 +6,14 @@ Nome da variável: `CORE_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>`, por exemplo
 `CORE_ACCOUNT_RECEIVER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
-from core_account.common.settings import DatabaseSettings as CommonDatabaseSettings
 from core_account.common.settings import (
+    DatabaseSettings,
     MessagingSettings,
     RoleSettings,
     Section,
     missing_variables,
     role_config,
 )
-
-
-class DatabaseSettings(CommonDatabaseSettings):
-    user: str = "core_account_receiver_login"
-    """Papel de login do Receiver: só `SELECT` nas views do tipo (`docs/POSTGRESQL.md` §14.2)."""
 
 
 class AuthSettings(Section):
@@ -70,7 +65,9 @@ def missing_required(settings: AccountReceiverSettings) -> list[str]:
         "CORE_ACCOUNT_RECEIVER_",
         {
             "AUTH_AUDIENCE": bool(settings.auth.audience),
+            "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
+            "DATABASE_USER": settings.database.user is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
         },
     )

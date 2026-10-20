@@ -53,6 +53,7 @@ async def repository(manager: psycopg.AsyncConnection[Any]) -> AsyncIterator[Sso
     settings = DatabaseSettings(
         host=DATABASE_HOST,
         port=int(DATABASE_PORT),
+        user="core_account_receiver_login",
         password=SecretStr("core_account_receiver_login"),
     )
     pool = await open_pool(settings, max_size=2)

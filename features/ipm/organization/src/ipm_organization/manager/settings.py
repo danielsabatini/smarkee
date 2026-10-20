@@ -6,8 +6,8 @@ Nome da variável: `IPM_ORGANIZATION_MANAGER_<SEÇÃO>_<CAMPO>`, por exemplo
 `IPM_ORGANIZATION_MANAGER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
-from ipm_organization.common.settings import DatabaseSettings as CommonDatabaseSettings
 from ipm_organization.common.settings import (
+    DatabaseSettings,
     HealthSettings,
     MessagingSettings,
     RoleSettings,
@@ -15,11 +15,6 @@ from ipm_organization.common.settings import (
     missing_variables,
     role_config,
 )
-
-
-class DatabaseSettings(CommonDatabaseSettings):
-    user: str = "ipm_organization_manager_login"
-    """Papel de login do Manager do tipo (`docs/POSTGRESQL.md` §14.2)."""
 
 
 class LoopSettings(Section):
@@ -41,7 +36,9 @@ def missing_required(settings: OrganizationManagerSettings) -> list[str]:
     return missing_variables(
         "IPM_ORGANIZATION_MANAGER_",
         {
+            "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
+            "DATABASE_USER": settings.database.user is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
         },
     )

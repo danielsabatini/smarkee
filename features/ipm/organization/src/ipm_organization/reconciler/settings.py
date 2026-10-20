@@ -47,5 +47,8 @@ def missing_required(settings: OrganizationReconcilerSettings) -> list[str]:
     """Nomes das variáveis obrigatórias (sem default) que não foram informadas."""
     return missing_variables(
         "IPM_ORGANIZATION_RECONCILER_",
-        {"MESSAGING_PASSWORD": settings.messaging.password is not None},
+        {
+            "MESSAGING_USER": settings.messaging.user is not None,
+            "MESSAGING_PASSWORD": settings.messaging.password is not None,
+        },
     )

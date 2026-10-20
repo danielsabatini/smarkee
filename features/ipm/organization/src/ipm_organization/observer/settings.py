@@ -48,6 +48,7 @@ def missing_required(settings: OrganizationObserverSettings) -> list[str]:
     return missing_variables(
         "IPM_ORGANIZATION_OBSERVER_",
         {
+            "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
         },
     )
