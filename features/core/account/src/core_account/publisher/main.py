@@ -31,7 +31,11 @@ async def run(settings: CoreAccountPublisherSettings) -> int:
 
 def main() -> None:
     start_role(
-        "publisher", CoreAccountPublisherSettings, missing_required, run, cli_args=sys.argv[1:]
+        "publisher",
+        CoreAccountPublisherSettings,
+        missing_required,
+        run,
+        cli_args=sys.argv[1:],
     )
 
 

@@ -31,7 +31,11 @@ async def run(settings: IpmOrganizationPublisherSettings) -> int:
 
 def main() -> None:
     start_role(
-        "publisher", IpmOrganizationPublisherSettings, missing_required, run, cli_args=sys.argv[1:]
+        "publisher",
+        IpmOrganizationPublisherSettings,
+        missing_required,
+        run,
+        cli_args=sys.argv[1:],
     )
 
 

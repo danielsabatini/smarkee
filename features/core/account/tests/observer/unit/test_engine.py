@@ -12,9 +12,9 @@ import pytest
 from core_account.common.contracts import generated
 from core_account.common.logging_config import JsonFormatter, build_resource
 from core_account.common.ports import PublishError
+from core_account.observer import settings as observer_settings
 from core_account.observer.domain.observation import Observation
 from core_account.observer.engine.observer import Observer, owns
-from core_account.observer.settings import AccountObserverSettings, PartitionSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
 RESOURCE = "account-1"
@@ -93,9 +93,11 @@ def build(
     observation: FakeObservation,
     publisher: FakePublisher,
     *,
-    partition: PartitionSettings | None = None,
+    partition: observer_settings.PartitionSettings | None = None,
 ) -> Observer:
-    settings = AccountObserverSettings(partition=partition or PartitionSettings())
+    settings = observer_settings.AccountObserverSettings(
+        partition=partition or observer_settings.PartitionSettings()
+    )
     return Observer(
         object(),  # type: ignore[arg-type]
         publisher,
@@ -156,7 +158,8 @@ async def test_it_only_observes_its_partition() -> None:
     others = [i for i in ids if not owns(i, 0, 2)]
     assert mine and others and len(mine) + len(others) == 40
     publisher, observation = FakePublisher(), FakeObservation()
-    observer = build(observation, publisher, partition=PartitionSettings(index=0, count=2))
+    partition = observer_settings.PartitionSettings(index=0, count=2)
+    observer = build(observation, publisher, partition=partition)
     for resource_id in ids:
         await observer.on_message(desired(resource_id))
     assert sorted(observation.reads) == sorted(mine)

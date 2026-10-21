@@ -792,6 +792,10 @@ class AccountObservedView(ContractModel):
     """
     Conjunto de roles de ação, sem repetição e em ordem alfabética.
     """
+    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
 
 
 class Account(ContractModel):

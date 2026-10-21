@@ -366,3 +366,28 @@ def test_account_update_changes_only_the_deletion_protection() -> None:
     assert _is_valid(requested, {**base, "specification": {"deletionProtection": True}})
     assert not _is_valid(requested, {**base, "specification": {}})
     assert not _is_valid(requested, {**base, "specification": {"email": "a@b.com"}})
+
+
+RESOURCE_TYPES = sorted(
+    path.parent
+    for path in SCHEMAS_ROOT.glob("*/*/resource.v1.schema.json")
+    if (path.parent / "observed.v1.schema.json").exists()
+)
+
+
+@pytest.mark.parametrize(
+    "resource_directory",
+    RESOURCE_TYPES,
+    ids=[str(path.relative_to(SCHEMAS_ROOT)) for path in RESOURCE_TYPES],
+)
+def test_resource_view_carries_every_observed_field(resource_directory: Path) -> None:
+    """O Receiver devolve o `observed` gravado: a visão `resource` precisa aceitar cada campo dele.
+
+    Sem isso, um campo novo no `observed` (como o `deletionProtection`, decisão 0074) faz a leitura
+    do recurso falhar na validação da resposta.
+    """
+    observed = set(_load(resource_directory / "observed.v1.schema.json")["properties"])
+    view = _load(resource_directory / "resource.v1.schema.json")["properties"]["observed"]
+    if view.get("$ref") == "observed.v1.schema.json":
+        return  # a visão é o próprio `observed`
+    assert observed <= set(view["properties"]), sorted(observed - set(view["properties"]))

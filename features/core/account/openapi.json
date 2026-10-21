@@ -201,6 +201,17 @@
               }
             ]
           },
+          "deletionProtection": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deletionprotection"
+          },
           "emailVerified": {
             "anyOf": [
               {

@@ -416,6 +416,17 @@
         "additionalProperties": false,
         "description": "Última observação; ausente antes da primeira.",
         "properties": {
+          "deletionProtection": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deletionprotection"
+          },
           "name": {
             "anyOf": [
               {

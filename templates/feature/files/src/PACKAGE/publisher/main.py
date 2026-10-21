@@ -31,7 +31,11 @@ async def run(settings: @@CLASS@@PublisherSettings) -> int:
 
 def main() -> None:
     start_role(
-        "publisher", @@CLASS@@PublisherSettings, missing_required, run, cli_args=sys.argv[1:]
+        "publisher",
+        @@CLASS@@PublisherSettings,
+        missing_required,
+        run,
+        cli_args=sys.argv[1:],
     )
 
 

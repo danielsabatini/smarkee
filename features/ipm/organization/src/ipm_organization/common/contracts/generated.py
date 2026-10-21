@@ -643,6 +643,10 @@ class OrganizationObservedView(ContractModel):
     """
     platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
     organization_state: Annotated[OrganizationState | None, Field(alias="organizationState")] = None
+    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
 
 
 class Organization(ContractModel):

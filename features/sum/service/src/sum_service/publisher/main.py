@@ -31,7 +31,11 @@ async def run(settings: SumServicePublisherSettings) -> int:
 
 def main() -> None:
     start_role(
-        "publisher", SumServicePublisherSettings, missing_required, run, cli_args=sys.argv[1:]
+        "publisher",
+        SumServicePublisherSettings,
+        missing_required,
+        run,
+        cli_args=sys.argv[1:],
     )
 
 
