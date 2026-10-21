@@ -1,4 +1,4 @@
-"""Jornada completa: login, ligar o `ipm`, a Organization, renovar a sessão e desligar.
+"""Jornada completa: login, ligar o `ipm`, a Organization e os usuários, renovar e desligar.
 
 Os testes compartilham a mesma pessoa (fixture `person`) e a mesma ligação: cada um depende do
 anterior, como os passos de uma pessoa usando a plataforma.
@@ -15,6 +15,7 @@ import pytest
 from conftest import SUM_MANAGER_DATABASE_URL, Person, Sk, wait_until
 
 IPM_ROLE = "ipm.organization"
+USER_QUOTA = 5  # cota provisória de usuários por Organization (decisão 0077)
 
 
 def _project(name: str) -> str:
@@ -48,10 +49,43 @@ def _state(sk: Sk, link: dict[str, str]) -> str:
     return done.stdout
 
 
+def _plain(shown: str) -> str:
+    """Texto de um painel da CLI sem as bordas, numa linha: a quebra da caixa não corta a frase."""
+    return " ".join(re.sub(r"[│╭╮╰╯─]", " ", shown).split())
+
+
 def _field(shown: str, name: str) -> str:
     match = re.search(rf"^[│\s]*{name}\s+(.+?)[│\s]*$", shown, re.MULTILINE)
     assert match, f"campo {name} ausente em:\n{shown}"
     return match.group(1)
+
+
+def _create_users(sk: Sk, organization_id: str, users: list[str]) -> None:
+    """Usuários até a cota, sem roles: o Grant da Organization ainda é do operador."""
+    for number in range(USER_QUOTA):
+        created = sk.run(
+            *("ipm", "user", "create"),
+            *("--name", "Usuario", "--surname", f"E2e {number}"),
+            *("--email", f"e2e-user-{uuid.uuid4().hex[:10]}@example.com"),
+            *("--organization-id", organization_id),
+            "--wait",
+            timeout=150.0,
+        )
+        assert created.exit_code == 0, created.text
+        users.append(_identifiers(created.stdout)[0])
+        assert _field(created.stdout, "phase") == "Ready", created.stdout
+
+
+def _delete_users(sk: Sk, users: list[str]) -> None:
+    """Tenta remover todos antes de falhar: um usuário que não sai não deixa os outros para trás."""
+    failures = []
+    for user in users:
+        deleted = sk.run(
+            *("ipm", "user", "delete"), *("--resource-id", user), "--wait", timeout=150.0
+        )
+        if deleted.exit_code != 0:
+            failures.append(deleted.text)
+    assert not failures, failures
 
 
 def test_the_new_person_cannot_use_the_sum_without_a_session(person: Person) -> None:
@@ -111,13 +145,14 @@ def test_the_link_is_listed_and_a_second_enable_points_to_it(
     assert "This service is already enabled" in again.stderr, again.stderr
 
 
-def test_the_organization_is_created_renamed_and_deleted_with_the_sk(
+def test_the_organization_and_its_users_are_managed_with_the_sk(
     person: Person, link: dict[str, str]
 ) -> None:
-    """Com o `ipm` ligado, o token traz as roles `ipm.organization.*`: o ciclo pela CLI."""
+    """Com o `ipm` ligado, o token traz as roles `ipm.*`: a Organization e os usuários pela CLI."""
     sk = person.sk
     name = f"e2e-{uuid.uuid4().hex[:10]}"
     renamed = name + "-b"
+    users: list[str] = []
     assert "No Organizations" in sk.run("ipm", "organization", "list").stdout
     created_id: str | None = None
     try:
@@ -141,6 +176,20 @@ def test_the_organization_is_created_renamed_and_deleted_with_the_sk(
         assert second.exit_code == 1, second.text
         assert "Organization limit" in " ".join(second.stderr.split()), second.stderr
 
+        # Usuários da Organization (decisão 0077): até a cota, e o seguinte é recusado.
+        _create_users(sk, created_id, users)
+        listed_users = sk.run("ipm", "user", "list", "--organization-id", created_id)
+        assert listed_users.exit_code == 0, listed_users.text
+        assert all(user in listed_users.stdout for user in users), listed_users.stdout
+        over = sk.run(
+            *("ipm", "user", "create"),
+            *("--name", "Usuario", "--surname", "Excedente"),
+            *("--email", f"e2e-user-{uuid.uuid4().hex[:10]}@example.com"),
+            *("--organization-id", created_id),
+        )
+        assert over.exit_code == 1, over.text
+        assert "user limit" in " ".join(over.stderr.split()), over.stderr
+
         # Proteção contra exclusão (decisão 0043): a conta e a Organization nascem protegidas.
         shown_account = sk.run("account", "get")
         assert _field(shown_account.stdout, "protected") == "yes", shown_account.text
@@ -158,7 +207,7 @@ def test_the_organization_is_created_renamed_and_deleted_with_the_sk(
         # Exclusão segura (decisão 0040): com uma Organization e o `ipm` habilitado, a conta fica.
         refused = sk.run("account", "delete", "--yes")
         assert refused.exit_code == 1, refused.text
-        text = " ".join(refused.stderr.split())
+        text = _plain(refused.stderr)
         assert "still has Organizations" in text and "sk ipm organization delete" in text, text
 
         # E o `ipm` não é desabilitado enquanto houver Organizations (o User confia nisso).
@@ -176,8 +225,24 @@ def test_the_organization_is_created_renamed_and_deleted_with_the_sk(
         assert updated.exit_code == 0, updated.text
         assert _field(updated.stdout, "name") == renamed
         assert _field(updated.stdout, "phase") == "Ready"
+
+        # Só vazia (decisão 0077): desprotegida, a Organization com usuários ainda não sai.
+        unprotected = sk.run(
+            *("ipm", "organization", "unprotect"),
+            *("--resource-id", created_id),
+            "--wait",
+            timeout=150.0,
+        )
+        assert unprotected.exit_code == 0, unprotected.text
+        with_users = sk.run("ipm", "organization", "delete", "--resource-id", created_id)
+        assert with_users.exit_code == 1, with_users.text
+        assert "sk ipm user delete" in " ".join(with_users.stderr.split()), with_users.stderr
     finally:
         if created_id is not None:
+            _delete_users(sk, users)
+            assert (
+                "No users" in sk.run("ipm", "user", "list", "--organization-id", created_id).stdout
+            )
             unprotected = sk.run(
                 *("ipm", "organization", "unprotect"),
                 *("--resource-id", created_id),

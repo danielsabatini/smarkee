@@ -467,6 +467,27 @@ def test_delete_of_a_protected_organization_points_to_unprotect(api: FakeApi) ->
     assert "sk ipm organization unprotect" in " ".join(result.stderr.split())
 
 
+@pytest.mark.parametrize(
+    ("error_code", "expected"),
+    [
+        ("ResourcesAttached", "sk ipm user delete"),
+        ("ResourcesNotVerifiable", "sk auth refresh"),
+    ],
+)
+def test_delete_of_an_organization_with_users_points_to_the_users(
+    api: FakeApi, error_code: str, expected: str
+) -> None:
+    """Só vazia (decisão 0077): o `409` não é a versão desatualizada."""
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
+    api.routes[("DELETE", ORGANIZATION)] = http_error(409, error_code, "Tem usuários.")
+
+    result = runner.invoke(app, ["ipm", "organization", "delete", "--resource-id", RID])
+
+    assert result.exit_code == 1
+    text = " ".join(result.stderr.split())
+    assert expected in text and "changed since it was last read" not in text
+
+
 def test_a_protected_rejection_points_to_unprotect(api: FakeApi) -> None:
     api.routes[("DELETE", ORGANIZATION)] = accepted()
     api.routes[("GET", OPERATION)] = operation_document("rejected", "protected")

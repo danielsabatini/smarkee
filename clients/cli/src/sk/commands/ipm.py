@@ -72,6 +72,14 @@ ERROR_CODE_HINTS = {
         "Your e-mail is not verified yet. Open the link in the activation e-mail and repeat."
     ),
     "QuotaExceeded": "You reached the Organization limit. Delete one or ask an operator.",
+    # Só vazia (decisão 0077): sem isso, o `409` cairia na mensagem de versão desatualizada.
+    "ResourcesAttached": (
+        "The Organization still has users. Delete them (`sk ipm user delete`) and repeat."
+    ),
+    "ResourcesNotVerifiable": (
+        "The users of the Organization could not be verified. "
+        "Renew the session with `sk auth refresh` and repeat."
+    ),
 }
 NO_ROLE_HINT = (
     "Your account does not have permission for this operation. If the ipm service is not "
