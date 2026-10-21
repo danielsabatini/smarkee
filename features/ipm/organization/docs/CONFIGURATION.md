@@ -66,6 +66,8 @@ Entrypoint do Receiver de Organization (`ipm-organization-receiver`, decisão 00
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
+| `log.level` | `IPM_ORGANIZATION_RECEIVER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `IPM_ORGANIZATION_RECEIVER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
 | `database.host` | `IPM_ORGANIZATION_RECEIVER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Obrigatória. Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
 | `database.port` | `IPM_ORGANIZATION_RECEIVER_DATABASE_PORT` | `--database.port` | `int \| None` | — | Obrigatória. |
 | `database.name` | `IPM_ORGANIZATION_RECEIVER_DATABASE_NAME` | `--database.name` | `str \| None` | — | Obrigatória. |
@@ -148,6 +150,8 @@ Entrypoint do Manager de Organization (`ipm-organization-manager`, decisões 001
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
+| `log.level` | `IPM_ORGANIZATION_MANAGER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `IPM_ORGANIZATION_MANAGER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
 | `database.host` | `IPM_ORGANIZATION_MANAGER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Obrigatória. Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
 | `database.port` | `IPM_ORGANIZATION_MANAGER_DATABASE_PORT` | `--database.port` | `int \| None` | — | Obrigatória. |
 | `database.name` | `IPM_ORGANIZATION_MANAGER_DATABASE_NAME` | `--database.name` | `str \| None` | — | Obrigatória. |
@@ -157,6 +161,7 @@ Entrypoint do Manager de Organization (`ipm-organization-manager`, decisões 001
 | `messaging.user` | `IPM_ORGANIZATION_MANAGER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.password` | `IPM_ORGANIZATION_MANAGER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
 | `loop.failure_limit` | `IPM_ORGANIZATION_MANAGER_LOOP_FAILURE_LIMIT` | `--loop.failure_limit` | `int` | `5` | Falhas por geração antes de `Failed` (`schemas/ipm/organization/desired`, `failureLimit`). |
+| `loop.progress_deadline_seconds` | `IPM_ORGANIZATION_MANAGER_LOOP_PROGRESS_DEADLINE_SECONDS` | `--loop.progress_deadline_seconds` | `int` | `300` | Prazo para a geração convergir antes de `Failed` com `ProgressDeadlineExceeded` (`schemas/ipm/organization/desired`, `progressDeadline`; decisão 0078). |
 | `health.port` | `IPM_ORGANIZATION_MANAGER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 
 **Definido no `config.toml` de dev:**
@@ -212,6 +217,8 @@ Entrypoint do Publisher de `ipm.organization` (decisões 0015 e 0033).
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
+| `log.level` | `IPM_ORGANIZATION_PUBLISHER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `IPM_ORGANIZATION_PUBLISHER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
 | `database.host` | `IPM_ORGANIZATION_PUBLISHER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Obrigatória. Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
 | `database.port` | `IPM_ORGANIZATION_PUBLISHER_DATABASE_PORT` | `--database.port` | `int \| None` | — | Obrigatória. |
 | `database.name` | `IPM_ORGANIZATION_PUBLISHER_DATABASE_NAME` | `--database.name` | `str \| None` | — | Obrigatória. |
@@ -269,6 +276,8 @@ Entrypoint do Reconciler de Organization (`ipm-organization-reconciler`, decisõ
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
+| `log.level` | `IPM_ORGANIZATION_RECONCILER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `IPM_ORGANIZATION_RECONCILER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
 | `messaging.url` | `IPM_ORGANIZATION_RECONCILER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.user` | `IPM_ORGANIZATION_RECONCILER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.password` | `IPM_ORGANIZATION_RECONCILER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
@@ -322,6 +331,8 @@ Entrypoint do Observer de Organization (`ipm-organization-observer`, decisões 0
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
+| `log.level` | `IPM_ORGANIZATION_OBSERVER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `IPM_ORGANIZATION_OBSERVER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
 | `messaging.url` | `IPM_ORGANIZATION_OBSERVER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.user` | `IPM_ORGANIZATION_OBSERVER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.password` | `IPM_ORGANIZATION_OBSERVER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
@@ -385,6 +396,8 @@ Entrypoint do Executor de Organization (`ipm-organization-executor`, decisões 0
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
+| `log.level` | `IPM_ORGANIZATION_EXECUTOR_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `IPM_ORGANIZATION_EXECUTOR_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
 | `messaging.url` | `IPM_ORGANIZATION_EXECUTOR_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.user` | `IPM_ORGANIZATION_EXECUTOR_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.password` | `IPM_ORGANIZATION_EXECUTOR_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |

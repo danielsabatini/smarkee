@@ -18,7 +18,7 @@ import os
 from collections.abc import Mapping, Sequence
 from importlib.resources.abc import Traversable
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, SecretStr
 from pydantic_settings import (
@@ -95,8 +95,33 @@ class SecretFilesSource(EnvSettingsSource):
         }
 
 
+class Section(BaseModel):
+    """Seção de configuração: campo desconhecido é rejeitado."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
+
+
+class LogSettings(Section):
+    """Nível dos logs do papel (`<PREFIXO>LOG_LEVEL`), com a precedência de todo campo."""
+
+    level: LogLevel = "INFO"
+    """Nível dos logs do próprio código do papel."""
+
+    dependencies_level: LogLevel = "WARNING"
+    """Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só
+    avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra."""
+
+
 class RoleSettings(BaseSettings):
-    """Base da configuração de um papel: define as fontes e a precedência (ver o módulo)."""
+    """Base da configuração de um papel: define as fontes e a precedência (ver o módulo).
+
+    Toda configuração de papel tem a seção `log`; as demais são declaradas por papel.
+    """
+
+    log: LogSettings = LogSettings()
 
     @classmethod
     def settings_customise_sources(
@@ -129,12 +154,6 @@ def load_settings[S: BaseSettings](settings_type: type[S], cli_args: Sequence[st
                 f"invalid command line: secrets are not accepted as arguments ({name})"
             )
     return CliApp.run(settings_type, cli_args=list(cli_args))
-
-
-class Section(BaseModel):
-    """Seção de configuração: campo desconhecido é rejeitado."""
-
-    model_config = ConfigDict(extra="forbid")
 
 
 class MessagingSettings(Section):

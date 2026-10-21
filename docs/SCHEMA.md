@@ -341,6 +341,7 @@ O contrato de um recurso declarativo define os parâmetros de domínio usados pe
 | `observationValidity` | Reconciler | Idade máxima de um `observed` para decidir (mais estrita para ações destrutivas) |
 | `actionDeadline` | Reconciler | Prazo após o qual uma `action` pendente pode ser reemitida |
 | `failureLimit` | Manager | Quantidade de falhas por geração antes de marcar o recurso como `Failed` |
+| `progressDeadline` | Manager | Prazo para a geração atual convergir; passado sem convergir, o recurso fica `Failed` com a condition `Progressing=False` (`ProgressDeadlineExceeded`), como no Deployment do Kubernetes (decisão 0078) |
 
 Durações usam o formato padronizado de duração (ISO 8601). Os parâmetros são obrigatórios em todo recurso declarativo e não possuem valor padrão: um recurso sem eles não pode ser reconciliado de forma segura.
 

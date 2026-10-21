@@ -66,6 +66,8 @@ Entrypoint do Receiver de `sum.service` (`sum-service-receiver`, decisões 0015 
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
+| `log.level` | `SUM_SERVICE_RECEIVER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `SUM_SERVICE_RECEIVER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
 | `database.host` | `SUM_SERVICE_RECEIVER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Obrigatória. Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
 | `database.port` | `SUM_SERVICE_RECEIVER_DATABASE_PORT` | `--database.port` | `int \| None` | — | Obrigatória. |
 | `database.name` | `SUM_SERVICE_RECEIVER_DATABASE_NAME` | `--database.name` | `str \| None` | — | Obrigatória. |
@@ -145,6 +147,8 @@ Entrypoint do Manager de `sum.service` (`sum-service-manager`, decisões 0015 e 
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
+| `log.level` | `SUM_SERVICE_MANAGER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `SUM_SERVICE_MANAGER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
 | `database.host` | `SUM_SERVICE_MANAGER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Obrigatória. Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
 | `database.port` | `SUM_SERVICE_MANAGER_DATABASE_PORT` | `--database.port` | `int \| None` | — | Obrigatória. |
 | `database.name` | `SUM_SERVICE_MANAGER_DATABASE_NAME` | `--database.name` | `str \| None` | — | Obrigatória. |
@@ -208,6 +212,8 @@ Entrypoint do Publisher de `sum.service` (decisões 0015 e 0033).
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
+| `log.level` | `SUM_SERVICE_PUBLISHER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `SUM_SERVICE_PUBLISHER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
 | `database.host` | `SUM_SERVICE_PUBLISHER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Obrigatória. Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
 | `database.port` | `SUM_SERVICE_PUBLISHER_DATABASE_PORT` | `--database.port` | `int \| None` | — | Obrigatória. |
 | `database.name` | `SUM_SERVICE_PUBLISHER_DATABASE_NAME` | `--database.name` | `str \| None` | — | Obrigatória. |
@@ -265,6 +271,8 @@ Entrypoint do Reconciler de `sum.service` (`sum-service-reconciler`, decisões 0
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
+| `log.level` | `SUM_SERVICE_RECONCILER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `SUM_SERVICE_RECONCILER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
 | `messaging.url` | `SUM_SERVICE_RECONCILER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.user` | `SUM_SERVICE_RECONCILER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.password` | `SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
@@ -323,6 +331,8 @@ Entrypoint do Observer de `sum.service` (`sum-service-observer`, decisões 0015 
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
+| `log.level` | `SUM_SERVICE_OBSERVER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `SUM_SERVICE_OBSERVER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
 | `identity.base_url` | `SUM_SERVICE_OBSERVER_IDENTITY_BASE_URL` | `--identity.base_url` | `str` | `'http://localhost:8080'` | Endereço da API do Zitadel na rede interna (não passa pelo gateway público). |
 | `identity.host_header` | `SUM_SERVICE_OBSERVER_IDENTITY_HOST_HEADER` | `--identity.host_header` | `str` | `'localhost:8080'` | `Host` enviado ao Zitadel: ele resolve a instância pelo domínio externo. |
 | `identity.issuer` | `SUM_SERVICE_OBSERVER_IDENTITY_ISSUER` | `--identity.issuer` | `str` | `'http://localhost:8080'` | Audience da assertion JWT da conta de serviço. |
@@ -391,6 +401,8 @@ Entrypoint do Executor de `sum.service` (`sum-service-executor`, decisões 0015,
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
+| `log.level` | `SUM_SERVICE_EXECUTOR_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `SUM_SERVICE_EXECUTOR_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
 | `messaging.url` | `SUM_SERVICE_EXECUTOR_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.user` | `SUM_SERVICE_EXECUTOR_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.password` | `SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |

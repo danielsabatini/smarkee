@@ -41,7 +41,9 @@ async def run(settings: UserManagerSettings) -> int:
                 runtime.stream,
                 pool,
                 USER,
-                handler=ObservedHandler(),
+                handler=ObservedHandler(
+                    progress_deadline_seconds=settings.loop.progress_deadline_seconds
+                ),
                 on_cycle=runtime.health.beat,
             ),
             "result": ResultConsumer(

@@ -310,9 +310,22 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str, ensure_ascii=False)
 
 
-def configure_logging(role: str, level: int = logging.INFO) -> None:
+DEPENDENCY_LOGGERS = ("httpx", "httpcore", "uvicorn", "nats", "psycopg", "asyncio")
+"""Loggers das bibliotecas: têm nível próprio (`log.dependencies_level`)."""
+
+
+def configure_logging(
+    role: str, level: int | str = logging.INFO, dependencies_level: int | str = logging.WARNING
+) -> None:
+    """Saída JSON em `stdout` no nível do papel; as bibliotecas ficam no nível delas.
+
+    Pode ser chamada de novo: na partida, antes de ler a configuração (para registrar uma
+    configuração inválida), e depois, com o nível configurado.
+    """
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter(build_resource(role)))
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level)
+    for name in DEPENDENCY_LOGGERS:
+        logging.getLogger(name).setLevel(dependencies_level)

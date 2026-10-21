@@ -25,6 +25,7 @@ RESOURCE_PARAMETERS = {
     "observationValidity",
     "actionDeadline",
     "failureLimit",
+    "progressDeadline",
 }
 # Formatos cujo próprio padrão limita o tamanho: os modelos os convertem em datetime e timedelta,
 # aos quais maxLength não se aplica.

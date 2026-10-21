@@ -21,6 +21,10 @@ class LoopSettings(Section):
     failure_limit: int = 5
     """Falhas por geração antes de `Failed` (`schemas/ipm/organization/desired`, `failureLimit`)."""
 
+    progress_deadline_seconds: int = 300
+    """Prazo para a geração convergir antes de `Failed` com `ProgressDeadlineExceeded`
+    (`schemas/ipm/organization/desired`, `progressDeadline`; decisão 0078)."""
+
 
 class OrganizationManagerSettings(RoleSettings):
     model_config = role_config("manager")

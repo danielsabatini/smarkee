@@ -722,7 +722,13 @@ Toda observação informa o resultado no campo `presence` e o momento em `observ
 - aguarda nova observação quando a atual for inconclusiva ou desatualizada;
 - após `completed` ou `failed`, não decide uma nova ação para o recurso enquanto não receber a observação causada por esse resultado (ver abaixo).
 
-Os prazos do loop são parâmetros do contrato do recurso (`SCHEMA.md`): `observationInterval` (período da observação periódica), `observationValidity` (limite de validade do `observed`), `actionDeadline` (prazo de uma `action` pendente) e `failureLimit` (falhas por geração).
+Os prazos do loop são parâmetros do contrato do recurso (`SCHEMA.md`): `observationInterval` (período da observação periódica), `observationValidity` (limite de validade do `observed`), `actionDeadline` (prazo de uma `action` pendente), `failureLimit` (falhas por geração) e `progressDeadline` (prazo para a geração convergir, decisão 0078).
+
+### Ação sem efeito e prazo de progresso (decisão 0078)
+
+Uma `action` que termina `completed` sem que a observação causada por ela convergir é uma **ação sem efeito** (por exemplo, quando o Executor e o Observer rodam com configurações diferentes). O Reconciler a conta e aplica a ela o mesmo backoff exponencial das falhas, com um aviso (`action had no effect`) que traz os nomes dos campos divergentes. Assim uma ação que não muda nada não se repete sem freio.
+
+O Manager mantém a condition `Progressing`, como a do Deployment do Kubernetes: `True` (`Reconciling`) desde a primeira observação da geração atual que não converge, `True` (`Converged`) quando converge, e `False` (`ProgressDeadlineExceeded`) quando o `progressDeadline` passa sem convergir. Nesse caso a fase vai para `Failed` e sai um aviso (`progress deadline exceeded`). O loop não é suspenso: segue tentando, no ritmo do backoff, e volta a `Ready` sozinho se a causa sumir.
 
 ### Ordenação causal após uma ação
 

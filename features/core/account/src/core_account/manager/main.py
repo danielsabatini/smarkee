@@ -42,7 +42,9 @@ async def run(settings: AccountManagerSettings) -> int:
                 runtime.stream,
                 pool,
                 account,
-                handler=ObservedHandler(),
+                handler=ObservedHandler(
+                    progress_deadline_seconds=settings.loop.progress_deadline_seconds
+                ),
                 on_cycle=runtime.health.beat,
             ),
             "result": ResultConsumer(

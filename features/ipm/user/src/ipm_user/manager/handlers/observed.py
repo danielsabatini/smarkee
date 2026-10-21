@@ -35,8 +35,10 @@ class ObservedHandler:
         *,
         clock: Callable[[], Any] = utc_now,
         identifiers: Callable[[], str] = new_identifier,
+        progress_deadline_seconds: int | None = None,
     ) -> None:
         self._clock = clock
+        self._progress_deadline_seconds = progress_deadline_seconds
         self._publishing = Publishing(clock, identifiers)
 
     async def handle(
@@ -81,7 +83,17 @@ class ObservedHandler:
             previous_phase=row["phase"],
             previous_conditions=row["conditions"],
             now=self._clock(),
+            progress_deadline_seconds=self._progress_deadline_seconds,
         )
+        if decision.progress_deadline_exceeded:
+            logger.warning(
+                "progress deadline exceeded",
+                extra={
+                    "smarkee.resource.id": envelope.resource_id,
+                    "smarkee.desired.generation": generation,
+                    "smarkee.progress.deadline_seconds": self._progress_deadline_seconds,
+                },
+            )
 
         if decision.remove:
             return await self._remove(store, kind, envelope, row)

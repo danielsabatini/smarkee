@@ -67,6 +67,10 @@ class ResourceState:
     """`messageId` do resultado cuja observação causada ainda não chegou."""
 
     consecutive_failures: int = 0
+    ineffective_actions: int = 0
+    """Ações seguidas da geração atual que concluíram (`completed`) sem a observação causada por
+    elas convergir. Entram no mesmo backoff das falhas: uma ação que não muda nada não pode se
+    repetir sem freio (decisão 0078)."""
     failure_generation: int = 0
 
 
@@ -75,6 +79,8 @@ class Decision:
     operation: str
     reason: str
     message: str
+    fields: tuple[str, ...] = ()
+    """Campos gerenciados que divergem (só os nomes, nunca os valores): diagnóstico nos logs."""
 
 
 class LoopParameters(Protocol):
@@ -132,13 +138,14 @@ def decide(state: ResourceState, now: datetime, settings: LoopParameters) -> Dec
     ):
         return None  # ação pendente: não reemite
     result = state.last_result
+    repeated = max(state.consecutive_failures, state.ineffective_actions)
     if (
         result is not None
-        and result.failed
+        and (result.failed or state.ineffective_actions)
         and result.generation == desired.generation
-        and now - result.received_at < failure_backoff(settings, state.consecutive_failures)
+        and now - result.received_at < failure_backoff(settings, repeated)
     ):
-        return None  # backoff após falha
+        return None  # backoff após falha ou após ação sem efeito
     return decision
 
 
@@ -155,15 +162,31 @@ def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
         return None
     if observed.presence == "absent":
         return Decision("create", "Missing", "The account does not exist in the identity provider.")
-    if observed.platform_access != desired.platform_access or not (
-        desired.platform_roles <= observed.platform_roles
-    ):
-        return Decision("update", "Drift", "The account lacks the expected platform access.")
-    if observed.deletion_protection != desired.deletion_protection:
+    fields = tuple(
+        name
+        for name, differs in (
+            ("platformAccess", observed.platform_access != desired.platform_access),
+            ("platformRoles", not desired.platform_roles <= observed.platform_roles),
+            ("deletionProtection", observed.deletion_protection != desired.deletion_protection),
+        )
+        if differs
+    )
+    if fields[:1] in (("platformAccess",), ("platformRoles",)):
         return Decision(
-            "update", "Drift", "The deletion protection in the identity provider differs."
+            "update", "Drift", "The account lacks the expected platform access.", fields
+        )
+    if fields:
+        return Decision(
+            "update", "Drift", "The deletion protection in the identity provider differs.", fields
         )
     return None
+
+
+def drift(desired: DesiredState, observed: ObservedState) -> Decision | None:
+    """A divergência entre o `desired` e o `observed`, sem as guardas do loop (`decide`)."""
+    if observed.presence == "unknown":
+        return None
+    return _compare(desired, observed)
 
 
 def action_id(resource_id: str, generation: int, operation: str, observed_message_id: str) -> str:

@@ -7,7 +7,8 @@
     "observationInterval": "PT5M",
     "observationValidity": "PT10M",
     "actionDeadline": "PT2M",
-    "failureLimit": 5
+    "failureLimit": 5,
+    "progressDeadline": "PT5M"
   },
   "x-actionIdFormat": "<resourceId>.<desiredGeneration>.<operation>.<messageId do observed que motivou a decisão>",
   "type": "object",

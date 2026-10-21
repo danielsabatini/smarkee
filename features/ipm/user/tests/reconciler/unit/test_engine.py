@@ -1,6 +1,7 @@
 """Motor do Reconciler: estado reconstruído pela mensageria e publicação das `action`."""
 
 import json
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -307,3 +308,29 @@ async def test_the_action_inherits_the_trace_of_the_desired_even_if_the_observat
 
     assert publisher.contexts == [TRACEPARENT]
     assert current_traceparent() is None  # o contexto da action não vaza para o próximo evento
+
+
+async def test_a_completed_action_without_effect_backs_off_and_warns(
+    reconciler: Reconciler,
+    publisher: FakePublisher,
+    clock: Clock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Ação concluída cuja observação causada ainda diverge: backoff e aviso (decisão 0078)."""
+    await reconciler.on_message(desired())
+    await reconciler.on_message(observed("absent", at=clock.now, message_id="obs-1"))
+    clock.advance(1)
+    await reconciler.on_message(
+        result("completed", f"{RESOURCE}.1.create.obs-1", message_id="res-1")
+    )
+    clock.advance(1)
+    with caplog.at_level(logging.WARNING):
+        await reconciler.on_message(
+            observed("absent", at=clock.now, message_id="obs-2", causation="res-1")
+        )
+    assert len(publisher.published) == 1  # em backoff: não reemite na hora
+    warning = next(r for r in caplog.records if r.getMessage() == "action had no effect")
+    assert warning.__dict__["smarkee.action.ineffective_count"] == 1
+    clock.advance(10)  # passado o backoff (5 s na primeira)
+    await reconciler.on_message(observed("absent", at=clock.now, message_id="obs-3"))
+    assert len(publisher.published) == 2

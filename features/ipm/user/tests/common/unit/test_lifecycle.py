@@ -16,6 +16,7 @@ from ipm_user.common.lifecycle import (
     stop_on_signals,
     supervise,
 )
+from ipm_user.common.settings import RoleSettings, role_config
 
 
 async def wait_for(stop: asyncio.Event) -> None:
@@ -89,13 +90,19 @@ def missing(settings: DummySettings) -> list[str]:
     return [] if settings.secret else ["DUMMY_ROLE_SECRET"]
 
 
+LOGGING_CALLS: list[dict[str, object]] = []
+
+
 @pytest.fixture(autouse=True)
 def keep_pytest_logging(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`configure_logging` troca os handlers da raiz; os testes mantêm os do pytest."""
+    """`configure_logging` troca os handlers da raiz; os testes mantêm os do pytest e registram as
+    chamadas."""
+    LOGGING_CALLS.clear()
 
-    def no_op(*, role: str) -> None: ...
+    def record(*, role: str, **levels: object) -> None:
+        LOGGING_CALLS.append({"role": role, **levels})
 
-    monkeypatch.setattr(lifecycle, "configure_logging", no_op)
+    monkeypatch.setattr(lifecycle, "configure_logging", record)
 
 
 def test_missing_configuration_exits_with_the_invalid_configuration_code_without_running(
@@ -160,3 +167,48 @@ def test_an_invalid_configuration_exits_with_the_invalid_configuration_code_with
     assert not ran
     record = next(r for r in caplog.records if r.getMessage() == "invalid configuration")
     assert record.__dict__["smarkee.reason"] == "catalog is not valid JSON"
+
+
+class LoggedSettings(RoleSettings):
+    model_config = role_config("receiver")
+
+
+def test_the_log_level_of_the_settings_is_applied_after_reading_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`<PREFIXO>LOG_LEVEL` segue a precedência de todo campo (decisão 0067)."""
+    monkeypatch.setenv("IPM_USER_RECEIVER_LOG_LEVEL", "DEBUG")
+
+    async def run(settings: LoggedSettings) -> int:
+        return 0
+
+    with pytest.raises(SystemExit):
+        start_role("receiver", LoggedSettings, lambda _: [], run)
+    # Primeiro no nível padrão (para registrar uma configuração inválida), depois no configurado.
+    assert LOGGING_CALLS == [
+        {"role": "receiver"},
+        {"role": "receiver", "level": "DEBUG", "dependencies_level": "WARNING"},
+    ]
+
+
+def test_the_config_digest_is_per_section_and_never_carries_secrets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pydantic import SecretStr
+
+    from ipm_user.common.settings import Section
+
+    class Secret(Section):
+        password: SecretStr | None = None
+
+    class WithSecret(RoleSettings):
+        model_config = role_config("receiver")
+        messaging: Secret = Secret()
+
+    first = lifecycle.config_digest(WithSecret(messaging=Secret(password=SecretStr("um"))))
+    second = lifecycle.config_digest(WithSecret(messaging=Secret(password=SecretStr("dois"))))
+    assert set(first) == {"log", "messaging"} and all(len(v) == 12 for v in first.values())
+    assert first == second  # o segredo entra mascarado: trocar a senha não muda o resumo
+    louder = WithSecret()
+    louder.log.level = "DEBUG"
+    assert lifecycle.config_digest(louder)["log"] != first["log"]

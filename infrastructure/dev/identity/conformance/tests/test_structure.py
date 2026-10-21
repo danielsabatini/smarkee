@@ -252,6 +252,10 @@ def test_roles_follow_the_naming_standard_and_group_by_module(
             "role fora do módulo do projeto"
         )
         assert all(r.get("group") == module for r in roles)
+        # O nome de exibição descreve a ação em pt-BR (por exemplo, `ipm.user.get` → "Ler usuários
+        # da Organization"): nunca vazio nem a própria key, que o console já mostra ao lado.
+        repeated = sorted(r["key"] for r in roles if r.get("displayName", r["key"]) == r["key"])
+        assert not repeated, f"roles sem nome de exibição próprio: {repeated}"
 
 
 def test_cli_application_is_a_public_native_client_with_jwt(

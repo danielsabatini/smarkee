@@ -4,6 +4,8 @@ Cada papel só monta as suas tarefas; iniciar, supervisionar e encerrar é daqui
 """
 
 import asyncio
+import hashlib
+import json
 import logging
 import signal
 import sys
@@ -13,7 +15,7 @@ from typing import NoReturn
 from pydantic_settings import BaseSettings
 
 from ipm_organization.common.logging_config import configure_logging
-from ipm_organization.common.settings import load_settings
+from ipm_organization.common.settings import LogSettings, load_settings
 
 EXIT_INVALID_CONFIGURATION = 2
 
@@ -62,6 +64,20 @@ async def supervise(tasks: Mapping[str, asyncio.Task[None]], stop: asyncio.Event
     return exit_code
 
 
+def config_digest(settings: BaseSettings) -> dict[str, str]:
+    """Resumo de cada seção da configuração, sem os segredos (decisão 0078).
+
+    Os segredos (`SecretStr`) entram mascarados, e não pelo valor. Papéis da mesma feature com a
+    mesma seção (por exemplo, o catálogo do SUM no Manager, no Observer e no Executor) e resumos
+    diferentes rodam com configurações diferentes.
+    """
+    dumped = settings.model_dump(mode="json")
+    return {
+        section: hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()[:12]
+        for section, value in sorted(dumped.items())
+    }
+
+
 def start_role[S: BaseSettings](
     role: str,
     settings_type: type[S],
@@ -79,6 +95,10 @@ def start_role[S: BaseSettings](
     """
     configure_logging(role=role)
     settings = load_settings(settings_type, cli_args)
+    log = getattr(settings, "log", None)
+    if isinstance(log, LogSettings):
+        configure_logging(role=role, level=log.level, dependencies_level=log.dependencies_level)
+    logger.info("configuration loaded", extra={"smarkee.config.digest": config_digest(settings)})
     missing = missing_required(settings)
     if missing:
         logger.error(

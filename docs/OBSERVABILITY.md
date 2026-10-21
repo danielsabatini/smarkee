@@ -74,6 +74,8 @@ Campos opcionais sem valor são **omitidos**, e não gravados como `null`.
 
 `ERROR` ou superior indica falha. Uma exceção esperada e tratada (por exemplo, uma mensagem inválida descartada de propósito) é `WARN`, e não `ERROR`.
 
+**Nível configurável por processo** (decisão 0078): a seção `log` de todo papel tem `level` (padrão `INFO`), para o código do próprio papel, e `dependencies_level` (padrão `WARNING`), para as bibliotecas (`httpx`, `httpcore`, `uvicorn`, `nats`, `psycopg`, `asyncio`). Com o padrão, o `HTTP Request: ...` de cada chamada do cliente HTTP não aparece. Os dois seguem a precedência de toda configuração (decisão 0067): por exemplo, `SUM_SERVICE_OBSERVER_LOG_LEVEL=DEBUG` no ambiente, `[tool.sum.service.observer.log] level = "DEBUG"` no `config.toml` ou `--log.level DEBUG` na linha de comando. Na partida, cada papel registra `configuration loaded`, com o resumo de cada seção da configuração sem os segredos (`smarkee.config.digest`): a mesma seção com resumos diferentes em papéis da mesma feature indica configuração divergente.
+
 # 4. Resource: quem emitiu
 
 Atributos do componente, fixos durante o processo. Vêm de configuração explícita, nunca de opção de linha de comando.
@@ -135,6 +137,10 @@ Tudo o que a semconv não cobre usa o prefixo `smarkee.`.
 | `smarkee.outbox.sequence`, `smarkee.failure.permanent` | Linha do outbox e se a falha de publicação é permanente. |
 | `smarkee.account.id`, `smarkee.links.removed` | Conta removida e quantidade de ligações apagadas (`sum.service`). |
 | `smarkee.config.missing_variables` | Nomes (nunca valores) das variáveis obrigatórias ausentes. |
+| `smarkee.drift.fields` | Nomes (nunca valores) dos campos gerenciados em que o `observed` diverge do `desired`, na decisão do Reconciler (decisão 0078). |
+| `smarkee.action.ineffective_count` | Ações seguidas da geração atual que concluíram sem a observação causada convergir (decisão 0078). |
+| `smarkee.progress.deadline_seconds` | Prazo de progresso da geração (`progressDeadline`), no aviso de prazo esgotado (decisão 0078). |
+| `smarkee.config.digest` | Resumo (SHA-256, 12 caracteres) da configuração do papel sem os segredos, no log de partida: papéis da mesma feature com digests diferentes rodam com configurações diferentes (decisão 0078). |
 
 Um atributo novo segue a mesma regra: prefixo `smarkee.`, em inglês, sem colidir com a semconv, e sem tipo ou significado genérico (`AGENTS.md` §15).
 

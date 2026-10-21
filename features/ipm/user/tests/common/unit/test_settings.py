@@ -157,3 +157,18 @@ def test_secret_on_the_command_line_is_refused() -> None:
 
 def test_without_arguments_the_pytest_command_line_is_not_parsed() -> None:
     assert load_settings(_Settings).messaging.url is None
+
+
+def test_every_role_has_the_log_section_with_quiet_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert (_Settings().log.level, _Settings().log.dependencies_level) == ("INFO", "WARNING")
+    monkeypatch.setenv("IPM_USER_RECEIVER_LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("IPM_USER_RECEIVER_LOG_DEPENDENCIES_LEVEL", "INFO")
+    assert (_Settings().log.level, _Settings().log.dependencies_level) == ("DEBUG", "INFO")
+
+
+def test_an_unknown_log_level_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IPM_USER_RECEIVER_LOG_LEVEL", "VERBOSE")
+    with pytest.raises(ValidationError):
+        _Settings()

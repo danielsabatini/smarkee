@@ -32,6 +32,7 @@ from ipm_organization.reconciler.domain.decision import (
     ResourceState,
     action_id,
     decide,
+    drift,
 )
 from ipm_organization.reconciler.settings import LoopSettings
 
@@ -115,6 +116,7 @@ class Reconciler:
         )
         if current is None or generation != current.generation:
             state.pending = None  # a ação pendente era de uma especificação substituída
+            state.ineffective_actions = 0
             state.consecutive_failures = 0
 
     @staticmethod
@@ -142,6 +144,7 @@ class Reconciler:
             and envelope.causation_id == state.awaiting_observation_of
         ):
             state.awaiting_observation_of = None  # a observação causada chegou
+            Reconciler._count_effect(state, envelope.resource_id)
 
     def _on_result(self, state: ResourceState, envelope: generated.MessageEnvelope) -> None:
         generation = envelope.desired_generation
@@ -163,6 +166,36 @@ class Reconciler:
             state.failure_generation = generation
         else:
             state.consecutive_failures = 0
+
+    @staticmethod
+    def _count_effect(state: ResourceState, resource_id: str) -> None:
+        """Depois da observação causada por um `completed`: a ação teve efeito?
+
+        Se o recurso ainda diverge, a ação concluiu sem mudar o que importa (por exemplo, o
+        Executor e o Observer com configurações diferentes): conta como sem efeito e registra um
+        aviso com os campos divergentes (decisão 0078).
+        """
+        result, desired, observed = state.last_result, state.desired, state.observed
+        if result is None or result.failed or desired is None or observed is None:
+            return
+        if result.generation != desired.generation:
+            return
+        divergence = drift(desired, observed)
+        if divergence is None:
+            state.ineffective_actions = 0
+            return
+        state.ineffective_actions += 1
+        logger.warning(
+            "action had no effect",
+            extra={
+                "smarkee.resource.id": resource_id,
+                "smarkee.operation.name": divergence.operation,
+                "smarkee.reason": divergence.reason,
+                "smarkee.desired.generation": desired.generation,
+                "smarkee.drift.fields": list(divergence.fields),
+                "smarkee.action.ineffective_count": state.ineffective_actions,
+            },
+        )
 
     # ------------------------------------------------------------------ decisão
 
@@ -244,6 +277,8 @@ class Reconciler:
                 "smarkee.operation.name": decision.operation,
                 "smarkee.reason": decision.reason,
                 "smarkee.desired.generation": desired.generation,
+                "smarkee.drift.fields": list(decision.fields),
+                "smarkee.action.ineffective_count": state.ineffective_actions,
             },
         )
 

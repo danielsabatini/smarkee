@@ -1,6 +1,6 @@
 """Decisões puras sobre `observed` e resultados de ação, sem banco."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES
@@ -145,3 +145,71 @@ def test_a_different_deletion_protection_keeps_reconciling() -> None:
     unprotected = {**DESIRED_PRESENT, "deletionProtection": False}
     decision = observe("present", desired=unprotected, lifecycle="present", phase="Reconciling")
     assert not decision.converged and decision.phase == "Reconciling"
+
+
+def absent_while_present(*, at: datetime, conditions: list[dict[str, Any]], generation: int = 1):
+    """Uma observação que nunca converge: o recurso deveria existir e não existe."""
+    return decide_observed(
+        ACCOUNT.policy,
+        desired=DESIRED_PRESENT,
+        lifecycle="present",
+        generation=generation,
+        observation_generation=generation,
+        presence="absent",
+        observed={},
+        previous_phase="Reconciling",
+        previous_conditions=conditions,
+        now=at,
+        progress_deadline_seconds=300,
+    )
+
+
+def progressing(conditions: list[dict[str, Any]]) -> dict[str, Any]:
+    return next(c for c in conditions if c["type"] == "Progressing")
+
+
+def test_progress_starts_at_the_first_divergent_observation_and_keeps_its_start() -> None:
+    first = absent_while_present(at=NOW, conditions=[])
+    later = absent_while_present(at=NOW + timedelta(seconds=200), conditions=first.conditions)
+    condition = progressing(later.conditions)
+    assert (condition["status"], condition["reason"]) == ("True", "Reconciling")
+    assert datetime.fromisoformat(condition["lastTransitionAt"]) == NOW
+    assert later.phase == "Reconciling" and not later.progress_deadline_exceeded
+    assert {c["type"] for c in later.conditions} == {"Ready", "Progressing"}
+
+
+def test_past_the_deadline_the_resource_fails_once_and_stays_failed() -> None:
+    first = absent_while_present(at=NOW, conditions=[])
+    late = absent_while_present(at=NOW + timedelta(seconds=301), conditions=first.conditions)
+    condition = progressing(late.conditions)
+    assert (condition["status"], condition["reason"]) == ("False", "ProgressDeadlineExceeded")
+    assert late.phase == "Failed" and late.progress_deadline_exceeded
+    again = absent_while_present(at=NOW + timedelta(seconds=400), conditions=late.conditions)
+    assert again.phase == "Failed" and not again.progress_deadline_exceeded  # avisa uma vez só
+
+
+def test_a_new_generation_restarts_the_progress_clock() -> None:
+    first = absent_while_present(at=NOW, conditions=[])
+    late = absent_while_present(at=NOW + timedelta(seconds=301), conditions=first.conditions)
+    newer = absent_while_present(
+        at=NOW + timedelta(seconds=302), conditions=late.conditions, generation=2
+    )
+    condition = progressing(newer.conditions)
+    assert (condition["status"], condition["reason"]) == ("True", "Reconciling")
+    assert datetime.fromisoformat(condition["lastTransitionAt"]) == NOW + timedelta(seconds=302)
+
+
+def test_a_failure_result_keeps_the_progress_condition() -> None:
+    first = absent_while_present(at=NOW, conditions=[])
+    decision = decide_result(
+        failed=True,
+        failure_reason="Rejected",
+        failure_limit=5,
+        generation=1,
+        failure_count=0,
+        phase="Reconciling",
+        reconciliation="active",
+        previous_conditions=first.conditions,
+        now=NOW,
+    )
+    assert {c["type"] for c in decision.conditions} == {"Ready", "Progressing"}

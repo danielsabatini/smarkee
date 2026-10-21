@@ -9,12 +9,14 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from ipm_user.common.logging_config import (
+    DEPENDENCY_LOGGERS,
     EVENT_NAME_KEY,
     JsonFormatter,
     bind_context,
     bind_message_context,
     bind_traceparent,
     build_resource,
+    configure_logging,
     current_traceparent,
     restore_context,
     save_context,
@@ -378,3 +380,18 @@ def test_the_observer_is_a_system_actor_even_without_context() -> None:
     line = cast(dict[str, Any], json.loads(JsonFormatter(resource).format(record("event"))))
     _VALIDATOR.validate(line)  # pyright: ignore[reportUnknownMemberType]
     assert attributes_of(line)["smarkee.actor.type"] == "system"
+
+
+def test_dependencies_have_their_own_level() -> None:
+    root = logging.getLogger()
+    saved = (root.handlers, root.level, {n: logging.getLogger(n).level for n in DEPENDENCY_LOGGERS})
+    try:
+        configure_logging("receiver", level="DEBUG", dependencies_level="WARNING")
+        assert root.level == logging.DEBUG
+        assert all(logging.getLogger(n).level == logging.WARNING for n in DEPENDENCY_LOGGERS)
+        assert "httpx" in DEPENDENCY_LOGGERS  # o `HTTP Request: ...` de cada chamada
+    finally:
+        root.handlers = saved[0]
+        root.setLevel(saved[1])
+        for name, level in saved[2].items():
+            logging.getLogger(name).setLevel(level)

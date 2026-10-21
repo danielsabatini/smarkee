@@ -41,7 +41,9 @@ async def run(settings: OrganizationManagerSettings) -> int:
                 runtime.stream,
                 pool,
                 ORGANIZATION,
-                handler=ObservedHandler(),
+                handler=ObservedHandler(
+                    progress_deadline_seconds=settings.loop.progress_deadline_seconds
+                ),
                 on_cycle=runtime.health.beat,
             ),
             "result": ResultConsumer(
