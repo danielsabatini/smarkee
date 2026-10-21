@@ -41,4 +41,4 @@ Dois pontos limitam o desenho:
 - **Retenção de dados pessoais:** o `desired` do User, com e-mail e nome, fica retido no SSOT e em `DESIRED`. O `desired` com `lifecycle = absent` não carrega dados pessoais (a regra entra no contrato do User), e a limpeza do tombstone (`docs/NATS.md`) precisa cobrir esse caso.
 - O cliente anônimo não acompanha a Operation: `sk account create` não tem `--wait` e orienta a verificar o e-mail.
 - **Verificado em dev (Zitadel v4.19.4, 2026-10-11):** `POST /v2/users/human` com `userId` informado cria o usuário ativo, sem senha e com o e-mail não verificado, e envia "Verificar e-mail"; `POST /v2/users/{id}/password_reset` com `sendLink` envia "Redefinir senha". O loop completo (criação, os dois e-mails no Mailpit, observação `userState = initial`, `Ready` e remoção) está coberto pelo teste e2e. **Ainda não verificado:** a pessoa seguindo os links, definindo a senha e fazendo `sk auth login` com o usuário novo.
-- O módulo `ipm` fica com o que vier depois, como membros de uma Organization.
+- O módulo `ipm` fica com o que vier depois, como os administradores e os usuários de uma Organization.

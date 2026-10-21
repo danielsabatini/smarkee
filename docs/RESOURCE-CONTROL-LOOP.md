@@ -1491,7 +1491,7 @@ O fluxo do padrão é o descrito em *Modelo geral*.
 
 A Organization é um recurso do módulo `ipm` (`sk ipm organization`, decisão 0016), criado por um usuário registrado (a Account, do módulo `core`), que passa a ser o dono dela.
 
-Para Organization, o Executor escreve em uma organização do Zitadel e o Observer a lê. O Executor escreve **só a organização** (decisão 0038), de forma idempotente: na criação, a organização no Zitadel, com o `resourceId` como ID; na alteração, renomeia e ativa ou desativa a organização (`platformAccess` `granted` ou `revoked`); na remoção, a remove. O Project Grant do projeto da plataforma para a organização **não é criado**: ele só terá sentido quando houver membros (hoje a Organization só tem o dono).
+Para Organization, o Executor escreve em uma organização do Zitadel e o Observer a lê. O Executor escreve **só a organização** (decisão 0038), de forma idempotente: na criação, a organização no Zitadel, com o `resourceId` como ID; na alteração, renomeia e ativa ou desativa a organização (`platformAccess` `granted` ou `revoked`); na remoção, a remove. O Project Grant do projeto da plataforma para a organização **não é criado**: ele só terá sentido quando houver usuários da Organization com roles da plataforma (hoje a Organization só tem o dono).
 
 O Executor da Organization **não cria usuários nem autoriza o dono**: o dono (`ownerAccountId`, o usuário autenticado que a criou) já existe, pelo cadastro (seção seguinte), e já tem as roles de ação no projeto. Como o dono vive na organização `core` do Zitadel, e não na organização criada, o token não identifica a Organization: o Receiver decide o pertencimento pelo `ownerAccountId` guardado na plataforma (decisão 0010).
 

@@ -1,0 +1,13 @@
+{
+  "lifecycle": "present",
+  "reconciliation": "active",
+  "organizationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "roles": [
+    "ipm.organization.get",
+    "ipm.user.get"
+  ],
+  "deletionProtection": false,
+  "givenName": "Bia",
+  "familyName": "Lima",
+  "email": "bia.lima@example.com"
+}

@@ -1,0 +1,47 @@
+{
+  "items": [
+    {
+      "resourceId": "0199c8c1-1d2e-7f3a-8b4c-5d6e7f8a9b0c",
+      "resourceVersion": "3",
+      "desiredGeneration": 1,
+      "phase": "Ready",
+      "conditions": [
+        {
+          "type": "Ready",
+          "status": "True",
+          "reason": "Reconciled",
+          "message": "User exists in the organization with the expected roles.",
+          "observedGeneration": 1,
+          "lastTransitionAt": "2026-10-21T14:00:05Z"
+        }
+      ],
+      "desired": {
+        "lifecycle": "present",
+        "reconciliation": "active",
+        "organizationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+        "roles": [
+          "ipm.organization.get",
+          "ipm.user.get"
+        ],
+        "deletionProtection": false,
+        "givenName": "Bia",
+        "familyName": "Lima",
+        "email": "bia.lima@example.com"
+      },
+      "observed": {
+        "presence": "present",
+        "observedAt": "2026-10-21T14:00:04Z",
+        "emailVerified": true,
+        "userState": "active",
+        "roles": [
+          "ipm.organization.get",
+          "ipm.user.get"
+        ],
+        "deletionProtection": false
+      },
+      "createdAt": "2026-10-21T14:00:00Z",
+      "updatedAt": "2026-10-21T14:00:05Z"
+    }
+  ],
+  "nextCursor": "MDE5OWM4YzE"
+}

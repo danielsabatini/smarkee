@@ -35,8 +35,11 @@ O Manager só insere no outbox. A publicação do outbox no NATS é do Publisher
 `SUM_SERVICE_MANAGER_CATALOG_ROLES`, JSON com serviço → roles. Exemplo:
 
 ```json
-{"ipm": ["ipm.organization.create", "ipm.organization.delete", "ipm.organization.get", "ipm.organization.list", "ipm.organization.update"]}
+{"ipm": ["ipm.organization.create", "ipm.organization.delete", "ipm.organization.get", "ipm.organization.list", "ipm.organization.update",
+         "ipm.user.bind", "ipm.user.create", "ipm.user.delete", "ipm.user.get", "ipm.user.list", "ipm.user.update"]}
 ```
+
+As roles `ipm.user.*` dão ao root (o dono da Organization) a gestão dos usuários dela (decisão 0077). As roles são copiadas do catálogo **ao ligar**: uma role nova no catálogo só chega a quem ligar o serviço depois (quem já ligou desliga e liga de novo).
 
 Um catálogo inválido: `parse_catalog` levanta `CatalogError` com o motivo e o processo não sobe.
 

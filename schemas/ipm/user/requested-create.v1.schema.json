@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UserRequestedCreateData",
+  "description": "data de requested com operation create. Publicado somente pelo Receiver, depois de conferir a Organization, o escopo de quem pede, a cota e as roles contra o catálogo do Grant (decisão 0077). Sem senha.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operationId",
+    "requestDigest",
+    "specification"
+  ],
+  "properties": {
+    "operationId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/opaqueIdentifier",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "requestDigest": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/requestDigest",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "specification": {
+      "title": "UserCreateSpecification",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "organizationId",
+        "givenName",
+        "familyName",
+        "email"
+      ],
+      "x-writer": "client",
+      "x-sensitivity": "confidential",
+      "properties": {
+        "organizationId": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        },
+        "givenName": {
+          "$ref": "definitions.v1.schema.json#/$defs/givenName",
+          "x-writer": "client",
+          "x-sensitivity": "confidential"
+        },
+        "familyName": {
+          "$ref": "definitions.v1.schema.json#/$defs/familyName",
+          "x-writer": "client",
+          "x-sensitivity": "confidential"
+        },
+        "email": {
+          "$ref": "definitions.v1.schema.json#/$defs/email",
+          "x-writer": "client",
+          "x-sensitivity": "confidential"
+        },
+        "roles": {
+          "$ref": "definitions.v1.schema.json#/$defs/roles",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        },
+        "deletionProtection": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        }
+      }
+    },
+    "organizationQuotaLimit": {
+      "description": "Limite de usuários da Organization, definido pelo Receiver (ausente para operadores: sem cota). O Manager aplica o limite na mesma unidade atômica do pedido, sob trava por Organization (decisão 0077).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

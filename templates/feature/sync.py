@@ -40,14 +40,14 @@ NAME = re.compile(r"[a-z][a-z0-9]*")
 PROFILES: dict[str, tuple[str, ...]] = {
     # Publicação do `requested`, probes e os tipos do domínio do Receiver (erros, linhas das views
     # e pedidos), sem regra do tipo.
-    "receiver-http": ("core/account", "ipm/organization"),
+    "receiver-http": ("core/account", "ipm/organization", "ipm/user"),
     # Envelope, publicação e persistência de `observed` e do resultado, sem regra do tipo.
-    "manager-handlers": ("core/account", "ipm/organization"),
+    "manager-handlers": ("core/account", "ipm/organization", "ipm/user"),
     # Driver de metadado do provedor de identidade, escrita (Executor) e leitura (Observer).
-    "identity-metadata": ("core/account", "ipm/organization"),
+    "identity-metadata": ("core/account", "ipm/organization", "ipm/user"),
     # Motores sem regra do tipo: Observer, Executor (com a revalidação) e a convergência do
     # Manager, com o teste do motor do Observer (decisão 0075).
-    "loop-engines": ("core/account", "ipm/organization"),
+    "loop-engines": ("core/account", "ipm/organization", "ipm/user"),
 }
 
 

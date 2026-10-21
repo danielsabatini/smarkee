@@ -22,11 +22,13 @@ ENV_FILES = (
     "infrastructure/dev/identity/.env",
     "features/core/account/.env",
     "features/ipm/organization/.env",
+    "features/ipm/user/.env",
     "features/sum/service/.env",
 )
 FEATURE_DIRECTORIES = (
     "features/core/account",
     "features/ipm/organization",
+    "features/ipm/user",
     "features/sum/service",
 )
 INFRASTRUCTURE_DIRECTORY = "infrastructure/dev"

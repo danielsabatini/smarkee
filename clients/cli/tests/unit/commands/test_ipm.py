@@ -707,7 +707,9 @@ def test_a_rejected_request_shows_the_full_diagnostic_command(api: FakeApi) -> N
     api.routes[("GET", OPERATION)] = operation_document("rejected", "validation")
     api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
 
-    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"], env={"COLUMNS": "200"})
+    result = runner.invoke(
+        app, ["ipm", "organization", "create", "--name", "acme", "--wait"], env={"COLUMNS": "200"}
+    )
 
     assert result.exit_code == 1
     assert "sk ipm" in result.stderr and "organization get" in result.stderr
@@ -724,3 +726,15 @@ def test_deleting_the_active_organization_warns_how_to_switch(api: FakeApi, tmp_
 
     assert result.exit_code == 0, result.stdout + result.stderr
     assert "This is the active Organization" in " ".join(result.stderr.split())
+
+
+def test_a_rejected_creation_is_reported_even_without_the_organization(api: FakeApi) -> None:
+    """Num `create` recusado, a Organization não existe (`404`): a recusa vem da Operation."""
+    api.routes[("POST", PATH)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("rejected", "validation")
+    api.routes[("GET", ORGANIZATION)] = http_error(404, "NotFound", "Recurso não encontrado.")
+
+    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"])
+
+    assert result.exit_code == 1
+    assert "rejected" in result.stderr and "Timed out" not in result.stderr

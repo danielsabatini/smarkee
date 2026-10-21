@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UserDesiredData",
+  "description": "data de desired do usuário da Organization: estado pretendido e controle de reconciliação. Publicado somente pelo Manager. Sem senha: a credencial é definida pelo usuário no provedor de identidade. Com lifecycle absent, não carrega dados pessoais.",
+  "x-schemaVersion": "1.0",
+  "x-resourceParameters": {
+    "observationInterval": "PT5M",
+    "observationValidity": "PT10M",
+    "actionDeadline": "PT2M",
+    "failureLimit": 5
+  },
+  "x-actionIdFormat": "<resourceId>.<desiredGeneration>.<operation>.<messageId do observed que motivou a decisão>",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lifecycle",
+    "reconciliation",
+    "organizationId",
+    "roles"
+  ],
+  "properties": {
+    "lifecycle": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/lifecycle",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "organizationId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "description": "Organization onde o usuário vive (o resourceId da Organization, também o ID da organização no provedor de identidade). Imutável.",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "roles": {
+      "$ref": "definitions.v1.schema.json#/$defs/roles",
+      "description": "Roles da plataforma que o usuário deve ter na Organization, por autorização no Project Grant dela (decisão 0077).",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "description": "Proteção contra exclusão. No usuário da Organization nasce false (exceção à decisão 0043, registrada na 0077); gravada como metadado no provedor (decisão 0074).",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "givenName": {
+      "$ref": "definitions.v1.schema.json#/$defs/givenName",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": false,
+      "x-sensitivity": "confidential"
+    },
+    "familyName": {
+      "$ref": "definitions.v1.schema.json#/$defs/familyName",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": false,
+      "x-sensitivity": "confidential"
+    },
+    "email": {
+      "$ref": "definitions.v1.schema.json#/$defs/email",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": false,
+      "x-sensitivity": "confidential"
+    }
+  },
+  "if": {
+    "properties": {
+      "lifecycle": {
+        "const": "present"
+      }
+    }
+  },
+  "then": {
+    "required": [
+      "givenName",
+      "familyName",
+      "email"
+    ]
+  },
+  "else": {
+    "not": {
+      "anyOf": [
+        {
+          "required": [
+            "givenName"
+          ]
+        },
+        {
+          "required": [
+            "familyName"
+          ]
+        },
+        {
+          "required": [
+            "email"
+          ]
+        }
+      ]
+    }
+  }
+}

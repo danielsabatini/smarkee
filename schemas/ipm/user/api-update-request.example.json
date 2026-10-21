@@ -1,0 +1,8 @@
+{
+  "resourceVersion": "3",
+  "roles": [
+    "ipm.organization.get",
+    "ipm.user.get",
+    "ipm.user.list"
+  ]
+}

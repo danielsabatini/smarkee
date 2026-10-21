@@ -13,6 +13,7 @@ from ipm_organization.receiver.domain.errors import unauthorized
 from ipm_organization.receiver.domain.principal import Principal
 from ipm_organization.receiver.domain.records import OperationRecord, ResourceRecord
 from ipm_organization.receiver.domain.requests import operation_id_for, request_digest
+from ipm_organization.receiver.domain.users import UsersCheckError
 from ipm_organization.receiver.http.app import Dependencies, create_app
 from ipm_organization.receiver.settings import ApiSettings
 
@@ -55,6 +56,25 @@ class FakeEmailVerifier:
 
     async def is_verified(self, principal: Principal) -> bool:
         return principal.subject in self.verified
+
+
+@dataclass
+class FakeUsers:
+    """Receiver do User: de que Organization cada um é usuário e quais têm usuários."""
+
+    members: dict[str, str] = field(default_factory=lambda: {})
+    populated: set[str] = field(default_factory=lambda: set())
+    error: UsersCheckError | None = None
+
+    async def organization_of(self, user_id: str, access_token: str) -> str | None:
+        if self.error is not None:
+            raise self.error
+        return self.members.get(user_id)
+
+    async def has_users(self, organization_id: str, access_token: str) -> bool:
+        if self.error is not None:
+            raise self.error
+        return organization_id in self.populated
 
 
 @dataclass
@@ -151,17 +171,20 @@ class Harness:
     publisher: FakePublisher
     repository: FakeRepository
     emails: FakeEmailVerifier
+    users: FakeUsers
 
 
 @pytest.fixture
 def harness() -> Harness:
     counter = itertools.count(1)
     publisher, repository, emails = FakePublisher(), FakeRepository(), FakeEmailVerifier()
+    users = FakeUsers()
     deps = Dependencies(
         settings=ApiSettings(organization_quota=1),
         authenticator=FakeAuthenticator(),
         email_verifier=emails,
         repository=repository,
+        users=users,
         publisher=publisher,
         clock=lambda: NOW,
         identifiers=lambda: f"id-{next(counter):04d}",
@@ -169,7 +192,7 @@ def harness() -> Harness:
     client = httpx.AsyncClient(
         transport=httpx.ASGITransport(app=create_app(deps)), base_url="http://api"
     )
-    return Harness(client, publisher, repository, emails)
+    return Harness(client, publisher, repository, emails, users)
 
 
 def auth(subject: str) -> dict[str, str]:
@@ -194,6 +217,7 @@ async def test_readiness_is_down_when_a_critical_dependency_is_down() -> None:
         authenticator=FakeAuthenticator(),
         email_verifier=FakeEmailVerifier(),
         repository=FakeRepository(),
+        users=FakeUsers(),
         publisher=FakePublisher(),
         is_ready=lambda: False,
     )
@@ -550,3 +574,57 @@ async def test_operation_of_another_resource_is_404(harness: Harness) -> None:
         "/v1/ipm/organizations/outra/operations/op-1", headers=auth("ana")
     )
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------- usuários da Organization
+
+
+async def test_a_user_of_the_organization_reads_and_lists_only_it(harness: Harness) -> None:
+    """Usuário da Organization (decisão 0077): reconhecido pelo Receiver do User."""
+    harness.repository.resources["o-1"] = organization("o-1", "ana")
+    harness.repository.resources["o-2"] = organization("o-2", "ana", name="outra")
+    harness.users.members["bia"] = "o-1"
+    assert (
+        await harness.client.get("/v1/ipm/organizations/o-1", headers=auth("bia"))
+    ).status_code == 200
+    assert (
+        await harness.client.get("/v1/ipm/organizations/o-2", headers=auth("bia"))
+    ).status_code == 404
+    listed = await harness.client.get("/v1/ipm/organizations", headers=auth("bia"))
+    assert [item["resourceId"] for item in listed.json()["items"]] == ["o-1"]
+
+
+async def test_the_owner_is_recognized_without_asking_the_users(harness: Harness) -> None:
+    harness.repository.resources["o-1"] = organization("o-1", "ana")
+    harness.users.error = UsersCheckError(retryable=True)
+    assert (
+        await harness.client.get("/v1/ipm/organizations/o-1", headers=auth("ana"))
+    ).status_code == 200
+    other = await harness.client.get("/v1/ipm/organizations/o-1", headers=auth("bia"))
+    assert (other.status_code, other.headers["retry-after"]) == (503, "5")
+
+
+async def test_delete_is_refused_while_the_organization_has_users(harness: Harness) -> None:
+    harness.repository.resources["o-1"] = organization("o-1", "ana", protected=False)
+    harness.users.populated.add("o-1")
+    response = await harness.client.delete(
+        "/v1/ipm/organizations/o-1?resourceVersion=3", headers=auth("ana")
+    )
+    assert (response.status_code, response.json()["errorCode"]) == (409, "ResourcesAttached")
+    assert harness.publisher.published == []
+
+
+@pytest.mark.parametrize(
+    ("retryable", "status", "code"),
+    [(True, 503, "UsersUnavailable"), (False, 409, "ResourcesNotVerifiable")],
+)
+async def test_delete_does_not_proceed_when_the_users_cannot_be_verified(
+    harness: Harness, retryable: bool, status: int, code: str
+) -> None:
+    harness.repository.resources["o-1"] = organization("o-1", "ana", protected=False)
+    harness.users.error = UsersCheckError(retryable=retryable)
+    response = await harness.client.delete(
+        "/v1/ipm/organizations/o-1?resourceVersion=3", headers=auth("ana")
+    )
+    assert (response.status_code, response.json()["errorCode"]) == (status, code)
+    assert harness.publisher.published == []

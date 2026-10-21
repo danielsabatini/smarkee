@@ -42,6 +42,13 @@ class ApiSettings(Section):
     """Organizations por dono para quem não é operador (decisão 0010)."""
 
 
+class PeersSettings(Section):
+    """Receiver do User, na rede interna: usuários da Organization, com o token de quem pede."""
+
+    users_url: str = "http://localhost:8000"
+    timeout_seconds: float = 5.0
+
+
 class OrganizationReceiverSettings(RoleSettings):
     model_config = role_config("receiver")
 
@@ -49,6 +56,7 @@ class OrganizationReceiverSettings(RoleSettings):
     messaging: MessagingSettings = MessagingSettings()
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
+    peers: PeersSettings = PeersSettings()
 
 
 def missing_required(settings: OrganizationReceiverSettings) -> list[str]:

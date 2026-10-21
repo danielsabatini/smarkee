@@ -17,6 +17,7 @@ from rich.text import Text
 
 from sk import ui
 from sk.commands.config import known_keys, store_value
+from sk.commands.ipm_user import user_app
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
     EXIT_FAILURE,
@@ -97,6 +98,7 @@ organization_app = typer.Typer(
     pretty_exceptions_show_locals=False,
 )
 ipm_app.add_typer(organization_app, name="organization")
+ipm_app.add_typer(user_app, name="user")
 
 WaitOption = Annotated[
     bool,
@@ -263,6 +265,17 @@ def _wait_for_convergence(
                 operation_id=accepted.operation_id,
                 allow_insecure_http=insecure,
             )
+            # Recusa ou falha primeiro: num `create` recusado, o recurso nem existe (`404`).
+            if operation.operation_status in ("rejected", "failed"):
+                reason = operation.reason
+                ui.error(
+                    "Request not completed",
+                    f"The Operation ended as {operation.operation_status}"
+                    + (f": {reason}" if reason else "."),
+                    hint=f"{REJECTION_HINTS.get(reason or '', 'Inspect the request.')} Details: "
+                    f"`{_get_command(accepted, with_operation=True)}`.",
+                )
+                raise typer.Exit(EXIT_FAILURE)
             try:
                 organization = get_organization(
                     url,
@@ -287,16 +300,6 @@ def _wait_for_convergence(
             continue
         except ApiError as error:
             _fail_api(error)
-        if operation.operation_status in ("rejected", "failed"):
-            reason = operation.reason
-            ui.error(
-                "Request not completed",
-                f"The Operation ended as {operation.operation_status}"
-                + (f": {reason}" if reason else "."),
-                hint=f"{REJECTION_HINTS.get(reason or '', 'Inspect the request.')} Details: "
-                f"`{_get_command(accepted, with_operation=True)}`.",
-            )
-            raise typer.Exit(EXIT_FAILURE)
         if operation.operation_status == "completed":
             if removal and organization is None:
                 return None

@@ -17,7 +17,7 @@ Com isso, qualquer módulo futuro (secrets, clusters) dependeria do módulo de i
   - código em `features/core/<tipo>/<papel>` (decisão 0015);
   - comando `sk ipm organization create|get|list|update|delete`.
 - `core` é o módulo dos recursos da própria plataforma dos quais os demais dependem. O nome `platform` foi descartado por ser ambíguo com o diretório `platform/`, que reúne capacidades de infraestrutura (database, gateway, vault).
-- O **User** também é um recurso do módulo `core` (decisão 0014): é a identidade da plataforma, da qual depende a criação de uma Organization. O módulo `ipm` fica com o que vier depois, como os membros de uma Organization e a configuração de identidade dentro dela.
+- O **User** também é um recurso do módulo `core` (decisão 0014): é a identidade da plataforma, da qual depende a criação de uma Organization. O módulo `ipm` fica com o que vier depois, como os administradores e os usuários de uma Organization e a configuração de identidade dentro dela.
 - Cada Executor escreve em um único sistema externo. O Executor da Organization escreve no Zitadel (decisão 0010); os namespaces derivados são recursos dos próprios módulos, referenciando o `organizationId`.
 
 ## Justificativa

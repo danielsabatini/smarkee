@@ -4,6 +4,7 @@ from collections.abc import Callable
 
 from smarkee_dev_cleanup.model import (
     ACCOUNTS,
+    ORGANIZATION_USERS,
     ORGANIZATIONS,
     POLL_SECONDS,
     REMOVAL_WAIT_SECONDS,
@@ -44,6 +45,10 @@ def find(ports: Ports, *, orphans: bool = False) -> Findings:
     findings.organization_rows = [
         row for row in ports.ssot.rows(ORGANIZATIONS) if TEST_ORGANIZATION_NAME.match(row.label)
     ]
+    # Usuário da Organization é de teste pelo e-mail, como a conta (o padrão dos testes).
+    findings.organization_user_rows = [
+        row for row in ports.ssot.rows(ORGANIZATION_USERS) if is_test_user(row.label)
+    ]
     # Ligação de serviço é de teste se o dono é de teste, ou se o dono nem existe mais no Zitadel
     # (sem usuário, a ligação não tem como convergir nem como ser desligada).
     test_owners = set(findings.zitadel_users) | {row.resource_id for row in findings.account_rows}
@@ -66,7 +71,7 @@ def _find_history(
     Só é de teste o que o rótulo gravado no outbox identifica como tal; o resto é mantido.
     """
     orphans: dict[Kind, list[Row]] = {}
-    for kind in (ACCOUNTS, ORGANIZATIONS, SERVICES):
+    for kind in (ACCOUNTS, ORGANIZATIONS, SERVICES, ORGANIZATION_USERS):
         live = {row.resource_id for row in ports.ssot.rows(kind)}
         orphans[kind] = [row for row in ports.ssot.history(kind) if row.resource_id not in live]
     test: dict[Kind, list[Row]] = {
@@ -74,6 +79,7 @@ def _find_history(
         ORGANIZATIONS: [
             row for row in orphans[ORGANIZATIONS] if TEST_ORGANIZATION_NAME.match(row.label)
         ],
+        ORGANIZATION_USERS: [row for row in orphans[ORGANIZATION_USERS] if is_test_user(row.label)],
     }
     # Uma ligação é de teste se o dono é uma conta de teste (viva ou já removida).
     owners = test_owners | {row.resource_id for row in test[ACCOUNTS]}
@@ -90,7 +96,7 @@ async def find_everywhere(ports: Ports, *, orphans: bool) -> Findings:
     if orphans:
         live = {
             kind: {row.resource_id for row in ports.ssot.rows(kind)}
-            for kind in (ACCOUNTS, ORGANIZATIONS, SERVICES)
+            for kind in (ACCOUNTS, ORGANIZATIONS, SERVICES, ORGANIZATION_USERS)
         }
         found = await ports.bus.orphan_messages(live)
         findings.message_orphans = {kind: ids for kind, ids in found.items() if ids}
@@ -140,7 +146,9 @@ async def apply(
 ) -> None:
     """Remove o resíduo: primeiro pelo loop, depois direto o que sobrou, e limpa a mensageria."""
     say("1. Pelo loop (organizações e usuários que ainda estão `Ready`)")
+    # Os usuários da Organization antes dela: a Organization só é removida vazia (decisão 0077).
     for kind, rows in (
+        (ORGANIZATION_USERS, findings.organization_user_rows),
         (ORGANIZATIONS, findings.organization_rows),
         (ACCOUNTS, findings.account_rows),
     ):
@@ -157,6 +165,7 @@ async def apply(
         say(f"  Zitadel: usuário {mail} ({rid})")
     for kind, rows in (
         (SERVICES, remaining.service_rows),
+        (ORGANIZATION_USERS, remaining.organization_user_rows),
         (ORGANIZATIONS, remaining.organization_rows),
         (ACCOUNTS, remaining.account_rows),
     ):
@@ -164,7 +173,7 @@ async def apply(
             ports.ssot.delete(kind, {row.resource_id for row in rows})
             say(f"  SSOT: {len(rows)} linha(s) de {kind.module}.{kind.resource_type}")
 
-    for kind in (SERVICES, ORGANIZATIONS, ACCOUNTS):
+    for kind in (SERVICES, ORGANIZATION_USERS, ORGANIZATIONS, ACCOUNTS):
         ids = {row.resource_id for row in remaining.history.get(kind, [])}
         if ids:
             ports.ssot.delete(kind, ids)

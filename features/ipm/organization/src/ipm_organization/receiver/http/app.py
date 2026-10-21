@@ -3,6 +3,10 @@
 O Receiver autentica, autoriza, valida, gera as identidades e **publica `requested`**; ele não
 escreve no SSOT e não tem credencial de escrita no provedor de identidade. As leituras vêm das
 views do SSOT. Toda escrita responde `202 Accepted` com o `operationId`.
+
+Quem age numa Organization (decisão 0077): o dono (root), o operador e os usuários dela, estes
+reconhecidos pelo Receiver do User com o token de quem pede (decisão 0040). A Organization só é
+removida vazia, sem usuários.
 """
 
 import logging
@@ -30,15 +34,17 @@ from ipm_organization.receiver.domain.errors import (
 )
 from ipm_organization.receiver.domain.principal import Principal
 from ipm_organization.receiver.domain.records import ResourceRecord
+from ipm_organization.receiver.domain.users import UsersCheckError
 from ipm_organization.receiver.domain.views import operation_view, organization_view
 from ipm_organization.receiver.http.health_routes import register_health_routes
-from ipm_organization.receiver.http.ports import Repository
+from ipm_organization.receiver.http.ports import Repository, Users
 from ipm_organization.receiver.http.submission import submit
 from ipm_organization.receiver.http.trace_context import TraceContextMiddleware
 from ipm_organization.receiver.settings import ApiSettings
 
 logger = logging.getLogger(__name__)
 
+RETRY_AFTER_SECONDS = "5"
 DEFAULT_PAGE_SIZE = 50
 MAXIMUM_PAGE_SIZE = 200
 
@@ -57,6 +63,7 @@ class Dependencies:
     authenticator: Authenticator
     email_verifier: EmailVerifier
     repository: Repository
+    users: Users
     publisher: Publisher
     clock: Callable[[], datetime] = utc_now
     identifiers: Callable[[], str] = new_identifier
@@ -146,9 +153,35 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     def is_owner(principal: Principal, record: ResourceRecord) -> bool:
         return principal.is_operator or record.desired.get("ownerAccountId") == principal.subject
 
+    def users_unverifiable(error: UsersCheckError) -> ApiError:
+        if error.retryable:
+            return ApiError(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "UsersUnavailable",
+                "Não foi possível consultar os usuários da Organization agora. Tente de novo.",
+                headers={"Retry-After": RETRY_AFTER_SECONDS},
+            )
+        return ApiError(
+            HTTPStatus.CONFLICT,
+            "ResourcesNotVerifiable",
+            "Não foi possível confirmar os usuários da Organization.",
+        )
+
+    async def member_organization(principal: Principal) -> str | None:
+        """A Organization de que o solicitante é usuário, pelo Receiver do User (decisão 0077)."""
+        try:
+            return await deps.users.organization_of(principal.subject, principal.access_token)
+        except UsersCheckError as error:
+            raise users_unverifiable(error) from None
+
     async def owned_organization(principal: Principal, organization_id: str) -> ResourceRecord:
+        """A Organization, se o solicitante é o dono, o operador ou um usuário dela."""
         record = await deps.repository.get_organization(organization_id)
-        if record is None or not is_owner(principal, record):
+        if record is None:
+            raise not_found()
+        if is_owner(principal, record):
+            return record
+        if await member_organization(principal) != organization_id:
             raise not_found()  # não revela a existência de Organizations de outros donos
         return record
 
@@ -229,6 +262,11 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         records = await deps.repository.list_organizations(
             owner=owner, after=cursor, limit=limit + 1
         )
+        if owner is not None and not records and cursor is None:
+            # Sem Organizations próprias, o solicitante pode ser usuário de uma (decisão 0077).
+            member_of = await member_organization(principal)
+            record = await deps.repository.get_organization(member_of) if member_of else None
+            records = [record] if record is not None else []
         page = records[:limit]
         payload: dict[str, Any] = {
             "items": [
@@ -313,6 +351,20 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
                 HTTPStatus.CONFLICT,
                 "DeletionProtected",
                 "A Organization está protegida contra exclusão. Desproteja-a antes de excluir.",
+            )
+        # Só vazia: a remoção no provedor apagaria os usuários junto (decisão 0077). A repetição
+        # de uma remoção já aceita não pergunta de novo.
+        try:
+            attached = record.lifecycle == "present" and await deps.users.has_users(
+                organization_id, principal.access_token
+            )
+        except UsersCheckError as error:
+            raise users_unverifiable(error) from None
+        if attached:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "ResourcesAttached",
+                "A Organization ainda tem usuários. Remova-os antes de excluir a Organization.",
             )
         return await submit(
             deps,

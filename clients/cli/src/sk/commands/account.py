@@ -353,6 +353,7 @@ def delete_command(
     default_credentials_path().unlink(missing_ok=True)  # a sessão não vale mais
     ui.panel("Account deleted", [("resourceId", resource_id), ("session", "forgotten")])
 
+
 @account_app.command(
     "create",
     help=command(

@@ -10,7 +10,7 @@ Os seis componentes do loop e a CLI estão implementados e rodam no dev (Compose
 
 | Papel | Projeto | Estado |
 |---|---|---|
-| Receiver | `receiver/` (`ipm-organization-receiver`) | API `/v1/ipm/organizations`: autentica, confere a role, o e-mail verificado e a cota, publica `requested`. Contrato em `openapi.json` |
+| Receiver | `receiver/` (`ipm-organization-receiver`) | API `/v1/ipm/organizations`: autentica, confere a role, o e-mail verificado e a cota, reconhece os usuários da Organization e só remove a Organization vazia (pelo Receiver do User), publica `requested`. Contrato em `openapi.json` |
 | Manager | `manager/` (`ipm-organization-manager`) | Consome `requested`, `observed` e `completed`/`failed`; nomes reservados, unicidade e cota por dono na unidade atômica |
 | Publisher | `publisher/` (`ipm-organization-publisher`) | Publica o outbox no NATS, com trava de sessão, envelope estrito e `Nats-Msg-Id` (decisão 0019) |
 | Reconciler | `reconciler/` (`ipm-organization-reconciler`) | Compara `name`, `platformAccess` e `deletionProtection` e decide `create`, `update` ou `delete`; estado reconstruído da mensageria |
@@ -44,6 +44,8 @@ Os seis papéis são **um projeto e uma imagem** (decisão 0063), cada um rodand
 - Rotas sob `/v1/ipm/organizations`: `POST` cria, `GET` lista, `GET /{resourceId}` lê, `PATCH /{resourceId}` altera, `DELETE /{resourceId}?resourceVersion=` remove e `GET /{resourceId}/operations/{operationId}` acompanha a Operation.
 - Valida o token (assinatura por JWKS, `iss`, `aud` = projeto `roles-ipm`, `exp`). O dono é o `sub`: nunca vem do corpo, que só tem `name`. Cada ação exige a role `ipm.organization.<create|get|list|update|delete>`. Para criar, o solicitante precisa de **e-mail verificado** e de cota (`IPM_ORGANIZATION_RECEIVER_API_ORGANIZATION_QUOTA`, padrão 1); o operador (`ipm.organization.admin`) não tem cota.
 - O dono altera o `name` e a proteção contra exclusão (`deletionProtection`); `platformAccess` e `reconciliation` são do operador. A Organization **nasce protegida** (decisão 0043): o `DELETE` responde `409 DeletionProtected` até um `PATCH` com `deletionProtection: false`; alterar só a proteção percorre o loop como qualquer alteração e conclui quando a observação confirma a nova geração (decisão 0072). Registro sem o campo vale como protegido. Uma Organization de outro dono responde `404`, para não revelar que existe. `Idempotency-Key` torna o `POST`, o `PATCH` e o `DELETE` repetíveis.
+- **Usuários da Organization** (`ipm.user`, decisão 0077): além do dono e do operador, um usuário da Organization age nela com as roles `ipm.organization.get|list|update`. O Receiver o reconhece perguntando ao Receiver do User de que Organization ele é (`GET /v1/ipm/users/{sub}`, o próprio registro, com o token de quem pede; decisão 0040). O dono é reconhecido antes, sem consulta. A lista de quem não é dono de nenhuma é a Organization de que ele é usuário.
+- **Só vazia:** o `DELETE` pergunta ao Receiver do User se a Organization ainda tem usuários (`GET /v1/ipm/users?organizationId=`): com usuários, `409 ResourcesAttached`; sem resposta conclusiva, `503 UsersUnavailable` (repetível) ou `409 ResourcesNotVerifiable`. A remoção no Zitadel apagaria os usuários junto. O endereço do Receiver do User é `IPM_ORGANIZATION_RECEIVER_PEERS_USERS_URL`.
 - Só lê o SSOT, pelas views `ipm.organization_v1` e `ipm.organization_operation_v1`. Não expõe `/docs` nem `/openapi.json`: o contrato descritivo é o arquivo versionado `openapi.json`, conferido por teste. Erros no formato `api-error`; a entrada inválida é `400` e nunca repete o valor enviado.
 
 ## 3.2 Manager (`ipm-organization-manager`)
@@ -99,7 +101,7 @@ Cada papel é um subpacote com `main.py`, `settings.py` e `domain/` puro e sem I
 
 | Papel | Pastas | README |
 |---|---|---|
-| Receiver | `auth/`, `domain/`, `http/`, `store/` | [`receiver`](src/ipm_organization/receiver/README.md) |
+| Receiver | `auth/`, `domain/`, `http/`, `store/`, `transport/` (Receiver do User) | [`receiver`](src/ipm_organization/receiver/README.md) |
 | Manager | `domain/`, `handlers/`, `store/`, `transport/` | [`manager`](src/ipm_organization/manager/README.md) |
 | Publisher | `domain/`, `outbox/` | [`publisher`](src/ipm_organization/publisher/README.md) |
 | Reconciler | `domain/`, `engine/`, `transport/` | [`reconciler`](src/ipm_organization/reconciler/README.md) |
@@ -190,7 +192,7 @@ Depois de recriar o contêiner do Receiver, o gateway volta a resolver o nome so
 
 - A Operation não vira `failed`: a falha aparece na fase `Failed` da Organization.
 - Logo depois do `202`, a leitura pode dar `404` até o Manager gravar a Operation (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1).
-- O Executor não cria Project Grant nem autoriza membros: a Organization de hoje só existe como organização no Zitadel. Membros e Agents, e os recursos derivados (OpenBao, Kubernetes), são de outras features.
+- O Executor não cria Project Grant nem autoriza usuários: a Organization de hoje só existe como organização no Zitadel. Os usuários dela são a feature `ipm/user` (decisão 0077), e o Project Grant de `roles-ipm` para cada Organization ainda é criado pelo operador (lacuna declarada em `docs/IMPLEMENTATION-STATUS.md`). Agents e os recursos derivados (OpenBao, Kubernetes) são de outras features.
 - Os papéis de instância `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` são mais largos que o necessário, e ficam assim por exceção deliberada (decisão 0060).
 - Remover não tem retenção: a organização some do Zitadel e a linha é apagada ao convergir.
 - As chaves das contas de serviço vencem em 2030-01-01 e a rotação é manual (`infrastructure/dev/README.md`).

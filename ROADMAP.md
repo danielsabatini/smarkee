@@ -18,10 +18,12 @@ O que está sendo trabalhado ativamente neste momento.
 - [ ] **`[In Progress]` Contratos e Mensageria:** Modelagem semântica da troca assíncrona de mensagens e dos schemas de contrato (`docs/MESSAGING.md`, `docs/NATS.md` e `docs/SCHEMA.md`), já exercitada pelo User.
 - [ ] **`[In Progress]` Resource Control Loop:** Modelo de reconciliação entre `desired` e `observed` e sua segurança (`docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`).
 - [ ] **`[In Progress]` Primeira Fatia Vertical (`core`/`user`, `sum`/`service` e `ipm`/`organization` completos):** um projeto e uma imagem por feature, com um contêiner por papel (`receiver`, `manager`, `publisher`, `observer`, `reconciler` e `executor`), com servidor de saúde, partição do `ACTION` e testes e2e black-box (incluindo falhas de componentes), validando os contratos especificados (`docs/RESOURCE-CONTROL-LOOP.md`, seção 48).
+- [ ] **`[Preview]` Usuários da Organization (`ipm`/`user`):** o dono da Organization cria usuários dentro dela, com roles da plataforma (decisão 0077), API `/v1/ipm/users` e `sk ipm user`. Falta automatizar o Project Grant de cada Organization, hoje do operador.
 - [ ] **`[In Progress]` SSOT e Persistência:** Modelo e garantias de gravação do SSOT e sua implementação de referência em PostgreSQL com `jsonb` (`docs/SSOT.md` e `docs/POSTGRESQL.md`).
 
 ### 🟡 Next (Próximos Passos / Médio Prazo)
 O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.
+- [ ] **`[Planned]` Project Grant da Organization pelo loop:** a `ipm/organization` passa a criar o Project Grant de `roles-ipm` e os papéis do Executor e do Observer do User em cada Organization, fechando a lacuna declarada do `ipm/user`.
 - [ ] **`[Planned]` Implantação em Kubernetes:** CI/CD e GitOps por componente, com versão e imagem independentes.
 - [ ] **`[Planned]` Encerramento limpo dos componentes:** o Manager do User espera o `drain()` do NATS até o tempo limite (cerca de 30 s) e registra `task stopped unexpectedly` mesmo quando o encerramento foi pedido. O Manager do SUM já usa `close()` e só registra o erro sem pedido de parada; aplicar o mesmo ao User, e revisar os demais componentes que copiaram o padrão.
 - [ ] **`[Planned]` Observabilidade Básica:** Métricas de aplicação e spans nos componentes (hoje há logs estruturados com `trace_id` ligado ao trace do gateway, spans do gateway, métricas de contêiner e probes de saúde).

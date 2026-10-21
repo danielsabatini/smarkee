@@ -17,6 +17,9 @@ user = "ipm_organization_receiver_login"
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
+[tool.ipm.organization.receiver.peers]
+users_url = "http://ipm-user-receiver.smarkee.internal:8000"
+
 [tool.ipm.organization.manager.database]
 host = "database.smarkee.internal"
 name = "smarkee"

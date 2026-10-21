@@ -11,7 +11,9 @@ DECLARE
   function_role text;
 BEGIN
   FOREACH function_role IN ARRAY ARRAY[
-    'ipm_organization_manager', 'ipm_organization_receiver', 'ipm_organization_publisher', 'ipm_maintenance'
+    'ipm_organization_manager', 'ipm_organization_receiver', 'ipm_organization_publisher',
+    'ipm_user_manager', 'ipm_user_receiver', 'ipm_user_publisher',
+    'ipm_maintenance'
   ] LOOP
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = function_role) THEN
       EXECUTE format('CREATE ROLE %I NOLOGIN', function_role);

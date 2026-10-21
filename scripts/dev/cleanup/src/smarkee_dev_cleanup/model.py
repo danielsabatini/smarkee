@@ -47,7 +47,7 @@ class Kind:
     label_field: str
     """Campo de `desired` que identifica a linha como de teste (e-mail, nome ou dono)."""
     deletion_protected: bool = False
-    """O tipo nasce protegido contra exclusão (decisão 0043): é preciso desproteger antes."""
+    """O tipo pode estar protegido contra exclusão (decisão 0043): a limpeza desprotege antes."""
 
 
 ACCOUNTS = Kind(
@@ -84,6 +84,18 @@ ORGANIZATIONS = Kind(
     deletion_protected=True,
 )
 
+# Usuários da Organization (decisão 0077): nascem desprotegidos, mas podem ter sido protegidos.
+ORGANIZATION_USERS = Kind(
+    "ipm",
+    "user",
+    "ipm.user",
+    ("ipm.user_outbox", "ipm.user_operation", "ipm.user_action_result"),
+    "ipm_user_manager_login",
+    "ipm_maintenance_login",
+    "email",
+    deletion_protected=True,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class Row:
@@ -102,6 +114,7 @@ class Findings:
     account_rows: list[Row] = field(default_factory=lambda: [])
     service_rows: list[Row] = field(default_factory=lambda: [])
     organization_rows: list[Row] = field(default_factory=lambda: [])
+    organization_user_rows: list[Row] = field(default_factory=lambda: [])
     history: dict[Kind, list[Row]] = field(default_factory=lambda: {})
     """Histórico (outbox, Operations e resultados) de recursos de teste já removidos."""
     kept_history: dict[Kind, int] = field(default_factory=lambda: {})
@@ -117,6 +130,7 @@ class Findings:
             or self.account_rows
             or self.service_rows
             or self.organization_rows
+            or self.organization_user_rows
             or any(self.history.values())
             or any(self.message_orphans.values())
             or self.mails
@@ -144,6 +158,10 @@ class Findings:
             *(
                 f"SSOT ipm.organization {row.resource_id}  {row.label}"
                 for row in self.organization_rows
+            ),
+            *(
+                f"SSOT ipm.user {row.resource_id}  {row.label}"
+                for row in self.organization_user_rows
             ),
         ]
         found.extend(
@@ -176,6 +194,9 @@ class Findings:
             | {row.resource_id for row in self.organization_rows}
             | self._history_ids(ORGANIZATIONS)
             | self.message_orphans.get(ORGANIZATIONS, set()),
+            ORGANIZATION_USERS: {row.resource_id for row in self.organization_user_rows}
+            | self._history_ids(ORGANIZATION_USERS)
+            | self.message_orphans.get(ORGANIZATION_USERS, set()),
         }
 
     def _history_ids(self, kind: Kind) -> set[str]:

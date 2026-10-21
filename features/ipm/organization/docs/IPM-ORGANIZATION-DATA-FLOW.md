@@ -70,10 +70,10 @@ O corpo é `{"name": "<nome>"}` (`schemas/ipm/organization/api-create-request`).
 }
 ```
 
-As demais rotas: `GET` e a lista (filtradas pelo dono; de outro dono é `404`, para não revelar que existe), `PATCH` (o dono
+As demais rotas: `GET` e a lista (filtradas pelo dono, ou a Organization de que quem pede é usuário, reconhecido pelo Receiver do User; de outro dono é `404`, para não revelar que existe), `PATCH` (o dono
 altera só o `name`; `platformAccess` e `reconciliation` são do operador), `DELETE?resourceVersion=` e
 `GET .../operations/{operationId}`. Erros no formato `api-error`: `400` entrada inválida (sem repetir o valor enviado), `401`,
-`403` (sem a role, e-mail não verificado, cota), `404`, `409` versão desatualizada, `422` reuso da `Idempotency-Key`, `503`
+`403` (sem a role, e-mail não verificado, cota), `404`, `409` versão desatualizada, protegida ou ainda com usuários (`ResourcesAttached`, decisão 0077: o `DELETE` pergunta ao Receiver do User, com o token de quem pede), `422` reuso da `Idempotency-Key`, `503`
 pedido não registrado (com `Retry-After`). Logo depois do `202`, a leitura pode dar `404` até o Manager gravar a Operation.
 Diagrama: [`flow/02-validacao-e-borda.svg`](flow/02-validacao-e-borda.svg). O contrato descritivo é `openapi.json`.
 

@@ -15,10 +15,11 @@ O que é da regra de negócio do recurso (`domain/`, `service_rules.py`, `execut
 | tem identidade própria no provedor de identidade e proteção contra exclusão | `core/account` | a mais completa e documentada (referência de toda a estrutura) |
 | é uma entidade simples ligada a uma Organization | `ipm/organization` | o mesmo molde, com outra regra de negócio (também tem proteção contra exclusão) |
 | é uma ligação ou concessão entre recursos, com catálogo | `sum/service` | tem catálogo e regras de dependência (`common/service_rules.py`) |
+| vive dentro de uma Organization e age só nela (pessoas, com roles) | `ipm/user` | escopo por Organization, consulta a outro Receiver com o token de quem pede, catálogo do Grant e regra do `bind` (decisão 0077); nasce desprotegido, por exceção |
 
 O que é igual em todas as features **não é copiado à mão**: vem do template (passo 3) e da semente (`--new`).
 
-Todo recurso que pode ser apagado de verdade **nasce protegido** (`deletionProtection: true` no `desired`, decisão `0043`), e a proteção é **campo gerenciado**: gravada como metadado `deletionProtection` no provedor e reconciliada (decisão `0074`). No schema, `x-managed: true` no `desired` e o campo opcional no `observed`.
+Todo recurso que pode ser apagado de verdade **nasce protegido** (`deletionProtection: true` no `desired`, decisão `0043`; a exceção registrada é o `ipm/user`, decisão `0077`), e a proteção é **campo gerenciado**: gravada como metadado `deletionProtection` no provedor e reconciliada (decisão `0074`). No schema, `x-managed: true` no `desired` e o campo opcional no `observed`.
 
 ## 2. Contrato primeiro
 

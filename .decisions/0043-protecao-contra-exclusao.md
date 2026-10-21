@@ -28,4 +28,4 @@ Apagar uma Organization remove a organização no Zitadel com todo o conteúdo, 
 
 - **Mudança de contrato (aditiva):** campo novo opcional em `desired` e nas views, motivo `protected` no enum de `operationStatusReason`, `PATCH` novo da Account. Quem apagava direto passa a desproteger antes: os e2e, a jornada e o `smarkee-dev-cleanup` foram ajustados.
 - O Manager exige a migração que inclui `protected` no motivo de rejeição (`core/account` `0006` e `ipm/organization` `0002`).
-- Pendência: o `delete` de Organization ainda não exige estar vazia (membros, decisão 0039 §5).
+- Pendência: o `delete` de Organization ainda não exige estar vazia (administradores e usuários, decisão 0039 §5).

@@ -15,6 +15,7 @@ from smarkee_dev_cleanup.engine import (
 from smarkee_dev_cleanup.main import refuse_outside_development
 from smarkee_dev_cleanup.model import (
     ACCOUNTS,
+    ORGANIZATION_USERS,
     ORGANIZATIONS,
     SERVICES,
     Findings,
@@ -421,6 +422,7 @@ def world_with_history() -> World:
         ],
         ORGANIZATIONS: [Row("o1", "org-0c6eef4158"), Row("o2", "minha-org")],
         SERVICES: [Row("s1", "a1"), Row("s2", "a2"), Row("s3", "dono-desconhecido")],
+        ORGANIZATION_USERS: [Row("u1", "loop-1a2b@example.com"), Row("u2", "bia@empresa.com")],
     }
     return world
 
@@ -434,8 +436,14 @@ def test_history_of_removed_test_resources_is_found_and_the_rest_is_kept() -> No
         "account": ["a1"],
         "organization": ["o1"],
         "service": ["s1"],  # a ligação do dono de teste; a do dono real e a sem dono ficam
+        "user": ["u1"],  # usuário da Organization: de teste pelo e-mail, como a conta
     }
-    assert findings.kept_history == {ACCOUNTS: 2, ORGANIZATIONS: 1, SERVICES: 2}
+    assert findings.kept_history == {
+        ACCOUNTS: 2,
+        ORGANIZATIONS: 1,
+        SERVICES: 2,
+        ORGANIZATION_USERS: 1,
+    }
     assert not findings.is_clean()
     assert any("histórico" in line for line in findings.lines())
 
@@ -457,11 +465,16 @@ async def test_apply_purges_the_history_and_the_messages_of_test_resources_only(
     code = await clean(world.ports(), apply_changes=True, say=lines.append)
 
     assert code == 0, lines
-    assert world.bus.purged == {"core": {"a1"}, "ipm": {"o1"}, "sum": {"s1"}}
+    assert world.bus.purged == {"core": {"a1"}, "ipm": {"o1", "u1"}, "sum": {"s1"}}
     remaining = {
         k.resource_type: [r.resource_id for r in rows] for k, rows in world.ssot.support.items()
     }
-    assert remaining == {"account": ["a2", "a3"], "organization": ["o2"], "service": ["s2", "s3"]}
+    assert remaining == {
+        "account": ["a2", "a3"],
+        "organization": ["o2"],
+        "service": ["s2", "s3"],
+        "user": ["u2"],
+    }
     assert any("Histórico mantido" in line and "2 de core.account" in line for line in lines)
 
 
@@ -486,7 +499,12 @@ async def test_orphans_mode_removes_all_history_and_orphan_messages_but_not_live
     code = await clean(world.ports(), apply_changes=True, orphans=True, say=lines.append)
 
     assert code == 0, lines
-    assert world.ssot.support == {ACCOUNTS: [], ORGANIZATIONS: [], SERVICES: []}
+    assert world.ssot.support == {
+        ACCOUNTS: [],
+        ORGANIZATIONS: [],
+        SERVICES: [],
+        ORGANIZATION_USERS: [],
+    }
     assert world.bus.messages == {"core": {"viva"}}
     assert [r.resource_id for r in world.ssot.tables[ACCOUNTS]] == ["viva"]
     assert not any("Histórico mantido" in line for line in lines)
@@ -512,3 +530,18 @@ async def test_default_mode_leaves_orphan_messages_alone() -> None:
 
     assert code == 0
     assert world.bus.messages == {"core": {"so-nats"}}
+
+
+async def test_organization_users_of_test_are_removed_through_the_loop_before_organizations() -> (
+    None
+):
+    """A Organization só é removida vazia (decisão 0077): os usuários dela saem antes."""
+    world = World()
+    world.ssot.tables = {
+        ORGANIZATION_USERS: [Row("u1", "loop-1a2b@example.com"), Row("u2", "bia@empresa.com")],
+        ORGANIZATIONS: [Row(ORG_ID, "conf-1")],
+    }
+    findings = find(world.ports())
+    assert [row.resource_id for row in findings.organization_user_rows] == ["u1"]
+    assert any("SSOT ipm.user u1" in line for line in findings.lines())
+    assert ORGANIZATION_USERS in findings.resource_ids()

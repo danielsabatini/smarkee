@@ -1,0 +1,9 @@
+{
+  "emailVerified": true,
+  "userState": "active",
+  "roles": [
+    "ipm.organization.get",
+    "ipm.user.get"
+  ],
+  "deletionProtection": false
+}

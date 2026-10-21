@@ -18,6 +18,7 @@ from ipm_organization.receiver.auth.tokens import EmailVerification, TokenVerifi
 from ipm_organization.receiver.http.app import Dependencies, create_app
 from ipm_organization.receiver.settings import OrganizationReceiverSettings, missing_required
 from ipm_organization.receiver.store.repository import SsotRepository
+from ipm_organization.receiver.transport.users import UserPeer
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ async def run(settings: OrganizationReceiverSettings) -> int:
                 authenticator=TokenVerifier(settings.auth, http),
                 email_verifier=EmailVerification(settings.auth, http),
                 repository=SsotRepository(pool),
+                users=UserPeer(settings.peers, http),
                 publisher=StreamPublisher(runtime.stream),
                 is_ready=lambda: runtime.client.is_connected,
             )

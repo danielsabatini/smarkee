@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UserList",
+  "description": "Resposta de GET /v1/ipm/users?organizationId=: página ordenada por resourceId, somente dos usuários da Organization pedida, quando quem pede é o dono dela, um usuário dela com ipm.user.list ou um operador. nextCursor ausente indica a última página.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "items"
+  ],
+  "properties": {
+    "items": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "$ref": "resource.v1.schema.json"
+      },
+      "x-writer": "server",
+      "x-sensitivity": "confidential"
+    },
+    "nextCursor": {
+      "description": "Cursor opaco da próxima página.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

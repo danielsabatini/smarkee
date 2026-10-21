@@ -5,7 +5,7 @@
 
 ## Contexto
 
-O tipo do módulo `core` se chamava `user`, e o `ipm` ganharia um vínculo entre pessoas e Organizations (membros). Dois "user" na plataforma (e o "user" do Zitadel, uma terceira coisa) confundiam o que é cada um. `register` descreve a ação de se cadastrar, e não o recurso; os demais tipos são substantivos (`organization`, `service`).
+O tipo do módulo `core` se chamava `user`, e o `ipm` ganharia um vínculo entre pessoas e Organizations (os administradores). Dois "user" na plataforma (e o "user" do Zitadel, uma terceira coisa) confundiam o que é cada um. `register` descreve a ação de se cadastrar, e não o recurso; os demais tipos são substantivos (`organization`, `service`).
 
 ## Decisão
 
@@ -23,7 +23,7 @@ O tipo do módulo `core` se chamava `user`, e o `ipm` ganharia um vínculo entre
 
 ## Justificativa
 
-- **Simplicidade:** um nome por conceito: `account` na plataforma, `member` para o vínculo com a Organization (a definir) e `user` só no Zitadel.
+- **Simplicidade:** um nome por conceito: `account` na plataforma, `administrator` para quem administra a Organization (a definir; antes "member", revisto pela decisão 0076) e `user` só no Zitadel.
 - **Custo:** o projeto ainda não teve release, então renomear agora é barato; depois, cada nome vira contrato com consumidores.
 
 ## Consequências
