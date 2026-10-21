@@ -310,6 +310,16 @@ def test_get_and_list_show_the_users(api: FakeApi) -> None:
     assert f"organizationId={ORG}" in api.requests[-1].full_url
 
 
+def test_the_list_keeps_the_id_and_the_email_whole_with_many_roles(api: FakeApi) -> None:
+    """As roles quebram linha; o `resourceId` não pode ser cortado (o usuário o copia)."""
+    roles = ["ipm.organization.get", "ipm.user.bind", "ipm.user.create", "ipm.user.get"]
+    api.routes[("GET", PATH)] = Response(200, {"items": [user_document(roles=roles)]})
+    listed = runner.invoke(app, ["ipm", "user", "list"])
+    assert listed.exit_code == 0
+    assert UID in listed.stdout and "bia@example.com" in listed.stdout
+    assert "ipm.organization.get" in listed.stdout  # a primeira role, na primeira linha
+
+
 def test_without_an_active_organization_the_option_is_required(
     api: FakeApi, tmp_path: Path
 ) -> None:

@@ -47,14 +47,17 @@ def table(
     rows: Sequence[Sequence[str | Text]],
     *,
     style: str = "green",
+    wrap: Sequence[str] = (),
 ) -> None:
     """Tabela de sucesso (saída padrão), no mesmo painel do `panel`, com uma linha por registro.
 
-    Uma célula pode ser um `Text` com estilo (por exemplo, o estado em verde ou amarelo).
+    Uma célula pode ser um `Text` com estilo (por exemplo, o estado em verde ou amarelo). As colunas
+    em `wrap` quebram linha quando a tabela não cabe; as demais ficam inteiras. Sem nenhuma, a
+    largura acaba cortando todas, inclusive os identificadores que o usuário precisa copiar.
     """
     grid = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, header_style="bold dim")
     for column in columns:
-        grid.add_column(column, overflow="fold", no_wrap=True)
+        grid.add_column(column, overflow="fold", no_wrap=column not in wrap)
     for row in rows:
         grid.add_row(*row)
     _console().print(

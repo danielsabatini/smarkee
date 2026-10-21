@@ -60,20 +60,27 @@ def _field(shown: str, name: str) -> str:
     return match.group(1)
 
 
-def _create_users(sk: Sk, organization_id: str, users: list[str]) -> None:
-    """Usuários até a cota, sem roles: o Grant da Organization ainda é do operador."""
-    for number in range(USER_QUOTA):
-        created = sk.run(
-            *("ipm", "user", "create"),
-            *("--name", "Usuario", "--surname", f"E2e {number}"),
-            *("--email", f"e2e-user-{uuid.uuid4().hex[:10]}@example.com"),
-            *("--organization-id", organization_id),
-            "--wait",
-            timeout=150.0,
-        )
-        assert created.exit_code == 0, created.text
-        users.append(_identifiers(created.stdout)[0])
-        assert _field(created.stdout, "phase") == "Ready", created.stdout
+def _email() -> str:
+    return f"e2e-user-{uuid.uuid4().hex[:10]}@example.com"
+
+
+def _create_user(
+    sk: Sk, organization_id: str, users: list[str], *, email: str, roles: tuple[str, ...] = ()
+) -> str:
+    """Um usuário pela CLI até `Ready`: a Organization já tem o Grant (decisão 0081)."""
+    created = sk.run(
+        *("ipm", "user", "create"),
+        *("--name", "Usuario", "--surname", f"E2e {len(users)}"),
+        *("--email", email),
+        *("--organization-id", organization_id),
+        *(item for role in roles for item in ("--role", role)),
+        "--wait",
+        timeout=150.0,
+    )
+    assert created.exit_code == 0, created.text
+    users.append(_identifiers(created.stdout)[0])
+    assert _field(created.stdout, "phase") == "Ready", created.stdout
+    return created.stdout
 
 
 def _delete_users(sk: Sk, users: list[str]) -> None:
@@ -171,13 +178,72 @@ def test_the_organization_and_its_users_are_managed_with_the_sk(
         listed = sk.run("ipm", "organization", "list")
         assert listed.exit_code == 0 and created_id in listed.stdout, listed.text
 
+        # Nome fora do contrato: recusado pela CLI antes da rede.
+        bad_name = sk.run("ipm", "organization", "create", "--name", "Acme Inc")
+        assert bad_name.exit_code == 2, bad_name.text
+        assert "Fix --name" in _plain(bad_name.stderr), bad_name.stderr
+
         # A cota do dono é de uma Organization: o segundo pedido é recusado com a orientação.
         second = sk.run("ipm", "organization", "create", "--name", name + "-2")
         assert second.exit_code == 1, second.text
         assert "Organization limit" in " ".join(second.stderr.split()), second.stderr
 
-        # Usuários da Organization (decisão 0077): até a cota, e o seguinte é recusado.
-        _create_users(sk, created_id, users)
+        # Usuários da Organization (decisão 0077): o primeiro com roles do catálogo, que o Zitadel
+        # só aceita porque a Organization nasceu com o Grant (decisão 0081).
+        first_email = _email()
+        first = _create_user(
+            sk, created_id, users, email=first_email, roles=("ipm.user.get", "ipm.user.list")
+        )
+        assert _field(first, "roles") == "ipm.user.get, ipm.user.list", first
+
+        # Caminhos tristes dos usuários, antes de chegar à cota.
+        outside = sk.run(
+            *("ipm", "user", "create"),
+            *("--name", "Usuario", "--surname", "Fora"),
+            *("--email", _email(), "--organization-id", created_id),
+            *("--role", "ipm.organization.delete"),  # formato válido, fora do catálogo
+        )
+        assert outside.exit_code == 2, outside.text  # o `400` da API sai como erro de uso
+        assert "not allowed for the Organization" in _plain(outside.stderr), outside.stderr
+        malformed = sk.run(
+            *("ipm", "user", "create"),
+            *("--name", "Usuario", "--surname", "Formato"),
+            *("--email", _email(), "--organization-id", created_id, "--role", "admin"),
+        )
+        assert malformed.exit_code == 2, malformed.text  # recusado antes da rede
+        assert "role invalid" in _plain(malformed.stderr), malformed.stderr
+        repeated = sk.run(
+            *("ipm", "user", "create"),
+            *("--name", "Usuario", "--surname", "Repetido"),
+            *("--email", first_email, "--organization-id", created_id),
+            "--wait",
+            timeout=150.0,
+        )
+        assert repeated.exit_code == 1, repeated.text  # e-mail único na Organization
+        assert "already in use in the Organization" in _plain(repeated.stderr), repeated.stderr
+        elsewhere = sk.run(
+            *("ipm", "user", "create"),
+            *("--name", "Usuario", "--surname", "Alheia"),
+            *("--email", _email(), "--organization-id", str(uuid.uuid7())),
+        )
+        assert elsewhere.exit_code == 1, elsewhere.text  # Organization que não é dele
+
+        # Proteção do usuário (nasce desprotegido, decisão 0077): protegido, não sai.
+        protected = sk.run(
+            *("ipm", "user", "protect", "--resource-id", users[0]), "--wait", timeout=150.0
+        )
+        assert protected.exit_code == 0, protected.text
+        kept = sk.run("ipm", "user", "delete", "--resource-id", users[0])
+        assert kept.exit_code == 1, kept.text
+        assert "sk ipm user unprotect" in _plain(kept.stderr), kept.stderr
+        opened_user = sk.run(
+            *("ipm", "user", "unprotect", "--resource-id", users[0]), "--wait", timeout=150.0
+        )
+        assert opened_user.exit_code == 0, opened_user.text
+
+        # Até a cota, e o seguinte é recusado.
+        while len(users) < USER_QUOTA:
+            _create_user(sk, created_id, users, email=_email())
         listed_users = sk.run("ipm", "user", "list", "--organization-id", created_id)
         assert listed_users.exit_code == 0, listed_users.text
         assert all(user in listed_users.stdout for user in users), listed_users.stdout

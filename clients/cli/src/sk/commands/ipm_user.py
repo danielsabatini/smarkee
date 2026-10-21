@@ -606,4 +606,5 @@ def list_command(organization_id: OrganizationOption = None) -> None:
             ]
             for user in users
         ],
+        wrap=("roles",),  # as roles quebram linha; o resourceId e o e-mail ficam inteiros
     )
