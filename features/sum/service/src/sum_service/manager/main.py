@@ -15,6 +15,7 @@ from sum_service.common.lifecycle import (
 )
 from sum_service.common.runtime import role_runtime
 from sum_service.common.service_rules import CatalogError, parse_catalog
+from sum_service.manager.handlers.catalog_rollout import roll_out_catalog
 from sum_service.manager.handlers.requested import RequestedHandler
 from sum_service.manager.settings import SumServiceManagerSettings, missing_required
 from sum_service.manager.transport.requested import Disposition, RequestedConsumer
@@ -39,6 +40,8 @@ async def run(settings: SumServiceManagerSettings) -> int:
     async with role_runtime(settings.messaging, name="sum-service-manager") as runtime:
         pool = await open_pool(settings.database)
         runtime.close_after(pool.close)
+        # Antes dos consumers: as ligações passam a acompanhar o catálogo de agora (decisão 0079).
+        await roll_out_catalog(pool, catalog)
 
         async def handle_observed(data: bytes) -> Disposition:
             return await process_observed(pool, data)

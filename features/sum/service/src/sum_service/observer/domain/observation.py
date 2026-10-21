@@ -4,7 +4,7 @@ Puro: recebe os drivers de leitura (portas) e devolve a observação. Qualquer f
 leitura é `unknown`, nunca `absent`: só a confirmação de que o usuário não existe é ausência.
 """
 
-from collections.abc import Mapping
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -42,11 +42,14 @@ class Observation:
 async def observe(
     drivers: Drivers,
     user_id: str,
-    service: str,
-    catalog: Mapping[str, tuple[str, ...]],
+    managed_roles: Iterable[str],
 ) -> Observation:
-    """Lê as roles do usuário que pertencem ao serviço (as do catálogo do Manager)."""
-    service_roles = set(catalog.get(service, ()))
+    """Lê as roles do usuário que a ligação controla (`managedRoles` do `desired`, decisão 0079).
+
+    O Observer não tem catálogo próprio: as roles vêm do `desired` que o Manager publicou, a mesma
+    fonte do Executor e do Reconciler.
+    """
+    service_roles = set(managed_roles)
     try:
         if not await drivers.users.user_exists(user_id):
             return Observation("absent", {"serviceRoles": []})

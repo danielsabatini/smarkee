@@ -191,7 +191,9 @@ class RequestedHandler:
         if await ssot.find_operation(conn, operation_id) is not None:
             return Duplicate(operation_id)
         link = await ssot.link_for_resource(conn, resource_id)
-        decision = decide_delete(link=link, expected_version=expected_version)
+        decision = decide_delete(
+            link=link, expected_version=expected_version, catalog=self._catalog
+        )
         if isinstance(decision, Rejected):
             return await self._reject(
                 conn,

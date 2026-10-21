@@ -71,8 +71,6 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
     for role in ("MANAGER", "OBSERVER", "EXECUTOR", "RECONCILER", "PUBLISHER", "RECEIVER"):
         monkeypatch.setenv(f"SUM_SERVICE_{role}_MESSAGING_PASSWORD", "x")
     monkeypatch.setenv("SUM_SERVICE_MANAGER_CATALOG_ROLES", CATALOG)
-    monkeypatch.setenv("SUM_SERVICE_OBSERVER_CATALOG_ROLES", CATALOG)
-    monkeypatch.setenv("SUM_SERVICE_EXECUTOR_CATALOG_ROLES", CATALOG)
     return fake
 
 
@@ -95,11 +93,19 @@ async def test_the_manager_starts_every_consumer(
     async def open_pool(*_: Any, **__: Any) -> Pool:
         return Pool()
 
+    rolled_out: list[object] = []
+
+    async def roll_out_catalog(pool: object, catalog: object) -> int:
+        rolled_out.append(catalog)
+        return 0
+
     monkeypatch.setattr(manager_main, "open_pool", open_pool)
+    monkeypatch.setattr(manager_main, "roll_out_catalog", roll_out_catalog)
     monkeypatch.setenv("SUM_SERVICE_MANAGER_DATABASE_PASSWORD", "x")
     settings = manager_main.SumServiceManagerSettings()
     assert await manager_main.run(settings) == 0
     assert runtime.started == ["requested", "observed", "completed", "failed", "account_removed"]
+    assert rolled_out == [{"ipm": ("ipm.organization.get",)}]  # antes dos consumers (decisão 0079)
     assert len(runtime.closers) == 1
 
 
@@ -157,12 +163,17 @@ async def test_the_receiver_serves_http_and_leaves_the_probes_to_the_app(
     assert len(runtime.closers) == 2
 
 
-@pytest.mark.parametrize("module", [manager_main, observer_main, executor_main])
-def test_an_invalid_catalog_is_a_configuration_error(
-    module: ModuleType, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    role = module.__name__.split(".")[-2].upper()
-    monkeypatch.setenv(f"SUM_SERVICE_{role}_CATALOG_ROLES", "not json")
-    settings = getattr(module, f"SumService{role.capitalize()}Settings")()
+def test_an_invalid_catalog_is_a_configuration_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUM_SERVICE_MANAGER_CATALOG_ROLES", "not json")
+    settings = manager_main.SumServiceManagerSettings()
     with pytest.raises(InvalidConfigurationError):
-        module.validate(settings)
+        manager_main.validate(settings)
+
+
+@pytest.mark.parametrize("module", [observer_main, executor_main])
+def test_only_the_manager_has_the_catalog(module: ModuleType) -> None:
+    """O catálogo tem uma fonte só (decisão 0079): o Observer e o Executor usam o `desired`."""
+    role = module.__name__.split(".")[-2].capitalize()
+    settings_type = getattr(module, f"SumService{role}Settings")
+    assert "catalog" not in settings_type.model_fields
+    assert not hasattr(module, "validate")

@@ -686,6 +686,12 @@ class ServiceDesiredData(ContractModel):
     """
     Roles que o usuário deve ter para usar o serviço. Copiadas do catálogo do Manager na ligação; vazias quando lifecycle é absent.
     """
+    managed_roles: Annotated[
+        list[ServiceRole] | None, Field(alias="managedRoles", max_length=64)
+    ] = None
+    """
+    Roles do serviço que esta ligação controla: as do catálogo no momento em que o Manager gravou o desired, mais as que saíram do catálogo depois (decisão 0079). Com a ligação ativa, o usuário tem as de serviceRoles e nenhuma das demais; desligada, nenhuma. O Observer e o Executor leem as roles daqui, sem catálogo próprio. Ausente só em desired gravado antes da decisão 0079.
+    """
 
 
 class ServiceResource(ContractModel):

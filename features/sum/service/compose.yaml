@@ -192,7 +192,6 @@ services:
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       SUM_SERVICE_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
       SUM_SERVICE_OBSERVER_IDENTITY_PROJECT_IDS: ${SUM_SERVICE_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
-      SUM_SERVICE_OBSERVER_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (o mesmo catálogo do Manager)}
     secrets:
       - SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD
     volumes:
@@ -227,7 +226,6 @@ services:
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       SUM_SERVICE_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
       SUM_SERVICE_EXECUTOR_IDENTITY_PROJECT_IDS: ${SUM_SERVICE_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
-      SUM_SERVICE_EXECUTOR_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (o mesmo catálogo do Manager)}
     secrets:
       - SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD
     volumes:

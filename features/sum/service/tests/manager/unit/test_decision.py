@@ -102,7 +102,7 @@ def test_create_on_the_resource_of_another_owner_or_service_is_a_conflict() -> N
 
 
 def test_delete_is_accepted_with_the_current_version_and_removes_the_roles() -> None:
-    decision = decide_delete(link=active_link("2"), expected_version="2")
+    decision = decide_delete(link=active_link("2"), expected_version="2", catalog=CATALOG)
     assert isinstance(decision, Accepted)
     assert decision.desired["lifecycle"] == "absent"
     assert decision.desired["serviceRoles"] == []
@@ -110,10 +110,10 @@ def test_delete_is_accepted_with_the_current_version_and_removes_the_roles() -> 
 
 
 def test_delete_with_an_outdated_version_is_a_conflict() -> None:
-    decision = decide_delete(link=active_link("2"), expected_version="1")
+    decision = decide_delete(link=active_link("2"), expected_version="1", catalog=CATALOG)
     assert decision == Rejected("conflict")
 
 
 @pytest.mark.parametrize("link", [None, absent_link()], ids=["sem ligação", "já desligada"])
 def test_delete_of_a_missing_or_disabled_link_is_not_found(link: Link | None) -> None:
-    assert decide_delete(link=link, expected_version="3") == Rejected("not_found")
+    assert decide_delete(link=link, expected_version="3", catalog=CATALOG) == Rejected("not_found")

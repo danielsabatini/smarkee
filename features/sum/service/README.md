@@ -187,7 +187,9 @@ por `uv run python -m sum_service.receiver.http.openapi` e conferido por teste.
 - **Sem dados pessoais no SSOT:** só o ID do usuário no Zitadel (`owner_account_id`) e o nome do serviço. Não há e-mail,
   nome nem token.
 - **Isolamento das roles:** só o Executor concede, e o Zitadel nega o que estiver fora do Grant de `roles-ipm`
-  (decisão 0032). O catálogo (serviço → roles) é do Manager, e a lista concedida é copiada para o `desired`.
+  (decisão 0032). O catálogo (serviço → roles) existe **só no Manager** (decisão 0079): ele copia para o `desired` as roles
+  que o usuário deve ter (`serviceRoles`) e as que a ligação controla (`managedRoles`), e o Observer e o Executor leem só
+  o `desired`.
 - **Última barreira:** o Executor não confia em quem enviou a ação: confere o emissor, a versão e o `desired` vigente, e
   não assume `present` quando falta o `lifecycle`.
 - **Erros e logs:** nenhuma resposta ou log repete o valor enviado, senhas ou tokens; as configurações escondem os
@@ -207,8 +209,14 @@ por `uv run python -m sum_service.receiver.http.openapi` e conferido por teste.
 # 9. Configuração, execução e testes
 
 Variáveis `SUM_SERVICE_<PAPEL>_<SEÇÃO>_<CAMPO>`, com `config.toml` por papel e senhas em `/run/secrets`. Todos os parâmetros de cada papel, a ordem de precedência (linha de comando → ambiente → `config.toml` → arquivos de segredo → default) e um exemplo de execução por papel estão em [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) (decisões 0067 e 0070). O `.env.example` lista as obrigatórias:
-a senha do NATS (todos), as senhas dos papéis do banco (Receiver, Manager, Publisher), a audience do Receiver, o catálogo do
-Manager e do Executor, e os IDs no Zitadel (Observer e Executor).
+a senha do NATS (todos), as senhas dos papéis do banco (Receiver, Manager, Publisher), a audience do Receiver, o catálogo
+(só do Manager, decisão 0079) e os IDs no Zitadel (Observer e Executor).
+
+**Trocar o catálogo:** edite `SUM_SERVICE_MANAGER_CATALOG_ROLES` no `.env` e rode `docker compose up -d` na pasta da feature
+(sem nome de serviço: o Compose recria só o que mudou). Na partida, o Manager faz o rollout: cada ligação cujo `desired`
+difere do catálogo novo ganha uma geração nova, com uma Operation `update` de `system:catalog`, e o loop concede a role
+nova ou revoga a que saiu, inclusive de quem ligou antes. As roles novas precisam existir antes no `roles-ipm` e no Grant
+dele para a `register` (`infrastructure/dev/README.md`).
 
 ```bash
 # 1. Plataforma (banco, messaging, identidade, gateway): infrastructure/dev, no ar e saudável
@@ -263,8 +271,9 @@ autorizar a leitura).
 
 ## 11.3 O que cada coluna `jsonb` guarda
 
-- `service.desired`: `lifecycle`, `reconciliation`, `ownerAccountId`, `service` e `serviceRoles` (copiadas do catálogo ao ligar;
-  vazias ao desligar).
+- `service.desired`: `lifecycle`, `reconciliation`, `ownerAccountId`, `service`, `serviceRoles` (as do catálogo; vazias ao
+  desligar) e `managedRoles` (as que a ligação controla: as do catálogo mais as que saíram dele, para serem revogadas;
+  decisão 0079).
 - `service.observed`: `serviceRoles` lidas do Zitadel.
 - `service.conditions`: lista de condições do recurso.
 - `service_outbox.payload`: o envelope `desired`, sem `publishedAt` e `publishedBy` (o Publisher os preenche).

@@ -25,11 +25,6 @@ class IdentitySettings(CommonIdentitySettings):
     """Módulo → projeto de roles que o Observer lê (decisão 0032)."""
 
 
-class CatalogSettings(Section):
-    roles: str | None = None
-    """Mesmo catálogo do Manager (serviço → roles), para observar só as roles de cada serviço."""
-
-
 class PartitionSettings(Section):
     index: int = Field(default=0, ge=0)
     count: int = Field(default=1, ge=1)
@@ -55,7 +50,6 @@ class SumServiceObserverSettings(RoleSettings):
 
     identity: IdentitySettings = IdentitySettings()
     messaging: StateMessagingSettings = StateMessagingSettings()
-    catalog: CatalogSettings = CatalogSettings()
     health: HealthSettings = HealthSettings()
     loop: LoopSettings = LoopSettings()
     partition: PartitionSettings = PartitionSettings()
@@ -71,6 +65,5 @@ def missing_required(settings: SumServiceObserverSettings) -> list[str]:
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
             "IDENTITY_REGISTER_ORGANIZATION_ID": bool(settings.identity.register_organization_id),
             "IDENTITY_PROJECT_IDS": bool(settings.identity.project_ids),
-            "CATALOG_ROLES": bool(settings.catalog.roles),
         },
     )

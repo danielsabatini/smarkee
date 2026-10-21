@@ -14,7 +14,6 @@ import httpx
 
 from sum_service.common.http.health import Health
 from sum_service.common.lifecycle import (
-    InvalidConfigurationError,
     start_role,
 )
 from sum_service.common.messaging import (
@@ -23,7 +22,6 @@ from sum_service.common.messaging import (
     new_instance_name,
 )
 from sum_service.common.runtime import role_runtime
-from sum_service.common.service_rules import CatalogError, parse_catalog
 from sum_service.observer.domain.observation import Drivers
 from sum_service.observer.drivers.authorization import AuthorizationDriver
 from sum_service.observer.drivers.user import UserDriver
@@ -55,7 +53,6 @@ async def _observe_periodically(
 
 
 async def run(settings: SumServiceObserverSettings) -> int:
-    catalog = parse_catalog(settings.catalog.roles or "")
     async with role_runtime(settings.messaging, name="sum-service-observer") as runtime:
         http = httpx.AsyncClient(timeout=settings.identity.timeout_seconds)
         runtime.close_after(http.aclose)
@@ -66,7 +63,6 @@ async def run(settings: SumServiceObserverSettings) -> int:
                 authorizations=AuthorizationDriver(connection, settings.identity),
             ),
             StreamPublisher(runtime.stream),
-            catalog,
             partition_index=settings.partition.index,
             partition_count=settings.partition.count,
         )
@@ -99,20 +95,12 @@ async def run(settings: SumServiceObserverSettings) -> int:
         return await runtime.serve(health_port=settings.health.port)
 
 
-def validate(settings: SumServiceObserverSettings) -> None:
-    try:
-        parse_catalog(settings.catalog.roles or "")
-    except CatalogError as error:
-        raise InvalidConfigurationError(f"invalid service catalog: {error}") from None
-
-
 def main() -> None:
     start_role(
         "observer",
         SumServiceObserverSettings,
         missing_required,
         run,
-        validate=validate,
         cli_args=sys.argv[1:],
     )
 

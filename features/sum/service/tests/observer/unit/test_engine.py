@@ -66,6 +66,8 @@ def desired(generation: int, lifecycle: str = "present", message_id: str = "m-de
             "ownerAccountId": OWNER,
             "service": "ipm",
             "serviceRoles": [],
+            # As roles que o Observer lê vêm do `desired`, e não de um catálogo próprio (0079).
+            "managedRoles": list(CATALOG["ipm"]),
         },
     )
 
@@ -79,7 +81,6 @@ def observer(reader: FakeReader, recorder: Recorder) -> Observer:
     return Observer(
         Drivers(users=reader, authorizations=reader),
         recorder,
-        CATALOG,
         identifiers=lambda: next(ids),
     )
 
@@ -161,7 +162,6 @@ def partitioned(reader: FakeReader, recorder: Recorder, index: int, count: int) 
     return Observer(
         Drivers(users=reader, authorizations=reader),
         recorder,
-        CATALOG,
         partition_index=index,
         partition_count=count,
         identifiers=lambda: "id-1",

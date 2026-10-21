@@ -318,6 +318,21 @@
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle"
           },
+          "managedRoles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ServiceRole"
+                },
+                "maxItems": 64,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Managedroles"
+          },
           "ownerAccountId": {
             "maxLength": 128,
             "minLength": 1,

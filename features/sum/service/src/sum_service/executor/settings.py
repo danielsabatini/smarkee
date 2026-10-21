@@ -27,11 +27,6 @@ class IdentitySettings(CommonIdentitySettings):
     timeout_seconds: float = 10.0
 
 
-class CatalogSettings(Section):
-    roles: str | None = None
-    """Mesmo catálogo do Manager: as roles de um serviço, para revogar ao desligar."""
-
-
 class PartitionSettings(Section):
     count: int = 4
     """Partições do Stream `ACTION` (bootstrap do messaging): um consumer e um laço por partição."""
@@ -42,7 +37,6 @@ class SumServiceExecutorSettings(RoleSettings):
 
     messaging: MessagingSettings = MessagingSettings()
     identity: IdentitySettings = IdentitySettings()
-    catalog: CatalogSettings = CatalogSettings()
     partition: PartitionSettings = PartitionSettings()
     health: HealthSettings = HealthSettings()
 
@@ -57,6 +51,5 @@ def missing_required(settings: SumServiceExecutorSettings) -> list[str]:
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
             "IDENTITY_REGISTER_ORGANIZATION_ID": bool(settings.identity.register_organization_id),
             "IDENTITY_PROJECT_IDS": bool(settings.identity.project_ids),
-            "CATALOG_ROLES": bool(settings.catalog.roles),
         },
     )

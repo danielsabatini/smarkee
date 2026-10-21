@@ -8,7 +8,7 @@ Em conformidade com o `AGENTS.md` (§35.1): só o que o próximo agente precisa 
 
 ## Próximos passos
 Plano de 7 etapas aceito em 2026-10-21 (incidente do catálogo do SUM). Feito, **sem commit**: etapa 1 (decisão 0078: ação sem efeito com backoff, `Progressing`/`progressDeadline` nas 3 features do template), log-level por processo e resumo da configuração na partida, mais os nomes de exibição das roles no Zitadel e a regra na conformidade. Próximas, na ordem:
-2. Catálogo do SUM com fonte única (Observer e Executor usam as roles do `desired`; catálogo novo gera nova geração dos serviços ligados).
+2. ~~Catálogo do SUM com fonte única~~: feito (decisão 0079, `managedRoles` e rollout na partida do Manager), **sem commit**.
 3. SUM no modelo do loop (`observed_generation`, `Progressing`; medir a entrada nos perfis do template).
 5. e2e da jornada com a CLI real (conta → ipm → Organization → 5 usuários → cota → "só vazia" → apagar), com login sem navegador para teste.
 4. Operation `failed` no limite/prazo e `superseded` na substituída (contrato aditivo).

@@ -39,7 +39,9 @@ O Manager só insere no outbox. A publicação do outbox no NATS é do Publisher
          "ipm.user.bind", "ipm.user.create", "ipm.user.delete", "ipm.user.get", "ipm.user.list", "ipm.user.update"]}
 ```
 
-As roles `ipm.user.*` dão ao root (o dono da Organization) a gestão dos usuários dela (decisão 0077). As roles são copiadas do catálogo **ao ligar**: uma role nova no catálogo só chega a quem ligar o serviço depois (quem já ligou desliga e liga de novo).
+As roles `ipm.user.*` dão ao root (o dono da Organization) a gestão dos usuários dela (decisão 0077).
+
+O catálogo existe **só no Manager** (decisão 0079). O `desired` leva as roles que o usuário deve ter (`serviceRoles`) e as que a ligação controla (`managedRoles`: as do catálogo mais as que saíram dele), e o Observer e o Executor leem só o `desired`. Na partida, o Manager faz o **rollout** (`handlers/catalog_rollout.py`): cada ligação cujo `desired` difere do catálogo de agora ganha uma geração nova, com uma Operation `update` de `system:catalog`, e o loop aplica a mudança, inclusive para quem ligou antes. Repetir não grava nada (a linha é bloqueada e comparada). Um serviço que saiu do catálogo não é alterado.
 
 Um catálogo inválido: `parse_catalog` levanta `CatalogError` com o motivo e o processo não sobe.
 

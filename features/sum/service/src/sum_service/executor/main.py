@@ -11,12 +11,10 @@ import sys
 import httpx
 
 from sum_service.common.lifecycle import (
-    InvalidConfigurationError,
     start_role,
 )
 from sum_service.common.messaging import StreamPublisher
 from sum_service.common.runtime import role_runtime
-from sum_service.common.service_rules import CatalogError, parse_catalog
 from sum_service.executor.actions.service_roles import Drivers
 from sum_service.executor.drivers.authorization import AuthorizationDriver
 from sum_service.executor.engine.executor import Executor
@@ -29,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 
 async def run(settings: SumServiceExecutorSettings) -> int:
-    catalog = parse_catalog(settings.catalog.roles or "")
     async with role_runtime(settings.messaging, name="sum-service-executor") as runtime:
         http = httpx.AsyncClient(timeout=settings.identity.timeout_seconds)
         runtime.close_after(http.aclose)
@@ -38,7 +35,6 @@ async def run(settings: SumServiceExecutorSettings) -> int:
             Drivers(authorizations=AuthorizationDriver(connection, settings.identity)),
             DirectStateReader(runtime.stream),
             StreamPublisher(runtime.stream),
-            catalog,
         )
 
         async def handle(data: bytes) -> object:
@@ -64,20 +60,12 @@ async def run(settings: SumServiceExecutorSettings) -> int:
         return await runtime.serve(health_port=settings.health.port)
 
 
-def validate(settings: SumServiceExecutorSettings) -> None:
-    try:
-        parse_catalog(settings.catalog.roles or "")
-    except CatalogError as error:
-        raise InvalidConfigurationError(f"invalid service catalog: {error}") from None
-
-
 def main() -> None:
     start_role(
         "executor",
         SumServiceExecutorSettings,
         missing_required,
         run,
-        validate=validate,
         cli_args=sys.argv[1:],
     )
 

@@ -327,7 +327,6 @@ Entrypoint do Observer de `sum.service` (`sum-service-observer`, decisões 0015 
 - `SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD`
 - `SUM_SERVICE_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID`
 - `SUM_SERVICE_OBSERVER_IDENTITY_PROJECT_IDS`
-- `SUM_SERVICE_OBSERVER_CATALOG_ROLES`
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
@@ -344,7 +343,6 @@ Entrypoint do Observer de `sum.service` (`sum-service-observer`, decisões 0015 
 | `messaging.user` | `SUM_SERVICE_OBSERVER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.password` | `SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
 | `messaging.consumer_inactive_threshold_seconds` | `SUM_SERVICE_OBSERVER_MESSAGING_CONSUMER_INACTIVE_THRESHOLD_SECONDS` | `--messaging.consumer_inactive_threshold_seconds` | `int` | `300` | Tempo sem uso após o qual o servidor remove o consumer da instância. |
-| `catalog.roles` | `SUM_SERVICE_OBSERVER_CATALOG_ROLES` | `--catalog.roles` | `str \| None` | — | Obrigatória. Mesmo catálogo do Manager (serviço → roles), para observar só as roles de cada serviço. |
 | `health.port` | `SUM_SERVICE_OBSERVER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 | `loop.observation_interval_seconds` | `SUM_SERVICE_OBSERVER_LOOP_OBSERVATION_INTERVAL_SECONDS` | `--loop.observation_interval_seconds` | `int` | `300` | Intervalo da observação periódica (`observationInterval` do `desired`). |
 | `loop.observation_jitter` | `SUM_SERVICE_OBSERVER_LOOP_OBSERVATION_JITTER` | `--loop.observation_jitter` | `float` | `0.2` | Fração de variação do intervalo, para as instâncias não observarem todas ao mesmo tempo. |
@@ -397,7 +395,6 @@ Entrypoint do Executor de `sum.service` (`sum-service-executor`, decisões 0015,
 - `SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD`
 - `SUM_SERVICE_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID`
 - `SUM_SERVICE_EXECUTOR_IDENTITY_PROJECT_IDS`
-- `SUM_SERVICE_EXECUTOR_CATALOG_ROLES`
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
@@ -413,7 +410,6 @@ Entrypoint do Executor de `sum.service` (`sum-service-executor`, decisões 0015,
 | `identity.timeout_seconds` | `SUM_SERVICE_EXECUTOR_IDENTITY_TIMEOUT_SECONDS` | `--identity.timeout_seconds` | `float` | `10.0` |  |
 | `identity.register_organization_id` | `SUM_SERVICE_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID` | `--identity.register_organization_id` | `str \| None` | — | Obrigatória. |
 | `identity.project_ids` | `SUM_SERVICE_EXECUTOR_IDENTITY_PROJECT_IDS` | `--identity.project_ids` | `dict[str, str]` | `{}` | Obrigatória. Módulo → projeto de roles que o Executor pode conceder (decisão 0032). Hoje só `ipm`. |
-| `catalog.roles` | `SUM_SERVICE_EXECUTOR_CATALOG_ROLES` | `--catalog.roles` | `str \| None` | — | Obrigatória. Mesmo catálogo do Manager: as roles de um serviço, para revogar ao desligar. |
 | `partition.count` | `SUM_SERVICE_EXECUTOR_PARTITION_COUNT` | `--partition.count` | `int` | `4` | Partições do Stream `ACTION` (bootstrap do messaging): um consumer e um laço por partição. |
 | `health.port` | `SUM_SERVICE_EXECUTOR_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 

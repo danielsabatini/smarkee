@@ -18,7 +18,6 @@ from sum_service.common.contracts.envelope import EnvelopeError, read_envelope
 from sum_service.common.ids import new_identifier, utc_now
 from sum_service.common.ports import Publisher, PublishError
 from sum_service.common.resource import MODULE, RESOURCE_TYPE, SCHEMA_VERSION
-from sum_service.common.service_rules import roles_of
 from sum_service.executor.actions.service_roles import Drivers, disable, enable
 from sum_service.executor.domain.errors import ActionFailedError
 from sum_service.executor.domain.identity import ProviderError
@@ -58,7 +57,6 @@ class Executor:
         drivers: Drivers,
         state: StateReader,
         publisher: Publisher,
-        catalog: Mapping[str, tuple[str, ...]],
         *,
         clock: Callable[[], Any] = utc_now,
         identifiers: Callable[[], str] = new_identifier,
@@ -66,7 +64,6 @@ class Executor:
         self._drivers = drivers
         self._state = state
         self._publisher = publisher
-        self._catalog = catalog
         self._clock = clock
         self._identifiers = identifiers
 
@@ -153,15 +150,22 @@ class Executor:
             "owner": str(data.get("ownerAccountId", "")),
             "service": str(data.get("service", "")),
             "roles": tuple(str(role) for role in data.get("serviceRoles", ())),
+            # Roles que a ligação controla (decisão 0079); num `desired` antigo, as `serviceRoles`.
+            "managed": tuple(
+                str(role) for role in data.get("managedRoles", data.get("serviceRoles", ()))
+            ),
         }
 
     async def _apply(self, resource_id: str, desired: dict[str, Any]) -> None:
-        owner, service = desired["owner"], desired["service"]
+        owner = desired["owner"]
+        # As roles vêm só do `desired` (decisão 0079): o Executor não tem catálogo próprio.
         if desired["lifecycle"] == "present":
             await enable(self._drivers.authorizations, owner, desired["roles"])
+            leftover = sorted(set(desired["managed"]) - set(desired["roles"]))
+            if leftover:  # roles que saíram do catálogo: a ligação ativa não as dá mais
+                await disable(self._drivers.authorizations, owner, leftover)
             return
-        # Desligada: as roles são as do catálogo do serviço (a lista de `desired` vem vazia).
-        await disable(self._drivers.authorizations, owner, roles_of(self._catalog, service))
+        await disable(self._drivers.authorizations, owner, desired["managed"])
         logger.info("service roles revoked", extra={"smarkee.resource.id": resource_id})
 
     async def _publish_result(self, action: _Action, failure: ActionFailedError | None) -> None:

@@ -9,5 +9,12 @@
     "ipm.organization.get",
     "ipm.organization.list",
     "ipm.organization.update"
+  ],
+  "managedRoles": [
+    "ipm.organization.create",
+    "ipm.organization.delete",
+    "ipm.organization.get",
+    "ipm.organization.list",
+    "ipm.organization.update"
   ]
 }

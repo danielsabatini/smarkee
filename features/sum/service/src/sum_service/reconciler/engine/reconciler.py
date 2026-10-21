@@ -106,6 +106,9 @@ class Reconciler:
             reconciliation=str(data.get("reconciliation", "active")),
             service_roles=frozenset(str(role) for role in data.get("serviceRoles", ())),
             traceparent=current_traceparent(),
+            managed_roles=frozenset(
+                str(role) for role in data.get("managedRoles", data.get("serviceRoles", ()))
+            ),
         )
         if current is None or generation != current.generation:
             state.pending = None  # a ação pendente era de uma especificação substituída

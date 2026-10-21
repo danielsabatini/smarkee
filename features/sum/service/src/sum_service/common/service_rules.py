@@ -76,35 +76,76 @@ def roles_of(catalog: Mapping[str, tuple[str, ...]], service: str) -> tuple[str,
     return roles
 
 
+def managed_roles_of(current: Mapping[str, Any] | None) -> tuple[str, ...]:
+    """Roles que a ligação já controla (`managedRoles`, ou `serviceRoles` num `desired` antigo)."""
+    if current is None:
+        return ()
+    roles: Any = current.get("managedRoles", current.get("serviceRoles", ()))
+    return tuple(str(role) for role in cast("list[object]", roles or []))
+
+
 def enable_desired(
-    owner_account_id: str, service: str, catalog: Mapping[str, tuple[str, ...]]
+    owner_account_id: str,
+    service: str,
+    catalog: Mapping[str, tuple[str, ...]],
+    current: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """`desired` de uma ligação ativa: as roles do catálogo, copiadas no momento da ligação."""
+    """`desired` de uma ligação ativa: as roles do catálogo agora (decisão 0079).
+
+    `managedRoles` soma as do catálogo às que a ligação já controlava: uma role que saiu do
+    catálogo continua controlada, para ser revogada.
+    """
+    roles = roles_of(catalog, service)
     return _validated(
         {
             "lifecycle": "present",
             "reconciliation": "active",
             "ownerAccountId": owner_account_id,
             "service": service,
-            "serviceRoles": list(roles_of(catalog, service)),
+            "serviceRoles": list(roles),
+            "managedRoles": sorted({*roles, *managed_roles_of(current)}),
         }
     )
 
 
-def disable_desired(current: Mapping[str, Any]) -> dict[str, Any]:
+def disable_desired(
+    current: Mapping[str, Any], catalog: Mapping[str, tuple[str, ...]]
+) -> dict[str, Any]:
     """`desired` de uma ligação desfeita: `absent`, sem roles, com o mesmo dono e serviço.
 
     A ligação continua existindo (decisão 0033): os recursos do usuário no serviço não são apagados.
+    `managedRoles` diz o que revogar: as que a ligação controlava e as do catálogo agora.
     """
+    service = str(current["service"])
     return _validated(
         {
             "lifecycle": "absent",
             "reconciliation": current["reconciliation"],
             "ownerAccountId": current["ownerAccountId"],
-            "service": current["service"],
+            "service": service,
             "serviceRoles": [],
+            "managedRoles": sorted({*catalog.get(service, ()), *managed_roles_of(current)}),
         }
     )
+
+
+def rollout_desired(
+    current: Mapping[str, Any], catalog: Mapping[str, tuple[str, ...]]
+) -> dict[str, Any] | None:
+    """O `desired` da ligação com o catálogo de agora, ou `None` se nada muda (decisão 0079).
+
+    Um serviço que saiu do catálogo não é alterado: a ligação fica como está, e quem decide o que
+    fazer com ela é o operador.
+    """
+    service = str(current["service"])
+    if service not in catalog:
+        return None
+    if current["lifecycle"] == "present":
+        updated = enable_desired(str(current["ownerAccountId"]), service, catalog, current)
+        updated["reconciliation"] = current["reconciliation"]
+    else:
+        updated = disable_desired(current, catalog)
+    return None if updated == dict(current) else updated
 
 
 def _validated(document: dict[str, Any]) -> dict[str, Any]:

@@ -59,6 +59,14 @@
       "x-mutability": "mutable",
       "x-managed": true,
       "x-sensitivity": "internal"
+    },
+    "managedRoles": {
+      "$ref": "definitions.v1.schema.json#/$defs/serviceRoles",
+      "description": "Roles do serviço que esta ligação controla: as do catálogo no momento em que o Manager gravou o desired, mais as que saíram do catálogo depois (decisão 0079). Com a ligação ativa, o usuário tem as de serviceRoles e nenhuma das demais; desligada, nenhuma. O Observer e o Executor leem as roles daqui, sem catálogo próprio. Ausente só em desired gravado antes da decisão 0079.",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
     }
   }
 }

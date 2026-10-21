@@ -56,6 +56,9 @@ def owns(resource_id: str, index: int, count: int) -> bool:
 class Watch:
     owner_account_id: str
     service: str
+    managed_roles: tuple[str, ...] = ()
+    """Roles que a ligação controla (`managedRoles` do `desired`, decisão 0079)."""
+
     lifecycle: str = "present"
     generation: int = 0
     correlation_id: str | None = None
@@ -73,7 +76,6 @@ class Observer:
         self,
         drivers: Drivers,
         publisher: Publisher,
-        catalog: Mapping[str, tuple[str, ...]],
         *,
         partition_index: int = 0,
         partition_count: int = 1,
@@ -83,7 +85,6 @@ class Observer:
         self._partition = (partition_index, partition_count)
         self._drivers = drivers
         self._publisher = publisher
-        self._catalog = catalog
         self._clock = clock
         self._identifiers = identifiers
         self._watches: dict[str, Watch] = {}
@@ -138,6 +139,9 @@ class Observer:
             self._watches[envelope.resource_id] = watch
         watch.generation = generation
         watch.lifecycle = lifecycle
+        watch.managed_roles = tuple(
+            str(role) for role in data.get("managedRoles", data.get("serviceRoles", ()))
+        )
         watch.correlation_id = envelope.correlation_id
         if watch.lifecycle == "present":
             watch.tombstone = False
@@ -150,7 +154,7 @@ class Observer:
             return  # sem o `desired`, o Observer não sabe o que observar
         with observation_context(resource_id, owner_id=watch.owner_account_id):
             observation: Observation = await observe(
-                self._drivers, watch.owner_account_id, watch.service, self._catalog
+                self._drivers, watch.owner_account_id, watch.managed_roles
             )
             if _removal_converged(watch, observation):
                 watch.tombstone = True  # remoção convergida: deixa de observar

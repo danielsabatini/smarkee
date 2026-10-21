@@ -136,6 +136,7 @@ Tudo o que a semconv não cobre usa o prefixo `smarkee.`.
 | `smarkee.instance.name` | Nome da instância de Observer ou Reconciler (estado em memória). |
 | `smarkee.outbox.sequence`, `smarkee.failure.permanent` | Linha do outbox e se a falha de publicação é permanente. |
 | `smarkee.account.id`, `smarkee.links.removed` | Conta removida e quantidade de ligações apagadas (`sum.service`). |
+| `smarkee.links.changed` | Ligações que ganharam uma geração nova no rollout do catálogo (`sum.service`, decisão 0079). |
 | `smarkee.config.missing_variables` | Nomes (nunca valores) das variáveis obrigatórias ausentes. |
 | `smarkee.drift.fields` | Nomes (nunca valores) dos campos gerenciados em que o `observed` diverge do `desired`, na decisão do Reconciler (decisão 0078). |
 | `smarkee.action.ineffective_count` | Ações seguidas da geração atual que concluíram sem a observação causada convergir (decisão 0078). |

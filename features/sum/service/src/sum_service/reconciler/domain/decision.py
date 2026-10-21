@@ -23,6 +23,10 @@ class DesiredState:
     traceparent: str | None = None
     """Contexto de trace do `desired` (decisão 0055): a action que ele causar o herda."""
 
+    managed_roles: frozenset[str] = frozenset()
+    """Roles que a ligação controla (decisão 0079): as que não estão em `service_roles` não podem
+    ficar com o usuário."""
+
 
 @dataclass(frozen=True, slots=True)
 class ObservedState:
@@ -151,8 +155,11 @@ def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
                 ("serviceRoles",),
             )
         return None
-    if not desired.service_roles <= observed.service_roles:
-        return Decision("update", "Drift", "The user lacks the service roles.", ("serviceRoles",))
+    leftover = (desired.managed_roles - desired.service_roles) & observed.service_roles
+    if not desired.service_roles <= observed.service_roles or leftover:
+        return Decision(
+            "update", "Drift", "The user roles differ from the service roles.", ("serviceRoles",)
+        )
     return None
 
 

@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 from sum_service.reconciler.domain.decision import (
@@ -146,3 +147,12 @@ def test_a_failure_of_the_same_generation_waits_the_backoff() -> None:
         )
         is not None
     )
+
+
+def test_a_role_that_left_the_catalog_is_a_divergence_on_an_active_link() -> None:
+    """A ligação controla a role que saiu do catálogo: ficar com ela é divergência (0079)."""
+    old = "ipm.antiga.get"
+    link = replace(desired(), managed_roles=ROLES | {old})
+    decision = decide(state(desired=link, observed=observed(ROLES | {old})), NOW, SETTINGS)
+    assert decision is not None and decision.fields == ("serviceRoles",)
+    assert decide(state(desired=link, observed=observed(ROLES)), NOW, SETTINGS) is None

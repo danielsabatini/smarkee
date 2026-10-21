@@ -35,7 +35,9 @@ def envelope(message_type: str, message_id: str, **fields: Any) -> bytes:
     return json.dumps(base).encode()
 
 
-def desired(generation: int, lifecycle: str = "present") -> bytes:
+def desired(
+    generation: int, lifecycle: str = "present", managed: tuple[str, ...] | None = None
+) -> bytes:
     return envelope(
         "desired",
         "m-desired",
@@ -45,6 +47,8 @@ def desired(generation: int, lifecycle: str = "present") -> bytes:
             "ownerAccountId": OWNER,
             "service": "ipm",
             "serviceRoles": list(ROLES) if lifecycle == "present" else [],
+            # O que revogar vem do `desired` (decisão 0079), e não de um catálogo do Executor.
+            "managedRoles": list(managed if managed is not None else CATALOG["ipm"]),
         },
     )
 
@@ -120,7 +124,6 @@ def executor(
         Drivers(authorizations=granter),
         FakeState(raw, results or {}),
         publisher,
-        CATALOG,
         identifiers=lambda: next(ids),
     )
 
@@ -248,12 +251,25 @@ async def test_a_result_of_another_action_does_not_block_this_one() -> None:
     assert granter.calls == [("create", OWNER, tuple(sorted(ROLES)))]
 
 
-async def test_a_disabled_link_revokes_the_roles_of_the_catalog() -> None:
+async def test_a_disabled_link_revokes_the_managed_roles() -> None:
     granter = FakeGranter()
     granter.grants_by_user[OWNER] = [Grant("g-9", "proj-ipm", frozenset(ROLES))]
     publisher = FakePublisher()
     await executor(granter, desired(2, lifecycle="absent"), publisher).on_action(action(2))
     assert granter.calls == [("remove", "g-9")]
+    assert publisher.sent[0][1]["messageType"] == "completed"
+
+
+async def test_an_active_link_revokes_the_roles_that_left_the_catalog() -> None:
+    """Role que saiu do catálogo: a ligação ativa deixa de dá-la (rollout, decisão 0079)."""
+    granter = FakeGranter()
+    granter.grants_by_user[OWNER] = [
+        Grant("g-9", "proj-ipm", frozenset({*ROLES, "ipm.antiga.get"}))
+    ]
+    publisher = FakePublisher()
+    managed = (*sorted(ROLES), "ipm.antiga.get")
+    await executor(granter, desired(2, managed=managed), publisher).on_action(action(2))
+    assert granter.calls == [("update", "g-9", tuple(sorted(ROLES)))]
     assert publisher.sent[0][1]["messageType"] == "completed"
 
 

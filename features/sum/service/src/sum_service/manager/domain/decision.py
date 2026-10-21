@@ -80,13 +80,16 @@ def decide_create(
             return Rejected("conflict")
         if existing_link.is_active:
             return Rejected("already_exists", existing_resource_id=existing_link.resource_id)
-    return Accepted(enable_desired(owner_account_id, service, catalog))
+    previous = existing_link.desired if existing_link is not None else None
+    return Accepted(enable_desired(owner_account_id, service, catalog, previous))
 
 
-def decide_delete(*, link: Link | None, expected_version: str) -> Decision:
+def decide_delete(
+    *, link: Link | None, expected_version: str, catalog: Mapping[str, tuple[str, ...]]
+) -> Decision:
     """Desligar: a ligação precisa existir e estar ativa, e a versão lida precisa ser a atual."""
     if link is None or not link.is_active:
         return Rejected("not_found")
     if link.resource_version != expected_version:
         return Rejected("conflict")
-    return Accepted(disable_desired(link.desired))
+    return Accepted(disable_desired(link.desired, catalog))
