@@ -36,9 +36,9 @@ async def cleanup(manager: psycopg.AsyncConnection[Any]) -> AsyncIterator[list[s
     maintenance = await connect("ipm_maintenance_login")
     try:
         for table in (
-            "organization_outbox",
-            "organization_operation",
-            "organization_action_result",
+            "user_outbox",
+            "user_operation",
+            "user_action_result",
         ):
             await maintenance.execute(
                 f"DELETE FROM ipm.{table} WHERE resource_id = ANY(%s)",  # noqa: S608 (tabelas fixas)
