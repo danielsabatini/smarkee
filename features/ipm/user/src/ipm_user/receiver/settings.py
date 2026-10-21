@@ -6,8 +6,6 @@ Nome da variável: `IPM_USER_RECEIVER_<SEÇÃO>_<CAMPO>`, por exemplo
 `IPM_USER_RECEIVER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
-from pydantic import Field
-
 from ipm_user.common.settings import (
     DatabaseSettings,
     MessagingSettings,
@@ -39,11 +37,6 @@ class ApiSettings(Section):
     port: int = 8000
     user_quota: int = 5
     """Usuários por Organization para quem não é operador (decisão 0077; valor provisório)."""
-
-    grantable_roles: list[str] = Field(default_factory=list[str])
-    """Roles que um usuário da Organization pode receber: as do Project Grant de `roles-ipm` que o
-    operador cria para cada organização de cliente (decisão 0077). Vazia, nenhuma role é aceita
-    (falha fechada)."""
 
 
 class PeersSettings(Section):

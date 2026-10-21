@@ -1,7 +1,7 @@
 # 0077 — `ipm.user`: usuários próprios da Organization, com roles da plataforma
 
 - **Data:** 2026-10-20
-- **Status:** Aceita (itens em aberto fechados em 2026-10-21) e implementada em dev em 2026-10-21 (seção "Implementação"). Fecha a decisão 0039 §5 e revisa as decisões 0028 (vocabulário de ações), 0038 (Project Grant), 0042 (nome `user`) e, para este tipo, 0043 (proteção nasce desligada).
+- **Status:** Aceita (itens em aberto fechados em 2026-10-21) e implementada em dev em 2026-10-21 (seção "Implementação"). Revisada pela decisão 0081: o Grant e os papéis por organização passam ao loop da `ipm/organization`, e o catálogo do Receiver passa a ser o enum `grantableRole` do contrato. Fecha a decisão 0039 §5 e revisa as decisões 0028 (vocabulário de ações), 0038 (Project Grant), 0042 (nome `user`) e, para este tipo, 0043 (proteção nasce desligada).
 - **Origem:** direção do responsável pelo projeto, no modelo das clouds: uma conta (root) é a dona da Organization, e todas as outras pessoas são usuários criados dentro da própria Organization.
 
 ## Contexto

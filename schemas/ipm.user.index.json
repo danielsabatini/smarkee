@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "IpmUserContracts",
-  "description": "Índice dos contratos usados pelos componentes de user do módulo ipm: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e de ipm/user/ deve estar listado (verificado pelos testes de contrato).",
+  "description": "Índice dos contratos usados pelos componentes de user do módulo ipm: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e de ipm/user/ deve estar listado (verificado pelos testes de contrato). Uma definição que nenhum contrato referencia, mas que o código usa, entra pelo fragmento (#/$defs/...), como o catálogo grantableRole (decisão 0081).",
   "anyOf": [
     {
       "$ref": "common/message-envelope.v1.schema.json"
@@ -56,6 +56,9 @@
     },
     {
       "$ref": "ipm/user/resource-list.v1.schema.json"
+    },
+    {
+      "$ref": "ipm/definitions.v1.schema.json#/$defs/grantableRole"
     }
   ]
 }

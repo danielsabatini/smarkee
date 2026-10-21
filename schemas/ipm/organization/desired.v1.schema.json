@@ -56,6 +56,14 @@
       "x-managed": true,
       "x-sensitivity": "internal"
     },
+    "userAccess": {
+      "$ref": "definitions.v1.schema.json#/$defs/userAccess",
+      "description": "Preparo da organização para os usuários dela (decisão 0081). Reconciliado enquanto platformAccess é granted. Ausente só em desired gravado antes da decisão 0081: o rollout do Manager o acrescenta.",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
     "ownerAccountId": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
       "description": "Dono da Organization: resourceId da Account autenticado que a criou (sub do token). Atribuído pelo Manager a partir de requestedBy no create; imutável.",

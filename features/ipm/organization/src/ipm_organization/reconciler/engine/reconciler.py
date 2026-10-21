@@ -113,6 +113,7 @@ class Reconciler:
             correlation_id=envelope.correlation_id,
             traceparent=current_traceparent(),
             deletion_protection=data.get("deletionProtection", True) is not False,
+            user_access=_mapping(data.get("userAccess")),
         )
         if current is None or generation != current.generation:
             state.pending = None  # a ação pendente era de uma especificação substituída
@@ -138,6 +139,7 @@ class Reconciler:
             name=str(name) if name is not None else None,
             platform_access=str(platform_access) if platform_access is not None else None,
             deletion_protection=protection if isinstance(protection, bool) else None,
+            user_access=_mapping(data.get("userAccess")),
         )
         if (
             state.awaiting_observation_of is not None
@@ -299,3 +301,8 @@ async def periodic_reevaluation(
             )
         except TimeoutError:
             await reconciler.evaluate_all()
+
+
+def _mapping(value: object) -> Mapping[str, Any] | None:
+    """O objeto do campo, ou `None` quando ele falta ou não é objeto (leitor tolerante)."""
+    return value if isinstance(value, Mapping) else None  # pyright: ignore[reportUnknownVariableType]

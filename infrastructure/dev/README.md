@@ -196,15 +196,9 @@ Estado aplicado no dev em 2026-10-10 (pela API do Zitadel, com a conta de bootst
 
 **Conferência da telemetria:** `tests/telemetry` faz um cadastro pelo gateway e confere, nos arquivos gravados, a correlação do `trace_id` entre o gateway e os componentes e a ausência de dados sensíveis (decisão 0059). `uv run pytest -q` na pasta; os usuários `conf.telemetry-*` são removidos pelo `smarkee-dev-cleanup`.
 
-### Preparar uma Organization para usuários (`ipm.user`, decisão 0077)
+### Organization pronta para usuários (`ipm.user`, decisão 0081)
 
-Atividade do operador nesta etapa (lacuna declarada em `docs/IMPLEMENTATION-STATUS.md`), uma vez por organização de cliente, com a conta de bootstrap (API v2):
-
-1. **Project Grant** de `roles-ipm` para a organização (`ProjectService/CreateProjectGrant`), com o catálogo: `ipm.organization.get|list|update` e `ipm.user.bind|create|delete|get|list|update`. É o mesmo `IPM_USER_RECEIVER_API_GRANTABLE_ROLES` do `config.toml` do User: mantenha os dois iguais.
-2. **Executor:** `ORG_USER_CREATOR` na organização e `PROJECT_GRANT_OWNER` no Grant dela (`InternalPermissionService/CreateAdministrator`, `resource` = `{"organizationId"}` e `{"projectGrant": {"projectId", "organizationId"}}`).
-3. **Observer:** `ORG_OWNER_VIEWER` na organização.
-
-Sem esses passos, o usuário vira `failed` (`Unauthorized`) no Executor. O root recebe as roles `ipm.user.*` pelo catálogo do SUM (`SUM_SERVICE_MANAGER_CATALOG_ROLES`) ao habilitar o `ipm`; quem habilitou antes precisa desabilitar e habilitar de novo.
+Não é mais atividade do operador. O loop da `ipm/organization` prepara cada organização de cliente: o Project Grant de `roles-ipm` com o catálogo `grantableRole` do contrato (`schemas/ipm/definitions.v1.schema.json`) e os papéis das contas do User (`ORG_USER_CREATOR` na organização e `PROJECT_GRANT_OWNER` no Grant para `ipm-user-executor`; `ORG_OWNER_VIEWER` na organização para `ipm-user-observer`). O Executor da Organization usa o `IAM_ORG_MANAGER` que já tem (decisão 0060). O `.env` da Organization precisa do projeto e das duas contas (`IPM_ORGANIZATION_IDENTITY_PROJECT_ID`, `IPM_ORGANIZATION_USER_EXECUTOR_ACCOUNT_ID` e `IPM_ORGANIZATION_USER_OBSERVER_ACCOUNT_ID`), conferidos pela suíte de conformidade. Ao recriar a instância do Zitadel, atualize esses IDs e reinicie o Manager: o rollout prepara as Organizations que existirem. O root recebe as roles `ipm.user.*` pelo catálogo do SUM (`SUM_SERVICE_MANAGER_CATALOG_ROLES`) ao habilitar o `ipm`; quem habilitou antes precisa desabilitar e habilitar de novo.
 
 **Conferência da estrutura:** `identity/conformance` é uma suíte somente leitura que confere tudo acima (organizações, projetos de roles, o projeto `clients`, roles e `group`, aplicação `cli`, Project Grants, contas de serviço e papéis, o isolamento do Executor da Account, autorizações dos operadores e cadastro público desligado). Rode-a depois de criar ou recriar a estrutura; uso em `identity/conformance/README.md`. A criação continua manual (console ou API de gestão com a conta de bootstrap): a suíte não cria nada.
 

@@ -1,6 +1,7 @@
 """Mapeamento das linhas do SSOT para os contratos de resposta do Receiver.
 
-Nunca expõe campos internos (`failure_count`, `requested_by`) nem o dono da Organization.
+Nunca expõe campos internos (`failure_count`, `requested_by`), o dono da Organization nem o
+preparo para os usuários (`userAccess`).
 """
 
 from typing import Any
@@ -22,13 +23,19 @@ def _common(record: ResourceRecord) -> dict[str, Any]:
     }
 
 
+OBSERVED_VIEW_FIELDS = ("name", "platformAccess", "organizationState", "deletionProtection")
+"""Campos do `observed` que a visão mostra, um a um: o `userAccess` (IDs de contas de serviço da
+plataforma) fica de fora (`x-resourceView: omitted`, decisão 0081)."""
+
+
 def _observed(record: ResourceRecord) -> dict[str, Any] | None:
     if record.presence is None or record.observed_at is None:
         return None
+    observed = record.observed or {}
     return {
         "presence": record.presence,
         "observedAt": record.observed_at.isoformat(),
-        **(record.observed or {}),
+        **{field: observed[field] for field in OBSERVED_VIEW_FIELDS if field in observed},
     }
 
 

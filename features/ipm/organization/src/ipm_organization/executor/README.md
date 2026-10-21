@@ -2,12 +2,13 @@
 
 Executor de `ipm.organization` (`ipm-organization-executor`), um dos seis papéis da imagem única `ipm-organization` (decisão 0063), com processo e contêiner próprios. Veja o [README da feature](../../../README.md).
 
-Única identidade com escrita da Organization no Zitadel (conta `ipm-organization-executor`, papel de instância `IAM_ORG_MANAGER`). Escreve **só a organização**: não cria usuários, não autoriza o dono e não cria Project Grant (`.decisions/0038`). Consome a `action` do Reconciler, **revalida** contra o `desired` vigente (geração, coerência da operação, reconciliação ativa), confere o desfecho já registrado do `actionId` por Direct Get (idempotência) e executa, pela API v2 de organizações (`zitadel.org.v2.OrganizationService`):
+Única identidade com escrita da Organization no Zitadel (conta `ipm-organization-executor`, papel de instância `IAM_ORG_MANAGER`). Escreve a organização e o **preparo dela para os usuários** (`.decisions/0081`); não cria usuários nem autoriza o dono. Consome a `action` do Reconciler, **revalida** contra o `desired` vigente (geração, coerência da operação, reconciliação ativa), confere o desfecho já registrado do `actionId` por Direct Get (idempotência) e executa, pela API v2 de organizações (`zitadel.org.v2.OrganizationService`):
 
 - `create`: cria a organização com o `resourceId` como ID e o `name` do `desired`. Um `409` (ID ou nome já usado) leva a ler a organização pelo ID: se existe com o nome esperado, é sucesso idempotente; senão, falha permanente (`Rejected`). Depois, deixa a organização ativa ou desativada conforme `platformAccess`;
 - em `create` e `update`, grava o metadado `deletionProtection` da organização com o valor do `desired` (decisão 0074; repetir é idempotente);
 - `update`: renomeia quando o nome difere e ativa (`granted`) ou desativa (`revoked`) quando o estado difere. Só chama o Zitadel quando há diferença; o "já feito" do Zitadel (nome igual, já ativa, já desativada) também conta como sucesso;
-- `delete`: remove a organização (ausente é sucesso).
+- em `create` e `update`, com `userAccess` no `desired` e `platformAccess = granted`, prepara a organização para os usuários (`drivers/user_access.py`, decisão 0081): cria o Project Grant de `roles-ipm` (`409` conta como já criado) ou o ajusta para exatamente `grantRoles`; depois dá às contas do `ipm/user` os papéis que faltam (`ORG_USER_CREATOR` e `ORG_OWNER_VIEWER` na organização, `PROJECT_GRANT_OWNER` no Grant), com a união dos que elas já têm, porque `UpdateAdministrator` substitui o conjunto;
+- `delete`: remove a organização (ausente é sucesso; o Zitadel leva o Grant e os papéis junto).
 
 Publica `completed` ou `failed {reason, retryable}`; o retry é do Reconciler.
 

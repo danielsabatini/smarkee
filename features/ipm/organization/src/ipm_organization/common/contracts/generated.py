@@ -390,6 +390,77 @@ class OrganizationState(StrEnum):
     inactive = "inactive"
 
 
+class Role(RootModel[str]):
+    root: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=5,
+            pattern="^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$",
+        ),
+    ]
+    """
+    Role da plataforma no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.user.create.
+    """
+
+
+class AdministratorRole(RootModel[str]):
+    root: Annotated[str, Field(max_length=128, min_length=1, pattern="^[A-Z][A-Z0-9_]*$")]
+    """
+    Papel de administração nativo do provedor de identidade (por exemplo, ORG_USER_CREATOR).
+    """
+
+
+class GrantableRole(StrEnum):
+    """
+    Catálogo das roles que uma Organization pode delegar aos usuários dela (decisão 0081): o Project Grant de cada Organization tem exatamente estas, e o Receiver do User recusa as demais antes do loop. Fonte única, versionada com o código e igual em todos os ambientes; não há operador nem criação e remoção de Organization aqui. Mudar o catálogo é mudar este enum, regerar os modelos do ipm/user e do ipm/organization e implantar: o Manager da Organization faz o rollout do Grant na partida.
+    """
+
+    ipm_organization_get = "ipm.organization.get"
+    ipm_organization_list = "ipm.organization.list"
+    ipm_organization_update = "ipm.organization.update"
+    ipm_user_bind = "ipm.user.bind"
+    ipm_user_create = "ipm.user.create"
+    ipm_user_delete = "ipm.user.delete"
+    ipm_user_get = "ipm.user.get"
+    ipm_user_list = "ipm.user.list"
+    ipm_user_update = "ipm.user.update"
+
+
+class OrganizationAdministrator(ContractModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    account_id: Annotated[
+        str, Field(alias="accountId", max_length=128, min_length=1, pattern="^[A-Za-z0-9-]+$")
+    ]
+    """
+    ID de uma conta de serviço da plataforma no provedor de identidade (por exemplo, a do Executor do ipm/user). Não é credencial.
+    """
+    roles: Annotated[list[AdministratorRole], Field(max_length=32)]
+    """
+    Papéis de administração, sem repetição e em ordem alfabética.
+    """
+
+
+class OrganizationObservedUserAccess(ContractModel):
+    """
+    Preparo para os usuários lido do provedor de identidade (decisão 0081). grantRoles ausente quando o Project Grant não existe.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    grant_roles: Annotated[list[Role] | None, Field(alias="grantRoles", max_length=64)] = None
+    """
+    Roles do Project Grant do projeto de roles do ipm para a organização.
+    """
+    administrators: Annotated[list[OrganizationAdministrator], Field(max_length=64)]
+    """
+    Contas com papel de administração na organização ou no Grant dela, em ordem de accountId, com os papéis somados das duas.
+    """
+
+
 class OrganizationObservedData(ContractModel):
     """
     data de observed da Organization: estado lido do provedor de identidade. Os campos estão presentes quando presence é present; com absent ou unknown, data é vazio.
@@ -413,6 +484,10 @@ class OrganizationObservedData(ContractModel):
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
     Proteção contra exclusão lida do metadado `deletionProtection` do provedor de identidade (decisão 0074). Ausente quando o metadado não existe ou tem valor que não é true nem false: o Reconciler trata como divergência e o Executor o regrava.
+    """
+    user_access: Annotated[OrganizationObservedUserAccess | None, Field(alias="userAccess")] = None
+    """
+    Preparo para os usuários lido do provedor (decisão 0081). Fica fora da visão resource do Receiver (x-resourceView: omitted): traz IDs de contas de serviço da plataforma, que o cliente não precisa ver.
     """
 
 
@@ -852,6 +927,38 @@ class MessageEnvelope(ContractModel):
     """
 
 
+class OrganizationUserAccess(ContractModel):
+    """
+    Preparo da organização para os usuários dela (ipm.user, decisão 0081): o Project Grant do projeto de roles do ipm com as roles de grantRoles, e os papéis de administração das contas do ipm/user nela. O Executor do ipm/user recebe ORG_USER_CREATOR na organização e PROJECT_GRANT_OWNER no Grant; o Observer do ipm/user, ORG_OWNER_VIEWER na organização. Vem da configuração do Manager, que é a fonte única.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    grant_roles: Annotated[list[GrantableRole], Field(alias="grantRoles", max_length=64)]
+    """
+    Roles do Project Grant: o teto do que os usuários da organização podem receber. É o catálogo grantableRole do ipm/user inteiro, sem repetição e em ordem alfabética.
+    """
+    user_executor_account_id: Annotated[
+        str,
+        Field(
+            alias="userExecutorAccountId", max_length=128, min_length=1, pattern="^[A-Za-z0-9-]+$"
+        ),
+    ]
+    """
+    Conta de serviço do Executor do ipm/user.
+    """
+    user_observer_account_id: Annotated[
+        str,
+        Field(
+            alias="userObserverAccountId", max_length=128, min_length=1, pattern="^[A-Za-z0-9-]+$"
+        ),
+    ]
+    """
+    Conta de serviço do Observer do ipm/user.
+    """
+
+
 class OrganizationDesiredData(ContractModel):
     """
     data de desired da Organization: estado pretendido e controle de reconciliação. Publicado somente pelo Manager. Não carrega dados pessoais.
@@ -872,6 +979,10 @@ class OrganizationDesiredData(ContractModel):
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
     Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
+    user_access: Annotated[OrganizationUserAccess | None, Field(alias="userAccess")] = None
+    """
+    Preparo da organização para os usuários dela (decisão 0081). Reconciliado enquanto platformAccess é granted. Ausente só em desired gravado antes da decisão 0081: o rollout do Manager o acrescenta.
     """
     owner_account_id: Annotated[
         str,

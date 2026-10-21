@@ -28,6 +28,13 @@
       "description": "Proteção contra exclusão lida do metadado `deletionProtection` do provedor de identidade (decisão 0074). Ausente quando o metadado não existe ou tem valor que não é true nem false: o Reconciler trata como divergência e o Executor o regrava.",
       "x-writer": "server",
       "x-sensitivity": "internal"
+    },
+    "userAccess": {
+      "$ref": "definitions.v1.schema.json#/$defs/observedUserAccess",
+      "x-writer": "server",
+      "x-sensitivity": "internal",
+      "x-resourceView": "omitted",
+      "description": "Preparo para os usuários lido do provedor (decisão 0081). Fica fora da visão resource do Receiver (x-resourceView: omitted): traz IDs de contas de serviço da plataforma, que o cliente não precisa ver."
     }
   }
 }

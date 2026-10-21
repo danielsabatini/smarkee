@@ -128,7 +128,9 @@ services:
       retries: 6
       start_period: 10s
 
-  # Manager (`ipm-organization-manager`): único escritor do SSOT do tipo.
+  # Manager (`ipm-organization-manager`): único escritor do SSOT do tipo. Grava no `desired` o
+  # preparo de cada Organization para os usuários (decisão 0081): o catálogo vem do contrato, e as
+  # contas do ipm/user, daqui.
   ipm-organization-manager:
     <<: *component-image
     command: [ipm-organization-manager]
@@ -138,6 +140,8 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+      IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_EXECUTOR_ACCOUNT_ID: ${IPM_ORGANIZATION_USER_EXECUTOR_ACCOUNT_ID:?Defina no .env (ID da conta ipm-user-executor, org core)}
+      IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_OBSERVER_ACCOUNT_ID: ${IPM_ORGANIZATION_USER_OBSERVER_ACCOUNT_ID:?Defina no .env (ID da conta ipm-user-observer, org core)}
     secrets:
       - IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD
       - IPM_ORGANIZATION_MANAGER_MESSAGING_PASSWORD
@@ -217,6 +221,7 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+      IPM_ORGANIZATION_OBSERVER_IDENTITY_PROJECT_ID: ${IPM_ORGANIZATION_IDENTITY_PROJECT_ID:?Defina no .env (ID do projeto roles-ipm, org core)}
     secrets:
       - IPM_ORGANIZATION_OBSERVER_MESSAGING_PASSWORD
     volumes:
@@ -248,6 +253,7 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+      IPM_ORGANIZATION_EXECUTOR_IDENTITY_PROJECT_ID: ${IPM_ORGANIZATION_IDENTITY_PROJECT_ID:?Defina no .env (ID do projeto roles-ipm, org core)}
     secrets:
       - IPM_ORGANIZATION_EXECUTOR_MESSAGING_PASSWORD
     volumes:

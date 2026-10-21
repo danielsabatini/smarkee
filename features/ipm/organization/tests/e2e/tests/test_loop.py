@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 from conftest import unprotect_through_the_loop
-from contracts import assert_valid
+from contracts import SCHEMAS_ROOT, assert_valid
 from nats.js import JetStreamContext
 
 DIGEST = "0" * 64
@@ -106,6 +106,12 @@ def request(
     }
 
 
+def grant_catalog() -> list[str]:
+    """O catálogo `grantableRole` do contrato (decisão 0081), em ordem alfabética."""
+    path = SCHEMAS_ROOT / "ipm" / "definitions.v1.schema.json"
+    return sorted(json.loads(path.read_text("utf-8"))["$defs"]["grantableRole"]["enum"])
+
+
 async def send(jetstream: JetStreamContext, message: dict[str, Any]) -> None:
     subject = f"receiver.requested.ipm.organization.{message['resourceId']}.{message['operation']}"
     await jetstream.publish(
@@ -141,12 +147,20 @@ async def test_the_whole_loop_creates_updates_and_removes_the_organization(
     observed = await last(jetstream, "observed", resource_id)
     assert observed["presence"] == "present"
     assert_valid("ipm/organization/observed.v1.schema.json", observed["data"])
+    user_access = observed["data"].pop("userAccess")
     assert observed["data"] == {
         "name": name,
         "platformAccess": "granted",
         "organizationState": "active",
         "deletionProtection": True,  # metadado no Zitadel (decisão 0074)
     }
+    # Pronta para usuários (decisão 0081): o Grant com o catálogo do contrato e os papéis das
+    # contas do ipm/user, criados pelo loop, sem o operador.
+    assert user_access["grantRoles"] == grant_catalog()
+    assert sorted(sorted(item["roles"]) for item in user_access["administrators"]) == [
+        ["ORG_OWNER_VIEWER"],
+        ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"],
+    ]
     raw = await jetstream.get_last_msg(
         "RESULT", f"executor.completed.ipm.organization.{resource_id}.create"
     )

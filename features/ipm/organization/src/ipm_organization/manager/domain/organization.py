@@ -10,6 +10,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from ipm_organization.common import user_access
 from ipm_organization.common.contracts import generated
 from ipm_organization.common.contracts.base import ContractModel, fields_of, validate_tolerant
 from ipm_organization.manager.domain.errors import PermanentMessageError
@@ -38,7 +39,14 @@ def _parse_resource_version(value: str) -> int:
 
 
 class OrganizationPolicy:
-    """Organization: nome único e não reservado, dono imutável e cota por dono (decisão 0010)."""
+    """Organization: nome único e não reservado, dono imutável e cota por dono (decisão 0010).
+
+    Com `user_access`, toda Organization nasce pronta para usuários (decisão 0081): o `desired` leva
+    o `userAccess` (catálogo do contrato e contas do `ipm/user`), e o rollout o mantém atual.
+    """
+
+    def __init__(self, user_access: Mapping[str, Any] | None = None) -> None:
+        self._user_access = dict(user_access) if user_access is not None else None
 
     def parse(self, operation: str, data: Mapping[str, Any]) -> Request:
         match operation:
@@ -100,11 +108,23 @@ class OrganizationPolicy:
             "name": request.specification["name"],
             "platformAccess": request.specification["platformAccess"],
             "deletionProtection": True,  # todo recurso apagável nasce protegido (decisão 0043)
+            **({"userAccess": dict(self._user_access)} if self._user_access is not None else {}),
             "ownerAccountId": requested_by,
         }
 
     def desired_for_update(self, current: Mapping[str, Any], request: Request) -> dict[str, Any]:
         return {**current, **(request.specification or {})}
+
+    def rolled_out(self, current: Mapping[str, Any]) -> dict[str, Any] | None:
+        """O `desired` com o `userAccess` de agora, ou `None` se nada muda (rollout, decisão 0081).
+
+        Só a Organization presente acompanha: a que está sendo removida não ganha geração nova.
+        """
+        if self._user_access is None or current.get("lifecycle") != "present":
+            return None
+        if current.get("userAccess") == self._user_access:
+            return None
+        return {**current, "userAccess": dict(self._user_access)}
 
     def desired_for_delete(self, current: Mapping[str, Any]) -> dict[str, Any]:
         return {**current, "lifecycle": "absent"}
@@ -146,9 +166,10 @@ class OrganizationPolicy:
     def is_converged(
         self, desired: Mapping[str, Any], presence: str, observed: Mapping[str, Any] | None
     ) -> bool:
-        # Campos gerenciados da Organization: `lifecycle`, `name`, `platformAccess` e
-        # `deletionProtection`, este pelo metadado (schemas/ipm/organization/desired; decisão 0074).
-        # `ownerAccountId` não é gerenciado: não existe no Zitadel.
+        # Campos gerenciados da Organization: `lifecycle`, `name`, `platformAccess`,
+        # `deletionProtection`, este pelo metadado (schemas/ipm/organization/desired; decisão 0074),
+        # e `userAccess` enquanto há acesso (decisão 0081). `ownerAccountId` não é gerenciado: não
+        # existe no Zitadel.
         if desired["lifecycle"] == "absent":
             return presence == "absent"
         return (
@@ -157,4 +178,8 @@ class OrganizationPolicy:
             and observed.get("name") == desired["name"]
             and observed.get("platformAccess") == desired["platformAccess"]
             and observed.get("deletionProtection") == self.deletion_protected(desired)
+            and (
+                not user_access.is_managed(desired)
+                or user_access.converged(desired["userAccess"], observed.get("userAccess"))
+            )
         )

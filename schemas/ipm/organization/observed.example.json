@@ -2,5 +2,33 @@
   "name": "acme",
   "platformAccess": "granted",
   "organizationState": "active",
-  "deletionProtection": true
+  "deletionProtection": true,
+  "userAccess": {
+    "grantRoles": [
+      "ipm.organization.get",
+      "ipm.organization.list",
+      "ipm.organization.update",
+      "ipm.user.bind",
+      "ipm.user.create",
+      "ipm.user.delete",
+      "ipm.user.get",
+      "ipm.user.list",
+      "ipm.user.update"
+    ],
+    "administrators": [
+      {
+        "accountId": "394397791373230101",
+        "roles": [
+          "ORG_USER_CREATOR",
+          "PROJECT_GRANT_OWNER"
+        ]
+      },
+      {
+        "accountId": "394397791373230102",
+        "roles": [
+          "ORG_OWNER_VIEWER"
+        ]
+      }
+    ]
+  }
 }

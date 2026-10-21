@@ -1,16 +1,18 @@
 """Execução das operações da Organization no Zitadel (`docs/RESOURCE-CONTROL-LOOP.md` §46).
 
 Compõe os drivers de `executor/drivers/` (um por sub-recurso); não chama o provedor direto.
-O Executor escreve só a organização: não cria usuários, não autoriza o dono e não cria Project
-Grant. Cada operação é idempotente e usa o `resourceId` como ID da organização. `platformAccess`
+O Executor escreve a organização e o preparo dela para os usuários (decisão 0081): o Project Grant
+do projeto de roles do `ipm` e os papéis das contas do `ipm/user`. Não cria usuários nem autoriza o
+dono. Cada operação é idempotente e usa o `resourceId` como ID da organização. `platformAccess`
 se traduz no estado da organização: `granted` a mantém ativa e `revoked` a desativa
-(`.decisions/0038`).
+(`.decisions/0038`); o preparo só é reconciliado com `granted`.
 """
 
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from ipm_organization.common import user_access as access
 from ipm_organization.executor.domain.errors import ActionFailedError
 from ipm_organization.executor.domain.identity import IdentityOrganization
 
@@ -37,12 +39,39 @@ class Metadata(Protocol):
     async def set_value(self, owner_id: str, key: str, value: str) -> None: ...
 
 
+class UserAccess(Protocol):
+    """Driver do Grant e dos papéis do `ipm/user` (`executor/drivers/user_access.py`)."""
+
+    def organization_resource(self, organization_id: str) -> dict[str, Any]: ...
+
+    def grant_resource(self, organization_id: str) -> dict[str, Any]: ...
+
+    async def grant_roles(self, organization_id: str) -> list[str] | None: ...
+
+    async def create_grant(self, organization_id: str, roles: list[str]) -> bool: ...
+
+    async def update_grant(self, organization_id: str, roles: list[str]) -> None: ...
+
+    async def administrator_roles(
+        self, account_id: str, resource: dict[str, Any]
+    ) -> frozenset[str] | None: ...
+
+    async def create_administrator(
+        self, account_id: str, resource: dict[str, Any], roles: list[str]
+    ) -> bool: ...
+
+    async def update_administrator(
+        self, account_id: str, resource: dict[str, Any], roles: list[str]
+    ) -> None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class Drivers:
     """Os drivers de escrita que as operações da Organization usam."""
 
     organizations: Organizations
     metadata: Metadata
+    user_access: UserAccess
 
 
 async def execute(
@@ -56,9 +85,11 @@ async def execute(
         case "create":
             await _create(organization_id, desired, writer)
             await _ensure_deletion_protection(organization_id, desired, drivers.metadata)
+            await _ensure_user_access(organization_id, desired, drivers.user_access)
         case "update":
             await _update(organization_id, desired, writer)
             await _ensure_deletion_protection(organization_id, desired, drivers.metadata)
+            await _ensure_user_access(organization_id, desired, drivers.user_access)
         case "delete":
             await writer.delete_organization(organization_id)  # ausente é sucesso idempotente
         case _:
@@ -132,3 +163,46 @@ async def _ensure_deletion_protection(
     """
     protected = desired.get("deletionProtection", True) is not False
     await metadata.set_value(resource_id, DELETION_PROTECTION_KEY, "true" if protected else "false")
+
+
+async def _ensure_user_access(
+    organization_id: str, desired: Mapping[str, Any], driver: UserAccess
+) -> None:
+    """Deixa a organização pronta para usuários (decisão 0081), só com o que falta.
+
+    O Grant fica com exatamente as roles do `desired`; cada conta do `ipm/user` ganha os papéis que
+    lhe faltam, sem perder os que já tem (`UpdateAdministrator` substitui o conjunto, então vai a
+    união). O Grant vem antes do papel no Grant. Sem `userAccess`, ou com a organização sem
+    acesso, nada é feito.
+    """
+    if not access.is_managed(desired):
+        return
+    user_access: Mapping[str, Any] = desired["userAccess"]
+    roles = sorted(str(role) for role in user_access["grantRoles"])
+    current = await driver.grant_roles(organization_id)
+    if current is None:
+        if not await driver.create_grant(organization_id, roles):
+            await driver.update_grant(organization_id, roles)  # criado por outra tentativa
+    elif current != roles:
+        await driver.update_grant(organization_id, roles)
+    executor = str(user_access["userExecutorAccountId"])
+    observer = str(user_access["userObserverAccountId"])
+    organization = driver.organization_resource(organization_id)
+    for account_id, resource, role in (
+        (executor, organization, access.ORGANIZATION_USER_CREATOR),
+        (executor, driver.grant_resource(organization_id), access.PROJECT_GRANT_OWNER),
+        (observer, organization, access.ORGANIZATION_OWNER_VIEWER),
+    ):
+        await _ensure_administrator(driver, account_id, resource, role)
+
+
+async def _ensure_administrator(
+    driver: UserAccess, account_id: str, resource: dict[str, Any], role: str
+) -> None:
+    held = await driver.administrator_roles(account_id, resource)
+    if held is None:
+        if await driver.create_administrator(account_id, resource, [role]):
+            return
+        held = await driver.administrator_roles(account_id, resource) or frozenset()
+    if role not in held:
+        await driver.update_administrator(account_id, resource, sorted(held | {role}))

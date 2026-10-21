@@ -16,21 +16,6 @@ user = "ipm_user_receiver_login"
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
-[tool.ipm.user.receiver.api]
-# Roles do Project Grant de `roles-ipm` que o operador cria para cada organização de cliente
-# (decisão 0077). Mantenha igual ao Grant: o Receiver recusa as demais antes do loop.
-grantable_roles = [
-    "ipm.organization.get",
-    "ipm.organization.list",
-    "ipm.organization.update",
-    "ipm.user.bind",
-    "ipm.user.create",
-    "ipm.user.delete",
-    "ipm.user.get",
-    "ipm.user.list",
-    "ipm.user.update",
-]
-
 [tool.ipm.user.receiver.peers]
 organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
 

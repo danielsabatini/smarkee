@@ -64,8 +64,8 @@ Organization** (decisão 0077):
 - **root**: o Receiver da Organization responde `200` ao `GET /v1/ipm/organizations/{organizationId}` feito com o token de quem
   pede (decisão 0040); `404` ou `403` dele é "não age", e falha dele é `503 OrganizationUnavailable`, repetível.
 
-Em seguida confere as roles: todas no catálogo do Grant (`IPM_USER_RECEIVER_API_GRANTABLE_ROLES`, o mesmo do Project Grant que
-o operador cria) e, sem `ipm.user.bind`, só roles que o próprio solicitante tem (o root e o operador têm o `bind`). Por fim a
+Em seguida confere as roles: todas no catálogo `grantableRole` do contrato (o mesmo que a `ipm/organization` grava no Project
+Grant de cada Organization, decisão 0081) e, sem `ipm.user.bind`, só roles que o próprio solicitante tem (o root e o operador têm o `bind`). Por fim a
 cota de usuários da Organization (`IPM_USER_RECEIVER_API_USER_QUOTA`, padrão 5). O e-mail é normalizado (minúsculas), porque
 também é o nome de login. Publica `requested` em `receiver.requested.ipm.user.<resourceId>.create`:
 
@@ -171,7 +171,7 @@ Os dados pessoais e a Organization não são campos gerenciados: são imutáveis
 
 Único componente que escreve o usuário no Zitadel, com a conta `ipm-user-executor`: `ORG_USER_CREATOR` em cada organização de
 cliente (cria e remove usuários, sem conceder roles) e `PROJECT_GRANT_OWNER` no Project Grant de `roles-ipm` para ela (concede
-só as roles do Grant). Os dois papéis são dados pelo operador a cada organização (lacuna declarada, decisão 0077). Valida a
+só as roles do Grant). Os dois papéis são dados pelo loop da `ipm/organization` a cada organização (decisão 0081). Valida a
 mensagem, não repete um `actionId` concluído e revalida a ação contra o `desired` vigente, como em toda feature. Depois:
 
 - **`create`:** cria o usuário humano **sem senha** na organização do `desired` (`organizationId`), com o `resourceId` como ID e
@@ -182,7 +182,7 @@ mensagem, não repete um `actionId` concluído e revalida a ação contra o `des
   **exatamente** as roles do `desired` (cria, atualiza ou remove) e grava o metadado `deletionProtection`.
 - **`delete`:** remove o usuário; ausente também é sucesso.
 
-O Project Grant é o teto: uma role do `roles-ipm` que o operador não liberou para a organização é recusada pelo Zitadel
+O Project Grant é o teto: uma role do `roles-ipm` fora do catálogo da organização é recusada pelo Zitadel
 (`failed` `Rejected`, verificado pelo e2e).
 
 ## 7. Manager aplica `observed` e resultados

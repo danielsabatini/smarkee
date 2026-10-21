@@ -44,7 +44,7 @@ Os seis papéis são **um projeto e uma imagem** (decisão 0063), cada um rodand
 - Rotas sob `/v1/ipm/users`: `POST` cria, `GET ?organizationId=` lista, `GET /{resourceId}` lê, `PATCH /{resourceId}` altera, `DELETE /{resourceId}?resourceVersion=` remove e `GET /{resourceId}/operations/{operationId}` acompanha a Operation.
 - Valida o token (assinatura por JWKS, `iss`, `aud` = projeto `roles-ipm`, `exp`). Cada ação exige a role `ipm.user.<create|get|list|update|delete>`; o operador tem `ipm.user.admin`.
 - **Escopo por Organization:** o operador age em qualquer uma; o **usuário da Organization** é reconhecido pelo próprio registro no SSOT do tipo (o `resourceId` é o `sub` do token) e só age na Organization dele; o **root** é confirmado pelo Receiver da Organization (`GET /v1/ipm/organizations/{id}` com o token de quem pede, decisão 0040). Fora do escopo, a resposta é `404`, para não revelar que existe.
-- **Roles:** só as do catálogo do Grant (`IPM_USER_RECEIVER_API_GRANTABLE_ROLES`, o mesmo Project Grant que o operador cria); sem `ipm.user.bind`, quem pede só atribui ou retira roles que ele mesmo tem (o RBAC do Kubernetes, decisão 0071). O root e o operador têm o `bind`.
+- **Roles:** só as do catálogo `grantableRole` do contrato (`schemas/ipm/definitions.v1.schema.json`, o mesmo que a `ipm/organization` grava no Project Grant de cada Organization, decisão 0081); sem `ipm.user.bind`, quem pede só atribui ou retira roles que ele mesmo tem (o RBAC do Kubernetes, decisão 0071). O root e o operador têm o `bind`.
 - **Cota:** 5 usuários por Organization (`IPM_USER_RECEIVER_API_USER_QUOTA`, valor provisório); o operador não tem cota.
 - O usuário **nasce desprotegido** (exceção à 0043, registrada na 0077): `sk ipm user protect` liga a proteção, e então o `DELETE` responde `409 DeletionProtected`. Todo usuário lê o próprio registro sem role. `reconciliation` é do operador. `Idempotency-Key` torna as escritas repetíveis.
 - Só lê o SSOT, pelas views `ipm.user_v1` e `ipm.user_operation_v1`. Erros no formato `api-error`; a entrada inválida é `400` e nunca repete o valor enviado.
@@ -149,7 +149,7 @@ Em `schemas/ipm/user/` (e `schemas/common/`), com o índice `schemas/ipm.user.in
 
 Variáveis `IPM_USER_<PAPEL>_<SEÇÃO>_<CAMPO>`, com `config.toml` por papel e senhas em `/run/secrets`. Todos os parâmetros estão em [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) (decisões 0067 e 0070). O `.env.example` lista as obrigatórias: a senha do NATS, as senhas dos papéis do banco, a audience do Receiver e o ID do projeto `roles-ipm` (Observer e Executor). As chaves das contas de serviço são arquivos montados do volume `identity-bootstrap`.
 
-**Antes de usar numa Organization**, o operador a prepara (lacuna declarada, decisão 0077; passo a passo em `infrastructure/dev/README.md`): o Project Grant de `roles-ipm` com o catálogo e os papéis do Executor e do Observer nela.
+**Toda Organization já nasce preparada** pelo loop da `ipm/organization` (decisão 0081): o Project Grant de `roles-ipm` com o catálogo e os papéis do Executor e do Observer do User nela. As anteriores à decisão são preparadas pelo rollout na partida do Manager da Organization.
 
 ```bash
 # 1. Plataforma (banco, messaging, identidade, gateway): infrastructure/dev, no ar e saudável
@@ -163,8 +163,7 @@ uv sync && uv run ruff check . && uv run pyright && uv run pytest
 
 # 10. Limitações e pendências
 
-- **Grant manual:** o operador cria, para cada organização de cliente, o Project Grant de `roles-ipm` e dá os papéis do Executor e do Observer (`docs/IMPLEMENTATION-STATUS.md`). Fecha quando a `ipm/organization` passar a fazê-lo pelo loop.
-- O catálogo do Grant é uma lista de configuração do Receiver, igual para todas as Organizations, e precisa ser mantido igual ao Grant que o operador cria.
+- O catálogo do Grant é o mesmo para todas as Organizations e muda só com o contrato (decisão 0081): mudar o enum `grantableRole`, regerar os modelos das duas features e implantar.
 - O root recebe as roles `ipm.user.*` pelo catálogo do SUM ao habilitar o `ipm` (`SUM_SERVICE_MANAGER_CATALOG_ROLES`); quem habilitou antes dessa versão precisa desabilitar e habilitar de novo.
 - A cota (5) é provisória, para testar o mecanismo.
 - O e-mail é imutável: a troca é pelo fluxo do Zitadel, e o SSOT não acompanha.

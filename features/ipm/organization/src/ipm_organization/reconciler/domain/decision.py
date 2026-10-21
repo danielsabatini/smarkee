@@ -6,9 +6,12 @@ do loop (`docs/RESOURCE-CONTROL-SECURITY.md` §7 e §8): não decide com `observ
 desatualizado, nem com `desired` suspenso, e não reemite uma `action` pendente.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Protocol
+from typing import Any, Protocol
+
+from ipm_organization.common import user_access as access
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +30,9 @@ class DesiredState:
     deletion_protection: bool = True
     """Proteção contra exclusão desejada; sem o campo, vale protegido (decisão 0043)."""
 
+    user_access: Mapping[str, Any] | None = None
+    """Preparo para os usuários (decisão 0081); `None` em `desired` anterior a ele."""
+
 
 @dataclass(frozen=True, slots=True)
 class ObservedState:
@@ -38,6 +44,9 @@ class ObservedState:
     platform_access: str | None
     deletion_protection: bool | None = None
     """Proteção lida do metadado do provedor; `None` quando ele não existe (decisão 0074)."""
+
+    user_access: Mapping[str, Any] | None = None
+    """Grant e papéis do `ipm/user` lidos do provedor (decisão 0081)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,11 +159,12 @@ def decide(state: ResourceState, now: datetime, settings: LoopParameters) -> Dec
 
 
 def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
-    """Compara os campos gerenciados da Organization: `lifecycle`, `name`, `platformAccess` e
-    `deletionProtection`.
+    """Compara os campos gerenciados da Organization: `lifecycle`, `name`, `platformAccess`,
+    `deletionProtection` e `userAccess`.
 
-    `platformAccess` é observado pelo estado da organização no provedor (`active` ↔ `granted`), e
-    `deletionProtection`, pelo metadado de mesmo nome (decisão 0074).
+    `platformAccess` é observado pelo estado da organização no provedor (`active` ↔ `granted`),
+    `deletionProtection`, pelo metadado de mesmo nome (decisão 0074), e `userAccess`, pelo Project
+    Grant e pelos papéis do `ipm/user`, só enquanto a organização tem acesso (decisão 0081).
     """
     if desired.lifecycle == "absent":
         if observed.presence == "present":
@@ -170,6 +180,7 @@ def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
             ("name", observed.name != desired.name),
             ("platformAccess", observed.platform_access != desired.platform_access),
             ("deletionProtection", observed.deletion_protection != desired.deletion_protection),
+            ("userAccess", _user_access_differs(desired, observed)),
         )
         if differs
     )
@@ -177,10 +188,18 @@ def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
         "name": "The organization name differs from the desired one.",
         "platformAccess": "The organization state differs from the desired platform access.",
         "deletionProtection": "The deletion protection in the identity provider differs.",
+        "userAccess": "The project grant or the administrators for the users of the organization"
+        " differ.",
     }
     if fields:
         return Decision("update", "Drift", messages[fields[0]], fields)
     return None
+
+
+def _user_access_differs(desired: DesiredState, observed: ObservedState) -> bool:
+    if desired.user_access is None or desired.platform_access == "revoked":
+        return False  # sem preparo pedido, ou organização sem acesso: não é reconciliado
+    return not access.converged(desired.user_access, observed.user_access)
 
 
 def drift(desired: DesiredState, observed: ObservedState) -> Decision | None:

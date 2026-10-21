@@ -84,7 +84,6 @@ Entrypoint do Receiver de User (`ipm-user-receiver`, decisão 0015).
 | `api.host` | `IPM_USER_RECEIVER_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
 | `api.port` | `IPM_USER_RECEIVER_API_PORT` | `--api.port` | `int` | `8000` |  |
 | `api.user_quota` | `IPM_USER_RECEIVER_API_USER_QUOTA` | `--api.user_quota` | `int` | `5` | Usuários por Organization para quem não é operador (decisão 0077; valor provisório). |
-| `api.grantable_roles` | `IPM_USER_RECEIVER_API_GRANTABLE_ROLES` | `--api.grantable_roles` | `list[str]` | `[]` | Roles que um usuário da Organization pode receber: as do Project Grant de `roles-ipm` que o operador cria para cada organização de cliente (decisão 0077). Vazia, nenhuma role é aceita (falha fechada). |
 | `peers.organizations_url` | `IPM_USER_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.timeout_seconds` | `IPM_USER_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
@@ -105,9 +104,6 @@ user = "ipm_user_receiver_login"
 [tool.ipm.user.receiver.messaging]
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
-
-[tool.ipm.user.receiver.api]
-grantable_roles = ["ipm.organization.get", "ipm.organization.list", "ipm.organization.update", "ipm.user.bind", "ipm.user.create", "ipm.user.delete", "ipm.user.get", "ipm.user.list", "ipm.user.update"]
 
 [tool.ipm.user.receiver.peers]
 organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"

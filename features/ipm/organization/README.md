@@ -15,7 +15,7 @@ Os seis componentes do loop e a CLI estão implementados e rodam no dev (Compose
 | Publisher | `publisher/` (`ipm-organization-publisher`) | Publica o outbox no NATS, com trava de sessão, envelope estrito e `Nats-Msg-Id` (decisão 0019) |
 | Reconciler | `reconciler/` (`ipm-organization-reconciler`) | Compara `name`, `platformAccess` e `deletionProtection` e decide `create`, `update` ou `delete`; estado reconstruído da mensageria |
 | Observer | `observer/` (`ipm-organization-observer`) | Lê a organização no Zitadel (somente leitura) e publica `observed`; partição por `resourceId` |
-| Executor | `executor/` (`ipm-organization-executor`) | Escreve só a organização no Zitadel; revalida cada ação; um laço por partição |
+| Executor | `executor/` (`ipm-organization-executor`) | Escreve no Zitadel a organização e o preparo dela para os usuários (Project Grant e papéis do `ipm/user`, decisão 0081); revalida cada ação; um laço por partição |
 | Testes e2e | `tests/e2e/` | Black-box: contrato, loop completo e caos (os cinco papéis de runtime) |
 
 A CLI é o comando `sk ipm organization create|get|list|update|delete` (`clients/cli`).
@@ -71,7 +71,7 @@ Os seis papéis são **um projeto e uma imagem** (decisão 0063), cada um rodand
 
 ## 3.6 Executor (`ipm-organization-executor`)
 
-- Único componente que escreve a organização no Zitadel, por `IAM_ORG_MANAGER`. **Só a organização**: não cria usuários, não autoriza o dono e não cria Project Grant (decisão 0038). O ID da organização é o `resourceId`, então repetir a criação não duplica.
+- Único componente que escreve a organização no Zitadel, por `IAM_ORG_MANAGER`. Escreve a organização e o **preparo para os usuários** (decisão 0081): o Project Grant de `roles-ipm` com o catálogo `grantableRole` do contrato, e os papéis das contas do `ipm/user` (`ORG_USER_CREATOR` e `PROJECT_GRANT_OWNER` do Executor do User, `ORG_OWNER_VIEWER` do Observer do User), só com o que falta e só com `platformAccess = granted`. Não cria usuários nem autoriza o dono. O ID da organização é o `resourceId`, então repetir a criação não duplica.
 - Valida a mensagem (emissor `reconciler`, tipo, módulo, versão `MAJOR`), não repete um `actionId` já concluído e revalida a ação contra o `desired` vigente (geração, `suspended`, `lifecycle`). Ação velha ou recusada vira `failed` permanente; erro transitório vira `failed` com `retryable`, e o retry é do Reconciler. Um consumer e um laço por partição do `ACTION`.
 
 ## 3.6.1 Um projeto, uma imagem, seis contêineres (decisão 0063)
@@ -154,7 +154,7 @@ Os contratos estão em `schemas/ipm/organization/` (e `schemas/common/`), com o 
 
 - **Dono pelo token:** o `ownerAccountId` é o `sub` do token. O corpo do `POST` só aceita `name`; qualquer outro campo é recusado pelo contrato. O dono vive só no `desired` (no SSOT e na mensageria), nunca no Zitadel nem nas respostas ao usuário.
 - **Sem dados pessoais:** a Organization guarda só IDs e o nome. Não há e-mail, nome de pessoa nem token no banco, nas mensagens ou nos logs.
-- **Menor escrita:** o Executor escreve só a organização. Os papéis `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` são de instância (o Zitadel não tem papel padrão menor para criar e listar organizações). **Exceção deliberada** (decisão 0060): ficam assim em todos os ambientes, até o Zitadel oferecer um papel padrão menor.
+- **Menor escrita:** o Executor escreve só a organização e o preparo dela para os usuários (decisão 0081), sem privilégio a mais: o `IAM_ORG_MANAGER` já tem `project.grant.write` e `org.member.write`. Os papéis `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` são de instância (o Zitadel não tem papel padrão menor para criar e listar organizações). **Exceção deliberada** (decisão 0060): ficam assim em todos os ambientes, até o Zitadel oferecer um papel padrão menor.
 - **Última barreira:** o Executor não confia em quem enviou a ação: confere o emissor, a versão e o `desired` vigente, e não assume `present` quando falta o `lifecycle`.
 - **Nomes:** nomes reservados e repetidos são recusados antes de o pedido chegar ao Zitadel; um nome já usado só no Zitadel (e não reservado) vira `failed` `Rejected` no Executor.
 - **Erros e logs:** nenhuma resposta ou log repete o valor enviado, senhas ou tokens; as configurações escondem os segredos (`SecretStr`).
@@ -167,8 +167,8 @@ Os contratos estão em `schemas/ipm/organization/` (e `schemas/common/`), com o 
 | Manager | `SELECT`, `INSERT`, `UPDATE` e `DELETE` em `organization`; `SELECT`, `INSERT` e `UPDATE` em `organization_operation`; `SELECT` e `INSERT` em `organization_action_result`; `INSERT` no outbox | lê `requested`, `observed`, resultados | — |
 | Publisher | `SELECT` no outbox e `UPDATE (published_at)` | publica `desired` e `updated` | — |
 | Reconciler | — | lê o estado; publica `action` | — |
-| Observer | — | lê `desired` e resultados; publica `observed` | leitura de organizações, `IAM_OWNER_VIEWER` |
-| Executor | — | lê `action`; publica `completed` e `failed` | cria, altera, ativa, desativa e remove organizações, `IAM_ORG_MANAGER` |
+| Observer | — | lê `desired` e resultados; publica `observed` | leitura de organizações, do Grant e dos papéis, `IAM_OWNER_VIEWER` |
+| Executor | — | lê `action`; publica `completed` e `failed` | cria, altera, ativa, desativa e remove organizações; cria e ajusta o Grant e os papéis do `ipm/user` nelas, `IAM_ORG_MANAGER` |
 
 # 9. Configuração, execução e testes
 
@@ -192,7 +192,7 @@ Depois de recriar o contêiner do Receiver, o gateway volta a resolver o nome so
 
 - A Operation não vira `failed`: a falha aparece na fase `Failed` da Organization.
 - Logo depois do `202`, a leitura pode dar `404` até o Manager gravar a Operation (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1).
-- O Executor não cria Project Grant nem autoriza usuários: a Organization de hoje só existe como organização no Zitadel. Os usuários dela são a feature `ipm/user` (decisão 0077), e o Project Grant de `roles-ipm` para cada Organization ainda é criado pelo operador (lacuna declarada em `docs/IMPLEMENTATION-STATUS.md`). Agents e os recursos derivados (OpenBao, Kubernetes) são de outras features.
+- O Executor não cria usuários nem autoriza o dono. Os usuários da Organization são a feature `ipm/user` (decisão 0077); a Organization só os prepara (Grant e papéis, decisão 0081). Trocar a conta do Executor ou do Observer do User não retira os papéis da antiga (o Executor só acrescenta). Agents e os recursos derivados (OpenBao, Kubernetes) são de outras features.
 - Os papéis de instância `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` são mais largos que o necessário, e ficam assim por exceção deliberada (decisão 0060).
 - Remover não tem retenção: a organização some do Zitadel e a linha é apagada ao convergir.
 - As chaves das contas de serviço vencem em 2030-01-01 e a rotação é manual (`infrastructure/dev/README.md`).

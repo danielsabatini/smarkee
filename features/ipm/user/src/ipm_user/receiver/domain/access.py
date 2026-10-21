@@ -3,13 +3,16 @@
 - **Escopo:** o operador age em qualquer Organization; o dono dela (o root, confirmado pelo
   Receiver da Organization) e os usuários dela (confirmados pelo próprio registro no SSOT do tipo)
   agem só nela.
-- **Catálogo:** só as roles do Project Grant da Organization podem ser atribuídas.
+- **Catálogo:** só as roles do catálogo `grantableRole` (o Project Grant de toda Organization,
+  decisão 0081) podem ser atribuídas.
 - **`bind`:** sem `ipm.user.bind`, quem pede só atribui ou retira roles que ele mesmo tem, como o
   RBAC do Kubernetes (referência de mercado, decisão 0071).
 """
 
 from collections.abc import Iterable
 from enum import StrEnum
+
+from ipm_user.common.contracts import generated
 
 
 class OrganizationAccess(StrEnum):
@@ -30,9 +33,13 @@ class AccessCheckError(Exception):
         self.retryable = retryable
 
 
-def outside_catalog(roles: Iterable[str], catalog: Iterable[str]) -> list[str]:
-    """Roles pedidas que o Project Grant da Organization não libera, em ordem alfabética."""
-    allowed = set(catalog)
+def outside_catalog(roles: Iterable[str]) -> list[str]:
+    """Roles pedidas fora do catálogo `grantableRole`, em ordem alfabética.
+
+    O catálogo é contrato (`schemas/ipm/user/definitions`, decisão 0081), e não configuração: é o
+    mesmo que o Manager da Organization grava no Project Grant de cada Organization.
+    """
+    allowed = {role.value for role in generated.GrantableRole}
     return sorted(role for role in set(roles) if role not in allowed)
 
 

@@ -7,7 +7,7 @@ Nome da variável: `IPM_ORGANIZATION_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo
 não acessa o SSOT e só **lê** o Zitadel (conta `ipm-organization-observer`, somente leitura).
 """
 
-from ipm_organization.common.identity import IdentitySettings
+from ipm_organization.common.identity import IdentitySettings as CommonIdentitySettings
 from ipm_organization.common.settings import (
     HealthSettings,
     RoleSettings,
@@ -16,6 +16,12 @@ from ipm_organization.common.settings import (
     missing_variables,
     role_config,
 )
+
+
+class IdentitySettings(CommonIdentitySettings):
+    project_id: str | None = None
+    """ID do projeto `roles-ipm` (organização `core`): o do Project Grant de cada Organization
+    (decisão 0081). Sem default."""
 
 
 class PartitionSettings(Section):
@@ -51,5 +57,6 @@ def missing_required(settings: OrganizationObserverSettings) -> list[str]:
             "MESSAGING_URL": settings.messaging.url is not None,
             "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
+            "IDENTITY_PROJECT_ID": bool(settings.identity.project_id),
         },
     )

@@ -196,3 +196,41 @@ def test_action_id_is_deterministic_and_changes_with_the_observation() -> None:
     assert first == action_id("u1", 1, "create", "obs-a")
     assert first != action_id("u1", 1, "create", "obs-b")
     assert first == "u1.1.create.obs-a"
+
+
+# ------------------------------------------------------------- preparo para os usuários (0081)
+
+USER_ACCESS = {
+    "grantRoles": ["ipm.user.get"],
+    "userExecutorAccountId": "executor",
+    "userObserverAccountId": "observer",
+}
+OBSERVED_READY = {
+    "grantRoles": ["ipm.user.get"],
+    "administrators": [
+        {"accountId": "executor", "roles": ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"]},
+        {"accountId": "observer", "roles": ["ORG_OWNER_VIEWER"]},
+    ],
+}
+
+
+def test_a_missing_grant_is_drift_of_the_user_access() -> None:
+    wanted = replace(desired(), user_access=USER_ACCESS)
+    seen = replace(observed("present", access="granted"), user_access={"administrators": []})
+    decision = decide(state(wanted, seen), NOW, SETTINGS)
+    assert decision is not None
+    assert (decision.operation, decision.reason, decision.fields) == (
+        "update",
+        "Drift",
+        ("userAccess",),
+    )
+    ready = replace(seen, user_access=OBSERVED_READY)
+    assert operation_of(state(wanted, ready)) is None
+
+
+def test_the_user_access_is_not_reconciled_without_access_or_before_0081() -> None:
+    unready = replace(observed("present", access="revoked"), user_access={"administrators": []})
+    revoked = replace(desired(access="revoked"), user_access=USER_ACCESS)
+    assert operation_of(state(revoked, unready)) is None
+    legacy = observed("present", access="granted")  # sem `userAccess` em nenhum dos dois
+    assert operation_of(state(desired(), legacy)) is None

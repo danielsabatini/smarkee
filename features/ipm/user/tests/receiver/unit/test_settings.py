@@ -24,7 +24,7 @@ def test_defaults_have_no_secrets() -> None:
     assert settings.database.password is None
     assert settings.messaging.password is None
     assert settings.auth.audience is None
-    assert settings.api.user_quota == 5 and settings.api.grantable_roles == []
+    assert settings.api.user_quota == 5
 
 
 def test_environment_variables_follow_the_prefix_section_and_field_pattern(

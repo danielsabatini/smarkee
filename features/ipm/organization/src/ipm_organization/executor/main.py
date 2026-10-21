@@ -15,6 +15,7 @@ from ipm_organization.common.runtime import role_runtime
 from ipm_organization.executor.actions.organization_actions import Drivers
 from ipm_organization.executor.drivers.metadata import MetadataDriver
 from ipm_organization.executor.drivers.organization import OrganizationDriver
+from ipm_organization.executor.drivers.user_access import UserAccessDriver
 from ipm_organization.executor.engine.executor import Executor
 from ipm_organization.executor.provider.identity import IdentityConnection
 from ipm_organization.executor.settings import OrganizationExecutorSettings, missing_required
@@ -32,6 +33,7 @@ async def run(settings: OrganizationExecutorSettings) -> int:
             Drivers(
                 organizations=OrganizationDriver(connection),
                 metadata=MetadataDriver(connection, "organizations"),
+                user_access=UserAccessDriver(connection, _project_id(settings)),
             ),
             StreamPublisher(runtime.stream),
             DirectStateReader(runtime.stream),
@@ -45,6 +47,12 @@ async def run(settings: OrganizationExecutorSettings) -> int:
             )
         logger.info("organization executor started")
         return await runtime.serve(health_port=settings.health.port)
+
+
+def _project_id(settings: OrganizationExecutorSettings) -> str:
+    project_id = settings.identity.project_id
+    assert project_id  # noqa: S101 (garantido por `missing_required`)
+    return project_id
 
 
 def main() -> None:

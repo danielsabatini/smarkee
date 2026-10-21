@@ -162,7 +162,8 @@ A `action` sai em `reconciler.action.ipm.organization.<resourceId>.<operação>`
 ## 6. Executor (`ipm-organization-executor`)
 
 Único componente que escreve a Organization no Zitadel, com a conta `ipm-organization-executor` (`IAM_ORG_MANAGER`, de instância).
-**Escreve só a organização**: não cria usuários, não autoriza o dono e não cria Project Grant (decisão 0038). Consome todas as
+Escreve a organização e o preparo dela para os usuários (Project Grant e papéis do `ipm/user`, decisão 0081); não cria
+usuários nem autoriza o dono. Consome todas as
 partições do `ACTION` (um consumer e um laço por partição, `max_ack_pending = 1`: uma ação por vez em cada recurso).
 
 Antes de executar, cada `action` passa pela validação da mensagem (emissor `reconciler`, tipo, módulo, versão `MAJOR`,

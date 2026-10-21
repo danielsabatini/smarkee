@@ -22,15 +22,6 @@ from ipm_user.receiver.settings import ApiSettings
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
 ORG = "org-1"
 OTHER_ORG = "org-2"
-CATALOG = [
-    "ipm.organization.get",
-    "ipm.user.bind",
-    "ipm.user.create",
-    "ipm.user.delete",
-    "ipm.user.get",
-    "ipm.user.list",
-    "ipm.user.update",
-]
 USER_ROLES = frozenset(
     {"ipm.user.create", "ipm.user.get", "ipm.user.list", "ipm.user.update", "ipm.user.delete"}
 )
@@ -182,7 +173,7 @@ def dependencies(
 ) -> Dependencies:
     counter = itertools.count(1)
     return Dependencies(
-        settings=ApiSettings(user_quota=3, grantable_roles=CATALOG),
+        settings=ApiSettings(user_quota=3),
         authenticator=FakeAuthenticator(),
         repository=repository,
         organizations=organizations,

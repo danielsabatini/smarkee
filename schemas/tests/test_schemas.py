@@ -387,7 +387,15 @@ def test_resource_view_carries_every_observed_field(resource_directory: Path) ->
     Sem isso, um campo novo no `observed` (como o `deletionProtection`, decisão 0074) faz a leitura
     do recurso falhar na validação da resposta.
     """
-    observed = set(_load(resource_directory / "observed.v1.schema.json")["properties"])
+    # Um campo marcado `x-resourceView: omitted` fica fora da visão de propósito (o Receiver monta
+    # o `observed` da visão campo a campo), como o `userAccess` da Organization (decisão 0081).
+    observed = {
+        name
+        for name, field in _load(resource_directory / "observed.v1.schema.json")[
+            "properties"
+        ].items()
+        if field.get("x-resourceView") != "omitted"
+    }
     view = _load(resource_directory / "resource.v1.schema.json")["properties"]["observed"]
     if view.get("$ref") == "observed.v1.schema.json":
         return  # a visão é o próprio `observed`

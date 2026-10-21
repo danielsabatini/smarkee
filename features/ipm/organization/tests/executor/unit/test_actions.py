@@ -67,8 +67,72 @@ class FakeMetadata:
         self.values[(owner_id, key)] = value
 
 
-def drivers(writer: FakeOrganizationDriver, metadata: FakeMetadata | None = None) -> Drivers:
-    return Drivers(organizations=writer, metadata=metadata or FakeMetadata())
+@dataclass
+class FakeUserAccess:
+    """Grant e papéis em memória; `writes` registra cada escrita, na ordem."""
+
+    grant: list[str] | None = None
+    administrators: dict[tuple[str, str], frozenset[str]] = field(default_factory=lambda: {})
+    writes: list[tuple[str, ...]] = field(default_factory=lambda: [])
+    grant_created_elsewhere: bool = False
+
+    def organization_resource(self, organization_id: str) -> dict[str, Any]:
+        return {"organizationId": organization_id}
+
+    def grant_resource(self, organization_id: str) -> dict[str, Any]:
+        return {"projectGrant": {"projectId": "roles-ipm", "organizationId": organization_id}}
+
+    @staticmethod
+    def _scope(resource: dict[str, Any]) -> str:
+        return "grant" if "projectGrant" in resource else "organization"
+
+    async def grant_roles(self, organization_id: str) -> list[str] | None:
+        return None if self.grant is None else sorted(self.grant)
+
+    async def create_grant(self, organization_id: str, roles: list[str]) -> bool:
+        if self.grant_created_elsewhere:
+            self.grant = ["ipm.user.get"]
+            return False  # 409: outra tentativa criou antes
+        self.writes.append(("create_grant", *roles))
+        self.grant = list(roles)
+        return True
+
+    async def update_grant(self, organization_id: str, roles: list[str]) -> None:
+        self.writes.append(("update_grant", *roles))
+        self.grant = list(roles)
+
+    async def administrator_roles(
+        self, account_id: str, resource: dict[str, Any]
+    ) -> frozenset[str] | None:
+        return self.administrators.get((account_id, self._scope(resource)))
+
+    async def create_administrator(
+        self, account_id: str, resource: dict[str, Any], roles: list[str]
+    ) -> bool:
+        key = (account_id, self._scope(resource))
+        if key in self.administrators:
+            return False
+        self.writes.append(("create_administrator", account_id, self._scope(resource), *roles))
+        self.administrators[key] = frozenset(roles)
+        return True
+
+    async def update_administrator(
+        self, account_id: str, resource: dict[str, Any], roles: list[str]
+    ) -> None:
+        self.writes.append(("update_administrator", account_id, self._scope(resource), *roles))
+        self.administrators[(account_id, self._scope(resource))] = frozenset(roles)
+
+
+def drivers(
+    writer: FakeOrganizationDriver,
+    metadata: FakeMetadata | None = None,
+    user_access: FakeUserAccess | None = None,
+) -> Drivers:
+    return Drivers(
+        organizations=writer,
+        metadata=metadata or FakeMetadata(),
+        user_access=user_access or FakeUserAccess(),
+    )
 
 
 async def test_create_makes_an_active_organization_with_the_resource_id() -> None:
@@ -206,3 +270,97 @@ async def test_delete_does_not_write_metadata() -> None:
     metadata = FakeMetadata()
     await execute("delete", "o-1", {"lifecycle": "absent"}, drivers(writer, metadata))
     assert metadata.values == {}
+
+
+# ------------------------------------------------------------- preparo para os usuários (0081)
+
+CATALOG = ["ipm.organization.get", "ipm.user.create", "ipm.user.get"]
+USER_ACCESS = {
+    "grantRoles": CATALOG,
+    "userExecutorAccountId": "user-executor",
+    "userObserverAccountId": "user-observer",
+}
+
+
+def prepared(**overrides: Any) -> dict[str, Any]:
+    return {"name": "acme", "platformAccess": "granted", "userAccess": USER_ACCESS, **overrides}
+
+
+async def test_create_prepares_the_grant_before_the_roles_of_the_user_accounts() -> None:
+    access = FakeUserAccess()
+    await execute("create", "org-1", prepared(), drivers(FakeOrganizationDriver(), None, access))
+    assert access.writes == [
+        ("create_grant", *CATALOG),
+        ("create_administrator", "user-executor", "organization", "ORG_USER_CREATOR"),
+        ("create_administrator", "user-executor", "grant", "PROJECT_GRANT_OWNER"),
+        ("create_administrator", "user-observer", "organization", "ORG_OWNER_VIEWER"),
+    ]
+
+
+async def test_a_prepared_organization_is_not_written_again() -> None:
+    access = FakeUserAccess(
+        grant=list(reversed(CATALOG)),
+        administrators={
+            ("user-executor", "organization"): frozenset({"ORG_USER_CREATOR"}),
+            ("user-executor", "grant"): frozenset({"PROJECT_GRANT_OWNER"}),
+            ("user-observer", "organization"): frozenset({"ORG_OWNER_VIEWER", "ORG_OWNER"}),
+        },
+    )
+    writer = FakeOrganizationDriver()
+    writer.organizations["org-1"] = IdentityOrganization("acme", active=True)
+    await execute("update", "org-1", prepared(), drivers(writer, None, access))
+    assert access.writes == []
+
+
+async def test_a_different_grant_gets_exactly_the_catalog() -> None:
+    access = FakeUserAccess(grant=["ipm.organization.get", "ipm.organization.delete"])
+    writer = FakeOrganizationDriver()
+    writer.organizations["org-1"] = IdentityOrganization("acme", active=True)
+    await execute("update", "org-1", prepared(), drivers(writer, None, access))
+    assert access.writes[0] == ("update_grant", *CATALOG)
+
+
+async def test_a_grant_created_by_another_attempt_is_updated() -> None:
+    access = FakeUserAccess(grant_created_elsewhere=True)
+    await execute("create", "org-1", prepared(), drivers(FakeOrganizationDriver(), None, access))
+    assert access.writes[0] == ("update_grant", *CATALOG)
+    assert access.grant == CATALOG
+
+
+async def test_a_missing_role_is_added_without_dropping_the_others() -> None:
+    """`UpdateAdministrator` substitui o conjunto: vai a união com o que a conta já tem."""
+    access = FakeUserAccess(
+        grant=CATALOG,
+        administrators={
+            ("user-executor", "organization"): frozenset({"ORG_USER_MANAGER"}),
+            ("user-executor", "grant"): frozenset({"PROJECT_GRANT_OWNER"}),
+            ("user-observer", "organization"): frozenset({"ORG_OWNER_VIEWER"}),
+        },
+    )
+    writer = FakeOrganizationDriver()
+    writer.organizations["org-1"] = IdentityOrganization("acme", active=True)
+    await execute("update", "org-1", prepared(), drivers(writer, None, access))
+    assert access.writes == [
+        (
+            "update_administrator",
+            "user-executor",
+            "organization",
+            "ORG_USER_CREATOR",
+            "ORG_USER_MANAGER",
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "desired",
+    [
+        prepared(platformAccess="revoked"),
+        {"name": "acme", "platformAccess": "granted"},  # `desired` anterior à decisão 0081
+    ],
+)
+async def test_without_access_or_without_user_access_nothing_is_prepared(
+    desired: dict[str, Any],
+) -> None:
+    access = FakeUserAccess()
+    await execute("create", "org-1", desired, drivers(FakeOrganizationDriver(), None, access))
+    assert access.writes == []

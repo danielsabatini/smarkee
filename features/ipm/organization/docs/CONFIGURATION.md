@@ -147,6 +147,8 @@ Entrypoint do Manager de Organization (`ipm-organization-manager`, decisões 001
 - `IPM_ORGANIZATION_MANAGER_DATABASE_NAME`
 - `IPM_ORGANIZATION_MANAGER_DATABASE_USER`
 - `IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD`
+- `IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_EXECUTOR_ACCOUNT_ID`
+- `IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_OBSERVER_ACCOUNT_ID`
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
@@ -162,6 +164,8 @@ Entrypoint do Manager de Organization (`ipm-organization-manager`, decisões 001
 | `messaging.password` | `IPM_ORGANIZATION_MANAGER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
 | `loop.failure_limit` | `IPM_ORGANIZATION_MANAGER_LOOP_FAILURE_LIMIT` | `--loop.failure_limit` | `int` | `5` | Falhas por geração antes de `Failed` (`schemas/ipm/organization/desired`, `failureLimit`). |
 | `loop.progress_deadline_seconds` | `IPM_ORGANIZATION_MANAGER_LOOP_PROGRESS_DEADLINE_SECONDS` | `--loop.progress_deadline_seconds` | `int` | `300` | Prazo para a geração convergir antes de `Failed` com `ProgressDeadlineExceeded` (`schemas/ipm/organization/desired`, `progressDeadline`; decisão 0078). |
+| `user_access.user_executor_account_id` | `IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_EXECUTOR_ACCOUNT_ID` | `--user_access.user_executor_account_id` | `str \| None` | — | Obrigatória. Conta `ipm-user-executor` (organização `core`). |
+| `user_access.user_observer_account_id` | `IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_OBSERVER_ACCOUNT_ID` | `--user_access.user_observer_account_id` | `str \| None` | — | Obrigatória. Conta `ipm-user-observer` (organização `core`). |
 | `health.port` | `IPM_ORGANIZATION_MANAGER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 
 **Definido no `config.toml` de dev:**
@@ -328,6 +332,7 @@ Entrypoint do Observer de Organization (`ipm-organization-observer`, decisões 0
 - `IPM_ORGANIZATION_OBSERVER_MESSAGING_URL`
 - `IPM_ORGANIZATION_OBSERVER_MESSAGING_USER`
 - `IPM_ORGANIZATION_OBSERVER_MESSAGING_PASSWORD`
+- `IPM_ORGANIZATION_OBSERVER_IDENTITY_PROJECT_ID`
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
@@ -342,6 +347,7 @@ Entrypoint do Observer de Organization (`ipm-organization-observer`, decisões 0
 | `identity.issuer` | `IPM_ORGANIZATION_OBSERVER_IDENTITY_ISSUER` | `--identity.issuer` | `str` | `'http://localhost:8080'` | Audience da assertion JWT da conta de serviço. |
 | `identity.key_file` | `IPM_ORGANIZATION_OBSERVER_IDENTITY_KEY_FILE` | `--identity.key_file` | `str` | `'/run/secrets/zitadel-key.json'` | Chave JSON da conta de serviço do papel (montada só no contêiner dele). |
 | `identity.timeout_seconds` | `IPM_ORGANIZATION_OBSERVER_IDENTITY_TIMEOUT_SECONDS` | `--identity.timeout_seconds` | `float` | `5.0` |  |
+| `identity.project_id` | `IPM_ORGANIZATION_OBSERVER_IDENTITY_PROJECT_ID` | `--identity.project_id` | `str \| None` | — | Obrigatória. ID do projeto `roles-ipm` (organização `core`): o do Project Grant de cada Organization (decisão 0081). Sem default. |
 | `partition.index` | `IPM_ORGANIZATION_OBSERVER_PARTITION_INDEX` | `--partition.index` | `int` | `0` |  |
 | `partition.count` | `IPM_ORGANIZATION_OBSERVER_PARTITION_COUNT` | `--partition.count` | `int` | `1` | Partição por `resourceId`: a instância observa só `hash mod count == index`. |
 | `health.port` | `IPM_ORGANIZATION_OBSERVER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
@@ -393,6 +399,7 @@ Entrypoint do Executor de Organization (`ipm-organization-executor`, decisões 0
 - `IPM_ORGANIZATION_EXECUTOR_MESSAGING_URL`
 - `IPM_ORGANIZATION_EXECUTOR_MESSAGING_USER`
 - `IPM_ORGANIZATION_EXECUTOR_MESSAGING_PASSWORD`
+- `IPM_ORGANIZATION_EXECUTOR_IDENTITY_PROJECT_ID`
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
@@ -406,6 +413,7 @@ Entrypoint do Executor de Organization (`ipm-organization-executor`, decisões 0
 | `identity.issuer` | `IPM_ORGANIZATION_EXECUTOR_IDENTITY_ISSUER` | `--identity.issuer` | `str` | `'http://localhost:8080'` | Audience da assertion JWT da conta de serviço. |
 | `identity.key_file` | `IPM_ORGANIZATION_EXECUTOR_IDENTITY_KEY_FILE` | `--identity.key_file` | `str` | `'/run/secrets/zitadel-key.json'` | Chave JSON da conta de serviço do papel (montada só no contêiner dele). |
 | `identity.timeout_seconds` | `IPM_ORGANIZATION_EXECUTOR_IDENTITY_TIMEOUT_SECONDS` | `--identity.timeout_seconds` | `float` | `10.0` |  |
+| `identity.project_id` | `IPM_ORGANIZATION_EXECUTOR_IDENTITY_PROJECT_ID` | `--identity.project_id` | `str \| None` | — | Obrigatória. ID do projeto `roles-ipm` (organização `core`): o do Project Grant de cada Organization (decisão 0081). Sem default. |
 | `partition.count` | `IPM_ORGANIZATION_EXECUTOR_PARTITION_COUNT` | `--partition.count` | `int` | `4` | Partições do Stream `ACTION` (bootstrap do messaging): um consumer e um laço por partição. |
 | `health.port` | `IPM_ORGANIZATION_EXECUTOR_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 

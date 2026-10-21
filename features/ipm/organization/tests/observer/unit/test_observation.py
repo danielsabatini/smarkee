@@ -28,8 +28,43 @@ class FakeMetadata:
         return self._value if key == "deletionProtection" else None
 
 
-def drivers(reader: FakeReader, metadata: FakeMetadata | None = None) -> Drivers:
-    return Drivers(organizations=reader, metadata=metadata or FakeMetadata())
+class FakeUserAccess:
+    def __init__(
+        self,
+        grant: list[str] | None = None,
+        held: dict[str, frozenset[str]] | None = None,
+        error: ProviderError | None = None,
+    ) -> None:
+        self._grant = grant
+        self._held = held or {}
+        self._error = error
+        self.with_grant: bool | None = None
+
+    async def grant_roles(self, organization_id: str) -> list[str] | None:
+        if self._error:
+            raise self._error
+        return self._grant
+
+    async def administrators(
+        self, organization_id: str, *, with_grant: bool
+    ) -> dict[str, frozenset[str]]:
+        self.with_grant = with_grant
+        return self._held
+
+
+def drivers(
+    reader: FakeReader,
+    metadata: FakeMetadata | None = None,
+    user_access: FakeUserAccess | None = None,
+) -> Drivers:
+    return Drivers(
+        organizations=reader,
+        metadata=metadata or FakeMetadata(),
+        user_access=user_access or FakeUserAccess(),
+    )
+
+
+NO_USER_ACCESS: dict[str, list[object]] = {"administrators": []}
 
 
 def organization(state: str = "ORGANIZATION_STATE_ACTIVE") -> IdentityOrganization:
@@ -49,6 +84,7 @@ async def test_an_active_organization_is_granted() -> None:
         "platformAccess": "granted",
         "organizationState": "active",
         "deletionProtection": True,
+        "userAccess": NO_USER_ACCESS,
     }
 
 
@@ -59,6 +95,7 @@ async def test_an_inactive_organization_is_revoked() -> None:
         "platformAccess": "revoked",
         "organizationState": "inactive",
         "deletionProtection": True,
+        "userAccess": NO_USER_ACCESS,
     }
 
 
@@ -89,6 +126,39 @@ async def test_missing_or_unexpected_metadata_is_left_out_as_a_divergence() -> N
 async def test_a_metadata_read_failure_is_unknown() -> None:
     failing = FakeMetadata(error=ProviderError("HTTP 503"))
     result = await observe(drivers(FakeReader(organization()), failing), "o-1")
+    assert (result.presence, result.data) == ("unknown", {})
+
+
+async def test_the_grant_and_the_roles_of_the_user_accounts_are_observed() -> None:
+    """Decisão 0081: o Grant e os papéis, com as contas em ordem e os papéis em ordem."""
+    access = FakeUserAccess(
+        grant=["ipm.user.get", "ipm.organization.get"],
+        held={
+            "b-observer": frozenset({"ORG_OWNER_VIEWER"}),
+            "a-executor": frozenset({"PROJECT_GRANT_OWNER", "ORG_USER_CREATOR"}),
+        },
+    )
+    result = await observe(drivers(FakeReader(organization()), None, access), "o-1")
+    assert result.data["userAccess"] == {
+        "grantRoles": ["ipm.user.get", "ipm.organization.get"],
+        "administrators": [
+            {"accountId": "a-executor", "roles": ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"]},
+            {"accountId": "b-observer", "roles": ["ORG_OWNER_VIEWER"]},
+        ],
+    }
+    assert access.with_grant is True
+
+
+async def test_without_a_grant_only_the_organization_roles_are_read() -> None:
+    access = FakeUserAccess(grant=None)
+    result = await observe(drivers(FakeReader(organization()), None, access), "o-1")
+    assert result.data["userAccess"] == NO_USER_ACCESS  # ausente ≠ vazio: sem `grantRoles`
+    assert access.with_grant is False
+
+
+async def test_a_user_access_read_failure_is_unknown() -> None:
+    access = FakeUserAccess(error=ProviderError("HTTP 503"))
+    result = await observe(drivers(FakeReader(organization()), None, access), "o-1")
     assert (result.presence, result.data) == ("unknown", {})
 
 

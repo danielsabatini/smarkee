@@ -5,6 +5,7 @@ from collections.abc import Callable
 import httpx
 import pytest
 
+from ipm_user.common.contracts import generated
 from ipm_user.receiver.domain.access import (
     AccessCheckError,
     OrganizationAccess,
@@ -16,8 +17,11 @@ from ipm_user.receiver.transport.organizations import OrganizationPeer
 
 
 def test_outside_catalog_lists_the_refused_roles_sorted() -> None:
-    assert outside_catalog(["b.c.d", "a.b.c", "a.b.c"], ["a.b.c"]) == ["b.c.d"]
-    assert outside_catalog([], []) == []
+    """O catálogo é o enum `grantableRole` do contrato (decisão 0081), e não configuração."""
+    refused = ["ipm.user.get", "ipm.organization.delete", "ipm.user.admin", "ipm.user.admin"]
+    assert outside_catalog(refused) == ["ipm.organization.delete", "ipm.user.admin"]
+    assert outside_catalog([role.value for role in generated.GrantableRole]) == []
+    assert outside_catalog([]) == []
 
 
 def test_binding_without_bind_only_touches_roles_the_requester_has() -> None:

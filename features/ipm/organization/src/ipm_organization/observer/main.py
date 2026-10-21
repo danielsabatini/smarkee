@@ -22,6 +22,7 @@ from ipm_organization.common.runtime import role_runtime
 from ipm_organization.observer.domain.observation import Drivers
 from ipm_organization.observer.drivers.metadata import MetadataDriver
 from ipm_organization.observer.drivers.organization import OrganizationDriver
+from ipm_organization.observer.drivers.user_access import UserAccessDriver
 from ipm_organization.observer.engine.observer import Observer, periodic_observation
 from ipm_organization.observer.provider.identity import IdentityConnection
 from ipm_organization.observer.settings import OrganizationObserverSettings, missing_required
@@ -39,6 +40,7 @@ async def run(settings: OrganizationObserverSettings) -> int:
             Drivers(
                 organizations=OrganizationDriver(connection),
                 metadata=MetadataDriver(connection, "organizations"),
+                user_access=UserAccessDriver(connection, _project_id(settings)),
             ),
             StreamPublisher(runtime.stream),
             settings,
@@ -70,6 +72,12 @@ async def run(settings: OrganizationObserverSettings) -> int:
             },
         )
         return await runtime.serve(health_port=settings.health.port)
+
+
+def _project_id(settings: OrganizationObserverSettings) -> str:
+    project_id = settings.identity.project_id
+    assert project_id  # noqa: S101 (garantido por `missing_required`)
+    return project_id
 
 
 def main() -> None:

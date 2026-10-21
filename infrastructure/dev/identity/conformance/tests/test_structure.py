@@ -350,7 +350,7 @@ def test_executor_and_observer_have_roles_only_in_register(
     assert in_register.get("sum-service-observer") == {"ORG_OWNER_VIEWER"}
     assert "sum-service-executor" not in in_register
     # As contas da Organization têm só papel de instância (abaixo), nenhum na `register`; as do
-    # User só têm papéis nas organizações de cliente, dados pelo operador (decisão 0077).
+    # User só têm papéis nas organizações de cliente, dados pelo loop da Organization (0081).
     assert not {n for n in in_register if n.startswith(("ipm-organization-", "ipm-user-"))}
     in_core = organization_administrators(zitadel, orgs["core"])
     assert not {
@@ -494,7 +494,17 @@ EXPECTED_AUDIENCE = {
     "ipm.user": ("IPM_USER_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
 }
 # Um projeto de roles só, o do próprio módulo (o Executor e o Observer do User, decisão 0077).
-EXPECTED_PROJECT_ID = {"ipm.user": ("IPM_USER_IDENTITY_PROJECT_ID", "roles-ipm")}
+EXPECTED_PROJECT_ID = {
+    "ipm.user": ("IPM_USER_IDENTITY_PROJECT_ID", "roles-ipm"),
+    "ipm.organization": ("IPM_ORGANIZATION_IDENTITY_PROJECT_ID", "roles-ipm"),
+}
+# Contas do `ipm/user` que o Manager da Organization prepara em cada Organization (decisão 0081).
+EXPECTED_ACCOUNT_IDS = {
+    "ipm.organization": {
+        "IPM_ORGANIZATION_USER_EXECUTOR_ACCOUNT_ID": "ipm-user-executor",
+        "IPM_ORGANIZATION_USER_OBSERVER_ACCOUNT_ID": "ipm-user-observer",
+    }
+}
 EXPECTED_REGISTER = {
     "core.account": "CORE_ACCOUNT_IDENTITY_REGISTER_ORGANIZATION_ID",
     "sum.service": "SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID",
@@ -555,6 +565,12 @@ def test_the_ids_in_the_env_files_match_the_instance(
                 drifts, "clients/cli/.env", variable, cli.get(variable), project_ids[project]
             )
 
+    accounts = {
+        str(u["username"]): str(u["userId"])
+        for u in zitadel.search(
+            "/v2/users", {"queries": [{"organizationIdQuery": {"organizationId": orgs["core"]}}]}
+        )
+    }
     for feature in ("core.account", "sum.service", "ipm.organization", "ipm.user"):
         if not ENV_FILES[feature].exists():
             continue
@@ -568,6 +584,10 @@ def test_the_ids_in_the_env_files_match_the_instance(
         if feature in EXPECTED_PROJECT_ID:
             variable, project = EXPECTED_PROJECT_ID[feature]
             assert_same(drifts, where, variable, values.get(variable), project_ids[project])
+        for variable, account in EXPECTED_ACCOUNT_IDS.get(feature, {}).items():
+            assert_same(
+                drifts, where, variable, values.get(variable), accounts.get(account, "(ausente)")
+            )
         if feature in EXPECTED_PROJECT_IDS:
             variable = EXPECTED_PROJECT_IDS[feature]
             configured: dict[str, str] = json.loads(values.get(variable, "{}"))

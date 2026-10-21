@@ -3,7 +3,7 @@
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -119,9 +119,18 @@ class FakeMetadata:
         return None
 
 
+class FakeUserAccess:
+    """Sem `userAccess` no `desired` destes testes: nenhuma chamada chega aqui."""
+
+    def __getattr__(self, name: str) -> Any:
+        raise AssertionError(f"chamada inesperada ao preparo para os usuários: {name}")
+
+
 def build(writer: FakeOrganizationDriver, state: FakeState, publisher: FakePublisher) -> Executor:
     return Executor(
-        Drivers(organizations=writer, metadata=FakeMetadata()),
+        Drivers(
+            organizations=writer, metadata=FakeMetadata(), user_access=cast(Any, FakeUserAccess())
+        ),
         publisher,
         state,
         clock=lambda: NOW,

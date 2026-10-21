@@ -4,7 +4,8 @@ Precedência: CLI → ambiente → config.toml → segredos → default (`common
 Nome da variável: `IPM_ORGANIZATION_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
 `IPM_ORGANIZATION_EXECUTOR_MESSAGING_URL`
 (`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Executor
-**não acessa o SSOT** e escreve só a organização no Zitadel.
+**não acessa o SSOT** e escreve no Zitadel só a organização e o preparo dela para os usuários
+(decisão 0081).
 """
 
 from ipm_organization.common.identity import IdentitySettings as CommonIdentitySettings
@@ -22,6 +23,9 @@ class IdentitySettings(CommonIdentitySettings):
     """Zitadel do Executor: conta `ipm-organization-executor` (`IAM_ORG_MANAGER`, de instância)."""
 
     timeout_seconds: float = 10.0
+    project_id: str | None = None
+    """ID do projeto `roles-ipm` (organização `core`): o do Project Grant de cada Organization
+    (decisão 0081). Sem default."""
 
 
 class PartitionSettings(Section):
@@ -46,5 +50,6 @@ def missing_required(settings: OrganizationExecutorSettings) -> list[str]:
             "MESSAGING_URL": settings.messaging.url is not None,
             "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
+            "IDENTITY_PROJECT_ID": bool(settings.identity.project_id),
         },
     )

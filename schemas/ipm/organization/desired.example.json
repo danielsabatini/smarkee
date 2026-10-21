@@ -4,5 +4,20 @@
   "name": "acme",
   "platformAccess": "granted",
   "deletionProtection": true,
+  "userAccess": {
+    "grantRoles": [
+      "ipm.organization.get",
+      "ipm.organization.list",
+      "ipm.organization.update",
+      "ipm.user.bind",
+      "ipm.user.create",
+      "ipm.user.delete",
+      "ipm.user.get",
+      "ipm.user.list",
+      "ipm.user.update"
+    ],
+    "userExecutorAccountId": "394397791373230101",
+    "userObserverAccountId": "394397791373230102"
+  },
   "ownerAccountId": "394397791373230085"
 }

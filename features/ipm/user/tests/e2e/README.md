@@ -4,7 +4,7 @@ Esta suíte é um **teste**, e não um componente (decisão 0017).
 
 Testes **black-box** do contrato de `ipm.user` (decisões `0063` e `0077`): exercitam o gateway, o transporte (NATS) e o SSOT pela rede, e validam as mensagens contra os JSON Schemas de `schemas/`. **Não importam o código dos componentes**.
 
-Requer a stack de dev no ar (`infrastructure/dev`) e uma **Organization preparada pelo operador**: o Project Grant de `roles-ipm` para ela e os papéis do Executor (`ORG_USER_CREATOR` e `PROJECT_GRANT_OWNER`) e do Observer (`ORG_OWNER_VIEWER`) nela (decisão 0077, lacuna declarada em `docs/IMPLEMENTATION-STATUS.md`; passo a passo em `infrastructure/dev/README.md`). Configuração, por variável de ambiente:
+Requer a stack de dev no ar (`infrastructure/dev`) e uma Organization `Ready`: o loop da `ipm/organization` já a prepara (Project Grant de `roles-ipm` e os papéis do Executor e do Observer do User, decisão 0081). Configuração, por variável de ambiente:
 
 | Variável | Padrão | Uso |
 |---|---|---|

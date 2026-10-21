@@ -201,7 +201,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     def check_roles(
         principal: Principal, standing: Standing, current: list[str], requested: list[str]
     ) -> None:
-        rejected = outside_catalog(requested, deps.settings.grantable_roles)
+        rejected = outside_catalog(requested)
         if rejected:
             raise bad_request(
                 f"Roles não liberadas para a Organization: {', '.join(rejected)}.", field="roles"

@@ -440,6 +440,22 @@ class UserRequestedDeleteData(ContractModel):
     """
 
 
+class GrantableRole(StrEnum):
+    """
+    Catálogo das roles que uma Organization pode delegar aos usuários dela (decisão 0081): o Project Grant de cada Organization tem exatamente estas, e o Receiver do User recusa as demais antes do loop. Fonte única, versionada com o código e igual em todos os ambientes; não há operador nem criação e remoção de Organization aqui. Mudar o catálogo é mudar este enum, regerar os modelos do ipm/user e do ipm/organization e implantar: o Manager da Organization faz o rollout do Grant na partida.
+    """
+
+    ipm_organization_get = "ipm.organization.get"
+    ipm_organization_list = "ipm.organization.list"
+    ipm_organization_update = "ipm.organization.update"
+    ipm_user_bind = "ipm.user.bind"
+    ipm_user_create = "ipm.user.create"
+    ipm_user_delete = "ipm.user.delete"
+    ipm_user_get = "ipm.user.get"
+    ipm_user_list = "ipm.user.list"
+    ipm_user_update = "ipm.user.update"
+
+
 class MessageEnvelope(ContractModel):
     """
     Metadados de transporte e rastreamento de toda mensagem (MESSAGING.md, Campos do envelope). O conteúdo de data é validado pelo contrato do messageType e do tipo de recurso. O tamanho de data é limitado a 256 KiB.
@@ -992,6 +1008,7 @@ class IpmUserContracts(
         | UserUpdateRequest
         | User
         | UserList
+        | GrantableRole
     ]
 ):
     root: Annotated[
@@ -1012,9 +1029,10 @@ class IpmUserContracts(
         | UserCreateRequest
         | UserUpdateRequest
         | User
-        | UserList,
+        | UserList
+        | GrantableRole,
         Field(title="IpmUserContracts"),
     ]
     """
-    Índice dos contratos usados pelos componentes de user do módulo ipm: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e de ipm/user/ deve estar listado (verificado pelos testes de contrato).
+    Índice dos contratos usados pelos componentes de user do módulo ipm: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e de ipm/user/ deve estar listado (verificado pelos testes de contrato). Uma definição que nenhum contrato referencia, mas que o código usa, entra pelo fragmento (#/$defs/...), como o catálogo grantableRole (decisão 0081).
     """

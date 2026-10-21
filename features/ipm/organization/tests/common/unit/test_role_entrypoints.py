@@ -51,6 +51,7 @@ class FakeRuntime:
         self.started: list[str] = []
         self.closers: list[Any] = []
         self.health_port: int | None = -1
+        self.rolled_out_kind: Any = None
 
     def start(self, name: str, work: Coroutine[Any, Any, None]) -> None:
         work.close()
@@ -93,12 +94,28 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
         monkeypatch.setattr(module, "role_runtime", fake_role_runtime)
     for module in (manager_main, receiver_main):
         monkeypatch.setattr(module, "open_pool", fake_open_pool)
+
+    async def fake_rollout(_pool: Any, kind: Any) -> int:
+        fake.started.append("user-access-rollout")
+        fake.rolled_out_kind = kind
+        return 0
+
+    monkeypatch.setattr(manager_main, "roll_out_user_access", fake_rollout)
+    for prefix in ("IPM_ORGANIZATION_OBSERVER_", "IPM_ORGANIZATION_EXECUTOR_"):
+        monkeypatch.setenv(f"{prefix}IDENTITY_PROJECT_ID", "roles-ipm")
+    for account in ("EXECUTOR", "OBSERVER"):
+        monkeypatch.setenv(
+            f"IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_{account}_ACCOUNT_ID", f"user-{account}"
+        )
     return fake
 
 
 async def test_the_manager_starts_one_task_per_consumer(runtime: FakeRuntime) -> None:
     assert await manager_main.run(OrganizationManagerSettings()) == 0
-    assert runtime.started == ["requested", "observed", "result"]
+    # O rollout do `userAccess` vem antes dos consumers (decisão 0081).
+    assert runtime.started == ["user-access-rollout", "requested", "observed", "result"]
+    rolled_out = runtime.rolled_out_kind.policy.rolled_out({"lifecycle": "present"})
+    assert rolled_out["userAccess"]["userExecutorAccountId"] == "user-EXECUTOR"
     assert len(runtime.closers) == 1
 
 

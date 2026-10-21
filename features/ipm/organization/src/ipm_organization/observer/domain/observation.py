@@ -23,12 +23,23 @@ class Metadata(Protocol):
     async def get_value(self, owner_id: str, key: str) -> str | None: ...
 
 
+class UserAccess(Protocol):
+    """Driver de leitura do Grant e dos papéis do `ipm/user` (`observer/drivers/user_access.py`)."""
+
+    async def grant_roles(self, organization_id: str) -> list[str] | None: ...
+
+    async def administrators(
+        self, organization_id: str, *, with_grant: bool
+    ) -> dict[str, frozenset[str]]: ...
+
+
 @dataclass(frozen=True, slots=True)
 class Drivers:
     """Os drivers de leitura que a observação usa: espelho dos drivers de escrita do Executor."""
 
     organizations: Organizations
     metadata: Metadata
+    user_access: UserAccess
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +62,7 @@ async def observe(drivers: Drivers, organization_id: str) -> Observation:
         if organization is None:
             return Observation("absent", {})
         protection = await drivers.metadata.get_value(organization_id, DELETION_PROTECTION_KEY)
+        user_access = await observe_user_access(drivers.user_access, organization_id)
     except ProviderError:
         return Observation("unknown", {})
     state = _STATE.get(organization.state)
@@ -63,8 +75,26 @@ async def observe(drivers: Drivers, organization_id: str) -> Observation:
             "platformAccess": "granted" if state == "active" else "revoked",
             "organizationState": state,
             **deletion_protection(protection),
+            "userAccess": user_access,
         },
     )
+
+
+async def observe_user_access(driver: UserAccess, organization_id: str) -> dict[str, Any]:
+    """O Project Grant e os papéis de administração, no formato do `observed` (decisão 0081).
+
+    Sem Grant, `grantRoles` fica fora (ausente ≠ vazio) e só os papéis na organização são lidos.
+    """
+    roles = await driver.grant_roles(organization_id)
+    held = await driver.administrators(organization_id, with_grant=roles is not None)
+    observed: dict[str, Any] = {
+        "administrators": [
+            {"accountId": account, "roles": sorted(held[account])} for account in sorted(held)
+        ]
+    }
+    if roles is not None:
+        observed["grantRoles"] = roles
+    return observed
 
 
 DELETION_PROTECTION_KEY = "deletionProtection"
