@@ -25,8 +25,13 @@ def observed_envelope(
     correlation_id: str,
     causation_id: str | None,
     now: datetime,
+    generation: int = 0,
 ) -> dict[str, Any]:
-    """Envelope validado do `observed`. Sai só se atende ao contrato."""
+    """Envelope validado do `observed`. Sai só se atende ao contrato.
+
+    `generation` é a geração conhecida antes da leitura (`observedGeneration`, decisões 0072 e
+    0080); sem `desired` lido ainda (`0`), o campo não vai.
+    """
     document: dict[str, Any] = {
         "messageId": message_id,
         "schemaVersion": SCHEMA_VERSION,
@@ -46,5 +51,7 @@ def observed_envelope(
     }
     if causation_id is not None:
         document["causationId"] = causation_id
+    if generation > 0:
+        document["observedGeneration"] = generation
     envelope = generated.MessageEnvelope.model_validate(document)
     return envelope.model_dump(by_alias=True, mode="json", exclude_none=True)

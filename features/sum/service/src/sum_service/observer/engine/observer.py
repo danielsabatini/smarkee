@@ -152,13 +152,16 @@ class Observer:
         watch = self._watches.get(resource_id)
         if watch is None:
             return  # sem o `desired`, o Observer não sabe o que observar
+        # A geração conhecida **antes** da leitura: a observação só confirma o que já era desejado
+        # quando o provedor foi lido (decisões 0072 e 0080).
+        generation = watch.generation
         with observation_context(resource_id, owner_id=watch.owner_account_id):
             observation: Observation = await observe(
                 self._drivers, watch.owner_account_id, watch.managed_roles
             )
             if _removal_converged(watch, observation):
                 watch.tombstone = True  # remoção convergida: deixa de observar
-            await self._publish(resource_id, watch, observation, causation_id)
+            await self._publish(resource_id, watch, observation, causation_id, generation)
 
     async def observe_all(self) -> None:
         """Rodada periódica: todas as ligações que ainda são observadas."""
@@ -167,7 +170,12 @@ class Observer:
                 await self.observe_resource(resource_id, causation_id=None)
 
     async def _publish(
-        self, resource_id: str, watch: Watch, observation: Observation, causation_id: str | None
+        self,
+        resource_id: str,
+        watch: Watch,
+        observation: Observation,
+        causation_id: str | None,
+        generation: int,
     ) -> None:
         now = self._clock()
         message_id = self._identifiers()
@@ -178,6 +186,7 @@ class Observer:
             correlation_id=watch.correlation_id or self._identifiers(),
             causation_id=causation_id,
             now=now,
+            generation=generation,
         )
         try:
             await self._publisher.publish(

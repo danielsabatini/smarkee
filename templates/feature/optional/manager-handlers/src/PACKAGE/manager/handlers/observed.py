@@ -84,6 +84,7 @@ class ObservedHandler:
             previous_conditions=row["conditions"],
             now=self._clock(),
             progress_deadline_seconds=self._progress_deadline_seconds,
+            removes_absent=kind.removes_absent,
         )
         if decision.progress_deadline_exceeded:
             logger.warning(

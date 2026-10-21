@@ -23,12 +23,23 @@ class CatalogSettings(Section):
     Sem default: o Manager não sobe sem um catálogo (decisão 0033)."""
 
 
+class LoopSettings(Section):
+    failure_limit: int = 5
+    """Falhas por geração antes de `Failed` e da suspensão (`schemas/sum/service/desired`,
+    `failureLimit`; decisão 0080)."""
+
+    progress_deadline_seconds: int = 300
+    """Prazo para a geração convergir antes de `Failed` com `ProgressDeadlineExceeded`
+    (`schemas/sum/service/desired`, `progressDeadline`; decisões 0078 e 0080)."""
+
+
 class SumServiceManagerSettings(RoleSettings):
     model_config = role_config("manager")
 
     database: DatabaseSettings = DatabaseSettings()
     messaging: MessagingSettings = MessagingSettings()
     catalog: CatalogSettings = CatalogSettings()
+    loop: LoopSettings = LoopSettings()
     health: HealthSettings = HealthSettings()
 
 

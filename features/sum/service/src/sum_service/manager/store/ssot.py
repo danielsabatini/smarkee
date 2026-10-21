@@ -87,10 +87,13 @@ async def insert_link(
 async def update_link(
     conn: AsyncConnection[Any], *, resource_id: str, desired: dict[str, Any], generation: int
 ) -> None:
-    """Grava um novo `desired` e avança a geração e a versão do recurso."""
+    """Grava um novo `desired` e avança a geração e a versão do recurso.
+
+    Uma geração nova recomeça a contagem de falhas, como nos outros tipos (decisão 0080).
+    """
     await conn.execute(
         "UPDATE sum.service SET lifecycle = %s, reconciliation = %s, desired = %s, "
-        "desired_generation = %s, resource_version = resource_version + 1, "
+        "desired_generation = %s, resource_version = resource_version + 1, failure_count = 0, "
         "phase = 'Pending', updated_at = now() WHERE resource_id = %s",
         (desired["lifecycle"], desired["reconciliation"], Jsonb(desired), generation, resource_id),
     )

@@ -6,12 +6,16 @@ ligação de um serviço por usuário (decisão 0033). É o único escritor do S
 
 ## O que faz
 
-- `domain/`: regras puras (catálogo, decisão de criar e desligar, convergência da fase).
+- `domain/`: regras puras (catálogo, decisão de criar e desligar, política de convergência da ligação em `service.py`).
+  `convergence.py`, `errors.py` e `outcome.py` vêm do template (perfil `manager-handlers`, decisão 0080).
 - `handlers/requested.py` e `store/ssot.py`: tratamento de `requested-create` e `requested-delete` no SSOT, numa
   transação com o outbox.
-- `handlers/state.py`: aplica `observed` (fase `Ready` ou `Reconciling`, ignorando o mais antigo que o último aplicado) e
-  os resultados `completed` e `failed` (uma vez por `actionId`; `failed` marca a fase `Failed` da geração). Acompanha as
-  Operations: `in_progress` na reconciliação e `completed` quando a fase chega a `Ready`.
+- `handlers/{observed,result,envelope,publishing}.py` (do template) e `store/state.py`: aplicam `observed` e os
+  resultados como nos outros tipos (decisão 0080). A geração só é confirmada (`observed_generation`) por uma leitura
+  feita depois dela; a Operation conclui nessa confirmação, e cada mudança de fase sai como `updated`. Falhas contam uma
+  vez por `actionId` e suspendem a reconciliação no `failureLimit`; a condition `Progressing` vai a
+  `ProgressDeadlineExceeded` (fase `Failed`) no prazo esgotado. A ligação desfeita não é apagada
+  (`SERVICE.removes_absent = False`).
 - `transport/requested.py` e `transport/state.py`: validação (envelope tolerante, versão `MAJOR`, módulo, emissor e
   dados) e decisão ACK, TERM ou RETRY.
 - `main.py`: valida a configuração (`SUM_SERVICE_MANAGER_*`), consome `REQUESTED`, `OBSERVED`, `RESULT` e o `UPDATED` de `core.account` (remoção da conta, decisão 0044) pelos consumers

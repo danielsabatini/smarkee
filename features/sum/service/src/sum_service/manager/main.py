@@ -16,13 +16,14 @@ from sum_service.common.lifecycle import (
 from sum_service.common.runtime import role_runtime
 from sum_service.common.service_rules import CatalogError, parse_catalog
 from sum_service.manager.handlers.catalog_rollout import roll_out_catalog
+from sum_service.manager.handlers.observed import ObservedHandler
 from sum_service.manager.handlers.requested import RequestedHandler
+from sum_service.manager.handlers.result import ResultHandler
 from sum_service.manager.settings import SumServiceManagerSettings, missing_required
 from sum_service.manager.transport.requested import Disposition, RequestedConsumer
 from sum_service.manager.transport.state import (
     process_account_removed,
-    process_observed,
-    process_result,
+    process_state,
     run_consumer,
 )
 
@@ -43,14 +44,20 @@ async def run(settings: SumServiceManagerSettings) -> int:
         # Antes dos consumers: as ligações passam a acompanhar o catálogo de agora (decisão 0079).
         await roll_out_catalog(pool, catalog)
 
+        # `observed` e resultados pelos handlers do template (perfil `manager-handlers`, 0080).
+        observed = ObservedHandler(
+            progress_deadline_seconds=settings.loop.progress_deadline_seconds
+        )
+        results = ResultHandler(failure_limit=settings.loop.failure_limit)
+
         async def handle_observed(data: bytes) -> Disposition:
-            return await process_observed(pool, data)
+            return await process_state(pool, observed, data)
 
         async def handle_completed(data: bytes) -> Disposition:
-            return await process_result(pool, data, "completed")
+            return await process_state(pool, results, data)
 
         async def handle_failed(data: bytes) -> Disposition:
-            return await process_result(pool, data, "failed")
+            return await process_state(pool, results, data)
 
         async def handle_account_removed(data: bytes) -> Disposition:
             return await process_account_removed(pool, data)

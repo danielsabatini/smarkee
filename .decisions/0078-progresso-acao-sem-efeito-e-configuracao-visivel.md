@@ -1,7 +1,7 @@
 # 0078 — Prazo de progresso, ação sem efeito e configuração visível
 
 - **Data:** 2026-10-21
-- **Status:** Aceita e implementada nas quatro features. No `sum/service`, por enquanto só a parte do Reconciler e da configuração: o Manager do SUM não usa o template, e a condition `Progressing` chega a ele quando ele entrar no modelo do loop (etapa 3 do plano).
+- **Status:** Aceita e implementada nas quatro features. No `sum/service`, por enquanto só a parte do Reconciler e da configuração: o Manager do SUM não usa o template, e a condition `Progressing` chega a ele quando ele entrar no modelo do loop (etapa 3 do plano, feita pela decisão 0080).
 - **Origem:** incidente de 2026-10-21. Depois de uma mudança no catálogo do SUM, só o contêiner do Manager foi recriado. O Observer seguiu com o catálogo antigo e nunca via as roles novas. O Reconciler mandava um `update` a cada 2 s, o Executor respondia `completed` sem nada a fazer, e o recurso ficou uma hora em `Reconciling`. Foram 1.807 ações sem nenhum `WARN`, e a causa não aparecia em nenhum log.
 
 ## Contexto

@@ -11,14 +11,14 @@ from typing import Any
 
 import psycopg
 import pytest
+from psycopg import sql
 from psycopg.types.json import Jsonb
 
-from sum_service.manager.handlers.state import (
-    ObservedMessage,
-    ResultMessage,
-    apply_observed,
-    apply_result,
-)
+from sum_service.manager.domain.kind import SERVICE
+from sum_service.manager.domain.outcome import OutcomeKind
+from sum_service.manager.handlers.observed import ObservedHandler
+from sum_service.manager.handlers.result import ResultHandler
+from sum_service.manager.store.state import StateStore
 
 URL = os.environ.get("SUM_MANAGER_TEST_DATABASE_URL")
 MAINTENANCE = os.environ.get("SUM_MANAGER_TEST_MAINTENANCE_URL")
@@ -27,6 +27,7 @@ pytestmark = pytest.mark.skipif(
 )
 ROLES = ["ipm.organization.get", "ipm.organization.list"]
 T0 = datetime(2026, 10, 15, 14, 0, tzinfo=UTC)
+APPLIED = OutcomeKind.APPLIED
 
 
 async def _seed(
@@ -38,6 +39,7 @@ async def _seed(
         "ownerAccountId": owner,
         "service": "ipm",
         "serviceRoles": ROLES if lifecycle == "present" else [],
+        "managedRoles": ROLES,
     }
     await conn.execute(
         "INSERT INTO sum.service (resource_id, schema_version, owner_account_id, service, "
@@ -45,6 +47,69 @@ async def _seed(
         "VALUES (%s, '1.0', %s, 'ipm', %s, 'active', %s, 1, 1, 'Pending')",
         (resource_id, owner, lifecycle, Jsonb(desired)),
     )
+
+
+def observed(
+    resource_id: str,
+    presence: str,
+    roles: list[str],
+    *,
+    seconds: int,
+    generation: int | None = 1,
+) -> dict[str, Any]:
+    """`generation`: a geração que o Observer conhecia antes de ler o provedor (decisão 0080)."""
+    moment = (T0 + timedelta(seconds=seconds)).isoformat()
+    return {
+        **_envelope(resource_id, "observed", "observer", "changed", moment),
+        "presence": presence,
+        "observedAt": moment,
+        **({"observedGeneration": generation} if generation is not None else {}),
+        "data": {"serviceRoles": roles},
+    }
+
+
+def result(resource_id: str, outcome: str, action_id: str, generation: int = 1) -> dict[str, Any]:
+    return {
+        **_envelope(resource_id, outcome, "executor", "update", T0.isoformat()),
+        "actionId": action_id,
+        "desiredGeneration": generation,
+        "data": {} if outcome == "completed" else {"reason": "Rejected", "retryable": False},
+    }
+
+
+def _envelope(
+    resource_id: str, message_type: str, emitter: str, operation: str, moment: str
+) -> dict[str, Any]:
+    return {
+        "messageId": str(uuid.uuid7()),
+        "schemaVersion": "1.0",
+        "messageType": message_type,
+        "emitter": emitter,
+        "module": "sum",
+        "resourceType": "service",
+        "resourceId": resource_id,
+        "operation": operation,
+        "correlationId": str(uuid.uuid7()),
+        "occurredAt": moment,
+        "publishedAt": moment,
+    }
+
+
+async def _observe(conn: psycopg.AsyncConnection[Any], message: dict[str, Any]) -> OutcomeKind:
+    return (await ObservedHandler().handle(StateStore(conn), SERVICE, message)).kind
+
+
+async def _cleanup(resource_id: str) -> None:
+    assert MAINTENANCE
+    maintenance = await psycopg.AsyncConnection.connect(MAINTENANCE, autocommit=True)
+    try:
+        for table in ("service_outbox", "service_action_result", "service_operation"):
+            await maintenance.execute(
+                sql.SQL("DELETE FROM sum.{} WHERE resource_id = %s").format(sql.Identifier(table)),
+                (resource_id,),
+            )
+    finally:
+        await maintenance.close()
 
 
 async def _phase(conn: psycopg.AsyncConnection[Any], resource_id: str) -> tuple[str, int]:
@@ -56,57 +121,31 @@ async def _phase(conn: psycopg.AsyncConnection[Any], resource_id: str) -> tuple[
     return str(row[0]), int(row[1])
 
 
-async def test_observed_roles_drive_the_phase_and_stale_observations_are_ignored() -> None:
-    assert URL and MAINTENANCE
-    resource_id, owner = str(uuid.uuid7()), str(uuid.uuid7())
-    conn = await psycopg.AsyncConnection.connect(URL, autocommit=True)
-    try:
-        await _seed(conn, resource_id, owner, "present")
-        missing = ObservedMessage(str(uuid.uuid7()), resource_id, "present", T0, ())
-        assert await apply_observed(conn, missing) == "applied"
-        assert (await _phase(conn, resource_id))[0] == "Reconciling"
-        converged = ObservedMessage(
-            str(uuid.uuid7()), resource_id, "present", T0 + timedelta(seconds=5), tuple(ROLES)
-        )
-        assert await apply_observed(conn, converged) == "applied"
-        assert (await _phase(conn, resource_id))[0] == "Ready"
-        older = ObservedMessage(
-            str(uuid.uuid7()), resource_id, "present", T0 + timedelta(seconds=1), ()
-        )
-        assert await apply_observed(conn, older) == "stale"
-        assert (await _phase(conn, resource_id))[0] == "Ready"
-        unknown = ObservedMessage(
-            str(uuid.uuid7()), resource_id, "unknown", T0 + timedelta(seconds=9), ()
-        )
-        assert await apply_observed(conn, unknown) == "applied"
-        assert (await _phase(conn, resource_id))[0] == "Ready"
-    finally:
-        await conn.execute("DELETE FROM sum.service WHERE resource_id = %s", (resource_id,))
-        await conn.close()
+async def _generations(
+    conn: psycopg.AsyncConnection[Any], resource_id: str
+) -> tuple[int, int | None]:
+    cursor = await conn.execute(
+        "SELECT desired_generation, observed_generation FROM sum.service WHERE resource_id = %s",
+        (resource_id,),
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    return int(row[0]), row[1]
 
 
-async def test_a_failed_result_marks_the_generation_failed_once_per_action() -> None:
-    assert URL and MAINTENANCE
-    resource_id, owner = str(uuid.uuid7()), str(uuid.uuid7())
-    action_id = f"{resource_id}.1.update.observed"
-    conn = await psycopg.AsyncConnection.connect(URL, autocommit=True)
+async def _outbox_types(conn: psycopg.AsyncConnection[Any], resource_id: str) -> list[str]:
+    """Os tipos gravados no outbox, lidos pelo papel de manutenção (o Manager só insere)."""
+    assert MAINTENANCE
+    maintenance = await psycopg.AsyncConnection.connect(MAINTENANCE, autocommit=True)
     try:
-        await _seed(conn, resource_id, owner, "present")
-        failed = ResultMessage(str(uuid.uuid7()), resource_id, action_id, 1, "failed")
-        assert await apply_result(conn, failed) == "applied"
-        assert await _phase(conn, resource_id) == ("Failed", 1)
-        assert await apply_result(conn, failed) == "duplicate"
-        assert await _phase(conn, resource_id) == ("Failed", 1)
+        cursor = await maintenance.execute(
+            "SELECT payload->>'messageType' FROM sum.service_outbox WHERE resource_id = %s"
+            " ORDER BY sequence",
+            (resource_id,),
+        )
+        return [str(row[0]) for row in await cursor.fetchall()]
     finally:
-        await conn.execute("DELETE FROM sum.service WHERE resource_id = %s", (resource_id,))
-        await conn.close()
-        maintenance = await psycopg.AsyncConnection.connect(MAINTENANCE, autocommit=True)
-        try:
-            await maintenance.execute(
-                "DELETE FROM sum.service_action_result WHERE resource_id = %s", (resource_id,)
-            )
-        finally:
-            await maintenance.close()
+        await maintenance.close()
 
 
 async def _operation(
@@ -122,8 +161,95 @@ async def _operation(
     return str(row[0]), row[1]
 
 
-async def test_operations_follow_the_phases_up_to_the_current_generation() -> None:
-    """`Reconciling` marca a Operation como `in_progress`; `Ready` a conclui (e as anteriores)."""
+async def test_observed_roles_drive_the_phase_and_stale_observations_are_ignored() -> None:
+    assert URL and MAINTENANCE
+    resource_id, owner = str(uuid.uuid7()), str(uuid.uuid7())
+    conn = await psycopg.AsyncConnection.connect(URL, autocommit=True)
+    try:
+        await _seed(conn, resource_id, owner, "present")
+        assert await _observe(conn, observed(resource_id, "present", [], seconds=0)) is APPLIED
+        assert (await _phase(conn, resource_id))[0] == "Reconciling"
+        converged = observed(resource_id, "present", ROLES, seconds=5)
+        assert await _observe(conn, converged) is APPLIED
+        assert (await _phase(conn, resource_id))[0] == "Ready"
+        assert await _generations(conn, resource_id) == (1, 1)
+        older = observed(resource_id, "present", [], seconds=1)
+        assert await _observe(conn, older) is OutcomeKind.IGNORED
+        assert (await _phase(conn, resource_id))[0] == "Ready"
+        unknown = observed(resource_id, "unknown", [], seconds=9)
+        assert await _observe(conn, unknown) is APPLIED
+        assert (await _phase(conn, resource_id))[0] == "Ready"
+        assert await _outbox_types(conn, resource_id) == ["updated"] * 3
+    finally:
+        await conn.execute("DELETE FROM sum.service WHERE resource_id = %s", (resource_id,))
+        await conn.close()
+        await _cleanup(resource_id)
+
+
+async def test_a_reading_older_than_the_generation_does_not_confirm_it() -> None:
+    """Conteúdo igual não basta: a leitura precisa ser posterior à geração (decisão 0072)."""
+    assert URL and MAINTENANCE
+    resource_id, owner = str(uuid.uuid7()), str(uuid.uuid7())
+    conn = await psycopg.AsyncConnection.connect(URL, autocommit=True)
+    try:
+        await _seed(conn, resource_id, owner, "present")
+        stale = observed(resource_id, "present", ROLES, seconds=0, generation=None)
+        assert await _observe(conn, stale) is APPLIED
+        assert (await _phase(conn, resource_id))[0] == "Reconciling"
+        assert await _generations(conn, resource_id) == (1, None)
+    finally:
+        await conn.execute("DELETE FROM sum.service WHERE resource_id = %s", (resource_id,))
+        await conn.close()
+        await _cleanup(resource_id)
+
+
+async def test_a_disabled_link_converges_and_its_record_is_kept() -> None:
+    """A ligação desfeita continua existindo (decisão 0033): o Manager não apaga a linha."""
+    assert URL and MAINTENANCE
+    resource_id, owner = str(uuid.uuid7()), str(uuid.uuid7())
+    conn = await psycopg.AsyncConnection.connect(URL, autocommit=True)
+    try:
+        await _seed(conn, resource_id, owner, "absent")
+        holding = observed(resource_id, "present", ROLES[:1], seconds=0)
+        assert await _observe(conn, holding) is APPLIED
+        assert (await _phase(conn, resource_id))[0] == "Reconciling"
+        assert await _observe(conn, observed(resource_id, "present", [], seconds=5)) is APPLIED
+        assert (await _phase(conn, resource_id))[0] == "Ready"
+    finally:
+        await conn.execute("DELETE FROM sum.service WHERE resource_id = %s", (resource_id,))
+        await conn.close()
+        await _cleanup(resource_id)
+
+
+async def test_failures_are_counted_once_per_action_and_suspend_at_the_limit() -> None:
+    assert URL and MAINTENANCE
+    resource_id, owner = str(uuid.uuid7()), str(uuid.uuid7())
+    handler = ResultHandler(failure_limit=2)
+    conn = await psycopg.AsyncConnection.connect(URL, autocommit=True)
+    try:
+        await _seed(conn, resource_id, owner, "present")
+        first = result(resource_id, "failed", f"{resource_id}.1.update.a")
+        assert (await handler.handle(StateStore(conn), SERVICE, first)).kind is APPLIED
+        assert await _phase(conn, resource_id) == ("Reconciling", 1)
+        duplicate = (await handler.handle(StateStore(conn), SERVICE, first)).kind
+        assert duplicate is OutcomeKind.DUPLICATE
+        assert await _phase(conn, resource_id) == ("Reconciling", 1)
+        second = result(resource_id, "failed", f"{resource_id}.1.update.b")
+        assert (await handler.handle(StateStore(conn), SERVICE, second)).kind is APPLIED
+        assert await _phase(conn, resource_id) == ("Failed", 2)
+        cursor = await conn.execute(
+            "SELECT reconciliation FROM sum.service WHERE resource_id = %s", (resource_id,)
+        )
+        assert await cursor.fetchone() == ("suspended",)
+        assert "desired" in await _outbox_types(conn, resource_id)  # o Reconciler para
+    finally:
+        await conn.execute("DELETE FROM sum.service WHERE resource_id = %s", (resource_id,))
+        await conn.close()
+        await _cleanup(resource_id)
+
+
+async def test_operations_follow_the_phases_of_the_current_generation() -> None:
+    """`Reconciling` marca a Operation como `in_progress`; `Ready` confirmado a conclui."""
     assert URL and MAINTENANCE
     resource_id, owner = str(uuid.uuid7()), str(uuid.uuid7())
     conn = await psycopg.AsyncConnection.connect(URL, autocommit=True)
@@ -147,27 +273,21 @@ async def test_operations_follow_the_phases_up_to_the_current_generation() -> No
                     "0" * 64,
                 ),
             )
-        pending = ObservedMessage(str(uuid.uuid7()), resource_id, "present", T0, ())
-        assert await apply_observed(conn, pending) == "applied"
-        assert await _operation(conn, resource_id, 1) == ("in_progress", None)
+        pending = observed(resource_id, "present", [], seconds=0, generation=2)
+        assert await _observe(conn, pending) is APPLIED
+        # A geração 1 foi substituída antes de convergir: `failed`, como nos outros tipos
+        # (decisão 0080; o estado próprio `superseded` vem depois).
+        status, completed_at = await _operation(conn, resource_id, 1)
+        assert status == "failed" and completed_at is not None
         assert await _operation(conn, resource_id, 2) == ("in_progress", None)
-        converged = ObservedMessage(
-            str(uuid.uuid7()), resource_id, "present", T0 + timedelta(seconds=5), tuple(ROLES)
-        )
-        assert await apply_observed(conn, converged) == "applied"
-        for generation in (1, 2):
-            status, completed_at = await _operation(conn, resource_id, generation)
-            assert status == "completed" and completed_at is not None
+        converged = observed(resource_id, "present", ROLES, seconds=5, generation=2)
+        assert await _observe(conn, converged) is APPLIED
+        status, completed_at = await _operation(conn, resource_id, 2)
+        assert status == "completed" and completed_at is not None
     finally:
         await conn.execute("DELETE FROM sum.service WHERE resource_id = %s", (resource_id,))
         await conn.close()
-        maintenance = await psycopg.AsyncConnection.connect(MAINTENANCE, autocommit=True)
-        try:
-            await maintenance.execute(
-                "DELETE FROM sum.service_operation WHERE resource_id = %s", (resource_id,)
-            )
-        finally:
-            await maintenance.close()
+        await _cleanup(resource_id)
 
 
 async def test_removing_the_account_deletes_only_its_links_and_is_idempotent() -> None:

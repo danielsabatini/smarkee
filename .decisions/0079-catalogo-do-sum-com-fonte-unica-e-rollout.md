@@ -27,4 +27,4 @@
 ## Consequências
 
 - **Trocar o catálogo:** basta editar o `.env` e rodar `docker compose up -d` na pasta da feature (`features/sum/service/README.md`). As roles novas precisam existir antes no projeto de roles e no Grant para a `register`.
-- **Fica para a etapa 3:** o Manager do SUM entrar no modelo do loop (`observed_generation`, condition `Progressing`).
+- **Fica para a etapa 3:** o Manager do SUM entrar no modelo do loop (`observed_generation`, condition `Progressing`). Feito pela decisão 0080.

@@ -101,6 +101,15 @@ async def test_a_new_desired_generation_is_observed_once_with_the_roles_of_the_s
     assert body["causationId"] == "m-desired"  # observação causada pelo desired
 
 
+async def test_the_observation_carries_the_generation_known_before_the_read() -> None:
+    """O Manager só confirma a geração com uma leitura feita depois dela (decisões 0072 e 0080)."""
+    recorder = Recorder()
+    watcher = observer(FakeReader(), recorder)
+    await watcher.on_message(desired(1))
+    await watcher.on_message(desired(2, message_id="m-desired-2"))
+    assert [body["observedGeneration"] for _, body, _ in recorder.sent] == [1, 2]
+
+
 async def test_the_same_generation_again_observes_nothing_new() -> None:
     recorder = Recorder()
     watcher = observer(FakeReader(), recorder)

@@ -10,6 +10,8 @@ from ipm_user.manager.domain.user import UserPolicy
 class ResourceKind:
     resource_type: str
     policy: ResourcePolicy
+    removes_absent: bool = True
+    """A remoção convergida apaga o registro do SSOT (o padrão do loop)."""
 
 
 USER = ResourceKind(resource_type="user", policy=UserPolicy())

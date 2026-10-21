@@ -10,6 +10,8 @@ from ipm_organization.manager.domain.policy import ResourcePolicy
 class ResourceKind:
     resource_type: str
     policy: ResourcePolicy
+    removes_absent: bool = True
+    """A remoção convergida apaga o registro do SSOT (o padrão do loop)."""
 
 
 ORGANIZATION = ResourceKind(resource_type="organization", policy=OrganizationPolicy())

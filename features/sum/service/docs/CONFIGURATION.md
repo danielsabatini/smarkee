@@ -158,6 +158,8 @@ Entrypoint do Manager de `sum.service` (`sum-service-manager`, decisões 0015 e 
 | `messaging.user` | `SUM_SERVICE_MANAGER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
 | `messaging.password` | `SUM_SERVICE_MANAGER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
 | `catalog.roles` | `SUM_SERVICE_MANAGER_CATALOG_ROLES` | `--catalog.roles` | `str \| None` | — | Obrigatória. Catálogo serviço → roles em JSON, por exemplo `{"ipm": ["ipm.organization.get"]}`. Sem default: o Manager não sobe sem um catálogo (decisão 0033). |
+| `loop.failure_limit` | `SUM_SERVICE_MANAGER_LOOP_FAILURE_LIMIT` | `--loop.failure_limit` | `int` | `5` | Falhas por geração antes de `Failed` e da suspensão (`schemas/sum/service/desired`, `failureLimit`; decisão 0080). |
+| `loop.progress_deadline_seconds` | `SUM_SERVICE_MANAGER_LOOP_PROGRESS_DEADLINE_SECONDS` | `--loop.progress_deadline_seconds` | `int` | `300` | Prazo para a geração convergir antes de `Failed` com `ProgressDeadlineExceeded` (`schemas/sum/service/desired`, `progressDeadline`; decisões 0078 e 0080). |
 | `health.port` | `SUM_SERVICE_MANAGER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 
 **Definido no `config.toml` de dev:**
@@ -185,7 +187,8 @@ docker compose logs -f sum-service-manager
 uv run --env-file .env sum-service-manager \
     --health.port 8002 \
     --database.host localhost \
-    --messaging.url nats://localhost:4222
+    --messaging.url nats://localhost:4222 \
+    --loop.failure_limit 3
 
 # Lista todas as flags aceitas pelo papel
 uv run sum-service-manager --help

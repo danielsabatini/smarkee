@@ -177,7 +177,14 @@ def decide_observed(
     previous_conditions: list[dict[str, Any]],
     now: datetime,
     progress_deadline_seconds: int | None = None,
+    removes_absent: bool = True,
 ) -> ObservedDecision:
+    """Fase, conditions e convergência depois de uma observação.
+
+    `removes_absent` diz se o tipo apaga o registro quando a remoção converge (o padrão) ou o
+    mantém, como a ligação desfeita do `sum.service`, que segue existindo (decisão 0033). Quem
+    mantém o registro não passa por `Deleting`: enquanto não converge, fica em `Reconciling`.
+    """
     if presence == "unknown":
         # Inconclusiva: registra o resultado, mas não altera a fase nem decide convergência.
         conditions = previous_conditions or ready_condition(
@@ -197,7 +204,7 @@ def decide_observed(
     converged = observation_generation == generation and policy.is_converged(
         desired, presence, observed
     )
-    if lifecycle == "absent" and converged:
+    if lifecycle == "absent" and converged and removes_absent:
         return ObservedDecision(previous_phase, previous_conditions, converged=True, remove=True)
     tracked = progress(
         previous_conditions,
@@ -220,7 +227,7 @@ def decide_observed(
     phase = (
         "Failed"
         if previous_phase == "Failed" or tracked.exceeded
-        else ("Deleting" if lifecycle == "absent" else "Reconciling")
+        else ("Deleting" if lifecycle == "absent" and removes_absent else "Reconciling")
     )
     conditions = ready_condition(
         tracked.conditions,

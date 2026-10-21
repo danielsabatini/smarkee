@@ -1,8 +1,12 @@
-"""Transporte de estado do Manager: leitura de `observed` e resultados, tentativas e desfechos."""
+"""Transporte de estado do Manager: tentativas e desfechos de `observed` e resultados.
+
+A leitura do envelope e a decisão são dos handlers do template (decisão 0080), testadas em
+`test_convergence.py` e na integração.
+"""
 
 import asyncio
 import json
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -12,14 +16,12 @@ import pytest
 from nats.aio.msg import Msg
 
 from sum_service.manager.domain.errors import PermanentMessageError
+from sum_service.manager.domain.outcome import Outcome, OutcomeKind
 from sum_service.manager.transport import state
 from sum_service.manager.transport.requested import Disposition
 from sum_service.manager.transport.state import (
     REDELIVERY_DELAY_SECONDS,
-    parse_observed,
-    parse_result,
-    process_observed,
-    process_result,
+    process_state,
 )
 
 RESOURCE_ID = "01a14168-b59d-7475-8db7-c5cf57fa100b"
@@ -64,55 +66,6 @@ def result(outcome: str = "completed", **changes: Any) -> bytes:
     return envelope(outcome, "executor", **fields)
 
 
-def test_an_observed_gives_the_resource_the_presence_and_the_roles_read() -> None:
-    message = parse_observed(observed())
-    assert message.resource_id == RESOURCE_ID
-    assert message.presence == "present"
-    assert message.service_roles == ("ipm.organization.get", "ipm.organization.list")
-
-
-def test_an_observed_without_roles_has_none() -> None:
-    assert parse_observed(observed(data={})).service_roles == ()
-
-
-@pytest.mark.parametrize(
-    "changes",
-    [
-        {"presence": None},
-        {"observedAt": None},
-        {"data": {"serviceRoles": "não é lista"}},
-        {"messageType": "completed"},
-        {"module": "core"},
-        {"schemaVersion": "2.0"},
-    ],
-)
-def test_an_invalid_observed_is_permanently_rejected(changes: dict[str, Any]) -> None:
-    with pytest.raises(PermanentMessageError):
-        parse_observed(json.dumps({**json.loads(observed()), **changes}).encode())
-
-
-@pytest.mark.parametrize("outcome", ["completed", "failed"])
-def test_a_result_gives_the_action_and_the_generation(outcome: str) -> None:
-    message = parse_result(result(outcome), outcome)
-    assert (message.action_id, message.desired_generation, message.outcome) == (
-        f"{RESOURCE_ID}.1.update.observed",
-        1,
-        outcome,
-    )
-
-
-def test_a_result_without_action_or_generation_is_permanently_rejected() -> None:
-    with pytest.raises(PermanentMessageError):
-        parse_result(result(actionId=None), "completed")
-    with pytest.raises(PermanentMessageError):
-        parse_result(result(desiredGeneration=None), "completed")
-
-
-def test_a_result_of_the_other_outcome_is_permanently_rejected() -> None:
-    with pytest.raises(PermanentMessageError):
-        parse_result(result("failed"), "completed")
-
-
 # ---------------------------------------------------------------- tentativas e desfechos
 
 
@@ -136,62 +89,49 @@ def no_waiting(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(state.asyncio, "sleep", fast_sleep)
 
 
-async def test_a_valid_message_is_applied_and_acked(monkeypatch: pytest.MonkeyPatch) -> None:
-    applied: list[str] = []
+@dataclass
+class FakeHandler:
+    """Faz o papel do handler do template: falha com os erros dados e depois aplica."""
 
-    async def apply_observed(connection: Any, message: Any) -> str:
-        applied.append(message.resource_id)
-        return "applied"
+    errors: list[Exception] = field(default_factory=lambda: [])
+    applied: list[str] = field(default_factory=lambda: [])
 
-    monkeypatch.setattr(state, "apply_observed", apply_observed)
-    assert await process_observed(cast(Any, FakePool()), observed()) is Disposition.ACK
-    assert applied == [RESOURCE_ID]
-
-
-async def test_a_permanently_invalid_message_is_terminated_without_touching_the_database(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    touched = False
-
-    async def apply_result(connection: Any, message: Any) -> None:
-        nonlocal touched
-        touched = True
-
-    monkeypatch.setattr(state, "apply_result", apply_result)
-    assert await process_result(cast(Any, FakePool()), b"x", "completed") is Disposition.TERM
-    assert not touched
+    async def handle(self, store: Any, kind: Any, raw_message: Mapping[str, Any]) -> Outcome:
+        if self.errors:
+            raise self.errors.pop(0)
+        self.applied.append(str(raw_message["resourceId"]))
+        return Outcome(OutcomeKind.APPLIED)
 
 
-async def test_a_transient_database_error_is_retried_in_place_and_then_acked(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = 0
-
-    async def apply_observed(connection: Any, message: Any) -> str:
-        nonlocal calls
-        calls += 1
-        if calls < 3:
-            raise psycopg.errors.DeadlockDetected("deadlock")
-        return "applied"
-
-    monkeypatch.setattr(state, "apply_observed", apply_observed)
-    assert await process_observed(cast(Any, FakePool()), observed()) is Disposition.ACK
-    assert calls == 3
+async def test_a_valid_message_is_applied_and_acked() -> None:
+    handler = FakeHandler()
+    assert await process_state(cast(Any, FakePool()), handler, observed()) is Disposition.ACK
+    assert handler.applied == [RESOURCE_ID]
 
 
-async def test_a_persistent_transient_error_goes_back_to_the_queue(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = 0
+async def test_a_message_that_is_not_json_is_terminated_without_touching_the_database() -> None:
+    handler = FakeHandler()
+    assert await process_state(cast(Any, FakePool()), handler, b"x") is Disposition.TERM
+    assert handler.applied == []
 
-    async def apply_observed(connection: Any, message: Any) -> str:
-        nonlocal calls
-        calls += 1
-        raise psycopg.errors.LockNotAvailable("lock_timeout")
 
-    monkeypatch.setattr(state, "apply_observed", apply_observed)
-    assert await process_observed(cast(Any, FakePool()), observed()) is Disposition.RETRY
-    assert calls == 4  # três esperas e a tentativa final
+async def test_a_permanently_invalid_message_is_terminated() -> None:
+    handler = FakeHandler(errors=[PermanentMessageError("fora do contrato")])
+    assert await process_state(cast(Any, FakePool()), handler, result()) is Disposition.TERM
+    assert handler.applied == []
+
+
+async def test_a_transient_database_error_is_retried_in_place_and_then_acked() -> None:
+    deadlock = psycopg.errors.DeadlockDetected("deadlock")
+    handler = FakeHandler(errors=[deadlock, deadlock])
+    assert await process_state(cast(Any, FakePool()), handler, observed()) is Disposition.ACK
+    assert handler.applied == [RESOURCE_ID]
+
+
+async def test_a_persistent_transient_error_goes_back_to_the_queue() -> None:
+    handler = FakeHandler(errors=[psycopg.errors.LockNotAvailable("lock_timeout")] * 5)
+    assert await process_state(cast(Any, FakePool()), handler, observed()) is Disposition.RETRY
+    assert len(handler.errors) == 1  # três esperas e a tentativa final
 
 
 @dataclass
