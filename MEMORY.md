@@ -6,7 +6,7 @@ Em conformidade com o `AGENTS.md` (§35.1): só o que o próximo agente precisa 
 - Etapas 1, 2, 3, 5 e 7 do plano feitas e enviadas para `origin/dev`. Etapa 7 = decisão 0081: a Organization nasce pronta para usuários pelo loop (Grant de `roles-ipm` e papéis das contas `ipm-user-*`), catálogo no enum `grantableRole` (`schemas/ipm/definitions.v1.schema.json`). Jornada `tests/e2e` 12/12 contra o dev.
 - O script do operador `.workspace/ipm-user/provision.py organization` não é mais necessário (o loop faz).
 - `.opencode/opencode.json` é local e ignorado: traz a URL do Postgres com o superusuário em texto puro e `npx -y` sem versão. Decisão pendente do responsável: papel de leitura para o MCP (não existe papel de leitura de dados no dev). A alteração da skill `postgresql` que cita o MCP está sem commit (não verificada).
-- Backup do dev de 2026-10-21 (`~/.smarkee/backups/20261021T214635Z`) é anterior à 0081: o `.env` da Organization ganhou 3 variáveis depois. O banco `gateway` (resto do Kong) foi removido; o dump está em `~/.smarkee/gateway-kong-leftover-20261021.dump`.
+- Último backup do dev: `~/.smarkee/backups/20261021T224500Z` (depois da 0081, ambiente limpo). O banco `gateway` (resto do Kong) foi removido; o dump está em `~/.smarkee/gateway-kong-leftover-20261021.dump`.
 
 ## Próximos passos
 Plano de 7 etapas aceito em 2026-10-21 (incidente do catálogo do SUM). Faltam, na ordem:
