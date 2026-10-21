@@ -43,6 +43,9 @@ kubeconfig
 *.tfstate.*
 !*.example.tfvars
 
+# Configuração local do harness: pode trazer credenciais (ex.: URL do banco do MCP)
+.opencode/opencode.json
+
 # ------------------------------------------------------------------------------
 # 2. Logs, Dumps e Diagnósticos
 # ------------------------------------------------------------------------------
