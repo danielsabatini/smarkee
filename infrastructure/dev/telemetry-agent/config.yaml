@@ -38,6 +38,123 @@ receivers:
       container.blockio.io_service_bytes_recursive: { enabled: false }
 
   # ---------------------------------------------------------------------------
+  # Métricas do PostgreSQL (pg_stat_database, pg_stat_user_tables, pg_database_size)
+  # Role `telemetry_login` com `pg_read_all_stats` (sem acesso aos dados das tabelas).
+  # ---------------------------------------------------------------------------
+  postgresql:
+    endpoint: database.smarkee.internal:5432
+    transport: tcp
+    username: telemetry_login
+    password: ${env:SMARKEE_DATABASE_TELEMETRY_PASSWORD:-telemetry_login}
+    connect_database: smarkee
+    databases: [smarkee, identity]
+    exclude_databases: [postgres]
+    collection_interval: 30s
+    tls:
+      insecure: true
+    connection_pool:
+      max_idle: 2
+      max_open: 4
+      max_idle_time: 5m
+    resource_attributes:
+      service.name:
+        enabled: true
+      service.namespace:
+        enabled: true
+      db.system.version:
+        enabled: true
+    metrics:
+      postgresql.backends: { enabled: true }
+      postgresql.connection.max: { enabled: true }
+      postgresql.commits: { enabled: true }
+      postgresql.rollbacks: { enabled: true }
+      postgresql.deadlocks: { enabled: true }
+      postgresql.db_size: { enabled: true }
+      postgresql.rows: { enabled: true }
+      postgresql.bgwriter.buffers.allocated: { enabled: false }
+      postgresql.bgwriter.buffers.writes: { enabled: false }
+      postgresql.bgwriter.checkpoint.count: { enabled: false }
+      postgresql.bgwriter.duration: { enabled: false }
+      postgresql.bgwriter.maxwritten: { enabled: false }
+      postgresql.blocks_read: { enabled: false }
+      postgresql.database.count: { enabled: false }
+      postgresql.index.scans: { enabled: false }
+      postgresql.index.size: { enabled: false }
+      postgresql.operations: { enabled: false }
+      postgresql.replication.data_delay: { enabled: false }
+      postgresql.table.count: { enabled: false }
+      postgresql.table.size: { enabled: false }
+      postgresql.table.vacuum.count: { enabled: false }
+      postgresql.wal.age: { enabled: false }
+      postgresql.wal.lag: { enabled: false }
+      postgresql.wal.delay: { enabled: false }
+
+  # ---------------------------------------------------------------------------
+  # Saúde do Transactional Outbox (função SECURITY DEFINER telemetry.outbox_stats(),
+  # que descobre dinamicamente as tabelas *_outbox sem expor payload nem acoplar às features).
+  # ---------------------------------------------------------------------------
+  sql_query/outbox:
+    driver: postgres
+    host: database.smarkee.internal
+    port: 5432
+    database: smarkee
+    username: telemetry_login
+    password: ${env:SMARKEE_DATABASE_TELEMETRY_PASSWORD:-telemetry_login}
+    additional_params:
+      sslmode: disable
+    collection_interval: 30s
+    timeout: 5s
+    max_open_conn: 1
+    queries:
+      - sql: 'SELECT "db.namespace", "db.collection.name", unpublished_messages, oldest_unpublished_age FROM telemetry.outbox_stats()'
+        metrics:
+          - metric_name: smarkee.db.outbox.unpublished_messages
+            value_column: unpublished_messages
+            value_type: int
+            data_type: gauge
+            unit: "{message}"
+            description: "Unpublished messages waiting in the transactional outbox."
+            attribute_columns: ["db.namespace", "db.collection.name"]
+            static_attributes:
+              db.system.name: postgresql
+          - metric_name: smarkee.db.outbox.oldest_unpublished_age
+            value_column: oldest_unpublished_age
+            value_type: double
+            data_type: gauge
+            unit: s
+            description: "Age in seconds of the oldest unpublished message in the transactional outbox."
+            attribute_columns: ["db.namespace", "db.collection.name"]
+            static_attributes:
+              db.system.name: postgresql
+
+  # ---------------------------------------------------------------------------
+  # Métricas de Identity (Zitadel) e Messaging (NATS JetStream), filtradas na origem
+  # (metric_relabel_configs) para reter apenas sinais de alto valor e normalizadas à
+  # OTel SemConv em transform/infra_metrics.
+  # ---------------------------------------------------------------------------
+  prometheus/infra:
+    config:
+      scrape_configs:
+        - job_name: identity
+          scrape_interval: 30s
+          metrics_path: /debug/metrics
+          static_configs:
+            - targets: [identity.smarkee.internal:8080]
+          metric_relabel_configs:
+            - source_labels: [__name__]
+              regex: "(rpc_server_call_duration_seconds.*|rpc_server_duration_milliseconds.*|http_server_request_duration_seconds.*|http_server_return_code_counter_total|zitadel_database_pool_acquired_conns|zitadel_database_pool_idle_conns|zitadel_database_pool_max_conns|zitadel_database_pool_acquire_duration_milliseconds_total|projection_events_processed_total)"
+              action: keep
+        - job_name: messaging
+          scrape_interval: 30s
+          metrics_path: /metrics
+          static_configs:
+            - targets: [messaging-exporter.smarkee.internal:7777]
+          metric_relabel_configs:
+            - source_labels: [__name__]
+              regex: "nats_(consumer_num_pending|consumer_num_ack_pending|consumer_num_redelivered|stream_total_messages|stream_total_bytes|varz_slow_consumers|varz_connections)"
+              action: keep
+
+  # ---------------------------------------------------------------------------
   # Logs dos contêineres (driver json-file). Lê todos os contêineres do host; o que não é uma linha JSON de
   # componente da plataforma (service.namespace = smarkee) é descartado no filtro, antes de sair do agente.
   # ---------------------------------------------------------------------------
@@ -188,12 +305,119 @@ processors:
     detectors: [env]
     override: false
 
-  # Métricas só dos contêineres da plataforma (nome *.smarkee.internal); os de outros projetos do host saem.
+  # Métricas:
+  #   1. `container.*` só dos contêineres da plataforma (`*.smarkee.internal`);
+  #   2. descarta métricas sintéticas de scrape do Prometheus (`up`, `scrape_*`, `target_info`, `otel_scope_info`);
+  #   3. descarta `postgresql.rows` das tabelas internas do banco `identity` (Zitadel), mantendo `postgresql.rows`
+  #      apenas para o banco `smarkee` (e mantendo `backends`, `commits`, `rollbacks`, `deadlocks` e `db_size`
+  #      para ambos os bancos).
   filter/dev_containers:
     error_mode: ignore
     metrics:
       metric:
-        - resource.attributes["container.name"] == nil or not IsMatch(resource.attributes["container.name"], "^.*\\.smarkee\\.internal$")
+        - IsMatch(metric.name, "^container\\.") and (resource.attributes["container.name"] == nil or not IsMatch(resource.attributes["container.name"], "^.*\\.smarkee\\.internal$"))
+        - IsMatch(metric.name, "^(up|scrape_.*|target_info|otel_scope_info)$")
+      datapoint:
+        - metric.name == "postgresql.rows" and datapoint.attributes["db.namespace"] != nil and IsMatch(datapoint.attributes["db.namespace"], "^identity(\\|.*)?$")
+
+  # Normaliza as métricas de infraestrutura (PostgreSQL, Outbox, Zitadel e NATS JetStream) para 100% OTel SemConv:
+  # Resource (`service.namespace`, `service.name`, `server.address`, `server.port`), nomes de métricas, unidades UCUM
+  # e atributos de datapoint.
+  transform/infra_metrics:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        conditions:
+          - resource.attributes["container.name"] != nil
+        statements:
+          - set(resource.attributes["service.namespace"], "smarkee")
+      - context: metric
+        conditions:
+          - IsMatch(metric.name, "^(postgresql\\.|smarkee\\.db\\.)")
+        statements:
+          - set(resource.attributes["service.namespace"], "smarkee")
+          - set(resource.attributes["service.name"], "database")
+          - set(resource.attributes["server.address"], "database.smarkee.internal") where resource.attributes["server.address"] == nil
+          - set(resource.attributes["server.port"], 5432) where resource.attributes["server.port"] == nil
+          - set(resource.attributes["service.instance.id"], "database.smarkee.internal:5432") where resource.attributes["service.instance.id"] == nil
+      - context: resource
+        conditions:
+          - resource.attributes["service.name"] == "identity"
+        statements:
+          - set(resource.attributes["service.namespace"], "smarkee")
+          - set(resource.attributes["server.address"], "identity.smarkee.internal")
+          - set(resource.attributes["server.port"], 8080)
+          - delete_matching_keys(resource.attributes, "^(net\\.host\\..*|server\\.socket\\..*|url\\.scheme)$")
+      - context: resource
+        conditions:
+          - resource.attributes["service.name"] == "messaging"
+        statements:
+          - set(resource.attributes["service.namespace"], "smarkee")
+          - set(resource.attributes["server.address"], "messaging.smarkee.internal")
+          - set(resource.attributes["server.port"], 8222)
+          - set(resource.attributes["service.instance.id"], "messaging.smarkee.internal:8222")
+          - delete_matching_keys(resource.attributes, "^(net\\.host\\..*|server\\.socket\\..*|url\\.scheme)$")
+      - context: datapoint
+        conditions:
+          - resource.attributes["service.name"] == "identity"
+        statements:
+          - set(datapoint.attributes["rpc.method"], datapoint.attributes["rpc_method"]) where datapoint.attributes["rpc_method"] != nil
+          - set(datapoint.attributes["rpc.service"], datapoint.attributes["rpc_service"]) where datapoint.attributes["rpc_service"] != nil
+          - set(datapoint.attributes["rpc.response.status_code"], datapoint.attributes["rpc_response_status_code"]) where datapoint.attributes["rpc_response_status_code"] != nil
+          - set(datapoint.attributes["rpc.grpc.status_code"], Int(datapoint.attributes["rpc_grpc_status_code"])) where datapoint.attributes["rpc_grpc_status_code"] != nil
+          - set(datapoint.attributes["rpc.system.name"], datapoint.attributes["rpc_system_name"]) where datapoint.attributes["rpc_system_name"] != nil
+          - set(datapoint.attributes["rpc.system.name"], datapoint.attributes["rpc_system"]) where datapoint.attributes["rpc_system"] != nil
+          - set(datapoint.attributes["http.request.method"], datapoint.attributes["method"]) where datapoint.attributes["method"] != nil
+          - set(datapoint.attributes["http.route"], datapoint.attributes["uri"]) where datapoint.attributes["uri"] != nil
+          - set(datapoint.attributes["http.response.status_code"], Int(datapoint.attributes["return_code"])) where datapoint.attributes["return_code"] != nil
+          - set(datapoint.attributes["db.client.connection.pool.name"], "zitadel") where IsMatch(metric.name, "^zitadel_database_pool_")
+          - set(datapoint.attributes["db.client.connection.state"], "used") where metric.name == "zitadel_database_pool_acquired_conns"
+          - set(datapoint.attributes["db.client.connection.state"], "idle") where metric.name == "zitadel_database_pool_idle_conns"
+          - set(datapoint.attributes["smarkee.identity.projection.name"], datapoint.attributes["projection"]) where datapoint.attributes["projection"] != nil
+          - set(datapoint.attributes["smarkee.outcome"], "succeeded") where datapoint.attributes["success"] == "true"
+          - set(datapoint.attributes["smarkee.outcome"], "failed") where datapoint.attributes["success"] == "false"
+          - delete_matching_keys(datapoint.attributes, "^(rpc_method|rpc_service|rpc_response_status_code|rpc_grpc_status_code|rpc_system_name|rpc_system|method|uri|return_code|projection|success)$")
+      - context: metric
+        conditions:
+          - resource.attributes["service.name"] == "identity"
+        statements:
+          - set(metric.unit, "s") where metric.name == "rpc_server_call_duration_seconds" or metric.name == "http_server_request_duration_seconds"
+          - set(metric.name, "rpc.server.call.duration") where metric.name == "rpc_server_call_duration_seconds"
+          - set(metric.unit, "ms") where metric.name == "rpc_server_duration_milliseconds"
+          - set(metric.name, "rpc.server.duration") where metric.name == "rpc_server_duration_milliseconds"
+          - set(metric.name, "http.server.request.duration") where metric.name == "http_server_request_duration_seconds"
+          - set(metric.unit, "{request}") where metric.name == "http_server_return_code_counter_total"
+          - set(metric.name, "smarkee.identity.http.requests") where metric.name == "http_server_return_code_counter_total"
+          - set(metric.unit, "{connection}") where IsMatch(metric.name, "^zitadel_database_pool_(acquired|idle|max)_conns$")
+          - set(metric.name, "db.client.connection.count") where metric.name == "zitadel_database_pool_acquired_conns" or metric.name == "zitadel_database_pool_idle_conns"
+          - set(metric.name, "db.client.connection.max") where metric.name == "zitadel_database_pool_max_conns"
+          - set(metric.unit, "ms") where metric.name == "zitadel_database_pool_acquire_duration_milliseconds_total"
+          - set(metric.name, "db.client.connection.wait_time") where metric.name == "zitadel_database_pool_acquire_duration_milliseconds_total"
+          - set(metric.unit, "{event}") where metric.name == "projection_events_processed_total"
+          - set(metric.name, "smarkee.identity.projection.events") where metric.name == "projection_events_processed_total"
+      - context: datapoint
+        conditions:
+          - resource.attributes["service.name"] == "messaging"
+        statements:
+          - set(datapoint.attributes["messaging.system"], "nats")
+          - set(datapoint.attributes["messaging.destination.name"], datapoint.attributes["stream_name"]) where datapoint.attributes["stream_name"] != nil
+          - set(datapoint.attributes["messaging.consumer.group.name"], datapoint.attributes["consumer_name"]) where datapoint.attributes["consumer_name"] != nil
+          - delete_matching_keys(datapoint.attributes, "^(account|account_id|account_name|cluster|consumer_desc|consumer_leader|consumer_name|domain|is_consumer_leader|is_meta_leader|is_stream_leader|meta_leader|server_id|server_name|stream_leader|stream_name|stream_raft_group)$")
+      - context: metric
+        conditions:
+          - resource.attributes["service.name"] == "messaging"
+        statements:
+          - set(metric.unit, "{message}") where IsMatch(metric.name, "^nats_(consumer_num_pending|consumer_num_ack_pending|consumer_num_redelivered|stream_total_messages)$")
+          - set(metric.unit, "By") where metric.name == "nats_stream_total_bytes"
+          - set(metric.unit, "{consumer}") where metric.name == "nats_varz_slow_consumers"
+          - set(metric.unit, "{connection}") where metric.name == "nats_varz_connections"
+          - set(metric.name, "smarkee.messaging.consumer.pending_messages") where metric.name == "nats_consumer_num_pending"
+          - set(metric.name, "smarkee.messaging.consumer.ack_pending_messages") where metric.name == "nats_consumer_num_ack_pending"
+          - set(metric.name, "smarkee.messaging.consumer.redelivered_messages") where metric.name == "nats_consumer_num_redelivered"
+          - set(metric.name, "smarkee.messaging.stream.messages") where metric.name == "nats_stream_total_messages"
+          - set(metric.name, "smarkee.messaging.stream.size") where metric.name == "nats_stream_total_bytes"
+          - set(metric.name, "smarkee.messaging.server.slow_consumers") where metric.name == "nats_varz_slow_consumers"
+          - set(metric.name, "smarkee.messaging.server.connections") where metric.name == "nats_varz_connections"
 
   # Termina o LogRecord a partir da linha do contrato 0045: `event_name`, os ids de trace e a raiz de `attributes`
   # (que o operador `move` do file_log não aceita como destino) são movidos aqui (docs/OBSERVABILITY.md §7).
@@ -232,13 +456,14 @@ processors:
         - resource.attributes["service.namespace"] != "smarkee"
         - resource.attributes["service.name"] == "telemetry-agent"
 
-  # Política enxuta da infra, para começar: só WARN ou acima (ou sem nível reconhecido), e sem as linhas de acesso do
-  # nginx (o gateway já tem os spans). Os logs de aplicação (smarkee.component.role) ficam inteiros.
+  # Política enxuta da infra, para começar: só WARN ou acima (descartando também linhas sem nível reconhecido, como
+  # banners de boot e linhas órfãs STATEMENT:/DETAIL: do PostgreSQL), e sem as linhas de acesso do nginx (o gateway
+  # já tem os spans). Os logs de aplicação (smarkee.component.role) ficam inteiros.
   filter/infra_lean:
     error_mode: ignore
     logs:
       log_record:
-        - resource.attributes["smarkee.component.role"] == nil and log.severity_number != SEVERITY_NUMBER_UNSPECIFIED and log.severity_number < SEVERITY_NUMBER_WARN
+        - resource.attributes["smarkee.component.role"] == nil and log.severity_number < SEVERITY_NUMBER_WARN
         - resource.attributes["smarkee.component.role"] == nil and IsMatch(log.body, "^\\S+ - \\S+ \\[[0-9]{2}/[A-Za-z]{3}/[0-9]{4}:")
         # O WARN "missing translation" do Zitadel (e-mail sem tradução em `pt`) despeja o usuário inteiro nos argumentos:
         # e-mail, nome e o código de verificação. Além de ser dado pessoal e credencial, é ruído (decisão 0058).
@@ -283,8 +508,8 @@ service:
   extensions: [file_storage]
   pipelines:
     metrics:
-      receivers: [docker_stats]
-      processors: [memory_limiter, filter/dev_containers, resource_detection, batch]
+      receivers: [docker_stats, postgresql, sql_query/outbox, prometheus/infra]
+      processors: [memory_limiter, filter/dev_containers, transform/infra_metrics, resource_detection, batch]
       exporters: [otlp_grpc/telemetry_gateway]
 
     logs:

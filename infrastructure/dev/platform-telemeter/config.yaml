@@ -34,17 +34,18 @@ processors:
     send_batch_max_size: 200
 
   # Separação infra x app. O filter descarta o que casa; cada pipeline descarta o que não é dela.
-  # Métricas: infra é o que descreve o contêiner ou o sistema (prefixos da semconv); o resto é de aplicação.
+  # Métricas: infra é o que descreve o contêiner, o sistema ou os serviços da plataforma (`identity`, `messaging`,
+  # `database`, `gateway`); o resto é de aplicação (`smarkee.component.role` ou métricas sintéticas de app).
   filter/metrics_infra:
     error_mode: ignore
     metrics:
       metric:
-        - not IsMatch(metric.name, "^(container|system|process|k8s)\\.")
+        - not IsMatch(metric.name, "^(container|system|process|k8s|postgresql)\\.") and not (resource.attributes["service.name"] == "identity" or resource.attributes["service.name"] == "messaging" or resource.attributes["service.name"] == "database" or resource.attributes["service.name"] == "gateway")
   filter/metrics_app:
     error_mode: ignore
     metrics:
       metric:
-        - IsMatch(metric.name, "^(container|system|process|k8s)\\.")
+        - IsMatch(metric.name, "^(container|system|process|k8s|postgresql)\\.") or resource.attributes["service.name"] == "identity" or resource.attributes["service.name"] == "messaging" or resource.attributes["service.name"] == "database" or resource.attributes["service.name"] == "gateway"
   # Logs: app é o que traz smarkee.component.role (obrigatório no contrato 0045); o resto vem dos contêineres da
   # plataforma.
   filter/logs_infra:

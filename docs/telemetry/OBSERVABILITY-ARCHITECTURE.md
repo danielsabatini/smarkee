@@ -61,12 +61,12 @@ O `telemeter` **não é um dos seis papéis do loop** (Receiver, Manager, Publis
 | **Logs de app** | os 18 contêineres das features (stdout, JSON do contrato 0045) | Resource: `smarkee.module` e `smarkee.resource.type` | o da feature (`core-account-telemeter`, `ipm-organization-telemeter` ou `sum-service-telemeter`) | `platform-telemeter` |
 | **Logs de infra** | messaging, banco, Zitadel, gateway, mail, coletores | não têm `smarkee.module` | — | `platform-telemeter` |
 | **Spans** | plugin `opentelemetry` do APISIX | atributo `apisix.service_name` (o ADC define um serviço por feature) | o da feature (`<módulo>-<tipo>-receiver` → `<módulo>-<tipo>-telemeter`) | `platform-telemeter` (identidade e rotas sem feature) |
-| **Métricas** | `docker_stats` do agente (`container.*`) | — | — (ainda não há métrica de app) | `platform-telemeter` |
+| **Métricas** | `docker_stats` (`container.*`), `postgresql`, `sql_query/outbox` e `prometheus/infra` (`identity` e `messaging-exporter`) | — | — (ainda não há métrica de app) | `platform-telemeter` |
 
 - **O agente não conhece as features.** O roteamento é do roteador, com o conector `routing` do Collector, usando o que os sinais já trazem. O contrato 0045 já exige `smarkee.module`, `smarkee.resource.type` e `smarkee.component.role` no Resource.
 - **Por que o roteamento de spans é no roteador.** O endereço do coletor do plugin `opentelemetry` do APISIX é um metadado do plugin, global, e não por rota. Então o APISIX envia tudo ao roteador, e este decide.
 - **A normalização dos spans** à semconv (decisão 0050) e a redação do `url.query` acontecem no roteador, **antes** de rotear, para que cada telemeter receba o span conforme.
-- **O `platform-telemeter` separa infra de app** (decisão 0053): log de **app** é o que traz `smarkee.component.role`; métrica de **infra** é a de prefixo `container.`, `system.`, `process.` ou `k8s.`; o resto é de app.
+- **O `platform-telemeter` separa infra de app** (decisão 0053): log de **app** é o que traz `smarkee.component.role`; métrica de **infra** é a de prefixo `container.`, `system.`, `process.`, `k8s.` ou `postgresql.`, ou cujo `service.name` seja um serviço da plataforma (`database`, `identity`, `messaging`, `gateway`); o resto é de app.
 
 # 4. Fluxos
 

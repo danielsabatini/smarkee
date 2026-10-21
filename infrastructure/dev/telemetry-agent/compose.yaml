@@ -24,8 +24,11 @@ services:
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=development
       # Destino: OTLP gRPC do telemetry-router.
       SMARKEE_TELEMETRY_ROUTER_ENDPOINT: ${SMARKEE_TELEMETRY_ROUTER_ENDPOINT:-telemetry-router.smarkee.internal:4317}
+      # Credencial de menor privilégio para coleta de estatísticas do PostgreSQL (database/bootstrap/telemetry.sql).
+      SMARKEE_DATABASE_TELEMETRY_PASSWORD: ${SMARKEE_DATABASE_TELEMETRY_PASSWORD:-telemetry_login}
     command:
       - --config=/etc/otelcol-contrib/config.yaml
+      - --feature-gates=receiver.postgresql.useOTelSemconv,receiver.postgresql.connectionPool
     volumes:
       - ./config.yaml:/etc/otelcol-contrib/config.yaml:ro
       # Métricas dos contêineres (API do Docker).

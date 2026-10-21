@@ -42,6 +42,8 @@ FEATURE_TELEMETRY_DIRS = [
 # recebe sinais de app, então grava direto em `logs/` e `traces/` (decisão 0062).
 PLATFORM_APP_LOGS = TELEMETRY_DIR / "logs" / "app"
 PLATFORM_INFRA_LOGS = TELEMETRY_DIR / "logs" / "infra"
+PLATFORM_APP_METRICS = TELEMETRY_DIR / "metrics" / "app"
+PLATFORM_INFRA_METRICS = TELEMETRY_DIR / "metrics" / "infra"
 FEATURE_APP_LOGS = [directory / "logs" for directory in FEATURE_TELEMETRY_DIRS]
 PLATFORM_TRACES = TELEMETRY_DIR / "traces"
 FEATURE_TRACES = [directory / "traces" for directory in FEATURE_TELEMETRY_DIRS]
@@ -115,6 +117,30 @@ def spans(*directories: Path) -> list[Record]:
                             "start_ns": int(span.get("startTimeUnixNano", "0")),
                         }
                     )
+    return found
+
+
+def metrics(*directories: Path) -> list[Record]:
+    """Pontos de dados de métricas achatados, lidos das pastas dadas."""
+    found: list[Record] = []
+    for line in read_lines(*(directories or (PLATFORM_INFRA_METRICS,))):
+        for resource_metrics in line.get("resourceMetrics", []):
+            resource = attributes_of(resource_metrics["resource"].get("attributes", []))
+            for scope_metrics in resource_metrics.get("scopeMetrics", []):
+                for metric in scope_metrics.get("metrics", []):
+                    payload: Record = (
+                        metric.get("gauge") or metric.get("sum") or metric.get("histogram") or {}
+                    )
+                    for point in payload.get("dataPoints", []):
+                        found.append(
+                            {
+                                "name": metric["name"],
+                                "unit": metric.get("unit", ""),
+                                "resource": resource,
+                                "attributes": attributes_of(point.get("attributes", [])),
+                                "time_ns": int(point.get("timeUnixNano", "0")),
+                            }
+                        )
     return found
 
 
@@ -446,6 +472,7 @@ def test_the_agent_redacts_an_email_and_drops_the_zitadel_translation_warning() 
         f'who=probe.one@example.com"; '
         f'echo "time=\\"2026-10-18T21:00:01Z\\" level=warning msg=\\"missing translation\\" '
         f'args=\\"map[Code:ZZZ999 LastEmail:probe.two@example.com] {marker}\\""; '
+        f'echo "STATEMENT: orphan-sql-line {marker}"; '
         "sleep 20"
     )
     try:
@@ -489,3 +516,96 @@ def test_the_agent_redacts_an_email_and_drops_the_zitadel_translation_warning() 
     assert "<redacted-email>" in joined
     assert "probe.one@example.com" not in joined
     assert "missing translation" not in joined, "o WARN de tradução do Zitadel deve ser descartado"
+    assert "STATEMENT:" not in joined, "linhas de infra sem severidade devem ser descartadas"
+
+
+EXPECTED_INFRA_METRICS: dict[str, set[str]] = {
+    "database": {
+        "postgresql.backends",
+        "postgresql.connection.max",
+        "postgresql.commits",
+        "postgresql.rollbacks",
+        "postgresql.deadlocks",
+        "postgresql.db_size",
+        "postgresql.rows",
+        "smarkee.db.outbox.unpublished_messages",
+        "smarkee.db.outbox.oldest_unpublished_age",
+    },
+    "identity": {
+        "rpc.server.duration",
+        "http.server.request.duration",
+        "smarkee.identity.http.requests",
+        "db.client.connection.count",
+        "db.client.connection.max",
+        "db.client.connection.wait_time",
+        "smarkee.identity.projection.events",
+    },
+    "messaging": {
+        "smarkee.messaging.consumer.pending_messages",
+        "smarkee.messaging.consumer.ack_pending_messages",
+        "smarkee.messaging.consumer.redelivered_messages",
+        "smarkee.messaging.stream.messages",
+        "smarkee.messaging.stream.size",
+        "smarkee.messaging.server.slow_consumers",
+        "smarkee.messaging.server.connections",
+    },
+}
+
+
+def test_infra_metrics_cover_database_identity_and_messaging_with_otel_semconv(
+    started_ns: int,
+) -> None:
+    def all_services_collected() -> list[Record] | None:
+        recent = [m for m in metrics(PLATFORM_INFRA_METRICS) if m["time_ns"] >= started_ns]
+        by_service: dict[str, set[str]] = {service: set() for service in EXPECTED_INFRA_METRICS}
+        for point in recent:
+            service = str(point["resource"].get("service.name", ""))
+            if service in by_service:
+                by_service[service].add(point["name"])
+        if all(by_service[s] >= expected for s, expected in EXPECTED_INFRA_METRICS.items()):
+            return recent
+        return None
+
+    recent = wait_for(
+        "métricas de infra de database, identity e messaging em metrics/infra",
+        all_services_collected,
+    )
+    service_points = [
+        m for m in recent if m["resource"].get("service.name") in EXPECTED_INFRA_METRICS
+    ]
+    for point in service_points:
+        resource = point["resource"]
+        assert resource.get("service.namespace") == "smarkee", point["name"]
+        assert resource.get("deployment.environment.name") == "development", point["name"]
+        assert resource.get("server.address"), point["name"]
+        assert resource.get("server.port"), point["name"]
+        assert resource.get("service.instance.id"), point["name"]
+        assert not point["name"].startswith(("go_", "process_", "scrape_")), point["name"]
+        assert point["name"] not in {"up", "target_info", "otel_scope_info"}
+
+    row_namespaces = {
+        str(m["attributes"].get("db.namespace", ""))
+        for m in service_points
+        if m["name"] == "postgresql.rows"
+    }
+    assert row_namespaces and all(ns.startswith("smarkee|") for ns in row_namespaces), (
+        f"postgresql.rows deve vir apenas do banco smarkee: {row_namespaces}"
+    )
+
+    outbox_collections = {
+        str(m["attributes"].get("db.collection.name", ""))
+        for m in service_points
+        if m["name"] == "smarkee.db.outbox.unpublished_messages"
+    }
+    assert {"account_outbox", "organization_outbox", "service_outbox"} <= outbox_collections
+
+    leaked_app = [
+        m["name"]
+        for m in metrics(PLATFORM_APP_METRICS)
+        if m["time_ns"] >= started_ns
+        and (
+            m["resource"].get("service.name") in EXPECTED_INFRA_METRICS
+            or m["name"].startswith(("container.", "postgresql."))
+        )
+    ]
+    assert leaked_app == [], f"métricas de infra vazaram para metrics/app: {leaked_app}"

@@ -5,7 +5,7 @@ O **platform-telemeter** **processa e grava** a telemetria que **não é de nenh
 ## Função
 
 1. **Recebe** OTLP gRPC (`4317`) do `telemetry-router`, só na rede `internal`.
-2. **Separa infra de app** (decisão 0053): log de **app** é o que traz `smarkee.component.role`; métrica de **infra** é a de prefixo `container.`, `system.`, `process.` ou `k8s.`; o resto é de app.
+2. **Separa infra de app** (decisão 0053): log de **app** é o que traz `smarkee.component.role`; métrica de **infra** é a de prefixo `container.`, `system.`, `process.`, `k8s.` ou `postgresql.`, ou cujo `service.name` seja um serviço da plataforma (`database`, `identity`, `messaging`, `gateway`); o resto é de app.
 3. **Grava**, até haver backend, em arquivos com rotação (10 MB, 3 rotacionados, no máximo 1 dia): `logs/{app,infra}/`, `metrics/{app,infra}/` e `traces/`.
 
 ## O que ele não faz

@@ -60,6 +60,40 @@ services:
       timeout: 5s
       retries: 5
 
+  # Exportador Prometheus oficial do NATS (https://docs.nats.io/learn/monitoring/prometheus-and-dashboards):
+  # lê `/varz` e `/jsz` na porta 8222 do servidor e expõe `/metrics` na porta 7777 (rede `internal`) para
+  # o `telemetry-agent`. Sem estado, sem privilégios e sem portas publicadas no host.
+  messaging-exporter:
+    image: ${SMARKEE_MESSAGING_EXPORTER_IMAGE_VERSION:-natsio/prometheus-nats-exporter:0.20.3}
+    container_name: messaging-exporter.smarkee.internal
+    labels:
+      smarkee.layer: infra
+    logging: *infra-logging
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges=true"]
+    deploy:
+      resources:
+        limits:
+          cpus: "${SMARKEE_MESSAGING_EXPORTER_CPUS:-0.25}"
+          memory: ${SMARKEE_MESSAGING_EXPORTER_MEMORY:-64M}
+    command:
+      - -varz
+      - -jsz=all
+      - -prefix=nats
+      - -port=7777
+      - http://messaging.smarkee.internal:8222
+    depends_on:
+      messaging:
+        condition: service_healthy
+    networks:
+      internal:
+        aliases:
+          - messaging-exporter.smarkee.internal
+    restart: unless-stopped
+    # A imagem é distroless/scratch (sem shell nem wget/curl).
+    healthcheck:
+      disable: true
+
   # Contêineres de inicialização (equivalente ao initContainer): um por Stream declarado em
   # bootstrap/<stream>.json, cada um executando um único comando da CLI oficial, a cada subida.
   # Stream inexistente é criado; existente com configuração idêntica não muda; configuração
