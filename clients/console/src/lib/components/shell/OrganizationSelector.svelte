@@ -1,13 +1,5 @@
 <script lang="ts">
-	import {
-		Building2,
-		Check,
-		ChevronDown,
-		PlusCircle,
-		RefreshCw,
-		Search,
-		ShieldCheck
-	} from 'lucide-svelte';
+	import { Building2, Check, ChevronDown, PlusCircle, RefreshCw, Search } from 'lucide-svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
 
@@ -85,7 +77,7 @@
 				Organização
 			</div>
 			<div
-				class="max-w-[92px] truncate text-[11px] font-semibold text-slate-900 sm:max-w-[200px] sm:text-xs"
+				class="max-w-[120px] truncate text-[11px] font-semibold text-slate-900 sm:max-w-[240px] sm:text-xs"
 				data-testid="active-organization-name"
 			>
 				{activeDisplayName}
@@ -110,7 +102,7 @@
 		>
 			<div class="mb-2 flex items-center justify-between">
 				<span class="text-xs font-semibold tracking-wide text-slate-700 uppercase">
-					Alternar Organization (ipm.organization)
+					Alternar Organização
 				</span>
 				<span class="text-[11px] text-slate-500">
 					{consoleState.organizations.length} disponíveis
@@ -125,8 +117,8 @@
 				<input
 					type="search"
 					bind:value={searchQuery}
-					placeholder="Filtrar por nome ou resourceId..."
-					aria-label="Filtrar organizações por nome ou ID"
+					placeholder="Filtrar por nome..."
+					aria-label="Filtrar organizações por nome"
 					data-testid="organization-selector-search"
 					class="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-3 pl-8 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:bg-white focus:outline-none"
 				/>
@@ -141,7 +133,7 @@
 				<div class="rounded-lg border border-dashed border-slate-200 p-4 text-center">
 					<p class="text-xs font-medium text-slate-700">Nenhuma organização encontrada</p>
 					<p class="mt-0.5 text-[11px] text-slate-500">
-						Verifique o termo pesquisado ou crie uma nova Organization no IPM.
+						Verifique o termo pesquisado ou crie uma nova organização.
 					</p>
 				</div>
 			{:else}
@@ -154,29 +146,15 @@
 								type="button"
 								onclick={() => handleSelect(org.resourceId)}
 								data-testid="org-option-{org.desired.name}"
-								class="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition {isSelected
+								class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition {isSelected
 									? 'bg-emerald-50/90 text-emerald-950 ring-1 ring-emerald-200'
 									: 'hover:bg-slate-100'}"
 							>
-								<div class="min-w-0 flex-1">
-									<div class="flex items-center gap-1.5">
-										<span class="truncate text-xs font-semibold text-slate-900">
-											{demoMeta.displayName}
-										</span>
-										<span class="font-mono text-[11px] text-slate-500">
-											({org.desired.name})
-										</span>
-									</div>
-									<div class="mt-0.5 flex items-center gap-2 text-[11px] text-slate-500">
-										<span class="truncate font-mono">{org.resourceId}</span>
-										<span class="inline-flex items-center gap-0.5 text-emerald-700">
-											<ShieldCheck class="h-3 w-3" aria-hidden="true" />
-											{org.desired.platformAccess}
-										</span>
-									</div>
-								</div>
+								<span class="min-w-0 flex-1 text-xs font-semibold text-slate-900">
+									{demoMeta.displayName}
+								</span>
 
-								<div class="flex shrink-0 items-center gap-1.5">
+								<div class="flex shrink-0 items-center gap-2">
 									<StatusBadge phase={org.phase} size="sm" />
 									{#if isSelected}
 										<Check class="h-4 w-4 text-emerald-700" aria-label="Organização selecionada" />
