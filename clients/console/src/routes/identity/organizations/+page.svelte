@@ -271,7 +271,8 @@
 						<th class="px-4 py-3">Fase</th>
 						<th class="px-4 py-3">Acesso</th>
 						<th class="px-4 py-3">Proteção</th>
-						<th class="px-4 py-3 text-right">Ações</th>
+						<th class="px-4 py-3 text-center">Contexto</th>
+						<th class="px-4 py-3 text-center">Ações</th>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-slate-100">
@@ -318,25 +319,26 @@
 									</span>
 								{/if}
 							</td>
-							<td class="px-4 py-3 text-right">
-								<div class="inline-flex items-center gap-2">
-									{#if isActive}
-										<span
-											class="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-900"
-										>
-											<Check class="h-3 w-3" aria-hidden="true" />
-											Ativa
-										</span>
-									{:else}
-										<button
-											type="button"
-											onclick={() => consoleState.selectOrganization(org.resourceId)}
-											class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-800"
-										>
-											Selecionar
-										</button>
-									{/if}
-
+							<td class="px-4 py-3 text-center">
+								{#if isActive}
+									<span
+										class="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-900"
+									>
+										<Check class="h-3 w-3" aria-hidden="true" />
+										Ativa
+									</span>
+								{:else}
+									<button
+										type="button"
+										onclick={() => consoleState.selectOrganization(org.resourceId)}
+										class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-800"
+									>
+										Selecionar
+									</button>
+								{/if}
+							</td>
+							<td class="px-4 py-3 text-center">
+								<div class="inline-flex items-center justify-center gap-2">
 									<button
 										type="button"
 										onclick={() => startEditOrg(org)}
