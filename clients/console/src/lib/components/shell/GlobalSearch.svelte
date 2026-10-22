@@ -41,7 +41,7 @@
 			items.push({
 				id: `res-${resource.resourceId}`,
 				title: resource.displayName,
-				subtitle: `${resource.resourceType} • ${resource.resourceId}`,
+				subtitle: `${resource.typeLabel} • ${resource.resourceId}`,
 				href: resource.href,
 				category: 'Recurso',
 				isDemo: resource.isDemo,

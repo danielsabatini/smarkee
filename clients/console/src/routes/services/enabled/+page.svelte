@@ -8,18 +8,15 @@
 </script>
 
 <svelte:head>
-	<title>Smarkee Console — Serviços Habilitados (sum.service)</title>
+	<title>Smarkee Console — Serviços Habilitados</title>
 </svelte:head>
 
 <div class="mx-auto max-w-6xl space-y-6">
 	<div>
-		<span class="font-mono text-xs font-semibold text-emerald-700 uppercase">
-			Service Usage Manager • sum.service
-		</span>
+		<span class="text-xs font-semibold text-emerald-700 uppercase"> Serviços (SUM) </span>
 		<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Serviços Habilitados na Conta</h1>
 		<p class="mt-1 text-xs text-slate-600">
-			Ligações de serviço (<code>GET /v1/sum/services</code>) associadas ao
-			<code>ownerAccountId</code>.
+			Serviços ativos e configurados para sua conta na plataforma.
 		</p>
 	</div>
 
@@ -36,11 +33,11 @@
 						<tr
 							class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500"
 						>
-							<th class="px-4 py-3">Serviço (desired.service)</th>
-							<th class="px-4 py-3">resourceId</th>
-							<th class="px-4 py-3">Lifecycle</th>
-							<th class="px-4 py-3">Fase (phase)</th>
-							<th class="px-4 py-3">Roles (serviceRoles)</th>
+							<th class="px-4 py-3">Serviço</th>
+							<th class="px-4 py-3">ID</th>
+							<th class="px-4 py-3">Estado</th>
+							<th class="px-4 py-3">Status</th>
+							<th class="px-4 py-3">Permissões</th>
 							<th class="px-4 py-3 text-right">Ações</th>
 						</tr>
 					</thead>
@@ -59,8 +56,8 @@
 									</div>
 								</td>
 								<td class="px-4 py-3 font-mono text-[11px] text-slate-600">{svc.resourceId}</td>
-								<td class="px-4 py-3 font-mono text-[11px] text-slate-700">
-									{svc.desired.lifecycle}
+								<td class="px-4 py-3 text-[11px] font-medium text-slate-700">
+									{svc.desired.lifecycle === 'present' ? 'Habilitado' : 'Desabilitado'}
 								</td>
 								<td class="px-4 py-3">
 									<StatusBadge phase={svc.phase} size="sm" />

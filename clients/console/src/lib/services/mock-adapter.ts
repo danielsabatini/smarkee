@@ -439,7 +439,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 
 		this.operations = [
 			{
-				title: 'Reconciliação de Organization',
+				title: 'Atualização da Organização',
 				subtitle: 'Provisionando organização no provedor de identidade...',
 				organizationId: ORG_ACME_ID,
 				operation: {
@@ -455,7 +455,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 				}
 			},
 			{
-				title: 'Criação de User na Organization',
+				title: 'Criação de Usuário',
 				subtitle: 'Aguardando confirmação do loop de reconciliação...',
 				organizationId: ORG_ACME_ID,
 				operation: {
@@ -471,7 +471,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 				}
 			},
 			{
-				title: 'Habilitação de Serviço IPM',
+				title: 'Habilitação de Serviço (IPM)',
 				subtitle: 'Serviço habilitado com sucesso no catálogo.',
 				organizationId: ORG_ACME_ID,
 				operation: {
@@ -488,8 +488,8 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 				}
 			},
 			{
-				title: 'Exclusão de Organization recusada',
-				subtitle: 'Recurso protegido contra exclusão (deletionProtection: true).',
+				title: 'Exclusão de Organização recusada',
+				subtitle: 'Recurso com proteção contra exclusão ativa.',
 				organizationId: ORG_ACME_ID,
 				operation: {
 					operationId: '0199c8d0-1111-7a01-8b01-000000000004',
@@ -505,8 +505,8 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 				}
 			},
 			{
-				title: 'Reconciliação de User falhou',
-				subtitle: 'Limite de tentativas excedido no Executor.',
+				title: 'Falha no processamento de Usuário',
+				subtitle: 'Tempo limite de sincronização excedido.',
 				organizationId: ORG_INITECH_ID,
 				operation: {
 					operationId: '0199c8d0-1111-7a01-8b01-000000000005',
@@ -526,8 +526,8 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 		this.notifications = [
 			{
 				id: 'notif-001',
-				title: 'Organization acme-corporation reconciliada',
-				description: 'O estado observado convergiu para Ready na geração 2.',
+				title: 'Organização acme-corporation pronta',
+				description: 'A organização está pronta para uso e disponível.',
 				severity: 'success',
 				createdAt: 'há 10 minutos',
 				read: false,
@@ -536,9 +536,9 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 			},
 			{
 				id: 'notif-002',
-				title: 'Exclusão bloqueada por deletionProtection',
+				title: 'Exclusão bloqueada por proteção de exclusão',
 				description:
-					'A solicitação delete em acme-corporation foi rejeitada com motivo protected (decisão 0043).',
+					'A solicitação de exclusão em acme-corporation foi rejeitada pois o recurso está protegido.',
 				severity: 'warning',
 				createdAt: 'há 25 minutos',
 				read: false,
@@ -648,10 +648,10 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 			summaries.push({
 				resourceId: org.resourceId,
 				displayName: org.desired.name,
-				subtitle: `Organization (${org.resourceId.slice(0, 13)}…)`,
+				subtitle: 'Organização',
 				module: 'ipm',
 				resourceType: 'ipm.organization',
-				typeLabel: 'Organization',
+				typeLabel: 'Organização',
 				phase: org.phase,
 				updatedAt: 'há 2 horas',
 				href: '/identity/organizations',
@@ -664,10 +664,10 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 			summaries.push({
 				resourceId: user.resourceId,
 				displayName: `${user.desired.givenName ?? ''} ${user.desired.familyName ?? ''}`.trim(),
-				subtitle: `User (${user.resourceId.slice(0, 13)}…)`,
+				subtitle: 'Usuário',
 				module: 'ipm',
 				resourceType: 'ipm.user',
-				typeLabel: 'User',
+				typeLabel: 'Usuário',
 				phase: user.phase,
 				updatedAt: 'há 3 horas',
 				href: '/identity/users',
@@ -679,11 +679,11 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 		for (const svc of this.services) {
 			summaries.push({
 				resourceId: svc.resourceId,
-				displayName: `sum.${svc.desired.service}`,
-				subtitle: `Service Link (${svc.desired.service.toUpperCase()})`,
+				displayName: svc.desired.service.toUpperCase(),
+				subtitle: 'Serviço',
 				module: 'sum',
 				resourceType: 'sum.service',
-				typeLabel: 'Service',
+				typeLabel: 'Serviço',
 				phase: svc.phase,
 				updatedAt: 'há 5 horas',
 				href: '/services/enabled',
@@ -695,10 +695,10 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 		summaries.push({
 			resourceId: this.account.resourceId,
 			displayName: `${this.account.desired.givenName} ${this.account.desired.familyName}`,
-			subtitle: 'Conta Titular (core.account)',
+			subtitle: 'Conta Titular',
 			module: 'core',
 			resourceType: 'core.account',
-			typeLabel: 'Account',
+			typeLabel: 'Conta',
 			phase: this.account.phase,
 			updatedAt: 'há 1 dia',
 			href: '/identity/accounts',
@@ -764,7 +764,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 
 		if (this.organizations.some((org) => org.desired.name === normalizedName)) {
 			const rejectedOp: OperationTitleInfo = {
-				title: `Criação de Organization (${normalizedName})`,
+				title: `Criação de Organização (${normalizedName})`,
 				subtitle: 'Conflito: já existe uma organização com este nome.',
 				operation: {
 					operationId,
@@ -827,8 +827,8 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 		this.usersByOrganization[resourceId] = [];
 
 		const opEntry: OperationTitleInfo = {
-			title: `Criação de Organization (${normalizedName})`,
-			subtitle: 'Pedido 202 Accepted recebido; aguardando reconciliação...',
+			title: `Criação de Organização (${normalizedName})`,
+			subtitle: 'Solicitação recebida; processando criação...',
 			organizationId: resourceId,
 			operation: {
 				operationId,
@@ -875,11 +875,11 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 					organizationState: 'active',
 					deletionProtection: newOrg.desired.deletionProtection
 				};
-				opEntry.subtitle = 'Organização reconciliada com sucesso (Ready).';
+				opEntry.subtitle = 'Organização pronta com sucesso.';
 				this.notifications.unshift({
 					id: `notif-${Date.now()}`,
-					title: `Organization ${normalizedName} pronta`,
-					description: 'A organização convergiu para o estado Ready.',
+					title: `Organização ${normalizedName} pronta`,
+					description: 'A organização está pronta para uso.',
 					severity: 'success',
 					createdAt: 'agora',
 					read: false,
@@ -935,8 +935,8 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 		this.usersByOrganization[validOrgId].unshift(newUser);
 
 		const opEntry: OperationTitleInfo = {
-			title: `Criação de User (${newUser.desired.givenName} ${newUser.desired.familyName})`,
-			subtitle: 'Pedido 202 Accepted recebido; provisionando usuário...',
+			title: `Criação de Usuário (${newUser.desired.givenName} ${newUser.desired.familyName})`,
+			subtitle: 'Solicitação recebida; criando usuário...',
 			organizationId: validOrgId,
 			operation: {
 				operationId,
@@ -1039,7 +1039,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 
 		const opEntry: OperationTitleInfo = {
 			title: `Habilitação de Serviço (${serviceName.toUpperCase()})`,
-			subtitle: `Configurando Service Usage (${serviceName})...`,
+			subtitle: `Habilitando serviço ${serviceName.toUpperCase()}...`,
 			operation: {
 				operationId,
 				operationType: existing ? 'update' : 'create',
@@ -1174,7 +1174,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 
 		if (!org) {
 			const notFoundOp: OperationTitleInfo = {
-				title: 'Exclusão de Organization',
+				title: 'Exclusão de Organização',
 				subtitle: 'Organização não encontrada.',
 				operation: {
 					operationId,
@@ -1195,8 +1195,8 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 
 		if (org.desired.deletionProtection !== false) {
 			const protectedOp: OperationTitleInfo = {
-				title: `Exclusão de Organization (${org.desired.name})`,
-				subtitle: 'Rejeitada: deletionProtection está ativo neste recurso.',
+				title: `Exclusão de Organização (${org.desired.name})`,
+				subtitle: 'Rejeitada: recurso com proteção contra exclusão ativa.',
 				organizationId: validId,
 				operation: {
 					operationId,
@@ -1222,7 +1222,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 		org.updatedAt = now;
 
 		const opEntry: OperationTitleInfo = {
-			title: `Exclusão de Organization (${org.desired.name})`,
+			title: `Exclusão de Organização (${org.desired.name})`,
 			subtitle: 'Removendo organização no provedor de identidade...',
 			organizationId: validId,
 			operation: {

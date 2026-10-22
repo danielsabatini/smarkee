@@ -89,9 +89,7 @@
 				<h2 id="service-status-heading" class="text-sm font-bold text-slate-900">
 					Estado dos serviços
 				</h2>
-				<p class="text-xs text-slate-500">
-					Ligações de serviços na conta titular (<code>sum.service</code>).
-				</p>
+				<p class="text-xs text-slate-500">Serviços ativos na conta titular.</p>
 			</div>
 
 			<a

@@ -90,7 +90,7 @@
 								</td>
 								<td class="px-1.5 py-2.5">
 									<div class="flex items-center gap-1">
-										<span class="truncate font-medium text-slate-700" title={item.resourceType}>
+										<span class="truncate font-medium text-slate-700" title={item.typeLabel}>
 											{item.typeLabel}
 										</span>
 										{#if item.isDemo}

@@ -69,7 +69,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
 				href: '/identity/accounts',
 				iconName: 'user-check',
 				moduleCode: 'IPM',
-				description: 'Conta titular autenticada (core.account)'
+				description: 'Conta titular autenticada'
 			},
 			{
 				id: 'ipm-organizations',
@@ -77,7 +77,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
 				href: '/identity/organizations',
 				iconName: 'building-2',
 				moduleCode: 'IPM',
-				description: 'Organizações do titular (ipm.organization)'
+				description: 'Organizações do titular'
 			},
 			{
 				id: 'ipm-users',
@@ -85,7 +85,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
 				href: '/identity/users',
 				iconName: 'users',
 				moduleCode: 'IPM',
-				description: 'Usuários na organização ativa (ipm.user)'
+				description: 'Usuários na organização ativa'
 			},
 			{
 				id: 'ipm-settings',
@@ -119,7 +119,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
 				href: '/services/enabled',
 				iconName: 'shield-check',
 				moduleCode: 'SUM',
-				description: 'Ligações de serviços ativas na conta (sum.service)'
+				description: 'Serviços ativos na conta'
 			}
 		]
 	},

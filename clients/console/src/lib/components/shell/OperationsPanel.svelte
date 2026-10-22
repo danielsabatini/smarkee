@@ -14,19 +14,56 @@
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
 	import type { OperationTitleInfo } from '$lib/types/console';
+	import type { Operation } from '$lib/types/common';
 
 	const consoleState = getConsoleState();
+
+	function formatResourceType(type: string): string {
+		switch (type) {
+			case 'organization':
+			case 'ipm.organization':
+				return 'Organização';
+			case 'user':
+			case 'ipm.user':
+				return 'Usuário';
+			case 'service':
+			case 'sum.service':
+				return 'Serviço';
+			case 'account':
+			case 'core.account':
+				return 'Conta';
+			default:
+				return type;
+		}
+	}
+
+	function formatOperationAction(action: string): string {
+		switch (action) {
+			case 'create':
+				return 'Criação';
+			case 'update':
+				return 'Atualização';
+			case 'delete':
+				return 'Exclusão';
+			default:
+				return action;
+		}
+	}
+
+	function formatOperationTag(op: Operation): string {
+		return `${formatResourceType(op.resourceType)} • ${formatOperationAction(op.operationType)}`;
+	}
 
 	function formatReasonLabel(reason?: string): string {
 		switch (reason) {
 			case 'protected':
-				return 'Protegido contra exclusão (deletionProtection: true)';
+				return 'Protegido contra exclusão';
 			case 'conflict':
-				return 'Conflito de unicidade ou versão (conflict)';
+				return 'Conflito de unicidade ou versão';
 			case 'validation':
-				return 'Falha de validação de contrato (validation)';
+				return 'Falha na validação das informações';
 			case 'not_found':
-				return 'Recurso não encontrado (not_found)';
+				return 'Recurso não encontrado';
 			default:
 				return reason ?? 'Não especificado';
 		}
@@ -192,9 +229,8 @@
 												<div
 													class="mt-2 flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500"
 												>
-													<span class="font-mono">
-														{entry.operation.module}.{entry.operation.resourceType} • {entry
-															.operation.operationType}
+													<span class="font-medium text-slate-600">
+														{formatOperationTag(entry.operation)}
 													</span>
 													<button
 														type="button"
@@ -401,8 +437,8 @@
 		<div class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
 			<div class="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
 				<div>
-					<span class="font-mono text-[11px] font-semibold text-emerald-700 uppercase">
-						Contrato Operation (v1)
+					<span class="text-[11px] font-semibold text-emerald-700 uppercase">
+						Detalhes da Operação
 					</span>
 					<h2 class="mt-0.5 text-sm font-bold text-slate-900">{selected.title}</h2>
 				</div>
@@ -418,34 +454,31 @@
 
 			<dl class="mt-4 grid grid-cols-1 gap-2.5 text-xs sm:grid-cols-2">
 				<div class="rounded-lg bg-slate-50 p-2.5">
-					<dt class="text-[11px] text-slate-500">operationId</dt>
+					<dt class="text-[11px] text-slate-500">ID da Operação</dt>
 					<dd class="mt-0.5 break-all font-mono font-medium text-slate-900">
 						{selected.operation.operationId}
 					</dd>
 				</div>
 				<div class="rounded-lg bg-slate-50 p-2.5">
-					<dt class="text-[11px] text-slate-500">resourceId</dt>
+					<dt class="text-[11px] text-slate-500">ID do Recurso</dt>
 					<dd class="mt-0.5 break-all font-mono font-medium text-slate-900">
 						{selected.operation.resourceId}
 					</dd>
 				</div>
 				<div class="rounded-lg bg-slate-50 p-2.5">
-					<dt class="text-[11px] text-slate-500">Módulo / Recurso</dt>
-					<dd class="mt-0.5 font-mono font-medium text-slate-900">
-						{selected.operation.module}.{selected.operation.resourceType}
+					<dt class="text-[11px] text-slate-500">Recurso</dt>
+					<dd class="mt-0.5 font-medium text-slate-900">
+						{formatResourceType(selected.operation.resourceType)}
 					</dd>
 				</div>
 				<div class="rounded-lg bg-slate-50 p-2.5">
-					<dt class="text-[11px] text-slate-500">Tipo e Geração</dt>
-					<dd class="mt-0.5 font-mono font-medium text-slate-900">
-						{selected.operation.operationType}
-						{#if selected.operation.desiredGeneration}
-							(gen {selected.operation.desiredGeneration})
-						{/if}
+					<dt class="text-[11px] text-slate-500">Ação</dt>
+					<dd class="mt-0.5 font-medium text-slate-900">
+						{formatOperationAction(selected.operation.operationType)}
 					</dd>
 				</div>
 				<div class="rounded-lg bg-slate-50 p-2.5">
-					<dt class="text-[11px] text-slate-500">Estado (operationStatus)</dt>
+					<dt class="text-[11px] text-slate-500">Status</dt>
 					<dd class="mt-1">
 						<StatusBadge operationStatus={selected.operation.operationStatus} size="sm" />
 					</dd>
@@ -458,9 +491,7 @@
 
 			{#if selected.operation.operationStatusReason}
 				<div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-					<p class="font-semibold">
-						Motivo da Rejeição ({selected.operation.operationStatusReason}):
-					</p>
+					<p class="font-semibold">Motivo da Rejeição:</p>
 					<p class="mt-0.5 text-[11px]">
 						{formatReasonLabel(selected.operation.operationStatusReason)}
 					</p>

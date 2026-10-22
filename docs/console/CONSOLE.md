@@ -95,6 +95,13 @@ Preserve a composição e a hierarquia da imagem de referência:
 
 Conforme a referência visual aprovada e o `AGENTS.md` (§16.1 e §39.1), os textos de interface do Smarkee Console são apresentados em **Português do Brasil (`pt-BR`)**, mantendo-se em inglês apenas os termos técnicos consagrados e valores literais de contrato (`Ready`, `Reconciling`, `Failed`, `IAM`, nomes de módulos e siglas `IPM`, `SUM`, `AEM`, `ODM`). Comentários e docstrings no código-fonte seguem em `pt-BR`, e identificadores técnicos de código em `en-US`.
 
+### 4.5 Abstração de Notações Internas e Foco no Usuário Final
+
+O Smarkee Console é uma interface projetada para o **usuário final** e administradores de organizações, não um depurador de JSON Schema ou ferramenta interna de engenharia:
+- **Proibição de Nomes Técnicos de Recursos e Módulos na UI:** É estritamente proibido exibir notações internas como `ipm.organization`, `ipm.user`, `sum.service`, `core.account` em títulos, subtítulos, tabelas, formulários ou cartões. Em seu lugar, use sempre nomes limpos em português: **Organização**, **Usuário**, **Serviço** e **Conta**.
+- **Proibição de Notações de Schemas e Ações Internas:** Não exponha notações como `resourceId`, `desired.name`, `deletionProtection`, `operationType`, `update`, `create` ou `delete` diretamente ao usuário. Utilize rótulos amigáveis: **ID**, **Nome / Slug DNS**, **Proteção contra exclusão**, **Ação (Criação, Atualização, Exclusão)**.
+- **Isolamento de Processos Internos do Loop:** Tarefas de bastidores executadas pelo loop de reconciliação (como concessões de Project Grant, atribuições de roles técnicas no Zitadel ou sincronizações internas) não são operações do usuário e não devem poluir o painel de operações ou a central de notificações.
+
 ---
 
 ## 5. Layout Principal (Shell)
@@ -189,11 +196,11 @@ Painel lateral direito retrátil com duas abas:
 **Regra de Foco no Usuário:** O Console é destinado ao usuário final. Tarefas de bastidores executadas internamente pelo loop de controle (`RESOURCE-CONTROL-LOOP.md`) — como atribuições internas de roles, sincronizações técnicas ou passos intermediários de provisionamento — **não devem** aparecer no painel de Operações. O Console deve ser dedicado exclusivamente às ações que o usuário inicia e compreende (como "Criar Organização", "Habilitar Serviço", "Adicionar Usuário").
 
 Cada item da aba **Operações** exibe:
-- Tipo de operação (`operationType`: `create`, `update`, `delete`) e tipo/módulo do recurso (`module` + `resourceType`, ex.: `ipm.organization`, `ipm.user`, `sum.service`).
-- Identificador do recurso (`resourceId`) e da operação (`operationId`).
-- Estado oficial da operação (`operationStatus`: `accepted`, `in_progress`, `completed`, `failed`, `rejected`).
-- Motivo de rejeição (`operationStatusReason`: `conflict`, `validation`, `not_found`, `protected`), quando `operationStatus === 'rejected'`.
-- Tempo relativo / carimbo de tempo (`createdAt`, `updatedAt`, `completedAt`).
+- Tipo de recurso amigável e ação formatada (ex.: "Organização • Atualização", "Usuário • Criação", "Serviço • Habilitação"). Notações internas como `ipm.organization • update` não devem ser exibidas ao usuário.
+- Identificador do recurso e da operação (com rótulos amigáveis "ID" e "ID da Operação").
+- Estado oficial da operação com badge semântico (`StatusBadge`).
+- Motivo legível em português em caso de rejeição (ex.: "Protegido contra exclusão", "Conflito de unicidade").
+- Tempo relativo (`há 5 minutos`, `agora`).
 - Ação para abrir detalhes da operação ou inspecionar o diagnóstico de erro/rejeição.
 
 Regra de progresso (`AGENTS.md` §3 e §9):

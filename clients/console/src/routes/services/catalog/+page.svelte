@@ -21,13 +21,10 @@
 
 <div class="mx-auto max-w-6xl space-y-6">
 	<div>
-		<span class="font-mono text-xs font-semibold text-emerald-700 uppercase">
-			Service Usage Manager • Catálogo
-		</span>
+		<span class="text-xs font-semibold text-emerald-700 uppercase"> Serviços (SUM) </span>
 		<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Catálogo de Serviços da Plataforma</h1>
 		<p class="mt-1 text-xs text-slate-600">
-			Habilite módulos no SUM (<code>POST /v1/sum/services</code>) para conceder as roles de ação na
-			conta titular (decisão 0033).
+			Habilite os serviços disponíveis para utilizar os módulos na plataforma.
 		</p>
 	</div>
 
@@ -47,7 +44,7 @@
 							</div>
 							<div>
 								<h2 class="text-sm font-bold text-slate-900">{item.name}</h2>
-								<span class="font-mono text-xs text-slate-500">service: "{item.serviceKey}"</span>
+								<span class="font-mono text-xs text-slate-500">{item.serviceKey}</span>
 							</div>
 						</div>
 						<div class="flex items-center gap-1.5">
@@ -65,9 +62,7 @@
 					<p class="mt-3 text-xs leading-relaxed text-slate-600">{item.description}</p>
 
 					<div class="mt-3">
-						<span class="text-[11px] font-semibold text-slate-500"
-							>Roles concedidas no Zitadel:</span
-						>
+						<span class="text-[11px] font-semibold text-slate-500"> Permissões incluídas: </span>
 						<div class="mt-1.5 flex flex-wrap gap-1">
 							{#each item.rolesGranted as role (role)}
 								<span

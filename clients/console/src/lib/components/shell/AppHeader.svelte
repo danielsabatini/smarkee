@@ -188,8 +188,8 @@
 
 					<div class="mt-2.5 space-y-1.5 text-[11px] text-slate-600">
 						<div class="flex items-center justify-between">
-							<span class="text-slate-500">Recurso:</span>
-							<span class="font-mono font-medium text-slate-800">core.account</span>
+							<span class="text-slate-500">Tipo:</span>
+							<span class="font-medium text-slate-800">Conta Titular</span>
 						</div>
 						<div class="flex items-center justify-between">
 							<span class="text-slate-500">Provedor OIDC:</span>
@@ -199,7 +199,7 @@
 							</span>
 						</div>
 						<div class="flex items-center justify-between">
-							<span class="text-slate-500">Roles ativas no token:</span>
+							<span class="text-slate-500">Permissões ativas:</span>
 							<span class="font-semibold text-slate-800">
 								{consoleState.userContext?.roles.length ?? 0}
 							</span>
@@ -212,7 +212,7 @@
 							onclick={closeProfileMenu}
 							class="rounded-lg px-2.5 py-1.5 font-medium text-slate-700 hover:bg-slate-100"
 						>
-							Ver detalhes da Account
+							Ver detalhes da Conta
 						</a>
 						<a
 							href="/settings"

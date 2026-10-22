@@ -33,19 +33,16 @@
 </script>
 
 <svelte:head>
-	<title>Smarkee Console — Organizações (ipm.organization)</title>
+	<title>Smarkee Console — Organizações</title>
 </svelte:head>
 
 <div class="mx-auto max-w-6xl space-y-6">
 	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
 		<div>
-			<span class="font-mono text-xs font-semibold text-emerald-700 uppercase">
-				Identity Provider Manager • ipm.organization
-			</span>
+			<span class="text-xs font-semibold text-emerald-700 uppercase"> Identidade (IPM) </span>
 			<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Organizações</h1>
 			<p class="mt-1 text-xs text-slate-600">
-				Gerencie os recursos <code>ipm.organization</code> da conta titular via loop de controle
-				assíncrono (<code>202 Accepted</code>).
+				Gerencie as organizações da sua conta titular na plataforma.
 			</p>
 		</div>
 	</div>
@@ -55,9 +52,9 @@
 		onsubmit={handleCreateOrganization}
 		class="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs"
 	>
-		<h2 class="text-sm font-bold text-slate-900">Nova Organization (POST /v1/ipm/organizations)</h2>
+		<h2 class="text-sm font-bold text-slate-900">Nova Organização</h2>
 		<p class="mt-0.5 text-xs text-slate-500">
-			O nome único (<code>desired.name</code>) segue o padrão DNS em minúsculas.
+			O nome único segue o padrão DNS em letras minúsculas (sem espaços).
 		</p>
 
 		{#if formError}
@@ -72,7 +69,7 @@
 		<div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
 			<div class="flex-1">
 				<label for="org-name-input" class="block text-xs font-semibold text-slate-700">
-					Nome da Organization (desired.name)
+					Nome da Organização
 				</label>
 				<input
 					id="org-name-input"
@@ -91,7 +88,7 @@
 					bind:checked={deletionProtection}
 					class="h-4 w-4 rounded border-slate-300 text-emerald-600"
 				/>
-				<span>Proteção contra exclusão (deletionProtection)</span>
+				<span>Proteção contra exclusão</span>
 			</label>
 
 			<button
@@ -101,7 +98,7 @@
 				class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
 			>
 				<Plus class="h-4 w-4" aria-hidden="true" />
-				<span>Solicitar Criação (202)</span>
+				<span>Criar Organização</span>
 			</button>
 		</div>
 	</form>
@@ -114,10 +111,10 @@
 					<tr
 						class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500"
 					>
-						<th class="px-4 py-3">Organização (desired.name)</th>
-						<th class="px-4 py-3">resourceId</th>
-						<th class="px-4 py-3">Fase (phase)</th>
-						<th class="px-4 py-3">Acesso / Proteção</th>
+						<th class="px-4 py-3">Organização</th>
+						<th class="px-4 py-3">ID</th>
+						<th class="px-4 py-3">Status</th>
+						<th class="px-4 py-3">Acesso e Proteção</th>
 						<th class="px-4 py-3 text-right">Ações</th>
 					</tr>
 				</thead>
