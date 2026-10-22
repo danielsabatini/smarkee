@@ -102,17 +102,25 @@
 										data-testid="sidebar-section-toggle-{section.id}"
 										class="flex w-full items-center justify-between py-1 text-left text-[11px] font-semibold tracking-normal text-slate-500 hover:text-slate-800"
 									>
-										<span class="flex items-center gap-1.5 truncate">
-											<span>{section.shortTitle ?? section.title}</span>
+										<span class="truncate pr-1.5">
+											{section.shortTitle ?? section.title}
+										</span>
+										<span class="flex shrink-0 items-center gap-1.5">
 											{#if section.isDemo}
 												<DemoBadge label="Preview" />
 											{/if}
+											{#if isCollapsed}
+												<ChevronRight
+													class="h-3.5 w-3.5 shrink-0 text-slate-400"
+													aria-hidden="true"
+												/>
+											{:else}
+												<ChevronDown
+													class="h-3.5 w-3.5 shrink-0 text-slate-400"
+													aria-hidden="true"
+												/>
+											{/if}
 										</span>
-										{#if isCollapsed}
-											<ChevronRight class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-										{:else}
-											<ChevronDown class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-										{/if}
 									</button>
 								{:else}
 									<span
@@ -153,13 +161,9 @@
 										</span>
 
 										{#if !compact}
-											<span class="flex shrink-0 items-center gap-1">
+											<span class="flex shrink-0 items-center gap-1.5">
 												{#if item.isDemo && !section.isDemo}
-													<span
-														class="rounded bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-800 ring-1 ring-amber-200"
-													>
-														Preview
-													</span>
+													<DemoBadge label="Preview" />
 												{/if}
 												{#if item.href !== '/'}
 													<ChevronRight
@@ -207,7 +211,7 @@
 	data-compact={consoleState.isSidebarCompact ? 'true' : 'false'}
 	class="hidden shrink-0 border-r border-slate-200 bg-white transition-all duration-200 lg:block {consoleState.isSidebarCompact
 		? 'w-16'
-		: 'w-60'}"
+		: 'w-64'}"
 >
 	{@render navigationContent(consoleState.isSidebarCompact)}
 </aside>
