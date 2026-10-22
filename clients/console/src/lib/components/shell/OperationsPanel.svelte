@@ -65,16 +65,16 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if consoleState.isOperationsPanelOpen}
-	<!-- Overlay em viewports menores que lg -->
+	<!-- Overlay em viewports menores que 2xl -->
 	<div
-		class="fixed inset-0 top-14 z-30 bg-slate-900/30 backdrop-blur-[1px] lg:hidden"
+		class="fixed inset-0 top-14 z-30 bg-slate-900/30 backdrop-blur-[1px] 2xl:hidden"
 		onclick={() => consoleState.closeOperationsPanel()}
 		aria-hidden="true"
 	></div>
 	<aside
 		aria-label="Painel de Notificações e Operações"
 		data-testid="operations-panel"
-		class="fixed top-14 right-0 bottom-0 z-40 flex w-full max-w-sm shrink-0 flex-col border-l border-slate-200 bg-white shadow-xl lg:static lg:z-auto lg:w-72 lg:max-w-none lg:shadow-none xl:w-80"
+		class="fixed top-14 right-0 bottom-0 z-40 flex w-full max-w-sm shrink-0 flex-col border-l border-slate-200 bg-white shadow-xl 2xl:static 2xl:z-auto 2xl:w-80 2xl:max-w-none 2xl:shadow-none"
 	>
 		<!-- Cabeçalho com abas -->
 		<div class="flex h-12 items-center justify-between border-b border-slate-200 px-3">

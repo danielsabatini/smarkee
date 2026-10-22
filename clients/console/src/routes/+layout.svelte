@@ -18,7 +18,7 @@
 	const consoleState = setConsoleState(new ConsoleState(adapter));
 
 	onMount(() => {
-		if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+		if (typeof window !== 'undefined' && window.innerWidth < 1536) {
 			consoleState.closeOperationsPanel();
 		}
 		void consoleState.initialize();
