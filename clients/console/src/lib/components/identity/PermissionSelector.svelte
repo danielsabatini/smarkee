@@ -159,7 +159,7 @@
 			<button
 				type="button"
 				onclick={selectAll}
-				class="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 transition"
+				class="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 transition"
 			>
 				Todas
 			</button>
