@@ -9,6 +9,12 @@
 
 	const consoleState = getConsoleState();
 
+	let orgDisplayName = $derived(
+		consoleState.activeOrganizationDemoMeta?.displayName ??
+			consoleState.activeOrganization?.desired.name ??
+			'—'
+	);
+
 	let givenName = $state('');
 	let familyName = $state('');
 	let email = $state('');
@@ -105,7 +111,7 @@
 		<div>
 			<span class="text-xs font-semibold uppercase text-emerald-700"> Identidade (IPM) </span>
 			<h1 class="mt-0.5 text-2xl font-bold text-slate-900">
-				Usuários da Organização ({consoleState.activeOrganization?.desired.name ?? '—'})
+				Usuários da Organização ({orgDisplayName})
 			</h1>
 			<p class="mt-1 text-xs text-slate-600">
 				Usuários vinculados exclusivamente à organização ativa.
@@ -211,7 +217,6 @@
 							class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500"
 						>
 							<th class="px-4 py-3">Nome</th>
-							<th class="px-4 py-3">Organização</th>
 							<th class="px-4 py-3">Fase</th>
 							<th class="px-4 py-3">Permissões</th>
 							<th class="px-4 py-3 text-right">Ações</th>
@@ -241,11 +246,6 @@
 											</div>
 										</div>
 									</div>
-								</td>
-								<td class="px-4 py-3 text-[11px] text-slate-700">
-									<span class="font-medium"
-										>{consoleState.activeOrganization?.desired.name ?? '—'}</span
-									>
 								</td>
 								<td class="px-4 py-3">
 									<StatusBadge phase={user.phase} size="sm" />
