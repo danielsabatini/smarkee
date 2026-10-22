@@ -38,15 +38,15 @@
 			<dl class="mt-4 grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
 				<div class="rounded-xl bg-slate-50 p-3">
 					<dt class="text-[11px] font-medium text-slate-500">Issuer</dt>
-					<dd class="mt-1 font-mono font-semibold text-slate-900">{auth.issuer}</dd>
+					<dd class="mt-1 break-all font-mono font-semibold text-slate-900">{auth.issuer}</dd>
 				</div>
 				<div class="rounded-xl bg-slate-50 p-3">
 					<dt class="text-[11px] font-medium text-slate-500">Client ID</dt>
-					<dd class="mt-1 font-mono font-semibold text-slate-900">{auth.clientId}</dd>
+					<dd class="mt-1 break-all font-mono font-semibold text-slate-900">{auth.clientId}</dd>
 				</div>
 				<div class="rounded-xl bg-slate-50 p-3">
 					<dt class="text-[11px] font-medium text-slate-500">Redirect URI</dt>
-					<dd class="mt-1 font-mono font-semibold text-slate-900">{auth.redirectUri}</dd>
+					<dd class="mt-1 break-all font-mono font-semibold text-slate-900">{auth.redirectUri}</dd>
 				</div>
 			</dl>
 

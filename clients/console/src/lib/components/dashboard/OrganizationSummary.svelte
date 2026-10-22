@@ -77,6 +77,28 @@
 							</span>
 						</span>
 					</div>
+					<div class="mt-1.5 flex items-center gap-1.5">
+						<span class="text-[11px] font-medium text-slate-500">ID:</span>
+						<span
+							data-testid="summary-organization-id"
+							class="font-mono text-[11px] font-semibold text-slate-700"
+						>
+							{activeOrg.resourceId}
+						</span>
+						<button
+							type="button"
+							onclick={copyResourceId}
+							aria-label="Copiar identificador da organização"
+							data-testid="copy-organization-id"
+							class="shrink-0 rounded p-1 text-slate-400 transition hover:bg-emerald-100 hover:text-emerald-800"
+						>
+							{#if copied}
+								<Check class="h-3 w-3 text-emerald-700" aria-hidden="true" />
+							{:else}
+								<Copy class="h-3 w-3" aria-hidden="true" />
+							{/if}
+						</button>
+					</div>
 				</div>
 			</div>
 
@@ -90,35 +112,9 @@
 		</div>
 
 		<dl
-			class="mt-5 grid grid-cols-1 gap-3 border-t border-emerald-200/60 pt-4 sm:grid-cols-2 lg:grid-cols-5"
+			class="mt-5 grid grid-cols-1 gap-3 border-t border-emerald-200/60 pt-4 sm:grid-cols-2 lg:grid-cols-4"
 		>
 			<div class="min-w-0">
-				<dt class="text-[11px] font-medium text-slate-500">ID</dt>
-				<dd class="mt-1 flex items-center gap-1">
-					<span
-						data-testid="summary-organization-id"
-						class="truncate font-mono text-xs font-semibold text-slate-900"
-						title={activeOrg.resourceId}
-					>
-						{activeOrg.resourceId}
-					</span>
-					<button
-						type="button"
-						onclick={copyResourceId}
-						aria-label="Copiar identificador da organização"
-						data-testid="copy-organization-id"
-						class="shrink-0 rounded p-1 text-slate-500 transition hover:bg-emerald-100 hover:text-emerald-800"
-					>
-						{#if copied}
-							<Check class="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
-						{:else}
-							<Copy class="h-3.5 w-3.5" aria-hidden="true" />
-						{/if}
-					</button>
-				</dd>
-			</div>
-
-			<div class="min-w-0 sm:border-l sm:border-emerald-200/60 sm:pl-3">
 				<dt class="text-[11px] font-medium text-slate-500">Slug DNS</dt>
 				<dd
 					class="mt-1 truncate font-mono text-xs font-semibold whitespace-nowrap text-slate-900"
