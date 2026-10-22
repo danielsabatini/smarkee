@@ -1416,6 +1416,15 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 			return { resourceId: validId, operationId };
 		}
 
+		if (input.givenName !== undefined) {
+			foundUser.desired.givenName = input.givenName.trim();
+		}
+		if (input.familyName !== undefined) {
+			foundUser.desired.familyName = input.familyName.trim();
+		}
+		if (input.email !== undefined) {
+			foundUser.desired.email = input.email.trim();
+		}
 		if (input.roles !== undefined) {
 			foundUser.desired.roles = [...input.roles];
 		}
@@ -1536,6 +1545,20 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 			throw new Error('Conta não encontrada.');
 		}
 
+		if (input.givenName !== undefined) {
+			this.account.desired.givenName = input.givenName.trim();
+		}
+		if (input.familyName !== undefined) {
+			this.account.desired.familyName = input.familyName.trim();
+		}
+		if (input.email !== undefined) {
+			const trimmedEmail = input.email.trim();
+			const emailChanged = this.account.desired.email !== trimmedEmail;
+			this.account.desired.email = trimmedEmail;
+			if (emailChanged && this.account.observed) {
+				this.account.observed.emailVerified = false;
+			}
+		}
 		if (input.deletionProtection !== undefined) {
 			this.account.desired.deletionProtection = input.deletionProtection;
 		}

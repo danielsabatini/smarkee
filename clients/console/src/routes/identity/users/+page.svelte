@@ -136,11 +136,17 @@
 
 	// Edição
 	let editingUser = $state<OrganizationUserResource | null>(null);
+	let editGivenName = $state('');
+	let editFamilyName = $state('');
+	let editEmail = $state('');
 	let editSelectedRoles = $state<GrantableRole[]>([]);
 	let isUpdatingUser = $state(false);
 
 	function startEditUser(user: OrganizationUserResource): void {
 		editingUser = user;
+		editGivenName = user.desired.givenName ?? '';
+		editFamilyName = user.desired.familyName ?? '';
+		editEmail = user.desired.email ?? '';
 		editSelectedRoles = [...user.desired.roles];
 	}
 
@@ -168,7 +174,7 @@
 		editSelectedRoles = [];
 	}
 
-	async function handleUpdateUserRoles(event: SubmitEvent): Promise<void> {
+	async function handleUpdateUser(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
 		if (!editingUser) return;
 
@@ -176,6 +182,9 @@
 		try {
 			await consoleState.updateUser({
 				resourceId: editingUser.resourceId,
+				givenName: editGivenName,
+				familyName: editFamilyName,
+				email: editEmail,
 				roles: editSelectedRoles
 			});
 			editingUser = null;
@@ -506,17 +515,9 @@
 		>
 			<div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
 				<div>
-					<h3 class="text-lg font-bold text-slate-900">Editar Permissões</h3>
-					<p class="mt-0.5 text-xs text-slate-500">
-						{editingUser.desired.givenName}
-						{editingUser.desired.familyName}
-						{#if editingUser.desired.email}
-							<span class="mx-1.5 inline-block h-1 w-1 rounded-full bg-slate-300 align-middle"
-							></span>
-							{editingUser.desired.email}
-						{/if}
-						<span class="mx-1.5 inline-block h-1 w-1 rounded-full bg-slate-300 align-middle"></span>
-						<span class="font-mono text-[11px]">{editingUser.resourceId}</span>
+					<h3 class="text-lg font-bold text-slate-900">Editar Usuário</h3>
+					<p class="mt-0.5 text-xs text-slate-500 font-mono">
+						ID: {editingUser.resourceId}
 					</p>
 				</div>
 				<button
@@ -528,9 +529,54 @@
 				</button>
 			</div>
 
-			<form onsubmit={handleUpdateUserRoles} class="p-5">
+			<form onsubmit={handleUpdateUser} class="p-5">
+				<!-- Dados Cadastrais -->
+				<div class="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+					<div>
+						<label for="edit-user-given-name" class="block text-xs font-semibold text-slate-700">
+							Nome
+						</label>
+						<input
+							id="edit-user-given-name"
+							type="text"
+							required
+							bind:value={editGivenName}
+							placeholder="ex: Mariana"
+							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-emerald-600 focus:outline-none"
+						/>
+					</div>
+					<div>
+						<label for="edit-user-family-name" class="block text-xs font-semibold text-slate-700">
+							Sobrenome
+						</label>
+						<input
+							id="edit-user-family-name"
+							type="text"
+							required
+							bind:value={editFamilyName}
+							placeholder="ex: Silva"
+							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-emerald-600 focus:outline-none"
+						/>
+					</div>
+					<div>
+						<label for="edit-user-email" class="block text-xs font-semibold text-slate-700">
+							E-mail
+						</label>
+						<input
+							id="edit-user-email"
+							type="email"
+							required
+							bind:value={editEmail}
+							placeholder="ex: mariana.silva@example.com"
+							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-emerald-600 focus:outline-none"
+						/>
+					</div>
+				</div>
+
 				<!-- Permissões / Roles -->
-				<div class="flex flex-wrap items-center justify-between gap-2">
+				<div
+					class="border-t border-slate-100 pt-4 flex flex-wrap items-center justify-between gap-2"
+				>
 					<div>
 						<span class="block text-xs font-semibold text-slate-900">
 							Permissões na Organização

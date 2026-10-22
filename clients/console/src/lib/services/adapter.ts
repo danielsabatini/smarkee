@@ -44,12 +44,18 @@ export interface CreateUserInput {
 
 export interface UpdateUserInput {
 	resourceId: string;
+	givenName?: string;
+	familyName?: string;
+	email?: string;
 	roles?: GrantableRole[];
 	deletionProtection?: boolean;
 }
 
 export interface UpdateAccountInput {
 	resourceId: string;
+	givenName?: string;
+	familyName?: string;
+	email?: string;
 	deletionProtection?: boolean;
 }
 

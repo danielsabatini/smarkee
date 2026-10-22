@@ -179,6 +179,9 @@ describe('OperationWatcher e ConsoleState', () => {
 		// Update user
 		const updatedUser = await state.updateUser({
 			resourceId: createdUser.resourceId,
+			givenName: 'Anthony',
+			familyName: 'Stark',
+			email: 'tony.stark@stark.example.com',
 			roles: ['ipm.user.list', 'ipm.user.get'],
 			deletionProtection: false
 		});
@@ -191,6 +194,9 @@ describe('OperationWatcher e ConsoleState', () => {
 		// Update account
 		const updatedAccount = await state.updateAccount({
 			resourceId: state.account!.resourceId,
+			givenName: 'Daniel',
+			familyName: 'Sabatini',
+			email: 'daniel.sabatini@smarkee.example.com',
 			deletionProtection: false
 		});
 		expect(updatedAccount.operationId).toBeDefined();
