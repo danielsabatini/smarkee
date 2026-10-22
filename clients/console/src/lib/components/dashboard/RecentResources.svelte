@@ -53,7 +53,7 @@
 						>
 							<th class="w-[36%] rounded-tl-lg px-2 py-2 whitespace-nowrap">Nome</th>
 							<th class="w-[22%] px-1.5 py-2 whitespace-nowrap">Tipo</th>
-							<th class="w-[22%] px-1.5 py-2 whitespace-nowrap">Status</th>
+							<th class="w-[22%] px-1.5 py-2 whitespace-nowrap">Fase</th>
 							<th class="w-[20%] rounded-tr-lg px-2 py-2 text-right whitespace-nowrap">
 								Atualizado em
 							</th>

@@ -36,7 +36,7 @@
 							<th class="px-4 py-3">Serviço</th>
 							<th class="px-4 py-3">ID</th>
 							<th class="px-4 py-3">Estado</th>
-							<th class="px-4 py-3">Status</th>
+							<th class="px-4 py-3">Fase</th>
 							<th class="px-4 py-3">Permissões</th>
 							<th class="px-4 py-3 text-right">Ações</th>
 						</tr>

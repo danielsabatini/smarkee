@@ -268,7 +268,7 @@
 					>
 						<th class="px-4 py-3">Organização</th>
 						<th class="px-4 py-3">ID</th>
-						<th class="px-4 py-3">Status</th>
+						<th class="px-4 py-3">Fase</th>
 						<th class="px-4 py-3">Acesso e Proteção</th>
 						<th class="px-4 py-3 text-right">Ações</th>
 					</tr>
