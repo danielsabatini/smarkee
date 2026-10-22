@@ -1,5 +1,15 @@
 <script lang="ts">
-	import { Trash2, Plus, Users, Lock, LockOpen, Pencil, X } from 'lucide-svelte';
+	import {
+		AlertCircle,
+		CheckCircle2,
+		Trash2,
+		Plus,
+		Users,
+		Lock,
+		LockOpen,
+		Pencil,
+		X
+	} from 'lucide-svelte';
 	import CopyableId from '$lib/components/ui/CopyableId.svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
@@ -220,7 +230,7 @@
 							<th class="px-4 py-3">Nome</th>
 							<th class="px-4 py-3">Fase</th>
 							<th class="px-4 py-3">Permissões</th>
-							<th class="px-4 py-3 text-right">Ações</th>
+							<th class="px-4 py-3 text-center">Ações</th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-slate-100">
@@ -235,8 +245,25 @@
 												{user.desired.familyName}
 											</div>
 											{#if user.desired.email}
-												<div class="mt-0.5 text-[11px] text-slate-500">
-													{user.desired.email}
+												<div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+													<span class="text-slate-500">{user.desired.email}</span>
+													{#if user.observed?.emailVerified}
+														<span
+															class="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700"
+															title="E-mail verificado"
+														>
+															<CheckCircle2 class="h-2.5 w-2.5" aria-hidden="true" />
+															Verificado
+														</span>
+													{:else}
+														<span
+															class="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+															title="E-mail pendente de verificação"
+														>
+															<AlertCircle class="h-2.5 w-2.5" aria-hidden="true" />
+															Não verificado
+														</span>
+													{/if}
 												</div>
 											{/if}
 											<div class="mt-0.5">
@@ -262,8 +289,8 @@
 										{/each}
 									</div>
 								</td>
-								<td class="px-4 py-3 text-right text-xs">
-									<div class="inline-flex gap-1.5">
+								<td class="px-4 py-3 text-center text-xs">
+									<div class="inline-flex items-center justify-center gap-1.5">
 										<button
 											type="button"
 											onclick={() => startEditUser(user)}
