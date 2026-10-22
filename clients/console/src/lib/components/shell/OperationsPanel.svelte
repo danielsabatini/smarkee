@@ -151,7 +151,7 @@
 						<div class="mb-2">
 							<h2 class="text-xs font-bold text-slate-900">Operações em andamento</h2>
 							<p class="text-[11px] text-slate-500">
-								Acompanhe a convergência das solicitações 202 Accepted.
+								Acompanhe os estados e eventos da organização.
 							</p>
 						</div>
 

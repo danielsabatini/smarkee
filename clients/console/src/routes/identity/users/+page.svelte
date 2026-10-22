@@ -61,7 +61,7 @@
 				Usuários da Organização ({consoleState.activeOrganization?.desired.name ?? '—'})
 			</h1>
 			<p class="mt-1 text-xs text-slate-600">
-				Usuários vinculados exclusivamente ao contexto da organização ativa.
+				Usuários vinculados exclusivamente à organização ativa.
 			</p>
 		</div>
 	</div>
@@ -144,9 +144,7 @@
 		class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs"
 	>
 		{#if consoleState.isSwitchingOrganization}
-			<div class="p-8 text-center text-xs text-slate-500">
-				Alternando contexto de organização...
-			</div>
+			<div class="p-8 text-center text-xs text-slate-500">Alternando organização...</div>
 		{:else if consoleState.organizationUsers.length === 0}
 			<div class="p-6">
 				<EmptyState

@@ -114,10 +114,10 @@
 			type="button"
 			onclick={() => consoleState.toggleOperationsPanel('operations')}
 			aria-label={consoleState.activeOperationsCount > 0
-				? `${consoleState.activeOperationsCount} operações em andamento — Abrir painel de operações assíncronas`
-				: 'Abrir painel de operações assíncronas'}
+				? `${consoleState.activeOperationsCount} operações em andamento — Abrir painel de operações`
+				: 'Abrir painel de operações'}
 			data-testid="header-operations-button"
-			title="Operações do Control Loop"
+			title="Operações em andamento"
 			class="relative rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
 		>
 			<Settings class="h-4 w-4" aria-hidden="true" />

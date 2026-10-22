@@ -42,7 +42,7 @@
 			<span class="text-xs font-semibold text-emerald-700 uppercase"> Identidade (IPM) </span>
 			<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Organizações</h1>
 			<p class="mt-1 text-xs text-slate-600">
-				Gerencie as organizações da sua conta titular na plataforma.
+				Gerencie as organizações da sua conta na plataforma.
 			</p>
 		</div>
 	</div>
