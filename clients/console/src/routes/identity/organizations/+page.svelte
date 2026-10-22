@@ -250,7 +250,7 @@
 											class="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-900"
 										>
 											<Check class="h-3 w-3" aria-hidden="true" />
-											Contexto ativo
+											Ativa
 										</span>
 									{:else}
 										<button
