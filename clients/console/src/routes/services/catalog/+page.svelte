@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CheckCircle2, Play, ShieldCheck } from 'lucide-svelte';
+	import { CheckCircle2, Play, PowerOff, ShieldCheck } from 'lucide-svelte';
 	import DemoBadge from '$lib/components/ui/DemoBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
 
@@ -12,6 +12,19 @@
 		return consoleState.services.some(
 			(s) => s.desired.service === serviceKey && s.desired.lifecycle === 'present'
 		);
+	}
+
+	function getServiceResource(serviceKey: string) {
+		return consoleState.services.find(
+			(s) => s.desired.service === serviceKey && s.desired.lifecycle === 'present'
+		);
+	}
+
+	async function handleDisable(serviceKey: string): Promise<void> {
+		const svc = getServiceResource(serviceKey);
+		if (svc) {
+			await consoleState.disableService(svc.resourceId);
+		}
 	}
 </script>
 
@@ -72,15 +85,26 @@
 						<span class="text-xs text-slate-500">Não habilitado na organização</span>
 					{/if}
 
-					{#if !enabled && item.serviceKey !== 'sum'}
-						<button
-							type="button"
-							onclick={() => consoleState.enableService({ service: item.serviceKey })}
-							class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
-						>
-							<Play class="h-3.5 w-3.5" aria-hidden="true" />
-							<span>Habilitar Serviço</span>
-						</button>
+					{#if item.serviceKey !== 'sum'}
+						{#if enabled}
+							<button
+								type="button"
+								onclick={() => handleDisable(item.serviceKey)}
+								class="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+							>
+								<PowerOff class="h-3.5 w-3.5" aria-hidden="true" />
+								<span>Desabilitar</span>
+							</button>
+						{:else}
+							<button
+								type="button"
+								onclick={() => consoleState.enableService({ service: item.serviceKey })}
+								class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
+							>
+								<Play class="h-3.5 w-3.5" aria-hidden="true" />
+								<span>Habilitar</span>
+							</button>
+						{/if}
 					{/if}
 				</div>
 			</div>
