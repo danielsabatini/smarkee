@@ -62,7 +62,7 @@
 			<a
 				href={item.href}
 				data-testid="quick-access-{item.id}"
-				class="group relative flex items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-2xs transition hover:border-emerald-300 hover:shadow-sm"
+				class="group relative flex h-full items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-2xs transition hover:border-emerald-300 hover:shadow-sm"
 			>
 				{#if item.isDemo}
 					<div class="absolute top-2 right-2.5">
@@ -96,7 +96,7 @@
 							aria-hidden="true"
 						/>
 					</div>
-					<p class="mt-0.5 line-clamp-2 text-[11px] leading-snug text-slate-500">
+					<p class="mt-0.5 text-[11px] leading-snug text-slate-500">
 						{item.description}
 					</p>
 				</div>

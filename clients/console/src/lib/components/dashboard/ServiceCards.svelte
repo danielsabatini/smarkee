@@ -54,7 +54,7 @@
 			<a
 				href={service.href}
 				data-testid="service-card-{service.code}"
-				class="group flex items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs transition hover:border-emerald-300 hover:shadow-sm"
+				class="group flex h-full items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs transition hover:border-emerald-300 hover:shadow-sm"
 			>
 				<div
 					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 transition group-hover:bg-emerald-100"
@@ -62,7 +62,7 @@
 					{@render moduleIcon(service.code)}
 				</div>
 
-				<div class="flex min-w-0 flex-1 flex-col justify-between">
+				<div class="flex min-w-0 flex-1 flex-col justify-between self-stretch">
 					<div>
 						<div class="flex items-center justify-between gap-1">
 							<h3 class="whitespace-nowrap text-xs font-bold text-slate-900" title={service.name}>
@@ -76,12 +76,12 @@
 							</span>
 						</div>
 
-						<p class="mt-1 line-clamp-2 text-[11px] leading-snug text-slate-600">
+						<p class="mt-1 text-[11px] leading-snug text-slate-600">
 							{service.description}
 						</p>
 					</div>
 
-					<div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+					<div class="mt-2.5 flex flex-wrap items-center gap-1.5 pt-1">
 						{#if enabled || service.isDemo}
 							<span
 								class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800"
