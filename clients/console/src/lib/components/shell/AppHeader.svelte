@@ -90,28 +90,6 @@
 	<div class="flex items-center gap-1 sm:gap-2">
 		<button
 			type="button"
-			onclick={() => consoleState.toggleOperationsPanel('operations')}
-			aria-label={consoleState.activeOperationsCount > 0
-				? `${consoleState.activeOperationsCount} operações em andamento — Abrir painel de operações assíncronas`
-				: 'Abrir painel de operações assíncronas'}
-			data-testid="header-operations-button"
-			title="Operações do Control Loop"
-			class="relative rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-		>
-			<Settings class="h-4 w-4" aria-hidden="true" />
-			{#if consoleState.activeOperationsCount > 0}
-				<span
-					aria-hidden="true"
-					data-testid="active-operations-badge"
-					class="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white"
-				>
-					{consoleState.activeOperationsCount}
-				</span>
-			{/if}
-		</button>
-
-		<button
-			type="button"
 			onclick={() => consoleState.toggleOperationsPanel('notifications')}
 			aria-label={consoleState.unreadNotificationsCount > 0
 				? `${consoleState.unreadNotificationsCount} notificações não lidas — Abrir painel de notificações`
@@ -128,6 +106,28 @@
 					class="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white"
 				>
 					{consoleState.unreadNotificationsCount}
+				</span>
+			{/if}
+		</button>
+
+		<button
+			type="button"
+			onclick={() => consoleState.toggleOperationsPanel('operations')}
+			aria-label={consoleState.activeOperationsCount > 0
+				? `${consoleState.activeOperationsCount} operações em andamento — Abrir painel de operações assíncronas`
+				: 'Abrir painel de operações assíncronas'}
+			data-testid="header-operations-button"
+			title="Operações do Control Loop"
+			class="relative rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+		>
+			<Settings class="h-4 w-4" aria-hidden="true" />
+			{#if consoleState.activeOperationsCount > 0}
+				<span
+					aria-hidden="true"
+					data-testid="active-operations-badge"
+					class="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white"
+				>
+					{consoleState.activeOperationsCount}
 				</span>
 			{/if}
 		</button>
