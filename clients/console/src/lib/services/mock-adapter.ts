@@ -817,6 +817,15 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 			updatedAt: now
 		};
 
+		if (input.displayName) {
+			this.organizationDemoMeta[resourceId] = {
+				displayName: input.displayName.trim(),
+				planDemo: 'Enterprise',
+				primaryRegionDemo: 'us-east-1',
+				memberCount: 1
+			};
+		}
+
 		this.organizations.unshift(newOrg);
 		this.organizationDemoMeta[resourceId] = {
 			displayName: this.formatOrganizationTitle(normalizedName),

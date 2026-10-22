@@ -22,6 +22,7 @@ import type {
 
 export interface CreateOrganizationInput {
 	name: string;
+	displayName?: string;
 	deletionProtection?: boolean;
 }
 
