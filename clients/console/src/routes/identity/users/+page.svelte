@@ -211,7 +211,6 @@
 							class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500"
 						>
 							<th class="px-4 py-3">Nome</th>
-							<th class="px-4 py-3">ID</th>
 							<th class="px-4 py-3">Organização</th>
 							<th class="px-4 py-3">Fase</th>
 							<th class="px-4 py-3">Permissões</th>
@@ -234,11 +233,14 @@
 													{user.desired.email}
 												</div>
 											{/if}
+											<div class="mt-0.5">
+												<CopyableId
+													id={user.resourceId}
+													idClass="font-mono text-[10px] text-slate-400"
+												/>
+											</div>
 										</div>
 									</div>
-								</td>
-								<td class="px-4 py-3">
-									<CopyableId id={user.resourceId} />
 								</td>
 								<td class="px-4 py-3 text-[11px] text-slate-700">
 									<span class="font-medium"
