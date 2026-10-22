@@ -175,7 +175,6 @@
 					<PlusCircle class="h-3.5 w-3.5" aria-hidden="true" />
 					<span>Gerenciar organizações</span>
 				</a>
-				<span class="text-[11px] text-slate-600">Contexto de trabalho</span>
 			</div>
 		</div>
 	{/if}
