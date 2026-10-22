@@ -456,7 +456,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 			},
 			{
 				title: 'Criação de Usuário',
-				subtitle: 'Aguardando confirmação do loop de reconciliação...',
+				subtitle: 'Aguardando processamento...',
 				organizationId: ORG_ACME_ID,
 				operation: {
 					operationId: '0199c8d0-1111-7a01-8b01-000000000002',
@@ -980,7 +980,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 					roles: sortedRoles,
 					deletionProtection: newUser.desired.deletionProtection
 				};
-				opEntry.subtitle = 'Usuário reconciliado com sucesso (Ready).';
+				opEntry.subtitle = 'Usuário adicionado com sucesso.';
 			}
 		);
 
@@ -1102,7 +1102,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 				this.notifications.unshift({
 					id: `notif-${Date.now()}`,
 					title: `Serviço ${serviceName.toUpperCase()} habilitado`,
-					description: `A ligação sum.service (${serviceName}) convergiu para Ready.`,
+					description: `O serviço ${serviceName.toUpperCase()} foi ativado e está disponível na conta.`,
 					severity: 'success',
 					createdAt: 'agora',
 					read: false,

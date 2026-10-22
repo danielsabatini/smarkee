@@ -11,10 +11,10 @@
 
 <div class="mx-auto max-w-5xl space-y-6">
 	<div>
-		<span class="font-mono text-xs font-semibold text-emerald-700 uppercase">Administração</span>
+		<span class="text-xs font-semibold text-emerald-700 uppercase">Administração</span>
 		<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Configurações do Console e Integração</h1>
 		<p class="mt-1 text-xs text-slate-600">
-			Parâmetros de integração OIDC (Zitadel PKCE) e roteamento com o gateway APISIX (decisão 0034).
+			Parâmetros de integração do provedor de identidade e roteamento.
 		</p>
 	</div>
 
@@ -28,12 +28,9 @@
 					<ShieldCheck class="h-5 w-5" aria-hidden="true" />
 				</div>
 				<div>
-					<h2 class="text-sm font-bold text-slate-900">
-						Parâmetros OIDC Públicos (Authorization Code + PKCE)
-					</h2>
+					<h2 class="text-sm font-bold text-slate-900">Parâmetros de Autenticação Públicos</h2>
 					<p class="text-xs text-slate-500">
-						Aplicação <code>console</code> no projeto <code>clients</code> (organização
-						<code>core</code>). Nenhum segredo é armazenado no navegador.
+						Configurações locais do Console. Nenhum segredo é armazenado no navegador.
 					</p>
 				</div>
 			</div>
@@ -54,7 +51,7 @@
 			</dl>
 
 			<div class="mt-4">
-				<h3 class="text-xs font-bold text-slate-900">Scopes e Audiences de Projetos de Roles</h3>
+				<h3 class="text-xs font-bold text-slate-900">Escopos de Acesso Requisitados</h3>
 				<div class="mt-2 flex flex-wrap gap-1.5">
 					{#each auth.scopes as scope (scope)}
 						<span
@@ -74,9 +71,8 @@
 			<h2 class="text-sm font-bold text-slate-900">Adaptador de Dados Ativo</h2>
 		</div>
 		<p class="mt-2 text-xs leading-relaxed text-slate-600">
-			O Console está operando sob a interface abstrata <code>ConsoleDataAdapter</code> utilizando o
-			<code>MockDataAdapter</code> validado por contrato JSON Schema (<code>ajv</code>) contra os
-			schemas reais em <code>schemas/</code>.
+			O Console está operando em modo demonstrativo isolado, simulando as operações do backend
+			localmente.
 		</p>
 	</div>
 </div>

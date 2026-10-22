@@ -181,8 +181,10 @@
 									</div>
 								</td>
 								<td class="px-4 py-3 font-mono text-[11px] text-slate-600">{user.resourceId}</td>
-								<td class="px-4 py-3 font-mono text-[11px] text-slate-600">
-									{user.desired.organizationId}
+								<td class="px-4 py-3 text-[11px] text-slate-700">
+									<span class="font-medium"
+										>{consoleState.activeOrganization?.desired.name ?? '—'}</span
+									>
 								</td>
 								<td class="px-4 py-3">
 									<StatusBadge phase={user.phase} size="sm" />

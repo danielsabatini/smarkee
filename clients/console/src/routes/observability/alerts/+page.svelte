@@ -1,9 +1,6 @@
 <script lang="ts">
 	import { Bell } from 'lucide-svelte';
 	import DemoBadge from '$lib/components/ui/DemoBadge.svelte';
-	import { getConsoleState } from '$lib/state/console-context.svelte';
-
-	const consoleState = getConsoleState();
 </script>
 
 <svelte:head>
@@ -13,9 +10,7 @@
 <div class="mx-auto max-w-5xl space-y-6">
 	<div class="flex flex-wrap items-center justify-between gap-2">
 		<div>
-			<span class="font-mono text-xs font-semibold text-emerald-700 uppercase">
-				Observability Data Manager (ODM)
-			</span>
+			<span class="text-xs font-semibold text-emerald-700 uppercase"> Observabilidade (ODM) </span>
 			<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Alertas e SLOs</h1>
 		</div>
 		<DemoBadge label="Preview / Demonstrativo" />
@@ -29,14 +24,10 @@
 				<Bell class="h-5 w-5" aria-hidden="true" />
 			</div>
 			<div>
-				<h2 class="text-sm font-bold text-slate-900">
-					Monitoramento de Convergência ({consoleState.activeOrganization?.desired.name ?? '—'})
-				</h2>
+				<h2 class="text-sm font-bold text-slate-900">Monitoramento de Convergência</h2>
 				<p class="mt-1 text-xs leading-relaxed text-slate-600">
-					Módulo demonstrativo para configuração de alertas sobre condições <code
-						>ObservationStale</code
-					>,
-					<code>DriftLoop</code> e recursos em estado <code>Failed</code>.
+					Módulo demonstrativo para configuração de alertas operacionais e indicadores de nível de
+					serviço.
 				</p>
 			</div>
 		</div>

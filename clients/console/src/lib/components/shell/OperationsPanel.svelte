@@ -13,46 +13,14 @@
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
+	import {
+		formatResourceType,
+		formatOperationAction,
+		formatOperationTag
+	} from '$lib/utils/formatters';
 	import type { OperationTitleInfo } from '$lib/types/console';
-	import type { Operation } from '$lib/types/common';
 
 	const consoleState = getConsoleState();
-
-	function formatResourceType(type: string): string {
-		switch (type) {
-			case 'organization':
-			case 'ipm.organization':
-				return 'Organização';
-			case 'user':
-			case 'ipm.user':
-				return 'Usuário';
-			case 'service':
-			case 'sum.service':
-				return 'Serviço';
-			case 'account':
-			case 'core.account':
-				return 'Conta';
-			default:
-				return type;
-		}
-	}
-
-	function formatOperationAction(action: string): string {
-		switch (action) {
-			case 'create':
-				return 'Criação';
-			case 'update':
-				return 'Atualização';
-			case 'delete':
-				return 'Exclusão';
-			default:
-				return action;
-		}
-	}
-
-	function formatOperationTag(op: Operation): string {
-		return `${formatResourceType(op.resourceType)} • ${formatOperationAction(op.operationType)}`;
-	}
 
 	function formatReasonLabel(reason?: string): string {
 		switch (reason) {
@@ -230,7 +198,10 @@
 													class="mt-2 flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500"
 												>
 													<span class="font-medium text-slate-600">
-														{formatOperationTag(entry.operation)}
+														{formatOperationTag(
+															entry.operation.resourceType,
+															entry.operation.operationType
+														)}
 													</span>
 													<button
 														type="button"

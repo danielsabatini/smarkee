@@ -92,7 +92,7 @@
 							class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
 						>
 							<Play class="h-3.5 w-3.5" aria-hidden="true" />
-							<span>{enabled ? 'Reconciliar Ligação' : 'Habilitar Serviço (202)'}</span>
+							<span>{enabled ? 'Sincronizar Acesso' : 'Habilitar Serviço'}</span>
 						</button>
 					{/if}
 				</div>

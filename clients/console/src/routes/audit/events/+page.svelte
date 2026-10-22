@@ -3,6 +3,7 @@
 	import DemoBadge from '$lib/components/ui/DemoBadge.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
+	import { formatResourceType, formatOperationAction } from '$lib/utils/formatters';
 
 	const consoleState = getConsoleState();
 </script>
@@ -14,13 +15,10 @@
 <div class="mx-auto max-w-6xl space-y-6">
 	<div class="flex flex-wrap items-center justify-between gap-2">
 		<div>
-			<span class="font-mono text-xs font-semibold text-emerald-700 uppercase">
-				Audit Event Manager (AEM)
-			</span>
+			<span class="text-xs font-semibold text-emerald-700 uppercase"> Auditoria (AEM) </span>
 			<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Eventos de Auditoria</h1>
 			<p class="mt-1 text-xs text-slate-600">
-				Histórico consolidado de operações e eventos da organização ativa ({consoleState
-					.activeOrganization?.desired.name ?? '—'}).
+				Histórico consolidado de operações e eventos da organização ativa.
 			</p>
 		</div>
 		<DemoBadge label="Preview / Demonstrativo" />
@@ -34,10 +32,10 @@
 						class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500"
 					>
 						<th class="px-4 py-3">Evento / Operação</th>
-						<th class="px-4 py-3">operationId</th>
-						<th class="px-4 py-3">Módulo / Recurso</th>
+						<th class="px-4 py-3">ID da Operação</th>
+						<th class="px-4 py-3">Recurso</th>
 						<th class="px-4 py-3">Status</th>
-						<th class="px-4 py-3 text-right">Carimbo de tempo</th>
+						<th class="px-4 py-3 text-right">Data / Hora</th>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-slate-100">
@@ -55,9 +53,10 @@
 							<td class="px-4 py-3 font-mono text-[11px] text-slate-600">
 								{entry.operation.operationId}
 							</td>
-							<td class="px-4 py-3 font-mono text-[11px] text-slate-700">
-								{entry.operation.module}.{entry.operation.resourceType} ({entry.operation
-									.operationType})
+							<td class="px-4 py-3 font-medium text-[11px] text-slate-700">
+								{formatResourceType(entry.operation.resourceType)} ({formatOperationAction(
+									entry.operation.operationType
+								)})
 							</td>
 							<td class="px-4 py-3">
 								<StatusBadge operationStatus={entry.operation.operationStatus} size="sm" />

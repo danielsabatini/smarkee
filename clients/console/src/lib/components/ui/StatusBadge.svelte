@@ -18,9 +18,11 @@
 				case 'Ready':
 					return { label: customLabel ?? 'Ready', tone: 'ready' as const };
 				case 'Pending':
+					return { label: customLabel ?? 'Pendente', tone: 'progress' as const };
 				case 'Reconciling':
+					return { label: customLabel ?? 'Reconciling', tone: 'progress' as const };
 				case 'Deleting':
-					return { label: customLabel ?? phase, tone: 'progress' as const };
+					return { label: customLabel ?? 'Excluindo', tone: 'progress' as const };
 				case 'Degraded':
 					return { label: customLabel ?? 'Degraded', tone: 'warning' as const };
 				case 'Failed':
@@ -31,14 +33,15 @@
 		if (operationStatus) {
 			switch (operationStatus) {
 				case 'completed':
-					return { label: customLabel ?? 'completed', tone: 'ready' as const };
+					return { label: customLabel ?? 'Concluído', tone: 'ready' as const };
 				case 'accepted':
+					return { label: customLabel ?? 'Aceito', tone: 'progress' as const };
 				case 'in_progress':
-					return { label: customLabel ?? operationStatus, tone: 'progress' as const };
+					return { label: customLabel ?? 'Em andamento', tone: 'progress' as const };
 				case 'failed':
-					return { label: customLabel ?? 'failed', tone: 'failed' as const };
+					return { label: customLabel ?? 'Falhou', tone: 'failed' as const };
 				case 'rejected':
-					return { label: customLabel ?? 'rejected', tone: 'warning' as const };
+					return { label: customLabel ?? 'Rejeitado', tone: 'warning' as const };
 			}
 		}
 

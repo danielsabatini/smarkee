@@ -145,7 +145,7 @@
 								<div class="flex items-center gap-3 text-[11px]">
 									<span class="inline-flex items-center gap-1 font-medium text-emerald-700">
 										<ShieldCheck class="h-3.5 w-3.5" aria-hidden="true" />
-										{org.desired.platformAccess}
+										{org.desired.platformAccess === 'granted' ? 'Liberado' : 'Bloqueado'}
 									</span>
 									{#if org.desired.deletionProtection !== false}
 										<span class="inline-flex items-center gap-1 text-slate-600">
