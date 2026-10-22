@@ -245,23 +245,23 @@
 												{user.desired.familyName}
 											</div>
 											{#if user.desired.email}
-												<div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]">
-													<span class="text-slate-500">{user.desired.email}</span>
+												<div class="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+													<span>{user.desired.email}</span>
 													{#if user.observed?.emailVerified}
 														<span
-															class="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700"
 															title="E-mail verificado"
+															aria-label="E-mail verificado"
+															class="inline-flex shrink-0 text-emerald-600 cursor-help"
 														>
-															<CheckCircle2 class="h-2.5 w-2.5" aria-hidden="true" />
-															Verificado
+															<CheckCircle2 class="h-3 w-3" aria-hidden="true" />
 														</span>
 													{:else}
 														<span
-															class="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
-															title="E-mail pendente de verificação"
+															title="E-mail não verificado"
+															aria-label="E-mail não verificado"
+															class="inline-flex shrink-0 text-amber-500 cursor-help"
 														>
-															<AlertCircle class="h-2.5 w-2.5" aria-hidden="true" />
-															Não verificado
+															<AlertCircle class="h-3 w-3" aria-hidden="true" />
 														</span>
 													{/if}
 												</div>
