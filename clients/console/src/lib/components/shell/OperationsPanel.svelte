@@ -423,7 +423,7 @@
 			</div>
 
 			<dl class="mt-4 grid grid-cols-1 gap-2.5 text-xs sm:grid-cols-2">
-				<div class="rounded-lg bg-slate-50 p-2.5">
+				<div class="rounded-lg bg-slate-50 p-2.5 sm:col-span-2">
 					<dt class="text-[11px] text-slate-500">ID da Operação</dt>
 					<dd class="mt-0.5">
 						<CopyableId
@@ -432,7 +432,7 @@
 						/>
 					</dd>
 				</div>
-				<div class="rounded-lg bg-slate-50 p-2.5">
+				<div class="rounded-lg bg-slate-50 p-2.5 sm:col-span-2">
 					<dt class="text-[11px] text-slate-500">ID do Recurso</dt>
 					<dd class="mt-0.5">
 						<CopyableId
