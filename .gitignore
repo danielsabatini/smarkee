@@ -51,6 +51,7 @@ kubeconfig
 # ------------------------------------------------------------------------------
 *.log
 logs/
+!clients/console/src/routes/observability/logs/
 *.dump
 *.dmp
 *.sql.dump

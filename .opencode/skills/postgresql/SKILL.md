@@ -7,7 +7,7 @@ description: Guia de procedimentos para implementar, migrar, validar, inspeciona
 
 ## 1. Papel desta skill
 
-Esta skill é um **guia de procedimentos** que chama ferramentas (`psql`, contêiner descartável, leitura de arquivos, pipeline de migração da infraestrutura). Ela não define regras.
+Esta skill é um **guia de procedimentos** que chama ferramentas (MCP `postgresql`, `psql`, contêiner descartável, leitura de arquivos, pipeline de migração da infraestrutura). Ela não define regras.
 
 ```text
 AGENTS.md
@@ -66,7 +66,9 @@ Entradas: módulo, tipo e o contrato do recurso (`docs/SCHEMA.md`, parâmetros e
 
 ## 6. Procedimento D: inspecionar (somente leitura)
 
-Use `psql -X` com papel de leitura. Perguntas e consultas de referência:
+Você tem à disposição o **servidor MCP `postgresql`**, que expõe a ferramenta `tools.postgresql.query` (via Code Mode / `execute`) para executar consultas de leitura diretamente no banco de dados local. Use-o como primeira opção para inspeção. Em caso de necessidade ou em ambientes onde o MCP não esteja configurado, use `psql -X` com papel de leitura.
+
+Perguntas e consultas de referência:
 
 | Pergunta | Consulta |
 |---|---|

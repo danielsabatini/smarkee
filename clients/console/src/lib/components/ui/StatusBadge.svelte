@@ -1,0 +1,87 @@
+<script lang="ts">
+	import { AlertTriangle, CheckCircle2, Clock, Loader2, ShieldAlert, XCircle } from 'lucide-svelte';
+	import type { OperationStatus, ResourcePhase } from '$lib/types/common';
+
+	interface Props {
+		phase?: ResourcePhase;
+		operationStatus?: OperationStatus;
+		customLabel?: string;
+		variant?: 'ready' | 'progress' | 'warning' | 'failed' | 'neutral';
+		size?: 'sm' | 'md';
+	}
+
+	let { phase, operationStatus, customLabel, variant, size = 'md' }: Props = $props();
+
+	let resolvedInfo = $derived.by(() => {
+		if (phase) {
+			switch (phase) {
+				case 'Ready':
+					return { label: customLabel ?? 'Ready', tone: 'ready' as const };
+				case 'Pending':
+				case 'Reconciling':
+				case 'Deleting':
+					return { label: customLabel ?? phase, tone: 'progress' as const };
+				case 'Degraded':
+					return { label: customLabel ?? 'Degraded', tone: 'warning' as const };
+				case 'Failed':
+					return { label: customLabel ?? 'Failed', tone: 'failed' as const };
+			}
+		}
+
+		if (operationStatus) {
+			switch (operationStatus) {
+				case 'completed':
+					return { label: customLabel ?? 'completed', tone: 'ready' as const };
+				case 'accepted':
+				case 'in_progress':
+					return { label: customLabel ?? operationStatus, tone: 'progress' as const };
+				case 'failed':
+					return { label: customLabel ?? 'failed', tone: 'failed' as const };
+				case 'rejected':
+					return { label: customLabel ?? 'rejected', tone: 'warning' as const };
+			}
+		}
+
+		return {
+			label: customLabel ?? 'Indefinido',
+			tone: variant ?? ('neutral' as const)
+		};
+	});
+
+	let badgeClasses = $derived.by(() => {
+		const sizeClass = size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs';
+		switch (resolvedInfo.tone) {
+			case 'ready':
+				return `${sizeClass} bg-emerald-50 text-emerald-800 border-emerald-200`;
+			case 'progress':
+				return `${sizeClass} bg-blue-50 text-blue-800 border-blue-200`;
+			case 'warning':
+				return `${sizeClass} bg-amber-50 text-amber-800 border-amber-200`;
+			case 'failed':
+				return `${sizeClass} bg-red-50 text-red-800 border-red-200`;
+			default:
+				return `${sizeClass} bg-slate-100 text-slate-700 border-slate-200`;
+		}
+	});
+</script>
+
+<span
+	class="inline-flex items-center gap-1.5 rounded-full border font-medium whitespace-nowrap {badgeClasses}"
+>
+	{#if resolvedInfo.tone === 'ready'}
+		<CheckCircle2 class="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
+	{:else if resolvedInfo.tone === 'progress'}
+		<Loader2 class="h-3.5 w-3.5 shrink-0 animate-spin text-blue-600" aria-hidden="true" />
+	{:else if resolvedInfo.tone === 'warning'}
+		{#if operationStatus === 'rejected'}
+			<ShieldAlert class="h-3.5 w-3.5 shrink-0 text-amber-600" aria-hidden="true" />
+		{:else}
+			<AlertTriangle class="h-3.5 w-3.5 shrink-0 text-amber-600" aria-hidden="true" />
+		{/if}
+	{:else if resolvedInfo.tone === 'failed'}
+		<XCircle class="h-3.5 w-3.5 shrink-0 text-red-600" aria-hidden="true" />
+	{:else}
+		<Clock class="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
+	{/if}
+	<span>{resolvedInfo.label}</span>
+</span>

@@ -1,0 +1,108 @@
+<script lang="ts">
+	import { PowerOff, RefreshCw, ShieldCheck } from 'lucide-svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
+	import { getConsoleState } from '$lib/state/console-context.svelte';
+
+	const consoleState = getConsoleState();
+</script>
+
+<svelte:head>
+	<title>Smarkee Console — Serviços Habilitados (sum.service)</title>
+</svelte:head>
+
+<div class="mx-auto max-w-6xl space-y-6">
+	<div>
+		<span class="font-mono text-xs font-semibold text-emerald-700 uppercase">
+			Service Usage Manager • sum.service
+		</span>
+		<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Serviços Habilitados na Conta</h1>
+		<p class="mt-1 text-xs text-slate-600">
+			Ligações de serviço (<code>GET /v1/sum/services</code>) associadas ao
+			<code>ownerAccountId</code>.
+		</p>
+	</div>
+
+	{#if consoleState.services.length === 0}
+		<EmptyState
+			title="Nenhum serviço habilitado"
+			description="Acesse o Catálogo de Serviços para habilitar o módulo IPM ou outros serviços."
+		/>
+	{:else}
+		<div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs">
+			<div class="overflow-x-auto">
+				<table class="w-full text-left text-xs">
+					<thead>
+						<tr
+							class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500"
+						>
+							<th class="px-4 py-3">Serviço (desired.service)</th>
+							<th class="px-4 py-3">resourceId</th>
+							<th class="px-4 py-3">Lifecycle</th>
+							<th class="px-4 py-3">Fase (phase)</th>
+							<th class="px-4 py-3">Roles (serviceRoles)</th>
+							<th class="px-4 py-3 text-right">Ações</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-slate-100">
+						{#each consoleState.services as svc (svc.resourceId)}
+							<tr
+								data-testid="enabled-service-row-{svc.desired.service}"
+								class="hover:bg-slate-50/80"
+							>
+								<td class="px-4 py-3">
+									<div class="flex items-center gap-2">
+										<ShieldCheck class="h-4 w-4 text-emerald-700" aria-hidden="true" />
+										<span class="font-mono font-bold text-slate-900 uppercase">
+											{svc.desired.service}
+										</span>
+									</div>
+								</td>
+								<td class="px-4 py-3 font-mono text-[11px] text-slate-600">{svc.resourceId}</td>
+								<td class="px-4 py-3 font-mono text-[11px] text-slate-700">
+									{svc.desired.lifecycle}
+								</td>
+								<td class="px-4 py-3">
+									<StatusBadge phase={svc.phase} size="sm" />
+								</td>
+								<td class="px-4 py-3">
+									<div class="flex flex-wrap gap-1">
+										{#each svc.desired.serviceRoles as role (role)}
+											<span
+												class="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-700"
+											>
+												{role}
+											</span>
+										{/each}
+									</div>
+								</td>
+								<td class="px-4 py-3 text-right">
+									<div class="inline-flex items-center gap-1.5">
+										<button
+											type="button"
+											onclick={() => consoleState.enableService({ service: svc.desired.service })}
+											class="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
+										>
+											<RefreshCw class="h-3 w-3" aria-hidden="true" />
+											<span>Reconciliar</span>
+										</button>
+										{#if svc.desired.lifecycle === 'present'}
+											<button
+												type="button"
+												onclick={() => consoleState.disableService(svc.resourceId)}
+												class="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
+											>
+												<PowerOff class="h-3 w-3" aria-hidden="true" />
+												<span>Desabilitar</span>
+											</button>
+										{/if}
+									</div>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	{/if}
+</div>
