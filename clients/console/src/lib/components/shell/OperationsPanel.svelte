@@ -310,9 +310,7 @@
 					<div class="flex items-center justify-between">
 						<div>
 							<h2 class="text-xs font-bold text-slate-900">Central de Notificações</h2>
-							<p class="text-[11px] text-slate-500">
-								Alertas de convergência e eventos do contexto.
-							</p>
+							<p class="text-[11px] text-slate-500">Alertas de estado e eventos da organização.</p>
 						</div>
 
 						{#if consoleState.unreadNotificationsCount > 0}
