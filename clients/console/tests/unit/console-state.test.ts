@@ -167,6 +167,38 @@ describe('OperationWatcher e ConsoleState', () => {
 			expect(disabledSvc.operationId).toBeDefined();
 		}
 
+		// Update organization
+		const updatedOrg = await state.updateOrganization({
+			resourceId: createdOrg.resourceId,
+			name: 'stark-industries-v2',
+			displayName: 'Stark Industries V2',
+			deletionProtection: false
+		});
+		expect(updatedOrg.operationId).toBeDefined();
+
+		// Update user
+		const updatedUser = await state.updateUser({
+			resourceId: createdUser.resourceId,
+			roles: ['ipm.user.list', 'ipm.user.get'],
+			deletionProtection: false
+		});
+		expect(updatedUser.operationId).toBeDefined();
+
+		// Delete user
+		const deletedUser = await state.deleteUser(createdUser.resourceId);
+		expect(deletedUser.operationId).toBeDefined();
+
+		// Update account
+		const updatedAccount = await state.updateAccount({
+			resourceId: state.account!.resourceId,
+			deletionProtection: false
+		});
+		expect(updatedAccount.operationId).toBeDefined();
+
+		// Delete account
+		const deletedAccount = await state.deleteAccount(state.account!.resourceId);
+		expect(deletedAccount.operationId).toBeDefined();
+
 		// Exclui a organização sem deletionProtection
 		const deletedOrg = await state.deleteOrganization(createdOrg.resourceId);
 		expect(deletedOrg.operationId).toBeDefined();

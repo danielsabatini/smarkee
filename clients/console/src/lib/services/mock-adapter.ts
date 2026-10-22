@@ -28,7 +28,10 @@ import type {
 import type {
 	ConsoleDataAdapter,
 	CreateOrganizationInput,
+	UpdateOrganizationInput,
 	CreateUserInput,
+	UpdateUserInput,
+	UpdateAccountInput,
 	EnableServiceInput
 } from './adapter';
 
@@ -1305,5 +1308,328 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 			target.operation.completedAt = doneAt;
 			onCompleted();
 		}, step2Delay);
+	}
+
+	async updateOrganization(input: UpdateOrganizationInput): Promise<RequestAccepted> {
+		const validId = validateIdentifier(input.resourceId, 'organizationId');
+		const org = this.organizations.find((item) => item.resourceId === validId);
+		const now = new Date().toISOString();
+		const operationId = this.nextIdentifier('0199c8d0-9900-7a00-8b00');
+
+		if (!org) {
+			const notFoundOp: OperationTitleInfo = {
+				title: 'Edição de Organização',
+				subtitle: 'Organização não encontrada.',
+				operation: {
+					operationId,
+					operationType: 'update',
+					module: 'ipm',
+					resourceType: 'organization',
+					resourceId: validId,
+					operationStatus: 'rejected',
+					operationStatusReason: 'not_found',
+					createdAt: now,
+					updatedAt: now,
+					completedAt: now
+				}
+			};
+			this.operations.unshift(notFoundOp);
+			return { resourceId: validId, operationId };
+		}
+
+		if (input.name !== undefined) {
+			const normalizedName = input.name.trim().toLowerCase();
+			if (!ORGANIZATION_NAME_PATTERN.test(normalizedName)) {
+				throw new Error(
+					'Nome da Organization inválido: use apenas letras minúsculas, números e hífens (padrão DNS).'
+				);
+			}
+			org.desired.name = normalizedName;
+		}
+
+		if (input.deletionProtection !== undefined) {
+			org.desired.deletionProtection = input.deletionProtection;
+		}
+
+		org.updatedAt = now;
+
+		if (input.displayName !== undefined) {
+			const meta = this.organizationDemoMeta[validId] || {
+				planDemo: 'Enterprise',
+				primaryRegionDemo: 'us-east-1',
+				memberCount: 1,
+				displayName: org.desired.name
+			};
+			meta.displayName = input.displayName.trim() || org.desired.name;
+			this.organizationDemoMeta[validId] = meta;
+		}
+
+		const successOp: OperationTitleInfo = {
+			title: `Edição de Organização (${org.desired.name})`,
+			subtitle: 'A organização foi atualizada com sucesso.',
+			operation: {
+				operationId,
+				operationType: 'update',
+				module: 'ipm',
+				resourceType: 'organization',
+				resourceId: validId,
+				operationStatus: 'completed',
+				createdAt: now,
+				updatedAt: now,
+				completedAt: now
+			}
+		};
+		this.operations.unshift(successOp);
+
+		return { resourceId: validId, operationId };
+	}
+
+	async updateUser(input: UpdateUserInput): Promise<RequestAccepted> {
+		const validId = validateIdentifier(input.resourceId, 'userId');
+		const now = new Date().toISOString();
+		const operationId = this.nextIdentifier('0199c8d0-9900-7a00-8b00');
+
+		let foundUser;
+		for (const orgUsers of Object.values(this.usersByOrganization)) {
+			foundUser = orgUsers.find((u) => u.resourceId === validId);
+			if (foundUser) break;
+		}
+
+		if (!foundUser) {
+			const notFoundOp: OperationTitleInfo = {
+				title: 'Edição de Usuário',
+				subtitle: 'Usuário não encontrado.',
+				operation: {
+					operationId,
+					operationType: 'update',
+					module: 'ipm',
+					resourceType: 'user',
+					resourceId: validId,
+					operationStatus: 'rejected',
+					operationStatusReason: 'not_found',
+					createdAt: now,
+					updatedAt: now,
+					completedAt: now
+				}
+			};
+			this.operations.unshift(notFoundOp);
+			return { resourceId: validId, operationId };
+		}
+
+		if (input.roles !== undefined) {
+			foundUser.desired.roles = [...input.roles];
+		}
+		if (input.deletionProtection !== undefined) {
+			foundUser.desired.deletionProtection = input.deletionProtection;
+		}
+
+		foundUser.updatedAt = now;
+
+		const successOp: OperationTitleInfo = {
+			title: `Edição de Usuário (${foundUser.desired.givenName})`,
+			subtitle: 'O usuário foi atualizado com sucesso.',
+			operation: {
+				operationId,
+				operationType: 'update',
+				module: 'ipm',
+				resourceType: 'user',
+				resourceId: validId,
+				operationStatus: 'completed',
+				createdAt: now,
+				updatedAt: now,
+				completedAt: now
+			}
+		};
+		this.operations.unshift(successOp);
+
+		return { resourceId: validId, operationId };
+	}
+
+	async deleteUser(resourceId: string): Promise<RequestAccepted> {
+		const validId = validateIdentifier(resourceId, 'userId');
+		const now = new Date().toISOString();
+		const operationId = this.nextIdentifier('0199c8d0-9900-7a00-8b00');
+
+		let foundUser;
+		let foundOrgId;
+		for (const [orgId, orgUsers] of Object.entries(this.usersByOrganization)) {
+			foundUser = orgUsers.find((u) => u.resourceId === validId);
+			if (foundUser) {
+				foundOrgId = orgId;
+				break;
+			}
+		}
+
+		if (!foundUser || !foundOrgId) {
+			const notFoundOp: OperationTitleInfo = {
+				title: 'Exclusão de Usuário',
+				subtitle: 'Usuário não encontrado.',
+				operation: {
+					operationId,
+					operationType: 'delete',
+					module: 'ipm',
+					resourceType: 'user',
+					resourceId: validId,
+					operationStatus: 'rejected',
+					operationStatusReason: 'not_found',
+					createdAt: now,
+					updatedAt: now,
+					completedAt: now
+				}
+			};
+			this.operations.unshift(notFoundOp);
+			return { resourceId: validId, operationId };
+		}
+
+		if (foundUser.desired.deletionProtection !== false) {
+			const protectedOp: OperationTitleInfo = {
+				title: `Exclusão de Usuário (${foundUser.desired.givenName})`,
+				subtitle: 'O usuário está protegido contra exclusão.',
+				operation: {
+					operationId,
+					operationType: 'delete',
+					module: 'ipm',
+					resourceType: 'user',
+					resourceId: validId,
+					operationStatus: 'rejected',
+					operationStatusReason: 'conflict',
+					createdAt: now,
+					updatedAt: now,
+					completedAt: now
+				}
+			};
+			this.operations.unshift(protectedOp);
+			return { resourceId: validId, operationId };
+		}
+
+		// Simulando exclusão instantânea
+		this.usersByOrganization[foundOrgId] = this.usersByOrganization[foundOrgId].filter(
+			(u) => u.resourceId !== validId
+		);
+
+		const successOp: OperationTitleInfo = {
+			title: `Exclusão de Usuário (${foundUser.desired.givenName})`,
+			subtitle: 'O usuário foi removido da organização.',
+			operation: {
+				operationId,
+				operationType: 'delete',
+				module: 'ipm',
+				resourceType: 'user',
+				resourceId: validId,
+				operationStatus: 'completed',
+				createdAt: now,
+				updatedAt: now,
+				completedAt: now
+			}
+		};
+		this.operations.unshift(successOp);
+
+		return { resourceId: validId, operationId };
+	}
+
+	async updateAccount(input: UpdateAccountInput): Promise<RequestAccepted> {
+		const validId = validateIdentifier(input.resourceId, 'accountId');
+		const now = new Date().toISOString();
+		const operationId = this.nextIdentifier('0199c8d0-9900-7a00-8b00');
+
+		if (this.account.resourceId !== validId) {
+			throw new Error('Conta não encontrada.');
+		}
+
+		if (input.deletionProtection !== undefined) {
+			this.account.desired.deletionProtection = input.deletionProtection;
+		}
+
+		this.account.updatedAt = now;
+
+		const successOp: OperationTitleInfo = {
+			title: 'Edição de Conta',
+			subtitle: 'Conta atualizada com sucesso.',
+			operation: {
+				operationId,
+				operationType: 'update',
+				module: 'core',
+				resourceType: 'account',
+				resourceId: validId,
+				operationStatus: 'completed',
+				createdAt: now,
+				updatedAt: now,
+				completedAt: now
+			}
+		};
+		this.operations.unshift(successOp);
+
+		return { resourceId: validId, operationId };
+	}
+
+	async deleteAccount(resourceId: string): Promise<RequestAccepted> {
+		const validId = validateIdentifier(resourceId, 'accountId');
+		const now = new Date().toISOString();
+		const operationId = this.nextIdentifier('0199c8d0-9900-7a00-8b00');
+
+		if (this.account.resourceId !== validId) {
+			throw new Error('Conta não encontrada.');
+		}
+
+		if (this.account.desired.deletionProtection !== false) {
+			const protectedOp: OperationTitleInfo = {
+				title: 'Exclusão de Conta',
+				subtitle: 'A conta está protegida contra exclusão.',
+				operation: {
+					operationId,
+					operationType: 'delete',
+					module: 'core',
+					resourceType: 'account',
+					resourceId: validId,
+					operationStatus: 'rejected',
+					operationStatusReason: 'conflict',
+					createdAt: now,
+					updatedAt: now,
+					completedAt: now
+				}
+			};
+			this.operations.unshift(protectedOp);
+			return { resourceId: validId, operationId };
+		}
+
+		if (this.organizations.length > 0 || this.services.length > 0) {
+			const remainingOp: OperationTitleInfo = {
+				title: 'Exclusão de Conta',
+				subtitle: 'A conta possui organizações ou serviços ativos.',
+				operation: {
+					operationId,
+					operationType: 'delete',
+					module: 'core',
+					resourceType: 'account',
+					resourceId: validId,
+					operationStatus: 'rejected',
+					operationStatusReason: 'conflict',
+					createdAt: now,
+					updatedAt: now,
+					completedAt: now
+				}
+			};
+			this.operations.unshift(remainingOp);
+			return { resourceId: validId, operationId };
+		}
+
+		const successOp: OperationTitleInfo = {
+			title: 'Exclusão de Conta',
+			subtitle: 'A conta foi agendada para exclusão.',
+			operation: {
+				operationId,
+				operationType: 'delete',
+				module: 'core',
+				resourceType: 'account',
+				resourceId: validId,
+				operationStatus: 'completed',
+				createdAt: now,
+				updatedAt: now,
+				completedAt: now
+			}
+		};
+		this.operations.unshift(successOp);
+
+		return { resourceId: validId, operationId };
 	}
 }

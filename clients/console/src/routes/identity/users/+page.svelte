@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { Plus, Users } from 'lucide-svelte';
+	import { Trash2, Plus, Users, Lock, LockOpen } from 'lucide-svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
-	import type { GrantableRole } from '$lib/types/resources';
+	import type { GrantableRole, OrganizationUserResource } from '$lib/types/resources';
 
 	const consoleState = getConsoleState();
 
@@ -121,6 +121,17 @@
 		} finally {
 			isSubmitting = false;
 		}
+	}
+	async function handleDeleteUser(resourceId: string): Promise<void> {
+		if (confirm('Tem certeza de que deseja excluir este usuário?')) {
+			await consoleState.deleteUser(resourceId);
+		}
+	}
+	async function handleToggleUserProtection(user: OrganizationUserResource): Promise<void> {
+		await consoleState.updateUser({
+			resourceId: user.resourceId,
+			deletionProtection: user.desired.deletionProtection === false
+		});
 	}
 </script>
 
@@ -336,6 +347,7 @@
 							<th class="px-4 py-3">Organização</th>
 							<th class="px-4 py-3">Status</th>
 							<th class="px-4 py-3">Permissões</th>
+							<th class="px-4 py-3 text-right">Ações</th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-slate-100">
@@ -368,6 +380,35 @@
 												{role}
 											</span>
 										{/each}
+									</div>
+								</td>
+								<td class="px-4 py-3 text-right text-xs">
+									<div class="inline-flex gap-2">
+										<button
+											type="button"
+											onclick={() => handleToggleUserProtection(user)}
+											title={user.desired.deletionProtection !== false
+												? 'Desativar Proteção'
+												: 'Ativar Proteção'}
+											class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-transparent text-slate-400 hover:text-emerald-700"
+										>
+											{#if user.desired.deletionProtection !== false}
+												<Lock class="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+											{:else}
+												<LockOpen class="h-3.5 w-3.5" aria-hidden="true" />
+											{/if}
+										</button>
+
+										<button
+											type="button"
+											onclick={() => handleDeleteUser(user.resourceId)}
+											disabled={user.desired.deletionProtection !== false}
+											aria-label="Excluir Usuário"
+											title="Excluir Usuário"
+											class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-transparent text-slate-400 hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:border-transparent disabled:hover:text-slate-400"
+										>
+											<Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
+										</button>
 									</div>
 								</td>
 							</tr>

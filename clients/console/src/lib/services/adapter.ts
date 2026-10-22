@@ -26,12 +26,30 @@ export interface CreateOrganizationInput {
 	deletionProtection?: boolean;
 }
 
+export interface UpdateOrganizationInput {
+	resourceId: string;
+	name?: string;
+	displayName?: string;
+	deletionProtection?: boolean;
+}
+
 export interface CreateUserInput {
 	organizationId: string;
 	givenName: string;
 	familyName: string;
 	email: string;
 	roles: GrantableRole[];
+	deletionProtection?: boolean;
+}
+
+export interface UpdateUserInput {
+	resourceId: string;
+	roles?: GrantableRole[];
+	deletionProtection?: boolean;
+}
+
+export interface UpdateAccountInput {
+	resourceId: string;
 	deletionProtection?: boolean;
 }
 
@@ -56,8 +74,16 @@ export interface ConsoleDataAdapter {
 	markAllNotificationsAsRead(organizationId?: string): Promise<void>;
 
 	createOrganization(input: CreateOrganizationInput): Promise<RequestAccepted>;
+	updateOrganization(input: UpdateOrganizationInput): Promise<RequestAccepted>;
+	deleteOrganization(resourceId: string): Promise<RequestAccepted>;
+
 	createUser(input: CreateUserInput): Promise<RequestAccepted>;
+	updateUser(input: UpdateUserInput): Promise<RequestAccepted>;
+	deleteUser(resourceId: string): Promise<RequestAccepted>;
+
+	updateAccount(input: UpdateAccountInput): Promise<RequestAccepted>;
+	deleteAccount(resourceId: string): Promise<RequestAccepted>;
+
 	enableService(input: EnableServiceInput): Promise<RequestAccepted>;
 	disableService(resourceId: string): Promise<RequestAccepted>;
-	deleteOrganization(resourceId: string): Promise<RequestAccepted>;
 }

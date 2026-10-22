@@ -9,7 +9,10 @@ import type {
 	ConsoleDataAdapter,
 	CreateOrganizationInput,
 	CreateUserInput,
-	EnableServiceInput
+	EnableServiceInput,
+	UpdateOrganizationInput,
+	UpdateUserInput,
+	UpdateAccountInput
 } from '../services/adapter';
 import { OperationWatcher } from '../services/operation-watcher';
 import { validateIdentifier, type Operation, type RequestAccepted } from '../types/common';
@@ -233,11 +236,48 @@ export class ConsoleState {
 		return accepted;
 	}
 
-	/**
-	 * Solicita a exclusão assíncrona de uma Organization (respeitando deletionProtection).
-	 */
+	async updateOrganization(input: UpdateOrganizationInput): Promise<RequestAccepted> {
+		const accepted = await this.adapter.updateOrganization(input);
+		await this.refreshCurrentContext();
+		this.openOperationsPanel('operations');
+		this.watcher.watch(accepted.operationId);
+		return accepted;
+	}
+
 	async deleteOrganization(resourceId: string): Promise<RequestAccepted> {
 		const accepted = await this.adapter.deleteOrganization(resourceId);
+		await this.refreshCurrentContext();
+		this.openOperationsPanel('operations');
+		this.watcher.watch(accepted.operationId);
+		return accepted;
+	}
+
+	async updateUser(input: UpdateUserInput): Promise<RequestAccepted> {
+		const accepted = await this.adapter.updateUser(input);
+		await this.refreshCurrentContext();
+		this.openOperationsPanel('operations');
+		this.watcher.watch(accepted.operationId);
+		return accepted;
+	}
+
+	async deleteUser(resourceId: string): Promise<RequestAccepted> {
+		const accepted = await this.adapter.deleteUser(resourceId);
+		await this.refreshCurrentContext();
+		this.openOperationsPanel('operations');
+		this.watcher.watch(accepted.operationId);
+		return accepted;
+	}
+
+	async updateAccount(input: UpdateAccountInput): Promise<RequestAccepted> {
+		const accepted = await this.adapter.updateAccount(input);
+		await this.refreshCurrentContext();
+		this.openOperationsPanel('operations');
+		this.watcher.watch(accepted.operationId);
+		return accepted;
+	}
+
+	async deleteAccount(resourceId: string): Promise<RequestAccepted> {
+		const accepted = await this.adapter.deleteAccount(resourceId);
 		await this.refreshCurrentContext();
 		this.openOperationsPanel('operations');
 		this.watcher.watch(accepted.operationId);

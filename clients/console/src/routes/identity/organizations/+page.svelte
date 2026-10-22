@@ -3,6 +3,8 @@
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
 
+	import type { OrganizationResource } from '$lib/types/resources';
+
 	const consoleState = getConsoleState();
 
 	let newOrgDisplayName = $state('');
@@ -69,7 +71,20 @@
 	}
 
 	async function handleDeleteOrganization(resourceId: string): Promise<void> {
-		await consoleState.deleteOrganization(resourceId);
+		if (
+			confirm(
+				'Atenção: A exclusão da organização não pode ser desfeita e removerá todos os usuários. Deseja continuar?'
+			)
+		) {
+			await consoleState.deleteOrganization(resourceId);
+		}
+	}
+
+	async function handleToggleOrgProtection(org: OrganizationResource): Promise<void> {
+		await consoleState.updateOrganization({
+			resourceId: org.resourceId,
+			deletionProtection: org.desired.deletionProtection === false
+		});
 	}
 </script>
 
@@ -264,10 +279,26 @@
 
 									<button
 										type="button"
+										onclick={() => handleToggleOrgProtection(org)}
+										title={org.desired.deletionProtection !== false
+											? 'Desativar Proteção'
+											: 'Ativar Proteção'}
+										class="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:text-emerald-700"
+									>
+										{#if org.desired.deletionProtection !== false}
+											<Lock class="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+										{:else}
+											<LockOpen class="h-3.5 w-3.5" aria-hidden="true" />
+										{/if}
+									</button>
+
+									<button
+										type="button"
 										onclick={() => handleDeleteOrganization(org.resourceId)}
 										aria-label="Solicitar exclusão da organização {org.desired.name}"
 										data-testid="delete-org-{org.desired.name}"
-										class="rounded-lg border border-red-200 bg-red-50 p-1.5 text-red-700 hover:bg-red-100"
+										class="rounded-lg border border-red-200 bg-red-50 p-1.5 text-red-700 hover:bg-red-100 disabled:opacity-50"
+										disabled={org.desired.deletionProtection !== false}
 									>
 										<Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
 									</button>
