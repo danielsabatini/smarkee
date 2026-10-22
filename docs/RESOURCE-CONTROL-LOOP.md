@@ -577,28 +577,28 @@ O outbox é o contrato entre o Manager e o Publisher. O Publisher **não executa
 
 # 7. O fluxo completo
 
-O fluxo completo pode ser dividido em seis fases:
+O fluxo completo é dividido em seis fases encadeadas assincronamente por mensageria:
 
-```text
-1. Request
-2. Desired
-3. Observation
-4. Reconciliation
-5. Action
-6. Execution
-```
+1. **Request (Entrada):** O cliente submete a intenção ao Receiver via HTTP (`POST`, `PATCH`, `DELETE`). O Receiver valida a estrutura, correlaciona a requisição e emite `requested`, respondendo rapidamente com `202 Accepted` acompanhado do `operationId`.
+2. **Desired (Intenção declarativa):** O Manager consome `requested`, valida regras de negócio e cota, grava o recurso e a Operation no SSOT e registra a mensagem `desired` no outbox na mesma transação. O Publisher a despacha com operação `changed`, expressando a intenção de existência (`lifecycle = present | absent`).
+3. **Observation (Leitura da realidade):** O Observer consulta o estado real no sistema externo com credencial restrita de leitura (`READ`) e publica `observed` contendo o resultado da presença (`presence: present | absent | unknown`) e o instante `observedAt`.
+4. **Reconciliation (Decisão):** O Reconciler consome o último `desired` e o último `observed` retidos na mensageria. Compara os campos gerenciados: se houver divergência, decide a ação (`create`, `update`, `delete`); se convergido, emite `noop` (sem ação).
+5. **Action (Despacho):** O Reconciler emite a mensagem `action` com um identificador determinístico (`actionId`) derivado do `resourceId`, da `desiredGeneration`, da operação e do `messageId` da observação que motivou a decisão.
+6. **Execution (Aplicação externa):** O Executor consome `action`, consulta desfechos anteriores para deduplicação, aplica a operação no sistema externo com credencial de escrita (`WRITE`) e publica o resultado no barramento (`completed` ou `failed`).
+
+O ciclo se completa com a **re-observação causal** disparada pelo resultado da execução: o Observer lê o sistema externo com `causationId` apontando para o resultado, e o Manager consome essa observação conclusiva para atualizar o SSOT, confirmar a geração (`observedGeneration = desiredGeneration`), concluir a Operation (`completed`) e publicar `updated`.
 
 Visualmente:
 
 ```mermaid
 flowchart LR
 
-    A[Request]
-    B[Desired]
-    C[Observed]
-    D[Reconcile]
-    E[Action]
-    F[Execute]
+    A[1. Request]
+    B[2. Desired]
+    C[3. Observed]
+    D[4. Reconcile]
+    E[5. Action]
+    F[6. Execute]
     G[External System]
 
     A --> B
@@ -1336,30 +1336,43 @@ Exemplo:
 stateDiagram-v2
 
     [*] --> Pending
-    Pending --> Reconciling
-    Reconciling --> Ready
-    Reconciling --> Failed
-    Ready --> Reconciling
-    Ready --> Deleting
-    Failed --> Reconciling
-    Deleting --> [*]
+    Pending --> Reconciling: Início da reconciliação
+    Reconciling --> Ready: Convergência observada
+    Reconciling --> Failed: failureLimit ou progressDeadline excedido
+    Ready --> Reconciling: Alteração de desired ou drift externo
+    Ready --> Deleting: Pedido de remoção (lifecycle=absent)
+    Failed --> Reconciling: Nova geração ou reativação
+    Deleting --> [*]: Confirmação de ausência (presence=absent)
 ```
 
-Um recurso pode permanecer em:
+## 37.1 Fases consolidadas do recurso (`phase`)
 
-```text
-Reconciling
-```
+| Fase (`phase`) | Significado | Como entra | Como sai |
+|---|---|---|---|
+| **`Pending`** | Recurso registrado no SSOT, aguardando o início do processamento do loop. | Gravação inicial do recurso pelo Manager ao aceitar um pedido de criação (`requested`). | Transiciona para `Reconciling` assim que a reconciliação do recurso é iniciada. |
+| **`Reconciling`** | O recurso está ativamente convergindo para o estado desejado (processando ações, aguardando execução ou em backoff). Um recurso pode permanecer em `Reconciling` por múltiplos ciclos normais. | Entrada a partir de `Pending`, criação de nova geração (`desiredGeneration`), ou detecção de drift pelo Observer. | Transiciona para `Ready` quando o conteúdo observado for idêntico ao desejado em observação causal; ou para `Failed` se esgotar o limite de falhas ou o prazo de progresso. |
+| **`Ready`** | O estado desejado foi plenamente alcançado e confirmado pelo sistema externo (`observedGeneration == desiredGeneration`). | Quando a observação causal confirma que todos os campos gerenciados divergentes convergiram. | Volta para `Reconciling` se o `desired` mudar ou se o Observer detectar drift externo; transiciona para `Deleting` se a remoção for solicitada. |
+| **`Failed`** | O loop esgotou as tentativas automáticas e a reconciliação foi suspensa para evitar sobrecarga ou laço infinito contra o provedor. | Quando `failureCount` atinge o `failureLimit` do contrato, ou quando o `progressDeadline` expira sem convergência (decisão 0078). | Sai para `Reconciling` quando uma nova geração do `desired` é submetida (que zera as falhas e reativa a reconciliação) ou por intervenção explícita no SSOT. |
+| **`Deleting`** | O recurso teve sua remoção declarada (`lifecycle = absent`) e aguarda a exclusão no sistema externo pelo Executor. | Solicitação de exclusão aceita no SSOT (com `deletionProtection = false`). | O registro é **fisicamente removido** do SSOT assim que o Observer confirma `presence = absent` (invariante 8 do SSOT: remoção física só após a convergência). |
 
-durante múltiplos ciclos.
+## 37.2 Diferenciação entre os conceitos de Estado
 
-Isso é esperado.
+Para evitar ambiguidade conceitual, a plataforma distingue explicitamente os papéis de cada campo de estado:
 
-O estado `Failed` é terminal para o ciclo automático: o `desired` fica com a reconciliação suspensa, e a saída segue as regras descritas em *Fluxo de falha*.
+| Conceito | Campo | Onde reside | Valores possíveis | Papel no controle |
+|---|---|---|---|---|
+| **Fase consolidada** | `phase` | `Resource` (SSOT) | `Pending`, `Reconciling`, `Ready`, `Failed`, `Deleting` | Visão oficial do ciclo de vida do recurso na plataforma. |
+| **Intenção de existência** | `lifecycle` | `desired` (SSOT e NATS) | `present`, `absent` | Declara se o recurso deve existir ou ser destruído. |
+| **Controle de reconciliação** | `reconciliation` | `desired` (SSOT e NATS) | `active`, `suspended` | Habilita ou suspende as tomadas de decisão pelo Reconciler. |
+| **Proteção contra exclusão** | `deletionProtection` | `desired` (SSOT e NATS) | `true`, `false` | Impede recusa ou permite pedidos de remoção (`delete`). |
+| **Presença real** | `presence` | `observed` (SSOT e NATS) | `present`, `absent`, `unknown` | O que foi constatado no provedor externo (`unknown` nunca é tratado como ausente). |
+| **Estado da requisição** | `operationStatus` | `Operation` (SSOT) | `accepted`, `in_progress`, `completed`, `failed`, `rejected` | Acompanhamento do processamento da solicitação do cliente. |
 
 # 38. Conditions
 
-Conditions representam fatos ou condições consolidadas do recurso.
+Conditions representam fatos consolidados sobre o recurso ao longo do tempo, seguindo o padrão estabelecido pelo Kubernetes (`type`, `status`, `reason`, `message`, `observedGeneration`, `lastTransitionAt`).
+
+São calculadas e persistidas atomicamente no SSOT pelo **Manager** a cada observação ou resultado processado.
 
 Exemplo:
 
@@ -1374,34 +1387,54 @@ Exemplo:
 }
 ```
 
-O lifecycle e as conditions são persistidos no SSOT pelo Manager.
+## 38.1 Tipos oficiais de Condition
+
+Os contratos da plataforma definem o vocabulário padronizado de conditions:
+
+| Condition (`type`) | Status (`status`) | Motivo típico (`reason`) | Significado |
+|---|---|---|---|
+| **`Ready`** | `True` | `Reconciled` | O recurso convergiu completamente e está pronto para uso. |
+| | `False` | `Reconciling` | O recurso está em processo de convergência. |
+| | `False` | `Failed` | Falha permanente ou esgotamento de retries na geração vigente. |
+| **`Progressing`**<br/>*(decisão 0078)* | `True` | `Reconciling` | Há trabalho e progresso ativo sendo executado para a geração atual. |
+| | `True` | `Converged` | O progresso da geração foi concluído com sucesso. |
+| | `False` | `ProgressDeadlineExceeded` | O tempo decorrido desde o início da geração excedeu o `progressDeadline` (padrão de 5 minutos) sem convergir. |
+| **`ObservationStale`** | `True` | `Timeout` / `Unknown` | A observação causal ou periódica não ocorreu no prazo estipulado pelo contrato ou o provedor permaneceu em `unknown`. |
+| **`DriftLoop`** | `True` | `RepeatedDrift` | Correções de drift estão ocorrendo ciclicamente em curto intervalo de tempo. |
 
 # 39. Operation
 
-Uma operação acompanha uma solicitação assíncrona.
+Uma `Operation` acompanha o processamento assíncrono de uma solicitação submetida pelo cliente (`GET /v1/<módulo>/<tipos>/{resourceId}/operations/{operationId}`).
 
-Exemplo:
-
-```text
-operationId
-operationType
-resourceId
-desiredGeneration
-status
-createdAt
-updatedAt
-completedAt
-```
-
-A Operation não deve ser confundida com o Resource. Ela é um registro do SSOT mantido pelo Manager e exposto pelo Receiver; não trafega no envelope das mensagens, e o `correlationId` liga a Operation às mensagens do fluxo. O `operationId` é atribuído pelo Receiver e transportado no conteúdo do `requested` (`SCHEMA.md`); os estados da Operation, inclusive a rejeição com motivo, e a idempotência do pedido estão em `SSOT.md`.
+A Operation **não deve ser confundida com o Resource**:
 
 ```text
-Resource
-    = objeto gerenciado
-
-Operation
-    = processamento de uma solicitação
+Resource  = objeto gerenciado permanente na plataforma (ex: Organization, User, Account)
+Operation = ciclo de atendimento de uma requisição assíncrona sobre um recurso
 ```
+
+A Operation é mantida pelo Manager no SSOT e exposta pelo Receiver; não trafega no envelope das mensagens, e o `correlationId` correlaciona a Operation às mensagens do fluxo. O `operationId` é gerado pelo Receiver e transportado no corpo do `requested`.
+
+## 39.1 Estados da Operation (`operationStatus`)
+
+| Status | Significado |
+|---|---|
+| **`accepted`** | O pedido foi recebido pelo Receiver, validado pelo Manager e registrado no SSOT com o `desired` enfileirado no outbox. |
+| **`in_progress`** | A reconciliação da solicitação está em andamento no loop. |
+| **`completed`** | A solicitação foi concluída com sucesso: o recurso convergiu e a geração requerida foi confirmada (`observedGeneration == desiredGeneration`). |
+| **`failed`** | A solicitação não pôde ser atendida e a execução falhou permanentemente. |
+| **`rejected`** | A requisição foi recusada pelo Manager antes de entrar no loop (o recurso não é alterado e nenhum `desired` é gerado). |
+
+## 39.2 Motivos de Rejeição (`operationStatusReason`)
+
+Presente exclusivamente quando `operationStatus = rejected`:
+
+| Motivo (`operationStatusReason`) | Significado |
+|---|---|
+| **`conflict`** | Concorrência otimista: a `resourceVersion` informada pelo cliente no `PATCH`/`DELETE` está desatualizada em relação ao SSOT. |
+| **`validation`** | Violação de regras de negócio ou de contrato (ex: nome já em uso, cota de recursos excedida, e-mail não verificado). |
+| **`not_found`** | O recurso alvo da alteração ou remoção não existe no SSOT. |
+| **`protected`** | O pedido de `DELETE` foi recusado porque o recurso possui a proteção contra exclusão ativa (`deletionProtection = true`, decisão 0043). |
 
 # 40. CLI e experiência síncrona
 
