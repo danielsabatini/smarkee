@@ -65,7 +65,11 @@
 									<StatusBadge phase={svc.phase} size="sm" />
 								</td>
 								<td class="px-4 py-3 text-center">
-									{#if svc.desired.lifecycle === 'present'}
+									{#if svc.desired.service === 'sum'}
+										<span class="text-xs text-slate-400" title="Serviço essencial da plataforma"
+											>—</span
+										>
+									{:else if svc.desired.lifecycle === 'present'}
 										<button
 											type="button"
 											onclick={() => consoleState.disableService(svc.resourceId)}

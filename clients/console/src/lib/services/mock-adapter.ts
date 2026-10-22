@@ -392,6 +392,35 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 
 		this.services = [
 			{
+				resourceId: '0199c8b0-1a00-7f00-8a00-000000000001',
+				resourceVersion: '1',
+				desiredGeneration: 1,
+				phase: 'Ready',
+				conditions: [
+					{
+						type: 'Ready',
+						status: 'True',
+						reason: 'Reconciled',
+						message: 'Serviço central SUM habilitado.',
+						observedGeneration: 1,
+						lastTransitionAt: '2026-10-21T10:00:00Z'
+					}
+				],
+				desired: {
+					lifecycle: 'present',
+					reconciliation: 'active',
+					ownerAccountId: DEFAULT_ACCOUNT_ID,
+					service: 'sum',
+					serviceRoles: ['sum.ipm.create', 'sum.ipm.delete', 'sum.ipm.get'],
+					managedRoles: ['sum.ipm.create', 'sum.ipm.delete', 'sum.ipm.get']
+				},
+				observed: {
+					serviceRoles: ['sum.ipm.create', 'sum.ipm.delete', 'sum.ipm.get']
+				},
+				createdAt: '2026-10-15T14:00:00Z',
+				updatedAt: '2026-10-21T10:00:00Z'
+			},
+			{
 				resourceId: '0199c8b0-2d4e-7f10-8a3b-6c7d8e9f0a1b',
 				resourceVersion: '2',
 				desiredGeneration: 1,
@@ -1132,6 +1161,9 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 		const found = this.services.find((s) => s.resourceId === validId);
 		if (!found) {
 			throw new Error(`Ligação de serviço ${validId} não encontrada.`);
+		}
+		if (found.desired.service === 'sum') {
+			throw new Error('O serviço SUM é essencial para a plataforma e não pode ser desabilitado.');
 		}
 
 		const now = new Date().toISOString();
