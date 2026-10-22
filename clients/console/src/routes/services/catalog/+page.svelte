@@ -19,10 +19,10 @@
 	<title>Smarkee Console — Catálogo de Serviços (SUM)</title>
 </svelte:head>
 
-<div class="mx-auto max-w-6xl space-y-6">
+<div class="mx-auto max-w-7xl space-y-6">
 	<div>
 		<span class="text-xs font-semibold text-emerald-700 uppercase"> Serviços (SUM) </span>
-		<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Catálogo de Serviços da Plataforma</h1>
+		<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Catálogo de Serviços</h1>
 		<p class="mt-1 text-xs text-slate-600">
 			Habilite os serviços disponíveis para utilizar os módulos na plataforma.
 		</p>
@@ -60,19 +60,6 @@
 					</div>
 
 					<p class="mt-3 text-xs leading-relaxed text-slate-600">{item.description}</p>
-
-					<div class="mt-3">
-						<span class="text-[11px] font-semibold text-slate-500"> Permissões incluídas: </span>
-						<div class="mt-1.5 flex flex-wrap gap-1">
-							{#each item.rolesGranted as role (role)}
-								<span
-									class="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-700"
-								>
-									{role}
-								</span>
-							{/each}
-						</div>
-					</div>
 				</div>
 
 				<div class="mt-5 flex items-center justify-between border-t border-slate-100 pt-3">
@@ -85,14 +72,14 @@
 						<span class="text-xs text-slate-500">Não habilitado na organização</span>
 					{/if}
 
-					{#if item.serviceKey !== 'sum'}
+					{#if !enabled && item.serviceKey !== 'sum'}
 						<button
 							type="button"
 							onclick={() => consoleState.enableService({ service: item.serviceKey })}
 							class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
 						>
 							<Play class="h-3.5 w-3.5" aria-hidden="true" />
-							<span>{enabled ? 'Sincronizar Acesso' : 'Habilitar Serviço'}</span>
+							<span>Habilitar Serviço</span>
 						</button>
 					{/if}
 				</div>

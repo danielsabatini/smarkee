@@ -150,7 +150,7 @@
 	<title>Smarkee Console — Organizações</title>
 </svelte:head>
 
-<div class="mx-auto max-w-6xl space-y-6">
+<div class="mx-auto max-w-7xl space-y-6">
 	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
 		<div>
 			<span class="text-xs font-semibold uppercase text-emerald-700"> Identidade (IPM) </span>
@@ -267,13 +267,13 @@
 					<tr
 						class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500"
 					>
-						<th class="px-4 py-3">Organização</th>
-						<th class="px-4 py-3">ID</th>
-						<th class="px-4 py-3">Fase</th>
-						<th class="px-4 py-3">Acesso</th>
-						<th class="px-4 py-3">Proteção</th>
-						<th class="px-4 py-3 text-center">Contexto</th>
-						<th class="px-4 py-3 text-center">Ações</th>
+						<th class="px-3.5 py-3">Organização</th>
+						<th class="px-2.5 py-3">ID</th>
+						<th class="px-2.5 py-3">Fase</th>
+						<th class="px-2.5 py-3">Acesso</th>
+						<th class="px-2.5 py-3">Proteção</th>
+						<th class="px-2.5 py-3 text-center">Contexto</th>
+						<th class="px-2.5 py-3 text-center">Ações</th>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-slate-100">
@@ -284,8 +284,8 @@
 							data-testid="organization-table-row-{org.desired.name}"
 							class="transition hover:bg-slate-50/80 {isActive ? 'bg-emerald-50/30' : ''}"
 						>
-							<td class="px-4 py-3">
-								<div class="flex items-center gap-2.5">
+							<td class="px-3.5 py-2.5">
+								<div class="flex items-center gap-2">
 									<Building2 class="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
 									<div>
 										<div class="font-bold text-slate-900">{demoMeta.displayName}</div>
@@ -295,13 +295,13 @@
 									</div>
 								</div>
 							</td>
-							<td class="px-4 py-3">
-								<CopyableId id={org.resourceId} />
+							<td class="px-2.5 py-2.5">
+								<CopyableId id={org.resourceId} idClass="font-mono text-[11px] text-slate-600" />
 							</td>
-							<td class="px-4 py-3">
+							<td class="px-2.5 py-2.5 whitespace-nowrap">
 								<StatusBadge phase={org.phase} size="sm" />
 							</td>
-							<td class="px-4 py-3">
+							<td class="px-2.5 py-2.5 whitespace-nowrap">
 								<span
 									class="inline-flex items-center gap-1 font-medium text-[11px] text-emerald-700"
 								>
@@ -309,7 +309,7 @@
 									{org.desired.platformAccess === 'granted' ? 'Liberado' : 'Bloqueado'}
 								</span>
 							</td>
-							<td class="px-4 py-3 text-[11px]">
+							<td class="px-2.5 py-2.5 text-[11px] whitespace-nowrap">
 								{#if org.desired.deletionProtection !== false}
 									<span class="inline-flex items-center gap-1 text-slate-600">
 										<Lock class="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
@@ -322,10 +322,10 @@
 									</span>
 								{/if}
 							</td>
-							<td class="px-4 py-3 text-center">
+							<td class="px-2.5 py-2.5 text-center whitespace-nowrap">
 								{#if isActive}
 									<span
-										class="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-900"
+										class="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900"
 									>
 										<Check class="h-3 w-3" aria-hidden="true" />
 										Ativa
@@ -334,19 +334,19 @@
 									<button
 										type="button"
 										onclick={() => consoleState.selectOrganization(org.resourceId)}
-										class="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-800"
+										class="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-800"
 									>
 										Selecionar
 									</button>
 								{/if}
 							</td>
-							<td class="px-4 py-3 text-center">
-								<div class="inline-flex items-center justify-center gap-2">
+							<td class="px-2.5 py-2.5 text-center whitespace-nowrap">
+								<div class="inline-flex items-center justify-center gap-1.5">
 									<button
 										type="button"
 										onclick={() => startEditOrg(org)}
 										title="Editar Organização"
-										class="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:text-emerald-700"
+										class="rounded-lg border border-slate-200 bg-white p-1 text-slate-500 hover:text-emerald-700"
 									>
 										<Pencil class="h-3.5 w-3.5" aria-hidden="true" />
 									</button>
@@ -357,7 +357,7 @@
 										title={org.desired.deletionProtection !== false
 											? 'Desativar Proteção'
 											: 'Ativar Proteção'}
-										class="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:text-emerald-700"
+										class="rounded-lg border border-slate-200 bg-white p-1 text-slate-500 hover:text-emerald-700"
 									>
 										{#if org.desired.deletionProtection !== false}
 											<Lock class="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
@@ -371,7 +371,7 @@
 										onclick={() => handleDeleteOrganization(org.resourceId)}
 										aria-label="Solicitar exclusão da organização {org.desired.name}"
 										data-testid="delete-org-{org.desired.name}"
-										class="rounded-lg border border-red-200 bg-red-50 p-1.5 text-red-700 hover:bg-red-100 disabled:opacity-50"
+										class="rounded-lg border border-red-200 bg-red-50 p-1 text-red-700 hover:bg-red-100 disabled:opacity-50"
 										disabled={org.desired.deletionProtection !== false}
 									>
 										<Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
