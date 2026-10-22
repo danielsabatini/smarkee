@@ -103,16 +103,17 @@
 </script>
 
 <svelte:head>
-	<title>Smarkee Console — Usuários da Organização</title>
+	<title>Smarkee Console — Usuários</title>
 </svelte:head>
 
 <div class="mx-auto max-w-6xl space-y-6">
 	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
 		<div>
 			<span class="text-xs font-semibold uppercase text-emerald-700"> Identidade (IPM) </span>
-			<h1 class="mt-0.5 text-2xl font-bold text-slate-900">
-				Usuários da Organização ({orgDisplayName})
-			</h1>
+			<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Usuários</h1>
+			<p class="mt-0.5 text-xs font-medium text-slate-500">
+				{orgDisplayName}
+			</p>
 			<p class="mt-1 text-xs text-slate-600">
 				Usuários vinculados exclusivamente à organização ativa.
 			</p>
