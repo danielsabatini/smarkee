@@ -269,7 +269,8 @@
 						<th class="px-4 py-3">Organização</th>
 						<th class="px-4 py-3">ID</th>
 						<th class="px-4 py-3">Fase</th>
-						<th class="px-4 py-3">Acesso e Proteção</th>
+						<th class="px-4 py-3">Acesso</th>
+						<th class="px-4 py-3">Proteção</th>
 						<th class="px-4 py-3 text-right">Ações</th>
 					</tr>
 				</thead>
@@ -285,10 +286,10 @@
 								<div class="flex items-center gap-2.5">
 									<Building2 class="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
 									<div>
-										<span class="font-bold text-slate-900">{demoMeta.displayName}</span>
-										<span class="ml-1 font-mono text-[11px] text-slate-500">
-											({org.desired.name})
-										</span>
+										<div class="font-bold text-slate-900">{demoMeta.displayName}</div>
+										<div class="font-mono text-[10px] text-slate-500">
+											{org.desired.name}
+										</div>
 									</div>
 								</div>
 							</td>
@@ -297,23 +298,25 @@
 								<StatusBadge phase={org.phase} size="sm" />
 							</td>
 							<td class="px-4 py-3">
-								<div class="flex items-center gap-3 text-[11px]">
-									<span class="inline-flex items-center gap-1 font-medium text-emerald-700">
-										<ShieldCheck class="h-3.5 w-3.5" aria-hidden="true" />
-										{org.desired.platformAccess === 'granted' ? 'Liberado' : 'Bloqueado'}
+								<span
+									class="inline-flex items-center gap-1 font-medium text-[11px] text-emerald-700"
+								>
+									<ShieldCheck class="h-3.5 w-3.5" aria-hidden="true" />
+									{org.desired.platformAccess === 'granted' ? 'Liberado' : 'Bloqueado'}
+								</span>
+							</td>
+							<td class="px-4 py-3 text-[11px]">
+								{#if org.desired.deletionProtection !== false}
+									<span class="inline-flex items-center gap-1 text-slate-600">
+										<Lock class="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+										Protegida
 									</span>
-									{#if org.desired.deletionProtection !== false}
-										<span class="inline-flex items-center gap-1 text-slate-600">
-											<Lock class="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
-											Protegida
-										</span>
-									{:else}
-										<span class="inline-flex items-center gap-1 text-amber-700">
-											<LockOpen class="h-3.5 w-3.5" aria-hidden="true" />
-											Desprotegida
-										</span>
-									{/if}
-								</div>
+								{:else}
+									<span class="inline-flex items-center gap-1 text-amber-700">
+										<LockOpen class="h-3.5 w-3.5" aria-hidden="true" />
+										Desprotegida
+									</span>
+								{/if}
 							</td>
 							<td class="px-4 py-3 text-right">
 								<div class="inline-flex items-center gap-2">
