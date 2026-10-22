@@ -56,20 +56,13 @@
 				</div>
 			</div>
 
-			<div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+			<div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div class="rounded-xl bg-slate-50 p-3.5">
 					<span class="text-[11px] font-medium text-slate-500">Estado da Conta</span>
 					<p class="mt-1 text-xs font-semibold text-slate-900">
 						{account.observed?.accountState === 'active' || !account.observed?.accountState
 							? 'Ativa'
 							: account.observed.accountState}
-					</p>
-				</div>
-
-				<div class="rounded-xl bg-slate-50 p-3.5">
-					<span class="text-[11px] font-medium text-slate-500">Versão</span>
-					<p class="mt-1 font-mono text-xs font-semibold text-slate-900">
-						v{account.resourceVersion}
 					</p>
 				</div>
 
