@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Trash2, Plus, Users, Lock, LockOpen } from 'lucide-svelte';
+	import { Trash2, Plus, Users, Lock, LockOpen, Pencil, X } from 'lucide-svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
@@ -132,6 +132,56 @@
 			resourceId: user.resourceId,
 			deletionProtection: user.desired.deletionProtection === false
 		});
+	}
+
+	// Edição
+	let editingUser = $state<OrganizationUserResource | null>(null);
+	let editSelectedRoles = $state<GrantableRole[]>([]);
+	let isUpdatingUser = $state(false);
+
+	function startEditUser(user: OrganizationUserResource): void {
+		editingUser = user;
+		editSelectedRoles = [...user.desired.roles];
+	}
+
+	function cancelEditUser(): void {
+		editingUser = null;
+	}
+
+	function toggleEditRole(role: GrantableRole): void {
+		if (editSelectedRoles.includes(role)) {
+			editSelectedRoles = editSelectedRoles.filter((r) => r !== role);
+		} else {
+			editSelectedRoles = [...editSelectedRoles, role];
+		}
+	}
+
+	function selectBasicEditRoles(): void {
+		editSelectedRoles = ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'];
+	}
+
+	function selectAllEditRoles(): void {
+		editSelectedRoles = [...allRoles];
+	}
+
+	function clearEditRoles(): void {
+		editSelectedRoles = [];
+	}
+
+	async function handleUpdateUserRoles(event: SubmitEvent): Promise<void> {
+		event.preventDefault();
+		if (!editingUser) return;
+
+		isUpdatingUser = true;
+		try {
+			await consoleState.updateUser({
+				resourceId: editingUser.resourceId,
+				roles: editSelectedRoles
+			});
+			editingUser = null;
+		} finally {
+			isUpdatingUser = false;
+		}
 	}
 </script>
 
@@ -383,7 +433,16 @@
 									</div>
 								</td>
 								<td class="px-4 py-3 text-right text-xs">
-									<div class="inline-flex gap-2">
+									<div class="inline-flex gap-1.5">
+										<button
+											type="button"
+											onclick={() => startEditUser(user)}
+											title="Editar Permissões"
+											class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-transparent text-slate-400 hover:text-emerald-700"
+										>
+											<Pencil class="h-3.5 w-3.5" aria-hidden="true" />
+										</button>
+
 										<button
 											type="button"
 											onclick={() => handleToggleUserProtection(user)}
@@ -419,3 +478,162 @@
 		{/if}
 	</div>
 </div>
+
+{#if editingUser}
+	<div
+		role="dialog"
+		aria-modal="true"
+		class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0"
+	>
+		<!-- Backdrop -->
+		<button
+			type="button"
+			class="fixed inset-0 cursor-default bg-slate-900/50 backdrop-blur-xs transition-opacity"
+			onclick={cancelEditUser}
+			aria-label="Fechar modal"
+		></button>
+
+		<!-- Modal Panel -->
+		<div
+			class="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-xl"
+		>
+			<div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+				<div>
+					<h3 class="text-lg font-bold text-slate-900">Editar Permissões</h3>
+					<p class="text-xs text-slate-500">
+						{editingUser.desired.givenName}
+						{editingUser.desired.familyName} ({editingUser.resourceId})
+					</p>
+				</div>
+				<button
+					type="button"
+					onclick={cancelEditUser}
+					class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+				>
+					<X class="h-5 w-5" aria-hidden="true" />
+				</button>
+			</div>
+
+			<form onsubmit={handleUpdateUserRoles} class="p-5">
+				<!-- Permissões / Roles -->
+				<div class="flex flex-wrap items-center justify-between gap-2">
+					<div>
+						<span class="block text-xs font-semibold text-slate-900">
+							Permissões na Organização
+						</span>
+						<p class="mt-0.5 text-[11px] text-slate-500">
+							Selecione as ações permitidas ({editSelectedRoles.length} selecionada{editSelectedRoles.length ===
+							1
+								? ''
+								: 's'}).
+						</p>
+					</div>
+
+					<div class="flex items-center gap-2 text-xs">
+						<button
+							type="button"
+							onclick={selectBasicEditRoles}
+							class="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+						>
+							Perfil Básico
+						</button>
+						<button
+							type="button"
+							onclick={selectAllEditRoles}
+							class="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
+						>
+							Todas as Permissões
+						</button>
+						{#if editSelectedRoles.length > 0}
+							<button
+								type="button"
+								onclick={clearEditRoles}
+								class="text-[11px] font-medium text-slate-500 hover:text-slate-800 hover:underline"
+							>
+								Limpar
+							</button>
+						{/if}
+					</div>
+				</div>
+
+				<!-- Grid dos grupos de permissões -->
+				<div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+					<!-- Grupo Organização -->
+					<div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+						<span class="text-xs font-bold text-slate-800">Organização</span>
+						<div class="mt-2 space-y-1.5">
+							{#each organizationRoles as item (item.role)}
+								{@const isChecked = editSelectedRoles.includes(item.role)}
+								<label
+									class="flex cursor-pointer items-start gap-2.5 rounded-lg border p-2 transition {isChecked
+										? 'border-emerald-300 bg-emerald-50/80 shadow-2xs'
+										: 'border-slate-200 bg-white hover:border-slate-300'}"
+								>
+									<input
+										type="checkbox"
+										checked={isChecked}
+										onchange={() => toggleEditRole(item.role)}
+										class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+									/>
+									<div class="min-w-0 flex-1">
+										<div class="flex items-center justify-between gap-1">
+											<span class="text-xs font-semibold text-slate-900">{item.label}</span>
+											<span class="font-mono text-[10px] text-slate-500">{item.role}</span>
+										</div>
+										<p class="mt-0.5 text-[11px] leading-snug text-slate-500">{item.description}</p>
+									</div>
+								</label>
+							{/each}
+						</div>
+					</div>
+
+					<!-- Grupo Usuários -->
+					<div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+						<span class="text-xs font-bold text-slate-800">Membros e Usuários</span>
+						<div class="mt-2 space-y-1.5">
+							{#each userRoles as item (item.role)}
+								{@const isChecked = editSelectedRoles.includes(item.role)}
+								<label
+									class="flex cursor-pointer items-start gap-2.5 rounded-lg border p-2 transition {isChecked
+										? 'border-emerald-300 bg-emerald-50/80 shadow-2xs'
+										: 'border-slate-200 bg-white hover:border-slate-300'}"
+								>
+									<input
+										type="checkbox"
+										checked={isChecked}
+										onchange={() => toggleEditRole(item.role)}
+										class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+									/>
+									<div class="min-w-0 flex-1">
+										<div class="flex items-center justify-between gap-1">
+											<span class="text-xs font-semibold text-slate-900">{item.label}</span>
+											<span class="font-mono text-[10px] text-slate-500">{item.role}</span>
+										</div>
+										<p class="mt-0.5 text-[11px] leading-snug text-slate-500">{item.description}</p>
+									</div>
+								</label>
+							{/each}
+						</div>
+					</div>
+				</div>
+
+				<div class="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
+					<button
+						type="button"
+						onclick={cancelEditUser}
+						class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+					>
+						Cancelar
+					</button>
+					<button
+						type="submit"
+						disabled={isUpdatingUser || editSelectedRoles.length === 0}
+						class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+					>
+						Salvar Alterações
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
