@@ -81,7 +81,7 @@
 											class="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
 										>
 											<RefreshCw class="h-3 w-3" aria-hidden="true" />
-											<span>Reconciliar</span>
+											<span>Sincronizar</span>
 										</button>
 										{#if svc.desired.lifecycle === 'present'}
 											<button

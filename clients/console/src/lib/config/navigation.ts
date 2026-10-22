@@ -138,7 +138,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
 				iconName: 'file-text',
 				moduleCode: 'AEM',
 				isDemo: true,
-				description: 'Trilha de auditoria de comandos e reconciliação'
+				description: 'Trilha de auditoria de comandos e operações'
 			}
 		]
 	},
@@ -184,7 +184,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
 				iconName: 'bell',
 				moduleCode: 'ODM',
 				isDemo: true,
-				description: 'Regras de alerta e SLOs de reconciliação'
+				description: 'Regras de alerta e SLOs de disponibilidade'
 			}
 		]
 	},

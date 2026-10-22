@@ -159,7 +159,7 @@
 							<div
 								class="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 text-center text-xs text-slate-500"
 							>
-								Nenhuma operação pendente ou em reconciliação neste momento.
+								Nenhuma operação pendente ou em andamento neste momento.
 							</div>
 						{:else}
 							<div class="space-y-2.5">
@@ -189,7 +189,7 @@
 												<div
 													class="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100"
 													role="progressbar"
-													aria-label="Operação em reconciliação assíncrona (progresso indeterminado)"
+													aria-label="Operação em andamento (progresso indeterminado)"
 												>
 													<div class="h-full w-2/3 animate-pulse rounded-full bg-emerald-600"></div>
 												</div>

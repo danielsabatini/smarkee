@@ -20,7 +20,7 @@
 					Recursos recentes
 				</h2>
 				<p class="text-xs text-slate-500">
-					Últimos recursos criados ou reconciliados no contexto atual.
+					Últimos recursos criados e status na organização atual.
 				</p>
 			</div>
 
@@ -51,10 +51,10 @@
 						<tr
 							class="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold text-slate-600"
 						>
-							<th class="w-[31%] rounded-tl-lg px-2 py-2 whitespace-nowrap">Nome</th>
-							<th class="w-[17%] px-1.5 py-2 whitespace-nowrap">Tipo</th>
-							<th class="w-[26%] px-1.5 py-2 whitespace-nowrap">Status</th>
-							<th class="w-[26%] rounded-tr-lg px-2 py-2 text-right whitespace-nowrap">
+							<th class="w-[36%] rounded-tl-lg px-2 py-2 whitespace-nowrap">Nome</th>
+							<th class="w-[22%] px-1.5 py-2 whitespace-nowrap">Tipo</th>
+							<th class="w-[22%] px-1.5 py-2 whitespace-nowrap">Status</th>
+							<th class="w-[20%] rounded-tr-lg px-2 py-2 text-right whitespace-nowrap">
 								Atualizado em
 							</th>
 						</tr>
@@ -68,8 +68,8 @@
 								<td class="px-2 py-2.5">
 									<a
 										href={item.href}
-										title={`${item.displayName} (${item.resourceId})`}
-										class="flex items-center gap-1.5 font-semibold text-emerald-700 hover:underline"
+										title={item.displayName}
+										class="flex min-w-0 items-center gap-1.5 font-semibold text-emerald-700 hover:underline"
 									>
 										{#if item.resourceType === 'ipm.organization'}
 											<Building2 class="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
@@ -80,12 +80,7 @@
 										{:else}
 											<UserCheck class="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
 										{/if}
-										<div class="min-w-0">
-											<span class="block truncate">{item.displayName}</span>
-											<span class="block truncate font-mono text-[10px] font-normal text-slate-600">
-												{item.resourceId}
-											</span>
-										</div>
+										<span class="truncate">{item.displayName}</span>
 									</a>
 								</td>
 								<td class="px-1.5 py-2.5">
