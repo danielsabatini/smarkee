@@ -65,7 +65,7 @@
 				class="group relative flex items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-2xs transition hover:border-emerald-300 hover:shadow-sm"
 			>
 				{#if item.isDemo}
-					<div class="absolute top-2 right-2">
+					<div class="absolute top-1.5 right-1.5">
 						<DemoBadge label="Preview" />
 					</div>
 				{/if}
@@ -86,7 +86,7 @@
 					{/if}
 				</div>
 
-				<div class="min-w-0 flex-1 {item.isDemo ? 'pt-3' : ''}">
+				<div class="min-w-0 flex-1 {item.isDemo ? 'pt-4' : ''}">
 					<div class="flex items-center justify-between gap-0.5">
 						<span class="whitespace-nowrap text-[11px] font-bold tracking-tight text-slate-900">
 							{item.title}
