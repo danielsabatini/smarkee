@@ -1,15 +1,5 @@
 <script lang="ts">
-	import {
-		Bot,
-		Building2,
-		ChevronRight,
-		FileText,
-		LayoutGrid,
-		Server,
-		ShieldCheck,
-		Users,
-		Wrench
-	} from 'lucide-svelte';
+	import { Building2, ChevronRight, FileText, LayoutGrid, ShieldCheck, Users } from 'lucide-svelte';
 	import DemoBadge from '$lib/components/ui/DemoBadge.svelte';
 
 	interface QuickAccessItem {
@@ -17,7 +7,7 @@
 		title: string;
 		description: string;
 		href: string;
-		icon: 'users' | 'building' | 'catalog' | 'enabled' | 'bot' | 'runner' | 'tools' | 'audit';
+		icon: 'users' | 'building' | 'catalog' | 'enabled' | 'audit';
 		isDemo?: boolean;
 	}
 
@@ -32,7 +22,7 @@
 		{
 			id: 'organizations',
 			title: 'Organizações',
-			description: 'Visualize e gerencie organizações (IPM)',
+			description: 'Visualize e gerencie organizações',
 			href: '/identity/organizations',
 			icon: 'building'
 		},
@@ -46,38 +36,14 @@
 		{
 			id: 'enabled',
 			title: 'Serviços Habilitados',
-			description: 'Gerencie o uso de serviços (SUM)',
+			description: 'Gerencie o uso de serviços',
 			href: '/services/enabled',
 			icon: 'enabled'
 		},
 		{
-			id: 'agents',
-			title: 'Agentes',
-			description: 'Crie e gerencie agentes de IA',
-			href: '/services/catalog',
-			icon: 'bot',
-			isDemo: true
-		},
-		{
-			id: 'runners',
-			title: 'Runners',
-			description: 'Gerencie ambientes de execução',
-			href: '/services/catalog',
-			icon: 'runner',
-			isDemo: true
-		},
-		{
-			id: 'tools',
-			title: 'Ferramentas',
-			description: 'Integre ferramentas e conectores',
-			href: '/services/catalog',
-			icon: 'tools',
-			isDemo: true
-		},
-		{
 			id: 'audit',
 			title: 'Eventos de Auditoria',
-			description: 'Consulte o histórico de operações (AEM)',
+			description: 'Consulte o histórico de operações',
 			href: '/audit/events',
 			icon: 'audit',
 			isDemo: true
@@ -91,7 +57,7 @@
 		<p class="text-xs text-slate-600">Acesse os módulos mais utilizados da plataforma.</p>
 	</div>
 
-	<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+	<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
 		{#each items as item (item.id)}
 			<a
 				href={item.href}
@@ -115,12 +81,6 @@
 						<LayoutGrid class="h-4 w-4" aria-hidden="true" />
 					{:else if item.icon === 'enabled'}
 						<ShieldCheck class="h-4 w-4" aria-hidden="true" />
-					{:else if item.icon === 'bot'}
-						<Bot class="h-4 w-4" aria-hidden="true" />
-					{:else if item.icon === 'runner'}
-						<Server class="h-4 w-4" aria-hidden="true" />
-					{:else if item.icon === 'tools'}
-						<Wrench class="h-4 w-4" aria-hidden="true" />
 					{:else}
 						<FileText class="h-4 w-4" aria-hidden="true" />
 					{/if}

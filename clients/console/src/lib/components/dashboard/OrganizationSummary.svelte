@@ -72,7 +72,9 @@
 							class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white/80 px-2 py-0.5 text-[11px] font-medium text-emerald-800"
 						>
 							<ShieldCheck class="h-3 w-3 text-emerald-600" aria-hidden="true" />
-							<span>Acesso: {activeOrg.desired.platformAccess}</span>
+							<span>
+								Acesso: {activeOrg.desired.platformAccess === 'granted' ? 'Liberado' : 'Bloqueado'}
+							</span>
 						</span>
 					</div>
 				</div>

@@ -212,14 +212,12 @@ Regra de progresso (`AGENTS.md` §3 e §9):
 
 ### 6.1 Acessos Rápidos (`QuickAccessGrid.svelte`)
 
-Cards reutilizáveis com ícone, título, descrição curta e navegação para:
-- **Usuários** (`/identity/users` — gestão de `ipm.user` na organização ativa).
-- **Organizações** (`/identity/organizations` — gestão de `ipm.organization`).
+Cards reutilizáveis com ícone, título, descrição curta e navegação para os módulos ativos e disponíveis da plataforma:
+- **Usuários** (`/identity/users` — gestão de usuários na organização ativa).
+- **Organizações** (`/identity/organizations` — gestão de organizações).
 - **Catálogo de Serviços** (`/services/catalog`).
-- **Serviços Habilitados** (`/services/enabled` — gestão de `sum.service`).
+- **Serviços Habilitados** (`/services/enabled` — serviços habilitados na conta).
 - **Eventos de Auditoria** (`/audit/events` — identificado como *Preview*).
-
-*(Cards adicionais presentes na referência visual, como Agentes, Runners e Ferramentas, quando exibidos para manter a fidelidade composicional da imagem, devem trazer selo explícito de `Em breve` / `Demonstrativo`).*
 
 ### 6.2 Serviços da Plataforma (`ServiceCards.svelte`)
 
