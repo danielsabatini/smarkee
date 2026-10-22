@@ -158,6 +158,7 @@ build/
 out/
 .tsbuildinfo
 .next/
+.svelte-kit/
 .turbo/
 
 # Go

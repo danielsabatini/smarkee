@@ -1,0 +1,136 @@
+<script lang="ts">
+	import { CheckCircle2, ShieldCheck, Terminal } from 'lucide-svelte';
+</script>
+
+<footer class="border-t border-slate-900 bg-slate-950 text-xs text-slate-400">
+	<div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+		<div class="grid grid-cols-2 gap-8 md:grid-cols-5">
+			<!-- Coluna 1: Marca e Missão -->
+			<div class="col-span-2 space-y-4">
+				<a href="/" class="inline-block" aria-label="Smarkee IT Solutions">
+					<img
+						src="/brand/smarkee-itsolutions-light.png"
+						alt="Smarkee IT Solutions"
+						class="h-7 w-auto"
+					/>
+				</a>
+				<p class="max-w-sm text-xs leading-relaxed text-slate-400">
+					Plataforma de nuvem declarativa projetada para engenharia moderna. Reconciliação contínua,
+					governança multi-tenant com OIDC, contratos abertos e observabilidade sem lock-in.
+				</p>
+				<div class="flex items-center gap-2 text-[11px] text-emerald-400">
+					<CheckCircle2 class="h-3.5 w-3.5" aria-hidden="true" />
+					<span>Todos os sistemas e reconciliadores operando normalmente</span>
+				</div>
+			</div>
+
+			<!-- Coluna 2: Módulos & Plataforma -->
+			<div class="space-y-3">
+				<p class="text-xs font-semibold uppercase tracking-wider text-slate-200">Plataforma</p>
+				<ul class="space-y-2">
+					<li>
+						<a href="/produtos#ipm" class="transition hover:text-emerald-400"
+							>IPM — Identidade & Acesso</a
+						>
+					</li>
+					<li>
+						<a href="/produtos#sum" class="transition hover:text-emerald-400"
+							>SUM — Catálogo & Uso</a
+						>
+					</li>
+					<li>
+						<a href="/produtos#aem" class="transition hover:text-emerald-400"
+							>AEM — Auditoria Imutável</a
+						>
+					</li>
+					<li>
+						<a href="/produtos#odm" class="transition hover:text-emerald-400"
+							>ODM — Observabilidade</a
+						>
+					</li>
+					<li>
+						<a href="/#loop-de-controle" class="transition hover:text-emerald-400"
+							>Loop de Reconciliação</a
+						>
+					</li>
+				</ul>
+			</div>
+
+			<!-- Coluna 3: Soluções & DX -->
+			<div class="space-y-3">
+				<p class="text-xs font-semibold uppercase tracking-wider text-slate-200">Soluções & DX</p>
+				<ul class="space-y-2">
+					<li>
+						<a href="/solucoes#multi-tenant" class="transition hover:text-emerald-400"
+							>Multi-tenant Cloud</a
+						>
+					</li>
+					<li>
+						<a href="/solucoes#idp" class="transition hover:text-emerald-400"
+							>Internal Developer Platform</a
+						>
+					</li>
+					<li>
+						<a href="/solucoes#governanca" class="transition hover:text-emerald-400"
+							>Governança & Compliance</a
+						>
+					</li>
+					<li>
+						<a
+							href="/produtos#cli"
+							class="inline-flex items-center gap-1 transition hover:text-emerald-400"
+						>
+							<Terminal class="h-3 w-3" aria-hidden="true" />
+							<span>CLI sk (Developer-first)</span>
+						</a>
+					</li>
+				</ul>
+			</div>
+
+			<!-- Coluna 4: Recursos & Empresa -->
+			<div class="space-y-3">
+				<p class="text-xs font-semibold uppercase tracking-wider text-slate-200">Recursos</p>
+				<ul class="space-y-2">
+					<li>
+						<a href="/blog" class="transition hover:text-emerald-400">Blog de Engenharia</a>
+					</li>
+					<li>
+						<a href="/sobre" class="transition hover:text-emerald-400">Sobre a Smarkee</a>
+					</li>
+					<li>
+						<a href="/contato" class="transition hover:text-emerald-400">Contato & Suporte</a>
+					</li>
+					<li>
+						<a
+							href="http://localhost:5173"
+							target="_blank"
+							rel="noreferrer"
+							class="transition hover:text-emerald-400"
+						>
+							Acessar Console Web
+						</a>
+					</li>
+				</ul>
+			</div>
+		</div>
+
+		<!-- Linha Inferior de Copyright e Conformidade -->
+		<div
+			class="mt-12 flex flex-col items-center justify-between gap-4 border-t border-slate-900 pt-8 sm:flex-row"
+		>
+			<p class="text-[11px] text-slate-500">
+				&copy; {new Date().getFullYear()} Smarkee IT Solutions. Todos os direitos reservados.
+			</p>
+			<div class="flex items-center gap-4 text-[11px] text-slate-500">
+				<span class="inline-flex items-center gap-1">
+					<ShieldCheck class="h-3.5 w-3.5 text-emerald-500" aria-hidden="true" />
+					Zero Vendor Lock-in & Padrões Abertos
+				</span>
+				<span>•</span>
+				<span>JSON Schema V1</span>
+				<span>•</span>
+				<span>OpenTelemetry</span>
+			</div>
+		</div>
+	</div>
+</footer>
