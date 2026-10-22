@@ -28,11 +28,7 @@
 	let givenName = $state('');
 	let familyName = $state('');
 	let email = $state('');
-	let selectedRoles = $state<GrantableRole[]>([
-		'ipm.organization.get',
-		'ipm.user.get',
-		'ipm.user.list'
-	]);
+	let selectedRoles = $state<GrantableRole[]>([]);
 	let isSubmitting = $state(false);
 
 	async function handleCreateUser(event: SubmitEvent): Promise<void> {
@@ -53,7 +49,7 @@
 			givenName = '';
 			familyName = '';
 			email = '';
-			selectedRoles = ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'];
+			selectedRoles = [];
 		} finally {
 			isSubmitting = false;
 		}

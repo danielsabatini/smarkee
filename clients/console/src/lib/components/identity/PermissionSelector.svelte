@@ -202,7 +202,7 @@
 				? 'bg-emerald-700 text-white'
 				: 'bg-slate-100 text-slate-600 hover:bg-slate-200'}"
 		>
-			Membros e Usuários <span class="ml-0.5 opacity-70">({userCount})</span>
+			Usuários <span class="ml-0.5 opacity-70">({userCount})</span>
 		</button>
 		{#if selectedCount > 0}
 			<button
