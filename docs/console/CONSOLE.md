@@ -184,7 +184,9 @@ No card de resumo da organização (`OrganizationSummary.svelte`):
 
 Painel lateral direito retrátil com duas abas:
 - **Notificações:** distingue eventos não lidos e lidos, permite marcar como lido e possui estado vazio claro.
-- **Operações:** reflete o acompanhamento das solicitações assíncronas (`Operation` de `schemas/common/operation.v1.schema.json`) disparadas na plataforma.
+- **Operações:** reflete o acompanhamento das solicitações assíncronas (`Operation` de `schemas/common/operation.v1.schema.json`) disparadas pelo usuário no Console.
+
+**Regra de Foco no Usuário:** O Console é destinado ao usuário final. Tarefas de bastidores executadas internamente pelo loop de controle (`RESOURCE-CONTROL-LOOP.md`) — como atribuições internas de roles, sincronizações técnicas ou passos intermediários de provisionamento — **não devem** aparecer no painel de Operações. O Console deve ser dedicado exclusivamente às ações que o usuário inicia e compreende (como "Criar Organização", "Habilitar Serviço", "Adicionar Usuário").
 
 Cada item da aba **Operações** exibe:
 - Tipo de operação (`operationType`: `create`, `update`, `delete`) e tipo/módulo do recurso (`module` + `resourceType`, ex.: `ipm.organization`, `ipm.user`, `sum.service`).

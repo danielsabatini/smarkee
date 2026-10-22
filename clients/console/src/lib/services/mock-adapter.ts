@@ -472,7 +472,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 			},
 			{
 				title: 'Habilitação de Serviço IPM',
-				subtitle: 'Ligação sum.service concluída e roles concedidas.',
+				subtitle: 'Serviço habilitado com sucesso no catálogo.',
 				organizationId: ORG_ACME_ID,
 				operation: {
 					operationId: '0199c8d0-1111-7a01-8b01-000000000003',
@@ -549,7 +549,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 				id: 'notif-003',
 				title: 'Serviço IPM habilitado no SUM',
 				description:
-					'As roles ipm.organization.* foram atribuídas à conta titular. Renove o token caso necessário.',
+					'O serviço foi ativado para sua conta. Talvez seja necessário iniciar uma nova sessão para atualizar os acessos.',
 				severity: 'info',
 				createdAt: 'há 1 hora',
 				read: false,
@@ -955,7 +955,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 		this.scheduleReconciliationTransition(
 			operationId,
 			() => {
-				opEntry.subtitle = 'Atribuindo roles do Project Grant da Organization...';
+				opEntry.subtitle = 'Vinculando usuário à organização...';
 			},
 			() => {
 				const doneAt = new Date().toISOString();
@@ -1078,7 +1078,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						lastTransitionAt: serviceResource.updatedAt
 					}
 				];
-				opEntry.subtitle = `Atribuindo roles de ${serviceName.toUpperCase()} à conta titular...`;
+				opEntry.subtitle = `Vinculando serviço ${serviceName.toUpperCase()} à conta titular...`;
 			},
 			() => {
 				const doneAt = new Date().toISOString();
@@ -1133,7 +1133,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 
 		const opEntry: OperationTitleInfo = {
 			title: `Desabilitação de Serviço (${found.desired.service.toUpperCase()})`,
-			subtitle: 'Revogando roles do serviço na conta titular...',
+			subtitle: 'Removendo serviço da conta titular...',
 			operation: {
 				operationId,
 				operationType: 'delete',
