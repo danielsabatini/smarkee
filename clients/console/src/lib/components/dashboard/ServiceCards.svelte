@@ -52,7 +52,7 @@
 			<a
 				href={service.href}
 				data-testid="service-card-{service.code}"
-				class="group relative flex h-full items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs transition hover:border-emerald-300 hover:shadow-sm"
+				class="group relative flex h-full flex-col justify-between rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs transition hover:border-emerald-300 hover:shadow-sm"
 			>
 				{#if service.isDemo}
 					<div class="absolute right-1.5 bottom-1.5">
@@ -60,14 +60,14 @@
 					</div>
 				{/if}
 
-				<div
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 transition group-hover:bg-emerald-100"
-				>
-					{@render moduleIcon(service.code)}
-				</div>
+				<div class="flex items-start gap-2.5">
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 transition group-hover:bg-emerald-100"
+					>
+						{@render moduleIcon(service.code)}
+					</div>
 
-				<div class="flex min-w-0 flex-1 flex-col justify-between self-stretch">
-					<div>
+					<div class="min-w-0 flex-1">
 						<div class="flex items-center justify-between gap-1">
 							<h3 class="whitespace-nowrap text-xs font-bold text-slate-900" title={service.name}>
 								{service.shortName}
@@ -84,23 +84,23 @@
 							{service.description}
 						</p>
 					</div>
+				</div>
 
-					<div class="mt-2.5 flex flex-wrap items-center gap-1.5 pt-1">
-						{#if enabled || service.isDemo}
-							<span
-								class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800"
-							>
-								<CheckCircle2 class="h-3 w-3 text-emerald-600" aria-hidden="true" />
-								<span>Habilitado</span>
-							</span>
-						{:else}
-							<span
-								class="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"
-							>
-								<span>Disponível no SUM</span>
-							</span>
-						{/if}
-					</div>
+				<div class="mt-3 flex items-center">
+					{#if enabled || service.isDemo}
+						<span
+							class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800"
+						>
+							<CheckCircle2 class="h-3 w-3 text-emerald-600" aria-hidden="true" />
+							<span>Habilitado</span>
+						</span>
+					{:else}
+						<span
+							class="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600"
+						>
+							<span>Disponível no SUM</span>
+						</span>
+					{/if}
 				</div>
 			</a>
 		{/each}
