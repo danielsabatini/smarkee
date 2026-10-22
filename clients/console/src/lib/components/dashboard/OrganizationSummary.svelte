@@ -1,30 +1,14 @@
 <script lang="ts">
-	import { ArrowRight, Building2, Check, Copy, Lock, LockOpen, ShieldCheck } from 'lucide-svelte';
+	import { ArrowRight, Building2, Lock, LockOpen, ShieldCheck } from 'lucide-svelte';
+	import CopyableId from '$lib/components/ui/CopyableId.svelte';
 	import DemoBadge from '$lib/components/ui/DemoBadge.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
 
 	const consoleState = getConsoleState();
 
-	let copied = $state(false);
-
 	let activeOrg = $derived(consoleState.activeOrganization);
 	let demoMeta = $derived(consoleState.activeOrganizationDemoMeta);
-
-	async function copyResourceId(): Promise<void> {
-		if (!activeOrg) {
-			return;
-		}
-		try {
-			await navigator.clipboard.writeText(activeOrg.resourceId);
-			copied = true;
-			setTimeout(() => {
-				copied = false;
-			}, 1800);
-		} catch {
-			copied = false;
-		}
-	}
 </script>
 
 {#if consoleState.isBootstrapping || consoleState.isSwitchingOrganization}
@@ -77,27 +61,15 @@
 							</span>
 						</span>
 					</div>
-					<div class="mt-1.5 flex items-center gap-1.5">
-						<span class="text-[11px] font-medium text-slate-500">ID:</span>
-						<span
-							data-testid="summary-organization-id"
-							class="font-mono text-[11px] font-semibold text-slate-700"
-						>
-							{activeOrg.resourceId}
-						</span>
-						<button
-							type="button"
-							onclick={copyResourceId}
-							aria-label="Copiar identificador da organização"
-							data-testid="copy-organization-id"
-							class="shrink-0 rounded p-1 text-slate-400 transition hover:bg-emerald-100 hover:text-emerald-800"
-						>
-							{#if copied}
-								<Check class="h-3 w-3 text-emerald-700" aria-hidden="true" />
-							{:else}
-								<Copy class="h-3 w-3" aria-hidden="true" />
-							{/if}
-						</button>
+					<div class="mt-1.5 flex items-center">
+						<CopyableId
+							id={activeOrg.resourceId}
+							label="ID:"
+							idClass="font-mono text-[11px] font-semibold text-slate-700"
+							testId="copy-organization-id"
+							idTestId="summary-organization-id"
+							ariaLabel="Copiar identificador da organização"
+						/>
 					</div>
 				</div>
 			</div>

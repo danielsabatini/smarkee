@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { FileText } from 'lucide-svelte';
+	import CopyableId from '$lib/components/ui/CopyableId.svelte';
 	import DemoBadge from '$lib/components/ui/DemoBadge.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
@@ -50,8 +51,8 @@
 									</div>
 								</div>
 							</td>
-							<td class="px-4 py-3 font-mono text-[11px] text-slate-600">
-								{entry.operation.operationId}
+							<td class="px-4 py-3">
+								<CopyableId id={entry.operation.operationId} />
 							</td>
 							<td class="px-4 py-3 font-medium text-[11px] text-slate-700">
 								{formatResourceType(entry.operation.resourceType)} ({formatOperationAction(

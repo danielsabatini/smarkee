@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { PowerOff, RefreshCw, ShieldCheck } from 'lucide-svelte';
+	import CopyableId from '$lib/components/ui/CopyableId.svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
@@ -55,7 +56,9 @@
 										</span>
 									</div>
 								</td>
-								<td class="px-4 py-3 font-mono text-[11px] text-slate-600">{svc.resourceId}</td>
+								<td class="px-4 py-3">
+									<CopyableId id={svc.resourceId} />
+								</td>
 								<td class="px-4 py-3 text-[11px] font-medium text-slate-700">
 									{svc.desired.lifecycle === 'present' ? 'Habilitado' : 'Desabilitado'}
 								</td>

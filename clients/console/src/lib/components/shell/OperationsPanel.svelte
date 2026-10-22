@@ -10,6 +10,7 @@
 		X,
 		XCircle
 	} from 'lucide-svelte';
+	import CopyableId from '$lib/components/ui/CopyableId.svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
@@ -424,14 +425,20 @@
 			<dl class="mt-4 grid grid-cols-1 gap-2.5 text-xs sm:grid-cols-2">
 				<div class="rounded-lg bg-slate-50 p-2.5">
 					<dt class="text-[11px] text-slate-500">ID da Operação</dt>
-					<dd class="mt-0.5 break-all font-mono font-medium text-slate-900">
-						{selected.operation.operationId}
+					<dd class="mt-0.5">
+						<CopyableId
+							id={selected.operation.operationId}
+							idClass="font-mono text-xs font-medium text-slate-900"
+						/>
 					</dd>
 				</div>
 				<div class="rounded-lg bg-slate-50 p-2.5">
 					<dt class="text-[11px] text-slate-500">ID do Recurso</dt>
-					<dd class="mt-0.5 break-all font-mono font-medium text-slate-900">
-						{selected.operation.resourceId}
+					<dd class="mt-0.5">
+						<CopyableId
+							id={selected.operation.resourceId}
+							idClass="font-mono text-xs font-medium text-slate-900"
+						/>
 					</dd>
 				</div>
 				<div class="rounded-lg bg-slate-50 p-2.5">

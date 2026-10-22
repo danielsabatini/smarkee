@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Trash2, Plus, Users, Lock, LockOpen, Pencil, X } from 'lucide-svelte';
+	import CopyableId from '$lib/components/ui/CopyableId.svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import PermissionSelector from '$lib/components/identity/PermissionSelector.svelte';
@@ -236,7 +237,9 @@
 										</div>
 									</div>
 								</td>
-								<td class="px-4 py-3 font-mono text-[11px] text-slate-600">{user.resourceId}</td>
+								<td class="px-4 py-3">
+									<CopyableId id={user.resourceId} />
+								</td>
 								<td class="px-4 py-3 text-[11px] text-slate-700">
 									<span class="font-medium"
 										>{consoleState.activeOrganization?.desired.name ?? '—'}</span
@@ -324,9 +327,9 @@
 			<div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
 				<div>
 					<h3 class="text-lg font-bold text-slate-900">Editar Usuário</h3>
-					<p class="mt-0.5 text-xs text-slate-500 font-mono">
-						ID: {editingUser.resourceId}
-					</p>
+					<div class="mt-0.5">
+						<CopyableId id={editingUser.resourceId} label="ID:" />
+					</div>
 				</div>
 				<button
 					type="button"

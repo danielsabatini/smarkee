@@ -10,6 +10,7 @@
 		Pencil,
 		X
 	} from 'lucide-svelte';
+	import CopyableId from '$lib/components/ui/CopyableId.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
 
@@ -294,7 +295,9 @@
 									</div>
 								</div>
 							</td>
-							<td class="px-4 py-3 font-mono text-[11px] text-slate-600">{org.resourceId}</td>
+							<td class="px-4 py-3">
+								<CopyableId id={org.resourceId} />
+							</td>
 							<td class="px-4 py-3">
 								<StatusBadge phase={org.phase} size="sm" />
 							</td>
@@ -400,7 +403,14 @@
 		<!-- Modal Panel -->
 		<div class="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-xl">
 			<div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-				<h3 class="text-lg font-bold text-slate-900">Editar Organização</h3>
+				<div>
+					<h3 class="text-lg font-bold text-slate-900">Editar Organização</h3>
+					{#if editingOrg}
+						<div class="mt-0.5">
+							<CopyableId id={editingOrg.resourceId} label="ID:" />
+						</div>
+					{/if}
+				</div>
 				<button
 					type="button"
 					onclick={cancelEditOrg}

@@ -10,6 +10,7 @@
 		Pencil,
 		X
 	} from 'lucide-svelte';
+	import CopyableId from '$lib/components/ui/CopyableId.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
 
@@ -137,7 +138,13 @@
 								{/if}
 							</div>
 						{/if}
-						<p class="mt-1 font-mono text-[10px] text-slate-500">ID: {account.resourceId}</p>
+						<div class="mt-1">
+							<CopyableId
+								id={account.resourceId}
+								label="ID:"
+								idClass="font-mono text-[10px] text-slate-500"
+							/>
+						</div>
 					</div>
 				</div>
 
@@ -245,7 +252,9 @@
 			<div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
 				<div>
 					<h3 class="text-lg font-bold text-slate-900">Editar Perfil da Conta</h3>
-					<p class="mt-0.5 text-xs text-slate-500 font-mono">ID: {account.resourceId}</p>
+					<div class="mt-0.5">
+						<CopyableId id={account.resourceId} label="ID:" />
+					</div>
 				</div>
 				<button
 					type="button"
