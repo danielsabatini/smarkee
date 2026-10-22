@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { PowerOff, RefreshCw, ShieldCheck } from 'lucide-svelte';
+	import { Play, PowerOff, ShieldCheck } from 'lucide-svelte';
 	import CopyableId from '$lib/components/ui/CopyableId.svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
@@ -12,10 +12,10 @@
 	<title>Smarkee Console — Serviços Habilitados</title>
 </svelte:head>
 
-<div class="mx-auto max-w-6xl space-y-6">
+<div class="mx-auto max-w-7xl space-y-6">
 	<div>
 		<span class="text-xs font-semibold text-emerald-700 uppercase"> Serviços (SUM) </span>
-		<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Serviços Habilitados na Organização</h1>
+		<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Serviços Habilitados</h1>
 		<p class="mt-1 text-xs text-slate-600">
 			Serviços ativos e configurados para sua conta na plataforma.
 		</p>
@@ -38,8 +38,7 @@
 							<th class="px-4 py-3">ID</th>
 							<th class="px-4 py-3">Estado</th>
 							<th class="px-4 py-3">Fase</th>
-							<th class="px-4 py-3">Permissões</th>
-							<th class="px-4 py-3 text-right">Ações</th>
+							<th class="px-4 py-3 text-center">Ações</th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-slate-100">
@@ -57,7 +56,7 @@
 									</div>
 								</td>
 								<td class="px-4 py-3">
-									<CopyableId id={svc.resourceId} />
+									<CopyableId id={svc.resourceId} idClass="font-mono text-[11px] text-slate-600" />
 								</td>
 								<td class="px-4 py-3 text-[11px] font-medium text-slate-700">
 									{svc.desired.lifecycle === 'present' ? 'Habilitado' : 'Desabilitado'}
@@ -65,38 +64,26 @@
 								<td class="px-4 py-3">
 									<StatusBadge phase={svc.phase} size="sm" />
 								</td>
-								<td class="px-4 py-3">
-									<div class="flex flex-wrap gap-1">
-										{#each svc.desired.serviceRoles as role (role)}
-											<span
-												class="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-700"
-											>
-												{role}
-											</span>
-										{/each}
-									</div>
-								</td>
-								<td class="px-4 py-3 text-right">
-									<div class="inline-flex items-center gap-1.5">
+								<td class="px-4 py-3 text-center">
+									{#if svc.desired.lifecycle === 'present'}
+										<button
+											type="button"
+											onclick={() => consoleState.disableService(svc.resourceId)}
+											class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 transition hover:bg-amber-100"
+										>
+											<PowerOff class="h-3 w-3" aria-hidden="true" />
+											<span>Desabilitar</span>
+										</button>
+									{:else}
 										<button
 											type="button"
 											onclick={() => consoleState.enableService({ service: svc.desired.service })}
-											class="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
+											class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-700"
 										>
-											<RefreshCw class="h-3 w-3" aria-hidden="true" />
-											<span>Sincronizar</span>
+											<Play class="h-3 w-3" aria-hidden="true" />
+											<span>Habilitar</span>
 										</button>
-										{#if svc.desired.lifecycle === 'present'}
-											<button
-												type="button"
-												onclick={() => consoleState.disableService(svc.resourceId)}
-												class="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
-											>
-												<PowerOff class="h-3 w-3" aria-hidden="true" />
-												<span>Desabilitar</span>
-											</button>
-										{/if}
-									</div>
+									{/if}
 								</td>
 							</tr>
 						{/each}
