@@ -5,9 +5,8 @@
 		ChevronDown,
 		CircleHelp,
 		Menu,
+		Settings,
 		ShieldCheck,
-		Sparkles,
-		SquareTerminal,
 		User
 	} from 'lucide-svelte';
 	import GlobalSearch from '$lib/components/shell/GlobalSearch.svelte';
@@ -87,18 +86,8 @@
 		<GlobalSearch />
 	</div>
 
-	<!-- Direita: Ações Globais (Assistente/Busca mobile, CLI info, Notificações/Operações, Ajuda, Perfil) -->
+	<!-- Direita: Ações Globais (CLI info, Notificações/Operações, Ajuda, Perfil) -->
 	<div class="flex items-center gap-1 sm:gap-2">
-		<button
-			type="button"
-			onclick={() => (consoleState.isGlobalSearchOpen = true)}
-			aria-label="Abrir busca rápida e assistente de navegação"
-			title="Busca rápida (⌘K)"
-			class="hidden rounded-lg p-2 text-emerald-600 transition hover:bg-emerald-50 sm:inline-flex"
-		>
-			<Sparkles class="h-4 w-4" aria-hidden="true" />
-		</button>
-
 		<button
 			type="button"
 			onclick={() => consoleState.toggleOperationsPanel('operations')}
@@ -109,7 +98,7 @@
 			title="Operações do Control Loop"
 			class="relative rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
 		>
-			<SquareTerminal class="h-4 w-4" aria-hidden="true" />
+			<Settings class="h-4 w-4" aria-hidden="true" />
 			{#if consoleState.activeOperationsCount > 0}
 				<span
 					aria-hidden="true"
