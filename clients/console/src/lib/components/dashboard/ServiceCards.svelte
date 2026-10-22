@@ -52,8 +52,14 @@
 			<a
 				href={service.href}
 				data-testid="service-card-{service.code}"
-				class="group flex h-full items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs transition hover:border-emerald-300 hover:shadow-sm"
+				class="group relative flex h-full items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs transition hover:border-emerald-300 hover:shadow-sm"
 			>
+				{#if service.isDemo}
+					<div class="absolute right-1.5 bottom-1.5">
+						<DemoBadge label="Preview" variant="icon" />
+					</div>
+				{/if}
+
 				<div
 					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 transition group-hover:bg-emerald-100"
 				>
@@ -93,10 +99,6 @@
 							>
 								<span>Disponível no SUM</span>
 							</span>
-						{/if}
-
-						{#if service.isDemo}
-							<DemoBadge label="Preview" variant="icon" />
 						{/if}
 					</div>
 				</div>
