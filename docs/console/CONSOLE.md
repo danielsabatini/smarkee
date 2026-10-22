@@ -177,7 +177,7 @@ A página inicial (`src/routes/+page.svelte`) apresenta:
 6. Tabela de estado dos serviços (`ServiceStatusTable.svelte`).
 
 No card de resumo da organização (`OrganizationSummary.svelte`):
-- Exibir os campos reais do contrato `ipm.organization`: Nome (`desired.name`), ID (`resourceId` com botão de copiar), Fase/Status (`phase` e `desired.platformAccess`) e Proteção contra exclusão (`desired.deletionProtection`).
+- No card de resumo da organização (`OrganizationSummary.svelte`): Exibir os campos reais do contrato `ipm.organization`. Em interface para o usuário final, omita os nomes técnicos e notações internas dos campos (como `resourceId`, `desired.name` ou `ipm.user`). O rótulo deve ser limpo e intuitivo (ex: "ID", "Slug DNS / Domínio", "Proteção contra exclusão", "Membros").
 - Caso sejam exibidos metadados adicionais da referência visual que ainda não existem no schema (como *Plano* ou *Região primária*), identificá-los explicitamente com indicador de **Dado demonstrativo**.
 
 ### 5.5 Painel de Notificações e Operações (`OperationsPanel.svelte`)

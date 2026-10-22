@@ -91,7 +91,7 @@
 			class="mt-5 grid grid-cols-1 gap-3 border-t border-emerald-200/60 pt-4 sm:grid-cols-2 lg:grid-cols-5"
 		>
 			<div class="min-w-0">
-				<dt class="text-[11px] font-medium text-slate-500">ID (resourceId)</dt>
+				<dt class="text-[11px] font-medium text-slate-500">ID</dt>
 				<dd class="mt-1 flex items-center gap-1">
 					<span
 						data-testid="summary-organization-id"
@@ -117,7 +117,7 @@
 			</div>
 
 			<div class="min-w-0 sm:border-l sm:border-emerald-200/60 sm:pl-3">
-				<dt class="text-[11px] font-medium text-slate-500">Slug DNS (desired.name)</dt>
+				<dt class="text-[11px] font-medium text-slate-500">Slug DNS</dt>
 				<dd
 					class="mt-1 truncate font-mono text-xs font-semibold whitespace-nowrap text-slate-900"
 					title={activeOrg.desired.name}
@@ -127,16 +127,16 @@
 			</div>
 
 			<div class="min-w-0 sm:border-l sm:border-emerald-200/60 sm:pl-3">
-				<dt class="text-[11px] font-medium text-slate-500">Proteção (deletionProtection)</dt>
+				<dt class="text-[11px] font-medium text-slate-500">Proteção contra exclusão</dt>
 				<dd
 					class="mt-1 flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap text-slate-900"
 				>
 					{#if activeOrg.desired.deletionProtection !== false}
 						<Lock class="h-3.5 w-3.5 shrink-0 text-emerald-700" aria-hidden="true" />
-						<span>Ativa (true)</span>
+						<span>Ativa</span>
 					{:else}
 						<LockOpen class="h-3.5 w-3.5 shrink-0 text-amber-600" aria-hidden="true" />
-						<span>Desativada (false)</span>
+						<span>Desativada</span>
 					{/if}
 				</dd>
 			</div>
@@ -152,7 +152,7 @@
 			</div>
 
 			<div class="min-w-0 sm:border-l sm:border-emerald-200/60 sm:pl-3">
-				<dt class="text-[11px] font-medium text-slate-500">Membros (ipm.user)</dt>
+				<dt class="text-[11px] font-medium text-slate-500">Membros</dt>
 				<dd
 					data-testid="summary-organization-members"
 					class="mt-1 truncate text-xs font-semibold whitespace-nowrap text-slate-900"
