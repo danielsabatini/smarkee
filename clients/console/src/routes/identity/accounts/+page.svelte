@@ -1,5 +1,13 @@
 <script lang="ts">
-	import { Lock, LockOpen, ShieldCheck, UserCheck, Trash2 } from 'lucide-svelte';
+	import {
+		Lock,
+		LockOpen,
+		ShieldCheck,
+		UserCheck,
+		Trash2,
+		CheckCircle2,
+		AlertCircle
+	} from 'lucide-svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { getConsoleState } from '$lib/state/console-context.svelte';
 
@@ -66,7 +74,27 @@
 							{account.desired.givenName}
 							{account.desired.familyName}
 						</h2>
-						<p class="font-mono text-xs text-slate-500">{account.resourceId}</p>
+						{#if account.desired.email}
+							<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+								<span class="text-sm font-medium text-slate-700">{account.desired.email}</span>
+								{#if account.observed?.emailVerified}
+									<span
+										class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200"
+									>
+										<CheckCircle2 class="h-3 w-3" aria-hidden="true" />
+										Verificado
+									</span>
+								{:else}
+									<span
+										class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200"
+									>
+										<AlertCircle class="h-3 w-3" aria-hidden="true" />
+										Não verificado
+									</span>
+								{/if}
+							</div>
+						{/if}
+						<p class="mt-1 font-mono text-[10px] text-slate-500">ID: {account.resourceId}</p>
 					</div>
 				</div>
 

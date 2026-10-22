@@ -404,12 +404,19 @@
 						{#each consoleState.organizationUsers as user (user.resourceId)}
 							<tr data-testid="user-row-{user.resourceId}" class="hover:bg-slate-50/80">
 								<td class="px-4 py-3">
-									<div class="flex items-center gap-2">
-										<Users class="h-4 w-4 text-emerald-700" aria-hidden="true" />
-										<span class="font-bold text-slate-900">
-											{user.desired.givenName}
-											{user.desired.familyName}
-										</span>
+									<div class="flex items-center gap-2.5">
+										<Users class="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+										<div>
+											<div class="font-bold text-slate-900">
+												{user.desired.givenName}
+												{user.desired.familyName}
+											</div>
+											{#if user.desired.email}
+												<div class="mt-0.5 text-[11px] text-slate-500">
+													{user.desired.email}
+												</div>
+											{/if}
+										</div>
 									</div>
 								</td>
 								<td class="px-4 py-3 font-mono text-[11px] text-slate-600">{user.resourceId}</td>
@@ -500,9 +507,16 @@
 			<div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
 				<div>
 					<h3 class="text-lg font-bold text-slate-900">Editar Permissões</h3>
-					<p class="text-xs text-slate-500">
+					<p class="mt-0.5 text-xs text-slate-500">
 						{editingUser.desired.givenName}
-						{editingUser.desired.familyName} ({editingUser.resourceId})
+						{editingUser.desired.familyName}
+						{#if editingUser.desired.email}
+							<span class="mx-1.5 inline-block h-1 w-1 rounded-full bg-slate-300 align-middle"
+							></span>
+							{editingUser.desired.email}
+						{/if}
+						<span class="mx-1.5 inline-block h-1 w-1 rounded-full bg-slate-300 align-middle"></span>
+						<span class="font-mono text-[11px]">{editingUser.resourceId}</span>
 					</p>
 				</div>
 				<button
