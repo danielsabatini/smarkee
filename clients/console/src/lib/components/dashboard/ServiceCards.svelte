@@ -34,9 +34,7 @@
 			<h2 id="platform-services-heading" class="text-base font-bold text-slate-900">
 				Serviços da plataforma
 			</h2>
-			<p class="text-xs text-slate-600">
-				Principais serviços disponíveis para sua conta e organização.
-			</p>
+			<p class="text-xs text-slate-600">Principais serviços disponíveis para a sua organização.</p>
 		</div>
 
 		<a
@@ -98,7 +96,7 @@
 						{/if}
 
 						{#if service.isDemo}
-							<DemoBadge label="Preview" />
+							<DemoBadge label="Preview" variant="icon" />
 						{/if}
 					</div>
 				</div>

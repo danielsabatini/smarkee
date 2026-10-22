@@ -14,7 +14,7 @@
 <div class="mx-auto max-w-6xl space-y-6">
 	<div>
 		<span class="text-xs font-semibold text-emerald-700 uppercase"> Serviços (SUM) </span>
-		<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Serviços Habilitados na Conta</h1>
+		<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Serviços Habilitados na Organização</h1>
 		<p class="mt-1 text-xs text-slate-600">
 			Serviços ativos e configurados para sua conta na plataforma.
 		</p>

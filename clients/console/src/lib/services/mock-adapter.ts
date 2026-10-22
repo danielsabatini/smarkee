@@ -1078,7 +1078,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						lastTransitionAt: serviceResource.updatedAt
 					}
 				];
-				opEntry.subtitle = `Vinculando serviço ${serviceName.toUpperCase()} à conta titular...`;
+				opEntry.subtitle = `Vinculando serviço ${serviceName.toUpperCase()} à organização...`;
 			},
 			() => {
 				const doneAt = new Date().toISOString();
@@ -1102,7 +1102,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 				this.notifications.unshift({
 					id: `notif-${Date.now()}`,
 					title: `Serviço ${serviceName.toUpperCase()} habilitado`,
-					description: `O serviço ${serviceName.toUpperCase()} foi ativado e está disponível na conta.`,
+					description: `O serviço ${serviceName.toUpperCase()} foi ativado e está disponível na organização.`,
 					severity: 'success',
 					createdAt: 'agora',
 					read: false,
@@ -1133,7 +1133,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 
 		const opEntry: OperationTitleInfo = {
 			title: `Desabilitação de Serviço (${found.desired.service.toUpperCase()})`,
-			subtitle: 'Removendo serviço da conta titular...',
+			subtitle: 'Removendo serviço da organização...',
 			operation: {
 				operationId,
 				operationType: 'delete',

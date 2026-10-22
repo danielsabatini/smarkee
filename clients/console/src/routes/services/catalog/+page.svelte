@@ -82,7 +82,7 @@
 							<span>Serviço Habilitado</span>
 						</span>
 					{:else}
-						<span class="text-xs text-slate-500">Não habilitado na conta</span>
+						<span class="text-xs text-slate-500">Não habilitado na organização</span>
 					{/if}
 
 					{#if item.serviceKey !== 'sum'}

@@ -119,7 +119,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
 				href: '/services/enabled',
 				iconName: 'shield-check',
 				moduleCode: 'SUM',
-				description: 'Serviços ativos na conta'
+				description: 'Serviços ativos na organização'
 			}
 		]
 	},

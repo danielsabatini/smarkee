@@ -65,8 +65,8 @@
 				class="group relative flex h-full items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-2xs transition hover:border-emerald-300 hover:shadow-sm"
 			>
 				{#if item.isDemo}
-					<div class="absolute top-2 right-2.5">
-						<DemoBadge label="Preview" />
+					<div class="absolute right-1.5 bottom-1.5">
+						<DemoBadge label="Preview" variant="icon" />
 					</div>
 				{/if}
 
@@ -86,19 +86,21 @@
 					{/if}
 				</div>
 
-				<div class="min-w-0 flex-1 {item.isDemo ? 'pt-5' : ''}">
-					<div class="flex items-center justify-between gap-0.5">
-						<span class="whitespace-nowrap text-[11px] font-bold tracking-tight text-slate-900">
-							{item.title}
-						</span>
-						<ChevronRight
-							class="h-3 w-3 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-emerald-700"
-							aria-hidden="true"
-						/>
+				<div class="flex min-w-0 flex-1 flex-col justify-between self-stretch">
+					<div>
+						<div class="flex items-center justify-between gap-0.5">
+							<span class="whitespace-nowrap text-[11px] font-bold tracking-tight text-slate-900">
+								{item.title}
+							</span>
+							<ChevronRight
+								class="h-3 w-3 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-emerald-700"
+								aria-hidden="true"
+							/>
+						</div>
+						<p class="mt-0.5 text-[11px] leading-snug text-slate-500">
+							{item.description}
+						</p>
 					</div>
-					<p class="mt-0.5 text-[11px] leading-snug text-slate-500">
-						{item.description}
-					</p>
 				</div>
 			</a>
 		{/each}
