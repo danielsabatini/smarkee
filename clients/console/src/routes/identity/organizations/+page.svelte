@@ -203,11 +203,11 @@
 				</p>
 			</div>
 
-			<!-- Identificador Único (Slug DNS) -->
+			<!-- Identificador Único -->
 			<div>
 				<div class="flex items-center justify-between">
 					<label for="org-slug-input" class="block text-xs font-semibold text-slate-700">
-						Identificador Único (Slug DNS)
+						Identificador Único
 					</label>
 					{#if isSlugManuallyEdited}
 						<button
@@ -447,7 +447,7 @@
 
 					<div>
 						<label for="edit-org-slug" class="block text-xs font-semibold text-slate-700">
-							Identificador Único (Slug DNS)
+							Identificador Único
 						</label>
 						<input
 							id="edit-org-slug"
@@ -458,7 +458,7 @@
 							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs text-slate-900 focus:border-emerald-600 focus:outline-none"
 						/>
 						<p class="mt-1 text-[11px] text-amber-700">
-							Atenção: alterar o slug pode quebrar URLs e integrações existentes.
+							Atenção: alterar o identificador único pode quebrar URLs e integrações existentes.
 						</p>
 					</div>
 				</div>

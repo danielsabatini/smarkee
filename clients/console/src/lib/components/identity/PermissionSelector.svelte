@@ -25,7 +25,7 @@
 		{
 			role: 'ipm.organization.update',
 			label: 'Editar Organização',
-			description: 'Permite alterar configurações, slug e políticas da organização.',
+			description: 'Permite alterar configurações, identificador único e políticas da organização.',
 			category: 'organization'
 		},
 		{

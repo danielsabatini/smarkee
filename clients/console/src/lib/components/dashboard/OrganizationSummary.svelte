@@ -87,7 +87,7 @@
 			class="mt-5 grid grid-cols-1 gap-3 border-t border-emerald-200/60 pt-4 sm:grid-cols-2 lg:grid-cols-4"
 		>
 			<div class="min-w-0">
-				<dt class="text-[11px] font-medium text-slate-500">Slug DNS</dt>
+				<dt class="text-[11px] font-medium text-slate-500">Identificador Único</dt>
 				<dd
 					class="mt-1 truncate font-mono text-xs font-semibold whitespace-nowrap text-slate-900"
 					title={activeOrg.desired.name}
