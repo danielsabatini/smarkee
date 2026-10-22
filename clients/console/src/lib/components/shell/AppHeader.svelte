@@ -4,9 +4,9 @@
 		Bell,
 		ChevronDown,
 		CircleHelp,
+		LogOut,
 		Menu,
 		Settings,
-		ShieldCheck,
 		User
 	} from 'lucide-svelte';
 	import GlobalSearch from '$lib/components/shell/GlobalSearch.svelte';
@@ -32,6 +32,13 @@
 
 	function closeProfileMenu(): void {
 		isProfileMenuOpen = false;
+	}
+
+	function handleSignOut(): void {
+		closeProfileMenu();
+		if (typeof window !== 'undefined') {
+			window.location.href = '/';
+		}
 	}
 
 	function handleKeydown(event: KeyboardEvent): void {
@@ -191,19 +198,6 @@
 							<span class="text-slate-500">Tipo:</span>
 							<span class="font-medium text-slate-800">Conta Titular</span>
 						</div>
-						<div class="flex items-center justify-between">
-							<span class="text-slate-500">Provedor OIDC:</span>
-							<span class="inline-flex items-center gap-1 font-medium text-emerald-700">
-								<ShieldCheck class="h-3 w-3" aria-hidden="true" />
-								PKCE Público
-							</span>
-						</div>
-						<div class="flex items-center justify-between">
-							<span class="text-slate-500">Permissões ativas:</span>
-							<span class="font-semibold text-slate-800">
-								{consoleState.userContext?.roles.length ?? 0}
-							</span>
-						</div>
 					</div>
 
 					<div class="mt-3 flex flex-col gap-1 border-t border-slate-100 pt-2.5 text-xs">
@@ -214,13 +208,14 @@
 						>
 							Ver detalhes da Conta
 						</a>
-						<a
-							href="/settings"
-							onclick={closeProfileMenu}
-							class="rounded-lg px-2.5 py-1.5 font-medium text-slate-700 hover:bg-slate-100"
+						<button
+							type="button"
+							onclick={handleSignOut}
+							class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left font-medium text-red-700 hover:bg-red-50"
 						>
-							Configurações de sessão OIDC
-						</a>
+							<LogOut class="h-3.5 w-3.5 text-red-600" aria-hidden="true" />
+							<span>Sair</span>
+						</button>
 					</div>
 				</div>
 			{/if}
