@@ -4,7 +4,7 @@
 		CheckCircle2,
 		Trash2,
 		Plus,
-		Users,
+		User,
 		Lock,
 		LockOpen,
 		Pencil,
@@ -227,7 +227,7 @@
 						<tr
 							class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500"
 						>
-							<th class="px-4 py-3">Nome</th>
+							<th class="px-4 py-3 min-w-[280px]">Nome</th>
 							<th class="px-4 py-3">Fase</th>
 							<th class="px-4 py-3">Permissões</th>
 							<th class="px-4 py-3 text-center">Ações</th>
@@ -238,7 +238,7 @@
 							<tr data-testid="user-row-{user.resourceId}" class="hover:bg-slate-50/80">
 								<td class="px-4 py-3">
 									<div class="flex items-center gap-2.5">
-										<Users class="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+										<User class="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
 										<div>
 											<div class="font-bold text-slate-900">
 												{user.desired.givenName}

@@ -45,11 +45,11 @@
 	}
 </script>
 
-<div class="inline-flex items-center gap-1.5 {className}">
+<div class="inline-flex items-center gap-1.5 whitespace-nowrap {className}">
 	{#if label}
-		<span class="text-[11px] font-medium text-slate-500">{label}</span>
+		<span class="text-[11px] font-medium text-slate-500 whitespace-nowrap">{label}</span>
 	{/if}
-	<span data-testid={idTestId} class="{idClass} select-all break-all">
+	<span data-testid={idTestId} class="{idClass} select-all whitespace-nowrap">
 		{id}
 	</span>
 	<button

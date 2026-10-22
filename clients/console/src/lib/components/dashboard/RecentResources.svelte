@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowRight, Building2, ShieldCheck, UserCheck, Users } from 'lucide-svelte';
+	import { ArrowRight, Building2, ShieldCheck, User, UserCheck } from 'lucide-svelte';
 	import DemoBadge from '$lib/components/ui/DemoBadge.svelte';
 	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
@@ -74,7 +74,7 @@
 										{#if item.resourceType === 'ipm.organization'}
 											<Building2 class="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
 										{:else if item.resourceType === 'ipm.user'}
-											<Users class="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
+											<User class="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
 										{:else if item.resourceType === 'sum.service'}
 											<ShieldCheck class="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
 										{:else}
