@@ -26,17 +26,17 @@
 
 <section
 	id="loop-de-controle"
-	class="relative border-t border-slate-900 bg-slate-950 py-20 sm:py-28"
+	class="relative border-t border-slate-200 bg-slate-50 py-20 sm:py-28"
 >
 	<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 		<div class="mx-auto max-w-3xl text-center">
-			<span class="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+			<span class="text-xs font-semibold uppercase tracking-wider text-emerald-700">
 				Arquitetura Fundamental
 			</span>
-			<h2 class="mt-2 text-2xl font-bold tracking-tight text-white sm:text-4xl">
+			<h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-4xl">
 				O Loop de Controle Declarativo da Smarkee
 			</h2>
-			<p class="mt-4 text-sm leading-relaxed text-slate-400 sm:text-base">
+			<p class="mt-4 text-sm leading-relaxed text-slate-600 sm:text-base">
 				Diferente de APIs bloqueantes que falham silenciosamente na metade do caminho, a Smarkee
 				opera com o modelo inspirado no Kubernetes: <strong>Intenção Declarada</strong>,
 				<strong>Confirmação Assíncrona (202 Accepted)</strong>
@@ -45,13 +45,13 @@
 		</div>
 
 		<!-- Simulador Interativo do Loop -->
-		<div class="mt-12 rounded-2xl border border-slate-800 bg-slate-900/40 p-6 backdrop-blur-xl">
+		<div class="mt-12 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 			<div
-				class="flex flex-col items-start justify-between gap-4 border-b border-slate-800 pb-5 sm:flex-row sm:items-center"
+				class="flex flex-col items-start justify-between gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center"
 			>
 				<div>
-					<h3 class="text-sm font-bold text-white">Simulador de Reconciliação em Tempo Real</h3>
-					<p class="text-xs text-slate-400">
+					<h3 class="text-sm font-bold text-slate-900">Simulador de Reconciliação em Tempo Real</h3>
+					<p class="text-xs text-slate-500">
 						Dispare uma nova intenção declarativa e acompanhe a convergência automática entre
 						Desired e Observed.
 					</p>
@@ -62,13 +62,13 @@
 						type="text"
 						bind:value={orgName}
 						placeholder="nome-da-organizacao"
-						class="rounded-xl border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-xs text-white placeholder:text-slate-600 focus:border-emerald-500 focus:outline-hidden"
+						class="rounded-xl border border-slate-300 bg-white px-3 py-1.5 font-mono text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-hidden"
 					/>
 					<button
 						type="button"
 						onclick={runSimulation}
 						disabled={currentStep === 'submitting' || currentStep === 'reconciling'}
-						class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+						class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
 					>
 						{#if currentStep === 'submitting' || currentStep === 'reconciling'}
 							<Loader2 class="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -84,10 +84,12 @@
 			<!-- Visualizador dos 3 Estados -->
 			<div class="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
 				<!-- Fase 1: Estado Desejado (Desired) -->
-				<div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+				<div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
 					<div class="flex items-center justify-between">
-						<span class="text-xs font-bold text-slate-300">1. Estado Desejado (Desired)</span>
-						<span class="rounded bg-slate-800 px-2 py-0.5 font-mono text-[10px] text-slate-300">
+						<span class="text-xs font-bold text-slate-800">1. Estado Desejado (Desired)</span>
+						<span
+							class="rounded bg-white border border-slate-200 px-2 py-0.5 font-mono text-[10px] text-slate-700"
+						>
 							Gen {generation}
 						</span>
 					</div>
@@ -95,7 +97,9 @@
 						Intenção declarada pelo cliente via API/CLI.
 					</p>
 
-					<div class="mt-3 rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-emerald-300">
+					<div
+						class="mt-3 rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-emerald-300 shadow-inner"
+					>
 						<pre class="overflow-x-auto whitespace-pre"><code
 								>{`{
   "name": "${orgName}",
@@ -108,19 +112,19 @@
 				</div>
 
 				<!-- Fase 2: Confirmação Assíncrona & Mensageria -->
-				<div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+				<div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
 					<div class="flex items-center justify-between">
-						<span class="text-xs font-bold text-slate-300">2. HTTP 202 & NATS JetStream</span>
+						<span class="text-xs font-bold text-slate-800">2. HTTP 202 & NATS JetStream</span>
 						{#if currentStep === 'submitting' || currentStep === 'accepted' || currentStep === 'reconciling'}
 							<span
-								class="flex items-center gap-1 rounded bg-amber-950/80 px-2 py-0.5 font-mono text-[10px] text-amber-300"
+								class="flex items-center gap-1 rounded bg-amber-50 border border-amber-200 px-2 py-0.5 font-mono text-[10px] text-amber-800"
 							>
 								<Loader2 class="h-2.5 w-2.5 animate-spin" aria-hidden="true" />
 								<span>Processando</span>
 							</span>
 						{:else}
 							<span
-								class="rounded bg-emerald-950/80 px-2 py-0.5 font-mono text-[10px] text-emerald-300"
+								class="rounded bg-emerald-50 border border-emerald-200 px-2 py-0.5 font-mono text-[10px] text-emerald-800"
 							>
 								Accepted
 							</span>
@@ -128,7 +132,9 @@
 					</div>
 					<p class="mt-1 text-[11px] text-slate-500">Resposta imediata sem bloqueio de thread.</p>
 
-					<div class="mt-3 rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-blue-300">
+					<div
+						class="mt-3 rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-blue-300 shadow-inner"
+					>
 						<pre class="overflow-x-auto whitespace-pre"><code
 								>{`{
   "status": "202 Accepted",
@@ -141,18 +147,20 @@
 				</div>
 
 				<!-- Fase 3: Estado Observado (Observed) -->
-				<div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+				<div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
 					<div class="flex items-center justify-between">
-						<span class="text-xs font-bold text-slate-300">3. Estado Observado (Observed)</span>
+						<span class="text-xs font-bold text-slate-800">3. Estado Observado (Observed)</span>
 						{#if currentStep === 'ready'}
 							<span
-								class="flex items-center gap-1 rounded bg-emerald-950/80 px-2 py-0.5 font-mono text-[10px] text-emerald-300"
+								class="flex items-center gap-1 rounded bg-emerald-50 border border-emerald-200 px-2 py-0.5 font-mono text-[10px] text-emerald-800"
 							>
 								<Check class="h-2.5 w-2.5" aria-hidden="true" />
 								<span>Ready: True</span>
 							</span>
 						{:else}
-							<span class="rounded bg-blue-950/80 px-2 py-0.5 font-mono text-[10px] text-blue-300">
+							<span
+								class="rounded bg-blue-50 border border-blue-200 px-2 py-0.5 font-mono text-[10px] text-blue-800"
+							>
 								Convergindo
 							</span>
 						{/if}
@@ -161,7 +169,9 @@
 						Realidade verificada pelo controlador de recurso.
 					</p>
 
-					<div class="mt-3 rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-amber-200">
+					<div
+						class="mt-3 rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-amber-200 shadow-inner"
+					>
 						<pre class="overflow-x-auto whitespace-pre"><code
 								>{`{
   "observedGeneration": ${currentStep === 'ready' ? generation : generation - 1},
@@ -180,17 +190,19 @@
 
 			<!-- Indicador de Invariante -->
 			<div
-				class="mt-6 flex flex-col items-center justify-between gap-3 rounded-xl border border-emerald-900/40 bg-emerald-950/20 px-4 py-3 sm:flex-row"
+				class="mt-6 flex flex-col items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 sm:flex-row"
 			>
-				<div class="flex items-center gap-2 text-xs text-emerald-300">
-					<ShieldCheck class="h-4 w-4 text-emerald-400" aria-hidden="true" />
+				<div class="flex items-center gap-2 text-xs text-emerald-900">
+					<ShieldCheck class="h-4 w-4 text-emerald-700" aria-hidden="true" />
 					<span
 						><strong>Invariante da Plataforma:</strong> Recursos só respondem como
 						<code>Ready</code>
 						quando <code>observedGeneration === desiredGeneration</code>.</span
 					>
 				</div>
-				<span class="font-mono text-[11px] text-slate-400">Zero Inconsistência de Estado</span>
+				<span class="font-mono text-[11px] font-semibold text-emerald-800"
+					>Zero Inconsistência de Estado</span
+				>
 			</div>
 		</div>
 	</div>
