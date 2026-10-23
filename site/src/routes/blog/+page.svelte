@@ -97,7 +97,7 @@
 					class="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-2xs transition hover:border-emerald-300 hover:shadow-md"
 				>
 					<div>
-						<div class="flex items-center justify-between text-[11px] text-slate-500">
+						<div class="flex items-center justify-between text-xs text-slate-500">
 							<span
 								class="rounded border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 font-semibold text-emerald-800"
 							>
@@ -123,7 +123,7 @@
 						<div class="mt-4 flex flex-wrap gap-1.5">
 							{#each post.tags as tag (tag)}
 								<span
-									class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-600"
+									class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-600"
 								>
 									#{tag}
 								</span>
@@ -137,8 +137,8 @@
 						<div class="flex items-center gap-2">
 							<img src={post.author.avatar} alt={post.author.name} class="h-6 w-6 rounded-full" />
 							<div>
-								<p class="text-[11px] font-semibold text-slate-800">{post.author.name}</p>
-								<p class="text-[10px] text-slate-500">{post.date}</p>
+								<p class="text-xs font-semibold text-slate-800">{post.author.name}</p>
+								<p class="text-xs text-slate-500">{post.date}</p>
 							</div>
 						</div>
 

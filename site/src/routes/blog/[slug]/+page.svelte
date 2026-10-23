@@ -81,7 +81,7 @@
 					/>
 					<div>
 						<p class="text-xs font-bold text-slate-900">{post.author.name}</p>
-						<p class="text-[11px] text-slate-500">{post.author.role}</p>
+						<p class="text-xs text-slate-500">{post.author.role}</p>
 					</div>
 				</div>
 
@@ -158,7 +158,7 @@
 						class="group flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-2xs transition hover:border-emerald-300 hover:shadow-md"
 					>
 						<div>
-							<span class="text-[10px] font-bold text-emerald-700 uppercase">
+							<span class="text-xs font-bold text-emerald-700 uppercase">
 								{related.category}
 							</span>
 							<h4
@@ -171,7 +171,7 @@
 							</p>
 						</div>
 
-						<div class="mt-4 flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+						<div class="mt-4 flex items-center gap-1 text-xs font-semibold text-emerald-700">
 							<span>Ler artigo</span>
 							<ArrowRight class="h-3 w-3 transition group-hover:translate-x-1" aria-hidden="true" />
 						</div>

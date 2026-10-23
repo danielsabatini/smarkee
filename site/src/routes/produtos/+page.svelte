@@ -40,7 +40,7 @@
 						<div class="flex items-center gap-2">
 							<h2 class="text-xl font-bold text-slate-900">IPM — Identity Provider Manager</h2>
 							<span
-								class="rounded bg-emerald-50 px-2 py-0.5 font-mono text-[10px] text-emerald-800 border border-emerald-200"
+								class="rounded bg-emerald-50 px-2 py-0.5 font-mono text-xs text-emerald-800 border border-emerald-200"
 								>GA</span
 							>
 						</div>
@@ -71,19 +71,19 @@
 			<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
 				<div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
 					<h3 class="text-xs font-bold text-slate-900">Organizações Multi-Tenant</h3>
-					<p class="mt-1 text-[11px] text-slate-600">
+					<p class="mt-1 text-xs text-slate-600">
 						Cada organização é um contêiner administrativo isolado com ciclo de vida gerenciado.
 					</p>
 				</div>
 				<div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
 					<h3 class="text-xs font-bold text-slate-900">Menor Privilégio Estrito</h3>
-					<p class="mt-1 text-[11px] text-slate-600">
+					<p class="mt-1 text-xs text-slate-600">
 						Papéis e escopos granulares atribuídos exclusivamente às necessidades de cada membro.
 					</p>
 				</div>
 				<div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
 					<h3 class="text-xs font-bold text-slate-900">Mascaramento de Dados</h3>
-					<p class="mt-1 text-[11px] text-slate-600">
+					<p class="mt-1 text-xs text-slate-600">
 						E-mails e dados de contato mascarados por padrão para prevenir exfiltração inadvertida.
 					</p>
 				</div>
@@ -103,7 +103,7 @@
 						<div class="flex items-center gap-2">
 							<h2 class="text-xl font-bold text-slate-900">SUM — Service Usage Manager</h2>
 							<span
-								class="rounded bg-emerald-50 px-2 py-0.5 font-mono text-[10px] text-emerald-800 border border-emerald-200"
+								class="rounded bg-emerald-50 px-2 py-0.5 font-mono text-xs text-emerald-800 border border-emerald-200"
 								>GA</span
 							>
 						</div>
@@ -145,7 +145,7 @@
 						<div class="flex items-center gap-2">
 							<h2 class="text-xl font-bold text-slate-900">AEM — Audit Event Manager</h2>
 							<span
-								class="rounded bg-blue-50 px-2 py-0.5 font-mono text-[10px] text-blue-800 border border-blue-200"
+								class="rounded bg-blue-50 px-2 py-0.5 font-mono text-xs text-blue-800 border border-blue-200"
 								>Preview</span
 							>
 						</div>
@@ -186,7 +186,7 @@
 						<div class="flex items-center gap-2">
 							<h2 class="text-xl font-bold text-slate-900">ODM — Observability Data Manager</h2>
 							<span
-								class="rounded bg-blue-50 px-2 py-0.5 font-mono text-[10px] text-blue-800 border border-blue-200"
+								class="rounded bg-blue-50 px-2 py-0.5 font-mono text-xs text-blue-800 border border-blue-200"
 								>Preview</span
 							>
 						</div>

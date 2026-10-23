@@ -1,12 +1,5 @@
 <script lang="ts">
-	import {
-		ArrowRight,
-		ArrowUpRight,
-		CheckCircle2,
-		Cpu,
-		ShieldCheck,
-		Terminal
-	} from 'lucide-svelte';
+	import { ArrowRight, ArrowUpRight, CheckCircle2, Cpu, ShieldCheck } from 'lucide-svelte';
 </script>
 
 <section class="relative overflow-hidden pt-12 pb-20 sm:pt-20 sm:pb-28 bg-slate-50">
@@ -38,31 +31,23 @@
 			</p>
 
 			<!-- Botões de Ação -->
-			<div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+			<div class="mt-8 flex flex-wrap items-center justify-center gap-4">
 				<a
 					href="http://localhost:5173"
 					target="_blank"
 					rel="noreferrer"
-					class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-700/20 transition hover:bg-emerald-700 hover:shadow-md"
+					class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-8 py-3.5 text-sm font-bold text-white shadow-sm shadow-emerald-700/20 transition hover:bg-emerald-700 hover:shadow-md"
 				>
-					<span>Entrar no Console</span>
+					<span>Criar conta gratuita</span>
 					<ArrowUpRight class="h-4 w-4" aria-hidden="true" />
 				</a>
 
 				<a
 					href="#loop-de-controle"
-					class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-2xs transition hover:border-slate-400 hover:bg-slate-50"
+					class="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-600 transition hover:text-slate-900 hover:bg-slate-100"
 				>
-					<span>Ver Loop de Controle</span>
-					<ArrowRight class="h-4 w-4 text-slate-500" aria-hidden="true" />
-				</a>
-
-				<a
-					href="/produtos#cli"
-					class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
-				>
-					<Terminal class="h-4 w-4 text-emerald-700" aria-hidden="true" />
-					<span>CLI sk</span>
+					<span>Entenda a tecnologia</span>
+					<ArrowRight class="h-4 w-4 text-slate-400" aria-hidden="true" />
 				</a>
 			</div>
 
@@ -85,20 +70,16 @@
 			</div>
 		</div>
 
-		<!-- Preview Interativo do Console e Loop de Controle -->
+		<!-- Preview Interativo do Console -->
 		<div class="relative mt-14 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl sm:p-4">
 			<div class="flex items-center justify-between border-b border-slate-100 pb-3 px-3">
 				<div class="flex items-center gap-2">
-					<span class="h-3 w-3 rounded-full bg-red-400"></span>
-					<span class="h-3 w-3 rounded-full bg-amber-400"></span>
-					<span class="h-3 w-3 rounded-full bg-emerald-400"></span>
-					<span class="ml-2 font-mono text-xs font-medium text-slate-500"
-						>console.smarkee.internal • Estado Ativo</span
+					<span class="h-3 w-3 rounded-full bg-slate-200"></span>
+					<span class="h-3 w-3 rounded-full bg-slate-200"></span>
+					<span class="h-3 w-3 rounded-full bg-slate-200"></span>
+					<span class="ml-2 font-mono text-xs font-medium text-slate-400"
+						>console.smarkee.com.br</span
 					>
-				</div>
-				<div class="hidden sm:flex items-center gap-2 text-xs font-semibold text-emerald-800">
-					<span class="h-2 w-2 rounded-full bg-emerald-600 animate-ping"></span>
-					<span>Reconciliação Contínua • Ready (True)</span>
 				</div>
 			</div>
 
@@ -107,83 +88,31 @@
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-4">
 					<!-- Card 1: IPM -->
 					<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-						<div class="flex items-center justify-between">
-							<span class="font-mono text-xs font-bold text-emerald-700">Identidade</span>
-							<span
-								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-emerald-800"
-								>Ativo</span
-							>
-						</div>
-						<p class="mt-2 text-xs font-bold text-slate-900">Gestão de Acessos (IPM)</p>
-						<p class="mt-1 text-xs text-slate-500">
-							Organizações, contas e usuários com menor privilégio por padrão.
-						</p>
+						<span class="font-mono text-xs font-bold text-slate-800">Identidade</span>
+						<p class="mt-2 text-xs font-semibold text-slate-900">Gestão de Acessos</p>
+						<p class="mt-1 text-xs text-slate-500">Organizações e usuários.</p>
 					</div>
 
 					<!-- Card 2: SUM -->
 					<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-						<div class="flex items-center justify-between">
-							<span class="font-mono text-xs font-bold text-emerald-700">Serviços</span>
-							<span
-								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-emerald-800"
-								>Ativo</span
-							>
-						</div>
-						<p class="mt-2 text-xs font-bold text-slate-900">Recursos sob Demanda</p>
-						<p class="mt-1 text-xs text-slate-500">
-							Habilitação simplificada e catálogo de serviços vinculados.
-						</p>
+						<span class="font-mono text-xs font-bold text-slate-800">Serviços</span>
+						<p class="mt-2 text-xs font-semibold text-slate-900">Recursos sob Demanda</p>
+						<p class="mt-1 text-xs text-slate-500">Habilitação simplificada.</p>
 					</div>
 
 					<!-- Card 3: AEM -->
 					<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-						<div class="flex items-center justify-between">
-							<span class="font-mono text-xs font-bold text-emerald-700">Auditoria</span>
-							<span
-								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-emerald-800"
-								>Ativo</span
-							>
-						</div>
-						<p class="mt-2 text-xs font-bold text-slate-900">Registro Imutável</p>
-						<p class="mt-1 text-xs text-slate-500">
-							Segurança e compliance com auditoria nativa das operações.
-						</p>
+						<span class="font-mono text-xs font-bold text-slate-800">Auditoria</span>
+						<p class="mt-2 text-xs font-semibold text-slate-900">Registro Imutável</p>
+						<p class="mt-1 text-xs text-slate-500">Segurança e compliance.</p>
 					</div>
 
 					<!-- Card 4: ODM -->
 					<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-						<div class="flex items-center justify-between">
-							<span class="font-mono text-xs font-bold text-emerald-700">Métricas</span>
-							<span
-								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-emerald-800"
-								>Ativo</span
-							>
-						</div>
-						<p class="mt-2 text-xs font-bold text-slate-900">Observabilidade (ODM)</p>
-						<p class="mt-1 text-xs text-slate-500">
-							Logs, métricas e monitoramento integrados de ponta a ponta.
-						</p>
+						<span class="font-mono text-xs font-bold text-slate-800">Métricas</span>
+						<p class="mt-2 text-xs font-semibold text-slate-900">Observabilidade</p>
+						<p class="mt-1 text-xs text-slate-500">Monitoramento integrado.</p>
 					</div>
-				</div>
-
-				<!-- Barra de reconciliação em tempo real -->
-				<div
-					class="mt-4 flex flex-col items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs sm:flex-row sm:items-center"
-				>
-					<div class="flex items-center gap-2">
-						<span class="font-mono text-xs font-medium text-slate-700">Configuração</span>
-						<span class="font-mono text-xs text-slate-400">→</span>
-						<span
-							class="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-xs font-bold text-emerald-800"
-						>
-							Validada
-						</span>
-						<span class="font-mono text-xs text-slate-400">→</span>
-						<span class="font-mono text-xs font-medium text-slate-700">Deploy Ativo</span>
-						<span class="font-mono text-xs text-slate-400">→</span>
-						<span class="font-mono text-xs font-bold text-emerald-700">Online</span>
-					</div>
-					<span class="font-mono text-xs text-slate-500">Zero tempo de inatividade</span>
 				</div>
 			</div>
 		</div>
