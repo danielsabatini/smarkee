@@ -20,12 +20,14 @@ ENV_FILES = (
     "infrastructure/dev/database/.env",
     "infrastructure/dev/gateway/.env",
     "infrastructure/dev/identity/.env",
+    "features/bsm/account/.env",
     "features/core/account/.env",
     "features/ipm/organization/.env",
     "features/ipm/user/.env",
     "features/sum/service/.env",
 )
 FEATURE_DIRECTORIES = (
+    "features/bsm/account",
     "features/core/account",
     "features/ipm/organization",
     "features/ipm/user",

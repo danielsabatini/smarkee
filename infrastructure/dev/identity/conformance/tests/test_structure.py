@@ -28,6 +28,13 @@ KEY_FILE = os.environ.get("CONFORMANCE_IDENTITY_KEY_FILE")
 # Um projeto de roles por módulo, na organização `core` (decisão 0032): as roles de ação (delegadas
 # à `register` por Project Grant) e a role de operador `*.admin`, que fica fora do Grant.
 ACTION_ROLES_BY_PROJECT = {
+    "roles-bsm": {
+        "bsm.account.create",
+        "bsm.account.delete",
+        "bsm.account.get",
+        "bsm.account.list",
+        "bsm.account.update",
+    },
     "roles-core": {"core.account.delete", "core.account.get"},
     "roles-ipm": {
         "ipm.organization.create",
@@ -43,17 +50,22 @@ ACTION_ROLES_BY_PROJECT = {
         "ipm.user.list",
         "ipm.user.update",
     },
-    "roles-sum": {"sum.ipm.disable", "sum.ipm.enable", "sum.ipm.get"},
+    "roles-sum": {
+        "sum.ipm.disable",
+        "sum.ipm.enable",
+        "sum.ipm.get",
+    },
 }
 ADMIN_ROLES_BY_PROJECT = {
+    "roles-bsm": {"bsm.account.admin"},
     "roles-core": {"core.account.admin"},
     "roles-ipm": {"ipm.organization.admin", "ipm.user.admin"},
     "roles-sum": set[str](),
 }
 ACTION_ROLES = set[str]().union(*ACTION_ROLES_BY_PROJECT.values())
 ADMIN_ROLES = set[str]().union(*ADMIN_ROLES_BY_PROJECT.values())
-# Projetos cujo Project Grant o Executor do User administra (`PROJECT_GRANT_OWNER`).
-USER_EXECUTOR_GRANT_PROJECTS = {"roles-core", "roles-sum"}
+# Projetos cujo Project Grant o Executor do User administra (`PROJECT_GRANT_OWNER`, decisões 0032 e 0082).
+USER_EXECUTOR_GRANT_PROJECTS = {"roles-bsm", "roles-core", "roles-sum"}
 ORGANIZATION_SERVICE = "zitadel.org.v2.OrganizationService"
 PROJECT_SERVICE = "zitadel.project.v2.ProjectService"
 APPLICATION_SERVICE = "zitadel.application.v2.ApplicationService"
@@ -72,8 +84,8 @@ SERVICE_ACCOUNTS = {
     "sum-service-executor",
     "sum-service-observer",
 }
-# Projeto que o Executor do SUM administra (decisão 0033): só o do `ipm`, nenhum outro módulo.
-SUM_EXECUTOR_GRANT_PROJECT = "roles-ipm"
+# Projetos que o Executor do SUM administra (decisão 0033): `ipm`.
+SUM_EXECUTOR_GRANT_PROJECTS = {"roles-ipm"}
 
 pytestmark = pytest.mark.skipif(
     not KEY_FILE, reason="CONFORMANCE_IDENTITY_KEY_FILE não definida (chave do platform-bootstrap)"
@@ -364,7 +376,8 @@ def test_user_executor_grants_roles_only_in_its_modules(
     zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
 ) -> None:
     """O isolamento do SUM: o Executor do User é `PROJECT_GRANT_OWNER` só nos Grants dos módulos
-    `core` e `sum`; no do `ipm` ele não é, e o Zitadel nega a concessão (decisão 0032)."""
+    de nível de conta (`core`, `bsm` e `sum`); no do `ipm` ele não é, e o Zitadel nega a concessão
+    (decisões 0032 e 0082)."""
     for name, project_id in project_ids.items():
         owners = administrators(
             zitadel,
@@ -374,18 +387,18 @@ def test_user_executor_grants_roles_only_in_its_modules(
         assert has_role == (name in USER_EXECUTOR_GRANT_PROJECTS), name
 
 
-def test_sum_executor_is_project_grant_owner_only_in_the_ipm_grant(
+def test_sum_executor_is_project_grant_owner_only_in_its_grants(
     zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
 ) -> None:
-    """O Executor do SUM só concede as roles do `ipm` (decisão 0032): é `PROJECT_GRANT_OWNER` só
-    no Grant de `roles-ipm` para a `register`, e em nenhum outro projeto."""
+    """O Executor do SUM só concede as roles dos módulos ligáveis (`ipm`, decisão 0032): é
+    `PROJECT_GRANT_OWNER` só no Grant de `roles-ipm` para a `register`."""
     for name, project_id in project_ids.items():
         owners = administrators(
             zitadel,
             {"projectGrant": {"projectId": project_id, "organizationId": orgs["register"]}},
         )
         has_role = owners.get("sum-service-executor") == {"PROJECT_GRANT_OWNER"}
-        assert has_role == (name == SUM_EXECUTOR_GRANT_PROJECT), name
+        assert has_role == (name in SUM_EXECUTOR_GRANT_PROJECTS), name
 
 
 def test_service_account_keys_exist_and_are_not_close_to_expiry(
@@ -481,6 +494,7 @@ def test_register_has_no_project_of_its_own(zitadel: Zitadel, orgs: dict[str, st
 REPOSITORY = Path(__file__).resolve().parents[5]
 ENV_FILES = {
     "cli": REPOSITORY / "clients" / "cli" / ".env",
+    "bsm.account": REPOSITORY / "features" / "bsm" / "account" / ".env",
     "core.account": REPOSITORY / "features" / "core" / "account" / ".env",
     "sum.service": REPOSITORY / "features" / "sum" / "service" / ".env",
     "ipm.organization": REPOSITORY / "features" / "ipm" / "organization" / ".env",
@@ -488,6 +502,7 @@ ENV_FILES = {
 }
 # Variável de cada `.env` → o que ela deve apontar na instância.
 EXPECTED_AUDIENCE = {
+    "bsm.account": ("BSM_ACCOUNT_RECEIVER_AUTH_AUDIENCE", "roles-bsm"),
     "core.account": ("CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE", "roles-core"),
     "sum.service": ("SUM_SERVICE_RECEIVER_AUTH_AUDIENCE", "roles-sum"),
     "ipm.organization": ("IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
@@ -514,6 +529,7 @@ EXPECTED_PROJECT_IDS = {
     "sum.service": "SUM_SERVICE_IDENTITY_PROJECT_IDS",
 }
 CLI_PROJECTS = {
+    "SK_BSM_PROJECT_ID": "roles-bsm",
     "SK_CORE_PROJECT_ID": "roles-core",
     "SK_SUM_PROJECT_ID": "roles-sum",
     "SK_IPM_PROJECT_ID": "roles-ipm",
@@ -571,7 +587,7 @@ def test_the_ids_in_the_env_files_match_the_instance(
             "/v2/users", {"queries": [{"organizationIdQuery": {"organizationId": orgs["core"]}}]}
         )
     }
-    for feature in ("core.account", "sum.service", "ipm.organization", "ipm.user"):
+    for feature in ("bsm.account", "core.account", "sum.service", "ipm.organization", "ipm.user"):
         if not ENV_FILES[feature].exists():
             continue
         values = read_env(feature)

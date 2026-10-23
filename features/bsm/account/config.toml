@@ -1,0 +1,58 @@
+# Configuração de dev de bsm.account (decisão 0067). Sem segredos: eles vêm do ambiente ou de /run/secrets.
+# Tabela por papel: [tool.bsm.account.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
+
+[tool.bsm.account.receiver.auth]
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
+
+[tool.bsm.account.receiver.database]
+host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
+user = "bsm_account_receiver_login"
+
+[tool.bsm.account.receiver.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.bsm.account.receiver.peers]
+organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
+
+[tool.bsm.account.manager.database]
+host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
+user = "bsm_account_manager_login"
+
+[tool.bsm.account.manager.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.bsm.account.publisher.database]
+host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
+user = "bsm_account_publisher_login"
+
+[tool.bsm.account.publisher.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.bsm.account.observer.storage]
+directory = "/var/tmp/bsm-account"
+
+[tool.bsm.account.observer.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.bsm.account.reconciler.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.bsm.account.executor.storage]
+directory = "/var/tmp/bsm-account"
+
+[tool.bsm.account.executor.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"

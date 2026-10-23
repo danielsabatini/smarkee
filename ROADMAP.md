@@ -19,6 +19,7 @@ O que está sendo trabalhado ativamente neste momento.
 - [ ] **`[In Progress]` Resource Control Loop:** Modelo de reconciliação entre `desired` e `observed` e sua segurança (`docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`).
 - [ ] **`[In Progress]` Primeira Fatia Vertical (`core`/`user`, `sum`/`service` e `ipm`/`organization` completos):** um projeto e uma imagem por feature, com um contêiner por papel (`receiver`, `manager`, `publisher`, `observer`, `reconciler` e `executor`), com servidor de saúde, partição do `ACTION` e testes e2e black-box (incluindo falhas de componentes), validando os contratos especificados (`docs/RESOURCE-CONTROL-LOOP.md`, seção 48).
 - [ ] **`[Preview]` Usuários da Organization (`ipm`/`user`):** o dono da Organization cria usuários dentro dela, com roles da plataforma (decisão 0077), API `/v1/ipm/users` e `sk ipm user`. Toda Organization já nasce preparada para usuários pelo loop (decisão 0081).
+- [ ] **`[Preview]` Billing Account (`bsm`/`account`):** unidade de cobrança do módulo Billing Service Manager (`bsm`), gerenciada pelo Resource Control Loop (`/v1/bsm/accounts`) e pela CLI `sk bsm account` (fase P0 com estado local reconciliado).
 - [ ] **`[In Progress]` SSOT e Persistência:** Modelo e garantias de gravação do SSOT e sua implementação de referência em PostgreSQL com `jsonb` (`docs/SSOT.md` e `docs/POSTGRESQL.md`).
 
 ### 🟡 Next (Próximos Passos / Médio Prazo)

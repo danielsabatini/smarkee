@@ -20,6 +20,7 @@ from sk.files import write_private_file
 from sk.settings import (
     ApiSettings,
     AuthSettings,
+    BsmSettings,
     ConfigurationError,
     CoreSettings,
     IpmSettings,
@@ -40,6 +41,7 @@ SECTION_MODELS: dict[str, type[BaseModel]] = {
     "core": CoreSettings,
     "sum": SumSettings,
     "ipm": IpmSettings,
+    "bsm": BsmSettings,
 }
 # Chaves que são endereços: precisam começar com http:// ou https://.
 URL_KEYS = {"auth.issuer", "api.url"}

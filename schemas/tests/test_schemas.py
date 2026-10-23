@@ -1,6 +1,6 @@
 """Verificações dos contratos em schemas/ (SCHEMA.md, Verificações da pipeline e Testes).
 
-Cobre common/ e os módulos core, ipm e sum. As referências são resolvidas somente a partir dos
+Cobre common/ e os módulos bsm, core, ipm e sum. As referências são resolvidas somente a partir dos
 arquivos locais: qualquer tentativa de buscar uma URI fora de schemas/ falha.
 """
 
@@ -16,7 +16,7 @@ from referencing import Registry, Resource
 from referencing.exceptions import NoSuchResource
 
 SCHEMAS_ROOT = Path(__file__).resolve().parents[1]
-COVERED_DIRECTORIES = ("common", "core", "ipm", "sum")
+COVERED_DIRECTORIES = ("bsm", "common", "core", "ipm", "sum")
 SCHEMA_FILE_PATTERN = re.compile(r"^(?P<contract>[a-z0-9-]+)\.v(?P<major>[0-9]+)\.schema\.json$")
 SENSITIVITY_CLASSES = {"public", "internal", "confidential", "secretReference"}
 WRITERS = {"client", "server"}

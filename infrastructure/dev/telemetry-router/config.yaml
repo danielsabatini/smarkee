@@ -2,8 +2,8 @@
 #
 # Entrada: OTLP gRPC (4317, do telemetry-agent) e OTLP HTTP (4318, do APISIX).
 # Saída: OTLP gRPC para o telemeter que grava:
-#   - o telemeter da feature dona do sinal (`core-account-telemeter`, `ipm-organization-telemeter`,
-#     `ipm-user-telemeter` e `sum-service-telemeter`): os logs de app e os spans da feature;
+#   - o telemeter da feature dona do sinal (`bsm-account-telemeter`, `core-account-telemeter`,
+#     `ipm-organization-telemeter`, `ipm-user-telemeter` e `sum-service-telemeter`): os logs de app e os spans da feature;
 #   - `platform-telemeter` (plataforma): tudo o mais (a infra, as métricas e o app/spans de quem não tem telemeter).
 #
 # O que o roteador faz além de rotear é só a normalização dos spans do APISIX à semconv (`transform/gateway-semconv`,
@@ -28,6 +28,9 @@ connectors:
     error_mode: ignore
     table:
       - context: resource
+        condition: attributes["smarkee.module"] == "bsm" and attributes["smarkee.resource.type"] == "account"
+        pipelines: [logs/bsm_account]
+      - context: resource
         condition: attributes["smarkee.module"] == "core" and attributes["smarkee.resource.type"] == "account"
         pipelines: [logs/core_account]
       - context: resource
@@ -43,6 +46,9 @@ connectors:
     default_pipelines: [traces/platform]
     error_mode: ignore
     table:
+      - context: span
+        condition: attributes["apisix.service_name"] == "bsm-account-receiver"
+        pipelines: [traces/bsm_account]
       - context: span
         condition: attributes["apisix.service_name"] == "core-account-receiver"
         pipelines: [traces/core_account]
@@ -82,6 +88,20 @@ exporters:
   # `max_elapsed_time`, o lote é descartado. Se o telemeter de destino não existir, o que era dele se perde após a fila.
   otlp_grpc/platform:
     endpoint: platform-telemeter.smarkee.internal:4317
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      block_on_overflow: false
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 10m
+  otlp_grpc/bsm_account:
+    endpoint: bsm-account-telemeter.smarkee.internal:4317
     tls:
       insecure: true
     sending_queue:
@@ -168,6 +188,10 @@ service:
       receivers: [routing/logs]
       processors: [batch]
       exporters: [otlp_grpc/platform]
+    logs/bsm_account:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [otlp_grpc/bsm_account]
     logs/core_account:
       receivers: [routing/logs]
       processors: [batch]
@@ -194,6 +218,10 @@ service:
       receivers: [routing/traces]
       processors: [batch]
       exporters: [otlp_grpc/platform]
+    traces/bsm_account:
+      receivers: [routing/traces]
+      processors: [batch]
+      exporters: [otlp_grpc/bsm_account]
     traces/core_account:
       receivers: [routing/traces]
       processors: [batch]

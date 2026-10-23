@@ -10,6 +10,7 @@ from core_account.receiver.settings import PeersSettings
 from core_account.receiver.transport.peers import PeerResources
 
 ORGANIZATIONS = "http://org.teste"
+BILLING_ACCOUNTS = "http://bsm.teste"
 SERVICES = "http://sum.teste"
 
 
@@ -17,14 +18,24 @@ def peers(
     organizations: Callable[[httpx.Request], httpx.Response],
     services: Callable[[httpx.Request], httpx.Response],
     seen: list[httpx.Request] | None = None,
+    *,
+    billing_accounts: Callable[[httpx.Request], httpx.Response] | None = None,
 ) -> PeerResources:
     def route(request: httpx.Request) -> httpx.Response:
         if seen is not None:
             seen.append(request)
-        handler = organizations if request.url.host == "org.teste" else services
-        return handler(request)
+        if request.url.host == "org.teste":
+            return organizations(request)
+        if request.url.host == "bsm.teste":
+            handler = billing_accounts or listing()
+            return handler(request)
+        return services(request)
 
-    settings = PeersSettings(organizations_url=ORGANIZATIONS, services_url=SERVICES)
+    settings = PeersSettings(
+        organizations_url=ORGANIZATIONS,
+        billing_accounts_url=BILLING_ACCOUNTS,
+        services_url=SERVICES,
+    )
     return PeerResources(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
 
 
@@ -44,9 +55,14 @@ async def test_organizations_and_enabled_services_are_counted_and_history_is_not
     found = await peers(
         listing({"resourceId": "a"}, {"resourceId": "b"}),
         listing(link("present"), link("absent")),
+        billing_accounts=listing({"resourceId": "ba-1"}),
     ).of("t")
 
-    assert [item.describe() for item in found] == ["2 Organizations", "1 serviço habilitado"]
+    assert [item.describe() for item in found] == [
+        "2 Organizations",
+        "1 Billing Account",
+        "1 serviço habilitado",
+    ]
 
 
 async def test_a_disabled_service_alone_does_not_block() -> None:
@@ -59,14 +75,23 @@ async def test_it_sends_only_the_callers_token_to_each_module() -> None:
     await peers(listing(), listing(), seen).of("token-ana")
 
     assert {request.headers["authorization"] for request in seen} == {"Bearer token-ana"}
-    assert {request.url.path for request in seen} == {"/v1/ipm/organizations", "/v1/sum/services"}
+    assert {request.url.path for request in seen} == {
+        "/v1/ipm/organizations",
+        "/v1/bsm/accounts",
+        "/v1/sum/services",
+    }
 
 
 async def test_a_forbidden_answer_of_the_ipm_means_no_organizations_but_not_for_the_sum() -> None:
-    """Sem as roles do `ipm` não há como listar; o SUM só deixa desabilitá-lo sem Organizations."""
+    """Sem as roles do `ipm` ou `bsm` não há como listar; o SUM só deixa desabilitá-los vazios."""
     forbidden = httpx.Response(403, json={})
 
-    assert await peers(lambda _request: forbidden, listing()).of("t") == []
+    assert (
+        await peers(lambda _request: forbidden, listing(), billing_accounts=lambda _: forbidden).of(
+            "t"
+        )
+        == []
+    )
     with pytest.raises(AttachmentCheckError) as caught:
         await peers(listing(), lambda _request: forbidden).of("t")
     assert (caught.value.module, caught.value.retryable) == ("sum", False)

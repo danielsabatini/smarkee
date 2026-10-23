@@ -35,6 +35,7 @@ class PeersSettings(Section):
     """Receivers dos outros módulos, na rede interna, consultados ao desabilitar um serviço."""
 
     organizations_url: str = "http://localhost:8000"
+    billing_accounts_url: str = "http://localhost:8000"
     timeout_seconds: float = 5.0
 
 

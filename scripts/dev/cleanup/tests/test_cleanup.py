@@ -15,6 +15,7 @@ from smarkee_dev_cleanup.engine import (
 from smarkee_dev_cleanup.main import refuse_outside_development
 from smarkee_dev_cleanup.model import (
     ACCOUNTS,
+    BILLING_ACCOUNTS,
     ORGANIZATION_USERS,
     ORGANIZATIONS,
     SERVICES,
@@ -230,6 +231,7 @@ def test_find_picks_only_test_resources() -> None:
     world.identity.users = {USER_ID: "e2e-6a67549d@example.com", REAL_USER: "ana@example.com"}
     world.ssot.tables = {
         ACCOUNTS: [Row(USER_ID, "e2e-6a67549d@example.com"), Row(REAL_USER, "ana@example.com")],
+        BILLING_ACCOUNTS: [Row("ba-1", "Acme 0c6eef4158"), Row("ba-2", "Conta Principal")],
         ORGANIZATIONS: [Row(ORG_ID, "acme-d5d03b3d9c"), Row("outra", "minha-empresa")],
         SERVICES: [Row("s1", USER_ID), Row("s2", REAL_USER)],
     }
@@ -239,6 +241,7 @@ def test_find_picks_only_test_resources() -> None:
     assert set(findings.zitadel_users) == {USER_ID}
     assert set(findings.zitadel_organizations) == {ORG_ID}
     assert [r.resource_id for r in findings.account_rows] == [USER_ID]
+    assert [r.resource_id for r in findings.billing_account_rows] == ["ba-1"]
     assert [r.resource_id for r in findings.organization_rows] == [ORG_ID]
     assert [r.resource_id for r in findings.service_rows] == ["s1"]  # a de ana não é tocada
 
@@ -440,6 +443,7 @@ def test_history_of_removed_test_resources_is_found_and_the_rest_is_kept() -> No
     }
     assert findings.kept_history == {
         ACCOUNTS: 2,
+        BILLING_ACCOUNTS: 0,
         ORGANIZATIONS: 1,
         SERVICES: 2,
         ORGANIZATION_USERS: 1,

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BillingAccountCreateRequest",
+  "description": "Corpo de POST /v1/bsm/accounts. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, e o Manager atribui ownerAccountId = solicitante autenticado e deletionProtection = true.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "displayName",
+    "billingCurrency",
+    "billingContacts"
+  ],
+  "properties": {
+    "displayName": {
+      "$ref": "definitions.v1.schema.json#/$defs/displayName",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "billingCurrency": {
+      "$ref": "definitions.v1.schema.json#/$defs/billingCurrency",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "billingContacts": {
+      "$ref": "definitions.v1.schema.json#/$defs/billingContacts",
+      "x-writer": "client",
+      "x-sensitivity": "confidential"
+    }
+  }
+}

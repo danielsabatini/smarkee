@@ -4,11 +4,13 @@ from collections.abc import Callable
 
 from smarkee_dev_cleanup.model import (
     ACCOUNTS,
+    BILLING_ACCOUNTS,
     ORGANIZATION_USERS,
     ORGANIZATIONS,
     POLL_SECONDS,
     REMOVAL_WAIT_SECONDS,
     SERVICES,
+    TEST_BILLING_ACCOUNT_NAME,
     TEST_ORGANIZATION_NAME,
     TEST_USER_EMAIL,
     UNPROTECTION_WAIT_SECONDS,
@@ -42,6 +44,11 @@ def find(ports: Ports, *, orphans: bool = False) -> Findings:
         if is_test_organization(rid, name)
     }
     findings.account_rows = [row for row in ports.ssot.rows(ACCOUNTS) if is_test_user(row.label)]
+    findings.billing_account_rows = [
+        row
+        for row in ports.ssot.rows(BILLING_ACCOUNTS)
+        if TEST_BILLING_ACCOUNT_NAME.match(row.label)
+    ]
     findings.organization_rows = [
         row for row in ports.ssot.rows(ORGANIZATIONS) if TEST_ORGANIZATION_NAME.match(row.label)
     ]
@@ -71,11 +78,14 @@ def _find_history(
     Só é de teste o que o rótulo gravado no outbox identifica como tal; o resto é mantido.
     """
     orphans: dict[Kind, list[Row]] = {}
-    for kind in (ACCOUNTS, ORGANIZATIONS, SERVICES, ORGANIZATION_USERS):
+    for kind in (ACCOUNTS, BILLING_ACCOUNTS, ORGANIZATIONS, SERVICES, ORGANIZATION_USERS):
         live = {row.resource_id for row in ports.ssot.rows(kind)}
         orphans[kind] = [row for row in ports.ssot.history(kind) if row.resource_id not in live]
     test: dict[Kind, list[Row]] = {
         ACCOUNTS: [row for row in orphans[ACCOUNTS] if is_test_user(row.label)],
+        BILLING_ACCOUNTS: [
+            row for row in orphans[BILLING_ACCOUNTS] if TEST_BILLING_ACCOUNT_NAME.match(row.label)
+        ],
         ORGANIZATIONS: [
             row for row in orphans[ORGANIZATIONS] if TEST_ORGANIZATION_NAME.match(row.label)
         ],
@@ -96,7 +106,7 @@ async def find_everywhere(ports: Ports, *, orphans: bool) -> Findings:
     if orphans:
         live = {
             kind: {row.resource_id for row in ports.ssot.rows(kind)}
-            for kind in (ACCOUNTS, ORGANIZATIONS, SERVICES, ORGANIZATION_USERS)
+            for kind in (ACCOUNTS, BILLING_ACCOUNTS, ORGANIZATIONS, SERVICES, ORGANIZATION_USERS)
         }
         found = await ports.bus.orphan_messages(live)
         findings.message_orphans = {kind: ids for kind, ids in found.items() if ids}
@@ -150,6 +160,7 @@ async def apply(
     for kind, rows in (
         (ORGANIZATION_USERS, findings.organization_user_rows),
         (ORGANIZATIONS, findings.organization_rows),
+        (BILLING_ACCOUNTS, findings.billing_account_rows),
         (ACCOUNTS, findings.account_rows),
     ):
         for row in rows:
@@ -167,13 +178,14 @@ async def apply(
         (SERVICES, remaining.service_rows),
         (ORGANIZATION_USERS, remaining.organization_user_rows),
         (ORGANIZATIONS, remaining.organization_rows),
+        (BILLING_ACCOUNTS, remaining.billing_account_rows),
         (ACCOUNTS, remaining.account_rows),
     ):
         if rows:
             ports.ssot.delete(kind, {row.resource_id for row in rows})
             say(f"  SSOT: {len(rows)} linha(s) de {kind.module}.{kind.resource_type}")
 
-    for kind in (SERVICES, ORGANIZATION_USERS, ORGANIZATIONS, ACCOUNTS):
+    for kind in (SERVICES, ORGANIZATION_USERS, ORGANIZATIONS, BILLING_ACCOUNTS, ACCOUNTS):
         ids = {row.resource_id for row in remaining.history.get(kind, [])}
         if ids:
             ports.ssot.delete(kind, ids)

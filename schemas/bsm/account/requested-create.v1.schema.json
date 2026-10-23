@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BillingAccountRequestedCreateData",
+  "description": "data de requested com operation create. Publicado somente pelo Receiver; o dono é o requestedBy.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operationId",
+    "requestDigest",
+    "specification"
+  ],
+  "properties": {
+    "operationId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/opaqueIdentifier",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "requestDigest": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/requestDigest",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "specification": {
+      "title": "BillingAccountCreateSpecification",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "displayName",
+        "billingCurrency",
+        "billingContacts"
+      ],
+      "x-writer": "client",
+      "x-sensitivity": "internal",
+      "properties": {
+        "displayName": {
+          "$ref": "definitions.v1.schema.json#/$defs/displayName",
+          "x-writer": "client",
+          "x-sensitivity": "public"
+        },
+        "billingCurrency": {
+          "$ref": "definitions.v1.schema.json#/$defs/billingCurrency",
+          "x-writer": "client",
+          "x-sensitivity": "public"
+        },
+        "billingContacts": {
+          "$ref": "definitions.v1.schema.json#/$defs/billingContacts",
+          "x-writer": "client",
+          "x-sensitivity": "confidential"
+        }
+      }
+    }
+  }
+}

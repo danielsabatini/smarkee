@@ -41,6 +41,8 @@ class Organization:
     """`True` impede a exclusão (decisão 0043); a API a devolve sempre, e ausente vale `True`."""
     organization_state: str | None
     """Estado lido do provedor (`active` ou `inactive`); `None` enquanto não foi observada."""
+    billing_account_id: str | None = None
+    """`resourceId` da Billing Account (`bsm.account`) vinculada à Organization, se informada."""
 
 
 def validate_name(value: str) -> str:
@@ -58,6 +60,7 @@ def _organization(document: object) -> Organization:
     desired = as_object(body.get("desired"), what="organization (desired)")
     observed = as_object(body.get("observed") or {}, what="organization (observed)")
     state = observed.get("organizationState")
+    billing_account_id = desired.get("billingAccountId")
     return Organization(
         resource_id=as_text(body, "resourceId", what="organization"),
         resource_version=as_text(body, "resourceVersion", what="organization"),
@@ -67,19 +70,29 @@ def _organization(document: object) -> Organization:
         platform_access=as_text(desired, "platformAccess", what="organization (desired)"),
         deletion_protection=desired.get("deletionProtection") is not False,
         organization_state=state if isinstance(state, str) else None,
+        billing_account_id=billing_account_id if isinstance(billing_account_id, str) else None,
     )
 
 
 def create_organization(
-    api_url: str, *, token: str, name: str, idempotency_key: str, allow_insecure_http: bool
+    api_url: str,
+    *,
+    token: str,
+    name: str,
+    idempotency_key: str,
+    allow_insecure_http: bool,
+    billing_account_id: str | None = None,
 ) -> RequestAccepted:
     validate_name(name)
+    body: dict[str, object] = {"name": name}
+    if billing_account_id is not None:
+        body["billingAccountId"] = validate_identifier(billing_account_id, what="billingAccountId")
     _, document = call_api(
         "POST",
         api_url,
         ORGANIZATIONS_PATH,
         token=token,
-        body={"name": name},
+        body=body,
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
@@ -92,18 +105,24 @@ def update_organization(
     token: str,
     resource_id: str,
     resource_version: str,
-    name: str,
+    name: str | None = None,
+    billing_account_id: str | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
 ) -> RequestAccepted:
     resource_id = validate_identifier(resource_id, what="resourceId")
-    validate_name(name)
+    body: dict[str, object] = {"resourceVersion": resource_version}
+    if name is not None:
+        validate_name(name)
+        body["name"] = name
+    if billing_account_id is not None:
+        body["billingAccountId"] = validate_identifier(billing_account_id, what="billingAccountId")
     _, document = call_api(
         "PATCH",
         api_url,
         f"{ORGANIZATIONS_PATH}/{resource_id}",
         token=token,
-        body={"resourceVersion": resource_version, "name": name},
+        body=body,
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )

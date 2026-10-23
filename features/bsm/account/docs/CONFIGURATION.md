@@ -1,0 +1,427 @@
+<!-- Gerado por templates/feature/configuration_guide.py a partir dos settings.py dos papéis. Não edite: altere o código e regenere. -->
+# Configuração de bsm.account: guia de parâmetros
+
+Referência de **todas** as configurações dos papéis de `bsm.account` (`bsm-account-<papel>`), na ordem de precedência, e de como executar cada um. Decisões: [`0067`](../../../../.decisions/0067-configuracao-por-papel-com-config-toml-e-segredos-em-arquivo.md) (configuração), [`0069`](../../../../.decisions/0069-prefixo-smarkee-nas-variaveis-de-infraestrutura.md) (prefixo) e [`0070`](../../../../.decisions/0070-senhas-dos-servicos-como-arquivos-montados.md) (senhas como arquivos).
+
+> Gerado dos `settings.py` de `src/bsm_account/<papel>/` e de `common/settings.py`. Para atualizar: `cd features/bsm/account && uv run python ../../../templates/feature/configuration_guide.py`.
+
+## 1. Precedência
+
+Cada campo é resolvido pela **primeira** fonte que o informa, da maior para a menor prioridade:
+
+| # | Fonte | Como informar | Observações |
+|---|---|---|---|
+| 1 | **Linha de comando** | `--<seção>.<campo> <valor>` | Só no entrypoint do papel. **Segredo é recusado** (aparece em `ps`): qualquer argumento que cite `password` encerra o serviço. |
+| 2 | **Variável de ambiente** | `BSM_ACCOUNT_<PAPEL>_<SEÇÃO>_<CAMPO>` | Em dev vem do `.env` (`docker compose` ou `uv run --env-file .env`). |
+| 3 | **`config.toml`** | tabela `[tool.bsm.account.<papel>.<seção>]` | Caminho em `SMARKEE_CONFIG_PATH` (padrão `config.toml`). Arquivo ou tabela ausente equivale a vazio. **Nunca tem segredo.** |
+| 4 | **Arquivo de segredo** | `/run/secrets/<NOME-DA-VARIÁVEL>` | Diretório em `SMARKEE_SECRETS_DIR` (padrão `/run/secrets`). O nome do arquivo é o da variável completa. Em dev o compose monta as senhas aqui a partir do `.env`. |
+| 5 | **Default do código** | — | Só para o que não é credencial nem endereço de conexão. |
+
+Pontos que costumam surpreender:
+
+- O **ambiente vence o arquivo de segredo**. Uma variável `*_PASSWORD` definida no ambiente anula o segredo montado: os manifestos não devem defini-las.
+- **Sem default no código**: `database.host|port|name|user|password` e `messaging.url|user|password`, além do que cada papel marca como obrigatório. Faltando algum, o serviço sai com `missing required configuration` e lista as variáveis.
+- **Campo desconhecido** é rejeitado (`extra="forbid"`): variável, chave do `config.toml` ou flag com nome errado falha, em vez de ser ignorada.
+- O nome da variável separa só a **seção** do **campo**: `MESSAGING_URL` é `messaging.url`; `LOOP_REEVALUATION_INTERVAL_SECONDS` é `loop.reevaluation_interval_seconds`.
+- Valores compostos (listas e dicionários) vão como **JSON** na variável e na flag.
+
+### Variáveis de execução (não são de um papel)
+
+| Variável | Padrão | Para quê |
+|---|---|---|
+| `SMARKEE_CONFIG_PATH` | `config.toml` | Caminho do arquivo de configuração. |
+| `SMARKEE_SECRETS_DIR` | `/run/secrets` | Diretório dos arquivos de segredo. |
+| `SMARKEE_ENVIRONMENT` | `dev` | Ambiente informado à telemetria (`dev`, `stg`, `prd`). |
+
+## 2. Como o dev entrega cada fonte
+
+| Fonte | No `compose.yaml` |
+|---|---|
+| Linha de comando | O `command` é só o nome do papel (`[bsm-account-receiver]`), sem argumentos. |
+| Ambiente | `environment:` repassa do `.env` só o que não é senha (por exemplo, audiência e IDs do Zitadel). |
+| `config.toml` | Montado em `/etc/smarkee/config.toml` (`SMARKEE_CONFIG_PATH`). Endereços usam os nomes da rede Docker (`database.smarkee.internal`, `messaging.smarkee.internal`). |
+| Arquivo de segredo | Bloco `secrets:` com `environment: <VARIÁVEL>`: cada papel monta só as suas senhas. |
+
+Fora do Docker, os nomes `*.smarkee.internal` não resolvem: use as portas publicadas em `127.0.0.1` (Postgres `5432`, NATS `4222`) por flag ou variável.
+
+## 3. `bsm-account-receiver`
+
+Entrypoint do Receiver de Billing Account (`bsm-account-receiver`, decisão 0015).
+
+- **Prefixo das variáveis:** `BSM_ACCOUNT_RECEIVER_`
+- **Tabela do `config.toml`:** `[tool.bsm.account.receiver.<seção>]`
+- **Comando:** `bsm-account-receiver` (entrypoint `bsm_account.receiver.main:main`)
+
+**Obrigatórias** (sem default; o serviço não sobe sem elas):
+
+- `BSM_ACCOUNT_RECEIVER_AUTH_AUDIENCE`
+- `BSM_ACCOUNT_RECEIVER_MESSAGING_URL`
+- `BSM_ACCOUNT_RECEIVER_MESSAGING_USER`
+- `BSM_ACCOUNT_RECEIVER_MESSAGING_PASSWORD`
+- `BSM_ACCOUNT_RECEIVER_DATABASE_HOST`
+- `BSM_ACCOUNT_RECEIVER_DATABASE_PORT`
+- `BSM_ACCOUNT_RECEIVER_DATABASE_NAME`
+- `BSM_ACCOUNT_RECEIVER_DATABASE_USER`
+- `BSM_ACCOUNT_RECEIVER_DATABASE_PASSWORD`
+
+| Campo | Variável | Flag | Tipo | Default | Descrição |
+|---|---|---|---|---|---|
+| `log.level` | `BSM_ACCOUNT_RECEIVER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `BSM_ACCOUNT_RECEIVER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
+| `database.host` | `BSM_ACCOUNT_RECEIVER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Obrigatória. Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
+| `database.port` | `BSM_ACCOUNT_RECEIVER_DATABASE_PORT` | `--database.port` | `int \| None` | — | Obrigatória. |
+| `database.name` | `BSM_ACCOUNT_RECEIVER_DATABASE_NAME` | `--database.name` | `str \| None` | — | Obrigatória. |
+| `database.user` | `BSM_ACCOUNT_RECEIVER_DATABASE_USER` | `--database.user` | `str \| None` | — | Obrigatória. Papel de login do banco, um por papel. Sem default: vem do ambiente ou do `config.toml`. |
+| `database.password` | `BSM_ACCOUNT_RECEIVER_DATABASE_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
+| `messaging.url` | `BSM_ACCOUNT_RECEIVER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.user` | `BSM_ACCOUNT_RECEIVER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.password` | `BSM_ACCOUNT_RECEIVER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
+| `auth.issuer` | `BSM_ACCOUNT_RECEIVER_AUTH_ISSUER` | `--auth.issuer` | `str` | `'http://localhost:8080'` | Valor esperado de `iss`: o endereço público do provedor de identidade. |
+| `auth.jwks_url` | `BSM_ACCOUNT_RECEIVER_AUTH_JWKS_URL` | `--auth.jwks_url` | `str` | `'http://localhost:8000/oauth/v2/keys'` | Endereço (da rede interna) em que as chaves públicas são buscadas. |
+| `auth.userinfo_url` | `BSM_ACCOUNT_RECEIVER_AUTH_USERINFO_URL` | `--auth.userinfo_url` | `str` | `'http://localhost:8000/oidc/v1/userinfo'` |  |
+| `auth.host_header` | `BSM_ACCOUNT_RECEIVER_AUTH_HOST_HEADER` | `--auth.host_header` | `str` | `'localhost:8080'` | `Host` enviado ao provedor nas chamadas internas: ele resolve a instância por esse valor. |
+| `auth.audience` | `BSM_ACCOUNT_RECEIVER_AUTH_AUDIENCE` | `--auth.audience` | `str \| None` | — | Obrigatória. ID do projeto de roles do módulo (`roles-bsm`, audience dos access tokens). Sem default. |
+| `auth.jwks_cache_seconds` | `BSM_ACCOUNT_RECEIVER_AUTH_JWKS_CACHE_SECONDS` | `--auth.jwks_cache_seconds` | `int` | `300` |  |
+| `auth.userinfo_cache_seconds` | `BSM_ACCOUNT_RECEIVER_AUTH_USERINFO_CACHE_SECONDS` | `--auth.userinfo_cache_seconds` | `int` | `300` |  |
+| `api.host` | `BSM_ACCOUNT_RECEIVER_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
+| `api.port` | `BSM_ACCOUNT_RECEIVER_API_PORT` | `--api.port` | `int` | `8000` |  |
+| `peers.organizations_url` | `BSM_ACCOUNT_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.timeout_seconds` | `BSM_ACCOUNT_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
+
+**Definido no `config.toml` de dev:**
+
+```toml
+[tool.bsm.account.receiver.auth]
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
+
+[tool.bsm.account.receiver.database]
+host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
+user = "bsm_account_receiver_login"
+
+[tool.bsm.account.receiver.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.bsm.account.receiver.peers]
+organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
+```
+
+**Executar** (de `features/bsm/account`):
+
+```bash
+# Contêiner (dev): sobe só este papel; usa config.toml, .env e /run/secrets
+docker compose up -d bsm-account-receiver
+docker compose logs -f bsm-account-receiver
+
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
+uv run --env-file .env bsm-account-receiver \
+    --api.port 8001 \
+    --database.host localhost \
+    --messaging.url nats://localhost:4222
+
+# Lista todas as flags aceitas pelo papel
+uv run bsm-account-receiver --help
+```
+
+## 4. `bsm-account-manager`
+
+Entrypoint do Manager de Billing Account (`bsm-account-manager`, decisões 0015, 0019 e 0063).
+
+- **Prefixo das variáveis:** `BSM_ACCOUNT_MANAGER_`
+- **Tabela do `config.toml`:** `[tool.bsm.account.manager.<seção>]`
+- **Comando:** `bsm-account-manager` (entrypoint `bsm_account.manager.main:main`)
+
+**Obrigatórias** (sem default; o serviço não sobe sem elas):
+
+- `BSM_ACCOUNT_MANAGER_MESSAGING_URL`
+- `BSM_ACCOUNT_MANAGER_MESSAGING_USER`
+- `BSM_ACCOUNT_MANAGER_MESSAGING_PASSWORD`
+- `BSM_ACCOUNT_MANAGER_DATABASE_HOST`
+- `BSM_ACCOUNT_MANAGER_DATABASE_PORT`
+- `BSM_ACCOUNT_MANAGER_DATABASE_NAME`
+- `BSM_ACCOUNT_MANAGER_DATABASE_USER`
+- `BSM_ACCOUNT_MANAGER_DATABASE_PASSWORD`
+
+| Campo | Variável | Flag | Tipo | Default | Descrição |
+|---|---|---|---|---|---|
+| `log.level` | `BSM_ACCOUNT_MANAGER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `BSM_ACCOUNT_MANAGER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
+| `database.host` | `BSM_ACCOUNT_MANAGER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Obrigatória. Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
+| `database.port` | `BSM_ACCOUNT_MANAGER_DATABASE_PORT` | `--database.port` | `int \| None` | — | Obrigatória. |
+| `database.name` | `BSM_ACCOUNT_MANAGER_DATABASE_NAME` | `--database.name` | `str \| None` | — | Obrigatória. |
+| `database.user` | `BSM_ACCOUNT_MANAGER_DATABASE_USER` | `--database.user` | `str \| None` | — | Obrigatória. Papel de login do banco, um por papel. Sem default: vem do ambiente ou do `config.toml`. |
+| `database.password` | `BSM_ACCOUNT_MANAGER_DATABASE_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
+| `messaging.url` | `BSM_ACCOUNT_MANAGER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.user` | `BSM_ACCOUNT_MANAGER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.password` | `BSM_ACCOUNT_MANAGER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
+| `loop.failure_limit` | `BSM_ACCOUNT_MANAGER_LOOP_FAILURE_LIMIT` | `--loop.failure_limit` | `int` | `5` | Falhas por geração antes de `Failed` (`schemas/bsm/account/desired`, `failureLimit`). |
+| `loop.progress_deadline_seconds` | `BSM_ACCOUNT_MANAGER_LOOP_PROGRESS_DEADLINE_SECONDS` | `--loop.progress_deadline_seconds` | `int` | `300` | Prazo para a geração convergir antes de `Failed` com `ProgressDeadlineExceeded` (`schemas/bsm/account/desired`, `progressDeadline`; decisão 0078). |
+| `health.port` | `BSM_ACCOUNT_MANAGER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
+
+**Definido no `config.toml` de dev:**
+
+```toml
+[tool.bsm.account.manager.database]
+host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
+user = "bsm_account_manager_login"
+
+[tool.bsm.account.manager.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+```
+
+**Executar** (de `features/bsm/account`):
+
+```bash
+# Contêiner (dev): sobe só este papel; usa config.toml, .env e /run/secrets
+docker compose up -d bsm-account-manager
+docker compose logs -f bsm-account-manager
+
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
+uv run --env-file .env bsm-account-manager \
+    --health.port 8002 \
+    --database.host localhost \
+    --messaging.url nats://localhost:4222 \
+    --loop.failure_limit 3
+
+# Lista todas as flags aceitas pelo papel
+uv run bsm-account-manager --help
+```
+
+## 5. `bsm-account-publisher`
+
+Entrypoint do Publisher de `bsm.account` (decisões 0015 e 0033).
+
+- **Prefixo das variáveis:** `BSM_ACCOUNT_PUBLISHER_`
+- **Tabela do `config.toml`:** `[tool.bsm.account.publisher.<seção>]`
+- **Comando:** `bsm-account-publisher` (entrypoint `bsm_account.publisher.main:main`)
+
+**Obrigatórias** (sem default; o serviço não sobe sem elas):
+
+- `BSM_ACCOUNT_PUBLISHER_MESSAGING_URL`
+- `BSM_ACCOUNT_PUBLISHER_MESSAGING_USER`
+- `BSM_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD`
+- `BSM_ACCOUNT_PUBLISHER_DATABASE_HOST`
+- `BSM_ACCOUNT_PUBLISHER_DATABASE_PORT`
+- `BSM_ACCOUNT_PUBLISHER_DATABASE_NAME`
+- `BSM_ACCOUNT_PUBLISHER_DATABASE_USER`
+- `BSM_ACCOUNT_PUBLISHER_DATABASE_PASSWORD`
+
+| Campo | Variável | Flag | Tipo | Default | Descrição |
+|---|---|---|---|---|---|
+| `log.level` | `BSM_ACCOUNT_PUBLISHER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `BSM_ACCOUNT_PUBLISHER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
+| `database.host` | `BSM_ACCOUNT_PUBLISHER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Obrigatória. Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
+| `database.port` | `BSM_ACCOUNT_PUBLISHER_DATABASE_PORT` | `--database.port` | `int \| None` | — | Obrigatória. |
+| `database.name` | `BSM_ACCOUNT_PUBLISHER_DATABASE_NAME` | `--database.name` | `str \| None` | — | Obrigatória. |
+| `database.user` | `BSM_ACCOUNT_PUBLISHER_DATABASE_USER` | `--database.user` | `str \| None` | — | Obrigatória. Papel de login do banco, um por papel. Sem default: vem do ambiente ou do `config.toml`. |
+| `database.password` | `BSM_ACCOUNT_PUBLISHER_DATABASE_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
+| `messaging.url` | `BSM_ACCOUNT_PUBLISHER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.user` | `BSM_ACCOUNT_PUBLISHER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.password` | `BSM_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
+| `health.port` | `BSM_ACCOUNT_PUBLISHER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
+
+**Definido no `config.toml` de dev:**
+
+```toml
+[tool.bsm.account.publisher.database]
+host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
+user = "bsm_account_publisher_login"
+
+[tool.bsm.account.publisher.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+```
+
+**Executar** (de `features/bsm/account`):
+
+```bash
+# Contêiner (dev): sobe só este papel; usa config.toml, .env e /run/secrets
+docker compose up -d bsm-account-publisher
+docker compose logs -f bsm-account-publisher
+
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
+uv run --env-file .env bsm-account-publisher \
+    --health.port 8003 \
+    --database.host localhost \
+    --messaging.url nats://localhost:4222
+
+# Lista todas as flags aceitas pelo papel
+uv run bsm-account-publisher --help
+```
+
+## 6. `bsm-account-reconciler`
+
+Entrypoint do Reconciler de Billing Account (`bsm-account-reconciler`, decisões 0015 e 0063).
+
+- **Prefixo das variáveis:** `BSM_ACCOUNT_RECONCILER_`
+- **Tabela do `config.toml`:** `[tool.bsm.account.reconciler.<seção>]`
+- **Comando:** `bsm-account-reconciler` (entrypoint `bsm_account.reconciler.main:main`)
+
+**Obrigatórias** (sem default; o serviço não sobe sem elas):
+
+- `BSM_ACCOUNT_RECONCILER_MESSAGING_URL`
+- `BSM_ACCOUNT_RECONCILER_MESSAGING_USER`
+- `BSM_ACCOUNT_RECONCILER_MESSAGING_PASSWORD`
+
+| Campo | Variável | Flag | Tipo | Default | Descrição |
+|---|---|---|---|---|---|
+| `log.level` | `BSM_ACCOUNT_RECONCILER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `BSM_ACCOUNT_RECONCILER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
+| `messaging.url` | `BSM_ACCOUNT_RECONCILER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.user` | `BSM_ACCOUNT_RECONCILER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.password` | `BSM_ACCOUNT_RECONCILER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
+| `messaging.consumer_inactive_threshold_seconds` | `BSM_ACCOUNT_RECONCILER_MESSAGING_CONSUMER_INACTIVE_THRESHOLD_SECONDS` | `--messaging.consumer_inactive_threshold_seconds` | `int` | `300` | Tempo sem uso após o qual o servidor remove o consumer da instância. |
+| `loop.observation_validity_seconds` | `BSM_ACCOUNT_RECONCILER_LOOP_OBSERVATION_VALIDITY_SECONDS` | `--loop.observation_validity_seconds` | `int` | `600` | `observationValidity` (PT10M): idade máxima de um `observed` para decidir. |
+| `loop.action_deadline_seconds` | `BSM_ACCOUNT_RECONCILER_LOOP_ACTION_DEADLINE_SECONDS` | `--loop.action_deadline_seconds` | `int` | `120` | `actionDeadline` (PT2M): prazo da `action` pendente e da espera pela observação causada. |
+| `loop.reevaluation_interval_seconds` | `BSM_ACCOUNT_RECONCILER_LOOP_REEVALUATION_INTERVAL_SECONDS` | `--loop.reevaluation_interval_seconds` | `int` | `30` | Período da reavaliação periódica de todos os recursos (com jitter). |
+| `loop.reevaluation_jitter` | `BSM_ACCOUNT_RECONCILER_LOOP_REEVALUATION_JITTER` | `--loop.reevaluation_jitter` | `float` | `0.2` |  |
+| `loop.failure_backoff_seconds` | `BSM_ACCOUNT_RECONCILER_LOOP_FAILURE_BACKOFF_SECONDS` | `--loop.failure_backoff_seconds` | `int` | `5` | Atraso após o primeiro `failed`; dobra a cada falha seguida, até o máximo. |
+| `loop.failure_backoff_maximum_seconds` | `BSM_ACCOUNT_RECONCILER_LOOP_FAILURE_BACKOFF_MAXIMUM_SECONDS` | `--loop.failure_backoff_maximum_seconds` | `int` | `300` |  |
+| `health.port` | `BSM_ACCOUNT_RECONCILER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
+
+**Definido no `config.toml` de dev:**
+
+```toml
+[tool.bsm.account.reconciler.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+```
+
+**Executar** (de `features/bsm/account`):
+
+```bash
+# Contêiner (dev): sobe só este papel; usa config.toml, .env e /run/secrets
+docker compose up -d bsm-account-reconciler
+docker compose logs -f bsm-account-reconciler
+
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
+uv run --env-file .env bsm-account-reconciler \
+    --health.port 8004 \
+    --messaging.url nats://localhost:4222 \
+    --loop.reevaluation_interval_seconds 10
+
+# Lista todas as flags aceitas pelo papel
+uv run bsm-account-reconciler --help
+```
+
+## 7. `bsm-account-observer`
+
+Entrypoint do Observer de Billing Account (`bsm-account-observer`, decisões 0015 e 0063).
+
+- **Prefixo das variáveis:** `BSM_ACCOUNT_OBSERVER_`
+- **Tabela do `config.toml`:** `[tool.bsm.account.observer.<seção>]`
+- **Comando:** `bsm-account-observer` (entrypoint `bsm_account.observer.main:main`)
+
+**Obrigatórias** (sem default; o serviço não sobe sem elas):
+
+- `BSM_ACCOUNT_OBSERVER_MESSAGING_URL`
+- `BSM_ACCOUNT_OBSERVER_MESSAGING_USER`
+- `BSM_ACCOUNT_OBSERVER_MESSAGING_PASSWORD`
+- `BSM_ACCOUNT_OBSERVER_STORAGE_DIRECTORY`
+
+| Campo | Variável | Flag | Tipo | Default | Descrição |
+|---|---|---|---|---|---|
+| `log.level` | `BSM_ACCOUNT_OBSERVER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `BSM_ACCOUNT_OBSERVER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
+| `messaging.url` | `BSM_ACCOUNT_OBSERVER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.user` | `BSM_ACCOUNT_OBSERVER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.password` | `BSM_ACCOUNT_OBSERVER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
+| `messaging.consumer_inactive_threshold_seconds` | `BSM_ACCOUNT_OBSERVER_MESSAGING_CONSUMER_INACTIVE_THRESHOLD_SECONDS` | `--messaging.consumer_inactive_threshold_seconds` | `int` | `300` | Tempo sem uso após o qual o servidor remove o consumer da instância. |
+| `storage.directory` | `BSM_ACCOUNT_OBSERVER_STORAGE_DIRECTORY` | `--storage.directory` | `str \| None` | — | Obrigatória. Diretório dos arquivos de estado da Billing Account (somente leitura no Observer). |
+| `partition.index` | `BSM_ACCOUNT_OBSERVER_PARTITION_INDEX` | `--partition.index` | `int` | `0` |  |
+| `partition.count` | `BSM_ACCOUNT_OBSERVER_PARTITION_COUNT` | `--partition.count` | `int` | `1` | Partição por `resourceId`: a instância observa só `hash mod count == index`. |
+| `health.port` | `BSM_ACCOUNT_OBSERVER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
+| `loop.observation_interval_seconds` | `BSM_ACCOUNT_OBSERVER_LOOP_OBSERVATION_INTERVAL_SECONDS` | `--loop.observation_interval_seconds` | `int` | `300` | `observationInterval` (PT5M) de `schemas/bsm/account/desired`. |
+| `loop.observation_jitter` | `BSM_ACCOUNT_OBSERVER_LOOP_OBSERVATION_JITTER` | `--loop.observation_jitter` | `float` | `0.2` |  |
+| `loop.maximum_concurrent_reads` | `BSM_ACCOUNT_OBSERVER_LOOP_MAXIMUM_CONCURRENT_READS` | `--loop.maximum_concurrent_reads` | `int` | `4` | Leituras simultâneas no armazenamento de estado. |
+
+**Definido no `config.toml` de dev:**
+
+```toml
+[tool.bsm.account.observer.storage]
+directory = "/var/tmp/bsm-account"
+
+[tool.bsm.account.observer.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+```
+
+**Executar** (de `features/bsm/account`):
+
+```bash
+# Contêiner (dev): sobe só este papel; usa config.toml, .env e /run/secrets
+docker compose up -d bsm-account-observer
+docker compose logs -f bsm-account-observer
+
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
+uv run --env-file .env bsm-account-observer \
+    --health.port 8005 \
+    --messaging.url nats://localhost:4222 \
+    --loop.observation_interval_seconds 60
+
+# Lista todas as flags aceitas pelo papel
+uv run bsm-account-observer --help
+```
+
+## 8. `bsm-account-executor`
+
+Entrypoint do Executor de Billing Account (`bsm-account-executor`, decisões 0015 e 0063).
+
+- **Prefixo das variáveis:** `BSM_ACCOUNT_EXECUTOR_`
+- **Tabela do `config.toml`:** `[tool.bsm.account.executor.<seção>]`
+- **Comando:** `bsm-account-executor` (entrypoint `bsm_account.executor.main:main`)
+
+**Obrigatórias** (sem default; o serviço não sobe sem elas):
+
+- `BSM_ACCOUNT_EXECUTOR_MESSAGING_URL`
+- `BSM_ACCOUNT_EXECUTOR_MESSAGING_USER`
+- `BSM_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD`
+- `BSM_ACCOUNT_EXECUTOR_STORAGE_DIRECTORY`
+
+| Campo | Variável | Flag | Tipo | Default | Descrição |
+|---|---|---|---|---|---|
+| `log.level` | `BSM_ACCOUNT_EXECUTOR_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `BSM_ACCOUNT_EXECUTOR_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
+| `messaging.url` | `BSM_ACCOUNT_EXECUTOR_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.user` | `BSM_ACCOUNT_EXECUTOR_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.password` | `BSM_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
+| `storage.directory` | `BSM_ACCOUNT_EXECUTOR_STORAGE_DIRECTORY` | `--storage.directory` | `str \| None` | — | Obrigatória. Diretório dos arquivos de estado da Billing Account. |
+| `partition.count` | `BSM_ACCOUNT_EXECUTOR_PARTITION_COUNT` | `--partition.count` | `int` | `4` | Partições do Stream `ACTION` (bootstrap do messaging): um consumer e um laço por partição. |
+| `health.port` | `BSM_ACCOUNT_EXECUTOR_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
+
+**Definido no `config.toml` de dev:**
+
+```toml
+[tool.bsm.account.executor.storage]
+directory = "/var/tmp/bsm-account"
+
+[tool.bsm.account.executor.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+```
+
+**Executar** (de `features/bsm/account`):
+
+```bash
+# Contêiner (dev): sobe só este papel; usa config.toml, .env e /run/secrets
+docker compose up -d bsm-account-executor
+docker compose logs -f bsm-account-executor
+
+# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
+uv run --env-file .env bsm-account-executor \
+    --health.port 8006 \
+    --messaging.url nats://localhost:4222 \
+    --partition.count 4
+
+# Lista todas as flags aceitas pelo papel
+uv run bsm-account-executor --help
+```

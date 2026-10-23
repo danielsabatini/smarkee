@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BillingAccountDesiredData",
+  "description": "data de desired da Billing Account (bsm.account): estado pretendido e controle de reconciliação. Publicado somente pelo Manager.",
+  "x-schemaVersion": "1.0",
+  "x-resourceParameters": {
+    "observationInterval": "PT5M",
+    "observationValidity": "PT10M",
+    "actionDeadline": "PT2M",
+    "failureLimit": 5,
+    "progressDeadline": "PT5M"
+  },
+  "x-actionIdFormat": "<resourceId>.<desiredGeneration>.<operation>.<messageId do observed que motivou a decisão>",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lifecycle",
+    "reconciliation",
+    "displayName",
+    "billingCurrency",
+    "billingContacts",
+    "ownerAccountId"
+  ],
+  "properties": {
+    "lifecycle": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/lifecycle",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "displayName": {
+      "$ref": "definitions.v1.schema.json#/$defs/displayName",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "public"
+    },
+    "billingCurrency": {
+      "$ref": "definitions.v1.schema.json#/$defs/billingCurrency",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": true,
+      "x-sensitivity": "public"
+    },
+    "billingContacts": {
+      "$ref": "definitions.v1.schema.json#/$defs/billingContacts",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "confidential"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "ownerAccountId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "description": "Dono da Billing Account: resourceId da Account autenticada que a criou (sub do token). Atribuído pelo Manager a partir de requestedBy no create; imutável.",
+      "x-writer": "server",
+      "x-mutability": "immutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    }
+  }
+}

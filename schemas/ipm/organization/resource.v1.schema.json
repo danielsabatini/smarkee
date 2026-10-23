@@ -83,6 +83,11 @@
           "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
           "x-writer": "server",
           "x-sensitivity": "internal"
+        },
+        "billingAccountId": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
         }
       }
     },

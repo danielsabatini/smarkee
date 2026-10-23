@@ -325,6 +325,20 @@
         "additionalProperties": false,
         "description": "Corpo de POST /v1/ipm/organizations. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, registra platformAccess = granted e o dono (ownerAccountId = solicitante autenticado): uma Organization criada sem acesso à plataforma não tem uso.",
         "properties": {
+          "billingAccountId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billingaccountid"
+          },
           "name": {
             "maxLength": 63,
             "minLength": 1,
@@ -342,6 +356,20 @@
       "OrganizationDesiredView": {
         "additionalProperties": false,
         "properties": {
+          "billingAccountId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billingaccountid"
+          },
           "deletionProtection": {
             "anyOf": [
               {
@@ -490,6 +518,20 @@
         "additionalProperties": false,
         "description": "Corpo de PATCH /v1/ipm/organizations/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado.",
         "properties": {
+          "billingAccountId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billingaccountid"
+          },
           "deletionProtection": {
             "anyOf": [
               {

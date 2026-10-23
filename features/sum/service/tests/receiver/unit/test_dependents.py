@@ -16,7 +16,9 @@ def dependents(
             seen.append(request)
         return response or httpx.Response(200, json={"items": []})
 
-    settings = PeersSettings(organizations_url="http://org.teste")
+    settings = PeersSettings(
+        organizations_url="http://org.teste", billing_accounts_url="http://bsm.teste"
+    )
     return PeerDependents(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
 
 
@@ -34,6 +36,36 @@ async def test_the_organizations_of_the_caller_are_the_dependents_of_the_ipm() -
     assert await dependents(two, seen).count("ipm", "token-ana") == 2
     assert seen[0].url.path == "/v1/ipm/organizations"
     assert seen[0].headers["authorization"] == "Bearer token-ana"
+
+
+async def test_the_ready_billing_accounts_of_the_caller_are_checked_on_bsm() -> None:
+    seen: list[httpx.Request] = []
+    ready = httpx.Response(
+        200,
+        json={
+            "items": [{"resourceId": "ba-1", "phase": "Ready", "desired": {"lifecycle": "present"}}]
+        },
+    )
+
+    assert await dependents(ready, seen).has_ready_billing_account("token-ana") is True
+    assert seen[0].url.host == "bsm.teste"
+    assert seen[0].url.path == "/v1/bsm/accounts"
+    assert seen[0].headers["authorization"] == "Bearer token-ana"
+
+
+async def test_pending_or_deleting_billing_account_is_not_ready() -> None:
+    pending = httpx.Response(
+        200,
+        json={
+            "items": [
+                "not-a-dict",
+                {"resourceId": "ba-1", "phase": "Pending", "desired": {"lifecycle": "present"}},
+                {"resourceId": "ba-2", "phase": "Deleting", "desired": {"lifecycle": "absent"}},
+            ]
+        },
+    )
+
+    assert await dependents(pending).has_ready_billing_account("token-ana") is False
 
 
 async def test_no_organization_means_no_dependents() -> None:

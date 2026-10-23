@@ -502,6 +502,18 @@ class OrganizationCreateSpecification(ContractModel):
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
     platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
+    billing_account_id: Annotated[
+        str | None,
+        Field(
+            alias="billingAccountId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ] = None
+    """
+    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
+    """
 
 
 class OrganizationRequestedCreateData(ContractModel):
@@ -554,6 +566,18 @@ class OrganizationUpdateSpecification(ContractModel):
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
     Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
+    billing_account_id: Annotated[
+        str | None,
+        Field(
+            alias="billingAccountId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ] = None
+    """
+    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
     """
 
 
@@ -646,6 +670,18 @@ class OrganizationCreateRequest(ContractModel):
     """
     Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
     """
+    billing_account_id: Annotated[
+        str | None,
+        Field(
+            alias="billingAccountId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ] = None
+    """
+    Conta de faturamento (bsm.account) que paga por esta Organization.
+    """
 
 
 class OrganizationUpdateRequest(ContractModel):
@@ -675,6 +711,18 @@ class OrganizationUpdateRequest(ContractModel):
     """
     Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
     """
+    billing_account_id: Annotated[
+        str | None,
+        Field(
+            alias="billingAccountId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ] = None
+    """
+    Conta de faturamento (bsm.account) que paga por esta Organization.
+    """
 
 
 class OrganizationDesiredView(ContractModel):
@@ -693,6 +741,18 @@ class OrganizationDesiredView(ContractModel):
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
     Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
+    billing_account_id: Annotated[
+        str | None,
+        Field(
+            alias="billingAccountId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ] = None
+    """
+    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
     """
 
 
@@ -995,6 +1055,18 @@ class OrganizationDesiredData(ContractModel):
     ]
     """
     Dono da Organization: resourceId da Account autenticado que a criou (sub do token). Atribuído pelo Manager a partir de requestedBy no create; imutável.
+    """
+    billing_account_id: Annotated[
+        str | None,
+        Field(
+            alias="billingAccountId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ] = None
+    """
+    Conta de faturamento (bsm.account) responsável pelos custos desta Organization (BillingAccountId no FOCUS 1.4). Opcional enquanto o vínculo não for obrigatório.
     """
 
 

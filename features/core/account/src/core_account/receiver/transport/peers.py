@@ -13,6 +13,7 @@ from core_account.receiver.domain.attachments import Attachment, AttachmentCheck
 from core_account.receiver.settings import PeersSettings
 
 ORGANIZATIONS_PATH = "/v1/ipm/organizations"
+BILLING_ACCOUNTS_PATH = "/v1/bsm/accounts"
 SERVICES_PATH = "/v1/sum/services"
 PAGE_SIZE = 200
 HTTP_OK = 200
@@ -26,12 +27,18 @@ class PeerResources:
         self._client = client
 
     async def of(self, access_token: str) -> list[Attachment]:
-        # Sem as roles do `ipm` (serviço desabilitado), o módulo recusa com `403`. Isso vale como
-        # "nenhuma Organization": o SUM só deixa desabilitar o `ipm` sem Organizations
+        # Sem as roles do `ipm` ou `bsm` (serviço desabilitado), o módulo recusa com `403`. Isso
+        # vale como "nenhum recurso": o SUM só deixa desabilitar o serviço sem recursos dele
         # (decisão 0040).
         organizations = await self._items(
             "ipm",
             self._settings.organizations_url + ORGANIZATIONS_PATH,
+            access_token,
+            forbidden_means_none=True,
+        )
+        billing_accounts = await self._items(
+            "bsm",
+            self._settings.billing_accounts_url + BILLING_ACCOUNTS_PATH,
             access_token,
             forbidden_means_none=True,
         )
@@ -46,6 +53,7 @@ class PeerResources:
         ]
         found = [
             Attachment("Organization", "Organizations", len(organizations)),
+            Attachment("Billing Account", "Billing Accounts", len(billing_accounts)),
             Attachment("serviço habilitado", "serviços habilitados", len(enabled)),
         ]
         return [item for item in found if item.count]

@@ -41,6 +41,11 @@
           "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
           "x-writer": "client",
           "x-sensitivity": "internal"
+        },
+        "billingAccountId": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
         }
       }
     },

@@ -192,13 +192,19 @@ def run_login(
 
 
 def _module_project_ids() -> tuple[str, ...]:
-    """`projectId` de `[core]`, `[sum]` e `[ipm]`: o login pede a audience de cada um."""
+    """`projectId` de `[core]`, `[sum]`, `[ipm]` e `[bsm]`: o login pede a audience de cada um.
+
+    `[bsm]` só entra quando configurado (enquanto `roles-bsm` não tiver um `projectId` definido).
+    """
     try:
         settings = SkSettings()
     except (ValidationError, ConfigurationError) as error:
         ui.error("Invalid configuration", str(error), hint="Fix the file and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
-    return (settings.core.project_id, settings.sum.project_id, settings.ipm.project_id)
+    projects = [settings.core.project_id, settings.sum.project_id, settings.ipm.project_id]
+    if settings.bsm.project_id != PROVISIONAL:
+        projects.append(settings.bsm.project_id)
+    return tuple(projects)
 
 
 @auth_app.command(

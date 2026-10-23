@@ -108,6 +108,7 @@ class FakeDependents:
     """O que depende do serviço (contagem combinada) ou a falha de consulta combinada."""
 
     count_by_service: dict[str, int] = field(default_factory=lambda: {})
+    billing_account_ready: bool = True
     error: DependentsCheckError | None = None
     tokens: list[str] = field(default_factory=lambda: [])
 
@@ -116,6 +117,12 @@ class FakeDependents:
         if self.error:
             raise self.error
         return self.count_by_service.get(service, 0)
+
+    async def has_ready_billing_account(self, access_token: str) -> bool:
+        self.tokens.append(access_token)
+        if self.error:
+            raise self.error
+        return self.billing_account_ready
 
 
 @pytest.fixture
@@ -440,6 +447,43 @@ async def test_disabling_does_not_proceed_when_the_module_cannot_be_queried(
     assert response.status_code == 409
     assert response.json()["errorCode"] == "ResourcesNotVerifiable"
     assert world[2].sent == []
+
+
+async def test_enabling_is_refused_without_a_ready_billing_account(
+    world: Any, dependents: FakeDependents
+) -> None:
+    dependents.billing_account_ready = False
+    client, _, publisher = world
+    response = await client.post(
+        "/v1/sum/services", json={"service": "ipm"}, headers=token(OWNER, ENABLE_IPM)
+    )
+    assert response.status_code == 409
+    assert response.json()["errorCode"] == "BillingAccountRequired"
+    assert publisher.sent == []
+
+
+async def test_enabling_does_not_proceed_when_bsm_is_unavailable(
+    world: Any, dependents: FakeDependents
+) -> None:
+    dependents.error = DependentsCheckError("bsm", retryable=True)
+    client, _, publisher = world
+    response = await client.post(
+        "/v1/sum/services", json={"service": "ipm"}, headers=token(OWNER, ENABLE_IPM)
+    )
+    assert response.status_code == 503 and publisher.sent == []
+
+
+async def test_enabling_does_not_proceed_when_bsm_cannot_be_queried(
+    world: Any, dependents: FakeDependents
+) -> None:
+    dependents.error = DependentsCheckError("bsm", retryable=False)
+    client, _, publisher = world
+    response = await client.post(
+        "/v1/sum/services", json={"service": "ipm"}, headers=token(OWNER, ENABLE_IPM)
+    )
+    assert response.status_code == 409
+    assert response.json()["errorCode"] == "ResourcesNotVerifiable"
+    assert publisher.sent == []
 
 
 async def test_an_unexpected_error_is_500_with_the_contract_and_no_internal_detail() -> None:

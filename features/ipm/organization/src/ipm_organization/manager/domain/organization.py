@@ -54,14 +54,17 @@ class OrganizationPolicy:
                 create = _validated(
                     generated.OrganizationRequestedCreateData, data, label="requested/create"
                 )
+                create_spec: dict[str, Any] = {
+                    "name": create.specification.name,
+                    "platformAccess": create.specification.platform_access.value,
+                }
+                if create.specification.billing_account_id is not None:
+                    create_spec["billingAccountId"] = create.specification.billing_account_id
                 return Request(
                     "create",
                     create.operation_id,
                     create.request_digest,
-                    specification={
-                        "name": create.specification.name,
-                        "platformAccess": create.specification.platform_access.value,
-                    },
+                    specification=create_spec,
                     owner_quota_limit=create.owner_quota_limit,
                 )
             case "update":
@@ -78,6 +81,8 @@ class OrganizationPolicy:
                         specification["deletionProtection"] = (
                             update.specification.deletion_protection
                         )
+                    if update.specification.billing_account_id is not None:
+                        specification["billingAccountId"] = update.specification.billing_account_id
                 return Request(
                     "update",
                     update.operation_id,
@@ -103,12 +108,14 @@ class OrganizationPolicy:
 
     def desired_for_create(self, request: Request, requested_by: str) -> dict[str, Any]:
         assert request.specification is not None  # noqa: S101 (invariante de parse)
+        billing_account_id = request.specification.get("billingAccountId")
         return {
             "lifecycle": "present",
             "name": request.specification["name"],
             "platformAccess": request.specification["platformAccess"],
             "deletionProtection": True,  # todo recurso apagável nasce protegido (decisão 0043)
             **({"userAccess": dict(self._user_access)} if self._user_access is not None else {}),
+            **({"billingAccountId": billing_account_id} if billing_account_id is not None else {}),
             "ownerAccountId": requested_by,
         }
 

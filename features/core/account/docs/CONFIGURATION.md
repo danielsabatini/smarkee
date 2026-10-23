@@ -87,6 +87,7 @@ Entrypoint do Receiver de Account (`core-account-receiver`, decisão 0015).
 | `api.anonymous_rate_window_seconds` | `CORE_ACCOUNT_RECEIVER_API_ANONYMOUS_RATE_WINDOW_SECONDS` | `--api.anonymous_rate_window_seconds` | `int` | `60` |  |
 | `api.client_address_header` | `CORE_ACCOUNT_RECEIVER_API_CLIENT_ADDRESS_HEADER` | `--api.client_address_header` | `str \| None` | `'x-forwarded-for'` | Cabeçalho com o endereço do cliente, definido pelo gateway (único acesso ao serviço). |
 | `peers.organizations_url` | `CORE_ACCOUNT_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.billing_accounts_url` | `CORE_ACCOUNT_RECEIVER_PEERS_BILLING_ACCOUNTS_URL` | `--peers.billing_accounts_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.services_url` | `CORE_ACCOUNT_RECEIVER_PEERS_SERVICES_URL` | `--peers.services_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.timeout_seconds` | `CORE_ACCOUNT_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
@@ -110,6 +111,7 @@ user = "smarkee"
 
 [tool.core.account.receiver.peers]
 organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
+billing_accounts_url = "http://bsm-account-receiver.smarkee.internal:8000"
 services_url = "http://sum-service-receiver.smarkee.internal:8000"
 ```
 
@@ -163,7 +165,7 @@ Entrypoint do Manager de Account (`core-account-manager`, decisões 0015, 0019 e
 | `messaging.password` | `CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
 | `loop.failure_limit` | `CORE_ACCOUNT_MANAGER_LOOP_FAILURE_LIMIT` | `--loop.failure_limit` | `int` | `5` | Falhas por geração antes de `Failed` (`schemas/core/account/desired`, `failureLimit`). |
 | `loop.progress_deadline_seconds` | `CORE_ACCOUNT_MANAGER_LOOP_PROGRESS_DEADLINE_SECONDS` | `--loop.progress_deadline_seconds` | `int` | `300` | Prazo para a geração convergir antes de `Failed` com `ProgressDeadlineExceeded` (`schemas/core/account/desired`, `progressDeadline`; decisão 0078). |
-| `platform.roles` | `CORE_ACCOUNT_MANAGER_PLATFORM_ROLES` | `--platform.roles` | `tuple[str, ...]` | `('core.account.delete', 'core.account.get', 'sum.ipm.disable', 'sum.ipm.enable', 'sum.ipm.get')` | Roles de ação gravadas no `desired` do usuário cadastrado (decisão 0025). Lista em JSON. |
+| `platform.roles` | `CORE_ACCOUNT_MANAGER_PLATFORM_ROLES` | `--platform.roles` | `tuple[str, ...]` | `('core.account.delete', 'core.account.get', 'sum.bsm.disable', 'sum.bsm.enable', 'sum.bsm.get', 'sum.ipm.disable', 'sum.ipm.enable', 'sum.ipm.get')` | Roles de ação gravadas no `desired` do usuário cadastrado (decisão 0025). Lista em JSON. |
 | `health.port` | `CORE_ACCOUNT_MANAGER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 
 **Definido no `config.toml` de dev:**

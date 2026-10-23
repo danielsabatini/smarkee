@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BillingAccountDefinitions",
+  "description": "Campos de domínio da Billing Account (bsm.account) reutilizados pelos contratos do recurso (desired, observed, requested e a API do Receiver). Os e-mails de contato são confidential e nunca vão para log, erro nem métrica (SCHEMA.md, Classificação).",
+  "x-schemaVersion": "1.0",
+  "$defs": {
+    "displayName": {
+      "description": "Nome de exibição da conta de faturamento (BillingAccountName no FOCUS 1.4).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "billingCurrency": {
+      "description": "Moeda ISO 4217 na qual a conta é faturada (BillingCurrency no FOCUS 1.4). Imutável após a criação.",
+      "type": "string",
+      "enum": [
+        "BRL",
+        "USD",
+        "EUR"
+      ],
+      "x-enumPolicy": "closed"
+    },
+    "billingContact": {
+      "description": "E-mail de contato financeiro para recebimento de faturas e alertas.",
+      "type": "string",
+      "format": "email",
+      "minLength": 3,
+      "maxLength": 254
+    },
+    "billingContacts": {
+      "description": "Conjunto de e-mails de contato financeiro, sem repetição.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/billingContact"
+      }
+    }
+  }
+}

@@ -83,6 +83,10 @@ class Dependents(Protocol):
         """
         ...
 
+    async def has_ready_billing_account(self, access_token: str) -> bool:
+        """Indica se o dono do token tem ao menos uma Billing Account ativa e convergente."""
+        ...
+
 
 class Publish(Protocol):
     async def publish(self, subject: str, payload: bytes, *, message_id: str) -> None: ...
@@ -191,6 +195,26 @@ def create_app(deps: Dependencies) -> FastAPI:
     def require(principal: Principal, role: str) -> None:
         if not principal.has_role(role):
             raise forbidden()
+
+    async def require_billing_account(principal: Principal) -> None:
+        """Habilitar um serviço no SUM exige ao menos uma Billing Account ativa (decisão 0082)."""
+        try:
+            ready = await deps.dependents.has_ready_billing_account(principal.access_token)
+        except DependentsCheckError as error:
+            if error.retryable:
+                raise unavailable() from None
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "ResourcesNotVerifiable",
+                "Não foi possível verificar as Billing Accounts da conta: falta permissão.",
+            ) from None
+        if not ready:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "BillingAccountRequired",
+                "É necessário ter ao menos uma Billing Account ativa (Ready) para habilitar "
+                "serviços no SUM.",
+            )
 
     async def require_no_dependents(principal: Principal, service: str) -> None:
         """Desabilitar só segue se nada do dono depender do serviço (decisão 0040).
@@ -304,6 +328,7 @@ def create_app(deps: Dependencies) -> FastAPI:
             pair = await deps.repository.link_for_pair(principal.subject, service)
             if pair is not None and pair[1] == "present":
                 raise conflict(f"O serviço {service} já está habilitado (resourceId {pair[0]}).")
+            await require_billing_account(principal)
         # O recurso é o par dono + serviço: religar um desligado reaproveita o mesmo resourceId.
         resource_id = pair[0] if pair is not None else new_identifier()
         return await accept(

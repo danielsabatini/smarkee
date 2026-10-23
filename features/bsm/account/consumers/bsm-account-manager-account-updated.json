@@ -1,0 +1,19 @@
+{
+  "durable_name": "bsm-account-manager-account-updated",
+  "description": "Convergência de core.account (updated com phase=Ready) para o Manager do BSM criar a Billing Account inicial Free Tier (decisão 0082)",
+  "deliver_policy": "all",
+  "ack_policy": "explicit",
+  "ack_wait": 15000000000,
+  "backoff": [
+    15000000000,
+    30000000000,
+    60000000000,
+    120000000000,
+    300000000000
+  ],
+  "max_deliver": 10,
+  "filter_subject": "manager.updated.core.account.>",
+  "replay_policy": "instant",
+  "max_ack_pending": 100,
+  "max_waiting": 64
+}

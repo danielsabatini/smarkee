@@ -34,7 +34,7 @@ from ipm_organization.receiver.domain.errors import (
 )
 from ipm_organization.receiver.domain.principal import Principal
 from ipm_organization.receiver.domain.records import ResourceRecord
-from ipm_organization.receiver.domain.users import UsersCheckError
+from ipm_organization.receiver.domain.users import BillingAccountCheckError, UsersCheckError
 from ipm_organization.receiver.domain.views import operation_view, organization_view
 from ipm_organization.receiver.http.health_routes import register_health_routes
 from ipm_organization.receiver.http.ports import Repository, Users
@@ -193,6 +193,32 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
                 "O recurso mudou desde a leitura. Leia de novo e repita o pedido.",
             )
 
+    async def require_billing_account(principal: Principal, billing_account_id: str) -> None:
+        """A Billing Account deve existir, pertencer ao solicitante e estar ativa (`Ready`)."""
+        try:
+            ready = await deps.users.is_ready_billing_account(
+                billing_account_id, principal.access_token
+            )
+        except BillingAccountCheckError as error:
+            if error.retryable:
+                raise ApiError(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    "BillingAccountsUnavailable",
+                    "Não foi possível consultar a Billing Account agora. Tente de novo.",
+                    headers={"Retry-After": RETRY_AFTER_SECONDS},
+                ) from None
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "ResourcesNotVerifiable",
+                "Não foi possível confirmar a Billing Account.",
+            ) from None
+        if not ready:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "BillingAccountNotReady",
+                "A Billing Account informada não existe ou não está ativa (Ready).",
+            )
+
     # ------------------------------------------------------------ organizations
 
     @app.post(
@@ -220,7 +246,10 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
                 raise ApiError(
                     HTTPStatus.FORBIDDEN, "QuotaExceeded", "Limite de Organizations atingido."
                 )
-        specification = {"name": body.name, "platformAccess": "granted"}
+        specification: dict[str, Any] = {"name": body.name, "platformAccess": "granted"}
+        if body.billing_account_id is not None:
+            await require_billing_account(principal, body.billing_account_id)
+            specification["billingAccountId"] = body.billing_account_id
         new_organization_id = deps.identifiers()
         return await submit(
             deps,
@@ -301,6 +330,9 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             specification["platformAccess"] = body.platform_access.value
         if body.deletion_protection is not None:
             specification["deletionProtection"] = body.deletion_protection
+        if body.billing_account_id is not None:
+            await require_billing_account(principal, body.billing_account_id)
+            specification["billingAccountId"] = body.billing_account_id
         reconciliation = body.reconciliation.value if body.reconciliation is not None else None
         if not specification and reconciliation is None:
             raise bad_request("Informe ao menos um campo a alterar.")

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BillingAccountObservedData",
+  "description": "data de observed da Billing Account (bsm.account): estado lido do provedor (disco local na Fase P0). Os campos estão presentes quando presence é present; com absent ou unknown, data é vazio.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "displayName": {
+      "$ref": "definitions.v1.schema.json#/$defs/displayName",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "billingCurrency": {
+      "$ref": "definitions.v1.schema.json#/$defs/billingCurrency",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "billingContacts": {
+      "$ref": "definitions.v1.schema.json#/$defs/billingContacts",
+      "x-writer": "server",
+      "x-sensitivity": "confidential"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "description": "Proteção contra exclusão lida do provedor (decisão 0074).",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

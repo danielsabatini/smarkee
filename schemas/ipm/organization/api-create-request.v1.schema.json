@@ -13,6 +13,12 @@
       "$ref": "definitions.v1.schema.json#/$defs/organizationName",
       "x-writer": "client",
       "x-sensitivity": "public"
+    },
+    "billingAccountId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "description": "Conta de faturamento (bsm.account) que paga por esta Organization.",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
     }
   }
 }

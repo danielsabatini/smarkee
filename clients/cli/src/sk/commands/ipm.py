@@ -203,7 +203,7 @@ def _styled_phase(organization: Organization) -> Text:
 
 
 def _rows(organization: Organization) -> list[tuple[str, str]]:
-    return [
+    rows = [
         ("resourceId", organization.resource_id),
         ("name", organization.name),
         ("state", _state_label(organization)),
@@ -211,6 +211,9 @@ def _rows(organization: Organization) -> list[tuple[str, str]]:
         ("platformAccess", organization.platform_access),
         ("protected", "yes" if organization.deletion_protection else "no"),
     ]
+    if organization.billing_account_id is not None:
+        rows.append(("billingAccountId", organization.billing_account_id))
+    return rows
 
 
 def _operation_rows(operation: OperationStatus) -> list[tuple[str, str]]:
@@ -399,11 +402,28 @@ def create_command(
             ),
         ),
     ] = None,
+    billing_account_id: Annotated[
+        str | None,
+        typer.Option(
+            "--billing-account-id",
+            help=option(
+                "resourceId of the Billing Account (bsm.account) linked to this Organization.",
+                kind="String",
+                variable=None,
+                file=None,
+                default="unlinked",
+            ),
+        ),
+    ] = None,
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     # Obrigatória por validação do próprio comando (não pelo Typer), para não exibir "[required]".
     name = _name(name)
+    if billing_account_id is not None:
+        billing_account_id = _identifier(
+            billing_account_id, "--billing-account-id", what="billingAccountId"
+        )
     url, insecure = load_api()
     token = session_token()
     try:
@@ -411,6 +431,7 @@ def create_command(
             url,
             token=token,
             name=name,
+            billing_account_id=billing_account_id,
             idempotency_key=str(uuid.uuid7()),
             allow_insecure_http=insecure,
         )
@@ -422,6 +443,7 @@ def create_command(
         "Creation requested",
         [
             ("name", name),
+            *([("billingAccountId", billing_account_id)] if billing_account_id is not None else []),
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
@@ -447,7 +469,9 @@ def create_command(
 
 @organization_app.command(
     "update",
-    help=command("Rename an Organization, reading the current version before asking."),
+    help=command(
+        "Rename an Organization or update its Billing Account, reading the current version first."
+    ),
 )
 def update_command(
     resource_id: ResourceIdOption = None,
@@ -464,27 +488,53 @@ def update_command(
             ),
         ),
     ] = None,
+    billing_account_id: Annotated[
+        str | None,
+        typer.Option(
+            "--billing-account-id",
+            help=option(
+                "resourceId of the Billing Account (bsm.account) linked to this Organization.",
+                kind="String",
+                variable=None,
+                file=None,
+                default="unchanged",
+            ),
+        ),
+    ] = None,
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     resource_id = _organization_identifier(resource_id)
-    name = _name(name)
+    if name is None and billing_account_id is None:
+        _name(name)
+    validated_name = _name(name) if name is not None else None
+    validated_billing = (
+        _identifier(billing_account_id, "--billing-account-id", what="billingAccountId")
+        if billing_account_id is not None
+        else None
+    )
     url, insecure = load_api()
     token = session_token()
     try:
         current = get_organization(
             url, token=token, resource_id=resource_id, allow_insecure_http=insecure
         )
-        if current.name == name:
-            # Idempotente: renomear para o nome que já vale não é erro.
-            ui.note(f"Organization {resource_id} already has this name. Nothing to do.")
+        same_name = validated_name is None or current.name == validated_name
+        same_billing = validated_billing is None or current.billing_account_id == validated_billing
+        if same_name and same_billing:
+            # Idempotente: atualizar para o que já vale não é erro.
+            if validated_billing is None:
+                ui.note(f"Organization {resource_id} already has this name. Nothing to do.")
+            else:
+                ui.note(f"Organization {resource_id} already has these values. Nothing to do.")
             return
         accepted = update_organization(
             url,
             token=token,
             resource_id=resource_id,
             resource_version=current.resource_version,
-            name=name,
+            name=validated_name,
+            billing_account_id=validated_billing,
             idempotency_key=str(uuid.uuid7()),
             allow_insecure_http=insecure,
         )
@@ -493,9 +543,10 @@ def update_command(
     except ApiError as error:
         _fail_api(error)
     ui.panel(
-        "Rename requested",
+        "Rename requested" if validated_billing is None else "Update requested",
         [
-            ("name", name),
+            ("name", validated_name or current.name),
+            *([("billingAccountId", validated_billing)] if validated_billing is not None else []),
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
@@ -504,8 +555,8 @@ def update_command(
         url,
         insecure,
         accepted,
-        title="Organization renamed",
-        expect_name=name,
+        title="Organization renamed" if validated_billing is None else "Organization updated",
+        expect_name=validated_name,
         removal=False,
         wait=wait,
         timeout=timeout,

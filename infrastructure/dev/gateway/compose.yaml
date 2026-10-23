@@ -121,6 +121,7 @@ services:
       # Audiência (ID do projeto de roles do módulo no Zitadel) aceita em cada API. É a mesma `*_AUTH_AUDIENCE` do
       # Receiver correspondente. Sem valor, o padrão não casa com nenhum token: a API rejeita tudo (falha fechada),
       # e as rotas do Zitadel seguem funcionando para que o ID possa ser obtido.
+      SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_ACCOUNT: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_ACCOUNT:-nao-configurada}
       SMARKEE_GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT:-nao-configurada}
       SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION:-nao-configurada}
       SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_USER: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_USER:-nao-configurada}

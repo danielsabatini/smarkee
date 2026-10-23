@@ -41,7 +41,7 @@ def _observed(record: ResourceRecord) -> dict[str, Any] | None:
 
 def organization_view(record: ResourceRecord) -> generated.Organization:
     payload = _common(record)
-    payload["desired"] = {
+    desired: dict[str, Any] = {
         "lifecycle": record.lifecycle,
         "reconciliation": record.reconciliation,
         "name": record.desired["name"],
@@ -49,6 +49,9 @@ def organization_view(record: ResourceRecord) -> generated.Organization:
         # Registro sem o campo (anterior à proteção) conta como protegido.
         "deletionProtection": record.desired.get("deletionProtection", True),
     }
+    if "billingAccountId" in record.desired:
+        desired["billingAccountId"] = record.desired["billingAccountId"]
+    payload["desired"] = desired
     observed = _observed(record)
     if observed is not None:
         payload["observed"] = observed

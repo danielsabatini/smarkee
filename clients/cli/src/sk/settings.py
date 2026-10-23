@@ -40,6 +40,7 @@ from pydantic_settings import (
 
 from sk.defaults import (
     PRD_API_URL,
+    PRD_BSM_PROJECT_ID,
     PRD_CLIENT_ID,
     PRD_CORE_PROJECT_ID,
     PRD_IPM_PROJECT_ID,
@@ -204,6 +205,25 @@ class IpmSettings(BaseModel):
         return validate_identifier(value, what="organizationId") if value else value
 
 
+class BsmSettings(BaseModel):
+    """Seção `bsm`: Billing Service Manager, usado por `sk bsm`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str = PRD_BSM_PROJECT_ID
+    """ID do projeto de roles do bsm (`roles-bsm`): audience dos tokens do Receiver do bsm."""
+
+    account_id: str = ""
+    """`resourceId` da Billing Account ativa: a que os comandos de `sk bsm account` usam quando
+    `--resource-id` não é informado. Vazio quando nenhuma foi escolhida."""
+
+    @field_validator("account_id")
+    @classmethod
+    def _account_id_follows_the_contract(cls, value: str) -> str:
+        # Entra no caminho da URL: o mesmo padrão do `resourceId` do contrato.
+        return validate_identifier(value, what="accountId") if value else value
+
+
 class SkSettings(BaseSettings):
     """Configuração consolidada do sk."""
 
@@ -220,6 +240,7 @@ class SkSettings(BaseSettings):
     core: CoreSettings = CoreSettings()
     sum: SumSettings = SumSettings()
     ipm: IpmSettings = IpmSettings()
+    bsm: BsmSettings = BsmSettings()
 
     @classmethod
     def settings_customise_sources(

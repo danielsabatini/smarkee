@@ -7,3 +7,11 @@ class UsersCheckError(Exception):
     def __init__(self, *, retryable: bool) -> None:
         super().__init__("users of the organization could not be verified")
         self.retryable = retryable
+
+
+class BillingAccountCheckError(Exception):
+    """O Receiver de Billing Account não respondeu de forma conclusiva."""
+
+    def __init__(self, *, retryable: bool) -> None:
+        super().__init__("billing account could not be verified")
+        self.retryable = retryable

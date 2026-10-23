@@ -1,0 +1,8 @@
+{
+  "displayName": "Acme FinOps",
+  "billingCurrency": "BRL",
+  "billingContacts": [
+    "finops@acme.example.com"
+  ],
+  "deletionProtection": true
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BillingAccountUpdateRequest",
+  "description": "Corpo de PATCH /v1/bsm/accounts/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. billingCurrency não é aceito porque é imutável.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "resourceVersion"
+  ],
+  "minProperties": 2,
+  "properties": {
+    "resourceVersion": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceVersion",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "displayName": {
+      "$ref": "definitions.v1.schema.json#/$defs/displayName",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "billingContacts": {
+      "$ref": "definitions.v1.schema.json#/$defs/billingContacts",
+      "x-writer": "client",
+      "x-sensitivity": "confidential"
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    }
+  }
+}

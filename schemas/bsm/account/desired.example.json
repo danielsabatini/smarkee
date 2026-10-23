@@ -1,0 +1,11 @@
+{
+  "lifecycle": "present",
+  "reconciliation": "active",
+  "displayName": "Acme FinOps",
+  "billingCurrency": "BRL",
+  "billingContacts": [
+    "finops@acme.example.com"
+  ],
+  "deletionProtection": true,
+  "ownerAccountId": "394397791373230085"
+}

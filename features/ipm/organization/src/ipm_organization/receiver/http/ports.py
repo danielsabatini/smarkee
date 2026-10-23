@@ -18,8 +18,12 @@ class Repository(Protocol):
 
 
 class Users(Protocol):
-    """Receiver do User, consultado com o token do solicitante (decisões 0040 e 0077)."""
+    """Receivers de User e de Billing Account, consultados com o token (0040, 0077, 0082)."""
 
     async def organization_of(self, user_id: str, access_token: str) -> str | None: ...
 
     async def has_users(self, organization_id: str, access_token: str) -> bool: ...
+
+    async def is_ready_billing_account(
+        self, billing_account_id: str, access_token: str
+    ) -> bool: ...

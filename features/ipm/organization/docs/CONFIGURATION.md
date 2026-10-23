@@ -87,6 +87,7 @@ Entrypoint do Receiver de Organization (`ipm-organization-receiver`, decisão 00
 | `api.port` | `IPM_ORGANIZATION_RECEIVER_API_PORT` | `--api.port` | `int` | `8000` |  |
 | `api.organization_quota` | `IPM_ORGANIZATION_RECEIVER_API_ORGANIZATION_QUOTA` | `--api.organization_quota` | `int` | `1` | Organizations por dono para quem não é operador (decisão 0010). |
 | `peers.users_url` | `IPM_ORGANIZATION_RECEIVER_PEERS_USERS_URL` | `--peers.users_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.billing_accounts_url` | `IPM_ORGANIZATION_RECEIVER_PEERS_BILLING_ACCOUNTS_URL` | `--peers.billing_accounts_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.timeout_seconds` | `IPM_ORGANIZATION_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
 **Definido no `config.toml` de dev:**
@@ -110,6 +111,7 @@ user = "smarkee"
 
 [tool.ipm.organization.receiver.peers]
 users_url = "http://ipm-user-receiver.smarkee.internal:8000"
+billing_accounts_url = "http://bsm-account-receiver.smarkee.internal:8000"
 ```
 
 **Executar** (de `features/ipm/organization`):

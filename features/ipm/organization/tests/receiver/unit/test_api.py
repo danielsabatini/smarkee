@@ -13,7 +13,7 @@ from ipm_organization.receiver.domain.errors import unauthorized
 from ipm_organization.receiver.domain.principal import Principal
 from ipm_organization.receiver.domain.records import OperationRecord, ResourceRecord
 from ipm_organization.receiver.domain.requests import operation_id_for, request_digest
-from ipm_organization.receiver.domain.users import UsersCheckError
+from ipm_organization.receiver.domain.users import BillingAccountCheckError, UsersCheckError
 from ipm_organization.receiver.http.app import Dependencies, create_app
 from ipm_organization.receiver.settings import ApiSettings
 
@@ -60,11 +60,13 @@ class FakeEmailVerifier:
 
 @dataclass
 class FakeUsers:
-    """Receiver do User: de que Organization cada um é usuário e quais têm usuários."""
+    """Receiver do User e do Billing Account."""
 
     members: dict[str, str] = field(default_factory=lambda: {})
     populated: set[str] = field(default_factory=lambda: set())
+    ready_billing_accounts: set[str] = field(default_factory=lambda: {"ba-ready"})
     error: UsersCheckError | None = None
+    billing_error: BillingAccountCheckError | None = None
 
     async def organization_of(self, user_id: str, access_token: str) -> str | None:
         if self.error is not None:
@@ -75,6 +77,11 @@ class FakeUsers:
         if self.error is not None:
             raise self.error
         return organization_id in self.populated
+
+    async def is_ready_billing_account(self, billing_account_id: str, access_token: str) -> bool:
+        if self.billing_error is not None:
+            raise self.billing_error
+        return billing_account_id in self.ready_billing_accounts
 
 
 @dataclass
@@ -625,6 +632,65 @@ async def test_delete_does_not_proceed_when_the_users_cannot_be_verified(
     harness.users.error = UsersCheckError(retryable=retryable)
     response = await harness.client.delete(
         "/v1/ipm/organizations/o-1?resourceVersion=3", headers=auth("ana")
+    )
+    assert (response.status_code, response.json()["errorCode"]) == (status, code)
+    assert harness.publisher.published == []
+
+
+async def test_create_accepts_a_ready_billing_account_and_refuses_an_unready_one(
+    harness: Harness,
+) -> None:
+    refused = await harness.client.post(
+        "/v1/ipm/organizations",
+        json={"name": "acme", "billingAccountId": "ba-missing"},
+        headers=auth("ana"),
+    )
+    assert (refused.status_code, refused.json()["errorCode"]) == (409, "BillingAccountNotReady")
+    assert harness.publisher.published == []
+
+    accepted = await harness.client.post(
+        "/v1/ipm/organizations",
+        json={"name": "acme", "billingAccountId": "ba-ready"},
+        headers=auth("ana"),
+    )
+    assert accepted.status_code == 202
+    assert harness.publisher.published[0][1]["data"]["specification"]["billingAccountId"] == (
+        "ba-ready"
+    )
+
+
+async def test_update_validates_the_billing_account_when_provided(harness: Harness) -> None:
+    harness.repository.resources["o-1"] = organization("o-1", "ana")
+    refused = await harness.client.patch(
+        "/v1/ipm/organizations/o-1",
+        json={"resourceVersion": "3", "billingAccountId": "ba-missing"},
+        headers=auth("ana"),
+    )
+    assert (refused.status_code, refused.json()["errorCode"]) == (409, "BillingAccountNotReady")
+
+    accepted = await harness.client.patch(
+        "/v1/ipm/organizations/o-1",
+        json={"resourceVersion": "3", "billingAccountId": "ba-ready"},
+        headers=auth("ana"),
+    )
+    assert accepted.status_code == 202
+    assert harness.publisher.published[0][1]["data"]["specification"]["billingAccountId"] == (
+        "ba-ready"
+    )
+
+
+@pytest.mark.parametrize(
+    ("retryable", "status", "code"),
+    [(True, 503, "BillingAccountsUnavailable"), (False, 409, "ResourcesNotVerifiable")],
+)
+async def test_create_with_billing_account_fails_when_bsm_cannot_be_verified(
+    harness: Harness, retryable: bool, status: int, code: str
+) -> None:
+    harness.users.billing_error = BillingAccountCheckError(retryable=retryable)
+    response = await harness.client.post(
+        "/v1/ipm/organizations",
+        json={"name": "acme", "billingAccountId": "ba-ready"},
+        headers=auth("ana"),
     )
     assert (response.status_code, response.json()["errorCode"]) == (status, code)
     assert harness.publisher.published == []

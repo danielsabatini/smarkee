@@ -7,6 +7,11 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Protocol
 
+# Billing Accounts de teste (`bsm.account`): o `displayName` começa por um dos prefixos dos testes
+# de conformidade, loop ou integração, ou é `Account ` ou `Renamed ` seguido de 10 hexadecimais.
+TEST_BILLING_ACCOUNT_NAME = re.compile(
+    r"^(?:(?:Conf|Acme|Loop|Dup|Chaos|E2E|Probe|Ver|cons)[ -]|(?:Account|Renamed) [0-9a-f]{10}$)"
+)
 # Organizations de teste: o nome começa por um destes prefixos, ou é `org-` ou `renamed-` mais 10
 # hexadecimais (os nomes dos testes de integração do Manager da Organization: o padrão e o do teste
 # de renomear), e o ID é um UUID (o `resourceId`). Esses dois prefixos sem os 10 hexadecimais não
@@ -95,6 +100,16 @@ ORGANIZATION_USERS = Kind(
     "email",
     deletion_protected=True,
 )
+BILLING_ACCOUNTS = Kind(
+    "bsm",
+    "account",
+    "bsm.account",
+    ("bsm.account_outbox", "bsm.account_operation", "bsm.account_action_result"),
+    "bsm_account_manager_login",
+    "bsm_maintenance_login",
+    "displayName",
+    deletion_protected=True,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +127,7 @@ class Findings:
     zitadel_users: dict[str, str] = field(default_factory=lambda: {})
     zitadel_organizations: dict[str, str] = field(default_factory=lambda: {})
     account_rows: list[Row] = field(default_factory=lambda: [])
+    billing_account_rows: list[Row] = field(default_factory=lambda: [])
     service_rows: list[Row] = field(default_factory=lambda: [])
     organization_rows: list[Row] = field(default_factory=lambda: [])
     organization_user_rows: list[Row] = field(default_factory=lambda: [])
@@ -128,6 +144,7 @@ class Findings:
             self.zitadel_users
             or self.zitadel_organizations
             or self.account_rows
+            or self.billing_account_rows
             or self.service_rows
             or self.organization_rows
             or self.organization_user_rows
@@ -154,6 +171,10 @@ class Findings:
                 for rid, label in self.zitadel_organizations.items()
             ),
             *(f"SSOT core.account {row.resource_id}  {row.label}" for row in self.account_rows),
+            *(
+                f"SSOT bsm.account {row.resource_id}  {row.label}"
+                for row in self.billing_account_rows
+            ),
             *(f"SSOT sum.service {row.resource_id}  {row.label}" for row in self.service_rows),
             *(
                 f"SSOT ipm.organization {row.resource_id}  {row.label}"
@@ -187,6 +208,9 @@ class Findings:
             | {row.resource_id for row in self.account_rows}
             | self._history_ids(ACCOUNTS)
             | self.message_orphans.get(ACCOUNTS, set()),
+            BILLING_ACCOUNTS: {row.resource_id for row in self.billing_account_rows}
+            | self._history_ids(BILLING_ACCOUNTS)
+            | self.message_orphans.get(BILLING_ACCOUNTS, set()),
             SERVICES: {row.resource_id for row in self.service_rows}
             | self._history_ids(SERVICES)
             | self.message_orphans.get(SERVICES, set()),

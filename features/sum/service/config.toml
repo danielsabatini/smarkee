@@ -18,6 +18,7 @@ user = "smarkee"
 
 [tool.sum.service.receiver.peers]
 organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
+billing_accounts_url = "http://bsm-account-receiver.smarkee.internal:8000"
 
 [tool.sum.service.manager.database]
 host = "database.smarkee.internal"

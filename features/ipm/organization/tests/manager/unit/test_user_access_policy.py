@@ -61,3 +61,32 @@ def test_convergence_requires_the_prepared_organization() -> None:
     assert not POLICY.is_converged(desired, "present", unprepared)
     revoked = {**desired, "platformAccess": "revoked"}
     assert POLICY.is_converged(revoked, "present", {**unprepared, "platformAccess": "revoked"})
+
+
+def test_parse_and_desired_preserve_billing_account_id_on_create_and_update() -> None:
+    created = POLICY.parse(
+        "create",
+        {
+            "operationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4f",
+            "requestDigest": "d" * 64,
+            "specification": {
+                "name": "acme",
+                "platformAccess": "granted",
+                "billingAccountId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d99",
+            },
+        },
+    )
+    desired = POLICY.desired_for_create(created, "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d01")
+    assert desired["billingAccountId"] == "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d99"
+
+    updated = POLICY.parse(
+        "update",
+        {
+            "operationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d50",
+            "requestDigest": "e" * 64,
+            "resourceVersion": "2",
+            "specification": {"billingAccountId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d88"},
+        },
+    )
+    next_desired = POLICY.desired_for_update(desired, updated)
+    assert next_desired["billingAccountId"] == "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d88"

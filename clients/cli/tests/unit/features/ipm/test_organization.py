@@ -302,3 +302,37 @@ def test_the_operation_has_a_reason_only_when_refused(monkeypatch: pytest.Monkey
 
     assert (refused.operation_status, refused.reason) == ("rejected", "validation")
     assert (done.operation_status, done.reason) == ("completed", None)
+
+
+def test_create_and_update_send_billing_account_id_when_given(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent = serve(monkeypatch, {"resourceId": RID, "operationId": OPID}, status=202)
+    ba_id = "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d99"
+
+    organization.create_organization(
+        API,
+        token="t",
+        name="acme",
+        billing_account_id=ba_id,
+        idempotency_key="k-1",
+        allow_insecure_http=False,
+    )
+    assert json.loads(cast(bytes, last(sent).data)) == {
+        "name": "acme",
+        "billingAccountId": ba_id,
+    }
+
+    organization.update_organization(
+        API,
+        token="t",
+        resource_id=RID,
+        resource_version="3",
+        billing_account_id=ba_id,
+        idempotency_key="k-2",
+        allow_insecure_http=False,
+    )
+    assert json.loads(cast(bytes, last(sent).data)) == {
+        "resourceVersion": "3",
+        "billingAccountId": ba_id,
+    }

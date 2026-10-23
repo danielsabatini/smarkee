@@ -71,6 +71,14 @@
       "x-mutability": "immutable",
       "x-managed": false,
       "x-sensitivity": "internal"
+    },
+    "billingAccountId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "description": "Conta de faturamento (bsm.account) responsável pelos custos desta Organization (BillingAccountId no FOCUS 1.4). Opcional enquanto o vínculo não for obrigatório.",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
     }
   }
 }

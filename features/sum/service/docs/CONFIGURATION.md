@@ -84,6 +84,7 @@ Entrypoint do Receiver de `sum.service` (`sum-service-receiver`, decisões 0015 
 | `api.host` | `SUM_SERVICE_RECEIVER_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
 | `api.port` | `SUM_SERVICE_RECEIVER_API_PORT` | `--api.port` | `int` | `8000` |  |
 | `peers.organizations_url` | `SUM_SERVICE_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.billing_accounts_url` | `SUM_SERVICE_RECEIVER_PEERS_BILLING_ACCOUNTS_URL` | `--peers.billing_accounts_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.timeout_seconds` | `SUM_SERVICE_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
 **Definido no `config.toml` de dev:**
@@ -106,6 +107,7 @@ user = "smarkee"
 
 [tool.sum.service.receiver.peers]
 organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
+billing_accounts_url = "http://bsm-account-receiver.smarkee.internal:8000"
 ```
 
 **Executar** (de `features/sum/service`):

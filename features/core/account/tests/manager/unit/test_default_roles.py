@@ -1,14 +1,25 @@
-"""Roles que o cadastro concede (decisões 0025, 0032 e 0033)."""
+"""Roles que o cadastro concede (decisões 0025, 0032, 0033 e 0082)."""
 
 from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES, AccountPolicy
 
-SUM_BASE_ROLES = {"sum.ipm.disable", "sum.ipm.enable", "sum.ipm.get"}
+ACCOUNT_LEVEL_ROLES = {
+    "bsm.account.create",
+    "bsm.account.delete",
+    "bsm.account.get",
+    "bsm.account.list",
+    "bsm.account.update",
+    "core.account.delete",
+    "core.account.get",
+}
+SUM_BASE_ROLES = {
+    "sum.ipm.disable",
+    "sum.ipm.enable",
+    "sum.ipm.get",
+}
 
 
-def test_the_default_roles_are_the_core_ones_plus_the_base_roles_of_the_sum() -> None:
-    assert (
-        set(DEFAULT_PLATFORM_ROLES) == {"core.account.delete", "core.account.get"} | SUM_BASE_ROLES
-    )
+def test_the_default_roles_are_the_account_level_ones_plus_the_base_roles_of_the_sum() -> None:
+    assert set(DEFAULT_PLATFORM_ROLES) == ACCOUNT_LEVEL_ROLES | SUM_BASE_ROLES
 
 
 def test_the_default_roles_never_include_a_service_role_or_an_admin_role() -> None:
