@@ -10,24 +10,24 @@
 				class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1 text-xs text-emerald-800 shadow-2xs"
 			>
 				<span class="flex h-2 w-2 rounded-full bg-emerald-600 animate-pulse"></span>
-				<span class="font-medium">Smarkee Cloud Architecture</span>
+				<span class="font-medium">Smarkee Plataforma</span>
 				<span class="text-emerald-400">•</span>
-				<span class="font-semibold text-emerald-900">Reconciliação Declarativa Ativa</span>
+				<span class="font-semibold text-emerald-900">Ecossistema Integrado</span>
 			</div>
 
 			<!-- Título Principal -->
 			<h1
 				class="mt-6 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl"
 			>
-				A Nuvem Brasileira
-				<span class="block text-emerald-700"> Simples, Segura e Previsível </span>
+				Hospedagem e Gestão
+				<span class="block text-emerald-700"> Focada no seu Produto </span>
 			</h1>
 
 			<!-- Subtítulo -->
 			<p class="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-600 sm:text-lg">
-				Hospedagem, controle de acessos, infraestrutura sob demanda e observabilidade integrados em
-				uma plataforma robusta. <strong>Fatura previsível em Reais</strong>, sem lock-in e com
-				suporte especializado no Brasil.
+				Controle de acessos, infraestrutura sob demanda e observabilidade integrados em uma suíte
+				simples. <strong>Acelere seu desenvolvimento</strong>, sem gastar tempo com operações e
+				complexidade de infraestrutura.
 			</p>
 
 			<!-- Botões de Ação -->
@@ -43,10 +43,10 @@
 				</a>
 
 				<a
-					href="#loop-de-controle"
+					href="#plataforma"
 					class="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-600 transition hover:text-slate-900 hover:bg-slate-100"
 				>
-					<span>Entenda a tecnologia</span>
+					<span>Conheça os produtos</span>
 					<ArrowRight class="h-4 w-4 text-slate-400" aria-hidden="true" />
 				</a>
 			</div>

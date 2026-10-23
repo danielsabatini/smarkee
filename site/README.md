@@ -1,6 +1,6 @@
 # Smarkee IT Solutions — Website Oficial
 
-Website institucional e portal público da **Smarkee IT Solutions**, uma plataforma de nuvem declarativa com controle de identidade multi-tenant (IPM), catálogo sob demanda (SUM), auditoria imutável (AEM), observabilidade aberta (ODM) e loop de reconciliação contínua.
+Website institucional e portal público da **Smarkee IT Solutions**, uma plataforma de nuvem declarativa com controle de identidade multi-tenant (IPM), catálogo sob demanda (SUM), auditoria imutável (AEM) e observabilidade aberta (ODM).
 
 ## 🚀 Tecnologias
 

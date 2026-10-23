@@ -14,8 +14,8 @@
 					Blog da Smarkee IT Solutions
 				</h2>
 				<p class="mt-2 max-w-2xl text-xs text-slate-600 sm:text-sm">
-					Artigos aprofundados sobre arquitetura distribuída, reconciliação declarativa, segurança
-					multi-tenant e engenharia de plataforma.
+					Artigos aprofundados sobre tecnologia, segurança, boas práticas e evolução da nossa
+					plataforma para alavancar o seu produto.
 				</p>
 			</div>
 

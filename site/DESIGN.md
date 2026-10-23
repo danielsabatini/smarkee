@@ -1,6 +1,6 @@
 ---
 name: Smarkee IT Solutions Site
-description: A Nuvem Brasileira Simples e Acessível (Vitrine Comercial)
+description: Plataforma de Hospedagem Focada no seu Produto (Vitrine Comercial)
 colors:
   brand-primary: '#059669'
   brand-primary-hover: '#047857'
@@ -73,7 +73,7 @@ components:
 
 ## Overview
 
-**Creative North Star: "A Nuvem Brasileira Simples e Acessível"**
+**Creative North Star: "Plataforma Simples e Acessível"**
 
 A vitrine de tecnologia que transmite confiança, clareza e proximidade. O sistema visual constrói uma superfície ampla e limpa — operando predominantemente no espectro claro (Light Mode) — onde o verde esmeralda entra com precisão para indicar identidade e chamada para ação (CTAs). O tom é profissional, focado em benefícios comerciais.
 

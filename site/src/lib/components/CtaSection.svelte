@@ -12,12 +12,12 @@
 		</div>
 
 		<h2 class="mt-4 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-			Pronto para uma nuvem que joga a favor do seu negócio?
+			Pronto para uma plataforma que joga a favor do seu negócio?
 		</h2>
 
 		<p class="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-			Reduza seus custos e traga previsibilidade para a operação de TI. Controle acessos, habilite
-			serviços em segundos e tenha suporte local sem dores de cabeça.
+			Reduza seus custos e traga previsibilidade para a sua operação. Controle acessos, habilite
+			serviços em segundos e tenha suporte integrado sem dores de cabeça.
 		</p>
 
 		<div class="mt-8 flex flex-wrap items-center justify-center gap-3">

@@ -20,7 +20,6 @@ export const MAIN_NAV: NavItem[] = [
 	{ label: 'Plataforma', href: '/#plataforma' },
 	{ label: 'Módulos', href: '/produtos' },
 	{ label: 'Soluções', href: '/solucoes' },
-	{ label: 'Loop de Controle', href: '/#loop-de-controle' },
 	{ label: 'Blog', href: '/blog' },
 	{ label: 'Sobre', href: '/sobre' },
 	{ label: 'Contato', href: '/contato' }
@@ -95,9 +94,9 @@ export const PLATFORM_MODULES: PlatformModule[] = [
 
 export const PILLARS = [
 	{
-		title: 'Previsibilidade de Custos',
+		title: 'Produtos Prontos para Produção',
 		description:
-			'A Nuvem Smarkee é faturada em Reais (BRL). Sem surpresas cambiais, sem taxas de transferência de dados (egress fees) ocultas.'
+			'A plataforma Smarkee oferece módulos completos e integrados, projetados para entregar valor imediato sem precisar de configurações exaustivas.'
 	},
 	{
 		title: 'Foco na Operação (Sem Lock-in)',
@@ -105,9 +104,9 @@ export const PILLARS = [
 			'Desenvolva em padrões abertos. Nossa plataforma apoia o seu crescimento usando ferramentas como OpenTelemetry e infraestrutura não-proprietária.'
 	},
 	{
-		title: 'Suporte no Brasil',
+		title: 'Catálogo de Serviços Integrado',
 		description:
-			'Fale com nossos engenheiros diretamente em português. Chega de tickets lentos em fusos horários diferentes.'
+			'De identidade a auditoria, ative capacidades sob demanda. A plataforma cuida da complexidade, você cuida do crescimento do produto.'
 	},
 	{
 		title: 'Segurança por Padrão',

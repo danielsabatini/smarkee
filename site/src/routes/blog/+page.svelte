@@ -31,7 +31,7 @@
 	<title>Blog de Engenharia — Smarkee IT Solutions</title>
 	<meta
 		name="description"
-		content="Artigos técnicos, decisões arquiteturais e melhores práticas sobre computação em nuvem declarativa, OIDC e observabilidade na Smarkee IT Solutions."
+		content="Artigos técnicos, decisões arquiteturais e melhores práticas da plataforma na Smarkee IT Solutions."
 	/>
 </svelte:head>
 
@@ -42,11 +42,11 @@
 			Smarkee Engineering Blog
 		</span>
 		<h1 class="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-			Artigos Técnicos & Visão de Nuvem
+			Artigos Técnicos & Visão de Produto
 		</h1>
 		<p class="mt-4 text-sm leading-relaxed text-slate-600 sm:text-base">
-			Explorações profundas sobre engenharia de plataforma, sistemas distribuídos, modelo de
-			reconciliação contínua e padrões abertos de telemetria.
+			Explorações profundas sobre engenharia de plataforma, usabilidade, boas práticas e evolução do
+			nosso ecossistema.
 		</p>
 	</div>
 

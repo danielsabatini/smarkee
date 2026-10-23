@@ -46,7 +46,7 @@
 				href="/contato"
 				class="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50"
 			>
-				Falar com Engenharia
+				Falar com Especialistas
 			</a>
 
 			<a
@@ -96,7 +96,7 @@
 						onclick={closeMobileMenu}
 						class="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-center text-xs font-semibold text-slate-700"
 					>
-						Falar com Engenharia
+						Falar com Especialistas
 					</a>
 					<a
 						href="http://localhost:5173"

@@ -17,11 +17,12 @@
 			Capacidades de Plataforma
 		</span>
 		<h1 class="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-			Arquitetura Modular Declarativa
+			Arquitetura Modular
 		</h1>
 		<p class="mt-4 text-sm leading-relaxed text-slate-600 sm:text-base">
-			Cada módulo opera com limites de domínio estritos, contratos JSON Schema versionados (V1) e
-			integração contínua através do barramento de eventos NATS JetStream.
+			Cada módulo foi desenvolvido para entregar capacidades prontas para produção. Segurança,
+			isolamento e confiabilidade já estão integrados para que você construa o seu negócio em cima
+			deles.
 		</p>
 	</div>
 
@@ -167,9 +168,9 @@
 			</div>
 
 			<p class="mt-6 text-sm text-slate-700 leading-relaxed">
-				Toda operação disparada na Smarkee recebe um registro de auditoria imutável (append-only),
-				com SHA-256 digest do payload original da requisição, identificador do operador autenticado,
-				carimbo de data/hora ISO e resultado da reconciliação.
+				Toda operação disparada na Smarkee recebe um registro de auditoria inalterável. Isso garante
+				um histórico transparente sobre quem fez o que e quando, facilitando comprovações de
+				compliance regulatório.
 			</p>
 		</section>
 

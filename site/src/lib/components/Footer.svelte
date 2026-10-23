@@ -11,12 +11,12 @@
 					<img src="/brand/smarkee-itsolutions.png" alt="Smarkee IT Solutions" class="h-7 w-auto" />
 				</a>
 				<p class="max-w-sm text-xs leading-relaxed text-slate-600">
-					Plataforma de nuvem declarativa projetada para engenharia moderna. Reconciliação contínua,
-					governança multi-tenant com OIDC, contratos abertos e observabilidade sem lock-in.
+					Plataforma de hospedagem e gestão para sua empresa. Foque no seu negócio, sem perder tempo
+					com complexidade de infraestrutura e operações de DevOps.
 				</p>
 				<div class="flex items-center gap-2 text-xs font-medium text-emerald-800">
 					<CheckCircle2 class="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
-					<span>Todos os sistemas e reconciliadores operando normalmente</span>
+					<span>Todos os sistemas operando normalmente</span>
 				</div>
 			</div>
 
@@ -42,11 +42,6 @@
 					<li>
 						<a href="/produtos#odm" class="transition hover:text-emerald-700"
 							>ODM — Observabilidade</a
-						>
-					</li>
-					<li>
-						<a href="/#loop-de-controle" class="transition hover:text-emerald-700"
-							>Loop de Reconciliação</a
 						>
 					</li>
 				</ul>

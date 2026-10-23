@@ -20,13 +20,13 @@ Smarkee is positioned as a comprehensive cloud platform, highlighting its integr
 
 ## Operating Context
 
-Visitors evaluate the product through the website by reading technical deep-dives (blog), exploring interactive control loop simulators, and reviewing code snippets (CLI, REST API, JSON Schema) to understand the developer experience.
+Visitors evaluate the product through the website by reading technical deep-dives (blog) and reviewing code snippets (CLI, REST API, JSON Schema) to understand the developer experience.
 
 ## Capabilities and Constraints
 
 - Built with SvelteKit (Svelte 5 Runes).
 - Deployed as a modern web application.
-- Must showcase interactive code viewers and the "Desired vs Observed" control loop simulator.
+- Must showcase interactive code viewers.
 
 ## Brand Commitments
 

@@ -21,53 +21,38 @@ export interface BlogPost {
 
 export const BLOG_POSTS: BlogPost[] = [
 	{
-		slug: 'reconciliacao-continua-o-loop-declarativo-na-smarkee',
-		title: 'Por que a Smarkee adota o modelo de Reconciliação Contínua em Nuvem',
+		slug: 'simplificando-a-gestao-de-produtos-na-smarkee',
+		title: 'Por que a Smarkee foca na simplicidade de gestão de produtos',
 		summary:
-			'Como o desacoplamento entre intenção (Desired State) e realidade (Observed State) resolve de ponta a ponta as fragilidades de chamadas síncronas e provisionamentos tradicionais.',
+			'Descubra como nossa plataforma remove a complexidade da infraestrutura e permite que seu time foque exclusivamente no crescimento e na evolução do seu negócio.',
 		date: '2026-10-20',
-		readTimeMinutes: 7,
+		readTimeMinutes: 5,
 		category: 'Engenharia de Plataforma',
 		featured: true,
-		tags: ['Control Loop', 'Kubernetes-like', 'NATS JetStream', 'Arquitetura'],
+		tags: ['Gestão', 'Simplicidade', 'Produto', 'Eficiência'],
 		author: {
-			name: 'Equipe de Plataforma Smarkee',
-			role: 'Platform & Infrastructure Engineering',
+			name: 'Equipe de Produto Smarkee',
+			role: 'Product Management',
 			avatar: '/brand/s-small.png'
 		},
 		content: `
-## O Desafio dos Ambientes de Nuvem Tradicionais
+## O Desafio da Complexidade Operacional
 
-Na maioria das plataformas e esteiras de automação de nuvem, uma requisição de provisionamento é síncrona ou parcialmente bloqueante. Se um timeout de rede acontece no meio do caminho, ou se um serviço terceiro responde com erro transitório, o operador se depara com estados fantasmas: o recurso foi criado pela metade? Pode ser reexecutado sem gerar duplicidade?
+Na maioria das plataformas tradicionais, uma grande parte do tempo da equipe técnica é consumida por tarefas operacionais repetitivas e gerenciamento de servidores. Se a sua empresa quer crescer rápido, gastar energia com configurações de baixo nível é um obstáculo significativo.
 
-Na **Smarkee IT Solutions**, nós adotamos o princípio fundamental de **Sistemas Distribuídos e Idempotência** inspirado nos controladores mais resilientes do mundo (como o ecossistema Kubernetes).
+Na **Smarkee**, acreditamos que a tecnologia deve ser um facilitador invisível, não uma barreira.
 
-## Intenção (Desired) versus Realidade (Observed)
+## Foco no Seu Negócio, Não na Infraestrutura
 
-O coração da Smarkee é o desacoplamento formal entre dois contratos estritos:
+O coração da Smarkee é permitir que os times de desenvolvimento se preocupem apenas com as funcionalidades que agregam valor aos clientes. Nós entregamos um ecossistema integrado que oferece:
 
-1. **Estado Desejado (\`desired\`):** O que o usuário ou sistema declarou que quer que exista (ex.: uma nova Organização com determinado nome e proteção contra exclusão).
-2. **Estado Observado (\`observed\`):** O que os subsistemas e controladores realmente inspecionaram e validaram em produção.
+1. **Agilidade:** Provisionamento e configuração em poucos cliques ou através de uma CLI intuitiva.
+2. **Segurança:** Controles de acesso nativos e protegidos por padrão.
+3. **Visibilidade:** Você sempre sabe exatamente como seus serviços estão performando, sem precisar configurar integrações complexas.
 
-Quando uma alteração é enviada via API REST, CLI ou Console, ela nunca tenta "fazer tudo na hora". A API valida o schema da solicitação e responde imediatamente com **HTTP 202 Accepted** acompanhado de um identificador rastreável da operação (\`operationId\`).
+## Menos Ferramentas, Mais Produtividade
 
-\`\`\`json
-{
-  "operationId": "0199c8d0-9900-7a00-8b00-112233445566",
-  "operationType": "create",
-  "resourceType": "organization",
-  "operationStatus": "accepted"
-}
-\`\`\`
-
-## O Papel do NATS JetStream e Reconciliação Concorrente
-
-A solicitação é persistida no Single Source of Truth (PostgreSQL) e um evento é emitido na stream durável do **NATS JetStream**. O controlador dedicado do módulo (como o Receiver do IPM) consome o evento e orquestra a transição de estado:
-
-* **Pending / Reconciling:** O controlador verifica as pré-condições, invoca os provedores (como o IdP corporativo) e prepara os recursos.
-* **Ready:** O estado observado alcança a geração desejada (\`observedGeneration == desiredGeneration\`). A condição \`Ready = True\` é carimbada com timestamp ISO e o recurso passa a responder prontamente.
-
-Se houver uma pane de servidor, o controlador simplesmente retoma a mensagem a partir da stream persistente, garantindo idempotência perfeita sem duplicação de dados.
+Com os módulos integrados da Smarkee, você não precisa assinar múltiplas plataformas diferentes de identidade, auditoria, monitoramento e hospedagem. Tudo funciona perfeitamente em conjunto desde o primeiro dia.
 		`
 	},
 	{
