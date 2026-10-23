@@ -32,20 +32,19 @@
 			<h1
 				class="mt-6 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl"
 			>
-				A Plataforma de Nuvem que Reconcilia
+				A Nuvem Brasileira
 				<span
 					class="block bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-700 bg-clip-text text-transparent"
 				>
-					Intenção em Realidade
+					Simples, Segura e Previsível
 				</span>
 			</h1>
 
 			<!-- Subtítulo -->
 			<p class="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-600 sm:text-lg">
-				Controle de identidade multi-tenant (<strong>IPM</strong>), habilitação sob demanda (<strong
-					>SUM</strong
-				>), auditoria imutável (<strong>AEM</strong>) e observabilidade aberta (<strong>ODM</strong
-				>) unificados por contratos declarativos e confirmação assíncrona HTTP 202.
+				Hospedagem, controle de acessos, infraestrutura sob demanda e observabilidade integrados em
+				uma plataforma robusta. <strong>Fatura previsível em Reais</strong>, sem lock-in e com
+				suporte especializado no Brasil.
 			</p>
 
 			<!-- Botões de Ação -->
@@ -83,15 +82,15 @@
 			>
 				<div class="flex items-center gap-1.5 font-medium">
 					<CheckCircle2 class="h-4 w-4 text-emerald-600" aria-hidden="true" />
-					<span>HTTP 202 Accepted & Assíncrono</span>
+					<span>Sem Custos Ocultos (Em BRL)</span>
 				</div>
 				<div class="flex items-center gap-1.5 font-medium">
 					<ShieldCheck class="h-4 w-4 text-emerald-600" aria-hidden="true" />
-					<span>OIDC & Zero Secrets no Browser</span>
+					<span>Suporte Especializado Local</span>
 				</div>
 				<div class="flex items-center gap-1.5 font-medium">
 					<Cpu class="h-4 w-4 text-emerald-600" aria-hidden="true" />
-					<span>NATS JetStream & Event-driven</span>
+					<span>Performance e Segurança Enterprise</span>
 				</div>
 			</div>
 		</div>
@@ -119,60 +118,60 @@
 					<!-- Card 1: IPM -->
 					<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
 						<div class="flex items-center justify-between">
-							<span class="font-mono text-xs font-bold text-emerald-700">IPM</span>
+							<span class="font-mono text-xs font-bold text-emerald-700">Identidade</span>
 							<span
 								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-800"
-								>Ready</span
+								>Ativo</span
 							>
 						</div>
-						<p class="mt-2 text-xs font-bold text-slate-900">Identity Provider Manager</p>
+						<p class="mt-2 text-xs font-bold text-slate-900">Gestão de Acessos (IPM)</p>
 						<p class="mt-1 text-[11px] text-slate-500">
-							Organizações, Contas e Usuários com menor privilégio.
+							Organizações, contas e usuários com menor privilégio por padrão.
 						</p>
 					</div>
 
 					<!-- Card 2: SUM -->
 					<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
 						<div class="flex items-center justify-between">
-							<span class="font-mono text-xs font-bold text-emerald-700">SUM</span>
+							<span class="font-mono text-xs font-bold text-emerald-700">Serviços</span>
 							<span
 								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-800"
-								>Ready</span
+								>Ativo</span
 							>
 						</div>
-						<p class="mt-2 text-xs font-bold text-slate-900">Service Usage Manager</p>
+						<p class="mt-2 text-xs font-bold text-slate-900">Recursos sob Demanda</p>
 						<p class="mt-1 text-[11px] text-slate-500">
-							Habilitação declarativa e catálogo de serviços vinculados.
+							Habilitação simplificada e catálogo de serviços vinculados.
 						</p>
 					</div>
 
 					<!-- Card 3: AEM -->
 					<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
 						<div class="flex items-center justify-between">
-							<span class="font-mono text-xs font-bold text-emerald-700">AEM</span>
+							<span class="font-mono text-xs font-bold text-emerald-700">Auditoria</span>
 							<span
-								class="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-blue-800"
-								>Preview</span
+								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-800"
+								>Ativo</span
 							>
 						</div>
-						<p class="mt-2 text-xs font-bold text-slate-900">Audit Event Manager</p>
+						<p class="mt-2 text-xs font-bold text-slate-900">Registro Imutável</p>
 						<p class="mt-1 text-[11px] text-slate-500">
-							Registro imutável de operações e digests criptográficos.
+							Segurança e compliance com auditoria nativa das operações.
 						</p>
 					</div>
 
 					<!-- Card 4: ODM -->
 					<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
 						<div class="flex items-center justify-between">
-							<span class="font-mono text-xs font-bold text-emerald-700">ODM</span>
+							<span class="font-mono text-xs font-bold text-emerald-700">Métricas</span>
 							<span
-								class="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-blue-800"
-								>Preview</span
+								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-800"
+								>Ativo</span
 							>
 						</div>
-						<p class="mt-2 text-xs font-bold text-slate-900">Observability Data Manager</p>
+						<p class="mt-2 text-xs font-bold text-slate-900">Observabilidade (ODM)</p>
 						<p class="mt-1 text-[11px] text-slate-500">
-							Logs estruturados, métricas e traces em padrão OpenTelemetry.
+							Logs, métricas e monitoramento integrados de ponta a ponta.
 						</p>
 					</div>
 				</div>
@@ -182,19 +181,19 @@
 					class="mt-4 flex flex-col items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs sm:flex-row sm:items-center"
 				>
 					<div class="flex items-center gap-2">
-						<span class="font-mono text-xs font-medium text-slate-700">Intenção Declarativa</span>
+						<span class="font-mono text-xs font-medium text-slate-700">Configuração</span>
 						<span class="font-mono text-xs text-slate-400">→</span>
 						<span
 							class="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-xs font-bold text-emerald-800"
 						>
-							202 Accepted
+							Validada
 						</span>
 						<span class="font-mono text-xs text-slate-400">→</span>
-						<span class="font-mono text-xs font-medium text-slate-700">NATS JetStream</span>
+						<span class="font-mono text-xs font-medium text-slate-700">Deploy Ativo</span>
 						<span class="font-mono text-xs text-slate-400">→</span>
-						<span class="font-mono text-xs font-bold text-emerald-700">Ready: True</span>
+						<span class="font-mono text-xs font-bold text-emerald-700">Online</span>
 					</div>
-					<span class="font-mono text-[11px] text-slate-500">Idempotência garantida</span>
+					<span class="font-mono text-[11px] text-slate-500">Zero tempo de inatividade</span>
 				</div>
 			</div>
 		</div>

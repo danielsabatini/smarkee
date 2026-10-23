@@ -29,65 +29,65 @@ export const MAIN_NAV: NavItem[] = [
 export const PLATFORM_MODULES: PlatformModule[] = [
 	{
 		code: 'IPM',
-		name: 'Identity Provider Manager',
-		tagline: 'Gestão Unificada de Identidade e Acesso Multi-tenant',
+		name: 'Gestão de Identidade e Acessos',
+		tagline: 'Segurança desde o primeiro clique',
 		description:
-			'Orquestração centralizada de contas titulares, organizações isoladas, usuários e permissões de granularidade fina com menor privilégio por padrão.',
+			'Organize contas, gerencie permissões de equipes e garanta o acesso seguro a todos os recursos da nuvem sem dor de cabeça.',
 		href: '/produtos#ipm',
 		status: 'GA',
 		iconName: 'ShieldCheck',
 		highlights: [
-			'Federação OIDC com PKCE público nativo',
-			'Isolamento multi-tenant estrito por organização',
-			'Controle de papéis e escopos com zero vazamento entre tenants'
+			'Autenticação segura via padrão aberto OIDC',
+			'Isolamento completo entre diferentes organizações',
+			'Controle de permissões com menor privilégio por padrão'
 		],
 		metrics: 'Menor privilégio por padrão'
 	},
 	{
 		code: 'SUM',
-		name: 'Service Usage Manager',
-		tagline: 'Habilitação Declarativa e Catálogo de Serviços',
+		name: 'Catálogo de Serviços',
+		tagline: 'Infraestrutura sob demanda em segundos',
 		description:
-			'Catálogo centralizado de serviços em nuvem ativados sob demanda com ciclo de vida declarativo (`present` / `absent`) e concessão atômica de acessos.',
+			'Habilite e gerencie seus recursos de nuvem de forma unificada. Um catálogo centralizado onde a ativação de serviços é instantânea e previsível.',
 		href: '/produtos#sum',
 		status: 'GA',
 		iconName: 'Layers',
 		highlights: [
-			'Habilitação e desabilitação com 1 clique ou via CLI',
-			'Reconciliação assíncrona com confirmação HTTP 202',
-			'Ativação atômica de papéis de serviço vinculados'
+			'Ativação de serviços com 1 clique no Console',
+			'Previsibilidade de faturamento sem surpresas',
+			'Controle atômico de dependências e recursos'
 		],
 		metrics: '100% sob demanda'
 	},
 	{
 		code: 'AEM',
-		name: 'Audit Event Manager',
-		tagline: 'Rastreabilidade Imutável e Auditoria de Operações',
+		name: 'Auditoria de Operações',
+		tagline: 'Rastreabilidade e compliance contínuo',
 		description:
-			'Trilha de auditoria criptograficamente referenciável de toda transição de estado, chamada de API e intenção solicitada, em total conformidade regulatória.',
+			'Mantenha um registro seguro e inalterável de tudo que acontece na sua organização, garantindo conformidade com regulações e total transparência.',
 		href: '/produtos#aem',
-		status: 'Preview',
+		status: 'GA',
 		iconName: 'FileText',
 		highlights: [
-			'Registro append-only de cada operação e operador',
-			'Digest criptográfico sha256 de requisição',
-			'Correlação ponta a ponta com trace IDs e resource IDs'
+			'Registro seguro (append-only) de cada operação',
+			'Garantia criptográfica anti-violação',
+			'Histórico detalhado por usuário e organização'
 		],
 		metrics: 'Auditoria contínua'
 	},
 	{
 		code: 'ODM',
-		name: 'Observability Data Manager',
-		tagline: 'Telemetria Aberta e Métricas em Tempo Real',
+		name: 'Observabilidade Integrada',
+		tagline: 'Visibilidade total da sua aplicação',
 		description:
-			'Coleta e agregação de logs estruturados, métricas e traces com convenção semântica OpenTelemetry, alertas preditivos e monitoramento de saúde.',
+			'Acompanhe a saúde dos seus sistemas com logs, métricas e alertas em tempo real. Tudo baseado em padrões abertos, para você nunca ficar preso.',
 		href: '/produtos#odm',
-		status: 'Preview',
+		status: 'GA',
 		iconName: 'Activity',
 		highlights: [
-			'Compatível com OpenTelemetry (OTel) sem lock-in',
-			'Logs estruturados com redação de dados sensíveis',
-			'Health checks em tempo real de componentes e filas'
+			'Compatível com padrão aberto OpenTelemetry',
+			'Proteção automática de dados sensíveis (redação de logs)',
+			'Monitoramento contínuo de saúde dos componentes'
 		],
 		metrics: 'Padrão aberto OTel'
 	}
@@ -95,23 +95,23 @@ export const PLATFORM_MODULES: PlatformModule[] = [
 
 export const PILLARS = [
 	{
+		title: 'Previsibilidade de Custos',
+		description:
+			'A Nuvem Smarkee é faturada em Reais (BRL). Sem surpresas cambiais, sem taxas de transferência de dados (egress fees) ocultas.'
+	},
+	{
+		title: 'Foco na Operação (Sem Lock-in)',
+		description:
+			'Desenvolva em padrões abertos. Nossa plataforma apoia o seu crescimento usando ferramentas como OpenTelemetry e infraestrutura não-proprietária.'
+	},
+	{
+		title: 'Suporte no Brasil',
+		description:
+			'Fale com nossos engenheiros diretamente em português. Chega de tickets lentos em fusos horários diferentes.'
+	},
+	{
 		title: 'Segurança por Padrão',
 		description:
-			'Menor privilégio estrito, tokens de curta duração, máscaras automáticas de dados sensíveis e autenticação baseada em padrões abertos.'
-	},
-	{
-		title: 'Reconciliação Contínua',
-		description:
-			'Modelo kubernetes-like com estado desejado (Desired), estado observado (Observed) e reconciliação ativa orientada a eventos.'
-	},
-	{
-		title: 'Resiliência e Idempotência',
-		description:
-			'Toda operação é segura para ser repetida. Tolerância nativa a quedas de rede, concorrência e mensagens duplicadas com NATS JetStream.'
-	},
-	{
-		title: 'Zero Vendor Lock-in',
-		description:
-			'Contratos abertos em JSON Schema versionados, OpenTelemetry e armazenamento relacional com SSOT PostgreSQL.'
+			'Seus dados são protegidos por arquiteturas avançadas, com mascaramento automático e rastreabilidade rigorosa de todos os acessos.'
 	}
 ];

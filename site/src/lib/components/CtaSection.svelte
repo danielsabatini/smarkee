@@ -16,12 +16,12 @@
 		</div>
 
 		<h2 class="mt-4 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-			Pronto para Modernizar Sua Nuvem com Controle Declarativo?
+			Pronto para uma nuvem que joga a favor do seu negócio?
 		</h2>
 
 		<p class="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-			Elimine estados inconsistentes, padronize identidades com menor privilégio e proporcione uma
-			Internal Developer Platform (IDP) de classe mundial para suas equipes de engenharia.
+			Reduza seus custos e traga previsibilidade para a operação de TI. Controle acessos, habilite
+			serviços em segundos e tenha suporte local sem dores de cabeça.
 		</p>
 
 		<div class="mt-8 flex flex-wrap items-center justify-center gap-3">

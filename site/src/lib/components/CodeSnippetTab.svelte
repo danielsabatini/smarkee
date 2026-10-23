@@ -70,12 +70,12 @@ sk sum enable ipm`
 					Developer Experience
 				</span>
 				<h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-					Projetado para Engenheiros que Constróem Plataformas
+					Automação total para o seu time de Engenharia
 				</h2>
 				<p class="mt-4 text-sm leading-relaxed text-slate-600">
-					A Smarkee trata APIs, CLIs e especificações como cidadãos de primeira classe. Todas as
-					ações são validadas por contratos rígidos de JSON Schema, emitindo eventos auditáveis no
-					NATS JetStream com idempotência comprovada.
+					A Smarkee trata APIs, CLIs e especificações como cidadãos de primeira classe. Gerencie sua
+					infraestrutura através de interfaces eficientes e totalmente programáveis, que facilitam a
+					adoção de CI/CD.
 				</p>
 
 				<div class="mt-6 space-y-3 text-xs text-slate-700">
@@ -85,8 +85,8 @@ sk sum enable ipm`
 							>1</span
 						>
 						<span
-							><strong>Zero Surpresas:</strong> Schemas validados antes da persistência no banco e do
-							despacho do evento.</span
+							><strong>Zero Surpresas:</strong> Toda operação é validada previamente para evitar inconsistências
+							em produção.</span
 						>
 					</div>
 					<div class="flex items-start gap-2.5">
@@ -95,8 +95,8 @@ sk sum enable ipm`
 							>2</span
 						>
 						<span
-							><strong>Digest Criptográfico:</strong> Cada payload de solicitação tem sua impressão SHA-256
-							registrada no AEM.</span
+							><strong>Rastreabilidade Completa:</strong> Cada ação na plataforma é assinada e registrada
+							de forma segura e inalterável no módulo de Auditoria.</span
 						>
 					</div>
 					<div class="flex items-start gap-2.5">

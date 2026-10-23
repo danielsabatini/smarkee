@@ -1,0 +1,73 @@
+{
+	"schemaVersion": 2,
+	"generatedAt": "2026-10-23T12:00:00Z",
+	"title": "Design System: Smarkee IT Solutions",
+	"extensions": {
+		"shadows": [
+			{
+				"name": "shadow-2xs",
+				"value": "0 1px 2px rgba(0,0,0,0.05)",
+				"purpose": "Cards and standard buttons rest state"
+			},
+			{
+				"name": "shadow-sm",
+				"value": "0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)",
+				"purpose": "Elevated components hover state"
+			}
+		]
+	},
+	"components": [
+		{
+			"name": "Primary Button",
+			"kind": "button",
+			"refersTo": "button-primary",
+			"description": "Call to Action - Primary interactions",
+			"html": "<button class=\"ds-btn-primary\">Console Smarkee</button>",
+			"css": ".ds-btn-primary { background: #059669; color: #fff; padding: 6px 16px; font-size: 12px; font-weight: 600; border: none; border-radius: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: background 0.2s; } .ds-btn-primary:hover { background: #047857; cursor: pointer; }"
+		},
+		{
+			"name": "Ghost Button",
+			"kind": "button",
+			"refersTo": "button-ghost",
+			"description": "Secondary actions",
+			"html": "<button class=\"ds-btn-ghost\">Falar com Engenharia</button>",
+			"css": ".ds-btn-ghost { background: #fff; color: #334155; border: 1px solid #e2e8f0; padding: 6px 16px; font-size: 12px; font-weight: 600; border-radius: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: background 0.2s, border 0.2s; } .ds-btn-ghost:hover { border-color: #cbd5e1; background: #f8fafc; cursor: pointer; }"
+		},
+		{
+			"name": "Module Card",
+			"kind": "card",
+			"refersTo": "card",
+			"description": "Exibição de características na homepage",
+			"html": "<div class=\"ds-card\"><h3 class=\"ds-card-title\">Controle de Identidade (IPM)</h3><p class=\"ds-card-desc\">Gerencie quem acessa o que, sem complexidade.</p></div>",
+			"css": ".ds-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); } .ds-card-title { font-family: Inter, sans-serif; font-size: 18px; font-weight: 700; color: #0f172a; margin: 0 0 8px 0; } .ds-card-desc { font-family: Inter, sans-serif; font-size: 14px; color: #475569; margin: 0; line-height: 1.6; }"
+		}
+	],
+	"narrative": {
+		"northStar": "A Nuvem Brasileira Simples e Acessível",
+		"overview": "O site comercial transmite clareza e credibilidade focando em marketing, conversão e simplicidade de benefícios corporativos.",
+		"keyCharacteristics": [
+			"Backgrounds claros (white e slate-50)",
+			"Verde (Emerald) usado estrategicamente em botões e acentos",
+			"Tipografia expressiva com bold (800) em títulos",
+			"Canto arredondado consistente (16px / rounded-xl) em botões e cards"
+		],
+		"rules": [
+			{
+				"name": "Weight is Hierarchy",
+				"body": "Use font weights (e.g. 800) to establish visual importance instead of excessive font sizing.",
+				"section": "typography"
+			},
+			{
+				"name": "The Emerald Signal Rule",
+				"body": "A cor verde esmeralda não deve ser utilizada como cor de texto para parágrafos longos ou fundos densos. Ela atua estritamente como um sinal de ação ou demarcação da marca.",
+				"section": "colors"
+			}
+		],
+		"dos": [
+			"Do utilizar a família de cores Slate para organizar e delimitar seções em vez de utilizar contornos grossos."
+		],
+		"donts": [
+			"Don't utilizar temas escuros (Dark Mode) ou componentes dark densos no site comercial (reservado para Console)."
+		]
+	}
+}

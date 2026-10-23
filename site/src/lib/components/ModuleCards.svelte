@@ -10,11 +10,11 @@
 				Suíte de Produtos Smarkee
 			</span>
 			<h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-				Módulos Especializados em Uma Plataforma Unificada
+				Tudo o que você precisa, sem a complexidade
 			</h2>
 			<p class="mt-4 text-sm leading-relaxed text-slate-600 sm:text-base">
-				Cada capacidade de nuvem foi projetada com responsabilidade única, contratos JSON Schema
-				versionados e observabilidade de ponta a ponta.
+				Nossos módulos foram desenhados para resolver problemas reais de hospedagem e gestão,
+				entregando máxima segurança sem exigir que você seja um especialista em DevOps.
 			</p>
 		</div>
 
