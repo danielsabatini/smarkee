@@ -81,7 +81,7 @@ sk sum enable ipm`
 				<div class="mt-6 space-y-3 text-xs text-slate-700">
 					<div class="flex items-start gap-2.5">
 						<span
-							class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 font-mono text-[10px] font-bold"
+							class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 font-mono text-xs font-bold"
 							>1</span
 						>
 						<span
@@ -91,7 +91,7 @@ sk sum enable ipm`
 					</div>
 					<div class="flex items-start gap-2.5">
 						<span
-							class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 font-mono text-[10px] font-bold"
+							class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 font-mono text-xs font-bold"
 							>2</span
 						>
 						<span
@@ -101,7 +101,7 @@ sk sum enable ipm`
 					</div>
 					<div class="flex items-start gap-2.5">
 						<span
-							class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 font-mono text-[10px] font-bold"
+							class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 font-mono text-xs font-bold"
 							>3</span
 						>
 						<span
@@ -134,7 +134,7 @@ sk sum enable ipm`
 						type="button"
 						onclick={copyCode}
 						aria-label={copied ? 'Copiado para a área de transferência' : 'Copiar código'}
-						class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900"
+						class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900"
 					>
 						{#if copied}
 							<Check class="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />

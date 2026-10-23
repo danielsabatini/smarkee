@@ -88,17 +88,15 @@
 					<div class="flex items-center justify-between">
 						<span class="text-xs font-bold text-slate-800">1. Estado Desejado (Desired)</span>
 						<span
-							class="rounded bg-white border border-slate-200 px-2 py-0.5 font-mono text-[10px] text-slate-700"
+							class="rounded bg-white border border-slate-200 px-2 py-0.5 font-mono text-xs text-slate-700"
 						>
 							Gen {generation}
 						</span>
 					</div>
-					<p class="mt-1 text-[11px] text-slate-500">
-						Intenção declarada pelo cliente via API/CLI.
-					</p>
+					<p class="mt-1 text-xs text-slate-500">Intenção declarada pelo cliente via API/CLI.</p>
 
 					<div
-						class="mt-3 rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-emerald-300 shadow-inner"
+						class="mt-3 rounded-lg bg-slate-900 p-3 font-mono text-xs text-emerald-300 shadow-inner"
 					>
 						<pre class="overflow-x-auto whitespace-pre"><code
 								>{`{
@@ -117,23 +115,23 @@
 						<span class="text-xs font-bold text-slate-800">2. HTTP 202 & NATS JetStream</span>
 						{#if currentStep === 'submitting' || currentStep === 'accepted' || currentStep === 'reconciling'}
 							<span
-								class="flex items-center gap-1 rounded bg-amber-50 border border-amber-200 px-2 py-0.5 font-mono text-[10px] text-amber-800"
+								class="flex items-center gap-1 rounded bg-amber-50 border border-amber-200 px-2 py-0.5 font-mono text-xs text-amber-800"
 							>
 								<Loader2 class="h-2.5 w-2.5 animate-spin" aria-hidden="true" />
 								<span>Processando</span>
 							</span>
 						{:else}
 							<span
-								class="rounded bg-emerald-50 border border-emerald-200 px-2 py-0.5 font-mono text-[10px] text-emerald-800"
+								class="rounded bg-emerald-50 border border-emerald-200 px-2 py-0.5 font-mono text-xs text-emerald-800"
 							>
 								Accepted
 							</span>
 						{/if}
 					</div>
-					<p class="mt-1 text-[11px] text-slate-500">Resposta imediata sem bloqueio de thread.</p>
+					<p class="mt-1 text-xs text-slate-500">Resposta imediata sem bloqueio de thread.</p>
 
 					<div
-						class="mt-3 rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-blue-300 shadow-inner"
+						class="mt-3 rounded-lg bg-slate-900 p-3 font-mono text-xs text-blue-300 shadow-inner"
 					>
 						<pre class="overflow-x-auto whitespace-pre"><code
 								>{`{
@@ -152,25 +150,25 @@
 						<span class="text-xs font-bold text-slate-800">3. Estado Observado (Observed)</span>
 						{#if currentStep === 'ready'}
 							<span
-								class="flex items-center gap-1 rounded bg-emerald-50 border border-emerald-200 px-2 py-0.5 font-mono text-[10px] text-emerald-800"
+								class="flex items-center gap-1 rounded bg-emerald-50 border border-emerald-200 px-2 py-0.5 font-mono text-xs text-emerald-800"
 							>
 								<Check class="h-2.5 w-2.5" aria-hidden="true" />
 								<span>Ready: True</span>
 							</span>
 						{:else}
 							<span
-								class="rounded bg-blue-50 border border-blue-200 px-2 py-0.5 font-mono text-[10px] text-blue-800"
+								class="rounded bg-blue-50 border border-blue-200 px-2 py-0.5 font-mono text-xs text-blue-800"
 							>
 								Convergindo
 							</span>
 						{/if}
 					</div>
-					<p class="mt-1 text-[11px] text-slate-500">
+					<p class="mt-1 text-xs text-slate-500">
 						Realidade verificada pelo controlador de recurso.
 					</p>
 
 					<div
-						class="mt-3 rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-amber-200 shadow-inner"
+						class="mt-3 rounded-lg bg-slate-900 p-3 font-mono text-xs text-amber-200 shadow-inner"
 					>
 						<pre class="overflow-x-auto whitespace-pre"><code
 								>{`{
@@ -200,7 +198,7 @@
 						quando <code>observedGeneration === desiredGeneration</code>.</span
 					>
 				</div>
-				<span class="font-mono text-[11px] font-semibold text-emerald-800"
+				<span class="font-mono text-xs font-semibold text-emerald-800"
 					>Zero Inconsistência de Estado</span
 				>
 			</div>

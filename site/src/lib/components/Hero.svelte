@@ -10,12 +10,6 @@
 </script>
 
 <section class="relative overflow-hidden pt-12 pb-20 sm:pt-20 sm:pb-28 bg-slate-50">
-	<!-- Efeitos Visuais de Fundo Sutis -->
-	<div class="pointer-events-none absolute inset-0 -z-10 grid-pattern opacity-60"></div>
-	<div
-		class="pointer-events-none absolute top-1/4 left-1/2 -z-10 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full glow-emerald blur-3xl"
-	></div>
-
 	<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 		<div class="mx-auto max-w-4xl text-center">
 			<!-- Badge de Lançamento / Arquitetura -->
@@ -33,11 +27,7 @@
 				class="mt-6 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl"
 			>
 				A Nuvem Brasileira
-				<span
-					class="block bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-700 bg-clip-text text-transparent"
-				>
-					Simples, Segura e Previsível
-				</span>
+				<span class="block text-emerald-700"> Simples, Segura e Previsível </span>
 			</h1>
 
 			<!-- Subtítulo -->
@@ -102,11 +92,11 @@
 					<span class="h-3 w-3 rounded-full bg-red-400"></span>
 					<span class="h-3 w-3 rounded-full bg-amber-400"></span>
 					<span class="h-3 w-3 rounded-full bg-emerald-400"></span>
-					<span class="ml-2 font-mono text-[11px] font-medium text-slate-500"
+					<span class="ml-2 font-mono text-xs font-medium text-slate-500"
 						>console.smarkee.internal • Estado Ativo</span
 					>
 				</div>
-				<div class="hidden sm:flex items-center gap-2 text-[11px] font-semibold text-emerald-800">
+				<div class="hidden sm:flex items-center gap-2 text-xs font-semibold text-emerald-800">
 					<span class="h-2 w-2 rounded-full bg-emerald-600 animate-ping"></span>
 					<span>Reconciliação Contínua • Ready (True)</span>
 				</div>
@@ -120,12 +110,12 @@
 						<div class="flex items-center justify-between">
 							<span class="font-mono text-xs font-bold text-emerald-700">Identidade</span>
 							<span
-								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-800"
+								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-emerald-800"
 								>Ativo</span
 							>
 						</div>
 						<p class="mt-2 text-xs font-bold text-slate-900">Gestão de Acessos (IPM)</p>
-						<p class="mt-1 text-[11px] text-slate-500">
+						<p class="mt-1 text-xs text-slate-500">
 							Organizações, contas e usuários com menor privilégio por padrão.
 						</p>
 					</div>
@@ -135,12 +125,12 @@
 						<div class="flex items-center justify-between">
 							<span class="font-mono text-xs font-bold text-emerald-700">Serviços</span>
 							<span
-								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-800"
+								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-emerald-800"
 								>Ativo</span
 							>
 						</div>
 						<p class="mt-2 text-xs font-bold text-slate-900">Recursos sob Demanda</p>
-						<p class="mt-1 text-[11px] text-slate-500">
+						<p class="mt-1 text-xs text-slate-500">
 							Habilitação simplificada e catálogo de serviços vinculados.
 						</p>
 					</div>
@@ -150,12 +140,12 @@
 						<div class="flex items-center justify-between">
 							<span class="font-mono text-xs font-bold text-emerald-700">Auditoria</span>
 							<span
-								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-800"
+								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-emerald-800"
 								>Ativo</span
 							>
 						</div>
 						<p class="mt-2 text-xs font-bold text-slate-900">Registro Imutável</p>
-						<p class="mt-1 text-[11px] text-slate-500">
+						<p class="mt-1 text-xs text-slate-500">
 							Segurança e compliance com auditoria nativa das operações.
 						</p>
 					</div>
@@ -165,12 +155,12 @@
 						<div class="flex items-center justify-between">
 							<span class="font-mono text-xs font-bold text-emerald-700">Métricas</span>
 							<span
-								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-800"
+								class="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-emerald-800"
 								>Ativo</span
 							>
 						</div>
 						<p class="mt-2 text-xs font-bold text-slate-900">Observabilidade (ODM)</p>
-						<p class="mt-1 text-[11px] text-slate-500">
+						<p class="mt-1 text-xs text-slate-500">
 							Logs, métricas e monitoramento integrados de ponta a ponta.
 						</p>
 					</div>
@@ -193,7 +183,7 @@
 						<span class="font-mono text-xs text-slate-400">→</span>
 						<span class="font-mono text-xs font-bold text-emerald-700">Online</span>
 					</div>
-					<span class="font-mono text-[11px] text-slate-500">Zero tempo de inatividade</span>
+					<span class="font-mono text-xs text-slate-500">Zero tempo de inatividade</span>
 				</div>
 			</div>
 		</div>

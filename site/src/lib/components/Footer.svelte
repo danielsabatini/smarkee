@@ -14,7 +14,7 @@
 					Plataforma de nuvem declarativa projetada para engenharia moderna. Reconciliação contínua,
 					governança multi-tenant com OIDC, contratos abertos e observabilidade sem lock-in.
 				</p>
-				<div class="flex items-center gap-2 text-[11px] font-medium text-emerald-800">
+				<div class="flex items-center gap-2 text-xs font-medium text-emerald-800">
 					<CheckCircle2 class="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
 					<span>Todos os sistemas e reconciliadores operando normalmente</span>
 				</div>
@@ -114,10 +114,10 @@
 		<div
 			class="mt-12 flex flex-col items-center justify-between gap-4 border-t border-slate-100 pt-8 sm:flex-row"
 		>
-			<p class="text-[11px] text-slate-500">
+			<p class="text-xs text-slate-500">
 				&copy; {new Date().getFullYear()} Smarkee IT Solutions. Todos os direitos reservados.
 			</p>
-			<div class="flex items-center gap-4 text-[11px] text-slate-500">
+			<div class="flex items-center gap-4 text-xs text-slate-500">
 				<span class="inline-flex items-center gap-1">
 					<ShieldCheck class="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
 					Zero Vendor Lock-in & Padrões Abertos

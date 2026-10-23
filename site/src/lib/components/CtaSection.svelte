@@ -2,11 +2,7 @@
 	import { ArrowUpRight, MessageSquare, ShieldCheck } from 'lucide-svelte';
 </script>
 
-<section
-	class="relative overflow-hidden border-t border-slate-200 bg-gradient-to-b from-white to-emerald-50/50 py-20 sm:py-28"
->
-	<div class="pointer-events-none absolute inset-0 -z-10 glow-emerald-subtle opacity-60"></div>
-
+<section class="relative overflow-hidden border-t border-slate-200 bg-white py-20 sm:py-28">
 	<div class="mx-auto max-w-5xl px-4 text-center sm:px-6 lg:px-8">
 		<div
 			class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1 text-xs text-emerald-800 shadow-2xs"

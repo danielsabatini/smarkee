@@ -27,8 +27,7 @@
 						<div class="flex items-center justify-between">
 							<span class="font-mono text-sm font-bold text-emerald-700">{mod.code}</span>
 							<span
-								class="rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold {mod.status ===
-								'GA'
+								class="rounded-full px-2 py-0.5 font-mono text-xs font-semibold {mod.status === 'GA'
 									? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
 									: 'bg-blue-50 text-blue-800 border border-blue-200'}"
 							>
@@ -51,7 +50,7 @@
 
 						<ul class="mt-5 space-y-2 border-t border-slate-200/80 pt-4">
 							{#each mod.highlights as highlight (highlight)}
-								<li class="flex items-start gap-2 text-[11px] text-slate-700">
+								<li class="flex items-start gap-2 text-xs text-slate-700">
 									<CheckCircle2
 										class="h-3.5 w-3.5 shrink-0 text-emerald-600 mt-0.5"
 										aria-hidden="true"
