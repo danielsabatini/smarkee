@@ -38,7 +38,7 @@
 <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
 	<!-- Cabeçalho do Blog -->
 	<div class="mx-auto max-w-3xl text-center">
-		<span class="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+		<span class="text-sm font-semibold uppercase tracking-wider text-emerald-700">
 			Smarkee Engineering Blog
 		</span>
 		<h1 class="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
@@ -60,7 +60,7 @@
 				<button
 					type="button"
 					onclick={() => (selectedCategory = category)}
-					class="rounded-xl px-3 py-1.5 text-xs font-semibold transition {selectedCategory ===
+					class="rounded-xl px-3 py-1.5 text-sm font-semibold transition {selectedCategory ===
 					category
 						? 'bg-emerald-600 text-white shadow-2xs'
 						: 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-2xs'}"
@@ -80,7 +80,7 @@
 				type="search"
 				bind:value={searchQuery}
 				placeholder="Buscar artigos ou tags..."
-				class="w-full rounded-xl border border-slate-300 bg-white py-1.5 pr-3 pl-9 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-hidden shadow-2xs"
+				class="w-full rounded-xl border border-slate-300 bg-white py-1.5 pr-3 pl-9 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-hidden shadow-2xs"
 			/>
 		</div>
 	</div>
@@ -97,7 +97,7 @@
 					class="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-2xs transition hover:border-emerald-300 hover:shadow-md"
 				>
 					<div>
-						<div class="flex items-center justify-between text-xs text-slate-500">
+						<div class="flex items-center justify-between text-sm text-slate-500">
 							<span
 								class="rounded border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 font-semibold text-emerald-800"
 							>
@@ -115,7 +115,7 @@
 							</a>
 						</h2>
 
-						<p class="mt-2 text-xs leading-relaxed text-slate-600 line-clamp-3">
+						<p class="mt-2 text-sm leading-relaxed text-slate-600 line-clamp-3">
 							{post.summary}
 						</p>
 
@@ -123,7 +123,7 @@
 						<div class="mt-4 flex flex-wrap gap-1.5">
 							{#each post.tags as tag (tag)}
 								<span
-									class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-600"
+									class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-sm text-slate-600"
 								>
 									#{tag}
 								</span>
@@ -132,19 +132,19 @@
 					</div>
 
 					<div
-						class="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 text-xs"
+						class="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 text-sm"
 					>
 						<div class="flex items-center gap-2">
 							<img src={post.author.avatar} alt={post.author.name} class="h-6 w-6 rounded-full" />
 							<div>
-								<p class="text-xs font-semibold text-slate-800">{post.author.name}</p>
-								<p class="text-xs text-slate-500">{post.date}</p>
+								<p class="text-sm font-semibold text-slate-800">{post.author.name}</p>
+								<p class="text-sm text-slate-500">{post.date}</p>
 							</div>
 						</div>
 
 						<a
 							href="/blog/{post.slug}"
-							class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+							class="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
 						>
 							<span>Ler</span>
 							<ArrowRight class="h-3.5 w-3.5" aria-hidden="true" />

@@ -32,7 +32,7 @@
 	<div>
 		<a
 			href="/blog"
-			class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-emerald-700 transition"
+			class="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-emerald-700 transition"
 		>
 			<ArrowLeft class="h-3.5 w-3.5" aria-hidden="true" />
 			<span>Voltar para o blog</span>
@@ -45,17 +45,17 @@
 		<header class="border-b border-slate-100 pb-8">
 			<div class="flex flex-wrap items-center gap-2">
 				<span
-					class="rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 font-mono text-xs font-semibold text-emerald-800"
+					class="rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 font-mono text-sm font-semibold text-emerald-800"
 				>
 					{post.category}
 				</span>
-				<span class="text-xs text-slate-400">•</span>
-				<span class="inline-flex items-center gap-1 text-xs text-slate-500">
+				<span class="text-sm text-slate-400">•</span>
+				<span class="inline-flex items-center gap-1 text-sm text-slate-500">
 					<Clock class="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
 					{post.readTimeMinutes} min de leitura
 				</span>
-				<span class="text-xs text-slate-400">•</span>
-				<span class="inline-flex items-center gap-1 text-xs text-slate-500">
+				<span class="text-sm text-slate-400">•</span>
+				<span class="inline-flex items-center gap-1 text-sm text-slate-500">
 					<Calendar class="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
 					{post.date}
 				</span>
@@ -80,15 +80,15 @@
 						class="h-9 w-9 rounded-full bg-slate-100"
 					/>
 					<div>
-						<p class="text-xs font-bold text-slate-900">{post.author.name}</p>
-						<p class="text-xs text-slate-500">{post.author.role}</p>
+						<p class="text-sm font-bold text-slate-900">{post.author.name}</p>
+						<p class="text-sm text-slate-500">{post.author.role}</p>
 					</div>
 				</div>
 
 				<button
 					type="button"
 					onclick={shareArticle}
-					class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900"
+					class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900"
 				>
 					<Share2 class="h-3.5 w-3.5" aria-hidden="true" />
 					<span>{copiedUrl ? 'Link Copiado!' : 'Compartilhar'}</span>
@@ -107,7 +107,7 @@
 					</h2>
 				{:else if paragraph.startsWith('```')}
 					<div
-						class="my-4 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 p-4 font-mono text-xs text-emerald-300 shadow-inner"
+						class="my-4 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 p-4 font-mono text-sm text-emerald-300 shadow-inner"
 					>
 						<pre class="whitespace-pre"><code>{paragraph.replace(/```[a-z]*\n?/g, '')}</code></pre>
 					</div>
@@ -133,10 +133,10 @@
 
 		<!-- Tags do Artigo -->
 		<div class="mt-12 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-6">
-			<span class="text-xs font-semibold text-slate-500">Tags:</span>
+			<span class="text-sm font-semibold text-slate-500">Tags:</span>
 			{#each post.tags as tag (tag)}
 				<span
-					class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-xs font-medium text-slate-700"
+					class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-sm font-medium text-slate-700"
 				>
 					#{tag}
 				</span>
@@ -158,7 +158,7 @@
 						class="group flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-2xs transition hover:border-emerald-300 hover:shadow-md"
 					>
 						<div>
-							<span class="text-xs font-bold text-emerald-700 uppercase">
+							<span class="text-sm font-bold text-emerald-700 uppercase">
 								{related.category}
 							</span>
 							<h4
@@ -166,12 +166,12 @@
 							>
 								{related.title}
 							</h4>
-							<p class="mt-1 text-xs text-slate-500 line-clamp-2">
+							<p class="mt-1 text-sm text-slate-500 line-clamp-2">
 								{related.summary}
 							</p>
 						</div>
 
-						<div class="mt-4 flex items-center gap-1 text-xs font-semibold text-emerald-700">
+						<div class="mt-4 flex items-center gap-1 text-sm font-semibold text-emerald-700">
 							<span>Ler artigo</span>
 							<ArrowRight class="h-3 w-3 transition group-hover:translate-x-1" aria-hidden="true" />
 						</div>

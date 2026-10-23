@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Hero from '$lib/components/Hero.svelte';
 	import ModuleCards from '$lib/components/ModuleCards.svelte';
-	import CodeSnippetTab from '$lib/components/CodeSnippetTab.svelte';
+	import ManagementInterfaces from '$lib/components/ManagementInterfaces.svelte';
 	import BlogPreview from '$lib/components/BlogPreview.svelte';
 	import CtaSection from '$lib/components/CtaSection.svelte';
 </script>
@@ -16,6 +16,6 @@
 
 <Hero />
 <ModuleCards />
-<CodeSnippetTab />
+<ManagementInterfaces />
 <BlogPreview />
 <CtaSection />

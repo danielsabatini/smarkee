@@ -33,7 +33,7 @@
 			{#each MAIN_NAV as item (item.href)}
 				<a
 					href={item.href}
-					class="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+					class="rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
 				>
 					{item.label}
 				</a>
@@ -44,7 +44,7 @@
 		<div class="hidden items-center gap-2.5 sm:flex">
 			<a
 				href="/contato"
-				class="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50"
+				class="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-semibold text-slate-700 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50"
 			>
 				Falar com Especialistas
 			</a>
@@ -53,7 +53,7 @@
 				href="http://localhost:5173"
 				target="_blank"
 				rel="noreferrer"
-				class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-emerald-700"
+				class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white shadow-2xs transition hover:bg-emerald-700"
 			>
 				<span>Console Smarkee</span>
 				<ArrowUpRight class="h-3.5 w-3.5" aria-hidden="true" />
@@ -94,7 +94,7 @@
 					<a
 						href="/contato"
 						onclick={closeMobileMenu}
-						class="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-center text-xs font-semibold text-slate-700"
+						class="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-center text-sm font-semibold text-slate-700"
 					>
 						Falar com Especialistas
 					</a>
@@ -103,7 +103,7 @@
 						target="_blank"
 						rel="noreferrer"
 						onclick={closeMobileMenu}
-						class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white"
+						class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
 					>
 						<span>Console Smarkee</span>
 						<ArrowUpRight class="h-3.5 w-3.5" aria-hidden="true" />

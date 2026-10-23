@@ -7,13 +7,13 @@
 	<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 		<div class="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
 			<div>
-				<span class="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+				<span class="text-sm font-semibold uppercase tracking-wider text-emerald-700">
 					Conhecimento Técnico & Engenharia
 				</span>
 				<h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-4xl">
 					Blog da Smarkee IT Solutions
 				</h2>
-				<p class="mt-2 max-w-2xl text-xs text-slate-600 sm:text-sm">
+				<p class="mt-2 max-w-2xl text-sm text-slate-600 sm:text-sm">
 					Artigos aprofundados sobre tecnologia, segurança, boas práticas e evolução da nossa
 					plataforma para alavancar o seu produto.
 				</p>
@@ -21,7 +21,7 @@
 
 			<a
 				href="/blog"
-				class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 transition"
+				class="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-800 transition"
 			>
 				<span>Ver todos os artigos</span>
 				<ArrowRight class="h-4 w-4" aria-hidden="true" />
@@ -34,7 +34,7 @@
 					class="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-2xs transition hover:border-emerald-300 hover:shadow-md"
 				>
 					<div>
-						<div class="flex items-center justify-between text-xs text-slate-500">
+						<div class="flex items-center justify-between text-sm text-slate-500">
 							<span
 								class="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800"
 							>
@@ -54,22 +54,22 @@
 							</a>
 						</h3>
 
-						<p class="mt-2 text-xs leading-relaxed text-slate-600 line-clamp-3">
+						<p class="mt-2 text-sm leading-relaxed text-slate-600 line-clamp-3">
 							{post.summary}
 						</p>
 					</div>
 
 					<div
-						class="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 text-xs"
+						class="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 text-sm"
 					>
 						<div class="flex items-center gap-2">
 							<img src={post.author.avatar} alt={post.author.name} class="h-5 w-5 rounded-full" />
-							<span class="text-xs font-medium text-slate-700">{post.author.name}</span>
+							<span class="text-sm font-medium text-slate-700">{post.author.name}</span>
 						</div>
 
 						<a
 							href="/blog/{post.slug}"
-							class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+							class="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
 						>
 							<span>Ler artigo</span>
 							<ArrowRight

@@ -5,7 +5,7 @@
 <section class="relative overflow-hidden border-t border-slate-200 bg-white py-20 sm:py-28">
 	<div class="mx-auto max-w-5xl px-4 text-center sm:px-6 lg:px-8">
 		<div
-			class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1 text-xs text-emerald-800 shadow-2xs"
+			class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1 text-sm text-emerald-800 shadow-2xs"
 		>
 			<ShieldCheck class="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
 			<span>Engenharia Confiável • Sem Lock-in</span>

@@ -26,7 +26,7 @@
 
 <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
 	<div class="mx-auto max-w-3xl text-center">
-		<span class="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+		<span class="text-sm font-semibold uppercase tracking-wider text-emerald-700">
 			Atendimento Técnico
 		</span>
 		<h1 class="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
@@ -47,7 +47,7 @@
 					<CheckCircle2 class="h-8 w-8" aria-hidden="true" />
 				</div>
 				<h2 class="text-xl font-bold text-slate-900">Mensagem Enviada com Sucesso!</h2>
-				<p class="mx-auto max-w-md text-xs text-slate-700">
+				<p class="mx-auto max-w-md text-sm text-slate-700">
 					Obrigado pelo contato, <strong>{name}</strong>! Nossa equipe de engenharia responderá para
 					o endereço <strong>{email}</strong> com os próximos passos.
 				</p>
@@ -60,7 +60,7 @@
 						company = '';
 						message = '';
 					}}
-					class="mt-4 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+					class="mt-4 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
 				>
 					Enviar outra mensagem
 				</button>
@@ -68,7 +68,7 @@
 		{:else}
 			<form onsubmit={handleSubmit} class="space-y-5">
 				<div>
-					<label for="name" class="block text-xs font-semibold text-slate-700">
+					<label for="name" class="block text-sm font-semibold text-slate-700">
 						Nome Completo *
 					</label>
 					<input
@@ -77,12 +77,12 @@
 						bind:value={name}
 						required
 						placeholder="Seu nome"
-						class="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-hidden"
+						class="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-hidden"
 					/>
 				</div>
 
 				<div>
-					<label for="email" class="block text-xs font-semibold text-slate-700">
+					<label for="email" class="block text-sm font-semibold text-slate-700">
 						E-mail Corporativo *
 					</label>
 					<input
@@ -91,12 +91,12 @@
 						bind:value={email}
 						required
 						placeholder="voce@suaempresa.com"
-						class="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-hidden"
+						class="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-hidden"
 					/>
 				</div>
 
 				<div>
-					<label for="company" class="block text-xs font-semibold text-slate-700">
+					<label for="company" class="block text-sm font-semibold text-slate-700">
 						Empresa / Organização
 					</label>
 					<input
@@ -104,12 +104,12 @@
 						id="company"
 						bind:value={company}
 						placeholder="Nome da sua empresa"
-						class="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-hidden"
+						class="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-hidden"
 					/>
 				</div>
 
 				<div>
-					<label for="message" class="block text-xs font-semibold text-slate-700">
+					<label for="message" class="block text-sm font-semibold text-slate-700">
 						Como podemos ajudar?
 					</label>
 					<textarea
@@ -117,14 +117,14 @@
 						rows="4"
 						bind:value={message}
 						placeholder="Descreva seu projeto, desafio de nuvem ou o que gostaria de ver na demonstração..."
-						class="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-hidden"
+						class="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-hidden"
 					></textarea>
 				</div>
 
 				<div class="pt-2">
 					<button
 						type="submit"
-						class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-xs font-semibold text-slate-900 shadow-lg transition hover:bg-emerald-700"
+						class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-emerald-700"
 					>
 						<Send class="h-4 w-4" aria-hidden="true" />
 						<span>Enviar Solicitação</span>

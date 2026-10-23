@@ -13,7 +13,7 @@
 <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
 	<!-- Hero da Seção de Produtos -->
 	<div class="mx-auto max-w-3xl text-center">
-		<span class="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+		<span class="text-sm font-semibold uppercase tracking-wider text-emerald-700">
 			Capacidades de Plataforma
 		</span>
 		<h1 class="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
@@ -41,11 +41,11 @@
 						<div class="flex items-center gap-2">
 							<h2 class="text-xl font-bold text-slate-900">IPM — Identity Provider Manager</h2>
 							<span
-								class="rounded bg-emerald-50 px-2 py-0.5 font-mono text-xs text-emerald-800 border border-emerald-200"
+								class="rounded bg-emerald-50 px-2 py-0.5 font-mono text-sm text-emerald-800 border border-emerald-200"
 								>GA</span
 							>
 						</div>
-						<p class="text-xs text-slate-600">
+						<p class="text-sm text-slate-600">
 							Gestão de Identidades, Organizações e Controle de Acesso
 						</p>
 					</div>
@@ -55,7 +55,7 @@
 					href="http://localhost:5173/identity/organizations"
 					target="_blank"
 					rel="noreferrer"
-					class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-slate-900 hover:bg-emerald-700 transition"
+					class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-emerald-700 transition"
 				>
 					<span>Abrir IPM no Console</span>
 					<ArrowUpRight class="h-3.5 w-3.5" aria-hidden="true" />
@@ -71,20 +71,20 @@
 
 			<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
 				<div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-					<h3 class="text-xs font-bold text-slate-900">Organizações Multi-Tenant</h3>
-					<p class="mt-1 text-xs text-slate-600">
+					<h3 class="text-sm font-bold text-slate-900">Organizações Multi-Tenant</h3>
+					<p class="mt-1 text-sm text-slate-600">
 						Cada organização é um contêiner administrativo isolado com ciclo de vida gerenciado.
 					</p>
 				</div>
 				<div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-					<h3 class="text-xs font-bold text-slate-900">Menor Privilégio Estrito</h3>
-					<p class="mt-1 text-xs text-slate-600">
+					<h3 class="text-sm font-bold text-slate-900">Menor Privilégio Estrito</h3>
+					<p class="mt-1 text-sm text-slate-600">
 						Papéis e escopos granulares atribuídos exclusivamente às necessidades de cada membro.
 					</p>
 				</div>
 				<div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-					<h3 class="text-xs font-bold text-slate-900">Mascaramento de Dados</h3>
-					<p class="mt-1 text-xs text-slate-600">
+					<h3 class="text-sm font-bold text-slate-900">Mascaramento de Dados</h3>
+					<p class="mt-1 text-sm text-slate-600">
 						E-mails e dados de contato mascarados por padrão para prevenir exfiltração inadvertida.
 					</p>
 				</div>
@@ -104,11 +104,11 @@
 						<div class="flex items-center gap-2">
 							<h2 class="text-xl font-bold text-slate-900">SUM — Service Usage Manager</h2>
 							<span
-								class="rounded bg-emerald-50 px-2 py-0.5 font-mono text-xs text-emerald-800 border border-emerald-200"
+								class="rounded bg-emerald-50 px-2 py-0.5 font-mono text-sm text-emerald-800 border border-emerald-200"
 								>GA</span
 							>
 						</div>
-						<p class="text-xs text-slate-600">
+						<p class="text-sm text-slate-600">
 							Habilitação Declarativa e Catálogo Unificado de Serviços
 						</p>
 					</div>
@@ -118,7 +118,7 @@
 					href="http://localhost:5173/services/catalog"
 					target="_blank"
 					rel="noreferrer"
-					class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-slate-900 hover:bg-emerald-700 transition"
+					class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-emerald-700 transition"
 				>
 					<span>Abrir SUM no Console</span>
 					<ArrowUpRight class="h-3.5 w-3.5" aria-hidden="true" />
@@ -146,11 +146,11 @@
 						<div class="flex items-center gap-2">
 							<h2 class="text-xl font-bold text-slate-900">AEM — Audit Event Manager</h2>
 							<span
-								class="rounded bg-blue-50 px-2 py-0.5 font-mono text-xs text-blue-800 border border-blue-200"
+								class="rounded bg-blue-50 px-2 py-0.5 font-mono text-sm text-blue-800 border border-blue-200"
 								>Preview</span
 							>
 						</div>
-						<p class="text-xs text-slate-600">
+						<p class="text-sm text-slate-600">
 							Rastreabilidade Imutável e Conformidade Regulatória
 						</p>
 					</div>
@@ -160,7 +160,7 @@
 					href="http://localhost:5173/audit/events"
 					target="_blank"
 					rel="noreferrer"
-					class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
+					class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition"
 				>
 					<span>Explorar AEM Preview</span>
 					<ArrowUpRight class="h-3.5 w-3.5" aria-hidden="true" />
@@ -187,11 +187,11 @@
 						<div class="flex items-center gap-2">
 							<h2 class="text-xl font-bold text-slate-900">ODM — Observability Data Manager</h2>
 							<span
-								class="rounded bg-blue-50 px-2 py-0.5 font-mono text-xs text-blue-800 border border-blue-200"
+								class="rounded bg-blue-50 px-2 py-0.5 font-mono text-sm text-blue-800 border border-blue-200"
 								>Preview</span
 							>
 						</div>
-						<p class="text-xs text-slate-600">Telemetria Aberta, Métricas e Traces OpenTelemetry</p>
+						<p class="text-sm text-slate-600">Telemetria Aberta, Métricas e Traces OpenTelemetry</p>
 					</div>
 				</div>
 
@@ -199,7 +199,7 @@
 					href="http://localhost:5173/observability/logs"
 					target="_blank"
 					rel="noreferrer"
-					class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
+					class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition"
 				>
 					<span>Explorar ODM Preview</span>
 					<ArrowUpRight class="h-3.5 w-3.5" aria-hidden="true" />
@@ -225,7 +225,7 @@
 					<h2 class="text-xl font-bold text-slate-900">
 						CLI Smarkee (<code class="font-mono text-emerald-700">sk</code>)
 					</h2>
-					<p class="text-xs text-slate-600">
+					<p class="text-sm text-slate-600">
 						A ferramenta definitiva para desenvolvedores e automação em CI/CD
 					</p>
 				</div>
@@ -238,7 +238,7 @@
 				fricção com esteiras de implantação contínua.
 			</p>
 
-			<div class="mt-6 rounded-xl bg-slate-50 p-4 font-mono text-xs text-slate-700 overflow-x-auto">
+			<div class="mt-6 rounded-xl bg-slate-50 p-4 font-mono text-sm text-slate-700 overflow-x-auto">
 				<pre><code
 						># Instalação rápida e verificação de versão
 sk --version
