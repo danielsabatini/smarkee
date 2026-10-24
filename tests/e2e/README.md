@@ -42,6 +42,7 @@ Por variável de ambiente. Sem as obrigatórias, os testes são pulados.
 | `E2E_CORE_PROJECT_ID` | (obrigatória) | ID do projeto `roles-core` (audience pedida no login) |
 | `E2E_SUM_PROJECT_ID` | (obrigatória) | ID do projeto `roles-sum` (audience pedida no login) |
 | `E2E_IPM_PROJECT_ID` | (obrigatória) | ID do projeto `roles-ipm` (audience pedida no login; as `ipm.*` chegam por ela) |
+| `E2E_BSM_PROJECT_ID` | (obrigatória) | ID do projeto `roles-bsm` (audience pedida no login; as `bsm.*` chegam por ela) |
 | `E2E_API_URL` | `http://api-dev.smarkee.com.br:8080` | Gateway da API |
 | `E2E_ISSUER` | `http://ipm-dev.smarkee.com.br:8080` | Zitadel pelo gateway |
 | `E2E_MAILPIT_URL` | `http://localhost:8025` | Mailpit do dev |

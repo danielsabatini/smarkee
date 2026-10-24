@@ -56,7 +56,7 @@ def test_a_disabled_link_with_service_roles_asks_for_their_removal() -> None:
     decision = decide(
         state(desired=desired("absent", frozenset()), observed=observed(ROLES)), NOW, SETTINGS
     )
-    assert decision is not None and decision.reason == "RolesRemovalRequested"
+    assert decision is not None and decision.reason == "PermissionsRemovalRequested"
 
 
 def test_a_disabled_link_without_roles_is_converged() -> None:
@@ -152,7 +152,7 @@ def test_a_failure_of_the_same_generation_waits_the_backoff() -> None:
 def test_a_role_that_left_the_catalog_is_a_divergence_on_an_active_link() -> None:
     """A ligação controla a role que saiu do catálogo: ficar com ela é divergência (0079)."""
     old = "ipm.antiga.get"
-    link = replace(desired(), managed_roles=ROLES | {old})
+    link = replace(desired(), managed_permissions=ROLES | {old})
     decision = decide(state(desired=link, observed=observed(ROLES | {old})), NOW, SETTINGS)
-    assert decision is not None and decision.fields == ("serviceRoles",)
+    assert decision is not None and decision.fields == ("servicePermissions",)
     assert decide(state(desired=link, observed=observed(ROLES)), NOW, SETTINGS) is None

@@ -148,6 +148,7 @@ def test_enable_wait_converges_and_the_token_already_carries_the_ipm_permissions
     }, permissions
     assert {"core.account.get", "core.account.delete"} <= permissions[_project("CORE")]
     assert {"sum.ipm.enable", "sum.ipm.get"} <= permissions[_project("SUM")]
+    assert {"bsm.account.get", "bsm.account.delete"} <= permissions[_project("BSM")]
 
 
 def test_the_link_is_listed_and_a_second_enable_points_to_it(
@@ -412,10 +413,23 @@ def test_the_refresh_command_renews_the_session_on_demand(person: Person) -> Non
 
 
 def test_the_account_is_shown_and_then_deleted_with_the_sk(person: Person) -> None:
-    """Sem recursos atrelados (a Organization saiu e o `ipm` foi desabilitado), a conta sai."""
+    """Sem recursos atrelados (Organization, `ipm` e Billing Account), a conta sai."""
     shown = person.sk.run("account", "get")
     assert shown.exit_code == 0, shown.text
     assert person.email in shown.stdout and person.resource_id in shown.stdout
+    bsm_listed = person.sk.run("bsm", "account", "list")
+    assert bsm_listed.exit_code == 0, bsm_listed.text
+    for bsm_id in re.findall(
+        r"^[│\s]*([0-9a-f]{8}-[0-9a-f-]{27})\b", bsm_listed.stdout, re.MULTILINE
+    ):
+        unprotected_bsm = person.sk.run(
+            "bsm", "account", "unprotect", "--resource-id", bsm_id, "--wait", timeout=150.0
+        )
+        assert unprotected_bsm.exit_code == 0, unprotected_bsm.text
+        deleted_bsm = person.sk.run(
+            "bsm", "account", "delete", "--resource-id", bsm_id, "--wait", timeout=150.0
+        )
+        assert deleted_bsm.exit_code == 0, deleted_bsm.text
     deleted = person.sk.run("account", "delete", "--yes", "--wait", timeout=150.0)
     assert deleted.exit_code == 0, deleted.text
     assert "Account deleted" in deleted.stdout, deleted.text

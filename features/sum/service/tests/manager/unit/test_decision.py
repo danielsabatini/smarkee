@@ -23,7 +23,7 @@ def active_link(version: str = "2") -> Link:
 
 def absent_link() -> Link:
     active: dict[str, Any] = enable_desired(OWNER, "ipm", CATALOG)
-    absent: dict[str, Any] = {**active, "lifecycle": "absent", "serviceRoles": []}
+    absent: dict[str, Any] = {**active, "lifecycle": "absent", "servicePermissions": []}
     return Link(LINK_ID, "3", 2, absent)
 
 
@@ -105,7 +105,7 @@ def test_delete_is_accepted_with_the_current_version_and_removes_the_roles() -> 
     decision = decide_delete(link=active_link("2"), expected_version="2", catalog=CATALOG)
     assert isinstance(decision, Accepted)
     assert decision.desired["lifecycle"] == "absent"
-    assert decision.desired["serviceRoles"] == []
+    assert decision.desired["servicePermissions"] == []
     generated.ServiceDesiredData.model_validate(decision.desired)
 
 

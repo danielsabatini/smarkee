@@ -44,10 +44,11 @@ async def observe(
     user_id: str,
     managed_permissions: Iterable[str],
 ) -> Observation:
-    """Lê as permissões do usuário que a ligação controla (`managedPermissions` do `desired`, decisão 0079).
+    """Lê as permissões do usuário que a ligação controla (`managedPermissions` do `desired`,
+    decisão 0079).
 
-    O Observer não tem catálogo próprio: as permissões vêm do `desired` que o Manager publicou, a mesma
-    fonte do Executor e do Reconciler.
+    O Observer não tem catálogo próprio: as permissões vêm do `desired` que o Manager publicou, a
+    mesma fonte do Executor e do Reconciler.
     """
     service_permissions = set(managed_permissions)
     try:

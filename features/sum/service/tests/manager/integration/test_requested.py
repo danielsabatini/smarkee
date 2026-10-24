@@ -108,7 +108,7 @@ async def test_create_is_accepted_and_writes_the_link_the_operation_and_the_outb
         1,
         1,
     )
-    assert row["desired"]["serviceRoles"] == ["ipm.organization.get", "ipm.organization.list"]
+    assert row["desired"]["servicePermissions"] == ["ipm.organization.get", "ipm.organization.list"]
 
 
 async def test_the_outbox_message_is_the_desired_envelope_read_by_the_maintenance_role() -> None:
@@ -212,7 +212,7 @@ async def test_delete_with_the_current_version_disables_and_bumps_generation_and
         2,
         2,
     )
-    assert row["desired"]["serviceRoles"] == []
+    assert row["desired"]["servicePermissions"] == []
 
 
 async def test_delete_with_an_outdated_version_is_a_conflict_and_changes_nothing(
@@ -244,7 +244,7 @@ async def test_enabling_a_disabled_pair_again_reuses_the_same_resource(
         3,
         3,
     )
-    assert row["desired"]["serviceRoles"] != []
+    assert row["desired"]["servicePermissions"] != []
     cur = await conn.execute(
         "SELECT count(*) AS n FROM sum.service WHERE owner_account_id = %s", (v["owner"],)
     )

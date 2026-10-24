@@ -30,6 +30,7 @@ CLI_CLIENT_ID = os.environ.get("E2E_CLI_CLIENT_ID")
 CORE_PROJECT_ID = os.environ.get("E2E_CORE_PROJECT_ID")
 SUM_PROJECT_ID = os.environ.get("E2E_SUM_PROJECT_ID")
 IPM_PROJECT_ID = os.environ.get("E2E_IPM_PROJECT_ID")
+BSM_PROJECT_ID = os.environ.get("E2E_BSM_PROJECT_ID")
 CLI_PROJECT = Path(os.environ.get("E2E_CLI_PROJECT", Path(__file__).parents[3] / "clients" / "cli"))
 SUM_MANAGER_DATABASE_URL = os.environ.get("E2E_SUM_MANAGER_DATABASE_URL")
 SUM_MAINTENANCE_DATABASE_URL = os.environ.get("E2E_SUM_MAINTENANCE_DATABASE_URL")
@@ -70,7 +71,8 @@ class Sk:
             f'[api]\nurl = "{API_URL}"\nallowInsecureHttp = true\n'
             f'[core]\nprojectId = "{CORE_PROJECT_ID}"\n'
             f'[sum]\nprojectId = "{SUM_PROJECT_ID}"\n'
-            f'[ipm]\nprojectId = "{IPM_PROJECT_ID}"\n',
+            f'[ipm]\nprojectId = "{IPM_PROJECT_ID}"\n'
+            f'[bsm]\nprojectId = "{BSM_PROJECT_ID}"\n',
             encoding="utf-8",
         )
 
@@ -162,6 +164,7 @@ def _require_environment() -> None:
             ("E2E_CORE_PROJECT_ID", CORE_PROJECT_ID),
             ("E2E_SUM_PROJECT_ID", SUM_PROJECT_ID),
             ("E2E_IPM_PROJECT_ID", IPM_PROJECT_ID),
+            ("E2E_BSM_PROJECT_ID", BSM_PROJECT_ID),
         )
         if not value
     ]
@@ -228,6 +231,15 @@ def _remove(person: Person) -> None:
         sk.run("account", "unprotect", "--wait", timeout=150.0)
         current = httpx.get(url, headers=headers, timeout=15.0)
         version = str(current.json()["resourceVersion"])
+    bsm_list = httpx.get(f"{API_URL}/v1/bsm/accounts", headers=headers, timeout=15.0)
+    if bsm_list.status_code == 200:
+        for item in bsm_list.json().get("items", []):
+            bsm_id = str(item["resourceId"])
+            if item.get("desired", {}).get("deletionProtection", True):
+                sk.run(
+                    "bsm", "account", "unprotect", "--resource-id", bsm_id, "--wait", timeout=150.0
+                )
+            sk.run("bsm", "account", "delete", "--resource-id", bsm_id, "--wait", timeout=150.0)
     deleted = httpx.delete(url, headers=headers, params={"resourceVersion": version}, timeout=15.0)
     assert deleted.status_code == 202, deleted.text
     wait_until(

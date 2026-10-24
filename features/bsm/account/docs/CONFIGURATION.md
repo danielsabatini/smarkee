@@ -95,6 +95,7 @@ Entrypoint do Receiver de Billing Account (`bsm-account-receiver`, decisão 0015
 host_header = "ipm-dev.smarkee.com.br:8080"
 issuer = "http://ipm-dev.smarkee.com.br:8080"
 jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
+userinfo_url = "http://gateway.smarkee.internal:8000/oidc/v1/userinfo"
 
 [tool.bsm.account.receiver.database]
 host = "database.smarkee.internal"

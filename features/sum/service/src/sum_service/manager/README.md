@@ -28,7 +28,7 @@ O Manager só insere no outbox. A publicação do outbox no NATS é do Publisher
 
 - **Ligar:** `lifecycle = present`, com as roles do serviço copiadas do catálogo. O serviço precisa existir no catálogo;
   senão a recusa é `service_unavailable`. Já existe ligação ativa do dono para o serviço: `already_exists`.
-- **Desligar:** `lifecycle = absent`, `serviceRoles = []`, geração e versão + 1. Sem ligação ativa: `not_found`; versão
+- **Desligar:** `lifecycle = absent`, `servicePermissions = []`, geração e versão + 1. Sem ligação ativa: `not_found`; versão
   diferente da lida: `conflict`. A linha continua existindo, e os recursos do usuário no serviço não são apagados
   (decisão 0033).
 - Todo `desired` é validado contra `schemas/sum/service/desired.v1.schema.json` antes de sair.
@@ -36,16 +36,16 @@ O Manager só insere no outbox. A publicação do outbox no NATS é do Publisher
 
 ## Catálogo
 
-`SUM_SERVICE_MANAGER_CATALOG_ROLES`, JSON com serviço → roles. Exemplo:
+`SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS`, JSON com serviço → permissões. Exemplo:
 
 ```json
 {"ipm": ["ipm.organization.create", "ipm.organization.delete", "ipm.organization.get", "ipm.organization.list", "ipm.organization.update",
          "ipm.user.bind", "ipm.user.create", "ipm.user.delete", "ipm.user.get", "ipm.user.list", "ipm.user.update"]}
 ```
 
-As roles `ipm.user.*` dão ao root (o dono da Organization) a gestão dos usuários dela (decisão 0077).
+As permissões `ipm.user.*` dão ao root (o dono da Organization) a gestão dos usuários dela (decisão 0077).
 
-O catálogo existe **só no Manager** (decisão 0079). O `desired` leva as roles que o usuário deve ter (`serviceRoles`) e as que a ligação controla (`managedRoles`: as do catálogo mais as que saíram dele), e o Observer e o Executor leem só o `desired`. Na partida, o Manager faz o **rollout** (`handlers/catalog_rollout.py`): cada ligação cujo `desired` difere do catálogo de agora ganha uma geração nova, com uma Operation `update` de `system:catalog`, e o loop aplica a mudança, inclusive para quem ligou antes. Repetir não grava nada (a linha é bloqueada e comparada). Um serviço que saiu do catálogo não é alterado.
+O catálogo existe **só no Manager** (decisão 0079). O `desired` leva as permissões que o usuário deve ter (`servicePermissions`) e as que a ligação controla (`managedPermissions`: as do catálogo mais as que saíram dele), e o Observer e o Executor leem só o `desired`. Na partida, o Manager faz o **rollout** (`handlers/catalog_rollout.py`): cada ligação cujo `desired` difere do catálogo de agora ganha uma geração nova, com uma Operation `update` de `system:catalog`, e o loop aplica a mudança, inclusive para quem ligou antes. Repetir não grava nada (a linha é bloqueada e comparada). Um serviço que saiu do catálogo não é alterado.
 
 Um catálogo inválido: `parse_catalog` levanta `CatalogError` com o motivo e o processo não sobe.
 

@@ -15,8 +15,8 @@ class FakeGranter:
     grants_by_user: dict[str, list[Grant]] = field(default_factory=lambda: {})
     calls: list[tuple[Any, ...]] = field(default_factory=lambda: [])
 
-    def project_of(self, role: str) -> str:
-        project = PROJECTS.get(role.split(".", 1)[0])
+    def project_of(self, permission: str) -> str:
+        project = PROJECTS.get(permission.split(".", 1)[0])
         if project is None:
             raise ProviderError("Rejected", retryable=False, detail="no roles project")
         return project
@@ -24,18 +24,18 @@ class FakeGranter:
     async def grants(self, user_id: str) -> list[Grant]:
         return list(self.grants_by_user.get(user_id, []))
 
-    async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None:
-        self.calls.append(("create", project_id, tuple(roles)))
+    async def create_grant(self, user_id: str, project_id: str, permissions: list[str]) -> None:
+        self.calls.append(("create", project_id, tuple(permissions)))
         self.grants_by_user.setdefault(user_id, []).append(
-            Grant(f"g-{project_id}", project_id, frozenset(roles))
+            Grant(f"g-{project_id}", project_id, frozenset(permissions))
         )
 
-    async def update_grant(self, grant_id: str, roles: list[str]) -> None:
-        self.calls.append(("update", grant_id, tuple(roles)))
+    async def update_grant(self, grant_id: str, permissions: list[str]) -> None:
+        self.calls.append(("update", grant_id, tuple(permissions)))
         for user_grants in self.grants_by_user.values():
             for index, grant in enumerate(user_grants):
                 if grant.grant_id == grant_id:
-                    user_grants[index] = Grant(grant_id, grant.project_id, frozenset(roles))
+                    user_grants[index] = Grant(grant_id, grant.project_id, frozenset(permissions))
 
     async def remove_grant(self, grant_id: str) -> None:
         self.calls.append(("remove", grant_id))

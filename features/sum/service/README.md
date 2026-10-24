@@ -60,7 +60,7 @@ própria conta de serviço. O código igual em todos fica em `common/`, e nenhum
 
 - Único escritor do SSOT (`sum.service`, `sum.service_operation`, `sum.service_action_result`) e do outbox.
 - Consome `requested` (criar e desligar), `observed` e os resultados `completed` e `failed`. Decide pelo catálogo
-  (serviço → roles, `SUM_SERVICE_MANAGER_CATALOG_ROLES`) e pelo índice único parcial `service_active_link`.
+  (serviço → permissões, `SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS`) e pelo índice único parcial `service_active_link`.
 - Aceita ou recusa com motivo (`service_unavailable`, `already_exists`, `not_found`, `conflict`). Só insere no outbox:
   a publicação é do Publisher. ACK depois do `COMMIT`; falha transitória do banco é `RETRY`; mensagem fora do contrato
   (inclusive de outra versão `MAJOR`) é `TERM`.
@@ -187,9 +187,9 @@ por `uv run python -m sum_service.receiver.http.openapi` e conferido por teste.
   recusado pelo contrato.
 - **Sem dados pessoais no SSOT:** só o ID do usuário no Zitadel (`owner_account_id`) e o nome do serviço. Não há e-mail,
   nome nem token.
-- **Isolamento das roles:** só o Executor concede, e o Zitadel nega o que estiver fora do Grant de `roles-ipm`
-  (decisão 0032). O catálogo (serviço → roles) existe **só no Manager** (decisão 0079): ele copia para o `desired` as roles
-  que o usuário deve ter (`serviceRoles`) e as que a ligação controla (`managedRoles`), e o Observer e o Executor leem só
+- **Isolamento das permissões:** só o Executor concede, e o Zitadel nega o que estiver fora do Grant de `roles-ipm`
+  (decisão 0032). O catálogo (serviço → permissões) existe **só no Manager** (decisão 0079): ele copia para o `desired` as permissões
+  que o usuário deve ter (`servicePermissions`) e as que a ligação controla (`managedPermissions`), e o Observer e o Executor leem só
   o `desired`.
 - **Última barreira:** o Executor não confia em quem enviou a ação: confere o emissor, a versão e o `desired` vigente, e
   não assume `present` quando falta o `lifecycle`.
@@ -213,9 +213,9 @@ Variáveis `SUM_SERVICE_<PAPEL>_<SEÇÃO>_<CAMPO>`, com `config.toml` por papel 
 a senha do NATS (todos), as senhas dos papéis do banco (Receiver, Manager, Publisher), a audience do Receiver, o catálogo
 (só do Manager, decisão 0079) e os IDs no Zitadel (Observer e Executor).
 
-**Trocar o catálogo:** edite `SUM_SERVICE_MANAGER_CATALOG_ROLES` no `.env` e rode `docker compose up -d` na pasta da feature
+**Trocar o catálogo:** edite `SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS` no `.env` e rode `docker compose up -d` na pasta da feature
 (sem nome de serviço: o Compose recria só o que mudou). Na partida, o Manager faz o rollout: cada ligação cujo `desired`
-difere do catálogo novo ganha uma geração nova, com uma Operation `update` de `system:catalog`, e o loop concede a role
+difere do catálogo novo ganha uma geração nova, com uma Operation `update` de `system:catalog`, e o loop concede a permissão
 nova ou revoga a que saiu, inclusive de quem ligou antes. As roles novas precisam existir antes no `roles-ipm` e no Grant
 dele para a `register` (`infrastructure/dev/README.md`).
 
@@ -272,10 +272,10 @@ autorizar a leitura).
 
 ## 11.3 O que cada coluna `jsonb` guarda
 
-- `service.desired`: `lifecycle`, `reconciliation`, `ownerAccountId`, `service`, `serviceRoles` (as do catálogo; vazias ao
-  desligar) e `managedRoles` (as que a ligação controla: as do catálogo mais as que saíram dele, para serem revogadas;
+- `service.desired`: `lifecycle`, `reconciliation`, `ownerAccountId`, `service`, `servicePermissions` (as do catálogo; vazias ao
+  desligar) e `managedPermissions` (as que a ligação controla: as do catálogo mais as que saíram dele, para serem revogadas;
   decisão 0079).
-- `service.observed`: `serviceRoles` lidas do Zitadel.
+- `service.observed`: `servicePermissions` lidas do Zitadel.
 - `service.conditions`: lista de condições do recurso.
 - `service_outbox.payload`: o envelope `desired`, sem `publishedAt` e `publishedBy` (o Publisher os preenche).
 
@@ -283,7 +283,7 @@ autorizar a leitura).
 
 - `service_active_link` (único parcial, `WHERE lifecycle = 'present'`): no máximo uma ligação ativa por dono e serviço, mesmo
   com pedidos concorrentes.
-- `lifecycle = 'absent'` exige `serviceRoles` vazio (restrição de tabela).
+- `lifecycle = 'absent'` exige `servicePermissions` vazio (restrição de tabela).
 - `service_operation`: `(operation_status = 'rejected') = (operation_status_reason IS NOT NULL)` e
   `= (desired_generation IS NULL)`.
 - `service_outbox_pending` (parcial, `published_at IS NULL`) e `service_outbox_published`; `message_id` único.

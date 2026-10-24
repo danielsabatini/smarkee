@@ -318,11 +318,11 @@
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle"
           },
-          "managedRoles": {
+          "managedPermissions": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/ServiceRole"
+                  "$ref": "#/components/schemas/ServicePermission"
                 },
                 "maxItems": 64,
                 "type": "array"
@@ -331,7 +331,7 @@
                 "type": "null"
               }
             ],
-            "title": "Managedroles"
+            "title": "Managedpermissions"
           },
           "ownerAccountId": {
             "maxLength": 128,
@@ -350,12 +350,12 @@
             "title": "Service",
             "type": "string"
           },
-          "serviceRoles": {
+          "servicePermissions": {
             "items": {
-              "$ref": "#/components/schemas/ServiceRole"
+              "$ref": "#/components/schemas/ServicePermission"
             },
             "maxItems": 64,
-            "title": "Serviceroles",
+            "title": "Servicepermissions",
             "type": "array"
           }
         },
@@ -364,14 +364,14 @@
           "reconciliation",
           "ownerAccountId",
           "service",
-          "serviceRoles"
+          "servicePermissions"
         ],
         "title": "ServiceDesiredData",
         "type": "object"
       },
       "ServiceListResponse": {
         "additionalProperties": false,
-        "description": "Corpo de GET /v1/sum/services: as ligações do solicitante cujo serviço ele pode ler (role sum.<serviço>.get), até o limite pedido.",
+        "description": "Corpo de GET /v1/sum/services: as ligações do solicitante cujo serviço ele pode ler (permissão sum.<serviço>.get), até o limite pedido.",
         "properties": {
           "items": {
             "items": {
@@ -390,13 +390,13 @@
       },
       "ServiceObservedData": {
         "additionalProperties": false,
-        "description": "data de observed do SUM: as roles do serviço que o usuário tem hoje, lidas do Zitadel. Vazio quando a ligação está ausente.",
+        "description": "data de observed do SUM: as permissões do serviço que o usuário tem hoje, lidas do Zitadel. Vazio quando a ligação está ausente.",
         "properties": {
-          "serviceRoles": {
+          "servicePermissions": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/ServiceRole"
+                  "$ref": "#/components/schemas/ServicePermission"
                 },
                 "maxItems": 64,
                 "type": "array"
@@ -405,11 +405,18 @@
                 "type": "null"
               }
             ],
-            "title": "Serviceroles"
+            "title": "Servicepermissions"
           }
         },
         "title": "ServiceObservedData",
         "type": "object"
+      },
+      "ServicePermission": {
+        "maxLength": 128,
+        "minLength": 5,
+        "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$",
+        "title": "ServicePermission",
+        "type": "string"
       },
       "ServiceResource": {
         "additionalProperties": false,
@@ -482,13 +489,6 @@
         ],
         "title": "ServiceResource",
         "type": "object"
-      },
-      "ServiceRole": {
-        "maxLength": 128,
-        "minLength": 5,
-        "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$",
-        "title": "ServiceRole",
-        "type": "string"
       }
     }
   },
@@ -699,7 +699,7 @@
                 }
               }
             },
-            "description": "O solicitante não tem a role da ação (`Forbidden`)."
+            "description": "O solicitante não tem a permissão da ação (`Forbidden`)."
           },
           "409": {
             "content": {
@@ -836,7 +836,7 @@
                 }
               }
             },
-            "description": "O solicitante não tem a role da ação (`Forbidden`)."
+            "description": "O solicitante não tem a permissão da ação (`Forbidden`)."
           },
           "404": {
             "content": {
@@ -949,7 +949,7 @@
                 }
               }
             },
-            "description": "O solicitante não tem a role da ação (`Forbidden`)."
+            "description": "O solicitante não tem a permissão da ação (`Forbidden`)."
           },
           "404": {
             "content": {

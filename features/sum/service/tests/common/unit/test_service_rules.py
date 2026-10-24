@@ -88,7 +88,7 @@ def test_a_document_that_breaks_the_contract_is_never_returned() -> None:
 
 
 def test_the_rollout_follows_the_catalog_and_keeps_controlling_removed_permissions() -> None:
-    """Catálogo novo: a ligação ganha a permissão nova e segue controlando a que saiu (decisão 0079)."""
+    """Catálogo novo: ganha a permissão nova e segue controlando a que saiu (decisão 0079)."""
     before = enable_desired(OWNER, "ipm", {"ipm": ("ipm.a.get", "ipm.b.get")})
     after = rollout_desired(before, {"ipm": ("ipm.a.get", "ipm.c.get")})
     assert after is not None

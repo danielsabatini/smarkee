@@ -141,7 +141,7 @@ def decide(state: ResourceState, now: datetime, settings: LoopParameters) -> Dec
 
 
 def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
-    """Ligação ativa: o usuário precisa ter as permissões do serviço. Desligada: não pode ter nenhuma.
+    """Ligação ativa: o usuário precisa ter as permissões do serviço; desligada: nenhuma.
 
     Permissões a mais, além das pedidas, não são divergência para a ligação ativa. Para a desligada,
     qualquer permissão do serviço presente é divergência.

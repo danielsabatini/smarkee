@@ -69,7 +69,7 @@ O consumer `sum-service-manager-requested` (pull, durável, ACK explícito) entr
 | criar | senão | aceita: `desired` com `present` e as roles do catálogo, copiadas agora |
 | desligar | sem ligação ativa | recusa `not_found` |
 | desligar | `resourceVersion` diferente da atual | recusa `conflict` |
-| desligar | senão | aceita: `desired` com `absent` e `serviceRoles = []` |
+| desligar | senão | aceita: `desired` com `absent` e `servicePermissions = []` |
 
 ### 2.2 Gravação (`store/ssot.py`, `handlers/requested.py`)
 
@@ -115,8 +115,8 @@ ligação ao iniciar. A reavaliação periódica tem jitter. Antes de decidir, a
 `observed` `unknown` ou vencido, observação causada por um resultado ainda não chegada, ação pendente da
 mesma geração, e backoff após falha.
 
-- **Ligação ativa** com roles faltando → `update` (`Drift`).
-- **Ligação desligada** com alguma role do serviço presente → `update` (`RolesRemovalRequested`).
+- **Ligação ativa** com permissões faltando → `update` (`Drift`).
+- **Ligação desligada** com alguma permissão do serviço presente → `update` (`PermissionsRemovalRequested`).
 
 A `action` vai para `reconciler.action.sum.service.<resourceId>.update`, com `Nats-Msg-Id` igual ao `actionId`.
 Diagrama: [`flow/05-falhas-na-reconciliacao.svg`](flow/05-falhas-na-reconciliacao.svg).
@@ -157,7 +157,7 @@ reconstrói o que precisa observar. A observação periódica tem jitter, e com 
 recursos da sua partição (`hash(resourceId) mod count`, `SUM_SERVICE_OBSERVER_PARTITION_{INDEX,COUNT}`). Um `desired`
 sem `lifecycle` válido não é observado. Produz:
 
-- `present`, com `serviceRoles` = as roles do catálogo que o usuário tem;
+- `present`, com `servicePermissions` = as permissões do catálogo que o usuário tem;
 - `absent`, só quando o Zitadel confirma que o usuário não existe (404 com detalhe);
 - `unknown`, para qualquer falha de leitura. Erro de leitura nunca vira `absent`.
 

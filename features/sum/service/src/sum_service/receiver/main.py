@@ -1,8 +1,7 @@
 """Entrypoint do Receiver de `sum.service` (`sum-service-receiver`, decisões 0015 e 0033).
 
-Autentica o solicitante, confere a permissão da ação, publica o `requested` e responde. Só inicializa e
-encerra:
-valida a configuração, abre as conexões e serve a API.
+Autentica o solicitante, confere a permissão da ação, publica o `requested` e responde. Só
+inicializa e encerra: valida a configuração, abre as conexões e serve a API.
 """
 
 import logging

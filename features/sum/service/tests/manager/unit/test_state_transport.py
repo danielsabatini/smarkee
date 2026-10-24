@@ -50,7 +50,7 @@ def observed(**changes: Any) -> bytes:
     fields: dict[str, Any] = {
         "presence": "present",
         "observedAt": "2026-10-16T10:00:00+00:00",
-        "data": {"serviceRoles": ["ipm.organization.get", "ipm.organization.list"]},
+        "data": {"servicePermissions": ["ipm.organization.get", "ipm.organization.list"]},
     }
     fields.update(changes)
     return envelope("observed", "observer", **fields)

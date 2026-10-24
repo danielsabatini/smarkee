@@ -13,10 +13,10 @@ ENABLED: dict[str, Any] = {
     "reconciliation": "active",
     "ownerAccountId": "01a15ec2-6db7-737f-8c03-e7df782b55c8",
     "service": "ipm",
-    "serviceRoles": ROLES,
-    "managedRoles": [*ROLES, "ipm.retired.role"],
+    "servicePermissions": ROLES,
+    "managedPermissions": [*ROLES, "ipm.retired.role"],
 }
-DISABLED: dict[str, Any] = {**ENABLED, "lifecycle": "absent", "serviceRoles": []}
+DISABLED: dict[str, Any] = {**ENABLED, "lifecycle": "absent", "servicePermissions": []}
 
 
 def observe(
@@ -36,7 +36,7 @@ def observe(
         generation=1,
         observation_generation=observation_generation,
         presence=presence,
-        observed={"serviceRoles": held},
+        observed={"servicePermissions": held},
         previous_phase=phase,
         previous_conditions=conditions or [],
         now=now,
@@ -109,4 +109,7 @@ def test_the_failure_limit_suspends_the_link() -> None:
 
 def test_the_desired_message_carries_the_current_reconciliation() -> None:
     data = SERVICE.policy.message_data(ENABLED, "suspended")
-    assert data["reconciliation"] == "suspended" and data["managedRoles"] == ENABLED["managedRoles"]
+    assert (
+        data["reconciliation"] == "suspended"
+        and data["managedPermissions"] == ENABLED["managedPermissions"]
+    )

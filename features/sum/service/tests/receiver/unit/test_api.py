@@ -1,7 +1,8 @@
 """Testes da API do Receiver de `sum.service`, com dependências simuladas (sem banco nem NATS).
 
 O token de teste tem o formato `<sub>|<permission>,<permission>`: o verificador simulado devolve o
-solicitante com essas permissões. A verificação real de assinatura e audience está em `test_auth.py`.
+solicitante com essas permissões. A verificação real de assinatura e audience está em
+`test_auth.py`.
 """
 
 import json

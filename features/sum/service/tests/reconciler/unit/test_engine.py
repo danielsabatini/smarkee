@@ -64,7 +64,7 @@ def desired(
             "reconciliation": "active",
             "ownerAccountId": OWNER,
             "service": "ipm",
-            "serviceRoles": roles,
+            "servicePermissions": roles,
         },
     )
 
@@ -75,7 +75,7 @@ def observed(
     fields: dict[str, Any] = {
         "presence": "present",
         "observedAt": at.isoformat(),
-        "data": {"serviceRoles": roles},
+        "data": {"servicePermissions": roles},
     }
     if causation:
         fields["causationId"] = causation
@@ -156,7 +156,7 @@ async def test_a_completed_action_without_effect_backs_off_before_the_next_decis
         )
     assert len(recorder.sent) == 1  # em backoff
     warning = next(r for r in caplog.records if r.getMessage() == "action had no effect")
-    assert warning.__dict__["smarkee.drift.fields"] == ["serviceRoles"]
+    assert warning.__dict__["smarkee.drift.fields"] == ["servicePermissions"]
     # Passado o backoff (30 s na primeira, `failure_backoff_seconds`), a decisão volta.
     clock.now = NOW + timedelta(seconds=40)
     await reconciler.on_message(observed([], "m-observed-4", at=NOW + timedelta(seconds=39)))
@@ -180,7 +180,7 @@ async def test_a_disabled_link_with_roles_publishes_the_removal() -> None:
     reconciler = engine(recorder)
     await reconciler.on_message(desired(2, lifecycle="absent", roles=[]))
     await reconciler.on_message(observed(ROLES, "m-observed"))
-    assert recorder.sent[0][1]["data"]["reason"] == "RolesRemovalRequested"
+    assert recorder.sent[0][1]["data"]["reason"] == "PermissionsRemovalRequested"
 
 
 async def test_an_envelope_of_another_module_is_ignored() -> None:

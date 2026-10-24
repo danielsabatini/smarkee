@@ -205,7 +205,7 @@ async def test_present_without_platform_access_is_not_converged(
             resource_id,
             "present",
             seconds=1,
-            data={"platformAccess": "revoked", "platformRoles": []},
+            data={"platformAccess": "revoked", "platformPermissions": []},
         ),
     )
     stored = await row(account_manager, resource_id)

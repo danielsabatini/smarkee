@@ -139,7 +139,9 @@ async def test_enable_then_disable_runs_the_whole_loop(
     )
     assert_valid("sum/service/resource.v1.schema.json", enabled)
     assert enabled["desired"]["service"] == SERVICE
-    assert set(enabled["desired"]["serviceRoles"]) <= set(enabled["observed"]["serviceRoles"])
+    assert set(enabled["desired"]["servicePermissions"]) <= set(
+        enabled["observed"]["servicePermissions"]
+    )
 
     # 3. A ligação aparece na listagem do solicitante.
     listed = await api.get("/v1/sum/services", headers=authorization)
@@ -169,7 +171,7 @@ async def test_enable_then_disable_runs_the_whole_loop(
         resource_id,
         lambda r: r["phase"] == "Ready" and r["desired"]["lifecycle"] == "absent",
     )
-    assert disabled["observed"]["serviceRoles"] == []
+    assert disabled["observed"]["servicePermissions"] == []
 
     # 6. Ligar de novo reaproveita o mesmo recurso: o par tem uma linha só (decisão 0033).
     again = await api.post("/v1/sum/services", json={"service": SERVICE}, headers=authorization)

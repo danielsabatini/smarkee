@@ -2,8 +2,8 @@
 
 Como o rollout de um Deployment do Kubernetes quando o template muda: na partida do Manager, cada
 ligação cujo `desired` difere do que o catálogo atual produz ganha uma geração nova, com uma
-Operation `update` do sistema, e o loop aplica a mudança. Quem ligou o serviço antes de uma permissão
-nova entrar no catálogo passa a recebê-la, e uma permissão que saiu do catálogo é revogada.
+Operation `update` do sistema, e o loop aplica a mudança. Quem ligou o serviço antes de uma
+permissão nova entrar no catálogo passa a recebê-la, e a que saiu é revogada.
 
 Cada ligação é uma unidade atômica com a linha bloqueada: repetir (outra instância, reinício) não
 grava nada de novo, porque o `desired` já é o do catálogo.

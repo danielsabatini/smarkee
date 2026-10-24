@@ -6,11 +6,9 @@
 - `DELETE /v1/sum/services/{resourceId}?resourceVersion=`: desliga (`202`).
 - `GET /v1/sum/services/{resourceId}/operations/{operationId}`: acompanha a Operation.
 
-O Receiver valida o token, confere a permissão da ação e a posse da ligação, e publica o `requested`. A
-decisão
-(catálogo, unicidade, versão) é do Manager. Repetir com a mesma `Idempotency-Key` devolve a operação
-já
-aceita; com outro corpo, `422`.
+O Receiver valida o token, confere a permissão da ação e a posse da ligação, e publica o
+`requested`. A decisão (catálogo, unicidade, versão) é do Manager. Repetir com a mesma
+`Idempotency-Key` devolve a operação já aceita; com outro corpo, `422`.
 """
 
 import json

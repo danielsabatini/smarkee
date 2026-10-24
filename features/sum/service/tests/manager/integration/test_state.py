@@ -38,8 +38,8 @@ async def _seed(
         "reconciliation": "active",
         "ownerAccountId": owner,
         "service": "ipm",
-        "serviceRoles": ROLES if lifecycle == "present" else [],
-        "managedRoles": ROLES,
+        "servicePermissions": ROLES if lifecycle == "present" else [],
+        "managedPermissions": ROLES,
     }
     await conn.execute(
         "INSERT INTO sum.service (resource_id, schema_version, owner_account_id, service, "
@@ -64,7 +64,7 @@ def observed(
         "presence": presence,
         "observedAt": moment,
         **({"observedGeneration": generation} if generation is not None else {}),
-        "data": {"serviceRoles": roles},
+        "data": {"servicePermissions": roles},
     }
 
 

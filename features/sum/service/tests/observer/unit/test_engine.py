@@ -65,9 +65,9 @@ def desired(generation: int, lifecycle: str = "present", message_id: str = "m-de
             "lifecycle": lifecycle,
             "ownerAccountId": OWNER,
             "service": "ipm",
-            "serviceRoles": [],
-            # As roles que o Observer lê vêm do `desired`, e não de um catálogo próprio (0079).
-            "managedRoles": list(CATALOG["ipm"]),
+            "servicePermissions": [],
+            # As permissões que o Observer lê vêm do `desired`, e não de um catálogo próprio (0079).
+            "managedPermissions": list(CATALOG["ipm"]),
         },
     )
 
@@ -95,7 +95,7 @@ async def test_a_new_desired_generation_is_observed_once_with_the_roles_of_the_s
     subject, body, message_id = recorder.sent[0]
     assert subject == f"observer.observed.sum.service.{RID}.changed"
     assert body["presence"] == "present" and body["data"] == {
-        "serviceRoles": ["ipm.organization.get"]
+        "servicePermissions": ["ipm.organization.get"]
     }
     assert message_id == body["messageId"]
     assert body["causationId"] == "m-desired"  # observação causada pelo desired
@@ -209,7 +209,7 @@ async def test_a_desired_without_a_valid_lifecycle_is_not_observed() -> None:
     recorder = Recorder()
     watcher = observer(FakeReader(), recorder)
     for lifecycle in (None, "", "unknown"):
-        data: dict[str, Any] = {"ownerAccountId": OWNER, "service": "ipm", "serviceRoles": []}
+        data: dict[str, Any] = {"ownerAccountId": OWNER, "service": "ipm", "servicePermissions": []}
         if lifecycle is not None:
             data["lifecycle"] = lifecycle
         await watcher.on_message(envelope("desired", "m", desiredGeneration=1, data=data))

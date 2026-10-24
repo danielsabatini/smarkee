@@ -29,8 +29,8 @@ iniciar.
 ## Configuração
 
 `SUM_SERVICE_OBSERVER_<SEÇÃO>_<CAMPO>`. Obrigatórias: `MESSAGING_PASSWORD`, `IDENTITY_REGISTER_ORGANIZATION_ID`,
-`IDENTITY_PROJECT_IDS` (JSON módulo → projeto de roles). Não há catálogo: as roles observadas são as do usuário dentro de
-`managedRoles` do `desired` (decisão 0079).
+`IDENTITY_PROJECT_IDS` (JSON módulo → projeto de roles). Não há catálogo: as permissões observadas são as do usuário dentro de
+`managedPermissions` do `desired` (decisão 0079).
 
 ## Verificação
 

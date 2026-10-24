@@ -24,8 +24,8 @@ entrega o último `desired`, `observed` e resultado de cada ligação, e o Recon
 
 - **Ligação ativa** (`lifecycle = present`): o usuário precisa ter as roles do serviço. Roles a mais não são
   divergência (`Drift`).
-- **Ligação desligada** (`lifecycle = absent`): nenhuma role do serviço pode estar presente
-  (`RolesRemovalRequested`).
+- **Ligação desligada** (`lifecycle = absent`): nenhuma permissão do serviço pode estar presente
+  (`PermissionsRemovalRequested`).
 
 Guardas do loop (`docs/RESOURCE-CONTROL-SECURITY.md` §7 e §8): sem os dois estados, não decide; `desired`
 suspenso não decide; `observed` `unknown` ou vencido não decide; enquanto a observação causada por um

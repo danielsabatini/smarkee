@@ -45,8 +45,8 @@ No ar no dev (Compose), no ciclo de ligar e desligar e com o Executor parado dur
 ## Configuração
 
 `SUM_SERVICE_EXECUTOR_<SEÇÃO>_<CAMPO>`. Obrigatórias: `MESSAGING_PASSWORD`, `IDENTITY_REGISTER_ORGANIZATION_ID`,
-`IDENTITY_PROJECT_IDS`. Não há catálogo: as roles a conceder (`serviceRoles`) e a revogar (`managedRoles − serviceRoles`, ou
-todas as `managedRoles` ao desligar) vêm do `desired` (decisão 0079). A chave da conta `sum-service-executor` é montada do volume `identity-bootstrap`
+`IDENTITY_PROJECT_IDS`. Não há catálogo: as permissões a conceder (`servicePermissions`) e a revogar (`managedPermissions − servicePermissions`, ou
+todas as `managedPermissions` ao desligar) vêm do `desired` (decisão 0079). A chave da conta `sum-service-executor` é montada do volume `identity-bootstrap`
 (`/run/secrets/zitadel-key.json`); a rotação está em `infrastructure/dev/README.md`. `PARTITION_COUNT` (padrão 4) é o número
 de partições do `ACTION`, definido no bootstrap do messaging.
 

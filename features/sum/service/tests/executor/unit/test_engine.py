@@ -46,9 +46,9 @@ def desired(
             "lifecycle": lifecycle,
             "ownerAccountId": OWNER,
             "service": "ipm",
-            "serviceRoles": list(ROLES) if lifecycle == "present" else [],
+            "servicePermissions": list(ROLES) if lifecycle == "present" else [],
             # O que revogar vem do `desired` (decisão 0079), e não de um catálogo do Executor.
-            "managedRoles": list(managed if managed is not None else CATALOG["ipm"]),
+            "managedPermissions": list(managed if managed is not None else CATALOG["ipm"]),
         },
     )
 
@@ -69,7 +69,7 @@ class FakeGranter:
     calls: list[tuple[Any, ...]] = field(default_factory=lambda: [])
     fail: ProviderError | None = None
 
-    def project_of(self, role: str) -> str:
+    def project_of(self, permission: str) -> str:
         return "proj-ipm"
 
     async def grants(self, user_id: str) -> list[Grant]:
@@ -77,14 +77,14 @@ class FakeGranter:
             raise self.fail
         return list(self.grants_by_user.get(user_id, []))
 
-    async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None:
-        self.calls.append(("create", user_id, tuple(roles)))
+    async def create_grant(self, user_id: str, project_id: str, permissions: list[str]) -> None:
+        self.calls.append(("create", user_id, tuple(permissions)))
         self.grants_by_user.setdefault(user_id, []).append(
-            Grant("g-1", project_id, frozenset(roles))
+            Grant("g-1", project_id, frozenset(permissions))
         )
 
-    async def update_grant(self, grant_id: str, roles: list[str]) -> None:
-        self.calls.append(("update", grant_id, tuple(roles)))
+    async def update_grant(self, grant_id: str, permissions: list[str]) -> None:
+        self.calls.append(("update", grant_id, tuple(permissions)))
 
     async def remove_grant(self, grant_id: str) -> None:
         self.calls.append(("remove", grant_id))

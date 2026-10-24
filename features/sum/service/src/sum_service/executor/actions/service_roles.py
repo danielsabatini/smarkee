@@ -52,7 +52,7 @@ async def enable(granter: Authorizations, user_id: str, permissions: Iterable[st
 
 
 async def disable(granter: Authorizations, user_id: str, permissions: Iterable[str]) -> None:
-    """Tira as permissões pedidas e mantém as demais. Autorização sem permissões restantes é removida."""
+    """Tira as permissões pedidas e mantém as demais; remove a autorização que ficar vazia."""
     unwanted_by_project = _by_project(granter, permissions)
     grants = await granter.grants(user_id)
     for grant in grants:

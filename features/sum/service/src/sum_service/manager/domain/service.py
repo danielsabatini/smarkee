@@ -1,9 +1,9 @@
 """Convergência da ligação de serviço (decisões 0033 e 0079). Puro.
 
-Ligação ativa convergida: o usuário tem todas as `servicePermissions` e nenhuma das outras permissões que a
-ligação controla (`managedPermissions`, por exemplo uma que saiu do catálogo). Ligação desligada
-convergida: o usuário não tem nenhuma permissão que a ligação controla, inclusive quando ele já não
-existe no provedor.
+Ligação ativa convergida: o usuário tem todas as `servicePermissions` e nenhuma das outras
+permissões que a ligação controla (`managedPermissions`, por exemplo uma que saiu do catálogo).
+Ligação desligada convergida: o usuário não tem nenhuma permissão que a ligação controla, inclusive
+quando ele já não existe no provedor.
 """
 
 from collections.abc import Mapping
