@@ -137,7 +137,7 @@
 				onclick={() => consoleState.closeOperationsPanel()}
 				aria-label="Fechar painel lateral de operações e notificações"
 				data-testid="close-operations-panel"
-				class="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+				class="flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 items-center justify-center rounded-lg p-2 sm:p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
 			>
 				<X class="h-4 w-4" aria-hidden="true" />
 			</button>
@@ -416,7 +416,7 @@
 					type="button"
 					onclick={closeOperationModal}
 					aria-label="Fechar detalhes da operação"
-					class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+					class="flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 items-center justify-center rounded-lg p-2 sm:p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
 				>
 					<X class="h-4 w-4" aria-hidden="true" />
 				</button>

@@ -150,7 +150,7 @@
 					type="button"
 					onclick={closeDialog}
 					aria-label="Fechar busca global"
-					class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+					class="flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 items-center justify-center rounded-lg p-2 sm:p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
 				>
 					<X class="h-4 w-4" aria-hidden="true" />
 				</button>

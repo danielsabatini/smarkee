@@ -25,6 +25,12 @@
 	let formError = $state<string | null>(null);
 	let isSubmitting = $state(false);
 
+	$effect(() => {
+		if (!isSlugManuallyEdited) {
+			newOrgSlug = slugify(newOrgDisplayName);
+		}
+	});
+
 	function slugify(text: string): string {
 		return text
 			.normalize('NFD')
@@ -193,7 +199,6 @@
 					type="text"
 					required
 					bind:value={newOrgDisplayName}
-					oninput={(e) => handleDisplayNameInput(e.currentTarget.value)}
 					placeholder="ex: Smarkee IT Solutions"
 					data-testid="create-org-name-input"
 					class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none"
@@ -224,7 +229,9 @@
 					type="text"
 					required
 					bind:value={newOrgSlug}
-					oninput={(e) => handleSlugInput(e.currentTarget.value)}
+					oninput={() => {
+						isSlugManuallyEdited = true;
+					}}
 					placeholder="ex: smarkee-it-solutions"
 					data-testid="create-org-slug-input"
 					class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none"

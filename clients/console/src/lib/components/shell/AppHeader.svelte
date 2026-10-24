@@ -61,7 +61,7 @@
 			onclick={handleMenuButtonClick}
 			aria-label="Alternar menu de navegação lateral"
 			data-testid="sidebar-toggle-button"
-			class="shrink-0 rounded-lg p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 sm:p-2"
+			class="flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 items-center justify-center shrink-0 rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
 		>
 			<Menu class="h-5 w-5" aria-hidden="true" />
 		</button>
@@ -77,6 +77,8 @@
 				class="h-6 w-6 object-contain sm:h-7 sm:w-7"
 				width="28"
 				height="28"
+				loading="lazy"
+				decoding="async"
 			/>
 			<span class="hidden text-base font-bold tracking-tight text-slate-900 sm:inline">
 				Smarkee
@@ -103,14 +105,14 @@
 				: 'Abrir painel de notificações'}
 			data-testid="header-notifications-button"
 			title="Notificações"
-			class="relative rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+			class="relative flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 items-center justify-center rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
 		>
 			<Bell class="h-4 w-4" aria-hidden="true" />
 			{#if consoleState.unreadNotificationsCount > 0}
 				<span
 					aria-hidden="true"
 					data-testid="unread-notifications-badge"
-					class="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white"
+					class="absolute top-1 right-1 sm:-top-0.5 sm:-right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white"
 				>
 					{consoleState.unreadNotificationsCount}
 				</span>
@@ -125,14 +127,14 @@
 				: 'Abrir painel de operações'}
 			data-testid="header-operations-button"
 			title="Operações em andamento"
-			class="relative rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+			class="relative flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 items-center justify-center rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
 		>
 			<Settings class="h-4 w-4" aria-hidden="true" />
 			{#if consoleState.activeOperationsCount > 0}
 				<span
 					aria-hidden="true"
 					data-testid="active-operations-badge"
-					class="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white"
+					class="absolute top-1 right-1 sm:-top-0.5 sm:-right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white"
 				>
 					{consoleState.activeOperationsCount}
 				</span>
@@ -159,7 +161,7 @@
 					0
 				) ?? 'S'})"
 				data-testid="profile-menu-trigger"
-				class="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-1 pr-2 pl-1 text-xs font-medium text-slate-800 transition hover:border-emerald-300 hover:bg-white"
+				class="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-1 pr-2.5 pl-1.5 text-xs font-medium text-slate-800 transition hover:border-emerald-300 hover:bg-white"
 			>
 				<span
 					aria-hidden="true"

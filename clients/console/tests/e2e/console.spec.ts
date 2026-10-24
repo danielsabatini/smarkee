@@ -80,6 +80,7 @@ test.describe('Smarkee Console — E2E & WCAG AA', () => {
 	}) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.goto('/');
+		await page.waitForLoadState('networkidle');
 
 		await expect(page.getByTestId('mobile-sidebar-drawer')).toHaveCount(0);
 		await page.getByTestId('sidebar-toggle-button').click();
@@ -93,8 +94,11 @@ test.describe('Smarkee Console — E2E & WCAG AA', () => {
 		page
 	}) => {
 		await page.goto('/identity/organizations');
+		await page.waitForLoadState('networkidle');
+		await expect(page.getByRole('heading', { name: 'Nova Organização' })).toBeVisible();
 
 		await page.getByTestId('create-org-name-input').fill('wayne-enterprises');
+		await expect(page.getByTestId('create-org-slug-input')).toHaveValue('wayne-enterprises');
 		await page.getByTestId('create-org-submit-button').click();
 
 		// Painel de operações exibe a operação assíncrona e converge para Ready
@@ -114,6 +118,8 @@ test.describe('Smarkee Console — E2E & WCAG AA', () => {
 		page
 	}) => {
 		await page.goto('/');
+		await page.waitForLoadState('networkidle');
+		await expect(page.getByRole('heading', { name: 'Bem-vindo à Smarkee' })).toBeVisible();
 
 		await page.getByTestId('header-notifications-button').click();
 		await expect(page.getByTestId('tab-notifications')).toHaveAttribute('aria-selected', 'true');

@@ -234,7 +234,15 @@
 		<div class="relative z-10 flex w-72 max-w-[85vw] flex-col bg-white shadow-2xl">
 			<div class="flex h-14 items-center justify-between border-b border-slate-200 px-4">
 				<div class="flex items-center gap-2">
-					<img src="/brand/s-small.png" alt="Smarkee" class="h-6 w-6" width="24" height="24" />
+					<img
+						src="/brand/s-small.png"
+						alt="Smarkee"
+						class="h-6 w-6"
+						width="24"
+						height="24"
+						loading="lazy"
+						decoding="async"
+					/>
 					<span class="text-sm font-bold text-slate-900">Smarkee Console</span>
 				</div>
 				<button
@@ -242,7 +250,7 @@
 					onclick={() => consoleState.setMobileDrawerOpen(false)}
 					aria-label="Fechar menu de navegação"
 					data-testid="mobile-drawer-close"
-					class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+					class="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
 				>
 					<X class="h-4 w-4" aria-hidden="true" />
 				</button>

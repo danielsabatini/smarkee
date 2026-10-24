@@ -65,7 +65,7 @@
 		aria-haspopup="dialog"
 		aria-expanded={isOpen}
 		data-testid="organization-selector-trigger"
-		class="flex max-w-full items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/90 px-2 py-1 text-left transition hover:border-emerald-300 hover:bg-white sm:gap-2.5 sm:px-3 sm:py-1.5"
+		class="flex max-w-full min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/90 px-2.5 py-1 text-left transition hover:border-emerald-300 hover:bg-white sm:min-h-0 sm:gap-2.5 sm:px-3 sm:py-1.5"
 	>
 		<div
 			class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-700 sm:h-7 sm:w-7"
