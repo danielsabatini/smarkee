@@ -7,10 +7,7 @@
 	<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 		<div class="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
 			<div>
-				<span class="text-sm font-semibold uppercase tracking-wider text-emerald-700">
-					Conhecimento Técnico & Engenharia
-				</span>
-				<h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+				<h2 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-4xl">
 					Blog da Smarkee IT Solutions
 				</h2>
 				<p class="mt-2 max-w-2xl text-sm text-slate-600 sm:text-sm">
@@ -49,7 +46,7 @@
 						<h3
 							class="mt-4 text-base font-bold text-slate-900 group-hover:text-emerald-700 transition"
 						>
-							<a href="/blog/{post.slug}" class="focus:outline-hidden">
+							<a href="/blog/{post.slug}" class="rounded-sm">
 								{post.title}
 							</a>
 						</h3>

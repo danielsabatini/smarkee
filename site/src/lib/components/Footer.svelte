@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { CheckCircle2, ShieldCheck, Terminal } from 'lucide-svelte';
+	import { CONSOLE_URL } from '$lib/data/platform';
 </script>
 
 <footer class="border-t border-slate-200 bg-white text-sm text-slate-600">
@@ -93,7 +94,7 @@
 					</li>
 					<li>
 						<a
-							href="http://localhost:5173"
+							href={CONSOLE_URL}
 							target="_blank"
 							rel="noreferrer"
 							class="transition hover:text-emerald-700"

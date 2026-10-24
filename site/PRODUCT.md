@@ -6,34 +6,36 @@
 
 web
 
+## Stack
+
+SvelteKit (Svelte 5 Runes), Tailwind CSS v4, Vitest, TypeScript
+
 ## Users
 
-A mix of technical leadership (CTOs, VPs of Engineering, Platform Architects) looking for governance and declarative infrastructure, and hands-on platform teams (DevOps, Platform Engineers) implementing IDP and multi-tenant solutions.
+Platform Engineers (CTOs, DevOps, Cloud Architects) managing infrastructure.
 
 ## Product Purpose
 
-Smarkee IT Solutions provides a declarative cloud platform handling declarative state, async semantic messaging, and human-AI collaborative orchestration. The website serves as the institutional portal to explain the platform's value proposition, demonstrate its capabilities, and convert visitors.
+Smarkee IT Solutions — Website institucional e portal público. Uma plataforma de nuvem declarativa com controle de identidade multi-tenant (IPM), catálogo sob demanda (SUM), auditoria imutável (AEM) e observabilidade aberta (ODM).
 
 ## Positioning
 
-Smarkee is positioned as a comprehensive cloud platform, highlighting its integrated suite of modules: IPM (Identity Control), SUM (On-Demand Catalog), AEM (Immutable Audit), and ODM (Open Observability).
+Self-service infrastructure and automated provisioning.
 
 ## Operating Context
 
-Visitors evaluate the product through the website by reading technical deep-dives (blog) and reviewing code snippets (CLI, REST API, JSON Schema) to understand the developer experience.
+Web portal accessed by engineers evaluating or using the Smarkee platform. Includes interactive simulators of the Declarative Control Loop (Desired vs Observed) and CLI/REST API visualizations.
 
 ## Capabilities and Constraints
 
-- Built with SvelteKit (Svelte 5 Runes).
-- Deployed as a modern web application.
-- Must showcase interactive code viewers.
+No rigid constraints required beyond the Smarkee brand tokens. Uses Inter (sans) and JetBrains Mono (mono) fonts, Lucide Svelte icons.
 
-## Brand Commitments
+## Evidence on Hand
 
-Current visual assets must be preserved: Tailwind CSS v4 tokens, Inter (sans-serif) for UI text, JetBrains Mono for code blocks, and Lucide Svelte for icons.
+Real content mapped in README: Landing page with value proposition, blog directory, product details, solutions, about us, and contact forms.
 
 ## Product Principles
 
-- **Clarity over complexity:** The platform's capabilities (IPM, SUM, AEM, ODM) must be easy to understand for both leadership and engineers.
-- **Show, don't just tell:** Interactive simulators and code previews are critical for demonstrating the declarative control loop.
-- **Technical authority:** The design must reflect engineering rigor, robust architecture, and transparency.
+1. Declarative First: Emphasize the Desired vs Observed control loop in the messaging.
+2. Technical Depth: Target platform engineers with precise technical descriptions.
+3. Modular Architecture: Clearly separate IPM, SUM, AEM, and ODM capabilities.

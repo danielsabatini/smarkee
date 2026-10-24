@@ -120,10 +120,7 @@ resource "smarkee_service_entitlement" "ipm" {
 		<div class="grid grid-cols-1 items-start gap-12 lg:grid-cols-12">
 			<!-- Texto e Navegação Lateral -->
 			<div class="lg:col-span-5 flex flex-col justify-center">
-				<span class="text-sm font-semibold uppercase tracking-wider text-emerald-700">
-					Developer Experience
-				</span>
-				<h2 class="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+				<h2 class="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
 					Controle total, na interface da sua escolha
 				</h2>
 				<p class="mt-4 text-base leading-relaxed text-slate-600 mb-8">
@@ -131,12 +128,20 @@ resource "smarkee_service_entitlement" "ipm" {
 					programado via API, automatizado na CLI ou gerenciado declarativamente com Terraform.
 				</p>
 
-				<div class="flex flex-col space-y-3">
+				<div
+					class="flex flex-col space-y-3"
+					role="tablist"
+					aria-label="Interfaces de gerenciamento da plataforma"
+				>
 					{#each Object.entries(interfaces) as [key, value] (key)}
 						{@const isSelected = activeInterface === key}
 						{@const Icon = value.icon}
 						<button
 							type="button"
+							role="tab"
+							id="tab-{key}"
+							aria-selected={isSelected}
+							aria-controls="panel-interface-code"
 							class="group flex items-start gap-4 rounded-xl border p-4 text-left transition-all duration-200 {isSelected
 								? 'border-emerald-500 bg-emerald-50/50 shadow-xs'
 								: 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}"
@@ -171,7 +176,12 @@ resource "smarkee_service_entitlement" "ipm" {
 			</div>
 
 			<!-- Editor / Visualizador -->
-			<div class="lg:col-span-7 lg:mt-8">
+			<div
+				id="panel-interface-code"
+				role="tabpanel"
+				aria-labelledby="tab-{activeInterface}"
+				class="lg:col-span-7 lg:mt-8"
+			>
 				<div
 					class="rounded-2xl border border-slate-200 bg-slate-900 shadow-2xl overflow-hidden ring-1 ring-white/10"
 				>

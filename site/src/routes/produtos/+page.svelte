@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Activity, ArrowUpRight, FileText, Layers, ShieldCheck, Terminal } from 'lucide-svelte';
+	import { CONSOLE_URL } from '$lib/data/platform';
 </script>
 
 <svelte:head>
@@ -52,7 +53,7 @@
 				</div>
 
 				<a
-					href="http://localhost:5173/identity/organizations"
+					href="{CONSOLE_URL}/identity/organizations"
 					target="_blank"
 					rel="noreferrer"
 					class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-emerald-700 transition"
@@ -115,7 +116,7 @@
 				</div>
 
 				<a
-					href="http://localhost:5173/services/catalog"
+					href="{CONSOLE_URL}/services/catalog"
 					target="_blank"
 					rel="noreferrer"
 					class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-emerald-700 transition"
@@ -157,7 +158,7 @@
 				</div>
 
 				<a
-					href="http://localhost:5173/audit/events"
+					href="{CONSOLE_URL}/audit/events"
 					target="_blank"
 					rel="noreferrer"
 					class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition"
@@ -196,7 +197,7 @@
 				</div>
 
 				<a
-					href="http://localhost:5173/observability/logs"
+					href="{CONSOLE_URL}/observability/logs"
 					target="_blank"
 					rel="noreferrer"
 					class="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition"

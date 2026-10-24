@@ -16,6 +16,9 @@ export interface PlatformModule {
 	metrics?: string;
 }
 
+export const CONSOLE_URL: string =
+	import.meta.env.VITE_CONSOLE_URL ?? 'https://console.smarkee.com.br';
+
 export const MAIN_NAV: NavItem[] = [
 	{ label: 'Plataforma', href: '/#plataforma' },
 	{ label: 'Módulos', href: '/produtos' },

@@ -10,22 +10,7 @@
 
 	<div class="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 		<div class="mx-auto max-w-4xl text-center">
-			<div
-				class="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-1 py-1 pr-4 text-sm shadow-sm gap-2 border-emerald-200 bg-emerald-50 px-3.5 text-emerald-800 shadow-2xs"
-			>
-				<span
-					class="flex items-center justify-center rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-900"
-					>Smarkee Plataforma</span
-				>
-				<span class="flex items-center gap-2 font-medium text-emerald-700">
-					<span class="flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-					Ecossistema Integrado
-				</span>
-			</div>
-
-			<h1
-				class="mt-6 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl"
-			>
+			<h1 class="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
 				Acelere o seu negócio com
 				<span class="block mt-2 text-emerald-700">nossa plataforma em nuvem.</span>
 			</h1>
@@ -36,7 +21,7 @@
 
 			<div class="mt-10 flex flex-wrap items-center justify-center gap-4">
 				<a
-					href="#features"
+					href="#plataforma"
 					class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-8 py-3.5 text-sm font-bold text-white shadow-sm shadow-emerald-700/20 transition hover:bg-emerald-700 hover:shadow-md"
 				>
 					<span>Explorar Plataforma</span>
@@ -81,39 +66,45 @@
 				</div>
 			</div>
 
-			<div
-				class="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-slate-600"
-			>
-				<p class="font-medium text-slate-900">Módulos nativos integrados:</p>
-				<div class="grid grid-cols-1 gap-4 md:grid-cols-4">
-					<!-- Card 1: IPM -->
-					<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-						<span class="font-mono text-sm font-bold text-slate-800">Identidade</span>
-						<p class="mt-2 text-sm font-semibold text-slate-900">Gestão de Acessos</p>
-						<p class="mt-1 text-sm text-slate-500">Organizações e usuários.</p>
+			<!-- Faixa tipográfica de capacidades centrais -->
+			<div class="mx-auto mt-14 max-w-5xl border-t border-slate-200 pt-10">
+				<dl
+					class="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-slate-200"
+				>
+					<div class="flex flex-col items-start lg:pr-6">
+						<dt class="font-mono text-xs font-bold tracking-wider uppercase text-emerald-700">
+							Identidade (IPM)
+						</dt>
+						<dd class="mt-1.5 text-base font-bold text-slate-900">Gestão de Acessos</dd>
+						<dd class="mt-1 text-sm text-slate-600">Organizações, contas e permissões seguras.</dd>
 					</div>
 
-					<!-- Card 2: SUM -->
-					<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-						<span class="font-mono text-sm font-bold text-slate-800">Serviços</span>
-						<p class="mt-2 text-sm font-semibold text-slate-900">Recursos sob Demanda</p>
-						<p class="mt-1 text-sm text-slate-500">Habilitação simplificada.</p>
+					<div class="flex flex-col items-start lg:px-6">
+						<dt class="font-mono text-xs font-bold tracking-wider uppercase text-emerald-700">
+							Serviços (SUM)
+						</dt>
+						<dd class="mt-1.5 text-base font-bold text-slate-900">Recursos sob Demanda</dd>
+						<dd class="mt-1 text-sm text-slate-600">Catálogo unificado com ativação imediata.</dd>
 					</div>
 
-					<!-- Card 3: AEM -->
-					<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-						<span class="font-mono text-sm font-bold text-slate-800">Auditoria</span>
-						<p class="mt-2 text-sm font-semibold text-slate-900">Registro Imutável</p>
-						<p class="mt-1 text-sm text-slate-500">Segurança e compliance.</p>
+					<div class="flex flex-col items-start lg:px-6">
+						<dt class="font-mono text-xs font-bold tracking-wider uppercase text-emerald-700">
+							Auditoria (AEM)
+						</dt>
+						<dd class="mt-1.5 text-base font-bold text-slate-900">Registro Imutável</dd>
+						<dd class="mt-1 text-sm text-slate-600">
+							Trilha auditável para segurança e compliance.
+						</dd>
 					</div>
 
-					<!-- Card 4: ODM -->
-					<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-						<span class="font-mono text-sm font-bold text-slate-800">Métricas</span>
-						<p class="mt-2 text-sm font-semibold text-slate-900">Observabilidade</p>
-						<p class="mt-1 text-sm text-slate-500">Monitoramento integrado.</p>
+					<div class="flex flex-col items-start lg:pl-6">
+						<dt class="font-mono text-xs font-bold tracking-wider uppercase text-emerald-700">
+							Observabilidade (ODM)
+						</dt>
+						<dd class="mt-1.5 text-base font-bold text-slate-900">Métricas, Logs e Traces</dd>
+						<dd class="mt-1 text-sm text-slate-600">Telemetria integrada em padrão aberto.</dd>
 					</div>
-				</div>
+				</dl>
 			</div>
 		</div>
 	</div>

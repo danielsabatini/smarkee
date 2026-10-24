@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { ArrowUpRight, MessageSquare, ShieldCheck } from 'lucide-svelte';
+	import { CONSOLE_URL } from '$lib/data/platform';
 </script>
 
 <section class="relative overflow-hidden border-t border-slate-200 bg-white py-20 sm:py-28">
@@ -22,7 +23,7 @@
 
 		<div class="mt-8 flex flex-wrap items-center justify-center gap-3">
 			<a
-				href="http://localhost:5173"
+				href={CONSOLE_URL}
 				target="_blank"
 				rel="noreferrer"
 				class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-700/20 transition hover:bg-emerald-700 hover:shadow-md"

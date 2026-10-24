@@ -6,10 +6,7 @@
 <section id="plataforma" class="relative border-t border-slate-200 bg-white py-20 sm:py-28">
 	<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 		<div class="mx-auto max-w-3xl text-center">
-			<span class="text-sm font-semibold uppercase tracking-wider text-emerald-700">
-				Suíte de Produtos Smarkee
-			</span>
-			<h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+			<h2 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-4xl">
 				Tudo o que você precisa, sem a complexidade
 			</h2>
 			<p class="mt-4 text-sm leading-relaxed text-slate-600 sm:text-base">
