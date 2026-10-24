@@ -42,18 +42,6 @@
 			.slice(0, 63);
 	}
 
-	function handleDisplayNameInput(value: string): void {
-		newOrgDisplayName = value;
-		if (!isSlugManuallyEdited) {
-			newOrgSlug = slugify(value);
-		}
-	}
-
-	function handleSlugInput(value: string): void {
-		newOrgSlug = value;
-		isSlugManuallyEdited = true;
-	}
-
 	function handleResetSlug(): void {
 		isSlugManuallyEdited = false;
 		newOrgSlug = slugify(newOrgDisplayName);
