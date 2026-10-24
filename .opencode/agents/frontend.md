@@ -42,6 +42,7 @@ Skills procedimentais que este agent utiliza para operar as tools e MCPs:
 |---|---|---|
 | Inicializar, estruturar ou evoluir as etapas do Console | `frontend-bootstrap` | `pnpm`, MCP `context7`, MCP `svelte`, `ajv` contra `schemas/` |
 | Criar, editar e validar componentes `.svelte` e módulos `.svelte.ts` | `frontend-component` | MCP `svelte` (`list-sections`, `get-documentation`, `svelte-autofixer`), MCP `context7` |
+| Projetar, refinar, auditar UX/UI e evoluir o Design System | `impeccable` | Análise heurística, layout, tokens CSS, responsividade e `DESIGN.md` |
 | Executar validação completa, auditoria visual/a11y e Quality Gate | `frontend-quality` | MCP `svelte`, `pnpm` (`svelte-check`, ESLint, Vitest, Playwright + `axe-core`), MCP `playwright`, MCP `sonarqube` |
 
 ---
@@ -138,7 +139,8 @@ Invariantes de contrato e segurança:
 Este agent não executa etapas de forma ad-hoc:
 
 1. Ao criar ou evoluir a estrutura do Console → siga a skill **`frontend-bootstrap`**.
-2. Ao implementar ou alterar componentes `.svelte` / `.svelte.ts` → siga a skill **`frontend-component`** (que opera o MCP `svelte` e o `context7`).
-3. Ao validar uma entrega antes de concluir → execute obrigatoriamente a skill **`frontend-quality`** (que opera `svelte-autofixer`, `pnpm check`, `pnpm lint`, `pnpm test:unit`, `pnpm test:e2e`, MCP `playwright` e delega ao agent `sonarqube` quando aplicável).
+2. Ao projetar nova interface, auditar UX/UI, refinar acessibilidade visual, motion ou atualizar tokens no `DESIGN.md` → invoque a skill **`impeccable`**.
+3. Ao implementar ou alterar componentes `.svelte` / `.svelte.ts` → siga a skill **`frontend-component`** (que opera o MCP `svelte` e o `context7`).
+4. Ao validar uma entrega antes de concluir → execute obrigatoriamente a skill **`frontend-quality`** (que opera `svelte-autofixer`, `pnpm check`, `pnpm lint`, `pnpm test:unit`, `pnpm test:e2e`, MCP `playwright` e delega ao agent `sonarqube` quando aplicável).
 
 Nenhuma entrega é declarada concluída se qualquer verificação obrigatória da skill `frontend-quality` falhar (`AGENTS.md` §19 e §33).
