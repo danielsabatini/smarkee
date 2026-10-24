@@ -67,7 +67,8 @@ def nats_password() -> str:
         if line.startswith("SMARKEE_MESSAGING_PASSWORD="):
             return line.partition("=")[2].strip()
     raise SystemExit(
-        "defina CLEANUP_NATS_PASSWORD ou o SMARKEE_MESSAGING_PASSWORD de infrastructure/dev/messaging/.env"
+        "defina CLEANUP_NATS_PASSWORD ou o SMARKEE_MESSAGING_PASSWORD "
+        "de infrastructure/dev/messaging/.env"
     )
 
 

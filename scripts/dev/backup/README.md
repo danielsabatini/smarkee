@@ -23,40 +23,41 @@ uv run smarkee-dev-backup reset --apply    # backup, verificação e SÓ ENTÃO 
 |---|---|
 | Bancos `identity` (Zitadel) e `smarkee` (SSOT) | `pg_dump -Fc` no contêiner `database.smarkee.internal` |
 | Papéis do PostgreSQL | `pg_dumpall --globals-only` |
-| Volume `identity-bootstrap` (chaves das service accounts e PAT do login) | `tar` somente leitura |
-| `.env` de `infrastructure/dev/{messaging,database,gateway,identity}` e das features | cópia (os que existirem) |
-| `manifest.json` e `SHA256SUMS` | commit do git, versão do PostgreSQL, lista e somas dos arquivos |
+| Volumes `identity-bootstrap` (chaves das service accounts e PAT do login) e `bsm-account-state` (estado externo de `bsm.account` em P0) | `tar` somente leitura |
+| `.env` de `infrastructure/dev/*`, das features e de `clients/cli` | cópia privada `0600` (os que existirem) |
+| `manifest.json` e `SHA256SUMS` | commit do git, versão do PostgreSQL, lista validada e somas dos arquivos |
 
-**Não entram:** o estado do NATS (JetStream, volume `messaging-data`) e o Mailpit (`mail-data`). Um `reset` os perde. Os volumes de outros projetos nunca são tocados (a lista de volumes é fixa).
+**Não entram:** o estado do NATS (JetStream, volume `messaging-data`) e o Mailpit (`mail-data`). Um `reset` os perde. Os volumes de outros projetos nunca são tocados (a lista de volumes é fixa e validada).
 
-O backup fica em `~/.smarkee/backups/<AAAAMMDDTHHMMSSZ>/`, **fora do repositório e do Docker**: um `docker system prune --volumes` não o apaga. A pasta e os arquivos são só do dono (0700/0600): há hashes de senha, chaves e a masterkey. Nada é impresso.
+O backup fica em `~/.smarkee/backups/<AAAAMMDDTHHMMSSZ>/`, **fora do repositório e do Docker**: um `docker system prune --volumes` não o apaga. A pasta já nasce com permissão `0700` e os arquivos com `0600`: há hashes de senha, chaves e a masterkey. Nada é impresso.
 
 ## O que `verify` prova
 
-1. **Integridade:** as somas SHA-256 de todos os arquivos conferem, sem arquivo a mais nem a menos.
+1. **Integridade:** as somas SHA-256 de todos os arquivos conferem, sem arquivo a mais nem a menos, e o manifesto só referencia bancos, volumes e `.env` da lista permitida.
 2. **Restauração:** sobe um PostgreSQL descartável (rede padrão, sem porta publicada, senha aleatória), restaura os papéis e cada banco, e compara o conteúdo lógico (esquema e dados) do banco restaurado com o do dump. A comparação ignora o que muda a cada dump (data e o token `\restrict`) e a posição física das linhas. O contêiner é removido ao final.
 
 Isso prova que o backup restaura os **dados**. Não prova que os serviços sobem: para isso, suba o Zitadel contra o banco restaurado, como foi feito na primeira validação (2026-10-16, quando o gateway ainda era o Kong e entrava no backup: organizações, usuários, projetos, apps, serviços, rotas e plugins iguais ao ambiente ativo).
 
 ## Restauração
 
-`restore --apply`, com a plataforma de pé (`infrastructure/dev`), faz:
+`restore --apply` faz:
 
-1. verifica o backup (integridade e restauração) e recusa se algo falhar;
+1. verifica o backup (integridade, manifesto e restauração no banco descartável) e recusa se algo falhar;
 2. recusa se um `.env` existente **difere** do backup (resolva à mão; a masterkey do Zitadel precisa ser a do backup);
-3. para os componentes das features e `identity` e `identity-login`;
-4. recria os papéis e substitui os bancos (`DROP DATABASE ... WITH (FORCE)` e `pg_restore --create`);
-5. substitui o conteúdo do volume `identity-bootstrap`;
-6. copia os `.env` que faltam;
-7. sobe de novo os serviços parados.
+3. copia os `.env` que faltam (com permissão `0600` desde a criação);
+4. para os componentes das features e `identity`, `identity-login` e `telemetry-agent` (e, se o ambiente estiver zerado após `reset --apply`, sobe apenas `database` e cria os volumes antes do `identity` iniciar);
+5. recria os papéis e substitui os bancos (`DROP DATABASE ... WITH (FORCE)` e `pg_restore --create`);
+6. substitui o conteúdo dos volumes `identity-bootstrap` e `bsm-account-state`;
+7. sobe de novo a plataforma e as features.
 
-Depois de um `reset`, recrie o ambiente (plataforma e features, `docker compose up -d --build`) e rode `restore --apply`.
+Depois de um `reset --apply`, basta rodar `uv run smarkee-dev-backup restore --apply`.
 
 ## Segurança
 
 - Só atua no ambiente de dev local (contêineres, volumes e diretórios fixos); qualquer variável `BACKUP_*` é **recusada**.
 - Sem `--apply`, `restore` e `reset` não alteram nada. `reset` não remove nada se o backup não for confirmado.
-- O nome de banco que entra em comandos SQL é validado por um padrão fixo.
+- Os nomes de banco e de volume e os caminhos de `.env` do manifesto são validados contra listas e padrões fixos antes de qualquer comando SQL, montagem do Docker ou escrita em disco.
+- A pasta do backup e os `.env` restaurados nascem com permissão restrita ao dono (`0700`/`0600`).
 - Não há remoção automática de backups antigos: apague-os à mão quando quiser.
 
 ## Desenvolvimento

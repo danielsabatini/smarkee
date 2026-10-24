@@ -17,6 +17,7 @@ from smarkee_dev_backup.engine import (
     create_backup,
     list_backups,
     normalize,
+    read_manifest,
     reset,
     resolve,
     restore,
@@ -288,3 +289,28 @@ def test_database_names_are_validated_before_reaching_sql(tmp_path: Path) -> Non
         stack.dump_database("x; drop database smarkee", tmp_path / "out")
     with pytest.raises(BackupError):
         stack.restore_database('x"; drop database smarkee; --', tmp_path / "in")
+
+
+def test_volume_names_are_validated_before_reaching_docker_mount(tmp_path: Path) -> None:
+    stack = DockerStack(tmp_path)
+    for invalid in ("/etc", "../root", "vol:/host", "vol; rm -rf /"):
+        with pytest.raises(BackupError):
+            stack.archive_volume(invalid, tmp_path / "out.tar.gz")
+        with pytest.raises(BackupError):
+            stack.restore_volume(invalid, tmp_path / "in.tar.gz")
+
+
+def test_manifest_rejects_unapproved_databases_volumes_and_env_paths(tmp_path: Path) -> None:
+    ports, _ = make_ports(tmp_path)
+    path = create_backup(ports, silent)
+    manifest_file = path / "manifest.json"
+    base = json.loads(manifest_file.read_text(encoding="utf-8"))
+    for field_name, invalid in (
+        ("databases", ["identity", "outro"]),
+        ("volumes", ["/etc"]),
+        ("envFiles", ["../../.ssh/authorized_keys"]),
+    ):
+        tampered = {**base, field_name: invalid}
+        manifest_file.write_text(json.dumps(tampered), encoding="utf-8")
+        with pytest.raises(BackupError):
+            read_manifest(path)

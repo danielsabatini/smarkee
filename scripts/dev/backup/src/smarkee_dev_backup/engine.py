@@ -3,7 +3,6 @@
 import hashlib
 import json
 import os
-import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
@@ -68,11 +67,35 @@ def resolve(root: Path, name: str | None) -> Path:
     return path
 
 
+def _valid_items(items: object, allowed: tuple[str, ...]) -> bool:
+    if not isinstance(items, list):
+        return False
+    typed = cast("list[object]", items)
+    return all(isinstance(item, str) and item in allowed for item in typed)
+
+
 def read_manifest(path: Path) -> dict[str, Any]:
     manifest = cast("dict[str, Any]", json.loads((path / MANIFEST).read_text(encoding="utf-8")))
     if manifest.get("formatVersion") != FORMAT_VERSION:
         raise BackupError(f"formato de backup não suportado em {path.name}")
+    if not _valid_items(manifest.get("databases"), DATABASES):
+        raise BackupError(f"bancos inválidos no manifesto de {path.name}")
+    if not _valid_items(manifest.get("volumes"), VOLUMES):
+        raise BackupError(f"volumes inválidos no manifesto de {path.name}")
+    if not _valid_items(manifest.get("envFiles"), ENV_FILES):
+        raise BackupError(f"arquivos .env inválidos no manifesto de {path.name}")
     return manifest
+
+
+def _write_private_copy(source: Path, destination: Path) -> None:
+    """Copia `source` criando `destination` já com permissão `0600` desde o primeiro byte."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    data = source.read_bytes()
+    fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, data)
+    finally:
+        os.close(fd)
 
 
 def create_backup(ports: Ports, say: Say = print) -> Path:
@@ -81,8 +104,10 @@ def create_backup(ports: Ports, say: Say = print) -> Path:
     target = ports.root / ports.now().strftime("%Y%m%dT%H%M%SZ")
     if target.exists():
         raise BackupError(f"já existe um backup com este nome: {target.name}")
-    (target / "db").mkdir(parents=True)
-    (target / "volumes").mkdir()
+    target.mkdir(mode=0o700)
+    target.chmod(0o700)
+    (target / "db").mkdir(mode=0o700)
+    (target / "volumes").mkdir(mode=0o700)
     for database in DATABASES:
         say(f"  banco {database}")
         ports.stack.dump_database(database, target / "db" / f"{database}.dump")
@@ -95,9 +120,7 @@ def create_backup(ports: Ports, say: Say = print) -> Path:
     for relative in ENV_FILES:
         source = ports.repository / relative
         if source.is_file():
-            destination = target / "env" / relative
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(source, destination)
+            _write_private_copy(source, target / "env" / relative)
             env_files.append(relative)
     manifest = {
         "formatVersion": FORMAT_VERSION,
@@ -189,15 +212,20 @@ def restore(ports: Ports, path: Path, *, apply_changes: bool, say: Say = print) 
         say("nada foi alterado")
         return 1
     say("plano:")
-    say("  1. parar os componentes das features e a plataforma que usa os bancos")
-    say("  2. recriar os papéis do PostgreSQL e substituir os bancos " + ", ".join(DATABASES))
-    say("  3. substituir o conteúdo dos volumes " + ", ".join(VOLUMES))
-    say("  4. copiar os .env que faltam (os existentes e iguais não mudam)")
+    say("  1. copiar os .env que faltam (os existentes e iguais não mudam)")
+    say("  2. parar os componentes das features e a plataforma que usa os bancos")
+    say("  3. recriar os papéis do PostgreSQL e substituir os bancos " + ", ".join(DATABASES))
+    say("  4. substituir o conteúdo dos volumes " + ", ".join(VOLUMES))
     say("  5. subir de novo os serviços parados")
     say("  não restaura o estado do NATS (JetStream) nem o Mailpit: não fazem parte do backup")
     if not apply_changes:
         say("nada foi alterado; use --apply para restaurar")
         return 0
+    for relative in cast("list[str]", manifest["envFiles"]):
+        live = ports.repository / relative
+        if not live.exists():
+            _write_private_copy(path / "env" / relative, live)
+            say(f"  .env copiado: {relative}")
     ports.stack.stop_components()
     ports.stack.restore_globals(path / "db" / "globals.sql")
     for database in cast("list[str]", manifest["databases"]):
@@ -206,13 +234,6 @@ def restore(ports: Ports, path: Path, *, apply_changes: bool, say: Say = print) 
     for volume in cast("list[str]", manifest["volumes"]):
         say(f"  restaurando o volume {volume}")
         ports.stack.restore_volume(volume, path / "volumes" / f"{volume}.tar.gz")
-    for relative in cast("list[str]", manifest["envFiles"]):
-        live = ports.repository / relative
-        if not live.exists():
-            live.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(path / "env" / relative, live)
-            os.chmod(live, 0o600)
-            say(f"  .env copiado: {relative}")
     ports.stack.start_components()
     say("restauração concluída")
     return 0
@@ -236,5 +257,5 @@ def reset(ports: Ports, *, apply_changes: bool, say: Say = print) -> int:
         return 1
     say("backup verificado; removendo o ambiente")
     ports.stack.remove_everything()
-    say("ambiente removido. Para recriar: suba a plataforma e as features e rode `restore --apply`")
+    say("ambiente removido. Para recriar: rode `restore --apply`")
     return 0

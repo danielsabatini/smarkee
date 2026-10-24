@@ -14,10 +14,12 @@ from smarkee_dev_backup.model import (
     FEATURE_DIRECTORIES,
     INFRASTRUCTURE_DEPENDENTS,
     INFRASTRUCTURE_DIRECTORY,
+    VOLUME_NAME,
     BackupError,
 )
 
 DATABASE_CONTAINER = "database.smarkee.internal"
+DEFAULT_POSTGRES_IMAGE = "postgres:18.6-alpine"
 
 
 def _run(arguments: list[str], *, cwd: Path | None = None) -> str:
@@ -40,6 +42,12 @@ def _database(name: str) -> str:
     return name
 
 
+def _volume(name: str) -> str:
+    if not VOLUME_NAME.match(name):
+        raise BackupError(f"nome de volume inválido: {name!r}")
+    return name
+
+
 class DockerStack:
     """O ambiente de dev: o banco `database.smarkee.internal` e os projetos Compose."""
 
@@ -49,7 +57,7 @@ class DockerStack:
 
     def _image(self) -> str:
         """Mesma imagem do banco (tem `tar` e `pg_*`), sem puxar outra."""
-        return _run(["docker", "inspect", self._container, "--format", "{{.Config.Image}}"]).strip()
+        return database_image(self._container)
 
     def _psql(self, database: str, sql: str) -> str:
         return _run(
@@ -104,6 +112,7 @@ class DockerStack:
             )
 
     def archive_volume(self, volume: str, destination: Path) -> None:
+        name = _volume(volume)
         with destination.open("wb") as sink:
             _pipe(
                 [
@@ -111,7 +120,7 @@ class DockerStack:
                     "run",
                     "--rm",
                     "-v",
-                    f"{volume}:/data:ro",
+                    f"{name}:/data:ro",
                     self._image(),
                     "tar",
                     "-C",
@@ -131,11 +140,13 @@ class DockerStack:
         for directory in FEATURE_DIRECTORIES:
             self._compose(directory, "stop")
         self._compose(INFRASTRUCTURE_DIRECTORY, "stop", *INFRASTRUCTURE_DEPENDENTS)
+        if self._container not in running_containers():
+            self._compose(INFRASTRUCTURE_DIRECTORY, "up", "-d", "--wait", "database")
+            self._compose(INFRASTRUCTURE_DIRECTORY, "up", "--no-start", "identity")
+            self._compose("features/bsm/account", "up", "--no-start", "bsm-account-executor")
 
     def start_components(self) -> None:
-        self._compose(
-            INFRASTRUCTURE_DIRECTORY, "up", "-d", "--no-recreate", *INFRASTRUCTURE_DEPENDENTS
-        )
+        self._compose(INFRASTRUCTURE_DIRECTORY, "up", "-d", "--no-recreate")
         for directory in FEATURE_DIRECTORIES:
             self._compose(directory, "up", "-d", "--no-recreate")
 
@@ -175,6 +186,7 @@ class DockerStack:
             )
 
     def restore_volume(self, volume: str, source: Path) -> None:
+        name = _volume(volume)
         with source.open("rb") as stream:
             _pipe(
                 [
@@ -183,7 +195,7 @@ class DockerStack:
                     "--rm",
                     "-i",
                     "-v",
-                    f"{volume}:/data",
+                    f"{name}:/data",
                     self._image(),
                     "sh",
                     "-c",
@@ -300,7 +312,13 @@ def open_scratch(image: str) -> AbstractContextManager[ScratchPostgres]:
 
 
 def database_image(container: str = DATABASE_CONTAINER) -> str:
-    return _run(["docker", "inspect", container, "--format", "{{.Config.Image}}"]).strip()
+    done = subprocess.run(
+        ["docker", "inspect", container, "--format", "{{.Config.Image}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return done.stdout.strip() if done.returncode == 0 else DEFAULT_POSTGRES_IMAGE
 
 
 def running_containers() -> list[str]:
