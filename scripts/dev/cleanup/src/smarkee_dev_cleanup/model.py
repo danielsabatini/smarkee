@@ -17,7 +17,7 @@ TEST_BILLING_ACCOUNT_NAME = re.compile(
 # de renomear), e o ID é um UUID (o `resourceId`). Esses dois prefixos sem os 10 hexadecimais não
 # são de teste.
 TEST_ORGANIZATION_NAME = re.compile(
-    r"^(?:(?:conf|acme|loop|dup|chaos|e2e|probe|ver|cons)-|(?:org|renamed)-[0-9a-f]{10}$)"
+    r"^(?:(?:conf|acme|loop|dup|chaos|e2e|probe|ver|cons)-|(?:org|renamed|race-name)-[0-9a-f]{10}$)"
 )
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 # Usuários de teste: o e-mail é de `example.com` e começa por um destes rótulos, ou é `ana.` ou
