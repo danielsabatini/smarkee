@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { Terminal, Globe, Code2, Database, Check, Copy } from 'lucide-svelte';
 
-	type InterfaceKey = 'console' | 'cli' | 'api' | 'terraform';
+	type InterfaceKey = 'cli' | 'api' | 'terraform' | 'console';
 
-	let activeInterface = $state<InterfaceKey>('console');
+	let activeInterface = $state<InterfaceKey>('cli');
 	let copied = $state(false);
 
 	const interfaces: Record<
@@ -11,54 +11,37 @@
 		{
 			title: string;
 			desc: string;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			icon: any;
+			icon: typeof Terminal;
 			color: string;
 			label: string;
 			language: string;
 			code: string;
 		}
 	> = {
-		console: {
-			title: 'Web Console',
-			desc: 'Interface visual rica e intuitiva para operações do dia a dia e governança.',
-			icon: Globe,
-			color: 'text-emerald-700 bg-emerald-100',
-			label: 'Console Overview',
-			language: 'txt',
-			code: `Dashboard da Organização
-----------------------------------------
-[ Serviços Ativos ]    [ Usuários ]
-  IPM (Identidade)       12 membros
-  ODM (Métricas)         3 admin
-  AEM (Auditoria)        -
-
-Últimos Eventos:
-• 14:02 - API Key gerada (token_8x...)
-• 11:45 - Acesso concedido a alice@...
-• 09:30 - Organização criada`
-		},
 		cli: {
 			title: 'CLI (sk)',
 			desc: 'Automação via terminal com a nossa ferramenta de linha de comando nativa.',
 			icon: Terminal,
-			color: 'text-indigo-700 bg-indigo-100',
-			label: 'Terminal',
+			color: 'text-emerald-700 bg-emerald-100',
+			label: 'sk — smarkee-cli',
 			language: 'bash',
-			code: `# Login com fluxo PKCE no navegador
-sk login
+			code: `$ sk login
+Autenticando via navegador (OIDC PKCE)...
+✓ Sessão estabelecida para contato@smarkee.com.br
 
-# Criação declarativa de uma nova organização
-sk ipm org create wayne-enterprises --protected
+$ sk org list
+ID            NOME                   STATUS
+org_4f89d3a1  Smarkee IT Solutions   ACTIVE
 
-# Habilitando o serviço IPM sob demanda
-sk sum enable ipm`
+$ sk sum enable odm
+Registrando intenção (lifecycle: present)...
+✓ Observability Data Manager (ODM) provisionado na org_4f89d3a1`
 		},
 		api: {
 			title: 'API REST',
 			desc: 'Integração direta com seus sistemas através de endpoints padronizados.',
 			icon: Code2,
-			color: 'text-rose-700 bg-rose-100',
+			color: 'text-emerald-700 bg-emerald-100',
 			label: 'HTTP Request',
 			language: 'bash',
 			code: `curl -X POST https://api.smarkee.internal/v1/ipm/organizations \\
@@ -76,7 +59,7 @@ sk sum enable ipm`
 			title: 'Terraform',
 			desc: 'Gerenciamento de infraestrutura como código (IaC) de forma declarativa.',
 			icon: Database,
-			color: 'text-purple-700 bg-purple-100',
+			color: 'text-emerald-700 bg-emerald-100',
 			label: 'main.tf',
 			language: 'hcl',
 			code: `terraform {
@@ -96,6 +79,26 @@ resource "smarkee_organization" "main" {
 resource "smarkee_service_entitlement" "ipm" {
   organization_id = smarkee_organization.main.id
   service         = "ipm"
+}`
+		},
+		console: {
+			title: 'Web Console',
+			desc: 'Interface visual rica e intuitiva para operações do dia a dia e governança.',
+			icon: Globe,
+			color: 'text-emerald-700 bg-emerald-100',
+			label: 'Estado Declarativo do Recurso',
+			language: 'json',
+			code: `{
+  "organizationId": "org_4f89d3a1",
+  "name": "Smarkee IT Solutions",
+  "desiredState": {
+    "services": ["ipm", "sum", "aem", "odm"],
+    "deletionProtection": true
+  },
+  "observedState": {
+    "phase": "Ready",
+    "reconciledGeneration": 4
+  }
 }`
 		}
 	};
