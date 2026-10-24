@@ -208,7 +208,7 @@
 			<div class="mt-5 border-t border-slate-100 pt-5">
 				<h3 class="text-xs font-bold text-slate-900">Permissões da Conta</h3>
 				<div class="mt-2 flex flex-wrap gap-1.5">
-					{#each account.desired.platformRoles as role (role)}
+					{#each account.desired.platformPermissions as role (role)}
 						<span
 							class="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-xs text-slate-700"
 						>

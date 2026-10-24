@@ -1,6 +1,5 @@
 <script lang="ts">
 	import OrganizationSummary from '$lib/components/dashboard/OrganizationSummary.svelte';
-	import QuickAccessGrid from '$lib/components/dashboard/QuickAccessGrid.svelte';
 	import RecentResources from '$lib/components/dashboard/RecentResources.svelte';
 	import ServiceCards from '$lib/components/dashboard/ServiceCards.svelte';
 	import ServiceStatusTable from '$lib/components/dashboard/ServiceStatusTable.svelte';
@@ -23,9 +22,6 @@
 
 	<!-- Card de Resumo da Organization Ativa -->
 	<OrganizationSummary />
-
-	<!-- Grade de Acessos Rápidos -->
-	<QuickAccessGrid />
 
 	<!-- Cards dos Serviços da Plataforma (IPM, SUM, AEM, ODM) -->
 	<ServiceCards />

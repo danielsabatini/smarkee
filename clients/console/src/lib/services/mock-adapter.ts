@@ -77,7 +77,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 				lifecycle: 'present',
 				reconciliation: 'active',
 				platformAccess: 'granted',
-				platformRoles: ['core.account.delete', 'core.account.get', 'core.account.update'],
+				platformPermissions: ['core.account.delete', 'core.account.get', 'core.account.update'],
 				deletionProtection: true,
 				givenName: 'Daniel',
 				familyName: 'Freitas',
@@ -89,7 +89,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 				emailVerified: true,
 				accountState: 'active',
 				platformAccess: 'granted',
-				platformRoles: ['core.account.delete', 'core.account.get', 'core.account.update'],
+				platformPermissions: ['core.account.delete', 'core.account.get', 'core.account.update'],
 				deletionProtection: true
 			},
 			createdAt: '2026-10-15T09:00:00Z',
@@ -248,7 +248,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						lifecycle: 'present',
 						reconciliation: 'active',
 						organizationId: ORG_ACME_ID,
-						roles: [
+						permissions: [
 							'ipm.organization.get',
 							'ipm.organization.list',
 							'ipm.user.create',
@@ -266,7 +266,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						observedAt: '2026-10-21T12:00:04Z',
 						emailVerified: true,
 						userState: 'active',
-						roles: [
+						permissions: [
 							'ipm.organization.get',
 							'ipm.organization.list',
 							'ipm.user.create',
@@ -298,7 +298,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						lifecycle: 'present',
 						reconciliation: 'active',
 						organizationId: ORG_ACME_ID,
-						roles: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
+						permissions: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
 						deletionProtection: false,
 						givenName: 'Carlos',
 						familyName: 'Mendes',
@@ -309,7 +309,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						observedAt: '2026-10-21T13:49:58Z',
 						emailVerified: false,
 						userState: 'initial',
-						roles: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
+						permissions: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
 						deletionProtection: false
 					},
 					createdAt: '2026-10-21T13:48:00Z',
@@ -336,7 +336,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						lifecycle: 'present',
 						reconciliation: 'active',
 						organizationId: ORG_GLOBEX_ID,
-						roles: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
+						permissions: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
 						deletionProtection: true,
 						givenName: 'Helena',
 						familyName: 'Rocha',
@@ -347,7 +347,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						observedAt: '2026-10-21T09:14:55Z',
 						emailVerified: true,
 						userState: 'active',
-						roles: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
+						permissions: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
 						deletionProtection: true
 					},
 					createdAt: '2026-10-20T16:00:00Z',
@@ -374,7 +374,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						lifecycle: 'present',
 						reconciliation: 'active',
 						organizationId: ORG_INITECH_ID,
-						roles: ['ipm.organization.get', 'ipm.user.get'],
+						permissions: ['ipm.organization.get', 'ipm.user.get'],
 						deletionProtection: false,
 						givenName: 'Rafael',
 						familyName: 'Costa',
@@ -411,11 +411,11 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 					reconciliation: 'active',
 					ownerAccountId: DEFAULT_ACCOUNT_ID,
 					service: 'sum',
-					serviceRoles: ['sum.ipm.create', 'sum.ipm.delete', 'sum.ipm.get'],
-					managedRoles: ['sum.ipm.create', 'sum.ipm.delete', 'sum.ipm.get']
+					servicePermissions: ['sum.ipm.create', 'sum.ipm.delete', 'sum.ipm.get'],
+					managedPermissions: ['sum.ipm.create', 'sum.ipm.delete', 'sum.ipm.get']
 				},
 				observed: {
-					serviceRoles: ['sum.ipm.create', 'sum.ipm.delete', 'sum.ipm.get']
+					servicePermissions: ['sum.ipm.create', 'sum.ipm.delete', 'sum.ipm.get']
 				},
 				createdAt: '2026-10-15T14:00:00Z',
 				updatedAt: '2026-10-21T10:00:00Z'
@@ -440,14 +440,14 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 					reconciliation: 'active',
 					ownerAccountId: DEFAULT_ACCOUNT_ID,
 					service: 'ipm',
-					serviceRoles: [
+					servicePermissions: [
 						'ipm.organization.create',
 						'ipm.organization.delete',
 						'ipm.organization.get',
 						'ipm.organization.list',
 						'ipm.organization.update'
 					],
-					managedRoles: [
+					managedPermissions: [
 						'ipm.organization.create',
 						'ipm.organization.delete',
 						'ipm.organization.get',
@@ -456,7 +456,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 					]
 				},
 				observed: {
-					serviceRoles: [
+					servicePermissions: [
 						'ipm.organization.create',
 						'ipm.organization.delete',
 						'ipm.organization.get',
@@ -597,8 +597,8 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 				`${this.account.desired.givenName ?? 'Usuário'} ${this.account.desired.familyName ?? ''}`.trim(),
 			emailMasked: 'd***@smarkee.example.com',
 			roles: [
-				...(this.account.desired.platformRoles ?? []),
-				...this.services.flatMap((s) => s.desired.serviceRoles)
+				...(this.account.desired.platformPermissions ?? []),
+				...this.services.flatMap((s) => s.desired.servicePermissions)
 			],
 			activeOrganizationId: this.organizations[0]?.resourceId ?? null,
 			authConfig: {
@@ -960,7 +960,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 				lifecycle: 'present',
 				reconciliation: 'active',
 				organizationId: validOrgId,
-				roles: sortedRoles,
+				permissions: sortedRoles,
 				deletionProtection: input.deletionProtection ?? false,
 				givenName: input.givenName.trim(),
 				familyName: input.familyName.trim(),
@@ -1018,7 +1018,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 					observedAt: doneAt,
 					emailVerified: true,
 					userState: 'active',
-					roles: sortedRoles,
+					permissions: sortedRoles,
 					deletionProtection: newUser.desired.deletionProtection
 				};
 				opEntry.subtitle = 'Usuário adicionado com sucesso.';
@@ -1061,8 +1061,8 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 				reconciliation: 'active',
 				ownerAccountId: this.account.resourceId,
 				service: serviceName,
-				serviceRoles: roles,
-				managedRoles: roles
+				servicePermissions: roles,
+				managedPermissions: roles
 			},
 			createdAt: now,
 			updatedAt: now
@@ -1070,7 +1070,8 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 
 		if (existing) {
 			existing.desired.lifecycle = 'present';
-			existing.desired.serviceRoles = roles;
+			existing.desired.servicePermissions = roles;
+			existing.desired.managedPermissions = roles;
 			existing.phase = 'Reconciling';
 			existing.desiredGeneration += 1;
 			existing.updatedAt = now;
@@ -1137,7 +1138,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 					}
 				];
 				serviceResource.observed = {
-					serviceRoles: roles
+					servicePermissions: roles
 				};
 				opEntry.subtitle = `Serviço ${serviceName.toUpperCase()} habilitado com sucesso.`;
 				this.notifications.unshift({
@@ -1170,7 +1171,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 		const operationId = this.nextIdentifier('0199c8d0-9900-7a00-8b00');
 
 		found.desired.lifecycle = 'absent';
-		found.desired.serviceRoles = [];
+		found.desired.servicePermissions = [];
 		found.desiredGeneration += 1;
 		found.phase = 'Reconciling';
 		found.updatedAt = now;
@@ -1458,7 +1459,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 			foundUser.desired.email = input.email.trim();
 		}
 		if (input.roles !== undefined) {
-			foundUser.desired.roles = [...input.roles];
+			foundUser.desired.permissions = [...input.roles];
 		}
 		if (input.deletionProtection !== undefined) {
 			foundUser.desired.deletionProtection = input.deletionProtection;

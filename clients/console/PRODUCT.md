@@ -24,14 +24,14 @@ Um cliente fino web da API pública da Smarkee que gerencia recursos assíncrono
 
 ## Operating Context
 
-Navegador web, operando como cliente de uma API baseada em NATS JetStream (via REST adaptadores) e integrada ao Zitadel via OIDC (Authorization Code Flow com PKCE) para autenticação. 
+Navegador web, operando como cliente de uma API baseada em NATS JetStream (via REST adaptadores) e integrada ao Zitadel via OIDC (Authorization Code Flow com PKCE) para autenticação.
 
 ## Capabilities and Constraints
 
 - Cliente fino da API pública: não reinventa regras de autorização ou de domínio.
 - Gestão de Identidade e Organizações (IPM), Serviços (SUM), Eventos de Auditoria (AEM) e Observabilidade (ODM).
 - Contratos TypeScript são rigorosamente derivados dos JSON Schemas presentes em `schemas/`.
-- Tolerância a falhas temporárias, operações assíncronas do loop de controle, e falha de convergência. 
+- Tolerância a falhas temporárias, operações assíncronas do loop de controle, e falha de convergência.
 - Componentes e navegação com uso rigoroso de Svelte 5 e seus runes.
 
 ## Brand Commitments

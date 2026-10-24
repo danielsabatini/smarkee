@@ -22,7 +22,7 @@ export interface AccountDesiredView {
 	lifecycle: Lifecycle;
 	reconciliation: Reconciliation;
 	platformAccess: PlatformAccess;
-	platformRoles: string[];
+	platformPermissions: string[];
 	deletionProtection?: boolean;
 	givenName?: string;
 	familyName?: string;
@@ -35,7 +35,7 @@ export interface AccountObservedView {
 	emailVerified?: boolean;
 	accountState?: AccountState;
 	platformAccess?: PlatformAccess;
-	platformRoles?: string[];
+	platformPermissions?: string[];
 	deletionProtection?: boolean;
 }
 
@@ -87,7 +87,7 @@ export interface OrganizationListResponse {
 	nextCursor?: string;
 }
 
-export type GrantableRole =
+export type GrantablePermission =
 	| 'ipm.organization.get'
 	| 'ipm.organization.list'
 	| 'ipm.organization.update'
@@ -98,13 +98,15 @@ export type GrantableRole =
 	| 'ipm.user.list'
 	| 'ipm.user.update';
 
+export type GrantableRole = GrantablePermission;
+
 export type UserState = 'initial' | 'active' | 'inactive' | 'locked';
 
 export interface OrganizationUserDesiredView {
 	lifecycle: Lifecycle;
 	reconciliation: Reconciliation;
 	organizationId: string;
-	roles: GrantableRole[];
+	permissions: GrantablePermission[];
 	deletionProtection?: boolean;
 	givenName?: string;
 	familyName?: string;
@@ -116,7 +118,7 @@ export interface OrganizationUserObservedView {
 	observedAt: string;
 	emailVerified?: boolean;
 	userState?: UserState;
-	roles?: GrantableRole[];
+	permissions?: GrantablePermission[];
 	deletionProtection?: boolean;
 }
 
@@ -142,12 +144,12 @@ export interface ServiceDesiredData {
 	reconciliation: Reconciliation;
 	ownerAccountId: string;
 	service: string;
-	serviceRoles: string[];
-	managedRoles?: string[];
+	servicePermissions: string[];
+	managedPermissions?: string[];
 }
 
 export interface ServiceObservedData {
-	serviceRoles?: string[];
+	servicePermissions?: string[];
 }
 
 export interface ServiceLinkResource {

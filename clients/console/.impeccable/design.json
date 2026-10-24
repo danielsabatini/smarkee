@@ -1,68 +1,89 @@
 {
-  "schemaVersion": 2,
-  "generatedAt": "2026-10-23T10:02:42.010Z",
-  "title": "Design System: Smarkee Console",
-  "extensions": {
-    "colorMeta": {
-      "brand-600": {
-        "role": "primary",
-        "displayName": "Smarkee Green",
-        "canonical": "#16a34a"
-      },
-      "surface-canvas": {
-        "role": "neutral",
-        "displayName": "Canvas Default",
-        "canonical": "#f8fafc"
-      },
-      "status-ready-bg": {
-        "role": "semantic",
-        "displayName": "Ready Bg",
-        "canonical": "#dcfce7"
-      }
-    },
-    "typographyMeta": {
-      "body": {
-        "displayName": "Body / Base",
-        "purpose": "Leitura primária do console."
-      },
-      "label": {
-        "displayName": "Mono Label",
-        "purpose": "IDs e valores estritos."
-      }
-    }
-  },
-  "components": [
-    {
-      "name": "Status Badge (Ready)",
-      "kind": "chip",
-      "refersTo": "status-badge-ready",
-      "description": "Indica que o recurso atingiu estado Desired.",
-      "html": "<span class=\"ds-badge ds-badge-ready\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 11.08V12a10 10 0 1 1-5.93-9.14\"></path><polyline points=\"22 4 12 14.01 9 11.01\"></polyline></svg><span>Ready</span></span>",
-      "css": ".ds-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; font-family: system-ui, sans-serif; white-space: nowrap; border: 1px solid; } .ds-badge-ready { background-color: #dcfce7; color: #15803d; border-color: #bbf7d0; }"
-    }
-  ],
-  "narrative": {
-    "northStar": "O Painel de Controle Declarativo",
-    "overview": "A interface prioriza a clareza operacional acima de tudo. O ruído visual é mínimo, permitindo que os estados de recursos falem por si mesmos.",
-    "keyCharacteristics": [
-      "Clareza de Estado",
-      "Sólido e Preciso",
-      "Zero Falsos Progressos"
-    ],
-    "rules": [
-      {
-        "name": "The Flat-By-Default Rule",
-        "body": "Superfícies são planas. A separação visual entre camadas é alcançada principalmente por meio de bordas suaves.",
-        "section": "elevation"
-      }
-    ],
-    "dos": [
-      "Do expor IDs longos preferencialmente em tipografia monoespaçada sem quebras.",
-      "Do atrelar a linguagem visual ao estado atual refletido pelo servidor."
-    ],
-    "donts": [
-      "Don't ocultar atrasos operacionais atrás de spinners globais.",
-      "Don't usar vermelho ou verde puros para estética."
-    ]
-  }
+	"schemaVersion": 2,
+	"generatedAt": "2026-10-23T00:00:00Z",
+	"title": "Design System: Smarkee Console",
+	"extensions": {
+		"colorMeta": {
+			"brand-500": {
+				"role": "primary",
+				"displayName": "Verde Smarkee",
+				"canonical": "#10b981",
+				"tonalRamp": [
+					"#064e3b",
+					"#065f46",
+					"#15803d",
+					"#16a34a",
+					"#10b981",
+					"#34d399",
+					"#6ee7b7",
+					"#a7f3d0",
+					"#d1fae5",
+					"#ecfdf5"
+				]
+			},
+			"surface-canvas": { "role": "neutral", "displayName": "Canvas", "canonical": "#f8fafc" },
+			"surface-card": { "role": "neutral", "displayName": "Card", "canonical": "#ffffff" },
+			"text-primary": { "role": "neutral", "displayName": "Text Primary", "canonical": "#0f172a" }
+		}
+	},
+	"components": [
+		{
+			"name": "Status Badge (Ready)",
+			"kind": "chip",
+			"refersTo": "status-badge-ready",
+			"description": "Badge de estado de recurso convergido.",
+			"html": "<span class=\"ds-badge-ready\">Ready</span>",
+			"css": ".ds-badge-ready { background-color: #dcfce7; color: #15803d; padding: 4px 10px; border-radius: 9999px; font-family: ui-monospace, monospace; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }"
+		},
+		{
+			"name": "Primary Button",
+			"kind": "button",
+			"refersTo": "button-primary",
+			"description": "Botão principal da aplicação.",
+			"html": "<button class=\"ds-btn-primary\">Save Changes</button>",
+			"css": ".ds-btn-primary { background-color: #059669; color: #ffffff; padding: 8px 16px; border-radius: 8px; font-family: system-ui, sans-serif; font-weight: 500; border: none; cursor: pointer; transition: background-color 0.2s; } .ds-btn-primary:hover { background-color: #047857; }"
+		},
+		{
+			"name": "Ghost Button",
+			"kind": "button",
+			"refersTo": "button-ghost",
+			"description": "Botão secundário/fantasma.",
+			"html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+			"css": ".ds-btn-ghost { background-color: transparent; color: #0f172a; padding: 8px 16px; border-radius: 8px; border: 1px solid #cbd5e1; font-family: system-ui, sans-serif; font-weight: 500; cursor: pointer; transition: background-color 0.2s; } .ds-btn-ghost:hover { background-color: #f1f5f9; }"
+		},
+		{
+			"name": "Copyable ID Field",
+			"kind": "input",
+			"refersTo": "copyable-id",
+			"description": "Campo para cópia de IDs técnicos e UUIDs.",
+			"html": "<div class=\"ds-copy-field\">00000000-0000-0000-0000-000000000000</div>",
+			"css": ".ds-copy-field { font-family: ui-monospace, monospace; font-size: 14px; color: #0f172a; background-color: #f1f5f9; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-flex; cursor: copy; transition: background-color 0.2s; } .ds-copy-field:hover { background-color: #e2e8f0; }"
+		}
+	],
+	"narrative": {
+		"northStar": "O Painel de Controle Declarativo",
+		"overview": "A interface prioriza a clareza operacional acima de tudo. O ruído visual é mínimo, permitindo que os estados de recursos (Pending, Ready, Failed) e a reconciliação contínua falem por si mesmos. A UI adota tons sóbrios de azul-marinho para tipografia e um verde vivo como acento para estados de sucesso e identidade da marca, garantindo legibilidade máxima sobre superfícies claras.",
+		"keyCharacteristics": [
+			"Clareza de Estado: Explicitar a assincronia; cores semânticas atreladas diretamente às fases do loop de controle.",
+			"Sólido e Preciso: Raios sutis, bordas nítidas delimitando áreas. Ausência de sombras marcadas.",
+			"Zero Falsos Progressos: A interface apenas reflete a API sem simular respostas imediatas.",
+			"Desenvolvido para humanos e teclados: Navegação eficiente, uso de atalhos e rótulos acessíveis."
+		],
+		"rules": [
+			{
+				"name": "The Flat-By-Default Rule",
+				"body": "Superfícies são planas. A separação visual entre camadas é alcançada principalmente por meio de bordas suaves (border-slate-200) e leves alterações tonais no fundo (bg-slate-50 vs bg-white), sem dependência excessiva de sombras (box-shadow).",
+				"section": "elevation"
+			}
+		],
+		"dos": [
+			"Do expor IDs longos (ex: UUIDs 36-char) preferencialmente em tipografia monoespaçada sem quebras no meio, garantindo cópia segura.",
+			"Do usar sempre uma cor de fundo sutil para Badges (50 ou 100), nunca sólida (500 ou 600), para manter o conforto na leitura de muitas tags na tela.",
+			"Do atrelar a linguagem visual ao estado atual refletido pelo servidor."
+		],
+		"donts": [
+			"Don't ocultar atrasos operacionais ou estado de progresso atrás de spinners globais de carregamento. Cada recurso possui seu próprio badge com estado e loader local.",
+			"Don't usar vermelho ou verde puros para estética. A cor no Smarkee possui estrito valor semântico de status e marca."
+		]
+	}
 }
