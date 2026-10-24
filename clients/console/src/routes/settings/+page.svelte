@@ -11,7 +11,7 @@
 
 <div class="mx-auto max-w-5xl space-y-6">
 	<div>
-		<span class="text-xs font-semibold text-emerald-700 uppercase">Administração</span>
+		<span class="text-xs font-semibold text-brand-700 uppercase">Administração</span>
 		<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Configurações do Console e Integração</h1>
 		<p class="mt-1 text-xs text-slate-600">
 			Parâmetros de integração do provedor de identidade e roteamento.
@@ -23,7 +23,7 @@
 		<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-2xs">
 			<div class="flex items-center gap-2.5 border-b border-slate-100 pb-4">
 				<div
-					class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"
+					class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-700"
 				>
 					<ShieldCheck class="h-5 w-5" aria-hidden="true" />
 				</div>
@@ -67,7 +67,7 @@
 
 	<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-2xs">
 		<div class="flex items-center gap-2.5">
-			<Settings class="h-5 w-5 text-emerald-700" aria-hidden="true" />
+			<Settings class="h-5 w-5 text-brand-700" aria-hidden="true" />
 			<h2 class="text-sm font-bold text-slate-900">Adaptador de Dados Ativo</h2>
 		</div>
 		<p class="mt-2 text-xs leading-relaxed text-slate-600">

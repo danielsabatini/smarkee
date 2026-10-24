@@ -3,9 +3,9 @@
 A Organization nasce pronta para receber usuários do `ipm/user`, como o namespace do Kubernetes
 que já vem com os RoleBindings dos controladores (referência de mercado, decisão 0071):
 
-- **Project Grant** do projeto de roles do `ipm` para a organização, com exatamente o catálogo
-  `grantableRole` do contrato (`schemas/ipm/definitions`): o teto do que os usuários recebem;
-- **papéis de administração** das contas do `ipm/user` nela: o Executor do User com
+- **Project Grant** do projeto de permissões do `ipm` para a organização, com exatamente o catálogo
+  `grantablePermission` do contrato (`schemas/ipm/definitions`): o teto do que os usuários recebem;
+- **permissões de administração** das contas do `ipm/user` nela: o Executor do User com
   `ORG_USER_CREATOR` na organização e `PROJECT_GRANT_OWNER` no Grant; o Observer do User com
   `ORG_OWNER_VIEWER` na organização.
 
@@ -25,8 +25,8 @@ ORGANIZATION_OWNER_VIEWER = "ORG_OWNER_VIEWER"
 
 
 def grant_catalog() -> list[str]:
-    """O catálogo `grantableRole` do contrato, em ordem alfabética."""
-    return sorted(role.value for role in generated.GrantableRole)
+    """O catálogo `grantablePermission` do contrato, em ordem alfabética."""
+    return sorted(permission.value for permission in generated.GrantablePermission)
 
 
 def desired_user_access(
@@ -34,21 +34,21 @@ def desired_user_access(
 ) -> dict[str, Any]:
     """O `userAccess` que o `desired` deve ter agora: o catálogo e as contas do `ipm/user`."""
     return {
-        "grantRoles": grant_catalog(),
+        "grantPermissions": grant_catalog(),
         "userExecutorAccountId": user_executor_account_id,
         "userObserverAccountId": user_observer_account_id,
     }
 
 
 def required_administrators(user_access: Mapping[str, Any]) -> dict[str, frozenset[str]]:
-    """Conta → papéis que ela precisa ter, somando a organização e o Grant."""
+    """Conta → permissões de administração que ela precisa ter, somando a organização e o Grant."""
     executor = str(user_access["userExecutorAccountId"])
     observer = str(user_access["userObserverAccountId"])
     required: dict[str, set[str]] = {
         executor: {ORGANIZATION_USER_CREATOR, PROJECT_GRANT_OWNER},
     }
     required.setdefault(observer, set()).add(ORGANIZATION_OWNER_VIEWER)
-    return {account: frozenset(roles) for account, roles in required.items()}
+    return {account: frozenset(permissions) for account, permissions in required.items()}
 
 
 def is_managed(desired: Mapping[str, Any]) -> bool:
@@ -57,32 +57,34 @@ def is_managed(desired: Mapping[str, Any]) -> bool:
 
 
 def converged(desired_user_access: Mapping[str, Any], observed_user_access: object) -> bool:
-    """O `observed` tem o Grant com exatamente o catálogo e cada conta com os papéis exigidos.
+    """O `observed` tem o Grant com exatamente o catálogo e cada conta com as permissões exigidas.
 
-    Papéis a mais numa conta (ou outras contas) não contam como divergência: o Executor só
-    acrescenta o que falta e não retira papéis que a plataforma não gerencia.
+    Permissões a mais numa conta (ou outras contas) não contam como divergência: o Executor só
+    acrescenta o que falta e não retira permissões que a plataforma não gerencia.
     """
     if not isinstance(observed_user_access, Mapping):
         return False
     observed: Mapping[str, Any] = observed_user_access  # pyright: ignore[reportUnknownVariableType]
-    grant_roles = observed.get("grantRoles")
-    if grant_roles is None or sorted(grant_roles) != sorted(desired_user_access["grantRoles"]):
+    grant_permissions = observed.get("grantPermissions")
+    if grant_permissions is None or sorted(grant_permissions) != sorted(
+        desired_user_access["grantPermissions"]
+    ):
         return False
     held = observed_administrators(observed)
     return all(
-        roles <= held.get(account, frozenset())
-        for account, roles in required_administrators(desired_user_access).items()
+        permissions <= held.get(account, frozenset())
+        for account, permissions in required_administrators(desired_user_access).items()
     )
 
 
 def observed_administrators(observed_user_access: Mapping[str, Any]) -> dict[str, frozenset[str]]:
-    """Conta → papéis lidos do provedor, a partir da lista `administrators` do `observed`."""
+    """Conta → permissões lidas do provedor, a partir da lista `administrators` do `observed`."""
     held: dict[str, frozenset[str]] = {}
     for item in cast("list[object]", observed_user_access.get("administrators") or []):
         if not isinstance(item, Mapping):
             continue
         entry = cast("Mapping[str, Any]", item)
         if "accountId" in entry:
-            roles = cast("list[object]", entry.get("roles") or [])
-            held[str(entry["accountId"])] = frozenset(str(role) for role in roles)
+            permissions = cast("list[object]", entry.get("permissions") or [])
+            held[str(entry["accountId"])] = frozenset(str(permission) for permission in permissions)
     return held

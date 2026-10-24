@@ -38,7 +38,7 @@ async def seed_user(
         "givenName": "Bia",
         "familyName": "Lima",
         "email": f"repo-{unique_suffix()}@example.com",
-        "roles": ["ipm.user.get"],
+        "permissions": ["ipm.user.get"],
         "deletionProtection": False,
     }
     await manager.execute(

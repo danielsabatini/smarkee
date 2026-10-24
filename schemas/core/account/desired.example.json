@@ -2,7 +2,7 @@
   "lifecycle": "present",
   "reconciliation": "active",
   "platformAccess": "granted",
-  "platformRoles": [
+  "platformPermissions": [
     "core.account.delete",
     "core.account.get"
   ],

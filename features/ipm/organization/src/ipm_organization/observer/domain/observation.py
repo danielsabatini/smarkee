@@ -24,9 +24,9 @@ class Metadata(Protocol):
 
 
 class UserAccess(Protocol):
-    """Driver de leitura do Grant e dos papéis do `ipm/user` (`observer/drivers/user_access.py`)."""
+    """Driver de leitura do Grant e das permissões (`observer/drivers/user_access.py`)."""
 
-    async def grant_roles(self, organization_id: str) -> list[str] | None: ...
+    async def grant_permissions(self, organization_id: str) -> list[str] | None: ...
 
     async def administrators(
         self, organization_id: str, *, with_grant: bool
@@ -81,19 +81,20 @@ async def observe(drivers: Drivers, organization_id: str) -> Observation:
 
 
 async def observe_user_access(driver: UserAccess, organization_id: str) -> dict[str, Any]:
-    """O Project Grant e os papéis de administração, no formato do `observed` (decisão 0081).
+    """O Project Grant e as permissões de administração, no formato do `observed` (decisão 0081).
 
-    Sem Grant, `grantRoles` fica fora (ausente ≠ vazio) e só os papéis na organização são lidos.
+    Sem Grant, `grantPermissions` fica fora (ausente ≠ vazio) e só as permissões na organização
+    são lidas.
     """
-    roles = await driver.grant_roles(organization_id)
-    held = await driver.administrators(organization_id, with_grant=roles is not None)
+    permissions = await driver.grant_permissions(organization_id)
+    held = await driver.administrators(organization_id, with_grant=permissions is not None)
     observed: dict[str, Any] = {
         "administrators": [
-            {"accountId": account, "roles": sorted(held[account])} for account in sorted(held)
+            {"accountId": account, "permissions": sorted(held[account])} for account in sorted(held)
         ]
     }
-    if roles is not None:
-        observed["grantRoles"] = roles
+    if permissions is not None:
+        observed["grantPermissions"] = permissions
     return observed
 
 

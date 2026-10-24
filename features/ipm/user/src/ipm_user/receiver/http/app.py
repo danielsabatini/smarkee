@@ -25,7 +25,7 @@ from ipm_user.common.contracts import generated
 from ipm_user.common.ids import new_identifier, utc_now
 from ipm_user.common.logging_config import bind_context
 from ipm_user.common.ports import Publisher
-from ipm_user.receiver.domain import principal as roles
+from ipm_user.receiver.domain import principal as permissions
 from ipm_user.receiver.domain.access import (
     AccessCheckError,
     OrganizationAccess,
@@ -152,8 +152,8 @@ def _register_error_handlers(app: FastAPI) -> None:
         )
 
 
-def _roles_of(values: Iterable[generated.Role | str] | None) -> list[str]:
-    """Roles sem repetição e em ordem alfabética, como no contrato."""
+def _permissions_of(values: Iterable[generated.Permission | str] | None) -> list[str]:
+    """Permissões sem repetição e em ordem alfabética, como no contrato."""
     return sorted({value if isinstance(value, str) else value.root for value in values or []})
 
 
@@ -161,8 +161,8 @@ def _roles_of(values: Iterable[generated.Role | str] | None) -> list[str]:
 
 
 def _register_routes(app: FastAPI, deps: Dependencies) -> None:
-    def require(principal: Principal, role: str) -> None:
-        if not principal.has_role(role):
+    def require(principal: Principal, permission: str) -> None:
+        if not principal.has_permission(permission):
             raise forbidden()
 
     async def standing_in(principal: Principal, organization_id: str) -> Standing | None:
@@ -198,18 +198,21 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             raise not_found()  # não revela usuários de outras Organizations
         return record, standing
 
-    def check_roles(
+    def check_permissions(
         principal: Principal, standing: Standing, current: list[str], requested: list[str]
     ) -> None:
         rejected = outside_catalog(requested)
         if rejected:
             raise bad_request(
-                f"Roles não liberadas para a Organization: {', '.join(rejected)}.", field="roles"
+                f"Permissões não liberadas para a Organization: {', '.join(rejected)}.",
+                field="permissions",
             )
-        can_bind = standing is not Standing.MEMBER or principal.has_role(roles.USER_BIND)
-        if not binding_allowed(current, requested, principal.roles, can_bind=can_bind):
+        can_bind = standing is not Standing.MEMBER or principal.has_permission(
+            permissions.USER_BIND
+        )
+        if not binding_allowed(current, requested, principal.permissions, can_bind=can_bind):
             raise forbidden(
-                f"Sem {roles.USER_BIND}, só é possível atribuir ou retirar roles que o"
+                f"Sem {permissions.USER_BIND}, só é possível atribuir ou retirar permissões que o"
                 " solicitante tem."
             )
 
@@ -234,13 +237,13 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         principal: Authenticated,
         idempotency_key: IdempotencyKey = None,
     ) -> generated.ApiAcceptedResponse:
-        require(principal, roles.USER_CREATE)
+        require(principal, permissions.USER_CREATE)
         organization_id = body.organization_id
         standing = await standing_in(principal, organization_id)
         if standing is None:
             raise not_found()
-        requested_roles = _roles_of(body.roles)
-        check_roles(principal, standing, [], requested_roles)
+        requested_permissions = _permissions_of(body.permissions)
+        check_permissions(principal, standing, [], requested_permissions)
         quota: int | None = None
         if standing is not Standing.OPERATOR:
             quota = deps.settings.user_quota
@@ -256,7 +259,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             "familyName": body.family_name,
             # O e-mail é também o nome de login na organização: normalizado (decisão 0077).
             "email": str(body.email).strip().lower(),
-            "roles": requested_roles,
+            "permissions": requested_permissions,
             "deletionProtection": body.deletion_protection is True,
         }
         new_user_id = deps.identifiers()
@@ -281,13 +284,14 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     )
     async def get_user(user_id: str, principal: Authenticated) -> generated.User:
         if user_id == principal.subject:
-            # Todo usuário lê o próprio registro, sem role (como o `SelfSubjectReview` do
-            # Kubernetes): é assim que o Receiver da Organization reconhece os usuários dela.
+            # Todo usuário lê o próprio registro, sem permissão adicional (como o
+            # `SelfSubjectReview` do Kubernetes): é assim que o Receiver da Organization
+            # reconhece os usuários dela.
             record = await deps.repository.get_user(user_id)
             if record is None:
                 raise not_found()
             return user_view(record)
-        require(principal, roles.USER_GET)
+        require(principal, permissions.USER_GET)
         record, _ = await visible_user(principal, user_id)
         return user_view(record)
 
@@ -302,7 +306,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         limit: Annotated[int, Query(ge=1, le=MAXIMUM_PAGE_SIZE)] = DEFAULT_PAGE_SIZE,
         cursor: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9_-]{1,512}$")] = None,
     ) -> generated.UserList:
-        require(principal, roles.USER_LIST)
+        require(principal, permissions.USER_LIST)
         if await standing_in(principal, organization_id) is None:
             raise not_found()
         records = await deps.repository.list_users(
@@ -330,16 +334,16 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         principal: Authenticated,
         idempotency_key: IdempotencyKey = None,
     ) -> generated.ApiAcceptedResponse:
-        require(principal, roles.USER_UPDATE)
+        require(principal, permissions.USER_UPDATE)
         record, standing = await visible_user(principal, user_id)
         if not body.resource_version.isdigit():
             raise bad_request("resourceVersion deve ser numérico.", field="resourceVersion")
         specification: dict[str, Any] = {}
-        if body.roles is not None:
-            requested_roles = _roles_of(body.roles)
-            current_roles = _roles_of(record.desired.get("roles"))
-            check_roles(principal, standing, current_roles, requested_roles)
-            specification["roles"] = requested_roles
+        if body.permissions is not None:
+            requested_permissions = _permissions_of(body.permissions)
+            current_permissions = _permissions_of(record.desired.get("permissions"))
+            check_permissions(principal, standing, current_permissions, requested_permissions)
+            specification["permissions"] = requested_permissions
         if body.deletion_protection is not None:
             specification["deletionProtection"] = body.deletion_protection
         reconciliation = body.reconciliation.value if body.reconciliation is not None else None
@@ -382,7 +386,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         resource_version: VersionQuery,
         idempotency_key: IdempotencyKey = None,
     ) -> generated.ApiAcceptedResponse:
-        require(principal, roles.USER_DELETE)
+        require(principal, permissions.USER_DELETE)
         record, _ = await visible_user(principal, user_id)
         check_version(record, resource_version)
         # No usuário da Organization a proteção nasce desligada (decisão 0077); ligada, recusa.

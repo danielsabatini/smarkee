@@ -1,7 +1,7 @@
 """Comandos `sk ipm user`: usuários da Organization (decisão 0077).
 
-O dono da Organization (o root) e os usuários dela com as roles `ipm.user.*` criam, consultam,
-alteram as roles, protegem e removem usuários da Organization. Cada usuário nasce sem senha: a
+O dono da Organization (o root) e os usuários dela com as permissões `ipm.user.*` criam, consultam,
+alteram as permissões, protegem e removem usuários da Organization. Cada usuário nasce sem senha: a
 pessoa define a senha pelo e-mail de ativação e entra com `sk auth login`. A Organization é a de
 `--organization-id` ou, na falta dela, a ativa (`sk config set ipm.organizationId`). Criar, alterar
 e remover são assíncronos: com `--wait`, o comando espera o usuário convergir.
@@ -39,7 +39,7 @@ from sk.features.ipm.user import (
     get_user,
     list_users,
     update_user,
-    validate_roles,
+    validate_permissions,
 )
 from sk.help import command, option
 from sk.http import ApiError, ApiRejectedError
@@ -49,14 +49,16 @@ from sk.settings import ConfigurationError, SkSettings
 ACTIVE_ORGANIZATION_KEY = "ipm.organizationId"
 
 USER_HELP = command(
-    "Create, inspect, change the roles of, protect and delete the users of an Organization."
+    "Create, inspect, change the permissions of, protect and delete the users of an Organization."
 )
 
 NOT_FOUND = "User not found in an Organization you act on."
 CONFLICT_ON_CHANGE = "The user changed since it was last read. Inspect it and try again."
 PROTECTED_HINT = "The user is protected against deletion. Run `sk ipm user unprotect` first."
 REJECTION_HINTS = {
-    "validation": "The e-mail is already in use in the Organization, or a role is not allowed.",
+    "validation": (
+        "The e-mail is already in use in the Organization, or a permission is not allowed."
+    ),
     "conflict": CONFLICT_ON_CHANGE,
     "not_found": NOT_FOUND,
     "protected": PROTECTED_HINT,
@@ -66,11 +68,13 @@ ERROR_CODE_HINTS = {
     "QuotaExceeded": "The Organization reached its user limit. Delete a user or ask an operator.",
     "OrganizationUnavailable": "The Organization could not be checked now. Try again.",
 }
-NO_ROLE_HINT = (
+NO_PERMISSION_HINT = (
     "You do not have permission for this operation. Without ipm.user.bind, you can only give or "
-    "take roles you have yourself."
+    "take permissions you have yourself."
 )
-ROLES_HINT = "A role is not allowed for the Organization. Use only the roles of its grant."
+PERMISSIONS_HINT = (
+    "A permission is not allowed for the Organization. Use only the permissions of its grant."
+)
 
 PHASE_STYLES = {"Ready": "green", "Failed": "red"}  # as demais (em andamento) ficam em amarelo
 
@@ -121,16 +125,17 @@ OrganizationOption = Annotated[
         ),
     ),
 ]
-RoleOption = Annotated[
+PermissionOption = Annotated[
     list[str] | None,
     typer.Option(
-        "--role",
+        "--permission",
         help=option(
-            "Platform role of the user, for example ipm.user.get. Repeat it for more roles.",
+            "Platform permission of the user, for example ipm.user.get. Repeat it for more "
+            "permissions.",
             kind="String",
             variable=None,
             file=None,
-            default="no roles",
+            default="no permissions",
         ),
     ),
 ]
@@ -140,9 +145,9 @@ def _fail_api(error: ApiError, *, not_found: str = NOT_FOUND) -> NoReturn:
     by_code = dict(ERROR_CODE_HINTS)
     if isinstance(error, ApiRejectedError):
         if error.status == 403:
-            by_code["Forbidden"] = NO_ROLE_HINT
-        if error.status == 400 and error.field == "roles":
-            by_code[error.error_code] = ROLES_HINT
+            by_code["Forbidden"] = NO_PERMISSION_HINT
+        if error.status == 400 and error.field == "permissions":
+            by_code[error.error_code] = PERMISSIONS_HINT
     fail_api(error, not_found=not_found, conflict=CONFLICT_ON_CHANGE, by_error_code=by_code)
 
 
@@ -158,11 +163,11 @@ def _identifier(value: str | None, option_name: str, *, what: str) -> str:
         _usage_error(str(error), option_name)
 
 
-def _roles(values: list[str] | None) -> list[str]:
+def _permissions(values: list[str] | None) -> list[str]:
     try:
-        return validate_roles(values or [])
+        return validate_permissions(values or [])
     except ValueError as error:
-        _usage_error(str(error), "--role")
+        _usage_error(str(error), "--permission")
 
 
 def _organization(value: str | None) -> str:
@@ -197,7 +202,7 @@ def _rows(user: User) -> list[tuple[str, str]]:
         ("email", user.email or "-"),
         ("state", user.user_state or "unknown"),
         ("phase", user.phase),
-        ("roles", ", ".join(user.roles) or "-"),
+        ("permissions", ", ".join(user.permissions) or "-"),
         ("protected", "yes" if user.deletion_protection else "no"),
     ]
 
@@ -353,7 +358,7 @@ def create_command(
             ),
         ),
     ] = None,
-    role: RoleOption = None,
+    permission: PermissionOption = None,
     organization_id: OrganizationOption = None,
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
@@ -367,7 +372,7 @@ def create_command(
     except ValueError as error:
         ui.error("Value not accepted", str(error), hint="Fix the given value and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
-    roles = _roles(role)
+    permissions = _permissions(permission)
     organization = _organization(organization_id)
     url, insecure = load_api()
     token = session_token()
@@ -379,7 +384,7 @@ def create_command(
             given_name=name.strip(),
             family_name=surname.strip(),
             email=email.strip(),
-            roles=roles,
+            permissions=permissions,
             idempotency_key=str(uuid.uuid7()),
             allow_insecure_http=insecure,
         )
@@ -396,7 +401,7 @@ def create_command(
 def _change(
     resource_id: str | None,
     *,
-    roles: list[str] | None,
+    permissions: list[str] | None,
     protected: bool | None,
     title: str,
     wait: bool,
@@ -408,9 +413,9 @@ def _change(
     token = session_token()
     try:
         current = get_user(url, token=token, resource_id=user_id, allow_insecure_http=insecure)
-        same_roles = roles is None or sorted(roles) == sorted(current.roles)
+        same_permissions = permissions is None or sorted(permissions) == sorted(current.permissions)
         same_protection = protected is None or protected == current.deletion_protection
-        if same_roles and same_protection:
+        if same_permissions and same_protection:
             ui.note(f"User {user_id} already has it. Nothing to do.")
             return
         accepted = update_user(
@@ -418,7 +423,7 @@ def _change(
             token=token,
             resource_id=user_id,
             resource_version=current.resource_version,
-            roles=None if same_roles else roles,
+            permissions=None if same_permissions else permissions,
             protected=None if same_protection else protected,
             idempotency_key=str(uuid.uuid7()),
             allow_insecure_http=insecure,
@@ -434,19 +439,19 @@ def _change(
 @user_app.command(
     "update",
     help=command(
-        "Set the roles of a user: the given --role values replace the current ones "
-        "(--no-roles removes them all)."
+        "Set the permissions of a user: the given --permission values replace the current ones "
+        "(--no-permissions removes them all)."
     ),
 )
 def update_command(
     resource_id: UserIdOption = None,
-    role: RoleOption = None,
-    no_roles: Annotated[
+    permission: PermissionOption = None,
+    no_permissions: Annotated[
         bool,
         typer.Option(
-            "--no-roles",
+            "--no-permissions",
             help=option(
-                "Remove every role of the user.",
+                "Remove every permission of the user.",
                 kind="Boolean",
                 variable=None,
                 file=None,
@@ -457,13 +462,15 @@ def update_command(
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    if bool(role) == no_roles:
-        _usage_error("Give at least one --role, or --no-roles (not both).", "--role")
+    if bool(permission) == no_permissions:
+        _usage_error(
+            "Give at least one --permission, or --no-permissions (not both).", "--permission"
+        )
     _change(
         resource_id,
-        roles=[] if no_roles else _roles(role),
+        permissions=[] if no_permissions else _permissions(permission),
         protected=None,
-        title="User roles changed",
+        title="User permissions changed",
         wait=wait,
         timeout=timeout,
     )
@@ -476,7 +483,12 @@ def protect_command(
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     _change(
-        resource_id, roles=None, protected=True, title="User protected", wait=wait, timeout=timeout
+        resource_id,
+        permissions=None,
+        protected=True,
+        title="User protected",
+        wait=wait,
+        timeout=timeout,
     )
 
 
@@ -491,7 +503,7 @@ def unprotect_command(
 ) -> None:
     _change(
         resource_id,
-        roles=None,
+        permissions=None,
         protected=False,
         title="User unprotected",
         wait=wait,
@@ -595,16 +607,18 @@ def list_command(organization_id: OrganizationOption = None) -> None:
         return
     ui.table(
         "Users",
-        ["resourceId", "email", "state", "phase", "roles"],
+        ["resourceId", "email", "state", "phase", "permissions"],
         [
             [
                 user.resource_id,
                 user.email or "-",
                 user.user_state or "unknown",
                 _styled_phase(user),
-                ", ".join(user.roles) or "-",
+                ", ".join(user.permissions) or "-",
             ]
             for user in users
         ],
-        wrap=("roles",),  # as roles quebram linha; o resourceId e o e-mail ficam inteiros
+        wrap=(
+            "permissions",
+        ),  # as permissões quebram linha; o resourceId e o e-mail ficam inteiros
     )

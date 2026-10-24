@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "UserRequestedUpdateData",
-  "description": "data de requested com operation update. Traz as roles, a proteção contra exclusão, a mudança do controle de reconciliação, ou uma combinação delas. Publicado somente pelo Receiver.",
+  "description": "data de requested com operation update. Traz as permissões, a proteção contra exclusão, a mudança do controle de reconciliação, ou uma combinação delas. Publicado somente pelo Receiver.",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,
@@ -35,8 +35,8 @@
       "x-writer": "client",
       "x-sensitivity": "internal",
       "properties": {
-        "roles": {
-          "$ref": "definitions.v1.schema.json#/$defs/roles",
+        "permissions": {
+          "$ref": "definitions.v1.schema.json#/$defs/permissions",
           "x-writer": "client",
           "x-sensitivity": "internal"
         },

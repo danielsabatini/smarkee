@@ -266,10 +266,12 @@ async def test_the_whole_loop_runs_against_identity_provider_and_the_account_is_
     assert observed["presence"] == "present"
     assert_valid("core/account/observed.v1.schema.json", observed["data"])
     assert observed["data"]["platformAccess"] == "granted"
-    # As roles que o Executor concedeu (as do desired) são as que o Observer leu (decisão 0025).
+    # As permissões concedidas pelo Executor (as do desired) são as lidas pelo Observer (0025).
     desired = await last_desired(jetstream, resource_id)
-    assert desired["data"]["platformRoles"]
-    assert set(desired["data"]["platformRoles"]) <= set(observed["data"]["platformRoles"])
+    assert desired["data"]["platformPermissions"]
+    assert set(desired["data"]["platformPermissions"]) <= set(
+        observed["data"]["platformPermissions"]
+    )
     assert observed["data"]["accountState"] == "initial"  # a senha ainda não foi definida
     assert observed["data"]["deletionProtection"] is True  # metadado no Zitadel (decisão 0074)
     assert observed["data"]["emailVerified"] is False

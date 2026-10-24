@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "UserCreateRequest",
-  "description": "Corpo de POST /v1/ipm/users. O Receiver atribui resourceId, operationId, requestDigest e requestedBy. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação. roles ausente equivale a nenhuma; deletionProtection ausente equivale a false (decisão 0077).",
+  "description": "Corpo de POST /v1/ipm/users. O Receiver atribui resourceId, operationId, requestDigest e requestedBy. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação. permissions ausente equivale a nenhuma; deletionProtection ausente equivale a false (decisão 0077).",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,
@@ -32,8 +32,8 @@
       "x-writer": "client",
       "x-sensitivity": "confidential"
     },
-    "roles": {
-      "$ref": "definitions.v1.schema.json#/$defs/roles",
+    "permissions": {
+      "$ref": "definitions.v1.schema.json#/$defs/permissions",
       "x-writer": "client",
       "x-sensitivity": "internal"
     },

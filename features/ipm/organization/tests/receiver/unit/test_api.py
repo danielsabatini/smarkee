@@ -18,7 +18,7 @@ from ipm_organization.receiver.http.app import Dependencies, create_app
 from ipm_organization.receiver.settings import ApiSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
-USER_ROLES = frozenset(
+USER_PERMISSIONS = frozenset(
     {
         "ipm.organization.create",
         "ipm.organization.get",
@@ -27,17 +27,17 @@ USER_ROLES = frozenset(
         "ipm.organization.delete",
     }
 )
-OPERATOR_ROLES = USER_ROLES | {"ipm.organization.admin"}
+OPERATOR_PERMISSIONS = USER_PERMISSIONS | {"ipm.organization.admin"}
 
 
-def principal(subject: str, roles: frozenset[str]) -> Principal:
-    return Principal(subject=subject, roles=roles, access_token=f"token-{subject}")
+def principal(subject: str, permissions: frozenset[str]) -> Principal:
+    return Principal(subject=subject, permissions=permissions, access_token=f"token-{subject}")
 
 
 PRINCIPALS = {
-    "ana": principal("ana", USER_ROLES),
-    "bia": principal("bia", USER_ROLES),
-    "admin": principal("admin", OPERATOR_ROLES),
+    "ana": principal("ana", USER_PERMISSIONS),
+    "bia": principal("bia", USER_PERMISSIONS),
+    "admin": principal("admin", OPERATOR_PERMISSIONS),
     "norole": principal("norole", frozenset()),
 }
 
@@ -248,7 +248,7 @@ async def test_missing_or_invalid_token_is_401_with_the_error_contract(
     assert response.json()["errorCode"] == "Unauthorized"
 
 
-async def test_missing_role_is_403(harness: Harness) -> None:
+async def test_missing_permission_is_403(harness: Harness) -> None:
     response = await harness.client.post(
         "/v1/ipm/organizations", json={"name": "acme"}, headers=auth("norole")
     )

@@ -278,8 +278,8 @@ def whoami() -> None:
 @auth_app.command(
     "refresh",
     help=command(
-        "Renew the session now, with the refresh token, so the token reflects the current roles "
-        "(for example, after enabling or disabling a service)."
+        "Renew the session now, with the refresh token, so the token reflects the current "
+        "permissions (for example, after enabling or disabling a service)."
     ),
 )
 def refresh() -> None:

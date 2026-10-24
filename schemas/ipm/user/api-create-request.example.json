@@ -3,7 +3,7 @@
   "givenName": "Bia",
   "familyName": "Lima",
   "email": "bia.lima@example.com",
-  "roles": [
+  "permissions": [
     "ipm.organization.get",
     "ipm.user.get"
   ]

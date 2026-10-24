@@ -15,7 +15,7 @@
 	class="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/70 px-6 py-10 text-center"
 >
 	<div
-		class="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"
+		class="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-brand-50 text-brand-700"
 	>
 		<Inbox class="h-5 w-5" aria-hidden="true" />
 	</div>

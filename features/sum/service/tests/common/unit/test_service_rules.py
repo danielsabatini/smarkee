@@ -7,7 +7,7 @@ from sum_service.common.service_rules import (
     disable_desired,
     enable_desired,
     parse_catalog,
-    roles_of,
+    permissions_of,
     rollout_desired,
 )
 
@@ -17,7 +17,7 @@ CATALOG_JSON = (
 OWNER = "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e"
 
 
-def test_the_catalog_is_read_with_sorted_roles() -> None:
+def test_the_catalog_is_read_with_sorted_permissions() -> None:
     catalog = parse_catalog(CATALOG_JSON)
     assert catalog == {
         "ipm": ("ipm.organization.create", "ipm.organization.get", "ipm.organization.update")
@@ -42,19 +42,19 @@ def test_an_invalid_catalog_stops_the_component(raw: str) -> None:
         parse_catalog(raw)
 
 
-def test_enable_copies_the_catalog_roles_and_validates_against_the_contract() -> None:
+def test_enable_copies_the_catalog_permissions_and_validates_against_the_contract() -> None:
     desired = enable_desired(OWNER, "ipm", parse_catalog(CATALOG_JSON))
     assert desired == {
         "lifecycle": "present",
         "reconciliation": "active",
         "ownerAccountId": OWNER,
         "service": "ipm",
-        "serviceRoles": [
+        "servicePermissions": [
             "ipm.organization.create",
             "ipm.organization.get",
             "ipm.organization.update",
         ],
-        "managedRoles": [
+        "managedPermissions": [
             "ipm.organization.create",
             "ipm.organization.get",
             "ipm.organization.update",
@@ -68,15 +68,15 @@ def test_a_service_outside_the_catalog_is_not_available() -> None:
     with pytest.raises(ServiceNotAvailableError):
         enable_desired(OWNER, "sum", catalog)
     with pytest.raises(ServiceNotAvailableError):
-        roles_of(catalog, "outro")
+        permissions_of(catalog, "outro")
 
 
-def test_disable_keeps_the_link_and_removes_the_roles() -> None:
+def test_disable_keeps_the_link_and_removes_the_permissions() -> None:
     enabled = enable_desired(OWNER, "ipm", parse_catalog(CATALOG_JSON))
     disabled = disable_desired(enabled, parse_catalog(CATALOG_JSON))
     assert disabled["lifecycle"] == "absent"
-    assert disabled["serviceRoles"] == []
-    assert disabled["managedRoles"] == enabled["managedRoles"]  # o que revogar
+    assert disabled["servicePermissions"] == []
+    assert disabled["managedPermissions"] == enabled["managedPermissions"]  # o que revogar
     assert (disabled["ownerAccountId"], disabled["service"]) == (OWNER, "ipm")
     generated.ServiceDesiredData.model_validate(disabled)
 
@@ -87,13 +87,13 @@ def test_a_document_that_breaks_the_contract_is_never_returned() -> None:
         enable_desired(bad_owner, "ipm", parse_catalog(CATALOG_JSON))
 
 
-def test_the_rollout_follows_the_catalog_and_keeps_controlling_removed_roles() -> None:
-    """Catálogo novo: a ligação ganha a role nova e segue controlando a que saiu (decisão 0079)."""
+def test_the_rollout_follows_the_catalog_and_keeps_controlling_removed_permissions() -> None:
+    """Catálogo novo: a ligação ganha a permissão nova e segue controlando a que saiu (decisão 0079)."""
     before = enable_desired(OWNER, "ipm", {"ipm": ("ipm.a.get", "ipm.b.get")})
     after = rollout_desired(before, {"ipm": ("ipm.a.get", "ipm.c.get")})
     assert after is not None
-    assert after["serviceRoles"] == ["ipm.a.get", "ipm.c.get"]
-    assert after["managedRoles"] == ["ipm.a.get", "ipm.b.get", "ipm.c.get"]  # ipm.b.get sai
+    assert after["servicePermissions"] == ["ipm.a.get", "ipm.c.get"]
+    assert after["managedPermissions"] == ["ipm.a.get", "ipm.b.get", "ipm.c.get"]  # ipm.b.get sai
     assert rollout_desired(after, {"ipm": ("ipm.a.get", "ipm.c.get")}) is None  # idempotente
 
 
@@ -103,10 +103,10 @@ def test_the_rollout_completes_an_old_desired_and_keeps_the_reconciliation() -> 
         "reconciliation": "suspended",
         "ownerAccountId": OWNER,
         "service": "ipm",
-        "serviceRoles": ["ipm.a.get"],
+        "servicePermissions": ["ipm.a.get"],
     }
     after = rollout_desired(old, {"ipm": ("ipm.a.get",)})
-    assert after is not None and after["managedRoles"] == ["ipm.a.get"]
+    assert after is not None and after["managedPermissions"] == ["ipm.a.get"]
     assert after["reconciliation"] == "suspended"  # o rollout não reativa o que o operador parou
 
 
@@ -116,6 +116,6 @@ def test_the_rollout_of_a_disabled_link_only_widens_what_to_revoke() -> None:
     )
     after = rollout_desired(disabled, {"ipm": ("ipm.a.get", "ipm.c.get")})
     assert after is not None
-    assert (after["lifecycle"], after["serviceRoles"]) == ("absent", [])
-    assert after["managedRoles"] == ["ipm.a.get", "ipm.c.get"]
+    assert (after["lifecycle"], after["servicePermissions"]) == ("absent", [])
+    assert after["managedPermissions"] == ["ipm.a.get", "ipm.c.get"]
     assert rollout_desired(disabled, {"outro": ("x.y.z",)}) is None  # serviço fora do catálogo

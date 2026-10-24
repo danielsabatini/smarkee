@@ -15,4 +15,5 @@ UPDATE core.account
                   UNION
                   SELECT unnest(ARRAY['sum.ipm.disable', 'sum.ipm.enable', 'sum.ipm.get'])) AS roles))
  WHERE desired ->> 'platformAccess' = 'granted'
+   AND desired ? 'platformRoles'
    AND NOT (desired -> 'platformRoles' ?& ARRAY['sum.ipm.disable', 'sum.ipm.enable', 'sum.ipm.get']);

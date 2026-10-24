@@ -11,4 +11,5 @@ UPDATE core.account
            WHEN 'granted' THEN '["organization.create", "organization.delete", "organization.get", "organization.list", "organization.update", "account.delete", "account.get"]'::jsonb
            ELSE '[]'::jsonb
          END)
- WHERE NOT desired ? 'platformRoles';
+ WHERE NOT desired ? 'platformRoles'
+   AND NOT desired ? 'platformPermissions';

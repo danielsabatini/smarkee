@@ -1,6 +1,6 @@
 """Recursos de outros módulos que dependem de um serviço habilitado (decisão 0040).
 
-Desabilitar um serviço tira as roles dele; antes, é preciso que nada do dono dependa dele.
+Desabilitar um serviço tira as permissões dele; antes, é preciso que nada do dono dependa dele.
 """
 
 

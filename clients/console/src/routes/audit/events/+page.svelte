@@ -16,7 +16,7 @@
 <div class="mx-auto max-w-6xl space-y-6">
 	<div class="flex flex-wrap items-center justify-between gap-2">
 		<div>
-			<span class="text-xs font-semibold text-emerald-700 uppercase"> Auditoria (AEM) </span>
+			<span class="text-xs font-semibold text-brand-700 uppercase"> Auditoria (AEM) </span>
 			<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Eventos de Auditoria</h1>
 			<p class="mt-1 text-xs text-slate-600">
 				Histórico consolidado de operações e eventos da organização ativa.
@@ -44,7 +44,7 @@
 						<tr class="hover:bg-slate-50/80">
 							<td class="px-4 py-3">
 								<div class="flex items-center gap-2">
-									<FileText class="h-4 w-4 text-emerald-700" aria-hidden="true" />
+									<FileText class="h-4 w-4 text-brand-700" aria-hidden="true" />
 									<div>
 										<span class="font-bold text-slate-900">{entry.title}</span>
 										<p class="text-[11px] text-slate-500">{entry.subtitle}</p>

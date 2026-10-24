@@ -63,7 +63,7 @@ def test_generated_models_match_regeneration() -> None:
 def test_index_lists_every_contract() -> None:
     index = cast(dict[str, Any], json.loads(INDEX.read_text("utf-8")))
     # Fragmentos (`#/$defs/...`) trazem definições usadas pelo código e sem contrato que as
-    # referencie, como o catálogo `grantableRole` (decisão 0081); não contam como contrato.
+    # referencie, como o catálogo `grantablePermission` (decisão 0081); não contam como contrato.
     listed = {entry["$ref"] for entry in index["anyOf"] if "#" not in entry["$ref"]}
     contracts = {
         str(path.relative_to(SCHEMAS_ROOT))

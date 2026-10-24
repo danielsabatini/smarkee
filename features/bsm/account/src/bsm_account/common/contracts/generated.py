@@ -95,7 +95,7 @@ class Phase(StrEnum):
 
 class PlatformAccess(StrEnum):
     """
-    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, na Account); revoked a remove.
+    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de permissões de ação do usuário cadastrado, na Account); revoked a remove.
     """
 
     granted = "granted"

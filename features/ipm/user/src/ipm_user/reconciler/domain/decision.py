@@ -17,7 +17,7 @@ class DesiredState:
     generation: int
     lifecycle: str
     reconciliation: str
-    roles: frozenset[str]
+    permissions: frozenset[str]
     requested_by: str | None
     correlation_id: str | None
     traceparent: str | None = None
@@ -33,7 +33,7 @@ class ObservedState:
     presence: str
     observed_at: datetime
     causation_id: str | None
-    roles: frozenset[str] | None
+    permissions: frozenset[str] | None
     deletion_protection: bool | None = None
     """Proteção lida do metadado do provedor; `None` quando ele não existe (decisão 0074)."""
 
@@ -148,9 +148,9 @@ def decide(state: ResourceState, now: datetime, settings: LoopParameters) -> Dec
 
 
 def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
-    """Compara os campos gerenciados do usuário: `lifecycle`, `roles` e `deletionProtection`.
+    """Compara os campos gerenciados do usuário: `lifecycle`, `permissions` e `deletionProtection`.
 
-    `roles` são observadas pelas autorizações do usuário no Project Grant da Organization, e
+    `permissions` são observadas pelas autorizações do usuário no Project Grant da Organization, e
     `deletionProtection`, pelo metadado de mesmo nome (decisão 0074).
     """
     if desired.lifecycle == "absent":
@@ -162,13 +162,13 @@ def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
     fields = tuple(
         name
         for name, differs in (
-            ("roles", observed.roles != desired.roles),
+            ("permissions", observed.permissions != desired.permissions),
             ("deletionProtection", observed.deletion_protection != desired.deletion_protection),
         )
         if differs
     )
     messages = {
-        "roles": "The user roles differ from the desired ones.",
+        "permissions": "The user permissions differ from the desired ones.",
         "deletionProtection": "The deletion protection in the identity provider differs.",
     }
     if fields:

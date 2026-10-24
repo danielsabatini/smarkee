@@ -22,7 +22,7 @@ class Users(Protocol):
 class Authorizations(Protocol):
     """Driver de leitura da autorização (`observer/drivers/authorization.py`)."""
 
-    async def granted_roles(self, user_id: str) -> set[str]: ...
+    async def granted_permissions(self, user_id: str) -> set[str]: ...
 
 
 class Metadata(Protocol):
@@ -57,17 +57,17 @@ def account_state(user: IdentityUser) -> str:
 
 
 async def observe(drivers: Drivers, user_id: str) -> Observation:
-    """Lê o usuário e as roles. Qualquer falha de leitura é `unknown`, nunca `absent`.
+    """Lê o usuário e as permissões. Qualquer falha de leitura é `unknown`, nunca `absent`.
 
-    `platformRoles` são as roles que o usuário tem no projeto da plataforma (decisão 0025);
-    `platformAccess` é `granted` quando há ao menos uma. Quem compara com o `desired` é o
+    `platformPermissions` são as permissões que o usuário tem nos projetos da plataforma (decisão
+    0025); `platformAccess` é `granted` quando há ao menos uma. Quem compara com o `desired` é o
     Reconciler.
     """
     try:
         user = await drivers.users.get_user(user_id)
         if user is None:
             return Observation("absent", {})
-        roles = await drivers.authorizations.granted_roles(user_id)
+        permissions = await drivers.authorizations.granted_permissions(user_id)
         protection = await drivers.metadata.get_value(user_id, DELETION_PROTECTION_KEY)
     except ProviderError:
         return Observation("unknown", {})
@@ -76,8 +76,8 @@ async def observe(drivers: Drivers, user_id: str) -> Observation:
         {
             "emailVerified": user.email_verified,
             "accountState": account_state(user),
-            "platformAccess": "granted" if roles else "revoked",
-            "platformRoles": sorted(roles),
+            "platformAccess": "granted" if permissions else "revoked",
+            "platformPermissions": sorted(permissions),
             **deletion_protection(protection),
         },
     )

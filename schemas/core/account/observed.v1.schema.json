@@ -20,13 +20,13 @@
     },
     "platformAccess": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
-      "description": "granted quando o usuário tem ao menos uma role de ação no projeto da plataforma (a lista está em platformRoles).",
+      "description": "granted quando o usuário tem ao menos uma permissão de ação no projeto da plataforma (a lista está em platformPermissions).",
       "x-writer": "server",
       "x-sensitivity": "internal"
     },
-    "platformRoles": {
-      "$ref": "definitions.v1.schema.json#/$defs/platformRoles",
-      "description": "Roles de ação que o usuário tem hoje no projeto da plataforma, lidas do provedor de identidade. platformAccess é granted quando há ao menos uma.",
+    "platformPermissions": {
+      "$ref": "definitions.v1.schema.json#/$defs/platformPermissions",
+      "description": "Permissões de ação que o usuário tem hoje no projeto da plataforma, lidas do provedor de identidade. platformAccess é granted quando há ao menos uma.",
       "x-writer": "server",
       "x-sensitivity": "internal"
     },

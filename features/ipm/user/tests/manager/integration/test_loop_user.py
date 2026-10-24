@@ -34,7 +34,7 @@ def granted(message: dict[str, Any]) -> dict[str, Any]:
     return {
         "emailVerified": True,
         "userState": "active",
-        "roles": message["data"]["specification"]["roles"],
+        "permissions": message["data"]["specification"]["permissions"],
         "deletionProtection": False,
     }
 
@@ -53,7 +53,7 @@ def register(cleanup: Cleanup) -> dict[str, Any]:
                 "givenName": "Bia",
                 "familyName": "Lima",
                 "email": f"loop-{unique_suffix()}@example.com",
-                "roles": ["ipm.user.get"],
+                "permissions": ["ipm.user.get"],
                 "deletionProtection": False,
             },
         },
@@ -213,7 +213,7 @@ async def test_present_without_platform_access_is_not_converged(
             resource_id,
             "present",
             seconds=1,
-            data={"emailVerified": True, "userState": "active", "roles": []},
+            data={"emailVerified": True, "userState": "active", "permissions": []},
         ),
     )
     stored = await row(user_manager, resource_id)

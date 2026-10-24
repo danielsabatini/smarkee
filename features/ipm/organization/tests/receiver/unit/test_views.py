@@ -7,7 +7,7 @@ from ipm_organization.receiver.domain.views import organization_view
 
 NOW = datetime(2026, 10, 21, 12, 0, tzinfo=UTC)
 USER_ACCESS = {
-    "grantRoles": ["ipm.user.get"],
+    "grantPermissions": ["ipm.user.get"],
     "userExecutorAccountId": "394397791373230101",
     "userObserverAccountId": "394397791373230102",
 }

@@ -34,20 +34,20 @@
       ],
       "x-enumPolicy": "open"
     },
-    "role": {
-      "description": "Role da plataforma no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.user.create. Só são aceitas as roles do Project Grant da Organization (decisão 0077).",
+    "permission": {
+      "description": "Permissão da plataforma no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.user.create. Só são aceitas as permissões do Project Grant da Organization (decisão 0077).",
       "type": "string",
       "minLength": 5,
       "maxLength": 128,
       "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$"
     },
-    "roles": {
-      "description": "Conjunto de roles, sem repetição e em ordem alfabética.",
+    "permissions": {
+      "description": "Conjunto de permissões, sem repetição e em ordem alfabética.",
       "type": "array",
       "maxItems": 64,
       "uniqueItems": true,
       "items": {
-        "$ref": "#/$defs/role"
+        "$ref": "#/$defs/permission"
       }
     }
   }

@@ -20,20 +20,20 @@
       ],
       "x-enumPolicy": "open"
     },
-    "role": {
-      "description": "Role da plataforma no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.user.create.",
+    "permission": {
+      "description": "Permissão da plataforma no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.user.create.",
       "type": "string",
       "minLength": 5,
       "maxLength": 128,
       "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$"
     },
-    "roles": {
-      "description": "Conjunto de roles, sem repetição e em ordem alfabética.",
+    "permissions": {
+      "description": "Conjunto de permissões, sem repetição e em ordem alfabética.",
       "type": "array",
       "maxItems": 64,
       "uniqueItems": true,
       "items": {
-        "$ref": "#/$defs/role"
+        "$ref": "#/$defs/permission"
       }
     },
     "identityAccountId": {
@@ -43,8 +43,8 @@
       "maxLength": 128,
       "pattern": "^[A-Za-z0-9-]+$"
     },
-    "administratorRole": {
-      "description": "Papel de administração nativo do provedor de identidade (por exemplo, ORG_USER_CREATOR).",
+    "administratorPermission": {
+      "description": "Permissão de administração interna do provedor de identidade (por exemplo, ORG_USER_CREATOR).",
       "type": "string",
       "minLength": 1,
       "maxLength": 128,
@@ -52,22 +52,22 @@
     },
     "userAccess": {
       "title": "OrganizationUserAccess",
-      "description": "Preparo da organização para os usuários dela (ipm.user, decisão 0081): o Project Grant do projeto de roles do ipm com as roles de grantRoles, e os papéis de administração das contas do ipm/user nela. O Executor do ipm/user recebe ORG_USER_CREATOR na organização e PROJECT_GRANT_OWNER no Grant; o Observer do ipm/user, ORG_OWNER_VIEWER na organização. Vem da configuração do Manager, que é a fonte única.",
+      "description": "Preparo da organização para os usuários dela (ipm.user, decisão 0081): o Project Grant do projeto de permissões do ipm com as permissões de grantPermissions, e as permissões de administração das contas do ipm/user nela. O Executor do ipm/user recebe ORG_USER_CREATOR na organização e PROJECT_GRANT_OWNER no Grant; o Observer do ipm/user, ORG_OWNER_VIEWER na organização. Vem da configuração do Manager, que é a fonte única.",
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "grantRoles",
+        "grantPermissions",
         "userExecutorAccountId",
         "userObserverAccountId"
       ],
       "properties": {
-        "grantRoles": {
-          "description": "Roles do Project Grant: o teto do que os usuários da organização podem receber. É o catálogo grantableRole do ipm/user inteiro, sem repetição e em ordem alfabética.",
+        "grantPermissions": {
+          "description": "Permissões do Project Grant: o teto do que os usuários da organização podem receber. É o catálogo grantablePermission do ipm/user inteiro, sem repetição e em ordem alfabética.",
           "type": "array",
           "maxItems": 64,
           "uniqueItems": true,
           "items": {
-            "$ref": "../definitions.v1.schema.json#/$defs/grantableRole"
+            "$ref": "../definitions.v1.schema.json#/$defs/grantablePermission"
           },
           "x-writer": "server",
           "x-sensitivity": "internal"
@@ -88,21 +88,21 @@
     },
     "observedUserAccess": {
       "title": "OrganizationObservedUserAccess",
-      "description": "Preparo para os usuários lido do provedor de identidade (decisão 0081). grantRoles ausente quando o Project Grant não existe.",
+      "description": "Preparo para os usuários lido do provedor de identidade (decisão 0081). grantPermissions ausente quando o Project Grant não existe.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "administrators"
       ],
       "properties": {
-        "grantRoles": {
-          "$ref": "#/$defs/roles",
-          "description": "Roles do Project Grant do projeto de roles do ipm para a organização.",
+        "grantPermissions": {
+          "$ref": "#/$defs/permissions",
+          "description": "Permissões do Project Grant do projeto de permissões do ipm para a organização.",
           "x-writer": "server",
           "x-sensitivity": "internal"
         },
         "administrators": {
-          "description": "Contas com papel de administração na organização ou no Grant dela, em ordem de accountId, com os papéis somados das duas.",
+          "description": "Contas com permissão de administração na organização ou no Grant dela, em ordem de accountId, com as permissões somadas das duas.",
           "type": "array",
           "maxItems": 64,
           "items": {
@@ -111,7 +111,7 @@
             "additionalProperties": false,
             "required": [
               "accountId",
-              "roles"
+              "permissions"
             ],
             "properties": {
               "accountId": {
@@ -119,13 +119,13 @@
                 "x-writer": "server",
                 "x-sensitivity": "internal"
               },
-              "roles": {
-                "description": "Papéis de administração, sem repetição e em ordem alfabética.",
+              "permissions": {
+                "description": "Permissões de administração, sem repetição e em ordem alfabética.",
                 "type": "array",
                 "maxItems": 32,
                 "uniqueItems": true,
                 "items": {
-                  "$ref": "#/$defs/administratorRole"
+                  "$ref": "#/$defs/administratorPermission"
                 },
                 "x-writer": "server",
                 "x-sensitivity": "internal"

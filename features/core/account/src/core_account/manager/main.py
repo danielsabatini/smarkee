@@ -29,7 +29,7 @@ async def run(settings: AccountManagerSettings) -> int:
     async with role_runtime(settings.messaging, name="core-account-manager") as runtime:
         pool = await open_pool(settings.database)
         runtime.close_after(pool.close)
-        account = account_kind(settings.platform.roles)
+        account = account_kind(settings.platform.permissions)
         consumers = {
             "requested": RequestedConsumer(
                 runtime.stream,

@@ -34,7 +34,7 @@ class OrganizationPeer:
         except httpx.HTTPError:
             raise AccessCheckError(retryable=True) from None
         # O Receiver da Organization responde `404` para Organization de outro dono (não revela a
-        # existência) e `403` para quem não tem as roles do `ipm`.
+        # existência) e `403` para quem não tem as permissões do `ipm`.
         if response.status_code in (HTTP_NOT_FOUND, HTTP_FORBIDDEN):
             return OrganizationAccess.NOT_OWNED
         if response.status_code == HTTP_UNAUTHORIZED:

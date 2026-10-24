@@ -26,7 +26,7 @@
 
 			<a
 				href="/identity/organizations"
-				class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+				class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-brand-700 hover:text-brand-800"
 			>
 				<span>Ver todos</span>
 				<ArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
@@ -69,7 +69,7 @@
 									<a
 										href={item.href}
 										title={item.displayName}
-										class="flex min-w-0 items-center gap-1.5 font-semibold text-emerald-700 hover:underline"
+										class="flex min-w-0 items-center gap-1.5 font-semibold text-brand-700 hover:underline"
 									>
 										{#if item.resourceType === 'ipm.organization'}
 											<Building2 class="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />

@@ -14,4 +14,4 @@ class ProviderError(Exception):
 @dataclass(frozen=True, slots=True)
 class Authorization:
     project_id: str
-    roles: frozenset[str]
+    permissions: frozenset[str]

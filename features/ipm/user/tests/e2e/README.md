@@ -22,7 +22,7 @@ export CONFORMANCE_ORGANIZATION_ID=<resourceId da Organization preparada>
 uv run pytest
 ```
 
-- `tests/test_loop.py` fecha o loop com os componentes reais e o Zitadel de dev: os pedidos entram direto no NATS (como o Receiver os publicaria), o usuário é criado na Organization sem senha, recebe e troca de roles, é protegido e, ao final, removido pelo próprio loop. Também confirma que o Project Grant é o teto: uma role do `roles-ipm` fora do Grant é recusada pelo Zitadel (`Rejected`).
+- `tests/test_loop.py` fecha o loop com os componentes reais e o Zitadel de dev: os pedidos entram direto no NATS (como o Receiver os publicaria), o usuário é criado na Organization sem senha, recebe e troca de permissões, é protegido e, ao final, removido pelo próprio loop. Também confirma que o Project Grant é o teto: uma permissão do `roles-ipm` fora do Grant é recusada pelo Zitadel (`Rejected`).
 - `tests/test_conformance.py` confere a recusa sem token, no contrato `api-error`.
 
 Os testes de resiliência (derrubar papéis) não são repetidos aqui: os motores do Observer e do Executor e a convergência do Manager vêm do template (decisão 0075) e são exercitados pelos e2e de `core/account` e `ipm/organization`.

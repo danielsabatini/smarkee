@@ -88,8 +88,8 @@ async def test_a_new_catalog_gives_the_links_a_new_generation_with_a_system_oper
             )
             row = await cursor.fetchone()
         assert row is not None and row["desired_generation"] == 2
-        assert row["desired"]["serviceRoles"] == ["zzrollout.a.get", "zzrollout.c.get"]
-        assert row["desired"]["managedRoles"] == [
+        assert row["desired"]["servicePermissions"] == ["zzrollout.a.get", "zzrollout.c.get"]
+        assert row["desired"]["managedPermissions"] == [
             "zzrollout.a.get",
             "zzrollout.b.get",  # saiu do catálogo: continua controlada, para ser revogada
             "zzrollout.c.get",

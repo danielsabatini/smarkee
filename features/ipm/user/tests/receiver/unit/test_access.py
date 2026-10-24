@@ -16,21 +16,21 @@ from ipm_user.receiver.settings import PeersSettings
 from ipm_user.receiver.transport.organizations import OrganizationPeer
 
 
-def test_outside_catalog_lists_the_refused_roles_sorted() -> None:
-    """O catálogo é o enum `grantableRole` do contrato (decisão 0081), e não configuração."""
+def test_outside_catalog_lists_the_refused_permissions_sorted() -> None:
+    """O catálogo é o enum `grantablePermission` do contrato (decisão 0081), e não configuração."""
     refused = ["ipm.user.get", "ipm.organization.delete", "ipm.user.admin", "ipm.user.admin"]
     assert outside_catalog(refused) == ["ipm.organization.delete", "ipm.user.admin"]
-    assert outside_catalog([role.value for role in generated.GrantableRole]) == []
+    assert outside_catalog([permission.value for permission in generated.GrantablePermission]) == []
     assert outside_catalog([]) == []
 
 
-def test_binding_without_bind_only_touches_roles_the_requester_has() -> None:
+def test_binding_without_bind_only_touches_permissions_the_requester_has() -> None:
     mine = {"ipm.user.get", "ipm.user.list"}
     assert binding_allowed([], ["ipm.user.get"], mine, can_bind=False)
     assert not binding_allowed([], ["ipm.user.bind"], mine, can_bind=False)
-    # Retirar uma role que quem pede não tem também exige `bind`.
+    # Retirar uma permissão que quem pede não tem também exige `bind`.
     assert not binding_allowed(["ipm.user.bind"], [], mine, can_bind=False)
-    # Manter uma role alheia sem mexer nela é permitido.
+    # Manter uma permissão alheia sem mexer nela é permitido.
     assert binding_allowed(
         ["ipm.user.bind"], ["ipm.user.bind", "ipm.user.get"], mine, can_bind=False
     )

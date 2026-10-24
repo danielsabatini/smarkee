@@ -96,7 +96,7 @@
 <div class="mx-auto max-w-5xl space-y-6">
 	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
 		<div>
-			<span class="text-xs font-semibold text-emerald-700 uppercase"> Identidade (IPM) </span>
+			<span class="text-xs font-semibold text-brand-700 uppercase"> Identidade (IPM) </span>
 			<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Conta Titular Autenticada</h1>
 			<p class="mt-1 text-xs text-slate-600">
 				Visão consolidada da sua conta titular na plataforma.
@@ -109,7 +109,7 @@
 			<div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
 				<div class="flex items-center gap-3">
 					<div
-						class="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800"
+						class="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-800"
 					>
 						<UserCheck class="h-6 w-6" aria-hidden="true" />
 					</div>
@@ -123,7 +123,7 @@
 								<span class="text-sm font-medium text-slate-700">{account.desired.email}</span>
 								{#if account.observed?.emailVerified}
 									<span
-										class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200"
+										class="inline-flex items-center gap-1 rounded-md bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700 border border-brand-200"
 									>
 										<CheckCircle2 class="h-3 w-3" aria-hidden="true" />
 										Verificado
@@ -151,7 +151,7 @@
 				<div class="flex items-center gap-2">
 					<StatusBadge phase={account.phase} />
 					<span
-						class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800"
+						class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800"
 					>
 						<ShieldCheck class="h-3.5 w-3.5" aria-hidden="true" />
 						<span
@@ -163,7 +163,7 @@
 					<button
 						type="button"
 						onclick={openEditModal}
-						class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-emerald-300 hover:text-emerald-800"
+						class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-brand-300 hover:text-brand-800"
 					>
 						<Pencil class="h-3.5 w-3.5" aria-hidden="true" />
 						<span>Editar Perfil</span>
@@ -186,7 +186,7 @@
 					<div class="mt-1 flex items-center justify-between">
 						<p class="flex items-center gap-1.5 text-xs font-semibold text-slate-900">
 							{#if account.desired.deletionProtection !== false}
-								<Lock class="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+								<Lock class="h-3.5 w-3.5 text-brand-700" aria-hidden="true" />
 								<span>Ativa</span>
 							{:else}
 								<LockOpen class="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
@@ -197,7 +197,7 @@
 							type="button"
 							disabled={isUpdating}
 							onclick={handleToggleProtection}
-							class="text-[10px] font-semibold text-emerald-700 hover:underline disabled:opacity-50"
+							class="text-[10px] font-semibold text-brand-700 hover:underline disabled:opacity-50"
 						>
 							{account.desired.deletionProtection !== false ? 'Desativar' : 'Ativar'}
 						</button>
@@ -286,7 +286,7 @@
 							required
 							bind:value={editGivenName}
 							placeholder="ex: Daniel"
-							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-emerald-600 focus:outline-none"
+							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-brand-600 focus:outline-none"
 						/>
 					</div>
 
@@ -300,7 +300,7 @@
 							required
 							bind:value={editFamilyName}
 							placeholder="ex: Freitas"
-							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-emerald-600 focus:outline-none"
+							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-brand-600 focus:outline-none"
 						/>
 					</div>
 
@@ -314,7 +314,7 @@
 							required
 							bind:value={editEmail}
 							placeholder="ex: daniel.freitas@smarkee.example.com"
-							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-emerald-600 focus:outline-none"
+							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-brand-600 focus:outline-none"
 						/>
 						<p class="mt-1 text-[11px] text-slate-500">
 							Alterar o e-mail exigirá uma nova confirmação para restabelecer a verificação da
@@ -334,7 +334,7 @@
 					<button
 						type="submit"
 						disabled={isUpdating || (!editGivenName.trim() && !editEmail.trim())}
-						class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+						class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50"
 					>
 						Salvar Alterações
 					</button>

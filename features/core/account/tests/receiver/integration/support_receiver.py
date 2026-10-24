@@ -33,7 +33,7 @@ async def seed_account(manager: psycopg.AsyncConnection[Any], *, email: str) -> 
     desired = {
         "lifecycle": "present",
         "platformAccess": "granted",
-        "platformRoles": ["ipm.organization.get", "core.account.get"],
+        "platformPermissions": ["ipm.organization.get", "core.account.get"],
         "givenName": "Ana",
         "familyName": "Souza",
         "email": email,

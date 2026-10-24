@@ -8,7 +8,7 @@ Regras (`docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`): 
 
 A `action` é publicada no Subject canônico `reconciler.action.core.account.<id>.<operação>`; o Stream `ACTION` o armazena com o token da partição (decisão 0018).
 
-Campos gerenciados da Account: `lifecycle`, `platformAccess`, `platformRoles` (as desejadas contidas nas observadas) e `deletionProtection` (o metadado de mesmo nome do usuário, decisão 0074) (`schemas/core/account/desired.v1.schema.json`).
+Campos gerenciados da Account: `lifecycle`, `platformAccess`, `platformPermissions` (as desejadas contidas nas observadas) e `deletionProtection` (o metadado de mesmo nome do usuário, decisão 0074) (`schemas/core/account/desired.v1.schema.json`).
 
 ## Configuração
 

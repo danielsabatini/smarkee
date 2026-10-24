@@ -13,6 +13,7 @@ UPDATE core.account
          (SELECT COALESCE(jsonb_agg(role ORDER BY role), '[]'::jsonb)
             FROM jsonb_array_elements_text(desired -> 'platformRoles') AS role
            WHERE role ~ '^core\.'))
- WHERE EXISTS (
+ WHERE desired ? 'platformRoles'
+   AND EXISTS (
          SELECT 1 FROM jsonb_array_elements_text(desired -> 'platformRoles') AS role
           WHERE role !~ '^core\.');

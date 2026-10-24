@@ -55,13 +55,13 @@
 		const sizeClass = size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs';
 		switch (resolvedInfo.tone) {
 			case 'ready':
-				return `${sizeClass} bg-emerald-50 text-emerald-800 border-emerald-200`;
+				return `${sizeClass} bg-status-ready-bg text-status-ready-text border-status-ready-text/20`;
 			case 'progress':
-				return `${sizeClass} bg-blue-50 text-blue-800 border-blue-200`;
+				return `${sizeClass} bg-status-progress-bg text-status-progress-text border-status-progress-text/20`;
 			case 'warning':
-				return `${sizeClass} bg-amber-50 text-amber-800 border-amber-200`;
+				return `${sizeClass} bg-status-warning-bg text-status-warning-text border-status-warning-text/20`;
 			case 'failed':
-				return `${sizeClass} bg-red-50 text-red-800 border-red-200`;
+				return `${sizeClass} bg-status-failed-bg text-status-failed-text border-status-failed-text/20`;
 			default:
 				return `${sizeClass} bg-slate-100 text-slate-700 border-slate-200`;
 		}
@@ -72,17 +72,20 @@
 	class="inline-flex items-center gap-1.5 rounded-full border font-medium whitespace-nowrap {badgeClasses}"
 >
 	{#if resolvedInfo.tone === 'ready'}
-		<CheckCircle2 class="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
+		<CheckCircle2 class="h-3.5 w-3.5 shrink-0 text-status-ready-text" aria-hidden="true" />
 	{:else if resolvedInfo.tone === 'progress'}
-		<Loader2 class="h-3.5 w-3.5 shrink-0 animate-spin text-blue-600" aria-hidden="true" />
+		<Loader2
+			class="h-3.5 w-3.5 shrink-0 animate-spin text-status-progress-text"
+			aria-hidden="true"
+		/>
 	{:else if resolvedInfo.tone === 'warning'}
 		{#if operationStatus === 'rejected'}
-			<ShieldAlert class="h-3.5 w-3.5 shrink-0 text-amber-600" aria-hidden="true" />
+			<ShieldAlert class="h-3.5 w-3.5 shrink-0 text-status-warning-text" aria-hidden="true" />
 		{:else}
-			<AlertTriangle class="h-3.5 w-3.5 shrink-0 text-amber-600" aria-hidden="true" />
+			<AlertTriangle class="h-3.5 w-3.5 shrink-0 text-status-warning-text" aria-hidden="true" />
 		{/if}
 	{:else if resolvedInfo.tone === 'failed'}
-		<XCircle class="h-3.5 w-3.5 shrink-0 text-red-600" aria-hidden="true" />
+		<XCircle class="h-3.5 w-3.5 shrink-0 text-status-failed-text" aria-hidden="true" />
 	{:else}
 		<Clock class="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
 	{/if}

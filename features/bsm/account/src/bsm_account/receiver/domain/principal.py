@@ -1,4 +1,4 @@
-"""Solicitante autenticado e as roles do projeto do módulo (`roles-bsm`)."""
+"""Solicitante autenticado e as permissões do projeto do módulo (`roles-bsm`)."""
 
 from dataclasses import dataclass
 
@@ -12,16 +12,16 @@ ACCOUNT_ADMIN = "bsm.account.admin"
 
 @dataclass(frozen=True, slots=True)
 class Principal:
-    """O usuário autenticado: o `sub` do token (ID do usuário) e as roles no projeto."""
+    """O usuário autenticado: o `sub` do token (ID do usuário) e as permissões no projeto."""
 
     subject: str
-    roles: frozenset[str]
+    permissions: frozenset[str]
     access_token: str
 
     @property
     def is_operator(self) -> bool:
         """Operadores agem em qualquer Billing Account."""
-        return ACCOUNT_ADMIN in self.roles
+        return ACCOUNT_ADMIN in self.permissions
 
-    def has_role(self, role: str) -> bool:
-        return role in self.roles
+    def has_permission(self, permission: str) -> bool:
+        return permission in self.permissions

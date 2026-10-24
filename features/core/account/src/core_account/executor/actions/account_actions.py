@@ -29,15 +29,15 @@ class Users(Protocol):
 
 
 class Authorizations(Protocol):
-    """Driver da autorização nos projetos de roles (`executor/drivers/authorization.py`)."""
+    """Driver da autorização nos projetos de permissões (`executor/drivers/authorization.py`)."""
 
     async def grants(self, user_id: str) -> list[Grant]: ...
 
-    def project_of(self, role: str) -> str: ...
+    def project_of(self, permission: str) -> str: ...
 
-    async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None: ...
+    async def create_grant(self, user_id: str, project_id: str, permissions: list[str]) -> None: ...
 
-    async def update_grant(self, grant_id: str, roles: list[str]) -> None: ...
+    async def update_grant(self, grant_id: str, permissions: list[str]) -> None: ...
 
     async def remove_grant(self, grant_id: str) -> None: ...
 
@@ -76,18 +76,18 @@ async def execute(
             raise ActionFailedError("Rejected", retryable=False, message="unsupported operation")
 
 
-def _platform_roles(desired: Mapping[str, Any]) -> frozenset[str]:
-    """Roles do `desired.platformRoles` (decisão 0025): o Executor não tem lista própria."""
-    roles: Any = desired.get("platformRoles")
-    if not isinstance(roles, list):
+def _platform_permissions(desired: Mapping[str, Any]) -> frozenset[str]:
+    """Permissões de `desired.platformPermissions` (decisão 0025): sem lista própria no Executor."""
+    permissions: Any = desired.get("platformPermissions")
+    if not isinstance(permissions, list):
         raise ActionFailedError(
-            "Rejected", retryable=False, message="desired without the platform roles"
+            "Rejected", retryable=False, message="desired without the platform permissions"
         )
-    return frozenset(str(role) for role in cast("list[Any]", roles))
+    return frozenset(str(permission) for permission in cast("list[Any]", permissions))
 
 
 async def _create(user_id: str, desired: Mapping[str, Any], drivers: Drivers) -> None:
-    roles = _platform_roles(desired)
+    permissions = _platform_permissions(desired)
     given_name, family_name, email = (
         str(desired.get("givenName", "")),
         str(desired.get("familyName", "")),
@@ -112,7 +112,7 @@ async def _create(user_id: str, desired: Mapping[str, Any], drivers: Drivers) ->
             raise ActionFailedError(
                 "Rejected", retryable=False, message="account id in use by another account"
             )
-    await _ensure_grant(user_id, drivers.authorizations, roles)
+    await _ensure_grant(user_id, drivers.authorizations, permissions)
 
 
 async def _update(user_id: str, desired: Mapping[str, Any], drivers: Drivers) -> None:
@@ -122,33 +122,35 @@ async def _update(user_id: str, desired: Mapping[str, Any], drivers: Drivers) ->
         for grant in await drivers.authorizations.grants(user_id):
             await drivers.authorizations.remove_grant(grant.grant_id)
         return
-    await _ensure_grant(user_id, drivers.authorizations, _platform_roles(desired))
+    await _ensure_grant(user_id, drivers.authorizations, _platform_permissions(desired))
 
 
 async def _ensure_grant(
     user_id: str, authorizations: Authorizations, expected: frozenset[str]
 ) -> None:
-    """O usuário tem, em cada projeto de roles, ao menos as roles de `desired.platformRoles`.
+    """O usuário tem, em cada projeto, ao menos as permissões de `desired.platformPermissions`.
 
-    Cada role vai para o projeto do seu módulo (`authorizations.project_of`); uma autorização
+    Cada permissão vai para o projeto do seu módulo (`authorizations.project_of`); uma autorização
     por projeto.
     """
     if not expected:
         return
     by_project: dict[str, set[str]] = {}
-    for role in sorted(expected):
-        by_project.setdefault(authorizations.project_of(role), set()).add(
-            role
+    for permission in sorted(expected):
+        by_project.setdefault(authorizations.project_of(permission), set()).add(
+            permission
         )  # `ProviderError` se não há projeto
     grants = await authorizations.grants(user_id)
-    for project_id, roles in by_project.items():
+    for project_id, permissions in by_project.items():
         current = next((g for g in grants if g.project_id == project_id), None)
-        if current is not None and roles <= current.roles:
+        if current is not None and permissions <= current.permissions:
             continue
         if current is not None:
-            await authorizations.update_grant(current.grant_id, sorted(roles | current.roles))
+            await authorizations.update_grant(
+                current.grant_id, sorted(permissions | current.permissions)
+            )
         else:
-            await authorizations.create_grant(user_id, project_id, sorted(roles))
+            await authorizations.create_grant(user_id, project_id, sorted(permissions))
 
 
 DELETION_PROTECTION_KEY = "deletionProtection"

@@ -1,7 +1,7 @@
 """Cliente do `ipm.user` na API da plataforma (decisão 0077).
 
 Usuários da Organization: criados dentro dela, sem senha (a pessoa define a senha pelo e-mail de
-ativação), com roles da plataforma. Criar, alterar e remover são escritas assíncronas: a API
+ativação), com permissões da plataforma. Criar, alterar e remover são escritas assíncronas: a API
 responde `202` com o `operationId`, e o estado definitivo vem do usuário (`phase`) e da Operation
 (`operationStatus`). A leitura das respostas é estrita.
 """
@@ -22,9 +22,9 @@ from sk.features.api_contract import (
 from sk.http import ApiUnavailableError, call_api
 
 USERS_PATH = "/v1/ipm/users"
-# `role` de `schemas/ipm/user/definitions.v1.schema.json`: `<módulo>.<tipo>.<ação>`.
-ROLE_PATTERN = re.compile(r"^[a-z][a-z0-9]*\.[a-z][a-z0-9]*\.[a-z][a-z0-9]*$")
-MAXIMUM_ROLES = 64
+# `permission` de `schemas/ipm/user/definitions.v1.schema.json`: `<módulo>.<tipo>.<ação>`.
+PERMISSION_PATTERN = re.compile(r"^[a-z][a-z0-9]*\.[a-z][a-z0-9]*\.[a-z][a-z0-9]*$")
+MAXIMUM_PERMISSIONS = 64
 LIST_PAGE_SIZE = 200  # o máximo da API
 MAXIMUM_LIST_PAGES = 50  # trava contra um cursor que nunca termina
 
@@ -41,7 +41,7 @@ class User:
     email: str | None
     """Ausente depois do pedido de remoção (o `desired` deixa de ter dados pessoais)."""
 
-    roles: tuple[str, ...]
+    permissions: tuple[str, ...]
     deletion_protection: bool
     """`False` por padrão no usuário da Organization (decisão 0077)."""
 
@@ -49,23 +49,25 @@ class User:
     """Estado lido do provedor (`initial` até a ativação); `None` enquanto não foi observado."""
 
 
-def validate_roles(values: list[str]) -> list[str]:
-    """Roles sem repetição e em ordem, ou `ValueError` (sem repetir o valor recusado)."""
-    roles = sorted(set(values))
-    if len(roles) > MAXIMUM_ROLES:
-        raise ValueError(f"too many roles: at most {MAXIMUM_ROLES}")
-    if any(not ROLE_PATTERN.fullmatch(role) for role in roles):
-        raise ValueError("role invalid: use <module>.<type>.<action>, for example ipm.user.get")
-    return roles
+def validate_permissions(values: list[str]) -> list[str]:
+    """Permissões sem repetição e em ordem, ou `ValueError` (sem repetir o valor recusado)."""
+    permissions = sorted(set(values))
+    if len(permissions) > MAXIMUM_PERMISSIONS:
+        raise ValueError(f"too many permissions: at most {MAXIMUM_PERMISSIONS}")
+    if any(not PERMISSION_PATTERN.fullmatch(permission) for permission in permissions):
+        raise ValueError(
+            "permission invalid: use <module>.<type>.<action>, for example ipm.user.get"
+        )
+    return permissions
 
 
 def _user(document: object) -> User:
     body = as_object(document, what="user")
     desired = as_object(body.get("desired"), what="user (desired)")
     observed = as_object(body.get("observed") or {}, what="user (observed)")
-    roles: Any = desired.get("roles")
-    if not isinstance(roles, list):
-        raise ApiUnavailableError("API response without the user roles")
+    permissions: Any = desired.get("permissions")
+    if not isinstance(permissions, list):
+        raise ApiUnavailableError("API response without the user permissions")
     email = desired.get("email")
     state = observed.get("userState")
     return User(
@@ -75,7 +77,7 @@ def _user(document: object) -> User:
         lifecycle=as_text(desired, "lifecycle", what="user (desired)"),
         organization_id=as_text(desired, "organizationId", what="user (desired)"),
         email=email if isinstance(email, str) else None,
-        roles=tuple(str(role) for role in cast("list[object]", roles)),
+        permissions=tuple(str(permission) for permission in cast("list[object]", permissions)),
         deletion_protection=desired.get("deletionProtection") is True,
         user_state=state if isinstance(state, str) else None,
     )
@@ -89,7 +91,7 @@ def create_user(
     given_name: str,
     family_name: str,
     email: str,
-    roles: list[str],
+    permissions: list[str],
     idempotency_key: str,
     allow_insecure_http: bool,
 ) -> RequestAccepted:
@@ -104,7 +106,7 @@ def create_user(
             "givenName": given_name,
             "familyName": family_name,
             "email": email,
-            "roles": validate_roles(roles),
+            "permissions": validate_permissions(permissions),
         },
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
@@ -118,16 +120,16 @@ def update_user(
     token: str,
     resource_id: str,
     resource_version: str,
-    roles: list[str] | None = None,
+    permissions: list[str] | None = None,
     protected: bool | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
 ) -> RequestAccepted:
-    """Troca as roles (o conjunto inteiro) e/ou a proteção contra exclusão."""
+    """Troca as permissões (o conjunto inteiro) e/ou a proteção contra exclusão."""
     resource_id = validate_identifier(resource_id, what="resourceId")
     body: dict[str, Any] = {"resourceVersion": resource_version}
-    if roles is not None:
-        body["roles"] = validate_roles(roles)
+    if permissions is not None:
+        body["permissions"] = validate_permissions(permissions)
     if protected is not None:
         body["deletionProtection"] = protected
     _, document = call_api(

@@ -108,7 +108,7 @@ class Reconciler:
             lifecycle=str(data.get("lifecycle", "present")),
             reconciliation=str(data.get("reconciliation", "active")),
             platform_access=str(data.get("platformAccess", "granted")),
-            platform_roles=frozenset(data.get("platformRoles", ())),
+            platform_permissions=frozenset(data.get("platformPermissions", ())),
             requested_by=envelope.requested_by,
             correlation_id=envelope.correlation_id,
             traceparent=current_traceparent(),
@@ -135,7 +135,7 @@ class Reconciler:
             observed_at=envelope.observed_at,
             causation_id=envelope.causation_id,
             platform_access=str(platform_access) if platform_access is not None else None,
-            platform_roles=frozenset(data.get("platformRoles", ())),
+            platform_permissions=frozenset(data.get("platformPermissions", ())),
             deletion_protection=protection if isinstance(protection, bool) else None,
         )
         if (

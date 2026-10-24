@@ -137,7 +137,7 @@
 			class="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
 		>
 			<div class="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
-				<Search class="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+				<Search class="h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
 				<input
 					type="search"
 					bind:value={query}
@@ -168,7 +168,7 @@
 								<button
 									type="button"
 									onclick={() => handleSelectResult(item.href)}
-									class="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-emerald-50/70"
+									class="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-brand-50/70"
 								>
 									<div class="min-w-0 flex-1">
 										<div class="flex items-center gap-2">

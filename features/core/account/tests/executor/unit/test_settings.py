@@ -15,10 +15,12 @@ REQUIRED_SECRETS = (
 )
 
 
-def test_defaults_have_no_secrets_and_no_role_list() -> None:
+def test_defaults_have_no_secrets_and_no_permission_list() -> None:
     settings = AccountExecutorSettings()
     assert settings.messaging.password is None
-    assert not hasattr(settings.identity, "granted_roles")  # as roles vêm do desired (decisão 0025)
+    assert not hasattr(
+        settings.identity, "granted_permissions"
+    )  # as permissões vêm do desired (decisão 0025)
 
 
 def test_environment_variables_follow_the_prefix_section_and_field_pattern(

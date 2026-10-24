@@ -23,8 +23,9 @@ from core_account.common.settings import (
 class IdentitySettings(CommonIdentitySettings):
     """Zitadel do Executor, com a conta de serviço `core-account-executor`.
 
-    Papéis dela: `ORG_USER_CREATOR` na `register` (cria e remove usuários, sem conceder roles) e
-    `PROJECT_GRANT_OWNER` nos Project Grants dos projetos de `project_ids` (decisão 0032).
+    Papéis dela: `ORG_USER_CREATOR` na `register` (cria e remove usuários, sem conceder
+    permissões) e `PROJECT_GRANT_OWNER` nos Project Grants dos projetos de `project_ids` (decisão
+    0032).
     """
 
     register_organization_id: str | None = None
@@ -32,9 +33,10 @@ class IdentitySettings(CommonIdentitySettings):
     Sem default."""
 
     project_ids: dict[str, str] = Field(default_factory=dict)
-    """IDs dos projetos de roles que o Executor pode conceder, por módulo (`{"core": "<ID>", ...}`).
+    """IDs dos projetos de permissões que o Executor pode conceder, por módulo
+    (`{"core": "<ID>", ...}`).
 
-    A role `<módulo>.<tipo>.<ação>` vai para o projeto do seu módulo. Um módulo ausente aqui é
+    A permissão `<módulo>.<tipo>.<ação>` vai para o projeto do seu módulo. Um módulo ausente aqui é
     rejeitado antes de chamar o Zitadel; o Zitadel também nega o que o Executor não tem como
     `PROJECT_GRANT_OWNER` (decisão 0032). Sem default.
     """

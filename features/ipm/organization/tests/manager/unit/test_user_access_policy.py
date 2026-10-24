@@ -22,10 +22,10 @@ OBSERVED_READY: dict[str, Any] = {
     "platformAccess": "granted",
     "deletionProtection": True,
     "userAccess": {
-        "grantRoles": grant_catalog(),
+        "grantPermissions": grant_catalog(),
         "administrators": [
-            {"accountId": "executor", "roles": ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"]},
-            {"accountId": "observer", "roles": ["ORG_OWNER_VIEWER"]},
+            {"accountId": "executor", "permissions": ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"]},
+            {"accountId": "observer", "permissions": ["ORG_OWNER_VIEWER"]},
         ],
     },
 }
@@ -37,7 +37,9 @@ def test_a_new_organization_is_born_ready_for_users() -> None:
     )
     desired = POLICY.desired_for_create(request, "owner-1")
     assert desired["userAccess"] == USER_ACCESS
-    assert POLICY.message_data(desired, "active")["userAccess"]["grantRoles"] == grant_catalog()
+    assert (
+        POLICY.message_data(desired, "active")["userAccess"]["grantPermissions"] == grant_catalog()
+    )
 
 
 def test_the_rollout_adds_or_refreshes_the_user_access_only_when_it_changes() -> None:
@@ -45,7 +47,7 @@ def test_the_rollout_adds_or_refreshes_the_user_access_only_when_it_changes() ->
     assert rolled == {**CURRENT, "userAccess": USER_ACCESS}
     assert rolled is not None
     assert POLICY.rolled_out(rolled) is None  # repetir não muda nada
-    stale = {**CURRENT, "userAccess": {**USER_ACCESS, "grantRoles": ["ipm.user.get"]}}
+    stale = {**CURRENT, "userAccess": {**USER_ACCESS, "grantPermissions": ["ipm.user.get"]}}
     assert POLICY.rolled_out(stale) == rolled
     assert POLICY.rolled_out({**CURRENT, "lifecycle": "absent"}) is None
 

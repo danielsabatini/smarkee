@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "UserRequestedCreateData",
-  "description": "data de requested com operation create. Publicado somente pelo Receiver, depois de conferir a Organization, o escopo de quem pede, a cota e as roles contra o catálogo do Grant (decisão 0077). Sem senha.",
+  "description": "data de requested com operation create. Publicado somente pelo Receiver, depois de conferir a Organization, o escopo de quem pede, a cota e as permissões contra o catálogo do Grant (decisão 0077). Sem senha.",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,
@@ -54,8 +54,8 @@
           "x-writer": "client",
           "x-sensitivity": "confidential"
         },
-        "roles": {
-          "$ref": "definitions.v1.schema.json#/$defs/roles",
+        "permissions": {
+          "$ref": "definitions.v1.schema.json#/$defs/permissions",
           "x-writer": "client",
           "x-sensitivity": "internal"
         },

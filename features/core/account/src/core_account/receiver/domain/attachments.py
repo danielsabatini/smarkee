@@ -22,7 +22,7 @@ class AttachmentCheckError(Exception):
     """Não foi possível saber o que está atrelado à conta. Nunca é tratado como "nada atrelado".
 
     `retryable` diz se tentar de novo pode resolver (módulo indisponível); sem ele, falta
-    permissão para consultar o módulo (por exemplo, o serviço foi desligado e as roles saíram).
+    permissão para consultar o módulo (por exemplo, o serviço foi desligado e as permissões saíram).
     """
 
     def __init__(self, module: str, *, retryable: bool) -> None:

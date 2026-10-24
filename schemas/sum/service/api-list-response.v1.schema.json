@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ServiceListResponse",
-  "description": "Corpo de GET /v1/sum/services: as ligações do solicitante cujo serviço ele pode ler (role sum.<serviço>.get), até o limite pedido.",
+  "description": "Corpo de GET /v1/sum/services: as ligações do solicitante cujo serviço ele pode ler (permissão sum.<serviço>.get), até o limite pedido.",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,

@@ -340,7 +340,7 @@ Entrypoint do Observer de User (`ipm-user-observer`, decisões 0015 e 0063).
 | `identity.issuer` | `IPM_USER_OBSERVER_IDENTITY_ISSUER` | `--identity.issuer` | `str` | `'http://localhost:8080'` | Audience da assertion JWT da conta de serviço. |
 | `identity.key_file` | `IPM_USER_OBSERVER_IDENTITY_KEY_FILE` | `--identity.key_file` | `str` | `'/run/secrets/zitadel-key.json'` | Chave JSON da conta de serviço do papel (montada só no contêiner dele). |
 | `identity.timeout_seconds` | `IPM_USER_OBSERVER_IDENTITY_TIMEOUT_SECONDS` | `--identity.timeout_seconds` | `float` | `5.0` |  |
-| `identity.project_id` | `IPM_USER_OBSERVER_IDENTITY_PROJECT_ID` | `--identity.project_id` | `str \| None` | — | Obrigatória. ID do projeto `roles-ipm`: as roles do usuário são as autorizações nele. Sem default. |
+| `identity.project_id` | `IPM_USER_OBSERVER_IDENTITY_PROJECT_ID` | `--identity.project_id` | `str \| None` | — | Obrigatória. ID do projeto `roles-ipm`: as permissões do usuário são as autorizações nele. Sem default. |
 | `partition.index` | `IPM_USER_OBSERVER_PARTITION_INDEX` | `--partition.index` | `int` | `0` |  |
 | `partition.count` | `IPM_USER_OBSERVER_PARTITION_COUNT` | `--partition.count` | `int` | `1` | Partição por `resourceId`: a instância observa só `hash mod count == index`. |
 | `health.port` | `IPM_USER_OBSERVER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
@@ -406,7 +406,7 @@ Entrypoint do Executor de User (`ipm-user-executor`, decisões 0015 e 0063).
 | `identity.issuer` | `IPM_USER_EXECUTOR_IDENTITY_ISSUER` | `--identity.issuer` | `str` | `'http://localhost:8080'` | Audience da assertion JWT da conta de serviço. |
 | `identity.key_file` | `IPM_USER_EXECUTOR_IDENTITY_KEY_FILE` | `--identity.key_file` | `str` | `'/run/secrets/zitadel-key.json'` | Chave JSON da conta de serviço do papel (montada só no contêiner dele). |
 | `identity.timeout_seconds` | `IPM_USER_EXECUTOR_IDENTITY_TIMEOUT_SECONDS` | `--identity.timeout_seconds` | `float` | `10.0` |  |
-| `identity.project_id` | `IPM_USER_EXECUTOR_IDENTITY_PROJECT_ID` | `--identity.project_id` | `str \| None` | — | Obrigatória. ID do projeto `roles-ipm`: o único em que o Executor concede roles. Sem default. |
+| `identity.project_id` | `IPM_USER_EXECUTOR_IDENTITY_PROJECT_ID` | `--identity.project_id` | `str \| None` | — | Obrigatória. ID do projeto `roles-ipm`: o único em que o Executor concede permissões. Sem default. |
 | `partition.count` | `IPM_USER_EXECUTOR_PARTITION_COUNT` | `--partition.count` | `int` | `4` | Partições do Stream `ACTION` (bootstrap do messaging): um consumer e um laço por partição. |
 | `health.port` | `IPM_USER_EXECUTOR_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 

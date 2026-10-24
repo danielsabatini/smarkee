@@ -4,7 +4,7 @@
   "organizationState": "active",
   "deletionProtection": true,
   "userAccess": {
-    "grantRoles": [
+    "grantPermissions": [
       "ipm.organization.get",
       "ipm.organization.list",
       "ipm.organization.update",
@@ -18,14 +18,14 @@
     "administrators": [
       {
         "accountId": "394397791373230101",
-        "roles": [
+        "permissions": [
           "ORG_USER_CREATOR",
           "PROJECT_GRANT_OWNER"
         ]
       },
       {
         "accountId": "394397791373230102",
-        "roles": [
+        "permissions": [
           "ORG_OWNER_VIEWER"
         ]
       }

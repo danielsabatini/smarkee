@@ -79,7 +79,9 @@ async def converges_enabled(
         resource_id,
         lambda r: r["phase"] == "Ready" and r["desired"]["lifecycle"] == "present",
     )
-    assert set(enabled["desired"]["serviceRoles"]) <= set(enabled["observed"]["serviceRoles"])
+    assert set(enabled["desired"]["servicePermissions"]) <= set(
+        enabled["observed"]["servicePermissions"]
+    )
 
 
 async def test_requests_made_while_the_manager_is_down_are_processed_when_it_returns(

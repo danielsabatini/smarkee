@@ -18,7 +18,7 @@ class DesiredState:
     lifecycle: str
     reconciliation: str
     platform_access: str
-    platform_roles: frozenset[str]
+    platform_permissions: frozenset[str]
     requested_by: str | None
     correlation_id: str | None
     traceparent: str | None = None
@@ -35,7 +35,7 @@ class ObservedState:
     observed_at: datetime
     causation_id: str | None
     platform_access: str | None
-    platform_roles: frozenset[str]
+    platform_permissions: frozenset[str]
     deletion_protection: bool | None = None
     """Proteção lida do metadado do provedor; `None` quando ele não existe (decisão 0074)."""
 
@@ -150,10 +150,10 @@ def decide(state: ResourceState, now: datetime, settings: LoopParameters) -> Dec
 
 
 def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
-    """Compara os campos gerenciados da Account: `lifecycle`, `platformAccess`, `platformRoles` e
-    `deletionProtection`.
+    """Compara os campos gerenciados da Account: `lifecycle`, `platformAccess`,
+    `platformPermissions` e `deletionProtection`.
 
-    As roles desejadas precisam estar contidas nas observadas: roles a mais não são divergência.
+    As permissões desejadas precisam estar contidas nas observadas: a mais não é divergência.
     `deletionProtection` é observado pelo metadado de mesmo nome no usuário (decisão 0074).
     """
     if desired.lifecycle == "absent":
@@ -166,12 +166,15 @@ def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
         name
         for name, differs in (
             ("platformAccess", observed.platform_access != desired.platform_access),
-            ("platformRoles", not desired.platform_roles <= observed.platform_roles),
+            (
+                "platformPermissions",
+                not desired.platform_permissions <= observed.platform_permissions,
+            ),
             ("deletionProtection", observed.deletion_protection != desired.deletion_protection),
         )
         if differs
     )
-    if fields[:1] in (("platformAccess",), ("platformRoles",)):
+    if fields[:1] in (("platformAccess",), ("platformPermissions",)):
         return Decision(
             "update", "Drift", "The account lacks the expected platform access.", fields
         )

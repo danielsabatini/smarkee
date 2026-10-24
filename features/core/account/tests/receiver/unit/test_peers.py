@@ -83,7 +83,7 @@ async def test_it_sends_only_the_callers_token_to_each_module() -> None:
 
 
 async def test_a_forbidden_answer_of_the_ipm_means_no_organizations_but_not_for_the_sum() -> None:
-    """Sem as roles do `ipm` ou `bsm` não há como listar; o SUM só deixa desabilitá-los vazios."""
+    """Sem as permissões de `ipm` ou `bsm` não há como listar; o SUM só os desabilita vazios."""
     forbidden = httpx.Response(403, json={})
 
     assert (

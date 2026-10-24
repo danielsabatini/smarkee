@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS sum.service (
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now(),
   CHECK ((presence IS NULL) = (observed_at IS NULL)),
-  CHECK (lifecycle = 'present' OR jsonb_array_length(desired -> 'serviceRoles') = 0)
+  CHECK (lifecycle = 'present' OR jsonb_array_length(desired -> 'servicePermissions') = 0)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS service_active_link

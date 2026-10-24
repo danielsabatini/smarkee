@@ -3,7 +3,7 @@
 Usam o token da sessão (`sk auth login`), renovado quando está para vencer. A API é a mesma do
 `sk account create` (`[api] url`). Criar, alterar e remover são assíncronos: o comando mostra como
 acompanhar a Operation e, com `--wait`, espera a Billing Account convergir. O token precisa trazer
-as roles `bsm.account.*`.
+as permissões `bsm.account.*`.
 """
 
 import time
@@ -73,9 +73,9 @@ ERROR_CODE_HINTS = {
     ),
     "QuotaExceeded": "You reached the Billing Account limit. Delete one or ask an operator.",
 }
-NO_ROLE_HINT = (
+NO_PERMISSION_HINT = (
     "Your account does not have permission for this operation. Ensure you have the required "
-    "bsm.account.* role and renew the session with `sk auth refresh`."
+    "bsm.account.* permission and renew the session with `sk auth refresh`."
 )
 
 PRESENCE_STYLES = {"present": "green", "absent": "dim"}
@@ -143,7 +143,7 @@ ContactOption = Annotated[
 
 def _fail_api(error: ApiError, *, not_found: str = NOT_FOUND) -> NoReturn:
     if isinstance(error, ApiRejectedError) and error.status == 403:
-        by_code = {**ERROR_CODE_HINTS, "Forbidden": NO_ROLE_HINT}
+        by_code = {**ERROR_CODE_HINTS, "Forbidden": NO_PERMISSION_HINT}
     else:
         by_code = ERROR_CODE_HINTS
     fail_api(error, not_found=not_found, conflict=CONFLICT_ON_CHANGE, by_error_code=by_code)

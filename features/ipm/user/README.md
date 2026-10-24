@@ -1,19 +1,19 @@
 # ipm.user
 
-O **usuário da Organization** é a pessoa que trabalha numa Organization sem ser a dona dela, no modelo das clouds: o dono (o *root*, a Account que criou a Organization) cria usuários **dentro** da própria Organization, e cada um recebe só roles da plataforma. Decisão [`0077`](../../../.decisions/0077-ipm-user-usuarios-da-organizacao.md). É gerenciado pelo Resource Control Loop (`docs/RESOURCE-CONTROL-LOOP.md`) e vive, no Zitadel, como um usuário humano da organização do cliente, com o mesmo ID (`resourceId`), e uma autorização no Project Grant de `roles-ipm` para essa organização.
+O **usuário da Organization** é a pessoa que trabalha numa Organization sem ser a dona dela, no modelo das clouds: o dono (o *root*, a Account que criou a Organization) cria usuários **dentro** da própria Organization, e cada um recebe só permissões da plataforma. Decisão [`0077`](../../../.decisions/0077-ipm-user-usuarios-da-organizacao.md). É gerenciado pelo Resource Control Loop (`docs/RESOURCE-CONTROL-LOOP.md`) e vive, no Zitadel, como um usuário humano da organização do cliente, com o mesmo ID (`resourceId`), e uma autorização no Project Grant de `roles-ipm` para essa organização.
 
-Decisões que definem esta feature: `0077` (o tipo, o escopo, as roles e o `bind`), `0076` (administrador no lugar de membro), `0028` (padrão das roles, com a ação `bind`), `0040` (consulta entre Receivers com o token de quem pede), `0043` e `0074` (proteção contra exclusão como metadado; aqui ela nasce desligada), `0072` (toda alteração percorre o loop), `0073` (drivers espelhados) e `0075` (motores gerados do template). A feature `features/ipm/organization` é o **modelo** desta estrutura.
+Decisões que definem esta feature: `0077` (o tipo, o escopo, as permissões e o `bind`), `0076` (administrador no lugar de membro), `0028` (padrão das permissões, com a ação `bind`), `0040` (consulta entre Receivers com o token de quem pede), `0043` e `0074` (proteção contra exclusão como metadado; aqui ela nasce desligada), `0072` (toda alteração percorre o loop), `0073` (drivers espelhados) e `0075` (motores gerados do template). A feature `features/ipm/organization` é o **modelo** desta estrutura.
 
 # 1. Estado da implementação
 
-Os seis componentes do loop e a CLI estão implementados e rodam no dev (Compose). A suíte e2e cria o usuário numa organização real do Zitadel, troca as roles, liga a proteção e o remove pelo loop.
+Os seis componentes do loop e a CLI estão implementados e rodam no dev (Compose). A suíte e2e cria o usuário numa organização real do Zitadel, troca as permissões, liga a proteção e o remove pelo loop.
 
 | Papel | Projeto | Estado |
 |---|---|---|
 | Receiver | `receiver/` (`ipm-user-receiver`) | API `/v1/ipm/users`: autentica, decide o escopo (operador, root ou usuário da Organization), confere o catálogo do Grant, a regra do `bind` e a cota, publica `requested`. Contrato em `openapi.json` |
-| Manager | `manager/` (`ipm-user-manager`) | Consome `requested`, `observed` e `completed`/`failed`; e-mail único na Organization, roles do módulo e cota por Organization na unidade atômica |
+| Manager | `manager/` (`ipm-user-manager`) | Consome `requested`, `observed` e `completed`/`failed`; e-mail único na Organization, permissões do módulo e cota por Organization na unidade atômica |
 | Publisher | `publisher/` (`ipm-user-publisher`) | Publica o outbox no NATS (template, decisão 0065) |
-| Reconciler | `reconciler/` (`ipm-user-reconciler`) | Compara `roles` e `deletionProtection` e decide `create`, `update` ou `delete` |
+| Reconciler | `reconciler/` (`ipm-user-reconciler`) | Compara `permissions` e `deletionProtection` e decide `create`, `update` ou `delete` |
 | Observer | `observer/` (`ipm-user-observer`) | Lê o usuário, as autorizações em `roles-ipm` e o metadado no Zitadel (somente leitura) |
 | Executor | `executor/` (`ipm-user-executor`) | Escreve o usuário, a autorização e o metadado na organização do cliente |
 | Testes e2e | `tests/e2e/` | Black-box: contrato e loop completo numa Organization preparada pelo operador |
@@ -42,25 +42,25 @@ Os seis papéis são **um projeto e uma imagem** (decisão 0063), cada um rodand
 ## 3.1 Receiver (`ipm-user-receiver`)
 
 - Rotas sob `/v1/ipm/users`: `POST` cria, `GET ?organizationId=` lista, `GET /{resourceId}` lê, `PATCH /{resourceId}` altera, `DELETE /{resourceId}?resourceVersion=` remove e `GET /{resourceId}/operations/{operationId}` acompanha a Operation.
-- Valida o token (assinatura por JWKS, `iss`, `aud` = projeto `roles-ipm`, `exp`). Cada ação exige a role `ipm.user.<create|get|list|update|delete>`; o operador tem `ipm.user.admin`.
+- Valida o token (assinatura por JWKS, `iss`, `aud` = projeto `roles-ipm`, `exp`). Cada ação exige a permissão `ipm.user.<create|get|list|update|delete>`; o operador tem `ipm.user.admin`.
 - **Escopo por Organization:** o operador age em qualquer uma; o **usuário da Organization** é reconhecido pelo próprio registro no SSOT do tipo (o `resourceId` é o `sub` do token) e só age na Organization dele; o **root** é confirmado pelo Receiver da Organization (`GET /v1/ipm/organizations/{id}` com o token de quem pede, decisão 0040). Fora do escopo, a resposta é `404`, para não revelar que existe.
-- **Roles:** só as do catálogo `grantableRole` do contrato (`schemas/ipm/definitions.v1.schema.json`, o mesmo que a `ipm/organization` grava no Project Grant de cada Organization, decisão 0081); sem `ipm.user.bind`, quem pede só atribui ou retira roles que ele mesmo tem (o RBAC do Kubernetes, decisão 0071). O root e o operador têm o `bind`.
+- **Permissões:** só as do catálogo `grantablePermission` do contrato (`schemas/ipm/definitions.v1.schema.json`, o mesmo que a `ipm/organization` grava no Project Grant de cada Organization, decisão 0081); sem `ipm.user.bind`, quem pede só atribui ou retira permissões que ele mesmo tem (o RBAC do Kubernetes, decisão 0071). O root e o operador têm o `bind`.
 - **Cota:** 5 usuários por Organization (`IPM_USER_RECEIVER_API_USER_QUOTA`, valor provisório); o operador não tem cota.
-- O usuário **nasce desprotegido** (exceção à 0043, registrada na 0077): `sk ipm user protect` liga a proteção, e então o `DELETE` responde `409 DeletionProtected`. Todo usuário lê o próprio registro sem role. `reconciliation` é do operador. `Idempotency-Key` torna as escritas repetíveis.
+- O usuário **nasce desprotegido** (exceção à 0043, registrada na 0077): `sk ipm user protect` liga a proteção, e então o `DELETE` responde `409 DeletionProtected`. Todo usuário lê o próprio registro sem permissão. `reconciliation` é do operador. `Idempotency-Key` torna as escritas repetíveis.
 - Só lê o SSOT, pelas views `ipm.user_v1` e `ipm.user_operation_v1`. Erros no formato `api-error`; a entrada inválida é `400` e nunca repete o valor enviado.
 
 ## 3.2 Manager (`ipm-user-manager`)
 
 - Único escritor do SSOT (`ipm.user`, `ipm.user_operation`, `ipm.user_action_result`) e do outbox.
-- Recusa com `validation` o e-mail já usado na Organization, a role fora do módulo `ipm` e a cota esgotada (conferidos na unidade atômica, sob trava consultiva por e-mail e por Organization); `protected` o `delete` de um usuário protegido; `conflict` e `not_found` como em toda feature.
+- Recusa com `validation` o e-mail já usado na Organization, a permissão fora do módulo `ipm` e a cota esgotada (conferidos na unidade atômica, sob trava consultiva por e-mail e por Organization); `protected` o `delete` de um usuário protegido; `conflict` e `not_found` como em toda feature.
 - Ao remover, o `desired` perde `givenName`, `familyName` e `email` (`lifecycle absent` sem dados pessoais).
 
 ## 3.3 Publisher, Reconciler, Observer e Executor
 
 - **Publisher:** o do template (decisão 0065), sem regra do tipo.
-- **Reconciler:** campos gerenciados `lifecycle`, `roles` e `deletionProtection`; a Organization e os dados pessoais são imutáveis.
-- **Observer:** lê o usuário (`userState`, `initial` até a senha ser definida, e `emailVerified`), as roles dele em `roles-ipm` e o metadado `deletionProtection`. `absent` só com o `404` do usuário exato; qualquer falha é `unknown`. Não publica dados pessoais.
-- **Executor:** cria o usuário humano **sem senha** na organização do cliente (o Zitadel envia o e-mail de verificação, que define a senha), deixa a autorização em `roles-ipm` com **exatamente** as roles do `desired` e grava o metadado; remove o usuário no `delete`. O Project Grant é o teto: uma role fora dele é recusada pelo Zitadel.
+- **Reconciler:** campos gerenciados `lifecycle`, `permissions` e `deletionProtection`; a Organization e os dados pessoais são imutáveis.
+- **Observer:** lê o usuário (`userState`, `initial` até a senha ser definida, e `emailVerified`), as permissões dele em `roles-ipm` e o metadado `deletionProtection`. `absent` só com o `404` do usuário exato; qualquer falha é `unknown`. Não publica dados pessoais.
+- **Executor:** cria o usuário humano **sem senha** na organização do cliente (o Zitadel envia o e-mail de verificação, que define a senha), deixa a autorização em `roles-ipm` com **exatamente** as permissões do `desired` e grava o metadado; remove o usuário no `delete`. O Project Grant é o teto: uma permissão fora dele é recusada pelo Zitadel.
 
 ## 3.4 Um projeto, uma imagem, seis contêineres (decisão 0063)
 
@@ -126,8 +126,8 @@ Em `schemas/ipm/user/` (e `schemas/common/`), com o índice `schemas/ipm.user.in
 
 # 8. Segurança e privacidade
 
-- **Só roles da plataforma:** o usuário nunca recebe papel nativo do Zitadel (`ORG_OWNER`, `ORG_USER_CREATOR`...): eles permitiriam agir pelo console, fora do loop (decisão 0077).
-- **O Grant é o teto, três vezes:** o Receiver recusa a role fora do catálogo, o Manager a role fora do módulo `ipm`, e o Zitadel a role fora do Project Grant da organização (verificado pelo e2e).
+- **Só permissões da plataforma:** o usuário nunca recebe papel nativo do Zitadel (`ORG_OWNER`, `ORG_USER_CREATOR`...): eles permitiriam agir pelo console, fora do loop (decisão 0077).
+- **O Grant é o teto, três vezes:** o Receiver recusa a permissão fora do catálogo, o Manager a permissão fora do módulo `ipm`, e o Zitadel a permissão fora do Project Grant da organização (verificado pelo e2e).
 - **`bind`:** sem ele, ninguém concede mais do que tem, nem retira o que não tem.
 - **Escopo:** um usuário só age na própria Organization; o reconhecimento é pelo registro no SSOT, e o do root, pelo Receiver da Organization com o token de quem pede (o User não tem credencial no outro tipo).
 - **Sem senha na plataforma:** o usuário define a senha no Zitadel, pelo e-mail de ativação; ela nunca passa por CLI, Receiver, SSOT nem NATS.
@@ -163,8 +163,8 @@ uv sync && uv run ruff check . && uv run pyright && uv run pytest
 
 # 10. Limitações e pendências
 
-- O catálogo do Grant é o mesmo para todas as Organizations e muda só com o contrato (decisão 0081): mudar o enum `grantableRole`, regerar os modelos das duas features e implantar.
-- O root recebe as roles `ipm.user.*` pelo catálogo do SUM ao habilitar o `ipm` (`SUM_SERVICE_MANAGER_CATALOG_ROLES`); quem habilitou antes dessa versão precisa desabilitar e habilitar de novo.
+- O catálogo do Grant é o mesmo para todas as Organizations e muda só com o contrato (decisão 0081): mudar o enum `grantablePermission`, regerar os modelos das duas features e implantar.
+- O root recebe as permissões `ipm.user.*` pelo catálogo do SUM ao habilitar o `ipm` (`SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS`); quem habilitou antes dessa versão precisa desabilitar e habilitar de novo.
 - A cota (5) é provisória, para testar o mecanismo.
 - O e-mail é imutável: a troca é pelo fluxo do Zitadel, e o SSOT não acompanha.
 - A Operation não vira `failed`: a falha aparece na fase `Failed` do usuário.
@@ -190,8 +190,8 @@ A migração [`0001-user.sql`](migrations/0001-user.sql) nasce com o estado atua
 
 ## 11.3 O que cada coluna `jsonb` guarda
 
-- `user.desired`: `lifecycle`, `organizationId`, `roles`, `deletionProtection` e, enquanto `present`, `givenName`, `familyName` e `email`.
-- `user.observed`: `emailVerified`, `userState`, `roles` e `deletionProtection`, lidos do Zitadel.
+- `user.desired`: `lifecycle`, `organizationId`, `permissions`, `deletionProtection` e, enquanto `present`, `givenName`, `familyName` e `email`.
+- `user.observed`: `emailVerified`, `userState`, `permissions` e `deletionProtection`, lidos do Zitadel.
 
 ## 11.4 Índices e restrições
 

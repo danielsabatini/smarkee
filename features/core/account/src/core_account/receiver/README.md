@@ -10,7 +10,7 @@ Autentica e autoriza o solicitante, valida o pedido, gera as identidades (`resou
 
 ```text
 src/core_account/receiver/
-  domain/      regras puras: Principal e roles, limite de taxa, digest e identidade da Operation, views, erros
+  domain/      regras puras: Principal e permissões, limite de taxa, digest e identidade da Operation, views, erros
   http/        FastAPI (app), dependências, publicação do `requested` (submission.py), probes e OpenAPI
   auth/        validação do token (JWKS)
   store/       leitura das views do SSOT

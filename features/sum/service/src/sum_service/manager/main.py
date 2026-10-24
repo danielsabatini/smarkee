@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 async def run(settings: SumServiceManagerSettings) -> int:
-    catalog = parse_catalog(settings.catalog.roles or "")
+    catalog = parse_catalog(settings.catalog.permissions or "")
     async with role_runtime(settings.messaging, name="sum-service-manager") as runtime:
         pool = await open_pool(settings.database)
         runtime.close_after(pool.close)
@@ -96,7 +96,7 @@ async def run(settings: SumServiceManagerSettings) -> int:
 
 def validate(settings: SumServiceManagerSettings) -> None:
     try:
-        parse_catalog(settings.catalog.roles or "")
+        parse_catalog(settings.catalog.permissions or "")
     except CatalogError as error:
         raise InvalidConfigurationError(f"invalid service catalog: {error}") from None
 

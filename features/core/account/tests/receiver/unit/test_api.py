@@ -19,19 +19,19 @@ from core_account.receiver.http.app import Dependencies, create_app
 from core_account.receiver.settings import ApiSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
-USER_ROLES = frozenset({"core.account.get", "core.account.delete"})
-OPERATOR_ROLES = USER_ROLES | {"core.account.admin"}
+USER_PERMISSIONS = frozenset({"core.account.get", "core.account.delete"})
+OPERATOR_PERMISSIONS = USER_PERMISSIONS | {"core.account.admin"}
 
 
-def principal(subject: str, roles: frozenset[str]) -> Principal:
-    return Principal(subject=subject, roles=roles, access_token=f"token-{subject}")
+def principal(subject: str, permissions: frozenset[str]) -> Principal:
+    return Principal(subject=subject, permissions=permissions, access_token=f"token-{subject}")
 
 
 PRINCIPALS = {
-    "ana": principal("ana", USER_ROLES),
-    "bia": principal("bia", USER_ROLES),
-    "admin": principal("admin", OPERATOR_ROLES),
-    "norole": principal("norole", frozenset()),
+    "ana": principal("ana", USER_PERMISSIONS),
+    "bia": principal("bia", USER_PERMISSIONS),
+    "admin": principal("admin", OPERATOR_PERMISSIONS),
+    "noperm": principal("noperm", frozenset()),
 }
 
 
@@ -89,7 +89,7 @@ def account_record(resource_id: str, *, protected: bool | None = False) -> Resou
     desired: dict[str, Any] = {
         "lifecycle": "present",
         "platformAccess": "granted",
-        "platformRoles": ["ipm.organization.get", "core.account.get"],
+        "platformPermissions": ["ipm.organization.get", "core.account.get"],
         "givenName": "Ana",
         "familyName": "Souza",
         "email": "ana@example.com",
@@ -188,9 +188,9 @@ async def test_missing_or_invalid_token_is_401_with_the_error_contract(
     assert response.json()["errorCode"] == "Unauthorized"
 
 
-async def test_missing_role_is_403(harness: Harness) -> None:
+async def test_missing_permission_is_403(harness: Harness) -> None:
     harness.repository.resources["ana"] = account_record("ana")
-    response = await harness.client.get("/v1/core/accounts/ana", headers=auth("norole"))
+    response = await harness.client.get("/v1/core/accounts/ana", headers=auth("noperm"))
     assert response.status_code == 403
     assert harness.publisher.published == []
 

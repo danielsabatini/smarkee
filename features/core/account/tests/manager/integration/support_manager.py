@@ -8,7 +8,7 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
-from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES
+from core_account.manager.domain.account import DEFAULT_PLATFORM_PERMISSIONS
 from core_account.manager.domain.kind import account_kind
 from core_account.manager.store.ssot import SsotStore
 from core_account.manager.store.tables import tables_of
@@ -16,7 +16,7 @@ from core_account.manager.store.tables import tables_of
 DATABASE_HOST = os.environ.get("CORE_TEST_DATABASE_HOST", "localhost")
 DATABASE_PORT = os.environ.get("CORE_TEST_DATABASE_PORT", "5432")
 DEFAULT_DIGEST = "0" * 64
-ACCOUNT = account_kind(DEFAULT_PLATFORM_ROLES)
+ACCOUNT = account_kind(DEFAULT_PLATFORM_PERMISSIONS)
 
 
 def dsn(login_role: str) -> str:

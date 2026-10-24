@@ -1,8 +1,9 @@
-"""Driver de escrita da autorização (roles) do usuário no projeto `roles-ipm`.
+"""Driver de escrita da autorização (permissões) do usuário no projeto `roles-ipm`.
 
 API v2 de autorizações (Connect por POST; a organização vai no corpo, decisão 0029). A autorização
 é feita no Project Grant de `roles-ipm` para a organização do usuário: o Grant é o teto, e o
-Zitadel recusa uma role fora dele (decisão 0077). Uma autorização por usuário. Operações
+Zitadel recusa uma permissão fora dele (decisão 0077). No Zitadel, cada permissão da Smarkee é uma
+Project Role (`roleKeys`; `docs/identity/PERMISSION.md`). Uma autorização por usuário. Operações
 idempotentes; o driver não decide o que fazer: isso é das `actions/`.
 """
 
@@ -41,14 +42,14 @@ class AuthorizationDriver:
             if cast("dict[str, Any]", item.get("project") or {}).get("id") == self._project_id:
                 return Authorization(
                     authorization_id=str(item["id"]),
-                    roles=frozenset(
+                    permissions=frozenset(
                         str(cast("dict[str, Any]", role)["key"])
                         for role in cast("list[Any]", item.get("roles") or [])
                     ),
                 )
         return None
 
-    async def create(self, user_id: str, organization_id: str, roles: list[str]) -> None:
+    async def create(self, user_id: str, organization_id: str, permissions: list[str]) -> None:
         try:
             await self._connection.call(
                 "POST",
@@ -57,22 +58,22 @@ class AuthorizationDriver:
                     "userId": user_id,
                     "projectId": self._project_id,
                     "organizationId": organization_id,
-                    "roleKeys": roles,
+                    "roleKeys": permissions,
                 },
             )
         except ProviderError as error:
-            # Repetição de um passo já feito é sucesso (idempotência); as roles certas são
+            # Repetição de um passo já feito é sucesso (idempotência); as permissões certas são
             # conferidas pelo Observer na leitura seguinte.
             if error.reason == "Rejected" and ALREADY_EXISTING_AUTHORIZATION_ID in str(error):
                 return
             raise
 
-    async def update(self, authorization_id: str, roles: list[str]) -> None:
-        """Substitui a lista de roles da autorização (as que faltarem são revogadas)."""
+    async def update(self, authorization_id: str, permissions: list[str]) -> None:
+        """Substitui a lista de permissões da autorização (as que faltarem são revogadas)."""
         await self._connection.call(
             "POST",
             f"{AUTHORIZATION_SERVICE}/UpdateAuthorization",
-            {"id": authorization_id, "roleKeys": roles},
+            {"id": authorization_id, "roleKeys": permissions},
         )
 
     async def remove(self, authorization_id: str) -> None:

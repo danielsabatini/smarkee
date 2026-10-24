@@ -69,13 +69,13 @@ class FakeWriter:
     async def grants(self, user_id: str) -> list[Grant]:
         return []
 
-    def project_of(self, role: str) -> str:
+    def project_of(self, permission: str) -> str:
         return "p-core"
 
-    async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None:
+    async def create_grant(self, user_id: str, project_id: str, permissions: list[str]) -> None:
         self.calls.append("create_grant")
 
-    async def update_grant(self, grant_id: str, roles: list[str]) -> None:
+    async def update_grant(self, grant_id: str, permissions: list[str]) -> None:
         self.calls.append("update_grant")
 
     async def remove_grant(self, grant_id: str) -> None:
@@ -91,7 +91,7 @@ def desired_message(
             "lifecycle": lifecycle,
             "reconciliation": reconciliation,
             "platformAccess": "granted",
-            "platformRoles": ["ipm.organization.get", "core.account.get"],
+            "platformPermissions": ["ipm.organization.get", "core.account.get"],
             "givenName": "Ana",
             "familyName": "Souza",
             "email": "ana@example.com",

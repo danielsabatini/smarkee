@@ -274,21 +274,25 @@ def test_account_desired_carries_personal_data_only_while_present() -> None:
         "lifecycle": "absent",
         "reconciliation": "active",
         "platformAccess": "granted",
-        "platformRoles": present["platformRoles"],
+        "platformPermissions": present["platformPermissions"],
     }
     assert _is_valid(desired_path, absent)
     assert not _is_valid(desired_path, {**absent, "email": present["email"]})
 
 
-def test_account_platform_roles_are_a_set_of_action_roles() -> None:
+def test_account_platform_permissions_are_a_set_of_action_permissions() -> None:
     desired_path = ACCOUNT / "desired.v1.schema.json"
     present = json.loads(_example_for(desired_path).read_text(encoding="utf-8"))
-    assert not _is_valid(desired_path, {k: v for k, v in present.items() if k != "platformRoles"})
-    assert _is_valid(desired_path, {**present, "platformAccess": "revoked", "platformRoles": []})
     assert not _is_valid(
-        desired_path, {**present, "platformRoles": ["core.account.get", "core.account.get"]}
+        desired_path, {k: v for k, v in present.items() if k != "platformPermissions"}
     )
-    assert not _is_valid(desired_path, {**present, "platformRoles": ["User Get"]})
+    assert _is_valid(
+        desired_path, {**present, "platformAccess": "revoked", "platformPermissions": []}
+    )
+    assert not _is_valid(
+        desired_path, {**present, "platformPermissions": ["core.account.get", "core.account.get"]}
+    )
+    assert not _is_valid(desired_path, {**present, "platformPermissions": ["User Get"]})
 
 
 @pytest.mark.parametrize(

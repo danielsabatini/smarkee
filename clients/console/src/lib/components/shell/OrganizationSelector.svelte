@@ -65,10 +65,10 @@
 		aria-haspopup="dialog"
 		aria-expanded={isOpen}
 		data-testid="organization-selector-trigger"
-		class="flex max-w-full min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/90 px-2.5 py-1 text-left transition hover:border-emerald-300 hover:bg-white sm:min-h-0 sm:gap-2.5 sm:px-3 sm:py-1.5"
+		class="flex max-w-full min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/90 px-2.5 py-1 text-left transition hover:border-brand-300 hover:bg-white sm:min-h-0 sm:gap-2.5 sm:px-3 sm:py-1.5"
 	>
 		<div
-			class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-700 sm:h-7 sm:w-7"
+			class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-100 text-brand-700 sm:h-7 sm:w-7"
 		>
 			<Building2 class="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden="true" />
 		</div>
@@ -120,13 +120,13 @@
 					placeholder="Filtrar por nome..."
 					aria-label="Filtrar organizações por nome"
 					data-testid="organization-selector-search"
-					class="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-3 pl-8 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:bg-white focus:outline-none"
+					class="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pr-3 pl-8 text-xs text-slate-900 placeholder:text-slate-400 focus:border-brand-600 focus:bg-white focus:outline-none"
 				/>
 			</div>
 
 			{#if consoleState.isBootstrapping}
 				<div class="flex items-center justify-center gap-2 py-6 text-xs text-slate-600">
-					<RefreshCw class="h-4 w-4 animate-spin text-emerald-600" aria-hidden="true" />
+					<RefreshCw class="h-4 w-4 animate-spin text-brand-600" aria-hidden="true" />
 					<span>Carregando organizações...</span>
 				</div>
 			{:else if filteredOrganizations.length === 0}
@@ -147,7 +147,7 @@
 								onclick={() => handleSelect(org.resourceId)}
 								data-testid="org-option-{org.desired.name}"
 								class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition {isSelected
-									? 'bg-emerald-50/90 text-emerald-950 ring-1 ring-emerald-200'
+									? 'bg-brand-50/90 text-brand-950 ring-1 ring-brand-200'
 									: 'hover:bg-slate-100'}"
 							>
 								<span class="min-w-0 flex-1 text-xs font-semibold text-slate-900">
@@ -157,7 +157,7 @@
 								<div class="flex shrink-0 items-center gap-2">
 									<StatusBadge phase={org.phase} size="sm" />
 									{#if isSelected}
-										<Check class="h-4 w-4 text-emerald-700" aria-label="Organização selecionada" />
+										<Check class="h-4 w-4 text-brand-700" aria-label="Organização selecionada" />
 									{/if}
 								</div>
 							</button>
@@ -170,7 +170,7 @@
 				<a
 					href="/identity/organizations"
 					onclick={closePopover}
-					class="inline-flex items-center gap-1.5 font-medium text-emerald-700 hover:text-emerald-800"
+					class="inline-flex items-center gap-1.5 font-medium text-brand-700 hover:text-brand-800"
 				>
 					<PlusCircle class="h-3.5 w-3.5" aria-hidden="true" />
 					<span>Gerenciar organizações</span>

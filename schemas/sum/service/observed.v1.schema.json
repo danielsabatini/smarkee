@@ -1,15 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ServiceObservedData",
-  "description": "data de observed do SUM: as roles do serviço que o usuário tem hoje, lidas do Zitadel. Vazio quando a ligação está ausente.",
+  "description": "data de observed do SUM: as permissões do serviço que o usuário tem hoje, lidas do Zitadel. Vazio quando a ligação está ausente.",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,
   "required": [],
   "properties": {
-    "serviceRoles": {
-      "$ref": "definitions.v1.schema.json#/$defs/serviceRoles",
-      "description": "Roles do serviço que o usuário tem no projeto de roles do módulo do serviço. A reconciliação compara com desired.serviceRoles.",
+    "servicePermissions": {
+      "$ref": "definitions.v1.schema.json#/$defs/servicePermissions",
+      "description": "Permissões do serviço que o usuário tem no projeto de permissões do módulo do serviço. A reconciliação compara com desired.servicePermissions.",
       "x-writer": "server",
       "x-sensitivity": "internal"
     }

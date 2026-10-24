@@ -15,7 +15,7 @@ Requer a stack de dev no ar (`infrastructure/dev`). Configuração, por variáve
 | `CONFORMANCE_API_HOST` | `api-dev.smarkee.com.br` | Cabeçalho `Host` do gateway |
 | `CONFORMANCE_MESSAGING_URL` | `nats://localhost:4222` | Servidor NATS |
 | `CONFORMANCE_MESSAGING_PASSWORD` | (sem padrão; sem ela, os testes de mensageria são pulados) | Senha do NATS (`SMARKEE_MESSAGING_PASSWORD` de `messaging/.env`) |
-| `CONFORMANCE_ACCESS_TOKEN` | (opcional) | Access token de um usuário com as roles de ação; sem ele, os testes autenticados são pulados |
+| `CONFORMANCE_ACCESS_TOKEN` | (opcional) | Access token de um usuário com as permissões de ação; sem ele, os testes autenticados são pulados |
 | `CONFORMANCE_DATABASE_HOST` / `_PORT` | `localhost` / `5432` | Limpeza dos dados de teste (papéis de dev) |
 | `E2E_CHAOS` | (vazio) | `1` habilita os testes de resiliência (derrubam contêineres) |
 

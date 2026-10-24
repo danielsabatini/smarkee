@@ -1,7 +1,7 @@
 """Decisão de reconciliação de `sum.service`: função pura sobre o estado em memória.
 
 O Reconciler decide e não executa: compara o `desired` (a ligação pedida) com o `observed` (as
-roles que o usuário tem) e responde com a `action` a publicar, ou com nada
+permissões que o usuário tem) e responde com a `action` a publicar, ou com nada
 (`docs/RESOURCE-CONTROL-LOOP.md`). As guardas são as do loop do User
 (`docs/RESOURCE-CONTROL-SECURITY.md` §7 e §8): não decide com `observed` inconclusivo, desatualizado
 ou ausente; não decide com `desired` suspenso; não reemite uma `action` pendente; e espera o backoff
@@ -19,13 +19,13 @@ class DesiredState:
     generation: int
     lifecycle: str
     reconciliation: str
-    service_roles: frozenset[str]
+    service_permissions: frozenset[str]
     traceparent: str | None = None
     """Contexto de trace do `desired` (decisão 0055): a action que ele causar o herda."""
 
-    managed_roles: frozenset[str] = frozenset()
-    """Roles que a ligação controla (decisão 0079): as que não estão em `service_roles` não podem
-    ficar com o usuário."""
+    managed_permissions: frozenset[str] = frozenset()
+    """Permissões que a ligação controla (decisão 0079): as que não estão em `service_permissions`
+    não podem ficar com o usuário."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,7 +34,7 @@ class ObservedState:
     presence: str
     observed_at: datetime
     causation_id: str | None
-    service_roles: frozenset[str]
+    service_permissions: frozenset[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,24 +141,29 @@ def decide(state: ResourceState, now: datetime, settings: LoopParameters) -> Dec
 
 
 def _compare(desired: DesiredState, observed: ObservedState) -> Decision | None:
-    """Ligação ativa: o usuário precisa ter as roles do serviço. Desligada: não pode ter nenhuma.
+    """Ligação ativa: o usuário precisa ter as permissões do serviço. Desligada: não pode ter nenhuma.
 
-    Roles a mais, além das pedidas, não são divergência para a ligação ativa. Para a desligada,
-    qualquer role do serviço presente é divergência.
+    Permissões a mais, além das pedidas, não são divergência para a ligação ativa. Para a desligada,
+    qualquer permissão do serviço presente é divergência.
     """
     if desired.lifecycle == "absent":
-        if observed.service_roles:
+        if observed.service_permissions:
             return Decision(
                 "update",
-                "RolesRemovalRequested",
-                "The service roles must be revoked.",
-                ("serviceRoles",),
+                "PermissionsRemovalRequested",
+                "The service permissions must be revoked.",
+                ("servicePermissions",),
             )
         return None
-    leftover = (desired.managed_roles - desired.service_roles) & observed.service_roles
-    if not desired.service_roles <= observed.service_roles or leftover:
+    leftover = (
+        desired.managed_permissions - desired.service_permissions
+    ) & observed.service_permissions
+    if not desired.service_permissions <= observed.service_permissions or leftover:
         return Decision(
-            "update", "Drift", "The user roles differ from the service roles.", ("serviceRoles",)
+            "update",
+            "Drift",
+            "The user permissions differ from the service permissions.",
+            ("servicePermissions",),
         )
     return None
 

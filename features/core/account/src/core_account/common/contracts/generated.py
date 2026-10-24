@@ -95,7 +95,7 @@ class Phase(StrEnum):
 
 class PlatformAccess(StrEnum):
     """
-    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, na Account); revoked a remove.
+    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de permissões de ação do usuário cadastrado, na Account); revoked a remove.
     """
 
     granted = "granted"
@@ -392,7 +392,7 @@ class AccountState(StrEnum):
     locked = "locked"
 
 
-class PlatformRole(RootModel[str]):
+class PlatformPermission(RootModel[str]):
     root: Annotated[
         str,
         Field(
@@ -402,7 +402,7 @@ class PlatformRole(RootModel[str]):
         ),
     ]
     """
-    Role de ação do projeto da plataforma, no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.organization.create.
+    Permissão de ação do projeto da plataforma, no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.organization.create.
     """
 
 
@@ -725,13 +725,13 @@ class AccountObservedData(ContractModel):
     account_state: Annotated[AccountState | None, Field(alias="accountState")] = None
     platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
     """
-    granted quando o usuário tem ao menos uma role de ação no projeto da plataforma (a lista está em platformRoles).
+    granted quando o usuário tem ao menos uma permissão de ação no projeto da plataforma (a lista está em platformPermissions).
     """
-    platform_roles: Annotated[
-        list[PlatformRole] | None, Field(alias="platformRoles", max_length=64)
+    platform_permissions: Annotated[
+        list[PlatformPermission] | None, Field(alias="platformPermissions", max_length=64)
     ] = None
     """
-    Roles de ação que o usuário tem hoje no projeto da plataforma, lidas do provedor de identidade. platformAccess é granted quando há ao menos uma.
+    Permissões de ação que o usuário tem hoje no projeto da plataforma, lidas do provedor de identidade. platformAccess é granted quando há ao menos uma.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -746,9 +746,11 @@ class AccountDesiredView(ContractModel):
     lifecycle: Lifecycle
     reconciliation: Reconciliation
     platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
-    platform_roles: Annotated[list[PlatformRole], Field(alias="platformRoles", max_length=64)]
+    platform_permissions: Annotated[
+        list[PlatformPermission], Field(alias="platformPermissions", max_length=64)
+    ]
     """
-    Conjunto de roles de ação, sem repetição e em ordem alfabética.
+    Conjunto de permissões de ação, sem repetição e em ordem alfabética.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -786,11 +788,11 @@ class AccountObservedView(ContractModel):
     email_verified: Annotated[bool | None, Field(alias="emailVerified")] = None
     account_state: Annotated[AccountState | None, Field(alias="accountState")] = None
     platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
-    platform_roles: Annotated[
-        list[PlatformRole] | None, Field(alias="platformRoles", max_length=64)
+    platform_permissions: Annotated[
+        list[PlatformPermission] | None, Field(alias="platformPermissions", max_length=64)
     ] = None
     """
-    Conjunto de roles de ação, sem repetição e em ordem alfabética.
+    Conjunto de permissões de ação, sem repetição e em ordem alfabética.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -857,11 +859,13 @@ class AccountDesiredData(ContractModel):
     reconciliation: Reconciliation
     platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
     """
-    granted: o usuário tem o conjunto de roles de ação do usuário cadastrado no projeto da plataforma. Atribuído pelo Manager na criação.
+    granted: o usuário tem o conjunto de permissões de ação do usuário cadastrado no projeto da plataforma. Atribuído pelo Manager na criação.
     """
-    platform_roles: Annotated[list[PlatformRole], Field(alias="platformRoles", max_length=64)]
+    platform_permissions: Annotated[
+        list[PlatformPermission], Field(alias="platformPermissions", max_length=64)
+    ]
     """
-    Roles de ação que o usuário deve ter no projeto da plataforma. Atribuído pelo Manager na criação, a partir da sua configuração; vazio quando platformAccess é revoked (decisão 0025).
+    Permissões de ação que o usuário deve ter no projeto da plataforma. Atribuído pelo Manager na criação, a partir da sua configuração; vazio quando platformAccess é revoked (decisão 0025).
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """

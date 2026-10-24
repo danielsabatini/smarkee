@@ -100,7 +100,7 @@ services:
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
       # defaults do componente (CORE_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>).
-      CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE: ${CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-core, org core)}
+      CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE: ${CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto de permissões de core, org core)}
     secrets:
       - CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD
       - CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD
@@ -224,7 +224,7 @@ services:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       CORE_ACCOUNT_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID: ${CORE_ACCOUNT_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
-      CORE_ACCOUNT_EXECUTOR_IDENTITY_PROJECT_IDS: ${CORE_ACCOUNT_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles que o Executor concede)}
+      CORE_ACCOUNT_EXECUTOR_IDENTITY_PROJECT_IDS: ${CORE_ACCOUNT_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de permissões que o Executor concede)}
     secrets:
       - CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD
     volumes:

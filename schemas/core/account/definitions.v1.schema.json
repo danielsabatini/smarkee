@@ -34,20 +34,20 @@
       ],
       "x-enumPolicy": "open"
     },
-    "platformRole": {
-      "description": "Role de ação do projeto da plataforma, no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.organization.create.",
+    "platformPermission": {
+      "description": "Permissão de ação do projeto da plataforma, no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.organization.create.",
       "type": "string",
       "minLength": 5,
       "maxLength": 128,
       "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$"
     },
-    "platformRoles": {
-      "description": "Conjunto de roles de ação, sem repetição e em ordem alfabética.",
+    "platformPermissions": {
+      "description": "Conjunto de permissões de ação, sem repetição e em ordem alfabética.",
       "type": "array",
       "maxItems": 64,
       "uniqueItems": true,
       "items": {
-        "$ref": "#/$defs/platformRole"
+        "$ref": "#/$defs/platformPermission"
       }
     }
   }

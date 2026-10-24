@@ -18,7 +18,7 @@ sequenceDiagram
     U->>CLI: sk account delete
     CLI->>Receiver: GET /v1/core/accounts/{id} (lê resourceVersion)
     Receiver-->>CLI: 200 {resourceVersion 4}
-    CLI->>Receiver: DELETE /v1/core/accounts/{id}?resourceVersion=4 (Bearer, role core.account.delete)
+    CLI->>Receiver: DELETE /v1/core/accounts/{id}?resourceVersion=4 (Bearer, permissão core.account.delete)
     Receiver->>N: receiver.requested.core.account.{id}.delete
     Receiver-->>CLI: 202 {operationId}
     N->>MGR: requested delete
@@ -46,7 +46,7 @@ sequenceDiagram
     CLI-->>U: "O recurso mudou. Leia de novo e repita."
     CLI->>Receiver: DELETE de outro usuário
     Receiver-->>CLI: 404 (operadores core.account.admin podem)
-    CLI->>Receiver: DELETE sem a role core.account.delete
+    CLI->>Receiver: DELETE sem a permissão core.account.delete
     Receiver-->>CLI: 403
     CLI->>Receiver: DELETE de usuário já removido
     Receiver-->>CLI: 404

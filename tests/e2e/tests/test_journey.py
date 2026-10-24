@@ -14,12 +14,12 @@ import psycopg
 import pytest
 from conftest import SUM_MANAGER_DATABASE_URL, Person, Sk, wait_until
 
-IPM_ROLE = "ipm.organization"
+IPM_PERMISSION_PREFIX = "ipm.organization"
 USER_QUOTA = 5  # cota provisória de usuários por Organization (decisão 0077)
 
 
 def _project(name: str) -> str:
-    """ID do projeto de roles da variável `E2E_<NOME>_PROJECT_ID` (a fixture já a exigiu)."""
+    """ID do projeto de permissões da variável `E2E_<NOME>_PROJECT_ID` (a fixture já a exigiu)."""
     value: str | None = getattr(conftest, f"{name}_PROJECT_ID")
     assert value, f"E2E_{name}_PROJECT_ID não definida"
     return value
@@ -65,7 +65,12 @@ def _email() -> str:
 
 
 def _create_user(
-    sk: Sk, organization_id: str, users: list[str], *, email: str, roles: tuple[str, ...] = ()
+    sk: Sk,
+    organization_id: str,
+    users: list[str],
+    *,
+    email: str,
+    permissions: tuple[str, ...] = (),
 ) -> str:
     """Um usuário pela CLI até `Ready`: a Organization já tem o Grant (decisão 0081)."""
     created = sk.run(
@@ -73,7 +78,7 @@ def _create_user(
         *("--name", "Usuario", "--surname", f"E2e {len(users)}"),
         *("--email", email),
         *("--organization-id", organization_id),
-        *(item for role in roles for item in ("--role", role)),
+        *(item for permission in permissions for item in ("--permission", permission)),
         "--wait",
         timeout=150.0,
     )
@@ -85,7 +90,7 @@ def _create_user(
 
 def _delete_users(sk: Sk, users: list[str]) -> None:
     """Tenta remover todos antes de falhar: um usuário que não sai não deixa os outros para trás."""
-    failures = []
+    failures: list[str] = []
     for user in users:
         deleted = sk.run(
             *("ipm", "user", "delete"), *("--resource-id", user), "--wait", timeout=150.0
@@ -108,21 +113,23 @@ def test_login_through_the_sk_with_the_real_provider(person: Person) -> None:
     assert who.exit_code == 0, who.text
     assert person.email in who.stdout
     assert person.sk.credentials().get("refreshToken"), "o login deve emitir refresh token"
-    # Decisão 0033: uma revogação de role chega ao token em até 15 minutos.
+    # Decisão 0033: uma revogação de permissão chega ao token em até 15 minutos.
     assert person.sk.token_lifetime_seconds() <= 900, person.sk.token_lifetime_seconds()
 
 
-def test_a_new_account_already_holds_the_base_roles_of_the_sum(person: Person) -> None:
-    """Sem roles `sum.ipm.get`, o Receiver do SUM responderia 403 à listagem."""
+def test_a_new_account_already_holds_the_base_permissions_of_the_sum(person: Person) -> None:
+    """Sem permissões `sum.ipm.get`, o Receiver do SUM responderia 403 à listagem."""
     done = person.sk.run("sum", "service", "list")
     assert done.exit_code == 0, done.text
     assert "No services" in done.stdout
 
 
-def test_enable_wait_converges_and_the_token_already_carries_the_ipm_roles(
+def test_enable_wait_converges_and_the_token_already_carries_the_ipm_permissions(
     person: Person, link: dict[str, str]
 ) -> None:
-    assert _project("IPM") not in person.sk.token_roles(), "antes de ligar, o token não tem ipm.*"
+    assert _project("IPM") not in person.sk.token_permissions(), (
+        "antes de ligar, o token não tem ipm.*"
+    )
     done = person.sk.run("sum", "service", "enable", "--service", "ipm", "--wait", timeout=150.0)
     assert done.exit_code == 0, done.text
     link["resourceId"], link["operationId"] = _identifiers(done.stdout)
@@ -130,15 +137,17 @@ def test_enable_wait_converges_and_the_token_already_carries_the_ipm_roles(
     assert _field(done.stdout, "session") == "renewed", done.stdout
     shown = _state(person.sk, link)
     assert _field(shown, "operationStatus") == "completed"
-    assert IPM_ROLE in _field(shown, "observedRoles")  # roles observadas no Zitadel
+    assert IPM_PERMISSION_PREFIX in _field(
+        shown, "observedPermissions"
+    )  # permissões observadas no Zitadel
     # O que a opção A garante: o token da sessão já reflete a ligação, sem novo login.
-    roles = person.sk.token_roles()
-    assert roles.get(_project("IPM"), set()) >= {
-        f"{IPM_ROLE}.get",
-        f"{IPM_ROLE}.create",
-    }, roles
-    assert {"core.account.get", "core.account.delete"} <= roles[_project("CORE")]
-    assert {"sum.ipm.enable", "sum.ipm.get"} <= roles[_project("SUM")]
+    permissions = person.sk.token_permissions()
+    assert permissions.get(_project("IPM"), set()) >= {
+        f"{IPM_PERMISSION_PREFIX}.get",
+        f"{IPM_PERMISSION_PREFIX}.create",
+    }, permissions
+    assert {"core.account.get", "core.account.delete"} <= permissions[_project("CORE")]
+    assert {"sum.ipm.enable", "sum.ipm.get"} <= permissions[_project("SUM")]
 
 
 def test_the_link_is_listed_and_a_second_enable_points_to_it(
@@ -155,7 +164,7 @@ def test_the_link_is_listed_and_a_second_enable_points_to_it(
 def test_the_organization_and_its_users_are_managed_with_the_sk(
     person: Person, link: dict[str, str]
 ) -> None:
-    """Com o `ipm` ligado, o token traz as roles `ipm.*`: a Organization e os usuários pela CLI."""
+    """Com o `ipm` ligado, o token traz `ipm.*`: a Organization e os usuários pela CLI."""
     sk = person.sk
     name = f"e2e-{uuid.uuid4().hex[:10]}"
     renamed = name + "-b"
@@ -188,30 +197,34 @@ def test_the_organization_and_its_users_are_managed_with_the_sk(
         assert second.exit_code == 1, second.text
         assert "Organization limit" in " ".join(second.stderr.split()), second.stderr
 
-        # Usuários da Organization (decisão 0077): o primeiro com roles do catálogo, que o Zitadel
-        # só aceita porque a Organization nasceu com o Grant (decisão 0081).
+        # Usuários da Organization (decisão 0077): o primeiro com permissões do catálogo, que o
+        # Zitadel só aceita porque a Organization nasceu com o Grant (decisão 0081).
         first_email = _email()
         first = _create_user(
-            sk, created_id, users, email=first_email, roles=("ipm.user.get", "ipm.user.list")
+            sk,
+            created_id,
+            users,
+            email=first_email,
+            permissions=("ipm.user.get", "ipm.user.list"),
         )
-        assert _field(first, "roles") == "ipm.user.get, ipm.user.list", first
+        assert _field(first, "permissions") == "ipm.user.get, ipm.user.list", first
 
         # Caminhos tristes dos usuários, antes de chegar à cota.
         outside = sk.run(
             *("ipm", "user", "create"),
             *("--name", "Usuario", "--surname", "Fora"),
             *("--email", _email(), "--organization-id", created_id),
-            *("--role", "ipm.organization.delete"),  # formato válido, fora do catálogo
+            *("--permission", "ipm.organization.delete"),  # formato válido, fora do catálogo
         )
         assert outside.exit_code == 2, outside.text  # o `400` da API sai como erro de uso
         assert "not allowed for the Organization" in _plain(outside.stderr), outside.stderr
         malformed = sk.run(
             *("ipm", "user", "create"),
             *("--name", "Usuario", "--surname", "Formato"),
-            *("--email", _email(), "--organization-id", created_id, "--role", "admin"),
+            *("--email", _email(), "--organization-id", created_id, "--permission", "admin"),
         )
         assert malformed.exit_code == 2, malformed.text  # recusado antes da rede
-        assert "role invalid" in _plain(malformed.stderr), malformed.stderr
+        assert "permission invalid" in _plain(malformed.stderr), malformed.stderr
         repeated = sk.run(
             *("ipm", "user", "create"),
             *("--name", "Usuario", "--surname", "Repetido"),
@@ -342,7 +355,7 @@ def test_the_sk_renews_an_expired_session_with_the_refresh_token(person: Person)
     assert datetime.fromisoformat(renewed["accessTokenExpiresAt"]) > datetime.now(UTC)
 
 
-def test_disable_wait_converges_and_the_token_drops_the_ipm_roles(
+def test_disable_wait_converges_and_the_token_drops_the_ipm_permissions(
     person: Person, link: dict[str, str]
 ) -> None:
     done = person.sk.run(
@@ -355,10 +368,10 @@ def test_disable_wait_converges_and_the_token_drops_the_ipm_roles(
     link["operationId"] = _identifiers(done.stdout)[1]
     assert _field(done.stdout, "state") == "disabled" and _field(done.stdout, "phase") == "Ready"
     assert _field(done.stdout, "session") == "renewed", done.stdout
-    assert _field(_state(person.sk, link), "observedRoles") == "none"
-    # A revogação também chega ao token: sem isso, o Receiver do ipm ainda aceitaria as roles.
-    roles = person.sk.token_roles()
-    assert _project("IPM") not in roles, roles
+    assert _field(_state(person.sk, link), "observedPermissions") == "none"
+    # A revogação também chega ao token: sem isso, o Receiver do ipm ainda aceitaria as permissões.
+    permissions = person.sk.token_permissions()
+    assert _project("IPM") not in permissions, permissions
 
 
 def test_a_second_disable_has_nothing_to_do(person: Person, link: dict[str, str]) -> None:

@@ -180,7 +180,10 @@ async def test_the_authorization_and_its_mutations_use_the_v2_authorization_serv
     z = writer(key_file, handler, calls)
     authorization = await z.authorizations.authorization("u-1", "org-c")
     assert authorization is not None
-    assert (authorization.authorization_id, set(authorization.roles)) == ("g-1", {"ipm.user.get"})
+    assert (authorization.authorization_id, set(authorization.permissions)) == (
+        "g-1",
+        {"ipm.user.get"},
+    )
     await z.authorizations.create("u-1", "org-c", ["a", "b"])
     await z.authorizations.update("g-1", ["a"])
     await z.authorizations.remove("g-1")

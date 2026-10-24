@@ -69,7 +69,7 @@
 		<a
 			href="/"
 			aria-label="Smarkee Console — Página inicial"
-			class="flex shrink-0 items-center gap-2 rounded-lg px-0.5 py-1 focus-visible:outline-emerald-600 sm:px-1"
+			class="flex shrink-0 items-center gap-2 rounded-lg px-0.5 py-1 focus-visible:outline-brand-600 sm:px-1"
 		>
 			<img
 				src="/brand/s-small.png"
@@ -112,7 +112,7 @@
 				<span
 					aria-hidden="true"
 					data-testid="unread-notifications-badge"
-					class="absolute top-1 right-1 sm:-top-0.5 sm:-right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white"
+					class="absolute top-1 right-1 sm:-top-0.5 sm:-right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white"
 				>
 					{consoleState.unreadNotificationsCount}
 				</span>
@@ -134,7 +134,7 @@
 				<span
 					aria-hidden="true"
 					data-testid="active-operations-badge"
-					class="absolute top-1 right-1 sm:-top-0.5 sm:-right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white"
+					class="absolute top-1 right-1 sm:-top-0.5 sm:-right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white"
 				>
 					{consoleState.activeOperationsCount}
 				</span>
@@ -161,11 +161,11 @@
 					0
 				) ?? 'S'})"
 				data-testid="profile-menu-trigger"
-				class="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-1 pr-2.5 pl-1.5 text-xs font-medium text-slate-800 transition hover:border-emerald-300 hover:bg-white"
+				class="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-1 pr-2.5 pl-1.5 text-xs font-medium text-slate-800 transition hover:border-brand-300 hover:bg-white"
 			>
 				<span
 					aria-hidden="true"
-					class="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-[11px] font-bold text-white"
+					class="flex h-6 w-6 items-center justify-center rounded-full bg-brand-700 text-[11px] font-bold text-white"
 				>
 					{consoleState.userContext?.displayName?.charAt(0) ?? 'S'}
 				</span>
@@ -181,7 +181,7 @@
 				>
 					<div class="flex items-center gap-2.5 border-b border-slate-100 pb-3">
 						<div
-							class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-800"
+							class="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-brand-800"
 						>
 							<User class="h-4 w-4" aria-hidden="true" />
 						</div>
@@ -235,7 +235,7 @@
 		<div class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
 			<div class="flex items-center justify-between border-b border-slate-100 pb-3">
 				<div class="flex items-center gap-2">
-					<Activity class="h-4 w-4 text-emerald-600" aria-hidden="true" />
+					<Activity class="h-4 w-4 text-brand-600" aria-hidden="true" />
 					<h2 class="text-sm font-bold text-slate-900">Sobre o Smarkee Console</h2>
 				</div>
 				<button

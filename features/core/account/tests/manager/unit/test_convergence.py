@@ -3,14 +3,18 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES
+from core_account.manager.domain.account import DEFAULT_PLATFORM_PERMISSIONS
 from core_account.manager.domain.convergence import decide_observed, decide_result
 from core_account.manager.domain.kind import account_kind
 
-ACCOUNT = account_kind(DEFAULT_PLATFORM_ROLES)
+ACCOUNT = account_kind(DEFAULT_PLATFORM_PERMISSIONS)
 NOW = datetime(2026, 10, 11, 12, 0, tzinfo=UTC)
-ROLES = ["ipm.organization.get", "core.account.get"]
-DESIRED_PRESENT = {"lifecycle": "present", "platformAccess": "granted", "platformRoles": ROLES}
+PERMISSIONS = ["ipm.organization.get", "core.account.get"]
+DESIRED_PRESENT = {
+    "lifecycle": "present",
+    "platformAccess": "granted",
+    "platformPermissions": PERMISSIONS,
+}
 
 
 def observe(
@@ -30,7 +34,7 @@ def observe(
         presence=presence,
         observed={
             "platformAccess": "granted",
-            "platformRoles": [*ROLES, "core.account.admin"],
+            "platformPermissions": [*PERMISSIONS, "core.account.admin"],
             "deletionProtection": True,
         },
         previous_phase=phase,
@@ -49,7 +53,7 @@ def test_present_but_different_keeps_reconciling() -> None:
     desired: dict[str, Any] = {
         "lifecycle": "present",
         "platformAccess": "revoked",
-        "platformRoles": [],
+        "platformPermissions": [],
     }
     decision = observe("present", desired=desired, lifecycle="present")
     assert not decision.converged and decision.phase == "Reconciling"
@@ -59,14 +63,18 @@ def test_failed_phase_is_kept_while_not_converged() -> None:
     desired: dict[str, Any] = {
         "lifecycle": "present",
         "platformAccess": "revoked",
-        "platformRoles": [],
+        "platformPermissions": [],
     }
     decision = observe("present", desired=desired, lifecycle="present", phase="Failed")
     assert decision.phase == "Failed" and decision.conditions[0]["reason"] == "Failed"
 
 
 def test_absent_when_removal_is_wanted_removes_the_record() -> None:
-    desired = {"lifecycle": "absent", "platformAccess": "granted", "platformRoles": ROLES}
+    desired = {
+        "lifecycle": "absent",
+        "platformAccess": "granted",
+        "platformPermissions": PERMISSIONS,
+    }
     decision = observe("absent", desired=desired, lifecycle="absent")
     assert decision.remove and decision.converged
 
@@ -113,8 +121,8 @@ def test_already_suspended_does_not_suspend_again() -> None:
     assert not result(failed=True, count=9, reconciliation="suspended").suspend
 
 
-def test_missing_a_desired_role_keeps_reconciling() -> None:
-    desired = {**DESIRED_PRESENT, "platformRoles": [*ROLES, "ipm.organization.create"]}
+def test_missing_a_desired_permission_keeps_reconciling() -> None:
+    desired = {**DESIRED_PRESENT, "platformPermissions": [*PERMISSIONS, "ipm.organization.create"]}
     decision = observe("present", desired=desired, lifecycle="present")
     assert not decision.converged and decision.phase == "Reconciling"
 

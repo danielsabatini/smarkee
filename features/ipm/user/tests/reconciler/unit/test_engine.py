@@ -82,7 +82,7 @@ def desired(
         data={
             "lifecycle": lifecycle,
             "reconciliation": reconciliation,
-            "roles": ["ipm.user.get"],
+            "permissions": ["ipm.user.get"],
         },
     )
 
@@ -206,7 +206,7 @@ async def test_a_completed_result_waits_for_the_observation_it_caused(
             at=clock.now,
             causation="res-1",
             data={
-                "roles": ["ipm.user.get"],
+                "permissions": ["ipm.user.get"],
                 "deletionProtection": False,
             },
         )

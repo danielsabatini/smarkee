@@ -75,10 +75,10 @@ class FakeWriter:
     async def authorization(self, user_id: str, organization_id: str) -> Authorization | None:
         return None
 
-    async def create(self, user_id: str, organization_id: str, roles: list[str]) -> None:
+    async def create(self, user_id: str, organization_id: str, permissions: list[str]) -> None:
         self.calls.append("create_authorization")
 
-    async def update(self, authorization_id: str, roles: list[str]) -> None:
+    async def update(self, authorization_id: str, permissions: list[str]) -> None:
         self.calls.append("update_authorization")
 
     async def remove(self, authorization_id: str) -> None:
@@ -94,7 +94,7 @@ def desired_message(
             "lifecycle": lifecycle,
             "reconciliation": reconciliation,
             "organizationId": "org-c",
-            "roles": ["ipm.user.get"],
+            "permissions": ["ipm.user.get"],
             "givenName": "Bia",
             "familyName": "Lima",
             "email": "bia.lima@example.com",

@@ -99,8 +99,8 @@ class Sk:
         claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
         return int(claims["exp"]) - int(claims["iat"])
 
-    def token_roles(self) -> dict[str, set[str]]:
-        """Roles do access token da sessão atual, por ID de projeto (só as chaves, sem o token)."""
+    def token_permissions(self) -> dict[str, set[str]]:
+        """Permissões do access token da sessão atual, por ID de projeto (só as chaves)."""
         token = str(self.credentials()["accessToken"])
         payload = token.split(".")[1]
         claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))

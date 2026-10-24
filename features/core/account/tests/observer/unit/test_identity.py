@@ -155,7 +155,7 @@ async def test_missing_key_file_or_token_failure_is_a_provider_error(tmp_path: P
         await missing.users.get_user("u-1")
 
 
-async def test_granted_roles_are_the_union_across_the_projects(key_file: Path) -> None:
+async def test_granted_permissions_are_the_union_across_the_projects(key_file: Path) -> None:
     calls: list[httpx.Request] = []
     body = {
         "authorizations": [
@@ -165,7 +165,7 @@ async def test_granted_roles_are_the_union_across_the_projects(key_file: Path) -
     }
     identity = reader(key_file, lambda r: httpx.Response(200, json=body), calls=calls)
 
-    assert await identity.authorizations.granted_roles("u-1") == {
+    assert await identity.authorizations.granted_permissions("u-1") == {
         "core.account.get",
         "core.account.delete",
     }
@@ -175,5 +175,5 @@ async def test_granted_roles_are_the_union_across_the_projects(key_file: Path) -
     assert "x-zitadel-orgid" not in request.headers
     filters = json.loads(request.content)["filters"]
     assert {"inUserIds": {"ids": ["u-1"]}} in filters
-    assert not any("projectId" in f for f in filters)  # todos os projetos de roles
+    assert not any("projectId" in f for f in filters)  # todos os projetos de permissões
     assert {"organizationId": {"id": "org-1"}} in filters

@@ -201,15 +201,15 @@ def test_action_id_is_deterministic_and_changes_with_the_observation() -> None:
 # ------------------------------------------------------------- preparo para os usuários (0081)
 
 USER_ACCESS = {
-    "grantRoles": ["ipm.user.get"],
+    "grantPermissions": ["ipm.user.get"],
     "userExecutorAccountId": "executor",
     "userObserverAccountId": "observer",
 }
 OBSERVED_READY = {
-    "grantRoles": ["ipm.user.get"],
+    "grantPermissions": ["ipm.user.get"],
     "administrators": [
-        {"accountId": "executor", "roles": ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"]},
-        {"accountId": "observer", "roles": ["ORG_OWNER_VIEWER"]},
+        {"accountId": "executor", "permissions": ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"]},
+        {"accountId": "observer", "permissions": ["ORG_OWNER_VIEWER"]},
     ],
 }
 

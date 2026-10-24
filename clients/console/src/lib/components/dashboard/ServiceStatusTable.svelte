@@ -94,7 +94,7 @@
 
 			<a
 				href="/services/enabled"
-				class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+				class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-brand-700 hover:text-brand-800"
 			>
 				<span>Ver todos</span>
 				<ArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
@@ -137,9 +137,9 @@
 									{#if row.phase && (row.phase === 'Pending' || row.phase === 'Reconciling')}
 										<StatusBadge phase={row.phase} size="sm" />
 									{:else if row.isEnabled}
-										<span class="inline-flex items-center gap-1 font-semibold text-emerald-700">
+										<span class="inline-flex items-center gap-1 font-semibold text-brand-700">
 											<CheckCircle2
-												class="h-3.5 w-3.5 shrink-0 text-emerald-600"
+												class="h-3.5 w-3.5 shrink-0 text-brand-600"
 												aria-hidden="true"
 											/>
 											<span>Habilitado</span>
@@ -164,7 +164,7 @@
 											disabled={triggeringService === row.serviceKey}
 											onclick={() => handleEnableService(row.serviceKey)}
 											data-testid="reconcile-service-{row.serviceKey}"
-											class="inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-50"
+											class="inline-flex items-center gap-1 rounded border border-brand-200 bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-800 transition hover:bg-brand-100 disabled:opacity-50"
 										>
 											<Play class="h-2.5 w-2.5" aria-hidden="true" />
 											<span>Habilitar</span>

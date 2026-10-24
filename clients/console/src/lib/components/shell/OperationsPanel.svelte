@@ -92,20 +92,20 @@
 					data-testid="tab-notifications"
 					class="relative flex h-full items-center gap-1.5 px-1 text-xs font-semibold transition {consoleState.activePanelTab ===
 					'notifications'
-						? 'text-emerald-700'
+						? 'text-brand-700'
 						: 'text-slate-600 hover:text-slate-900'}"
 				>
 					<span>Notificações</span>
 					{#if consoleState.unreadNotificationsCount > 0}
 						<span
-							class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800"
+							class="rounded-full bg-brand-100 px-1.5 py-0.5 text-[10px] font-bold text-brand-800"
 						>
 							{consoleState.unreadNotificationsCount}
 						</span>
 					{/if}
 					{#if consoleState.activePanelTab === 'notifications'}
 						<span
-							class="absolute right-0 bottom-0 left-0 h-0.5 rounded-full bg-emerald-600"
+							class="absolute right-0 bottom-0 left-0 h-0.5 rounded-full bg-brand-600"
 							aria-hidden="true"
 						></span>
 					{/if}
@@ -119,13 +119,13 @@
 					data-testid="tab-operations"
 					class="relative flex h-full items-center gap-1.5 px-1 text-xs font-semibold transition {consoleState.activePanelTab ===
 					'operations'
-						? 'text-emerald-700'
+						? 'text-brand-700'
 						: 'text-slate-600 hover:text-slate-900'}"
 				>
 					<span>Operações ({consoleState.operations.length})</span>
 					{#if consoleState.activePanelTab === 'operations'}
 						<span
-							class="absolute right-0 bottom-0 left-0 h-0.5 rounded-full bg-emerald-600"
+							class="absolute right-0 bottom-0 left-0 h-0.5 rounded-full bg-brand-600"
 							aria-hidden="true"
 						></span>
 					{/if}
@@ -167,11 +167,11 @@
 								{#each consoleState.inProgressOperations as entry (entry.operation.operationId)}
 									<div
 										data-testid="operation-card-{entry.operation.operationId}"
-										class="rounded-xl border border-slate-200 bg-white p-3 shadow-xs transition hover:border-emerald-200"
+										class="rounded-xl border border-slate-200 bg-white p-3 shadow-xs transition hover:border-brand-200"
 									>
 										<div class="flex items-start gap-2.5">
 											<div
-												class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"
+												class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600"
 											>
 												<Loader2 class="h-4 w-4 animate-spin" aria-hidden="true" />
 											</div>
@@ -192,7 +192,7 @@
 													role="progressbar"
 													aria-label="Operação em andamento (progresso indeterminado)"
 												>
-													<div class="h-full w-2/3 animate-pulse rounded-full bg-emerald-600"></div>
+													<div class="h-full w-2/3 animate-pulse rounded-full bg-brand-600"></div>
 												</div>
 
 												<div
@@ -207,7 +207,7 @@
 													<button
 														type="button"
 														onclick={() => openOperationModal(entry)}
-														class="font-medium text-emerald-700 hover:underline"
+														class="font-medium text-brand-700 hover:underline"
 													>
 														Inspecionar
 													</button>
@@ -245,7 +245,7 @@
 										<div class="flex items-start gap-2.5">
 											{#if status === 'completed'}
 												<div
-													class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"
+													class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700"
 												>
 													<CheckCircle2 class="h-4 w-4" aria-hidden="true" />
 												</div>
@@ -319,7 +319,7 @@
 								type="button"
 								onclick={() => consoleState.markAllNotificationsAsRead()}
 								data-testid="mark-all-notifications-read"
-								class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-50"
+								class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50"
 							>
 								<CheckCheck class="h-3.5 w-3.5" aria-hidden="true" />
 								<span>Marcar lidas</span>
@@ -339,7 +339,7 @@
 									data-testid="notification-item-{notif.id}"
 									class="rounded-xl border p-3 transition {notif.read
 										? 'border-slate-200 bg-white'
-										: 'border-emerald-200 bg-emerald-50/40'}"
+										: 'border-brand-200 bg-brand-50/40'}"
 								>
 									<div class="flex items-start justify-between gap-2">
 										<div class="flex items-center gap-1.5">
@@ -349,12 +349,12 @@
 													aria-hidden="true"
 												/>
 											{:else}
-												<Bell class="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
+												<Bell class="h-3.5 w-3.5 shrink-0 text-brand-600" aria-hidden="true" />
 											{/if}
 											<h3 class="text-xs font-semibold text-slate-900">{notif.title}</h3>
 										</div>
 										{#if !notif.read}
-											<span class="h-2 w-2 shrink-0 rounded-full bg-emerald-600" title="Não lida"
+											<span class="h-2 w-2 shrink-0 rounded-full bg-brand-600" title="Não lida"
 											></span>
 										{/if}
 									</div>
@@ -367,7 +367,7 @@
 											<button
 												type="button"
 												onclick={() => consoleState.markNotificationAsRead(notif.id)}
-												class="font-medium text-emerald-700 hover:underline"
+												class="font-medium text-brand-700 hover:underline"
 											>
 												Marcar como lida
 											</button>
@@ -385,7 +385,7 @@
 		<div class="border-t border-slate-200 bg-slate-50/70 p-3">
 			<a
 				href="/audit/events"
-				class="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white py-2 text-xs font-semibold text-emerald-700 shadow-2xs transition hover:border-emerald-300 hover:bg-emerald-50/50"
+				class="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white py-2 text-xs font-semibold text-brand-700 shadow-2xs transition hover:border-brand-300 hover:bg-brand-50/50"
 			>
 				<span>Ver todas as operações</span>
 				<ArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
@@ -407,7 +407,7 @@
 		<div class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
 			<div class="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
 				<div>
-					<span class="text-[11px] font-semibold text-emerald-700 uppercase">
+					<span class="text-[11px] font-semibold text-brand-700 uppercase">
 						Detalhes da Operação
 					</span>
 					<h2 class="mt-0.5 text-sm font-bold text-slate-900">{selected.title}</h2>

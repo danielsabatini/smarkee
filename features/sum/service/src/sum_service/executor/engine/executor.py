@@ -2,8 +2,8 @@
 
 Cada `action` é validada (emissor, tipo, módulo) e revalidada contra o `desired` atual
 (`docs/RESOURCE-CONTROL-SECURITY.md` §7): geração, suspensão e `lifecycle`. Uma ação recusada ou
-velha vira `failed` (permanente), nunca é executada. Concede as roles pedidas (ligar) ou revoga as
-roles do serviço (desligar). Um `actionId` com desfecho já registrado não é executado de novo.
+velha vira `failed` (permanente), nunca é executada. Concede as permissões pedidas (ligar) ou revoga as
+permissões do serviço (desligar). Um `actionId` com desfecho já registrado não é executado de novo.
 Erro transitório não vira `failed`: a mensagem volta à fila.
 """
 
@@ -149,24 +149,27 @@ class Executor:
             "lifecycle": data.get("lifecycle"),
             "owner": str(data.get("ownerAccountId", "")),
             "service": str(data.get("service", "")),
-            "roles": tuple(str(role) for role in data.get("serviceRoles", ())),
-            # Roles que a ligação controla (decisão 0079); num `desired` antigo, as `serviceRoles`.
+            "permissions": tuple(
+                str(permission) for permission in data.get("servicePermissions", ())
+            ),
+            # Permissões que a ligação controla (decisão 0079); se ausente, as `servicePermissions`.
             "managed": tuple(
-                str(role) for role in data.get("managedRoles", data.get("serviceRoles", ()))
+                str(permission)
+                for permission in data.get("managedPermissions", data.get("servicePermissions", ()))
             ),
         }
 
     async def _apply(self, resource_id: str, desired: dict[str, Any]) -> None:
         owner = desired["owner"]
-        # As roles vêm só do `desired` (decisão 0079): o Executor não tem catálogo próprio.
+        # As permissões vêm só do `desired` (decisão 0079): o Executor não tem catálogo próprio.
         if desired["lifecycle"] == "present":
-            await enable(self._drivers.authorizations, owner, desired["roles"])
-            leftover = sorted(set(desired["managed"]) - set(desired["roles"]))
-            if leftover:  # roles que saíram do catálogo: a ligação ativa não as dá mais
+            await enable(self._drivers.authorizations, owner, desired["permissions"])
+            leftover = sorted(set(desired["managed"]) - set(desired["permissions"]))
+            if leftover:  # permissões que saíram do catálogo: a ligação ativa não as dá mais
                 await disable(self._drivers.authorizations, owner, leftover)
             return
         await disable(self._drivers.authorizations, owner, desired["managed"])
-        logger.info("service roles revoked", extra={"smarkee.resource.id": resource_id})
+        logger.info("service permissions revoked", extra={"smarkee.resource.id": resource_id})
 
     async def _publish_result(self, action: _Action, failure: ActionFailedError | None) -> None:
         kind = "completed" if failure is None else "failed"

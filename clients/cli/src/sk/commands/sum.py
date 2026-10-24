@@ -3,7 +3,8 @@
 Usam o token da sessão (`sk auth login`), renovado quando está para vencer. A API é a mesma do
 `sk account create` (`[api] url`). Ligar e desligar são assíncronos: o comando garante o
 mostra como acompanhar a Operation. Com `--wait`, ele espera a ligação convergir e renova a sessão:
-o token só traz as roles que existiam quando foi emitido, e as do serviço chegam depois do aceite.
+o token só traz as permissões que existiam quando foi emitido, e as do serviço chegam depois do
+aceite.
 """
 
 import time
@@ -50,7 +51,7 @@ WaitOption = Annotated[
         help=option(
             "Wait for the service to converge (phase Ready and Operation completed) and renew "
             "the session, "
-            "so the token reflects the new roles.",
+            "so the token reflects the new permissions.",
             kind="Boolean",
             variable=None,
             file=None,
@@ -229,7 +230,7 @@ def _finish_request(
         ui.note(
             f"Follow it with `sk sum service get --resource-id {accepted.resource_id}`. "
             "Once the phase "
-            "is Ready, run `sk auth refresh` so the token reflects the new roles."
+            "is Ready, run `sk auth refresh` so the token reflects the new permissions."
         )
         return
     link = _wait_for_convergence(url, insecure, accepted, enabled=enabled, timeout=timeout)
@@ -241,7 +242,7 @@ def _finish_request(
             ("service", link.service),
             ("state", _phase_label(link)),
             ("phase", link.phase),
-            ("observedRoles", ", ".join(link.observed_roles) or "none"),
+            ("observedPermissions", ", ".join(link.observed_permissions) or "none"),
             ("session", "renewed" if renewed else "not renewed"),
         ],
     )
@@ -413,7 +414,7 @@ def get_command(
         ("service", link.service),
         ("state", _phase_label(link)),
         ("phase", link.phase),
-        ("observedRoles", ", ".join(link.observed_roles) or "none"),
+        ("observedPermissions", ", ".join(link.observed_permissions) or "none"),
     ]
     if operation is not None:
         rows.extend(_operation_rows(operation))

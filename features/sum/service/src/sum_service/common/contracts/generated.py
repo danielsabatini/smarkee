@@ -102,7 +102,7 @@ class Phase(StrEnum):
 
 class PlatformAccess(StrEnum):
     """
-    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, na Account); revoked a remove.
+    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de permissões de ação do usuário cadastrado, na Account); revoked a remove.
     """
 
     granted = "granted"
@@ -388,7 +388,7 @@ class ApiError(ContractModel):
     """
 
 
-class ServiceRole(RootModel[str]):
+class ServicePermission(RootModel[str]):
     root: Annotated[
         str,
         Field(
@@ -398,23 +398,23 @@ class ServiceRole(RootModel[str]):
         ),
     ]
     """
-    Role de ação do projeto de roles de um serviço, no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.organization.get.
+    Permissão de ação do projeto de permissões de um serviço, no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.organization.get.
     """
 
 
 class ServiceObservedData(ContractModel):
     """
-    data de observed do SUM: as roles do serviço que o usuário tem hoje, lidas do Zitadel. Vazio quando a ligação está ausente.
+    data de observed do SUM: as permissões do serviço que o usuário tem hoje, lidas do Zitadel. Vazio quando a ligação está ausente.
     """
 
     model_config = ConfigDict(
         extra="forbid",
     )
-    service_roles: Annotated[
-        list[ServiceRole] | None, Field(alias="serviceRoles", max_length=64)
+    service_permissions: Annotated[
+        list[ServicePermission] | None, Field(alias="servicePermissions", max_length=64)
     ] = None
     """
-    Roles do serviço que o usuário tem no projeto de roles do módulo do serviço. A reconciliação compara com desired.serviceRoles.
+    Permissões do serviço que o usuário tem no projeto de permissões do módulo do serviço. A reconciliação compara com desired.servicePermissions.
     """
 
 
@@ -663,7 +663,7 @@ class ServiceDesiredData(ContractModel):
     )
     lifecycle: Lifecycle
     """
-    present: a ligação existe e o usuário deve ter as roles do serviço. absent: a ligação foi desfeita e as roles devem sair.
+    present: a ligação existe e o usuário deve ter as permissões do serviço. absent: a ligação foi desfeita e as permissões devem sair.
     """
     reconciliation: Reconciliation
     owner_account_id: Annotated[
@@ -682,15 +682,17 @@ class ServiceDesiredData(ContractModel):
     """
     Serviço ligado. Imutável: para outro serviço, outra ligação.
     """
-    service_roles: Annotated[list[ServiceRole], Field(alias="serviceRoles", max_length=64)]
+    service_permissions: Annotated[
+        list[ServicePermission], Field(alias="servicePermissions", max_length=64)
+    ]
     """
-    Roles que o usuário deve ter para usar o serviço. Copiadas do catálogo do Manager na ligação; vazias quando lifecycle é absent.
+    Permissões que o usuário deve ter para usar o serviço. Copiadas do catálogo do Manager na ligação; vazias quando lifecycle é absent.
     """
-    managed_roles: Annotated[
-        list[ServiceRole] | None, Field(alias="managedRoles", max_length=64)
+    managed_permissions: Annotated[
+        list[ServicePermission] | None, Field(alias="managedPermissions", max_length=64)
     ] = None
     """
-    Roles do serviço que esta ligação controla: as do catálogo no momento em que o Manager gravou o desired, mais as que saíram do catálogo depois (decisão 0079). Com a ligação ativa, o usuário tem as de serviceRoles e nenhuma das demais; desligada, nenhuma. O Observer e o Executor leem as roles daqui, sem catálogo próprio. Ausente só em desired gravado antes da decisão 0079.
+    Permissões do serviço que esta ligação controla: as do catálogo no momento em que o Manager gravou o desired, mais as que saíram do catálogo depois (decisão 0079). Com a ligação ativa, o usuário tem as de servicePermissions e nenhuma das demais; desligada, nenhuma. O Observer e o Executor leem as permissões daqui, sem catálogo próprio. Ausente só em desired gravado antes da decisão 0079.
     """
 
 
@@ -740,7 +742,7 @@ class ServiceResource(ContractModel):
 
 class ServiceListResponse(ContractModel):
     """
-    Corpo de GET /v1/sum/services: as ligações do solicitante cujo serviço ele pode ler (role sum.<serviço>.get), até o limite pedido.
+    Corpo de GET /v1/sum/services: as ligações do solicitante cujo serviço ele pode ler (permissão sum.<serviço>.get), até o limite pedido.
     """
 
     model_config = ConfigDict(

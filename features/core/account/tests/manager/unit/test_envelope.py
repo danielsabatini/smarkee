@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES
+from core_account.manager.domain.account import DEFAULT_PLATFORM_PERMISSIONS
 from core_account.manager.domain.errors import PermanentMessageError
 from core_account.manager.domain.kind import account_kind
 from core_account.manager.handlers.envelope import parse_envelope
@@ -27,7 +27,7 @@ ENVELOPE: dict[str, Any] = {
 
 
 def test_the_manager_accepts_a_requested_with_an_unknown_field_and_refuses_another_major() -> None:
-    account = account_kind(DEFAULT_PLATFORM_ROLES)
+    account = account_kind(DEFAULT_PLATFORM_PERMISSIONS)
     requested: dict[str, Any] = {
         **ENVELOPE,
         "messageType": "requested",

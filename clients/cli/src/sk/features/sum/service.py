@@ -41,23 +41,27 @@ class ServiceLink:
     phase: str
     service: str
     lifecycle: str
-    observed_roles: tuple[str, ...]
+    observed_permissions: tuple[str, ...]
 
 
 def _link(document: object) -> ServiceLink:
     body = as_object(document, what="service")
     desired = as_object(body.get("desired"), what="service (desired)")
     observed: object = body.get("observed") or {}
-    roles: object = as_object(observed, what="service (observed)").get("serviceRoles") or []
-    if not isinstance(roles, list):
-        raise ApiUnavailableError("API response with invalid serviceRoles")
+    permissions: object = (
+        as_object(observed, what="service (observed)").get("servicePermissions") or []
+    )
+    if not isinstance(permissions, list):
+        raise ApiUnavailableError("API response with invalid servicePermissions")
     return ServiceLink(
         resource_id=as_text(body, "resourceId", what="service"),
         resource_version=as_text(body, "resourceVersion", what="service"),
         phase=as_text(body, "phase", what="service"),
         service=as_text(desired, "service", what="service (desired)"),
         lifecycle=as_text(desired, "lifecycle", what="service (desired)"),
-        observed_roles=tuple(str(role) for role in cast("list[object]", roles)),
+        observed_permissions=tuple(
+            str(permission) for permission in cast("list[object]", permissions)
+        ),
     )
 
 

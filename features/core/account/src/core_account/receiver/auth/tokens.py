@@ -2,8 +2,9 @@
 
 O Receiver só **valida** tokens: assinatura pelas chaves públicas (JWKS), `iss`, `aud` (ID do
 projeto da plataforma) e `exp`. Ela não tem credencial de escrita no provedor
-(`docs/RESOURCE-CONTROL-SECURITY.md` §9). As roles vêm do claim
-`urn:zitadel:iam:org:project:<ID do projeto>:roles`. Esse claim não identifica a Organization
+(`docs/RESOURCE-CONTROL-SECURITY.md` §9). As permissões vêm do claim
+`urn:zitadel:iam:org:project:<ID do projeto>:roles` (no Zitadel, cada permissão da Smarkee é uma
+Project Role; `docs/identity/PERMISSION.md`). Esse claim não identifica a Organization
 da plataforma: o pertencimento é decidido pelo dono guardado no SSOT (decisão 0010).
 """
 
@@ -68,14 +69,16 @@ class TokenVerifier:
             )
         except jwt.InvalidTokenError:
             raise unauthorized() from None
-        roles = self._roles(claims)
-        return Principal(subject=str(claims["sub"]), roles=roles, access_token=token)
+        permissions = self._permissions(claims)
+        return Principal(subject=str(claims["sub"]), permissions=permissions, access_token=token)
 
-    def _roles(self, claims: dict[str, Any]) -> frozenset[str]:
+    def _permissions(self, claims: dict[str, Any]) -> frozenset[str]:
         roles_claim: object = claims.get(f"urn:zitadel:iam:org:project:{self._audience}:roles")
         if not isinstance(roles_claim, dict):
             return frozenset()
-        return frozenset(str(role) for role in cast("dict[object, object]", roles_claim))
+        return frozenset(
+            str(permission) for permission in cast("dict[object, object]", roles_claim)
+        )
 
     # ------------------------------------------------------------------ chaves
 

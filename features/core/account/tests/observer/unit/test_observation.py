@@ -8,29 +8,29 @@ from core_account.observer.domain.observation import (
     observe,
 )
 
-ROLES = {"ipm.organization.create", "ipm.organization.get", "core.account.get"}
+PERMISSIONS = {"ipm.organization.create", "ipm.organization.get", "core.account.get"}
 
 
 class FakeReader:
     def __init__(
         self,
         user: IdentityUser | None,
-        roles: set[str] | None = None,
+        permissions: set[str] | None = None,
         error: ProviderError | None = None,
-        roles_error: ProviderError | None = None,
+        permissions_error: ProviderError | None = None,
     ) -> None:
-        self._user, self._roles = user, roles or set()
-        self._error, self._roles_error = error, roles_error
+        self._user, self._permissions = user, permissions or set()
+        self._error, self._permissions_error = error, permissions_error
 
     async def get_user(self, user_id: str) -> IdentityUser | None:
         if self._error:
             raise self._error
         return self._user
 
-    async def granted_roles(self, user_id: str) -> set[str]:
-        if self._roles_error:
-            raise self._roles_error
-        return self._roles
+    async def granted_permissions(self, user_id: str) -> set[str]:
+        if self._permissions_error:
+            raise self._permissions_error
+        return self._permissions
 
 
 class FakeMetadata:
@@ -58,27 +58,31 @@ async def test_absent_user() -> None:
     assert (result.presence, result.data) == ("absent", {})
 
 
-async def test_present_reports_the_roles_the_user_has_sorted() -> None:
-    result = await observe(both(FakeReader(active(), set(ROLES))), "u-1")
+async def test_present_reports_the_permissions_the_user_has_sorted() -> None:
+    result = await observe(both(FakeReader(active(), set(PERMISSIONS))), "u-1")
     assert result.presence == "present"
     assert result.data == {
         "emailVerified": True,
         "accountState": "active",
         "platformAccess": "granted",
-        "platformRoles": ["core.account.get", "ipm.organization.create", "ipm.organization.get"],
+        "platformPermissions": [
+            "core.account.get",
+            "ipm.organization.create",
+            "ipm.organization.get",
+        ],
         "deletionProtection": True,
     }
 
 
-async def test_a_user_without_roles_is_revoked_with_an_empty_list() -> None:
+async def test_a_user_without_permissions_is_revoked_with_an_empty_list() -> None:
     result = await observe(both(FakeReader(active(), set())), "u-1")
     assert result.data["platformAccess"] == "revoked"
-    assert result.data["platformRoles"] == []
+    assert result.data["platformPermissions"] == []
 
 
-async def test_extra_roles_are_reported_as_they_are() -> None:
-    result = await observe(both(FakeReader(active(), ROLES | {"core.account.admin"})), "u-1")
-    assert "core.account.admin" in result.data["platformRoles"]
+async def test_extra_permissions_are_reported_as_they_are() -> None:
+    result = await observe(both(FakeReader(active(), PERMISSIONS | {"core.account.admin"})), "u-1")
+    assert "core.account.admin" in result.data["platformPermissions"]
 
 
 async def test_unactivated_account_is_initial() -> None:
@@ -93,7 +97,7 @@ async def test_unactivated_account_is_initial() -> None:
 async def test_read_failures_are_unknown() -> None:
     for reader in (
         both(FakeReader(None, error=ProviderError("HTTP 503"))),
-        both(FakeReader(active(), roles_error=ProviderError("HTTP 500"))),
+        both(FakeReader(active(), permissions_error=ProviderError("HTTP 500"))),
     ):
         result = await observe(reader, "u-1")
         assert (result.presence, result.data) == ("unknown", {})
@@ -101,16 +105,20 @@ async def test_read_failures_are_unknown() -> None:
 
 async def test_deletion_protection_comes_from_the_metadata() -> None:
     """O metadado `deletionProtection` do usuário vira o campo do `observed` (decisão 0074)."""
-    result = await observe(both(FakeReader(active(), set(ROLES)), FakeMetadata("false")), "u-1")
+    result = await observe(
+        both(FakeReader(active(), set(PERMISSIONS)), FakeMetadata("false")), "u-1"
+    )
     assert result.data["deletionProtection"] is False
     for value in (None, "yes"):
-        result = await observe(both(FakeReader(active(), set(ROLES)), FakeMetadata(value)), "u-1")
+        result = await observe(
+            both(FakeReader(active(), set(PERMISSIONS)), FakeMetadata(value)), "u-1"
+        )
         assert "deletionProtection" not in result.data
 
 
 async def test_a_metadata_read_failure_is_unknown() -> None:
     failing = FakeMetadata(error=ProviderError("HTTP 503"))
-    result = await observe(both(FakeReader(active(), set(ROLES)), failing), "u-1")
+    result = await observe(both(FakeReader(active(), set(PERMISSIONS)), failing), "u-1")
     assert (result.presence, result.data) == ("unknown", {})
 
 

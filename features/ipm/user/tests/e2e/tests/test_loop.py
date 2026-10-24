@@ -94,24 +94,24 @@ async def settled_version(resource_id: str) -> str:
         current = latest
 
 
-def specification(organization_id: str, roles: list[str]) -> dict[str, Any]:
+def specification(organization_id: str, permissions: list[str]) -> dict[str, Any]:
     return {
         "organizationId": organization_id,
         "givenName": "Loop",
         "familyName": "User",
         "email": f"loop-{uuid.uuid4().hex[:10]}@example.com",
-        "roles": roles,
+        "permissions": permissions,
         "deletionProtection": False,
     }
 
 
-async def test_the_whole_loop_creates_changes_roles_protects_and_removes_the_user(
+async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_the_user(
     jetstream: JetStreamContext, created: list[str], organization_id: str
 ) -> None:
     resource_id = str(uuid.uuid7())
     created.append(resource_id)
 
-    # 1. Criação: o usuário nasce na Organization, sem senha, com as roles do Grant.
+    # 1. Criação: o usuário nasce na Organization, sem senha, com as permissões do Grant.
     await send(
         jetstream,
         request(
@@ -128,23 +128,25 @@ async def test_the_whole_loop_creates_changes_roles_protects_and_removes_the_use
         jetstream, "observed", resource_id, lambda m: m.get("presence") == "present"
     )
     assert_valid("ipm/user/observed.v1.schema.json", observed["data"])
-    assert observed["data"]["roles"] == ["ipm.user.get"]
+    assert observed["data"]["permissions"] == ["ipm.user.get"]
     assert observed["data"]["deletionProtection"] is False  # nasce desprotegido (decisão 0077)
     assert observed["data"]["userState"] == "initial"  # ativa pelo e-mail, sem senha
     assert "email" not in observed["data"]  # o Observer não devolve dado pessoal
 
-    # 2. Roles: o Executor deixa no Zitadel exatamente as do `desired`.
+    # 2. Permissões: o Executor deixa no Zitadel exatamente as do `desired`.
     version = await settled_version(resource_id)
-    roles = ["ipm.user.get", "ipm.user.list"]
+    permissions = ["ipm.user.get", "ipm.user.list"]
     await send(
         jetstream,
         request(
-            resource_id, "update", {"resourceVersion": version, "specification": {"roles": roles}}
+            resource_id,
+            "update",
+            {"resourceVersion": version, "specification": {"permissions": permissions}},
         ),
     )
     await confirmed(jetstream, resource_id, 2)
     observed = await wait_for(
-        jetstream, "observed", resource_id, lambda m: m["data"].get("roles") == roles
+        jetstream, "observed", resource_id, lambda m: m["data"].get("permissions") == permissions
     )
 
     # 3. Proteção: gravada como metadado no usuário e observada de volta (decisão 0074).
@@ -166,10 +168,10 @@ async def test_the_whole_loop_creates_changes_roles_protects_and_removes_the_use
     # 4. A remoção (fixture `created`) tira a proteção e remove o usuário pelo loop.
 
 
-async def test_a_role_outside_the_grant_is_refused_by_the_provider(
+async def test_a_permission_outside_the_grant_is_refused_by_the_provider(
     jetstream: JetStreamContext, created: list[str], organization_id: str
 ) -> None:
-    """O Project Grant é o teto: o Zitadel recusa a role que o operador não liberou (decisão 0077).
+    """O Project Grant é o teto: o Zitadel recusa permissão fora do Grant (decisão 0077).
 
     `ipm.organization.delete` existe no `roles-ipm`, mas não está no Grant da Organization.
     """

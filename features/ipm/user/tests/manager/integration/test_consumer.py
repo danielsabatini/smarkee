@@ -55,7 +55,7 @@ def valid_message(cleanup: Cleanup) -> bytes:
                     "givenName": "Bia",
                     "familyName": "Lima",
                     "email": f"cons-{unique_suffix()}@example.com",
-                    "roles": [],
+                    "permissions": [],
                 },
             },
         )

@@ -1,4 +1,4 @@
-"""Ações do Executor: usuário na organização do cliente, idempotência, conflitos e roles exatas."""
+"""Ações do Executor: usuário na organização, idempotência, conflitos e permissões exatas."""
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -13,7 +13,7 @@ ORGANIZATION = "org-c"
 DESIRED: dict[str, Any] = {
     "lifecycle": "present",
     "organizationId": ORGANIZATION,
-    "roles": ["ipm.user.get", "ipm.user.list"],
+    "permissions": ["ipm.user.get", "ipm.user.list"],
     "givenName": "Bia",
     "familyName": "Lima",
     "email": "bia.lima@example.com",
@@ -60,15 +60,17 @@ class FakeWriter:
         self._maybe_fail("authorization")
         return self.authorizations.get(user_id)
 
-    async def create(self, user_id: str, organization_id: str, roles: list[str]) -> None:
-        self.calls.append(("create", organization_id, sorted(roles)))
-        self.authorizations[user_id] = Authorization(f"a-{user_id}", frozenset(roles))
+    async def create(self, user_id: str, organization_id: str, permissions: list[str]) -> None:
+        self.calls.append(("create", organization_id, sorted(permissions)))
+        self.authorizations[user_id] = Authorization(f"a-{user_id}", frozenset(permissions))
 
-    async def update(self, authorization_id: str, roles: list[str]) -> None:
-        self.calls.append(("update", authorization_id, sorted(roles)))
+    async def update(self, authorization_id: str, permissions: list[str]) -> None:
+        self.calls.append(("update", authorization_id, sorted(permissions)))
         for user_id, current in self.authorizations.items():
             if current.authorization_id == authorization_id:
-                self.authorizations[user_id] = Authorization(authorization_id, frozenset(roles))
+                self.authorizations[user_id] = Authorization(
+                    authorization_id, frozenset(permissions)
+                )
 
     async def remove(self, authorization_id: str) -> None:
         self.calls.append(("remove", authorization_id))
@@ -96,7 +98,7 @@ def names(writer: FakeWriter) -> list[str]:
     return [str(call[0]) for call in writer.calls]
 
 
-async def test_create_makes_the_user_in_the_organization_and_grants_the_roles() -> None:
+async def test_create_makes_the_user_in_the_organization_and_grants_the_permissions() -> None:
     writer = FakeWriter()
     await execute("create", "u-1", DESIRED, both(writer))
     assert writer.calls == [
@@ -105,9 +107,9 @@ async def test_create_makes_the_user_in_the_organization_and_grants_the_roles() 
     ]
 
 
-async def test_create_without_roles_makes_no_authorization() -> None:
+async def test_create_without_permissions_makes_no_authorization() -> None:
     writer = FakeWriter()
-    await execute("create", "u-1", {**DESIRED, "roles": []}, both(writer))
+    await execute("create", "u-1", {**DESIRED, "permissions": []}, both(writer))
     assert names(writer) == ["create_user"]
 
 
@@ -118,7 +120,7 @@ async def test_create_repeated_after_success_is_idempotent() -> None:
 
     await execute("create", "u-1", DESIRED, both(writer))
 
-    assert names(writer) == ["create_user"]  # já existe, com as roles certas
+    assert names(writer) == ["create_user"]  # já existe, com as permissões certas
 
 
 async def test_a_retry_after_a_partial_failure_completes_the_missing_steps() -> None:
@@ -166,37 +168,37 @@ async def test_create_without_the_user_data_is_rejected_and_calls_nothing(missin
     assert writer.calls == []
 
 
-async def test_create_without_roles_field_is_rejected_without_touching_the_provider() -> None:
+async def test_create_without_permissions_field_is_rejected_without_touching_the_provider() -> None:
     writer = FakeWriter()
-    desired = {key: value for key, value in DESIRED.items() if key != "roles"}
+    desired = {key: value for key, value in DESIRED.items() if key != "permissions"}
     with pytest.raises(ActionFailedError):
         await execute("create", "u-1", desired, both(writer))
     assert writer.calls == []
 
 
-async def test_update_sets_exactly_the_desired_roles() -> None:
+async def test_update_sets_exactly_the_desired_permissions() -> None:
     writer = FakeWriter(
         users={"u-1": IdentityUser("bia.lima@example.com", ORGANIZATION)},
         authorizations={"u-1": Authorization("a-1", frozenset({"ipm.user.get", "ipm.user.bind"}))},
     )
     await execute("update", "u-1", DESIRED, both(writer))
-    # A role que sobra no provedor é revogada: as roles são as do `desired`, exatamente.
+    # A permissão que sobra no provedor é revogada: as permissões são as do `desired`, exatamente.
     assert writer.calls == [("update", "a-1", ["ipm.user.get", "ipm.user.list"])]
 
 
-async def test_update_without_roles_removes_the_authorization() -> None:
+async def test_update_without_permissions_removes_the_authorization() -> None:
     writer = FakeWriter(
         users={"u-1": IdentityUser("bia.lima@example.com", ORGANIZATION)},
         authorizations={"u-1": Authorization("a-1", frozenset({"ipm.user.get"}))},
     )
-    await execute("update", "u-1", {**DESIRED, "roles": []}, both(writer))
+    await execute("update", "u-1", {**DESIRED, "permissions": []}, both(writer))
     assert writer.calls == [("remove", "a-1")]
 
 
-async def test_update_with_the_same_roles_changes_nothing() -> None:
+async def test_update_with_the_same_permissions_changes_nothing() -> None:
     writer = FakeWriter(
         users={"u-1": IdentityUser("bia.lima@example.com", ORGANIZATION)},
-        authorizations={"u-1": Authorization("a-1", frozenset(DESIRED["roles"]))},
+        authorizations={"u-1": Authorization("a-1", frozenset(DESIRED["permissions"]))},
     )
     await execute("update", "u-1", DESIRED, both(writer))
     assert writer.calls == []

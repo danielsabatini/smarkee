@@ -1,13 +1,14 @@
 """Driver de escrita do preparo para os usuários no Zitadel (API v2, v4.19.4; decisão 0081).
 
-O Project Grant do projeto de roles do `ipm` para a organização e os papéis de administração das
-contas do `ipm/user` na organização e no Grant. A conta do Executor (`IAM_ORG_MANAGER`, de
-instância, decisão 0060) já tem `project.grant.write` e `org.member.write`: nenhum privilégio novo.
+O Project Grant do projeto de permissões do `ipm` para a organização e as permissões de
+administração das contas do `ipm/user` na organização e no Grant. A conta do Executor
+(`IAM_ORG_MANAGER`, de instância, decisão 0060) já tem `project.grant.write` e `org.member.write`:
+nenhum privilégio novo.
 
 Verificado contra o Zitadel de dev em 2026-10-21: criar de novo responde `409` (`already_exists`),
-`UpdateProjectGrant` com as mesmas roles responde `200`, e remover a organização leva o Grant e os
-papéis junto. `UpdateProjectGrant` e `UpdateAdministrator` **substituem** o conjunto: quem chama
-envia o conjunto inteiro.
+`UpdateProjectGrant` com as mesmas permissões responde `200`, e remover a organização leva o Grant
+e as permissões junto. `UpdateProjectGrant` e `UpdateAdministrator` **substituem** o conjunto: quem
+chama envia o conjunto inteiro.
 """
 
 from typing import Any, cast
@@ -29,8 +30,8 @@ class UserAccessDriver:
     def grant_resource(self, organization_id: str) -> dict[str, Any]:
         return {"projectGrant": {"projectId": self._project_id, "organizationId": organization_id}}
 
-    async def grant_roles(self, organization_id: str) -> list[str] | None:
-        """As roles do Grant para a organização, ou `None` se o Grant não existe."""
+    async def grant_permissions(self, organization_id: str) -> list[str] | None:
+        """As permissões do Grant para a organização, ou `None` se o Grant não existe."""
         response = await self._connection.call(
             "POST",
             f"{PROJECT_SERVICE}/ListProjectGrants",
@@ -54,7 +55,7 @@ class UserAccessDriver:
                 return sorted(str(role) for role in roles)
         return None
 
-    async def create_grant(self, organization_id: str, roles: list[str]) -> bool:
+    async def create_grant(self, organization_id: str, permissions: list[str]) -> bool:
         """Cria o Grant. `False` se ele já existe (repetição ou corrida)."""
         response = await self._connection.call(
             "POST",
@@ -62,28 +63,28 @@ class UserAccessDriver:
             {
                 "projectId": self._project_id,
                 "grantedOrganizationId": organization_id,
-                "roleKeys": roles,
+                "roleKeys": permissions,
             },
             accept_conflict=True,
         )
         return response is not None
 
-    async def update_grant(self, organization_id: str, roles: list[str]) -> None:
-        """Deixa o Grant com exatamente `roles` (uma role retirada sai também dos usuários)."""
+    async def update_grant(self, organization_id: str, permissions: list[str]) -> None:
+        """Deixa o Grant com exatamente `permissions` (uma retirada sai também dos usuários)."""
         await self._connection.call(
             "POST",
             f"{PROJECT_SERVICE}/UpdateProjectGrant",
             {
                 "projectId": self._project_id,
                 "grantedOrganizationId": organization_id,
-                "roleKeys": roles,
+                "roleKeys": permissions,
             },
         )
 
-    async def administrator_roles(
+    async def administrator_permissions(
         self, account_id: str, resource: dict[str, Any]
     ) -> frozenset[str] | None:
-        """Os papéis da conta no recurso, ou `None` se ela não é administradora dele."""
+        """As permissões da conta no recurso, ou `None` se ela não é administradora dele."""
         response = await self._connection.call(
             "POST",
             f"{PERMISSION_SERVICE}/ListAdministrators",
@@ -106,23 +107,23 @@ class UserAccessDriver:
         return None
 
     async def create_administrator(
-        self, account_id: str, resource: dict[str, Any], roles: list[str]
+        self, account_id: str, resource: dict[str, Any], permissions: list[str]
     ) -> bool:
-        """Dá os papéis à conta no recurso. `False` se ela já é administradora dele."""
+        """Dá as permissões à conta no recurso. `False` se ela já é administradora dele."""
         response = await self._connection.call(
             "POST",
             f"{PERMISSION_SERVICE}/CreateAdministrator",
-            {"userId": account_id, "resource": resource, "roles": roles},
+            {"userId": account_id, "resource": resource, "roles": permissions},
             accept_conflict=True,
         )
         return response is not None
 
     async def update_administrator(
-        self, account_id: str, resource: dict[str, Any], roles: list[str]
+        self, account_id: str, resource: dict[str, Any], permissions: list[str]
     ) -> None:
-        """Deixa a conta com exatamente `roles` no recurso."""
+        """Deixa a conta com exatamente `permissions` no recurso."""
         await self._connection.call(
             "POST",
             f"{PERMISSION_SERVICE}/UpdateAdministrator",
-            {"userId": account_id, "resource": resource, "roles": roles},
+            {"userId": account_id, "resource": resource, "roles": permissions},
         )

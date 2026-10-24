@@ -1,4 +1,4 @@
-"""Driver de escrita da autorização (roles) nos projetos de roles do Zitadel (decisões 0032 e 0033).
+"""Driver de escrita da autorização (permissões) nos projetos do Zitadel (decisões 0032 e 0033).
 
 API v2 de autorizações, na organização `register`. Operações idempotentes: repetir uma concessão
 já feita é sucesso, e revogar algo que não existe também. O driver não decide o que conceder: isso
@@ -15,8 +15,8 @@ AUTHORIZATION_SERVICE = "/zitadel.authorization.v2.AuthorizationService"
 ALREADY_EXISTING_AUTHORIZATION_ID = "V3-DKcYh"  # autorização já existe (Zitadel v4.19.4)
 
 
-def module_of(role: str) -> str:
-    return role.split(".", 1)[0]
+def module_of(permission: str) -> str:
+    return permission.split(".", 1)[0]
 
 
 class AuthorizationDriver:
@@ -24,12 +24,14 @@ class AuthorizationDriver:
         self._connection = connection
         self._settings = settings
 
-    def project_of(self, role: str) -> str:
-        """Projeto de roles do módulo da role. Módulo sem projeto configurado: recusa explícita."""
-        project_id = self._settings.project_ids.get(module_of(role))
+    def project_of(self, permission: str) -> str:
+        """Projeto do módulo da permissão. Módulo sem projeto configurado: recusa explícita."""
+        project_id = self._settings.project_ids.get(module_of(permission))
         if project_id is None:
             raise ProviderError(
-                "Rejected", retryable=False, detail=f"no roles project for module {module_of(role)}"
+                "Rejected",
+                retryable=False,
+                detail=f"no roles project for module {module_of(permission)}",
             )
         return project_id
 
@@ -51,7 +53,7 @@ class AuthorizationDriver:
             Grant(
                 grant_id=str(item["id"]),
                 project_id=str(cast("dict[str, Any]", item["project"])["id"]),
-                roles=frozenset(
+                permissions=frozenset(
                     str(cast("dict[str, Any]", role)["key"])
                     for role in cast("list[Any]", item.get("roles") or [])
                 ),
@@ -60,7 +62,7 @@ class AuthorizationDriver:
             if str(cast("dict[str, Any]", item["project"])["id"]) in configured
         ]
 
-    async def create_grant(self, user_id: str, project_id: str, roles: list[str]) -> None:
+    async def create_grant(self, user_id: str, project_id: str, permissions: list[str]) -> None:
         try:
             await self._connection.call(
                 "POST",
@@ -69,7 +71,7 @@ class AuthorizationDriver:
                     "userId": user_id,
                     "projectId": project_id,
                     "organizationId": self._settings.register_organization_id,
-                    "roleKeys": roles,
+                    "roleKeys": permissions,
                 },
             )
         except ProviderError as error:
@@ -77,12 +79,12 @@ class AuthorizationDriver:
                 return
             raise
 
-    async def update_grant(self, grant_id: str, roles: list[str]) -> None:
-        """Substitui a lista de roles da autorização."""
+    async def update_grant(self, grant_id: str, permissions: list[str]) -> None:
+        """Substitui a lista de permissões da autorização."""
         await self._connection.call(
             "POST",
             f"{AUTHORIZATION_SERVICE}/UpdateAuthorization",
-            {"id": grant_id, "roleKeys": roles},
+            {"id": grant_id, "roleKeys": permissions},
         )
 
     async def remove_grant(self, grant_id: str) -> None:

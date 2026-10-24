@@ -147,7 +147,7 @@
 <div class="mx-auto max-w-7xl space-y-6">
 	<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
 		<div>
-			<span class="text-xs font-semibold uppercase text-emerald-700"> Identidade (IPM) </span>
+			<span class="text-xs font-semibold uppercase text-brand-700"> Identidade (IPM) </span>
 			<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Organizações</h1>
 			<p class="mt-1 text-xs text-slate-600">
 				Gerencie as organizações da sua conta na plataforma.
@@ -189,7 +189,7 @@
 					bind:value={newOrgDisplayName}
 					placeholder="ex: Smarkee IT Solutions"
 					data-testid="create-org-name-input"
-					class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none"
+					class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-brand-600 focus:outline-none"
 				/>
 				<p class="mt-1 text-[11px] text-slate-500">
 					Nome legível exibido no console, cabeçalhos e relatórios.
@@ -206,7 +206,7 @@
 						<button
 							type="button"
 							onclick={handleResetSlug}
-							class="text-[10px] font-medium text-emerald-700 hover:underline"
+							class="text-[10px] font-medium text-brand-700 hover:underline"
 						>
 							Gerar automaticamente
 						</button>
@@ -222,7 +222,7 @@
 					}}
 					placeholder="ex: smarkee-it-solutions"
 					data-testid="create-org-slug-input"
-					class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none"
+					class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs text-slate-900 placeholder:text-slate-400 focus:border-brand-600 focus:outline-none"
 				/>
 				<p class="mt-1 text-[11px] text-slate-500">
 					Identificador único em URLs e comandos CLI (apenas letras minúsculas e hífens).
@@ -237,7 +237,7 @@
 				<input
 					type="checkbox"
 					bind:checked={deletionProtection}
-					class="h-4 w-4 rounded border-slate-300 text-emerald-600"
+					class="h-4 w-4 rounded border-slate-300 text-brand-600"
 				/>
 				<span>Proteção contra exclusão</span>
 			</label>
@@ -246,7 +246,7 @@
 				type="submit"
 				disabled={isSubmitting || (!newOrgDisplayName.trim() && !newOrgSlug.trim())}
 				data-testid="create-org-submit-button"
-				class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+				class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50"
 			>
 				<Plus class="h-4 w-4" aria-hidden="true" />
 				<span>Criar Organização</span>
@@ -277,11 +277,11 @@
 						{@const demoMeta = consoleState.adapter.getOrganizationMetadataDemo(org.resourceId)}
 						<tr
 							data-testid="organization-table-row-{org.desired.name}"
-							class="transition hover:bg-slate-50/80 {isActive ? 'bg-emerald-50/30' : ''}"
+							class="transition hover:bg-slate-50/80 {isActive ? 'bg-brand-50/30' : ''}"
 						>
 							<td class="px-3.5 py-2.5">
 								<div class="flex items-center gap-2">
-									<Building2 class="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+									<Building2 class="h-4 w-4 shrink-0 text-brand-700" aria-hidden="true" />
 									<div>
 										<div class="font-bold text-slate-900">{demoMeta.displayName}</div>
 										<div class="font-mono text-[10px] text-slate-500">
@@ -297,9 +297,7 @@
 								<StatusBadge phase={org.phase} size="sm" />
 							</td>
 							<td class="px-2.5 py-2.5 whitespace-nowrap">
-								<span
-									class="inline-flex items-center gap-1 font-medium text-[11px] text-emerald-700"
-								>
+								<span class="inline-flex items-center gap-1 font-medium text-[11px] text-brand-700">
 									<ShieldCheck class="h-3.5 w-3.5" aria-hidden="true" />
 									{org.desired.platformAccess === 'granted' ? 'Liberado' : 'Bloqueado'}
 								</span>
@@ -307,7 +305,7 @@
 							<td class="px-2.5 py-2.5 text-[11px] whitespace-nowrap">
 								{#if org.desired.deletionProtection !== false}
 									<span class="inline-flex items-center gap-1 text-slate-600">
-										<Lock class="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+										<Lock class="h-3.5 w-3.5 text-brand-700" aria-hidden="true" />
 										Protegida
 									</span>
 								{:else}
@@ -320,7 +318,7 @@
 							<td class="px-2.5 py-2.5 text-center whitespace-nowrap">
 								{#if isActive}
 									<span
-										class="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900"
+										class="inline-flex items-center gap-1 rounded-lg bg-brand-100 px-2 py-0.5 text-[11px] font-semibold text-brand-900"
 									>
 										<Check class="h-3 w-3" aria-hidden="true" />
 										Ativa
@@ -329,7 +327,7 @@
 									<button
 										type="button"
 										onclick={() => consoleState.selectOrganization(org.resourceId)}
-										class="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-800"
+										class="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:border-brand-300 hover:text-brand-800"
 									>
 										Selecionar
 									</button>
@@ -341,7 +339,7 @@
 										type="button"
 										onclick={() => startEditOrg(org)}
 										title="Editar Organização"
-										class="rounded-lg border border-slate-200 bg-white p-1 text-slate-500 hover:text-emerald-700"
+										class="rounded-lg border border-slate-200 bg-white p-1 text-slate-500 hover:text-brand-700"
 									>
 										<Pencil class="h-3.5 w-3.5" aria-hidden="true" />
 									</button>
@@ -352,10 +350,10 @@
 										title={org.desired.deletionProtection !== false
 											? 'Desativar Proteção'
 											: 'Ativar Proteção'}
-										class="rounded-lg border border-slate-200 bg-white p-1 text-slate-500 hover:text-emerald-700"
+										class="rounded-lg border border-slate-200 bg-white p-1 text-slate-500 hover:text-brand-700"
 									>
 										{#if org.desired.deletionProtection !== false}
-											<Lock class="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+											<Lock class="h-3.5 w-3.5 text-brand-700" aria-hidden="true" />
 										{:else}
 											<LockOpen class="h-3.5 w-3.5" aria-hidden="true" />
 										{/if}
@@ -436,7 +434,7 @@
 							required
 							bind:value={editOrgDisplayName}
 							placeholder="ex: Smarkee IT Solutions"
-							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-emerald-600 focus:outline-none"
+							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-brand-600 focus:outline-none"
 						/>
 					</div>
 
@@ -450,7 +448,7 @@
 							required
 							bind:value={editOrgSlug}
 							placeholder="ex: smarkee-it-solutions"
-							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs text-slate-900 focus:border-emerald-600 focus:outline-none"
+							class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs text-slate-900 focus:border-brand-600 focus:outline-none"
 						/>
 						<p class="mt-1 text-[11px] text-amber-700">
 							Atenção: alterar o identificador único pode quebrar URLs e integrações existentes.
@@ -469,7 +467,7 @@
 					<button
 						type="submit"
 						disabled={isUpdatingOrg || (!editOrgDisplayName.trim() && !editOrgSlug.trim())}
-						class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+						class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50"
 					>
 						Salvar Alterações
 					</button>

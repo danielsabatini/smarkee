@@ -34,7 +34,7 @@
 
 <div class="mx-auto max-w-7xl space-y-6">
 	<div>
-		<span class="text-xs font-semibold text-emerald-700 uppercase"> Serviços (SUM) </span>
+		<span class="text-xs font-semibold text-brand-700 uppercase"> Serviços (SUM) </span>
 		<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Catálogo de Serviços</h1>
 		<p class="mt-1 text-xs text-slate-600">
 			Habilite os serviços disponíveis para utilizar os módulos na plataforma.
@@ -51,7 +51,7 @@
 					<div class="flex items-start justify-between gap-2">
 						<div class="flex items-center gap-2.5">
 							<div
-								class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"
+								class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-700"
 							>
 								<ShieldCheck class="h-5 w-5" aria-hidden="true" />
 							</div>
@@ -77,8 +77,8 @@
 
 				<div class="mt-5 flex items-center justify-between border-t border-slate-100 pt-3">
 					{#if enabled}
-						<span class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-							<CheckCircle2 class="h-4 w-4 text-emerald-600" aria-hidden="true" />
+						<span class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700">
+							<CheckCircle2 class="h-4 w-4 text-brand-600" aria-hidden="true" />
 							<span>Serviço Habilitado</span>
 						</span>
 					{:else}
@@ -99,7 +99,7 @@
 							<button
 								type="button"
 								onclick={() => consoleState.enableService({ service: item.serviceKey })}
-								class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
+								class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700"
 							>
 								<Play class="h-3.5 w-3.5" aria-hidden="true" />
 								<span>Habilitar</span>

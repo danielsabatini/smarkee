@@ -107,7 +107,7 @@ class Reconciler:
             generation=generation,
             lifecycle=str(data.get("lifecycle", "present")),
             reconciliation=str(data.get("reconciliation", "active")),
-            roles=_roles(data.get("roles")) or frozenset(),
+            permissions=_permissions(data.get("permissions")) or frozenset(),
             requested_by=envelope.requested_by,
             correlation_id=envelope.correlation_id,
             traceparent=current_traceparent(),
@@ -132,7 +132,7 @@ class Reconciler:
             presence=envelope.presence.value,
             observed_at=envelope.observed_at,
             causation_id=envelope.causation_id,
-            roles=_roles(data.get("roles")),
+            permissions=_permissions(data.get("permissions")),
             deletion_protection=protection if isinstance(protection, bool) else None,
         )
         if (
@@ -279,11 +279,11 @@ class Reconciler:
         )
 
 
-def _roles(value: object) -> frozenset[str] | None:
-    """Roles da mensagem; `None` quando o campo não é uma lista (observação sem o dado)."""
+def _permissions(value: object) -> frozenset[str] | None:
+    """Permissões da mensagem; `None` quando o campo não é uma lista (observação sem o dado)."""
     if not isinstance(value, list):
         return None
-    return frozenset(str(role) for role in cast("list[object]", value))
+    return frozenset(str(permission) for permission in cast("list[object]", value))
 
 
 async def periodic_reevaluation(

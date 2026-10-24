@@ -3,7 +3,7 @@
 A Organization não lê o banco do User nem usa credencial própria nele. Pergunta ao Receiver do
 User:
 
-- de que Organization o solicitante é usuário (o próprio registro, que todo usuário lê sem role);
+- de que Organization o solicitante é usuário (o próprio registro, lido sem permissão adicional);
 - se a Organization ainda tem usuários, antes de removê-la (decisão 0077: só vazia).
 
 Qualquer resposta fora do contrato vira `UsersCheckError`: na dúvida, o pedido não segue.

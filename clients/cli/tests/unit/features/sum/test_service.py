@@ -48,7 +48,7 @@ def link(**changes: object) -> dict[str, Any]:
         "resourceVersion": "3",
         "phase": "Ready",
         "desired": {"service": "ipm", "lifecycle": "present"},
-        "observed": {"serviceRoles": ["ipm.organization.get"]},
+        "observed": {"servicePermissions": ["ipm.organization.get"]},
     }
     document.update(changes)
     return document
@@ -185,7 +185,7 @@ def test_an_operation_without_a_reason_has_none(monkeypatch: pytest.MonkeyPatch)
 # ---------------------------------------------------------------------- respostas
 
 
-def test_a_link_is_read_with_its_observed_roles(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_link_is_read_with_its_observed_permissions(monkeypatch: pytest.MonkeyPatch) -> None:
     serve(monkeypatch, link())
     found = service.get_service(API, token="t", resource_id=RID, allow_insecure_http=False)
     assert (found.resource_version, found.phase, found.service, found.lifecycle) == (
@@ -194,16 +194,16 @@ def test_a_link_is_read_with_its_observed_roles(monkeypatch: pytest.MonkeyPatch)
         "ipm",
         "present",
     )
-    assert found.observed_roles == ("ipm.organization.get",)
+    assert found.observed_permissions == ("ipm.organization.get",)
 
 
 @pytest.mark.parametrize("observed", [None, {}])
-def test_a_link_not_yet_observed_has_no_roles(
+def test_a_link_not_yet_observed_has_no_permissions(
     monkeypatch: pytest.MonkeyPatch, observed: object
 ) -> None:
     serve(monkeypatch, link(observed=observed))
     found = service.get_service(API, token="t", resource_id=RID, allow_insecure_http=False)
-    assert found.observed_roles == ()
+    assert found.observed_permissions == ()
 
 
 @pytest.mark.parametrize("missing", ["resourceId", "resourceVersion", "phase", "desired"])
@@ -226,9 +226,11 @@ def test_a_response_that_is_not_an_object_is_a_contract_failure(
         service.get_service(API, token="t", resource_id=RID, allow_insecure_http=False)
 
 
-def test_invalid_service_roles_are_a_contract_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    serve(monkeypatch, link(observed={"serviceRoles": "x"}))
-    with pytest.raises(ApiUnavailableError, match="serviceRoles"):
+def test_invalid_service_permissions_are_a_contract_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    serve(monkeypatch, link(observed={"servicePermissions": "x"}))
+    with pytest.raises(ApiUnavailableError, match="servicePermissions"):
         service.get_service(API, token="t", resource_id=RID, allow_insecure_http=False)
 
 

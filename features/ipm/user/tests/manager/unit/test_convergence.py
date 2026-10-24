@@ -13,7 +13,7 @@ DESIRED_PRESENT: dict[str, Any] = {
     "givenName": "Bia",
     "familyName": "Lima",
     "email": "bia.lima@example.com",
-    "roles": ["ipm.user.get"],
+    "permissions": ["ipm.user.get"],
     "deletionProtection": False,
 }
 
@@ -36,7 +36,7 @@ def observe(
         observed={
             "emailVerified": True,
             "userState": "active",
-            "roles": ["ipm.user.get"],
+            "permissions": ["ipm.user.get"],
             "deletionProtection": False,
         },
         previous_phase=phase,
@@ -52,13 +52,13 @@ def test_present_and_matching_converges_to_ready() -> None:
 
 
 def test_present_but_different_keeps_reconciling() -> None:
-    desired = {**DESIRED_PRESENT, "roles": ["ipm.user.get", "ipm.user.list"]}
+    desired = {**DESIRED_PRESENT, "permissions": ["ipm.user.get", "ipm.user.list"]}
     decision = observe("present", desired=desired, lifecycle="present")
     assert not decision.converged and decision.phase == "Reconciling"
 
 
 def test_failed_phase_is_kept_while_not_converged() -> None:
-    desired = {**DESIRED_PRESENT, "roles": ["ipm.user.get", "ipm.user.list"]}
+    desired = {**DESIRED_PRESENT, "permissions": ["ipm.user.get", "ipm.user.list"]}
     decision = observe("present", desired=desired, lifecycle="present", phase="Failed")
     assert decision.phase == "Failed" and decision.conditions[0]["reason"] == "Failed"
 
@@ -111,8 +111,8 @@ def test_already_suspended_does_not_suspend_again() -> None:
     assert not result(failed=True, count=9, reconciliation="suspended").suspend
 
 
-def test_missing_roles_keep_reconciling() -> None:
-    desired: dict[str, Any] = {**DESIRED_PRESENT, "roles": []}
+def test_missing_permissions_keep_reconciling() -> None:
+    desired: dict[str, Any] = {**DESIRED_PRESENT, "permissions": []}
     decision = observe("present", desired=desired, lifecycle="present")
     assert not decision.converged and decision.phase == "Reconciling"
 

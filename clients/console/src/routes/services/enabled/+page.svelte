@@ -14,7 +14,7 @@
 
 <div class="mx-auto max-w-7xl space-y-6">
 	<div>
-		<span class="text-xs font-semibold text-emerald-700 uppercase"> Serviços (SUM) </span>
+		<span class="text-xs font-semibold text-brand-700 uppercase"> Serviços (SUM) </span>
 		<h1 class="mt-0.5 text-2xl font-bold text-slate-900">Serviços Habilitados</h1>
 		<p class="mt-1 text-xs text-slate-600">
 			Serviços ativos e configurados para sua conta na plataforma.
@@ -49,7 +49,7 @@
 							>
 								<td class="px-4 py-3">
 									<div class="flex items-center gap-2">
-										<ShieldCheck class="h-4 w-4 text-emerald-700" aria-hidden="true" />
+										<ShieldCheck class="h-4 w-4 text-brand-700" aria-hidden="true" />
 										<span class="font-mono font-bold text-slate-900 uppercase">
 											{svc.desired.service}
 										</span>
@@ -82,7 +82,7 @@
 										<button
 											type="button"
 											onclick={() => consoleState.enableService({ service: svc.desired.service })}
-											class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-700"
+											class="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-brand-700"
 										>
 											<Play class="h-3 w-3" aria-hidden="true" />
 											<span>Habilitar</span>

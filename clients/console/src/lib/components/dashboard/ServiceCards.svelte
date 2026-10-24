@@ -39,7 +39,7 @@
 
 		<a
 			href="/services/catalog"
-			class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+			class="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800"
 		>
 			<span>Ver todos os serviços</span>
 			<ArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
@@ -52,7 +52,7 @@
 			<a
 				href={service.href}
 				data-testid="service-card-{service.code}"
-				class="group relative flex h-full flex-col justify-between rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs transition hover:border-emerald-300 hover:shadow-sm"
+				class="group relative flex h-full flex-col justify-between rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs transition hover:border-brand-300 hover:shadow-sm"
 			>
 				{#if service.isDemo}
 					<div class="absolute right-1.5 bottom-1.5">
@@ -62,7 +62,7 @@
 
 				<div class="flex items-start gap-2.5">
 					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 transition group-hover:bg-emerald-100"
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700 transition group-hover:bg-brand-100"
 					>
 						{@render moduleIcon(service.code)}
 					</div>
@@ -89,9 +89,9 @@
 				<div class="mt-3 flex items-center">
 					{#if enabled || service.isDemo}
 						<span
-							class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800"
+							class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-800"
 						>
-							<CheckCircle2 class="h-3 w-3 text-emerald-600" aria-hidden="true" />
+							<CheckCircle2 class="h-3 w-3 text-brand-600" aria-hidden="true" />
 							<span>Habilitado</span>
 						</span>
 					{:else}

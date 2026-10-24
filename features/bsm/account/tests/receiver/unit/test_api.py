@@ -18,7 +18,7 @@ from bsm_account.receiver.http.app import Dependencies, create_app
 from bsm_account.receiver.settings import ApiSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
-USER_ROLES = frozenset(
+USER_PERMISSIONS = frozenset(
     {
         "bsm.account.create",
         "bsm.account.get",
@@ -27,17 +27,17 @@ USER_ROLES = frozenset(
         "bsm.account.delete",
     }
 )
-OPERATOR_ROLES = USER_ROLES | {"bsm.account.admin"}
+OPERATOR_PERMISSIONS = USER_PERMISSIONS | {"bsm.account.admin"}
 
 
-def principal(subject: str, roles: frozenset[str]) -> Principal:
-    return Principal(subject=subject, roles=roles, access_token=f"token-{subject}")
+def principal(subject: str, permissions: frozenset[str]) -> Principal:
+    return Principal(subject=subject, permissions=permissions, access_token=f"token-{subject}")
 
 
 PRINCIPALS = {
-    "ana": principal("ana", USER_ROLES),
-    "bia": principal("bia", USER_ROLES),
-    "admin": principal("admin", OPERATOR_ROLES),
+    "ana": principal("ana", USER_PERMISSIONS),
+    "bia": principal("bia", USER_PERMISSIONS),
+    "admin": principal("admin", OPERATOR_PERMISSIONS),
     "norole": principal("norole", frozenset()),
 }
 

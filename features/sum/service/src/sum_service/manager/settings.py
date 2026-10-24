@@ -18,8 +18,8 @@ from sum_service.common.settings import (
 
 
 class CatalogSettings(Section):
-    roles: str | None = None
-    """Catálogo serviço → roles em JSON, por exemplo `{"ipm": ["ipm.organization.get"]}`.
+    permissions: str | None = None
+    """Catálogo serviço → permissões em JSON, por exemplo `{"ipm": ["ipm.organization.get"]}`.
     Sem default: o Manager não sobe sem um catálogo (decisão 0033)."""
 
 
@@ -56,6 +56,6 @@ def missing_required(settings: SumServiceManagerSettings) -> list[str]:
             "DATABASE_NAME": settings.database.name is not None,
             "DATABASE_USER": settings.database.user is not None,
             "DATABASE_PASSWORD": settings.database.password is not None,
-            "CATALOG_ROLES": bool(settings.catalog.roles),
+            "CATALOG_PERMISSIONS": bool(settings.catalog.permissions),
         },
     )

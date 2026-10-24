@@ -34,14 +34,14 @@ Os seis papéis são **um projeto e uma imagem** (`.decisions/0063`), cada um ro
 
 ## 3.1 Receiver (`core-account-receiver`)
 
-Porta de entrada HTTP. Autentica o token (JWKS do Zitadel), autoriza pela role da ação, valida o corpo (modo estrito), gera `resourceId` (UUIDv7), `operationId` e `requestDigest` e **publica `requested`**. Responde `202 Accepted`. Lê o SSOT só pelas views `user_v1` e `user_operation_v1`. Não escreve no SSOT nem no Zitadel.
+Porta de entrada HTTP. Autentica o token (JWKS do Zitadel), autoriza pela permissão da ação, valida o corpo (modo estrito), gera `resourceId` (UUIDv7), `operationId` e `requestDigest` e **publica `requested`**. Responde `202 Accepted`. Lê o SSOT só pelas views `user_v1` e `user_operation_v1`. Não escreve no SSOT nem no Zitadel.
 
 | Rota | Efeito | Quem | Respostas |
 |---|---|---|---|
 | `POST /v1/core/accounts` | Auto-cadastro (**anônimo**) | Qualquer pessoa | `202` uniforme, `400`, `429` (com `Retry-After`), `503` (com `Retry-After`) |
-| `GET /v1/core/accounts/{id}` | Lê o usuário | O próprio usuário ou `core.account.admin`, role `core.account.get` | `200`, `401`, `403`, `404` |
-| `PATCH /v1/core/accounts/{id}` | Liga ou desliga a proteção contra exclusão (corpo `{resourceVersion, deletionProtection}`; cabeçalho opcional `Idempotency-Key`). Percorre o loop como qualquer alteração e conclui quando a observação confirma a nova geração (decisões 0043 e 0072) | O próprio usuário ou `core.account.admin`, role `core.account.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422`, `503` |
-| `DELETE /v1/core/accounts/{id}?resourceVersion=` | Remove (cabeçalho opcional `Idempotency-Key`); a conta **nasce protegida**: recusa com `409 DeletionProtected` até desproteger (decisão 0043); depois, **recusa com `409` enquanto a conta tiver Organizations ou serviços habilitados** (decisão 0040) | O próprio usuário ou `core.account.admin`, role `core.account.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422` (`Idempotency-Key` reutilizada com outro conteúdo), `503` |
+| `GET /v1/core/accounts/{id}` | Lê o usuário | O próprio usuário ou `core.account.admin`, permissão `core.account.get` | `200`, `401`, `403`, `404` |
+| `PATCH /v1/core/accounts/{id}` | Liga ou desliga a proteção contra exclusão (corpo `{resourceVersion, deletionProtection}`; cabeçalho opcional `Idempotency-Key`). Percorre o loop como qualquer alteração e conclui quando a observação confirma a nova geração (decisões 0043 e 0072) | O próprio usuário ou `core.account.admin`, permissão `core.account.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422`, `503` |
+| `DELETE /v1/core/accounts/{id}?resourceVersion=` | Remove (cabeçalho opcional `Idempotency-Key`); a conta **nasce protegida**: recusa com `409 DeletionProtected` até desproteger (decisão 0043); depois, **recusa com `409` enquanto a conta tiver Organizations ou serviços habilitados** (decisão 0040) | O próprio usuário ou `core.account.admin`, permissão `core.account.delete` | `202`, `400`, `401`, `403`, `404`, `409`, `422` (`Idempotency-Key` reutilizada com outro conteúdo), `503` |
 | `GET /v1/core/accounts/{id}/operations/{operationId}` | Acompanha a Operation | Solicitante ou `core.account.admin` (a do cadastro anônimo só operadores) | `200`, `401`, `404` |
 
 Não há listagem (`GET /v1/core/accounts`). O único `update` da Account é o `PATCH` da proteção contra exclusão (decisões 0014 e 0043). O contrato descritivo é [`openapi.json`](openapi.json). Erros: `{errorCode, message, field?}` (`schemas/common/api-error`; códigos `ValidationFailed`, `Unauthorized`, `Forbidden`, `NotFound`, `Conflict`, `RateLimited`, `IdempotencyKeyReused`, `ServiceUnavailable` e `InternalError`), sem repetir valores enviados. Um usuário que não é o dono recebe `404`, e não `403`, para não revelar a existência.
@@ -62,23 +62,23 @@ Publica no NATS, em ordem e de forma sequencial, as mensagens que o Manager grav
 
 ## 3.4 Reconciler (`core-account-reconciler`)
 
-Compara o último `desired` e o último `observed` de cada usuário (campos gerenciados: `lifecycle`, `platformAccess`, `platformRoles` e `deletionProtection`) e decide `create`, `update` ou `delete`. Não executa e **não acessa o SSOT**: o estado é um cache em memória reconstruído da mensageria (consumers de estado por instância, `DeliverLastPerSubject`). Não decide com `observed` `unknown` ou antigo (10 min; 5 min para `delete`), com `desired` suspenso, nem enquanto há ação pendente (prazo de 2 min); espera a observação causada por cada resultado e aplica *backoff* após falha (5 s, dobrando até 300 s).
+Compara o último `desired` e o último `observed` de cada usuário (campos gerenciados: `lifecycle`, `platformAccess`, `platformPermissions` e `deletionProtection`) e decide `create`, `update` ou `delete`. Não executa e **não acessa o SSOT**: o estado é um cache em memória reconstruído da mensageria (consumers de estado por instância, `DeliverLastPerSubject`). Não decide com `observed` `unknown` ou antigo (10 min; 5 min para `delete`), com `desired` suspenso, nem enquanto há ação pendente (prazo de 2 min); espera a observação causada por cada resultado e aplica *backoff* após falha (5 s, dobrando até 300 s).
 
 ## 3.5 Observer (`core-account-observer`)
 
 Lê o Zitadel (conta de serviço **somente leitura**, `ORG_OWNER_VIEWER`) e publica `observed`:
 
 - `absent` **só** com 404 inequívoco do usuário exato (código 5 com detalhe do erro); qualquer outra falha (timeout, 5xx, 401/403, 429, corpo inesperado) é `unknown`;
-- `present` com `emailVerified`, `accountState` (`initial` até a senha ser definida) `platformAccess` (`granted` quando há ao menos uma role no projeto), `platformRoles` (as roles que o usuário tem no projeto) e `deletionProtection` (o metadado de mesmo nome do usuário, decisão 0074; ausente quando não há metadado válido).
+- `present` com `emailVerified`, `accountState` (`initial` até a senha ser definida) `platformAccess` (`granted` quando há ao menos uma permissão no projeto), `platformPermissions` (as permissões que o usuário tem no projeto) e `deletionProtection` (o metadado de mesmo nome do usuário, decisão 0074; ausente quando não há metadado válido).
 
 Observa quando o `desired` é novo, depois de cada `completed`/`failed` (com `causationId` do resultado) e periodicamente (5 min, com jitter), só os recursos da sua partição (`hash(resourceId) mod count`).
 
 ## 3.6 Executor (`core-account-executor`)
 
-A **única identidade com escrita no Zitadel** (conta `core-account-executor`: `ORG_USER_CREATOR` na organização `register` e `PROJECT_GRANT_OWNER` nos Grants dos módulos `core` e `sum`; cada role vai para o projeto do seu módulo, decisão 0032). Para cada `action`: revalida contra o `desired` vigente (geração, operação coerente, reconciliação ativa), consulta o desfecho já registrado do `actionId` e só então executa:
+A **única identidade com escrita no Zitadel** (conta `core-account-executor`: `ORG_USER_CREATOR` na organização `register` e `PROJECT_GRANT_OWNER` nos Grants dos módulos `core` e `sum`; cada permissão vai para o projeto do seu módulo, decisão 0032). Para cada `action`: revalida contra o `desired` vigente (geração, operação coerente, reconciliação ativa), consulta o desfecho já registrado do `actionId` e só então executa:
 
-- `create`: `POST /v2/users/human` **sem senha**, com `userId = resourceId` (o `sub` do token será o `resourceId`); o Zitadel envia o e-mail "Verificar e-mail", cuja página também define a senha (um e-mail só, decisão da jornada de 2026-10-16); por fim concede no projeto `roles` as roles de `desired.platformRoles` (o Executor não tem lista própria). Cada passo é idempotente (repetição confere o dono do ID pelo e-mail).
-- `update`: garante (ou remove, se `revoked`) as roles do projeto.
+- `create`: `POST /v2/users/human` **sem senha**, com `userId = resourceId` (o `sub` do token será o `resourceId`); o Zitadel envia o e-mail "Verificar e-mail", cuja página também define a senha (um e-mail só, decisão da jornada de 2026-10-16); por fim concede nos projetos de permissões as permissões de `desired.platformPermissions` (o Executor não tem lista própria). Cada passo é idempotente (repetição confere o dono do ID pelo e-mail).
+- `update`: garante (ou remove, se `revoked`) as permissões do projeto.
 - `delete`: remove o usuário (ausente é sucesso).
 
 Publica `completed` ou `failed {reason, retryable}`. O retry é do Reconciler. Consome `ACTION` em 4 partições por `resourceId` (um laço e um consumer por partição, `max_ack_pending = 1`): uma `action` por vez em cada recurso, até 4 recursos em paralelo.
@@ -234,7 +234,7 @@ Consumers: Manager `core-account-manager-{requested,observed,result}` (duráveis
 
 Em [`schemas/core/account/`](../../../schemas/core/account/) (JSON Schema 2020-12, com exemplos): `desired`, `observed`, `requested-create`, `requested-delete`, `api-create-request`, `resource`; e, em `schemas/common/`, envelope, `action`, `completed`, `failed`, `updated`, `operation`, `api-error` e `api-accepted-response`. O índice usado para gerar os modelos é `schemas/core.account.index.json`.
 
-Campos da Account: `givenName`, `familyName` e `email` são `confidential` (nunca em log, mensagem de erro nem métrica) e **não existem** no `desired` de remoção. Campos gerenciados (comparados com o `observed`): `lifecycle`, `platformAccess` e `platformRoles` (as desejadas precisam estar contidas nas observadas; roles a mais não divergem). O conjunto de roles do cadastro vem da configuração do Manager (`CORE_ACCOUNT_MANAGER_PLATFORM_ROLES`) e fica registrado no SSOT ([decisão 0025](../../../.decisions/0025-roles-do-user-no-ssot.md)). A revogação de acesso de um usuário existente é privilégio de operador e ainda não está exposta. A política completa da exclusão da conta (dados residuais, Organizations do usuário, sessões e confirmação) ainda será definida (`ROADMAP.md`). Não há senha em nenhum contrato (`SCHEMA.md` §20.1).
+Campos da Account: `givenName`, `familyName` e `email` são `confidential` (nunca em log, mensagem de erro nem métrica) e **não existem** no `desired` de remoção. Campos gerenciados (comparados com o `observed`): `lifecycle`, `platformAccess` e `platformPermissions` (as desejadas precisam estar contidas nas observadas; permissões a mais não divergem). O conjunto de permissões do cadastro vem da configuração do Manager (`CORE_ACCOUNT_MANAGER_PLATFORM_PERMISSIONS`) e fica registrado no SSOT ([decisão 0025](../../../.decisions/0025-roles-do-user-no-ssot.md)). A revogação de acesso de um usuário existente é privilégio de operador e ainda não está exposta. A política completa da exclusão da conta (dados residuais, Organizations do usuário, sessões e confirmação) ainda será definida (`ROADMAP.md`). Não há senha em nenhum contrato (`SCHEMA.md` §20.1).
 
 # 8. Segurança e privacidade
 
@@ -262,7 +262,7 @@ Etapas de implantação (executam e terminam): `core-account-migrate` (migraçõ
 
 # 9. Configuração, execução e testes
 
-Variáveis de ambiente `CORE_ACCOUNT_<PAPEL>_<SEÇÃO>_<CAMPO>`, com `config.toml` por papel e senhas em `/run/secrets`. Todos os parâmetros de cada papel, a ordem de precedência (linha de comando → ambiente → `config.toml` → arquivos de segredo → default) e um exemplo de execução por papel estão em [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) (decisões 0067 e 0070). O `.env.example` lista as obrigatórias: senha do NATS (todos), senhas dos papéis do banco (Receiver, Manager, Publisher), `AUTH_AUDIENCE` (Receiver) e os IDs no Zitadel: a organização `register` (Observer e Executor) e os projetos de roles dos módulos (`PROJECT_IDS`, só no Executor).
+Variáveis de ambiente `CORE_ACCOUNT_<PAPEL>_<SEÇÃO>_<CAMPO>`, com `config.toml` por papel e senhas em `/run/secrets`. Todos os parâmetros de cada papel, a ordem de precedência (linha de comando → ambiente → `config.toml` → arquivos de segredo → default) e um exemplo de execução por papel estão em [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) (decisões 0067 e 0070). O `.env.example` lista as obrigatórias: senha do NATS (todos), senhas dos papéis do banco (Receiver, Manager, Publisher), `AUTH_AUDIENCE` (Receiver) e os IDs no Zitadel: a organização `register` (Observer e Executor) e os projetos de permissões dos módulos (`PROJECT_IDS`, só no Executor).
 
 ```bash
 # 1. Plataforma (banco, messaging, identidade, gateway, e-mail): infrastructure/dev
@@ -322,8 +322,8 @@ Views (a interface de leitura do Receiver, decisão 0004): `core.account_v1` (o 
 
 | Coluna | Conteúdo na Account |
 |---|---|
-| `desired` | `lifecycle`, `platformAccess`, `platformRoles` `deletionProtection` (nasce `true`) e, no `create`, `givenName`, `familyName` e `email` (normalizado). No `delete`, só `lifecycle = absent`, `platformAccess` e `platformRoles`: **sem dados pessoais** |
-| `observed` | `emailVerified`, `accountState` (`initial` até a senha ser definida), `platformAccess` e `platformRoles` |
+| `desired` | `lifecycle`, `platformAccess`, `platformPermissions` `deletionProtection` (nasce `true`) e, no `create`, `givenName`, `familyName` e `email` (normalizado). No `delete`, só `lifecycle = absent`, `platformAccess` e `platformPermissions`: **sem dados pessoais** |
+| `observed` | `emailVerified`, `accountState` (`initial` até a senha ser definida), `platformAccess` e `platformPermissions` |
 | `conditions` | Array com a condition `Ready` (`status`, `reason`, `observedGeneration`, `lastTransitionAt`) |
 | `user_outbox.payload` | O envelope completo da mensagem (`desired` ou `updated`), com `publishedAt` e `publishedBy` preenchidos pelo Publisher |
 

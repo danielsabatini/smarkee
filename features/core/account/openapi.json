@@ -166,12 +166,12 @@
           "platformAccess": {
             "$ref": "#/components/schemas/PlatformAccess"
           },
-          "platformRoles": {
+          "platformPermissions": {
             "items": {
-              "$ref": "#/components/schemas/PlatformRole"
+              "$ref": "#/components/schemas/PlatformPermission"
             },
             "maxItems": 64,
-            "title": "Platformroles",
+            "title": "Platformpermissions",
             "type": "array"
           },
           "reconciliation": {
@@ -182,7 +182,7 @@
           "lifecycle",
           "reconciliation",
           "platformAccess",
-          "platformRoles"
+          "platformPermissions"
         ],
         "title": "AccountDesiredView",
         "type": "object"
@@ -238,11 +238,11 @@
               }
             ]
           },
-          "platformRoles": {
+          "platformPermissions": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/PlatformRole"
+                  "$ref": "#/components/schemas/PlatformPermission"
                 },
                 "maxItems": 64,
                 "type": "array"
@@ -251,7 +251,7 @@
                 "type": "null"
               }
             ],
-            "title": "Platformroles"
+            "title": "Platformpermissions"
           },
           "presence": {
             "$ref": "#/components/schemas/Presence"
@@ -558,7 +558,7 @@
         "type": "string"
       },
       "PlatformAccess": {
-        "description": "Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, na Account); revoked a remove.",
+        "description": "Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de permissões de ação do usuário cadastrado, na Account); revoked a remove.",
         "enum": [
           "granted",
           "revoked"
@@ -566,11 +566,11 @@
         "title": "PlatformAccess",
         "type": "string"
       },
-      "PlatformRole": {
+      "PlatformPermission": {
         "maxLength": 128,
         "minLength": 5,
         "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$",
-        "title": "PlatformRole",
+        "title": "PlatformPermission",
         "type": "string"
       },
       "Presence": {
@@ -841,7 +841,7 @@
         "summary": "Get Account"
       },
       "patch": {
-        "description": "Única alteração possível: a proteção contra exclusão (decisão 0043).\n\nUsa a mesma role do `delete`: quem pode apagar a conta pode (des)proteger.",
+        "description": "Única alteração possível: a proteção contra exclusão (decisão 0043).\n\nUsa a mesma permissão do `delete`: quem pode apagar a conta pode (des)proteger.",
         "operationId": "update_account_v1_core_accounts__account_id__patch",
         "parameters": [
           {

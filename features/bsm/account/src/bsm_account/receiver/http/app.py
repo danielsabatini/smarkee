@@ -20,7 +20,7 @@ from bsm_account.common.contracts import generated
 from bsm_account.common.ids import new_identifier, utc_now
 from bsm_account.common.logging_config import bind_context
 from bsm_account.common.ports import Publisher
-from bsm_account.receiver.domain import principal as roles
+from bsm_account.receiver.domain import principal as permissions
 from bsm_account.receiver.domain.errors import (
     ApiError,
     bad_request,
@@ -150,8 +150,8 @@ def _contacts(items: list[generated.BillingContact]) -> list[str]:
 
 
 def _register_routes(app: FastAPI, deps: Dependencies) -> None:
-    def require(principal: Principal, role: str) -> None:
-        if not principal.has_role(role):
+    def require(principal: Principal, permission: str) -> None:
+        if not principal.has_permission(permission):
             raise forbidden()
 
     def is_owner(principal: Principal, record: ResourceRecord) -> bool:
@@ -185,7 +185,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         principal: Authenticated,
         idempotency_key: IdempotencyKey = None,
     ) -> generated.ApiAcceptedResponse:
-        require(principal, roles.ACCOUNT_CREATE)
+        require(principal, permissions.ACCOUNT_CREATE)
         if not principal.is_operator and not await deps.email_verifier.is_verified(principal):
             raise ApiError(
                 HTTPStatus.FORBIDDEN,
@@ -215,7 +215,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         response_model_exclude_none=True,
     )
     async def get_account(account_id: str, principal: Authenticated) -> generated.BillingAccount:
-        require(principal, roles.ACCOUNT_GET)
+        require(principal, permissions.ACCOUNT_GET)
         return account_view(await owned_account(principal, account_id))
 
     @app.get(
@@ -228,7 +228,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         limit: Annotated[int, Query(ge=1, le=MAXIMUM_PAGE_SIZE)] = DEFAULT_PAGE_SIZE,
         cursor: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9_-]{1,512}$")] = None,
     ) -> generated.BillingAccountList:
-        require(principal, roles.ACCOUNT_LIST)
+        require(principal, permissions.ACCOUNT_LIST)
         owner = None if principal.is_operator else principal.subject
         records = await deps.repository.list_accounts(owner=owner, after=cursor, limit=limit + 1)
         page = records[:limit]
@@ -253,7 +253,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         principal: Authenticated,
         idempotency_key: IdempotencyKey = None,
     ) -> generated.ApiAcceptedResponse:
-        require(principal, roles.ACCOUNT_UPDATE)
+        require(principal, permissions.ACCOUNT_UPDATE)
         record = await owned_account(principal, account_id)
         if not body.resource_version.isdigit():
             raise bad_request("resourceVersion deve ser numérico.", field="resourceVersion")
@@ -303,7 +303,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         resource_version: VersionQuery,
         idempotency_key: IdempotencyKey = None,
     ) -> generated.ApiAcceptedResponse:
-        require(principal, roles.ACCOUNT_DELETE)
+        require(principal, permissions.ACCOUNT_DELETE)
         record = await owned_account(principal, account_id)
         check_version(record, resource_version)
         if record.desired.get("deletionProtection", True) is not False:

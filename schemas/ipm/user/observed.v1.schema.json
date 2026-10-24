@@ -18,9 +18,9 @@
       "x-writer": "server",
       "x-sensitivity": "internal"
     },
-    "roles": {
-      "$ref": "definitions.v1.schema.json#/$defs/roles",
-      "description": "Roles que o usuário tem hoje na Organization, lidas das autorizações dele no provedor de identidade.",
+    "permissions": {
+      "$ref": "definitions.v1.schema.json#/$defs/permissions",
+      "description": "Permissões que o usuário tem hoje na Organization, lidas das autorizações dele no provedor de identidade.",
       "x-writer": "server",
       "x-sensitivity": "internal"
     },

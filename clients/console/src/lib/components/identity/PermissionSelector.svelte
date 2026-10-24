@@ -133,7 +133,7 @@
 				type="text"
 				bind:value={searchQuery}
 				placeholder="Filtrar por nome, código (ex: ipm.user) ou ação..."
-				class="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-7 text-xs text-slate-900 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none"
+				class="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-7 text-xs text-slate-900 placeholder:text-slate-400 focus:border-brand-600 focus:outline-none"
 			/>
 			{#if searchQuery}
 				<button
@@ -190,7 +190,7 @@
 			type="button"
 			onclick={() => (selectedCategory = 'organization')}
 			class="rounded-md px-2 py-0.5 font-medium transition {selectedCategory === 'organization'
-				? 'bg-emerald-700 text-white'
+				? 'bg-brand-700 text-white'
 				: 'bg-slate-100 text-slate-600 hover:bg-slate-200'}"
 		>
 			Organização <span class="ml-0.5 opacity-70">({organizationCount})</span>
@@ -199,7 +199,7 @@
 			type="button"
 			onclick={() => (selectedCategory = 'user')}
 			class="rounded-md px-2 py-0.5 font-medium transition {selectedCategory === 'user'
-				? 'bg-emerald-700 text-white'
+				? 'bg-brand-700 text-white'
 				: 'bg-slate-100 text-slate-600 hover:bg-slate-200'}"
 		>
 			Usuários <span class="ml-0.5 opacity-70">({userCount})</span>
@@ -210,8 +210,8 @@
 				onclick={() => (selectedCategory = selectedCategory === 'selected' ? 'all' : 'selected')}
 				class="rounded-md border px-2 py-0.5 font-semibold transition {selectedCategory ===
 				'selected'
-					? 'border-emerald-600 bg-emerald-600 text-white'
-					: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'}"
+					? 'border-brand-600 bg-brand-600 text-white'
+					: 'border-brand-200 bg-brand-50 text-brand-800 hover:bg-brand-100'}"
 			>
 				✓ Apenas Selecionadas <span class="ml-0.5 opacity-90">({selectedCount})</span>
 			</button>
@@ -231,20 +231,20 @@
 					<!-- Linha compacta clicável -->
 					<label
 						class="flex cursor-pointer items-center gap-3 px-3 py-2 text-xs transition select-none {isChecked
-							? 'bg-emerald-50/60 hover:bg-emerald-50'
+							? 'bg-brand-50/60 hover:bg-brand-50'
 							: 'hover:bg-slate-50'}"
 					>
 						<input
 							type="checkbox"
 							checked={isChecked}
 							onchange={() => toggleRole(item.role)}
-							class="h-4 w-4 shrink-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+							class="h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
 						/>
 
 						<!-- Código da Permissão -->
 						<span
 							class="shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] transition {isChecked
-								? 'border-emerald-300 bg-emerald-100/70 font-semibold text-emerald-900'
+								? 'border-brand-300 bg-brand-100/70 font-semibold text-brand-900'
 								: 'border-slate-200 bg-slate-100 text-slate-700'}"
 						>
 							{item.role}
@@ -269,7 +269,7 @@
 		<span>
 			Mostrando {filteredRoles.length} de {ROLE_DEFINITIONS.length} permissões disponíveis
 		</span>
-		<span class="font-medium {selectedRoles.length > 0 ? 'text-emerald-700' : 'text-slate-500'}">
+		<span class="font-medium {selectedRoles.length > 0 ? 'text-brand-700' : 'text-slate-500'}">
 			{selectedRoles.length} selecionada{selectedRoles.length === 1 ? '' : 's'}
 		</span>
 	</div>

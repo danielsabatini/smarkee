@@ -70,7 +70,7 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
         monkeypatch.setattr(module, "role_runtime", fake_role_runtime)
     for role in ("MANAGER", "OBSERVER", "EXECUTOR", "RECONCILER", "PUBLISHER", "RECEIVER"):
         monkeypatch.setenv(f"SUM_SERVICE_{role}_MESSAGING_PASSWORD", "x")
-    monkeypatch.setenv("SUM_SERVICE_MANAGER_CATALOG_ROLES", CATALOG)
+    monkeypatch.setenv("SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS", CATALOG)
     return fake
 
 
@@ -164,7 +164,7 @@ async def test_the_receiver_serves_http_and_leaves_the_probes_to_the_app(
 
 
 def test_an_invalid_catalog_is_a_configuration_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SUM_SERVICE_MANAGER_CATALOG_ROLES", "not json")
+    monkeypatch.setenv("SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS", "not json")
     settings = manager_main.SumServiceManagerSettings()
     with pytest.raises(InvalidConfigurationError):
         manager_main.validate(settings)

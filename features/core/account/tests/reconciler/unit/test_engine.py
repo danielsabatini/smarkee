@@ -83,7 +83,7 @@ def desired(
             "lifecycle": lifecycle,
             "reconciliation": reconciliation,
             "platformAccess": "granted",
-            "platformRoles": ["ipm.organization.get", "core.account.get"],
+            "platformPermissions": ["ipm.organization.get", "core.account.get"],
         },
     )
 
@@ -208,7 +208,7 @@ async def test_a_completed_result_waits_for_the_observation_it_caused(
             causation="res-1",
             data={
                 "platformAccess": "granted",
-                "platformRoles": ["ipm.organization.get", "core.account.get"],
+                "platformPermissions": ["ipm.organization.get", "core.account.get"],
                 "deletionProtection": True,
             },
         )

@@ -86,41 +86,45 @@ class FakeUserAccess:
     def _scope(resource: dict[str, Any]) -> str:
         return "grant" if "projectGrant" in resource else "organization"
 
-    async def grant_roles(self, organization_id: str) -> list[str] | None:
+    async def grant_permissions(self, organization_id: str) -> list[str] | None:
         return None if self.grant is None else sorted(self.grant)
 
-    async def create_grant(self, organization_id: str, roles: list[str]) -> bool:
+    async def create_grant(self, organization_id: str, permissions: list[str]) -> bool:
         if self.grant_created_elsewhere:
             self.grant = ["ipm.user.get"]
             return False  # 409: outra tentativa criou antes
-        self.writes.append(("create_grant", *roles))
-        self.grant = list(roles)
+        self.writes.append(("create_grant", *permissions))
+        self.grant = list(permissions)
         return True
 
-    async def update_grant(self, organization_id: str, roles: list[str]) -> None:
-        self.writes.append(("update_grant", *roles))
-        self.grant = list(roles)
+    async def update_grant(self, organization_id: str, permissions: list[str]) -> None:
+        self.writes.append(("update_grant", *permissions))
+        self.grant = list(permissions)
 
-    async def administrator_roles(
+    async def administrator_permissions(
         self, account_id: str, resource: dict[str, Any]
     ) -> frozenset[str] | None:
         return self.administrators.get((account_id, self._scope(resource)))
 
     async def create_administrator(
-        self, account_id: str, resource: dict[str, Any], roles: list[str]
+        self, account_id: str, resource: dict[str, Any], permissions: list[str]
     ) -> bool:
         key = (account_id, self._scope(resource))
         if key in self.administrators:
             return False
-        self.writes.append(("create_administrator", account_id, self._scope(resource), *roles))
-        self.administrators[key] = frozenset(roles)
+        self.writes.append(
+            ("create_administrator", account_id, self._scope(resource), *permissions)
+        )
+        self.administrators[key] = frozenset(permissions)
         return True
 
     async def update_administrator(
-        self, account_id: str, resource: dict[str, Any], roles: list[str]
+        self, account_id: str, resource: dict[str, Any], permissions: list[str]
     ) -> None:
-        self.writes.append(("update_administrator", account_id, self._scope(resource), *roles))
-        self.administrators[(account_id, self._scope(resource))] = frozenset(roles)
+        self.writes.append(
+            ("update_administrator", account_id, self._scope(resource), *permissions)
+        )
+        self.administrators[(account_id, self._scope(resource))] = frozenset(permissions)
 
 
 def drivers(
@@ -276,7 +280,7 @@ async def test_delete_does_not_write_metadata() -> None:
 
 CATALOG = ["ipm.organization.get", "ipm.user.create", "ipm.user.get"]
 USER_ACCESS = {
-    "grantRoles": CATALOG,
+    "grantPermissions": CATALOG,
     "userExecutorAccountId": "user-executor",
     "userObserverAccountId": "user-observer",
 }

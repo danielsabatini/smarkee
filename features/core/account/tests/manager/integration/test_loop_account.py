@@ -17,7 +17,7 @@ from support_manager import (
     unique_suffix,
 )
 
-from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES
+from core_account.manager.domain.account import DEFAULT_PLATFORM_PERMISSIONS
 from core_account.manager.domain.errors import PermanentMessageError
 from core_account.manager.domain.outcome import OutcomeKind
 from core_account.manager.handlers.observed import ObservedHandler
@@ -30,7 +30,7 @@ observed_handler = ObservedHandler()
 BASE_TIME = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
 GRANTED = {
     "platformAccess": "granted",
-    "platformRoles": list(DEFAULT_PLATFORM_ROLES),
+    "platformPermissions": list(DEFAULT_PLATFORM_PERMISSIONS),
     "deletionProtection": True,
 }
 

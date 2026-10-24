@@ -17,7 +17,7 @@
     "lifecycle",
     "reconciliation",
     "platformAccess",
-    "platformRoles"
+    "platformPermissions"
   ],
   "properties": {
     "lifecycle": {
@@ -36,15 +36,15 @@
     },
     "platformAccess": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/platformAccess",
-      "description": "granted: o usuário tem o conjunto de roles de ação do usuário cadastrado no projeto da plataforma. Atribuído pelo Manager na criação.",
+      "description": "granted: o usuário tem o conjunto de permissões de ação do usuário cadastrado no projeto da plataforma. Atribuído pelo Manager na criação.",
       "x-writer": "server",
       "x-mutability": "mutable",
       "x-managed": true,
       "x-sensitivity": "internal"
     },
-    "platformRoles": {
-      "$ref": "definitions.v1.schema.json#/$defs/platformRoles",
-      "description": "Roles de ação que o usuário deve ter no projeto da plataforma. Atribuído pelo Manager na criação, a partir da sua configuração; vazio quando platformAccess é revoked (decisão 0025).",
+    "platformPermissions": {
+      "$ref": "definitions.v1.schema.json#/$defs/platformPermissions",
+      "description": "Permissões de ação que o usuário deve ter no projeto da plataforma. Atribuído pelo Manager na criação, a partir da sua configuração; vazio quando platformAccess é revoked (decisão 0025).",
       "x-writer": "server",
       "x-mutability": "mutable",
       "x-managed": true,

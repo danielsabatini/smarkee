@@ -52,7 +52,7 @@ Banco: [`database/01-er-fisico.svg`](database/01-er-fisico.svg).
 ## 1. CLI → Receiver: `POST /v1/ipm/organizations`
 
 O corpo é `{"name": "<nome>"}` (`schemas/ipm/organization/api-create-request`). O Receiver valida o token (audience
-`roles-ipm`), exige a role `ipm.organization.create`, **o e-mail verificado** e a cota de Organizations por dono
+`roles-ipm`), exige a permissão `ipm.organization.create`, **o e-mail verificado** e a cota de Organizations por dono
 (`IPM_ORGANIZATION_RECEIVER_API_ORGANIZATION_QUOTA`, padrão 1; o operador, com `ipm.organization.admin`, não tem cota), atribui o
 `resourceId` e publica `requested` em `receiver.requested.ipm.organization.<resourceId>.create`, com `Nats-Msg-Id` igual ao
 `operationId`:
@@ -73,7 +73,7 @@ O corpo é `{"name": "<nome>"}` (`schemas/ipm/organization/api-create-request`).
 As demais rotas: `GET` e a lista (filtradas pelo dono, ou a Organization de que quem pede é usuário, reconhecido pelo Receiver do User; de outro dono é `404`, para não revelar que existe), `PATCH` (o dono
 altera só o `name`; `platformAccess` e `reconciliation` são do operador), `DELETE?resourceVersion=` e
 `GET .../operations/{operationId}`. Erros no formato `api-error`: `400` entrada inválida (sem repetir o valor enviado), `401`,
-`403` (sem a role, e-mail não verificado, cota), `404`, `409` versão desatualizada, protegida ou ainda com usuários (`ResourcesAttached`, decisão 0077: o `DELETE` pergunta ao Receiver do User, com o token de quem pede), `422` reuso da `Idempotency-Key`, `503`
+`403` (sem a permissão, e-mail não verificado, cota), `404`, `409` versão desatualizada, protegida ou ainda com usuários (`ResourcesAttached`, decisão 0077: o `DELETE` pergunta ao Receiver do User, com o token de quem pede), `422` reuso da `Idempotency-Key`, `503`
 pedido não registrado (com `Retry-After`). Logo depois do `202`, a leitura pode dar `404` até o Manager gravar a Operation.
 Diagrama: [`flow/02-validacao-e-borda.svg`](flow/02-validacao-e-borda.svg). O contrato descritivo é `openapi.json`.
 

@@ -107,9 +107,9 @@ def request(
 
 
 def grant_catalog() -> list[str]:
-    """O catálogo `grantableRole` do contrato (decisão 0081), em ordem alfabética."""
+    """O catálogo `grantablePermission` do contrato (decisão 0081), em ordem alfabética."""
     path = SCHEMAS_ROOT / "ipm" / "definitions.v1.schema.json"
-    return sorted(json.loads(path.read_text("utf-8"))["$defs"]["grantableRole"]["enum"])
+    return sorted(json.loads(path.read_text("utf-8"))["$defs"]["grantablePermission"]["enum"])
 
 
 async def send(jetstream: JetStreamContext, message: dict[str, Any]) -> None:
@@ -154,10 +154,10 @@ async def test_the_whole_loop_creates_updates_and_removes_the_organization(
         "organizationState": "active",
         "deletionProtection": True,  # metadado no Zitadel (decisão 0074)
     }
-    # Pronta para usuários (decisão 0081): o Grant com o catálogo do contrato e os papéis das
+    # Pronta para usuários (decisão 0081): o Grant com o catálogo do contrato e as permissões das
     # contas do ipm/user, criados pelo loop, sem o operador.
-    assert user_access["grantRoles"] == grant_catalog()
-    assert sorted(sorted(item["roles"]) for item in user_access["administrators"]) == [
+    assert user_access["grantPermissions"] == grant_catalog()
+    assert sorted(sorted(item["permissions"]) for item in user_access["administrators"]) == [
         ["ORG_OWNER_VIEWER"],
         ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"],
     ]

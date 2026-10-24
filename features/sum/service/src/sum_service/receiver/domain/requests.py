@@ -1,6 +1,6 @@
 """Regras de entrada do Receiver para `sum.service` (decisão 0033). Puro.
 
-O Receiver valida o formato, confere a role da ação e atribui os identificadores. Quem decide se a
+O Receiver valida o formato, confere a permissão da ação e atribui os identificadores. Quem decide se a
 ligação é aceita (catálogo, unicidade, versão) é o Manager.
 """
 

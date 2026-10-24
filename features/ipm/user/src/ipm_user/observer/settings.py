@@ -23,7 +23,7 @@ class IdentitySettings(CommonIdentitySettings):
     """Zitadel do Observer, com a conta de serviço `ipm-user-observer` (somente leitura)."""
 
     project_id: str | None = None
-    """ID do projeto `roles-ipm`: as roles do usuário são as autorizações nele. Sem default."""
+    """ID do projeto `roles-ipm`: as permissões do usuário são as autorizações nele. Sem default."""
 
 
 class PartitionSettings(Section):

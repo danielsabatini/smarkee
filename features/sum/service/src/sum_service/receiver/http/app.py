@@ -6,7 +6,7 @@
 - `DELETE /v1/sum/services/{resourceId}?resourceVersion=`: desliga (`202`).
 - `GET /v1/sum/services/{resourceId}/operations/{operationId}`: acompanha a Operation.
 
-O Receiver valida o token, confere a role da ação e a posse da ligação, e publica o `requested`. A
+O Receiver valida o token, confere a permissão da ação e a posse da ligação, e publica o `requested`. A
 decisão
 (catálogo, unicidade, versão) é do Manager. Repetir com a mesma `Idempotency-Key` devolve a operação
 já
@@ -47,7 +47,7 @@ from sum_service.receiver.domain.principal import (
     ACTION_ENABLE,
     ACTION_GET,
     Principal,
-    service_role,
+    service_permission,
 )
 from sum_service.receiver.domain.requests import (
     operation_id_for,
@@ -105,7 +105,7 @@ class Dependencies:
 _ERROR_DESCRIPTIONS = {
     400: "Entrada inválida (`ValidationFailed`).",
     401: "Token ausente ou inválido (`Unauthorized`).",
-    403: "O solicitante não tem a role da ação (`Forbidden`).",
+    403: "O solicitante não tem a permissão da ação (`Forbidden`).",
     404: "Recurso inexistente ou de outro dono (`NotFound`).",
     409: "Conflito: serviço já habilitado, ou versão desatualizada (`Conflict`).",
     422: "A chave de idempotência já foi usada com outro pedido (`IdempotencyKeyReused`).",
@@ -192,8 +192,8 @@ def create_app(deps: Dependencies) -> FastAPI:
         bind_context(requested_by=principal.subject)
         return principal
 
-    def require(principal: Principal, role: str) -> None:
-        if not principal.has_role(role):
+    def require(principal: Principal, permission: str) -> None:
+        if not principal.has_permission(permission):
             raise forbidden()
 
     async def require_billing_account(principal: Principal) -> None:
@@ -324,7 +324,7 @@ def create_app(deps: Dependencies) -> FastAPI:
         )
         pair: tuple[str, str] | None = None
         if not existing_key:
-            require(principal, service_role(service, ACTION_ENABLE))
+            require(principal, service_permission(service, ACTION_ENABLE))
             pair = await deps.repository.link_for_pair(principal.subject, service)
             if pair is not None and pair[1] == "present":
                 raise conflict(f"O serviço {service} já está habilitado (resourceId {pair[0]}).")
@@ -357,7 +357,7 @@ def create_app(deps: Dependencies) -> FastAPI:
         visible = [
             row
             for row in await deps.repository.links_of(principal.subject)
-            if principal.has_role(service_role(_service(row), ACTION_GET))
+            if principal.has_permission(service_permission(_service(row), ACTION_GET))
         ]
         items = [_view(row) for row in visible[:limit]]
         return {"items": items}
@@ -372,7 +372,7 @@ def create_app(deps: Dependencies) -> FastAPI:
         principal: Annotated[Principal, Depends(authenticated)], resource_id: str
     ) -> dict[str, Any]:
         row = await owned_link(principal, resource_id)
-        require(principal, service_role(_service(row), ACTION_GET))
+        require(principal, service_permission(_service(row), ACTION_GET))
         return _view(row)
 
     @app.delete(
@@ -399,7 +399,7 @@ def create_app(deps: Dependencies) -> FastAPI:
             or await deps.repository.operation(operation_id_for(principal.subject, idempotency_key))
             is None
         ):
-            require(principal, service_role(service, ACTION_DISABLE))
+            require(principal, service_permission(service, ACTION_DISABLE))
             if str(row["resource_version"]) != version:
                 raise conflict(
                     "O serviço mudou desde a última leitura. Leia de novo e tente outra vez."

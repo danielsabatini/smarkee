@@ -19,14 +19,14 @@ from core_account.reconciler.settings import LoopSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
 SETTINGS = LoopSettings()
-ROLES = frozenset({"ipm.organization.get", "core.account.get"})
+PERMISSIONS = frozenset({"ipm.organization.get", "core.account.get"})
 
 
 def desired(
     *, lifecycle: str = "present", reconciliation: str = "active", generation: int = 1
 ) -> DesiredState:
     return DesiredState(
-        "d-1", generation, lifecycle, reconciliation, "granted", ROLES, "anonymous", "c-1"
+        "d-1", generation, lifecycle, reconciliation, "granted", PERMISSIONS, "anonymous", "c-1"
     )
 
 
@@ -35,13 +35,15 @@ def observed(
     *,
     age: int = 5,
     access: str | None = None,
-    roles: frozenset[str] | None = None,
+    permissions: frozenset[str] | None = None,
     causation: str | None = None,
     protected: bool | None = True,
 ) -> ObservedState:
-    # `access="granted"` sem `roles` observa exatamente as roles desejadas.
+    # `access="granted"` sem `permissions` observa exatamente as permissões desejadas.
     held: frozenset[str] = (
-        roles if roles is not None else (ROLES if access == "granted" else frozenset[str]())
+        permissions
+        if permissions is not None
+        else (PERMISSIONS if access == "granted" else frozenset[str]())
     )
     return ObservedState(
         "o-1",
@@ -91,10 +93,10 @@ def test_a_different_deletion_protection_is_drift() -> None:
     assert operation_of(state(unprotected, converged)) is None
 
 
-def test_a_missing_desired_role_is_drift_and_extra_roles_are_not() -> None:
-    partial = observed("present", access="granted", roles=frozenset({"core.account.get"}))
+def test_a_missing_desired_permission_is_drift_and_extra_permissions_are_not() -> None:
+    partial = observed("present", access="granted", permissions=frozenset({"core.account.get"}))
     assert operation_of(state(desired(), partial)) == "update"
-    extra = observed("present", access="granted", roles=ROLES | {"core.account.admin"})
+    extra = observed("present", access="granted", permissions=PERMISSIONS | {"core.account.admin"})
     assert operation_of(state(desired(), extra)) is None
 
 

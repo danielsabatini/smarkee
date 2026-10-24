@@ -106,9 +106,11 @@ def link_document(lifecycle: str = "present", phase: str = "Ready") -> dict[str,
         "desired": {
             "lifecycle": lifecycle,
             "service": "ipm",
-            "serviceRoles": ["ipm.organization.get"],
+            "servicePermissions": ["ipm.organization.get"],
         },
-        "observed": {"serviceRoles": ["ipm.organization.get"] if lifecycle == "present" else []},
+        "observed": {
+            "servicePermissions": ["ipm.organization.get"] if lifecycle == "present" else []
+        },
         "createdAt": "2026-10-15T20:00:00+00:00",
         "updatedAt": "2026-10-15T20:00:05+00:00",
     }

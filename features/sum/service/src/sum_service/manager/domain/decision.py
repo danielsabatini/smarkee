@@ -12,7 +12,7 @@ from sum_service.common.service_rules import (
     ServiceNotAvailableError,
     disable_desired,
     enable_desired,
-    roles_of,
+    permissions_of,
 )
 
 RejectionReason = Literal["service_unavailable", "already_exists", "not_found", "conflict"]
@@ -67,7 +67,7 @@ def decide_create(
     par é `conflict`.
     """
     try:
-        roles_of(catalog, service)
+        permissions_of(catalog, service)
     except ServiceNotAvailableError:
         return Rejected("service_unavailable")
     if active_link is not None and active_link.is_active:

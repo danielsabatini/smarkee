@@ -49,8 +49,8 @@ def renew_session(
 ) -> datetime:
     """Renova a sessão agora, mesmo com o acesso ainda válido, e devolve o novo vencimento.
 
-    O token só traz as roles que existiam quando foi emitido: depois de habilitar ou desabilitar
-    de serviço, renovar é o que faz o token refletir as roles novas.
+    O token só traz as permissões que existiam quando foi emitido: depois de habilitar ou
+    desabilitar um serviço, renovar é o que faz o token refletir as permissões novas.
     """
     moment = now or datetime.now(UTC)
     try:

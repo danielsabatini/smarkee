@@ -95,7 +95,7 @@ class Phase(StrEnum):
 
 class PlatformAccess(StrEnum):
     """
-    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, na Account); revoked a remove.
+    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de permissões de ação do usuário cadastrado, na Account); revoked a remove.
     """
 
     granted = "granted"
@@ -390,7 +390,7 @@ class OrganizationState(StrEnum):
     inactive = "inactive"
 
 
-class Role(RootModel[str]):
+class Permission(RootModel[str]):
     root: Annotated[
         str,
         Field(
@@ -400,20 +400,20 @@ class Role(RootModel[str]):
         ),
     ]
     """
-    Role da plataforma no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.user.create.
+    Permissão da plataforma no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.user.create.
     """
 
 
-class AdministratorRole(RootModel[str]):
+class AdministratorPermission(RootModel[str]):
     root: Annotated[str, Field(max_length=128, min_length=1, pattern="^[A-Z][A-Z0-9_]*$")]
     """
-    Papel de administração nativo do provedor de identidade (por exemplo, ORG_USER_CREATOR).
+    Permissão de administração interna do provedor de identidade (por exemplo, ORG_USER_CREATOR).
     """
 
 
-class GrantableRole(StrEnum):
+class GrantablePermission(StrEnum):
     """
-    Catálogo das roles que uma Organization pode delegar aos usuários dela (decisão 0081): o Project Grant de cada Organization tem exatamente estas, e o Receiver do User recusa as demais antes do loop. Fonte única, versionada com o código e igual em todos os ambientes; não há operador nem criação e remoção de Organization aqui. Mudar o catálogo é mudar este enum, regerar os modelos do ipm/user e do ipm/organization e implantar: o Manager da Organization faz o rollout do Grant na partida.
+    Catálogo das permissões que uma Organization pode delegar aos usuários dela (decisão 0081): o Project Grant de cada Organization tem exatamente estas, e o Receiver do User recusa as demais antes do loop. Fonte única, versionada com o código e igual em todos os ambientes; não há operador nem criação e remoção de Organization aqui. Mudar o catálogo é mudar este enum, regerar os modelos do ipm/user e do ipm/organization e implantar: o Manager da Organization faz o rollout do Grant na partida.
     """
 
     ipm_organization_get = "ipm.organization.get"
@@ -437,27 +437,29 @@ class OrganizationAdministrator(ContractModel):
     """
     ID de uma conta de serviço da plataforma no provedor de identidade (por exemplo, a do Executor do ipm/user). Não é credencial.
     """
-    roles: Annotated[list[AdministratorRole], Field(max_length=32)]
+    permissions: Annotated[list[AdministratorPermission], Field(max_length=32)]
     """
-    Papéis de administração, sem repetição e em ordem alfabética.
+    Permissões de administração, sem repetição e em ordem alfabética.
     """
 
 
 class OrganizationObservedUserAccess(ContractModel):
     """
-    Preparo para os usuários lido do provedor de identidade (decisão 0081). grantRoles ausente quando o Project Grant não existe.
+    Preparo para os usuários lido do provedor de identidade (decisão 0081). grantPermissions ausente quando o Project Grant não existe.
     """
 
     model_config = ConfigDict(
         extra="forbid",
     )
-    grant_roles: Annotated[list[Role] | None, Field(alias="grantRoles", max_length=64)] = None
+    grant_permissions: Annotated[
+        list[Permission] | None, Field(alias="grantPermissions", max_length=64)
+    ] = None
     """
-    Roles do Project Grant do projeto de roles do ipm para a organização.
+    Permissões do Project Grant do projeto de permissões do ipm para a organização.
     """
     administrators: Annotated[list[OrganizationAdministrator], Field(max_length=64)]
     """
-    Contas com papel de administração na organização ou no Grant dela, em ordem de accountId, com os papéis somados das duas.
+    Contas com permissão de administração na organização ou no Grant dela, em ordem de accountId, com as permissões somadas das duas.
     """
 
 
@@ -989,15 +991,17 @@ class MessageEnvelope(ContractModel):
 
 class OrganizationUserAccess(ContractModel):
     """
-    Preparo da organização para os usuários dela (ipm.user, decisão 0081): o Project Grant do projeto de roles do ipm com as roles de grantRoles, e os papéis de administração das contas do ipm/user nela. O Executor do ipm/user recebe ORG_USER_CREATOR na organização e PROJECT_GRANT_OWNER no Grant; o Observer do ipm/user, ORG_OWNER_VIEWER na organização. Vem da configuração do Manager, que é a fonte única.
+    Preparo da organização para os usuários dela (ipm.user, decisão 0081): o Project Grant do projeto de permissões do ipm com as permissões de grantPermissions, e as permissões de administração das contas do ipm/user nela. O Executor do ipm/user recebe ORG_USER_CREATOR na organização e PROJECT_GRANT_OWNER no Grant; o Observer do ipm/user, ORG_OWNER_VIEWER na organização. Vem da configuração do Manager, que é a fonte única.
     """
 
     model_config = ConfigDict(
         extra="forbid",
     )
-    grant_roles: Annotated[list[GrantableRole], Field(alias="grantRoles", max_length=64)]
+    grant_permissions: Annotated[
+        list[GrantablePermission], Field(alias="grantPermissions", max_length=64)
+    ]
     """
-    Roles do Project Grant: o teto do que os usuários da organização podem receber. É o catálogo grantableRole do ipm/user inteiro, sem repetição e em ordem alfabética.
+    Permissões do Project Grant: o teto do que os usuários da organização podem receber. É o catálogo grantablePermission do ipm/user inteiro, sem repetição e em ordem alfabética.
     """
     user_executor_account_id: Annotated[
         str,

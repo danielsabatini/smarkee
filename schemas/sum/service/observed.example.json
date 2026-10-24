@@ -1,5 +1,5 @@
 {
-  "serviceRoles": [
+  "servicePermissions": [
     "ipm.organization.create",
     "ipm.organization.delete",
     "ipm.organization.get",

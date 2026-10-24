@@ -24,4 +24,4 @@ class Authorization:
     """Autorização do usuário no projeto `roles-ipm`, na organização dele (uma só)."""
 
     authorization_id: str
-    roles: frozenset[str]
+    permissions: frozenset[str]

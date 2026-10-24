@@ -3,10 +3,10 @@
 - **Escopo:** o operador age em qualquer Organization; o dono dela (o root, confirmado pelo
   Receiver da Organization) e os usuários dela (confirmados pelo próprio registro no SSOT do tipo)
   agem só nela.
-- **Catálogo:** só as roles do catálogo `grantableRole` (o Project Grant de toda Organization,
-  decisão 0081) podem ser atribuídas.
-- **`bind`:** sem `ipm.user.bind`, quem pede só atribui ou retira roles que ele mesmo tem, como o
-  RBAC do Kubernetes (referência de mercado, decisão 0071).
+- **Catálogo:** só as permissões do catálogo `grantablePermission` (o Project Grant de toda
+  Organization, decisão 0081) podem ser atribuídas.
+- **`bind`:** sem `ipm.user.bind`, quem pede só atribui ou retira permissões que ele mesmo tem,
+  como o RBAC do Kubernetes (referência de mercado, decisão 0071).
 """
 
 from collections.abc import Iterable
@@ -33,29 +33,29 @@ class AccessCheckError(Exception):
         self.retryable = retryable
 
 
-def outside_catalog(roles: Iterable[str]) -> list[str]:
-    """Roles pedidas fora do catálogo `grantableRole`, em ordem alfabética.
+def outside_catalog(permissions: Iterable[str]) -> list[str]:
+    """Permissões pedidas fora do catálogo `grantablePermission`, em ordem alfabética.
 
     O catálogo é contrato (`schemas/ipm/user/definitions`, decisão 0081), e não configuração: é o
     mesmo que o Manager da Organization grava no Project Grant de cada Organization.
     """
-    allowed = {role.value for role in generated.GrantableRole}
-    return sorted(role for role in set(roles) if role not in allowed)
+    allowed = {permission.value for permission in generated.GrantablePermission}
+    return sorted(permission for permission in set(permissions) if permission not in allowed)
 
 
 def binding_allowed(
     current: Iterable[str],
     requested: Iterable[str],
-    requester_roles: Iterable[str],
+    requester_permissions: Iterable[str],
     *,
     can_bind: bool,
 ) -> bool:
     """`True` se quem pede pode levar o usuário de `current` para `requested`.
 
-    Com `bind`, qualquer mudança dentro do catálogo. Sem ele, cada role acrescentada ou retirada
-    precisa estar entre as roles de quem pede (nunca concede mais do que tem).
+    Com `bind`, qualquer mudança dentro do catálogo. Sem ele, cada permissão acrescentada ou
+    retirada precisa estar entre as permissões de quem pede (nunca concede mais do que tem).
     """
     if can_bind:
         return True
     changed = set(current) ^ set(requested)
-    return changed <= set(requester_roles)
+    return changed <= set(requester_permissions)

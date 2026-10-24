@@ -43,7 +43,7 @@ sequenceDiagram
     U->>ZIT: informa usuário e senha
     ZIT-->>CLI: redireciona para http://127.0.0.1:porta/callback?code=...
     CLI->>ZIT: troca code + code_verifier por tokens
-    ZIT-->>CLI: access token JWT (roles organization.* e account.* do projeto smarkee)
+    ZIT-->>CLI: access token JWT (permissões organization.* e account.* do projeto smarkee)
     CLI->>CLI: grava ~/.config/sk/credentials.json (permissão 0600)
     CLI-->>U: "Login completed."
     U->>CLI: sk account get (a implementar)
@@ -55,13 +55,13 @@ sequenceDiagram
     Note over U,Receiver: 4. Problemas no login
     U->>CLI: sk auth login (antes de ativar a conta)
     ZIT-->>U: usuário sem senha definida, pede a ativação
-    U->>CLI: sk auth login (platformAccess revoked, sem roles no projeto)
-    ZIT-->>U: acesso negado (verificação de role na autenticação)
+    U->>CLI: sk auth login (platformAccess revoked, sem permissões no projeto)
+    ZIT-->>U: acesso negado (verificação de permissão na autenticação)
     CLI->>CLI: porta de retorno ocupada, state ou PKCE divergente, navegador fechado
     CLI-->>U: erro explícito e nenhuma credencial gravada
     CLI->>Receiver: chamada com token expirado ou audience errada
     Receiver-->>CLI: 401 Unauthorized (renovação pelo refresh token: a implementar)
-    CLI->>Receiver: usuário sem a role da ação
+    CLI->>Receiver: usuário sem a permissão da ação
     Receiver-->>CLI: 403 Forbidden
     CLI->>Receiver: GET /v1/core/accounts/{outro id}
     Receiver-->>CLI: 404 (não revela a existência)

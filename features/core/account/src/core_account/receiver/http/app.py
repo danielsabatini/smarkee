@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 
 from core_account.common.contracts import generated
 from core_account.common.logging_config import bind_context
-from core_account.receiver.domain import principal as roles
+from core_account.receiver.domain import principal as permissions
 from core_account.receiver.domain.attachments import AttachmentCheckError, describe_all
 from core_account.receiver.domain.errors import (
     ApiError,
@@ -112,8 +112,8 @@ def _register_error_handlers(app: FastAPI) -> None:
 
 
 def _register_routes(app: FastAPI, deps: Dependencies) -> None:
-    def require(principal: Principal, role: str) -> None:
-        if not principal.has_role(role):
+    def require(principal: Principal, permission: str) -> None:
+        if not principal.has_permission(permission):
             raise forbidden()
 
     async def own_account(principal: Principal, account_id: str) -> ResourceRecord:
@@ -217,7 +217,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         response_model_exclude_none=True,
     )
     async def get_account(account_id: str, principal: Authenticated) -> generated.Account:
-        require(principal, roles.ACCOUNT_GET)
+        require(principal, permissions.ACCOUNT_GET)
         return account_view(await own_account(principal, account_id))
 
     @app.patch(
@@ -234,9 +234,9 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     ) -> generated.ApiAcceptedResponse:
         """Única alteração possível: a proteção contra exclusão (decisão 0043).
 
-        Usa a mesma role do `delete`: quem pode apagar a conta pode (des)proteger.
+        Usa a mesma permissão do `delete`: quem pode apagar a conta pode (des)proteger.
         """
-        require(principal, roles.ACCOUNT_DELETE)
+        require(principal, permissions.ACCOUNT_DELETE)
         record = await own_account(principal, account_id)
         check_version(record, body.resource_version)
         specification = {"deletionProtection": body.deletion_protection}
@@ -267,7 +267,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         resource_version: VersionQuery,
         idempotency_key: IdempotencyKey = None,
     ) -> generated.ApiAcceptedResponse:
-        require(principal, roles.ACCOUNT_DELETE)
+        require(principal, permissions.ACCOUNT_DELETE)
         record = await own_account(principal, account_id)
         check_version(record, resource_version)
         if record.desired.get("deletionProtection", True) is not False:

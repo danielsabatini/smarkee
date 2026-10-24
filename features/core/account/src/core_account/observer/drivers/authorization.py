@@ -1,7 +1,8 @@
-"""Driver de leitura da autorização (roles) do usuário nos projetos de roles do Zitadel.
+"""Driver de leitura da autorização (permissões) do usuário nos projetos do Zitadel.
 
 Espelho do driver de escrita do Executor (`executor/drivers/authorization.py`): o mesmo
-sub-recurso, só leitura (API v2 de autorizações).
+sub-recurso, só leitura (API v2 de autorizações). No Zitadel, cada permissão da Smarkee é uma
+Project Role (`docs/identity/PERMISSION.md`).
 """
 
 from typing import Any, cast
@@ -17,10 +18,10 @@ class AuthorizationDriver:
         self._connection = connection
         self._settings = settings
 
-    async def granted_roles(self, user_id: str) -> set[str]:
-        """União das roles do usuário em todos os projetos de roles.
+    async def granted_permissions(self, user_id: str) -> set[str]:
+        """União das permissões do usuário em todos os projetos de permissões.
 
-        Há um projeto de roles por módulo (decisão 0032); a leitura é pela organização `register`,
+        Há um projeto por módulo (decisão 0032); a leitura é pela organização `register`,
         sem filtrar o projeto, para o Observer não depender da lista de módulos.
         """
         response = await self._connection.request(
@@ -34,13 +35,13 @@ class AuthorizationDriver:
             },
         )
         assert response is not None  # noqa: S101 (sem absence_on_not_found)
-        roles: set[str] = set()
+        permissions: set[str] = set()
         authorizations = cast(
             "list[dict[str, Any]]", self._connection.json(response).get("authorizations") or []
         )
         for authorization in authorizations:
-            roles.update(
+            permissions.update(
                 str(cast("dict[str, Any]", role)["key"])
                 for role in cast("list[Any]", authorization.get("roles") or [])
             )
-        return roles
+        return permissions

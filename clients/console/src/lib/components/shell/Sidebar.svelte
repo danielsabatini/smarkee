@@ -54,7 +54,7 @@
 <svelte:window onkeydown={handleWindowKeydown} />
 
 {#snippet navIcon(iconName: NavItem['iconName'], isCurrent: boolean)}
-	{@const iconClass = `h-4 w-4 shrink-0 ${isCurrent ? 'text-emerald-700' : 'text-slate-500'}`}
+	{@const iconClass = `h-4 w-4 shrink-0 ${isCurrent ? 'text-brand-700' : 'text-slate-500'}`}
 	{#if iconName === 'home'}
 		<Home class={iconClass} aria-hidden="true" />
 	{:else if iconName === 'user-check'}
@@ -148,7 +148,7 @@
 										title={compact ? `${item.label}${item.isDemo ? ' (Preview)' : ''}` : item.label}
 										data-testid="nav-link-{item.id}"
 										class="group flex items-center justify-between gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition {isCurrent
-											? 'bg-emerald-50 font-semibold text-emerald-900 ring-1 ring-emerald-200/80'
+											? 'bg-brand-50 font-semibold text-brand-900 ring-1 ring-brand-200/80'
 											: 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'} {compact
 											? 'justify-center px-2'
 											: ''}"
@@ -191,10 +191,10 @@
 					? 'Expandir menu de navegação lateral'
 					: 'Recolher menu para modo compacto com ícones'}
 				data-testid="sidebar-compact-toggle"
-				class="hidden w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-emerald-300 hover:text-emerald-800 lg:flex"
+				class="hidden w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-brand-300 hover:text-brand-800 lg:flex"
 			>
 				{#if compact}
-					<PanelLeftOpen class="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+					<PanelLeftOpen class="h-4 w-4 shrink-0 text-brand-700" aria-hidden="true" />
 				{:else}
 					<PanelLeftClose class="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
 					<span>Modo compacto</span>

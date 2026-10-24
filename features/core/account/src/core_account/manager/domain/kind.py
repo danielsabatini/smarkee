@@ -14,6 +14,6 @@ class ResourceKind:
     """A remoção convergida apaga o registro do SSOT (o padrão do loop)."""
 
 
-def account_kind(platform_roles: tuple[str, ...]) -> ResourceKind:
-    """Account com o conjunto de roles informado (configuração do Manager)."""
-    return ResourceKind(resource_type="account", policy=AccountPolicy(platform_roles))
+def account_kind(platform_permissions: tuple[str, ...]) -> ResourceKind:
+    """Account com o conjunto de permissões informado (configuração do Manager)."""
+    return ResourceKind(resource_type="account", policy=AccountPolicy(platform_permissions))

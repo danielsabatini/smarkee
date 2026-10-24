@@ -88,7 +88,7 @@ O login **não tem opções**: o provedor, o client ID e a permissão de HTTP v�
 | `SK_AUTH_CLIENT_ID` | `clientId` | Client ID da aplicação nativa do `sk` no provedor |
 | `SK_AUTH_ALLOW_INSECURE_HTTP=true` | `allowInsecureHttp = true` | Aceita issuer `http`. Somente em desenvolvimento |
 
-A aplicação do `sk` mora no projeto `clients` (sem roles), e não num projeto de roles: o token só vale no Receiver de um módulo se o login pedir a audience do projeto de roles dele. Com `[core] projectId`, `[sum] projectId` e `[ipm] projectId` configurados (ou `SK_CORE_PROJECT_ID`, `SK_SUM_PROJECT_ID` e `SK_IPM_PROJECT_ID`), o login pede a audience de `roles-core`, `roles-sum` e `roles-ipm`, com as roles no token: sem a chave de um módulo, o Receiver dele recusa o token. Sem a chave, o login é o de sempre.
+A aplicação do `sk` mora no projeto `clients` (sem permissões), e não num projeto de permissões: o token só vale no Receiver de um módulo se o login pedir a audience do projeto de permissões dele. Com `[core] projectId`, `[sum] projectId` e `[ipm] projectId` configurados (ou `SK_CORE_PROJECT_ID`, `SK_SUM_PROJECT_ID` e `SK_IPM_PROJECT_ID`), o login pede a audience de `roles-core`, `roles-sum` e `roles-ipm` no Zitadel, com as permissões no token: sem a chave de um módulo, o Receiver dele recusa o token. Sem a chave, o login é o de sempre.
 
 Códigos de saída: `0` sucesso; `1` falha no login ou na gravação, ou cancelamento (Ctrl+C); `2` uso incorreto (issuer ou client ID ausente, configuração inválida).
 
@@ -98,7 +98,7 @@ Códigos de saída: `0` sucesso; `1` falha no login ou na gravação, ou cancela
 uv run sk auth refresh
 ```
 
-Renova a sessão agora, pelo refresh token, mesmo com o acesso ainda válido. O token só traz as roles que existiam quando foi emitido: depois de ligar ou desligar um serviço, renovar faz o token refletir as roles novas. `sk sum service enable|disable --wait` já faz isso. Sem sessão ou sem refresh token, sai com `1` e aponta `sk auth login`.
+Renova a sessão agora, pelo refresh token, mesmo com o acesso ainda válido. O token só traz as permissões que existiam quando foi emitido: depois de ligar ou desligar um serviço, renovar faz o token refletir as permissões novas. `sk sum service enable|disable --wait` já faz isso. Sem sessão ou sem refresh token, sai com `1` e aponta `sk auth login`.
 
 ### `sk auth whoami`
 
@@ -135,7 +135,7 @@ Os testes de integração (`tests/integration`) exercitam o fluxo completo contr
 
 ## Sessão
 
-O access token vale **15 minutos** (decisão 0033), para que uma revogação de role chegue ao token em pouco tempo. Quando está vencido ou para vencer, o `sk` troca o refresh token por um novo, regrava as credenciais e segue, sem pedir login: vale para `sk sum service`, para `sk auth whoami` e para a espera de `--wait`, que renova a cada leitura. O refresh token vale 30 dias sem uso e 90 dias no total (configuração da instância). Sem refresh token, ou se o provedor o recusar, a saída manda rodar `sk auth login`.
+O access token vale **15 minutos** (decisão 0033), para que uma revogação de permissão chegue ao token em pouco tempo. Quando está vencido ou para vencer, o `sk` troca o refresh token por um novo, regrava as credenciais e segue, sem pedir login: vale para `sk sum service`, para `sk auth whoami` e para a espera de `--wait`, que renova a cada leitura. O refresh token vale 30 dias sem uso e 90 dias no total (configuração da instância). Sem refresh token, ou se o provedor o recusar, a saída manda rodar `sk auth login`.
 
 ## Serviços do SUM (`sk sum service`)
 
@@ -152,10 +152,10 @@ O endereço da API e a permissão de HTTP sem TLS **não têm opção de linha d
 |---|---|---|
 | `enable --service NOME` | `POST /v1/sum/services`, com `Idempotency-Key` gerada por pedido | `202`: o `resourceId` e o `operationId`; com `--wait`, espera `Ready` e renova a sessão |
 | `disable --resource-id ID` | `GET` do serviço (para ler a `resourceVersion`), depois `DELETE`; se já está desabilitado, não faz nada | `202`: o `operationId` (ou "nada a fazer", saída `0`); com `--wait`, espera `Ready` e renova a sessão |
-| `get --resource-id ID` | `GET` do serviço (e da Operation, se `--operation-id`) | `state` (`enabled` / `disabled`), `phase` e `observedRoles` |
+| `get --resource-id ID` | `GET` do serviço (e da Operation, se `--operation-id`) | `state` (`enabled` / `disabled`), `phase` e `observedPermissions` |
 | `list` | `GET /v1/sum/services` | Uma linha por serviço do solicitante (habilitado ou desabilitado) |
 
-Habilitar e desabilitar são assíncronos: o comando confirma o aceite, e `get` mostra quando a fase chega a `Ready`. **O token só traz as roles que existiam quando foi emitido**: as do serviço (`ipm.*`) chegam depois do aceite e saem ao desligar. Por isso `--wait` espera a convergência (`Ready` e Operation `completed`, até `--timeout`, 60 s por padrão) e **renova a sessão** pelo refresh token, e o token já reflete o novo estado. Sem `--wait`, rode `sk auth refresh` quando a fase for `Ready`. Se a renovação falhar (por exemplo, sem refresh token), o comando avisa e sai com `0`, porque o pedido já valeu. Os nomes dos campos e os valores de estado saem em inglês (`resourceId`, `state`, `phase`); só as mensagens e a ajuda são em português. Usa a API de `[api] url` e o token da sessão. Precisa de um solicitante com as roles `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`.
+Habilitar e desabilitar são assíncronos: o comando confirma o aceite, e `get` mostra quando a fase chega a `Ready`. **O token só traz as permissões que existiam quando foi emitido**: as do serviço (`ipm.*`) chegam depois do aceite e saem ao desligar. Por isso `--wait` espera a convergência (`Ready` e Operation `completed`, até `--timeout`, 60 s por padrão) e **renova a sessão** pelo refresh token, e o token já reflete o novo estado. Sem `--wait`, rode `sk auth refresh` quando a fase for `Ready`. Se a renovação falhar (por exemplo, sem refresh token), o comando avisa e sai com `0`, porque o pedido já valeu. Os nomes dos campos e os valores de estado saem em inglês (`resourceId`, `state`, `phase`); só as mensagens e a ajuda são em português. Usa a API de `[api] url` e o token da sessão. Precisa de um solicitante com as permissões `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`.
 
 Códigos de saída: `0` sucesso; `1` sessão ausente, API recusou ou indisponível, ou `--wait` sem convergir (Operation recusada ou tempo esgotado); `2` opção obrigatória ausente, identificador fora do contrato, endereço sem HTTPS ou configuração inválida.
 
@@ -184,9 +184,9 @@ O endereço da API vem do ambiente, do arquivo ou do padrão, sem opção de lin
 
 **Organization ativa.** Como o projeto ativo do `gcloud`, a Organization ativa dispensa repetir o `--resource-id`: sem a opção, os comandos usam `[ipm] organizationId` (ou `SK_IPM_ORGANIZATION_ID`, que prevalece sobre o arquivo); `--resource-id` sempre prevalece sobre os dois. Quem grava e troca a Organization ativa é o `sk config set ipm.organizationId ID`: `organization` não tem comando próprio para isso. A única gravação automática é a do `create --wait`: quando a Organization converge e **ainda não há uma ativa** (do ambiente ou do arquivo), ela vira a ativa e a saída avisa; havendo uma, nada muda e a saída mostra o `sk config set` para trocar. Sem `--wait`, o `create` não grava e a saída indica o `sk config set`. Se a gravação falhar, o `create` continua com sucesso e avisa. `list` marca com `*` a Organization ativa. `delete` da Organization ativa avisa que a chave passa a apontar para um recurso removido e mostra o `sk config set` para trocar. O `sk config set` só confere o formato do `resourceId`: um id que não é seu falha com `404` no primeiro comando que o usar.
 
-As escritas são assíncronas, como as do SUM: o comando confirma o aceite e mostra como acompanhar. A dica de acompanhamento é só `sk ipm organization get` (com `--resource-id` quando a Organization não é a ativa); o `--operation-id` é opcional e serve para diagnosticar um pedido recusado, e a saída de uma recusa já traz o comando completo. Com `--wait`, ele espera a Operation `completed` (até `--timeout`, 60 s por padrão) e trata o `404` logo depois do `202` como espera, porque o Manager ainda pode não ter gravado o pedido. A sessão não precisa ser renovada: criar uma Organization não muda as roles do token. O dono altera só o `name`; `platformAccess` é do operador e não tem comando nesta CLI.
+As escritas são assíncronas, como as do SUM: o comando confirma o aceite e mostra como acompanhar. A dica de acompanhamento é só `sk ipm organization get` (com `--resource-id` quando a Organization não é a ativa); o `--operation-id` é opcional e serve para diagnosticar um pedido recusado, e a saída de uma recusa já traz o comando completo. Com `--wait`, ele espera a Operation `completed` (até `--timeout`, 60 s por padrão) e trata o `404` logo depois do `202` como espera, porque o Manager ainda pode não ter gravado o pedido. A sessão não precisa ser renovada: criar uma Organization não muda as permissões do token. O dono altera só o `name`; `platformAccess` é do operador e não tem comando nesta CLI.
 
-**Pré-requisitos.** O token precisa trazer as roles `ipm.organization.*`, que vêm de `sk sum service enable --service ipm --wait` (a sessão já sai renovada). Para criar, o e-mail da conta precisa estar verificado, e a cota é de uma Organization por conta. As recusas da API viram dicas: sem a role, a saída manda habilitar o `ipm`; sem e-mail verificado, abrir o link do e-mail de ativação; cota esgotada, remover uma Organization.
+**Pré-requisitos.** O token precisa trazer as permissões `ipm.organization.*`, que vêm de `sk sum service enable --service ipm --wait` (a sessão já sai renovada). Para criar, o e-mail da conta precisa estar verificado, e a cota é de uma Organization por conta. As recusas da API viram dicas: sem a permissão, a saída manda habilitar o `ipm`; sem e-mail verificado, abrir o link do e-mail de ativação; cota esgotada, remover uma Organization.
 
 Códigos de saída: como em `sk sum service`.
 

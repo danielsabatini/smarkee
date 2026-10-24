@@ -10,7 +10,7 @@
           "type": "Ready",
           "status": "True",
           "reason": "Reconciled",
-          "message": "O usuário tem as roles do serviço ipm.",
+          "message": "O usuário tem as permissões do serviço ipm.",
           "observedGeneration": 1,
           "lastTransitionAt": "2026-10-15T14:00:05Z"
         }
@@ -20,7 +20,7 @@
         "reconciliation": "active",
         "ownerAccountId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
         "service": "ipm",
-        "serviceRoles": [
+        "servicePermissions": [
           "ipm.organization.create",
           "ipm.organization.delete",
           "ipm.organization.get",
@@ -29,7 +29,7 @@
         ]
       },
       "observed": {
-        "serviceRoles": [
+        "servicePermissions": [
           "ipm.organization.create",
           "ipm.organization.delete",
           "ipm.organization.get",

@@ -54,7 +54,7 @@
         "lifecycle",
         "reconciliation",
         "organizationId",
-        "roles"
+        "permissions"
       ],
       "x-writer": "server",
       "x-sensitivity": "confidential",
@@ -74,8 +74,8 @@
           "x-writer": "server",
           "x-sensitivity": "internal"
         },
-        "roles": {
-          "$ref": "definitions.v1.schema.json#/$defs/roles",
+        "permissions": {
+          "$ref": "definitions.v1.schema.json#/$defs/permissions",
           "x-writer": "server",
           "x-sensitivity": "internal"
         },
@@ -133,8 +133,8 @@
           "x-writer": "server",
           "x-sensitivity": "internal"
         },
-        "roles": {
-          "$ref": "definitions.v1.schema.json#/$defs/roles",
+        "permissions": {
+          "$ref": "definitions.v1.schema.json#/$defs/permissions",
           "x-writer": "server",
           "x-sensitivity": "internal"
         },

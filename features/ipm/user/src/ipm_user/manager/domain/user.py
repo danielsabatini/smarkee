@@ -1,7 +1,7 @@
 """Regras de negócio do usuário da Organization, aplicadas pelo Manager (decisão 0077).
 
-Puro: sem banco, rede ou relógio. O e-mail único na Organization, as roles fora do módulo e a cota
-de usuários por Organization são declarados aqui (`unique_value`, `invalid`, `owner_quota`) e
+Puro: sem banco, rede ou relógio. O e-mail único na Organization, as permissões fora do módulo e a
+cota de usuários por Organization são declarados aqui (`unique_value`, `invalid`, `owner_quota`) e
 verificados na mesma unidade atômica do pedido pelo adaptador do SSOT (`docs/SSOT.md` §10.1).
 """
 
@@ -18,8 +18,8 @@ from ipm_user.manager.domain.policy import OwnerQuota, Request, UniqueValue
 PERSONAL_FIELDS = ("givenName", "familyName", "email")
 """Dados pessoais do `desired`: saem dele na remoção (`schemas/ipm/user/desired`)."""
 
-ROLE_MODULE_PREFIX = "ipm."
-"""O Executor só concede roles do projeto `roles-ipm` (o Project Grant da Organization)."""
+PERMISSION_MODULE_PREFIX = "ipm."
+"""O Executor só concede permissões do projeto `roles-ipm` (o Project Grant da Organization)."""
 
 
 def _validated[M: ContractModel](model: type[M], data: Mapping[str, Any], *, label: str) -> M:
@@ -36,8 +36,8 @@ def _parse_resource_version(value: str) -> int:
         raise PermanentMessageError("resourceVersion não numérico") from None
 
 
-def _roles(values: list[generated.Role] | None) -> list[str]:
-    return sorted({role.root for role in values or []})
+def _permissions(values: list[generated.Permission] | None) -> list[str]:
+    return sorted({permission.root for permission in values or []})
 
 
 class UserPolicy:
@@ -59,7 +59,7 @@ class UserPolicy:
                         "givenName": specification.given_name,
                         "familyName": specification.family_name,
                         "email": str(specification.email).strip().lower(),
-                        "roles": _roles(specification.roles),
+                        "permissions": _permissions(specification.permissions),
                         "deletionProtection": specification.deletion_protection is True,
                     },
                     organization_quota_limit=create.organization_quota_limit,
@@ -70,8 +70,8 @@ class UserPolicy:
                 )
                 changes: dict[str, Any] = {}
                 if update.specification is not None:
-                    if update.specification.roles is not None:
-                        changes["roles"] = _roles(update.specification.roles)
+                    if update.specification.permissions is not None:
+                        changes["permissions"] = _permissions(update.specification.permissions)
                     if update.specification.deletion_protection is not None:
                         changes["deletionProtection"] = update.specification.deletion_protection
                 return Request(
@@ -124,9 +124,11 @@ class UserPolicy:
         )
 
     def invalid(self, desired: Mapping[str, Any]) -> bool:
-        """Role fora do módulo `ipm`: o Executor não a concederia (o Receiver já recusa antes)."""
-        roles: list[str] = desired.get("roles", [])
-        return any(not role.startswith(ROLE_MODULE_PREFIX) for role in roles)
+        """Permissão fora do módulo `ipm`: o Executor não a concederia (o Receiver recusa antes)."""
+        permissions: list[str] = desired.get("permissions", [])
+        return any(
+            not permission.startswith(PERMISSION_MODULE_PREFIX) for permission in permissions
+        )
 
     def owner_quota(self, request: Request, desired: Mapping[str, Any]) -> OwnerQuota | None:
         """Cota de usuários por Organization, só no create e só com limite do Receiver.
@@ -155,14 +157,15 @@ class UserPolicy:
     def is_converged(
         self, desired: Mapping[str, Any], presence: str, observed: Mapping[str, Any] | None
     ) -> bool:
-        # Campos gerenciados do usuário: `lifecycle`, `roles` e `deletionProtection`, este pelo
-        # metadado (schemas/ipm/user/desired; decisão 0074). Os dados pessoais e a Organization
-        # não são gerenciados: são imutáveis e definidos na criação.
+        # Campos gerenciados do usuário: `lifecycle`, `permissions` e `deletionProtection`, este
+        # pelo metadado (schemas/ipm/user/desired; decisão 0074). Os dados pessoais e a
+        # Organization não são gerenciados: são imutáveis e definidos na criação.
         if desired["lifecycle"] == "absent":
             return presence == "absent"
         return (
             presence == "present"
             and observed is not None
-            and sorted(observed.get("roles") or []) == sorted(desired.get("roles") or [])
+            and sorted(observed.get("permissions") or [])
+            == sorted(desired.get("permissions") or [])
             and observed.get("deletionProtection") == self.deletion_protected(desired)
         )

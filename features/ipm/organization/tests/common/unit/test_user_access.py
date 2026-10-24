@@ -13,10 +13,10 @@ DESIRED = access.desired_user_access(
 
 def observed(grant: list[str] | None, **held: list[str]) -> dict[str, Any]:
     result: dict[str, Any] = {
-        "administrators": [{"accountId": a, "roles": r} for a, r in sorted(held.items())]
+        "administrators": [{"accountId": a, "permissions": r} for a, r in sorted(held.items())]
     }
     if grant is not None:
-        result["grantRoles"] = grant
+        result["grantPermissions"] = grant
     return result
 
 
@@ -28,14 +28,14 @@ READY = observed(
 
 
 def test_the_catalog_is_the_contract_enum_sorted() -> None:
-    """O catálogo não é configuração: é o `grantableRole` do contrato (decisão 0081)."""
+    """O catálogo não é configuração: é o `grantablePermission` do contrato (decisão 0081)."""
     catalog = access.grant_catalog()
-    assert catalog == sorted(role.value for role in generated.GrantableRole)
+    assert catalog == sorted(permission.value for permission in generated.GrantablePermission)
     assert "ipm.user.bind" in catalog
     assert not {"ipm.organization.create", "ipm.organization.delete", "ipm.user.admin"} & set(
         catalog
     )
-    assert DESIRED["grantRoles"] == catalog
+    assert DESIRED["grantPermissions"] == catalog
 
 
 def test_a_prepared_organization_is_converged() -> None:

@@ -1,8 +1,8 @@
 """Driver de leitura do preparo para os usuários no Zitadel (API v2, v4.19.4; decisão 0081).
 
 Espelho do driver de escrita do Executor (`executor/drivers/user_access.py`): o Project Grant do
-projeto de roles do `ipm` para a organização e os papéis de administração na organização e no
-Grant. Só leitura, com a conta do Observer (`IAM_OWNER_VIEWER`). Qualquer falha vira
+projeto de permissões do `ipm` para a organização e as permissões de administração na organização
+e no Grant. Só leitura, com a conta do Observer (`IAM_OWNER_VIEWER`). Qualquer falha vira
 `ProviderError`, e o chamador a trata como `unknown`.
 """
 
@@ -19,8 +19,8 @@ class UserAccessDriver:
         self._connection = connection
         self._project_id = project_id
 
-    async def grant_roles(self, organization_id: str) -> list[str] | None:
-        """As roles do Grant para a organização, ou `None` se o Grant não existe."""
+    async def grant_permissions(self, organization_id: str) -> list[str] | None:
+        """As permissões do Grant para a organização, ou `None` se o Grant não existe."""
         response = await self._connection.request(
             "POST",
             f"{PROJECT_SERVICE}/ListProjectGrants",
@@ -46,7 +46,7 @@ class UserAccessDriver:
     async def administrators(
         self, organization_id: str, *, with_grant: bool
     ) -> dict[str, frozenset[str]]:
-        """Conta → papéis de administração na organização e, com `with_grant`, no Grant dela."""
+        """Conta → permissões de administração na organização e, com `with_grant`, no Grant dela."""
         resources: list[dict[str, Any]] = [{"organizationId": organization_id}]
         if with_grant:
             resources.append(
@@ -69,4 +69,4 @@ class UserAccessDriver:
                 if account_id:
                     roles = cast("list[object]", administrator.get("roles") or [])
                     held.setdefault(account_id, set()).update(str(role) for role in roles)
-        return {account: frozenset(roles) for account, roles in held.items()}
+        return {account: frozenset(permissions) for account, permissions in held.items()}

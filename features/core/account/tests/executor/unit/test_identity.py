@@ -173,7 +173,7 @@ async def test_grants_and_their_mutations_use_the_v2_authorization_service(
 
     z = writer(key_file, handler, calls)
     grants = await z.authorizations.grants("u-1")
-    assert [(g.grant_id, g.project_id, set(g.roles)) for g in grants] == [
+    assert [(g.grant_id, g.project_id, set(g.permissions)) for g in grants] == [
         ("g-1", "proj-core", {"core.account.get"})
     ]
     await z.authorizations.create_grant("u-1", "proj-core", ["a", "b"])
@@ -193,7 +193,7 @@ async def test_grants_and_their_mutations_use_the_v2_authorization_service(
         {"inUserIds": {"ids": ["u-1"]}},
         {"organizationId": {"id": "org-r"}},
     ]
-    # A organização vai no corpo; o teto de roles é o Project Grant, aplicado pelo Zitadel.
+    # A organização vai no corpo; o teto de permissões é o Project Grant, aplicado pelo Zitadel.
     assert json.loads(calls[1].content) == {
         "userId": "u-1",
         "projectId": "proj-core",
@@ -204,11 +204,11 @@ async def test_grants_and_their_mutations_use_the_v2_authorization_service(
     assert json.loads(calls[3].content) == {"id": "g-1"}
 
 
-async def test_the_project_of_a_role_comes_from_its_module(key_file: Path) -> None:
+async def test_the_project_of_a_permission_comes_from_its_module(key_file: Path) -> None:
     z = writer(key_file, lambda r: httpx.Response(200, json={}))
     assert z.authorizations.project_of("core.account.get") == "proj-core"
     assert z.authorizations.project_of("sum.ipm.enable") == "proj-sum"
-    # `ipm` não está em `project_ids`: o Executor da Account não concede roles dele (decisão 0032).
+    # `ipm` não está em `project_ids`: o Executor da Account não concede permissões dele (0032).
     with pytest.raises(ProviderError) as raised:
         z.authorizations.project_of("ipm.organization.get")
     assert (raised.value.reason, raised.value.retryable) == ("Rejected", False)

@@ -42,7 +42,7 @@ def user_view(record: ResourceRecord) -> generated.User:
         "lifecycle": record.lifecycle,
         "reconciliation": record.reconciliation,
         "organizationId": desired["organizationId"],
-        "roles": desired.get("roles", []),
+        "permissions": desired.get("permissions", []),
         # No usuário da Organization a proteção nasce desligada (decisão 0077).
         "deletionProtection": desired.get("deletionProtection", False),
         **{field: desired[field] for field in PERSONAL_FIELDS if field in desired},

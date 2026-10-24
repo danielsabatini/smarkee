@@ -16,7 +16,7 @@ from support_manager import (
     unique_suffix,
 )
 
-from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES
+from core_account.manager.domain.account import DEFAULT_PLATFORM_PERMISSIONS
 from core_account.manager.domain.outcome import OutcomeKind, RejectionReason
 from core_account.manager.handlers.requested import RequestedHandler
 
@@ -104,7 +104,7 @@ async def test_anonymous_registration_creates_the_account_with_normalized_email(
     assert row["desired"] == {
         "lifecycle": "present",
         "platformAccess": "granted",
-        "platformRoles": list(DEFAULT_PLATFORM_ROLES),
+        "platformPermissions": list(DEFAULT_PLATFORM_PERMISSIONS),
         "givenName": "Ana",
         "familyName": "Souza",
         "email": expected_email,
@@ -155,7 +155,7 @@ async def test_delete_removes_personal_data_from_the_ssot_and_from_the_desired_m
     assert row["desired"] == {
         "lifecycle": "absent",
         "platformAccess": "granted",
-        "platformRoles": list(DEFAULT_PLATFORM_ROLES),
+        "platformPermissions": list(DEFAULT_PLATFORM_PERMISSIONS),
     }
     assert (row["lifecycle"], row["phase"], row["desired_generation"]) == ("absent", "Deleting", 3)
 
@@ -165,7 +165,7 @@ async def test_delete_removes_personal_data_from_the_ssot_and_from_the_desired_m
         "lifecycle": "absent",
         "reconciliation": "active",
         "platformAccess": "granted",
-        "platformRoles": list(DEFAULT_PLATFORM_ROLES),
+        "platformPermissions": list(DEFAULT_PLATFORM_PERMISSIONS),
     }
     personal = message["data"]["specification"]["email"]
     assert personal not in json.dumps(latest)

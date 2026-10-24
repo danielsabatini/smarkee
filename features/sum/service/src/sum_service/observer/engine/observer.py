@@ -6,7 +6,7 @@ O Observer não altera o sistema externo (`docs/RESOURCE-CONTROL-LOOP.md`). Obse
 - depois de cada `completed` ou `failed`, com `causationId` igual ao `messageId` do resultado;
 - periodicamente, para que `observed` não envelheça.
 
-Para de observar uma ligação desligada cuja remoção convergiu (sem roles do serviço).
+Para de observar uma ligação desligada cuja remoção convergiu (sem permissões do serviço).
 """
 
 import hashlib
@@ -56,8 +56,8 @@ def owns(resource_id: str, index: int, count: int) -> bool:
 class Watch:
     owner_account_id: str
     service: str
-    managed_roles: tuple[str, ...] = ()
-    """Roles que a ligação controla (`managedRoles` do `desired`, decisão 0079)."""
+    managed_permissions: tuple[str, ...] = ()
+    """Permissões que a ligação controla (`managedPermissions` do `desired`, decisão 0079)."""
 
     lifecycle: str = "present"
     generation: int = 0
@@ -66,9 +66,9 @@ class Watch:
 
 
 def _removal_converged(watch: Watch, observation: Observation) -> bool:
-    """Ligação desligada, lida como presente e sem roles do serviço: a remoção convergiu."""
-    roles: object = observation.data.get("serviceRoles", [])
-    return watch.lifecycle == "absent" and observation.presence == "present" and not roles
+    """Ligação desligada, lida como presente e sem permissões do serviço: a remoção convergiu."""
+    permissions: object = observation.data.get("servicePermissions", [])
+    return watch.lifecycle == "absent" and observation.presence == "present" and not permissions
 
 
 class Observer:
@@ -139,8 +139,9 @@ class Observer:
             self._watches[envelope.resource_id] = watch
         watch.generation = generation
         watch.lifecycle = lifecycle
-        watch.managed_roles = tuple(
-            str(role) for role in data.get("managedRoles", data.get("serviceRoles", ()))
+        watch.managed_permissions = tuple(
+            str(permission)
+            for permission in data.get("managedPermissions", data.get("servicePermissions", ()))
         )
         watch.correlation_id = envelope.correlation_id
         if watch.lifecycle == "present":
@@ -157,7 +158,7 @@ class Observer:
         generation = watch.generation
         with observation_context(resource_id, owner_id=watch.owner_account_id):
             observation: Observation = await observe(
-                self._drivers, watch.owner_account_id, watch.managed_roles
+                self._drivers, watch.owner_account_id, watch.managed_permissions
             )
             if _removal_converged(watch, observation):
                 watch.tombstone = True  # remoção convergida: deixa de observar

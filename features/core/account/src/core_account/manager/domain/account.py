@@ -34,7 +34,7 @@ def _parse_resource_version(value: str) -> int:
         raise PermanentMessageError("resourceVersion não numérico") from None
 
 
-DEFAULT_PLATFORM_ROLES: tuple[str, ...] = (
+DEFAULT_PLATFORM_PERMISSIONS: tuple[str, ...] = (
     "bsm.account.create",
     "bsm.account.delete",
     "bsm.account.get",
@@ -46,24 +46,26 @@ DEFAULT_PLATFORM_ROLES: tuple[str, ...] = (
     "sum.ipm.enable",
     "sum.ipm.get",
 )
-"""Roles de ação do usuário cadastrado (decisões 0025, 0032, 0033 e 0082).
+"""Permissões de ação do usuário cadastrado (decisões 0025, 0032, 0033 e 0082).
 
-São as dos módulos de nível de conta (`core` e `bsm`, fundacionais da pessoa) e as roles base do
-SUM, que só permitem **pedir** a ligação de um serviço. As roles dos serviços ligáveis (por exemplo,
-`ipm.organization.*`) não vêm no cadastro: chegam quando o usuário liga o serviço (SUM), concedidas
-por quem tem o Project Grant daquele módulo.
+São as dos módulos de nível de conta (`core` e `bsm`, fundacionais da pessoa) e as permissões base
+do SUM, que só permitem **pedir** a ligação de um serviço. As permissões dos serviços ligáveis (por
+exemplo, `ipm.organization.*`) não vêm no cadastro: chegam quando o usuário liga o serviço (SUM),
+concedidas por quem tem o Project Grant daquele módulo.
 """
 
 
 class AccountPolicy:
     """Account: e-mail único (normalizado) e `desired` de remoção sem dados pessoais (decisão 0014).
 
-    As roles que o usuário recebe vêm da configuração do Manager e ficam gravadas no `desired`
-    (`platformRoles`, decisão 0025): é a única fonte do conjunto no loop.
+    As permissões que o usuário recebe vêm da configuração do Manager e ficam gravadas no `desired`
+    (`platformPermissions`, decisão 0025): é a única fonte do conjunto no loop.
     """
 
-    def __init__(self, platform_roles: tuple[str, ...] = DEFAULT_PLATFORM_ROLES) -> None:
-        self._platform_roles = sorted(set(platform_roles))
+    def __init__(
+        self, platform_permissions: tuple[str, ...] = DEFAULT_PLATFORM_PERMISSIONS
+    ) -> None:
+        self._platform_permissions = sorted(set(platform_permissions))
 
     def parse(self, operation: str, data: Mapping[str, Any]) -> Request:
         match operation:
@@ -110,7 +112,7 @@ class AccountPolicy:
         return {
             "lifecycle": "present",
             "platformAccess": "granted",
-            "platformRoles": list(self._platform_roles),
+            "platformPermissions": list(self._platform_permissions),
             "deletionProtection": True,  # todo recurso apagável nasce protegido (decisão 0043)
             **request.specification,
         }
@@ -124,7 +126,7 @@ class AccountPolicy:
         return {
             "lifecycle": "absent",
             "platformAccess": current["platformAccess"],
-            "platformRoles": current["platformRoles"],
+            "platformPermissions": current["platformPermissions"],
         }
 
     def unique_value(self, desired: Mapping[str, Any]) -> UniqueValue | None:
@@ -145,15 +147,15 @@ class AccountPolicy:
     def is_converged(
         self, desired: Mapping[str, Any], presence: str, observed: Mapping[str, Any] | None
     ) -> bool:
-        # Campos gerenciados da Account: `lifecycle`, `platformAccess`, `platformRoles` e
+        # Campos gerenciados da Account: `lifecycle`, `platformAccess`, `platformPermissions` e
         # `deletionProtection`, este pelo metadado (schemas/core/account/desired; decisão 0074). As
-        # roles desejadas precisam estar contidas nas observadas: roles a mais não divergem.
+        # permissões desejadas precisam estar contidas nas observadas: a mais não diverge.
         if desired["lifecycle"] == "absent":
             return presence == "absent"
         return (
             presence == "present"
             and observed is not None
             and observed.get("platformAccess") == desired["platformAccess"]
-            and set(desired["platformRoles"]) <= set(observed.get("platformRoles", ()))
+            and set(desired["platformPermissions"]) <= set(observed.get("platformPermissions", ()))
             and observed.get("deletionProtection") == self.deletion_protected(desired)
         )

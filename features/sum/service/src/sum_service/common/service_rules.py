@@ -1,8 +1,9 @@
 """Regras das ligações de serviço do SUM, comuns aos papéis (decisão 0033).
 
-Usado pelo Manager (decide ligar e desligar), pelo Observer e pelo Executor (roles de cada serviço).
-Puro: sem banco, rede ou relógio. O catálogo (serviço → roles) vem da configuração e é validado
-aqui com os mesmos padrões dos contratos (`schemas/sum/service/definitions.v1.schema.json`).
+Usado pelo Manager (decide ligar e desligar), pelo Observer e pelo Executor (permissões de cada
+serviço). Puro: sem banco, rede ou relógio. O catálogo (serviço → permissões) vem da configuração e
+é validado aqui com os mesmos padrões dos contratos
+(`schemas/sum/service/definitions.v1.schema.json`).
 """
 
 import json
@@ -15,8 +16,8 @@ from pydantic import ValidationError
 from sum_service.common.contracts import generated
 
 SERVICE_PATTERN = re.compile(r"^[a-z][a-z0-9]*$")
-ROLE_PATTERN = re.compile(r"^[a-z][a-z0-9]*\.[a-z][a-z0-9]*\.[a-z][a-z0-9]*$")
-MAX_ROLES_PER_SERVICE = 64
+PERMISSION_PATTERN = re.compile(r"^[a-z][a-z0-9]*\.[a-z][a-z0-9]*\.[a-z][a-z0-9]*$")
+MAX_PERMISSIONS_PER_SERVICE = 64
 
 Catalog = dict[str, tuple[str, ...]]
 
@@ -34,7 +35,7 @@ class ServiceNotAvailableError(Exception):
 
 
 def parse_catalog(raw: str) -> Catalog:
-    """Lê o catálogo de `SUM_MANAGER_SERVICE_ROLES` (JSON: `{"ipm": ["ipm.organization.get"]}`).
+    """Lê o catálogo de `SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS` (JSON).
 
     Erro explícito para cada problema, sem repetir valores além do necessário.
     """
@@ -45,43 +46,43 @@ def parse_catalog(raw: str) -> Catalog:
     if not isinstance(document, dict) or not document:
         raise CatalogError("o catálogo de serviços deve ser um objeto JSON com ao menos um serviço")
     catalog: Catalog = {}
-    for service, roles in cast("dict[object, object]", document).items():
+    for service, permissions in cast("dict[object, object]", document).items():
         if not isinstance(service, str) or not SERVICE_PATTERN.fullmatch(service):
             raise CatalogError("nome de serviço fora do padrão no catálogo")
-        catalog[service] = _service_roles(service, roles)
+        catalog[service] = _service_permissions(service, permissions)
     return catalog
 
 
-def _service_roles(service: str, roles: object) -> tuple[str, ...]:
-    if not isinstance(roles, list) or not roles:
-        raise CatalogError(f"o serviço {service!r} precisa de ao menos uma role")
-    names = cast("list[object]", roles)
+def _service_permissions(service: str, permissions: object) -> tuple[str, ...]:
+    if not isinstance(permissions, list) or not permissions:
+        raise CatalogError(f"o serviço {service!r} precisa de ao menos uma permissão")
+    names = cast("list[object]", permissions)
     texts: list[str] = []
-    for role in names:
-        if not isinstance(role, str) or not ROLE_PATTERN.fullmatch(role):
-            raise CatalogError(f"role fora do padrão <módulo>.<tipo>.<ação> em {service!r}")
-        texts.append(role)
-    if len(texts) > MAX_ROLES_PER_SERVICE or len(set(texts)) != len(texts):
+    for permission in names:
+        if not isinstance(permission, str) or not PERMISSION_PATTERN.fullmatch(permission):
+            raise CatalogError(f"permissão fora do padrão <módulo>.<tipo>.<ação> em {service!r}")
+        texts.append(permission)
+    if len(texts) > MAX_PERMISSIONS_PER_SERVICE or len(set(texts)) != len(texts):
         raise CatalogError(
-            f"as roles de {service!r} devem ser únicas e até {MAX_ROLES_PER_SERVICE}"
+            f"as permissões de {service!r} devem ser únicas e até {MAX_PERMISSIONS_PER_SERVICE}"
         )
     return tuple(sorted(texts))
 
 
-def roles_of(catalog: Mapping[str, tuple[str, ...]], service: str) -> tuple[str, ...]:
-    """Roles do serviço no catálogo, ou `ServiceNotAvailableError` se ele não está nele."""
-    roles = catalog.get(service)
-    if roles is None:
+def permissions_of(catalog: Mapping[str, tuple[str, ...]], service: str) -> tuple[str, ...]:
+    """Permissões do serviço no catálogo, ou `ServiceNotAvailableError` se ele não está nele."""
+    permissions = catalog.get(service)
+    if permissions is None:
         raise ServiceNotAvailableError(service)
-    return roles
+    return permissions
 
 
-def managed_roles_of(current: Mapping[str, Any] | None) -> tuple[str, ...]:
-    """Roles que a ligação já controla (`managedRoles`, ou `serviceRoles` num `desired` antigo)."""
+def managed_permissions_of(current: Mapping[str, Any] | None) -> tuple[str, ...]:
+    """Permissões que a ligação já controla (`managedPermissions`, ou `servicePermissions`)."""
     if current is None:
         return ()
-    roles: Any = current.get("managedRoles", current.get("serviceRoles", ()))
-    return tuple(str(role) for role in cast("list[object]", roles or []))
+    permissions: Any = current.get("managedPermissions", current.get("servicePermissions", ()))
+    return tuple(str(permission) for permission in cast("list[object]", permissions or []))
 
 
 def enable_desired(
@@ -90,20 +91,20 @@ def enable_desired(
     catalog: Mapping[str, tuple[str, ...]],
     current: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """`desired` de uma ligação ativa: as roles do catálogo agora (decisão 0079).
+    """`desired` de uma ligação ativa: as permissões do catálogo agora (decisão 0079).
 
-    `managedRoles` soma as do catálogo às que a ligação já controlava: uma role que saiu do
-    catálogo continua controlada, para ser revogada.
+    `managedPermissions` soma as do catálogo às que a ligação já controlava: uma permissão que saiu
+    do catálogo continua controlada, para ser revogada.
     """
-    roles = roles_of(catalog, service)
+    permissions = permissions_of(catalog, service)
     return _validated(
         {
             "lifecycle": "present",
             "reconciliation": "active",
             "ownerAccountId": owner_account_id,
             "service": service,
-            "serviceRoles": list(roles),
-            "managedRoles": sorted({*roles, *managed_roles_of(current)}),
+            "servicePermissions": list(permissions),
+            "managedPermissions": sorted({*permissions, *managed_permissions_of(current)}),
         }
     )
 
@@ -111,10 +112,10 @@ def enable_desired(
 def disable_desired(
     current: Mapping[str, Any], catalog: Mapping[str, tuple[str, ...]]
 ) -> dict[str, Any]:
-    """`desired` de uma ligação desfeita: `absent`, sem roles, com o mesmo dono e serviço.
+    """`desired` de uma ligação desfeita: `absent`, sem permissões, com o mesmo dono e serviço.
 
     A ligação continua existindo (decisão 0033): os recursos do usuário no serviço não são apagados.
-    `managedRoles` diz o que revogar: as que a ligação controlava e as do catálogo agora.
+    `managedPermissions` diz o que revogar: as que a ligação controlava e as do catálogo agora.
     """
     service = str(current["service"])
     return _validated(
@@ -123,8 +124,10 @@ def disable_desired(
             "reconciliation": current["reconciliation"],
             "ownerAccountId": current["ownerAccountId"],
             "service": service,
-            "serviceRoles": [],
-            "managedRoles": sorted({*catalog.get(service, ()), *managed_roles_of(current)}),
+            "servicePermissions": [],
+            "managedPermissions": sorted(
+                {*catalog.get(service, ()), *managed_permissions_of(current)}
+            ),
         }
     )
 

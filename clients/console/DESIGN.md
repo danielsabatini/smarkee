@@ -33,12 +33,40 @@ typography:
     fontFamily: 'var(--font-sans)'
   label:
     fontFamily: 'var(--font-mono)'
+rounded:
+  sm: '4px'
+  md: '8px'
+  lg: '12px'
+  xl: '16px'
+  full: '9999px'
 components:
   status-badge-ready:
     backgroundColor: '{colors.status-ready-bg}'
     textColor: '{colors.status-ready-text}'
     padding: '4px 10px'
-    rounded: '9999px'
+    rounded: '{rounded.full}'
+  copyable-id:
+    backgroundColor: '{colors.surface-subtle}'
+    textColor: '{colors.text-primary}'
+    typography: '{typography.label}'
+    padding: '8px 12px'
+    rounded: '{rounded.md}'
+  nav-link-active:
+    backgroundColor: '{colors.brand-50}'
+    textColor: '{colors.brand-900}'
+    typography: '{typography.body}'
+    padding: '8px'
+    rounded: '{rounded.md}'
+  demo-badge:
+    backgroundColor: '#fffbeb'
+    textColor: '#92400e'
+    padding: '2px 4px'
+    rounded: '{rounded.sm}'
+  empty-state:
+    backgroundColor: '#f8fafc'
+    textColor: '{colors.text-primary}'
+    padding: '40px 24px'
+    rounded: '{rounded.lg}'
 ---
 
 # Design System: Smarkee Console
@@ -112,20 +140,32 @@ O sistema form-language foca na estrutura geométrica previsível.
 
 ### Status Badge
 
-- **Shape:** Pill (rounded-full).
-- **Style:** Fundo de cor muito clara e translúcida (tone-50) com texto de alta saturação (tone-800) e borda acompanhando o estado (tone-200).
+- **Shape:** Pill (9999px / `rounded-full`).
+- **Style:** Fundo de cor muito clara (ex: `bg-status-ready-bg`) com texto de alta saturação (`text-status-ready-text`) e borda fina de 20% de opacidade da cor do texto.
 - **Behavior:** Frequentemente acompanhados de ícones Lucide pequenos (14px) para reforçar a semântica de estado (CheckCircle2, Loader2, AlertTriangle, XCircle).
 
-### Botões e Controles
+### Navigation Link (Sidebar)
 
-- **Primário:** Cor de fundo esmeralda intensa (`bg-emerald-600`), texto branco, com `hover:bg-emerald-700`.
-- **Ghost/Secundário:** Fundo transparente, bordas definidas, texto cinza escuro, com `hover:bg-slate-100`.
-- **Shape:** Levemente arredondado (`rounded-lg` ou `rounded-xl`).
+- **Shape:** Arredondado (8px / `rounded-lg`).
+- **Active State:** Fundo sutil da marca (`bg-brand-50`), texto forte (`text-brand-900`) e anel/borda para foco (`ring-1 ring-brand-200/80`).
+- **Default / Hover:** Texto neutro (`text-slate-700`), muda para fundo sutil ao passar o mouse (`hover:bg-slate-100 hover:text-slate-900`).
 
 ### Campos e Inputs de Cópia Técnica (CopyableId)
 
-- Usam sempre a tipografia Monospace.
-- Permitem clique único e feedback imediato de cópia bem-sucedida, priorizando usabilidade técnica.
+- **Shape:** Arredondado (8px / `rounded-lg`).
+- **Style:** Fundo sutil (`bg-slate-100`), texto escuro (`text-slate-900`) com tipografia Monospace pequena (11px).
+- **Behavior:** Permitem clique único e feedback imediato de cópia bem-sucedida, mudando o ícone para verde da marca (`text-brand-700` e `hover:bg-brand-100`).
+
+### Demo Badge
+
+- **Shape:** Arredondado (4px / `rounded`) ou ícone interativo (pílula expansível).
+- **Style:** Cores de atenção semântica para diferenciar do conteúdo de produção (fundo `amber-50`, texto `amber-800`, borda `amber-200`).
+
+### Empty State
+
+- **Shape:** Contêiner espaçoso (12px / `rounded-xl`).
+- **Style:** Fundo quase transparente (`bg-slate-50/70`), borda tracejada (`border-dashed border-slate-300`).
+- **Iconografia:** Círculo de destaque sutil da marca (`bg-brand-50 text-brand-700`) centralizado.
 
 ## Do's and Don'ts
 

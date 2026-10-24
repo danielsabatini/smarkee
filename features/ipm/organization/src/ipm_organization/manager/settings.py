@@ -27,10 +27,10 @@ class LoopSettings(Section):
 
 
 class UserAccessSettings(Section):
-    """Contas do `ipm/user` que recebem papéis em cada Organization (decisão 0081).
+    """Contas do `ipm/user` que recebem permissões em cada Organization (decisão 0081).
 
     São IDs do provedor de identidade, que mudam por ambiente; o catálogo do Grant não é
-    configuração: vem do contrato (`grantableRole`). Sem default.
+    configuração: vem do contrato (`grantablePermission`). Sem default.
     """
 
     user_executor_account_id: str | None = None

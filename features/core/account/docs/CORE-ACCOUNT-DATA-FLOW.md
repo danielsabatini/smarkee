@@ -168,13 +168,13 @@ Código: `src/core_account/manager/handlers/requested.py` e `store/ssot.py`. O M
 1. Valida o envelope e confere `messageType = requested`, `emitter = receiver`, `module = core`, `resourceType = account`.
 2. Exige `requestedBy` e `correlationId`.
 3. Valida o `data` e **normaliza o e-mail**: `email.strip().lower()`.
-4. Calcula o `desired` do cadastro (regra da Account, `domain/account.py`). `platformRoles` vem da configuração do Manager (`CORE_ACCOUNT_MANAGER_PLATFORM_ROLES`; [decisão 0025](../../../../.decisions/0025-roles-do-account-no-ssot.md)) e é a única fonte do conjunto de roles no loop:
+4. Calcula o `desired` do cadastro (regra da Account, `domain/account.py`). `platformPermissions` vem da configuração do Manager (`CORE_ACCOUNT_MANAGER_PLATFORM_PERMISSIONS`; [decisão 0025](../../../../.decisions/0025-roles-do-account-no-ssot.md)) e é a única fonte do conjunto de permissões no loop:
 
 ```json
 {
   "lifecycle": "present",
   "platformAccess": "granted",
-  "platformRoles": [
+  "platformPermissions": [
     "core.account.delete",
     "core.account.get",
     "sum.ipm.disable",
@@ -222,7 +222,7 @@ INSERT INTO core.account
    desired, desired_generation, resource_version, phase)
 VALUES
   ('0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e', '1.0', 'present', 'active',
-   '{"lifecycle":"present","platformAccess":"granted","platformRoles":["core.account.delete","core.account.get","sum.ipm.disable","sum.ipm.enable","sum.ipm.get"],"givenName":"Ana","familyName":"Souza","email":"ana.souza@example.com"}'::jsonb,
+   '{"lifecycle":"present","platformAccess":"granted","platformPermissions":["core.account.delete","core.account.get","sum.ipm.disable","sum.ipm.enable","sum.ipm.get"],"givenName":"Ana","familyName":"Souza","email":"ana.souza@example.com"}'::jsonb,
    1, 1, 'Pending');
 ```
 
@@ -258,7 +258,7 @@ Depois: `COMMIT` e só então `ACK` da mensagem `requested`.
 | `schema_version` | `1.0` | constante do Manager |
 | `lifecycle` | `present` | do `desired` |
 | `reconciliation` | `active` | fixo na criação |
-| `desired` | `{lifecycle, platformAccess, platformRoles, givenName, familyName, email}` (jsonb) | 3.1 |
+| `desired` | `{lifecycle, platformAccess, platformPermissions, givenName, familyName, email}` (jsonb) | 3.1 |
 | `desired_generation` | `1` | fixo na criação |
 | `resource_version` | `1` | fixo na criação (aumenta a cada alteração da linha) |
 | `observed` | `NULL` | ainda não observado |
@@ -325,7 +325,7 @@ Tabela `core.account_outbox` (DDL na migração). A linha é gravada na **mesma 
     "lifecycle": "present",
     "reconciliation": "active",
     "platformAccess": "granted",
-    "platformRoles": [
+    "platformPermissions": [
       "core.account.delete",
       "core.account.get",
       "sum.ipm.disable",
@@ -485,7 +485,7 @@ A `action` **não carrega os dados do usuário**: o Executor lê o `desired` vig
 
 ### 6.3 Executor age no Zitadel e publica `completed` (ou `failed`)
 
-No `create`, o Executor chama o Zitadel (nesta ordem, cada passo idempotente): cria o usuário humano **sem senha**, com `userId = resourceId`; o Zitadel dispara, na criação, o e-mail "Verificar e-mail", cuja página também define a senha (um e-mail só; o "Redefinir senha" fica para quem esquecer a senha); concede no projeto `roles` as roles de `desired.platformRoles` (o Executor não tem lista própria; sem o campo no `desired`, a ação é rejeitada sem retentativa). Antes disso consulta o `RESULT` para saber se aquele `actionId` já tem desfecho (idempotência).
+No `create`, o Executor chama o Zitadel (nesta ordem, cada passo idempotente): cria o usuário humano **sem senha**, com `userId = resourceId`; o Zitadel dispara, na criação, o e-mail "Verificar e-mail", cuja página também define a senha (um e-mail só; o "Redefinir senha" fica para quem esquecer a senha); concede nos projetos de permissões as permissões de `desired.platformPermissions` (o Executor não tem lista própria; sem o campo no `desired`, a ação é rejeitada sem retentativa). Antes disso consulta o `RESULT` para saber se aquele `actionId` já tem desfecho (idempotência).
 
 | Item | Valor |
 |---|---|
@@ -575,7 +575,7 @@ Depois do `completed` o Observer observa o usuário de novo (`causationId` = `me
     "emailVerified": false,
     "accountState": "initial",
     "platformAccess": "granted",
-    "platformRoles": [
+    "platformPermissions": [
       "core.account.delete",
       "core.account.get",
       "sum.ipm.disable",
@@ -590,14 +590,14 @@ Depois do `completed` o Observer observa o usuário de novo (`causationId` = `me
 |---|---|
 | `emailVerified` | `true` / `false` |
 | `accountState` | `initial` enquanto a senha não foi definida; depois `active` ou `inactive` |
-| `platformAccess` | `granted` se o usuário tem ao menos uma role no projeto; senão `revoked` |
-| `platformRoles` | Roles que o usuário tem no projeto `roles`, em ordem alfabética (inclui roles a mais, como `core.account.admin` de um operador) |
+| `platformAccess` | `granted` se o usuário tem ao menos uma permissão no projeto; senão `revoked` |
+| `platformPermissions` | Permissões que o usuário tem nos projetos de permissões, em ordem alfabética (inclui permissões a mais, como `core.account.admin` de um operador) |
 
-O Manager aplica pela mesma sequência da seção 6.1. **Convergência** da Account: `presence = present`, `observed.platformAccess == desired.platformAccess` **e** `desired.platformRoles ⊆ observed.platformRoles` (roles a mais não divergem; role faltando gera `update` com `reason = Drift`) **e** `observed.deletionProtection` igual à do `desired` (metadado do usuário, decisão 0074); `emailVerified` e `accountState` **não** entram na comparação. Convergiu, então:
+O Manager aplica pela mesma sequência da seção 6.1. **Convergência** da Account: `presence = present`, `observed.platformAccess == desired.platformAccess` **e** `desired.platformPermissions ⊆ observed.platformPermissions` (permissões a mais não divergem; permissão faltando gera `update` com `reason = Drift`) **e** `observed.deletionProtection` igual à do `desired` (metadado do usuário, decisão 0074); `emailVerified` e `accountState` **não** entram na comparação. Convergiu, então:
 
 | Onde | Valor final |
 |---|---|
-| `core.account.observed` | `{"emailVerified": false, "accountState": "initial", "platformAccess": "granted", "platformRoles": ["core.account.delete", "core.account.get", "sum.ipm.disable", "sum.ipm.enable", "sum.ipm.get"]}` |
+| `core.account.observed` | `{"emailVerified": false, "accountState": "initial", "platformAccess": "granted", "platformPermissions": ["core.account.delete", "core.account.get", "sum.ipm.disable", "sum.ipm.enable", "sum.ipm.get"]}` |
 | `core.account.presence` / `observed_at` | `present` / `2026-10-09T14:00:05+00:00` |
 | `core.account.phase` | `Ready` |
 | `core.account.conditions` | `[{"type":"Ready","status":"True","reason":"Reconciled","observedGeneration":1,"lastTransitionAt":"2026-10-09T14:00:05+00:00"}]` |
@@ -671,13 +671,13 @@ SELECT sequence, subject, published_at FROM core.account_outbox ORDER BY sequenc
 
 ## 8. Remoção: `DELETE /v1/core/accounts/{id}?resourceVersion=`
 
-**Proteção contra exclusão (decisões 0043, 0072 e 0074).** A conta nasce com `desired.deletionProtection = true`. `PATCH /v1/core/accounts/{id}` (corpo `{resourceVersion, deletionProtection}`, role `core.account.delete`, só a própria conta ou `core.account.admin`) publica `requested` com `operation = update` e `specification = {deletionProtection}`. A alteração percorre o loop como qualquer outra: o Manager grava o novo `desired` com nova geração, fase `Reconciling` e Operation `accepted`; o Reconciler vê a divergência com o metadado `deletionProtection` do usuário e decide `update`; o Executor grava o metadado; o Observer observa a nova geração e o `observed` conclui a Operation (`completed`, fase `Ready`) e gera o `updated` com `desiredGeneration` e `observedGeneration` iguais. O `DELETE` só segue com a proteção desligada.
+**Proteção contra exclusão (decisões 0043, 0072 e 0074).** A conta nasce com `desired.deletionProtection = true`. `PATCH /v1/core/accounts/{id}` (corpo `{resourceVersion, deletionProtection}`, permissão `core.account.delete`, só a própria conta ou `core.account.admin`) publica `requested` com `operation = update` e `specification = {deletionProtection}`. A alteração percorre o loop como qualquer outra: o Manager grava o novo `desired` com nova geração, fase `Reconciling` e Operation `accepted`; o Reconciler vê a divergência com o metadado `deletionProtection` do usuário e decide `update`; o Executor grava o metadado; o Observer observa a nova geração e o `observed` conclui a Operation (`completed`, fase `Ready`) e gera o `updated` com `desiredGeneration` e `observedGeneration` iguais. O `DELETE` só segue com a proteção desligada.
 
-Resumo dos dados (fluxo completo: [`08-remocao`](flow/08-remocao.mmd)). Exige token com a role `core.account.delete`; o dono ou `core.account.admin`. `resourceVersion` é obrigatório e deve ser o da última leitura (senão `409`). Aceita `Idempotency-Key` (o mesmo valor com outro conteúdo devolve `422`).
+Resumo dos dados (fluxo completo: [`08-remocao`](flow/08-remocao.mmd)). Exige token com a permissão `core.account.delete`; o dono ou `core.account.admin`. `resourceVersion` é obrigatório e deve ser o da última leitura (senão `409`). Aceita `Idempotency-Key` (o mesmo valor com outro conteúdo devolve `422`).
 
 - **`requestDigest`:** SHA-256 de `{"operation":"delete","resourceId":"<id>","resourceVersion":"<versão>"}`.
 - **`requested`:** subject `receiver.requested.core.account.<resourceId>.delete`; `requestedBy` = `sub` do token; `data = {operationId, requestDigest, resourceVersion}` (contrato: [`requested-delete.v1.schema.json`](../../../../schemas/core/account/requested-delete.v1.schema.json)).
-- **Manager** (transação): `SELECT ... FOR UPDATE` na linha; se não existir, Operation `rejected/not_found`; se `resource_version` diferir, `rejected/conflict`; se `deletionProtection` for diferente de `false` (a conta nasce protegida; registro sem o campo vale como protegido), `rejected/protected` (decisão 0043; o Receiver já responde `409 DeletionProtected` antes). Calcula o novo `desired` **sem dados pessoais**: `{"lifecycle":"absent","platformAccess":"granted","platformRoles":[...]}` (as roles atuais são copiadas; nenhum dado pessoal). Grava:
+- **Manager** (transação): `SELECT ... FOR UPDATE` na linha; se não existir, Operation `rejected/not_found`; se `resource_version` diferir, `rejected/conflict`; se `deletionProtection` for diferente de `false` (a conta nasce protegida; registro sem o campo vale como protegido), `rejected/protected` (decisão 0043; o Receiver já responde `409 DeletionProtected` antes). Calcula o novo `desired` **sem dados pessoais**: `{"lifecycle":"absent","platformAccess":"granted","platformPermissions":[...]}` (as permissões atuais são copiadas; nenhum dado pessoal). Grava:
 
 ```sql
 UPDATE core.account

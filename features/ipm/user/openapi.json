@@ -248,6 +248,13 @@
         "title": "OperationType",
         "type": "string"
       },
+      "Permission": {
+        "maxLength": 128,
+        "minLength": 5,
+        "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$",
+        "title": "Permission",
+        "type": "string"
+      },
       "Phase": {
         "description": "Fase consolidada do recurso (RESOURCE-CONTROL-LOOP.md, Lifecycle).",
         "enum": [
@@ -277,13 +284,6 @@
           "suspended"
         ],
         "title": "Reconciliation",
-        "type": "string"
-      },
-      "Role": {
-        "maxLength": 128,
-        "minLength": 5,
-        "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$",
-        "title": "Role",
         "type": "string"
       },
       "User": {
@@ -361,7 +361,7 @@
       },
       "UserCreateRequest": {
         "additionalProperties": false,
-        "description": "Corpo de POST /v1/ipm/users. O Receiver atribui resourceId, operationId, requestDigest e requestedBy. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação. roles ausente equivale a nenhuma; deletionProtection ausente equivale a false (decisão 0077).",
+        "description": "Corpo de POST /v1/ipm/users. O Receiver atribui resourceId, operationId, requestDigest e requestedBy. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação. permissions ausente equivale a nenhuma; deletionProtection ausente equivale a false (decisão 0077).",
         "properties": {
           "deletionProtection": {
             "anyOf": [
@@ -400,11 +400,11 @@
             "title": "Organizationid",
             "type": "string"
           },
-          "roles": {
+          "permissions": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/Role"
+                  "$ref": "#/components/schemas/Permission"
                 },
                 "maxItems": 64,
                 "type": "array"
@@ -413,7 +413,7 @@
                 "type": "null"
               }
             ],
-            "title": "Roles"
+            "title": "Permissions"
           }
         },
         "required": [
@@ -489,23 +489,23 @@
             "title": "Organizationid",
             "type": "string"
           },
-          "reconciliation": {
-            "$ref": "#/components/schemas/Reconciliation"
-          },
-          "roles": {
+          "permissions": {
             "items": {
-              "$ref": "#/components/schemas/Role"
+              "$ref": "#/components/schemas/Permission"
             },
             "maxItems": 64,
-            "title": "Roles",
+            "title": "Permissions",
             "type": "array"
+          },
+          "reconciliation": {
+            "$ref": "#/components/schemas/Reconciliation"
           }
         },
         "required": [
           "lifecycle",
           "reconciliation",
           "organizationId",
-          "roles"
+          "permissions"
         ],
         "title": "UserDesiredView",
         "type": "object"
@@ -574,14 +574,11 @@
             "title": "Observedat",
             "type": "string"
           },
-          "presence": {
-            "$ref": "#/components/schemas/Presence"
-          },
-          "roles": {
+          "permissions": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/Role"
+                  "$ref": "#/components/schemas/Permission"
                 },
                 "maxItems": 64,
                 "type": "array"
@@ -590,7 +587,10 @@
                 "type": "null"
               }
             ],
-            "title": "Roles"
+            "title": "Permissions"
+          },
+          "presence": {
+            "$ref": "#/components/schemas/Presence"
           },
           "userState": {
             "anyOf": [
@@ -623,7 +623,7 @@
       },
       "UserUpdateRequest": {
         "additionalProperties": false,
-        "description": "Corpo de PATCH /v1/ipm/users/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. Mudar roles exige ipm.user.bind, ou só roles que quem pede já tem (decisão 0077); reconciliation é do operador.",
+        "description": "Corpo de PATCH /v1/ipm/users/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. Mudar permissions exige ipm.user.bind, ou só permissões que quem pede já tem (decisão 0077); reconciliation é do operador.",
         "properties": {
           "deletionProtection": {
             "anyOf": [
@@ -635,6 +635,21 @@
               }
             ],
             "title": "Deletionprotection"
+          },
+          "permissions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Permission"
+                },
+                "maxItems": 64,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permissions"
           },
           "reconciliation": {
             "anyOf": [
@@ -652,21 +667,6 @@
             "pattern": "^[A-Za-z0-9-]+$",
             "title": "Resourceversion",
             "type": "string"
-          },
-          "roles": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/Role"
-                },
-                "maxItems": 64,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Roles"
           }
         },
         "required": [

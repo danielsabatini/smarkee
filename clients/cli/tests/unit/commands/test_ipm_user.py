@@ -112,12 +112,12 @@ def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
 def user_document(
     *,
     phase: str = "Ready",
-    roles: list[str] | None = None,
+    permissions: list[str] | None = None,
     protected: bool = False,
     version: str = "3",
     state: str | None = "initial",
 ) -> dict[str, Any]:
-    roles = roles if roles is not None else ["ipm.user.get"]
+    permissions = permissions if permissions is not None else ["ipm.user.get"]
     return {
         "resourceId": UID,
         "resourceVersion": version,
@@ -128,7 +128,7 @@ def user_document(
             "lifecycle": "present",
             "reconciliation": "active",
             "organizationId": ORG,
-            "roles": roles,
+            "permissions": permissions,
             "deletionProtection": protected,
             "givenName": "Bia",
             "familyName": "Lima",
@@ -140,7 +140,7 @@ def user_document(
                     "presence": "present",
                     "observedAt": "2026-10-21T10:00:00+00:00",
                     "userState": state,
-                    "roles": roles,
+                    "permissions": permissions,
                 }
             }
             if state
@@ -173,10 +173,12 @@ def create(*extra: str) -> list[str]:
     ]  # fmt: skip
 
 
-def test_create_uses_the_active_organization_and_sends_sorted_roles(api: FakeApi) -> None:
+def test_create_uses_the_active_organization_and_sends_sorted_permissions(api: FakeApi) -> None:
     api.routes[("POST", PATH)] = accepted()
 
-    result = runner.invoke(app, create("--role", "ipm.user.list", "--role", "ipm.user.get"))
+    result = runner.invoke(
+        app, create("--permission", "ipm.user.list", "--permission", "ipm.user.get")
+    )
 
     assert result.exit_code == 0, result.stdout + result.stderr
     request = api.requests[-1]
@@ -187,7 +189,7 @@ def test_create_uses_the_active_organization_and_sends_sorted_roles(api: FakeApi
         "givenName": "Bia",
         "familyName": "Lima",
         "email": "bia@example.com",
-        "roles": ["ipm.user.get", "ipm.user.list"],
+        "permissions": ["ipm.user.get", "ipm.user.list"],
     }
     assert "password" not in json.dumps(body_of(request))
     assert f"sk ipm user get --resource-id {UID}" in " ".join(result.stdout.split())
@@ -204,7 +206,7 @@ def test_create_takes_the_organization_option_over_the_active_one(api: FakeApi) 
 def test_create_validates_before_any_call(api: FakeApi) -> None:
     for arguments in (
         ["ipm", "user", "create", "--surname", "Lima", "--email", "bia@example.com"],
-        create("--role", "Nao Valida"),
+        create("--permission", "Nao Valida"),
         ["ipm", "user", "create", "--name", "Bia", "--surname", "Lima", "--email", "nao-email"],
         create("--organization-id", "Org Inválida"),
     ):
@@ -223,7 +225,7 @@ def test_create_wait_waits_for_ready_and_shows_the_user(api: FakeApi) -> None:
         Response(200, user_document(phase="Pending", state=None)),
         Response(200, user_document()),
     ]
-    result = runner.invoke(app, create("--role", "ipm.user.get", "--wait"))
+    result = runner.invoke(app, create("--permission", "ipm.user.get", "--wait"))
     assert result.exit_code == 0, result.stdout + result.stderr
     assert "User created" in result.stdout and "initial" in result.stdout
 
@@ -242,7 +244,10 @@ def test_a_rejected_creation_explains_why(api: FakeApi) -> None:
     [
         (http_error(403, "Forbidden", "x"), "Without ipm.user.bind"),
         (http_error(403, "QuotaExceeded", "x"), "user limit"),
-        (http_error(400, "ValidationFailed", "Roles não liberadas", field="roles"), "grant"),
+        (
+            http_error(400, "ValidationFailed", "Permissões não liberadas", field="permissions"),
+            "grant",
+        ),
         (http_error(404, "NotFound", "x"), "do not act on it"),
     ],
 )
@@ -250,31 +255,44 @@ def test_api_refusals_have_english_hints(
     api: FakeApi, error: urllib.error.HTTPError, expected: str
 ) -> None:
     api.routes[("POST", PATH)] = error
-    result = runner.invoke(app, create("--role", "ipm.user.bind"))
+    result = runner.invoke(app, create("--permission", "ipm.user.bind"))
     assert result.exit_code in (1, 2)
     assert expected in " ".join(result.stderr.split())
     assert "liberadas" not in result.stderr  # a mensagem do servidor (pt-BR) não aparece
 
 
-def test_update_replaces_the_roles_reading_the_current_version(api: FakeApi) -> None:
+def test_update_replaces_the_permissions_reading_the_current_version(api: FakeApi) -> None:
     api.routes[("GET", USER)] = Response(200, user_document(version="7"))
     api.routes[("PATCH", USER)] = accepted()
     result = runner.invoke(
-        app, ["ipm", "user", "update", "--resource-id", UID, "--role", "ipm.user.list"]
+        app, ["ipm", "user", "update", "--resource-id", UID, "--permission", "ipm.user.list"]
     )
     assert result.exit_code == 0, result.stderr
-    assert body_of(api.requests[-1]) == {"resourceVersion": "7", "roles": ["ipm.user.list"]}
+    assert body_of(api.requests[-1]) == {
+        "resourceVersion": "7",
+        "permissions": ["ipm.user.list"],
+    }
 
 
-def test_update_needs_roles_or_no_roles_and_is_idempotent(api: FakeApi) -> None:
+def test_update_needs_permissions_or_no_permissions_and_is_idempotent(api: FakeApi) -> None:
     neither = runner.invoke(app, ["ipm", "user", "update", "--resource-id", UID])
     both = runner.invoke(
-        app, ["ipm", "user", "update", "--resource-id", UID, "--role", "a.b.c", "--no-roles"]
+        app,
+        [
+            "ipm",
+            "user",
+            "update",
+            "--resource-id",
+            UID,
+            "--permission",
+            "a.b.c",
+            "--no-permissions",
+        ],
     )
     assert (neither.exit_code, both.exit_code) == (2, 2)
     assert api.requests == []
-    api.routes[("GET", USER)] = Response(200, user_document(roles=[]))
-    same = runner.invoke(app, ["ipm", "user", "update", "--resource-id", UID, "--no-roles"])
+    api.routes[("GET", USER)] = Response(200, user_document(permissions=[]))
+    same = runner.invoke(app, ["ipm", "user", "update", "--resource-id", UID, "--no-permissions"])
     assert same.exit_code == 0 and "Nothing to do" in same.stdout
     assert [r.get_method() for r in api.requests] == ["GET"]
 
@@ -310,14 +328,14 @@ def test_get_and_list_show_the_users(api: FakeApi) -> None:
     assert f"organizationId={ORG}" in api.requests[-1].full_url
 
 
-def test_the_list_keeps_the_id_and_the_email_whole_with_many_roles(api: FakeApi) -> None:
-    """As roles quebram linha; o `resourceId` não pode ser cortado (o usuário o copia)."""
-    roles = ["ipm.organization.get", "ipm.user.bind", "ipm.user.create", "ipm.user.get"]
-    api.routes[("GET", PATH)] = Response(200, {"items": [user_document(roles=roles)]})
+def test_the_list_keeps_the_id_and_the_email_whole_with_many_permissions(api: FakeApi) -> None:
+    """As permissões quebram linha; o `resourceId` não pode ser cortado (o usuário o copia)."""
+    permissions = ["ipm.organization.get", "ipm.user.bind", "ipm.user.create", "ipm.user.get"]
+    api.routes[("GET", PATH)] = Response(200, {"items": [user_document(permissions=permissions)]})
     listed = runner.invoke(app, ["ipm", "user", "list"])
     assert listed.exit_code == 0
     assert UID in listed.stdout and "bia@example.com" in listed.stdout
-    assert "ipm.organization.get" in listed.stdout  # a primeira role, na primeira linha
+    assert "ipm.organization.get" in listed.stdout  # a primeira permissão, na primeira linha
 
 
 def test_without_an_active_organization_the_option_is_required(

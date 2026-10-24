@@ -3,7 +3,7 @@
 Usam o token da sessão (`sk auth login`), renovado quando está para vencer. A API é a mesma do
 `sk account create` (`[api] url`). Criar, renomear e remover são assíncronos: o comando garante o
 e mostra como acompanhar a Operation. Com `--wait`, ele espera a Organization convergir. O token
-precisa trazer as roles `ipm.organization.*`, que vêm de `sk sum service enable --service ipm`
+precisa trazer as permissões `ipm.organization.*`, que vêm de `sk sum service enable --service ipm`
 (com `--wait`, a sessão já é renovada).
 """
 
@@ -81,7 +81,7 @@ ERROR_CODE_HINTS = {
         "Renew the session with `sk auth refresh` and repeat."
     ),
 }
-NO_ROLE_HINT = (
+NO_PERMISSION_HINT = (
     "Your account does not have permission for this operation. If the ipm service is not "
     "enabled yet, run `sk sum service enable --service ipm --wait`."
 )
@@ -139,7 +139,7 @@ ResourceIdOption = Annotated[
 
 def _fail_api(error: ApiError, *, not_found: str = NOT_FOUND) -> NoReturn:
     if isinstance(error, ApiRejectedError) and error.status == 403:
-        by_code = {**ERROR_CODE_HINTS, "Forbidden": NO_ROLE_HINT}
+        by_code = {**ERROR_CODE_HINTS, "Forbidden": NO_PERMISSION_HINT}
     else:
         by_code = ERROR_CODE_HINTS
     fail_api(error, not_found=not_found, conflict=CONFLICT_ON_CHANGE, by_error_code=by_code)

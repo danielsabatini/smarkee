@@ -82,20 +82,20 @@ def verifier_for(provider: Provider, clock: list[float] | None = None) -> TokenV
     return TokenVerifier(settings(), client, monotonic=lambda: ticks[0])
 
 
-async def test_valid_token_yields_subject_and_roles() -> None:
+async def test_valid_token_yields_subject_and_permissions() -> None:
     key = make_key()
     provider = Provider([jwk_of(key, "key-1")])
     principal = await verifier_for(provider).verify(make_token(key))
     assert principal.subject == "user-1"
-    assert principal.roles == {"bsm.account.create", "bsm.account.get"}
+    assert principal.permissions == {"bsm.account.create", "bsm.account.get"}
     assert provider.requests[0].headers["host"] == "issuer.example"
 
 
-async def test_missing_roles_claim_means_no_roles() -> None:
+async def test_missing_roles_claim_means_no_permissions() -> None:
     key = make_key()
     token = make_token(key, overrides={ROLES_CLAIM: None})
     principal = await verifier_for(Provider([jwk_of(key, "key-1")])).verify(token)
-    assert principal.roles == frozenset()
+    assert principal.permissions == frozenset()
 
 
 @pytest.mark.parametrize(
@@ -198,7 +198,7 @@ def test_audience_is_required() -> None:
 
 
 def principal() -> Principal:
-    return Principal(subject="user-1", roles=frozenset(), access_token="token-1")
+    return Principal(subject="user-1", permissions=frozenset(), access_token="token-1")
 
 
 async def test_email_verification_caches_only_positive_results() -> None:
@@ -218,7 +218,7 @@ async def test_email_verification_caches_only_positive_results() -> None:
     assert len(provider.requests) == 2
 
     provider.userinfo = {"email_verified": False}
-    other = Principal(subject="user-2", roles=frozenset(), access_token="token-2")
+    other = Principal(subject="user-2", permissions=frozenset(), access_token="token-2")
     assert not await checker.is_verified(other)
     assert not await checker.is_verified(other)
     assert len(provider.requests) == 4  # negativo não é guardado

@@ -27,8 +27,8 @@ class PeerResources:
         self._client = client
 
     async def of(self, access_token: str) -> list[Attachment]:
-        # Sem as roles do `ipm` ou `bsm` (serviço desabilitado), o módulo recusa com `403`. Isso
-        # vale como "nenhum recurso": o SUM só deixa desabilitar o serviço sem recursos dele
+        # Sem as permissões do `ipm` ou `bsm` (serviço desabilitado), o módulo recusa com `403`.
+        # Isso vale como "nenhum recurso": o SUM só deixa desabilitar o serviço sem recursos dele
         # (decisão 0040).
         organizations = await self._items(
             "ipm",

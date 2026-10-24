@@ -58,10 +58,10 @@
 		aria-label={copied ? 'Identificador copiado' : (ariaLabel ?? `Copiar identificador ${id}`)}
 		title={copied ? 'Copiado!' : 'Copiar identificador'}
 		data-testid={testId}
-		class="shrink-0 rounded p-1 text-slate-400 transition hover:bg-emerald-100 hover:text-emerald-800 focus:outline-hidden"
+		class="shrink-0 rounded p-1 text-slate-400 transition hover:bg-brand-100 hover:text-brand-800 focus:outline-hidden"
 	>
 		{#if copied}
-			<Check class="h-3 w-3 text-emerald-700" aria-hidden="true" />
+			<Check class="h-3 w-3 text-brand-700" aria-hidden="true" />
 		{:else}
 			<Copy class="h-3 w-3" aria-hidden="true" />
 		{/if}

@@ -15,7 +15,7 @@ from core_account.common.settings import (
     missing_variables,
     role_config,
 )
-from core_account.manager.domain.account import DEFAULT_PLATFORM_ROLES
+from core_account.manager.domain.account import DEFAULT_PLATFORM_PERMISSIONS
 
 
 class LoopSettings(Section):
@@ -28,8 +28,8 @@ class LoopSettings(Section):
 
 
 class PlatformSettings(Section):
-    roles: tuple[str, ...] = DEFAULT_PLATFORM_ROLES
-    """Roles de ação gravadas no `desired` do usuário cadastrado (decisão 0025). Lista em JSON."""
+    permissions: tuple[str, ...] = DEFAULT_PLATFORM_PERMISSIONS
+    """Permissões gravadas no `desired` do usuário cadastrado (decisão 0025). Lista em JSON."""
 
 
 class AccountManagerSettings(RoleSettings):

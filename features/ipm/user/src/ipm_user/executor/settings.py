@@ -27,7 +27,7 @@ class IdentitySettings(CommonIdentitySettings):
     """
 
     project_id: str | None = None
-    """ID do projeto `roles-ipm`: o único em que o Executor concede roles. Sem default."""
+    """ID do projeto `roles-ipm`: o único em que o Executor concede permissões. Sem default."""
 
     timeout_seconds: float = 10.0
 

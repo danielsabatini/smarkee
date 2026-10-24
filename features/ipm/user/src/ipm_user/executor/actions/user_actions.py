@@ -4,8 +4,8 @@ Compõe os drivers de `executor/drivers/` (usuário, autorização e metadado); 
 direto. Cada operação é idempotente e usa o `resourceId` como ID do usuário, criado na organização
 do cliente (`organizationId`). A criação não envia nem recebe senha: o Zitadel envia o e-mail de
 verificação, cuja página também define a senha (um e-mail só). A senha nunca passa por CLI,
-Receiver, SSOT nem NATS. As roles são as do `desired`, exatamente: as que sobrarem no provedor são
-revogadas.
+Receiver, SSOT nem NATS. As permissões são as do `desired`, exatamente: as que sobrarem no provedor
+são revogadas.
 """
 
 from collections.abc import Mapping
@@ -39,9 +39,9 @@ class Authorizations(Protocol):
 
     async def authorization(self, user_id: str, organization_id: str) -> Authorization | None: ...
 
-    async def create(self, user_id: str, organization_id: str, roles: list[str]) -> None: ...
+    async def create(self, user_id: str, organization_id: str, permissions: list[str]) -> None: ...
 
-    async def update(self, authorization_id: str, roles: list[str]) -> None: ...
+    async def update(self, authorization_id: str, permissions: list[str]) -> None: ...
 
     async def remove(self, authorization_id: str) -> None: ...
 
@@ -89,16 +89,18 @@ def _organization_of(desired: Mapping[str, Any]) -> str:
     return organization_id
 
 
-def _roles_of(desired: Mapping[str, Any]) -> frozenset[str]:
-    roles: Any = desired.get("roles")
-    if not isinstance(roles, list):
-        raise ActionFailedError("Rejected", retryable=False, message="desired without the roles")
-    return frozenset(str(role) for role in cast("list[Any]", roles))
+def _permissions_of(desired: Mapping[str, Any]) -> frozenset[str]:
+    permissions: Any = desired.get("permissions")
+    if not isinstance(permissions, list):
+        raise ActionFailedError(
+            "Rejected", retryable=False, message="desired without the permissions"
+        )
+    return frozenset(str(permission) for permission in cast("list[Any]", permissions))
 
 
 async def _create(user_id: str, desired: Mapping[str, Any], drivers: Drivers) -> None:
     organization_id = _organization_of(desired)
-    roles = _roles_of(desired)
+    permissions = _permissions_of(desired)
     given_name, family_name, email = (
         str(desired.get("givenName", "")),
         str(desired.get("familyName", "")),
@@ -130,7 +132,7 @@ async def _create(user_id: str, desired: Mapping[str, Any], drivers: Drivers) ->
             raise ActionFailedError(
                 "Rejected", retryable=False, message="user id in use by another user"
             )
-    await _ensure_roles(user_id, organization_id, roles, drivers.authorizations)
+    await _ensure_permissions(user_id, organization_id, permissions, drivers.authorizations)
 
 
 async def _update(user_id: str, desired: Mapping[str, Any], drivers: Drivers) -> None:
@@ -142,15 +144,17 @@ async def _update(user_id: str, desired: Mapping[str, Any], drivers: Drivers) ->
         raise ActionFailedError(
             "Rejected", retryable=False, message="user belongs to another organization"
         )
-    await _ensure_roles(user_id, organization_id, _roles_of(desired), drivers.authorizations)
+    await _ensure_permissions(
+        user_id, organization_id, _permissions_of(desired), drivers.authorizations
+    )
 
 
-async def _ensure_roles(
+async def _ensure_permissions(
     user_id: str, organization_id: str, expected: frozenset[str], authorizations: Authorizations
 ) -> None:
-    """Deixa o usuário com exatamente as roles do `desired` em `roles-ipm`, na organização dele.
+    """Deixa o usuário com exatamente as permissões do `desired` em `roles-ipm`.
 
-    Uma autorização por usuário: criada quando há roles, atualizada quando difere e removida
+    Uma autorização por usuário: criada quando há permissões, atualizada quando difere e removida
     quando o `desired` não tem nenhuma.
     """
     current = await authorizations.authorization(user_id, organization_id)
@@ -160,7 +164,7 @@ async def _ensure_roles(
         return
     if not expected:
         await authorizations.remove(current.authorization_id)
-    elif current.roles != expected:
+    elif current.permissions != expected:
         await authorizations.update(current.authorization_id, sorted(expected))
 
 

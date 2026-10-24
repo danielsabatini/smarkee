@@ -2,7 +2,7 @@
 
 Consome uma partição do Stream `ACTION`, executa cada `action` no Zitadel (único componente com
 escrita de
-roles de serviço) e publica `completed` ou `failed`. Só inicializa e encerra.
+permissões de serviço) e publica `completed` ou `failed`. Só inicializa e encerra.
 """
 
 import logging

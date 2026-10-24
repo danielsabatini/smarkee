@@ -2,10 +2,10 @@
 
 Executor de `ipm.user` (`ipm-user-executor`), um dos seis papéis da imagem única `ipm-user` (decisão 0063), com processo e contêiner próprios. Veja o [README da feature](../../../README.md).
 
-Única identidade com escrita do usuário no Zitadel (conta `ipm-user-executor`, decisão 0077): `ORG_USER_CREATOR` em cada organização de cliente (cria e remove usuários, sem conceder roles) e `PROJECT_GRANT_OWNER` no Project Grant de `roles-ipm` para ela (concede só as roles do Grant). Os dois papéis são dados a cada organização pelo loop da `ipm/organization` (decisão 0081). Consome a `action` do Reconciler, **revalida** contra o `desired` vigente (geração, coerência da operação, reconciliação ativa), confere o desfecho já registrado do `actionId` por Direct Get (idempotência) e executa, compondo os drivers de `drivers/`:
+Única identidade com escrita do usuário no Zitadel (conta `ipm-user-executor`, decisão 0077): `ORG_USER_CREATOR` em cada organização de cliente (cria e remove usuários, sem conceder permissões) e `PROJECT_GRANT_OWNER` no Project Grant de `roles-ipm` para ela (concede só as permissões do Grant). Os dois papéis são dados a cada organização pelo loop da `ipm/organization` (decisão 0081). Consome a `action` do Reconciler, **revalida** contra o `desired` vigente (geração, coerência da operação, reconciliação ativa), confere o desfecho já registrado do `actionId` por Direct Get (idempotência) e executa, compondo os drivers de `drivers/`:
 
 - `create`: cria o usuário humano **sem senha** na organização do `desired` (`organizationId`), com o `resourceId` como ID e o e-mail como nome de login; o Zitadel envia o e-mail de verificação, que também define a senha. Usuário já existente com o mesmo ID leva a lê-lo: mesmo e-mail e mesma organização é sucesso idempotente; senão, falha permanente (`Rejected`);
-- em `create` e `update`, deixa a autorização em `roles-ipm` com **exatamente** as roles do `desired` (cria, atualiza ou remove) e grava o metadado `deletionProtection` (decisão 0074; repetir é idempotente). Uma role fora do Project Grant é recusada pelo Zitadel (`Rejected`);
+- em `create` e `update`, deixa a autorização em `roles-ipm` com **exatamente** as permissões do `desired` (cria, atualiza ou remove) e grava o metadado `deletionProtection` (decisão 0074; repetir é idempotente). Uma permissão fora do Project Grant é recusada pelo Zitadel (`Rejected`);
 - `update`: confere que o usuário existe e é da organização do `desired`;
 - `delete`: remove o usuário (ausente é sucesso).
 
@@ -32,7 +32,7 @@ src/ipm_user/executor/
 
 ## Configuração
 
-Variáveis `IPM_USER_EXECUTOR_<SEÇÃO>_<CAMPO>` e o `config.toml` da feature. Obrigatórias, sem default: `IPM_USER_EXECUTOR_MESSAGING_PASSWORD` e `IPM_USER_EXECUTOR_IDENTITY_PROJECT_ID` (o projeto `roles-ipm`, o único em que concede roles). A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`), só desta conta.
+Variáveis `IPM_USER_EXECUTOR_<SEÇÃO>_<CAMPO>` e o `config.toml` da feature. Obrigatórias, sem default: `IPM_USER_EXECUTOR_MESSAGING_PASSWORD` e `IPM_USER_EXECUTOR_IDENTITY_PROJECT_ID` (o projeto `roles-ipm`, o único em que concede permissões). A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`), só desta conta.
 
 ## Desenvolvimento
 

@@ -14,8 +14,8 @@ class ProviderError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class Grant:
-    """Autorização do usuário num projeto de roles (uma por projeto)."""
+    """Autorização do usuário num projeto (uma por projeto)."""
 
     grant_id: str
     project_id: str
-    roles: frozenset[str]
+    permissions: frozenset[str]

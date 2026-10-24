@@ -11,20 +11,20 @@
       "maxLength": 32,
       "pattern": "^[a-z][a-z0-9]*$"
     },
-    "serviceRole": {
-      "description": "Role de ação do projeto de roles de um serviço, no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.organization.get.",
+    "servicePermission": {
+      "description": "Permissão de ação do projeto de permissões de um serviço, no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.organization.get.",
       "type": "string",
       "minLength": 5,
       "maxLength": 128,
       "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$"
     },
-    "serviceRoles": {
-      "description": "Conjunto de roles do serviço, sem repetição e em ordem alfabética.",
+    "servicePermissions": {
+      "description": "Conjunto de permissões do serviço, sem repetição e em ordem alfabética.",
       "type": "array",
       "maxItems": 64,
       "uniqueItems": true,
       "items": {
-        "$ref": "#/$defs/serviceRole"
+        "$ref": "#/$defs/servicePermission"
       }
     }
   }

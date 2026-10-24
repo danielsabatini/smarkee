@@ -95,7 +95,7 @@ class Phase(StrEnum):
 
 class PlatformAccess(StrEnum):
     """
-    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de roles de ação do usuário cadastrado, na Account); revoked a remove.
+    Intenção de acesso à plataforma: granted mantém a autorização no projeto da plataforma (Project Grant da Organization; conjunto de permissões de ação do usuário cadastrado, na Account); revoked a remove.
     """
 
     granted = "granted"
@@ -392,7 +392,7 @@ class UserState(StrEnum):
     locked = "locked"
 
 
-class Role(RootModel[str]):
+class Permission(RootModel[str]):
     root: Annotated[
         str,
         Field(
@@ -402,7 +402,7 @@ class Role(RootModel[str]):
         ),
     ]
     """
-    Role da plataforma no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.user.create. Só são aceitas as roles do Project Grant da Organization (decisão 0077).
+    Permissão da plataforma no padrão <módulo>.<tipo>.<ação> (decisão 0028), por exemplo ipm.user.create. Só são aceitas as permissões do Project Grant da Organization (decisão 0077).
     """
 
 
@@ -440,9 +440,9 @@ class UserRequestedDeleteData(ContractModel):
     """
 
 
-class GrantableRole(StrEnum):
+class GrantablePermission(StrEnum):
     """
-    Catálogo das roles que uma Organization pode delegar aos usuários dela (decisão 0081): o Project Grant de cada Organization tem exatamente estas, e o Receiver do User recusa as demais antes do loop. Fonte única, versionada com o código e igual em todos os ambientes; não há operador nem criação e remoção de Organization aqui. Mudar o catálogo é mudar este enum, regerar os modelos do ipm/user e do ipm/organization e implantar: o Manager da Organization faz o rollout do Grant na partida.
+    Catálogo das permissões que uma Organization pode delegar aos usuários dela (decisão 0081): o Project Grant de cada Organization tem exatamente estas, e o Receiver do User recusa as demais antes do loop. Fonte única, versionada com o código e igual em todos os ambientes; não há operador nem criação e remoção de Organization aqui. Mudar o catálogo é mudar este enum, regerar os modelos do ipm/user e do ipm/organization e implantar: o Manager da Organization faz o rollout do Grant na partida.
     """
 
     ipm_organization_get = "ipm.organization.get"
@@ -605,9 +605,9 @@ class UserObservedData(ContractModel):
     Se o e-mail foi verificado (a ativação foi concluída).
     """
     user_state: Annotated[UserState | None, Field(alias="userState")] = None
-    roles: Annotated[list[Role] | None, Field(max_length=64)] = None
+    permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
     """
-    Roles que o usuário tem hoje na Organization, lidas das autorizações dele no provedor de identidade.
+    Permissões que o usuário tem hoje na Organization, lidas das autorizações dele no provedor de identidade.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -643,9 +643,9 @@ class UserCreateSpecification(ContractModel):
     """
     E-mail do usuário; é também o nome de login dele na Organization. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
     """
-    roles: Annotated[list[Role] | None, Field(max_length=64)] = None
+    permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
     """
-    Conjunto de roles, sem repetição e em ordem alfabética.
+    Conjunto de permissões, sem repetição e em ordem alfabética.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -655,7 +655,7 @@ class UserCreateSpecification(ContractModel):
 
 class UserRequestedCreateData(ContractModel):
     """
-    data de requested com operation create. Publicado somente pelo Receiver, depois de conferir a Organization, o escopo de quem pede, a cota e as roles contra o catálogo do Grant (decisão 0077). Sem senha.
+    data de requested com operation create. Publicado somente pelo Receiver, depois de conferir a Organization, o escopo de quem pede, a cota e as permissões contra o catálogo do Grant (decisão 0077). Sem senha.
     """
 
     model_config = ConfigDict(
@@ -692,9 +692,9 @@ class UserUpdateSpecification(ContractModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    roles: Annotated[list[Role] | None, Field(max_length=64)] = None
+    permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
     """
-    Conjunto de roles, sem repetição e em ordem alfabética.
+    Conjunto de permissões, sem repetição e em ordem alfabética.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -704,7 +704,7 @@ class UserUpdateSpecification(ContractModel):
 
 class UserRequestedUpdateData(ContractModel):
     """
-    data de requested com operation update. Traz as roles, a proteção contra exclusão, a mudança do controle de reconciliação, ou uma combinação delas. Publicado somente pelo Receiver.
+    data de requested com operation update. Traz as permissões, a proteção contra exclusão, a mudança do controle de reconciliação, ou uma combinação delas. Publicado somente pelo Receiver.
     """
 
     model_config = ConfigDict(
@@ -745,7 +745,7 @@ class UserRequestedUpdateData(ContractModel):
 
 class UserCreateRequest(ContractModel):
     """
-    Corpo de POST /v1/ipm/users. O Receiver atribui resourceId, operationId, requestDigest e requestedBy. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação. roles ausente equivale a nenhuma; deletionProtection ausente equivale a false (decisão 0077).
+    Corpo de POST /v1/ipm/users. O Receiver atribui resourceId, operationId, requestDigest e requestedBy. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação. permissions ausente equivale a nenhuma; deletionProtection ausente equivale a false (decisão 0077).
     """
 
     model_config = ConfigDict(
@@ -775,9 +775,9 @@ class UserCreateRequest(ContractModel):
     """
     E-mail do usuário; é também o nome de login dele na Organization. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
     """
-    roles: Annotated[list[Role] | None, Field(max_length=64)] = None
+    permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
     """
-    Conjunto de roles, sem repetição e em ordem alfabética.
+    Conjunto de permissões, sem repetição e em ordem alfabética.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -787,7 +787,7 @@ class UserCreateRequest(ContractModel):
 
 class UserUpdateRequest(ContractModel):
     """
-    Corpo de PATCH /v1/ipm/users/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. Mudar roles exige ipm.user.bind, ou só roles que quem pede já tem (decisão 0077); reconciliation é do operador.
+    Corpo de PATCH /v1/ipm/users/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. Mudar permissions exige ipm.user.bind, ou só permissões que quem pede já tem (decisão 0077); reconciliation é do operador.
     """
 
     model_config = ConfigDict(
@@ -799,9 +799,9 @@ class UserUpdateRequest(ContractModel):
     """
     Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
     """
-    roles: Annotated[list[Role] | None, Field(max_length=64)] = None
+    permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
     """
-    Conjunto de roles, sem repetição e em ordem alfabética.
+    Conjunto de permissões, sem repetição e em ordem alfabética.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -828,9 +828,9 @@ class UserDesiredView(ContractModel):
     """
     Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
     """
-    roles: Annotated[list[Role], Field(max_length=64)]
+    permissions: Annotated[list[Permission], Field(max_length=64)]
     """
-    Conjunto de roles, sem repetição e em ordem alfabética.
+    Conjunto de permissões, sem repetição e em ordem alfabética.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -867,9 +867,9 @@ class UserObservedView(ContractModel):
     """
     email_verified: Annotated[bool | None, Field(alias="emailVerified")] = None
     user_state: Annotated[UserState | None, Field(alias="userState")] = None
-    roles: Annotated[list[Role] | None, Field(max_length=64)] = None
+    permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
     """
-    Conjunto de roles, sem repetição e em ordem alfabética.
+    Conjunto de permissões, sem repetição e em ordem alfabética.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -964,9 +964,9 @@ class UserDesiredData(ContractModel):
     """
     Organization onde o usuário vive (o resourceId da Organization, também o ID da organização no provedor de identidade). Imutável.
     """
-    roles: Annotated[list[Role], Field(max_length=64)]
+    permissions: Annotated[list[Permission], Field(max_length=64)]
     """
-    Roles da plataforma que o usuário deve ter na Organization, por autorização no Project Grant dela (decisão 0077).
+    Permissões da plataforma que o usuário deve ter na Organization, por autorização no Project Grant dela (decisão 0077).
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -1008,7 +1008,7 @@ class IpmUserContracts(
         | UserUpdateRequest
         | User
         | UserList
-        | GrantableRole
+        | GrantablePermission
     ]
 ):
     root: Annotated[
@@ -1030,9 +1030,9 @@ class IpmUserContracts(
         | UserUpdateRequest
         | User
         | UserList
-        | GrantableRole,
+        | GrantablePermission,
         Field(title="IpmUserContracts"),
     ]
     """
-    Índice dos contratos usados pelos componentes de user do módulo ipm: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e de ipm/user/ deve estar listado (verificado pelos testes de contrato). Uma definição que nenhum contrato referencia, mas que o código usa, entra pelo fragmento (#/$defs/...), como o catálogo grantableRole (decisão 0081).
+    Índice dos contratos usados pelos componentes de user do módulo ipm: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e de ipm/user/ deve estar listado (verificado pelos testes de contrato). Uma definição que nenhum contrato referencia, mas que o código usa, entra pelo fragmento (#/$defs/...), como o catálogo grantablePermission (decisão 0081).
     """

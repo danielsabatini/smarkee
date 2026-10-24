@@ -87,12 +87,12 @@ def session_token() -> str:
 
 
 def renew_after_convergence() -> bool:
-    """Renova a sessão para o token refletir as roles novas. Falha vira aviso: o pedido já valeu."""
+    """Renova a sessão para o token refletir as permissões novas; falha vira aviso."""
     try:
         renew_session(default_credentials_path(), allow_insecure_http=session_insecure())
     except SessionError as error:
         ui.warning(
-            f"Session not renewed ({error}). The token may not reflect the new roles: "
+            f"Session not renewed ({error}). The token may not reflect the new permissions: "
             "run `sk auth login`."
         )
         return False

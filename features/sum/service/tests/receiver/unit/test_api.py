@@ -1,7 +1,7 @@
 """Testes da API do Receiver de `sum.service`, com dependências simuladas (sem banco nem NATS).
 
-O token de teste tem o formato `<sub>|<role>,<role>`: o verificador simulado devolve o
-solicitante com essas roles. A verificação real de assinatura e audience está em `test_auth.py`.
+O token de teste tem o formato `<sub>|<permission>,<permission>`: o verificador simulado devolve o
+solicitante com essas permissões. A verificação real de assinatura e audience está em `test_auth.py`.
 """
 
 import json
@@ -31,8 +31,12 @@ GET_IPM = "sum.ipm.get"
 
 class FakeVerifier:
     async def verify(self, token: str) -> Principal:
-        subject, _, roles = token.partition("|")
-        return Principal(subject, frozenset(role for role in roles.split(",") if role), token)
+        subject, _, permissions = token.partition("|")
+        return Principal(
+            subject,
+            frozenset(permission for permission in permissions.split(",") if permission),
+            token,
+        )
 
 
 @dataclass
@@ -87,7 +91,7 @@ def link_row(
         "reconciliation": "active",
         "ownerAccountId": owner,
         "service": service,
-        "serviceRoles": ["ipm.organization.get"],
+        "servicePermissions": ["ipm.organization.get"],
     }
     return {
         "resource_id": resource_id,
@@ -145,8 +149,8 @@ def world(
     return client, repository, publisher
 
 
-def token(subject: str, *roles: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {subject}|{','.join(roles)}"}
+def token(subject: str, *permissions: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {subject}|{','.join(permissions)}"}
 
 
 async def test_without_a_token_the_request_is_unauthorized(world: Any) -> None:
@@ -155,7 +159,7 @@ async def test_without_a_token_the_request_is_unauthorized(world: Any) -> None:
     assert response.status_code == 401 and publisher.sent == []
 
 
-async def test_enabling_a_service_needs_its_enable_role_and_publishes_the_requested(
+async def test_enabling_a_service_needs_its_enable_permission_and_publishes_the_requested(
     world: Any,
 ) -> None:
     client, _, publisher = world
@@ -172,7 +176,7 @@ async def test_enabling_a_service_needs_its_enable_role_and_publishes_the_reques
     assert envelope["data"]["specification"] == {"service": "ipm", "ownerAccountId": OWNER}
 
 
-async def test_without_the_enable_role_nothing_is_published(world: Any) -> None:
+async def test_without_the_enable_permission_nothing_is_published(world: Any) -> None:
     client, _, publisher = world
     response = await client.post(
         "/v1/sum/services", json={"service": "ipm"}, headers=token(OWNER, GET_IPM)
@@ -271,7 +275,7 @@ async def test_a_refused_publication_is_unavailable_with_retry_after(world: Any)
     assert response.status_code == 503 and response.headers["Retry-After"] == "5"
 
 
-async def test_the_owner_reads_its_link_with_the_get_role(world: Any) -> None:
+async def test_the_owner_reads_its_link_with_the_get_permission(world: Any) -> None:
     client, repository, _ = world
     rid = str(uuid.uuid7())
     repository.links[rid] = link_row(rid)
@@ -287,7 +291,7 @@ async def test_another_user_gets_not_found_for_a_link_that_is_not_theirs(world: 
     assert response.status_code == 404
 
 
-async def test_reading_without_the_get_role_is_forbidden(world: Any) -> None:
+async def test_reading_without_the_get_permission_is_forbidden(world: Any) -> None:
     client, repository, _ = world
     rid = str(uuid.uuid7())
     repository.links[rid] = link_row(rid)

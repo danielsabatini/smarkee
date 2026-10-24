@@ -68,7 +68,7 @@ sequenceDiagram
     EXE->>EXE: revalida: geração vigente, operação coerente com o desired, sem desfecho prévio
     EXE->>ZIT: POST /v2/accounts/human SEM senha, userId = resourceId, na organização core
     ZIT->>MAIL: e-mail "Verificar e-mail" (link que verifica o e-mail e define a senha)
-    EXE->>ZIT: concede as roles de desired.platformRoles no projeto smarkee (account grant)
+    EXE->>ZIT: concede as permissões de desired.platformPermissions no projeto smarkee (account grant)
     EXE->>N: publica executor.completed.core.account.{id}.create (RESULT)
     end
 
@@ -78,8 +78,8 @@ sequenceDiagram
     MGR->>DB: ActionResult (idempotência por actionId), condition atualizada
     N->>OBS: entrega completed (observação causada)
     OBS->>ZIT: GET usuário {id}
-    ZIT-->>OBS: 200 (usuário ativo, sem senha definida, roles concedidas)
-    OBS->>N: publica observed presence = present, accountState initial,<br/>platformAccess granted, platformRoles, emailVerified false<br/>causationId = messageId do completed
+    ZIT-->>OBS: 200 (usuário ativo, sem senha definida, permissões concedidas)
+    OBS->>N: publica observed presence = present, accountState initial,<br/>platformAccess granted, platformPermissions, emailVerified false<br/>causationId = messageId do completed
     N->>MGR: entrega observed
     MGR->>DB: converge: phase Ready, Operation completed, outbox updated
     PUB->>N: publica manager.updated.core.account.{id}.changed (UPDATED)

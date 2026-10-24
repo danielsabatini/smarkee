@@ -62,9 +62,9 @@ def _verifier() -> TokenVerifier:
     return TokenVerifier(settings, httpx.AsyncClient(transport=httpx.MockTransport(route)))
 
 
-async def test_a_token_for_this_project_yields_its_roles() -> None:
+async def test_a_token_for_this_project_yields_its_permissions() -> None:
     principal = await _verifier().verify(_token(roles={"sum.ipm.get": {}}))
-    assert principal.roles == frozenset({"sum.ipm.get"})
+    assert principal.permissions == frozenset({"sum.ipm.get"})
 
 
 async def test_a_token_for_another_project_is_unauthorized() -> None:

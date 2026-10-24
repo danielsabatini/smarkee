@@ -42,21 +42,22 @@ class Observation:
 async def observe(
     drivers: Drivers,
     user_id: str,
-    managed_roles: Iterable[str],
+    managed_permissions: Iterable[str],
 ) -> Observation:
-    """Lê as roles do usuário que a ligação controla (`managedRoles` do `desired`, decisão 0079).
+    """Lê as permissões do usuário que a ligação controla (`managedPermissions` do `desired`, decisão 0079).
 
-    O Observer não tem catálogo próprio: as roles vêm do `desired` que o Manager publicou, a mesma
+    O Observer não tem catálogo próprio: as permissões vêm do `desired` que o Manager publicou, a mesma
     fonte do Executor e do Reconciler.
     """
-    service_roles = set(managed_roles)
+    service_permissions = set(managed_permissions)
     try:
         if not await drivers.users.user_exists(user_id):
-            return Observation("absent", {"serviceRoles": []})
+            return Observation("absent", {"servicePermissions": []})
         authorizations = await drivers.authorizations.authorizations(user_id)
     except ProviderError:
         return Observation("unknown", {})
     held = sorted(
-        {role for authorization in authorizations for role in authorization.roles} & service_roles
+        {permission for authorization in authorizations for permission in authorization.permissions}
+        & service_permissions
     )
-    return Observation("present", {"serviceRoles": held})
+    return Observation("present", {"servicePermissions": held})

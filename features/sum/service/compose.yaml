@@ -89,7 +89,7 @@ services:
     restart: "no"
 
   # Manager (`sum-service-manager`): único escritor do SSOT de sum.service. Consome `requested`, grava a
-  # ligação, a Operation e o outbox. O catálogo serviço → roles é obrigatório (decisão 0033).
+  # ligação, a Operation e o outbox. O catálogo serviço → permissões é obrigatório (decisão 0033).
   sum-service-manager:
     <<: *component-image
     command: [sum-service-manager]
@@ -99,7 +99,7 @@ services:
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      SUM_SERVICE_MANAGER_CATALOG_ROLES: ${SUM_SERVICE_MANAGER_CATALOG_ROLES:?Defina no .env (JSON serviço → roles, decisão 0033)}
+      SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS: ${SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS:?Defina no .env (JSON serviço → permissões, decisão 0033)}
     secrets:
       - SUM_SERVICE_MANAGER_DATABASE_PASSWORD
       - SUM_SERVICE_MANAGER_MESSAGING_PASSWORD
@@ -127,7 +127,7 @@ services:
       start_period: 10s
 
   # Receiver (`sum-service-receiver`): a API `/v1/sum/services`. Só o gateway a alcança; a porta 8000 não é
-  # publicada no host. Valida o token (audience = projeto `roles-sum`), confere a role da ação e publica
+  # publicada no host. Valida o token (audience = projeto `roles-sum`), confere a permissão da ação e publica
   # `requested` (decisão 0033).
   sum-service-receiver:
     <<: *component-image
@@ -212,7 +212,7 @@ services:
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
-  # Executor (`sum-service-executor`): único componente que concede e revoga roles de serviço no Zitadel. Conta
+  # Executor (`sum-service-executor`): único componente que concede e revoga permissões de serviço no Zitadel. Conta
   # `sum-service-executor`, com `PROJECT_GRANT_OWNER` só no Grant de `roles-ipm` (decisão 0032). Consome todas as
   # partições do ACTION, um laço por partição, no mesmo processo (decisão 0018).
   sum-service-executor:

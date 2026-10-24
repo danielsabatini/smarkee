@@ -20,7 +20,7 @@ def test_defaults_follow_the_contract_and_have_no_secrets() -> None:
     assert settings.messaging.password is None
     assert (settings.partition.index, settings.partition.count) == (0, 1)
     assert not hasattr(
-        settings.identity, "expected_roles"
+        settings.identity, "expected_permissions"
     )  # a lista vive no desired (decisão 0025)
 
 

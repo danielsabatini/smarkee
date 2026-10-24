@@ -39,7 +39,7 @@ def create_message(
     quota: int | None = None,
     operation_id: str | None = None,
     digest: str = DEFAULT_DIGEST,
-    roles: list[str] | None = None,
+    permissions: list[str] | None = None,
 ) -> dict[str, Any]:
     data: dict[str, Any] = {
         "operationId": operation_id or str(uuid.uuid7()),
@@ -49,7 +49,7 @@ def create_message(
             "givenName": "Bia",
             "familyName": "Lima",
             "email": email or f"u-{unique_suffix()}@example.com",
-            "roles": roles if roles is not None else ["ipm.user.get"],
+            "permissions": permissions if permissions is not None else ["ipm.user.get"],
             "deletionProtection": False,
         },
     }
@@ -164,10 +164,10 @@ async def test_same_operation_with_other_digest_is_flagged_and_original_prevails
     assert await resource_row(user_manager, other["resourceId"]) is None
 
 
-async def test_a_role_outside_the_module_is_rejected_without_changing_anything(
+async def test_a_permission_outside_the_module_is_rejected_without_changing_anything(
     cleanup: Cleanup, user_manager: Connection, outbox_reader: Connection
 ) -> None:
-    message = create_message(cleanup, roles=["core.account.get"])
+    message = create_message(cleanup, permissions=["core.account.get"])
     outcome = await handle(user_manager, message)
 
     assert (outcome.kind, outcome.reason) == (OutcomeKind.REJECTED, RejectionReason.VALIDATION)
@@ -233,16 +233,20 @@ async def test_concurrent_creates_respect_quota_and_email_uniqueness(
     assert sorted(result.kind.value for result in results) == ["accepted", "rejected"]
 
 
-async def test_update_of_roles_bumps_generation_and_version_and_publishes(
+async def test_update_of_permissions_bumps_generation_and_version_and_publishes(
     cleanup: Cleanup, user_manager: Connection, outbox_reader: Connection
 ) -> None:
     create = create_message(cleanup)
     await handle(user_manager, create)
-    roles = ["ipm.user.get", "ipm.user.list"]
+    permissions = ["ipm.user.get", "ipm.user.list"]
     outcome = await handle(
         user_manager,
         change_message(
-            cleanup, create=create, operation="update", version="1", specification={"roles": roles}
+            cleanup,
+            create=create,
+            operation="update",
+            version="1",
+            specification={"permissions": permissions},
         ),
     )
 
@@ -254,7 +258,7 @@ async def test_update_of_roles_bumps_generation_and_version_and_publishes(
         2,
         "Reconciling",
     )
-    assert row["desired"]["roles"] == roles
+    assert row["desired"]["permissions"] == permissions
     messages = await outbox(outbox_reader, create["resourceId"])
     assert [item["payload"]["desiredGeneration"] for item in messages] == [1, 2]
 
@@ -267,7 +271,11 @@ async def test_stale_resource_version_is_a_conflict(
     outcome = await handle(
         user_manager,
         change_message(
-            cleanup, create=create, operation="update", version="7", specification={"roles": []}
+            cleanup,
+            create=create,
+            operation="update",
+            version="7",
+            specification={"permissions": []},
         ),
     )
     assert (outcome.kind, outcome.reason) == (OutcomeKind.REJECTED, RejectionReason.CONFLICT)
@@ -290,7 +298,7 @@ async def test_update_without_effective_change_keeps_the_generation(
     """Sem geração nova, a Operation acompanha a vigente, ainda não observada (decisão 0072)."""
     create = create_message(cleanup)
     await handle(user_manager, create)
-    same = {"roles": create["data"]["specification"]["roles"]}
+    same = {"permissions": create["data"]["specification"]["permissions"]}
     outcome = await handle(
         user_manager,
         change_message(cleanup, create=create, operation="update", version="1", specification=same),
@@ -396,7 +404,11 @@ async def test_delete_declares_absence_without_personal_data_and_is_idempotent(
     after = await handle(
         user_manager,
         change_message(
-            cleanup, create=create, operation="update", version="2", specification={"roles": []}
+            cleanup,
+            create=create,
+            operation="update",
+            version="2",
+            specification={"permissions": []},
         ),
     )
     assert (after.kind, after.reason) == (OutcomeKind.REJECTED, RejectionReason.VALIDATION)

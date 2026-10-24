@@ -4,8 +4,8 @@ Executor de `core.account` (`core-account-executor`), um dos seis papéis da ima
 
 Única identidade com escrita no Zitadel (conta `core-account-executor`, papéis `ORG_USER_CREATOR` na `register` e `PROJECT_GRANT_OWNER` nos Grants de `core` e `sum`). Consome a `action` do Reconciler, **revalida** contra o `desired` vigente (geração, coerência da operação, reconciliação ativa), confere o desfecho já registrado do `actionId` por Direct Get (idempotência) e executa:
 
-- `create`: cria o usuário **sem senha**, envia o link para definir a senha (`password_reset`) e concede, em cada projeto de roles (uma autorização por módulo), as roles de `desired.platformRoles` (não há lista de roles na configuração do Executor); a senha nunca passa por CLI, Receiver, SSOT nem NATS;
-- `update`: ajusta ou revoga as roles (`platformAccess`);
+- `create`: cria o usuário **sem senha**, envia o link para definir a senha (`password_reset`) e concede, em cada projeto de permissões (uma autorização por módulo), as permissões de `desired.platformPermissions` (não há lista de permissões na configuração do Executor); a senha nunca passa por CLI, Receiver, SSOT nem NATS;
+- `update`: ajusta ou revoga as permissões (`platformAccess`);
 - em `create` e `update`, grava o metadado `deletionProtection` do usuário com o valor do `desired` (decisão 0074);
 - `delete`: remove o usuário (ausente é sucesso).
 
@@ -32,7 +32,7 @@ src/core_account/executor/
 
 ## Configuração
 
-Variáveis `CORE_ACCOUNT_EXECUTOR_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD`, `CORE_ACCOUNT_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID` e `CORE_ACCOUNT_EXECUTOR_IDENTITY_PROJECT_IDS` (JSON módulo → ID do projeto de roles, por exemplo `{"core":"…","sum":"…"}`). A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`), só desta conta.
+Variáveis `CORE_ACCOUNT_EXECUTOR_<SEÇÃO>_<CAMPO>`, sem arquivo de configuração. Obrigatórias, sem default: `CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD`, `CORE_ACCOUNT_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID` e `CORE_ACCOUNT_EXECUTOR_IDENTITY_PROJECT_IDS` (JSON módulo → ID do projeto de permissões, por exemplo `{"core":"…","sum":"…"}`). A chave da conta de serviço é um arquivo montado (`/run/secrets/zitadel-key.json`), só desta conta.
 
 ## Desenvolvimento
 

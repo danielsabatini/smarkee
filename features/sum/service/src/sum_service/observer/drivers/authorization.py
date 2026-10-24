@@ -1,4 +1,4 @@
-"""Driver de leitura da autorização (roles) do usuário nos projetos de roles do Zitadel.
+"""Driver de leitura da autorização (permissões) do usuário nos projetos do Zitadel.
 
 Espelho do driver de escrita do Executor (`executor/drivers/authorization.py`): o mesmo
 sub-recurso, só leitura (API v2 de autorizações, na organização `register`).
@@ -19,7 +19,7 @@ class AuthorizationDriver:
         self._settings = settings
 
     async def authorizations(self, user_id: str) -> list[Authorization]:
-        """Autorizações do usuário nos projetos de roles configurados, na organização `register`."""
+        """Autorizações do usuário nos projetos configurados, na organização `register`."""
         response = await self._connection.request(
             "POST",
             f"{AUTHORIZATION_SERVICE}/ListAuthorizations",
@@ -40,9 +40,9 @@ class AuthorizationDriver:
             project_id = str(cast("dict[str, Any]", item["project"])["id"])
             if project_id not in configured:
                 continue
-            roles = frozenset(
+            permissions = frozenset(
                 str(cast("dict[str, Any]", role)["key"])
                 for role in cast("list[Any]", item.get("roles") or [])
             )
-            found.append(Authorization(project_id, roles))
+            found.append(Authorization(project_id, permissions))
         return found

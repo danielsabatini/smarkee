@@ -33,7 +33,7 @@ async def test_the_repository_reads_links_by_owner_and_service_from_the_views() 
         "reconciliation": "active",
         "ownerAccountId": owner,
         "service": "ipm",
-        "serviceRoles": ["ipm.organization.get"],
+        "servicePermissions": ["ipm.organization.get"],
     }
     writer = await psycopg.AsyncConnection.connect(WRITER, autocommit=True)
     try:

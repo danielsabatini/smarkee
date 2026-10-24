@@ -155,7 +155,7 @@ async def test_missing_key_file_or_token_failure_is_a_provider_error(tmp_path: P
         await missing.users.get_user("u-1")
 
 
-async def test_granted_roles_are_those_of_roles_ipm_only(key_file: Path) -> None:
+async def test_granted_permissions_are_those_of_roles_ipm_only(key_file: Path) -> None:
     calls: list[httpx.Request] = []
     body = {
         "authorizations": [
@@ -163,13 +163,16 @@ async def test_granted_roles_are_those_of_roles_ipm_only(key_file: Path) -> None
                 "project": {"id": "proj-ipm"},
                 "roles": [{"key": "ipm.user.get"}, {"key": "ipm.user.list"}],
             },
-            # Outro projeto não conta: as roles do usuário da Organization são as de `roles-ipm`.
+            # Outro projeto não conta: as permissões do usuário são as de `roles-ipm`.
             {"project": {"id": "proj-outro"}, "roles": [{"key": "x.y.z"}]},
         ]
     }
     identity = reader(key_file, lambda r: httpx.Response(200, json=body), calls=calls)
 
-    assert await identity.authorizations.granted_roles("u-1") == {"ipm.user.get", "ipm.user.list"}
+    assert await identity.authorizations.granted_permissions("u-1") == {
+        "ipm.user.get",
+        "ipm.user.list",
+    }
     request = next(c for c in calls if "ListAuthorizations" in c.url.path)
     assert request.url.path == "/zitadel.authorization.v2.AuthorizationService/ListAuthorizations"
     assert request.headers["Connect-Protocol-Version"] == "1"

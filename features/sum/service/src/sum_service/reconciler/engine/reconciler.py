@@ -104,10 +104,13 @@ class Reconciler:
             generation=generation,
             lifecycle=str(data.get("lifecycle", "present")),
             reconciliation=str(data.get("reconciliation", "active")),
-            service_roles=frozenset(str(role) for role in data.get("serviceRoles", ())),
+            service_permissions=frozenset(
+                str(permission) for permission in data.get("servicePermissions", ())
+            ),
             traceparent=current_traceparent(),
-            managed_roles=frozenset(
-                str(role) for role in data.get("managedRoles", data.get("serviceRoles", ()))
+            managed_permissions=frozenset(
+                str(permission)
+                for permission in data.get("managedPermissions", data.get("servicePermissions", ()))
             ),
         )
         if current is None or generation != current.generation:
@@ -128,7 +131,9 @@ class Reconciler:
             presence=envelope.presence.value,
             observed_at=envelope.observed_at,
             causation_id=envelope.causation_id,
-            service_roles=frozenset(str(role) for role in data.get("serviceRoles", ())),
+            service_permissions=frozenset(
+                str(permission) for permission in data.get("servicePermissions", ())
+            ),
         )
         if (
             state.awaiting_observation_of is not None

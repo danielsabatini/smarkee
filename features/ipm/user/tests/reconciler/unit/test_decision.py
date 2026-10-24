@@ -19,7 +19,7 @@ from ipm_user.reconciler.settings import LoopSettings
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
 SETTINGS = LoopSettings()
-ROLES = frozenset({"ipm.user.get", "ipm.user.list"})
+PERMISSIONS = frozenset({"ipm.user.get", "ipm.user.list"})
 
 
 def desired(
@@ -27,16 +27,16 @@ def desired(
     lifecycle: str = "present",
     reconciliation: str = "active",
     generation: int = 1,
-    roles: frozenset[str] = ROLES,
+    permissions: frozenset[str] = PERMISSIONS,
 ) -> DesiredState:
-    return DesiredState("d-1", generation, lifecycle, reconciliation, roles, "owner-1", "c-1")
+    return DesiredState("d-1", generation, lifecycle, reconciliation, permissions, "owner-1", "c-1")
 
 
 def observed(
     presence: str,
     *,
     age: int = 5,
-    roles: frozenset[str] | None = ROLES,
+    permissions: frozenset[str] | None = PERMISSIONS,
     causation: str | None = None,
     protected: bool | None = False,
 ) -> ObservedState:
@@ -45,7 +45,7 @@ def observed(
         presence,
         NOW - timedelta(seconds=age),
         causation,
-        roles if presence == "present" else None,
+        permissions if presence == "present" else None,
         deletion_protection=protected if presence == "present" else None,
     )
 
@@ -65,17 +65,17 @@ def test_missing_user_is_created() -> None:
     assert (decision.operation, decision.reason) == ("create", "Missing")
 
 
-def test_different_roles_are_updated() -> None:
-    extra = observed("present", roles=ROLES | {"ipm.user.bind"})
+def test_different_permissions_are_updated() -> None:
+    extra = observed("present", permissions=PERMISSIONS | {"ipm.user.bind"})
     assert operation_of(state(desired(), extra)) == "update"
-    assert operation_of(state(desired(), observed("present", roles=frozenset()))) == "update"
-    assert operation_of(state(desired(roles=frozenset()), observed("present"))) == "update"
+    assert operation_of(state(desired(), observed("present", permissions=frozenset()))) == "update"
+    assert operation_of(state(desired(permissions=frozenset()), observed("present"))) == "update"
 
 
 def test_converged_user_needs_no_action() -> None:
     assert operation_of(state(desired(), observed("present"))) is None
-    nothing = desired(roles=frozenset())
-    assert operation_of(state(nothing, observed("present", roles=frozenset()))) is None
+    nothing = desired(permissions=frozenset())
+    assert operation_of(state(nothing, observed("present", permissions=frozenset()))) is None
 
 
 def test_a_different_deletion_protection_is_drift() -> None:
