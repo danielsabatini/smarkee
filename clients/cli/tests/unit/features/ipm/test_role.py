@@ -1,0 +1,74 @@
+"""Cliente do `ipm.role`: validações e leitura estrita das respostas."""
+
+from typing import Any
+
+import pytest
+
+from sk.features.ipm.role import (
+    _role,
+    validate_description,
+    validate_permissions_list,
+    validate_role_name,
+)
+from sk.http import ApiUnavailableError
+
+
+def test_role_name_validation() -> None:
+    assert validate_role_name("ipm.userAdmin") == "ipm.userAdmin"
+    assert validate_role_name("bsm.accountViewer") == "bsm.accountViewer"
+    for invalid in ("Ipm.UserAdmin", "sem-ponto", "a", "a.b.c"):
+        with pytest.raises(ValueError, match="role name invalid"):
+            validate_role_name(invalid)
+
+
+def test_role_description_validation() -> None:
+    assert validate_description("Administrador de usuários") == "Administrador de usuários"
+    with pytest.raises(ValueError, match="between 1 and 256 characters"):
+        validate_description("")
+    with pytest.raises(ValueError, match="explain the role"):
+        validate_description("ipm.userAdmin", name="ipm.userAdmin")
+
+
+def test_role_permissions_list_validation() -> None:
+    assert validate_permissions_list(["ipm.user.get", "ipm.user.list", "ipm.user.get"]) == [
+        "ipm.user.get",
+        "ipm.user.list",
+    ]
+    with pytest.raises(ValueError, match="at least one permission"):
+        validate_permissions_list([])
+    with pytest.raises(ValueError, match="permission invalid"):
+        validate_permissions_list(["invalid_perm"])
+
+
+def test_role_document_parsing() -> None:
+    raw: dict[str, Any] = {
+        "resourceId": "r-1",
+        "resourceVersion": "2",
+        "phase": "Ready",
+        "desired": {
+            "lifecycle": "present",
+            "specification": {
+                "name": "ipm.userAdmin",
+                "description": "Administrador de usuários",
+                "permissions": ["ipm.user.create", "ipm.user.get"],
+                "deletionProtection": True,
+                "status": "active",
+            },
+        },
+    }
+    role = _role(raw)
+    assert role.resource_id == "r-1"
+    assert role.name == "ipm.userAdmin"
+    assert role.permissions == ("ipm.user.create", "ipm.user.get")
+    assert role.deletion_protection is True
+
+
+def test_role_missing_specification_fields() -> None:
+    raw: dict[str, Any] = {
+        "resourceId": "r-1",
+        "resourceVersion": "1",
+        "phase": "Ready",
+        "desired": {"lifecycle": "present", "specification": {"name": "ipm.userAdmin"}},
+    }
+    with pytest.raises(ApiUnavailableError):
+        _role(raw)

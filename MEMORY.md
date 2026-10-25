@@ -5,12 +5,13 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - **Regras, contratos e decisões:** `AGENTS.md`, `docs/` e `.decisions/`.
 
 ## Estado operacional atual
-- **Branch `dev` (`origin/dev`):** features `core/account`, `sum/service`, `bsm/account` (decisão `0082`), `ipm/organization`, `ipm/user`, `ipm/permission` e `ipm/role` (decisão `0083`) operacionais no Compose e verificadas por suítes E2E.
+- **Branch `dev` (`origin/dev`):** features `core/account`, `sum/service`, `bsm/account` (decisão `0082`), `ipm/organization`, `ipm/user`, `ipm/permission` e `ipm/role` (decisões `0083` e `0084`) operacionais no Compose; comandos `sk ipm permission`, `sk ipm role` e ajuste exclusivo de `roles` em `sk ipm user` implementados e verificados (decisão `0085`).
 - **Identidade (`infrastructure/dev/identity`):** chaves das service accounts do Zitadel persistem no volume Docker `identity-bootstrap`.
 - **Ambiente local OpenCode:** `~/.config/opencode/opencode.json` carrega `AGENTS.md` e `MEMORY.md` globalmente; `.opencode/opencode.json` do projeto é local e ignorado pelo git.
 
 ## Próximos passos imediatos
-1. Operation `failed` no limite/prazo e `superseded` na substituída (contrato aditivo).
+1. Implementação de `ipm/group` (grupos de usuários da Organization no SSOT da Smarkee com concessão de roles — decisão `0085`).
+2. Operation `failed` no limite/prazo e `superseded` na substituída (contrato aditivo).
 2. Higiene operacional: isolar testes de integração para não publicar no loop em execução; limpeza reconhecer usuário removido; lint pendente (`cleanup/main.py`, `backup/model.py`); supressão de logs repetitivos por recurso; trace novo por tentativa com link (quando houver spans).
 
 ## Pendências antes de `stg`/`prd`

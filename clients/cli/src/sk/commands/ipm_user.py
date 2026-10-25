@@ -1,7 +1,7 @@
-"""Comandos `sk ipm user`: usuários da Organization (decisão 0077).
+"""Comandos `sk ipm user`: usuários da Organization (decisões 0077 e 0085).
 
 O dono da Organization (o root) e os usuários dela com as permissões `ipm.user.*` criam, consultam,
-alteram as permissões, protegem e removem usuários da Organization. Cada usuário nasce sem senha: a
+alteram as roles, protegem e removem usuários da Organization. Cada usuário nasce sem senha: a
 pessoa define a senha pelo e-mail de ativação e entra com `sk auth login`. A Organization é a de
 `--organization-id` ou, na falta dela, a ativa (`sk config set ipm.organizationId`). Criar, alterar
 e remover são assíncronos: com `--wait`, o comando espera o usuário convergir.
@@ -39,7 +39,6 @@ from sk.features.ipm.user import (
     get_user,
     list_users,
     update_user,
-    validate_permissions,
     validate_roles,
 )
 from sk.help import command, option
@@ -50,7 +49,7 @@ from sk.settings import ConfigurationError, SkSettings
 ACTIVE_ORGANIZATION_KEY = "ipm.organizationId"
 
 USER_HELP = command(
-    "Create, inspect, change the permissions of, protect and delete the users of an Organization."
+    "Create, inspect, change the roles of, protect and delete the users of an Organization."
 )
 
 NOT_FOUND = "User not found in an Organization you act on."
@@ -128,20 +127,6 @@ OrganizationOption = Annotated[
         ),
     ),
 ]
-PermissionOption = Annotated[
-    list[str] | None,
-    typer.Option(
-        "--permission",
-        help=option(
-            "Platform permission of the user, for example ipm.user.get. Repeat it for more "
-            "permissions.",
-            kind="String",
-            variable=None,
-            file=None,
-            default="no permissions",
-        ),
-    ),
-]
 RoleOption = Annotated[
     list[str] | None,
     typer.Option(
@@ -180,13 +165,6 @@ def _identifier(value: str | None, option_name: str, *, what: str) -> str:
         return validate_identifier(require(value, option_name), what=what)
     except ValueError as error:
         _usage_error(str(error), option_name)
-
-
-def _permissions(values: list[str] | None) -> list[str]:
-    try:
-        return validate_permissions(values or [])
-    except ValueError as error:
-        _usage_error(str(error), "--permission")
 
 
 def _roles(values: list[str] | None) -> list[str]:
@@ -385,7 +363,6 @@ def create_command(
             ),
         ),
     ] = None,
-    permission: PermissionOption = None,
     role: RoleOption = None,
     organization_id: OrganizationOption = None,
     wait: WaitOption = False,
@@ -400,7 +377,6 @@ def create_command(
     except ValueError as error:
         ui.error("Value not accepted", str(error), hint="Fix the given value and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
-    permissions = _permissions(permission) if permission is not None else None
     roles = _roles(role) if role is not None else None
     organization = _organization(organization_id)
     url, insecure = load_api()
@@ -413,7 +389,6 @@ def create_command(
             given_name=name.strip(),
             family_name=surname.strip(),
             email=email.strip(),
-            permissions=permissions,
             roles=roles,
             idempotency_key=str(uuid.uuid7()),
             allow_insecure_http=insecure,
@@ -431,7 +406,6 @@ def create_command(
 def _change(
     resource_id: str | None,
     *,
-    permissions: list[str] | None,
     roles: list[str] | None,
     protected: bool | None,
     title: str,
@@ -444,10 +418,9 @@ def _change(
     token = session_token()
     try:
         current = get_user(url, token=token, resource_id=user_id, allow_insecure_http=insecure)
-        same_permissions = permissions is None or sorted(permissions) == sorted(current.permissions)
         same_roles = roles is None or sorted(roles) == sorted(current.roles)
         same_protection = protected is None or protected == current.deletion_protection
-        if same_permissions and same_roles and same_protection:
+        if same_roles and same_protection:
             ui.note(f"User {user_id} already has it. Nothing to do.")
             return
         accepted = update_user(
@@ -455,7 +428,6 @@ def _change(
             token=token,
             resource_id=user_id,
             resource_version=current.resource_version,
-            permissions=None if same_permissions else permissions,
             roles=None if same_roles else roles,
             protected=None if same_protection else protected,
             idempotency_key=str(uuid.uuid7()),
@@ -472,28 +444,13 @@ def _change(
 @user_app.command(
     "update",
     help=command(
-        "Set the permissions and/or roles of a user: the given --permission values replace the "
-        "current permissions (--no-permissions removes them), and --role replaces the roles "
+        "Set the roles of a user: the given --role values replace the current roles "
         "(--no-roles removes them)."
     ),
 )
 def update_command(
     resource_id: UserIdOption = None,
-    permission: PermissionOption = None,
     role: RoleOption = None,
-    no_permissions: Annotated[
-        bool,
-        typer.Option(
-            "--no-permissions",
-            help=option(
-                "Remove every permission of the user.",
-                kind="Boolean",
-                variable=None,
-                file=None,
-                default="off",
-            ),
-        ),
-    ] = False,
     no_roles: Annotated[
         bool,
         typer.Option(
@@ -510,24 +467,13 @@ def update_command(
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    has_perm_change = permission is not None or no_permissions
-    if has_perm_change and (bool(permission) == no_permissions):
-        _usage_error(
-            "Give at least one --permission, or --no-permissions (not both).", "--permission"
-        )
     has_role_change = role is not None or no_roles
     if has_role_change and (bool(role) == no_roles):
         _usage_error("Give at least one --role, or --no-roles (not both).", "--role")
-    if not has_perm_change and not has_role_change:
-        _usage_error(
-            "Give at least one --permission, --no-permissions, --role, or --no-roles.",
-            "--permission",
-        )
+    if not has_role_change:
+        _usage_error("Give at least one --role, or --no-roles.", "--role")
     _change(
         resource_id,
-        permissions=[]
-        if no_permissions
-        else (_permissions(permission) if permission is not None else None),
         roles=[] if no_roles else (_roles(role) if role is not None else None),
         protected=None,
         title="User updated",
@@ -544,7 +490,6 @@ def protect_command(
 ) -> None:
     _change(
         resource_id,
-        permissions=None,
         roles=None,
         protected=True,
         title="User protected",
@@ -564,7 +509,6 @@ def unprotect_command(
 ) -> None:
     _change(
         resource_id,
-        permissions=None,
         roles=None,
         protected=False,
         title="User unprotected",
