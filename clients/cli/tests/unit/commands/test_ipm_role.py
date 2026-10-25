@@ -193,7 +193,7 @@ def test_update_role(api: FakeApi) -> None:
     assert result.exit_code == 0, result.stderr
     assert body_of(api.requests[-1]) == {
         "resourceVersion": "2",
-        "specification": {"description": "Nova descrição da role"},
+        "description": "Nova descrição da role",
     }
 
 
@@ -207,7 +207,7 @@ def test_protect_and_unprotect_role(api: FakeApi) -> None:
     assert result.exit_code == 0, result.stderr
     assert body_of(api.requests[-1]) == {
         "resourceVersion": "1",
-        "specification": {"deletionProtection": True},
+        "deletionProtection": True,
     }
     again = runner.invoke(app, ["ipm", "role", "protect", "--resource-id", RID])
     assert again.exit_code == 0 and "Nothing to do" in again.stdout

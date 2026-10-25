@@ -66,7 +66,12 @@ def validate_description(description: str, *, name: str | None = None) -> str:
 def _permission(document: object) -> Permission:
     body = as_object(document, what="permission")
     desired = as_object(body.get("desired"), what="permission (desired)")
-    spec = as_object(desired.get("specification") or {}, what="permission (specification)")
+    spec_obj = desired.get("specification")
+    spec = (
+        as_object(spec_obj, what="permission (specification)")
+        if isinstance(spec_obj, dict)
+        else desired
+    )
     name = spec.get("name")
     if not isinstance(name, str):
         raise ApiUnavailableError("API response without the permission name")
@@ -132,15 +137,12 @@ def update_permission(
     """Altera descrição, grantable e/ou proteção contra exclusão."""
     resource_id = validate_identifier(resource_id, what="resourceId")
     body: dict[str, Any] = {"resourceVersion": resource_version}
-    specification: dict[str, Any] = {}
     if description is not None:
-        specification["description"] = validate_description(description)
+        body["description"] = validate_description(description)
     if grantable is not None:
-        specification["grantable"] = grantable
+        body["grantable"] = grantable
     if protected is not None:
-        specification["deletionProtection"] = protected
-    if specification:
-        body["specification"] = specification
+        body["deletionProtection"] = protected
     _, document = call_api(
         "PATCH",
         api_url,

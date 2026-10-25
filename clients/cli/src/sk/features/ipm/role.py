@@ -83,7 +83,12 @@ def validate_permissions_list(values: list[str]) -> list[str]:
 def _role(document: object) -> Role:
     body = as_object(document, what="role")
     desired = as_object(body.get("desired"), what="role (desired)")
-    spec = as_object(desired.get("specification") or {}, what="role (specification)")
+    spec_obj = desired.get("specification")
+    spec = (
+        as_object(spec_obj, what="role (specification)")
+        if isinstance(spec_obj, dict)
+        else desired
+    )
     name = spec.get("name")
     if not isinstance(name, str):
         raise ApiUnavailableError("API response without the role name")
@@ -151,15 +156,12 @@ def update_role(
     """Altera descrição, permissões e/ou proteção contra exclusão."""
     resource_id = validate_identifier(resource_id, what="resourceId")
     body: dict[str, Any] = {"resourceVersion": resource_version}
-    specification: dict[str, Any] = {}
     if description is not None:
-        specification["description"] = validate_description(description)
+        body["description"] = validate_description(description)
     if permissions is not None:
-        specification["permissions"] = validate_permissions_list(permissions)
+        body["permissions"] = validate_permissions_list(permissions)
     if protected is not None:
-        specification["deletionProtection"] = protected
-    if specification:
-        body["specification"] = specification
+        body["deletionProtection"] = protected
     _, document = call_api(
         "PATCH",
         api_url,

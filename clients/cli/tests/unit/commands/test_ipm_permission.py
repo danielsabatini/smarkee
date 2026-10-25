@@ -188,7 +188,7 @@ def test_update_permission(api: FakeApi) -> None:
     assert result.exit_code == 0, result.stderr
     assert body_of(api.requests[-1]) == {
         "resourceVersion": "2",
-        "specification": {"description": "Nova descrição em pt-BR"},
+        "description": "Nova descrição em pt-BR",
     }
 
 
@@ -202,7 +202,7 @@ def test_protect_and_unprotect_permission(api: FakeApi) -> None:
     assert result.exit_code == 0, result.stderr
     assert body_of(api.requests[-1]) == {
         "resourceVersion": "1",
-        "specification": {"deletionProtection": True},
+        "deletionProtection": True,
     }
     again = runner.invoke(app, ["ipm", "permission", "protect", "--resource-id", PID])
     assert again.exit_code == 0 and "Nothing to do" in again.stdout
