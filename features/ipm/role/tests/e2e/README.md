@@ -25,6 +25,6 @@ export CONFORMANCE_MESSAGING_PASSWORD=$(grep ^SMARKEE_MESSAGING_PASSWORD= ../../
 uv run pytest
 ```
 
-`tests/test_loop.py` fecha o loop com os componentes reais: os pedidos entram direto no NATS (como o Receiver os publicaria, sem token), a Role é criada, atualizada e removida pelo próprio loop, e o Observer confirma cada passo no armazenamento local de estado (`/var/tmp/ipm-role`). Cada Role de teste é removida pelo loop ao final.
+`tests/test_loop.py` fecha o loop com os componentes reais: os pedidos entram direto no NATS (como o Receiver os publicaria, sem token), a Role é criada, atualizada e removida pelo próprio loop, e o Observer confirma cada passo no banco `platform` (plano de dados). Cada Role de teste é removida pelo loop ao final.
 
 Testes de resiliência (opt-in, `E2E_CHAOS=1`): `tests/test_chaos.py` derruba, com o `docker`, cada um dos papéis (Manager, Publisher, Reconciler, Observer e Executor) durante um pedido e verifica que o trabalho não se perde e o loop converge quando o componente volta.

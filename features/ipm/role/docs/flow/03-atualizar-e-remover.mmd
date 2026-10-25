@@ -7,7 +7,7 @@ sequenceDiagram
   participant REC as Reconciler
   participant OB as Observer
   participant EX as Executor
-  participant ST as Estado local (ipm-role-state)
+  participant ST as Banco platform (schema ipm)
   U->>R: GET /v1/ipm/roles/{resourceId}
   R-->>U: 200 com resourceVersion
   U->>R: PATCH /v1/ipm/roles/{resourceId} {resourceVersion, displayName, permissions}
@@ -20,7 +20,7 @@ sequenceDiagram
     M->>DB: geração + 1, campos novos, outbox desired
     P->>REC: desired (DESIRED)
     REC->>EX: action update (campos diferem)
-    EX->>ST: atualiza atomicamente <stateDir>/<resourceId>.json
+    EX->>ST: transação: atualiza ipm.role e permissões
     OB->>M: observed com os campos novos (fase Ready)
   end
   Note over R,EX: deletionProtection precisa ser false antes do DELETE, senão responde 409 DeletionProtected
@@ -30,8 +30,8 @@ sequenceDiagram
   M->>DB: lifecycle absent, fase Deleting, outbox desired
   P->>REC: desired absent (DESIRED)
   REC->>EX: action delete (role ainda presente)
-  EX->>ST: remove <stateDir>/<resourceId>.json (ausente também é sucesso)
+  EX->>ST: DELETE em ipm.role (ausente também é sucesso)
   EX->>REC: completed (RESULT)
-  OB->>ST: verifica <stateDir>/<resourceId>.json
+  OB->>ST: SELECT em ipm.role
   OB->>M: observed absent
   M->>DB: apaga a linha, Operation completed e publica removed

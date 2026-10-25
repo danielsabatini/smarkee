@@ -17,6 +17,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
   - Filtragem e segurança de logs de infraestrutura: Descarte de linhas de log sem severidade reconhecida (`UNSET` / `< SEVERITY_NUMBER_WARN`) no `telemetry-agent`, impedindo vazamento de linhas órfãs `STATEMENT:`/`DETAIL:` do PostgreSQL.
 
 ### Changed
+- O estado das Roles (`ipm.role`) passa a ficar no banco PostgreSQL `platform`, multi-tenant e separado do SSOT e do Zitadel, em vez de arquivos em disco (decisão 0086). O Executor é o único com escrita e o Observer só lê; o banco pode ficar em outro servidor mudando só `host`, `port` e `name` da configuração. O backup de dev passa a incluir o banco `platform`.
 - **Quebra:** atribuir ou alterar permissões ou roles de um usuário de Organization (`ipm.user`) exige agora estritamente a permissão `ipm.user.bind` (ou ser o dono da Organization / operador, decisão 0083). A exceção anterior da decisão 0077 que permitia delegar as próprias permissões sem `ipm.user.bind` foi eliminada.
 - Propagação dinâmica de catálogo sem redeploy (decisão 0083): o Manager da `ipm/organization` passa a observar `manager.desired.ipm.permission.>` via NATS para atualizar dinamicamente `grantPermissions` dos Project Grants das Organizations sempre que uma permissão `ipm.*` com `grantable = true` é adicionada ou alterada.
 - Infraestrutura de desenvolvimento (`infrastructure/dev`): atualizado o Zitadel (`identity` e `identity-login`) de `v4.19.4` para `v4.20.0` e o servidor NATS (`messaging`) de `2.15.0-alpine` para `2.15.1-alpine`.

@@ -2,7 +2,7 @@ sequenceDiagram
   participant A as ACTION (partição por resourceId)
   participant EX as Executor
   participant S as Estado no transporte (DESIRED, RESULT)
-  participant ST as Estado local (ipm-role-state)
+  participant ST as Banco platform (schema ipm)
   participant RES as RESULT
   A->>EX: action (um consumer por partição, uma por vez em cada recurso)
   alt Executor parado
@@ -20,7 +20,7 @@ sequenceDiagram
     else operação incoerente com o lifecycle, ou não permitida
       EX->>RES: failed Rejected (permanente)
     else válida
-      EX->>ST: grava, atualiza ou remove <stateDir>/<resourceId>.json
+      EX->>ST: grava, atualiza ou remove em ipm.role (transação)
       alt falha de I/O local
         EX->>RES: failed ProviderUnavailable (retryable)
       else sucesso

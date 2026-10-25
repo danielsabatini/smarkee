@@ -59,11 +59,14 @@ services:
       - internal
     restart: "no"
 
-  # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo
-  # (features/ipm/role/migrations/*.sql, em ordem) como o dono `smarkee`, no banco `smarkee`.
-  # O código das migrações é do Manager (decisões 0015 e 0063); a execução é desta etapa de
-  # implantação, com o papel administrativo, e nunca com o papel de runtime do Manager.
-  # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/ipm.sql.
+  # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo em dois bancos,
+  # sempre como o dono de cada um e nunca com o papel de runtime:
+  #   1. features/ipm/role/migrations/*.sql, no banco `smarkee` (SSOT), como `smarkee`;
+  #   2. features/ipm/role/migrations/platform/*.sql, no banco `platform` (plano de dados do Executor e do
+  #      Observer, decisão 0086), como `platform`.
+  # O código das migrações do SSOT é do Manager (decisões 0015 e 0063); o do `platform`, do Executor.
+  # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/ipm.sql e o banco,
+  # de database/bootstrap/platform.sql.
   ipm-role-migrate:
     build:
       context: ../../../infrastructure/tools/psql-client
@@ -79,7 +82,11 @@ services:
     command:
       - sh
       - -c
-      - for migration in /migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1; done
+      - >-
+        for migration in /migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1; done;
+        for migration in /migrations/platform/*.sql; do
+        PGDATABASE=platform PGUSER=platform PGPASSWORD=platform psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1;
+        done
     volumes:
       - ./migrations:/migrations:ro
     networks:
@@ -180,8 +187,8 @@ services:
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
-  # Observer (`ipm-role-observer`): lê os arquivos de estado no volume compartilhado (somente
-  # leitura) e publica `observed`.
+  # Observer (`ipm-role-observer`): lê o estado da Role no banco `platform` (papel somente leitura) e
+  # publica `observed`. Não acessa o SSOT.
   ipm-role-observer:
     <<: *component-image
     command: [ipm-role-observer]
@@ -192,12 +199,14 @@ services:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
     secrets:
+      - IPM_ROLE_OBSERVER_DATABASE_PASSWORD
       - IPM_ROLE_OBSERVER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
-      - ipm-role-state:/var/tmp:ro
     depends_on:
       ipm-role-consumer:
+        condition: service_completed_successfully
+      ipm-role-migrate:
         condition: service_completed_successfully
     networks:
       internal:
@@ -206,7 +215,8 @@ services:
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
-  # Executor (`ipm-role-executor`): único com escrita nos arquivos de estado do recurso (decisão 0083).
+  # Executor (`ipm-role-executor`): único com escrita no estado da Role, no banco `platform` (decisões 0083 e
+  # 0086). Não acessa o SSOT.
   ipm-role-executor:
     <<: *component-image
     command: [ipm-role-executor]
@@ -217,12 +227,14 @@ services:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
     secrets:
+      - IPM_ROLE_EXECUTOR_DATABASE_PASSWORD
       - IPM_ROLE_EXECUTOR_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
-      - ipm-role-state:/var/tmp
     depends_on:
       ipm-role-consumer:
+        condition: service_completed_successfully
+      ipm-role-migrate:
         condition: service_completed_successfully
     networks:
       internal:
@@ -310,19 +322,18 @@ secrets:
     environment: IPM_ROLE_MANAGER_MESSAGING_PASSWORD
   IPM_ROLE_RECONCILER_MESSAGING_PASSWORD:
     environment: IPM_ROLE_RECONCILER_MESSAGING_PASSWORD
+  IPM_ROLE_OBSERVER_DATABASE_PASSWORD:
+    environment: IPM_ROLE_OBSERVER_DATABASE_PASSWORD
   IPM_ROLE_OBSERVER_MESSAGING_PASSWORD:
     environment: IPM_ROLE_OBSERVER_MESSAGING_PASSWORD
+  IPM_ROLE_EXECUTOR_DATABASE_PASSWORD:
+    environment: IPM_ROLE_EXECUTOR_DATABASE_PASSWORD
   IPM_ROLE_EXECUTOR_MESSAGING_PASSWORD:
     environment: IPM_ROLE_EXECUTOR_MESSAGING_PASSWORD
   IPM_ROLE_PUBLISHER_DATABASE_PASSWORD:
     environment: IPM_ROLE_PUBLISHER_DATABASE_PASSWORD
   IPM_ROLE_PUBLISHER_MESSAGING_PASSWORD:
     environment: IPM_ROLE_PUBLISHER_MESSAGING_PASSWORD
-
-volumes:
-  # Volume local de arquivos de estado da Role (decisão 0073 e 0083), compartilhado entre Executor (rw) e Observer (ro).
-  ipm-role-state:
-    name: ipm-role-state
 
 networks:
   # Rede da plataforma, criada por `infrastructure/dev`.

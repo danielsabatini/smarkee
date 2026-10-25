@@ -1,4 +1,4 @@
-"""Execução das operações da Role no armazenamento de estado (`LOOP.md` §46).
+"""Execução das operações da Role no estado da Role, no banco `platform` (`LOOP.md` §46).
 
 Compõe os drivers de `executor/drivers/` e não chama o provedor direto. Cada operação é idempotente
 e usa o `resourceId` como identificador da Role. `name` é imutável após a criação.

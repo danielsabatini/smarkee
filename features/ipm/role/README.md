@@ -14,8 +14,8 @@ Os seis componentes do loop estão implementados para execução no ambiente de 
 | Manager | `manager/` (`ipm-role-manager`) | Consome `requested`, `observed` e `completed`/`failed`; unicidade de `name` em Roles ativas; migração `0001-role.sql` semeia as 14 Roles pré-definidas |
 | Publisher | `publisher/` (`ipm-role-publisher`) | Publica o outbox no NATS (`manager.desired.ipm.role.>` e `manager.updated.ipm.role.>`) |
 | Reconciler | `reconciler/` (`ipm-role-reconciler`) | Compara `name`, `description` e `permissions` e decide `create`, `update` ou `delete` |
-| Observer | `observer/` (`ipm-role-observer`) | Lê o estado local em disco (`/var/tmp/ipm-role`, somente leitura) e publica `observed` |
-| Executor | `executor/` (`ipm-role-executor`) | Grava atomicamente ou remove o estado local da Role em `/var/tmp/ipm-role`; revalida cada ação |
+| Observer | `observer/` (`ipm-role-observer`) | Lê o estado da Role no banco `platform` (papel somente `SELECT`) e publica `observed` |
+| Executor | `executor/` (`ipm-role-executor`) | Grava ou remove, em transação, o estado da Role no banco `platform` (único com escrita); revalida cada ação |
 
 # 2. Contratos e Configuração
 

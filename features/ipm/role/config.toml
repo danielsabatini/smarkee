@@ -36,8 +36,13 @@ user = "ipm_role_publisher_login"
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
-[tool.ipm.role.observer.storage]
-directory = "/var/tmp/ipm-role"
+# Observer e Executor usam o banco `platform` (plano de dados, decisão 0086), e não o SSOT. Para apontar para
+# outro servidor, mude só `host`, `port` e `name`.
+[tool.ipm.role.observer.database]
+host = "database.smarkee.internal"
+name = "platform"
+port = 5432
+user = "ipm_role_observer_login"
 
 [tool.ipm.role.observer.messaging]
 url = "nats://messaging.smarkee.internal:4222"
@@ -47,8 +52,11 @@ user = "smarkee"
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
-[tool.ipm.role.executor.storage]
-directory = "/var/tmp/ipm-role"
+[tool.ipm.role.executor.database]
+host = "database.smarkee.internal"
+name = "platform"
+port = 5432
+user = "ipm_role_executor_login"
 
 [tool.ipm.role.executor.messaging]
 url = "nats://messaging.smarkee.internal:4222"

@@ -21,7 +21,7 @@ uv run smarkee-dev-backup reset --apply    # backup, verificação e SÓ ENTÃO 
 
 | Item | Origem |
 |---|---|
-| Bancos `identity` (Zitadel) e `smarkee` (SSOT) | `pg_dump -Fc` no contêiner `database.smarkee.internal` |
+| Bancos `identity` (Zitadel), `smarkee` (SSOT) e `platform` (plano de dados, decisão 0086) | `pg_dump -Fc` no contêiner `database.smarkee.internal` |
 | Papéis do PostgreSQL | `pg_dumpall --globals-only` |
 | Volumes `identity-bootstrap` (chaves das service accounts e PAT do login) e `bsm-account-state` (estado externo de `bsm.account` em P0) | `tar` somente leitura |
 | `.env` de `infrastructure/dev/*`, das features e de `clients/cli` | cópia privada `0600` (os que existirem) |

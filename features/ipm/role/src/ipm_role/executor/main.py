@@ -1,12 +1,13 @@
 """Entrypoint do Executor de Role (`ipm-role-executor`, decisões 0015, 0063 e 0083).
 
 Só inicializa e encerra: valida a configuração, conecta ao NATS e roda o consumer de `action`.
-O Executor não acessa o SSOT; é o único com escrita no armazenamento de estado do recurso.
+O Executor não acessa o SSOT; é o único com escrita no estado do recurso, no banco `platform`.
 """
 
 import logging
 import sys
 
+from ipm_role.common.database import open_pool
 from ipm_role.common.lifecycle import start_role
 from ipm_role.common.messaging import StreamPublisher
 from ipm_role.common.runtime import role_runtime
@@ -22,7 +23,9 @@ logger = logging.getLogger(__name__)
 
 async def run(settings: RoleExecutorSettings) -> int:
     async with role_runtime(settings.messaging, name="ipm-role-executor") as runtime:
-        connection = StateStoreConnection(settings.storage)
+        pool = await open_pool(settings.database)
+        runtime.close_after(pool.close)
+        connection = StateStoreConnection(pool)
         executor = Executor(
             Drivers(roles=RoleDriver(connection)),
             StreamPublisher(runtime.stream),

@@ -3,11 +3,12 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `IPM_ROLE_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
 `IPM_ROLE_EXECUTOR_MESSAGING_URL`
-(`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Executor
-**não acessa o SSOT** e é o único componente com escrita no armazenamento de estado do recurso.
+(`docs/SCHEMA.md` §8.3). Sem default: as senhas do banco e do NATS. O Executor
+**não acessa o SSOT** e é o único componente com escrita no estado do recurso, no banco `platform`.
 """
 
 from ipm_role.common.settings import (
+    DatabaseSettings,
     HealthSettings,
     MessagingSettings,
     RoleSettings,
@@ -15,11 +16,6 @@ from ipm_role.common.settings import (
     missing_variables,
     role_config,
 )
-
-
-class StorageSettings(Section):
-    directory: str | None = None
-    """Diretório dos arquivos de estado da Role."""
 
 
 class PartitionSettings(Section):
@@ -30,8 +26,10 @@ class PartitionSettings(Section):
 class RoleExecutorSettings(RoleSettings):
     model_config = role_config("executor")
 
+    database: DatabaseSettings = DatabaseSettings()
+    """Banco `platform` (plano de dados), e não o SSOT (decisão 0086)."""
+
     messaging: MessagingSettings = MessagingSettings()
-    storage: StorageSettings = StorageSettings()
     partition: PartitionSettings = PartitionSettings()
     health: HealthSettings = HealthSettings()
 
@@ -41,9 +39,9 @@ def missing_required(settings: RoleExecutorSettings) -> list[str]:
     return missing_variables(
         "IPM_ROLE_EXECUTOR_",
         {
+            "DATABASE_PASSWORD": settings.database.password is not None,
             "MESSAGING_URL": settings.messaging.url is not None,
             "MESSAGING_USER": settings.messaging.user is not None,
             "MESSAGING_PASSWORD": settings.messaging.password is not None,
-            "STORAGE_DIRECTORY": bool(settings.storage.directory),
         },
     )

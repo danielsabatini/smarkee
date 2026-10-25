@@ -30,6 +30,7 @@ ALTER ROLE telemetry_login SET idle_in_transaction_session_timeout = '10s';
 
 GRANT CONNECT ON DATABASE smarkee TO telemetry;
 GRANT CONNECT ON DATABASE identity TO telemetry;
+GRANT CONNECT ON DATABASE platform TO telemetry;
 
 \connect smarkee
 

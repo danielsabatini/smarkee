@@ -1,52 +1,57 @@
-"""Provedor somente leitura do armazenamento de estado em disco do Observer (decisão 0073).
+"""Provedor somente leitura da Role no banco `platform` para o Observer (decisões 0083 e 0086).
 
-Lê o arquivo `<directory>/<resource_id>.json`. Não escreve nem cria diretórios. Qualquer falha de
-I/O ou documento inválido vira `ProviderError`, que o domínio traduz em `presence = unknown`.
+Lê `ipm.role` e `ipm.role_permission`. Não escreve: o papel de login do Observer só tem `SELECT`.
+Qualquer falha de banco vira `ProviderError`, que o domínio traduz em `presence = unknown`, nunca
+em `absent`.
 """
 
-import asyncio
-import json
 import re
-from pathlib import Path
 from typing import Any
 
+import psycopg
+from psycopg_pool import AsyncConnectionPool
+
 from ipm_role.observer.domain.identity import ProviderError
-from ipm_role.observer.settings import StorageSettings
 
 _RESOURCE_ID = re.compile(r"^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
 
+_SELECT_ROLE = """
+SELECT r.name,
+       r.description,
+       r.deletion_protection,
+       COALESCE(
+         array_agg(p.permission_key ORDER BY p.permission_key)
+           FILTER (WHERE p.permission_key IS NOT NULL),
+         ARRAY[]::text[]
+       )
+  FROM ipm.role r
+  LEFT JOIN ipm.role_permission p ON p.role_id = r.resource_id
+ WHERE r.resource_id = %s
+ GROUP BY r.resource_id
+"""
+
 
 class StateStoreConnection:
-    """Acesso somente leitura aos arquivos JSON de estado da Role."""
+    """Acesso somente leitura ao estado da Role no banco `platform`."""
 
-    def __init__(self, settings: StorageSettings) -> None:
-        if not settings.directory:
-            raise ValueError("storage.directory is required")
-        self._root = Path(settings.directory).resolve()
-
-    def _path_for(self, resource_id: str) -> Path:
-        if not _RESOURCE_ID.fullmatch(resource_id):
-            raise ProviderError("invalid resource_id")
-        candidate = (self._root / f"{resource_id}.json").resolve()
-        if candidate.parent != self._root:
-            raise ProviderError("invalid resource path")
-        return candidate
-
-    def _read_record_sync(self, resource_id: str) -> dict[str, Any] | None:
-        path = self._path_for(resource_id)
-        try:
-            raw = path.read_text(encoding="utf-8")
-        except FileNotFoundError:
-            return None
-        except OSError as error:
-            raise ProviderError("failed to read state file") from error
-        try:
-            document = json.loads(raw)
-        except ValueError as error:
-            raise ProviderError("invalid JSON in state file") from error
-        if not isinstance(document, dict):
-            raise ProviderError("state file root is not an object")
-        return document  # pyright: ignore[reportUnknownVariableType]
+    def __init__(self, pool: AsyncConnectionPool[Any]) -> None:
+        self._pool = pool
 
     async def read_record(self, resource_id: str) -> dict[str, Any] | None:
-        return await asyncio.to_thread(self._read_record_sync, resource_id)
+        if not _RESOURCE_ID.fullmatch(resource_id):
+            raise ProviderError("invalid resource_id")
+        try:
+            async with self._pool.connection() as connection:
+                cursor = await connection.execute(_SELECT_ROLE, (resource_id,))
+                row = await cursor.fetchone()
+        except psycopg.Error as error:
+            raise ProviderError(f"failed to read the role ({type(error).__name__})") from error
+        if row is None:
+            return None
+        name, description, protection, permissions = row
+        return {
+            "name": name,
+            "description": description,
+            "deletionProtection": protection,
+            "permissions": list(permissions),
+        }

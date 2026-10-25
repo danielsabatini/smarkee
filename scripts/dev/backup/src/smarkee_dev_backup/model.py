@@ -8,13 +8,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
-# Bancos do PostgreSQL de dev: Zitadel e o SSOT (o gateway usa o etcd, e não o PostgreSQL).
-# Lista fixa; o nome entra em comandos SQL, então só passa o que casa com `DATABASE_NAME`.
-DATABASES = ("identity", "smarkee")
+# Bancos do PostgreSQL de dev: Zitadel, o SSOT e o plano de dados `platform` (o gateway usa o etcd,
+# e não o PostgreSQL). Lista fixa; o nome entra em comandos SQL, então só passa o que casa com
+# `DATABASE_NAME`.
+DATABASES = ("identity", "smarkee", "platform")
 DATABASE_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 # Volumes com estado que não se reconstrói pelo git: chaves das service accounts e PAT do login
 # (`identity-bootstrap`) e estado externo das Billing Accounts na fase P0 (`bsm-account-state`).
-VOLUMES = ("identity-bootstrap", "bsm-account-state", "ipm-role-state")
+VOLUMES = ("identity-bootstrap", "bsm-account-state")
 VOLUME_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
 # Arquivos `.env` (fora do git). O `SMARKEE_IDENTITY_MASTERKEY` decifra o banco do Zitadel e o
 # `clients/cli/.env` guarda os IDs de cliente/projeto da instância do Zitadel.

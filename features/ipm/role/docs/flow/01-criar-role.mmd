@@ -7,7 +7,7 @@ sequenceDiagram
   participant REC as Reconciler
   participant OB as Observer
   participant EX as Executor
-  participant ST as Estado local (ipm-role-state)
+  participant ST as Banco platform (schema ipm)
   U->>R: POST /v1/ipm/roles {key, displayName, permissions}
   R->>R: valida o token, a permissão ipm.role.create e o e-mail verificado
   R->>M: requested-create (REQUESTED)
@@ -16,12 +16,12 @@ sequenceDiagram
   P->>DB: lê o outbox pendente, em ordem
   P->>REC: desired (DESIRED)
   P->>OB: desired (DESIRED)
-  OB->>ST: lê <stateDir>/<resourceId>.json
+  OB->>ST: SELECT em ipm.role e ipm.role_permission
   OB->>REC: observed absent (OBSERVED)
   OB->>M: observed absent (fase Reconciling, Operation in_progress)
   REC->>EX: action create (ACTION)
   EX->>EX: revalida a ação contra o desired vigente
-  EX->>ST: grava atomicamente <stateDir>/<resourceId>.json
+  EX->>ST: transação: upsert em ipm.role e permissões
   EX->>REC: completed (RESULT)
   EX->>OB: completed (RESULT)
   OB->>ST: lê a role de novo

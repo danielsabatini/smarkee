@@ -1,7 +1,7 @@
 """Entrypoint do Observer de Role (`ipm-role-observer`, decisões 0015, 0063 e 0083).
 
 Só inicializa e encerra: valida a configuração, conecta ao NATS, cria os consumers de estado da
-instância e roda a observação periódica. O Observer não acessa o SSOT e só lê o armazenamento de
+instância e roda a observação periódica. O Observer não acessa o SSOT e só lê o estado do recurso no banco `platform`, de
 estado do recurso.
 
 Os logs do Observer não carregam o `traceparent` das mensagens que ele consome: a observação é
@@ -11,6 +11,7 @@ periódica e não consequência de uma requisição (`traced=False`, decisão 00
 import logging
 import sys
 
+from ipm_role.common.database import open_pool
 from ipm_role.common.lifecycle import start_role
 from ipm_role.common.messaging import (
     StateConsumer,
@@ -30,7 +31,9 @@ logger = logging.getLogger(__name__)
 
 async def run(settings: RoleObserverSettings) -> int:
     async with role_runtime(settings.messaging, name="ipm-role-observer") as runtime:
-        connection = StateStoreConnection(settings.storage)
+        pool = await open_pool(settings.database)
+        runtime.close_after(pool.close)
+        connection = StateStoreConnection(pool)
         observer = Observer(
             Drivers(roles=RoleDriver(connection)),
             StreamPublisher(runtime.stream),

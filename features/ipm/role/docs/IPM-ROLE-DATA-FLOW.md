@@ -16,8 +16,7 @@ Criar uma Role (`POST /v1/ipm/roles {"key": "sum.serviceAuditor", "displayName":
 não grava nada no Zitadel: conforme a decisão 0083, **`ipm.role` existe 100% no SSOT da Smarkee** como agrupador de permissões
 atômicas, e o Manager do `ipm/user` expande as `roles` em permissões atômicas antes de o Executor do `ipm/user` gravar o
 `UserGrant` no Zitadel. O pedido vira uma mensagem `requested`, o Manager decide e grava no SSOT, o Publisher publica o
-`desired`, o Reconciler compara com o `observed` e manda uma `action`, o Executor grava atomicamente o estado local em disco
-(`<stateDir>/<resourceId>.json`), e o Observer lê de volta.
+`desired`, o Reconciler compara com o `observed` e manda uma `action`, o Executor grava o estado da Role no banco `platform` (plano de dados, fora do SSOT; decisão 0086), e o Observer lê de volta.
 
 | # | De → Para | Meio | O que sai | O que é gravado |
 |---|---|---|---|---|
@@ -27,7 +26,7 @@ atômicas, e o Manager do `ipm/user` expande as `roles` em permissões atômicas
 | 4 | Publisher → consumidores | NATS, Stream `DESIRED` | `desired` | `ipm.role_outbox.published_at` |
 | 5 | Observer → Manager/Reconciler | NATS, Stream `OBSERVED` | `observed` (`absent`) | `ipm.role` (observação), `ipm.role_operation` |
 | 6 | Reconciler → Executor | NATS, Stream `ACTION` | `action` / `create` | nada |
-| 7 | Executor → disco; Executor → Manager | I/O atômico em `<stateDir>/<resourceId>.json`; NATS, Stream `RESULT` | `completed` | `ipm.role_action_result`, `ipm.role` |
+| 7 | Executor → `platform`; Executor → Manager | SQL, uma transação em `ipm.role` e `ipm.role_permission` (banco `platform`); NATS, Stream `RESULT` | `completed` | `ipm.role_action_result`, `ipm.role` |
 | 8 | Observer → Manager | NATS, Stream `OBSERVED` | `observed` (`present`) | `ipm.role` → `Ready`, `ipm.role_operation` → `completed` |
 | 9 | Manager → consumidores | outbox + Publisher, Stream `UPDATED` | `updated` (a cada mudança de fase) | `ipm.role_outbox` |
 
@@ -157,11 +156,14 @@ A `action` sai em `reconciler.action.ipm.role.<resourceId>.<operação>` com `Na
 
 ## 6. Executor (`ipm-role-executor`)
 
-Valida e revalida cada `action` contra o `desired` vigente e aplica no diretório local (`ipm-role-state`):
+Valida e revalida cada `action` contra o `desired` vigente e aplica no banco `platform` (schema `ipm`), com o papel
+`ipm_role_executor_login` (único com escrita; o Observer tem só `SELECT`). O banco é multi-tenant (`organization_id`), separado
+do SSOT e do Zitadel, e pode ficar em outro servidor mudando só `host`, `port` e `name` da configuração:
 
-- **`create` / `update`:** grava `<stateDir>/<resourceId>.json` atomicamente via arquivo temporário no mesmo diretório e
-  `os.replace`.
-- **`delete`:** remove `<stateDir>/<resourceId>.json` (idempotente se já ausente).
+- **`create` / `update`:** uma transação grava a linha em `ipm.role` (upsert) e substitui o conjunto de `ipm.role_permission`.
+  `CHECK`s do banco repetem a validação de `name`, `description` e `permission_key`; violação vira `Rejected`, sem nova tentativa.
+- **`delete`:** remove a linha de `ipm.role` (as permissões saem por `ON DELETE CASCADE`; idempotente se já ausente).
+- **Falha de conexão ou de tempo:** `ExternalError` com nova tentativa. No Observer vira `presence = unknown`, nunca `absent`.
 
 O resultado sai em `executor.completed|failed.ipm.role.<resourceId>.<operação>`. Diagrama:
 [`flow/06-falhas-no-executor.svg`](flow/06-falhas-no-executor.svg).
@@ -197,7 +199,7 @@ O Manager consome `OBSERVED` e `RESULT` (`ipm-role-manager-observed` e `-result`
 | `OBSERVED` | Observer | Reconciler, Manager |
 | `ACTION` | Reconciler | Executor |
 | `RESULT` | Executor | Reconciler, Observer, Manager |
-| `<stateDir>/<resourceId>.json` | Executor | Observer (leitura) |
+| `platform`: `ipm.role` e `ipm.role_permission` | Executor | Observer (somente `SELECT`) |
 
 ## 10. Verificação (2026-10-24, dev)
 

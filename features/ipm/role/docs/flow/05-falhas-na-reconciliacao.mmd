@@ -20,7 +20,7 @@ sequenceDiagram
     Note over REC: não reemite antes do prazo
   else falhou antes
     Note over REC: aplica o backoff e o limite de falhas
-  else ausente no estado local
+  else ausente no banco platform
     REC->>EX: action create (Nats-Msg-Id = actionId)
   else displayName, permissions ou metadados diferentes do desired
     REC->>EX: action update (Nats-Msg-Id = actionId)

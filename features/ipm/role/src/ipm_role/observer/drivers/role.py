@@ -1,4 +1,4 @@
-"""Driver de leitura da Role no armazenamento de estado (decisões 0073 e 0083)."""
+"""Driver de leitura da Role no banco `platform` (decisões 0083 e 0086)."""
 
 from ipm_role.observer.domain.identity import ProviderError, StoredRole
 from ipm_role.observer.provider.storage import StateStoreConnection
