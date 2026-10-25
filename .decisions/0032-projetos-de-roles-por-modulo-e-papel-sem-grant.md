@@ -1,7 +1,7 @@
 # 0032 — Um projeto de roles por módulo e o papel `ORG_USER_CREATOR`
 
 - **Data:** 2026-10-15
-- **Status:** Aceita. Substitui, no que toca ao Executor do User e ao projeto único de roles, as decisões 0014 (`ORG_USER_MANAGER`) e 0027 (um Project Grant único) e resolve o risco registrado na 0028 (roles `ipm.*` ao alcance do Executor do User).
+- **Status:** Aceita. Substitui, no que toca ao Executor do User e ao projeto único de roles, as decisões 0014 (`ORG_USER_MANAGER`) e 0027 (um Project Grant único) e resolve o risco registrado na 0028 (roles `ipm.*` ao alcance do Executor do User). Evoluída pela decisão `0084` (organização `operator` e projeto `roles-operator`).
 
 ## Contexto
 

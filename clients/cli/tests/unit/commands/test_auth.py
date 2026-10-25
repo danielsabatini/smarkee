@@ -189,8 +189,10 @@ def test_whoami_reports_when_the_provider_does_not_confirm_the_session(
     assert "TOKEN-SECRETO-1" not in result.output
 
 
-def test_login_asks_for_the_audience_of_each_configured_project() -> None:
-    from sk.commands.auth import LOGIN_SCOPES, login_scopes
+def test_login_asks_for_the_audience_of_each_configured_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sk.commands.auth import LOGIN_SCOPES, login_scopes, module_project_ids
 
     assert login_scopes(()) == LOGIN_SCOPES
     projects = ("394490764261851138", "395263163731279883", "395263163630616587")
@@ -199,6 +201,11 @@ def test_login_asks_for_the_audience_of_each_configured_project() -> None:
         assert f"urn:zitadel:iam:org:project:id:{project}:aud" in scopes
     assert scopes.count("urn:zitadel:iam:org:projects:roles") == 1
     assert scopes[: len(LOGIN_SCOPES)] == LOGIN_SCOPES
+
+    configure_platform(monkeypatch)
+    monkeypatch.setenv("SK_BSM_PROJECT_ID", "444")
+    monkeypatch.setenv("SK_OPERATOR_PROJECT_ID", "555")
+    assert module_project_ids() == ("111", "222", "333", "444", "555")
 
 
 def test_refresh_renews_the_session_and_shows_the_new_expiry(

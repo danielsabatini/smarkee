@@ -51,11 +51,12 @@ class ProjectRoleDriver:
         raise ProviderError(f"project {project_name} not found")
 
     async def get(self, permission_name: str) -> IdentityProjectRole | None:
-        """A role correspondente a `permission_name` em `roles-<módulo>`, ou `None` se ausente."""
-        module = permission_name.split(".", 1)[0]
-        if not module:
+        """A role correspondente a `permission_name` em `roles-<módulo>` ou `roles-operator`."""
+        parts = permission_name.split(".")
+        if len(parts) != 3 or not all(parts):
             raise ProviderError("invalid permission name")
-        project_id = await self.project_id_for_module(module)
+        target = "operator" if parts[2] == "admin" else parts[0]
+        project_id = await self.project_id_for_module(target)
         response = await self._connection.request(
             "POST",
             f"{PROJECT_SERVICE}/ListProjectRoles",

@@ -191,11 +191,8 @@ def run_login(
         )
 
 
-def _module_project_ids() -> tuple[str, ...]:
-    """`projectId` de `[core]`, `[sum]`, `[ipm]` e `[bsm]`: o login pede a audience de cada um.
-
-    `[bsm]` só entra quando configurado (enquanto `roles-bsm` não tiver um `projectId` definido).
-    """
+def module_project_ids() -> tuple[str, ...]:
+    """`projectId` de `[core]`, `[sum]`, `[ipm]`, `[bsm]` e `[operator]`: audiences do login."""
     try:
         settings = SkSettings()
     except (ValidationError, ConfigurationError) as error:
@@ -204,6 +201,8 @@ def _module_project_ids() -> tuple[str, ...]:
     projects = [settings.core.project_id, settings.sum.project_id, settings.ipm.project_id]
     if settings.bsm.project_id != PROVISIONAL:
         projects.append(settings.bsm.project_id)
+    if settings.operator.project_id != PROVISIONAL:
+        projects.append(settings.operator.project_id)
     return tuple(projects)
 
 
@@ -217,7 +216,7 @@ def login() -> None:
     # Sem opções: o provedor e o client ID vêm do ambiente, do arquivo ou do padrão de produção.
     settings = _load_or_exit({})
     _refuse_provisional_defaults(settings)
-    run_login(settings, default_credentials_path(), project_ids=_module_project_ids())
+    run_login(settings, default_credentials_path(), project_ids=module_project_ids())
 
 
 def run_whoami(allow_insecure_http: bool, credentials_path: Path) -> None:

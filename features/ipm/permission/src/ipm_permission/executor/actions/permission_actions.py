@@ -43,16 +43,17 @@ async def execute(
             "Rejected", retryable=False, message="desired data is incomplete or invalid"
         )
     module = parts[0]
+    target = "operator" if parts[2] == "admin" else module
     match operation:
         case "create":
             await drivers.project_roles.add_or_update_role(
-                module, name, display_name=description, group=module
+                target, name, display_name=description, group=module
             )
         case "update":
             await drivers.project_roles.update_role(
-                module, name, display_name=description, group=module
+                target, name, display_name=description, group=module
             )
         case "delete":
-            await drivers.project_roles.remove_role(module, name)
+            await drivers.project_roles.remove_role(target, name)
         case _:
             raise ActionFailedError("Rejected", retryable=False, message="operation not allowed")

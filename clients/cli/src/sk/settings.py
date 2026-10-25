@@ -45,6 +45,7 @@ from sk.defaults import (
     PRD_CORE_PROJECT_ID,
     PRD_IPM_PROJECT_ID,
     PRD_ISSUER,
+    PRD_OPERATOR_PROJECT_ID,
     PRD_SUM_PROJECT_ID,
 )
 from sk.features.api_contract import validate_identifier
@@ -224,6 +225,15 @@ class BsmSettings(BaseModel):
         return validate_identifier(value, what="accountId") if value else value
 
 
+class OperatorSettings(BaseModel):
+    """Seção `operator`: permissões de operação (`roles-operator` na organização `operator`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str = PRD_OPERATOR_PROJECT_ID
+    """ID do projeto de roles de operação (`roles-operator`)."""
+
+
 class SkSettings(BaseSettings):
     """Configuração consolidada do sk."""
 
@@ -241,6 +251,7 @@ class SkSettings(BaseSettings):
     sum: SumSettings = SumSettings()
     ipm: IpmSettings = IpmSettings()
     bsm: BsmSettings = BsmSettings()
+    operator: OperatorSettings = OperatorSettings()
 
     @classmethod
     def settings_customise_sources(

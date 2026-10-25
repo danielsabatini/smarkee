@@ -37,6 +37,7 @@ def _token(
     issuer: str = ISSUER,
     lifetime: int = 300,
     roles: dict[str, Any] | None = None,
+    extra_claims: dict[str, Any] | None = None,
 ) -> str:
     now = int(time.time())
     claims: dict[str, Any] = {
@@ -48,6 +49,8 @@ def _token(
     }
     if roles is not None:
         claims[f"urn:zitadel:iam:org:project:{ROLES_SUM}:roles"] = roles
+    if extra_claims is not None:
+        claims.update(extra_claims)
     pem = KEY.private_bytes(
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
     )
@@ -65,6 +68,21 @@ def _verifier() -> TokenVerifier:
 async def test_a_token_for_this_project_yields_its_permissions() -> None:
     principal = await _verifier().verify(_token(roles={"sum.ipm.get": {}}))
     assert principal.permissions == frozenset({"sum.ipm.get"})
+
+
+async def test_admin_permissions_from_operator_project_claim_are_merged() -> None:
+    principal = await _verifier().verify(
+        _token(
+            roles={"sum.ipm.get": {}},
+            extra_claims={
+                "urn:zitadel:iam:org:project:396620715182260233:roles": {
+                    "sum.service.admin": {},
+                    "other.module.read": {},
+                }
+            },
+        )
+    )
+    assert principal.permissions == frozenset({"sum.ipm.get", "sum.service.admin"})
 
 
 async def test_a_token_for_another_project_is_unauthorized() -> None:

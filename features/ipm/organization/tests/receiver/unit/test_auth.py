@@ -98,6 +98,22 @@ async def test_missing_roles_claim_means_no_permissions() -> None:
     assert principal.permissions == frozenset()
 
 
+async def test_admin_permissions_from_operator_project_claim_are_merged() -> None:
+    key = make_key()
+    token = make_token(
+        key,
+        overrides={
+            "urn:zitadel:iam:org:project:396620715182260233:roles": {
+                "ipm.organization.admin": {"operator-org": "operator.example"},
+                "other.module.read": {"operator-org": "operator.example"},
+            }
+        },
+    )
+    principal = await verifier_for(Provider([jwk_of(key, "key-1")])).verify(token)
+    assert "ipm.organization.admin" in principal.permissions
+    assert "other.module.read" not in principal.permissions
+
+
 @pytest.mark.parametrize(
     "overrides",
     [

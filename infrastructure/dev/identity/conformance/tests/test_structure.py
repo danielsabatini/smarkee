@@ -189,6 +189,14 @@ def project_ids(zitadel: Zitadel, orgs: dict[str, str]) -> dict[str, str]:
     return {name: p["projectId"] for name, p in owned.items() if name.startswith("roles-")}
 
 
+@pytest.fixture(scope="module")
+def operator_project_id(zitadel: Zitadel, orgs: dict[str, str]) -> str:
+    """ID do projeto `roles-operator`, dono das roles `*.admin` na organização `operator`."""
+    owned = projects_owned_by(zitadel, orgs["operator"])
+    assert "roles-operator" in owned, "falta o projeto `roles-operator` na organização `operator`"
+    return str(owned["roles-operator"]["projectId"])
+
+
 def administrators(zitadel: Zitadel, resource: dict[str, Any]) -> dict[str, set[str]]:
     """Papéis de administração do recurso (administradores; o Zitadel os chamava de *members*)."""
     found = zitadel.connect(
@@ -218,8 +226,8 @@ def test_the_access_token_lives_at_most_15_minutes(zitadel: Zitadel) -> None:
     assert settings["accessTokenLifetime"] == "900s", settings["accessTokenLifetime"]
 
 
-def test_the_three_organizations_exist(orgs: dict[str, str]) -> None:
-    assert {"smarkee", "core", "register"} <= set(orgs)
+def test_the_four_organizations_exist(orgs: dict[str, str]) -> None:
+    assert {"smarkee", "core", "operator", "register"} <= set(orgs)
 
 
 def test_public_registration_is_off(zitadel: Zitadel) -> None:
@@ -227,17 +235,23 @@ def test_public_registration_is_off(zitadel: Zitadel) -> None:
     assert not policy.get("allowRegister"), "o cadastro público do Zitadel deve estar desligado"
 
 
-def test_one_roles_project_per_module_asserts_and_checks_roles(
+def test_one_roles_project_per_module_and_operator_asserts_and_checks_roles(
     zitadel: Zitadel, orgs: dict[str, str]
 ) -> None:
     projects = projects_owned_by(zitadel, orgs["core"])
     roles_projects = {name: p for name, p in projects.items() if name.startswith("roles-")}
     assert set(roles_projects) == set(ACTION_ROLES_BY_PROJECT), (
-        "um projeto de roles por módulo (0032)"
+        "um projeto de roles por módulo na core (0032)"
     )
     for name, project in roles_projects.items():
         assert project.get("projectRoleAssertion") is True, name
         assert project.get("authorizationRequired") is True, name  # `projectRoleCheck` da v1
+
+    operator_projects = projects_owned_by(zitadel, orgs["operator"])
+    assert "roles-operator" in operator_projects, "falta `roles-operator` na organização `operator`"
+    operator_project = operator_projects["roles-operator"]
+    assert operator_project.get("projectRoleAssertion") is True, "roles-operator"
+    assert operator_project.get("authorizationRequired") is True, "roles-operator"
 
 
 def test_the_clients_project_has_no_roles_and_does_not_require_one_to_sign_in(
@@ -262,15 +276,13 @@ def test_the_clients_project_has_no_roles_and_does_not_require_one_to_sign_in(
 
 
 def test_roles_follow_the_naming_standard_and_group_by_module(
-    zitadel: Zitadel, project_ids: dict[str, str]
+    zitadel: Zitadel, project_ids: dict[str, str], operator_project_id: str
 ) -> None:
     for name, project_id in project_ids.items():
         roles = zitadel.connect(PROJECT_SERVICE, "ListProjectRoles", {"projectId": project_id})[
             "projectRoles"
         ]
-        assert {r["key"] for r in roles} == ACTION_ROLES_BY_PROJECT[name] | ADMIN_ROLES_BY_PROJECT[
-            name
-        ]
+        assert {r["key"] for r in roles} == ACTION_ROLES_BY_PROJECT[name]
         module = name.removeprefix("roles-")
         assert all(r["key"].split(".")[0] == module for r in roles), (
             "role fora do módulo do projeto"
@@ -280,6 +292,15 @@ def test_roles_follow_the_naming_standard_and_group_by_module(
         # da Organization"): nunca vazio nem a própria key, que o console já mostra ao lado.
         repeated = sorted(r["key"] for r in roles if r.get("displayName", r["key"]) == r["key"])
         assert not repeated, f"roles sem nome de exibição próprio: {repeated}"
+
+    op_roles = zitadel.connect(
+        PROJECT_SERVICE, "ListProjectRoles", {"projectId": operator_project_id}
+    )["projectRoles"]
+    assert {r["key"] for r in op_roles} == ADMIN_ROLES
+    assert all(r["key"].endswith(".admin") for r in op_roles)
+    assert all(r.get("group") == r["key"].split(".")[0] for r in op_roles)
+    repeated_op = sorted(r["key"] for r in op_roles if r.get("displayName", r["key"]) == r["key"])
+    assert not repeated_op, f"roles-operator sem nome de exibição próprio: {repeated_op}"
 
 
 def test_cli_application_is_a_public_native_client_with_jwt(
@@ -305,10 +326,11 @@ def test_cli_application_is_a_public_native_client_with_jwt(
 
 
 def test_no_roles_project_holds_an_application(
-    zitadel: Zitadel, project_ids: dict[str, str]
+    zitadel: Zitadel, project_ids: dict[str, str], operator_project_id: str
 ) -> None:
-    """As aplicações moram no `clients` (decisão 0034): um projeto de roles não tem nenhuma."""
-    for name, project_id in project_ids.items():
+    """As aplicações moram num projeto sem roles (0034): um projeto de roles não tem nenhuma."""
+    all_projects = {**project_ids, "roles-operator": operator_project_id}
+    for name, project_id in all_projects.items():
         found = zitadel.connect(
             APPLICATION_SERVICE,
             "ListApplications",
@@ -317,8 +339,8 @@ def test_no_roles_project_holds_an_application(
         assert found == [], f"{name} não deve ter aplicações: {[a['name'] for a in found]}"
 
 
-def test_each_project_grant_to_register_delegates_only_its_action_roles(
-    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+def test_each_project_grant_to_register_and_operator_delegates_only_its_action_roles(
+    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str], operator_project_id: str
 ) -> None:
     grants = zitadel.connect(PROJECT_SERVICE, "ListProjectGrants")["projectGrants"]
     to_register = {
@@ -326,10 +348,21 @@ def test_each_project_grant_to_register_delegates_only_its_action_roles(
         for g in grants
         if g["grantedOrganizationId"] == orgs["register"]
     }
+    to_operator = {
+        g["projectId"]: set(g["grantedRoleKeys"])
+        for g in grants
+        if g["grantedOrganizationId"] == orgs["operator"]
+    }
     for name, project_id in project_ids.items():
         assert to_register.get(project_id) == ACTION_ROLES_BY_PROJECT[name], (
             f"o Grant de {name} para a register deve ter só as roles de ação (sem `*.admin`)"
         )
+        assert to_operator.get(project_id) == ACTION_ROLES_BY_PROJECT[name], (
+            f"o Grant de {name} para a operator deve ter só as roles de ação"
+        )
+    assert not [g for g in grants if g["projectId"] == operator_project_id], (
+        "roles-operator não pode ser delegado a nenhuma outra organização"
+    )
 
 
 def test_service_accounts_live_in_core(zitadel: Zitadel, orgs: dict[str, str]) -> None:
@@ -450,14 +483,15 @@ def test_instance_administrators(zitadel: Zitadel) -> None:
 
 
 def operator_authorizations(
-    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str], operator_project_id: str
 ) -> dict[str, dict[str, set[str]]]:
-    """Autorizações dos projetos de roles na `core`: nome de login → projeto → roles."""
+    """Autorizações dos projetos de roles na `operator`: nome de login → projeto → roles."""
     names = {project_id: name for name, project_id in project_ids.items()}
+    names[operator_project_id] = "roles-operator"
     found = zitadel.connect(
         AUTHORIZATION_SERVICE,
         "ListAuthorizations",
-        {"filters": [{"organizationId": {"id": orgs["core"]}}]},
+        {"filters": [{"organizationId": {"id": orgs["operator"]}}]},
     ).get("authorizations", [])
     result: dict[str, dict[str, set[str]]] = {}
     for item in found:
@@ -468,33 +502,46 @@ def operator_authorizations(
     return result
 
 
-def test_only_operators_are_authorized_in_core(
-    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+def test_only_operators_are_authorized_in_operator_and_none_in_core(
+    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str], operator_project_id: str
 ) -> None:
-    """Na `core` só há operadores: cada autorização tem a role `*.admin` do projeto (escopo) e,
-    além dela, as roles de ação que o operador exerce (decisão 0031). Usuários cadastrados são
-    autorizados na `register`, pelo Project Grant, e nunca recebem `*.admin`."""
-    operators = operator_authorizations(zitadel, orgs, project_ids)
-    assert operators, "falta a autorização do operador (`*.admin`)"
+    """Na `core` não há autorizações de usuários; os operadores ficam na organização `operator`,
+    com `*.admin` em `roles-operator` e as roles de ação nos Grants de `roles-<módulo>`."""
+    in_core = zitadel.connect(
+        AUTHORIZATION_SERVICE,
+        "ListAuthorizations",
+        {"filters": [{"organizationId": {"id": orgs["core"]}}]},
+    ).get("authorizations", [])
+    assert in_core == [], f"não deve haver autorizações na core: {in_core}"
+
+    operators = operator_authorizations(zitadel, orgs, project_ids, operator_project_id)
+    assert operators, "falta a autorização do operador (`*.admin`) na organização `operator`"
     for login, by_project in operators.items():
+        admin_roles = by_project.get("roles-operator", set())
+        assert admin_roles and admin_roles <= ADMIN_ROLES, (
+            f"{login} sem `*.admin` válido em roles-operator"
+        )
         for project, roles in by_project.items():
-            assert roles & ADMIN_ROLES_BY_PROJECT[project], f"{login} sem `*.admin` em {project}"
-            known = ACTION_ROLES_BY_PROJECT[project] | ADMIN_ROLES_BY_PROJECT[project]
-            assert roles <= known, f"{login} tem roles fora de {project}"
+            if project == "roles-operator":
+                continue
+            assert roles <= ACTION_ROLES_BY_PROJECT[project], f"{login} tem roles fora de {project}"
 
 
 def test_default_operator_holds_every_role_of_each_project_with_an_admin_role(
-    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str], operator_project_id: str
 ) -> None:
-    """O operador padrão tem `*.admin` e as roles de ação de cada projeto que administra: o
-    Receiver exige as duas coisas (o que pode fazer e em quais recursos)."""
-    operators = operator_authorizations(zitadel, orgs, project_ids)
-    default = next((r for n, r in operators.items() if n.startswith("admin@smarkee")), None)
-    assert default is not None, "falta a autorização do operador padrão (admin@smarkee)"
+    """O operador padrão (`admin@operator...`) tem todas as `*.admin` em `roles-operator` e as
+    roles de ação de cada projeto que administra."""
+    operators = operator_authorizations(zitadel, orgs, project_ids, operator_project_id)
+    default = next(
+        (r for n, r in operators.items() if n == "admin" or n.startswith("admin@operator")), None
+    )
+    assert default is not None, "falta a autorização do operador padrão (admin na org operator)"
     administered = {name for name, admin in ADMIN_ROLES_BY_PROJECT.items() if admin}
-    assert set(default) == administered
+    assert set(default) == administered | {"roles-operator"}
+    assert default["roles-operator"] == ADMIN_ROLES
     for name in administered:
-        assert default[name] == ACTION_ROLES_BY_PROJECT[name] | ADMIN_ROLES_BY_PROJECT[name], name
+        assert default[name] == ACTION_ROLES_BY_PROJECT[name], name
 
 
 def test_register_has_no_project_of_its_own(zitadel: Zitadel, orgs: dict[str, str]) -> None:
@@ -550,6 +597,7 @@ CLI_PROJECTS = {
     "SK_CORE_PROJECT_ID": "roles-core",
     "SK_SUM_PROJECT_ID": "roles-sum",
     "SK_IPM_PROJECT_ID": "roles-ipm",
+    "SK_OPERATOR_PROJECT_ID": "roles-operator",
 }
 
 
@@ -576,10 +624,11 @@ def assert_same(
 
 
 def test_the_ids_in_the_env_files_match_the_instance(
-    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
+    zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str], operator_project_id: str
 ) -> None:
     """Ao recriar a instância os IDs mudam; este teste aponta o `.env` que ficou desatualizado."""
     drifts: list[str] = []
+    all_projects = {**project_ids, "roles-operator": operator_project_id}
 
     clients = projects_owned_by(zitadel, orgs["core"])["clients"]
     applications = zitadel.connect(
@@ -595,7 +644,7 @@ def test_the_ids_in_the_env_files_match_the_instance(
         )
         for variable, project in CLI_PROJECTS.items():
             assert_same(
-                drifts, "clients/cli/.env", variable, cli.get(variable), project_ids[project]
+                drifts, "clients/cli/.env", variable, cli.get(variable), all_projects[project]
             )
 
     accounts = {
@@ -618,13 +667,13 @@ def test_the_ids_in_the_env_files_match_the_instance(
         values = read_env(feature)
         where = ENV_FILES[feature].relative_to(REPOSITORY).as_posix()
         variable, project = EXPECTED_AUDIENCE[feature]
-        assert_same(drifts, where, variable, values.get(variable), project_ids[project])
+        assert_same(drifts, where, variable, values.get(variable), all_projects[project])
         if feature in EXPECTED_REGISTER:
             variable = EXPECTED_REGISTER[feature]
             assert_same(drifts, where, variable, values.get(variable), orgs["register"])
         if feature in EXPECTED_PROJECT_ID:
             variable, project = EXPECTED_PROJECT_ID[feature]
-            assert_same(drifts, where, variable, values.get(variable), project_ids[project])
+            assert_same(drifts, where, variable, values.get(variable), all_projects[project])
         for variable, account in EXPECTED_ACCOUNT_IDS.get(feature, {}).items():
             assert_same(
                 drifts, where, variable, values.get(variable), accounts.get(account, "(ausente)")
@@ -638,7 +687,7 @@ def test_the_ids_in_the_env_files_match_the_instance(
                     where,
                     f"{variable}[{module}]",
                     project_id,
-                    project_ids[f"roles-{module}"],
+                    all_projects[f"roles-{module}"],
                 )
 
     assert not drifts, "configuração desatualizada:\n" + "\n".join(drifts)

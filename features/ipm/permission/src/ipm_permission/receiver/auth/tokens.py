@@ -72,12 +72,24 @@ class TokenVerifier:
         return Principal(subject=str(claims["sub"]), permissions=permissions, access_token=token)
 
     def _permissions(self, claims: dict[str, Any]) -> frozenset[str]:
+        found: set[str] = set()
         roles_claim: object = claims.get(f"urn:zitadel:iam:org:project:{self._audience}:roles")
-        if not isinstance(roles_claim, dict):
-            return frozenset()
-        return frozenset(
-            str(permission) for permission in cast("dict[object, object]", roles_claim)
-        )
+        if isinstance(roles_claim, dict):
+            found.update(
+                str(permission) for permission in cast("dict[object, object]", roles_claim)
+            )
+        prefix, suffix = "urn:zitadel:iam:org:project:", ":roles"
+        for claim_key, claim_value in claims.items():
+            if (
+                claim_key.startswith(prefix)
+                and claim_key.endswith(suffix)
+                and isinstance(claim_value, dict)
+            ):
+                for permission in cast("dict[object, object]", claim_value):
+                    name = str(permission)
+                    if name.endswith(".admin"):
+                        found.add(name)
+        return frozenset(found)
 
     # ------------------------------------------------------------------ chaves
 

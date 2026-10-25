@@ -47,6 +47,24 @@ async def test_create_update_and_delete_permission_role_in_module_project() -> N
     assert ("ipm", "ipm.user.bind") not in fake.roles
 
 
+async def test_admin_permission_is_routed_to_operator_project_keeping_module_group() -> None:
+    fake = FakeProjectRoles()
+    drivers = Drivers(project_roles=fake)
+    desired = {
+        "name": "ipm.user.admin",
+        "description": "Operador: qualquer usuário da Organization",
+        "grantable": False,
+    }
+    await execute("create", "perm-ipm-user-admin", desired, drivers)
+    assert fake.roles[("operator", "ipm.user.admin")] == (
+        "Operador: qualquer usuário da Organization",
+        "ipm",
+    )
+
+    await execute("delete", "perm-ipm-user-admin", desired, drivers)
+    assert ("operator", "ipm.user.admin") not in fake.roles
+
+
 async def test_execute_rejects_invalid_permission_name() -> None:
     fake = FakeProjectRoles()
     drivers = Drivers(project_roles=fake)
