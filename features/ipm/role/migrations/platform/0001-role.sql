@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS ipm.role (
   name                text        NOT NULL
                       CHECK (name ~ '^[a-z][a-z0-9]*\.[a-z][a-zA-Z0-9]*$' AND length(name) BETWEEN 3 AND 128),
   description         text        NOT NULL
-                      CHECK (length(description) BETWEEN 1 AND 256 AND description !~ '[\u0000-\u001f\u007f]'),
+                      CHECK (length(description) >= 1 AND length(description) <= 256
+                              AND description !~ '[\u0000-\u001f\u007f]'),
   deletion_protection boolean     NOT NULL DEFAULT true,
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now(),
