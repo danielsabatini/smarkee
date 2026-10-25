@@ -19,6 +19,7 @@ Nunca é "tudo": cada alvo é identificado por um padrão (`src/smarkee_dev_clea
 |---|---|
 | Organization (Zitadel e SSOT) | nome começando por `conf-`, `acme-`, `loop-`, `dup-`, `chaos-`, `e2e-`, `probe-`, `ver-` ou `cons-`, ou `org-` ou `renamed-` seguidos de 10 hexadecimais (os nomes dos testes de integração do Manager da Organization: o padrão e o do teste de renomear), e, no Zitadel, ID em formato de UUID (o `resourceId`) |
 | Usuário (Zitadel e SSOT) | e-mail de `example.com` começando por `e2e-`, `loop.`, `conf.`, `chaos.`, `cons.` ou `sa.test.`, ou `ana.` ou `dup.` seguidos de 10 hexadecimais (os testes de integração do Manager da Account) |
+| Role (SSOT e banco `platform`) | `name` igual a `test.role` ou `test.chaos` seguido de 6 hexadecimais (os e2e de `ipm/role`); as Roles predefinidas nunca casam. Sai pelo loop (desprotege e remove); o que sobrar no `platform` sai direto, pelo papel do Executor |
 | Histórico de recursos de teste já removidos (SSOT) | recursos **sem linha principal** que ainda têm outbox, Operations ou resultados, e cujo rótulo gravado no outbox é de teste (e-mail, nome ou, nas ligações, dono de teste). O que não tem rótulo, ou tem rótulo que não é de teste, é mantido e só aparece no aviso "Histórico mantido" |
 | Ligação de serviço (SSOT) | dono de teste, ou dono que nem existe mais no Zitadel (órfã) |
 | Mensageria (NATS) | as mensagens dos recursos acima nos Streams `REQUESTED`, `DESIRED`, `OBSERVED`, `RESULT` e `UPDATED` (o `ACTION` é particionado pelo servidor e não dá para filtrar por recurso) |

@@ -19,6 +19,9 @@ TEST_BILLING_ACCOUNT_NAME = re.compile(
 TEST_ORGANIZATION_NAME = re.compile(
     r"^(?:(?:conf|acme|loop|dup|chaos|e2e|probe|ver|cons)-|(?:org|renamed|race-name)-[0-9a-f]{10}$)"
 )
+# Roles de teste (`ipm.role`): nomes dos testes e2e da feature (`test.role` ou `test.chaos` mais 6
+# hexadecimais). As Roles predefinidas da plataforma (`ipm.userAdmin`...) nunca casam.
+TEST_ROLE_NAME = re.compile(r"^test\.(?:role|chaos)[0-9a-f]{6}$")
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 # Usuários de teste: o e-mail é de `example.com` e começa por um destes rótulos, ou é `ana.` ou
 # `dup.` mais 10 hexadecimais (os e-mails dos testes de integração do Manager da Account). `ana@` e
@@ -53,6 +56,10 @@ class Kind:
     """Campo de `desired` que identifica a linha como de teste (e-mail, nome ou dono)."""
     deletion_protected: bool = False
     """O tipo pode estar protegido contra exclusão (decisão 0043): a limpeza desprotege antes."""
+    data_plane_table: str | None = None
+    """Tabela do tipo no banco `platform` (plano de dados, decisão 0086), se o tipo tiver uma."""
+    data_plane_role: str | None = None
+    """Papel de login com escrita nessa tabela (o do Executor)."""
 
 
 ACCOUNTS = Kind(
@@ -110,6 +117,19 @@ BILLING_ACCOUNTS = Kind(
     "displayName",
     deletion_protected=True,
 )
+# Roles compostas (decisões 0083 e 0086): definição no SSOT e estado aplicado no `platform`.
+ROLES = Kind(
+    "ipm",
+    "role",
+    "ipm.role",
+    ("ipm.role_outbox", "ipm.role_operation", "ipm.role_action_result"),
+    "ipm_role_manager_login",
+    "ipm_maintenance_login",
+    "name",
+    deletion_protected=True,
+    data_plane_table="ipm.role",
+    data_plane_role="ipm_role_executor_login",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,6 +151,9 @@ class Findings:
     service_rows: list[Row] = field(default_factory=lambda: [])
     organization_rows: list[Row] = field(default_factory=lambda: [])
     organization_user_rows: list[Row] = field(default_factory=lambda: [])
+    role_rows: list[Row] = field(default_factory=lambda: [])
+    platform_role_rows: list[Row] = field(default_factory=lambda: [])
+    """Roles de teste no banco `platform` (plano de dados), com ou sem linha no SSOT."""
     history: dict[Kind, list[Row]] = field(default_factory=lambda: {})
     """Histórico (outbox, Operations e resultados) de recursos de teste já removidos."""
     kept_history: dict[Kind, int] = field(default_factory=lambda: {})
@@ -148,6 +171,8 @@ class Findings:
             or self.service_rows
             or self.organization_rows
             or self.organization_user_rows
+            or self.role_rows
+            or self.platform_role_rows
             or any(self.history.values())
             or any(self.message_orphans.values())
             or self.mails
@@ -183,6 +208,11 @@ class Findings:
             *(
                 f"SSOT ipm.user {row.resource_id}  {row.label}"
                 for row in self.organization_user_rows
+            ),
+            *(f"SSOT ipm.role {row.resource_id}  {row.label}" for row in self.role_rows),
+            *(
+                f"platform ipm.role {row.resource_id}  {row.label}"
+                for row in self.platform_role_rows
             ),
         ]
         found.extend(
@@ -221,6 +251,10 @@ class Findings:
             ORGANIZATION_USERS: {row.resource_id for row in self.organization_user_rows}
             | self._history_ids(ORGANIZATION_USERS)
             | self.message_orphans.get(ORGANIZATION_USERS, set()),
+            ROLES: {row.resource_id for row in self.role_rows}
+            | {row.resource_id for row in self.platform_role_rows}
+            | self._history_ids(ROLES)
+            | self.message_orphans.get(ROLES, set()),
         }
 
     def _history_ids(self, kind: Kind) -> set[str]:
@@ -266,6 +300,14 @@ class Ssot(Protocol):
 
     def delete(self, kind: Kind, resource_ids: set[str]) -> None:
         """Apaga as linhas e o apoio (outbox, Operations e resultados) dos recursos."""
+        ...
+
+    def data_plane_rows(self, kind: Kind) -> list[Row]:
+        """Linhas do tipo no banco `platform` (plano de dados), ou `[]` se o tipo não tem."""
+        ...
+
+    def delete_data_plane(self, kind: Kind, resource_ids: set[str]) -> None:
+        """Apaga as linhas dos recursos no banco `platform`."""
         ...
 
 

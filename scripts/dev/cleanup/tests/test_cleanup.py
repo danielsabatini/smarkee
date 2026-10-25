@@ -18,6 +18,7 @@ from smarkee_dev_cleanup.model import (
     BILLING_ACCOUNTS,
     ORGANIZATION_USERS,
     ORGANIZATIONS,
+    ROLES,
     SERVICES,
     Findings,
     Kind,
@@ -55,12 +56,23 @@ class FakeIdentity:
 class FakeSsot:
     tables: dict[Kind, list[Row]] = field(default_factory=lambda: {})
     deleted: list[tuple[str, set[str]]] = field(default_factory=lambda: [])
+    platform: dict[Kind, list[Row]] = field(default_factory=lambda: {})
+    """Linhas do plano de dados (banco `platform`) por tipo."""
     never_unprotects: bool = False
     support: dict[Kind, list[Row]] = field(default_factory=lambda: {})
     """Histórico (outbox, Operations e resultados) por tipo, com o rótulo do outbox."""
 
     def rows(self, kind: Kind) -> list[Row]:
         return list(self.tables.get(kind, []))
+
+    def data_plane_rows(self, kind: Kind) -> list[Row]:
+        return list(self.platform.get(kind, []))
+
+    def delete_data_plane(self, kind: Kind, resource_ids: set[str]) -> None:
+        self.deleted.append((f"platform:{kind.table}", set(resource_ids)))
+        self.platform[kind] = [
+            r for r in self.platform.get(kind, []) if r.resource_id not in resource_ids
+        ]
 
     def unprotected_version(self, kind: Kind, resource_id: str) -> str | None:
         return None if self.never_unprotects else "3"
@@ -447,6 +459,7 @@ def test_history_of_removed_test_resources_is_found_and_the_rest_is_kept() -> No
         ORGANIZATIONS: 1,
         SERVICES: 2,
         ORGANIZATION_USERS: 1,
+        ROLES: 0,
     }
     assert not findings.is_clean()
     assert any("histórico" in line for line in findings.lines())
@@ -549,3 +562,59 @@ async def test_organization_users_of_test_are_removed_through_the_loop_before_or
     assert [row.resource_id for row in findings.organization_user_rows] == ["u1"]
     assert any("SSOT ipm.user u1" in line for line in findings.lines())
     assert ORGANIZATION_USERS in findings.resource_ids()
+
+
+ROLE_ID = "01a170c3-7b04-72f3-9c18-2da346a43296"
+
+
+@pytest.mark.parametrize("name", ["test.role6d7092", "test.chaos0a1b2c"])
+def test_a_test_role_is_found_in_the_ssot_and_in_the_platform_database(name: str) -> None:
+    world = World()
+    world.ssot.tables = {ROLES: [Row(ROLE_ID, name)]}
+    world.ssot.platform = {ROLES: [Row(ROLE_ID, name)]}
+
+    findings = find(world.ports())
+
+    assert [row.resource_id for row in findings.role_rows] == [ROLE_ID]
+    assert [row.resource_id for row in findings.platform_role_rows] == [ROLE_ID]
+    assert any("platform ipm.role" in line for line in findings.lines())
+    assert ROLES in findings.resource_ids()
+
+
+@pytest.mark.parametrize(
+    "name", ["ipm.userAdmin", "core.accountViewer", "bsm.accountAdmin", "test.roleok", "minha.role"]
+)
+def test_predefined_and_real_roles_are_never_test_data(name: str) -> None:
+    world = World()
+    world.ssot.tables = {ROLES: [Row("role-x", name)]}
+    world.ssot.platform = {ROLES: [Row("role-x", name)]}
+
+    assert find(world.ports()).is_clean()
+
+
+async def test_a_test_role_is_removed_through_the_loop_and_what_is_left_in_the_platform() -> None:
+    """O loop remove o estado do `platform`; o que sobra sai direto, só o que é de teste."""
+    world = World()
+    world.ssot.tables = {
+        ROLES: [Row(ROLE_ID, "test.role6d7092"), Row("role-ipm-user-admin", "ipm.userAdmin")]
+    }
+    world.ssot.platform = {
+        ROLES: [Row(ROLE_ID, "test.role6d7092"), Row("role-ipm-user-admin", "ipm.userAdmin")]
+    }
+    world.bus.phases = {ROLE_ID: "Ready"}
+
+    code = await clean(world.ports(), apply_changes=True, say=say_nothing)
+
+    assert code == 0
+    assert world.bus.unprotection_requested == [ROLE_ID]
+    assert world.bus.requested == [ROLE_ID]
+    assert [r.resource_id for r in world.ssot.platform[ROLES]] == ["role-ipm-user-admin"]
+    assert [r.resource_id for r in world.ssot.tables[ROLES]] == ["role-ipm-user-admin"]
+
+
+async def test_a_test_role_only_in_the_platform_database_is_removed_directly() -> None:
+    world = World()
+    world.ssot.platform = {ROLES: [Row(ROLE_ID, "test.role6d7092")]}
+
+    assert await clean(world.ports(), apply_changes=True, say=say_nothing) == 0
+    assert world.ssot.platform[ROLES] == []
