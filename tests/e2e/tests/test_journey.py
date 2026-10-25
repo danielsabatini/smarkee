@@ -70,7 +70,6 @@ def _create_user(
     users: list[str],
     *,
     email: str,
-    permissions: tuple[str, ...] = (),
     roles: tuple[str, ...] = (),
 ) -> str:
     """Um usuário pela CLI até `Ready`: a Organization já tem o Grant (decisão 0081)."""
@@ -79,7 +78,6 @@ def _create_user(
         *("--name", "Usuario", "--surname", f"E2e {len(users)}"),
         *("--email", email),
         *("--organization-id", organization_id),
-        *(item for permission in permissions for item in ("--permission", permission)),
         *(item for role in roles for item in ("--role", role)),
         "--wait",
         timeout=150.0,
@@ -258,21 +256,6 @@ def test_the_organization_and_its_users_are_managed_with_the_sk(
         assert malformed_role.exit_code == 2, malformed_role.text
         assert "role invalid" in _plain(malformed_role.stderr), malformed_role.stderr
 
-        outside = sk.run(
-            *("ipm", "user", "create"),
-            *("--name", "Usuario", "--surname", "Fora"),
-            *("--email", _email(), "--organization-id", created_id),
-            *("--permission", "ipm.organization.delete"),  # formato válido, fora do catálogo
-        )
-        assert outside.exit_code == 2, outside.text  # o `400` da API sai como erro de uso
-        assert "not allowed for the Organization" in _plain(outside.stderr), outside.stderr
-        malformed = sk.run(
-            *("ipm", "user", "create"),
-            *("--name", "Usuario", "--surname", "Formato"),
-            *("--email", _email(), "--organization-id", created_id, "--permission", "admin"),
-        )
-        assert malformed.exit_code == 2, malformed.text  # recusado antes da rede
-        assert "permission invalid" in _plain(malformed.stderr), malformed.stderr
         repeated = sk.run(
             *("ipm", "user", "create"),
             *("--name", "Usuario", "--surname", "Repetido"),
