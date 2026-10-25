@@ -1,0 +1,37 @@
+sequenceDiagram
+  participant U as Operador (sk)
+  participant R as Receiver
+  participant M as Manager
+  participant DB as SSOT (schema ipm)
+  participant P as Publisher
+  participant REC as Reconciler
+  participant OB as Observer
+  participant EX as Executor
+  participant ST as Estado local (ipm-role-state)
+  U->>R: GET /v1/ipm/roles/{resourceId}
+  R-->>U: 200 com resourceVersion
+  U->>R: PATCH /v1/ipm/roles/{resourceId} {resourceVersion, displayName, permissions}
+  R->>R: valida a permissão ipm.role.update
+  R->>M: requested-update (REQUESTED)
+  R-->>U: 202 operationId
+  alt resourceVersion diferente da atual
+    M->>DB: Operation rejected (conflict), nada muda
+  else aceito
+    M->>DB: geração + 1, campos novos, outbox desired
+    P->>REC: desired (DESIRED)
+    REC->>EX: action update (campos diferem)
+    EX->>ST: atualiza atomicamente <stateDir>/<resourceId>.json
+    OB->>M: observed com os campos novos (fase Ready)
+  end
+  Note over R,EX: deletionProtection precisa ser false antes do DELETE, senão responde 409 DeletionProtected
+  U->>R: DELETE /v1/ipm/roles/{resourceId}?resourceVersion=N
+  R->>M: requested-delete (REQUESTED)
+  R-->>U: 202 operationId
+  M->>DB: lifecycle absent, fase Deleting, outbox desired
+  P->>REC: desired absent (DESIRED)
+  REC->>EX: action delete (role ainda presente)
+  EX->>ST: remove <stateDir>/<resourceId>.json (ausente também é sucesso)
+  EX->>REC: completed (RESULT)
+  OB->>ST: verifica <stateDir>/<resourceId>.json
+  OB->>M: observed absent
+  M->>DB: apaga a linha, Operation completed e publica removed

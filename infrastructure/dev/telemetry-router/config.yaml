@@ -3,7 +3,8 @@
 # Entrada: OTLP gRPC (4317, do telemetry-agent) e OTLP HTTP (4318, do APISIX).
 # Saída: OTLP gRPC para o telemeter que grava:
 #   - o telemeter da feature dona do sinal (`bsm-account-telemeter`, `core-account-telemeter`,
-#     `ipm-organization-telemeter`, `ipm-user-telemeter` e `sum-service-telemeter`): os logs de app e os spans da feature;
+#     `ipm-organization-telemeter`, `ipm-permission-telemeter`, `ipm-role-telemeter`, `ipm-user-telemeter`
+#     e `sum-service-telemeter`): os logs de app e os spans da feature;
 #   - `platform-telemeter` (plataforma): tudo o mais (a infra, as métricas e o app/spans de quem não tem telemeter).
 #
 # O que o roteador faz além de rotear é só a normalização dos spans do APISIX à semconv (`transform/gateway-semconv`,

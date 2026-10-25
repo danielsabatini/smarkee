@@ -34,7 +34,15 @@ FEATURE_TELEMETRY_DIRS = [
         "CONFORMANCE_FEATURE_TELEMETRY_DIRS",
         os.pathsep.join(
             str(REPOSITORY / "features" / module / kind / "telemeter")
-            for module, kind in (("core", "account"), ("ipm", "organization"), ("sum", "service"))
+            for module, kind in (
+                ("bsm", "account"),
+                ("core", "account"),
+                ("ipm", "organization"),
+                ("ipm", "permission"),
+                ("ipm", "role"),
+                ("ipm", "user"),
+                ("sum", "service"),
+            )
         ),
     ).split(os.pathsep)
 ]
@@ -371,8 +379,12 @@ def feature_prefix(telemeter: Path) -> str:
 
 # Uma rota sem token de cada feature: o gateway responde 401, e o span dela é o que o teste procura.
 FEATURE_ROUTES = {
+    "bsm-account": "/v1/bsm/accounts",
     "core-account": "/v1/core/accounts/probe",
     "ipm-organization": "/v1/ipm/organizations",
+    "ipm-permission": "/v1/ipm/permissions",
+    "ipm-role": "/v1/ipm/roles",
+    "ipm-user": "/v1/ipm/users",
     "sum-service": "/v1/sum/services",
 }
 
@@ -597,7 +609,14 @@ def test_infra_metrics_cover_database_identity_and_messaging_with_otel_semconv(
         for m in service_points
         if m["name"] == "smarkee.db.outbox.unpublished_messages"
     }
-    assert {"account_outbox", "organization_outbox", "service_outbox"} <= outbox_collections
+    assert {
+        "account_outbox",
+        "organization_outbox",
+        "permission_outbox",
+        "role_outbox",
+        "service_outbox",
+        "user_outbox",
+    } <= outbox_collections
 
     leaked_app = [
         m["name"]

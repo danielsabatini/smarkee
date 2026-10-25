@@ -1,0 +1,31 @@
+sequenceDiagram
+  participant U as Operador (sk)
+  participant R as Receiver
+  participant M as Manager
+  participant DB as SSOT (schema ipm)
+  participant P as Publisher
+  participant REC as Reconciler
+  participant OB as Observer
+  participant EX as Executor
+  participant Z as Zitadel
+  U->>R: POST /v1/ipm/permissions {key, displayName, grantableToOrganizations}
+  R->>R: valida o token, a permissão ipm.permission.create e o e-mail verificado
+  R->>M: requested-create (REQUESTED)
+  R-->>U: 202 resourceId e operationId
+  M->>DB: Permission present (Pending), Operation accepted, outbox desired
+  P->>DB: lê o outbox pendente, em ordem
+  P->>REC: desired (DESIRED)
+  P->>OB: desired (DESIRED)
+  OB->>Z: ListProjectRoles em roles-<módulo>
+  OB->>REC: observed absent (OBSERVED)
+  OB->>M: observed absent (fase Reconciling, Operation in_progress)
+  REC->>EX: action create (ACTION)
+  EX->>EX: revalida a ação contra o desired vigente
+  EX->>Z: AddProjectRole em roles-<módulo> com roleKey = key
+  EX->>REC: completed (RESULT)
+  EX->>OB: completed (RESULT)
+  OB->>Z: lê a role do projeto de novo
+  OB->>REC: observed present (key, displayName, group)
+  OB->>M: observed present (fase Ready, Operation completed)
+  U->>R: GET /v1/ipm/permissions/{resourceId}
+  R-->>U: 200 phase Ready

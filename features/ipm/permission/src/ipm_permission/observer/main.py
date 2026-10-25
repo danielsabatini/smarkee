@@ -2,6 +2,9 @@
 
 Só inicializa e encerra: valida a configuração, conecta ao NATS, abre o cliente somente leitura do
 Zitadel e roda os consumers de estado e a observação periódica. Não acessa o SSOT.
+
+Os logs do Observer não carregam o `traceparent` das mensagens que ele consome: a observação é
+periódica e não consequência de uma requisição (`traced=False`, decisão 0055).
 """
 
 import logging

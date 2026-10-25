@@ -144,7 +144,7 @@ A configuração do roteador e dos telemeters é a **mesma** nos dois ambientes 
 1. **Na feature:** a pasta `telemeter/` com o `config.yaml` (receptor OTLP gRPC `4317`, limites, lotes e exportadores de arquivo para logs e spans), as pastas `logs/` e `traces/` com `.gitkeep`, e o serviço `<módulo>-<tipo>-telemeter` no `compose.yaml`, com a rede `internal`, o alias `<módulo>-<tipo>-telemeter.smarkee.internal` e os limites. Modelo: `features/core/account/telemeter`.
 2. **No roteador** (`infrastructure/dev/telemetry-router/config.yaml`): uma linha na tabela de `routing/logs` (módulo e tipo) e de `routing/traces` (`apisix.service_name`), uma pipeline por sinal e um exportador `otlp_grpc/<feature>` com fila em disco.
 3. **No `.gitignore`:** as regras da saída da feature (`logs/*` e `traces/*`, com `.gitkeep`).
-4. **Na suíte `tests/telemetry`:** a pasta nova em `FEATURE_TELEMETRY_DIRS`.
+4. **Na suíte `tests/telemetry`:** a pasta nova em `FEATURE_TELEMETRY_DIRS`, a rota em `FEATURE_ROUTES` e a outbox em `outbox_collections`.
 5. **Verificar:** subir o telemeter antes do roteador (ou reiniciar o roteador, por causa do cache de DNS), fazer uma requisição e conferir que os sinais da feature chegaram à pasta dela e que **nenhum** caiu no `platform-telemeter`.
 
 Nada muda nos apps nem no agente.

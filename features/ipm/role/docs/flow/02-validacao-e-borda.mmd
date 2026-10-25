@@ -1,0 +1,27 @@
+sequenceDiagram
+  participant U as Solicitante
+  participant R as Receiver
+  participant DB as SSOT (views v1)
+  participant M as Manager
+  U->>R: POST /v1/ipm/roles
+  alt sem token, token inválido ou audience errada
+    R-->>U: 401 Unauthorized
+  else corpo inválido (JSON quebrado, campo extra, key ou permissions fora do padrão)
+    R-->>U: 400 ValidationFailed (sem repetir o valor enviado)
+  else falta a permissão ipm.role.create (ou ipm.role.admin)
+    R-->>U: 403 Forbidden
+  else e-mail do solicitante não verificado
+    R-->>U: 403 EmailNotVerified
+  else mesma Idempotency-Key com outro pedido
+    R-->>U: 422 IdempotencyKeyReused
+  else REQUESTED cheio ou NATS indisponível
+    R-->>U: 503 com Retry-After (repetível)
+  else pedido aceito
+    R->>M: requested-create (REQUESTED)
+    R-->>U: 202 resourceId e operationId
+    Note over M: A decisão final é do Manager e pode recusar
+    alt key já usada por outra Role presente (trava consultiva por key)
+      M->>DB: Operation rejected (validation), sem desired
+    end
+  end
+  Note over U,R: Logo após o 202 a leitura pode dar 404 até o Manager gravar a Operation

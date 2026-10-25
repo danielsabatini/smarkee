@@ -1,0 +1,22 @@
+stateDiagram-v2
+    direction LR
+    [*] --> accepted: pedido gravado, desired no outbox
+    [*] --> rejected: conflict, validation, protected ou not_found
+    accepted --> in_progress: fase Reconciling (geração do pedido ou anterior)
+    accepted --> completed: fase Ready
+    in_progress --> completed: fase Ready na geração atual ou posterior
+    rejected --> [*]
+    completed --> [*]
+
+    note right of rejected
+        Sem geração e sem desired publicado:
+        o recurso não muda. validation: key já usada
+        por outra Role presente ou permissions vazia.
+        O resourceId do 202 continua consultável.
+    end note
+    note right of accepted
+        A Operation só aparece depois que o Manager
+        a grava: antes disso a leitura dá 404.
+        A Operation não vira failed (limitação conhecida):
+        a falha aparece na fase Failed da Role.
+    end note

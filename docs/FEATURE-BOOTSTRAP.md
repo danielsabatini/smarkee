@@ -87,7 +87,7 @@ Os Streams (`REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT`, `UPDATED`) s
 ## 8. Execução em dev
 
 1. `compose.yaml` e `.env.example` da feature vêm da semente (passo 3), com a imagem `smarkee-<módulo>-<tipo>`, os seis contêineres, `migrate`, `consumer` e `telemeter`; ajuste ao recurso. Reinicie o gateway depois de recriar contêineres (cache de DNS do APISIX).
-2. Telemetria: acrescente as entradas da feature ao `infrastructure/dev/telemetry-router/config.yaml` (log por `smarkee.module` e `smarkee.resource.type`; trace por `apisix.service_name`; exportador para `<módulo>-<tipo>-telemeter`). O `telemeter/config.yaml` da feature vem do template. Arquitetura em [`OBSERVABILITY-ARCHITECTURE.md`](OBSERVABILITY-ARCHITECTURE.md); logs em [`OBSERVABILITY.md`](OBSERVABILITY.md).
+2. Telemetria: acrescente as entradas da feature ao `infrastructure/dev/telemetry-router/config.yaml` (log por `smarkee.module` e `smarkee.resource.type`; trace por `apisix.service_name`; exportador para `<módulo>-<tipo>-telemeter`) e à suíte `tests/telemetry/tests/test_telemetry.py` (`FEATURE_TELEMETRY_DIRS`, `FEATURE_ROUTES` e `outbox_collections`). O `telemeter/config.yaml` da feature vem do template. Arquitetura em [`OBSERVABILITY-ARCHITECTURE.md`](OBSERVABILITY-ARCHITECTURE.md); logs em [`OBSERVABILITY.md`](OBSERVABILITY.md).
 3. Suba com `docker compose up -d` na pasta da feature, depois da plataforma (`infrastructure/dev`).
 
 ## 9. Cliente e ferramentas

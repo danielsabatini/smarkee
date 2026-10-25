@@ -1,0 +1,22 @@
+flowchart LR
+  U([Operador / sk]) -->|HTTP| GW[Gateway]
+  GW --> R[Receiver]
+  R -->|leitura: views v1| DB[(SSOT: schema ipm)]
+  R -->|requested| REQ[(REQUESTED)]
+  REQ --> M[Manager]
+  M -->|Permission, Operation, outbox| DB
+  DB -->|outbox pendente| P[Publisher]
+  P -->|desired| DES[(DESIRED)]
+  DES --> REC[Reconciler]
+  DES --> OBS[Observer]
+  OBSV[(OBSERVED)] --> REC
+  OBS -->|observed| OBSV
+  REC -->|action| ACT[(ACTION, 4 partições)]
+  ACT --> EX[Executor]
+  EX -->|completed ou failed| RES[(RESULT)]
+  RES --> REC
+  RES --> OBS
+  OBSV -->|fase e Operation| M
+  RES -->|resultado por actionId| M
+  EX -->|ProjectService: role em roles-<módulo>| Z[Zitadel]
+  OBS -->|PROJECT_OWNER_VIEWER: somente leitura| Z

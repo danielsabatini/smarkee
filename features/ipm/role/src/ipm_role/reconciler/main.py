@@ -35,22 +35,17 @@ async def run(settings: RoleReconcilerSettings) -> int:
                     stream=stream,
                     filter_subject=subject,
                     inactive_threshold_seconds=settings.messaging.consumer_inactive_threshold_seconds,
-                    # Só `desired` propaga o trace para a `action`; `observed` é periódico e
-                    # `result` já concluiu o span do Executor (decisão 0055).
-                    traced=(suffix == "desired"),
+                    traced=True,
                     on_cycle=runtime.health.beat,
                 ).run(runtime.stop),
             )
         runtime.start(
-            "reevaluation",
+            "periodic",
             periodic_reevaluation(
                 reconciler, settings.loop, runtime.stop, on_cycle=runtime.health.beat
             ),
         )
-        logger.info(
-            "role reconciler started",
-            extra={"smarkee.instance.name": instance},
-        )
+        logger.info("role reconciler started", extra={"smarkee.instance.name": instance})
         return await runtime.serve(health_port=settings.health.port)
 
 

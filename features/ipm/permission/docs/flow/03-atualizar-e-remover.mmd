@@ -1,0 +1,37 @@
+sequenceDiagram
+  participant U as Operador (sk)
+  participant R as Receiver
+  participant M as Manager
+  participant DB as SSOT (schema ipm)
+  participant P as Publisher
+  participant REC as Reconciler
+  participant OB as Observer
+  participant EX as Executor
+  participant Z as Zitadel
+  U->>R: GET /v1/ipm/permissions/{resourceId}
+  R-->>U: 200 com resourceVersion
+  U->>R: PATCH /v1/ipm/permissions/{resourceId} {resourceVersion, displayName}
+  R->>R: valida a permissão ipm.permission.update
+  R->>M: requested-update (REQUESTED)
+  R-->>U: 202 operationId
+  alt resourceVersion diferente da atual
+    M->>DB: Operation rejected (conflict), nada muda
+  else aceito
+    M->>DB: geração + 1, displayName novo, outbox desired
+    P->>REC: desired (DESIRED)
+    REC->>EX: action update (displayName difere)
+    EX->>Z: UpdateProjectRole em roles-<módulo>
+    OB->>M: observed com o displayName novo (fase Ready)
+  end
+  Note over R,EX: deletionProtection precisa ser false antes do DELETE, senão responde 409 DeletionProtected
+  U->>R: DELETE /v1/ipm/permissions/{resourceId}?resourceVersion=N
+  R->>M: requested-delete (REQUESTED)
+  R-->>U: 202 operationId
+  M->>DB: lifecycle absent, fase Deleting, outbox desired
+  P->>REC: desired absent (DESIRED)
+  REC->>EX: action delete (role ainda presente no projeto)
+  EX->>Z: RemoveProjectRole (ausente também é sucesso)
+  EX->>REC: completed (RESULT)
+  OB->>Z: ListProjectRoles em roles-<módulo>
+  OB->>M: observed absent
+  M->>DB: apaga a linha, Operation completed e publica removed

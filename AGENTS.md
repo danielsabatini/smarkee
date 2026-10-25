@@ -1024,14 +1024,14 @@ Quando ainda houver dúvida, procure evidências antes de decidir (§9) e siga o
 
 # 35. Memória e Journal
 
-Este é o único lugar que define `MEMORY.md` e `.journal/`. A gestão de contexto e de histórico de execução obedece a uma separação clara de responsabilidades, para que os agentes não percam contexto nem inventem regras.
+Este é o único lugar que define `MEMORY.md` e `.journal/`. A gestão de contexto e de histórico de execução obedece a uma separação estrita de responsabilidades, para que o `MEMORY.md` (carregado automaticamente como instrução em toda sessão) permaneça enxuto e os agentes não percam contexto nem inventem regras.
 
 ```text
 MEMORY.md
-→ estado operacional atual
+→ resumo enxuto do estado operacional atual + ponteiros para .journal/
 
-.journal/
-→ histórico detalhado de execução
+.journal/YYYY-MM-DD.md
+→ histórico detalhado de execução das sessões e versões anteriores do MEMORY.md
 ```
 
 ## 35.1 MEMORY.md
@@ -1040,18 +1040,26 @@ O `MEMORY.md` é a área de transferência de contexto entre sessões. Ele deve 
 
 > O que o próximo agente precisa saber agora para continuar o trabalho?
 
-*   Deve permanecer compacto.
-*   Não é fonte de regras, documentação ou governança.
-*   Não deve conter lixo gerado durante a execução de tarefas já finalizadas.
+Regras obrigatórias:
 
-## 35.2 Journal
+*   **Apenas resumo operacional:** deve conter somente o resumo executivo do estado operacional atual (o que está ativo, próximos passos imediatos, pendências antes de `stg`/`prd` e armadilhas operacionais ativas).
+*   **Apontamento obrigatório para `.journal/`:** no cabeçalho, deve indicar explicitamente os arquivos de `.journal/YYYY-MM-DD.md` onde está o histórico detalhado, sem reproduzir esse histórico no `MEMORY.md`.
+*   **Rotação ao atualizar:** ao concluir uma entrega ou alterar o estado operacional, mova o detalhamento da execução e o conteúdo substituído do `MEMORY.md` para `.journal/YYYY-MM-DD.md` antes de atualizar o resumo no `MEMORY.md`.
+*   **Sem governança nem regras:** não é fonte de regras, contratos, documentação ou decisões arquiteturais (que pertencem a `AGENTS.md`, `docs/` e `.decisions/`).
+*   **Sem histórico nem resíduo:** não deve conter relato cronológico de sessões, listas longas de arquivos alterados, logs de testes ou lixo de tarefas já finalizadas.
 
-O diretório `.journal/` (se utilizado pela plataforma) registra o rastreamento longo:
+## 35.2 Journal (`.journal/`)
 
-> O que aconteceu durante a execução?
+O diretório `.journal/` armazena o histórico detalhado de execução em arquivos datados (`.journal/YYYY-MM-DD.md`), respondendo à pergunta:
 
-*   Não é fonte de governança, documentação ou decisão arquitetural.
-*   Secrets **nunca** devem ser persistidos no journal.
+> O que aconteceu durante a execução e como chegamos ao estado atual?
+
+Regras obrigatórias:
+
+*   **Destino do detalhamento:** recebe o relato detalhado das sessões (implementações, diagnósticos, verificações executadas, commits) e os snapshots anteriores do `MEMORY.md` quando rotacionados.
+*   **Consulta sob demanda:** o agente só deve ler arquivos de `.journal/` quando precisar investigar o histórico de uma tarefa ou decisão passada apontada pelo `MEMORY.md`.
+*   **Sem governança:** não é fonte de governança, documentação oficial ou decisão arquitetural.
+*   **Segurança:** secrets e credenciais **nunca** devem ser persistidos em `.journal/` nem em `MEMORY.md`.
 
 ## 35.3 Onde existem
 

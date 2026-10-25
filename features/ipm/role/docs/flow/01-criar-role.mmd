@@ -1,0 +1,31 @@
+sequenceDiagram
+  participant U as Operador (sk)
+  participant R as Receiver
+  participant M as Manager
+  participant DB as SSOT (schema ipm)
+  participant P as Publisher
+  participant REC as Reconciler
+  participant OB as Observer
+  participant EX as Executor
+  participant ST as Estado local (ipm-role-state)
+  U->>R: POST /v1/ipm/roles {key, displayName, permissions}
+  R->>R: valida o token, a permissão ipm.role.create e o e-mail verificado
+  R->>M: requested-create (REQUESTED)
+  R-->>U: 202 resourceId e operationId
+  M->>DB: Role present (Pending), Operation accepted, outbox desired
+  P->>DB: lê o outbox pendente, em ordem
+  P->>REC: desired (DESIRED)
+  P->>OB: desired (DESIRED)
+  OB->>ST: lê <stateDir>/<resourceId>.json
+  OB->>REC: observed absent (OBSERVED)
+  OB->>M: observed absent (fase Reconciling, Operation in_progress)
+  REC->>EX: action create (ACTION)
+  EX->>EX: revalida a ação contra o desired vigente
+  EX->>ST: grava atomicamente <stateDir>/<resourceId>.json
+  EX->>REC: completed (RESULT)
+  EX->>OB: completed (RESULT)
+  OB->>ST: lê a role de novo
+  OB->>REC: observed present (key, displayName, permissions)
+  OB->>M: observed present (fase Ready, Operation completed)
+  U->>R: GET /v1/ipm/roles/{resourceId}
+  R-->>U: 200 phase Ready
