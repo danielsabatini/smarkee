@@ -1,5 +1,5 @@
 -- Migração 0003 de core.account: nomes das roles em `desired.platformRoles` (decisão 0028).
--- Projeto: core-account-manager. Executada pela infraestrutura como o dono `smarkee`.
+-- Projeto: core-account-manager. Executada pela infraestrutura como o dono `ssot`.
 -- Troca `organization.*` por `ipm.organization.*` e `account.*` por `core.account.*`. Só o jsonb muda: sem
 -- nova geração. Idempotente: os nomes novos não casam com os antigos, então a reaplicação não altera nada.
 

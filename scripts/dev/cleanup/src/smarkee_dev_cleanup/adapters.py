@@ -105,7 +105,7 @@ class PostgresSsot:
 
     def _connect(self, role: str) -> psycopg.Connection[Any]:
         return psycopg.connect(
-            f"host={self.HOST} port={self.PORT} dbname=smarkee user={role} password={role} "
+            f"host={self.HOST} port={self.PORT} dbname=ssot user={role} password={role} "
             "connect_timeout=3",
             autocommit=True,
         )

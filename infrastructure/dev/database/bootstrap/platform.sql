@@ -1,8 +1,8 @@
 -- Proprietário e banco `platform` (apenas desenvolvimento local; credenciais triviais).
 -- Plano de dados multi-tenant das soluções próprias da Smarkee (Roles, usuários, grupos...), SEPARADO do
--- SSOT (`smarkee`) e do Zitadel (`identity`). Hoje roda no mesmo servidor; aponta-se para outro servidor
+-- SSOT (`ssot`) e do Zitadel (`identity`). Hoje roda no mesmo servidor; aponta-se para outro servidor
 -- só por configuração (`host`, `port`, `name`) dos Executors e Observers.
--- Segue o padrão de `smarkee.sql`: proprietário próprio (não superusuário), usado somente por migração e
+-- Segue o padrão de `ssot.sql`: proprietário próprio (não superusuário), usado somente por migração e
 -- recuperação. Os papéis de runtime (`<módulo>_<tipo>_executor` e `_observer`) são criados por
 -- `<módulo>.sql`; os privilégios, pela migração `migrations/platform/` de cada tipo.
 -- Nenhum papel do SSOT recebe CONNECT neste banco.

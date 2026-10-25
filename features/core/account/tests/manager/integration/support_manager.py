@@ -21,7 +21,7 @@ ACCOUNT = account_kind(DEFAULT_PLATFORM_PERMISSIONS)
 
 def dsn(login_role: str) -> str:
     return (
-        f"host={DATABASE_HOST} port={DATABASE_PORT} dbname=smarkee"
+        f"host={DATABASE_HOST} port={DATABASE_PORT} dbname=ssot"
         f" user={login_role} password={login_role} connect_timeout=3"
     )
 

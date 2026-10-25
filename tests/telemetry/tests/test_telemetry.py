@@ -600,8 +600,8 @@ def test_infra_metrics_cover_database_identity_and_messaging_with_otel_semconv(
         for m in service_points
         if m["name"] == "postgresql.rows"
     }
-    assert row_namespaces and all(ns.startswith(("smarkee|", "platform|")) for ns in row_namespaces), (
-        f"postgresql.rows deve vir apenas dos bancos smarkee e platform: {row_namespaces}"
+    assert row_namespaces and all(ns.startswith(("ssot|", "platform|")) for ns in row_namespaces), (
+        f"postgresql.rows deve vir apenas dos bancos ssot e platform: {row_namespaces}"
     )
 
     outbox_collections = {

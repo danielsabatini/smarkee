@@ -8,7 +8,7 @@ jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
 [tool.@@DOTTED@@.receiver.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "@@PACKAGE@@_receiver_login"
 
@@ -21,7 +21,7 @@ organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
 
 [tool.@@DOTTED@@.manager.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "@@PACKAGE@@_manager_login"
 
@@ -31,7 +31,7 @@ user = "smarkee"
 
 [tool.@@DOTTED@@.publisher.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "@@PACKAGE@@_publisher_login"
 

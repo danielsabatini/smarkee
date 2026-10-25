@@ -1,5 +1,5 @@
 -- Migração 0005 de core.account: o cadastro passa a conceder as roles base do SUM (decisão 0033).
--- Projeto: core-account-manager. Executada pela infraestrutura como o dono `smarkee`.
+-- Projeto: core-account-manager. Executada pela infraestrutura como o dono `ssot`.
 -- Acrescenta a `desired.platformRoles` de quem tem acesso concedido (`platformAccess = granted`) as
 -- roles que permitem pedir a ligação de um serviço: `sum.ipm.disable`, `sum.ipm.enable` e
 -- `sum.ipm.get`. Só o jsonb muda: sem nova geração. Idempotente: a união não repete role.

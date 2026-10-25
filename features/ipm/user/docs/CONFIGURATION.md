@@ -97,7 +97,7 @@ jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
 [tool.ipm.user.receiver.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_user_receiver_login"
 
@@ -166,7 +166,7 @@ Entrypoint do Manager de User (`ipm-user-manager`, decisões 0015, 0019 e 0063).
 ```toml
 [tool.ipm.user.manager.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_user_manager_login"
 
@@ -231,7 +231,7 @@ Entrypoint do Publisher de `ipm.user` (decisões 0015 e 0033).
 ```toml
 [tool.ipm.user.publisher.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_user_publisher_login"
 

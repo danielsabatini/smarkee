@@ -8,7 +8,7 @@ jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
 [tool.ipm.role.receiver.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_role_receiver_login"
 
@@ -18,7 +18,7 @@ user = "smarkee"
 
 [tool.ipm.role.manager.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_role_manager_login"
 
@@ -28,7 +28,7 @@ user = "smarkee"
 
 [tool.ipm.role.publisher.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_role_publisher_login"
 

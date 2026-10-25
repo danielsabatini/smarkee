@@ -1,6 +1,6 @@
 -- Migração 0001 de ipm.permission: Permissão atômica no SSOT da Smarkee (docs/POSTGRESQL.md §6 e §14.2; decisão 0083).
 -- Projeto: ipm-permission-manager (decisões 0015 e 0083), dono do esquema do tipo.
--- Executada pela infraestrutura como o dono `smarkee`, no banco `smarkee`; serviços de runtime não
+-- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
 -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/ipm.sql.
 -- Cada Permission (`<módulo>.<tipo>.<ação>`) é reconciliada pelo ipm-permission-executor com o
 -- projeto `roles-<módulo>` na organização `core` do Zitadel.
@@ -263,7 +263,7 @@ FROM inserted i
 ON CONFLICT (message_id) DO NOTHING;
 
 -- Privilégios (docs/POSTGRESQL.md §14.2).
-GRANT CONNECT ON DATABASE smarkee
+GRANT CONNECT ON DATABASE ssot
   TO ipm_permission_manager, ipm_permission_receiver, ipm_permission_publisher, ipm_maintenance;
 
 REVOKE ALL ON SCHEMA ipm FROM PUBLIC;

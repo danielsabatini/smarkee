@@ -1,6 +1,6 @@
 -- Migração 0001 de core.account: Account no SSOT (docs/POSTGRESQL.md §6 e §14.2; decisão 0014).
 -- Projeto: core-account-manager (decisão 0015), dono do esquema do tipo.
--- Executada pela infraestrutura como o dono `smarkee`, no banco `smarkee`; serviços de runtime não
+-- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
 -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/core.sql.
 -- (O tipo se chamava `user`, palavra reservada do PostgreSQL; `account` não precisa de aspas.)
 -- Idempotente: pode ser reaplicada sem erro.
@@ -95,7 +95,7 @@ CREATE OR REPLACE VIEW core.account_operation_v1 AS
     FROM core.account_operation;
 
 -- Privilégios (docs/POSTGRESQL.md §14.2).
-GRANT CONNECT ON DATABASE smarkee
+GRANT CONNECT ON DATABASE ssot
   TO core_account_manager, core_account_receiver, core_account_publisher, core_maintenance;
 
 REVOKE ALL ON SCHEMA core FROM PUBLIC;

@@ -101,7 +101,7 @@ userinfo_url = "http://gateway.smarkee.internal:8000/oidc/v1/userinfo"
 
 [tool.ipm.organization.receiver.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_organization_receiver_login"
 
@@ -175,7 +175,7 @@ Entrypoint do Manager de Organization (`ipm-organization-manager`, decisões 001
 ```toml
 [tool.ipm.organization.manager.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_organization_manager_login"
 
@@ -240,7 +240,7 @@ Entrypoint do Publisher de `ipm.organization` (decisões 0015 e 0033).
 ```toml
 [tool.ipm.organization.publisher.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_organization_publisher_login"
 

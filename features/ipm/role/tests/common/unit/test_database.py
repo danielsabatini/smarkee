@@ -15,7 +15,7 @@ def settings(password: str | None = None) -> DatabaseSettings:
     return DatabaseSettings(
         host="localhost",
         port=5432,
-        name="smarkee",
+        name="ssot",
         user="ipm_role_x_login",
         password=SecretStr(password) if password else None,
     )
@@ -25,7 +25,7 @@ def test_conninfo_carries_the_login_role_and_the_secret_only_when_there_is_one()
     info = conninfo_to_dict(database.conninfo(settings("segredo")))
     assert (info["user"], info["dbname"], info["password"]) == (
         "ipm_role_x_login",
-        "smarkee",
+        "ssot",
         "segredo",
     )
     assert "password" not in conninfo_to_dict(database.conninfo(settings()))

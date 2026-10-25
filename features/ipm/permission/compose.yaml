@@ -60,7 +60,7 @@ services:
     restart: "no"
 
   # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo
-  # (features/ipm/permission/migrations/*.sql, em ordem) como o dono `smarkee`, no banco `smarkee`.
+  # (features/ipm/permission/migrations/*.sql, em ordem) como o dono `ssot`, no banco `ssot`.
   # O código das migrações é do Manager (decisões 0015 e 0063); a execução é desta etapa de
   # implantação, com o papel administrativo, e nunca com o papel de runtime do Manager.
   # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/ipm.sql.
@@ -71,10 +71,10 @@ services:
     container_name: ipm-permission-migrate.smarkee.internal
     environment:
       PGHOST: database.smarkee.internal
-      PGDATABASE: smarkee
-      PGUSER: smarkee
-      # Senha trivial de dev do dono do SSOT (database/bootstrap/smarkee.sql).
-      PGPASSWORD: smarkee
+      PGDATABASE: ssot
+      PGUSER: ssot
+      # Senha trivial de dev do dono do SSOT (database/bootstrap/ssot.sql).
+      PGPASSWORD: ssot
       PGOPTIONS: -c client_min_messages=warning
     command:
       - sh

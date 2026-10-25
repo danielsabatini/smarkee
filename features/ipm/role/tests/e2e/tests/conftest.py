@@ -158,7 +158,7 @@ async def unprotect_through_the_loop(
     )
     try:
         connection: psycopg.AsyncConnection[Any] = await psycopg.AsyncConnection.connect(
-            f"host={DATABASE_HOST} port={DATABASE_PORT} dbname=smarkee"
+            f"host={DATABASE_HOST} port={DATABASE_PORT} dbname=ssot"
             f" user={MANAGER_LOGIN} password={MANAGER_LOGIN} connect_timeout=3",
             autocommit=True,
         )
@@ -185,7 +185,7 @@ async def unprotect_through_the_loop(
 async def _cleanup_database(resource_ids: list[str]) -> None:
     def dsn(login: str) -> str:
         return (
-            f"host={DATABASE_HOST} port={DATABASE_PORT} dbname=smarkee"
+            f"host={DATABASE_HOST} port={DATABASE_PORT} dbname=ssot"
             f" user={login} password={login} connect_timeout=3"
         )
 

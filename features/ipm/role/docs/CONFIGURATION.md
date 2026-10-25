@@ -90,7 +90,7 @@ jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
 [tool.ipm.role.receiver.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_role_receiver_login"
 
@@ -152,7 +152,7 @@ Entrypoint do Manager de Role (`ipm-role-manager`, decisões 0015, 0019, 0063 e 
 ```toml
 [tool.ipm.role.manager.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_role_manager_login"
 
@@ -217,7 +217,7 @@ Entrypoint do Publisher de `ipm.role` (decisões 0015 e 0033).
 ```toml
 [tool.ipm.role.publisher.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_role_publisher_login"
 

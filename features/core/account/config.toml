@@ -8,7 +8,7 @@ jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
 [tool.core.account.receiver.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "core_account_receiver_login"
 
@@ -23,7 +23,7 @@ services_url = "http://sum-service-receiver.smarkee.internal:8000"
 
 [tool.core.account.manager.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "core_account_manager_login"
 
@@ -33,7 +33,7 @@ user = "smarkee"
 
 [tool.core.account.publisher.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "core_account_publisher_login"
 

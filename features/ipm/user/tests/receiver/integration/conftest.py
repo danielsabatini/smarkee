@@ -53,7 +53,7 @@ async def repository(manager: psycopg.AsyncConnection[Any]) -> AsyncIterator[Sso
     settings = DatabaseSettings(
         host=DATABASE_HOST,
         port=int(DATABASE_PORT),
-        name="smarkee",
+        name="ssot",
         user="ipm_user_receiver_login",
         password=SecretStr("ipm_user_receiver_login"),
     )

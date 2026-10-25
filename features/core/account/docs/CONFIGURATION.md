@@ -101,7 +101,7 @@ jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
 [tool.core.account.receiver.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "core_account_receiver_login"
 
@@ -173,7 +173,7 @@ Entrypoint do Manager de Account (`core-account-manager`, decisões 0015, 0019 e
 ```toml
 [tool.core.account.manager.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "core_account_manager_login"
 
@@ -238,7 +238,7 @@ Entrypoint do Publisher de `core.account` (decisões 0015 e 0033).
 ```toml
 [tool.core.account.publisher.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "core_account_publisher_login"
 

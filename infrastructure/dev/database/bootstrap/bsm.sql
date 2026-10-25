@@ -1,7 +1,7 @@
 -- Papéis do módulo bsm no SSOT (apenas desenvolvimento local; credenciais triviais).
 -- Um papel por componente de cada tipo, inclusive o Publisher (decisões 0015 e 0019).
 -- Conforme docs/POSTGRESQL.md §14.2 e §14.3: um papel de função sem login por serviço, que recebe
--- os privilégios (concedidos pela migração do módulo, como dono `smarkee`), e um papel de login por
+-- os privilégios (concedidos pela migração do módulo, como dono `ssot`), e um papel de login por
 -- serviço, membro do papel de função, com os parâmetros de sessão.
 -- Criar papéis exige CREATEROLE: por isso roda como administrador, e não na migração.
 -- Idempotente: pode ser reaplicado sem erro.

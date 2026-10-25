@@ -1,5 +1,5 @@
 -- Migração 0004 de core.account: o cadastro passa a conceder só roles do módulo `core` (decisão 0032).
--- Projeto: core-account-manager. Executada pela infraestrutura como o dono `smarkee`.
+-- Projeto: core-account-manager. Executada pela infraestrutura como o dono `ssot`.
 -- Remove de `desired.platformRoles` as roles que não são de `core` (as de `ipm.organization.*`
 -- deixaram de ser concedidas no cadastro e saíram do projeto `roles-core`). Só o jsonb muda: sem nova
 -- geração. Idempotente: depois da primeira execução nenhuma linha tem role fora de `core`.

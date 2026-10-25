@@ -6,7 +6,8 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 
 ## Estado operacional atual
 - **Branch `dev` (`origin/dev`):** features `core/account`, `sum/service`, `bsm/account` (decisão `0082`), `ipm/organization`, `ipm/user`, `ipm/permission` e `ipm/role` (decisões `0083` e `0084`) operacionais no Compose; comandos `sk ipm permission`, `sk ipm role` e ajuste exclusivo de `roles` em `sk ipm user` implementados e verificados (decisão `0085`).
-- **Banco `platform` (decisão `0086`):** Executor e Observer de `ipm/role` usam o banco `platform` (plano de dados multi-tenant, fora do SSOT) no lugar do volume `ipm-role-state`; ativo no dev. Ainda **sem commit**. Os próximos (`ipm/user`, `ipm/group`) devem acrescentar tabelas no mesmo banco.
+- **Banco `platform` (decisão `0086`):** Executor e Observer de `ipm/role` usam o banco `platform` (plano de dados multi-tenant, fora do SSOT) no lugar do volume `ipm-role-state`; ativo no dev (commit `3fb2fca`). Os próximos (`ipm/user`, `ipm/group`) devem acrescentar tabelas no mesmo banco.
+- **Banco `ssot` (decisão `0087`):** o SSOT passou de `smarkee` para `ssot` (banco e dono), aplicado no dev e verificado; **sem commit** ainda. Backups anteriores a isto não restauram pela ferramenta.
 - **Identidade (`infrastructure/dev/identity`):** chaves das service accounts do Zitadel persistem no volume Docker `identity-bootstrap`.
 - **Ambiente local OpenCode:** `~/.config/opencode/opencode.json` carrega `AGENTS.md` e `MEMORY.md` globalmente; `.opencode/opencode.json` do projeto é local e ignorado pelo git.
 
@@ -19,7 +20,7 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - `pinned_client`; controle de versão das migrações (`*-migrate` reaplicam tudo); allowlist de caminhos do Zitadel; substituir papéis de instância dos executors; validar `restore/reset --apply` do backup no dev ativo; regras de namespace do OpenBao (decisão `0006`) e validação das ACLs/Streams de `docs/NATS.md`.
 
 ## Armadilhas operacionais ativas
-- Em ambiente existente, aplicar como `postgres` `platform.sql`, `ipm.sql` e `telemetry.sql` (o `initdb.d` só roda em volume novo); o MCP `postgresql` só vê `smarkee`, use `docker exec ... psql -d platform`.
+- Em ambiente existente, aplicar como `postgres` `platform.sql`, `ipm.sql` e `telemetry.sql` (o `initdb.d` só roda em volume novo); o MCP `postgresql` não cobre o `platform`: use `docker exec database.smarkee.internal psql -U postgres -d platform`.
 - O `scripts/dev/cleanup` cobre Roles de teste (`test.role*`/`test.chaos*`) no SSOT e no `platform`.
 - Recriar um Receiver exige reiniciar o gateway (cache de DNS); recriar um telemeter exige reiniciar o `telemetry-router`.
 - `docker compose up --build` numa feature falha ao reconstruir `*-migrate` (`apk` sem rede); usar `docker compose build <feature>-observer` e `up -d --no-build <papéis>`.

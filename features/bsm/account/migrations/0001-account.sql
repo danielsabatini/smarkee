@@ -1,6 +1,6 @@
 -- Migração 0001 de bsm.account: Billing Account no SSOT (docs/POSTGRESQL.md §6 e §14.2).
 -- Projeto: bsm-account-manager (decisão 0015), dono do esquema do tipo.
--- Executada pela infraestrutura como o dono `smarkee`, no banco `smarkee`; serviços de runtime não
+-- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
 -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/bsm.sql.
 -- Nasce com o estado atual das migrações do modelo (ipm/organization 0001 a 0004): o motivo de
 -- rejeição `protected` (decisão 0043), o `traceparent` do outbox (decisão 0055) e a
@@ -109,7 +109,7 @@ CREATE OR REPLACE VIEW bsm.account_operation_v1 AS
     FROM bsm.account_operation;
 
 -- Privilégios (docs/POSTGRESQL.md §14.2).
-GRANT CONNECT ON DATABASE smarkee
+GRANT CONNECT ON DATABASE ssot
   TO bsm_account_manager, bsm_account_receiver, bsm_account_publisher, bsm_maintenance;
 
 REVOKE ALL ON SCHEMA bsm FROM PUBLIC;

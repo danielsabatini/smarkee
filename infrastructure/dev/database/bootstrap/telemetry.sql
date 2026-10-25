@@ -2,7 +2,7 @@
 -- Segue o princípio do menor privilégio (AGENTS.md §4.2):
 --   1. `pg_read_all_stats` permite ao `postgresqlreceiver` ler `pg_stat_*` e `pg_database_size()`
 --      sem acesso de leitura aos dados das tabelas de negócio (`pg_read_all_data` NUNCA é concedido).
---   2. A função `telemetry.outbox_stats()` (`SECURITY DEFINER`, de propriedade de `smarkee`)
+--   2. A função `telemetry.outbox_stats()` (`SECURITY DEFINER`, de propriedade de `ssot`)
 --      descobre dinamicamente as tabelas `*_outbox` do SSOT e devolve apenas a contagem e a idade
 --      (em segundos) das mensagens pendentes (`published_at IS NULL`), sem expor `payload` e sem
 --      acoplar o `telemetry-agent` à lista de features.
@@ -28,13 +28,13 @@ ALTER ROLE telemetry_login SET lock_timeout = '2s';
 ALTER ROLE telemetry_login SET statement_timeout = '5s';
 ALTER ROLE telemetry_login SET idle_in_transaction_session_timeout = '10s';
 
-GRANT CONNECT ON DATABASE smarkee TO telemetry;
+GRANT CONNECT ON DATABASE ssot TO telemetry;
 GRANT CONNECT ON DATABASE identity TO telemetry;
 GRANT CONNECT ON DATABASE platform TO telemetry;
 
-\connect smarkee
+\connect ssot
 
-CREATE SCHEMA IF NOT EXISTS telemetry AUTHORIZATION smarkee;
+CREATE SCHEMA IF NOT EXISTS telemetry AUTHORIZATION ssot;
 REVOKE ALL ON SCHEMA telemetry FROM PUBLIC;
 GRANT USAGE ON SCHEMA telemetry TO telemetry;
 
@@ -58,14 +58,14 @@ BEGIN
       JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
      WHERE c.relkind = 'r'
        AND c.relname LIKE '%\_outbox' ESCAPE '\'
-       AND pg_catalog.pg_get_userbyid(c.relowner) = 'smarkee'
+       AND pg_catalog.pg_get_userbyid(c.relowner) = 'ssot'
      ORDER BY n.nspname, c.relname
   LOOP
     RETURN QUERY EXECUTE pg_catalog.format(
       'SELECT %L::text, %L::text, count(*)::bigint, '
       'COALESCE(EXTRACT(EPOCH FROM (pg_catalog.now() - pg_catalog.min(created_at)))::double precision, 0.0) '
       'FROM %I.%I WHERE published_at IS NULL',
-      'smarkee|' || rec.schema_name,
+      'ssot|' || rec.schema_name,
       rec.table_name,
       rec.schema_name,
       rec.table_name
@@ -74,6 +74,6 @@ BEGIN
 END;
 $function$;
 
-ALTER FUNCTION telemetry.outbox_stats() OWNER TO smarkee;
+ALTER FUNCTION telemetry.outbox_stats() OWNER TO ssot;
 REVOKE ALL ON FUNCTION telemetry.outbox_stats() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION telemetry.outbox_stats() TO telemetry;

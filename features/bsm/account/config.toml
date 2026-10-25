@@ -9,7 +9,7 @@ userinfo_url = "http://gateway.smarkee.internal:8000/oidc/v1/userinfo"
 
 [tool.bsm.account.receiver.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "bsm_account_receiver_login"
 
@@ -22,7 +22,7 @@ organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
 
 [tool.bsm.account.manager.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "bsm_account_manager_login"
 
@@ -32,7 +32,7 @@ user = "smarkee"
 
 [tool.bsm.account.publisher.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "bsm_account_publisher_login"
 

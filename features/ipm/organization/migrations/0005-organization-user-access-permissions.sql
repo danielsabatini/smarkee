@@ -1,7 +1,7 @@
 -- Migração 0005 de ipm.organization: renomeia `grantRoles` para `grantPermissions` e
 -- `administrators[].roles` para `administrators[].permissions` em `desired.userAccess` e
 -- `observed.userAccess` (docs/identity/PERMISSION.md).
--- Executada pela infraestrutura como `smarkee` no banco `smarkee`; idempotente.
+-- Executada pela infraestrutura como `ssot` no banco `ssot`; idempotente.
 
 UPDATE ipm.organization
    SET desired = jsonb_set(

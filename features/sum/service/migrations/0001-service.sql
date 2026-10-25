@@ -1,6 +1,6 @@
 -- Migração 0001 de sum."service": ligação de um serviço por usuário no SSOT (decisão 0033).
 -- Projeto: sum-service-manager (decisão 0015), dono do esquema do tipo.
--- Executada pela infraestrutura como o dono `smarkee`, no banco `smarkee`; serviços de runtime não
+-- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
 -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/sum.sql.
 -- Idempotente: pode ser reaplicada sem erro.
 
@@ -100,7 +100,7 @@ CREATE OR REPLACE VIEW sum.service_operation_v1 AS
     FROM sum.service_operation;
 
 -- Privilégios (docs/POSTGRESQL.md §14.2).
-GRANT CONNECT ON DATABASE smarkee
+GRANT CONNECT ON DATABASE ssot
   TO sum_service_manager, sum_service_receiver, sum_service_publisher, sum_service_maintenance;
 
 REVOKE ALL ON SCHEMA sum FROM PUBLIC;

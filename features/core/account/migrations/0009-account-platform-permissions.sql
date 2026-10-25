@@ -1,6 +1,6 @@
 -- Migração 0009 de core.account: renomeia `platformRoles` para `platformPermissions` em `desired` e
 -- `observed` (docs/identity/PERMISSION.md).
--- Projeto: core-account-manager. Executada pela infraestrutura como o dono `smarkee`.
+-- Projeto: core-account-manager. Executada pela infraestrutura como o dono `ssot`.
 -- Só o jsonb muda: sem coluna nova, sem nova geração. Idempotente: não altera linhas já migradas.
 
 UPDATE core.account

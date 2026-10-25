@@ -46,8 +46,8 @@ receivers:
     transport: tcp
     username: telemetry_login
     password: ${env:SMARKEE_DATABASE_TELEMETRY_PASSWORD:-telemetry_login}
-    connect_database: smarkee
-    databases: [smarkee, identity, platform]
+    connect_database: ssot
+    databases: [ssot, identity, platform]
     exclude_databases: [postgres]
     collection_interval: 30s
     tls:
@@ -97,7 +97,7 @@ receivers:
     driver: postgres
     host: database.smarkee.internal
     port: 5432
-    database: smarkee
+    database: ssot
     username: telemetry_login
     password: ${env:SMARKEE_DATABASE_TELEMETRY_PASSWORD:-telemetry_login}
     additional_params:
@@ -309,7 +309,7 @@ processors:
   #   1. `container.*` só dos contêineres da plataforma (`*.smarkee.internal`);
   #   2. descarta métricas sintéticas de scrape do Prometheus (`up`, `scrape_*`, `target_info`, `otel_scope_info`);
   #   3. descarta `postgresql.rows` das tabelas internas do banco `identity` (Zitadel), mantendo `postgresql.rows`
-  #      apenas para o banco `smarkee` (e mantendo `backends`, `commits`, `rollbacks`, `deadlocks` e `db_size`
+  #      apenas para o banco `ssot` (e mantendo `backends`, `commits`, `rollbacks`, `deadlocks` e `db_size`
   #      para ambos os bancos).
   filter/dev_containers:
     error_mode: ignore

@@ -121,7 +121,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Item | Situação | Evidência ou observação |
 |---|---|---|
 | Versão fixada | Atende | `postgres:18.6-alpine` |
-| Banco `smarkee` do proprietário `smarkee`, sem privilégios de `PUBLIC` | Atende | `database/bootstrap/smarkee.sql` |
+| Banco `ssot` do proprietário `ssot`, sem privilégios de `PUBLIC` | Atende | `database/bootstrap/ssot.sql` |
 | Tabelas e views geradas do modelo | Parcial | seguem o modelo, mas as migrações são escritas à mão |
 | `CHECK` em `lifecycle`, `reconciliation`, `presence`, `phase`, `operation_status`, identificadores e `jsonb` | Atende | `core.account` (todas as colunas de controle e de identificação) |
 | `FOR UPDATE` na linha; `resource_version` na condição; conflito na Operation | Atende | `store/ssot.py` |

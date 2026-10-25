@@ -158,11 +158,11 @@ def test_integrity_detects_altered_missing_and_extra_files(tmp_path: Path) -> No
     ports, _ = make_ports(tmp_path)
     path = create_backup(ports, silent)
     (path / "db" / "identity.dump").write_bytes(b"adulterado")
-    (path / "db" / "smarkee.dump").unlink()
+    (path / "db" / "ssot.dump").unlink()
     (path / "db" / "extra.dump").write_bytes(b"x")
     problems = check_integrity(path)
     assert "arquivo alterado: db/identity.dump" in problems
-    assert "arquivo ausente: db/smarkee.dump" in problems
+    assert "arquivo ausente: db/ssot.dump" in problems
     assert "arquivo fora da lista de somas: db/extra.dump" in problems
 
 
@@ -179,18 +179,18 @@ def test_verify_passes_when_every_restored_database_matches(tmp_path: Path) -> N
 
 
 def test_verify_reports_the_database_that_does_not_restore_equal(tmp_path: Path) -> None:
-    ports, _ = make_ports(tmp_path, broken="smarkee")
+    ports, _ = make_ports(tmp_path, broken="ssot")
     path = create_backup(ports, silent)
     problems = verify(ports, path, silent)
     assert len(problems) == 1
-    assert problems[0].startswith("banco smarkee:")
+    assert problems[0].startswith("banco ssot:")
 
 
 def test_verify_stops_at_an_integrity_problem(tmp_path: Path) -> None:
     ports, _ = make_ports(tmp_path)
     path = create_backup(ports, silent)
-    (path / "db" / "smarkee.dump").write_bytes(b"adulterado")
-    assert verify(ports, path, silent) == ["arquivo alterado: db/smarkee.dump"]
+    (path / "db" / "ssot.dump").write_bytes(b"adulterado")
+    assert verify(ports, path, silent) == ["arquivo alterado: db/ssot.dump"]
 
 
 def test_resolve_picks_the_latest_or_the_named_backup(tmp_path: Path) -> None:
@@ -269,7 +269,7 @@ def test_reset_removes_the_environment_only_after_a_verified_backup(tmp_path: Pa
 
 
 def test_reset_keeps_the_environment_when_the_backup_is_not_confirmed(tmp_path: Path) -> None:
-    ports, stack = make_ports(tmp_path, broken="smarkee")
+    ports, stack = make_ports(tmp_path, broken="ssot")
     assert reset(ports, apply_changes=True, say=silent) == 1
     assert stack.calls == []
 
@@ -286,9 +286,9 @@ def test_other_environments_are_refused(monkeypatch: pytest.MonkeyPatch) -> None
 def test_database_names_are_validated_before_reaching_sql(tmp_path: Path) -> None:
     stack = DockerStack(tmp_path)
     with pytest.raises(BackupError):
-        stack.dump_database("x; drop database smarkee", tmp_path / "out")
+        stack.dump_database("x; drop database ssot", tmp_path / "out")
     with pytest.raises(BackupError):
-        stack.restore_database('x"; drop database smarkee; --', tmp_path / "in")
+        stack.restore_database('x"; drop database ssot; --', tmp_path / "in")
 
 
 def test_volume_names_are_validated_before_reaching_docker_mount(tmp_path: Path) -> None:

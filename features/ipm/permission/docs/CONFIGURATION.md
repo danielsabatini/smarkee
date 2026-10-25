@@ -90,7 +90,7 @@ jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
 [tool.ipm.permission.receiver.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_permission_receiver_login"
 
@@ -152,7 +152,7 @@ Entrypoint do Manager de Permission (`ipm-permission-manager`, decisões 0015, 0
 ```toml
 [tool.ipm.permission.manager.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_permission_manager_login"
 
@@ -217,7 +217,7 @@ Entrypoint do Publisher de `ipm.permission` (decisões 0015 e 0033).
 ```toml
 [tool.ipm.permission.publisher.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "ipm_permission_publisher_login"
 

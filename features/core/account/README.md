@@ -363,12 +363,12 @@ A figura genérica, por mensagem: [`docs/diagrams/ssot-gravacao-por-mensagem.svg
 
 ```bash
 # Usuários por fase
-docker exec database.smarkee.internal psql -U postgres -d smarkee -c \
+docker exec database.smarkee.internal psql -U postgres -d ssot -c \
   'SELECT phase, count(*) FROM core.account GROUP BY phase'
 # Atraso do outbox (idade da mensagem pendente mais antiga)
-docker exec database.smarkee.internal psql -U postgres -d smarkee -c \
+docker exec database.smarkee.internal psql -U postgres -d ssot -c \
   'SELECT now() - min(created_at) AS atraso, count(*) AS pendentes FROM core.account_outbox WHERE published_at IS NULL'
 # Operations de um recurso
-docker exec database.smarkee.internal psql -U postgres -d smarkee -c \
+docker exec database.smarkee.internal psql -U postgres -d ssot -c \
   "SELECT operation_id, operation_type, operation_status, operation_status_reason FROM core.account_operation WHERE resource_id = '<id>' ORDER BY created_at"
 ```

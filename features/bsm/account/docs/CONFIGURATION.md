@@ -99,7 +99,7 @@ userinfo_url = "http://gateway.smarkee.internal:8000/oidc/v1/userinfo"
 
 [tool.bsm.account.receiver.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "bsm_account_receiver_login"
 
@@ -168,7 +168,7 @@ Entrypoint do Manager de Billing Account (`bsm-account-manager`, decisões 0015,
 ```toml
 [tool.bsm.account.manager.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "bsm_account_manager_login"
 
@@ -233,7 +233,7 @@ Entrypoint do Publisher de `bsm.account` (decisões 0015 e 0033).
 ```toml
 [tool.bsm.account.publisher.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "bsm_account_publisher_login"
 

@@ -97,7 +97,7 @@ jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
 [tool.sum.service.receiver.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "sum_service_receiver_login"
 
@@ -169,7 +169,7 @@ Entrypoint do Manager de `sum.service` (`sum-service-manager`, decisões 0015 e 
 ```toml
 [tool.sum.service.manager.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "sum_service_manager_login"
 
@@ -234,7 +234,7 @@ Entrypoint do Publisher de `sum.service` (decisões 0015 e 0033).
 ```toml
 [tool.sum.service.publisher.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "sum_service_publisher_login"
 

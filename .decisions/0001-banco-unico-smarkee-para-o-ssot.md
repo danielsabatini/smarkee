@@ -1,7 +1,7 @@
 # 0001 — Banco único `smarkee` para o SSOT
 
 - **Data:** 2026-10-06
-- **Status:** Aceita
+- **Status:** Substituída pela decisão 0087 quanto ao nome do banco e do proprietário (`smarkee` passou a `ssot`). Continua valendo: banco único, isolamento por schema e `GRANT`, `PUBLIC` sem `CONNECT`, proprietário não superusuário e cluster próprio fora do desenvolvimento.
 
 ## Contexto
 

@@ -62,7 +62,7 @@ services:
       - internal
     restart: "no"
 
-  # Migrações do esquema `sum` (decisão 0033). Executadas como o dono `smarkee`; os papéis de função são
+  # Migrações do esquema `sum` (decisão 0033). Executadas como o dono `ssot`; os papéis de função são
   # criados por infrastructure/dev/database/bootstrap/sum.sql, que roda na criação do banco.
   sum-service-migrate:
     build:
@@ -71,10 +71,10 @@ services:
     container_name: sum-service-migrate.smarkee.internal
     environment:
       PGHOST: database.smarkee.internal
-      PGDATABASE: smarkee
-      PGUSER: smarkee
-      # Senha trivial de dev do dono do SSOT (database/bootstrap/smarkee.sql).
-      PGPASSWORD: smarkee
+      PGDATABASE: ssot
+      PGUSER: ssot
+      # Senha trivial de dev do dono do SSOT (database/bootstrap/ssot.sql).
+      PGPASSWORD: ssot
       PGOPTIONS: -c client_min_messages=warning
     command:
       - sh

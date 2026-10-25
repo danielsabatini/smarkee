@@ -1,6 +1,6 @@
 -- Migração 0001 de ipm.organization: Organization no SSOT (docs/POSTGRESQL.md §6 e §14.2).
 -- Projeto: ipm-organization-manager (decisão 0015), dono do esquema do tipo.
--- Executada pela infraestrutura como o dono `smarkee`, no banco `smarkee`; serviços de runtime não
+-- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
 -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/ipm.sql.
 -- Idempotente: pode ser reaplicada sem erro.
 
@@ -96,7 +96,7 @@ CREATE OR REPLACE VIEW ipm.organization_operation_v1 AS
     FROM ipm.organization_operation;
 
 -- Privilégios (docs/POSTGRESQL.md §14.2).
-GRANT CONNECT ON DATABASE smarkee
+GRANT CONNECT ON DATABASE ssot
   TO ipm_organization_manager, ipm_organization_receiver, ipm_organization_publisher, ipm_maintenance;
 
 REVOKE ALL ON SCHEMA ipm FROM PUBLIC;

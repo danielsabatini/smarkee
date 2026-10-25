@@ -1,7 +1,7 @@
 -- Migração 0001 de ipm.user: usuário da Organization no SSOT (docs/POSTGRESQL.md §6 e §14.2,
 -- decisão 0077).
 -- Projeto: ipm-user-manager (decisão 0015), dono do esquema do tipo.
--- Executada pela infraestrutura como o dono `smarkee`, no banco `smarkee`; serviços de runtime não
+-- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
 -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/ipm.sql.
 -- Nasce com o estado atual das migrações do modelo (ipm/organization 0001 a 0004): o motivo de
 -- rejeição `protected` (decisão 0043), o `traceparent` do outbox (decisão 0055) e a
@@ -106,7 +106,7 @@ CREATE OR REPLACE VIEW ipm.user_operation_v1 AS
     FROM ipm.user_operation;
 
 -- Privilégios (docs/POSTGRESQL.md §14.2).
-GRANT CONNECT ON DATABASE smarkee
+GRANT CONNECT ON DATABASE ssot
   TO ipm_user_manager, ipm_user_receiver, ipm_user_publisher, ipm_maintenance;
 
 REVOKE ALL ON SCHEMA ipm FROM PUBLIC;

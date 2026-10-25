@@ -85,7 +85,7 @@ Com a stack de pé (`docker compose ps`) e o `/etc/hosts` configurado:
 | API da plataforma | http://api-dev.smarkee.com.br:8080/v1/ | Token do `sk auth login` (`Authorization: Bearer`), validado já no gateway (decisão 0052); o cadastro (`POST /v1/core/accounts`) é anônimo, com limite de taxa |
 | Console web do gateway (APISIX) | http://localhost:9180/ui | `SMARKEE_GATEWAY_ADMIN_KEY` de `gateway/.env` (digitada no login do console) |
 | Admin API do gateway | http://localhost:9180/apisix/admin | Cabeçalho `X-API-KEY` com a mesma chave |
-| PostgreSQL | `psql "postgresql://smarkee:smarkee@localhost:5432/smarkee"` | Ver "Credenciais" |
+| PostgreSQL | `psql "postgresql://ssot:ssot@localhost:5432/ssot"` | Ver "Credenciais" |
 | NATS | `nats://smarkee:<SMARKEE_MESSAGING_PASSWORD>@localhost:4222` · monitoramento em http://localhost:8222 | `SMARKEE_MESSAGING_PASSWORD` de `messaging/.env` |
 
 - Use o nome `ipm-dev.smarkee.com.br` **com a porta `:8080`** no navegador. O endereço `localhost:8080` não é roteado (o gateway roteia por host) e responde 404.
@@ -133,21 +133,21 @@ Valores sensíveis ficam nos arquivos `.env` (fora do git). As senhas dos bancos
 |---|---|---|---|
 | Zitadel (administrador) | `admin@smarkee.internal` ou `admin@smarkee.ipm-dev.smarkee.com.br` | `SMARKEE_IDENTITY_ADMIN_PASSWORD` | `identity/.env` (troca obrigatória no primeiro acesso) |
 | PostgreSQL (administrador) | `postgres` | `SMARKEE_DATABASE_PASSWORD` | `database/.env` |
-| PostgreSQL, banco `smarkee` (SSOT, proprietário) | `smarkee` | `smarkee` | `database/bootstrap/smarkee.sql` |
+| PostgreSQL, banco `ssot` (SSOT, proprietário) | `ssot` | `ssot` | `database/bootstrap/ssot.sql` |
 | PostgreSQL, banco `identity` | `identity` | `identity` | `database/bootstrap/identity.sql` (o Zitadel usa só este usuário, sem credencial de administrador) |
-| PostgreSQL, banco `smarkee` (módulo `core`, Account) | `core_account_manager_login`, `core_account_receiver_login`, `core_account_publisher_login`, `core_maintenance_login` | igual ao usuário | `database/bootstrap/core.sql` |
-| PostgreSQL, banco `smarkee` (módulo `ipm`, Organization) | `ipm_organization_manager_login`, `ipm_organization_receiver_login`, `ipm_organization_publisher_login`, `ipm_maintenance_login` | igual ao usuário | `database/bootstrap/ipm.sql` |
-| PostgreSQL, banco `smarkee` (módulo `ipm`, User) | `ipm_user_manager_login`, `ipm_user_receiver_login`, `ipm_user_publisher_login` | igual ao usuário | `database/bootstrap/ipm.sql` |
+| PostgreSQL, banco `ssot` (módulo `core`, Account) | `core_account_manager_login`, `core_account_receiver_login`, `core_account_publisher_login`, `core_maintenance_login` | igual ao usuário | `database/bootstrap/core.sql` |
+| PostgreSQL, banco `ssot` (módulo `ipm`, Organization) | `ipm_organization_manager_login`, `ipm_organization_receiver_login`, `ipm_organization_publisher_login`, `ipm_maintenance_login` | igual ao usuário | `database/bootstrap/ipm.sql` |
+| PostgreSQL, banco `ssot` (módulo `ipm`, User) | `ipm_user_manager_login`, `ipm_user_receiver_login`, `ipm_user_publisher_login` | igual ao usuário | `database/bootstrap/ipm.sql` |
 | NATS | `SMARKEE_MESSAGING_USER` (`smarkee`) | `SMARKEE_MESSAGING_PASSWORD` | `messaging/.env` (um único usuário em dev, compartilhado pelos serviços) |
 | Gateway (APISIX), Admin API e console web | — | `SMARKEE_GATEWAY_ADMIN_KEY` | `gateway/.env` (chave obrigatória, sem padrão) |
 
-O usuário `smarkee` é o proprietário do SSOT, destinado a migrações (`docs/POSTGRESQL.md`). Cada serviço usa um papel de login próprio, membro de um papel de função sem login (`docs/POSTGRESQL.md` §14.2 e §14.3). Criar papéis exige `CREATEROLE`, que o `smarkee` não tem: os papéis são criados como administrador em `database/bootstrap/<módulo>.sql`, e os privilégios são concedidos pela migração do módulo.
+O usuário `ssot` é o proprietário do SSOT, destinado a migrações (`docs/POSTGRESQL.md`). Cada serviço usa um papel de login próprio, membro de um papel de função sem login (`docs/POSTGRESQL.md` §14.2 e §14.3). Criar papéis exige `CREATEROLE`, que o `smarkee` não tem: os papéis são criados como administrador em `database/bootstrap/<módulo>.sql`, e os privilégios são concedidos pela migração do módulo.
 
 ## Strings de conexão
 
 | Destino | Do host | Da rede `internal` |
 |---|---|---|
-| SSOT (proprietário) | `postgresql://smarkee:smarkee@localhost:5432/smarkee` | `postgresql://smarkee:smarkee@database.smarkee.internal:5432/smarkee` |
+| SSOT (proprietário) | `postgresql://ssot:ssot@localhost:5432/ssot` | `postgresql://ssot:ssot@database.smarkee.internal:5432/ssot` |
 | NATS | `nats://smarkee:<SMARKEE_MESSAGING_PASSWORD>@localhost:4222` | `nats://smarkee:<SMARKEE_MESSAGING_PASSWORD>@messaging.smarkee.internal:4222` |
 
 Não há TLS em dev (`sslmode=disable` quando o cliente exigir o parâmetro).
@@ -270,13 +270,13 @@ Faça a rotação antes do aviso da suíte (90 dias antes do vencimento). A vali
 
 O estado inicial é configurado, em primeiro lugar, **por variáveis de ambiente ou pela forma mais simples que a ferramenta oferecer**. Arquivo de bootstrap é o último recurso, usado só quando não há alternativa; nesse caso, o serviço guarda o seu **estado inicial declarado** em `bootstrap/`: arquivos direto na raiz da pasta, cada um com o nome do que configura, em formato nativo da ferramenta e sem scripts. Por isso o Zitadel não tem pasta (primeira instância por `ZITADEL_FIRSTINSTANCE_*` e `ZITADEL_DEFAULTINSTANCE_*` em `identity/compose.yaml`), e database, messaging e gateway têm:
 
-- database: as variáveis da imagem criam um único banco e usuário; são necessários três bancos com donos próprios, a localidade do `smarkee` e as revogações de `PUBLIC`;
+- database: as variáveis da imagem criam um único banco e usuário; são necessários três bancos com donos próprios, a localidade do `ssot` e as revogações de `PUBLIC`;
 - messaging: o `nats-server` não declara Streams por configuração nem por variável, e serviços de runtime não podem criá-los (`docs/NATS.md`);
 - gateway: o console web do APISIX exige a Admin API e o etcd (modo tradicional), que não aceitam um arquivo de rotas; o estado é aplicado pelo ADC a partir de `adc.yaml`. A configuração do servidor (`nats.conf`, `postgresql.conf`, `pg_hba.conf`, `pg_ident.conf`, `config.yaml` do gateway) fica fora de `bootstrap/`. Decisão em `.decisions/0005-bootstrap-declarativo-da-infraestrutura.md`.
 
 | Serviço | Fonte | Quem aplica | Quando | Efeito de alterar um arquivo depois |
 |---|---|---|---|---|
-| database | `bootstrap/smarkee.sql`, `identity.sql`, `core.sql` e `ipm.sql` (papéis de serviço dos módulos `core` e `ipm`: um por componente de cada tipo, inclusive o Publisher da Account e o da Organization) | A própria imagem (`/docker-entrypoint-initdb.d`) | Só na primeira inicialização do volume | Nenhum, até recriar o volume ou aplicar manualmente (pontos de atenção) |
+| database | `bootstrap/ssot.sql`, `identity.sql`, `core.sql` e `ipm.sql` (papéis de serviço dos módulos `core` e `ipm`: um por componente de cada tipo, inclusive o Publisher da Account e o da Organization) | A própria imagem (`/docker-entrypoint-initdb.d`) | Só na primeira inicialização do volume | Nenhum, até recriar o volume ou aplicar manualmente (pontos de atenção) |
 | identity | Sem pasta: variáveis `ZITADEL_FIRSTINSTANCE_*` e `ZITADEL_DEFAULTINSTANCE_*` (nome da instância, marca d'água e textos de e-mail) em `identity/compose.yaml` | `identity-init` (`zitadel init zitadel`: schemas internos) → `identity` (`start-from-setup`) | Só na primeira inicialização da instância | Nenhum, até recriar a instância (`docker compose down -v`) |
 | gateway | `bootstrap/adc.yaml` (formato do ADC: serviços, rotas e plugins) | `gateway-etcd` → `gateway` → `gateway-sync` (`adc sync`) | A cada `up`, depois que o `gateway` fica saudável | Reaplica na hora, sem reiniciar; remove do gateway o que saiu do arquivo (pontos de atenção) |
 | messaging | `bootstrap/<stream>.json` (Stream do JetStream). Os consumers duráveis de cada tipo são das features (`consumers/` e `<módulo>-<tipo>-consumer` no `compose.yaml` delas) | Um serviço `messaging-bootstrap-<nome>` por arquivo | A cada `up`, depois que o messaging fica saudável | Falha de forma explícita até a alteração deliberada (abaixo) |
@@ -309,13 +309,13 @@ SSOT: num volume do banco já existente, os papéis de `database/bootstrap/core.
 
 ## Exemplos
 
-PostgreSQL (o banco `smarkee` é o SSOT, conforme `docs/POSTGRESQL.md`; as tabelas dos tipos `core.account` e `ipm.organization` são criadas pelas migrações das features):
+PostgreSQL (o banco `ssot` é o SSOT, conforme `docs/POSTGRESQL.md`; as tabelas dos tipos `core.account` e `ipm.organization` são criadas pelas migrações das features):
 
 ```bash
 # Com psql instalado no host
-psql "postgresql://smarkee:smarkee@localhost:5432/smarkee"
+psql "postgresql://ssot:ssot@localhost:5432/ssot"
 # Sem psql no host: dentro do container (socket local, sem senha)
-docker exec -it database.smarkee.internal psql -U smarkee -d smarkee
+docker exec -it database.smarkee.internal psql -U ssot -d ssot
 docker exec -it database.smarkee.internal psql -U postgres            # administrador
 ```
 

@@ -8,7 +8,7 @@ jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
 [tool.sum.service.receiver.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "sum_service_receiver_login"
 
@@ -22,7 +22,7 @@ billing_accounts_url = "http://bsm-account-receiver.smarkee.internal:8000"
 
 [tool.sum.service.manager.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "sum_service_manager_login"
 
@@ -32,7 +32,7 @@ user = "smarkee"
 
 [tool.sum.service.publisher.database]
 host = "database.smarkee.internal"
-name = "smarkee"
+name = "ssot"
 port = 5432
 user = "sum_service_publisher_login"
 

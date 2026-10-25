@@ -1,6 +1,6 @@
 -- Migração 0001 de ipm.role: Role composta no SSOT da Smarkee (docs/POSTGRESQL.md §6 e §14.2; decisão 0083).
 -- Projeto: ipm-role-manager (decisões 0015 e 0083), dono do esquema do tipo.
--- Executada pela infraestrutura como o dono `smarkee`, no banco `smarkee`; serviços de runtime não
+-- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
 -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/ipm.sql.
 -- Roles compostas (<módulo>.<tipo><Admin|Viewer>) vivem exclusivamente no SSOT da Smarkee e não
 -- criam objetos no Zitadel.
@@ -311,7 +311,7 @@ FROM inserted i
 ON CONFLICT (message_id) DO NOTHING;
 
 -- Privilégios (docs/POSTGRESQL.md §14.2).
-GRANT CONNECT ON DATABASE smarkee
+GRANT CONNECT ON DATABASE ssot
   TO ipm_role_manager, ipm_role_receiver, ipm_role_publisher, ipm_maintenance;
 
 REVOKE ALL ON SCHEMA ipm FROM PUBLIC;

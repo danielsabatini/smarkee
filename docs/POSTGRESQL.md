@@ -36,8 +36,8 @@ Este documento não fixa uma versão. O DDL de referência foi exercitado em Pos
 
 | Elemento | Regra |
 |---|---|
-| Banco | Um único banco para o SSOT de todos os módulos: `smarkee` |
-| Proprietário | `smarkee`: dono do banco e dos objetos, usado somente por migração e recuperação; não é superusuário |
+| Banco | Um único banco para o SSOT de todos os módulos: `ssot` |
+| Proprietário | `ssot`: dono do banco e dos objetos, usado somente por migração e recuperação; não é superusuário |
 | Codificação e localidade | `UTF8`, com provedor de localidade `builtin` e `C.UTF-8` (PostgreSQL 17 ou superior): ordenação por ponto de código, igual em qualquer sistema operacional e biblioteca C, sem risco de índices invalidados por atualização da biblioteca |
 | Schema | Um schema por módulo (`<módulo>`) |
 | Tabelas | Quatro por tipo de recurso, todas com o mesmo formato: `<tipo>`, `<tipo>_operation`, `<tipo>_action_result`, `<tipo>_outbox` |
@@ -453,10 +453,10 @@ A remoção segue `SSOT.md`:
 
 ## 14.1 Banco
 
-O banco `smarkee` é criado pela infraestrutura, com o proprietário `smarkee`. O PostgreSQL concede por padrão `CONNECT` e `TEMPORARY` em todo banco a `PUBLIC`, e `USAGE` no schema `public`; esses privilégios são removidos:
+O banco `ssot` é criado pela infraestrutura, com o proprietário `ssot`. O PostgreSQL concede por padrão `CONNECT` e `TEMPORARY` em todo banco a `PUBLIC`, e `USAGE` no schema `public`; esses privilégios são removidos:
 
 ```sql
-REVOKE ALL ON DATABASE smarkee FROM PUBLIC;
+REVOKE ALL ON DATABASE ssot FROM PUBLIC;
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 ```
 
@@ -472,10 +472,10 @@ Um papel por serviço, sem login nos papéis de função: o login é concedido p
 | `<módulo>_<tipo>_receiver` | `SELECT` em `<tipo>_v<MAJOR>` e `<tipo>_operation_v<MAJOR>`; nenhum privilégio nas tabelas |
 | `<módulo>_<tipo>_publisher` (Publisher) | `SELECT` em `<tipo>_outbox` e `UPDATE (published_at)` |
 | `<módulo>_maintenance` | `SELECT` e `DELETE` em `<tipo>_outbox`, `<tipo>_action_result` e `<tipo>_operation` |
-| `smarkee` (administração) | Dono do banco e dos objetos; migração e procedimento de recuperação (`SSOT.md`); não é usado por serviços de runtime |
+| `ssot` (administração) | Dono do banco e dos objetos; migração e procedimento de recuperação (`SSOT.md`); não é usado por serviços de runtime |
 
 ```sql
-GRANT CONNECT ON DATABASE smarkee TO sample_item_manager, sample_item_receiver, sample_item_publisher, sample_maintenance;
+GRANT CONNECT ON DATABASE ssot TO sample_item_manager, sample_item_receiver, sample_item_publisher, sample_maintenance;
 
 REVOKE ALL ON SCHEMA sample FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA sample FROM PUBLIC;
@@ -554,7 +554,7 @@ O isolamento entre tipos de recurso é obtido por privilégios por tabela e por 
 
 ## 16.1 Procedimento de recuperação
 
-Após uma restauração a um ponto anterior, o procedimento de `SSOT.md` (recuperação após restauração) é executado com `smarkee`, com o Manager e o Publisher parados (papéis sem login ou serviços desligados):
+Após uma restauração a um ponto anterior, o procedimento de `SSOT.md` (recuperação após restauração) é executado com `ssot`, com o Manager e o Publisher parados (papéis sem login ou serviços desligados):
 
 1. descartar as mensagens pendentes: `DELETE FROM <módulo>.<tipo>_outbox WHERE published_at IS NULL`;
 2. para cada recurso, ler a geração e o conteúdo do último `desired` retido no transporte (leitura direta do último valor do subject, `NATS.md`) e compará-los com `desired_generation` e `desired`;
@@ -618,7 +618,7 @@ quantidade de recursos por phase, em Failed e com reconciliação suspensa
 # 20. Checklist
 
 - [ ] A versão do PostgreSQL está fixada no ambiente?
-- [ ] O banco `smarkee` pertence a `smarkee`, sem privilégios para `PUBLIC`?
+- [ ] O banco `ssot` pertence a `ssot`, sem privilégios para `PUBLIC`?
 - [ ] As quatro tabelas e as duas views do tipo são geradas do modelo?
 - [ ] `lifecycle`, `reconciliation`, `presence`, `phase` e `operation_status` possuem `CHECK`?
 - [ ] `resource_id`, identificadores, tamanho e tipo dos `jsonb` possuem `CHECK`?
@@ -640,7 +640,7 @@ quantidade de recursos por phase, em Failed e com reconciliação suspensa
 
 # 21. Verificação do DDL de referência
 
-O DDL, os `GRANT` e os comportamentos descritos neste documento foram exercitados no banco `smarkee` do ambiente de desenvolvimento (`infrastructure/dev/database`, **PostgreSQL 18.6**), com papéis e dados de teste removidos ao final:
+O DDL, os `GRANT` e os comportamentos descritos neste documento foram exercitados no banco `ssot` do ambiente de desenvolvimento (`infrastructure/dev/database`, **PostgreSQL 18.6**), com papéis e dados de teste removidos ao final:
 
 - criação do banco e do proprietário pela inicialização do ambiente, reaplicação idempotente, `PUBLIC` sem `CONNECT` no banco e sem privilégio no schema `public`, e autenticação por senha (SCRAM) pela rede interna;
 - parâmetros de sessão: aplicados ao papel de login, não herdados do papel de função; `search_path` vazio exige nome qualificado; `lock_timeout` encerra a espera por bloqueio (`55P03`);
