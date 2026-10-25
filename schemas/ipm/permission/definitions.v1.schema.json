@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PermissionDefinitions",
+  "description": "Campos de domínio da Permission (ipm.permission) reutilizados pelos contratos do recurso (decisão 0083). Uma Permission é uma permissão atômica no padrão <módulo>.<tipo>.<ação> reconciliada com o projeto roles-<módulo> no Zitadel.",
+  "x-schemaVersion": "1.0",
+  "$defs": {
+    "permissionName": {
+      "description": "Chave da permissão atômica no padrão <módulo>.<tipo>.<ação> (decisões 0028 e 0083), por exemplo ipm.user.create ou bsm.account.get. Imutável após a criação.",
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$"
+    },
+    "description": {
+      "description": "Descrição legível em pt-BR da ação autorizada pela permissão (gravada como displayName da role no projeto roles-<módulo> do Zitadel).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "moduleGroup": {
+      "description": "Módulo ao qual a permissão pertence (gravado como group da role no projeto roles-<módulo> do Zitadel).",
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*$"
+    },
+    "grantable": {
+      "description": "Indica se a permissão pode ser delegada às organizações clientes via Project Grant e atribuída a usuários organizacionais (true) ou se é restrita à operação da plataforma na organização core (false).",
+      "type": "boolean"
+    }
+  }
+}

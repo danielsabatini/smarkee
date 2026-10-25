@@ -231,6 +231,122 @@ services:
                 WWW-Authenticate: Bearer realm="smarkee"
             body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
 
+  # Receiver de ipm.permission (decisão 0083): a API `/v1/ipm/permissions`.
+  - name: ipm-permission-receiver
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: ipm-permission-receiver.smarkee.internal
+          port: 8000
+          weight: 100
+    routes:
+      - name: ipm-permission-receiver
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/ipm/permissions
+          - /v1/ipm/permissions/*
+        plugins:
+          openid-connect:
+            client_id: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_PERMISSION}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_PERMISSION}
+                    - type: array
+                      contains:
+                        const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_PERMISSION}
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
+
+  # Receiver de ipm.role (decisão 0083): a API `/v1/ipm/roles`.
+  - name: ipm-role-receiver
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: ipm-role-receiver.smarkee.internal
+          port: 8000
+          weight: 100
+    routes:
+      - name: ipm-role-receiver
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/ipm/roles
+          - /v1/ipm/roles/*
+        plugins:
+          openid-connect:
+            client_id: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ROLE}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ROLE}
+                    - type: array
+                      contains:
+                        const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ROLE}
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
+
   # Receiver de sum.service (decisão 0033): a API `/v1/sum/services`.
   - name: sum-service-receiver
     upstream:

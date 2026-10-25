@@ -11,7 +11,7 @@ pelo Receiver da Organization, com o token de quem pede (decisão 0040).
 
 import logging
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from http import HTTPStatus
@@ -21,6 +21,7 @@ from fastapi import Depends, FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from ipm_user.common.catalog import AccessCatalog
 from ipm_user.common.contracts import generated
 from ipm_user.common.ids import new_identifier, utc_now
 from ipm_user.common.logging_config import bind_context
@@ -31,6 +32,7 @@ from ipm_user.receiver.domain.access import (
     OrganizationAccess,
     binding_allowed,
     outside_catalog,
+    outside_roles_catalog,
 )
 from ipm_user.receiver.domain.errors import (
     ApiError,
@@ -76,6 +78,7 @@ class Dependencies:
     repository: Repository
     organizations: Organizations
     publisher: Publisher
+    catalog: AccessCatalog = field(default_factory=AccessCatalog)
     clock: Callable[[], datetime] = utc_now
     identifiers: Callable[[], str] = new_identifier
     is_ready: Callable[[], bool] = lambda: True
@@ -157,6 +160,11 @@ def _permissions_of(values: Iterable[generated.Permission | str] | None) -> list
     return sorted({value if isinstance(value, str) else value.root for value in values or []})
 
 
+def _roles_of(values: Iterable[generated.RoleName | str] | None) -> list[str]:
+    """Roles sem repetição e em ordem alfabética, como no contrato (decisão 0083)."""
+    return sorted({value if isinstance(value, str) else value.root for value in values or []})
+
+
 # ---------------------------------------------------------------------- rotas
 
 
@@ -201,7 +209,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     def check_permissions(
         principal: Principal, standing: Standing, current: list[str], requested: list[str]
     ) -> None:
-        rejected = outside_catalog(requested)
+        rejected = outside_catalog(requested, catalog=deps.catalog)
         if rejected:
             raise bad_request(
                 f"Permissões não liberadas para a Organization: {', '.join(rejected)}.",
@@ -212,8 +220,26 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         )
         if not binding_allowed(current, requested, principal.permissions, can_bind=can_bind):
             raise forbidden(
-                f"Sem {permissions.USER_BIND}, só é possível atribuir ou retirar permissões que o"
-                " solicitante tem."
+                f"É necessária a permissão {permissions.USER_BIND} para atribuir ou alterar"
+                " permissões de um usuário."
+            )
+
+    def check_roles(
+        principal: Principal, standing: Standing, current: list[str], requested: list[str]
+    ) -> None:
+        rejected = outside_roles_catalog(requested, catalog=deps.catalog)
+        if rejected:
+            raise bad_request(
+                f"Roles não liberadas para a Organization: {', '.join(rejected)}.",
+                field="roles",
+            )
+        can_bind = standing is not Standing.MEMBER or principal.has_permission(
+            permissions.USER_BIND
+        )
+        if not binding_allowed(current, requested, principal.permissions, can_bind=can_bind):
+            raise forbidden(
+                f"É necessária a permissão {permissions.USER_BIND} para atribuir ou alterar"
+                " roles de um usuário."
             )
 
     def check_version(record: ResourceRecord, version: str) -> None:
@@ -244,6 +270,9 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             raise not_found()
         requested_permissions = _permissions_of(body.permissions)
         check_permissions(principal, standing, [], requested_permissions)
+        requested_roles = _roles_of(body.roles) if body.roles is not None else None
+        if requested_roles is not None:
+            check_roles(principal, standing, [], requested_roles)
         quota: int | None = None
         if standing is not Standing.OPERATOR:
             quota = deps.settings.user_quota
@@ -253,13 +282,14 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
                     "QuotaExceeded",
                     "Limite de usuários da Organization atingido.",
                 )
-        specification = {
+        specification: dict[str, Any] = {
             "organizationId": organization_id,
             "givenName": body.given_name,
             "familyName": body.family_name,
             # O e-mail é também o nome de login na organização: normalizado (decisão 0077).
             "email": str(body.email).strip().lower(),
             "permissions": requested_permissions,
+            **({"roles": requested_roles} if requested_roles is not None else {}),
             "deletionProtection": body.deletion_protection is True,
         }
         new_user_id = deps.identifiers()
@@ -341,9 +371,16 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         specification: dict[str, Any] = {}
         if body.permissions is not None:
             requested_permissions = _permissions_of(body.permissions)
-            current_permissions = _permissions_of(record.desired.get("permissions"))
+            current_permissions = _permissions_of(
+                record.desired.get("directPermissions", record.desired.get("permissions"))
+            )
             check_permissions(principal, standing, current_permissions, requested_permissions)
             specification["permissions"] = requested_permissions
+        if body.roles is not None:
+            requested_roles = _roles_of(body.roles)
+            current_roles = _roles_of(record.desired.get("roles"))
+            check_roles(principal, standing, current_roles, requested_roles)
+            specification["roles"] = requested_roles
         if body.deletion_protection is not None:
             specification["deletionProtection"] = body.deletion_protection
         reconciliation = body.reconciliation.value if body.reconciliation is not None else None

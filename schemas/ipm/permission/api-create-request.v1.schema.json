@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PermissionCreateRequest",
+  "description": "Corpo de POST /v1/ipm/permissions. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, e o Manager atribui deletionProtection = true.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "description",
+    "grantable"
+  ],
+  "properties": {
+    "name": {
+      "$ref": "definitions.v1.schema.json#/$defs/permissionName",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "description": {
+      "$ref": "definitions.v1.schema.json#/$defs/description",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "grantable": {
+      "$ref": "definitions.v1.schema.json#/$defs/grantable",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    }
+  }
+}

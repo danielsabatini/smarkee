@@ -1,0 +1,60 @@
+# Configuração de dev de ipm.permission (decisão 0067). Sem segredos: eles vêm do ambiente ou de /run/secrets.
+# Tabela por papel: [tool.ipm.permission.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
+
+[tool.ipm.permission.receiver.auth]
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
+
+[tool.ipm.permission.receiver.database]
+host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
+user = "ipm_permission_receiver_login"
+
+[tool.ipm.permission.receiver.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.ipm.permission.manager.database]
+host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
+user = "ipm_permission_manager_login"
+
+[tool.ipm.permission.manager.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.ipm.permission.publisher.database]
+host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
+user = "ipm_permission_publisher_login"
+
+[tool.ipm.permission.publisher.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.ipm.permission.observer.identity]
+base_url = "http://identity.smarkee.internal:8080"
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+
+[tool.ipm.permission.observer.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.ipm.permission.reconciler.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.ipm.permission.executor.identity]
+base_url = "http://identity.smarkee.internal:8080"
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+
+[tool.ipm.permission.executor.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+

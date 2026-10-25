@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PermissionRequestedCreateData",
+  "description": "data de requested com operation create da Permission (ipm.permission). Publicado somente pelo Receiver.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operationId",
+    "requestDigest",
+    "specification"
+  ],
+  "properties": {
+    "operationId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/opaqueIdentifier",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "requestDigest": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/requestDigest",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "specification": {
+      "title": "PermissionCreateSpecification",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description",
+        "grantable"
+      ],
+      "x-writer": "client",
+      "x-sensitivity": "internal",
+      "properties": {
+        "name": {
+          "$ref": "definitions.v1.schema.json#/$defs/permissionName",
+          "x-writer": "client",
+          "x-sensitivity": "public"
+        },
+        "description": {
+          "$ref": "definitions.v1.schema.json#/$defs/description",
+          "x-writer": "client",
+          "x-sensitivity": "public"
+        },
+        "grantable": {
+          "$ref": "definitions.v1.schema.json#/$defs/grantable",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        }
+      }
+    }
+  }
+}

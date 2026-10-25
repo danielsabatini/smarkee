@@ -411,20 +411,36 @@ class AdministratorPermission(RootModel[str]):
     """
 
 
-class GrantablePermission(StrEnum):
+class OrganizationUserAccess(ContractModel):
     """
-    Catálogo das permissões que uma Organization pode delegar aos usuários dela (decisão 0081): o Project Grant de cada Organization tem exatamente estas, e o Receiver do User recusa as demais antes do loop. Fonte única, versionada com o código e igual em todos os ambientes; não há operador nem criação e remoção de Organization aqui. Mudar o catálogo é mudar este enum, regerar os modelos do ipm/user e do ipm/organization e implantar: o Manager da Organization faz o rollout do Grant na partida.
+    Preparo da organização para os usuários dela (ipm.user, decisão 0081): o Project Grant do projeto de permissões do ipm com as permissões de grantPermissions, e as permissões de administração das contas do ipm/user nela. O Executor do ipm/user recebe ORG_USER_CREATOR na organização e PROJECT_GRANT_OWNER no Grant; o Observer do ipm/user, ORG_OWNER_VIEWER na organização. Vem da configuração do Manager, que é a fonte única.
     """
 
-    ipm_organization_get = "ipm.organization.get"
-    ipm_organization_list = "ipm.organization.list"
-    ipm_organization_update = "ipm.organization.update"
-    ipm_user_bind = "ipm.user.bind"
-    ipm_user_create = "ipm.user.create"
-    ipm_user_delete = "ipm.user.delete"
-    ipm_user_get = "ipm.user.get"
-    ipm_user_list = "ipm.user.list"
-    ipm_user_update = "ipm.user.update"
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    grant_permissions: Annotated[list[Permission], Field(alias="grantPermissions", max_length=64)]
+    """
+    Permissões do Project Grant: o teto do que os usuários da organização podem receber. É o catálogo de permissões grantable do módulo ipm (ipm.permission, decisões 0081 e 0083), sem repetição e em ordem alfabética.
+    """
+    user_executor_account_id: Annotated[
+        str,
+        Field(
+            alias="userExecutorAccountId", max_length=128, min_length=1, pattern="^[A-Za-z0-9-]+$"
+        ),
+    ]
+    """
+    Conta de serviço do Executor do ipm/user.
+    """
+    user_observer_account_id: Annotated[
+        str,
+        Field(
+            alias="userObserverAccountId", max_length=128, min_length=1, pattern="^[A-Za-z0-9-]+$"
+        ),
+    ]
+    """
+    Conta de serviço do Observer do ipm/user.
+    """
 
 
 class OrganizationAdministrator(ContractModel):
@@ -853,6 +869,22 @@ class OrganizationList(ContractModel):
     """
 
 
+class GrantablePermission(StrEnum):
+    """
+    Catálogo das permissões que uma Organization pode delegar aos usuários dela (decisão 0081): o Project Grant de cada Organization tem exatamente estas, e o Receiver do User recusa as demais antes do loop. Fonte única, versionada com o código e igual em todos os ambientes; não há operador nem criação e remoção de Organization aqui. Mudar o catálogo é mudar este enum, regerar os modelos do ipm/user e do ipm/organization e implantar: o Manager da Organization faz o rollout do Grant na partida.
+    """
+
+    ipm_organization_get = "ipm.organization.get"
+    ipm_organization_list = "ipm.organization.list"
+    ipm_organization_update = "ipm.organization.update"
+    ipm_user_bind = "ipm.user.bind"
+    ipm_user_create = "ipm.user.create"
+    ipm_user_delete = "ipm.user.delete"
+    ipm_user_get = "ipm.user.get"
+    ipm_user_list = "ipm.user.list"
+    ipm_user_update = "ipm.user.update"
+
+
 class MessageEnvelope(ContractModel):
     """
     Metadados de transporte e rastreamento de toda mensagem (MESSAGING.md, Campos do envelope). O conteúdo de data é validado pelo contrato do messageType e do tipo de recurso. O tamanho de data é limitado a 256 KiB.
@@ -989,40 +1021,6 @@ class MessageEnvelope(ContractModel):
     """
 
 
-class OrganizationUserAccess(ContractModel):
-    """
-    Preparo da organização para os usuários dela (ipm.user, decisão 0081): o Project Grant do projeto de permissões do ipm com as permissões de grantPermissions, e as permissões de administração das contas do ipm/user nela. O Executor do ipm/user recebe ORG_USER_CREATOR na organização e PROJECT_GRANT_OWNER no Grant; o Observer do ipm/user, ORG_OWNER_VIEWER na organização. Vem da configuração do Manager, que é a fonte única.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    grant_permissions: Annotated[
-        list[GrantablePermission], Field(alias="grantPermissions", max_length=64)
-    ]
-    """
-    Permissões do Project Grant: o teto do que os usuários da organização podem receber. É o catálogo grantablePermission do ipm/user inteiro, sem repetição e em ordem alfabética.
-    """
-    user_executor_account_id: Annotated[
-        str,
-        Field(
-            alias="userExecutorAccountId", max_length=128, min_length=1, pattern="^[A-Za-z0-9-]+$"
-        ),
-    ]
-    """
-    Conta de serviço do Executor do ipm/user.
-    """
-    user_observer_account_id: Annotated[
-        str,
-        Field(
-            alias="userObserverAccountId", max_length=128, min_length=1, pattern="^[A-Za-z0-9-]+$"
-        ),
-    ]
-    """
-    Conta de serviço do Observer do ipm/user.
-    """
-
-
 class OrganizationDesiredData(ContractModel):
     """
     data de desired da Organization: estado pretendido e controle de reconciliação. Publicado somente pelo Manager. Não carrega dados pessoais.
@@ -1094,6 +1092,7 @@ class IpmOrganizationContracts(
         | OrganizationUpdateRequest
         | Organization
         | OrganizationList
+        | GrantablePermission
     ]
 ):
     root: Annotated[
@@ -1114,7 +1113,8 @@ class IpmOrganizationContracts(
         | OrganizationCreateRequest
         | OrganizationUpdateRequest
         | Organization
-        | OrganizationList,
+        | OrganizationList
+        | GrantablePermission,
         Field(title="IpmOrganizationContracts"),
     ]
     """

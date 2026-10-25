@@ -1,0 +1,8 @@
+{
+  "lifecycle": "present",
+  "reconciliation": "active",
+  "name": "ipm.user.create",
+  "description": "Criar usuários da Organization",
+  "grantable": true,
+  "deletionProtection": true
+}

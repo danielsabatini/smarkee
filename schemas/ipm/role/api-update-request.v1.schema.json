@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RoleUpdateRequest",
+  "description": "Corpo de PATCH /v1/ipm/roles/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. name não é aceito porque é imutável.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "resourceVersion"
+  ],
+  "minProperties": 2,
+  "properties": {
+    "resourceVersion": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceVersion",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "description": {
+      "$ref": "definitions.v1.schema.json#/$defs/description",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "permissions": {
+      "$ref": "definitions.v1.schema.json#/$defs/permissions",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    }
+  }
+}

@@ -9,15 +9,17 @@ import sys
 
 import httpx
 
+from ipm_user.common.catalog import AccessCatalog
 from ipm_user.common.database import open_pool
 from ipm_user.common.http.server import serve_http
 from ipm_user.common.lifecycle import start_role
-from ipm_user.common.messaging import StreamPublisher
+from ipm_user.common.messaging import StateConsumer, StreamPublisher, new_instance_name
 from ipm_user.common.runtime import role_runtime
 from ipm_user.receiver.auth.tokens import TokenVerifier
 from ipm_user.receiver.http.app import Dependencies, create_app
 from ipm_user.receiver.settings import UserReceiverSettings, missing_required
 from ipm_user.receiver.store.repository import SsotRepository
+from ipm_user.receiver.transport.catalog_consumer import CatalogWatcher
 from ipm_user.receiver.transport.organizations import OrganizationPeer
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,26 @@ async def run(settings: UserReceiverSettings) -> int:
         pool = await open_pool(settings.database)
         runtime.close_after(pool.close)
         api = settings.api
+        catalog = AccessCatalog()
+        watcher = CatalogWatcher(catalog)
+        instance = new_instance_name()
+        for suffix, subject in (
+            ("permissions", "manager.desired.ipm.permission.>"),
+            ("roles", "manager.desired.ipm.role.>"),
+        ):
+            runtime.start(
+                suffix,
+                StateConsumer(
+                    runtime.stream,
+                    watcher,
+                    durable=f"ipm-user-receiver-{suffix}-{instance}",
+                    stream="DESIRED",
+                    filter_subject=subject,
+                    inactive_threshold_seconds=300,
+                    traced=False,
+                    on_cycle=runtime.health.beat,
+                ).run(runtime.stop),
+            )
         app = create_app(
             Dependencies(
                 settings=api,
@@ -37,6 +59,7 @@ async def run(settings: UserReceiverSettings) -> int:
                 repository=SsotRepository(pool),
                 organizations=OrganizationPeer(settings.peers, http),
                 publisher=StreamPublisher(runtime.stream),
+                catalog=catalog,
                 is_ready=lambda: runtime.client.is_connected,
             )
         )

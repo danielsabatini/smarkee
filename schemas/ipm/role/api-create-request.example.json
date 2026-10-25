@@ -1,0 +1,12 @@
+{
+  "name": "ipm.userAdmin",
+  "description": "Gestão completa de usuários e atribuição de acessos na Organization.",
+  "permissions": [
+    "ipm.user.bind",
+    "ipm.user.create",
+    "ipm.user.delete",
+    "ipm.user.get",
+    "ipm.user.list",
+    "ipm.user.update"
+  ]
+}

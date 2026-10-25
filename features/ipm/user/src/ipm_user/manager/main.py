@@ -10,11 +10,13 @@ import sys
 
 from ipm_user.common.database import open_pool
 from ipm_user.common.lifecycle import start_role
+from ipm_user.common.messaging import StateConsumer, new_instance_name
 from ipm_user.common.runtime import role_runtime
-from ipm_user.manager.domain.kind import USER
+from ipm_user.manager.domain.kind import user_kind
 from ipm_user.manager.handlers.observed import ObservedHandler
 from ipm_user.manager.handlers.requested import RequestedHandler
 from ipm_user.manager.handlers.result import ResultHandler
+from ipm_user.manager.handlers.role_rollout import RoleCatalogWatcher
 from ipm_user.manager.settings import UserManagerSettings, missing_required
 from ipm_user.manager.transport.consumers import (
     ObservedConsumer,
@@ -29,18 +31,21 @@ async def run(settings: UserManagerSettings) -> int:
     async with role_runtime(settings.messaging, name="ipm-user-manager") as runtime:
         pool = await open_pool(settings.database)
         runtime.close_after(pool.close)
+        kind = user_kind()
+        watcher = RoleCatalogWatcher(pool, kind)
+        instance = new_instance_name()
         consumers = {
             "requested": RequestedConsumer(
                 runtime.stream,
                 pool,
-                USER,
+                kind,
                 handler=RequestedHandler(),
                 on_cycle=runtime.health.beat,
             ),
             "observed": ObservedConsumer(
                 runtime.stream,
                 pool,
-                USER,
+                kind,
                 handler=ObservedHandler(
                     progress_deadline_seconds=settings.loop.progress_deadline_seconds
                 ),
@@ -49,8 +54,28 @@ async def run(settings: UserManagerSettings) -> int:
             "result": ResultConsumer(
                 runtime.stream,
                 pool,
-                USER,
+                kind,
                 handler=ResultHandler(failure_limit=settings.loop.failure_limit),
+                on_cycle=runtime.health.beat,
+            ),
+            "permissions": StateConsumer(
+                runtime.stream,
+                watcher,
+                durable=f"ipm-user-manager-permissions-{instance}",
+                stream="DESIRED",
+                filter_subject="manager.desired.ipm.permission.>",
+                inactive_threshold_seconds=300,
+                traced=False,
+                on_cycle=runtime.health.beat,
+            ),
+            "roles": StateConsumer(
+                runtime.stream,
+                watcher,
+                durable=f"ipm-user-manager-roles-{instance}",
+                stream="DESIRED",
+                filter_subject="manager.desired.ipm.role.>",
+                inactive_threshold_seconds=300,
+                traced=False,
                 on_cycle=runtime.health.beat,
             ),
         }

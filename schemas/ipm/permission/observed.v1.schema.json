@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PermissionObservedData",
+  "description": "data de observed da Permission (ipm.permission): estado observado da permissão atômica no projeto roles-<módulo> do Zitadel. Os campos estão presentes quando presence é present; com absent ou unknown, data é vazio.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "name": {
+      "$ref": "definitions.v1.schema.json#/$defs/permissionName",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "description": {
+      "$ref": "definitions.v1.schema.json#/$defs/description",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "group": {
+      "$ref": "definitions.v1.schema.json#/$defs/moduleGroup",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

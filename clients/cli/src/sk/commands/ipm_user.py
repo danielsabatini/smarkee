@@ -69,8 +69,7 @@ ERROR_CODE_HINTS = {
     "OrganizationUnavailable": "The Organization could not be checked now. Try again.",
 }
 NO_PERMISSION_HINT = (
-    "You do not have permission for this operation. Without ipm.user.bind, you can only give or "
-    "take permissions you have yourself."
+    "You do not have permission for this operation. Changing permissions requires ipm.user.bind."
 )
 PERMISSIONS_HINT = (
     "A permission is not allowed for the Organization. Use only the permissions of its grant."

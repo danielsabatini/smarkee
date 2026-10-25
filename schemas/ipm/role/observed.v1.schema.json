@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RoleObservedData",
+  "description": "data de observed da Role (ipm.role): estado observado da Role. Os campos estão presentes quando presence é present; com absent ou unknown, data é vazio.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "name": {
+      "$ref": "definitions.v1.schema.json#/$defs/roleName",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "description": {
+      "$ref": "definitions.v1.schema.json#/$defs/description",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "permissions": {
+      "$ref": "definitions.v1.schema.json#/$defs/permissions",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "description": "Proteção contra exclusão observada (decisão 0074).",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

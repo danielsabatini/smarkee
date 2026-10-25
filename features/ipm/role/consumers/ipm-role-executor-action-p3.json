@@ -1,0 +1,19 @@
+{
+  "durable_name": "ipm-role-executor-action-p3",
+  "description": "Trabalho: action de role da parti\u00e7\u00e3o 3 de 4, uma por vez em cada recurso (docs/NATS.md, 7.5; decis\u00e3o 0018)",
+  "deliver_policy": "all",
+  "ack_policy": "explicit",
+  "ack_wait": 60000000000,
+  "backoff": [
+    15000000000,
+    30000000000,
+    60000000000,
+    120000000000,
+    300000000000
+  ],
+  "max_deliver": 10,
+  "filter_subject": "reconciler.action.ipm.role.3.>",
+  "replay_policy": "instant",
+  "max_ack_pending": 1,
+  "max_waiting": 64
+}

@@ -112,8 +112,14 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
 
 async def test_the_manager_starts_one_task_per_consumer(runtime: FakeRuntime) -> None:
     assert await manager_main.run(OrganizationManagerSettings()) == 0
-    # O rollout do `userAccess` vem antes dos consumers (decisão 0081).
-    assert runtime.started == ["user-access-rollout", "requested", "observed", "result"]
+    # O rollout do `userAccess` vem antes dos consumers (decisões 0081 e 0083).
+    assert runtime.started == [
+        "user-access-rollout",
+        "requested",
+        "observed",
+        "result",
+        "permissions",
+    ]
     rolled_out = runtime.rolled_out_kind.policy.rolled_out({"lifecycle": "present"})
     assert rolled_out["userAccess"]["userExecutorAccountId"] == "user-EXECUTOR"
     assert len(runtime.closers) == 1

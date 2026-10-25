@@ -1,10 +1,13 @@
 """Decisões puras sobre `observed` e resultados de ação, sem banco."""
 
+import json
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from ipm_user.manager.domain.convergence import decide_observed, decide_result
-from ipm_user.manager.domain.kind import USER
+from ipm_user.manager.domain.kind import USER, user_kind
+from ipm_user.manager.domain.user import UserPolicy
+from ipm_user.manager.handlers import role_rollout
 
 NOW = datetime(2026, 10, 11, 12, 0, tzinfo=UTC)
 DESIRED_PRESENT: dict[str, Any] = {
@@ -217,3 +220,87 @@ def test_a_failure_result_keeps_the_progress_condition() -> None:
         now=NOW,
     )
     assert {c["type"] for c in decision.conditions} == {"Ready", "Progressing"}
+
+
+async def test_user_policy_expands_roles_into_atomic_permissions_and_rolls_out_on_role_change(
+    monkeypatch: Any,
+) -> None:
+    kind = user_kind()
+    policy = cast(UserPolicy, kind.policy)
+    req = policy.parse(
+        "create",
+        {
+            "operationId": "01950000-0000-7000-8000-000000000001",
+            "requestDigest": "a" * 64,
+            "specification": {
+                "organizationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+                "givenName": "Bia",
+                "familyName": "Lima",
+                "email": "bia.lima@example.com",
+                "permissions": ["ipm.organization.get"],
+                "roles": ["ipm.userViewer"],
+            },
+        },
+    )
+    desired = policy.desired_for_create(req, "owner-1")
+    assert desired["roles"] == ["ipm.userViewer"]
+    assert desired["directPermissions"] == ["ipm.organization.get"]
+    assert desired["permissions"] == [
+        "ipm.organization.get",
+        "ipm.user.get",
+        "ipm.user.list",
+    ]
+    msg = policy.message_data(desired, "active")
+    assert "directPermissions" not in msg
+    assert msg["roles"] == ["ipm.userViewer"]
+    assert msg["permissions"] == [
+        "ipm.organization.get",
+        "ipm.user.get",
+        "ipm.user.list",
+    ]
+
+    rollouts: list[int] = []
+
+    async def fake_rollout(pool: Any, kind_arg: Any, **_: Any) -> int:
+        rollouts.append(1)
+        return 1
+
+    monkeypatch.setattr(role_rollout, "roll_out_user_roles", fake_rollout)
+    watcher = role_rollout.RoleCatalogWatcher(cast(Any, object()), kind)
+    now_iso = NOW.isoformat()
+    role_data: dict[str, Any] = {
+        "lifecycle": "present",
+        "reconciliation": "active",
+        "name": "ipm.userViewer",
+        "description": "Visualizador atualizado",
+        "permissions": ["ipm.user.get", "ipm.user.list", "ipm.user.update"],
+        "deletionProtection": True,
+    }
+    role_msg: dict[str, Any] = {
+        "messageId": "01950000-0000-7000-8000-000000000010",
+        "schemaVersion": "1.0",
+        "messageType": "desired",
+        "emitter": "manager",
+        "module": "ipm",
+        "resourceType": "role",
+        "resourceId": "role-ipm-user-viewer",
+        "operation": "changed",
+        "desiredGeneration": 2,
+        "requestedBy": "system",
+        "correlationId": "01950000-0000-7000-8000-000000000011",
+        "causationId": "01950000-0000-7000-8000-000000000012",
+        "occurredAt": now_iso,
+        "publishedAt": now_iso,
+        "data": role_data,
+    }
+    assert await watcher.on_message(json.dumps(role_msg).encode()) == 1
+    assert len(rollouts) == 1
+    rolled = policy.rolled_out(desired)
+    assert rolled is not None
+    assert rolled["permissions"] == [
+        "ipm.organization.get",
+        "ipm.user.get",
+        "ipm.user.list",
+        "ipm.user.update",
+    ]
+    assert policy.rolled_out(rolled) is None

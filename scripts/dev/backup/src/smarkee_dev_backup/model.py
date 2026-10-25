@@ -14,7 +14,7 @@ DATABASES = ("identity", "smarkee")
 DATABASE_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 # Volumes com estado que não se reconstrói pelo git: chaves das service accounts e PAT do login
 # (`identity-bootstrap`) e estado externo das Billing Accounts na fase P0 (`bsm-account-state`).
-VOLUMES = ("identity-bootstrap", "bsm-account-state")
+VOLUMES = ("identity-bootstrap", "bsm-account-state", "ipm-role-state")
 VOLUME_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
 # Arquivos `.env` (fora do git). O `SMARKEE_IDENTITY_MASTERKEY` decifra o banco do Zitadel e o
 # `clients/cli/.env` guarda os IDs de cliente/projeto da instância do Zitadel.
@@ -30,6 +30,8 @@ ENV_FILES = (
     "features/bsm/account/.env",
     "features/core/account/.env",
     "features/ipm/organization/.env",
+    "features/ipm/permission/.env",
+    "features/ipm/role/.env",
     "features/ipm/user/.env",
     "features/sum/service/.env",
     "clients/cli/.env",
@@ -38,6 +40,8 @@ FEATURE_DIRECTORIES = (
     "features/bsm/account",
     "features/core/account",
     "features/ipm/organization",
+    "features/ipm/permission",
+    "features/ipm/role",
     "features/ipm/user",
     "features/sum/service",
 )

@@ -1,0 +1,37 @@
+{
+  "items": [
+    {
+      "resourceId": "perm-ipm-user-create",
+      "resourceVersion": "1",
+      "desiredGeneration": 1,
+      "phase": "Ready",
+      "conditions": [
+        {
+          "type": "Ready",
+          "status": "True",
+          "reason": "Converged",
+          "message": "O estado observado corresponde ao estado desejado.",
+          "observedGeneration": 1,
+          "lastTransitionAt": "2026-10-24T12:00:00Z"
+        }
+      ],
+      "desired": {
+        "lifecycle": "present",
+        "reconciliation": "active",
+        "name": "ipm.user.create",
+        "description": "Criar usuários da Organization",
+        "grantable": true,
+        "deletionProtection": true
+      },
+      "observed": {
+        "presence": "present",
+        "observedAt": "2026-10-24T12:00:00Z",
+        "name": "ipm.user.create",
+        "description": "Criar usuários da Organization",
+        "group": "ipm"
+      },
+      "createdAt": "2026-10-24T12:00:00Z",
+      "updatedAt": "2026-10-24T12:00:00Z"
+    }
+  ]
+}

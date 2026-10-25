@@ -12,6 +12,8 @@ DECLARE
 BEGIN
   FOREACH function_role IN ARRAY ARRAY[
     'ipm_organization_manager', 'ipm_organization_receiver', 'ipm_organization_publisher',
+    'ipm_permission_manager', 'ipm_permission_receiver', 'ipm_permission_publisher',
+    'ipm_role_manager', 'ipm_role_receiver', 'ipm_role_publisher',
     'ipm_user_manager', 'ipm_user_receiver', 'ipm_user_publisher',
     'ipm_maintenance'
   ] LOOP

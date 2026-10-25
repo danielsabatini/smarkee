@@ -290,7 +290,7 @@ async def test_root_creates_a_user_and_the_requested_carries_the_quota(harness: 
 async def test_a_user_of_the_organization_creates_without_asking_the_organization(
     harness: Harness,
 ) -> None:
-    response = await create(harness, "bia", permissions=["ipm.user.get"])
+    response = await create(harness, "bia")
     assert response.status_code == 202
     assert harness.organizations.calls == []  # reconhecida pelo próprio registro
 
@@ -334,12 +334,13 @@ async def test_permissions_outside_the_grant_catalog_are_400(harness: Harness) -
     assert harness.publisher.published == []
 
 
-async def test_without_bind_only_permissions_the_requester_has_can_be_given(
+async def test_without_bind_no_permissions_can_be_given(
     harness: Harness,
 ) -> None:
-    refused = await create(harness, "bia", permissions=["ipm.user.bind"])
-    assert refused.status_code == 403
-    assert (await create(harness, "bia", permissions=["ipm.user.get"])).status_code == 202
+    refused_bind = await create(harness, "bia", permissions=["ipm.user.bind"])
+    refused_own = await create(harness, "bia", permissions=["ipm.user.get"])
+    assert (refused_bind.status_code, refused_own.status_code) == (403, 403)
+    assert (await create(harness, "bia", permissions=[])).status_code == 202
     assert (
         await create(harness, "binder", permissions=["ipm.organization.get"])
     ).status_code == 202
@@ -471,7 +472,7 @@ async def test_update_publishes_permissions_and_protection_with_the_version(
     generated.UserRequestedUpdateData.model_validate(data)
 
 
-async def test_without_bind_permissions_the_requester_lacks_cannot_be_given_or_taken(
+async def test_without_bind_permissions_cannot_be_given_or_taken(
     harness: Harness,
 ) -> None:
     harness.repository.resources["x"] = user("x", permissions=["ipm.organization.get"])
@@ -479,18 +480,29 @@ async def test_without_bind_permissions_the_requester_lacks_cannot_be_given_or_t
     taken = await harness.client.patch(
         path, json={"resourceVersion": "3", "permissions": []}, headers=auth("bia")
     )
-    given = await harness.client.patch(
+    given_bind = await harness.client.patch(
         path,
         json={"resourceVersion": "3", "permissions": ["ipm.organization.get", "ipm.user.bind"]},
         headers=auth("bia"),
     )
-    assert (taken.status_code, given.status_code) == (403, 403)
-    allowed = await harness.client.patch(
+    given_own = await harness.client.patch(
         path,
         json={"resourceVersion": "3", "permissions": ["ipm.organization.get", "ipm.user.get"]},
         headers=auth("bia"),
     )
-    assert allowed.status_code == 202
+    assert (taken.status_code, given_bind.status_code, given_own.status_code) == (403, 403, 403)
+    unchanged = await harness.client.patch(
+        path,
+        json={"resourceVersion": "3", "permissions": ["ipm.organization.get"]},
+        headers=auth("bia"),
+    )
+    assert unchanged.status_code == 202
+    allowed_with_bind = await harness.client.patch(
+        path,
+        json={"resourceVersion": "3", "permissions": ["ipm.organization.get", "ipm.user.get"]},
+        headers=auth("binder"),
+    )
+    assert allowed_with_bind.status_code == 202
 
 
 @pytest.mark.parametrize(

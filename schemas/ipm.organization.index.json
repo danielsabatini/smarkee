@@ -56,6 +56,9 @@
     },
     {
       "$ref": "ipm/organization/resource-list.v1.schema.json"
+    },
+    {
+      "$ref": "ipm/definitions.v1.schema.json#/$defs/grantablePermission"
     }
   ]
 }

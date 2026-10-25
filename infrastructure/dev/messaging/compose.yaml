@@ -28,7 +28,7 @@ x-infra-logging: &infra-logging
 
 services:
   messaging:
-    image: ${SMARKEE_MESSAGING_IMAGE_VERSION:-nats:2.15.0-alpine}
+    image: ${SMARKEE_MESSAGING_IMAGE_VERSION:-nats:2.15.1-alpine}
     container_name: messaging.smarkee.internal
     labels:
       smarkee.layer: infra

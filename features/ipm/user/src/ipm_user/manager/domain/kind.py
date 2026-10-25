@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from ipm_user.common.catalog import AccessCatalog
 from ipm_user.manager.domain.policy import ResourcePolicy
 from ipm_user.manager.domain.user import UserPolicy
 
@@ -14,4 +15,8 @@ class ResourceKind:
     """A remoção convergida apaga o registro do SSOT (o padrão do loop)."""
 
 
-USER = ResourceKind(resource_type="user", policy=UserPolicy())
+def user_kind(catalog: AccessCatalog | None = None) -> ResourceKind:
+    return ResourceKind(resource_type="user", policy=UserPolicy(catalog))
+
+
+USER = user_kind()

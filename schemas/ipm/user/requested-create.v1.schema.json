@@ -59,6 +59,11 @@
           "x-writer": "client",
           "x-sensitivity": "internal"
         },
+        "roles": {
+          "$ref": "definitions.v1.schema.json#/$defs/roles",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        },
         "deletionProtection": {
           "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
           "x-writer": "client",

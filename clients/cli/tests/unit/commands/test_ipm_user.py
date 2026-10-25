@@ -242,7 +242,7 @@ def test_a_rejected_creation_explains_why(api: FakeApi) -> None:
 @pytest.mark.parametrize(
     ("error", "expected"),
     [
-        (http_error(403, "Forbidden", "x"), "Without ipm.user.bind"),
+        (http_error(403, "Forbidden", "x"), "requires ipm.user.bind"),
         (http_error(403, "QuotaExceeded", "x"), "user limit"),
         (
             http_error(400, "ValidationFailed", "Permissões não liberadas", field="permissions"),

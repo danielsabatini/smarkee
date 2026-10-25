@@ -1,18 +1,24 @@
 """Regras de acesso puras (catálogo e `bind`) e a consulta ao Receiver da Organization."""
 
+import json
 from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 import pytest
 
+from ipm_user.common.catalog import AccessCatalog
 from ipm_user.common.contracts import generated
 from ipm_user.receiver.domain.access import (
     AccessCheckError,
     OrganizationAccess,
     binding_allowed,
     outside_catalog,
+    outside_roles_catalog,
 )
 from ipm_user.receiver.settings import PeersSettings
+from ipm_user.receiver.transport.catalog_consumer import CatalogWatcher
 from ipm_user.receiver.transport.organizations import OrganizationPeer
 
 
@@ -24,17 +30,18 @@ def test_outside_catalog_lists_the_refused_permissions_sorted() -> None:
     assert outside_catalog([]) == []
 
 
-def test_binding_without_bind_only_touches_permissions_the_requester_has() -> None:
+def test_binding_without_bind_forbids_any_permission_change() -> None:
     mine = {"ipm.user.get", "ipm.user.list"}
-    assert binding_allowed([], ["ipm.user.get"], mine, can_bind=False)
+    assert binding_allowed([], [], mine, can_bind=False)
+    assert binding_allowed(["ipm.user.get"], ["ipm.user.get"], mine, can_bind=False)
+    assert not binding_allowed([], ["ipm.user.get"], mine, can_bind=False)
     assert not binding_allowed([], ["ipm.user.bind"], mine, can_bind=False)
-    # Retirar uma permissão que quem pede não tem também exige `bind`.
-    assert not binding_allowed(["ipm.user.bind"], [], mine, can_bind=False)
-    # Manter uma permissão alheia sem mexer nela é permitido.
-    assert binding_allowed(
+    assert not binding_allowed(["ipm.user.get"], [], mine, can_bind=False)
+    assert not binding_allowed(
         ["ipm.user.bind"], ["ipm.user.bind", "ipm.user.get"], mine, can_bind=False
     )
     assert binding_allowed([], ["ipm.user.bind"], mine, can_bind=True)
+    assert binding_allowed([], ["ipm.user.get"], mine, can_bind=True)
 
 
 def peer(handler: Callable[[httpx.Request], httpx.Response]) -> OrganizationPeer:
@@ -94,3 +101,40 @@ async def test_network_failure_is_retryable() -> None:
     with pytest.raises(AccessCheckError) as raised:
         await peer(boom).access("org-1", "tok")
     assert raised.value.retryable
+
+
+async def test_outside_roles_catalog_and_dynamic_catalog_watcher() -> None:
+    catalog = AccessCatalog()
+    assert outside_roles_catalog(["ipm.userViewer", "ipm.userAdmin"], catalog=catalog) == []
+    assert outside_roles_catalog(
+        ["core.accountAdmin", "ipm.permissionAdmin", "ipm.unknownRole"], catalog=catalog
+    ) == ["core.accountAdmin", "ipm.permissionAdmin", "ipm.unknownRole"]
+
+    watcher = CatalogWatcher(catalog)
+    now = datetime(2026, 4, 21, 12, 0, tzinfo=UTC).isoformat()
+    role_msg: dict[str, Any] = {
+        "messageId": "01950000-0000-7000-8000-000000000001",
+        "schemaVersion": "1.0",
+        "messageType": "desired",
+        "emitter": "manager",
+        "module": "ipm",
+        "resourceType": "role",
+        "resourceId": "role-ipm-auditor",
+        "operation": "changed",
+        "desiredGeneration": 1,
+        "requestedBy": "system",
+        "correlationId": "01950000-0000-7000-8000-000000000002",
+        "causationId": "01950000-0000-7000-8000-000000000003",
+        "occurredAt": now,
+        "publishedAt": now,
+        "data": {
+            "lifecycle": "present",
+            "reconciliation": "active",
+            "name": "ipm.auditorViewer",
+            "description": "Auditor da Organization",
+            "permissions": ["ipm.organization.get", "ipm.user.get"],
+            "deletionProtection": False,
+        },
+    }
+    assert await watcher.on_message(json.dumps(role_msg).encode()) is True
+    assert outside_roles_catalog(["ipm.auditorViewer"], catalog=catalog) == []

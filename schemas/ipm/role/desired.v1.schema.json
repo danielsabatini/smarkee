@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RoleDesiredData",
+  "description": "data de desired da Role (ipm.role): estado pretendido e controle de reconciliação. Publicado somente pelo Manager. Não carrega dados pessoais.",
+  "x-schemaVersion": "1.0",
+  "x-resourceParameters": {
+    "observationInterval": "PT5M",
+    "observationValidity": "PT10M",
+    "actionDeadline": "PT2M",
+    "failureLimit": 5,
+    "progressDeadline": "PT5M"
+  },
+  "x-actionIdFormat": "<resourceId>.<desiredGeneration>.<operation>.<messageId do observed que motivou a decisão>",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lifecycle",
+    "reconciliation",
+    "name",
+    "description",
+    "permissions"
+  ],
+  "properties": {
+    "lifecycle": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/lifecycle",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "name": {
+      "$ref": "definitions.v1.schema.json#/$defs/roleName",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": true,
+      "x-sensitivity": "public"
+    },
+    "description": {
+      "$ref": "definitions.v1.schema.json#/$defs/description",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "public"
+    },
+    "permissions": {
+      "$ref": "definitions.v1.schema.json#/$defs/permissions",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    }
+  }
+}

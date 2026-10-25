@@ -286,6 +286,13 @@
         "title": "Reconciliation",
         "type": "string"
       },
+      "RoleName": {
+        "maxLength": 128,
+        "minLength": 5,
+        "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$",
+        "title": "RoleName",
+        "type": "string"
+      },
       "User": {
         "additionalProperties": false,
         "description": "Visão consolidada do usuário da Organization exposta pelo Receiver (GET /v1/ipm/users/{resourceId}), legível pelo dono da Organization, por usuários dela com ipm.user.get e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).",
@@ -414,6 +421,21 @@
               }
             ],
             "title": "Permissions"
+          },
+          "roles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RoleName"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roles"
           }
         },
         "required": [
@@ -499,6 +521,21 @@
           },
           "reconciliation": {
             "$ref": "#/components/schemas/Reconciliation"
+          },
+          "roles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RoleName"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roles"
           }
         },
         "required": [
@@ -667,6 +704,21 @@
             "pattern": "^[A-Za-z0-9-]+$",
             "title": "Resourceversion",
             "type": "string"
+          },
+          "roles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RoleName"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roles"
           }
         },
         "required": [

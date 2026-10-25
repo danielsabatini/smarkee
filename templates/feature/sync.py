@@ -40,13 +40,22 @@ NAME = re.compile(r"[a-z][a-z0-9]*")
 PROFILES: dict[str, tuple[str, ...]] = {
     # Publicação do `requested`, probes e os tipos do domínio do Receiver (erros, linhas das views
     # e pedidos), sem regra do tipo.
-    "receiver-http": ("bsm/account", "core/account", "ipm/organization", "ipm/user"),
+    "receiver-http": (
+        "bsm/account",
+        "core/account",
+        "ipm/organization",
+        "ipm/permission",
+        "ipm/role",
+        "ipm/user",
+    ),
     # Envelope, publicação e persistência de `observed` e do resultado, com a convergência e os
     # erros do Manager, sem regra do tipo. O `sum/service` usa só este perfil (decisão 0080).
     "manager-handlers": (
         "bsm/account",
         "core/account",
         "ipm/organization",
+        "ipm/permission",
+        "ipm/role",
         "ipm/user",
         "sum/service",
     ),
@@ -54,7 +63,7 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "identity-metadata": ("core/account", "ipm/organization", "ipm/user"),
     # Motores sem regra do tipo: Observer e Executor (com a revalidação), com o teste do motor do
     # Observer (decisão 0075).
-    "loop-engines": ("bsm/account", "core/account", "ipm/organization", "ipm/user"),
+    "loop-engines": ("bsm/account", "core/account", "ipm/organization", "ipm/role", "ipm/user"),
 }
 
 

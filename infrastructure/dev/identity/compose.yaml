@@ -31,7 +31,7 @@ services:
   # Zitadel (eventstore, projections, system) com o próprio usuário `identity`. Repetível.
   # Requer o `database` aceitando conexões (veja o README).
   identity-init:
-    image: ${SMARKEE_IDENTITY_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.19.4}
+    image: ${SMARKEE_IDENTITY_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.20.0}
     container_name: identity-init.smarkee.internal
     command: ["init", "zitadel"]
     environment:
@@ -48,7 +48,7 @@ services:
   # API do Zitadel. O start-from-setup aplica as migrações e, na primeira vez, cria a instância
   # descrita pelas variáveis ZITADEL_FIRSTINSTANCE_* (aplicadas só na primeira inicialização).
   identity:
-    image: ${SMARKEE_IDENTITY_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.19.4}
+    image: ${SMARKEE_IDENTITY_IMAGE_VERSION:-ghcr.io/zitadel/zitadel:v4.20.0}
     container_name: identity.smarkee.internal
     labels:
       smarkee.layer: infra
@@ -158,7 +158,7 @@ services:
 
   # Interface de login (login v2). Autentica na API do Zitadel com o PAT gerado pelo identity.
   identity-login:
-    image: ${SMARKEE_IDENTITY_LOGIN_IMAGE_VERSION:-ghcr.io/zitadel/zitadel-login:v4.19.4}
+    image: ${SMARKEE_IDENTITY_LOGIN_IMAGE_VERSION:-ghcr.io/zitadel/zitadel-login:v4.20.0}
     container_name: identity-login.smarkee.internal
     labels:
       smarkee.layer: infra

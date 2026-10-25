@@ -37,6 +37,12 @@ connectors:
         condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "organization"
         pipelines: [logs/ipm_organization]
       - context: resource
+        condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "permission"
+        pipelines: [logs/ipm_permission]
+      - context: resource
+        condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "role"
+        pipelines: [logs/ipm_role]
+      - context: resource
         condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "user"
         pipelines: [logs/ipm_user]
       - context: resource
@@ -55,6 +61,12 @@ connectors:
       - context: span
         condition: attributes["apisix.service_name"] == "ipm-organization-receiver"
         pipelines: [traces/ipm_organization]
+      - context: span
+        condition: attributes["apisix.service_name"] == "ipm-permission-receiver"
+        pipelines: [traces/ipm_permission]
+      - context: span
+        condition: attributes["apisix.service_name"] == "ipm-role-receiver"
+        pipelines: [traces/ipm_role]
       - context: span
         condition: attributes["apisix.service_name"] == "ipm-user-receiver"
         pipelines: [traces/ipm_user]
@@ -142,6 +154,34 @@ exporters:
       initial_interval: 5s
       max_interval: 30s
       max_elapsed_time: 10m
+  otlp_grpc/ipm_permission:
+    endpoint: ipm-permission-telemeter.smarkee.internal:4317
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      block_on_overflow: false
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 10m
+  otlp_grpc/ipm_role:
+    endpoint: ipm-role-telemeter.smarkee.internal:4317
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      block_on_overflow: false
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 10m
   otlp_grpc/ipm_user:
     endpoint: ipm-user-telemeter.smarkee.internal:4317
     tls:
@@ -200,6 +240,14 @@ service:
       receivers: [routing/logs]
       processors: [batch]
       exporters: [otlp_grpc/ipm_organization]
+    logs/ipm_permission:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [otlp_grpc/ipm_permission]
+    logs/ipm_role:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [otlp_grpc/ipm_role]
     logs/ipm_user:
       receivers: [routing/logs]
       processors: [batch]
@@ -230,6 +278,14 @@ service:
       receivers: [routing/traces]
       processors: [batch]
       exporters: [otlp_grpc/ipm_organization]
+    traces/ipm_permission:
+      receivers: [routing/traces]
+      processors: [batch]
+      exporters: [otlp_grpc/ipm_permission]
+    traces/ipm_role:
+      receivers: [routing/traces]
+      processors: [batch]
+      exporters: [otlp_grpc/ipm_role]
     traces/ipm_user:
       receivers: [routing/traces]
       processors: [batch]

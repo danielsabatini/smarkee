@@ -14,7 +14,7 @@ dele); o Reconciler e o próprio Manager comparam com o `observed` pelas mesmas 
 `userAccess` só é reconciliado enquanto a organização tem acesso (`platformAccess = granted`).
 """
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any, cast
 
 from ipm_organization.common.contracts import generated
@@ -25,16 +25,22 @@ ORGANIZATION_OWNER_VIEWER = "ORG_OWNER_VIEWER"
 
 
 def grant_catalog() -> list[str]:
-    """O catálogo `grantablePermission` do contrato, em ordem alfabética."""
+    """O catálogo inicial `grantablePermission` do contrato, em ordem alfabética."""
     return sorted(permission.value for permission in generated.GrantablePermission)
 
 
 def desired_user_access(
-    *, user_executor_account_id: str, user_observer_account_id: str
+    *,
+    user_executor_account_id: str,
+    user_observer_account_id: str,
+    grant_permissions: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """O `userAccess` que o `desired` deve ter agora: o catálogo e as contas do `ipm/user`."""
+    permissions = (
+        sorted(set(grant_permissions)) if grant_permissions is not None else grant_catalog()
+    )
     return {
-        "grantPermissions": grant_catalog(),
+        "grantPermissions": permissions,
         "userExecutorAccountId": user_executor_account_id,
         "userObserverAccountId": user_observer_account_id,
     }

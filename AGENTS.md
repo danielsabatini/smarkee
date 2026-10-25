@@ -839,6 +839,16 @@ Não escolha uma solução apenas porque ela é mais sofisticada.
 
 Não introduza flexibilidade para requisitos hipotéticos sem evidência.
 
+## 25.1 Reavaliação de Decisões Existentes
+
+Uma decisão tomada quando o ambiente ou o escopo era menor pode deixar de ser ideal conforme a plataforma evolui.
+
+Sempre que surgir uma situação de decisão sobre um ponto que já possui uma decisão registrada em `.decisions/`, o agente deve:
+
+1. Avaliar criticamente a decisão existente com base em sua experiência técnica, no estágio atual do projeto e nas boas práticas de mercado (§2.7).
+2. Apresentar explicitamente a decisão vigente e uma possível melhoria quando identificar limitações operacionais, travas desnecessárias (como exigir *redeploy* para operações de plataforma) ou alternativas mais aderentes aos pilares (§2.1).
+3. Submeter os trade-offs ao responsável antes de assumir a decisão anterior como imutável ou de alterá-la silenciosamente.
+
 ---
 
 # 26. Separação de Responsabilidades
@@ -1076,7 +1086,7 @@ artifacts/
 Decisões arquiteturais e direcionamentos que afetam o projeto permanentemente devem ser registradas em `.decisions/`. 
 Isso isola o histórico de decisões da documentação oficial de uso do projeto.
 
-Toda decisão deve estar em conformidade com o §2 e nunca o sobrepõe.
+Toda decisão deve estar em conformidade com o §2 e nunca o sobrepõe. Decisões existentes devem ser reavaliadas diante de mudanças de escala, maturidade ou operação da plataforma (§25.1), apresentando a decisão vigente e a evolução recomendada antes de prosseguir.
 
 ## 36.2 Restrições de Fonte de Verdade
 

@@ -10,13 +10,17 @@ import sys
 
 from ipm_organization.common.database import open_pool
 from ipm_organization.common.lifecycle import start_role
+from ipm_organization.common.messaging import StateConsumer, new_instance_name
 from ipm_organization.common.runtime import role_runtime
 from ipm_organization.common.user_access import desired_user_access
 from ipm_organization.manager.domain.kind import organization_kind
 from ipm_organization.manager.handlers.observed import ObservedHandler
 from ipm_organization.manager.handlers.requested import RequestedHandler
 from ipm_organization.manager.handlers.result import ResultHandler
-from ipm_organization.manager.handlers.user_access_rollout import roll_out_user_access
+from ipm_organization.manager.handlers.user_access_rollout import (
+    PermissionCatalogWatcher,
+    roll_out_user_access,
+)
 from ipm_organization.manager.settings import OrganizationManagerSettings, missing_required
 from ipm_organization.manager.transport.consumers import (
     ObservedConsumer,
@@ -34,6 +38,7 @@ async def run(settings: OrganizationManagerSettings) -> int:
         kind = organization_kind(_user_access(settings))
         # Antes dos consumers: toda Organization fica com o `userAccess` de agora (decisão 0081).
         await roll_out_user_access(pool, kind)
+        instance = new_instance_name()
         consumers = {
             "requested": RequestedConsumer(
                 runtime.stream,
@@ -56,6 +61,16 @@ async def run(settings: OrganizationManagerSettings) -> int:
                 pool,
                 kind,
                 handler=ResultHandler(failure_limit=settings.loop.failure_limit),
+                on_cycle=runtime.health.beat,
+            ),
+            "permissions": StateConsumer(
+                runtime.stream,
+                PermissionCatalogWatcher(pool, kind),
+                durable=f"ipm-organization-manager-permissions-{instance}",
+                stream="DESIRED",
+                filter_subject="manager.desired.ipm.permission.>",
+                inactive_threshold_seconds=300,
+                traced=False,
                 on_cycle=runtime.health.beat,
             ),
         }

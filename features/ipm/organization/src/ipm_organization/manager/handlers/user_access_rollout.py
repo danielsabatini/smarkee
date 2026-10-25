@@ -13,7 +13,7 @@ não grava nada de novo, porque o `desired` já é o de agora.
 import hashlib
 import json
 import logging
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from datetime import datetime
 from typing import Any
 
@@ -21,6 +21,7 @@ from psycopg import sql
 from psycopg_pool import AsyncConnectionPool
 
 from ipm_organization.common.contracts import generated
+from ipm_organization.common.contracts.envelope import EnvelopeError, read_envelope
 from ipm_organization.common.ids import new_identifier, utc_now
 from ipm_organization.common.resource import MODULE, SCHEMA_VERSION
 from ipm_organization.manager.domain.kind import ResourceKind
@@ -139,3 +140,70 @@ def _cause(
             "data": {},
         }
     )
+
+
+class PermissionCatalogWatcher:
+    """Observa `manager.desired.ipm.permission.>` e propaga `grantable` às Organizations (0083).
+
+    Inicializa o catálogo em memória com as permissões atuais da `OrganizationPolicy` (semente do
+    contrato) e aplica cada `desired` de `ipm.permission`. Quando o conjunto de permissões
+    `ipm.*` presentes com `grantable = true` muda, atualiza a `OrganizationPolicy` e dispara
+    `roll_out_user_access` sem exigir redeploy.
+    """
+
+    def __init__(
+        self,
+        pool: AsyncConnectionPool[Any],
+        kind: ResourceKind,
+        *,
+        clock: Callable[[], datetime] = utc_now,
+        identifiers: Callable[[], str] = new_identifier,
+    ) -> None:
+        policy = kind.policy
+        if not isinstance(policy, OrganizationPolicy):
+            raise TypeError("PermissionCatalogWatcher exige OrganizationPolicy")
+        self._pool = pool
+        self._kind = kind
+        self._policy = policy
+        self._clock = clock
+        self._identifiers = identifiers
+        self._grantable: set[str] = set(policy.grant_permissions)
+        self._names_by_id: dict[str, str] = {}
+
+    async def on_message(self, data: bytes) -> int:
+        try:
+            raw: Mapping[str, Any] = json.loads(data)
+            envelope = read_envelope(raw)
+        except (ValueError, EnvelopeError) as error:
+            logger.warning("ignoring invalid permission desired message", exc_info=error)
+            return 0
+        if (
+            envelope.message_type.value != "desired"
+            or envelope.module != MODULE
+            or envelope.resource_type != "permission"
+        ):
+            return 0
+        payload = envelope.data
+        name = payload.get("name")
+        if isinstance(name, str) and name:
+            previous = self._names_by_id.get(envelope.resource_id)
+            if previous and previous != name:
+                self._grantable.discard(previous)
+            self._names_by_id[envelope.resource_id] = name
+        else:
+            name = self._names_by_id.get(envelope.resource_id)
+        if not isinstance(name, str) or not name.startswith(f"{MODULE}."):
+            return 0
+        is_grantable = payload.get("lifecycle") == "present" and payload.get("grantable") is True
+        if is_grantable:
+            self._grantable.add(name)
+        else:
+            self._grantable.discard(name)
+        if not self._policy.update_grant_permissions(self._grantable):
+            return 0
+        return await roll_out_user_access(
+            self._pool,
+            self._kind,
+            clock=self._clock,
+            identifiers=self._identifiers,
+        )

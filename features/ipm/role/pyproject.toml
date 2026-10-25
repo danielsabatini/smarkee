@@ -1,0 +1,103 @@
+[project]
+name = "ipm-role"
+version = "0.1.0"
+description = "Componente ipm.role (decisão 0063): um projeto e uma imagem, com um entrypoint por papel (receiver, manager, publisher, observer, reconciler e executor)."
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.143.0",
+    "httpx>=0.28.1",
+    "nats-py>=2.16.0",
+    "psycopg-pool>=3.3.3",
+    "psycopg[binary]>=3.3.6",
+    "pydantic-settings>=2.15.0",
+    "pydantic>=2.14.0",
+    "pyjwt[crypto]>=2.15.1",
+    "uvicorn>=0.54.0",
+]
+
+# Um entrypoint por papel: cada papel roda como processo e contêiner próprios (decisão 0063).
+[project.scripts]
+ipm-role-receiver = "ipm_role.receiver.main:main"
+ipm-role-manager = "ipm_role.manager.main:main"
+ipm-role-publisher = "ipm_role.publisher.main:main"
+ipm-role-observer = "ipm_role.observer.main:main"
+ipm-role-reconciler = "ipm_role.reconciler.main:main"
+ipm-role-executor = "ipm_role.executor.main:main"
+
+[build-system]
+requires = ["uv_build>=0.11.19,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "ipm_role"
+# Sem __init__.py: o pacote é um namespace package (python.md, seção 4).
+namespace = true
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+# Modelos gerados a partir de schemas/ não são editados nem formatados à mão (SCHEMA.md, Artefatos derivados).
+extend-exclude = ["src/ipm_role/common/contracts/generated.py"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# assert é o mecanismo de verificação do pytest; os testes usam tokens e senhas falsos de
+# desenvolvimento (papéis de login com senha igual ao nome), e não credenciais reais.
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["src", "tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/observer", "tests/reconciler", "tests/executor"]
+
+[tool.pytest.ini_options]
+# `tests/e2e` é um projeto à parte (black-box, decisão 0017) e não entra aqui.
+testpaths = ["tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/observer", "tests/reconciler", "tests/executor"]
+addopts = ["--import-mode=importlib"]
+# Cada papel com testes de integração tem o seu módulo de apoio (`support_<papel>`).
+pythonpath = ["tests/receiver/integration", "tests/manager/integration", "tests/publisher/integration"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["ipm_role"]
+branch = true
+# Caminhos relativos à raiz do projeto: o SonarQube casa o coverage.xml com os arquivos de `src/`.
+relative_files = true
+
+[dependency-groups]
+dev = [
+    "datamodel-code-generator>=0.83.0",
+    "jsonschema>=4.26.0",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.0",
+]
+
+# Modelos Pydantic gerados a partir de schemas/ (decisão 0012). Regerar com `uv run datamodel-codegen`;
+# o teste de contrato falha se o resultado diferir do versionado.
+[tool.datamodel-codegen]
+input = "../../../schemas/ipm.role.index.json"
+input-file-type = "jsonschema"
+# Referências só locais: bloqueia a busca de $ref por HTTP (SCHEMA.md, Referências entre Schemas).
+allow-remote-refs = false
+output = "src/ipm_role/common/contracts/generated.py"
+output-model-type = "pydantic_v2.BaseModel"
+target-python-version = "3.14"
+use-annotated = true
+snake-case-field = true
+base-class = "ipm_role.common.contracts.base.ContractModel"
+collapse-root-models = true
+use-title-as-name = true
+field-constraints = true
+use-standard-collections = true
+use-union-operator = true
+use-schema-description = true
+use-field-description = true
+disable-timestamp = true
+formatters = ["ruff-format"]
+custom-file-header = "# Gerado por datamodel-codegen a partir de schemas/ (decisão 0012). Não editar: altere o schema e regere."

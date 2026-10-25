@@ -1,18 +1,19 @@
-"""Regras de acesso do usuário da Organization, sem I/O (decisão 0077).
+"""Regras de acesso do usuário da Organization, sem I/O (decisões 0077 e 0083).
 
 - **Escopo:** o operador age em qualquer Organization; o dono dela (o root, confirmado pelo
   Receiver da Organization) e os usuários dela (confirmados pelo próprio registro no SSOT do tipo)
   agem só nela.
 - **Catálogo:** só as permissões do catálogo `grantablePermission` (o Project Grant de toda
   Organization, decisão 0081) podem ser atribuídas.
-- **`bind`:** sem `ipm.user.bind`, quem pede só atribui ou retira permissões que ele mesmo tem,
-  como o RBAC do Kubernetes (referência de mercado, decisão 0071).
+- **`bind`:** atribuir ou retirar permissões exige explicitamente `ipm.user.bind` (ou ser o dono da
+  Organization / operador, decisão 0083). Sem `bind`, o solicitante só pode criar usuário sem
+  permissões (`[]`) ou manter inalteradas as permissões atuais.
 """
 
 from collections.abc import Iterable
 from enum import StrEnum
 
-from ipm_user.common.contracts import generated
+from ipm_user.common.catalog import AccessCatalog, default_grantable_permissions
 
 
 class OrganizationAccess(StrEnum):
@@ -33,14 +34,22 @@ class AccessCheckError(Exception):
         self.retryable = retryable
 
 
-def outside_catalog(permissions: Iterable[str]) -> list[str]:
-    """Permissões pedidas fora do catálogo `grantablePermission`, em ordem alfabética.
-
-    O catálogo é contrato (`schemas/ipm/user/definitions`, decisão 0081), e não configuração: é o
-    mesmo que o Manager da Organization grava no Project Grant de cada Organization.
-    """
-    allowed = {permission.value for permission in generated.GrantablePermission}
+def outside_catalog(
+    permissions: Iterable[str], *, catalog: AccessCatalog | None = None
+) -> list[str]:
+    """Permissões pedidas fora do catálogo delegável à Organization, em ordem alfabética."""
+    allowed = (
+        catalog.grantable_permissions if catalog is not None else default_grantable_permissions()
+    )
     return sorted(permission for permission in set(permissions) if permission not in allowed)
+
+
+def outside_roles_catalog(
+    roles: Iterable[str], *, catalog: AccessCatalog | None = None
+) -> list[str]:
+    """Roles pedidas que não existem no catálogo ou não são delegáveis à Organization (0083)."""
+    active_catalog = catalog if catalog is not None else AccessCatalog()
+    return sorted(role for role in set(roles) if not active_catalog.is_role_grantable(role))
 
 
 def binding_allowed(
@@ -52,10 +61,10 @@ def binding_allowed(
 ) -> bool:
     """`True` se quem pede pode levar o usuário de `current` para `requested`.
 
-    Com `bind`, qualquer mudança dentro do catálogo. Sem ele, cada permissão acrescentada ou
-    retirada precisa estar entre as permissões de quem pede (nunca concede mais do que tem).
+    Com `bind`, qualquer mudança dentro do catálogo é permitida. Sem `bind`, nenhuma permissão pode
+    ser acrescentada ou retirada (`set(current) == set(requested)`).
     """
+    _ = requester_permissions
     if can_bind:
         return True
-    changed = set(current) ^ set(requested)
-    return changed <= set(requester_permissions)
+    return set(current) == set(requested)

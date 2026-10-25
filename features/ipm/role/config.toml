@@ -1,0 +1,55 @@
+# Configuração de dev de ipm.role (decisões 0067 e 0083). Sem segredos: eles vêm do ambiente ou de /run/secrets.
+# Tabela por papel: [tool.ipm.role.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
+
+[tool.ipm.role.receiver.auth]
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
+
+[tool.ipm.role.receiver.database]
+host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
+user = "ipm_role_receiver_login"
+
+[tool.ipm.role.receiver.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.ipm.role.manager.database]
+host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
+user = "ipm_role_manager_login"
+
+[tool.ipm.role.manager.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.ipm.role.publisher.database]
+host = "database.smarkee.internal"
+name = "smarkee"
+port = 5432
+user = "ipm_role_publisher_login"
+
+[tool.ipm.role.publisher.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.ipm.role.observer.storage]
+directory = "/var/tmp/ipm-role"
+
+[tool.ipm.role.observer.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.ipm.role.reconciler.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"
+
+[tool.ipm.role.executor.storage]
+directory = "/var/tmp/ipm-role"
+
+[tool.ipm.role.executor.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"

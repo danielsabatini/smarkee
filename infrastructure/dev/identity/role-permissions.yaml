@@ -1,6 +1,6 @@
 # Mapeamento de papéis de administração do Zitadel para permissões (decisão 0032).
 #
-# Cópia integral de `InternalAuthZ.RolePermissionMappings` do Zitadel v4.19.4 (`cmd/defaults.yaml`) mais
+# Cópia integral de `InternalAuthZ.RolePermissionMappings` do Zitadel v4.20.0 (`cmd/defaults.yaml`) mais
 # um papel de organização, `ORG_USER_CREATOR`, no fim. Configurar o mapeamento SUBSTITUI todos os
 # padrões, por isso a lista inteira precisa estar aqui. Só tem efeito depois de `zitadel setup`
 # (o `start-from-setup` do `identity` já o executa a cada subida).

@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Permission",
+  "description": "Visão consolidada da Permission (ipm.permission) exposta pelo Receiver (GET). Não expõe campos internos do SSOT (failureCount, requestedBy).",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "resourceId",
+    "resourceVersion",
+    "desiredGeneration",
+    "phase",
+    "conditions",
+    "desired",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "resourceId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "description": "Identificador opaco da Permission.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "resourceVersion": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceVersion",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "desiredGeneration": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/generation",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "phase": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/phase",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "conditions": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "$ref": "../../common/condition.v1.schema.json"
+      },
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "desired": {
+      "title": "PermissionDesiredView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lifecycle",
+        "reconciliation",
+        "name",
+        "description",
+        "grantable"
+      ],
+      "x-writer": "server",
+      "x-sensitivity": "internal",
+      "properties": {
+        "lifecycle": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/lifecycle",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "reconciliation": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "name": {
+          "$ref": "definitions.v1.schema.json#/$defs/permissionName",
+          "x-writer": "server",
+          "x-sensitivity": "public"
+        },
+        "description": {
+          "$ref": "definitions.v1.schema.json#/$defs/description",
+          "x-writer": "server",
+          "x-sensitivity": "public"
+        },
+        "grantable": {
+          "$ref": "definitions.v1.schema.json#/$defs/grantable",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "deletionProtection": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        }
+      }
+    },
+    "observed": {
+      "title": "PermissionObservedView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "presence",
+        "observedAt"
+      ],
+      "description": "Última observação no projeto roles-<módulo> do Zitadel; ausente antes da primeira.",
+      "x-writer": "server",
+      "x-sensitivity": "internal",
+      "properties": {
+        "presence": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/presence",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "observedAt": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "name": {
+          "$ref": "definitions.v1.schema.json#/$defs/permissionName",
+          "x-writer": "server",
+          "x-sensitivity": "public"
+        },
+        "description": {
+          "$ref": "definitions.v1.schema.json#/$defs/description",
+          "x-writer": "server",
+          "x-sensitivity": "public"
+        },
+        "group": {
+          "$ref": "definitions.v1.schema.json#/$defs/moduleGroup",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        }
+      }
+    },
+    "createdAt": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "updatedAt": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

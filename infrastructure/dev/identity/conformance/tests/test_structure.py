@@ -42,6 +42,11 @@ ACTION_ROLES_BY_PROJECT = {
         "ipm.organization.get",
         "ipm.organization.list",
         "ipm.organization.update",
+        # Catálogos de permissões e roles (decisão 0083).
+        "ipm.permission.get",
+        "ipm.permission.list",
+        "ipm.role.get",
+        "ipm.role.list",
         # Usuários da Organization (decisão 0077): o root as recebe pelo Grant da `register`.
         "ipm.user.bind",
         "ipm.user.create",
@@ -59,12 +64,17 @@ ACTION_ROLES_BY_PROJECT = {
 ADMIN_ROLES_BY_PROJECT = {
     "roles-bsm": {"bsm.account.admin"},
     "roles-core": {"core.account.admin"},
-    "roles-ipm": {"ipm.organization.admin", "ipm.user.admin"},
+    "roles-ipm": {
+        "ipm.organization.admin",
+        "ipm.permission.admin",
+        "ipm.role.admin",
+        "ipm.user.admin",
+    },
     "roles-sum": set[str](),
 }
 ACTION_ROLES = set[str]().union(*ACTION_ROLES_BY_PROJECT.values())
 ADMIN_ROLES = set[str]().union(*ADMIN_ROLES_BY_PROJECT.values())
-# Projetos cujo Project Grant o Executor do User administra (`PROJECT_GRANT_OWNER`, decisões 0032 e 0082).
+# Projetos cujo Project Grant o Executor do User administra (`PROJECT_GRANT_OWNER`, 0032 e 0082).
 USER_EXECUTOR_GRANT_PROJECTS = {"roles-bsm", "roles-core", "roles-sum"}
 ORGANIZATION_SERVICE = "zitadel.org.v2.OrganizationService"
 PROJECT_SERVICE = "zitadel.project.v2.ProjectService"
@@ -79,6 +89,8 @@ SERVICE_ACCOUNTS = {
     "core-account-observer",
     "ipm-organization-executor",
     "ipm-organization-observer",
+    "ipm-permission-executor",
+    "ipm-permission-observer",
     "ipm-user-executor",
     "ipm-user-observer",
     "sum-service-executor",
@@ -498,6 +510,8 @@ ENV_FILES = {
     "core.account": REPOSITORY / "features" / "core" / "account" / ".env",
     "sum.service": REPOSITORY / "features" / "sum" / "service" / ".env",
     "ipm.organization": REPOSITORY / "features" / "ipm" / "organization" / ".env",
+    "ipm.permission": REPOSITORY / "features" / "ipm" / "permission" / ".env",
+    "ipm.role": REPOSITORY / "features" / "ipm" / "role" / ".env",
     "ipm.user": REPOSITORY / "features" / "ipm" / "user" / ".env",
 }
 # Variável de cada `.env` → o que ela deve apontar na instância.
@@ -506,6 +520,8 @@ EXPECTED_AUDIENCE = {
     "core.account": ("CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE", "roles-core"),
     "sum.service": ("SUM_SERVICE_RECEIVER_AUTH_AUDIENCE", "roles-sum"),
     "ipm.organization": ("IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
+    "ipm.permission": ("IPM_PERMISSION_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
+    "ipm.role": ("IPM_ROLE_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.user": ("IPM_USER_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
 }
 # Um projeto de roles só, o do próprio módulo (o Executor e o Observer do User, decisão 0077).
@@ -526,6 +542,7 @@ EXPECTED_REGISTER = {
 }
 EXPECTED_PROJECT_IDS = {
     "core.account": "CORE_ACCOUNT_IDENTITY_PROJECT_IDS",
+    "ipm.permission": "IPM_PERMISSION_IDENTITY_PROJECT_IDS",
     "sum.service": "SUM_SERVICE_IDENTITY_PROJECT_IDS",
 }
 CLI_PROJECTS = {
@@ -587,7 +604,15 @@ def test_the_ids_in_the_env_files_match_the_instance(
             "/v2/users", {"queries": [{"organizationIdQuery": {"organizationId": orgs["core"]}}]}
         )
     }
-    for feature in ("bsm.account", "core.account", "sum.service", "ipm.organization", "ipm.user"):
+    for feature in (
+        "bsm.account",
+        "core.account",
+        "sum.service",
+        "ipm.organization",
+        "ipm.permission",
+        "ipm.role",
+        "ipm.user",
+    ):
         if not ENV_FILES[feature].exists():
             continue
         values = read_env(feature)

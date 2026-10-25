@@ -5,7 +5,7 @@ aqui (`unique_value`, `invalid`, `owner_quota`) e verificados na mesma unidade a
 pelo adaptador do SSOT (`docs/SSOT.md` §10.1).
 """
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from pydantic import ValidationError
@@ -47,6 +47,22 @@ class OrganizationPolicy:
 
     def __init__(self, user_access: Mapping[str, Any] | None = None) -> None:
         self._user_access = dict(user_access) if user_access is not None else None
+
+    @property
+    def grant_permissions(self) -> list[str]:
+        if self._user_access is None:
+            return []
+        return [str(p) for p in self._user_access.get("grantPermissions") or []]
+
+    def update_grant_permissions(self, permissions: Iterable[str]) -> bool:
+        """Atualiza o catálogo de `grantPermissions` em memória (decisão 0083); `True` se mudou."""
+        if self._user_access is None:
+            return False
+        updated = sorted({str(p) for p in permissions})
+        if self._user_access.get("grantPermissions") == updated:
+            return False
+        self._user_access = {**self._user_access, "grantPermissions": updated}
+        return True
 
     def parse(self, operation: str, data: Mapping[str, Any]) -> Request:
         match operation:

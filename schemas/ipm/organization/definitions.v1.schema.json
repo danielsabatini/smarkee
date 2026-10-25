@@ -62,13 +62,8 @@
       ],
       "properties": {
         "grantPermissions": {
-          "description": "Permissões do Project Grant: o teto do que os usuários da organização podem receber. É o catálogo grantablePermission do ipm/user inteiro, sem repetição e em ordem alfabética.",
-          "type": "array",
-          "maxItems": 64,
-          "uniqueItems": true,
-          "items": {
-            "$ref": "../definitions.v1.schema.json#/$defs/grantablePermission"
-          },
+          "$ref": "#/$defs/permissions",
+          "description": "Permissões do Project Grant: o teto do que os usuários da organização podem receber. É o catálogo de permissões grantable do módulo ipm (ipm.permission, decisões 0081 e 0083), sem repetição e em ordem alfabética.",
           "x-writer": "server",
           "x-sensitivity": "internal"
         },

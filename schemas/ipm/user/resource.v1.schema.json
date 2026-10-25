@@ -79,6 +79,11 @@
           "x-writer": "server",
           "x-sensitivity": "internal"
         },
+        "roles": {
+          "$ref": "definitions.v1.schema.json#/$defs/roles",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
         "deletionProtection": {
           "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
           "x-writer": "server",

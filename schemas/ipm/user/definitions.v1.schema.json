@@ -49,6 +49,22 @@
       "items": {
         "$ref": "#/$defs/permission"
       }
+    },
+    "roleName": {
+      "description": "Identificador semântico da Role composta no padrão Google Cloud IAM (<módulo>.<tipo><Admin|Viewer>, decisão 0083), por exemplo ipm.userAdmin ou ipm.organizationViewer.",
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$"
+    },
+    "roles": {
+      "description": "Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.",
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/roleName"
+      }
     }
   }
 }

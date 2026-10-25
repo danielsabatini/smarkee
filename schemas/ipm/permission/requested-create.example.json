@@ -1,0 +1,9 @@
+{
+  "operationId": "01950000-0000-7000-8000-000000000001",
+  "requestDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "specification": {
+    "name": "ipm.user.create",
+    "description": "Criar usuários da Organization",
+    "grantable": true
+  }
+}

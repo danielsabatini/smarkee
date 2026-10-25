@@ -406,6 +406,15 @@ class Permission(RootModel[str]):
     """
 
 
+class RoleName(RootModel[str]):
+    root: Annotated[
+        str, Field(max_length=128, min_length=5, pattern="^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$")
+    ]
+    """
+    Identificador semântico da Role composta no padrão Google Cloud IAM (<módulo>.<tipo><Admin|Viewer>, decisão 0083), por exemplo ipm.userAdmin ou ipm.organizationViewer.
+    """
+
+
 class UserRequestedDeleteData(ContractModel):
     """
     data de requested com operation delete: declara lifecycle absent. Publicado somente pelo Receiver.
@@ -647,6 +656,10 @@ class UserCreateSpecification(ContractModel):
     """
     Conjunto de permissões, sem repetição e em ordem alfabética.
     """
+    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
+    """
+    Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
+    """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
     Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
@@ -695,6 +708,10 @@ class UserUpdateSpecification(ContractModel):
     permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
     """
     Conjunto de permissões, sem repetição e em ordem alfabética.
+    """
+    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
+    """
+    Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -779,6 +796,10 @@ class UserCreateRequest(ContractModel):
     """
     Conjunto de permissões, sem repetição e em ordem alfabética.
     """
+    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
+    """
+    Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
+    """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
     Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
@@ -802,6 +823,10 @@ class UserUpdateRequest(ContractModel):
     permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
     """
     Conjunto de permissões, sem repetição e em ordem alfabética.
+    """
+    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
+    """
+    Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -831,6 +856,10 @@ class UserDesiredView(ContractModel):
     permissions: Annotated[list[Permission], Field(max_length=64)]
     """
     Conjunto de permissões, sem repetição e em ordem alfabética.
+    """
+    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
+    """
+    Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -966,7 +995,11 @@ class UserDesiredData(ContractModel):
     """
     permissions: Annotated[list[Permission], Field(max_length=64)]
     """
-    Permissões da plataforma que o usuário deve ter na Organization, por autorização no Project Grant dela (decisão 0077).
+    Permissões da plataforma que o usuário deve ter na Organization, por autorização no Project Grant dela (decisão 0077). Inclui as permissões diretas e as expandidas a partir de roles (decisão 0083).
+    """
+    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
+    """
+    Roles compostas atribuídas ao usuário na Organization (decisão 0083). São expandidas pelo Manager em permissions e não criam objetos no provedor de identidade.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """

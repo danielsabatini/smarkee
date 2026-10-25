@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RoleCreateRequest",
+  "description": "Corpo de POST /v1/ipm/roles. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, e o Manager atribui deletionProtection = true.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "description",
+    "permissions"
+  ],
+  "properties": {
+    "name": {
+      "$ref": "definitions.v1.schema.json#/$defs/roleName",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "description": {
+      "$ref": "definitions.v1.schema.json#/$defs/description",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "permissions": {
+      "$ref": "definitions.v1.schema.json#/$defs/permissions",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    }
+  }
+}
