@@ -31,6 +31,7 @@ CORE_PROJECT_ID = os.environ.get("E2E_CORE_PROJECT_ID")
 SUM_PROJECT_ID = os.environ.get("E2E_SUM_PROJECT_ID")
 IPM_PROJECT_ID = os.environ.get("E2E_IPM_PROJECT_ID")
 BSM_PROJECT_ID = os.environ.get("E2E_BSM_PROJECT_ID")
+OPERATOR_PROJECT_ID = os.environ.get("E2E_OPERATOR_PROJECT_ID")
 CLI_PROJECT = Path(os.environ.get("E2E_CLI_PROJECT", Path(__file__).parents[3] / "clients" / "cli"))
 SUM_MANAGER_DATABASE_URL = os.environ.get("E2E_SUM_MANAGER_DATABASE_URL")
 SUM_MAINTENANCE_DATABASE_URL = os.environ.get("E2E_SUM_MAINTENANCE_DATABASE_URL")
@@ -65,6 +66,9 @@ class Sk:
             "E2E_BROWSER_LOG": str(self.browser_log),
             "BROWSER": f"{shlex.quote(sys.executable)} {shlex.quote(str(LOGIN_BROWSER))} %s",
         }
+        operator_section = (
+            f'[operator]\nprojectId = "{OPERATOR_PROJECT_ID}"\n' if OPERATOR_PROJECT_ID else ""
+        )
         (home / "sk").mkdir(parents=True)
         (home / "sk" / "config.toml").write_text(
             f'[auth]\nissuer = "{ISSUER}"\nclientId = "{CLI_CLIENT_ID}"\nallowInsecureHttp = true\n'
@@ -72,7 +76,8 @@ class Sk:
             f'[core]\nprojectId = "{CORE_PROJECT_ID}"\n'
             f'[sum]\nprojectId = "{SUM_PROJECT_ID}"\n'
             f'[ipm]\nprojectId = "{IPM_PROJECT_ID}"\n'
-            f'[bsm]\nprojectId = "{BSM_PROJECT_ID}"\n',
+            f'[bsm]\nprojectId = "{BSM_PROJECT_ID}"\n'
+            f"{operator_section}",
             encoding="utf-8",
         )
 
