@@ -368,7 +368,7 @@
       },
       "UserCreateRequest": {
         "additionalProperties": false,
-        "description": "Corpo de POST /v1/ipm/users. O Receiver atribui resourceId, operationId, requestDigest e requestedBy. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação. permissions ausente equivale a nenhuma; deletionProtection ausente equivale a false (decisão 0077).",
+        "description": "Corpo de POST /v1/ipm/users. O Receiver atribui resourceId, operationId, requestDigest e requestedBy. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação. roles ausente equivale a nenhuma; deletionProtection ausente equivale a false (decisão 0077, 0085).",
         "properties": {
           "deletionProtection": {
             "anyOf": [
@@ -406,21 +406,6 @@
             "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
             "title": "Organizationid",
             "type": "string"
-          },
-          "permissions": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/Permission"
-                },
-                "maxItems": 64,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Permissions"
           },
           "roles": {
             "anyOf": [
@@ -660,7 +645,7 @@
       },
       "UserUpdateRequest": {
         "additionalProperties": false,
-        "description": "Corpo de PATCH /v1/ipm/users/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. Mudar permissions exige ipm.user.bind, ou só permissões que quem pede já tem (decisão 0077); reconciliation é do operador.",
+        "description": "Corpo de PATCH /v1/ipm/users/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. Mudar roles exige ipm.user.bind (decisão 0077, 0085); reconciliation é do operador.",
         "properties": {
           "deletionProtection": {
             "anyOf": [
@@ -672,21 +657,6 @@
               }
             ],
             "title": "Deletionprotection"
-          },
-          "permissions": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/Permission"
-                },
-                "maxItems": 64,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Permissions"
           },
           "reconciliation": {
             "anyOf": [

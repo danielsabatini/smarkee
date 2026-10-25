@@ -415,6 +415,79 @@ class RoleName(RootModel[str]):
     """
 
 
+class UserCreateSpecification(ContractModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    organization_id: Annotated[
+        str,
+        Field(
+            alias="organizationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
+    """
+    given_name: Annotated[str, Field(alias="givenName", max_length=256, min_length=1)]
+    """
+    Nome próprio do usuário.
+    """
+    family_name: Annotated[str, Field(alias="familyName", max_length=256, min_length=1)]
+    """
+    Sobrenome do usuário.
+    """
+    email: Annotated[EmailStr, Field(max_length=254, min_length=3)]
+    """
+    E-mail do usuário; é também o nome de login dele na Organization. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
+    """
+    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
+    """
+    Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
+    """
+    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
+
+
+class UserRequestedCreateData(ContractModel):
+    """
+    data de requested com operation create. Publicado somente pelo Receiver, depois de conferir a Organization, o escopo de quem pede, a cota e as permissões contra o catálogo do Grant (decisão 0077). Sem senha.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    operation_id: Annotated[
+        str,
+        Field(
+            alias="operationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
+    """
+    request_digest: Annotated[
+        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
+    ]
+    """
+    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
+    """
+    specification: Annotated[UserCreateSpecification, Field(title="UserCreateSpecification")]
+    organization_quota_limit: Annotated[
+        int | None, Field(alias="organizationQuotaLimit", ge=1, le=1000)
+    ] = None
+    """
+    Limite de usuários da Organization, definido pelo Receiver (ausente para operadores: sem cota). O Manager aplica o limite na mesma unidade atômica do pedido, sob trava por Organization (decisão 0077).
+    """
+
+
 class UserRequestedDeleteData(ContractModel):
     """
     data de requested com operation delete: declara lifecycle absent. Publicado somente pelo Receiver.
@@ -447,6 +520,128 @@ class UserRequestedDeleteData(ContractModel):
     """
     Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
     """
+
+
+class UserUpdateSpecification(ContractModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
+    """
+    Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
+    """
+    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
+
+
+class UserRequestedUpdateData(ContractModel):
+    """
+    data de requested com operation update. Traz as permissões, a proteção contra exclusão, a mudança do controle de reconciliação, ou uma combinação delas. Publicado somente pelo Receiver.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    operation_id: Annotated[
+        str,
+        Field(
+            alias="operationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
+    """
+    request_digest: Annotated[
+        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
+    ]
+    """
+    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
+    """
+    resource_version: Annotated[
+        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
+    ]
+    """
+    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
+    """
+    specification: Annotated[
+        UserUpdateSpecification | None, Field(title="UserUpdateSpecification")
+    ] = None
+    reconciliation: Reconciliation | None = None
+    """
+    Muda só o controle de reconciliação; não incrementa desiredGeneration.
+    """
+
+
+class UserCreateRequest(ContractModel):
+    """
+    Corpo de POST /v1/ipm/users. O Receiver atribui resourceId, operationId, requestDigest e requestedBy. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação. roles ausente equivale a nenhuma; deletionProtection ausente equivale a false (decisão 0077, 0085).
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    organization_id: Annotated[
+        str,
+        Field(
+            alias="organizationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
+    """
+    given_name: Annotated[str, Field(alias="givenName", max_length=256, min_length=1)]
+    """
+    Nome próprio do usuário.
+    """
+    family_name: Annotated[str, Field(alias="familyName", max_length=256, min_length=1)]
+    """
+    Sobrenome do usuário.
+    """
+    email: Annotated[EmailStr, Field(max_length=254, min_length=3)]
+    """
+    E-mail do usuário; é também o nome de login dele na Organization. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
+    """
+    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
+    """
+    Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
+    """
+    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
+
+
+class UserUpdateRequest(ContractModel):
+    """
+    Corpo de PATCH /v1/ipm/users/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. Mudar roles exige ipm.user.bind (decisão 0077, 0085); reconciliation é do operador.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    resource_version: Annotated[
+        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
+    ]
+    """
+    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
+    """
+    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
+    """
+    Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
+    """
+    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
+    """
+    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
+    reconciliation: Reconciliation | None = None
 
 
 class GrantablePermission(StrEnum):
@@ -622,217 +817,6 @@ class UserObservedData(ContractModel):
     """
     Proteção contra exclusão lida do metadado `deletionProtection` do usuário (decisão 0074). Ausente quando o metadado não existe ou tem valor que não é true nem false: o Reconciler trata como divergência e o Executor o regrava.
     """
-
-
-class UserCreateSpecification(ContractModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    organization_id: Annotated[
-        str,
-        Field(
-            alias="organizationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-    given_name: Annotated[str, Field(alias="givenName", max_length=256, min_length=1)]
-    """
-    Nome próprio do usuário.
-    """
-    family_name: Annotated[str, Field(alias="familyName", max_length=256, min_length=1)]
-    """
-    Sobrenome do usuário.
-    """
-    email: Annotated[EmailStr, Field(max_length=254, min_length=3)]
-    """
-    E-mail do usuário; é também o nome de login dele na Organization. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
-    """
-    permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
-    """
-    Conjunto de permissões, sem repetição e em ordem alfabética.
-    """
-    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
-    """
-    Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
-    """
-    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
-    """
-    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
-    """
-
-
-class UserRequestedCreateData(ContractModel):
-    """
-    data de requested com operation create. Publicado somente pelo Receiver, depois de conferir a Organization, o escopo de quem pede, a cota e as permissões contra o catálogo do Grant (decisão 0077). Sem senha.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    specification: Annotated[UserCreateSpecification, Field(title="UserCreateSpecification")]
-    organization_quota_limit: Annotated[
-        int | None, Field(alias="organizationQuotaLimit", ge=1, le=1000)
-    ] = None
-    """
-    Limite de usuários da Organization, definido pelo Receiver (ausente para operadores: sem cota). O Manager aplica o limite na mesma unidade atômica do pedido, sob trava por Organization (decisão 0077).
-    """
-
-
-class UserUpdateSpecification(ContractModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
-    """
-    Conjunto de permissões, sem repetição e em ordem alfabética.
-    """
-    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
-    """
-    Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
-    """
-    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
-    """
-    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
-    """
-
-
-class UserRequestedUpdateData(ContractModel):
-    """
-    data de requested com operation update. Traz as permissões, a proteção contra exclusão, a mudança do controle de reconciliação, ou uma combinação delas. Publicado somente pelo Receiver.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    resource_version: Annotated[
-        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
-    ]
-    """
-    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
-    """
-    specification: Annotated[
-        UserUpdateSpecification | None, Field(title="UserUpdateSpecification")
-    ] = None
-    reconciliation: Reconciliation | None = None
-    """
-    Muda só o controle de reconciliação; não incrementa desiredGeneration.
-    """
-
-
-class UserCreateRequest(ContractModel):
-    """
-    Corpo de POST /v1/ipm/users. O Receiver atribui resourceId, operationId, requestDigest e requestedBy. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação. permissions ausente equivale a nenhuma; deletionProtection ausente equivale a false (decisão 0077).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    organization_id: Annotated[
-        str,
-        Field(
-            alias="organizationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-    given_name: Annotated[str, Field(alias="givenName", max_length=256, min_length=1)]
-    """
-    Nome próprio do usuário.
-    """
-    family_name: Annotated[str, Field(alias="familyName", max_length=256, min_length=1)]
-    """
-    Sobrenome do usuário.
-    """
-    email: Annotated[EmailStr, Field(max_length=254, min_length=3)]
-    """
-    E-mail do usuário; é também o nome de login dele na Organization. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
-    """
-    permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
-    """
-    Conjunto de permissões, sem repetição e em ordem alfabética.
-    """
-    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
-    """
-    Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
-    """
-    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
-    """
-    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
-    """
-
-
-class UserUpdateRequest(ContractModel):
-    """
-    Corpo de PATCH /v1/ipm/users/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. Mudar permissions exige ipm.user.bind, ou só permissões que quem pede já tem (decisão 0077); reconciliation é do operador.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    resource_version: Annotated[
-        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
-    ]
-    """
-    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
-    """
-    permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
-    """
-    Conjunto de permissões, sem repetição e em ordem alfabética.
-    """
-    roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
-    """
-    Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
-    """
-    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
-    """
-    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
-    """
-    reconciliation: Reconciliation | None = None
 
 
 class UserDesiredView(ContractModel):

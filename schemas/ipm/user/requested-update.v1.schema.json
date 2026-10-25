@@ -35,11 +35,6 @@
       "x-writer": "client",
       "x-sensitivity": "internal",
       "properties": {
-        "permissions": {
-          "$ref": "definitions.v1.schema.json#/$defs/permissions",
-          "x-writer": "client",
-          "x-sensitivity": "internal"
-        },
         "roles": {
           "$ref": "definitions.v1.schema.json#/$defs/roles",
           "x-writer": "client",

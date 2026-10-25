@@ -1,8 +1,6 @@
 {
   "resourceVersion": "3",
-  "permissions": [
-    "ipm.organization.get",
-    "ipm.user.get",
-    "ipm.user.list"
+  "roles": [
+    "ipm.userAdmin"
   ]
 }

@@ -3,10 +3,8 @@
   "requestDigest": "6a3c9d1f8e5b2c0d4f7a1b3e9c6d8f2a5b0e3d7c1f9a4b8e2d6c0f5a9b3e7d1c",
   "resourceVersion": "3",
   "specification": {
-    "permissions": [
-      "ipm.organization.get",
-      "ipm.user.get",
-      "ipm.user.list"
+    "roles": [
+      "ipm.userAdmin"
     ]
   }
 }

@@ -40,10 +40,6 @@ def _parse_resource_version(value: str) -> int:
         raise PermanentMessageError("resourceVersion não numérico") from None
 
 
-def _permissions(values: list[generated.Permission] | None) -> list[str]:
-    return sorted({permission.root for permission in values or []})
-
-
 def _roles(values: list[generated.RoleName] | None) -> list[str]:
     return sorted({role.root for role in values or []})
 
@@ -70,11 +66,9 @@ class UserPolicy:
                     "givenName": specification.given_name,
                     "familyName": specification.family_name,
                     "email": str(specification.email).strip().lower(),
-                    "permissions": _permissions(specification.permissions),
+                    "roles": _roles(specification.roles),
                     "deletionProtection": specification.deletion_protection is True,
                 }
-                if specification.roles is not None:
-                    spec_dict["roles"] = _roles(specification.roles)
                 return Request(
                     "create",
                     create.operation_id,
@@ -88,8 +82,6 @@ class UserPolicy:
                 )
                 changes: dict[str, Any] = {}
                 if update.specification is not None:
-                    if update.specification.permissions is not None:
-                        changes["permissions"] = _permissions(update.specification.permissions)
                     if update.specification.roles is not None:
                         changes["roles"] = _roles(update.specification.roles)
                     if update.specification.deletion_protection is not None:
@@ -120,36 +112,22 @@ class UserPolicy:
         # A proteção contra exclusão nasce desligada no usuário da Organization (exceção à
         # decisão 0043, registrada na 0077).
         spec = dict(request.specification)
-        if "roles" not in spec:
-            return {"lifecycle": "present", **spec}
-        direct = [str(p) for p in spec.get("permissions", [])]
-        roles = [str(r) for r in spec["roles"]]
-        effective = self._catalog.effective_permissions(direct, roles)
+        roles = [str(r) for r in spec.get("roles", [])]
+        effective = self._catalog.expand_roles(roles)
         return {
             "lifecycle": "present",
             **spec,
-            "directPermissions": direct,
             "roles": roles,
             "permissions": effective,
         }
 
     def desired_for_update(self, current: Mapping[str, Any], request: Request) -> dict[str, Any]:
         spec = dict(request.specification or {})
-        if "roles" not in spec and "roles" not in current:
-            return {**current, **spec}
-        direct = [
-            str(p)
-            for p in spec.get(
-                "permissions",
-                current.get("directPermissions", current.get("permissions", [])),
-            )
-        ]
         roles = [str(r) for r in spec.get("roles", current.get("roles", []))]
-        effective = self._catalog.effective_permissions(direct, roles)
+        effective = self._catalog.expand_roles(roles)
         return {
             **current,
             **spec,
-            "directPermissions": direct,
             "roles": roles,
             "permissions": effective,
         }
@@ -162,9 +140,7 @@ class UserPolicy:
         roles = [str(r) for r in raw_roles]
         if not roles:
             return None
-        raw_direct = cast(list[Any], current.get("directPermissions") or [])
-        direct = [str(p) for p in raw_direct]
-        effective = self._catalog.effective_permissions(direct, roles)
+        effective = self._catalog.expand_roles(roles)
         if current.get("permissions") == effective:
             return None
         return {**current, "permissions": effective}

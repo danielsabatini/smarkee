@@ -237,24 +237,19 @@ async def test_user_policy_expands_roles_into_atomic_permissions_and_rolls_out_o
                 "givenName": "Bia",
                 "familyName": "Lima",
                 "email": "bia.lima@example.com",
-                "permissions": ["ipm.organization.get"],
                 "roles": ["ipm.userViewer"],
             },
         },
     )
     desired = policy.desired_for_create(req, "owner-1")
     assert desired["roles"] == ["ipm.userViewer"]
-    assert desired["directPermissions"] == ["ipm.organization.get"]
     assert desired["permissions"] == [
-        "ipm.organization.get",
         "ipm.user.get",
         "ipm.user.list",
     ]
     msg = policy.message_data(desired, "active")
-    assert "directPermissions" not in msg
     assert msg["roles"] == ["ipm.userViewer"]
     assert msg["permissions"] == [
-        "ipm.organization.get",
         "ipm.user.get",
         "ipm.user.list",
     ]
@@ -298,7 +293,6 @@ async def test_user_policy_expands_roles_into_atomic_permissions_and_rolls_out_o
     rolled = policy.rolled_out(desired)
     assert rolled is not None
     assert rolled["permissions"] == [
-        "ipm.organization.get",
         "ipm.user.get",
         "ipm.user.list",
         "ipm.user.update",

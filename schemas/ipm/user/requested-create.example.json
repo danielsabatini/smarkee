@@ -6,9 +6,8 @@
     "givenName": "Bia",
     "familyName": "Lima",
     "email": "bia.lima@example.com",
-    "permissions": [
-      "ipm.organization.get",
-      "ipm.user.get"
+    "roles": [
+      "ipm.userViewer"
     ]
   },
   "organizationQuotaLimit": 5

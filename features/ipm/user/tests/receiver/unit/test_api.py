@@ -69,6 +69,7 @@ def user(
     organization_id: str = ORG,
     *,
     permissions: list[str] | None = None,
+    roles: list[str] | None = None,
     version: int = 3,
     lifecycle: str = "present",
     protected: bool | None = False,
@@ -77,7 +78,10 @@ def user(
     desired: dict[str, Any] = {
         "lifecycle": lifecycle,
         "organizationId": organization_id,
-        "permissions": permissions if permissions is not None else ["ipm.user.get"],
+        "roles": roles if roles is not None else ["ipm.userViewer"],
+        "permissions": (
+            permissions if permissions is not None else ["ipm.user.get", "ipm.user.list"]
+        ),
     }
     if lifecycle == "present":
         desired |= {"givenName": "Bia", "familyName": "Lima", "email": f"{resource_id}@x.com"}
@@ -263,7 +267,7 @@ async def test_missing_permission_is_403(harness: Harness) -> None:
 
 
 async def test_root_creates_a_user_and_the_requested_carries_the_quota(harness: Harness) -> None:
-    response = await create(harness, "root", permissions=["ipm.user.list", "ipm.user.get"])
+    response = await create(harness, "root", roles=["ipm.userViewer"])
 
     assert response.status_code == 202
     accepted = generated.ApiAcceptedResponse.model_validate(response.json())
@@ -275,7 +279,7 @@ async def test_root_creates_a_user_and_the_requested_carries_the_quota(harness: 
         "givenName": "Caio",
         "familyName": "Reis",
         "email": "caio.reis@example.com",  # normalizado: é o nome de login
-        "permissions": ["ipm.user.get", "ipm.user.list"],
+        "roles": ["ipm.userViewer"],
         "deletionProtection": False,  # nasce desprotegido (decisão 0077)
     }
     assert data["specification"] == specification
@@ -327,24 +331,24 @@ async def test_organization_check_failures_are_explicit(harness: Harness) -> Non
     assert harness.publisher.published == []
 
 
-async def test_permissions_outside_the_grant_catalog_are_400(harness: Harness) -> None:
-    response = await create(harness, "root", permissions=["ipm.organization.delete"])
-    assert (response.status_code, response.json()["field"]) == (400, "permissions")
-    assert "ipm.organization.delete" in response.json()["message"]
+async def test_roles_outside_the_grant_catalog_are_400(harness: Harness) -> None:
+    response = await create(harness, "root", roles=["bsm.accountAdmin"])
+    assert (response.status_code, response.json()["field"]) == (400, "roles")
+    assert "bsm.accountAdmin" in response.json()["message"]
     assert harness.publisher.published == []
 
 
-async def test_without_bind_no_permissions_can_be_given(
+async def test_without_bind_no_roles_can_be_given(
     harness: Harness,
 ) -> None:
-    refused_bind = await create(harness, "bia", permissions=["ipm.user.bind"])
-    refused_own = await create(harness, "bia", permissions=["ipm.user.get"])
+    refused_bind = await create(harness, "bia", roles=["ipm.userAdmin"])
+    refused_own = await create(harness, "bia", roles=["ipm.userViewer"])
     assert (refused_bind.status_code, refused_own.status_code) == (403, 403)
-    assert (await create(harness, "bia", permissions=[])).status_code == 202
+    assert (await create(harness, "bia", roles=[])).status_code == 202
     assert (
-        await create(harness, "binder", permissions=["ipm.organization.get"])
+        await create(harness, "binder", roles=["ipm.organizationViewer"])
     ).status_code == 202
-    assert (await create(harness, "root", permissions=["ipm.user.bind"])).status_code == 202
+    assert (await create(harness, "root", roles=["ipm.userAdmin"])).status_code == 202
 
 
 async def test_quota_is_checked_before_publishing(harness: Harness) -> None:
@@ -359,7 +363,7 @@ async def test_quota_is_checked_before_publishing(harness: Harness) -> None:
     [
         ({"email": "nao-e-email"}, "email"),
         ({"password": "segredo"}, "password"),
-        ({"permissions": ["Nao Valida"]}, "permissions.0"),
+        ({"roles": ["Nao Valida"]}, "roles.0"),
         ({"organizationId": "Org Inválida"}, "organizationId"),
     ],
 )
@@ -454,52 +458,52 @@ async def test_list_is_scoped_to_one_organization_and_paginated(harness: Harness
 # ---------------------------------------------------------------------- alterar e remover
 
 
-async def test_update_publishes_permissions_and_protection_with_the_version(
+async def test_update_publishes_roles_and_protection_with_the_version(
     harness: Harness,
 ) -> None:
     response = await harness.client.patch(
         "/v1/ipm/users/binder",
         json={
             "resourceVersion": "3",
-            "permissions": ["ipm.user.list"],
+            "roles": ["ipm.userAdmin"],
             "deletionProtection": True,
         },
         headers=auth("root"),
     )
     assert response.status_code == 202
     data = harness.publisher.published[0][1]["data"]
-    assert data["specification"] == {"permissions": ["ipm.user.list"], "deletionProtection": True}
+    assert data["specification"] == {"roles": ["ipm.userAdmin"], "deletionProtection": True}
     generated.UserRequestedUpdateData.model_validate(data)
 
 
-async def test_without_bind_permissions_cannot_be_given_or_taken(
+async def test_without_bind_roles_cannot_be_given_or_taken(
     harness: Harness,
 ) -> None:
-    harness.repository.resources["x"] = user("x", permissions=["ipm.organization.get"])
+    harness.repository.resources["x"] = user("x", roles=["ipm.organizationViewer"])
     path = "/v1/ipm/users/x"
     taken = await harness.client.patch(
-        path, json={"resourceVersion": "3", "permissions": []}, headers=auth("bia")
+        path, json={"resourceVersion": "3", "roles": []}, headers=auth("bia")
     )
     given_bind = await harness.client.patch(
         path,
-        json={"resourceVersion": "3", "permissions": ["ipm.organization.get", "ipm.user.bind"]},
+        json={"resourceVersion": "3", "roles": ["ipm.organizationViewer", "ipm.userAdmin"]},
         headers=auth("bia"),
     )
     given_own = await harness.client.patch(
         path,
-        json={"resourceVersion": "3", "permissions": ["ipm.organization.get", "ipm.user.get"]},
+        json={"resourceVersion": "3", "roles": ["ipm.organizationViewer", "ipm.userViewer"]},
         headers=auth("bia"),
     )
     assert (taken.status_code, given_bind.status_code, given_own.status_code) == (403, 403, 403)
     unchanged = await harness.client.patch(
         path,
-        json={"resourceVersion": "3", "permissions": ["ipm.organization.get"]},
+        json={"resourceVersion": "3", "roles": ["ipm.organizationViewer"]},
         headers=auth("bia"),
     )
     assert unchanged.status_code == 202
     allowed_with_bind = await harness.client.patch(
         path,
-        json={"resourceVersion": "3", "permissions": ["ipm.organization.get", "ipm.user.get"]},
+        json={"resourceVersion": "3", "roles": ["ipm.organizationViewer", "ipm.userViewer"]},
         headers=auth("binder"),
     )
     assert allowed_with_bind.status_code == 202
@@ -511,7 +515,7 @@ async def test_without_bind_permissions_cannot_be_given_or_taken(
         ({"resourceVersion": "2", "deletionProtection": True}, "root", 409),
         ({"resourceVersion": "3", "reconciliation": "suspended"}, "root", 403),
         ({"resourceVersion": "3"}, "root", 400),
-        ({"resourceVersion": "3", "permissions": ["x.y.z"]}, "root", 400),
+        ({"resourceVersion": "3", "roles": ["x.y.z"]}, "root", 400),
         ({"resourceVersion": "3", "deletionProtection": True}, "eve", 404),
         ({"resourceVersion": "3", "reconciliation": "suspended"}, "admin", 202),
     ],

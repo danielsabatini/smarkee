@@ -31,10 +31,13 @@ BASE_TIME = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
 
 def granted(message: dict[str, Any]) -> dict[str, Any]:
     """O que o Observer leria no Zitadel quando o usuário já converge para o desejado."""
+    roles = message["data"]["specification"].get("roles", ["ipm.userViewer"])
+    # ipm.userViewer expande para ["ipm.user.get", "ipm.user.list"]
+    perms = ["ipm.user.get", "ipm.user.list"] if "ipm.userViewer" in roles else []
     return {
         "emailVerified": True,
         "userState": "active",
-        "permissions": message["data"]["specification"]["permissions"],
+        "permissions": perms,
         "deletionProtection": False,
     }
 
@@ -53,7 +56,7 @@ def register(cleanup: Cleanup) -> dict[str, Any]:
                 "givenName": "Bia",
                 "familyName": "Lima",
                 "email": f"loop-{unique_suffix()}@example.com",
-                "permissions": ["ipm.user.get"],
+                "roles": ["ipm.userViewer"],
                 "deletionProtection": False,
             },
         },

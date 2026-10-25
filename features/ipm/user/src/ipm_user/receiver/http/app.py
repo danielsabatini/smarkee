@@ -31,7 +31,6 @@ from ipm_user.receiver.domain.access import (
     AccessCheckError,
     OrganizationAccess,
     binding_allowed,
-    outside_catalog,
     outside_roles_catalog,
 )
 from ipm_user.receiver.domain.errors import (
@@ -155,11 +154,6 @@ def _register_error_handlers(app: FastAPI) -> None:
         )
 
 
-def _permissions_of(values: Iterable[generated.Permission | str] | None) -> list[str]:
-    """Permissões sem repetição e em ordem alfabética, como no contrato."""
-    return sorted({value if isinstance(value, str) else value.root for value in values or []})
-
-
 def _roles_of(values: Iterable[generated.RoleName | str] | None) -> list[str]:
     """Roles sem repetição e em ordem alfabética, como no contrato (decisão 0083)."""
     return sorted({value if isinstance(value, str) else value.root for value in values or []})
@@ -206,24 +200,6 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             raise not_found()  # não revela usuários de outras Organizations
         return record, standing
 
-    def check_permissions(
-        principal: Principal, standing: Standing, current: list[str], requested: list[str]
-    ) -> None:
-        rejected = outside_catalog(requested, catalog=deps.catalog)
-        if rejected:
-            raise bad_request(
-                f"Permissões não liberadas para a Organization: {', '.join(rejected)}.",
-                field="permissions",
-            )
-        can_bind = standing is not Standing.MEMBER or principal.has_permission(
-            permissions.USER_BIND
-        )
-        if not binding_allowed(current, requested, principal.permissions, can_bind=can_bind):
-            raise forbidden(
-                f"É necessária a permissão {permissions.USER_BIND} para atribuir ou alterar"
-                " permissões de um usuário."
-            )
-
     def check_roles(
         principal: Principal, standing: Standing, current: list[str], requested: list[str]
     ) -> None:
@@ -268,11 +244,8 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         standing = await standing_in(principal, organization_id)
         if standing is None:
             raise not_found()
-        requested_permissions = _permissions_of(body.permissions)
-        check_permissions(principal, standing, [], requested_permissions)
-        requested_roles = _roles_of(body.roles) if body.roles is not None else None
-        if requested_roles is not None:
-            check_roles(principal, standing, [], requested_roles)
+        requested_roles = _roles_of(body.roles) if body.roles is not None else []
+        check_roles(principal, standing, [], requested_roles)
         quota: int | None = None
         if standing is not Standing.OPERATOR:
             quota = deps.settings.user_quota
@@ -288,8 +261,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             "familyName": body.family_name,
             # O e-mail é também o nome de login na organização: normalizado (decisão 0077).
             "email": str(body.email).strip().lower(),
-            "permissions": requested_permissions,
-            **({"roles": requested_roles} if requested_roles is not None else {}),
+            "roles": requested_roles,
             "deletionProtection": body.deletion_protection is True,
         }
         new_user_id = deps.identifiers()
@@ -369,13 +341,6 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         if not body.resource_version.isdigit():
             raise bad_request("resourceVersion deve ser numérico.", field="resourceVersion")
         specification: dict[str, Any] = {}
-        if body.permissions is not None:
-            requested_permissions = _permissions_of(body.permissions)
-            current_permissions = _permissions_of(
-                record.desired.get("directPermissions", record.desired.get("permissions"))
-            )
-            check_permissions(principal, standing, current_permissions, requested_permissions)
-            specification["permissions"] = requested_permissions
         if body.roles is not None:
             requested_roles = _roles_of(body.roles)
             current_roles = _roles_of(record.desired.get("roles"))
