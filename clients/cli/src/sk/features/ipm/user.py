@@ -25,6 +25,9 @@ USERS_PATH = "/v1/ipm/users"
 # `permission` de `schemas/ipm/user/definitions.v1.schema.json`: `<módulo>.<tipo>.<ação>`.
 PERMISSION_PATTERN = re.compile(r"^[a-z][a-z0-9]*\.[a-z][a-z0-9]*\.[a-z][a-z0-9]*$")
 MAXIMUM_PERMISSIONS = 64
+# `roleName` de `schemas/ipm/user/definitions.v1.schema.json`: `<módulo>.<tipo><Admin|Viewer>`.
+ROLE_PATTERN = re.compile(r"^[a-z][a-z0-9]*\.[a-z][a-zA-Z0-9]*$")
+MAXIMUM_ROLES = 32
 LIST_PAGE_SIZE = 200  # o máximo da API
 MAXIMUM_LIST_PAGES = 50  # trava contra um cursor que nunca termina
 
@@ -48,6 +51,8 @@ class User:
     user_state: str | None
     """Estado lido do provedor (`initial` até a ativação); `None` enquanto não foi observado."""
 
+    roles: tuple[str, ...] = ()
+
 
 def validate_permissions(values: list[str]) -> list[str]:
     """Permissões sem repetição e em ordem, ou `ValueError` (sem repetir o valor recusado)."""
@@ -61,6 +66,16 @@ def validate_permissions(values: list[str]) -> list[str]:
     return permissions
 
 
+def validate_roles(values: list[str]) -> list[str]:
+    """Roles sem repetição e em ordem, ou `ValueError`."""
+    roles = sorted(set(values))
+    if len(roles) > MAXIMUM_ROLES:
+        raise ValueError(f"too many roles: at most {MAXIMUM_ROLES}")
+    if any(not ROLE_PATTERN.fullmatch(role) for role in roles):
+        raise ValueError("role invalid: use <module>.<roleName>, for example ipm.userViewer")
+    return roles
+
+
 def _user(document: object) -> User:
     body = as_object(document, what="user")
     desired = as_object(body.get("desired"), what="user (desired)")
@@ -68,6 +83,7 @@ def _user(document: object) -> User:
     permissions: Any = desired.get("permissions")
     if not isinstance(permissions, list):
         raise ApiUnavailableError("API response without the user permissions")
+    roles: Any = desired.get("roles")
     email = desired.get("email")
     state = observed.get("userState")
     return User(
@@ -80,6 +96,9 @@ def _user(document: object) -> User:
         permissions=tuple(str(permission) for permission in cast("list[object]", permissions)),
         deletion_protection=desired.get("deletionProtection") is True,
         user_state=state if isinstance(state, str) else None,
+        roles=tuple(str(role) for role in cast("list[object]", roles))
+        if isinstance(roles, list)
+        else (),
     )
 
 
@@ -91,23 +110,28 @@ def create_user(
     given_name: str,
     family_name: str,
     email: str,
-    permissions: list[str],
+    permissions: list[str] | None = None,
+    roles: list[str] | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
 ) -> RequestAccepted:
     organization_id = validate_identifier(organization_id, what="organizationId")
+    body: dict[str, Any] = {
+        "organizationId": organization_id,
+        "givenName": given_name,
+        "familyName": family_name,
+        "email": email,
+    }
+    if permissions is not None:
+        body["permissions"] = validate_permissions(permissions)
+    if roles is not None:
+        body["roles"] = validate_roles(roles)
     _, document = call_api(
         "POST",
         api_url,
         USERS_PATH,
         token=token,
-        body={
-            "organizationId": organization_id,
-            "givenName": given_name,
-            "familyName": family_name,
-            "email": email,
-            "permissions": validate_permissions(permissions),
-        },
+        body=body,
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
@@ -121,15 +145,18 @@ def update_user(
     resource_id: str,
     resource_version: str,
     permissions: list[str] | None = None,
+    roles: list[str] | None = None,
     protected: bool | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
 ) -> RequestAccepted:
-    """Troca as permissões (o conjunto inteiro) e/ou a proteção contra exclusão."""
+    """Troca as permissões, as roles e/ou a proteção contra exclusão."""
     resource_id = validate_identifier(resource_id, what="resourceId")
     body: dict[str, Any] = {"resourceVersion": resource_version}
     if permissions is not None:
         body["permissions"] = validate_permissions(permissions)
+    if roles is not None:
+        body["roles"] = validate_roles(roles)
     if protected is not None:
         body["deletionProtection"] = protected
     _, document = call_api(

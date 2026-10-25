@@ -71,6 +71,7 @@ def _create_user(
     *,
     email: str,
     permissions: tuple[str, ...] = (),
+    roles: tuple[str, ...] = (),
 ) -> str:
     """Um usuário pela CLI até `Ready`: a Organization já tem o Grant (decisão 0081)."""
     created = sk.run(
@@ -79,6 +80,7 @@ def _create_user(
         *("--email", email),
         *("--organization-id", organization_id),
         *(item for permission in permissions for item in ("--permission", permission)),
+        *(item for role in roles for item in ("--role", role)),
         "--wait",
         timeout=150.0,
     )
@@ -198,19 +200,64 @@ def test_the_organization_and_its_users_are_managed_with_the_sk(
         assert second.exit_code == 1, second.text
         assert "Organization limit" in " ".join(second.stderr.split()), second.stderr
 
-        # Usuários da Organization (decisão 0077): o primeiro com permissões do catálogo, que o
-        # Zitadel só aceita porque a Organization nasceu com o Grant (decisão 0081).
+        # Usuários da Organization (decisões 0077 e 0083): o primeiro criado com role específica
+        # (`ipm.userViewer`), expandida pelo Manager em permissões atômicas.
         first_email = _email()
         first = _create_user(
             sk,
             created_id,
             users,
             email=first_email,
-            permissions=("ipm.user.get", "ipm.user.list"),
+            roles=("ipm.userViewer",),
         )
+        assert _field(first, "roles") == "ipm.userViewer", first
         assert _field(first, "permissions") == "ipm.user.get, ipm.user.list", first
 
-        # Caminhos tristes dos usuários, antes de chegar à cota.
+        # Atualização de role para verificar efetividade e evolução de permissões:
+        # Troca de ipm.userViewer para ipm.userAdmin:
+        updated_role = sk.run(
+            *("ipm", "user", "update"),
+            *("--resource-id", users[0]),
+            *("--role", "ipm.userAdmin"),
+            "--wait",
+            timeout=150.0,
+        )
+        assert updated_role.exit_code == 0, updated_role.text
+        shown_first = sk.run("ipm", "user", "get", "--resource-id", users[0])
+        assert shown_first.exit_code == 0, shown_first.text
+        assert _field(shown_first.stdout, "roles") == "ipm.userAdmin", shown_first.stdout
+        plain_permissions = _plain(shown_first.stdout)
+        for perm in (
+            "ipm.user.bind",
+            "ipm.user.create",
+            "ipm.user.delete",
+            "ipm.user.get",
+            "ipm.user.list",
+            "ipm.user.update",
+        ):
+            assert perm in plain_permissions, shown_first.stdout
+
+        # Caminhos tristes dos usuários e das roles, antes de chegar à cota.
+        outside_role = sk.run(
+            *("ipm", "user", "create"),
+            *("--name", "Usuario", "--surname", "RoleFora"),
+            *("--email", _email(), "--organization-id", created_id),
+            *("--role", "bsm.accountAdmin"),
+        )
+        assert outside_role.exit_code == 2, outside_role.text
+        assert "not allowed for the Organization" in _plain(outside_role.stderr), (
+            outside_role.stderr
+        )
+
+        malformed_role = sk.run(
+            *("ipm", "user", "create"),
+            *("--name", "Usuario", "--surname", "RoleInvalida"),
+            *("--email", _email(), "--organization-id", created_id),
+            *("--role", "role-sem-ponto"),
+        )
+        assert malformed_role.exit_code == 2, malformed_role.text
+        assert "role invalid" in _plain(malformed_role.stderr), malformed_role.stderr
+
         outside = sk.run(
             *("ipm", "user", "create"),
             *("--name", "Usuario", "--surname", "Fora"),
@@ -430,6 +477,12 @@ def test_the_account_is_shown_and_then_deleted_with_the_sk(person: Person) -> No
             "bsm", "account", "delete", "--resource-id", bsm_id, "--wait", timeout=150.0
         )
         assert deleted_bsm.exit_code == 0, deleted_bsm.text
+    if _field(shown.stdout, "protected") == "yes":
+        refused = person.sk.run("account", "delete", "--yes")
+        assert refused.exit_code == 1, refused.text
+        assert "sk account unprotect" in _plain(refused.stderr), refused.stderr
+        unprotected_acc = person.sk.run("account", "unprotect", "--wait", timeout=150.0)
+        assert unprotected_acc.exit_code == 0, unprotected_acc.text
     deleted = person.sk.run("account", "delete", "--yes", "--wait", timeout=150.0)
     assert deleted.exit_code == 0, deleted.text
     assert "Account deleted" in deleted.stdout, deleted.text
