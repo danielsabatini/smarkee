@@ -5,7 +5,7 @@ from typing import Annotated
 
 import typer
 
-from sk import output
+from sk import output, ui
 from sk.command_app import SkTyper
 from sk.commands.account import account_app
 from sk.commands.auth import auth_app
@@ -99,5 +99,22 @@ app.add_typer(sum_app, name="sum")
 app.add_typer(account_app, name="account")
 
 
+EXIT_FAILURE = 1
+
+
 def main() -> None:
-    app()
+    """Executa o `sk`. Uma exceção que nenhum comando tratou vira um painel de erro (código 1).
+
+    A captura fica aqui, e não nos comandos, para os testes com `CliRunner` continuarem vendo a
+    exceção original. Só o **tipo** é mostrado: a mensagem pode trazer token ou resposta da API.
+    `KeyboardInterrupt`, `SystemExit` e `typer.Exit` não são `Exception` e seguem seu curso.
+    """
+    try:
+        app()
+    except Exception as error:
+        ui.error(
+            "Unexpected error",
+            f"The command failed with {type(error).__name__}.",
+            hint=f"This is a bug in sk. Documentation: {DOCUMENTATION_URL}",
+        )
+        raise SystemExit(EXIT_FAILURE) from None

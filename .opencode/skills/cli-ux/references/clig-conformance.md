@@ -62,8 +62,8 @@ Reexecute as verificações antes de repetir um estado: o código muda mais ráp
 | Regra | Estado | Evidência / como verificar |
 |---|---|---|
 | Reescrever o erro para humanos, com causa e dica | Conforme (1 defeito) | `ui.error(title, detail, hint)`. Defeito: `config.py:110` aconselha `sk init --force`, comando extinto (0036) |
-| Sem traceback por padrão | Conforme | `pretty_exceptions_show_locals=False` |
-| Erro inesperado: como reportar o bug | **Lacuna** | nenhuma mensagem aponta onde abrir um problema |
+| Sem traceback por padrão | Conforme | `main()` captura `Exception` e mostra o painel "Unexpected error" só com o tipo, código 1 (`KeyboardInterrupt` segue seu curso) |
+| Erro inesperado: como reportar o bug | **Lacuna parcial** | o painel aponta a documentação (`https://docs.smarkee.com.br`); falta um canal de suporte e um modo de diagnóstico (traceback) |
 | Erros do mesmo tipo agrupados | Não verificado | cada comando falha com um painel; não há caso de múltiplos erros para testar |
 
 ## Arguments and flags
