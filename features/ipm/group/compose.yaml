@@ -59,11 +59,15 @@ services:
       - internal
     restart: "no"
 
-  # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo
-  # (features/ipm/group/migrations/*.sql, em ordem) como o dono `ssot`, no banco `ssot`.
-  # O código das migrações é do Manager (decisões 0015 e 0063); a execução é desta etapa de
-  # implantação, com o papel administrativo, e nunca com o papel de runtime do Manager.
-  # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/ipm.sql.
+  # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo em dois bancos,
+  # sempre como o dono de cada um e nunca com o papel de runtime:
+  #   1. features/ipm/group/migrations/*.sql, no banco `ssot` (SSOT), como `ssot`;
+  #   2. features/ipm/group/migrations/platform/*.sql, no banco `platform` (plano de dados do Executor e do
+  #      Observer, decisões 0086 e 0088), como `platform`. Sem este passo as tabelas ficam com outro dono
+  #      e o `ipm-role-migrate` falha ao conceder privilégios sobre `ipm.group`.
+  # O código das migrações do SSOT é do Manager (decisões 0015 e 0063); o do `platform`, do Executor.
+  # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/ipm.sql e o banco,
+  # de database/bootstrap/platform.sql.
   ipm-group-migrate:
     build:
       context: ../../../infrastructure/tools/psql-client
@@ -79,7 +83,11 @@ services:
     command:
       - sh
       - -c
-      - for migration in /migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1; done
+      - >-
+        for migration in /migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1; done;
+        for migration in /migrations/platform/*.sql; do
+        PGDATABASE=platform PGUSER=platform PGPASSWORD=platform psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1;
+        done
     volumes:
       - ./migrations:/migrations:ro
     networks:
