@@ -425,8 +425,11 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     async def get_operation(
         group_id: str, operation_id: str, principal: Authenticated
     ) -> generated.Operation:
-        record, _ = await visible_group(principal, group_id)
         operation = await deps.repository.find_operation(operation_id)
-        if operation is None or operation.resource_id != record.resource_id:
+        if operation is None or operation.resource_id != group_id:
             raise not_found()
+        # O solicitante e os operadores leem a Operation mesmo depois de o grupo ser removido
+        # (a espera de uma exclusão precisa ver o `completed`). Os demais precisam enxergar o grupo.
+        if not (principal.is_operator or operation.requested_by == principal.subject):
+            await visible_group(principal, group_id)
         return operation_view(operation)

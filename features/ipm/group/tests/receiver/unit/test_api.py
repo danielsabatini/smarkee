@@ -307,3 +307,62 @@ async def test_delete_group_checks_protection_and_attached_users() -> None:
         )
         assert deleted.status_code == 202
         assert len(pub.published) == 1
+
+
+def _operation(*, resource_id: str, requested_by: str) -> OperationRecord:
+    return OperationRecord(
+        operation_id="op-delete-1",
+        resource_id=resource_id,
+        operation_type="delete",
+        desired_generation=3,
+        request_digest="d" * 64,
+        operation_status="completed",
+        operation_status_reason=None,
+        requested_by=requested_by,
+        created_at=FIXED_NOW,
+        updated_at=FIXED_NOW,
+        completed_at=FIXED_NOW,
+    )
+
+
+async def test_operation_of_removed_group_is_readable_by_requester_and_operators() -> None:
+    """A espera de uma exclusão precisa ver o `completed` depois que o grupo some (sem `404`)."""
+    client, repo, _, _ = _setup()
+    group_id = "01950000-0000-7000-8000-000000000010"
+    # O grupo já foi removido: não há `ResourceRecord`, só a Operation.
+    repo.operations["op-delete-1"] = _operation(resource_id=group_id, requested_by="owner-1")
+    url = f"/v1/ipm/groups/{group_id}/operations/op-delete-1"
+    async with client:
+        requester = await client.get(url, headers={"Authorization": "Bearer owner-token"})
+        assert requester.status_code == 200
+        assert requester.json()["operationStatus"] == "completed"
+        operator = await client.get(url, headers={"Authorization": "Bearer admin-token"})
+        assert operator.status_code == 200
+        # Outra pessoa não lê a Operation de um grupo que não enxerga (nem que ele não exista).
+        outsider = await client.get(url, headers={"Authorization": "Bearer outsider-token"})
+        assert outsider.status_code == 404
+        # A Operation é do recurso da rota: com outro `group_id`, é `404` até para o solicitante.
+        other = await client.get(
+            "/v1/ipm/groups/01950000-0000-7000-8000-000000000011/operations/op-delete-1",
+            headers={"Authorization": "Bearer owner-token"},
+        )
+        assert other.status_code == 404
+        unknown = await client.get(
+            f"/v1/ipm/groups/{group_id}/operations/op-unknown",
+            headers={"Authorization": "Bearer owner-token"},
+        )
+        assert unknown.status_code == 404
+
+
+async def test_operation_of_an_existing_group_keeps_organization_scope() -> None:
+    """Quem não pediu a Operation continua lendo-a só se enxerga o grupo."""
+    client, repo, _, _ = _setup()
+    group_id = "01950000-0000-7000-8000-000000000010"
+    repo.groups[group_id] = _record(group_id)
+    repo.operations["op-delete-1"] = _operation(resource_id=group_id, requested_by="owner-1")
+    url = f"/v1/ipm/groups/{group_id}/operations/op-delete-1"
+    async with client:
+        member = await client.get(url, headers={"Authorization": "Bearer member-no-bind-token"})
+        assert member.status_code == 200
+        outsider = await client.get(url, headers={"Authorization": "Bearer outsider-token"})
+        assert outsider.status_code == 404

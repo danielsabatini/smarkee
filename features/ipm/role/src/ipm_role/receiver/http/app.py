@@ -441,13 +441,16 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     async def get_operation(
         role_id: str, operation_id: str, principal: Authenticated
     ) -> generated.Operation:
-        record, standing = await visible_role(principal, role_id, writing=False)
         operation = await deps.repository.find_operation(operation_id)
-        # Operações de Roles predefinidas são só do operador (a leitura da Role é pública).
-        if (
-            operation is None
-            or operation.resource_id != record.resource_id
-            or (standing is None and organization_of(record) == PLATFORM_ORGANIZATION_ID)
-        ):
+        if operation is None or operation.resource_id != role_id:
+            raise not_found()
+        # O solicitante e os operadores leem a Operation mesmo depois de a Role ser removida
+        # (a espera de uma exclusão precisa ver o `completed`).
+        if principal.is_operator or operation.requested_by == principal.subject:
+            return operation_view(operation)
+        # Os demais precisam enxergar a Role. Operações de Roles predefinidas são só do operador
+        # (a leitura da Role é pública).
+        record, standing = await visible_role(principal, role_id, writing=False)
+        if standing is None and organization_of(record) == PLATFORM_ORGANIZATION_ID:
             raise not_found()
         return operation_view(operation)

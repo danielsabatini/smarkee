@@ -501,3 +501,62 @@ async def test_operation_of_a_predefined_role_is_visible_only_to_the_operator() 
         url = "/v1/ipm/roles/role-core/operations/op-1"
         assert (await client.get(url, headers=_bearer("member-token"))).status_code == 404
         assert (await client.get(url, headers=_bearer("admin-token"))).status_code == 200
+
+
+def _delete_operation(*, resource_id: str, requested_by: str) -> OperationRecord:
+    return OperationRecord(
+        operation_id="op-delete-1",
+        resource_id=resource_id,
+        operation_type="delete",
+        desired_generation=3,
+        request_digest="d" * 64,
+        operation_status="completed",
+        operation_status_reason=None,
+        requested_by=requested_by,
+        created_at=FIXED_NOW,
+        updated_at=FIXED_NOW,
+        completed_at=FIXED_NOW,
+    )
+
+
+async def test_operation_of_removed_role_is_readable_by_requester_and_operators() -> None:
+    """A espera de uma exclusão precisa ver o `completed` depois que a Role some (sem `404`)."""
+    harness = Harness()
+    role_id = "01950000-0000-7000-8000-0000000000c1"
+    # A Role já foi removida: não há `ResourceRecord`, só a Operation.
+    harness.repo.operations["op-delete-1"] = _delete_operation(
+        resource_id=role_id, requested_by="member-1"
+    )
+    url = f"/v1/ipm/roles/{role_id}/operations/op-delete-1"
+    async with harness.client() as client:
+        requester = await client.get(url, headers=_bearer("member-token"))
+        assert requester.status_code == 200
+        assert requester.json()["operationStatus"] == "completed"
+        assert (await client.get(url, headers=_bearer("admin-token"))).status_code == 200
+        # Outra pessoa não lê a Operation de uma Role que não enxerga (nem que ela não exista).
+        assert (await client.get(url, headers=_bearer("other-token"))).status_code == 404
+        assert (await client.get(url, headers=_bearer("no-perm-token"))).status_code == 404
+        # A Operation é do recurso da rota: com outro `role_id`, é `404` até para o solicitante.
+        other = await client.get(
+            "/v1/ipm/roles/01950000-0000-7000-8000-0000000000c2/operations/op-delete-1",
+            headers=_bearer("member-token"),
+        )
+        assert other.status_code == 404
+        unknown = await client.get(
+            f"/v1/ipm/roles/{role_id}/operations/op-unknown", headers=_bearer("member-token")
+        )
+        assert unknown.status_code == 404
+
+
+async def test_operation_of_an_existing_custom_role_keeps_organization_scope() -> None:
+    """Quem não pediu a Operation continua lendo-a só se enxerga a Role (comportamento anterior)."""
+    harness = Harness()
+    role_id = "01950000-0000-7000-8000-0000000000c1"
+    harness.repo.roles[role_id] = _record(role_id, name="acme.custom", organization_id="org-acme")
+    harness.repo.operations["op-delete-1"] = _delete_operation(
+        resource_id=role_id, requested_by="member-1"
+    )
+    url = f"/v1/ipm/roles/{role_id}/operations/op-delete-1"
+    async with harness.client() as client:
+        assert (await client.get(url, headers=_bearer("nobind-token"))).status_code == 200
+        assert (await client.get(url, headers=_bearer("other-token"))).status_code == 404
