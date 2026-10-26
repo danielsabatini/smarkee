@@ -272,3 +272,15 @@ def test_key_add_sends_only_publickey_and_expiresat(api: FakeApi, tmp_path: Path
     keys = json.loads(cast("bytes", patch.data))["keys"]
     assert len(keys) == 2
     assert all(set(k) == {"publicKey", "expiresAt"} for k in keys)
+
+
+def test_key_file_missing_file_explains_the_path_without_raw_errno(tmp_path: Path) -> None:
+    missing = tmp_path / "nao-existe.json"
+    result = runner.invoke(
+        app,
+        ["ipm", "serviceaccount", "key-file", "--resource-id", RID, "--key-file", str(missing)],
+    )
+    assert result.exit_code == 2
+    assert "Could not read the key file" in result.output
+    assert "nao-existe.json" in result.output
+    assert "Errno" not in result.output

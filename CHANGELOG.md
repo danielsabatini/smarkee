@@ -182,6 +182,11 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - SSOT: tabela de inbox; a idempotência de entrada é garantida pelas regras semânticas (`docs/data/SSOT.md`, `docs/data/POSTGRESQL.md`).
 
 ### Fixed
+- CLI `sk`: a ajuda de cada opção com padrão repetia o valor (`[default 60]` e `[default: 60]`); agora aparece uma só vez, em todos os comandos e nas opções globais `--output` e `--raw`.
+- CLI `sk`: o erro de configuração inválida aconselhava `sk init --force`, comando que não existe mais (decisão 0036); passa a orientar corrigir ou remover o arquivo.
+- CLI `sk`: `sk config list` e as demais operações de `sk config` passam a incluir a seção `operator` (`operator.projectId`), que já existia na configuração.
+- CLI `sk ipm serviceaccount key-file` com arquivo inexistente ou ilegível mostrava o erro cru do sistema (`[Errno 2] ...`); agora informa o caminho e como corrigir.
+- CLI `sk`: o README passa a documentar `sk ipm user|group|role|permission` e `sk bsm account`, deixa de afirmar que o `list` marca a Organization ativa com `*` (removido) e deixa de contradizer a decisão de a ajuda e as mensagens serem em inglês.
 - `GET` de uma Organization ou de uma Account já observada respondia `500`: a visão `resource` do contrato não aceitava o `deletionProtection` que o `observed` passou a trazer (decisão 0074). O campo entra na visão (aditivo), e um teste de schema exige que a visão aceite todo campo do `observed`.
 - `sk ipm organization create --wait` esperava até o tempo acabar quando o pedido era recusado (nome repetido, cota): a recusa da Operation passa a ser lida antes do recurso, que nem existe nesse caso.
 - `sum.service`: o Executor não supervisionava as suas tarefas; se um consumer terminasse, o processo seguia no ar sem consumir. Agora sai com erro e é reiniciado.

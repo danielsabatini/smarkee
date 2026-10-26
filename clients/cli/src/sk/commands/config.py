@@ -25,6 +25,7 @@ from sk.settings import (
     ConfigurationError,
     CoreSettings,
     IpmSettings,
+    OperatorSettings,
     SkSettings,
     SumSettings,
     config_file_path,
@@ -43,6 +44,7 @@ SECTION_MODELS: dict[str, type[BaseModel]] = {
     "sum": SumSettings,
     "ipm": IpmSettings,
     "bsm": BsmSettings,
+    "operator": OperatorSettings,
 }
 # Chaves que são endereços: precisam começar com http:// ou https://.
 URL_KEYS = {"auth.issuer", "api.url"}
@@ -107,7 +109,7 @@ def _read_or_exit() -> dict[str, Any]:
         _exit_with(
             error,
             "Invalid configuration",
-            "Fix the file or run `sk init --force`.",
+            "Fix the file, or remove it to return to the defaults.",
             EXIT_USAGE_ERROR,
         )
 

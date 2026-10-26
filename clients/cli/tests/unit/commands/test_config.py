@@ -209,3 +209,20 @@ def test_json_on_get_and_set_is_refused_and_does_not_write(tmp_path: Path) -> No
     )
     assert refused.exit_code == 2
     assert not config_file(tmp_path).exists()
+
+
+def test_list_shows_every_settings_section() -> None:
+    from sk.settings import SkSettings
+
+    result = runner.invoke(app, ["--output", "json", "config", "list"])
+    assert result.exit_code == 0
+    shown = {item["key"].split(".")[0] for item in json.loads(result.stdout)}
+    assert shown == set(SkSettings.model_fields)
+
+
+def test_invalid_file_does_not_suggest_a_removed_command(tmp_path: Path) -> None:
+    config_file(tmp_path).parent.mkdir()
+    config_file(tmp_path).write_text("garbage = [", encoding="utf-8")
+    result = runner.invoke(app, ["config", "list"])
+    assert result.exit_code == 2
+    assert "sk init" not in result.output

@@ -741,6 +741,15 @@ def key_file_command(
     file_path = key_file
     try:
         content = file_path.read_text(encoding="utf-8")
+    except OSError as error:
+        # `strerror` evita o texto cru `[Errno 2] ...` e o caminho vai no detalhe, uma só vez.
+        ui.error(
+            "Could not read the key file",
+            f"{file_path}: {error.strerror or error}.",
+            hint="Check the path given to --key-file and the file permissions.",
+        )
+        raise typer.Exit(EXIT_USAGE_ERROR) from error
+    try:
         raw = json.loads(content)
         if not isinstance(raw, dict) or "key" not in raw or not isinstance(raw["key"], str):
             raise ValueError("key file does not contain a private key")
@@ -748,7 +757,9 @@ def key_file_command(
         fingerprint = _fingerprint_from_private_pem(private_pem)
     except Exception as error:
         ui.error(
-            "Invalid key file", str(error), hint="Ensure the file is a valid service account key."
+            "Invalid key file",
+            f"{file_path}: {error}",
+            hint="Ensure the file is a valid service account key.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 

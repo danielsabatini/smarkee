@@ -153,3 +153,13 @@ def test_required_options_show_a_single_required_marker() -> None:
     # O nosso marcador tem o mesmo texto do do Typer: cada opção obrigatória mostra um só.
     options = ["--name", "--surname", "--email"]
     assert result.stdout.count("[required]") == len(options)
+
+
+def test_no_option_repeats_the_default_in_the_typer_format() -> None:
+    # O texto de ajuda já traz "[default X]"; o Typer não pode acrescentar "[default: X]".
+    # Inclui a raiz (`--output`, `--raw`) e os grupos, que `_commands()` não percorre.
+    paths: list[list[str]] = [[], *(name.split() for name, _ in _commands())]
+    for path in paths:
+        result = runner.invoke(app, [*path, "--help"], env={"COLUMNS": "200"})
+        assert result.exit_code == 0, path
+        assert "[default:" not in result.stdout, path
