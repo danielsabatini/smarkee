@@ -524,9 +524,14 @@ sk = "sk.main:main"
 
 O mecanismo de execução deve ser definido pelo packaging do projeto, e não depender da execução manual de arquivos Python.
 
-## 20.1 CLI
+## 20.1 CLI (`clients/cli/`)
 
-O CLI `sk` usa **Typer** para os comandos e **pydantic-settings** para a configuração, com precedência parâmetro → variável de ambiente (`SK_<SEÇÃO>_<CAMPO>`) → arquivo `config.toml` → default. A decisão e as regras estão em `.decisions/0008-cli-typer-pydantic-e-precedencia-de-configuracao.md`; não as repita aqui.
+A CLI `sk` usa **Typer**, **pydantic-settings** e **Rich**, e tem suas escolhas registradas nas seguintes fontes da verdade (não as repita aqui):
+
+- Arquitetura, configuração e precedência (`parâmetro → variável SK_* → config.toml → padrão de produção`): decisões `0007`, `0008`, `0034`, `0036` e `0041`, e guia operacional `docs/cli/CLI-DEV-STG.md`.
+- Apresentação, idioma em inglês, formato de `--help` (`sk/help.py`) e saídas globais (`--output table|json` e `--raw` antes do subcomando): decisões `0021`, `0022`, `0035` e `0093`, e `clients/cli/README.md`.
+- Referência de mercado (`AGENTS.md` §2.7): [Command Line Interface Guidelines (`clig.dev`)](https://clig.dev/), subordinada às decisões acima nos pontos em que o projeto divergiu deliberadamente.
+- Procedimento de desenho, revisão e auditoria de UX/DX da CLI: skill **`cli-ux`** (`.opencode/skills/cli-ux/SKILL.md`), complementada pela validação técnica da skill **`python-quality`**.
 
 ---
 
