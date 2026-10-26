@@ -42,6 +42,13 @@
       "x-managed": true,
       "x-sensitivity": "public"
     },
+    "roleType": {
+      "$ref": "definitions.v1.schema.json#/$defs/roleType",
+      "x-writer": "server",
+      "x-mutability": "immutable",
+      "x-managed": false,
+      "x-sensitivity": "public"
+    },
     "description": {
       "$ref": "definitions.v1.schema.json#/$defs/description",
       "x-writer": "client",

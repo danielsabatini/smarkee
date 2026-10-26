@@ -15,6 +15,9 @@ from ipm_role.common.contracts.base import ContractModel, fields_of, validate_to
 from ipm_role.manager.domain.errors import PermanentMessageError
 from ipm_role.manager.domain.policy import Request, UniqueValue
 
+CUSTOM_ROLE_TYPE = "custom"
+"""Natureza da Role criada por pedido via API; as `predefined` nascem do bootstrap."""
+
 
 def _validated[M: ContractModel](model: type[M], data: Mapping[str, Any], *, label: str) -> M:
     try:
@@ -108,6 +111,7 @@ class RolePolicy:
         return {
             "lifecycle": "present",
             "name": request.specification["name"],
+            "roleType": CUSTOM_ROLE_TYPE,
             "description": request.specification["description"],
             "permissions": list(request.specification["permissions"]),
             "deletionProtection": True,
@@ -150,6 +154,7 @@ class RolePolicy:
                 "lifecycle": desired["lifecycle"],
                 "reconciliation": reconciliation,
                 "name": desired["name"],
+                "roleType": desired.get("roleType", CUSTOM_ROLE_TYPE),
                 "description": desired["description"],
                 "permissions": desired["permissions"],
                 "deletionProtection": self.deletion_protected(desired),

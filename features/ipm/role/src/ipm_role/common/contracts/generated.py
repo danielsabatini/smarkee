@@ -381,6 +381,15 @@ class ApiError(ContractModel):
     """
 
 
+class RoleType(StrEnum):
+    """
+    Natureza da Role: predefined (catálogo fornecido pela plataforma, criado pelo bootstrap) ou custom (criada por pedido via API). Atribuída pelo servidor na criação e imutável; ausente em mensagens antigas equivale a custom.
+    """
+
+    predefined = "predefined"
+    custom = "custom"
+
+
 class Permission(RootModel[str]):
     root: Annotated[
         str,
@@ -641,6 +650,7 @@ class RoleDesiredView(ContractModel):
     """
     Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, core.accountViewer). Imutável após a criação.
     """
+    role_type: Annotated[RoleType, Field(alias="roleType")]
     description: Annotated[
         str, Field(max_length=256, min_length=1, pattern="^[^\\u0000-\\u001f\\u007f]+$")
     ]
@@ -910,6 +920,7 @@ class RoleDesiredData(ContractModel):
     """
     Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, core.accountViewer). Imutável após a criação.
     """
+    role_type: Annotated[RoleType | None, Field(alias="roleType")] = None
     description: Annotated[
         str, Field(max_length=256, min_length=1, pattern="^[^\\u0000-\\u001f\\u007f]+$")
     ]

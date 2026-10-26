@@ -105,43 +105,51 @@ CREATE OR REPLACE VIEW ipm.permission_operation_v1 AS
 WITH predefined(resource_id, permission_name, module_group, description, grantable) AS (
   VALUES
     -- bsm.account (roles-bsm): nível de conta pessoal (register)
-    ('perm-bsm-account-create', 'bsm.account.create', 'bsm', 'Criar Billing Accounts', false),
-    ('perm-bsm-account-delete', 'bsm.account.delete', 'bsm', 'Remover Billing Accounts', false),
-    ('perm-bsm-account-get',    'bsm.account.get',    'bsm', 'Ler Billing Accounts', false),
-    ('perm-bsm-account-list',   'bsm.account.list',   'bsm', 'Listar Billing Accounts', false),
-    ('perm-bsm-account-update', 'bsm.account.update', 'bsm', 'Alterar Billing Accounts', false),
-    ('perm-bsm-account-admin',  'bsm.account.admin',  'bsm', 'Operador: qualquer Billing Account', false),
+    ('01a1763d-eb05-7408-8945-8b7798b1f584', 'bsm.account.create', 'bsm', 'Criar Billing Accounts', false),
+    ('01a1763d-eb07-73a3-9238-cebddc755e48', 'bsm.account.delete', 'bsm', 'Remover Billing Accounts', false),
+    ('01a1763d-eb0a-73e6-ae87-09479da576ee',    'bsm.account.get',    'bsm', 'Ler Billing Accounts', false),
+    ('01a1763d-eb0c-71d0-82c7-3010ed561cc5',   'bsm.account.list',   'bsm', 'Listar Billing Accounts', false),
+    ('01a1763d-eb0f-75ea-8b0f-8bf1afb324fa', 'bsm.account.update', 'bsm', 'Alterar Billing Accounts', false),
+    ('01a1763d-eb11-715e-96bb-90b4ab137e28',  'bsm.account.admin',  'bsm', 'Operador: qualquer Billing Account', false),
     -- core.account (roles-core): nível de conta pessoal (register)
-    ('perm-core-account-delete', 'core.account.delete', 'core', 'Remover a própria conta', false),
-    ('perm-core-account-get',    'core.account.get',    'core', 'Ler a própria conta', false),
-    ('perm-core-account-admin',  'core.account.admin',  'core', 'Operador: qualquer conta', false),
+    ('01a1763d-eb14-74eb-86dd-6f7f4b480783', 'core.account.delete', 'core', 'Remover a própria conta', false),
+    ('01a1763d-eb16-748d-bafc-dd2976ec27a4',    'core.account.get',    'core', 'Ler a própria conta', false),
+    ('01a1763d-eb19-737d-9a93-d95b72ff01c0',  'core.account.admin',  'core', 'Operador: qualquer conta', false),
     -- sum.ipm (roles-sum): nível de conta pessoal (register)
-    ('perm-sum-ipm-disable', 'sum.ipm.disable', 'sum', 'Desabilitar o módulo IPM da conta', false),
-    ('perm-sum-ipm-enable',  'sum.ipm.enable',  'sum', 'Habilitar o módulo IPM da conta', false),
-    ('perm-sum-ipm-get',     'sum.ipm.get',     'sum', 'Ler o estado do módulo IPM da conta', false),
+    ('01a1763d-eb1c-70bf-bf6c-8e2bb3bed9ec', 'sum.ipm.disable', 'sum', 'Desabilitar o módulo IPM da conta', false),
+    ('01a1763d-eb1e-7411-939c-a0f773e2f875',  'sum.ipm.enable',  'sum', 'Habilitar o módulo IPM da conta', false),
+    ('01a1763d-eb21-7647-aa8d-66b6fe110cf3',     'sum.ipm.get',     'sum', 'Ler o estado do módulo IPM da conta', false),
     -- ipm.organization (roles-ipm): create/delete são da conta pessoal; get/list/update são delegáveis à Organization
-    ('perm-ipm-organization-create', 'ipm.organization.create', 'ipm', 'Criar Organizations', false),
-    ('perm-ipm-organization-delete', 'ipm.organization.delete', 'ipm', 'Remover Organizations', false),
-    ('perm-ipm-organization-get',    'ipm.organization.get',    'ipm', 'Ler Organizations', true),
-    ('perm-ipm-organization-list',   'ipm.organization.list',   'ipm', 'Listar Organizations', true),
-    ('perm-ipm-organization-update', 'ipm.organization.update', 'ipm', 'Alterar Organizations', true),
-    ('perm-ipm-organization-admin',  'ipm.organization.admin',  'ipm', 'Operador: qualquer Organization', false),
+    ('01a1763d-eb23-7095-9112-0b521899e026', 'ipm.organization.create', 'ipm', 'Criar Organizations', false),
+    ('01a1763d-eb26-7392-b4a7-e3ed5a955cce', 'ipm.organization.delete', 'ipm', 'Remover Organizations', false),
+    ('01a1763d-eb28-773d-804c-1779722fbb95',    'ipm.organization.get',    'ipm', 'Ler Organizations', true),
+    ('01a1763d-eb2a-716f-9417-5dc1e3d3264f',   'ipm.organization.list',   'ipm', 'Listar Organizations', true),
+    ('01a1763d-eb2d-726e-b505-3592ecdff4d6', 'ipm.organization.update', 'ipm', 'Alterar Organizations', true),
+    ('01a1763d-eb2f-73e4-8e15-29bb53ca2855',  'ipm.organization.admin',  'ipm', 'Operador: qualquer Organization', false),
     -- ipm.user (roles-ipm): delegáveis à Organization (exceto admin)
-    ('perm-ipm-user-bind',   'ipm.user.bind',   'ipm', 'Atribuir e alterar permissões de usuários da Organization', true),
-    ('perm-ipm-user-create', 'ipm.user.create', 'ipm', 'Criar usuários da Organization', true),
-    ('perm-ipm-user-delete', 'ipm.user.delete', 'ipm', 'Remover usuários da Organization', true),
-    ('perm-ipm-user-get',    'ipm.user.get',    'ipm', 'Ler usuários da Organization', true),
-    ('perm-ipm-user-list',   'ipm.user.list',   'ipm', 'Listar usuários da Organization', true),
-    ('perm-ipm-user-update', 'ipm.user.update', 'ipm', 'Alterar usuários da Organization', true),
-    ('perm-ipm-user-admin',  'ipm.user.admin',  'ipm', 'Operador: qualquer usuário da Organization', false),
+    ('01a1763d-eb32-73e1-b31b-44a5a2a7669a',   'ipm.user.bind',   'ipm', 'Atribuir e alterar permissões de usuários da Organization', true),
+    ('01a1763d-eb34-7534-8d01-569b74847fcc', 'ipm.user.create', 'ipm', 'Criar usuários da Organization', true),
+    ('01a1763d-eb37-721a-8ac9-9aaa0550c7ea', 'ipm.user.delete', 'ipm', 'Remover usuários da Organization', true),
+    ('01a1763d-eb39-7341-8c3b-43b5c7f9ade5',    'ipm.user.get',    'ipm', 'Ler usuários da Organization', true),
+    ('01a1763d-eb3c-747c-86fe-8f34692042e2',   'ipm.user.list',   'ipm', 'Listar usuários da Organization', true),
+    ('01a1763d-eb3e-72dd-b96c-015c189af10b', 'ipm.user.update', 'ipm', 'Alterar usuários da Organization', true),
+    ('01a1763d-eb40-71a5-ab70-96207a5b4d2d',  'ipm.user.admin',  'ipm', 'Operador: qualquer usuário da Organization', false),
     -- ipm.permission (roles-ipm): catálogo global da plataforma
-    ('perm-ipm-permission-get',   'ipm.permission.get',   'ipm', 'Ler permissões do catálogo da plataforma', false),
-    ('perm-ipm-permission-list',  'ipm.permission.list',  'ipm', 'Listar permissões do catálogo da plataforma', false),
-    ('perm-ipm-permission-admin', 'ipm.permission.admin', 'ipm', 'Operador: gerenciar o catálogo de permissões', false),
+    ('01a1763d-eb43-703d-a168-aa3ade79c4f8',   'ipm.permission.get',   'ipm', 'Ler permissões do catálogo da plataforma', false),
+    ('01a1763d-eb45-7247-ab1a-90fdc45b217d',  'ipm.permission.list',  'ipm', 'Listar permissões do catálogo da plataforma', false),
+    ('01a1763d-eb48-728c-ade2-0dbe753f70de', 'ipm.permission.admin', 'ipm', 'Operador: gerenciar o catálogo de permissões', false),
     -- ipm.role (roles-ipm): catálogo global da plataforma
-    ('perm-ipm-role-get',   'ipm.role.get',   'ipm', 'Ler Roles compostas do catálogo da plataforma', false),
-    ('perm-ipm-role-list',  'ipm.role.list',  'ipm', 'Listar Roles compostas do catálogo da plataforma', false),
-    ('perm-ipm-role-admin', 'ipm.role.admin', 'ipm', 'Operador: gerenciar o catálogo de Roles compostas', false)
+    ('01a1763d-eb4a-7168-981a-0862f72aeeca',   'ipm.role.get',   'ipm', 'Ler Roles compostas do catálogo da plataforma', false),
+    ('01a1763d-eb4d-750a-b163-4e082cff09ee',  'ipm.role.list',  'ipm', 'Listar Roles compostas do catálogo da plataforma', false),
+    ('01a1763d-eb4f-71f6-ad10-991a7f90c40a', 'ipm.role.admin', 'ipm', 'Operador: gerenciar o catálogo de Roles compostas', false),
+    -- ipm.group (roles-ipm): delegáveis à Organization (exceto admin)
+    ('01a17641-4895-761f-888f-24ca35143f79', 'ipm.group.create', 'ipm', 'Criar grupos de usuários da Organization', true),
+    ('01a17641-4897-73c9-adf3-a0ddcf0e27d3', 'ipm.group.delete', 'ipm', 'Excluir grupos de usuários da Organization', true),
+    ('01a17641-489a-7615-848c-3263328fedc0', 'ipm.group.get', 'ipm', 'Ler grupos de usuários da Organization', true),
+    ('01a17641-489c-75c9-81c4-34e1ce2459a7', 'ipm.group.list', 'ipm', 'Listar grupos de usuários da Organization', true),
+    ('01a17641-489f-72ea-9647-b39cb4237b52', 'ipm.group.update', 'ipm', 'Alterar grupos de usuários da Organization', true),
+    ('01a17641-48a1-77c5-9e35-69e7e1b1706f', 'ipm.group.bind', 'ipm', 'Atribuir e alterar roles de grupos de usuários da Organization', true),
+    ('01a17641-48a4-7790-9a6c-25f5aaea438c', 'ipm.group.admin', 'ipm', 'Operador: gerenciar qualquer grupo', false)
 ),
 inserted AS (
   INSERT INTO ipm.permission (
@@ -209,7 +217,7 @@ inserted AS (
     ),
     1
   FROM predefined p
-  ON CONFLICT (resource_id) DO NOTHING
+  ON CONFLICT DO NOTHING
   RETURNING resource_id, desired
 )
 INSERT INTO ipm.permission_outbox (message_id, resource_id, subject, payload)

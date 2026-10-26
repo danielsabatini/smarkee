@@ -61,6 +61,23 @@ def test_role_document_parsing() -> None:
     assert role.name == "ipm.userAdmin"
     assert role.permissions == ("ipm.user.create", "ipm.user.get")
     assert role.deletion_protection is True
+    assert role.role_type == "custom"  # sem roleType (dados antigos), vale custom
+
+
+def test_role_type_is_read_from_the_api() -> None:
+    raw: dict[str, Any] = {
+        "resourceId": "r-1",
+        "resourceVersion": "1",
+        "phase": "Ready",
+        "desired": {
+            "lifecycle": "present",
+            "name": "ipm.userAdmin",
+            "roleType": "predefined",
+            "description": "Administrador de usuários",
+            "permissions": ["ipm.user.get"],
+        },
+    }
+    assert _role(raw).role_type == "predefined"
 
 
 def test_role_missing_specification_fields() -> None:

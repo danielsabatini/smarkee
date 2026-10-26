@@ -143,6 +143,7 @@ def _rows(role: Role) -> list[tuple[str, str]]:
     return [
         ("resourceId", role.resource_id),
         ("name", role.name),
+        ("type", role.role_type),
         ("description", role.description),
         ("permissions", ", ".join(role.permissions) or "-"),
         ("protected", "yes" if role.deletion_protection else "no"),
@@ -531,11 +532,12 @@ def list_command() -> None:
         return
     ui.table(
         "Roles",
-        ["resourceId", "name", "phase", "permissions", "description"],
+        ["resourceId", "name", "type", "phase", "permissions", "description"],
         [
             [
                 r.resource_id,
                 r.name,
+                r.role_type,
                 _styled_phase(r),
                 (
                     f"{len(r.permissions)} perm"

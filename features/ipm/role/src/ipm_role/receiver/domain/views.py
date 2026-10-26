@@ -48,6 +48,7 @@ def role_view(record: ResourceRecord) -> generated.Role:
         "lifecycle": record.lifecycle,
         "reconciliation": record.reconciliation,
         "name": record.desired["name"],
+        "roleType": record.desired.get("roleType", "custom"),
         "description": record.desired["description"],
         "permissions": record.desired["permissions"],
         "deletionProtection": record.desired.get("deletionProtection", True) is not False,

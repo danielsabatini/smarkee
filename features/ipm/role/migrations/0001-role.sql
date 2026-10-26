@@ -106,88 +106,100 @@ CREATE OR REPLACE VIEW ipm.role_operation_v1 AS
 WITH predefined(resource_id, role_name, description, permissions) AS (
   VALUES
     (
-      'role-core-account-viewer',
+      '01a1763d-eb52-748b-84c3-10fa2192a062',
       'core.accountViewer',
       'Leitura de conta pessoal em core.account.',
       '["core.account.get"]'::jsonb
     ),
     (
-      'role-core-account-admin',
+      '01a1763d-eb54-762f-813e-15a4667086f1',
       'core.accountAdmin',
       'Administração da própria conta em core.account.',
       '["core.account.delete", "core.account.get"]'::jsonb
     ),
     (
-      'role-sum-service-viewer',
+      '01a1763d-eb57-7009-9196-741d0a8702ab',
       'sum.serviceViewer',
       'Leitura de serviços habilitados em sum.service.',
       '["sum.ipm.get"]'::jsonb
     ),
     (
-      'role-sum-service-admin',
+      '01a1763d-eb59-715e-bfd5-129f757b2768',
       'sum.serviceAdmin',
       'Administração de serviços habilitados em sum.service.',
       '["sum.ipm.disable", "sum.ipm.enable", "sum.ipm.get"]'::jsonb
     ),
     (
-      'role-ipm-organization-viewer',
+      '01a1763d-eb5c-75f1-b729-da3469748023',
       'ipm.organizationViewer',
       'Leitura de Organizations em ipm.organization.',
       '["ipm.organization.get", "ipm.organization.list"]'::jsonb
     ),
     (
-      'role-ipm-organization-admin',
+      '01a1763d-eb5e-76c7-9ee2-ff8583f80d5f',
       'ipm.organizationAdmin',
       'Administração de Organizations em ipm.organization.',
       '["ipm.organization.create", "ipm.organization.delete", "ipm.organization.get", "ipm.organization.list", "ipm.organization.update"]'::jsonb
     ),
     (
-      'role-ipm-user-viewer',
+      '01a1763d-eb61-7251-90a6-ba7f921db3f1',
       'ipm.userViewer',
       'Leitura de usuários organizacionais em ipm.user.',
       '["ipm.user.get", "ipm.user.list"]'::jsonb
     ),
     (
-      'role-ipm-user-admin',
+      '01a1763d-eb63-7386-90c5-388bcb125747',
       'ipm.userAdmin',
       'Administração completa e delegação de permissões de usuários em ipm.user.',
       '["ipm.user.bind", "ipm.user.create", "ipm.user.delete", "ipm.user.get", "ipm.user.list", "ipm.user.update"]'::jsonb
     ),
     (
-      'role-ipm-permission-viewer',
+      '01a1763d-eb66-72a8-b4e3-b67bddd33abb',
       'ipm.permissionViewer',
       'Leitura do catálogo de permissões atômicas em ipm.permission.',
       '["ipm.permission.get", "ipm.permission.list"]'::jsonb
     ),
     (
-      'role-ipm-permission-admin',
+      '01a1763d-eb68-74e5-a6ad-678e9ae3beed',
       'ipm.permissionAdmin',
       'Administração do catálogo de permissões atômicas em ipm.permission.',
       '["ipm.permission.admin", "ipm.permission.get", "ipm.permission.list"]'::jsonb
     ),
     (
-      'role-ipm-role-viewer',
+      '01a1763d-eb6b-7741-9f74-08d54a0347d0',
       'ipm.roleViewer',
       'Leitura do catálogo de Roles compostas em ipm.role.',
       '["ipm.role.get", "ipm.role.list"]'::jsonb
     ),
     (
-      'role-ipm-role-admin',
+      '01a1763d-eb6d-73a1-bdc9-a3f97c7560aa',
       'ipm.roleAdmin',
       'Administração do catálogo de Roles compostas em ipm.role.',
       '["ipm.role.admin", "ipm.role.get", "ipm.role.list"]'::jsonb
     ),
     (
-      'role-bsm-account-viewer',
+      '01a1763d-eb70-73f1-84a5-b0ffa6a01b3a',
       'bsm.accountViewer',
       'Leitura de Billing Accounts em bsm.account.',
       '["bsm.account.get", "bsm.account.list"]'::jsonb
     ),
     (
-      'role-bsm-account-admin',
+      '01a1763d-eb72-714d-b94d-651adccd509f',
       'bsm.accountAdmin',
       'Administração de Billing Accounts em bsm.account.',
       '["bsm.account.create", "bsm.account.delete", "bsm.account.get", "bsm.account.list", "bsm.account.update"]'::jsonb
+    ),
+    (
+      '01a17641-48a6-7106-88be-dc31ff14f340',
+      'ipm.groupViewer',
+      'Leitura de grupos de usuários em ipm.group.',
+      '["ipm.group.get", "ipm.group.list"]'::jsonb
+    ),
+    (
+      '01a17641-48a9-7074-a84a-6ae0dc0651c4',
+      'ipm.groupAdmin',
+      'Administração de grupos de usuários em ipm.group.',
+      '["ipm.group.bind", "ipm.group.create", "ipm.group.delete", "ipm.group.get", "ipm.group.list", "ipm.group.update"]'::jsonb
     )
 ),
 inserted AS (
@@ -214,6 +226,7 @@ inserted AS (
     jsonb_build_object(
       'lifecycle', 'present',
       'name', p.role_name,
+      'roleType', 'predefined',
       'description', p.description,
       'permissions', p.permissions,
       'deletionProtection', true
@@ -257,7 +270,7 @@ inserted AS (
     ),
     1
   FROM predefined p
-  ON CONFLICT (resource_id) DO NOTHING
+  ON CONFLICT DO NOTHING
   RETURNING resource_id, desired
 )
 INSERT INTO ipm.role_outbox (message_id, resource_id, subject, payload)
@@ -302,6 +315,7 @@ SELECT
       'lifecycle', 'present',
       'reconciliation', 'active',
       'name', i.desired -> 'name',
+      'roleType', i.desired -> 'roleType',
       'description', i.desired -> 'description',
       'permissions', i.desired -> 'permissions',
       'deletionProtection', true

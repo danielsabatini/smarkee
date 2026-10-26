@@ -54,6 +54,7 @@
         "lifecycle",
         "reconciliation",
         "name",
+        "roleType",
         "description",
         "permissions"
       ],
@@ -72,6 +73,11 @@
         },
         "name": {
           "$ref": "definitions.v1.schema.json#/$defs/roleName",
+          "x-writer": "server",
+          "x-sensitivity": "public"
+        },
+        "roleType": {
+          "$ref": "definitions.v1.schema.json#/$defs/roleType",
           "x-writer": "server",
           "x-sensitivity": "public"
         },

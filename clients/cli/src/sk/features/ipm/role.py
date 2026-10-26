@@ -44,6 +44,8 @@ class Role:
     deletion_protection: bool
     status: str | None = None
     """Status operacional do recurso ('active' ou 'inactive')."""
+    role_type: str = "custom"
+    """Natureza da role: 'predefined' (catálogo da plataforma) ou 'custom' (criada por pedido)."""
 
 
 def validate_role_name(name: str) -> str:
@@ -104,6 +106,7 @@ def _role(document: object) -> Role:
         permissions=tuple(str(item) for item in raw_permissions),
         deletion_protection=spec.get("deletionProtection") is True,
         status=as_text(spec, "status", what="role (specification)") if "status" in spec else None,
+        role_type=str(spec.get("roleType") or "custom"),
     )
 
 

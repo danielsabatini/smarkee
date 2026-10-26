@@ -11,7 +11,7 @@ Os seis componentes do loop estão implementados para execução no ambiente de 
 | Papel | Projeto | Estado |
 |---|---|---|
 | Receiver | `receiver/` (`ipm-role-receiver`) | API `/v1/ipm/roles`: leitura por `ipm.role.get`/`ipm.role.list` e escrita restrita a operadores (`ipm.role.admin`). Contrato em `openapi.json` |
-| Manager | `manager/` (`ipm-role-manager`) | Consome `requested`, `observed` e `completed`/`failed`; unicidade de `name` em Roles ativas; migração `0001-role.sql` semeia as 14 Roles pré-definidas |
+| Manager | `manager/` (`ipm-role-manager`) | Consome `requested`, `observed` e `completed`/`failed`; unicidade de `name` em Roles ativas; migração `0001-role.sql` semeia as 16 Roles pré-definidas (`roleType = predefined`, `resourceId` UUIDv7 fixo; decisão 0089) |
 | Publisher | `publisher/` (`ipm-role-publisher`) | Publica o outbox no NATS (`manager.desired.ipm.role.>` e `manager.updated.ipm.role.>`) |
 | Reconciler | `reconciler/` (`ipm-role-reconciler`) | Compara `name`, `description` e `permissions` e decide `create`, `update` ou `delete` |
 | Observer | `observer/` (`ipm-role-observer`) | Lê o estado da Role no banco `platform` (papel somente `SELECT`) e publica `observed` |

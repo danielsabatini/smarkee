@@ -26,6 +26,7 @@ def test_parse_create_and_build_desired_normalizes_permissions() -> None:
     assert desired == {
         "lifecycle": "present",
         "name": "ipm.userAdmin",
+        "roleType": "custom",
         "description": "Administração de usuários.",
         "permissions": ["ipm.user.bind", "ipm.user.get"],
         "deletionProtection": True,

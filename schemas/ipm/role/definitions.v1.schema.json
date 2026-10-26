@@ -11,6 +11,14 @@
       "maxLength": 128,
       "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$"
     },
+    "roleType": {
+      "description": "Natureza da Role: predefined (catálogo fornecido pela plataforma, criado pelo bootstrap) ou custom (criada por pedido via API). Atribuída pelo servidor na criação e imutável; ausente em mensagens antigas equivale a custom.",
+      "type": "string",
+      "enum": [
+        "predefined",
+        "custom"
+      ]
+    },
     "description": {
       "description": "Descrição legível do propósito e alcance da Role.",
       "type": "string",
