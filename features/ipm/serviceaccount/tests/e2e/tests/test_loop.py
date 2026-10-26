@@ -116,12 +116,12 @@ def desired_key() -> dict[str, str]:
 
 
 def specification(
-    organization_id: str, permissions: list[str], keys: list[dict[str, str]] | None = None
+    organization_id: str, roles: list[str], keys: list[dict[str, str]] | None = None
 ) -> dict[str, Any]:
     return {
         "organizationId": organization_id,
         "name": f"loop-{uuid.uuid4().hex[:10]}",
-        "permissions": permissions,
+        "roles": roles,
         "deletionProtection": False,
         "keys": keys if keys is not None else [desired_key()],
     }
@@ -142,7 +142,7 @@ async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_remo
             "create",
             {
                 "specification": specification(
-                    organization_id, ["ipm.serviceaccount.get"], [first_key]
+                    organization_id, ["ipm.serviceaccountViewer"], [first_key]
                 )
             },
         ),
@@ -158,7 +158,10 @@ async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_remo
         lambda m: m.get("presence") == "present" and bool(m["data"].get("keys")),
     )
     assert_valid("ipm/serviceaccount/observed.v1.schema.json", observed["data"])
-    assert observed["data"]["permissions"] == ["ipm.serviceaccount.get"]
+    assert observed["data"]["permissions"] == [
+        "ipm.serviceaccount.get",
+        "ipm.serviceaccount.list",
+    ]
     assert observed["data"]["deletionProtection"] is False
     assert observed["data"]["accessTokenType"] == "jwt"
     assert [(k["fingerprint"], k["status"]) for k in observed["data"]["keys"]] == [
@@ -166,15 +169,22 @@ async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_remo
     ]
     assert "publicKey" not in json.dumps(observed["data"])  # o Observer só devolve identificadores
 
-    # 2. Permissões: o Executor deixa no Zitadel exatamente as do `desired`.
+    # 2. Roles: o Manager as expande em permissões; o Executor deixa no Zitadel as do `desired`.
     version = await settled_version(resource_id)
-    permissions = ["ipm.serviceaccount.get", "ipm.serviceaccount.list"]
+    permissions = [
+        "ipm.serviceaccount.bind",
+        "ipm.serviceaccount.create",
+        "ipm.serviceaccount.delete",
+        "ipm.serviceaccount.get",
+        "ipm.serviceaccount.list",
+        "ipm.serviceaccount.update",
+    ]
     await send(
         jetstream,
         request(
             resource_id,
             "update",
-            {"resourceVersion": version, "specification": {"permissions": permissions}},
+            {"resourceVersion": version, "specification": {"roles": ["ipm.serviceaccountAdmin"]}},
         ),
     )
     await confirmed(jetstream, resource_id, 2)
@@ -246,12 +256,13 @@ async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_remo
     # 5. A remoção (fixture `created`) tira a proteção e remove a máquina pelo loop.
 
 
-async def test_a_permission_outside_the_grant_is_refused_by_the_provider(
+async def test_a_role_grants_only_the_delegable_permissions_of_the_organization(
     jetstream: JetStreamContext, created: list[str], organization_id: str
 ) -> None:
-    """O Project Grant é o teto: o Zitadel recusa permissão fora do Grant (decisão 0077).
+    """O teto é o Project Grant da Organization (decisão 0094): o Manager expande a role só nas
+    permissões delegáveis.
 
-    `ipm.organization.delete` existe no `roles-ipm`, mas não está no Grant da Organization.
+    `ipm.organizationAdmin` inclui `create` e `delete` (escopo de conta), que ficam de fora.
     """
     resource_id = str(uuid.uuid7())
     created.append(resource_id)
@@ -260,9 +271,14 @@ async def test_a_permission_outside_the_grant_is_refused_by_the_provider(
         request(
             resource_id,
             "create",
-            {"specification": specification(organization_id, ["ipm.organization.delete"])},
+            {"specification": specification(organization_id, ["ipm.organizationAdmin"])},
         ),
     )
-    failed = await last(jetstream, "failed", resource_id, timeout=READY_SECONDS)
-    assert_valid("common/failed.v1.schema.json", failed["data"])
-    assert (failed["data"]["reason"], failed["data"]["retryable"]) == ("Rejected", False)
+    observed = await wait_for(
+        jetstream, "observed", resource_id, lambda m: m.get("presence") == "present"
+    )
+    assert observed["data"]["permissions"] == [
+        "ipm.organization.get",
+        "ipm.organization.list",
+        "ipm.organization.update",
+    ]

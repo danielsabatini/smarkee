@@ -39,10 +39,13 @@ def granted(message: dict[str, Any]) -> dict[str, Any]:
         if "ipm.serviceaccountViewer" in roles
         else []
     )
+    keys = message["data"]["specification"].get("keys", [])
     return {
         "userState": "active",
+        "accessTokenType": "jwt",
         "permissions": perms,
         "deletionProtection": False,
+        "keys": [{"fingerprint": key["fingerprint"], "status": "active"} for key in keys],
     }
 
 

@@ -119,7 +119,6 @@ async def test_create_is_accepted_and_publishes_desired(
     assert row["desired"] == {
         "lifecycle": "present",
         **specification,
-        "groups": [],
         "permissions": ["ipm.serviceaccount.get", "ipm.serviceaccount.list"],
     }
 
@@ -153,7 +152,6 @@ async def test_create_is_accepted_and_publishes_desired(
         "lifecycle": "present",
         "reconciliation": "active",
         **specification,
-        "groups": [],
         "permissions": ["ipm.serviceaccount.get", "ipm.serviceaccount.list"],
     }
 
@@ -416,7 +414,7 @@ async def test_delete_declares_absence_without_keys_and_is_idempotent(
     row = await resource_row(sa_manager, create["resourceId"])
     assert row is not None
     assert (row["lifecycle"], row["phase"], row["desired_generation"]) == ("absent", "Deleting", 2)
-    assert not {"name", "keys"} & set(row["desired"])
+    assert row["desired"]["keys"] == []  # as chaves públicas saem do `desired`
     assert row["desired"]["organizationId"] == "org-1"
 
     repeated = await handle(
@@ -436,7 +434,7 @@ async def test_delete_declares_absence_without_keys_and_is_idempotent(
     assert (after.kind, after.reason) == (OutcomeKind.REJECTED, RejectionReason.VALIDATION)
     messages = await outbox(outbox_reader, create["resourceId"])
     assert len(messages) == 2
-    assert "keys" not in messages[-1]["payload"]["data"]
+    assert messages[-1]["payload"]["data"]["keys"] == []  # `keys` é obrigatório; vazio na ausência
 
 
 async def test_invalid_message_is_a_permanent_error(
