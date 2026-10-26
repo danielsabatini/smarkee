@@ -1,0 +1,209 @@
+"""Comandos `sk ipm serviceaccount`: pedidos, espera e saídas, contra uma API simulada."""
+
+from __future__ import annotations
+
+import io
+import json
+import urllib.error
+import urllib.request
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+import pytest
+from typer.testing import CliRunner
+
+from sk.identity.credentials import StoredCredentials, default_credentials_path, save_credentials
+from sk.main import app
+
+runner = CliRunner()
+API = "https://api.teste"
+ORG = "01a15e61-6d1e-7096-878a-d5f450b858f1"
+RID = "01a15e61-6d1e-7096-878a-d5f450b858f2"
+OPID = "b9c4c98c-7392-5016-a724-6e1cd0c1bed9"
+PATH = "/v1/ipm/serviceaccounts"
+SERVICEACCOUNT = f"{PATH}/{RID}"
+OPERATION = f"{SERVICEACCOUNT}/operations/{OPID}"
+
+
+class Response:
+    def __init__(self, status: int, document: object) -> None:
+        self.status = status
+        self._body = json.dumps(document).encode()
+
+    def read(self) -> bytes:
+        return self._body
+
+    def __enter__(self) -> Response:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+
+class FakeApi:
+    def __init__(self) -> None:
+        self.routes: dict[
+            tuple[str, str],
+            Response | urllib.error.HTTPError | list[Response | urllib.error.HTTPError],
+        ] = {}
+        self.requests: list[urllib.request.Request] = []
+
+    def __call__(self, request: urllib.request.Request, timeout: float = 0) -> Response:
+        self.requests.append(request)
+        key = (request.get_method(), request.full_url.removeprefix(API).split("?")[0])
+        found = self.routes.get(key)
+        if found is None:
+            raise AssertionError(f"rota não prevista: {key}")
+        if isinstance(found, list):
+            found = found.pop(0) if len(found) > 1 else found[0]
+        if isinstance(found, urllib.error.HTTPError):
+            raise found
+        return found
+
+
+def http_error(
+    status: int, error_code: str, message: str, field: str | None = None
+) -> urllib.error.HTTPError:
+    document = {"errorCode": error_code, "message": message, **({"field": field} if field else {})}
+    body = io.BytesIO(json.dumps(document).encode())
+    return urllib.error.HTTPError(API, status, message, hdrs=None, fp=body)  # type: ignore[arg-type]
+
+
+@pytest.fixture
+def api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[FakeApi]:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.delenv("SK_API_URL", raising=False)
+    (tmp_path / "sk").mkdir()
+    (tmp_path / "sk" / "config.toml").write_text(f'[api]\nurl = "{API}"\n', encoding="utf-8")
+    fake = FakeApi()
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    save_credentials(
+        default_credentials_path(),
+        StoredCredentials(
+            issuer="https://ipm.teste",
+            client_id="cli",
+            token_type="Bearer",
+            access_token="access-1",
+            access_token_expires_at=datetime.now(UTC) + timedelta(hours=1),
+            refresh_token="refresh-1",
+            id_token=None,
+            scope="openid",
+            obtained_at=datetime.now(UTC),
+        ),
+    )
+    yield fake
+
+
+@pytest.fixture(autouse=True)
+def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    def no_wait(_: float) -> None:
+        return None
+
+    monkeypatch.setattr("sk.commands.shared.time.sleep", no_wait)
+
+
+def sa_document(
+    *,
+    phase: str = "Ready",
+    name: str = "ci-deployer",
+    description: str = "CI agent",
+    roles: list[str] | None = None,
+    protected: bool = True,
+    version: str = "1",
+) -> dict[str, Any]:
+    roles = roles or ["ipm.serviceaccountViewer"]
+    return {
+        "resourceId": RID,
+        "resourceVersion": version,
+        "phase": phase,
+        "desired": {
+            "lifecycle": "active",
+            "organizationId": ORG,
+            "name": name,
+            "description": description,
+            "roles": roles,
+            "permissions": ["ipm.serviceaccount.get"],
+            "deletionProtection": protected,
+            "keys": [
+                {
+                    "publicKey": "-----BEGIN PUBLIC KEY-----\n...",
+                    "expiresAt": "2027-01-01T00:00:00Z",
+                    "fingerprint": "abc12345",
+                }
+            ],
+        },
+        "observed": {
+            "keys": [
+                {
+                    "keyId": "k-001",
+                    "fingerprint": "abc12345",
+                    "expiresAt": "2027-01-01T00:00:00Z",
+                    "status": "active",
+                }
+            ]
+        },
+    }
+
+
+def test_create_serviceaccount_generates_key_and_requests_creation(
+    api: FakeApi, tmp_path: Path
+) -> None:
+    api.routes[("POST", PATH)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    key_file = tmp_path / "sa.json"
+    result = runner.invoke(
+        app,
+        [
+            "ipm",
+            "serviceaccount",
+            "create",
+            "--name",
+            "ci-deployer",
+            "--organization-id",
+            ORG,
+            "--key-file",
+            str(key_file),
+        ],
+    )
+    assert result.exit_code == 0, result.stderr
+    assert "Creation requested" in result.stdout
+    assert key_file.exists()
+
+
+def test_get_serviceaccount(api: FakeApi) -> None:
+    api.routes[("GET", SERVICEACCOUNT)] = Response(200, sa_document())
+    result = runner.invoke(app, ["ipm", "serviceaccount", "get", "--resource-id", RID])
+    assert result.exit_code == 0, result.stderr
+    assert "ci-deployer" in result.stdout
+    assert "Service Account" in result.stdout
+
+
+def test_list_serviceaccounts(api: FakeApi) -> None:
+    api.routes[("GET", PATH)] = Response(200, {"items": [sa_document()], "nextCursor": None})
+    result = runner.invoke(app, ["ipm", "serviceaccount", "list", "--organization-id", ORG])
+    assert result.exit_code == 0, result.stderr
+    assert "ci-deployer" in result.stdout
+
+
+def test_protect_and_unprotect_serviceaccount(api: FakeApi) -> None:
+    api.routes[("GET", SERVICEACCOUNT)] = Response(200, sa_document(protected=True))
+    api.routes[("PATCH", SERVICEACCOUNT)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    result = runner.invoke(app, ["ipm", "serviceaccount", "unprotect", "--resource-id", RID])
+    assert result.exit_code == 0, result.stderr
+    assert "Update requested" in result.stdout
+
+
+def test_delete_serviceaccount(api: FakeApi) -> None:
+    api.routes[("GET", SERVICEACCOUNT)] = Response(200, sa_document(protected=False))
+    api.routes[("DELETE", SERVICEACCOUNT)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    result = runner.invoke(app, ["ipm", "serviceaccount", "delete", "--resource-id", RID])
+    assert result.exit_code == 0, result.stderr
+    assert "Deletion requested" in result.stdout
+
+
+def test_key_list_serviceaccount(api: FakeApi) -> None:
+    api.routes[("GET", SERVICEACCOUNT)] = Response(200, sa_document())
+    result = runner.invoke(app, ["ipm", "serviceaccount", "key", "list", "--resource-id", RID])
+    assert result.exit_code == 0, result.stderr
+    assert "k-001" in result.stdout

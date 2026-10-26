@@ -42,9 +42,10 @@ class StoredCredentials:
     id_token: str | None
     scope: str | None
     obtained_at: datetime
+    key_file: str | None = None
 
     def to_json_object(self) -> dict[str, str | None]:
-        return {
+        payload: dict[str, str | None] = {
             "issuer": self.issuer,
             "clientId": self.client_id,
             "tokenType": self.token_type,
@@ -55,6 +56,9 @@ class StoredCredentials:
             "scope": self.scope,
             "obtainedAt": self.obtained_at.isoformat(),
         }
+        if self.key_file is not None:
+            payload["keyFile"] = self.key_file
+        return payload
 
 
 def default_credentials_path(environment: Mapping[str, str] = os.environ) -> Path:
@@ -95,9 +99,12 @@ def load_credentials(path: Path) -> StoredCredentials:
         if not isinstance(payload, dict):
             raise ValueError("raiz")
         data = cast(dict[str, object], payload)
+        client_id = (
+            _optional_text(data, "clientId") if "keyFile" in data else _text(data, "clientId")
+        )
         return StoredCredentials(
             issuer=_text(data, "issuer"),
-            client_id=_text(data, "clientId"),
+            client_id=client_id or "",
             token_type=_text(data, "tokenType"),
             access_token=_text(data, "accessToken"),
             access_token_expires_at=datetime.fromisoformat(_text(data, "accessTokenExpiresAt")),
@@ -105,6 +112,7 @@ def load_credentials(path: Path) -> StoredCredentials:
             id_token=_optional_text(data, "idToken"),
             scope=_optional_text(data, "scope"),
             obtained_at=datetime.fromisoformat(_text(data, "obtainedAt")),
+            key_file=_optional_text(data, "keyFile"),
         )
     except (ValueError, TypeError) as error:
         raise CredentialsError(f"invalid credentials file: {path}") from error

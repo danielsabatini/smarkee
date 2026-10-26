@@ -87,7 +87,9 @@ def _role(document: object) -> Role:
     desired = as_object(body.get("desired"), what="role (desired)")
     spec_obj = desired.get("specification")
     spec = (
-        as_object(spec_obj, what="role (specification)") if isinstance(spec_obj, dict) else desired
+        as_object(cast(object, spec_obj), what="role (specification)")
+        if isinstance(spec_obj, dict)
+        else desired
     )
     name = spec.get("name")
     if not isinstance(name, str):
@@ -105,7 +107,7 @@ def _role(document: object) -> Role:
         lifecycle=as_text(desired, "lifecycle", what="role (desired)"),
         name=name,
         description=description,
-        permissions=tuple(str(item) for item in raw_permissions),
+        permissions=tuple(str(item) for item in cast("list[object]", raw_permissions)),
         deletion_protection=spec.get("deletionProtection") is True,
         status=as_text(spec, "status", what="role (specification)") if "status" in spec else None,
         organization_id=str(desired.get("organizationId") or "core"),
@@ -266,7 +268,7 @@ def list_roles(
             raise ApiUnavailableError("API response without an items list")
         found.extend(_role(item) for item in cast("list[object]", items))
         after = body.get("nextCursor")
-        if not after or not isinstance(after, str):
+        if not isinstance(after, str) or not after:
             break
     return found
 

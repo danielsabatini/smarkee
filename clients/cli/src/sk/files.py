@@ -26,3 +26,18 @@ def write_private_file(path: Path, content: str) -> None:
     except BaseException:
         Path(temporary_name).unlink(missing_ok=True)
         raise
+
+
+def create_private_file(path: Path, content: str) -> None:
+    """Cria um arquivo exclusivamente (recusa sobrescrever), com permissão 0600."""
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    file_descriptor = os.open(path, flags, 0o600)
+    try:
+        with os.fdopen(file_descriptor, "w", encoding="utf-8") as target_file:
+            target_file.write(content)
+            target_file.flush()
+            os.fsync(target_file.fileno())
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise

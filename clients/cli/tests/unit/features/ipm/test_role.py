@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from sk.features.ipm.role import (
-    _role,
+    _role,  # pyright: ignore[reportPrivateUsage]
     validate_description,
     validate_permissions_list,
     validate_role_name,

@@ -190,6 +190,44 @@ def test_whoami_reports_when_the_provider_does_not_confirm_the_session(
     assert "TOKEN-SECRETO-1" not in result.output
 
 
+def test_service_account_login_with_key_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sk.identity.keys import generate_key_pair, write_key_file
+    from sk.identity.oidc import TokenResponse
+
+    configure_platform(monkeypatch)
+    keypair = generate_key_pair()
+    key_file = tmp_path / "sa.json"
+    write_key_file(
+        key_file, private_pem=keypair.private_pem, user_id="sa-test-1", key_id="k-test-1"
+    )
+
+    def fake_jwt_token(*_args: object, **_kwargs: object) -> TokenResponse:
+        return TokenResponse(
+            token_type="Bearer",
+            access_token="sa-access-token",
+            expires_in_seconds=3600,
+            refresh_token=None,
+            id_token=None,
+            scope="openid",
+        )
+
+    monkeypatch.setattr("sk.commands.auth.fetch_provider_metadata", fake_metadata)
+    monkeypatch.setattr("sk.commands.auth.fetch_jwt_bearer_token", fake_jwt_token)
+
+    result = runner.invoke(app, ["auth", "login", "--key-file", str(key_file)])
+    assert result.exit_code == 0, result.stderr
+    assert "Login completed" in result.stdout
+    assert "sa-test-1" in result.stdout
+
+    # whoami com chave de service account
+    result_whoami = runner.invoke(app, ["auth", "whoami"])
+    assert result_whoami.exit_code == 0, result_whoami.stderr
+    assert "Active session" in result_whoami.stdout
+    assert "sa-test-1" in result_whoami.stdout
+
+
 def test_login_asks_for_the_audience_of_each_configured_project(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -8,6 +8,7 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "rich>=15.0.0",
     "typer>=0.27.3",
+    "cryptography>=44.0.0",
 ]
 
 [project.scripts]

@@ -16,7 +16,13 @@ from sk.identity.credentials import (
     load_credentials,
     save_credentials,
 )
-from sk.identity.oidc import OidcError, fetch_provider_metadata, refresh_access_token
+from sk.identity.keys import KeyFileError, read_key_file, sign_jwt_assertion
+from sk.identity.oidc import (
+    OidcError,
+    fetch_jwt_bearer_token,
+    fetch_provider_metadata,
+    refresh_access_token,
+)
 
 # Renova antes do vencimento real, para o pedido seguinte não chegar com o token já expirado.
 RENEWAL_MARGIN = timedelta(seconds=60)
@@ -63,6 +69,50 @@ def renew_session(
     return load_credentials(credentials_path).access_token_expires_at
 
 
+def _renew_service_account(
+    credentials: StoredCredentials,
+    credentials_path: Path,
+    *,
+    allow_insecure_http: bool,
+    now: datetime,
+) -> str:
+    key_file_path = Path(credentials.key_file or "")
+    try:
+        key_data = read_key_file(key_file_path)
+    except KeyFileError as error:
+        raise SessionError(f"{error}. Run `sk auth login --key-file` again.") from error
+
+    try:
+        metadata = fetch_provider_metadata(
+            credentials.issuer, allow_insecure_http=allow_insecure_http
+        )
+        assertion = sign_jwt_assertion(
+            key_data["key"],
+            key_data["keyId"],
+            key_data["userId"],
+            metadata.issuer,
+        )
+        scopes = credentials.scope.split() if credentials.scope else ()
+        renewed = fetch_jwt_bearer_token(metadata, assertion=assertion, scopes=scopes)
+    except (OidcError, KeyFileError) as error:
+        raise SessionError(
+            f"Could not renew service account session ({error}). Run `sk auth login --key-file`."
+        ) from error
+
+    updated = replace(
+        credentials,
+        access_token=renewed.access_token,
+        access_token_expires_at=now + timedelta(seconds=renewed.expires_in_seconds),
+        scope=renewed.scope or credentials.scope,
+        obtained_at=now,
+    )
+    try:
+        save_credentials(credentials_path, updated)
+    except CredentialsError as error:
+        raise SessionError(f"{error}. Run `sk auth login` again.") from error
+    return updated.access_token
+
+
 def _renew(
     credentials: StoredCredentials,
     credentials_path: Path,
@@ -70,6 +120,10 @@ def _renew(
     allow_insecure_http: bool,
     now: datetime,
 ) -> str:
+    if credentials.key_file is not None:
+        return _renew_service_account(
+            credentials, credentials_path, allow_insecure_http=allow_insecure_http, now=now
+        )
     if credentials.refresh_token is None:
         raise SessionError(
             "The session expired and there is no refresh token. Run `sk auth login`."

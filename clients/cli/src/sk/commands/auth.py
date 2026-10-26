@@ -4,10 +4,12 @@ O login é da plataforma, e não de um módulo: o `sk` autentica o usuário dire
 provedor de identidade (Zitadel), pelo gateway, sem API própria de autenticação.
 """
 
+import contextlib
 import webbrowser
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Annotated
 
 import typer
 from pydantic import ValidationError
@@ -15,7 +17,7 @@ from pydantic import ValidationError
 from sk import ui
 from sk.command_app import SkTyper
 from sk.defaults import PROVISIONAL
-from sk.help import command
+from sk.help import command, option
 from sk.identity.credentials import (
     CredentialsError,
     CredentialsMissingError,
@@ -24,8 +26,10 @@ from sk.identity.credentials import (
     load_credentials,
     save_credentials,
 )
+from sk.identity.keys import KeyFileError, read_key_file, sign_jwt_assertion
 from sk.identity.oidc import (
     OidcError,
+    fetch_jwt_bearer_token,
     fetch_provider_metadata,
     fetch_userinfo,
     run_authorization_code_flow,
@@ -95,6 +99,28 @@ def _refuse_provisional_defaults(auth: AuthSettings) -> None:
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     values = {
         "auth.clientId": auth.client_id,
+        "core.projectId": settings.core.project_id,
+        "sum.projectId": settings.sum.project_id,
+        "ipm.projectId": settings.ipm.project_id,
+    }
+    pending = [key for key, value in values.items() if value == PROVISIONAL]
+    if pending:
+        ui.error(
+            "Production is not provisioned yet",
+            f"These values have no production default yet: {', '.join(pending)}.",
+            hint="Set each with `sk config set <key> <value>` or an SK_* variable (development).",
+        )
+        raise typer.Exit(EXIT_USAGE_ERROR)
+
+
+def _refuse_provisional_module_projects() -> None:
+    """Recusa o login de máquina quando os IDs dos projetos ainda não existem em produção."""
+    try:
+        settings = SkSettings()
+    except (ValidationError, ConfigurationError) as error:
+        ui.error("Invalid configuration", str(error), hint="Fix the file and repeat.")
+        raise typer.Exit(EXIT_USAGE_ERROR) from error
+    values = {
         "core.projectId": settings.core.project_id,
         "sum.projectId": settings.sum.project_id,
         "ipm.projectId": settings.ipm.project_id,
@@ -192,6 +218,77 @@ def run_login(
         )
 
 
+def run_service_account_login(
+    settings: AuthSettings,
+    key_file: Path,
+    credentials_path: Path,
+    *,
+    project_ids: Sequence[str] = (),
+) -> None:
+    """Executa o login de service account por assertion JWT e grava as credenciais."""
+    try:
+        key_data = read_key_file(key_file)
+    except KeyFileError as error:
+        ui.error("Invalid key file", str(error), hint="Check the key file path and its content.")
+        raise typer.Exit(EXIT_FAILURE) from error
+
+    try:
+        metadata = fetch_provider_metadata(
+            settings.issuer, allow_insecure_http=settings.allow_insecure_http
+        )
+        assertion = sign_jwt_assertion(
+            key_data["key"],
+            key_data["keyId"],
+            key_data["userId"],
+            metadata.issuer,
+        )
+        token_response = fetch_jwt_bearer_token(
+            metadata,
+            assertion=assertion,
+            scopes=login_scopes(project_ids),
+        )
+        obtained_at = datetime.now(UTC)
+        save_credentials(
+            credentials_path,
+            StoredCredentials(
+                issuer=metadata.issuer,
+                client_id="",
+                token_type=token_response.token_type,
+                access_token=token_response.access_token,
+                access_token_expires_at=obtained_at
+                + timedelta(seconds=token_response.expires_in_seconds),
+                refresh_token=None,
+                id_token=None,
+                scope=token_response.scope,
+                obtained_at=obtained_at,
+                key_file=str(key_file.resolve()),
+            ),
+        )
+    except (OidcError, KeyFileError, CredentialsError) as error:
+        ui.error(
+            "Service account login not completed",
+            str(error),
+            hint="Check the key status or rotate it if expired.",
+        )
+        raise typer.Exit(EXIT_FAILURE) from error
+
+    ui.panel(
+        "Login completed",
+        [
+            ("user", key_data["userId"]),
+            ("issuer", metadata.issuer),
+            (
+                "expiresAt",
+                ui.format_expiry(
+                    obtained_at + timedelta(seconds=token_response.expires_in_seconds)
+                ),
+            ),
+            ("keyFile", str(key_file.resolve())),
+            ("credentialsFile", str(credentials_path)),
+        ],
+    )
+
+
 def module_project_ids() -> tuple[str, ...]:
     """`projectId` de `[core]`, `[sum]`, `[ipm]`, `[bsm]` e `[operator]`: audiences do login."""
     try:
@@ -207,15 +304,40 @@ def module_project_ids() -> tuple[str, ...]:
     return tuple(projects)
 
 
+KeyFileOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--key-file",
+        envvar="SK_AUTH_KEY_FILE",
+        help=option(
+            "Service account key file for machine authentication.",
+            kind="String",
+            variable="SK_AUTH_KEY_FILE",
+            file=None,
+            default="browser login",
+        ),
+    ),
+]
+
+
 @auth_app.command(
     "login",
     help=command(
-        "Sign in to the platform through the browser. A new login replaces the previous one."
+        "Sign in to the platform. Interactive login opens the browser; "
+        "with --key-file, authenticates a service account."
     ),
 )
-def login() -> None:
-    # Sem opções: o provedor e o client ID vêm do ambiente, do arquivo ou do padrão de produção.
+def login(key_file: KeyFileOption = None) -> None:
     settings = _load_or_exit({})
+    if key_file is not None:
+        _refuse_provisional_module_projects()
+        run_service_account_login(
+            settings,
+            key_file,
+            default_credentials_path(),
+            project_ids=module_project_ids(),
+        )
+        return
     _refuse_provisional_defaults(settings)
     run_login(settings, default_credentials_path(), project_ids=module_project_ids())
 
@@ -242,33 +364,45 @@ def run_whoami(allow_insecure_http: bool, credentials_path: Path) -> None:
         raise typer.Exit(EXIT_FAILURE) from error
     credentials = load_credentials(credentials_path)  # pode ter sido renovada
 
+    user_name = "unknown"
     try:
         metadata = fetch_provider_metadata(
             credentials.issuer, allow_insecure_http=allow_insecure_http
         )
         userinfo = fetch_userinfo(metadata, access_token)
+        user_name = _display_name(userinfo)
     except OidcError as error:
-        # Pode ser sessão recusada ou falha de rede: a mensagem do erro diz qual.
-        ui.error(
-            "Could not confirm the session",
-            str(error),
-            hint="If the error persists, run `sk auth login` again.",
-        )
-        raise typer.Exit(EXIT_FAILURE) from error
+        if credentials.key_file is not None:
+            with contextlib.suppress(KeyFileError):
+                user_name = read_key_file(Path(credentials.key_file))["userId"]
+        if user_name == "unknown":
+            # Pode ser sessão recusada ou falha de rede: a mensagem do erro diz qual.
+            ui.error(
+                "Could not confirm the session",
+                str(error),
+                hint="If the error persists, run `sk auth login` again.",
+            )
+            raise typer.Exit(EXIT_FAILURE) from error
+
+    fields: list[tuple[str, str]] = [
+        ("user", user_name),
+        ("issuer", credentials.issuer),
+        ("expiresAt", ui.format_expiry(credentials.access_token_expires_at)),
+    ]
+    data: dict[str, str] = {
+        "user": user_name,
+        "issuer": credentials.issuer,
+        "expiresAt": credentials.access_token_expires_at.isoformat(),
+    }
+    if credentials.key_file is not None:
+        fields.append(("keyFile", credentials.key_file))
+        data["keyFile"] = credentials.key_file
 
     ui.panel(
         "Active session",
-        [
-            ("user", _display_name(userinfo)),
-            ("issuer", credentials.issuer),
-            ("expiresAt", ui.format_expiry(credentials.access_token_expires_at)),
-        ],
+        fields,
         # Só o que o painel já mostra: nunca o token nem as claims do provedor.
-        data={
-            "user": _display_name(userinfo),
-            "issuer": credentials.issuer,
-            "expiresAt": credentials.access_token_expires_at.isoformat(),
-        },
+        data=data,
     )
 
 

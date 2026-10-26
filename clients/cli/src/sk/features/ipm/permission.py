@@ -68,7 +68,7 @@ def _permission(document: object) -> Permission:
     desired = as_object(body.get("desired"), what="permission (desired)")
     spec_obj = desired.get("specification")
     spec = (
-        as_object(spec_obj, what="permission (specification)")
+        as_object(cast(object, spec_obj), what="permission (specification)")
         if isinstance(spec_obj, dict)
         else desired
     )
@@ -235,7 +235,7 @@ def list_permissions(api_url: str, *, token: str, allow_insecure_http: bool) -> 
             raise ApiUnavailableError("API response without an items list")
         found.extend(_permission(item) for item in cast("list[object]", items))
         after = body.get("nextCursor")
-        if not after or not isinstance(after, str):
+        if not isinstance(after, str) or not after:
             break
     return found
 

@@ -359,6 +359,36 @@ def refresh_access_token(
     return _token_response(_request_json(request, operation=operation), operation=operation)
 
 
+def fetch_jwt_bearer_token(
+    metadata: ProviderMetadata,
+    *,
+    assertion: str,
+    scopes: Sequence[str] = (),
+) -> TokenResponse:
+    """Troca uma assertion JWT RS256 por um access token via RFC 7523 (decisão 0094).
+
+    Identidade de máquina (service account do Zitadel): autenticação sem navegador e sem client_id.
+    """
+    operation = "service account authentication"
+    form_data: dict[str, str] = {
+        "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        "assertion": assertion,
+    }
+    if scopes:
+        form_data["scope"] = " ".join(scopes)
+    form = urllib.parse.urlencode(form_data).encode()
+    request = urllib.request.Request(  # noqa: S310 (esquema validado por ensure_secure_url)
+        metadata.token_endpoint,
+        data=form,
+        method="POST",
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+    )
+    return _token_response(_request_json(request, operation=operation), operation=operation)
+
+
 def _token_response(payload: Mapping[str, object], *, operation: str) -> TokenResponse:
     token_type = _require_string(payload, "token_type", operation=operation)
     if token_type.lower() != "bearer":
