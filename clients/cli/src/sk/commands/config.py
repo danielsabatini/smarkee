@@ -15,6 +15,7 @@ from pydantic import BaseModel, ValidationError
 from pydantic.alias_generators import to_camel
 
 from sk import ui
+from sk.command_app import SkTyper
 from sk.defaults import PRD_API_URL
 from sk.files import write_private_file
 from sk.settings import (
@@ -46,7 +47,7 @@ SECTION_MODELS: dict[str, type[BaseModel]] = {
 # Chaves que são endereços: precisam começar com http:// ou https://.
 URL_KEYS = {"auth.issuer", "api.url"}
 
-config_app = typer.Typer(
+config_app = SkTyper(
     help="Inspect and change the sk configuration file.",
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -226,7 +227,9 @@ def store_value(
 
 
 @config_app.command(
-    "list", help="Show every key, its effective value and where the value comes from."
+    "list",
+    structured=True,
+    help="Show every key, its effective value and where the value comes from.",
 )
 def list_command() -> None:
     path = config_file_path()
@@ -236,7 +239,15 @@ def list_command() -> None:
         [key.dotted, _text(effective[key.dotted]), _source_of(key, document)]
         for key in known_keys().values()
     ]
-    ui.table("Configuration", ["key", "value", "source"], rows)
+    ui.table(
+        "Configuration",
+        ["key", "value", "source"],
+        rows,
+        data=[
+            {"key": key.dotted, "value": effective[key.dotted], "source": _source_of(key, document)}
+            for key in known_keys().values()
+        ],
+    )
     if path.exists():
         ui.note(f"File: {path}. SK_* variables and parameters take precedence over it.")
     else:

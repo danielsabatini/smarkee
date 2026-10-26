@@ -14,6 +14,7 @@ from typing import Any, cast
 import pytest
 from typer.testing import CliRunner
 
+from sk import output
 from sk.identity.credentials import StoredCredentials, default_credentials_path, save_credentials
 from sk.main import app
 
@@ -106,7 +107,7 @@ def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
     def no_wait(_: float) -> None:
         return None
 
-    monkeypatch.setattr("sk.commands.ipm_user.time.sleep", no_wait)
+    monkeypatch.setattr("sk.commands.shared.time.sleep", no_wait)
 
 
 def user_document(
@@ -355,3 +356,68 @@ def test_without_an_active_organization_the_option_is_required(
     result = runner.invoke(app, ["ipm", "user", "list"])
     assert result.exit_code == 2 and "--organization-id" in result.stderr
     assert api.requests == []
+
+
+# --- `--output json` (decisão 0093) -----------------------------------------------------------
+
+JSON = ["--output", "json"]
+
+
+@pytest.fixture
+def default_output_mode() -> Iterator[None]:
+    output.configure(raw=False)
+    yield
+    output.configure(raw=False)
+
+
+def _document(stdout: str) -> Any:
+    return json.loads(stdout)  # falha se houver mais de um documento ou texto solto
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_get_and_list_print_native_types(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = Response(200, user_document(protected=True))
+    shown = runner.invoke(app, [*JSON, "ipm", "user", "get", "--resource-id", UID])
+    assert shown.exit_code == 0, shown.stderr
+    document = _document(shown.stdout)
+    assert document["resourceId"] == UID and document["deletionProtection"] is True
+    assert isinstance(document["permissions"], list) and isinstance(document["roles"], list)
+    api.routes[("GET", PATH)] = Response(200, {"items": [user_document()]})
+    listed = runner.invoke(app, [*JSON, "ipm", "user", "list"])
+    assert [u["resourceId"] for u in _document(listed.stdout)] == [UID]
+    api.routes[("GET", PATH)] = Response(200, {"items": []})
+    assert _document(runner.invoke(app, [*JSON, "ipm", "user", "list"]).stdout) == []
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_nothing_to_do_prints_the_current_user(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = Response(200, user_document(protected=True))
+    result = runner.invoke(app, [*JSON, "ipm", "user", "protect", "--resource-id", UID])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout)["resourceId"] == UID
+    assert "Nothing to do" in result.stderr and "Nothing to do" not in result.stdout
+    assert all(request.get_method() == "GET" for request in api.requests)
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_delete_with_wait_prints_the_removed_state(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = [
+        Response(200, user_document(protected=False)),  # leitura antes do pedido
+        http_error(404, "NotFound", "gone"),  # já removido
+    ]
+    api.routes[("DELETE", USER)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    result = runner.invoke(app, [*JSON, "ipm", "user", "delete", "--resource-id", UID, "--wait"])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout) == {"resourceId": UID, "state": "removed"}
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_get_with_operation_adds_the_operation(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = Response(200, user_document())
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    result = runner.invoke(
+        app, [*JSON, "ipm", "user", "get", "--resource-id", UID, "--operation-id", OPID]
+    )
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout)["operation"]["operationStatus"] == "completed"

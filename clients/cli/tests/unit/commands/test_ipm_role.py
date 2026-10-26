@@ -14,10 +14,12 @@ from typing import Any, cast
 import pytest
 from typer.testing import CliRunner
 
+from sk import output
 from sk.identity.credentials import StoredCredentials, default_credentials_path, save_credentials
 from sk.main import app
 
 runner = CliRunner()
+JSON = ["--output", "json"]
 API = "https://api.teste"
 RID = "01a15e61-6d1e-7096-878a-d5f450b858f2"
 OPID = "b9c4c98c-7392-5016-a724-6e1cd0c1bed9"
@@ -100,7 +102,7 @@ def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
     def no_wait(_: float) -> None:
         return None
 
-    monkeypatch.setattr("sk.commands.ipm_role.time.sleep", no_wait)
+    monkeypatch.setattr("sk.commands.shared.time.sleep", no_wait)
 
 
 def role_document(
@@ -272,3 +274,161 @@ def test_delete_role_still_in_use_explains_what_to_do(api: FakeApi) -> None:
     result = runner.invoke(app, ["ipm", "role", "delete", "--resource-id", RID])
     assert result.exit_code != 0
     assert "users or groups" in result.stdout + result.stderr
+
+
+# --- `--output json` (decisão 0093) -----------------------------------------------------------
+
+
+@pytest.fixture
+def default_output_mode() -> Iterator[None]:
+    output.configure(raw=False)
+    yield
+    output.configure(raw=False)
+
+
+def _document(stdout: str) -> Any:
+    return json.loads(stdout)  # falha se houver mais de um documento ou texto solto
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_get_prints_the_role_with_native_types(api: FakeApi) -> None:
+    api.routes[("GET", ROLE)] = Response(200, role_document(protected=True))
+    result = runner.invoke(app, [*JSON, "ipm", "role", "get", "--resource-id", RID])
+    assert result.exit_code == 0, result.stderr
+    document = _document(result.stdout)
+    assert document["resourceId"] == RID
+    assert document["permissions"] == ["ipm.user.get", "ipm.user.list"]
+    assert document["deletionProtection"] is True
+    assert document["organizationId"] == "org-acme"
+    assert "operation" not in document
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_get_with_operation_adds_the_operation(api: FakeApi) -> None:
+    api.routes[("GET", ROLE)] = Response(200, role_document())
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    result = runner.invoke(
+        app, [*JSON, "ipm", "role", "get", "--resource-id", RID, "--operation-id", OPID]
+    )
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout)["operation"]["operationStatus"] == "completed"
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_list_prints_an_array_and_an_empty_one_without_note(api: FakeApi) -> None:
+    api.routes[("GET", PATH)] = Response(200, {"items": [role_document()]})
+    result = runner.invoke(app, [*JSON, "ipm", "role", "list"])
+    assert result.exit_code == 0, result.stderr
+    assert [item["name"] for item in _document(result.stdout)] == ["ipm.userAdmin"]
+    api.routes[("GET", PATH)] = Response(200, {"items": []})
+    empty = runner.invoke(app, [*JSON, "ipm", "role", "list"])
+    assert empty.exit_code == 0 and _document(empty.stdout) == []
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_delete_without_wait_prints_only_the_acceptance(api: FakeApi) -> None:
+    api.routes[("GET", ROLE)] = Response(200, role_document(version="3"))
+    api.routes[("DELETE", ROLE)] = accepted()
+    result = runner.invoke(app, [*JSON, "ipm", "role", "delete", "--resource-id", RID])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout) == {"resourceId": RID, "operationId": OPID}
+    assert "Follow it with" in result.stderr  # a nota não polui a saída padrão
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_delete_with_wait_prints_a_single_document(api: FakeApi) -> None:
+    api.routes[("GET", ROLE)] = [
+        Response(200, role_document(version="3")),  # leitura antes do pedido
+        http_error(404, "NotFound", "gone"),  # já removida
+    ]
+    api.routes[("DELETE", ROLE)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    result = runner.invoke(app, [*JSON, "ipm", "role", "delete", "--resource-id", RID, "--wait"])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout) == {"resourceId": RID, "state": "removed"}
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_create_with_wait_prints_the_converged_role_only(api: FakeApi) -> None:
+    api.routes[("POST", PATH)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("GET", ROLE)] = Response(200, role_document())
+    result = runner.invoke(
+        app,
+        [
+            *JSON,
+            *["ipm", "role", "create", "--organization-id", "org-acme"],
+            *["--name", "bsm.accountAdmin", "--description", "Administrador de cobrança"],
+            *["--permission", "bsm.account.get", "--wait"],
+        ],
+    )
+    assert result.exit_code == 0, result.stderr
+    document = _document(result.stdout)
+    assert document["resourceId"] == RID and document["phase"] == "Ready"
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_nothing_to_do_prints_the_current_role(api: FakeApi) -> None:
+    api.routes[("GET", ROLE)] = Response(200, role_document(protected=True))
+    protect = runner.invoke(app, [*JSON, "ipm", "role", "protect", "--resource-id", RID])
+    assert protect.exit_code == 0, protect.stderr
+    document = _document(protect.stdout)
+    assert document["resourceId"] == RID and document["deletionProtection"] is True
+    assert "Nothing to do" in protect.stderr and "Nothing to do" not in protect.stdout
+    api.routes[("GET", ROLE)] = Response(200, role_document())
+    update = runner.invoke(
+        app,
+        [
+            *JSON,
+            *["ipm", "role", "update", "--resource-id", RID],
+            *["--description", "Administrador de usuários"],
+        ],
+    )
+    assert update.exit_code == 0, update.stderr
+    assert _document(update.stdout)["resourceId"] == RID
+    assert all(request.get_method() == "GET" for request in api.requests)  # nada foi pedido
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_with_raw_is_compact_on_a_single_line(api: FakeApi) -> None:
+    api.routes[("GET", ROLE)] = Response(200, role_document())
+    result = runner.invoke(app, ["--raw", *JSON, "ipm", "role", "get", "--resource-id", RID])
+    assert result.exit_code == 0, result.stderr
+    assert len(result.stdout.strip().splitlines()) == 1 and _document(result.stdout)
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_failure_leaves_stdout_empty_and_keeps_the_exit_code(api: FakeApi) -> None:
+    api.routes[("GET", ROLE)] = http_error(404, "NotFound", "missing")
+    result = runner.invoke(app, [*JSON, "ipm", "role", "get", "--resource-id", RID])
+    assert result.exit_code != 0 and result.stdout == "" and result.stderr != ""
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_on_a_command_without_support_is_refused_before_acting(api: FakeApi) -> None:
+    result = runner.invoke(app, [*JSON, "config", "set", "api.url", "https://x.teste"])
+    assert result.exit_code == 2
+    assert "no structured output" in result.stderr
+    assert not api.requests
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_escapes_control_characters_and_keeps_the_value_faithful(api: FakeApi) -> None:
+    sent = "a\x1b[31m\x9b b"
+    api.routes[("GET", ROLE)] = Response(200, role_document(description=sent))
+    result = runner.invoke(app, [*JSON, "ipm", "role", "get", "--resource-id", RID])
+    assert result.exit_code == 0, result.stderr
+    # Nenhum byte de controle chega ao terminal (vai escapado), e o dado não é alterado.
+    assert "\x9b" not in result.stdout and "\x1b" not in result.stdout
+    assert "\\u001b" in result.stdout and "\\u009b" in result.stdout
+    assert _document(result.stdout)["description"] == sent
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_nothing_to_do_on_unprotect(api: FakeApi) -> None:
+    api.routes[("GET", ROLE)] = Response(200, role_document(protected=False))
+    result = runner.invoke(app, [*JSON, "ipm", "role", "unprotect", "--resource-id", RID])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout)["resourceId"] == RID
+    assert "Nothing to do" in result.stderr and "Nothing to do" not in result.stdout
+    assert all(request.get_method() == "GET" for request in api.requests)

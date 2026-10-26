@@ -4,7 +4,6 @@ Agrupadores de Roles compostas por Organization. Criar, alterar e remover são a
 com `--wait`, o comando espera o grupo convergir.
 """
 
-import time
 import uuid
 from typing import Annotated, NoReturn
 
@@ -12,21 +11,23 @@ import typer
 from pydantic import ValidationError
 from rich.text import Text
 
-from sk import ui
+from sk import output, ui
+from sk.command_app import SkTyper
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
-    EXIT_FAILURE,
     EXIT_USAGE_ERROR,
-    HTTP_NOT_FOUND,
-    WAIT_POLL_SECONDS,
+    ResourceFlow,
     TimeoutOption,
+    already_done,
     bad_address,
-    fail_api,
+    fail_api_with_forbidden,
+    identifier,
     load_api,
     require,
     session_token,
+    usage_error,
 )
-from sk.features.api_contract import OperationStatus, RequestAccepted, validate_identifier
+from sk.features.api_contract import OperationStatus, RequestAccepted
 from sk.features.ipm.group import (
     Group,
     create_group,
@@ -40,7 +41,7 @@ from sk.features.ipm.group import (
     validate_roles_list,
 )
 from sk.help import command, option
-from sk.http import ApiError, ApiRejectedError
+from sk.http import ApiError
 from sk.identity.oidc import OidcError
 from sk.settings import ConfigurationError, SkSettings
 
@@ -69,7 +70,7 @@ NO_PERMISSION_HINT = (
 
 PHASE_STYLES = {"Ready": "green", "Failed": "red"}
 
-group_app = typer.Typer(
+group_app = SkTyper(
     help=GROUP_HELP,
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -132,22 +133,13 @@ RoleOption = Annotated[
 
 
 def _fail_api(error: ApiError, *, not_found: str = NOT_FOUND) -> NoReturn:
-    by_code = dict(ERROR_CODE_HINTS)
-    if isinstance(error, ApiRejectedError) and error.status == 403:
-        by_code["Forbidden"] = NO_PERMISSION_HINT
-    fail_api(error, not_found=not_found, conflict=CONFLICT_ON_CHANGE, by_error_code=by_code)
-
-
-def _usage_error(message: str, option_name: str) -> NoReturn:
-    ui.error("Value not accepted", message, hint=f"Fix {option_name} and repeat.")
-    raise typer.Exit(EXIT_USAGE_ERROR)
-
-
-def _identifier(value: str | None, option_name: str, *, what: str) -> str:
-    try:
-        return validate_identifier(require(value, option_name), what=what)
-    except ValueError as error:
-        _usage_error(str(error), option_name)
+    fail_api_with_forbidden(
+        error,
+        not_found=not_found,
+        conflict=CONFLICT_ON_CHANGE,
+        by_error_code=ERROR_CODE_HINTS,
+        forbidden=NO_PERMISSION_HINT,
+    )
 
 
 def _organization(value: str | None) -> str:
@@ -167,14 +159,14 @@ def _organization(value: str | None) -> str:
                 ),
             )
             raise typer.Exit(EXIT_USAGE_ERROR)
-    return _identifier(value, "--organization-id", what="organizationId")
+    return identifier(value, "--organization-id", what="organizationId")
 
 
 def _roles(values: list[str] | None) -> list[str]:
     try:
         return validate_roles_list(values or [])
     except ValueError as error:
-        _usage_error(str(error), "--role")
+        usage_error(str(error), "--role")
 
 
 def _styled_phase(group: Group) -> Text:
@@ -200,99 +192,20 @@ def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> 
     return " ".join(parts)
 
 
-def _timed_out(timeout: int, accepted: RequestAccepted, state: str) -> NoReturn:
-    ui.error(
-        "Timed out",
-        f"{timeout} s passed and the group {state}.",
-        hint=f"The request is still in progress: `{_get_command(accepted)}`.",
-    )
-    raise typer.Exit(EXIT_FAILURE)
-
-
-def _wait_for_convergence(
-    url: str, insecure: bool, accepted: RequestAccepted, *, removal: bool, timeout: int
-) -> Group | None:
-    ui.note(f"Waiting for convergence (up to {timeout} s)...")
-    deadline = time.monotonic() + timeout
-    while True:
-        token = session_token()
-        group: Group | None = None
-        try:
-            operation = get_operation(
-                url,
-                token=token,
-                resource_id=accepted.resource_id,
-                operation_id=accepted.operation_id,
-                allow_insecure_http=insecure,
-            )
-            if operation.operation_status in ("rejected", "failed", "superseded"):
-                reason = operation.reason
-                ui.error(
-                    "Request not completed",
-                    f"The Operation ended as {operation.operation_status}"
-                    + (f": {reason}" if reason else "."),
-                    hint=f"{REJECTION_HINTS.get(reason or '', 'Inspect the request.')} Details: "
-                    f"`{_get_command(accepted, with_operation=True)}`.",
-                )
-                raise typer.Exit(EXIT_FAILURE)
-            try:
-                group = get_group(
-                    url, token=token, resource_id=accepted.resource_id, allow_insecure_http=insecure
-                )
-            except ApiRejectedError as error:
-                if not (removal and error.status == HTTP_NOT_FOUND):
-                    raise
-        except OidcError as error:
-            bad_address(error)
-        except ApiRejectedError as error:
-            if error.status != HTTP_NOT_FOUND:
-                _fail_api(error)
-            if time.monotonic() >= deadline:
-                _timed_out(timeout, accepted, "is not visible yet")
-            time.sleep(WAIT_POLL_SECONDS)
-            continue
-        except ApiError as error:
-            _fail_api(error)
-        if operation.operation_status == "completed":
-            if removal and group is None:
-                return None
-            if not removal and group is not None and group.phase == "Ready":
-                return group
-        if time.monotonic() >= deadline:
-            where = f"is in phase {group.phase}" if group is not None else "was removed"
-            _timed_out(timeout, accepted, f"{where} (Operation {operation.operation_status})")
-        time.sleep(WAIT_POLL_SECONDS)
-
-
-def _finish_request(
-    url: str,
-    insecure: bool,
-    accepted: RequestAccepted,
-    *,
-    title: str,
-    removal: bool,
-    wait: bool,
-    timeout: int,
-) -> None:
-    if not wait:
-        ui.note(f"Follow it with `{_get_command(accepted)}`.")
-        return
-    group = _wait_for_convergence(url, insecure, accepted, removal=removal, timeout=timeout)
-    if group is None:
-        ui.panel(title, [("resourceId", accepted.resource_id), ("state", "removed")])
-        return
-    ui.panel(title, _rows(group))
-
-
-def _accepted_panel(title: str, accepted: RequestAccepted, *extra: tuple[str, str]) -> None:
-    ui.panel(
-        title,
-        [*extra, ("resourceId", accepted.resource_id), ("operationId", accepted.operation_id)],
-    )
+_flow = ResourceFlow(
+    subject="group",
+    get_command=_get_command,
+    read_resource=get_group,
+    read_operation=get_operation,
+    fail_api=_fail_api,
+    rejection_hints=REJECTION_HINTS,
+    rows=_rows,
+)
 
 
 @group_app.command(
     "create",
+    structured=True,
     help=command("Create a user group in the Organization with assigned composite roles."),
 )
 def create_command(
@@ -354,8 +267,8 @@ def create_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Creation requested", accepted, ("name", valid_name))
-    _finish_request(
+    _flow.accepted_panel("Creation requested", accepted, ("name", valid_name), wait=wait)
+    _flow.finish(
         url, insecure, accepted, title="Group created", removal=False, wait=wait, timeout=timeout
     )
 
@@ -370,7 +283,7 @@ def _change(
     wait: bool,
     timeout: int,
 ) -> None:
-    group_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    group_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -379,7 +292,7 @@ def _change(
         same_roles = roles is None or sorted(roles) == sorted(current.roles)
         same_protection = protected is None or protected == current.deletion_protection
         if same_desc and same_roles and same_protection:
-            ui.note(f"Group {group_id} already has it. Nothing to do.")
+            already_done(current, f"Group {group_id} already has it. Nothing to do.")
             return
         accepted = update_group(
             url,
@@ -396,12 +309,13 @@ def _change(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Change requested", accepted)
-    _finish_request(url, insecure, accepted, title=title, removal=False, wait=wait, timeout=timeout)
+    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.finish(url, insecure, accepted, title=title, removal=False, wait=wait, timeout=timeout)
 
 
 @group_app.command(
     "update",
+    structured=True,
     help=command(
         "Update description or roles of a group: --role replaces roles (--no-roles clears them)."
     ),
@@ -440,9 +354,9 @@ def update_command(
 ) -> None:
     has_role_change = role is not None or no_roles
     if has_role_change and (bool(role) == no_roles):
-        _usage_error("Give at least one --role, or --no-roles (not both).", "--role")
+        usage_error("Give at least one --role, or --no-roles (not both).", "--role")
     if description is None and not has_role_change:
-        _usage_error("Give --description, at least one --role, or --no-roles.", "--description")
+        usage_error("Give --description, at least one --role, or --no-roles.", "--description")
     roles_list = [] if no_roles else (_roles(role) if role is not None else None)
     _change(
         resource_id,
@@ -455,7 +369,7 @@ def update_command(
     )
 
 
-@group_app.command("protect", help=command("Protect a group against deletion."))
+@group_app.command("protect", structured=True, help=command("Protect a group against deletion."))
 def protect_command(
     resource_id: GroupIdOption = None,
     wait: WaitOption = False,
@@ -472,7 +386,9 @@ def protect_command(
     )
 
 
-@group_app.command("unprotect", help=command("Allow a protected group to be deleted."))
+@group_app.command(
+    "unprotect", structured=True, help=command("Allow a protected group to be deleted.")
+)
 def unprotect_command(
     resource_id: GroupIdOption = None,
     wait: WaitOption = False,
@@ -489,13 +405,13 @@ def unprotect_command(
     )
 
 
-@group_app.command("delete", help=command("Delete a group of the Organization."))
+@group_app.command("delete", structured=True, help=command("Delete a group of the Organization."))
 def delete_command(
     resource_id: GroupIdOption = None,
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    group_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    group_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -512,13 +428,17 @@ def delete_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Deletion requested", accepted, ("name", current.name))
-    _finish_request(
+    _flow.accepted_panel("Deletion requested", accepted, ("name", current.name), wait=wait)
+    _flow.finish(
         url, insecure, accepted, title="Group deleted", removal=True, wait=wait, timeout=timeout
     )
 
 
-@group_app.command("get", help=command("Show the state of a group and, if given, of an Operation."))
+@group_app.command(
+    "get",
+    structured=True,
+    help=command("Show the state of a group and, if given, of an Operation."),
+)
 def get_command(
     resource_id: GroupIdOption = None,
     operation_id: Annotated[
@@ -535,9 +455,9 @@ def get_command(
         ),
     ] = None,
 ) -> None:
-    group_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    group_id = identifier(resource_id, "--resource-id", what="resourceId")
     if operation_id is not None:
-        operation_id = _identifier(operation_id, "--operation-id", what="operationId")
+        operation_id = identifier(operation_id, "--operation-id", what="operationId")
     url, insecure = load_api()
     token = session_token()
     operation: OperationStatus | None = None
@@ -560,10 +480,13 @@ def get_command(
         rows.append(("operationStatus", operation.operation_status))
         if operation.reason is not None:
             rows.append(("reason", operation.reason))
-    ui.panel("Group", rows)
+    document = output.to_data(group)
+    if operation is not None:
+        document["operation"] = output.to_data(operation)
+    ui.panel("Group", rows, data=document)
 
 
-@group_app.command("list", help=command("List all groups of an Organization."))
+@group_app.command("list", structured=True, help=command("List all groups of an Organization."))
 def list_command(organization_id: OrganizationOption = None) -> None:
     org_id = _organization(organization_id)
     url, insecure = load_api()
@@ -575,7 +498,7 @@ def list_command(organization_id: OrganizationOption = None) -> None:
     except ApiError as error:
         _fail_api(error)
     if not groups:
-        ui.note("No groups.")
+        ui.empty("No groups.")
         return
     ui.table(
         "Groups",
@@ -591,4 +514,5 @@ def list_command(organization_id: OrganizationOption = None) -> None:
             for g in groups
         ],
         wrap=("description", "roles"),
+        data=groups,
     )

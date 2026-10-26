@@ -12,13 +12,16 @@ from typing import Annotated, NoReturn
 
 import typer
 
-from sk import ui
+from sk import output, ui
+from sk.command_app import SkTyper
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
     EXIT_FAILURE,
     EXIT_USAGE_ERROR,
     HTTP_NOT_FOUND,
     WAIT_POLL_SECONDS,
+    PersonNameOption,
+    PersonSurnameOption,
     TimeoutOption,
     bad_address,
     fail_api,
@@ -43,7 +46,7 @@ from sk.identity.oidc import OidcError
 
 ACCOUNT_HELP = command("Manage your personal account (create, show, protect, delete).")
 
-account_app = typer.Typer(
+account_app = SkTyper(
     help=ACCOUNT_HELP,
     no_args_is_help=True,
     # Ajuda colorida pelo Rich. Colchetes literais nos textos são escapados com "\\[".
@@ -94,7 +97,9 @@ def _rows(account: Account) -> list[tuple[str, str]]:
     ]
 
 
-@account_app.command("get", help=command("Show the account of the current session."))
+@account_app.command(
+    "get", structured=True, help=command("Show the account of the current session.")
+)
 def get_command() -> None:
     url, insecure = load_api()
     token = session_token()
@@ -106,7 +111,7 @@ def get_command() -> None:
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    ui.panel("Account", _rows(account))
+    ui.panel("Account", _rows(account), data=account)
 
 
 def _wait_until_completed(
@@ -164,6 +169,8 @@ def _set_protection(*, protected: bool, wait: bool, timeout: int) -> None:
             # Idempotente: pedir o estado que já vale não é erro.
             state = "protected" if protected else "unprotected"
             ui.note(f"The account is already {state}. Nothing to do.")
+            if output.is_json():
+                output.emit(account)
             return
         accepted = set_account_protection(
             url,
@@ -185,6 +192,8 @@ def _set_protection(*, protected: bool, wait: bool, timeout: int) -> None:
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
+        data=accepted,
+        interim=wait,
     )
     if not wait:
         ui.note("Confirm it with `sk account get`.")
@@ -193,6 +202,7 @@ def _set_protection(*, protected: bool, wait: bool, timeout: int) -> None:
     ui.panel(
         "Account protected" if protected else "Account unprotected",
         [("resourceId", resource_id), ("protected", "yes" if protected else "no")],
+        data={"resourceId": resource_id, "protected": protected},
     )
 
 
@@ -212,7 +222,7 @@ WaitOption = Annotated[
 
 
 @account_app.command(
-    "protect", help=command("Protect your account against deletion (the default).")
+    "protect", structured=True, help=command("Protect your account against deletion (the default).")
 )
 def protect_command(
     wait: WaitOption = False, timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS
@@ -221,7 +231,9 @@ def protect_command(
 
 
 @account_app.command(
-    "unprotect", help=command("Allow your account to be deleted. Required before `delete`.")
+    "unprotect",
+    structured=True,
+    help=command("Allow your account to be deleted. Required before `delete`."),
 )
 def unprotect_command(
     wait: WaitOption = False, timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS
@@ -279,6 +291,7 @@ def _wait_until_gone(
 
 @account_app.command(
     "delete",
+    structured=True,
     help=command(
         "Delete your own account. It is refused while Organizations or enabled services remain."
     ),
@@ -345,17 +358,24 @@ def delete_command(
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
+        data=accepted,
+        interim=wait,
     )
     if not wait:
         ui.note("The account is removed shortly. Confirm it with `sk account get`.")
         return
     _wait_until_gone(url, insecure, resource_id, accepted.operation_id, timeout=timeout)
     default_credentials_path().unlink(missing_ok=True)  # a sessão não vale mais
-    ui.panel("Account deleted", [("resourceId", resource_id), ("session", "forgotten")])
+    ui.panel(
+        "Account deleted",
+        [("resourceId", resource_id), ("session", "forgotten")],
+        data={"resourceId": resource_id, "state": "removed"},
+    )
 
 
 @account_app.command(
     "create",
+    structured=True,
     help=command(
         "Register a new account to get started on the platform. "
         "Afterwards, open the link in the e-mail sent to it to confirm the address and set the "
@@ -363,32 +383,8 @@ def delete_command(
     ),
 )
 def create_account(
-    name: Annotated[
-        str | None,
-        typer.Option(
-            "--name",
-            help=option(
-                "Name (up to 256 characters).",
-                kind="String",
-                variable=None,
-                file=None,
-                default="none",
-            ),
-        ),
-    ] = None,
-    surname: Annotated[
-        str | None,
-        typer.Option(
-            "--surname",
-            help=option(
-                "Surname (up to 256 characters).",
-                kind="String",
-                variable=None,
-                file=None,
-                default="none",
-            ),
-        ),
-    ] = None,
+    name: PersonNameOption = None,
+    surname: PersonSurnameOption = None,
     email: Annotated[
         str | None,
         typer.Option(
@@ -465,6 +461,7 @@ def create_account(
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
+        data=accepted,
     )
     ui.note(
         "Next steps: open the link in the e-mail the provider sent to confirm the address and set "

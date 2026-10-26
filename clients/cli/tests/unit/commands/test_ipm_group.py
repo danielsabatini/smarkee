@@ -14,6 +14,7 @@ from typing import Any, cast
 import pytest
 from typer.testing import CliRunner
 
+from sk import output
 from sk.identity.credentials import StoredCredentials, default_credentials_path, save_credentials
 from sk.main import app
 
@@ -101,7 +102,7 @@ def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
     def no_wait(_: float) -> None:
         return None
 
-    monkeypatch.setattr("sk.commands.ipm_group.time.sleep", no_wait)
+    monkeypatch.setattr("sk.commands.shared.time.sleep", no_wait)
 
 
 def group_document(
@@ -210,3 +211,82 @@ def test_update_group(api: FakeApi) -> None:
     )
     assert result.exit_code == 0
     assert "Change requested" in result.output
+
+
+# --- `--output json` (decisão 0093) -----------------------------------------------------------
+
+JSON = ["--output", "json"]
+
+
+@pytest.fixture
+def default_output_mode() -> Iterator[None]:
+    output.configure(raw=False)
+    yield
+    output.configure(raw=False)
+
+
+def _document(stdout: str) -> Any:
+    return json.loads(stdout)  # falha se houver mais de um documento ou texto solto
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_get_and_list_print_native_types(api: FakeApi) -> None:
+    api.routes[("GET", GROUP)] = Response(
+        200, group_document(roles=["ipm.userViewer"], protected=True)
+    )
+    shown = runner.invoke(app, [*JSON, "ipm", "group", "get", "--resource-id", RID])
+    assert shown.exit_code == 0, shown.stderr
+    document = _document(shown.stdout)
+    assert document["roles"] == ["ipm.userViewer"] and document["deletionProtection"] is True
+    api.routes[("GET", PATH)] = Response(200, {"items": [group_document()]})
+    listed = runner.invoke(app, [*JSON, "ipm", "group", "list", "--organization-id", ORG])
+    assert [g["name"] for g in _document(listed.stdout)] == ["devops"]
+    api.routes[("GET", PATH)] = Response(200, {"items": []})
+    empty = runner.invoke(app, [*JSON, "ipm", "group", "list", "--organization-id", ORG])
+    assert _document(empty.stdout) == []
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_delete_prints_only_the_acceptance_and_nothing_to_do_prints_the_group(
+    api: FakeApi,
+) -> None:
+    api.routes[("GET", GROUP)] = Response(200, group_document(version="3"))
+    api.routes[("DELETE", GROUP)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    deleted = runner.invoke(app, [*JSON, "ipm", "group", "delete", "--resource-id", RID])
+    assert deleted.exit_code == 0, deleted.stderr
+    assert _document(deleted.stdout) == {"resourceId": RID, "operationId": OPID}
+    api.routes[("GET", GROUP)] = Response(200, group_document(protected=True))
+    again = runner.invoke(app, [*JSON, "ipm", "group", "protect", "--resource-id", RID])
+    assert again.exit_code == 0, again.stderr
+    assert _document(again.stdout)["resourceId"] == RID and "Nothing to do" in again.stderr
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_on_an_unsupported_command_is_refused_before_acting(api: FakeApi) -> None:
+    result = runner.invoke(app, [*JSON, "auth", "refresh"])
+    assert result.exit_code == 2 and "no structured output" in result.stderr
+    assert not api.requests
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_delete_with_wait_prints_the_removed_state(api: FakeApi) -> None:
+    api.routes[("GET", GROUP)] = [
+        Response(200, group_document(version="3")),  # leitura antes do pedido
+        http_error(404, "NotFound", "gone"),  # já removido
+    ]
+    api.routes[("DELETE", GROUP)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    result = runner.invoke(app, [*JSON, "ipm", "group", "delete", "--resource-id", RID, "--wait"])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout) == {"resourceId": RID, "state": "removed"}
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_get_with_operation_adds_the_operation(api: FakeApi) -> None:
+    api.routes[("GET", GROUP)] = Response(200, group_document())
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    result = runner.invoke(
+        app, [*JSON, "ipm", "group", "get", "--resource-id", RID, "--operation-id", OPID]
+    )
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout)["operation"]["operationStatus"] == "completed"

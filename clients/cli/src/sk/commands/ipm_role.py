@@ -5,28 +5,29 @@ criadas por quem tem `ipm.role.create` (e `update`, `delete`, `bind`) nela, ou p
 Criar, alterar e remover são assíncronos: com `--wait`, o comando espera a role convergir.
 """
 
-import time
 import uuid
 from typing import Annotated, NoReturn
 
 import typer
 from pydantic import ValidationError
 
-from sk import ui
+from sk import output, ui
+from sk.command_app import SkTyper
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
-    EXIT_FAILURE,
     EXIT_USAGE_ERROR,
-    HTTP_NOT_FOUND,
-    WAIT_POLL_SECONDS,
+    ResourceFlow,
     TimeoutOption,
+    already_done,
     bad_address,
-    fail_api,
+    fail_api_with_forbidden,
+    identifier,
     load_api,
     require,
     session_token,
+    usage_error,
 )
-from sk.features.api_contract import OperationStatus, RequestAccepted, validate_identifier
+from sk.features.api_contract import OperationStatus, RequestAccepted
 from sk.features.ipm.role import (
     Role,
     create_role,
@@ -41,7 +42,7 @@ from sk.features.ipm.role import (
     validate_role_name,
 )
 from sk.help import command, option
-from sk.http import ApiError, ApiRejectedError
+from sk.http import ApiError
 from sk.identity.oidc import OidcError
 from sk.settings import ConfigurationError, SkSettings
 
@@ -78,7 +79,7 @@ NO_PERMISSION_HINT = (
 )
 
 
-role_app = typer.Typer(
+role_app = SkTyper(
     help=ROLE_HELP,
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -142,22 +143,13 @@ PermissionOption = Annotated[
 
 
 def _fail_api(error: ApiError, *, not_found: str = NOT_FOUND) -> NoReturn:
-    by_code = dict(ERROR_CODE_HINTS)
-    if isinstance(error, ApiRejectedError) and error.status == 403:
-        by_code["Forbidden"] = NO_PERMISSION_HINT
-    fail_api(error, not_found=not_found, conflict=CONFLICT_ON_CHANGE, by_error_code=by_code)
-
-
-def _usage_error(message: str, option_name: str) -> NoReturn:
-    ui.error("Value not accepted", message, hint=f"Fix {option_name} and repeat.")
-    raise typer.Exit(EXIT_USAGE_ERROR)
-
-
-def _identifier(value: str | None, option_name: str, *, what: str) -> str:
-    try:
-        return validate_identifier(require(value, option_name), what=what)
-    except ValueError as error:
-        _usage_error(str(error), option_name)
+    fail_api_with_forbidden(
+        error,
+        not_found=not_found,
+        conflict=CONFLICT_ON_CHANGE,
+        by_error_code=ERROR_CODE_HINTS,
+        forbidden=NO_PERMISSION_HINT,
+    )
 
 
 def _active_organization() -> str | None:
@@ -180,7 +172,7 @@ def _organization(value: str | None) -> str:
             ),
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
-    return _identifier(value, "--organization-id", what="organizationId")
+    return identifier(value, "--organization-id", what="organizationId")
 
 
 def _rows(role: Role) -> list[tuple[str, str]]:
@@ -204,109 +196,21 @@ def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> 
     return " ".join(parts)
 
 
-def _timed_out(timeout: int, accepted: RequestAccepted, state: str) -> NoReturn:
-    ui.error(
-        "Timed out",
-        f"{timeout} s passed and the role {state}.",
-        hint=f"The request is still in progress: `{_get_command(accepted)}`.",
-    )
-    raise typer.Exit(EXIT_FAILURE)
+_flow = ResourceFlow(
+    subject="role",
+    get_command=_get_command,
+    read_resource=get_role,
+    read_operation=get_operation,
+    fail_api=_fail_api,
+    rejection_hints=REJECTION_HINTS,
+    rows=_rows,
+    inspect_row=True,
+)
 
 
-def _wait_for_convergence(
-    url: str, insecure: bool, accepted: RequestAccepted, *, removal: bool, timeout: int
-) -> Role | None:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        token = session_token()
-        role: Role | None = None
-        try:
-            op = get_operation(
-                url,
-                token=token,
-                resource_id=accepted.resource_id,
-                operation_id=accepted.operation_id,
-                allow_insecure_http=insecure,
-            )
-            if op.operation_status in ("rejected", "failed", "superseded"):
-                if op.operation_status == "rejected":
-                    reason = op.reason or "validation"
-                    title, text = "Request rejected", f"The request was rejected: {reason}."
-                    hint = REJECTION_HINTS.get(reason, "Inspect the Operation for details.")
-                else:
-                    # `failed` (prazo ou limite esgotado) e `superseded` (trocada por outro
-                    # pedido) não têm motivo de rejeição.
-                    title = "Request not completed"
-                    text = f"The Operation ended as {op.operation_status}."
-                    hint = "Inspect the Operation for details."
-                ui.error(
-                    title,
-                    text,
-                    hint=f"{hint} `{_get_command(accepted, with_operation=True)}`.",
-                )
-                raise typer.Exit(EXIT_FAILURE)
-            try:
-                role = get_role(
-                    url, token=token, resource_id=accepted.resource_id, allow_insecure_http=insecure
-                )
-            except ApiRejectedError as error:
-                if not (removal and error.status == HTTP_NOT_FOUND):
-                    raise
-        except OidcError as error:
-            bad_address(error)
-        except ApiRejectedError as error:
-            if error.status != HTTP_NOT_FOUND:
-                _fail_api(error)
-            if time.monotonic() >= deadline:
-                _timed_out(timeout, accepted, "is not visible yet")
-            time.sleep(WAIT_POLL_SECONDS)
-            continue
-        except ApiError as error:
-            _fail_api(error)
-        if op.operation_status == "completed":
-            if removal and role is None:
-                return None
-            if not removal and role is not None and role.phase == "Ready":
-                return role
-        if time.monotonic() >= deadline:
-            where = f"is in phase {role.phase}" if role is not None else "was removed"
-            _timed_out(timeout, accepted, f"{where} (Operation {op.operation_status})")
-        time.sleep(WAIT_POLL_SECONDS)
-    _timed_out(timeout, accepted, "was not removed" if removal else "did not become Ready")
-
-
-def _accepted_panel(title: str, accepted: RequestAccepted) -> None:
-    ui.panel(
-        title,
-        [
-            ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
-            ("inspect", _get_command(accepted, with_operation=True)),
-        ],
-    )
-
-
-def _finish_request(
-    url: str,
-    insecure: bool,
-    accepted: RequestAccepted,
-    *,
-    title: str,
-    removal: bool,
-    wait: bool,
-    timeout: int,
-) -> None:
-    if not wait:
-        ui.note(f"Follow it with `{_get_command(accepted)}`.")
-        return
-    result = _wait_for_convergence(url, insecure, accepted, removal=removal, timeout=timeout)
-    if result is None:
-        ui.panel(title, [("resourceId", accepted.resource_id), ("state", "removed")])
-        return
-    ui.panel(title, _rows(result))
-
-
-@role_app.command("create", help=command("Create a custom role in the Organization."))
+@role_app.command(
+    "create", structured=True, help=command("Create a custom role in the Organization.")
+)
 def create_command(
     organization_id: OrganizationOption = None,
     name: Annotated[
@@ -343,7 +247,7 @@ def create_command(
     r_name = require(name, "--name")
     r_desc = require(description, "--description")
     if not permission:
-        _usage_error("Give at least one --permission for the role.", "--permission")
+        usage_error("Give at least one --permission for the role.", "--permission")
     try:
         valid_name = validate_role_name(r_name)
         valid_desc = validate_description(r_desc, name=valid_name)
@@ -368,14 +272,15 @@ def create_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Creation requested", accepted)
-    _finish_request(
+    _flow.accepted_panel("Creation requested", accepted, wait=wait)
+    _flow.finish(
         url, insecure, accepted, title="Role created", removal=False, wait=wait, timeout=timeout
     )
 
 
 @role_app.command(
     "update",
+    structured=True,
     help=command("Update the description or atomic permissions of a composite role."),
 )
 def update_command(
@@ -397,9 +302,9 @@ def update_command(
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    role_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    role_id = identifier(resource_id, "--resource-id", what="resourceId")
     if description is None and permission is None:
-        _usage_error("Give at least --description or --permission.", "--description")
+        usage_error("Give at least --description or --permission.", "--description")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -407,7 +312,7 @@ def update_command(
         same_desc = description is None or description.strip() == current.description
         same_perms = permission is None or sorted(set(permission)) == sorted(current.permissions)
         if same_desc and same_perms:
-            ui.note(f"Role {role_id} already has it. Nothing to do.")
+            already_done(current, f"Role {role_id} already has it. Nothing to do.")
             return
         accepted = update_role(
             url,
@@ -423,25 +328,25 @@ def update_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Change requested", accepted)
-    _finish_request(
+    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.finish(
         url, insecure, accepted, title="Role updated", removal=False, wait=wait, timeout=timeout
     )
 
 
-@role_app.command("protect", help=command("Protect a role against deletion."))
+@role_app.command("protect", structured=True, help=command("Protect a role against deletion."))
 def protect_command(
     resource_id: RoleIdOption = None,
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    role_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    role_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
     try:
         current = get_role(url, token=token, resource_id=role_id, allow_insecure_http=insecure)
         if current.deletion_protection:
-            ui.note(f"Role {role_id} already has it. Nothing to do.")
+            already_done(current, f"Role {role_id} already has it. Nothing to do.")
             return
         accepted = set_role_protection(
             url,
@@ -456,14 +361,15 @@ def protect_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Change requested", accepted)
-    _finish_request(
+    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.finish(
         url, insecure, accepted, title="Role protected", removal=False, wait=wait, timeout=timeout
     )
 
 
 @role_app.command(
     "unprotect",
+    structured=True,
     help=command("Allow a protected role to be deleted."),
 )
 def unprotect_command(
@@ -471,13 +377,13 @@ def unprotect_command(
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    role_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    role_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
     try:
         current = get_role(url, token=token, resource_id=role_id, allow_insecure_http=insecure)
         if not current.deletion_protection:
-            ui.note(f"Role {role_id} already has it. Nothing to do.")
+            already_done(current, f"Role {role_id} already has it. Nothing to do.")
             return
         accepted = set_role_protection(
             url,
@@ -492,14 +398,15 @@ def unprotect_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Change requested", accepted)
-    _finish_request(
+    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.finish(
         url, insecure, accepted, title="Role unprotected", removal=False, wait=wait, timeout=timeout
     )
 
 
 @role_app.command(
     "delete",
+    structured=True,
     help=command("Delete a composite role, reading the current version before asking."),
 )
 def delete_command(
@@ -507,7 +414,7 @@ def delete_command(
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    role_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    role_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -524,13 +431,13 @@ def delete_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Deletion requested", accepted)
-    _finish_request(
+    _flow.accepted_panel("Deletion requested", accepted, wait=wait)
+    _flow.finish(
         url, insecure, accepted, title="Role deleted", removal=True, wait=wait, timeout=timeout
     )
 
 
-@role_app.command("get", help=command("Inspect a composite role."))
+@role_app.command("get", structured=True, help=command("Inspect a composite role."))
 def get_command(
     resource_id: RoleIdOption = None,
     operation_id: Annotated[
@@ -547,7 +454,7 @@ def get_command(
         ),
     ] = None,
 ) -> None:
-    role_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    role_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
     operation: OperationStatus | None = None
@@ -570,16 +477,20 @@ def get_command(
         rows.append(("operationStatus", operation.operation_status))
         if operation.reason is not None:
             rows.append(("reason", operation.reason))
-    ui.panel("Role", rows)
+    document = output.to_data(role)
+    if operation is not None:
+        document["operation"] = output.to_data(operation)
+    ui.panel("Role", rows, data=document)
 
 
 @role_app.command(
     "list",
+    structured=True,
     help=command("List predefined roles and the custom roles of an Organization."),
 )
 def list_command(organization_id: OrganizationOption = None) -> None:
     org_id = (
-        _identifier(organization_id, "--organization-id", what="organizationId")
+        identifier(organization_id, "--organization-id", what="organizationId")
         if organization_id is not None
         else _active_organization()
     )
@@ -592,11 +503,12 @@ def list_command(organization_id: OrganizationOption = None) -> None:
     except ApiError as error:
         _fail_api(error)
     if not roles:
-        ui.note("No roles found.")
+        ui.empty("No roles found.")
         return
     ui.table(
         "Roles",
         ["name", "resourceId", "type", "description"],
         [[r.name, r.resource_id, r.role_type, r.description] for r in roles],
         wrap=["description"],
+        data=roles,
     )

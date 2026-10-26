@@ -1,11 +1,13 @@
 """Comando `sk account create`: opções, configuração, validação local e mensagens de saída."""
 
+import json
 from pathlib import Path
 from typing import Any
 
 import pytest
 from typer.testing import CliRunner
 
+from sk import output
 from sk.defaults import PRD_API_URL
 from sk.features.core.account import RegistrationAccepted
 from sk.http import ApiRejectedError, ApiUnavailableError
@@ -172,3 +174,18 @@ def test_help_is_in_portuguese_and_lists_the_three_fields() -> None:
     # O endereço da API e a permissão de HTTP são do ambiente, não de opções (decisão 0041).
     for absent in ("--password", "--api-url", "--allow-insecure-http"):
         assert absent not in result.stdout
+
+
+def test_json_prints_the_acceptance_and_sends_the_next_steps_to_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output.configure(raw=False)
+    monkeypatch.setattr(
+        "sk.commands.account.submit_registration",
+        fake_submit([], RegistrationAccepted("r-1", "o-1")),
+    )
+    result = runner.invoke(app, ["--output", "json", *REGISTER])
+    output.configure(raw=False)
+    assert result.exit_code == 0, result.stderr
+    assert json.loads(result.stdout) == {"resourceId": "r-1", "operationId": "o-1"}
+    assert "Next steps" in result.stderr and "Next steps" not in result.stdout

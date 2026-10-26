@@ -12,7 +12,7 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - **Ambiente local OpenCode:** `~/.config/opencode/opencode.json` carrega `AGENTS.md` e `MEMORY.md` globalmente; `.opencode/opencode.json` do projeto é local e ignorado pelo git.
 
 ## Próximos passos imediatos
-0. Implementar as opções globais `--output table|json|yaml` e `--raw` da CLI `sk` (plano aprovado; resumo em `.journal/2026-10-26.md`): decisão `0093`, `pyyaml`, `sk/ui.py`, `sk/main.py`, comandos, testes.
+0. Opções globais `--output table|json` e `--raw` da CLI `sk` implementadas e verificadas (decisão `0093`), com Quality Gate do SonarQube em OK (`smarkee-clients-cli`), ainda **não commitadas**: falta só o commit. O scanner da CLI exige `-Dsonar.python.coverage.reportPaths=coverage.xml` (o `sonar-project.properties` não define).
 1. Decidir com o responsável: se `sk ipm user/permission/group list` seguem `name | resourceId | description`.
 2. Higiene operacional: ruído de WARN `NotFound` em `ipm/user` e `trace_id` não propagado entre receivers (não pedidos); isolar testes de integração para não publicar no loop em execução; limpeza reconhecer usuário removido; supressão de logs repetitivos por recurso; trace novo por tentativa com link (quando houver spans).
 

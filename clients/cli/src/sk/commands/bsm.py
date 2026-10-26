@@ -6,7 +6,6 @@ acompanhar a Operation e, com `--wait`, espera a Billing Account convergir. O to
 as permissões `bsm.account.*`.
 """
 
-import time
 import uuid
 from typing import Annotated, NoReturn
 
@@ -14,22 +13,23 @@ import typer
 from pydantic import ValidationError
 from rich.text import Text
 
-from sk import ui
+from sk import output, ui
+from sk.command_app import SkTyper
 from sk.commands.config import known_keys, store_value
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
-    EXIT_FAILURE,
     EXIT_USAGE_ERROR,
-    HTTP_NOT_FOUND,
-    WAIT_POLL_SECONDS,
+    ResourceFlow,
     TimeoutOption,
+    already_done,
     bad_address,
-    fail_api,
+    fail_api_with_forbidden,
+    identifier,
     load_api,
     require,
     session_token,
 )
-from sk.features.api_contract import OperationStatus, RequestAccepted, validate_identifier
+from sk.features.api_contract import OperationStatus, RequestAccepted
 from sk.features.bsm.account import (
     BillingAccount,
     create_account,
@@ -44,7 +44,7 @@ from sk.features.bsm.account import (
     validate_display_name,
 )
 from sk.help import command, option
-from sk.http import ApiError, ApiRejectedError
+from sk.http import ApiError
 from sk.identity.oidc import OidcError
 from sk.settings import ConfigurationError, SkSettings, config_file_path, read_config_document
 
@@ -84,14 +84,14 @@ PHASE_STYLES = {
     "Failed": "red",
 }  # as demais fases (em andamento) ficam em amarelo
 
-bsm_app = typer.Typer(
+bsm_app = SkTyper(
     help=BSM_HELP,
     no_args_is_help=True,
     # Ajuda colorida pelo Rich. Colchetes literais nos textos são escapados com "\\[".
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
 )
-account_app = typer.Typer(
+account_app = SkTyper(
     help=ACCOUNT_HELP,
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -142,20 +142,13 @@ ContactOption = Annotated[
 
 
 def _fail_api(error: ApiError, *, not_found: str = NOT_FOUND) -> NoReturn:
-    if isinstance(error, ApiRejectedError) and error.status == 403:
-        by_code = {**ERROR_CODE_HINTS, "Forbidden": NO_PERMISSION_HINT}
-    else:
-        by_code = ERROR_CODE_HINTS
-    fail_api(error, not_found=not_found, conflict=CONFLICT_ON_CHANGE, by_error_code=by_code)
-
-
-def _identifier(value: str | None, option_name: str, *, what: str) -> str:
-    """Opção obrigatória que é um identificador do contrato, recusada antes da chamada de rede."""
-    try:
-        return validate_identifier(require(value, option_name), what=what)
-    except ValueError as error:
-        ui.error("Value not accepted", str(error), hint=f"Fix {option_name} and repeat.")
-        raise typer.Exit(EXIT_USAGE_ERROR) from error
+    fail_api_with_forbidden(
+        error,
+        not_found=not_found,
+        conflict=CONFLICT_ON_CHANGE,
+        by_error_code=ERROR_CODE_HINTS,
+        forbidden=NO_PERMISSION_HINT,
+    )
 
 
 def _active_account() -> str:
@@ -182,7 +175,7 @@ def _account_identifier(value: str | None) -> str:
                 ),
             )
             raise typer.Exit(EXIT_USAGE_ERROR)
-    return _identifier(value, "--resource-id", what="resourceId")
+    return identifier(value, "--resource-id", what="resourceId")
 
 
 def _display_name(value: str | None) -> str:
@@ -259,129 +252,6 @@ def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> 
     return " ".join(parts)
 
 
-def _timed_out(
-    timeout: int, accepted: RequestAccepted, state: str = "is not visible yet"
-) -> NoReturn:
-    ui.error(
-        "Timed out",
-        f"{timeout} s passed and the Billing Account {state}.",
-        hint=f"The request is still in progress: `{_get_command(accepted)}`.",
-    )
-    raise typer.Exit(EXIT_FAILURE)
-
-
-def _wait_for_convergence(
-    url: str,
-    insecure: bool,
-    accepted: RequestAccepted,
-    *,
-    expect_display_name: str | None,
-    removal: bool,
-    timeout: int,
-) -> BillingAccount | None:
-    """Espera a Operation `completed` (e a Billing Account `Ready` com o nome pedido); se não der,
-    sai dizendo por quê. Na remoção, devolve `None` quando a Billing Account já não existe.
-
-    O token é pedido a cada leitura: o acesso dura 15 minutos, e uma espera longa (`--timeout`)
-    pode atravessar o vencimento (a sessão se renova pelo refresh token).
-    """
-    ui.note(f"Waiting for convergence (up to {timeout} s)...")
-    deadline = time.monotonic() + timeout
-    while True:
-        token = session_token()
-        account: BillingAccount | None = None
-        try:
-            operation = get_operation(
-                url,
-                token=token,
-                resource_id=accepted.resource_id,
-                operation_id=accepted.operation_id,
-                allow_insecure_http=insecure,
-            )
-            # Recusa ou falha primeiro: num `create` recusado, o recurso nem existe (`404`).
-            if operation.operation_status in ("rejected", "failed", "superseded"):
-                reason = operation.reason
-                ui.error(
-                    "Request not completed",
-                    f"The Operation ended as {operation.operation_status}"
-                    + (f": {reason}" if reason else "."),
-                    hint=f"{REJECTION_HINTS.get(reason or '', 'Inspect the request.')} Details: "
-                    f"`{_get_command(accepted, with_operation=True)}`.",
-                )
-                raise typer.Exit(EXIT_FAILURE)
-            try:
-                account = get_account(
-                    url,
-                    token=token,
-                    resource_id=accepted.resource_id,
-                    allow_insecure_http=insecure,
-                )
-            except ApiRejectedError as error:
-                # Na remoção, o `404` da Billing Account é o esperado (a linha foi apagada).
-                if not (removal and error.status == HTTP_NOT_FOUND):
-                    raise
-        except OidcError as error:
-            bad_address(error)
-        except ApiRejectedError as error:
-            if error.status != HTTP_NOT_FOUND:
-                _fail_api(error)
-            # Logo depois do `202`, o Manager ainda pode não ter gravado a Operation e o recurso
-            # (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1): é espera, e não erro.
-            if time.monotonic() >= deadline:
-                _timed_out(timeout, accepted)
-            time.sleep(WAIT_POLL_SECONDS)
-            continue
-        except ApiError as error:
-            _fail_api(error)
-        if operation.operation_status == "completed":
-            if removal and account is None:
-                return None
-            if (
-                not removal
-                and account is not None
-                and account.phase == "Ready"
-                and (expect_display_name is None or account.display_name == expect_display_name)
-            ):
-                return account
-        if time.monotonic() >= deadline:
-            where = f"is in phase {account.phase}" if account is not None else "was removed"
-            _timed_out(timeout, accepted, f"{where} (Operation {operation.operation_status})")
-        time.sleep(WAIT_POLL_SECONDS)
-
-
-def _finish_request(
-    url: str,
-    insecure: bool,
-    accepted: RequestAccepted,
-    *,
-    title: str,
-    expect_display_name: str | None,
-    removal: bool,
-    wait: bool,
-    timeout: int,
-) -> BillingAccount | None:
-    """Fim de `create`, `update` e `delete`: orienta o acompanhamento ou, com `--wait`, espera.
-
-    Devolve a Billing Account convergida, ou `None` sem `--wait` e quando ela foi removida.
-    """
-    if not wait:
-        ui.note(f"Follow it with `{_get_command(accepted)}`.")
-        return None
-    account = _wait_for_convergence(
-        url,
-        insecure,
-        accepted,
-        expect_display_name=expect_display_name,
-        removal=removal,
-        timeout=timeout,
-    )
-    if account is None:
-        ui.panel(title, [("resourceId", accepted.resource_id), ("presence", "removed")])
-        return None
-    ui.panel(title, _rows(account))
-    return account
-
-
 def _activate_if_none(resource_id: str) -> None:
     """Grava a Billing Account recém-criada como a ativa (`[bsm] accountId`), se não há uma.
 
@@ -411,8 +281,21 @@ def _activate_if_none(resource_id: str) -> None:
     ui.note(f"Saved as the active Billing Account in {path}.")
 
 
+_flow = ResourceFlow(
+    subject="Billing Account",
+    get_command=_get_command,
+    read_resource=get_account,
+    read_operation=get_operation,
+    fail_api=_fail_api,
+    rejection_hints=REJECTION_HINTS,
+    rows=_rows,
+    removed_key="presence",
+)
+
+
 @account_app.command(
     "create",
+    structured=True,
     help=command("Create a Billing Account. Follow it with `sk bsm account get`."),
 )
 def create_command(
@@ -475,16 +358,18 @@ def create_command(
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
+        data=accepted,
+        interim=wait,
     )
-    account = _finish_request(
+    account = _flow.finish(
         url,
         insecure,
         accepted,
         title="Billing Account created",
-        expect_display_name=display_name,
         removal=False,
         wait=wait,
         timeout=timeout,
+        matches=lambda r: r.display_name == display_name,
     )
     if account is not None:
         _activate_if_none(account.resource_id)
@@ -497,6 +382,7 @@ def create_command(
 
 @account_app.command(
     "update",
+    structured=True,
     help=command(
         "Update the display name or billing contacts of a Billing Account, reading the current "
         "version before asking."
@@ -554,7 +440,9 @@ def update_command(
             validated_contacts is None or list(current.billing_contacts) == validated_contacts
         )
         if same_name and same_contacts:
-            ui.note(f"Billing Account {resource_id} already has these values. Nothing to do.")
+            already_done(
+                current, f"Billing Account {resource_id} already has these values. Nothing to do."
+            )
             return
         accepted = update_account(
             url,
@@ -576,16 +464,16 @@ def update_command(
     if validated_contacts is not None and not same_contacts:
         rows.append(("billingContacts", ", ".join(validated_contacts)))
     rows.extend([("resourceId", accepted.resource_id), ("operationId", accepted.operation_id)])
-    ui.panel("Update requested", rows)
-    _finish_request(
+    ui.panel("Update requested", rows, data=accepted, interim=wait)
+    _flow.finish(
         url,
         insecure,
         accepted,
         title="Billing Account updated",
-        expect_display_name=validated_name if not same_name else None,
         removal=False,
         wait=wait,
         timeout=timeout,
+        matches=None if same_name else (lambda r: r.display_name == validated_name),
     )
 
 
@@ -600,7 +488,9 @@ def _set_protection(resource_id: str | None, *, protected: bool, wait: bool, tim
         if current.deletion_protection == protected:
             # Idempotente: pedir o estado que já vale não é erro.
             state = "protected" if protected else "unprotected"
-            ui.note(f"Billing Account {resource_id} is already {state}. Nothing to do.")
+            already_done(
+                current, f"Billing Account {resource_id} is already {state}. Nothing to do."
+            )
             return
         accepted = set_account_protection(
             url,
@@ -623,13 +513,14 @@ def _set_protection(resource_id: str | None, *, protected: bool, wait: bool, tim
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
+        data=accepted,
+        interim=wait,
     )
-    _finish_request(
+    _flow.finish(
         url,
         insecure,
         accepted,
         title="Billing Account protected" if protected else "Billing Account unprotected",
-        expect_display_name=None,
         removal=False,
         wait=wait,
         timeout=timeout,
@@ -638,6 +529,7 @@ def _set_protection(resource_id: str | None, *, protected: bool, wait: bool, tim
 
 @account_app.command(
     "protect",
+    structured=True,
     help=command("Protect a Billing Account against deletion (the default for new ones)."),
 )
 def protect_command(
@@ -650,6 +542,7 @@ def protect_command(
 
 @account_app.command(
     "unprotect",
+    structured=True,
     help=command("Allow a Billing Account to be deleted. Required before `delete`."),
 )
 def unprotect_command(
@@ -662,6 +555,7 @@ def unprotect_command(
 
 @account_app.command(
     "delete",
+    structured=True,
     help=command("Delete a Billing Account, reading the current version before asking."),
 )
 def delete_command(
@@ -695,18 +589,19 @@ def delete_command(
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
+        data=accepted,
+        interim=wait,
     )
     if resource_id == _active_account():
         ui.warning(
             "This is the active Billing Account. Once it is gone, point to another with "
             f"`sk config set {ACTIVE_ACCOUNT_KEY} VALUE`."
         )
-    _finish_request(
+    _flow.finish(
         url,
         insecure,
         accepted,
         title="Billing Account deleted",
-        expect_display_name=None,
         removal=True,
         wait=wait,
         timeout=timeout,
@@ -715,6 +610,7 @@ def delete_command(
 
 @account_app.command(
     "get",
+    structured=True,
     help=command("Show the state of a Billing Account and, if given, of an Operation."),
 )
 def get_command(
@@ -736,7 +632,7 @@ def get_command(
 ) -> None:
     resource_id = _account_identifier(resource_id)
     if operation_id is not None:
-        operation_id = _identifier(operation_id, "--operation-id", what="operationId")
+        operation_id = identifier(operation_id, "--operation-id", what="operationId")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -764,10 +660,15 @@ def get_command(
     rows = _rows(account)
     if operation is not None:
         rows.extend(_operation_rows(operation))
-    ui.panel("Billing Account", rows)
+    document = output.to_data(account)
+    if operation is not None:
+        document["operation"] = output.to_data(operation)
+    ui.panel("Billing Account", rows, data=document)
 
 
-@account_app.command("list", help=command("List the requester's Billing Accounts."))
+@account_app.command(
+    "list", structured=True, help=command("List the requester's Billing Accounts.")
+)
 def list_command() -> None:
     url, insecure = load_api()
     token = session_token()
@@ -778,7 +679,7 @@ def list_command() -> None:
     except ApiError as error:
         _fail_api(error)
     if not accounts:
-        ui.note("No Billing Accounts.")
+        ui.empty("No Billing Accounts.")
         return
     active = _active_account()
     ui.table(
@@ -795,4 +696,5 @@ def list_command() -> None:
             ]
             for account in accounts
         ],
+        data=accounts,
     )

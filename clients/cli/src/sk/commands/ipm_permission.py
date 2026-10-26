@@ -6,28 +6,29 @@ permissões atômicas reconciliadas no provedor de identidade. Usuários da plat
 `--wait`, o comando espera a permissão convergir.
 """
 
-import time
 import uuid
 from typing import Annotated, NoReturn
 
 import typer
 from rich.text import Text
 
-from sk import ui
+from sk import output, ui
+from sk.command_app import SkTyper
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
-    EXIT_FAILURE,
     EXIT_USAGE_ERROR,
-    HTTP_NOT_FOUND,
-    WAIT_POLL_SECONDS,
+    ResourceFlow,
     TimeoutOption,
+    already_done,
     bad_address,
-    fail_api,
+    fail_api_with_forbidden,
+    identifier,
     load_api,
     require,
     session_token,
+    usage_error,
 )
-from sk.features.api_contract import OperationStatus, RequestAccepted, validate_identifier
+from sk.features.api_contract import OperationStatus, RequestAccepted
 from sk.features.ipm.permission import (
     Permission,
     create_permission,
@@ -41,7 +42,7 @@ from sk.features.ipm.permission import (
     validate_permission_name,
 )
 from sk.help import command, option
-from sk.http import ApiError, ApiRejectedError
+from sk.http import ApiError
 from sk.identity.oidc import OidcError
 
 PERMISSION_HELP = command(
@@ -70,7 +71,7 @@ NO_PERMISSION_HINT = (
 
 PHASE_STYLES = {"Ready": "green", "Failed": "red"}
 
-permission_app = typer.Typer(
+permission_app = SkTyper(
     help=PERMISSION_HELP,
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -106,22 +107,13 @@ PermissionIdOption = Annotated[
 
 
 def _fail_api(error: ApiError, *, not_found: str = NOT_FOUND) -> NoReturn:
-    by_code = dict(ERROR_CODE_HINTS)
-    if isinstance(error, ApiRejectedError) and error.status == 403:
-        by_code["Forbidden"] = NO_PERMISSION_HINT
-    fail_api(error, not_found=not_found, conflict=CONFLICT_ON_CHANGE, by_error_code=by_code)
-
-
-def _usage_error(message: str, option_name: str) -> NoReturn:
-    ui.error("Value not accepted", message, hint=f"Fix {option_name} and repeat.")
-    raise typer.Exit(EXIT_USAGE_ERROR)
-
-
-def _identifier(value: str | None, option_name: str, *, what: str) -> str:
-    try:
-        return validate_identifier(require(value, option_name), what=what)
-    except ValueError as error:
-        _usage_error(str(error), option_name)
+    fail_api_with_forbidden(
+        error,
+        not_found=not_found,
+        conflict=CONFLICT_ON_CHANGE,
+        by_error_code=ERROR_CODE_HINTS,
+        forbidden=NO_PERMISSION_HINT,
+    )
 
 
 def _styled_phase(permission: Permission) -> Text:
@@ -147,109 +139,21 @@ def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> 
     return " ".join(parts)
 
 
-def _timed_out(timeout: int, accepted: RequestAccepted, state: str) -> NoReturn:
-    ui.error(
-        "Timed out",
-        f"{timeout} s passed and the permission {state}.",
-        hint=f"The request is still in progress: `{_get_command(accepted)}`.",
-    )
-    raise typer.Exit(EXIT_FAILURE)
+_flow = ResourceFlow(
+    subject="permission",
+    get_command=_get_command,
+    read_resource=get_permission,
+    read_operation=get_operation,
+    fail_api=_fail_api,
+    rejection_hints=REJECTION_HINTS,
+    rows=_rows,
+    inspect_row=True,
+)
 
 
-def _wait_for_convergence(
-    url: str, insecure: bool, accepted: RequestAccepted, *, removal: bool, timeout: int
-) -> Permission | None:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        token = session_token()
-        permission: Permission | None = None
-        try:
-            op = get_operation(
-                url,
-                token=token,
-                resource_id=accepted.resource_id,
-                operation_id=accepted.operation_id,
-                allow_insecure_http=insecure,
-            )
-            if op.operation_status in ("rejected", "failed", "superseded"):
-                if op.operation_status == "rejected":
-                    reason = op.reason or "validation"
-                    title, text = "Request rejected", f"The request was rejected: {reason}."
-                    hint = REJECTION_HINTS.get(reason, "Inspect the Operation for details.")
-                else:
-                    # `failed` (prazo ou limite esgotado) e `superseded` (trocada por outro
-                    # pedido) não têm motivo de rejeição.
-                    title = "Request not completed"
-                    text = f"The Operation ended as {op.operation_status}."
-                    hint = "Inspect the Operation for details."
-                ui.error(
-                    title,
-                    text,
-                    hint=f"{hint} `{_get_command(accepted, with_operation=True)}`.",
-                )
-                raise typer.Exit(EXIT_FAILURE)
-            try:
-                permission = get_permission(
-                    url, token=token, resource_id=accepted.resource_id, allow_insecure_http=insecure
-                )
-            except ApiRejectedError as error:
-                if not (removal and error.status == HTTP_NOT_FOUND):
-                    raise
-        except OidcError as error:
-            bad_address(error)
-        except ApiRejectedError as error:
-            if error.status != HTTP_NOT_FOUND:
-                _fail_api(error)
-            if time.monotonic() >= deadline:
-                _timed_out(timeout, accepted, "is not visible yet")
-            time.sleep(WAIT_POLL_SECONDS)
-            continue
-        except ApiError as error:
-            _fail_api(error)
-        if op.operation_status == "completed":
-            if removal and permission is None:
-                return None
-            if not removal and permission is not None and permission.phase == "Ready":
-                return permission
-        if time.monotonic() >= deadline:
-            where = f"is in phase {permission.phase}" if permission is not None else "was removed"
-            _timed_out(timeout, accepted, f"{where} (Operation {op.operation_status})")
-        time.sleep(WAIT_POLL_SECONDS)
-    _timed_out(timeout, accepted, "was not removed" if removal else "did not become Ready")
-
-
-def _accepted_panel(title: str, accepted: RequestAccepted) -> None:
-    ui.panel(
-        title,
-        [
-            ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
-            ("inspect", _get_command(accepted, with_operation=True)),
-        ],
-    )
-
-
-def _finish_request(
-    url: str,
-    insecure: bool,
-    accepted: RequestAccepted,
-    *,
-    title: str,
-    removal: bool,
-    wait: bool,
-    timeout: int,
-) -> None:
-    if not wait:
-        ui.note(f"Follow it with `{_get_command(accepted)}`.")
-        return
-    result = _wait_for_convergence(url, insecure, accepted, removal=removal, timeout=timeout)
-    if result is None:
-        ui.panel(title, [("resourceId", accepted.resource_id), ("state", "removed")])
-        return
-    ui.panel(title, _rows(result))
-
-
-@permission_app.command("create", help=command("Create an atomic platform permission."))
+@permission_app.command(
+    "create", structured=True, help=command("Create an atomic platform permission.")
+)
 def create_command(
     name: Annotated[
         str | None,
@@ -317,8 +221,8 @@ def create_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Creation requested", accepted)
-    _finish_request(
+    _flow.accepted_panel("Creation requested", accepted, wait=wait)
+    _flow.finish(
         url,
         insecure,
         accepted,
@@ -331,6 +235,7 @@ def create_command(
 
 @permission_app.command(
     "update",
+    structured=True,
     help=command("Update the description or grantable status of a platform permission."),
 )
 def update_command(
@@ -364,9 +269,9 @@ def update_command(
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    perm_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    perm_id = identifier(resource_id, "--resource-id", what="resourceId")
     if description is None and grantable is None:
-        _usage_error("Give at least --description or --grantable/--not-grantable.", "--description")
+        usage_error("Give at least --description or --grantable/--not-grantable.", "--description")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -376,7 +281,7 @@ def update_command(
         same_desc = description is None or description.strip() == current.description
         same_grantable = grantable is None or grantable == current.grantable
         if same_desc and same_grantable:
-            ui.note(f"Permission {perm_id} already has it. Nothing to do.")
+            already_done(current, f"Permission {perm_id} already has it. Nothing to do.")
             return
         accepted = update_permission(
             url,
@@ -392,8 +297,8 @@ def update_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Change requested", accepted)
-    _finish_request(
+    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.finish(
         url,
         insecure,
         accepted,
@@ -404,13 +309,15 @@ def update_command(
     )
 
 
-@permission_app.command("protect", help=command("Protect a permission against deletion."))
+@permission_app.command(
+    "protect", structured=True, help=command("Protect a permission against deletion.")
+)
 def protect_command(
     resource_id: PermissionIdOption = None,
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    perm_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    perm_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -418,7 +325,7 @@ def protect_command(
             url, token=token, resource_id=perm_id, allow_insecure_http=insecure
         )
         if current.deletion_protection:
-            ui.note(f"Permission {perm_id} already has it. Nothing to do.")
+            already_done(current, f"Permission {perm_id} already has it. Nothing to do.")
             return
         accepted = set_permission_protection(
             url,
@@ -433,8 +340,8 @@ def protect_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Change requested", accepted)
-    _finish_request(
+    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.finish(
         url,
         insecure,
         accepted,
@@ -447,6 +354,7 @@ def protect_command(
 
 @permission_app.command(
     "unprotect",
+    structured=True,
     help=command("Allow a protected permission to be deleted."),
 )
 def unprotect_command(
@@ -454,7 +362,7 @@ def unprotect_command(
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    perm_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    perm_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -462,7 +370,7 @@ def unprotect_command(
             url, token=token, resource_id=perm_id, allow_insecure_http=insecure
         )
         if not current.deletion_protection:
-            ui.note(f"Permission {perm_id} already has it. Nothing to do.")
+            already_done(current, f"Permission {perm_id} already has it. Nothing to do.")
             return
         accepted = set_permission_protection(
             url,
@@ -477,8 +385,8 @@ def unprotect_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Change requested", accepted)
-    _finish_request(
+    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.finish(
         url,
         insecure,
         accepted,
@@ -491,6 +399,7 @@ def unprotect_command(
 
 @permission_app.command(
     "delete",
+    structured=True,
     help=command(
         "Delete an atomic platform permission, reading the current version before asking."
     ),
@@ -500,7 +409,7 @@ def delete_command(
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    perm_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    perm_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -519,8 +428,8 @@ def delete_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Deletion requested", accepted)
-    _finish_request(
+    _flow.accepted_panel("Deletion requested", accepted, wait=wait)
+    _flow.finish(
         url,
         insecure,
         accepted,
@@ -531,7 +440,7 @@ def delete_command(
     )
 
 
-@permission_app.command("get", help=command("Inspect a platform permission."))
+@permission_app.command("get", structured=True, help=command("Inspect a platform permission."))
 def get_command(
     resource_id: PermissionIdOption = None,
     operation_id: Annotated[
@@ -548,7 +457,7 @@ def get_command(
         ),
     ] = None,
 ) -> None:
-    perm_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    perm_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
     operation: OperationStatus | None = None
@@ -573,10 +482,13 @@ def get_command(
         rows.append(("operationStatus", operation.operation_status))
         if operation.reason is not None:
             rows.append(("reason", operation.reason))
-    ui.panel("Permission", rows)
+    document = output.to_data(permission)
+    if operation is not None:
+        document["operation"] = output.to_data(operation)
+    ui.panel("Permission", rows, data=document)
 
 
-@permission_app.command("list", help=command("List platform permissions."))
+@permission_app.command("list", structured=True, help=command("List platform permissions."))
 def list_command() -> None:
     url, insecure = load_api()
     token = session_token()
@@ -587,7 +499,7 @@ def list_command() -> None:
     except ApiError as error:
         _fail_api(error)
     if not permissions:
-        ui.note("No permissions found.")
+        ui.empty("No permissions found.")
         return
     ui.table(
         "Permissions",
@@ -604,4 +516,5 @@ def list_command() -> None:
             for p in permissions
         ],
         wrap=["description"],
+        data=permissions,
     )

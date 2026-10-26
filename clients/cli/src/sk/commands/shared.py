@@ -6,13 +6,16 @@ mensagens para a pessoa. O texto de cada comando (o que é "recurso", o que um `
 no próprio comando.
 """
 
-from collections.abc import Mapping
-from typing import Annotated, NoReturn
+import time
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from typing import Annotated, NoReturn, Protocol
 
 import typer
 from pydantic import ValidationError
 
-from sk import ui
+from sk import output, ui
+from sk.features.api_contract import OperationStatus, RequestAccepted, validate_identifier
 from sk.help import option
 from sk.http import ApiError, ApiRejectedError, ApiUnavailableError
 from sk.identity.credentials import default_credentials_path
@@ -149,3 +152,253 @@ def fail_api(
             "Request refused by the API", detail, hint=f"HTTP {error.status} ({error.error_code})."
         )
     raise typer.Exit(EXIT_USAGE_ERROR if error.status == 400 else EXIT_FAILURE) from error
+
+
+def usage_error(message: str, option_name: str) -> NoReturn:
+    """Valor de opção recusado antes de qualquer chamada de rede (código de saída 2)."""
+    ui.error("Value not accepted", message, hint=f"Fix {option_name} and repeat.")
+    raise typer.Exit(EXIT_USAGE_ERROR)
+
+
+def identifier(value: str | None, option_name: str, *, what: str) -> str:
+    """Opção obrigatória que é um identificador do contrato, recusada antes da chamada de rede."""
+    try:
+        return validate_identifier(require(value, option_name), what=what)
+    except ValueError as error:
+        usage_error(str(error), option_name)
+
+
+def fail_api_with_forbidden(
+    error: ApiError,
+    *,
+    not_found: str,
+    conflict: str,
+    by_error_code: Mapping[str, str],
+    forbidden: str,
+) -> NoReturn:
+    """`fail_api` com a mensagem de `403` própria do comando (`Forbidden`)."""
+    hints = dict(by_error_code)
+    if isinstance(error, ApiRejectedError) and error.status == 403:
+        hints["Forbidden"] = forbidden
+    fail_api(error, not_found=not_found, conflict=conflict, by_error_code=hints)
+
+
+def already_done(current: object, message: str) -> None:
+    """Pedido idempotente que não muda nada: a nota e, em JSON, o recurso atual."""
+    ui.note(message)
+    if output.is_json():
+        output.emit(current)
+
+
+PersonNameOption = Annotated[
+    str | None,
+    typer.Option(
+        "--name",
+        help=option(
+            "Name (up to 256 characters).",
+            kind="String",
+            variable=None,
+            file=None,
+            default="none",
+        ),
+    ),
+]
+PersonSurnameOption = Annotated[
+    str | None,
+    typer.Option(
+        "--surname",
+        help=option(
+            "Surname (up to 256 characters).",
+            kind="String",
+            variable=None,
+            file=None,
+            default="none",
+        ),
+    ),
+]
+
+
+class Converging(Protocol):
+    """Recurso do Resource Control Loop: a fase diz se ele convergiu (`Ready`)."""
+
+    @property
+    def phase(self) -> str: ...
+
+
+class ReadResource[R](Protocol):
+    def __call__(
+        self, api_url: str, /, *, token: str, resource_id: str, allow_insecure_http: bool
+    ) -> R: ...
+
+
+class ReadOperation(Protocol):
+    def __call__(
+        self,
+        api_url: str,
+        /,
+        *,
+        token: str,
+        resource_id: str,
+        operation_id: str,
+        allow_insecure_http: bool,
+    ) -> OperationStatus: ...
+
+
+class GetCommand(Protocol):
+    def __call__(self, accepted: RequestAccepted, *, with_operation: bool = False) -> str: ...
+
+
+@dataclass(frozen=True)
+class ResourceFlow[R: Converging]:
+    """Acompanhamento de um pedido assíncrono de um recurso (`--wait`), igual para todos os tipos.
+
+    Cada comando declara só o que muda (o nome do recurso, as leituras, as linhas do painel e as
+    mensagens); a espera, o prazo, a leitura do token a cada volta e os painéis são os mesmos.
+    """
+
+    subject: str  # como o recurso aparece nas mensagens ("role", "Billing Account")
+    get_command: GetCommand
+    read_resource: ReadResource[R]
+    read_operation: ReadOperation
+    fail_api: Callable[[ApiError], NoReturn]
+    rejection_hints: Mapping[str, str]
+    rows: Callable[[R], list[tuple[str, str]]]
+    removed_key: str = "state"
+    inspect_row: bool = False  # o painel de aceite traz o comando que inspeciona a Operation
+
+    def accepted_panel(
+        self, title: str, accepted: RequestAccepted, *extra: tuple[str, str], wait: bool
+    ) -> None:
+        # Em JSON, o aceite é o resultado sem --wait; com --wait, o resultado é o recurso.
+        rows = [
+            *extra,
+            ("resourceId", accepted.resource_id),
+            ("operationId", accepted.operation_id),
+        ]
+        if self.inspect_row:
+            rows.append(("inspect", self.get_command(accepted, with_operation=True)))
+        ui.panel(title, rows, data=accepted, interim=wait)
+
+    def timed_out(
+        self, timeout: int, accepted: RequestAccepted, state: str = "is not visible yet"
+    ) -> NoReturn:
+        ui.error(
+            "Timed out",
+            f"{timeout} s passed and the {self.subject} {state}.",
+            hint=f"The request is still in progress: `{self.get_command(accepted)}`.",
+        )
+        raise typer.Exit(EXIT_FAILURE)
+
+    def wait_for_convergence(
+        self,
+        url: str,
+        insecure: bool,
+        accepted: RequestAccepted,
+        *,
+        removal: bool,
+        timeout: int,
+        matches: Callable[[R], bool] | None = None,
+    ) -> R | None:
+        """Espera a Operation `completed` e o recurso `Ready` (e, se pedido, com `matches`).
+
+        Na remoção, devolve `None` quando o recurso já não existe. Se não der, sai dizendo por
+        quê. O token é pedido a cada leitura: o acesso dura 15 minutos, e uma espera longa
+        (`--timeout`) pode atravessar o vencimento (a sessão se renova pelo refresh token).
+        """
+        ui.note(f"Waiting for convergence (up to {timeout} s)...")
+        deadline = time.monotonic() + timeout
+        while True:
+            token = session_token()
+            resource: R | None = None
+            try:
+                operation = self.read_operation(
+                    url,
+                    token=token,
+                    resource_id=accepted.resource_id,
+                    operation_id=accepted.operation_id,
+                    allow_insecure_http=insecure,
+                )
+                # Recusa ou falha primeiro: num `create` recusado, o recurso nem existe (`404`).
+                if operation.operation_status in ("rejected", "failed", "superseded"):
+                    reason = operation.reason
+                    hint = self.rejection_hints.get(reason or "", "Inspect the request.")
+                    ui.error(
+                        "Request not completed",
+                        f"The Operation ended as {operation.operation_status}"
+                        + (f": {reason}" if reason else "."),
+                        hint=f"{hint} Details: "
+                        f"`{self.get_command(accepted, with_operation=True)}`.",
+                    )
+                    raise typer.Exit(EXIT_FAILURE)
+                try:
+                    resource = self.read_resource(
+                        url,
+                        token=token,
+                        resource_id=accepted.resource_id,
+                        allow_insecure_http=insecure,
+                    )
+                except ApiRejectedError as error:
+                    # Na remoção, o `404` do recurso é o esperado (a linha foi apagada).
+                    if not (removal and error.status == HTTP_NOT_FOUND):
+                        raise
+            except OidcError as error:
+                bad_address(error)
+            except ApiRejectedError as error:
+                if error.status != HTTP_NOT_FOUND:
+                    self.fail_api(error)
+                # Logo depois do `202`, o Manager ainda pode não ter gravado a Operation e o
+                # recurso (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1): é espera, e não erro.
+                if time.monotonic() >= deadline:
+                    self.timed_out(timeout, accepted)
+                time.sleep(WAIT_POLL_SECONDS)
+                continue
+            except ApiError as error:
+                self.fail_api(error)
+            if operation.operation_status == "completed":
+                if removal and resource is None:
+                    return None
+                if (
+                    not removal
+                    and resource is not None
+                    and resource.phase == "Ready"
+                    and (matches is None or matches(resource))
+                ):
+                    return resource
+            if time.monotonic() >= deadline:
+                where = f"is in phase {resource.phase}" if resource is not None else "was removed"
+                self.timed_out(
+                    timeout, accepted, f"{where} (Operation {operation.operation_status})"
+                )
+            time.sleep(WAIT_POLL_SECONDS)
+
+    def finish(
+        self,
+        url: str,
+        insecure: bool,
+        accepted: RequestAccepted,
+        *,
+        title: str,
+        removal: bool,
+        wait: bool,
+        timeout: int,
+        matches: Callable[[R], bool] | None = None,
+    ) -> R | None:
+        """Fim de `create`, `update` e `delete`: orienta o acompanhamento ou, com `--wait`, espera.
+
+        Devolve o recurso convergido, ou `None` sem `--wait` e quando ele foi removido.
+        """
+        if not wait:
+            ui.note(f"Follow it with `{self.get_command(accepted)}`.")
+            return None
+        resource = self.wait_for_convergence(
+            url, insecure, accepted, removal=removal, timeout=timeout, matches=matches
+        )
+        if resource is None:
+            ui.panel(
+                title,
+                [("resourceId", accepted.resource_id), (self.removed_key, "removed")],
+                data={"resourceId": accepted.resource_id, "state": "removed"},
+            )
+            return None
+        ui.panel(title, self.rows(resource), data=resource)
+        return resource

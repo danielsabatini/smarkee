@@ -14,7 +14,8 @@ from typing import Annotated, NoReturn
 import typer
 from rich.text import Text
 
-from sk import ui
+from sk import output, ui
+from sk.command_app import SkTyper
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
     EXIT_FAILURE,
@@ -62,14 +63,14 @@ WaitOption = Annotated[
 SUM_HELP = command("Resources of the Service Usage Manager (SUM).")
 SERVICE_HELP = command("Enable, disable and inspect the requester's services.")
 
-sum_app = typer.Typer(
+sum_app = SkTyper(
     help=SUM_HELP,
     no_args_is_help=True,
     # Ajuda colorida pelo Rich. Colchetes literais nos textos são escapados com "\\[".
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
 )
-service_app = typer.Typer(
+service_app = SkTyper(
     help=SERVICE_HELP,
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -245,11 +246,13 @@ def _finish_request(
             ("observedPermissions", ", ".join(link.observed_permissions) or "none"),
             ("session", "renewed" if renewed else "not renewed"),
         ],
+        data={**output.to_data(link), "sessionRenewed": renewed},
     )
 
 
 @service_app.command(
     "enable",
+    structured=True,
     help=command("Enable a service for the requester. Follow it with `sk sum service get`."),
 )
 def enable_command(
@@ -294,12 +297,15 @@ def enable_command(
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
+        data=accepted,
+        interim=wait,
     )
     _finish_request(url, insecure, accepted, enabled=True, wait=wait, timeout=timeout)
 
 
 @service_app.command(
     "disable",
+    structured=True,
     help=command("Disable a requester's service, reading the current version before asking."),
 )
 def disable_command(
@@ -329,6 +335,8 @@ def disable_command(
         if current.lifecycle == "absent":
             # Idempotente: desligar o que já está desligado não é erro.
             ui.note(f"Service {resource_id} is already disabled. Nothing to do.")
+            if output.is_json():
+                output.emit(current)
             return
         accepted = disable_service(
             url,
@@ -348,12 +356,15 @@ def disable_command(
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
+        data=accepted,
+        interim=wait,
     )
     _finish_request(url, insecure, accepted, enabled=False, wait=wait, timeout=timeout)
 
 
 @service_app.command(
     "get",
+    structured=True,
     help=command("Show the state of a service and, if given, of an Operation."),
 )
 def get_command(
@@ -418,10 +429,13 @@ def get_command(
     ]
     if operation is not None:
         rows.extend(_operation_rows(operation))
-    ui.panel("Service", rows)
+    document = output.to_data(link)
+    if operation is not None:
+        document["operation"] = output.to_data(operation)
+    ui.panel("Service", rows, data=document)
 
 
-@service_app.command("list", help=command("List the requester's services."))
+@service_app.command("list", structured=True, help=command("List the requester's services."))
 def list_command() -> None:
     url, insecure = load_api()
     token = session_token()
@@ -432,7 +446,7 @@ def list_command() -> None:
     except ApiError as error:
         _fail_api(error)
     if not links:
-        ui.note("No services.")
+        ui.empty("No services.")
         return
     ui.table(
         "Services",
@@ -441,4 +455,5 @@ def list_command() -> None:
             [link.resource_id, link.service, _styled_state(link), _styled_phase(link)]
             for link in links
         ],
+        data=links,
     )

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -188,3 +189,23 @@ def test_missing_arguments_are_usage_errors() -> None:
     result = runner.invoke(app, ["config", "set", "auth.issuer"])
     assert result.exit_code == 2
     assert "the value" in result.stderr
+
+
+def test_json_list_prints_native_values_and_sources(tmp_path: Path) -> None:
+    write_overrides(tmp_path)
+    result = runner.invoke(app, ["--output", "json", "config", "list"])
+    assert result.exit_code == 0, result.stderr
+    items = {item["key"]: item for item in json.loads(result.stdout)}
+    assert items["api.url"] == {"key": "api.url", "value": "https://api.example", "source": "file"}
+    assert items["auth.allowInsecureHttp"]["value"] is False
+    assert "File:" in result.stderr and "File:" not in result.stdout
+
+
+def test_json_on_get_and_set_is_refused_and_does_not_write(tmp_path: Path) -> None:
+    got = runner.invoke(app, ["--output", "json", "config", "get", "api.url"])
+    assert got.exit_code == 2
+    refused = runner.invoke(
+        app, ["--output", "json", "config", "set", "api.url", "https://x.teste"]
+    )
+    assert refused.exit_code == 2
+    assert not config_file(tmp_path).exists()

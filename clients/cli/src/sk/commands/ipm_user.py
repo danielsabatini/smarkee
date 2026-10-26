@@ -7,7 +7,6 @@ pessoa define a senha pelo e-mail de ativação e entra com `sk auth login`. A O
 e remover são assíncronos: com `--wait`, o comando espera o usuário convergir.
 """
 
-import time
 import uuid
 from typing import Annotated, NoReturn
 
@@ -15,21 +14,25 @@ import typer
 from pydantic import ValidationError
 from rich.text import Text
 
-from sk import ui
+from sk import output, ui
+from sk.command_app import SkTyper
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
-    EXIT_FAILURE,
     EXIT_USAGE_ERROR,
-    HTTP_NOT_FOUND,
-    WAIT_POLL_SECONDS,
+    PersonNameOption,
+    PersonSurnameOption,
+    ResourceFlow,
     TimeoutOption,
+    already_done,
     bad_address,
     fail_api,
+    identifier,
     load_api,
     require,
     session_token,
+    usage_error,
 )
-from sk.features.api_contract import OperationStatus, RequestAccepted, validate_identifier
+from sk.features.api_contract import OperationStatus, RequestAccepted
 from sk.features.core.account import validate_registration
 from sk.features.ipm.user import (
     User,
@@ -81,7 +84,7 @@ ROLES_HINT = (
 
 PHASE_STYLES = {"Ready": "green", "Failed": "red"}  # as demais (em andamento) ficam em amarelo
 
-user_app = typer.Typer(
+user_app = SkTyper(
     help=USER_HELP,
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -170,30 +173,18 @@ def _fail_api(error: ApiError, *, not_found: str = NOT_FOUND) -> NoReturn:
     fail_api(error, not_found=not_found, conflict=CONFLICT_ON_CHANGE, by_error_code=by_code)
 
 
-def _usage_error(message: str, option_name: str) -> NoReturn:
-    ui.error("Value not accepted", message, hint=f"Fix {option_name} and repeat.")
-    raise typer.Exit(EXIT_USAGE_ERROR)
-
-
-def _identifier(value: str | None, option_name: str, *, what: str) -> str:
-    try:
-        return validate_identifier(require(value, option_name), what=what)
-    except ValueError as error:
-        _usage_error(str(error), option_name)
-
-
 def _roles(values: list[str] | None) -> list[str]:
     try:
         return validate_roles(values or [])
     except ValueError as error:
-        _usage_error(str(error), "--role")
+        usage_error(str(error), "--role")
 
 
 def _groups(values: list[str] | None) -> list[str]:
     try:
         return validate_groups(values or [])
     except ValueError as error:
-        _usage_error(str(error), "--group")
+        usage_error(str(error), "--group")
 
 
 def _organization(value: str | None) -> str:
@@ -214,7 +205,7 @@ def _organization(value: str | None) -> str:
                 ),
             )
             raise typer.Exit(EXIT_USAGE_ERROR)
-    return _identifier(value, "--organization-id", what="organizationId")
+    return identifier(value, "--organization-id", what="organizationId")
 
 
 def _styled_phase(user: User) -> Text:
@@ -242,137 +233,28 @@ def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> 
     return " ".join(parts)
 
 
-def _timed_out(timeout: int, accepted: RequestAccepted, state: str) -> NoReturn:
-    ui.error(
-        "Timed out",
-        f"{timeout} s passed and the user {state}.",
-        hint=f"The request is still in progress: `{_get_command(accepted)}`.",
-    )
-    raise typer.Exit(EXIT_FAILURE)
-
-
-def _wait_for_convergence(
-    url: str, insecure: bool, accepted: RequestAccepted, *, removal: bool, timeout: int
-) -> User | None:
-    """Espera a Operation `completed` (e o usuário `Ready`); na remoção, devolve `None`.
-
-    O token é pedido a cada leitura: uma espera longa pode atravessar o vencimento do acesso.
-    """
-    ui.note(f"Waiting for convergence (up to {timeout} s)...")
-    deadline = time.monotonic() + timeout
-    while True:
-        token = session_token()
-        user: User | None = None
-        try:
-            operation = get_operation(
-                url,
-                token=token,
-                resource_id=accepted.resource_id,
-                operation_id=accepted.operation_id,
-                allow_insecure_http=insecure,
-            )
-            # Recusa ou falha primeiro: num `create` recusado, o recurso nem existe (`404`).
-            if operation.operation_status in ("rejected", "failed", "superseded"):
-                reason = operation.reason
-                ui.error(
-                    "Request not completed",
-                    f"The Operation ended as {operation.operation_status}"
-                    + (f": {reason}" if reason else "."),
-                    hint=f"{REJECTION_HINTS.get(reason or '', 'Inspect the request.')} Details: "
-                    f"`{_get_command(accepted, with_operation=True)}`.",
-                )
-                raise typer.Exit(EXIT_FAILURE)
-            try:
-                user = get_user(
-                    url, token=token, resource_id=accepted.resource_id, allow_insecure_http=insecure
-                )
-            except ApiRejectedError as error:
-                if not (removal and error.status == HTTP_NOT_FOUND):
-                    raise
-        except OidcError as error:
-            bad_address(error)
-        except ApiRejectedError as error:
-            if error.status != HTTP_NOT_FOUND:
-                _fail_api(error)
-            # Logo depois do `202`, o Manager ainda pode não ter gravado a Operation: é espera.
-            if time.monotonic() >= deadline:
-                _timed_out(timeout, accepted, "is not visible yet")
-            time.sleep(WAIT_POLL_SECONDS)
-            continue
-        except ApiError as error:
-            _fail_api(error)
-        if operation.operation_status == "completed":
-            if removal and user is None:
-                return None
-            if not removal and user is not None and user.phase == "Ready":
-                return user
-        if time.monotonic() >= deadline:
-            where = f"is in phase {user.phase}" if user is not None else "was removed"
-            _timed_out(timeout, accepted, f"{where} (Operation {operation.operation_status})")
-        time.sleep(WAIT_POLL_SECONDS)
-
-
-def _finish_request(
-    url: str,
-    insecure: bool,
-    accepted: RequestAccepted,
-    *,
-    title: str,
-    removal: bool,
-    wait: bool,
-    timeout: int,
-) -> None:
-    if not wait:
-        ui.note(f"Follow it with `{_get_command(accepted)}`.")
-        return
-    user = _wait_for_convergence(url, insecure, accepted, removal=removal, timeout=timeout)
-    if user is None:
-        ui.panel(title, [("resourceId", accepted.resource_id), ("state", "removed")])
-        return
-    ui.panel(title, _rows(user))
-
-
-def _accepted_panel(title: str, accepted: RequestAccepted, *extra: tuple[str, str]) -> None:
-    ui.panel(
-        title,
-        [*extra, ("resourceId", accepted.resource_id), ("operationId", accepted.operation_id)],
-    )
+_flow = ResourceFlow(
+    subject="user",
+    get_command=_get_command,
+    read_resource=get_user,
+    read_operation=get_operation,
+    fail_api=_fail_api,
+    rejection_hints=REJECTION_HINTS,
+    rows=_rows,
+)
 
 
 @user_app.command(
     "create",
+    structured=True,
     help=command(
         "Create a user in the Organization, without a password: the person opens the link in the "
         "activation e-mail to set it, then runs `sk auth login`."
     ),
 )
 def create_command(
-    name: Annotated[
-        str | None,
-        typer.Option(
-            "--name",
-            help=option(
-                "Name (up to 256 characters).",
-                kind="String",
-                variable=None,
-                file=None,
-                default="none",
-            ),
-        ),
-    ] = None,
-    surname: Annotated[
-        str | None,
-        typer.Option(
-            "--surname",
-            help=option(
-                "Surname (up to 256 characters).",
-                kind="String",
-                variable=None,
-                file=None,
-                default="none",
-            ),
-        ),
-    ] = None,
+    name: PersonNameOption = None,
+    surname: PersonSurnameOption = None,
     email: Annotated[
         str | None,
         typer.Option(
@@ -423,8 +305,10 @@ def create_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error, not_found="Organization not found, or you do not act on it.")
-    _accepted_panel("Creation requested", accepted, ("organizationId", organization))
-    _finish_request(
+    _flow.accepted_panel(
+        "Creation requested", accepted, ("organizationId", organization), wait=wait
+    )
+    _flow.finish(
         url, insecure, accepted, title="User created", removal=False, wait=wait, timeout=timeout
     )
 
@@ -440,7 +324,7 @@ def _change(
     timeout: int,
 ) -> None:
     """Lê a versão atual e pede a alteração; pedir o estado que já vale não é erro."""
-    user_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    user_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -449,7 +333,7 @@ def _change(
         same_groups = groups is None or sorted(groups) == sorted(current.groups)
         same_protection = protected is None or protected == current.deletion_protection
         if same_roles and same_groups and same_protection:
-            ui.note(f"User {user_id} already has it. Nothing to do.")
+            already_done(current, f"User {user_id} already has it. Nothing to do.")
             return
         accepted = update_user(
             url,
@@ -466,12 +350,13 @@ def _change(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Change requested", accepted)
-    _finish_request(url, insecure, accepted, title=title, removal=False, wait=wait, timeout=timeout)
+    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.finish(url, insecure, accepted, title=title, removal=False, wait=wait, timeout=timeout)
 
 
 @user_app.command(
     "update",
+    structured=True,
     help=command(
         "Set the roles or groups of a user: the given --role/--group values replace current ones "
         "(--no-roles / --no-groups removes them)."
@@ -512,12 +397,12 @@ def update_command(
 ) -> None:
     has_role_change = role is not None or no_roles
     if has_role_change and (bool(role) == no_roles):
-        _usage_error("Give at least one --role, or --no-roles (not both).", "--role")
+        usage_error("Give at least one --role, or --no-roles (not both).", "--role")
     has_group_change = group is not None or no_groups
     if has_group_change and (bool(group) == no_groups):
-        _usage_error("Give at least one --group, or --no-groups (not both).", "--group")
+        usage_error("Give at least one --group, or --no-groups (not both).", "--group")
     if not has_role_change and not has_group_change:
-        _usage_error("Give at least one --role, --no-roles, --group, or --no-groups.", "--role")
+        usage_error("Give at least one --role, --no-roles, --group, or --no-groups.", "--role")
     roles_list = [] if no_roles else (_roles(role) if role is not None else None)
     groups_list = [] if no_groups else (_groups(group) if group is not None else None)
     _change(
@@ -531,7 +416,7 @@ def update_command(
     )
 
 
-@user_app.command("protect", help=command("Protect a user against deletion."))
+@user_app.command("protect", structured=True, help=command("Protect a user against deletion."))
 def protect_command(
     resource_id: UserIdOption = None,
     wait: WaitOption = False,
@@ -550,6 +435,7 @@ def protect_command(
 
 @user_app.command(
     "unprotect",
+    structured=True,
     help=command("Allow a protected user to be deleted (new users are not protected)."),
 )
 def unprotect_command(
@@ -570,6 +456,7 @@ def unprotect_command(
 
 @user_app.command(
     "delete",
+    structured=True,
     help=command("Delete a user of the Organization, reading the current version before asking."),
 )
 def delete_command(
@@ -577,7 +464,7 @@ def delete_command(
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    user_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    user_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -594,13 +481,15 @@ def delete_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _accepted_panel("Deletion requested", accepted, ("email", current.email or "-"))
-    _finish_request(
+    _flow.accepted_panel("Deletion requested", accepted, ("email", current.email or "-"), wait=wait)
+    _flow.finish(
         url, insecure, accepted, title="User deleted", removal=True, wait=wait, timeout=timeout
     )
 
 
-@user_app.command("get", help=command("Show the state of a user and, if given, of an Operation."))
+@user_app.command(
+    "get", structured=True, help=command("Show the state of a user and, if given, of an Operation.")
+)
 def get_command(
     resource_id: UserIdOption = None,
     operation_id: Annotated[
@@ -618,9 +507,9 @@ def get_command(
         ),
     ] = None,
 ) -> None:
-    user_id = _identifier(resource_id, "--resource-id", what="resourceId")
+    user_id = identifier(resource_id, "--resource-id", what="resourceId")
     if operation_id is not None:
-        operation_id = _identifier(operation_id, "--operation-id", what="operationId")
+        operation_id = identifier(operation_id, "--operation-id", what="operationId")
     url, insecure = load_api()
     token = session_token()
     operation: OperationStatus | None = None
@@ -643,10 +532,13 @@ def get_command(
         rows.append(("operationStatus", operation.operation_status))
         if operation.reason is not None:
             rows.append(("reason", operation.reason))
-    ui.panel("User", rows)
+    document = output.to_data(user)
+    if operation is not None:
+        document["operation"] = output.to_data(operation)
+    ui.panel("User", rows, data=document)
 
 
-@user_app.command("list", help=command("List the users of an Organization."))
+@user_app.command("list", structured=True, help=command("List the users of an Organization."))
 def list_command(organization_id: OrganizationOption = None) -> None:
     organization = _organization(organization_id)
     url, insecure = load_api()
@@ -660,7 +552,7 @@ def list_command(organization_id: OrganizationOption = None) -> None:
     except ApiError as error:
         _fail_api(error, not_found="Organization not found, or you do not act on it.")
     if not users:
-        ui.note("No users.")
+        ui.empty("No users.")
         return
     ui.table(
         "Users",
@@ -678,4 +570,5 @@ def list_command(organization_id: OrganizationOption = None) -> None:
         wrap=(
             "permissions",
         ),  # as permissões quebram linha; o resourceId e o e-mail ficam inteiros
+        data=users,
     )

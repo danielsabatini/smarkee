@@ -231,6 +231,22 @@ Agem sobre a conta da sessão (`sk auth login`); o `resourceId` é o `sub` do to
 
 Os comandos mostram sucesso em painel e erro com causa e dica de correção. Cores aparecem só em terminal interativo, e `NO_COLOR` é respeitado. A apresentação está em `src/sk/ui.py` (`.decisions/0021-apresentacao-da-cli-com-rich.md`). A saída de sucesso vai para a saída padrão, e a de erro para a saída de erro.
 
+### Para scripts: `--output json` e `--raw`
+
+Duas opções do grupo raiz, válidas para qualquer comando e **antes do subcomando** (depois dele o Typer recusa com código 2; decisão 0093):
+
+```bash
+uv run sk --output json ipm role list | jq '.[].name'    # um documento JSON na saída padrão
+uv run sk --output json ipm organization get --resource-id <ID> | jq -r .phase
+uv run sk --raw ipm role list                            # TSV com cabeçalho, sem caixas nem cor
+```
+
+- `--output table` é o padrão. `--output json` emite **um único documento** por execução: objeto no `get`, array no `list` (`[]` se vazio), o aceite (`resourceId`, `operationId`) num pedido sem `--wait` e o recurso convergido com `--wait` (`{"resourceId": ..., "state": "removed"}` na remoção). As chaves são as da API, em camelCase.
+- `--raw` imprime tabelas em TSV e painéis como `rótulo<TAB>valor`; com `--output json` o JSON sai compacto, em uma linha.
+- As orientações ("Follow it with ...", "Nothing to do") vão para a **saída de erro** em `--raw` e em `--output json`, para a saída padrão ter só dados. Em falha a saída padrão fica vazia e o código de saída não muda.
+- `auth login`, `auth refresh` e `config get|set` não têm saída em JSON e recusam `--output json` com código 2, antes de qualquer chamada. `config get` segue imprimindo só o valor.
+- Sequências de escape e caracteres de controle vindos da API são removidos da saída em todos os modos.
+
 ## Textos de ajuda
 
 A ajuda (`--help`) segue um padrão único, montado por `src/sk/help.py` e verificado em `tests/unit/test_help.py` (`.decisions/0022-padrao-dos-textos-de-ajuda-da-cli.md`). Cada opção aparece como:

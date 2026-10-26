@@ -14,6 +14,7 @@ from typing import Any, cast
 import pytest
 from typer.testing import CliRunner
 
+from sk import output
 from sk.identity.credentials import StoredCredentials, default_credentials_path, save_credentials
 from sk.main import app
 
@@ -103,7 +104,7 @@ def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
     def no_wait(_: float) -> None:
         return None
 
-    monkeypatch.setattr("sk.commands.bsm.time.sleep", no_wait)
+    monkeypatch.setattr("sk.commands.shared.time.sleep", no_wait)
 
 
 def account_document(
@@ -298,7 +299,7 @@ def test_wait_times_out_with_a_hint(api: FakeApi, monkeypatch: pytest.MonkeyPatc
     api.routes[("GET", OPERATION)] = operation_document("in_progress")
     api.routes[("GET", ACCOUNT)] = Response(200, account_document(phase="Reconciling"))
     clock = iter(range(0, 1000, 20))
-    monkeypatch.setattr("sk.commands.bsm.time.monotonic", lambda: next(clock))
+    monkeypatch.setattr("sk.commands.shared.time.monotonic", lambda: next(clock))
 
     result = runner.invoke(
         app,
@@ -517,3 +518,77 @@ def test_active_account_configuration_and_save_on_create_wait(api: FakeApi, tmp_
 
     get_result = runner.invoke(app, ["bsm", "account", "get"])
     assert get_result.exit_code == 0, get_result.stderr
+
+
+# --- `--output json` (decisão 0093) -----------------------------------------------------------
+
+JSON = ["--output", "json"]
+
+
+@pytest.fixture
+def default_output_mode() -> Iterator[None]:
+    output.configure(raw=False)
+    yield
+    output.configure(raw=False)
+
+
+def _document(stdout: str) -> Any:
+    return json.loads(stdout)  # falha se houver mais de um documento ou texto solto
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_get_and_list_print_native_types(api: FakeApi) -> None:
+    api.routes[("GET", ACCOUNT)] = Response(200, account_document())
+    shown = runner.invoke(app, [*JSON, "bsm", "account", "get", "--resource-id", RID])
+    assert shown.exit_code == 0, shown.stderr
+    document = _document(shown.stdout)
+    assert document["billingContacts"] == ["finops@acme.com"]
+    assert document["deletionProtection"] is True
+    api.routes[("GET", PATH)] = Response(200, {"items": [account_document()]})
+    listed = runner.invoke(app, [*JSON, "bsm", "account", "list"])
+    assert [a["resourceId"] for a in _document(listed.stdout)] == [RID]
+    api.routes[("GET", PATH)] = Response(200, {"items": []})
+    assert _document(runner.invoke(app, [*JSON, "bsm", "account", "list"]).stdout) == []
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_create_without_wait_prints_only_the_acceptance(api: FakeApi) -> None:
+    api.routes[("POST", PATH)] = accepted()
+    result = runner.invoke(
+        app,
+        [
+            *JSON,
+            *["bsm", "account", "create", "--display-name", "Acme", "--currency", "BRL"],
+            *["--contact", "finops@acme.com"],
+        ],
+    )
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout) == {"resourceId": RID, "operationId": OPID}
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_delete_with_wait_prints_the_removed_state(api: FakeApi) -> None:
+    api.routes[("DELETE", ACCOUNT)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("GET", ACCOUNT)] = [
+        Response(200, account_document()),
+        http_error(404, "NotFound", "Recurso não encontrado."),
+    ]
+    result = runner.invoke(app, [*JSON, "bsm", "account", "delete", "--resource-id", RID, "--wait"])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout) == {"resourceId": RID, "state": "removed"}
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_nothing_to_do_prints_the_current_account(api: FakeApi) -> None:
+    api.routes[("GET", ACCOUNT)] = Response(200, account_document(display_name="Acme"))
+    same = runner.invoke(
+        app,
+        [*JSON, "bsm", "account", "update", "--resource-id", RID, "--display-name", "Acme"],
+    )
+    assert same.exit_code == 0, same.stderr
+    assert _document(same.stdout)["displayName"] == "Acme"
+    assert "Nothing to do" in same.stderr and "Nothing to do" not in same.stdout
+    protected = runner.invoke(app, [*JSON, "bsm", "account", "protect", "--resource-id", RID])
+    assert _document(protected.stdout)["resourceId"] == RID
+    assert all(request.get_method() == "GET" for request in api.requests)

@@ -12,6 +12,7 @@ from typing import Any, cast
 import pytest
 from typer.testing import CliRunner
 
+from sk import output
 from sk.defaults import PRD_API_URL
 from sk.identity.credentials import StoredCredentials, default_credentials_path, save_credentials
 from sk.main import app
@@ -561,3 +562,70 @@ def test_disable_refused_while_organizations_exist_says_what_to_delete(api: Fake
 
     assert result.exit_code == 1
     assert "sk ipm organization delete" in " ".join(result.stderr.split())
+
+
+# --- `--output json` (decisão 0093) -----------------------------------------------------------
+
+JSON = ["--output", "json"]
+
+
+@pytest.fixture
+def default_output_mode() -> Iterator[None]:
+    output.configure(raw=False)
+    yield
+    output.configure(raw=False)
+
+
+def _document(stdout: str) -> Any:
+    return json.loads(stdout)  # falha se houver mais de um documento ou texto solto
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_get_and_list_print_native_types(api: FakeApi) -> None:
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(200, link_document())
+    api.routes[("GET", f"/v1/sum/services/{RID}/operations/{OPID}")] = Response(
+        200, {"operationId": OPID, "operationStatus": "completed"}
+    )
+    shown = runner.invoke(
+        app, [*JSON, "sum", "service", "get", "--resource-id", RID, "--operation-id", OPID]
+    )
+    assert shown.exit_code == 0, shown.stderr
+    document = _document(shown.stdout)
+    assert document["observedPermissions"] == ["ipm.organization.get"]
+    assert document["operation"]["operationStatus"] == "completed"
+    api.routes[("GET", "/v1/sum/services")] = Response(200, {"items": [link_document()]})
+    listed = runner.invoke(app, [*JSON, "sum", "service", "list"])
+    assert [s["service"] for s in _document(listed.stdout)] == ["ipm"]
+    api.routes[("GET", "/v1/sum/services")] = Response(200, {"items": []})
+    assert _document(runner.invoke(app, [*JSON, "sum", "service", "list"]).stdout) == []
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_enable_without_wait_prints_only_the_acceptance(api: FakeApi) -> None:
+    route_accepted(api, "POST")
+    result = runner.invoke(app, [*JSON, "sum", "service", "enable", "--service", "ipm"])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout) == {"resourceId": RID, "operationId": OPID}
+    assert "sk auth refresh" in result.stderr
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_enable_with_wait_prints_the_link_and_whether_the_session_was_renewed(
+    api: FakeApi, renewals: list[bool]
+) -> None:
+    route_accepted(api, "POST")
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(200, link_document())
+    result = runner.invoke(app, [*JSON, "sum", "service", "enable", "--service", "ipm", "--wait"])
+    assert result.exit_code == 0, result.stderr
+    document = _document(result.stdout)
+    assert document["resourceId"] == RID and document["sessionRenewed"] is True
+    assert "access-1" not in result.stdout and "refresh-1" not in result.stdout
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_disable_of_a_link_already_off_prints_the_current_link(api: FakeApi) -> None:
+    api.routes[("GET", f"/v1/sum/services/{RID}")] = Response(200, link_document("absent"))
+    result = runner.invoke(app, [*JSON, "sum", "service", "disable", "--resource-id", RID])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout)["resourceId"] == RID
+    assert "already disabled" in result.stderr and "already disabled" not in result.stdout

@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
+from sk import output
 from sk.features.core.account import token_subject
 from sk.identity.credentials import StoredCredentials, default_credentials_path, save_credentials
 from sk.main import app
@@ -307,3 +308,66 @@ def test_delete_of_a_protected_account_points_to_unprotect(api: FakeApi) -> None
 
     assert result.exit_code == 1
     assert "sk account unprotect" in " ".join(result.stderr.split())
+
+
+# --- `--output json` (decisão 0093) -----------------------------------------------------------
+
+JSON = ["--output", "json"]
+
+
+@pytest.fixture
+def default_output_mode() -> Iterator[None]:
+    output.configure(raw=False)
+    yield
+    output.configure(raw=False)
+
+
+def _document(stdout: str) -> Any:
+    return json.loads(stdout)  # falha se houver mais de um documento ou texto solto
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_get_prints_the_account_without_the_token(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = Response(200, user_document())
+    result = runner.invoke(app, [*JSON, "account", "get"])
+    assert result.exit_code == 0, result.stderr
+    document = _document(result.stdout)
+    assert document["email"] == "ana@example.com" and document["deletionProtection"] is True
+    assert jwt_for(ME) not in result.stdout
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_protect_when_already_protected_prints_the_current_account(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = Response(200, user_document(protected=True))
+    result = runner.invoke(app, [*JSON, "account", "protect"])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout)["resourceId"] == ME
+    assert "Nothing to do" in result.stderr and "Nothing to do" not in result.stdout
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_unprotect_wait_prints_a_single_document(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = Response(200, user_document(protected=True))
+    api.routes[("PATCH", USER)] = accepted()
+    api.routes[("GET", OPERATION)] = operation("completed")
+    result = runner.invoke(app, [*JSON, "account", "unprotect", "--wait"])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout) == {"resourceId": ME, "protected": False}
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_delete_without_yes_fails_with_empty_stdout(api: FakeApi) -> None:
+    result = runner.invoke(app, [*JSON, "account", "delete"])
+    assert result.exit_code == 2 and result.stdout == ""
+    assert not api.requests
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_delete_wait_prints_the_removed_state_and_forgets_the_session(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = Response(200, user_document())
+    api.routes[("DELETE", USER)] = accepted()
+    api.routes[("GET", OPERATION)] = operation("completed")
+    result = runner.invoke(app, [*JSON, "account", "delete", "--yes", "--wait"])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout) == {"resourceId": ME, "state": "removed"}
+    assert not default_credentials_path().exists()

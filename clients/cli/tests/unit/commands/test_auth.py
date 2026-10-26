@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -226,3 +227,24 @@ def test_refresh_without_a_session_asks_for_login() -> None:
     result = runner.invoke(app, ["auth", "refresh"])
     assert result.exit_code == 1
     assert "sk auth login" in result.stderr
+
+
+def test_json_whoami_prints_only_what_the_panel_shows(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_userinfo(*_args: object) -> dict[str, object]:
+        return {"preferred_username": "ana@example.com", "secret_claim": "NAO-SAI"}
+
+    monkeypatch.setattr("sk.commands.auth.fetch_provider_metadata", fake_metadata)
+    monkeypatch.setattr("sk.commands.auth.fetch_userinfo", fake_userinfo)
+    write_session(datetime.now(UTC) + timedelta(hours=1))
+    result = runner.invoke(app, ["--output", "json", "auth", "whoami"])
+    assert result.exit_code == 0, result.stderr
+    document = json.loads(result.stdout)
+    assert set(document) == {"user", "issuer", "expiresAt"}
+    assert document["user"] == "ana@example.com"
+    assert "TOKEN-SECRETO-1" not in result.output and "NAO-SAI" not in result.output
+
+
+def test_json_on_login_is_refused_before_opening_the_browser() -> None:
+    result = runner.invoke(app, ["--output", "json", "auth", "login"])
+    assert result.exit_code == 2
+    assert "no structured output" in result.stderr

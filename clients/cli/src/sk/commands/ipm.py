@@ -7,7 +7,6 @@ precisa trazer as permissões `ipm.organization.*`, que vêm de `sk sum service 
 (com `--wait`, a sessão já é renovada).
 """
 
-import time
 import uuid
 from typing import Annotated, NoReturn
 
@@ -15,7 +14,8 @@ import typer
 from pydantic import ValidationError
 from rich.text import Text
 
-from sk import ui
+from sk import output, ui
+from sk.command_app import SkTyper
 from sk.commands.config import known_keys, store_value
 from sk.commands.ipm_group import group_app
 from sk.commands.ipm_permission import permission_app
@@ -23,18 +23,18 @@ from sk.commands.ipm_role import role_app
 from sk.commands.ipm_user import user_app
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
-    EXIT_FAILURE,
     EXIT_USAGE_ERROR,
-    HTTP_NOT_FOUND,
-    WAIT_POLL_SECONDS,
+    ResourceFlow,
     TimeoutOption,
+    already_done,
     bad_address,
-    fail_api,
+    fail_api_with_forbidden,
+    identifier,
     load_api,
     require,
     session_token,
 )
-from sk.features.api_contract import OperationStatus, RequestAccepted, validate_identifier
+from sk.features.api_contract import OperationStatus, RequestAccepted
 from sk.features.ipm.organization import (
     Organization,
     create_organization,
@@ -47,7 +47,7 @@ from sk.features.ipm.organization import (
     validate_name,
 )
 from sk.help import command, option
-from sk.http import ApiError, ApiRejectedError
+from sk.http import ApiError
 from sk.identity.oidc import OidcError
 from sk.settings import ConfigurationError, SkSettings, config_file_path, read_config_document
 
@@ -95,14 +95,14 @@ PHASE_STYLES = {
     "Failed": "red",
 }  # as demais fases (em andamento) ficam em amarelo
 
-ipm_app = typer.Typer(
+ipm_app = SkTyper(
     help=IPM_HELP,
     no_args_is_help=True,
     # Ajuda colorida pelo Rich. Colchetes literais nos textos são escapados com "\\[".
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
 )
-organization_app = typer.Typer(
+organization_app = SkTyper(
     help=ORGANIZATION_HELP,
     no_args_is_help=True,
     rich_markup_mode="rich",
@@ -144,20 +144,13 @@ ResourceIdOption = Annotated[
 
 
 def _fail_api(error: ApiError, *, not_found: str = NOT_FOUND) -> NoReturn:
-    if isinstance(error, ApiRejectedError) and error.status == 403:
-        by_code = {**ERROR_CODE_HINTS, "Forbidden": NO_PERMISSION_HINT}
-    else:
-        by_code = ERROR_CODE_HINTS
-    fail_api(error, not_found=not_found, conflict=CONFLICT_ON_CHANGE, by_error_code=by_code)
-
-
-def _identifier(value: str | None, option_name: str, *, what: str) -> str:
-    """Opção obrigatória que é um identificador do contrato, recusada antes da chamada de rede."""
-    try:
-        return validate_identifier(require(value, option_name), what=what)
-    except ValueError as error:
-        ui.error("Value not accepted", str(error), hint=f"Fix {option_name} and repeat.")
-        raise typer.Exit(EXIT_USAGE_ERROR) from error
+    fail_api_with_forbidden(
+        error,
+        not_found=not_found,
+        conflict=CONFLICT_ON_CHANGE,
+        by_error_code=ERROR_CODE_HINTS,
+        forbidden=NO_PERMISSION_HINT,
+    )
 
 
 def _active_organization() -> str:
@@ -184,7 +177,7 @@ def _organization_identifier(value: str | None) -> str:
                 ),
             )
             raise typer.Exit(EXIT_USAGE_ERROR)
-    return _identifier(value, "--resource-id", what="resourceId")
+    return identifier(value, "--resource-id", what="resourceId")
 
 
 def _name(value: str | None) -> str:
@@ -243,126 +236,6 @@ def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> 
     return " ".join(parts)
 
 
-def _timed_out(
-    timeout: int, accepted: RequestAccepted, state: str = "is not visible yet"
-) -> NoReturn:
-    ui.error(
-        "Timed out",
-        f"{timeout} s passed and the Organization {state}.",
-        hint=f"The request is still in progress: `{_get_command(accepted)}`.",
-    )
-    raise typer.Exit(EXIT_FAILURE)
-
-
-def _wait_for_convergence(
-    url: str,
-    insecure: bool,
-    accepted: RequestAccepted,
-    *,
-    expect_name: str | None,
-    removal: bool,
-    timeout: int,
-) -> Organization | None:
-    """Espera a Operation `completed` (e a Organization `Ready` com o nome pedido); se não der,
-    sai dizendo por quê. Na remoção, devolve `None` quando a Organization já não existe.
-
-    O token é pedido a cada leitura: o acesso dura 15 minutos, e uma espera longa (`--timeout`)
-    pode atravessar o vencimento (a sessão se renova pelo refresh token).
-    """
-    ui.note(f"Waiting for convergence (up to {timeout} s)...")
-    deadline = time.monotonic() + timeout
-    while True:
-        token = session_token()
-        organization: Organization | None = None
-        try:
-            operation = get_operation(
-                url,
-                token=token,
-                resource_id=accepted.resource_id,
-                operation_id=accepted.operation_id,
-                allow_insecure_http=insecure,
-            )
-            # Recusa ou falha primeiro: num `create` recusado, o recurso nem existe (`404`).
-            if operation.operation_status in ("rejected", "failed", "superseded"):
-                reason = operation.reason
-                ui.error(
-                    "Request not completed",
-                    f"The Operation ended as {operation.operation_status}"
-                    + (f": {reason}" if reason else "."),
-                    hint=f"{REJECTION_HINTS.get(reason or '', 'Inspect the request.')} Details: "
-                    f"`{_get_command(accepted, with_operation=True)}`.",
-                )
-                raise typer.Exit(EXIT_FAILURE)
-            try:
-                organization = get_organization(
-                    url,
-                    token=token,
-                    resource_id=accepted.resource_id,
-                    allow_insecure_http=insecure,
-                )
-            except ApiRejectedError as error:
-                # Na remoção, o `404` da Organization é o resultado esperado (a linha foi apagada).
-                if not (removal and error.status == HTTP_NOT_FOUND):
-                    raise
-        except OidcError as error:
-            bad_address(error)
-        except ApiRejectedError as error:
-            if error.status != HTTP_NOT_FOUND:
-                _fail_api(error)
-            # Logo depois do `202`, o Manager ainda pode não ter gravado a Operation e o recurso
-            # (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1): é espera, e não erro.
-            if time.monotonic() >= deadline:
-                _timed_out(timeout, accepted)
-            time.sleep(WAIT_POLL_SECONDS)
-            continue
-        except ApiError as error:
-            _fail_api(error)
-        if operation.operation_status == "completed":
-            if removal and organization is None:
-                return None
-            if (
-                not removal
-                and organization is not None
-                and organization.phase == "Ready"
-                and (expect_name is None or organization.name == expect_name)
-            ):
-                return organization
-        if time.monotonic() >= deadline:
-            where = (
-                f"is in phase {organization.phase}" if organization is not None else "was removed"
-            )
-            _timed_out(timeout, accepted, f"{where} (Operation {operation.operation_status})")
-        time.sleep(WAIT_POLL_SECONDS)
-
-
-def _finish_request(
-    url: str,
-    insecure: bool,
-    accepted: RequestAccepted,
-    *,
-    title: str,
-    expect_name: str | None,
-    removal: bool,
-    wait: bool,
-    timeout: int,
-) -> Organization | None:
-    """Fim de `create`, `update` e `delete`: orienta o acompanhamento ou, com `--wait`, espera.
-
-    Devolve a Organization convergida, ou `None` sem `--wait` e quando ela foi removida.
-    """
-    if not wait:
-        ui.note(f"Follow it with `{_get_command(accepted)}`.")
-        return None
-    organization = _wait_for_convergence(
-        url, insecure, accepted, expect_name=expect_name, removal=removal, timeout=timeout
-    )
-    if organization is None:
-        ui.panel(title, [("resourceId", accepted.resource_id), ("state", "removed")])
-        return None
-    ui.panel(title, _rows(organization))
-    return organization
-
-
 def _activate_if_none(resource_id: str) -> None:
     """Grava a Organization recém-criada como a ativa (`[ipm] organizationId`), se não há uma.
 
@@ -390,8 +263,21 @@ def _activate_if_none(resource_id: str) -> None:
     ui.note(f"Saved as the active Organization in {path}.")
 
 
+_flow = ResourceFlow(
+    subject="Organization",
+    get_command=_get_command,
+    read_resource=get_organization,
+    read_operation=get_operation,
+    fail_api=_fail_api,
+    rejection_hints=REJECTION_HINTS,
+    rows=_rows,
+    removed_key="state",
+)
+
+
 @organization_app.command(
     "create",
+    structured=True,
     help=command("Create an Organization. Follow it with `sk ipm organization get`."),
 )
 def create_command(
@@ -427,7 +313,7 @@ def create_command(
     # Obrigatória por validação do próprio comando (não pelo Typer), para não exibir "[required]".
     name = _name(name)
     if billing_account_id is not None:
-        billing_account_id = _identifier(
+        billing_account_id = identifier(
             billing_account_id, "--billing-account-id", what="billingAccountId"
         )
     url, insecure = load_api()
@@ -453,16 +339,18 @@ def create_command(
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
+        data=accepted,
+        interim=wait,
     )
-    organization = _finish_request(
+    organization = _flow.finish(
         url,
         insecure,
         accepted,
         title="Organization created",
-        expect_name=name,
         removal=False,
         wait=wait,
         timeout=timeout,
+        matches=lambda r: r.name == name,
     )
     if organization is not None:
         _activate_if_none(organization.resource_id)
@@ -475,6 +363,7 @@ def create_command(
 
 @organization_app.command(
     "update",
+    structured=True,
     help=command(
         "Rename an Organization or update its Billing Account, reading the current version first."
     ),
@@ -515,7 +404,7 @@ def update_command(
         _name(name)
     validated_name = _name(name) if name is not None else None
     validated_billing = (
-        _identifier(billing_account_id, "--billing-account-id", what="billingAccountId")
+        identifier(billing_account_id, "--billing-account-id", what="billingAccountId")
         if billing_account_id is not None
         else None
     )
@@ -530,9 +419,13 @@ def update_command(
         if same_name and same_billing:
             # Idempotente: atualizar para o que já vale não é erro.
             if validated_billing is None:
-                ui.note(f"Organization {resource_id} already has this name. Nothing to do.")
+                already_done(
+                    current, f"Organization {resource_id} already has this name. Nothing to do."
+                )
             else:
-                ui.note(f"Organization {resource_id} already has these values. Nothing to do.")
+                already_done(
+                    current, f"Organization {resource_id} already has these values. Nothing to do."
+                )
             return
         accepted = update_organization(
             url,
@@ -556,16 +449,18 @@ def update_command(
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
+        data=accepted,
+        interim=wait,
     )
-    _finish_request(
+    _flow.finish(
         url,
         insecure,
         accepted,
         title="Organization renamed" if validated_billing is None else "Organization updated",
-        expect_name=validated_name,
         removal=False,
         wait=wait,
         timeout=timeout,
+        matches=(lambda r: r.name == validated_name) if validated_name is not None else None,
     )
 
 
@@ -580,7 +475,7 @@ def _set_protection(resource_id: str | None, *, protected: bool, wait: bool, tim
         if current.deletion_protection == protected:
             # Idempotente: pedir o estado que já vale não é erro.
             state = "protected" if protected else "unprotected"
-            ui.note(f"Organization {resource_id} is already {state}. Nothing to do.")
+            already_done(current, f"Organization {resource_id} is already {state}. Nothing to do.")
             return
         accepted = set_organization_protection(
             url,
@@ -603,13 +498,14 @@ def _set_protection(resource_id: str | None, *, protected: bool, wait: bool, tim
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
+        data=accepted,
+        interim=wait,
     )
-    _finish_request(
+    _flow.finish(
         url,
         insecure,
         accepted,
         title="Organization protected" if protected else "Organization unprotected",
-        expect_name=None,
         removal=False,
         wait=wait,
         timeout=timeout,
@@ -618,6 +514,7 @@ def _set_protection(resource_id: str | None, *, protected: bool, wait: bool, tim
 
 @organization_app.command(
     "protect",
+    structured=True,
     help=command("Protect an Organization against deletion (the default for new ones)."),
 )
 def protect_command(
@@ -630,6 +527,7 @@ def protect_command(
 
 @organization_app.command(
     "unprotect",
+    structured=True,
     help=command("Allow an Organization to be deleted. Required before `delete`."),
 )
 def unprotect_command(
@@ -642,6 +540,7 @@ def unprotect_command(
 
 @organization_app.command(
     "delete",
+    structured=True,
     help=command("Delete an Organization, reading the current version before asking."),
 )
 def delete_command(
@@ -675,18 +574,19 @@ def delete_command(
             ("resourceId", accepted.resource_id),
             ("operationId", accepted.operation_id),
         ],
+        data=accepted,
+        interim=wait,
     )
     if resource_id == _active_organization():
         ui.warning(
             "This is the active Organization. Once it is gone, point to another with "
             f"`sk config set {ACTIVE_ORGANIZATION_KEY} VALUE`."
         )
-    _finish_request(
+    _flow.finish(
         url,
         insecure,
         accepted,
         title="Organization deleted",
-        expect_name=None,
         removal=True,
         wait=wait,
         timeout=timeout,
@@ -695,6 +595,7 @@ def delete_command(
 
 @organization_app.command(
     "get",
+    structured=True,
     help=command("Show the state of an Organization and, if given, of an Operation."),
 )
 def get_command(
@@ -716,7 +617,7 @@ def get_command(
 ) -> None:
     resource_id = _organization_identifier(resource_id)
     if operation_id is not None:
-        operation_id = _identifier(operation_id, "--operation-id", what="operationId")
+        operation_id = identifier(operation_id, "--operation-id", what="operationId")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -744,10 +645,15 @@ def get_command(
     rows = _rows(organization)
     if operation is not None:
         rows.extend(_operation_rows(operation))
-    ui.panel("Organization", rows)
+    document = output.to_data(organization)
+    if operation is not None:
+        document["operation"] = output.to_data(operation)
+    ui.panel("Organization", rows, data=document)
 
 
-@organization_app.command("list", help=command("List the requester's Organizations."))
+@organization_app.command(
+    "list", structured=True, help=command("List the requester's Organizations.")
+)
 def list_command() -> None:
     url, insecure = load_api()
     token = session_token()
@@ -758,7 +664,7 @@ def list_command() -> None:
     except ApiError as error:
         _fail_api(error)
     if not organizations:
-        ui.note("No Organizations.")
+        ui.empty("No Organizations.")
         return
     active = _active_organization()
     ui.table(
@@ -774,4 +680,5 @@ def list_command() -> None:
             ]
             for organization in organizations
         ],
+        data=organizations,
     )

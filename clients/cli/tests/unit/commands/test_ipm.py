@@ -14,6 +14,7 @@ from typing import Any, cast
 import pytest
 from typer.testing import CliRunner
 
+from sk import output
 from sk.identity.credentials import StoredCredentials, default_credentials_path, save_credentials
 from sk.main import app
 
@@ -104,7 +105,7 @@ def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
     def no_wait(_: float) -> None:
         return None
 
-    monkeypatch.setattr("sk.commands.ipm.time.sleep", no_wait)
+    monkeypatch.setattr("sk.commands.shared.time.sleep", no_wait)
 
 
 def organization_document(
@@ -232,7 +233,7 @@ def test_wait_times_out_with_a_hint(api: FakeApi, monkeypatch: pytest.MonkeyPatc
     api.routes[("GET", OPERATION)] = operation_document("in_progress")
     api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(phase="Reconciling"))
     clock = iter(range(0, 1000, 20))  # cada leitura do relógio avança 20 s
-    monkeypatch.setattr("sk.commands.ipm.time.monotonic", lambda: next(clock))
+    monkeypatch.setattr("sk.commands.shared.time.monotonic", lambda: next(clock))
 
     result = runner.invoke(
         app, ["ipm", "organization", "create", "--name", "acme", "--wait", "--timeout", "30"]
@@ -551,7 +552,7 @@ def test_wait_times_out_when_the_request_never_becomes_visible(
     api.routes[("POST", PATH)] = accepted()
     api.routes[("GET", OPERATION)] = http_error(404, "NotFound", "Recurso não encontrado.")
     clock = iter(range(0, 1000, 20))
-    monkeypatch.setattr("sk.commands.ipm.time.monotonic", lambda: next(clock))
+    monkeypatch.setattr("sk.commands.shared.time.monotonic", lambda: next(clock))
 
     result = runner.invoke(
         app, ["ipm", "organization", "create", "--name", "acme", "--wait", "--timeout", "30"]
@@ -759,3 +760,109 @@ def test_a_rejected_creation_is_reported_even_without_the_organization(api: Fake
 
     assert result.exit_code == 1
     assert "rejected" in result.stderr and "Timed out" not in result.stderr
+
+
+# --- `--output json` (decisão 0093) -----------------------------------------------------------
+
+JSON = ["--output", "json"]
+
+
+@pytest.fixture
+def default_output_mode() -> Iterator[None]:
+    output.configure(raw=False)
+    yield
+    output.configure(raw=False)
+
+
+def _document(stdout: str) -> Any:
+    return json.loads(stdout)  # falha se houver mais de um documento ou texto solto
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_get_and_list_print_native_types(api: FakeApi) -> None:
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(protected=True))
+    shown = runner.invoke(app, [*JSON, "ipm", "organization", "get", "--resource-id", RID])
+    assert shown.exit_code == 0, shown.stderr
+    document = _document(shown.stdout)
+    assert document["resourceId"] == RID and document["deletionProtection"] is True
+    api.routes[("GET", PATH)] = Response(200, {"items": [organization_document()]})
+    listed = runner.invoke(app, [*JSON, "ipm", "organization", "list"])
+    assert [o["name"] for o in _document(listed.stdout)] == ["acme"]
+    api.routes[("GET", PATH)] = Response(200, {"items": []})
+    empty = runner.invoke(app, [*JSON, "ipm", "organization", "list"])
+    assert _document(empty.stdout) == []
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_create_without_wait_prints_only_the_acceptance(api: FakeApi) -> None:
+    api.routes[("POST", PATH)] = accepted()
+    result = runner.invoke(app, [*JSON, "ipm", "organization", "create", "--name", "acme"])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout) == {"resourceId": RID, "operationId": OPID}
+    assert "Follow it with" in result.stderr
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_create_with_wait_prints_the_converged_organization_only(
+    api: FakeApi, tmp_path: Path
+) -> None:
+    api.routes[("POST", PATH)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
+    result = runner.invoke(
+        app, [*JSON, "ipm", "organization", "create", "--name", "acme", "--wait"]
+    )
+    assert result.exit_code == 0, result.stderr
+    document = _document(result.stdout)
+    assert document["resourceId"] == RID and document["phase"] == "Ready"
+    assert "Saved as the active Organization" in result.stderr
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_delete_with_wait_prints_the_removed_state(api: FakeApi) -> None:
+    api.routes[("DELETE", ORGANIZATION)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("GET", ORGANIZATION)] = [
+        Response(200, organization_document()),
+        http_error(404, "NotFound", "Recurso não encontrado."),
+    ]
+    result = runner.invoke(
+        app, [*JSON, "ipm", "organization", "delete", "--resource-id", RID, "--wait"]
+    )
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout) == {"resourceId": RID, "state": "removed"}
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_nothing_to_do_prints_the_current_organization(api: FakeApi) -> None:
+    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(protected=True))
+    result = runner.invoke(app, [*JSON, "ipm", "organization", "protect", "--resource-id", RID])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout)["resourceId"] == RID
+    assert "Nothing to do" in result.stderr and "Nothing to do" not in result.stdout
+    renamed = runner.invoke(
+        app, [*JSON, "ipm", "organization", "update", "--resource-id", RID, "--name", "acme"]
+    )
+    assert renamed.exit_code == 0, renamed.stderr
+    assert _document(renamed.stdout)["name"] == "acme"
+    assert all(request.get_method() == "GET" for request in api.requests)
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_update_with_the_same_values_prints_the_current_organization(api: FakeApi) -> None:
+    billing = "01a14168-b59d-7475-8db7-c5cf57fa1111"
+    document = organization_document()
+    document["desired"]["billingAccountId"] = billing
+    api.routes[("GET", ORGANIZATION)] = Response(200, document)
+    result = runner.invoke(
+        app,
+        [
+            *JSON,
+            *["ipm", "organization", "update", "--resource-id", RID],
+            *["--billing-account-id", billing],
+        ],
+    )
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout)["billingAccountId"] == billing
+    assert "already has these values" in result.stderr
+    assert all(request.get_method() == "GET" for request in api.requests)

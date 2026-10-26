@@ -14,6 +14,7 @@ from typing import Any, cast
 import pytest
 from typer.testing import CliRunner
 
+from sk import output
 from sk.identity.credentials import StoredCredentials, default_credentials_path, save_credentials
 from sk.main import app
 
@@ -100,7 +101,7 @@ def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
     def no_wait(_: float) -> None:
         return None
 
-    monkeypatch.setattr("sk.commands.ipm_permission.time.sleep", no_wait)
+    monkeypatch.setattr("sk.commands.shared.time.sleep", no_wait)
 
 
 def permission_document(
@@ -223,3 +224,88 @@ def test_get_and_list_permissions(api: FakeApi) -> None:
     api.routes[("GET", PATH)] = Response(200, {"items": [permission_document()]})
     listed = runner.invoke(app, ["ipm", "permission", "list"])
     assert listed.exit_code == 0 and PID in listed.stdout
+
+
+# --- `--output json` (decisão 0093) -----------------------------------------------------------
+
+JSON = ["--output", "json"]
+
+
+@pytest.fixture
+def default_output_mode() -> Iterator[None]:
+    output.configure(raw=False)
+    yield
+    output.configure(raw=False)
+
+
+def _document(stdout: str) -> Any:
+    return json.loads(stdout)  # falha se houver mais de um documento ou texto solto
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_get_and_list_print_native_types(api: FakeApi) -> None:
+    api.routes[("GET", PERM)] = Response(200, permission_document(grantable=True))
+    shown = runner.invoke(app, [*JSON, "ipm", "permission", "get", "--resource-id", PID])
+    assert shown.exit_code == 0, shown.stderr
+    document = _document(shown.stdout)
+    assert document["grantable"] is True and document["name"] == "ipm.user.get"
+    api.routes[("GET", PATH)] = Response(200, {"items": [permission_document()]})
+    listed = runner.invoke(app, [*JSON, "ipm", "permission", "list"])
+    assert [p["resourceId"] for p in _document(listed.stdout)] == [PID]
+    api.routes[("GET", PATH)] = Response(200, {"items": []})
+    assert _document(runner.invoke(app, [*JSON, "ipm", "permission", "list"]).stdout) == []
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_nothing_to_do_prints_the_current_permission(api: FakeApi) -> None:
+    api.routes[("GET", PERM)] = Response(200, permission_document(protected=True))
+    result = runner.invoke(app, [*JSON, "ipm", "permission", "protect", "--resource-id", PID])
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout)["resourceId"] == PID
+    assert all(request.get_method() == "GET" for request in api.requests)
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_nothing_to_do_on_unprotect_and_update(api: FakeApi) -> None:
+    api.routes[("GET", PERM)] = Response(200, permission_document(protected=False))
+    unprotect = runner.invoke(app, [*JSON, "ipm", "permission", "unprotect", "--resource-id", PID])
+    assert unprotect.exit_code == 0, unprotect.stderr
+    assert _document(unprotect.stdout)["resourceId"] == PID
+    assert "Nothing to do" in unprotect.stderr and "Nothing to do" not in unprotect.stdout
+    update = runner.invoke(
+        app,
+        [
+            *JSON,
+            *["ipm", "permission", "update", "--resource-id", PID],
+            *["--description", "Consulta usuários"],
+        ],
+    )
+    assert update.exit_code == 0, update.stderr
+    assert _document(update.stdout)["resourceId"] == PID
+    assert all(request.get_method() == "GET" for request in api.requests)
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_delete_with_wait_prints_the_removed_state(api: FakeApi) -> None:
+    api.routes[("GET", PERM)] = [
+        Response(200, permission_document(protected=False)),  # leitura antes do pedido
+        http_error(404, "NotFound", "gone"),  # já removida
+    ]
+    api.routes[("DELETE", PERM)] = accepted()
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    result = runner.invoke(
+        app, [*JSON, "ipm", "permission", "delete", "--resource-id", PID, "--wait"]
+    )
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout) == {"resourceId": PID, "state": "removed"}
+
+
+@pytest.mark.usefixtures("default_output_mode")
+def test_json_get_with_operation_adds_the_operation(api: FakeApi) -> None:
+    api.routes[("GET", PERM)] = Response(200, permission_document())
+    api.routes[("GET", OPERATION)] = operation_document("completed")
+    result = runner.invoke(
+        app, [*JSON, "ipm", "permission", "get", "--resource-id", PID, "--operation-id", OPID]
+    )
+    assert result.exit_code == 0, result.stderr
+    assert _document(result.stdout)["operation"]["operationStatus"] == "completed"

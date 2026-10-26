@@ -13,6 +13,7 @@ import typer
 from pydantic import ValidationError
 
 from sk import ui
+from sk.command_app import SkTyper
 from sk.defaults import PROVISIONAL
 from sk.help import command
 from sk.identity.credentials import (
@@ -46,7 +47,7 @@ LOGIN_TIMEOUT_SECONDS = 300
 EXIT_FAILURE = 1
 EXIT_USAGE_ERROR = 2
 
-auth_app = typer.Typer(
+auth_app = SkTyper(
     help="Authentication on the platform.",
     no_args_is_help=True,
     # Ajuda colorida pelo Rich. Colchetes literais nos textos são escapados com "\\[".
@@ -262,11 +263,18 @@ def run_whoami(allow_insecure_http: bool, credentials_path: Path) -> None:
             ("issuer", credentials.issuer),
             ("expiresAt", ui.format_expiry(credentials.access_token_expires_at)),
         ],
+        # Só o que o painel já mostra: nunca o token nem as claims do provedor.
+        data={
+            "user": _display_name(userinfo),
+            "issuer": credentials.issuer,
+            "expiresAt": credentials.access_token_expires_at.isoformat(),
+        },
     )
 
 
 @auth_app.command(
     "whoami",
+    structured=True,
     help=command("Show the user of the current session and confirm it is still valid."),
 )
 def whoami() -> None:
