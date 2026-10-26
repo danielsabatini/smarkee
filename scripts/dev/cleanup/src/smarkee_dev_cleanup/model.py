@@ -22,6 +22,9 @@ TEST_ORGANIZATION_NAME = re.compile(
 # Roles de teste (`ipm.role`): nomes dos testes e2e da feature (`test.role` ou `test.chaos` mais 6
 # hexadecimais). As Roles predefinidas da plataforma (`ipm.userAdmin`...) nunca casam.
 TEST_ROLE_NAME = re.compile(r"^test\.(?:role|chaos)[0-9a-f]{6}$")
+# Grupos de teste (`ipm.group`): nomes dos testes e2e da feature (`test-group-`, `test-loop-` ou
+# `test-chaos-` seguido de 6 a 8 hexadecimais).
+TEST_GROUP_NAME = re.compile(r"^test-(?:group|loop|chaos)-[0-9a-f]{6,8}$")
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 # Usuários de teste: o e-mail é de `example.com` e começa por um destes rótulos, ou é `ana.` ou
 # `dup.` mais 10 hexadecimais (os e-mails dos testes de integração do Manager da Account). `ana@` e
@@ -130,6 +133,19 @@ ROLES = Kind(
     data_plane_table="ipm.role",
     data_plane_role="ipm_role_executor_login",
 )
+# Grupos da Organization (decisões 0086 e 0088): definição no SSOT e estado aplicado no `platform`.
+GROUPS = Kind(
+    "ipm",
+    "group",
+    "ipm.group",
+    ("ipm.group_outbox", "ipm.group_operation", "ipm.group_action_result"),
+    "ipm_group_manager_login",
+    "ipm_maintenance_login",
+    "name",
+    deletion_protected=True,
+    data_plane_table="ipm.group",
+    data_plane_role="ipm_group_executor_login",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +170,9 @@ class Findings:
     role_rows: list[Row] = field(default_factory=lambda: [])
     platform_role_rows: list[Row] = field(default_factory=lambda: [])
     """Roles de teste no banco `platform` (plano de dados), com ou sem linha no SSOT."""
+    group_rows: list[Row] = field(default_factory=lambda: [])
+    platform_group_rows: list[Row] = field(default_factory=lambda: [])
+    """Grupos de teste no banco `platform` (plano de dados), com ou sem linha no SSOT."""
     history: dict[Kind, list[Row]] = field(default_factory=lambda: {})
     """Histórico (outbox, Operations e resultados) de recursos de teste já removidos."""
     kept_history: dict[Kind, int] = field(default_factory=lambda: {})
@@ -173,6 +192,8 @@ class Findings:
             or self.organization_user_rows
             or self.role_rows
             or self.platform_role_rows
+            or self.group_rows
+            or self.platform_group_rows
             or any(self.history.values())
             or any(self.message_orphans.values())
             or self.mails
@@ -213,6 +234,11 @@ class Findings:
             *(
                 f"platform ipm.role {row.resource_id}  {row.label}"
                 for row in self.platform_role_rows
+            ),
+            *(f"SSOT ipm.group {row.resource_id}  {row.label}" for row in self.group_rows),
+            *(
+                f"platform ipm.group {row.resource_id}  {row.label}"
+                for row in self.platform_group_rows
             ),
         ]
         found.extend(
@@ -255,6 +281,10 @@ class Findings:
             | {row.resource_id for row in self.platform_role_rows}
             | self._history_ids(ROLES)
             | self.message_orphans.get(ROLES, set()),
+            GROUPS: {row.resource_id for row in self.group_rows}
+            | {row.resource_id for row in self.platform_group_rows}
+            | self._history_ids(GROUPS)
+            | self.message_orphans.get(GROUPS, set()),
         }
 
     def _history_ids(self, kind: Kind) -> set[str]:

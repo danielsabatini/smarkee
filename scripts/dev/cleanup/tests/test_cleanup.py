@@ -16,6 +16,7 @@ from smarkee_dev_cleanup.main import refuse_outside_development
 from smarkee_dev_cleanup.model import (
     ACCOUNTS,
     BILLING_ACCOUNTS,
+    GROUPS,
     ORGANIZATION_USERS,
     ORGANIZATIONS,
     ROLES,
@@ -460,6 +461,7 @@ def test_history_of_removed_test_resources_is_found_and_the_rest_is_kept() -> No
         SERVICES: 2,
         ORGANIZATION_USERS: 1,
         ROLES: 0,
+        GROUPS: 0,
     }
     assert not findings.is_clean()
     assert any("histórico" in line for line in findings.lines())
@@ -618,3 +620,49 @@ async def test_a_test_role_only_in_the_platform_database_is_removed_directly() -
 
     assert await clean(world.ports(), apply_changes=True, say=say_nothing) == 0
     assert world.ssot.platform[ROLES] == []
+
+
+GROUP_ID = "01a170c3-7b04-72f3-9c18-2da346a49999"
+
+
+@pytest.mark.parametrize("name", ["test-group-6d7092", "test-loop-0a1b2c3d", "test-chaos-abcdef"])
+def test_a_test_group_is_found_in_the_ssot_and_in_the_platform_database(name: str) -> None:
+    world = World()
+    world.ssot.tables = {GROUPS: [Row(GROUP_ID, name)]}
+    world.ssot.platform = {GROUPS: [Row(GROUP_ID, name)]}
+
+    findings = find(world.ports())
+
+    assert [row.resource_id for row in findings.group_rows] == [GROUP_ID]
+    assert [row.resource_id for row in findings.platform_group_rows] == [GROUP_ID]
+    assert any("platform ipm.group" in line for line in findings.lines())
+    assert GROUPS in findings.resource_ids()
+
+
+@pytest.mark.parametrize("name", ["auditors", "finance", "test-group-ok", "devops-team"])
+def test_real_groups_are_never_test_data(name: str) -> None:
+    world = World()
+    world.ssot.tables = {GROUPS: [Row("group-x", name)]}
+    world.ssot.platform = {GROUPS: [Row("group-x", name)]}
+
+    assert find(world.ports()).is_clean()
+
+
+async def test_a_test_group_is_removed_through_the_loop_and_what_is_left_in_the_platform() -> None:
+    world = World()
+    world.ssot.tables = {
+        GROUPS: [Row(GROUP_ID, "test-group-6d7092"), Row("group-real", "auditors")]
+    }
+    world.ssot.platform = {
+        GROUPS: [Row(GROUP_ID, "test-group-6d7092"), Row("group-real", "auditors")]
+    }
+    world.bus.phases = {GROUP_ID: "Ready"}
+
+    code = await clean(world.ports(), apply_changes=True, say=say_nothing)
+
+    assert code == 0
+    assert world.bus.unprotection_requested == [GROUP_ID]
+    assert world.bus.requested == [GROUP_ID]
+    assert [r.resource_id for r in world.ssot.platform[GROUPS]] == ["group-real"]
+    assert [r.resource_id for r in world.ssot.tables[GROUPS]] == ["group-real"]
+

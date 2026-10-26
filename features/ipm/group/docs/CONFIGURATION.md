@@ -347,10 +347,11 @@ Entrypoint do Observer de Grupo (`ipm-group-observer`, decisões 0015, 0063, 008
 **Definido no `config.toml` de dev:**
 
 ```toml
-[tool.ipm.group.observer.identity]
-base_url = "http://identity.smarkee.internal:8080"
-host_header = "ipm-dev.smarkee.com.br:8080"
-issuer = "http://ipm-dev.smarkee.com.br:8080"
+[tool.ipm.group.observer.database]
+host = "database.smarkee.internal"
+name = "platform"
+port = 5432
+user = "ipm_group_observer_login"
 
 [tool.ipm.group.observer.messaging]
 url = "nats://messaging.smarkee.internal:4222"
@@ -408,10 +409,11 @@ Entrypoint do Executor de Grupo (`ipm-group-executor`, decisões 0015, 0063, 008
 **Definido no `config.toml` de dev:**
 
 ```toml
-[tool.ipm.group.executor.identity]
-base_url = "http://identity.smarkee.internal:8080"
-host_header = "ipm-dev.smarkee.com.br:8080"
-issuer = "http://ipm-dev.smarkee.com.br:8080"
+[tool.ipm.group.executor.database]
+host = "database.smarkee.internal"
+name = "platform"
+port = 5432
+user = "ipm_group_executor_login"
 
 [tool.ipm.group.executor.messaging]
 url = "nats://messaging.smarkee.internal:4222"

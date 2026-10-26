@@ -5,6 +5,7 @@ from collections.abc import Callable
 from smarkee_dev_cleanup.model import (
     ACCOUNTS,
     BILLING_ACCOUNTS,
+    GROUPS,
     ORGANIZATION_USERS,
     ORGANIZATIONS,
     POLL_SECONDS,
@@ -12,6 +13,7 @@ from smarkee_dev_cleanup.model import (
     ROLES,
     SERVICES,
     TEST_BILLING_ACCOUNT_NAME,
+    TEST_GROUP_NAME,
     TEST_ORGANIZATION_NAME,
     TEST_ROLE_NAME,
     TEST_USER_EMAIL,
@@ -62,6 +64,12 @@ def find(ports: Ports, *, orphans: bool = False) -> Findings:
     findings.platform_role_rows = [
         row for row in ports.ssot.data_plane_rows(ROLES) if TEST_ROLE_NAME.match(row.label)
     ]
+    findings.group_rows = [
+        row for row in ports.ssot.rows(GROUPS) if TEST_GROUP_NAME.match(row.label)
+    ]
+    findings.platform_group_rows = [
+        row for row in ports.ssot.data_plane_rows(GROUPS) if TEST_GROUP_NAME.match(row.label)
+    ]
     # Ligação de serviço é de teste se o dono é de teste, ou se o dono nem existe mais no Zitadel
     # (sem usuário, a ligação não tem como convergir nem como ser desligada).
     test_owners = set(findings.zitadel_users) | {row.resource_id for row in findings.account_rows}
@@ -84,7 +92,15 @@ def _find_history(
     Só é de teste o que o rótulo gravado no outbox identifica como tal; o resto é mantido.
     """
     orphans: dict[Kind, list[Row]] = {}
-    for kind in (ACCOUNTS, BILLING_ACCOUNTS, ORGANIZATIONS, SERVICES, ORGANIZATION_USERS, ROLES):
+    for kind in (
+        ACCOUNTS,
+        BILLING_ACCOUNTS,
+        ORGANIZATIONS,
+        SERVICES,
+        ORGANIZATION_USERS,
+        ROLES,
+        GROUPS,
+    ):
         live = {row.resource_id for row in ports.ssot.rows(kind)}
         orphans[kind] = [row for row in ports.ssot.history(kind) if row.resource_id not in live]
     test: dict[Kind, list[Row]] = {
@@ -97,6 +113,7 @@ def _find_history(
         ],
         ORGANIZATION_USERS: [row for row in orphans[ORGANIZATION_USERS] if is_test_user(row.label)],
         ROLES: [row for row in orphans[ROLES] if TEST_ROLE_NAME.match(row.label)],
+        GROUPS: [row for row in orphans[GROUPS] if TEST_GROUP_NAME.match(row.label)],
     }
     # Uma ligação é de teste se o dono é uma conta de teste (viva ou já removida).
     owners = test_owners | {row.resource_id for row in test[ACCOUNTS]}
@@ -120,6 +137,7 @@ async def find_everywhere(ports: Ports, *, orphans: bool) -> Findings:
                 SERVICES,
                 ORGANIZATION_USERS,
                 ROLES,
+                GROUPS,
             )
         }
         found = await ports.bus.orphan_messages(live)
@@ -173,6 +191,7 @@ async def apply(
     # Os usuários da Organization antes dela: a Organization só é removida vazia (decisão 0077).
     for kind, rows in (
         (ORGANIZATION_USERS, findings.organization_user_rows),
+        (GROUPS, findings.group_rows),
         (ORGANIZATIONS, findings.organization_rows),
         (ROLES, findings.role_rows),
         (BILLING_ACCOUNTS, findings.billing_account_rows),
@@ -192,6 +211,7 @@ async def apply(
     for kind, rows in (
         (SERVICES, remaining.service_rows),
         (ORGANIZATION_USERS, remaining.organization_user_rows),
+        (GROUPS, remaining.group_rows),
         (ORGANIZATIONS, remaining.organization_rows),
         (ROLES, remaining.role_rows),
         (BILLING_ACCOUNTS, remaining.billing_account_rows),
@@ -202,12 +222,24 @@ async def apply(
             say(f"  SSOT: {len(rows)} linha(s) de {kind.module}.{kind.resource_type}")
 
     # O loop (Executor) já removeu o estado do `platform` quando concluiu; aqui só o que sobrou.
-    if remaining.platform_role_rows:
-        ids = {row.resource_id for row in remaining.platform_role_rows}
-        ports.ssot.delete_data_plane(ROLES, ids)
-        say(f"  platform: {len(ids)} linha(s) de {ROLES.module}.{ROLES.resource_type}")
+    for kind, platform_rows in (
+        (ROLES, remaining.platform_role_rows),
+        (GROUPS, remaining.platform_group_rows),
+    ):
+        if platform_rows:
+            ids = {row.resource_id for row in platform_rows}
+            ports.ssot.delete_data_plane(kind, ids)
+            say(f"  platform: {len(ids)} linha(s) de {kind.module}.{kind.resource_type}")
 
-    for kind in (SERVICES, ORGANIZATION_USERS, ORGANIZATIONS, ROLES, BILLING_ACCOUNTS, ACCOUNTS):
+    for kind in (
+        SERVICES,
+        ORGANIZATION_USERS,
+        GROUPS,
+        ORGANIZATIONS,
+        ROLES,
+        BILLING_ACCOUNTS,
+        ACCOUNTS,
+    ):
         ids = {row.resource_id for row in remaining.history.get(kind, [])}
         if ids:
             ports.ssot.delete(kind, ids)

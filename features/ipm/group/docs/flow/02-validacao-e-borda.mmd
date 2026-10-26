@@ -1,0 +1,35 @@
+sequenceDiagram
+  participant U as Solicitante
+  participant R as Receiver
+  participant PEER as Receivers (Organization / User)
+  participant DB as SSOT (views v1)
+  participant M as Manager
+  U->>R: POST /v1/ipm/groups
+  alt sem token, token inválido ou audience errada
+    R-->>U: 401 Unauthorized
+  else corpo inválido (JSON quebrado, campo extra, name fora do padrão)
+    R-->>U: 400 ValidationFailed (sem repetir o valor enviado)
+  else falta a permissão ipm.group.create (ou ipm.group.admin)
+    R-->>U: 403 Forbidden
+  else solicitante não é operador, dono nem membro da Organization
+    R->>PEER: consulta escopo na Organization
+    R-->>U: 404 NotFound
+  else roles fora do catálogo RolesCatalog
+    R-->>U: 400 ValidationFailed (field: roles)
+  else membro tentando atribuir roles sem ipm.group.bind
+    R-->>U: 403 Forbidden
+  else cota de grupos da Organization atingida
+    R->>DB: count_groups_in(organizationId)
+    R-->>U: 403 QuotaExceeded
+  else mesma Idempotency-Key com outro pedido
+    R-->>U: 422 IdempotencyKeyReused
+  else REQUESTED cheio ou NATS indisponível
+    R-->>U: 503 com Retry-After (repetível)
+  else pedido aceito
+    R->>M: requested-create (REQUESTED)
+    R-->>U: 202 resourceId e operationId
+    Note over M: A decisão final é do Manager e pode recusar
+    alt name já usado por outro Grupo presente na mesma Organization
+      M->>DB: Operation rejected (conflict), sem desired
+    end
+  end

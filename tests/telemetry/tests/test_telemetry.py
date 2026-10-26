@@ -37,6 +37,7 @@ FEATURE_TELEMETRY_DIRS = [
             for module, kind in (
                 ("bsm", "account"),
                 ("core", "account"),
+                ("ipm", "group"),
                 ("ipm", "organization"),
                 ("ipm", "permission"),
                 ("ipm", "role"),
@@ -381,6 +382,7 @@ def feature_prefix(telemeter: Path) -> str:
 FEATURE_ROUTES = {
     "bsm-account": "/v1/bsm/accounts",
     "core-account": "/v1/core/accounts/probe",
+    "ipm-group": "/v1/ipm/groups",
     "ipm-organization": "/v1/ipm/organizations",
     "ipm-permission": "/v1/ipm/permissions",
     "ipm-role": "/v1/ipm/roles",
@@ -611,6 +613,7 @@ def test_infra_metrics_cover_database_identity_and_messaging_with_otel_semconv(
     }
     assert {
         "account_outbox",
+        "group_outbox",
         "organization_outbox",
         "permission_outbox",
         "role_outbox",
