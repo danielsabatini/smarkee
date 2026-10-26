@@ -1,7 +1,7 @@
 # Memória Operacional do Projeto (AI Context)
 
 Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado operacional atual** necessário para continuar o trabalho.
-- **Histórico detalhado de execução:** `.journal/2026-10-25.md`, `.journal/2026-10-24.md` e `.journal/2026-10-19.md` (locais, não versionados — consultar sob demanda).
+- **Histórico detalhado de execução:** `.journal/2026-10-26.md`, `.journal/2026-10-25.md`, `.journal/2026-10-24.md` e `.journal/2026-10-19.md` (locais, não versionados — consultar sob demanda).
 - **Regras, contratos e decisões:** `AGENTS.md`, `docs/` e `.decisions/`.
 
 ## Estado operacional atual
@@ -12,13 +12,14 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - **Ambiente local OpenCode:** `~/.config/opencode/opencode.json` carrega `AGENTS.md` e `MEMORY.md` globalmente; `.opencode/opencode.json` do projeto é local e ignorado pelo git.
 
 ## Próximos passos imediatos
-1. Operation `failed` no limite/prazo e `superseded` na substituída (contrato aditivo).
-2. Higiene operacional: isolar testes de integração para não publicar no loop em execução; limpeza reconhecer usuário removido; lint pendente (`backup/model.py`); supressão de logs repetitivos por recurso; trace novo por tentativa com link (quando houver spans).
+1. Decidir com o responsável: Operation `superseded` (valor novo no enum fechado `operationStatus`, decisão própria); escopo de roles `custom` por Organization (pendência da `0089`); se `sk ipm user/permission/group list` seguem `name | resourceId | description`.
+2. Higiene operacional: isolar testes de integração para não publicar no loop em execução; limpeza reconhecer usuário removido; supressão de logs repetitivos por recurso; trace novo por tentativa com link (quando houver spans).
 
 ## Pendências antes de `stg`/`prd`
 - `pinned_client`; controle de versão das migrações (`*-migrate` reaplicam tudo); allowlist de caminhos do Zitadel; substituir papéis de instância dos executors; validar `restore/reset --apply` do backup no dev ativo; regras de namespace do OpenBao (decisão `0006`) e validação das ACLs/Streams de `docs/NATS.md`.
 
 ## Armadilhas operacionais ativas
+- `ObservationStale` (decisão `0090`): um recurso `unknown` vai a `Failed` só na próxima observação após o prazo (até ~300 s + jitter); em `stg`/`prd` repetir `ORG_OWNER_VIEWER` na `operator` para o Observer de `ipm/permission` e os Grants/autorizações `ipm.group.*`.
 - Em ambiente existente, aplicar como `postgres` `platform.sql`, `ipm.sql` e `telemetry.sql` (o `initdb.d` só roda em volume novo); o MCP `postgresql` não cobre o `platform`: use `docker exec database.smarkee.internal psql -U postgres -d platform`.
 - O `scripts/dev/cleanup` cobre Roles (`test.role*`/`test.chaos*`) e Grupos (`test-group-*`/`test-loop-*`/`test-chaos-*`) de teste no SSOT e no `platform`.
 - Recriar um Receiver exige reiniciar o gateway (cache de DNS); recriar um telemeter exige reiniciar o `telemetry-router`.
