@@ -94,13 +94,13 @@ async def settled_version(resource_id: str) -> str:
         current = latest
 
 
-def specification(organization_id: str, permissions: list[str]) -> dict[str, Any]:
+def specification(organization_id: str, roles: list[str]) -> dict[str, Any]:
     return {
         "organizationId": organization_id,
         "givenName": "Loop",
         "familyName": "User",
         "email": f"loop-{uuid.uuid4().hex[:10]}@example.com",
-        "permissions": permissions,
+        "roles": roles,
         "deletionProtection": False,
     }
 
@@ -111,13 +111,14 @@ async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_t
     resource_id = str(uuid.uuid7())
     created.append(resource_id)
 
-    # 1. Criação: o usuário nasce na Organization, sem senha, com as permissões do Grant.
+    # 1. Criação: o usuário nasce na Organization, sem senha. As `roles` são expandidas pelo Manager
+    # em permissões atômicas (decisão 0085); o pedido não leva permissões diretas.
     await send(
         jetstream,
         request(
             resource_id,
             "create",
-            {"specification": specification(organization_id, ["ipm.user.get"])},
+            {"specification": specification(organization_id, ["ipm.userViewer"])},
         ),
     )
     updated = await confirmed(jetstream, resource_id, 1)
@@ -128,20 +129,29 @@ async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_t
         jetstream, "observed", resource_id, lambda m: m.get("presence") == "present"
     )
     assert_valid("ipm/user/observed.v1.schema.json", observed["data"])
-    assert observed["data"]["permissions"] == ["ipm.user.get"]
+    assert desired["data"]["roles"] == ["ipm.userViewer"]
+    assert desired["data"]["permissions"] == ["ipm.user.get", "ipm.user.list"]
+    assert observed["data"]["permissions"] == ["ipm.user.get", "ipm.user.list"]
     assert observed["data"]["deletionProtection"] is False  # nasce desprotegido (decisão 0077)
     assert observed["data"]["userState"] == "initial"  # ativa pelo e-mail, sem senha
     assert "email" not in observed["data"]  # o Observer não devolve dado pessoal
 
-    # 2. Permissões: o Executor deixa no Zitadel exatamente as do `desired`.
+    # 2. Roles: o Manager re-expande e o Executor deixa no Zitadel exatamente as do `desired`.
     version = await settled_version(resource_id)
-    permissions = ["ipm.user.get", "ipm.user.list"]
+    permissions = [
+        "ipm.user.bind",
+        "ipm.user.create",
+        "ipm.user.delete",
+        "ipm.user.get",
+        "ipm.user.list",
+        "ipm.user.update",
+    ]
     await send(
         jetstream,
         request(
             resource_id,
             "update",
-            {"resourceVersion": version, "specification": {"permissions": permissions}},
+            {"resourceVersion": version, "specification": {"roles": ["ipm.userAdmin"]}},
         ),
     )
     await confirmed(jetstream, resource_id, 2)
@@ -168,12 +178,15 @@ async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_t
     # 4. A remoção (fixture `created`) tira a proteção e remove o usuário pelo loop.
 
 
-async def test_a_permission_outside_the_grant_is_refused_by_the_provider(
+async def test_a_role_permission_outside_the_grant_is_not_granted(
     jetstream: JetStreamContext, created: list[str], organization_id: str
 ) -> None:
-    """O Project Grant é o teto: o Zitadel recusa permissão fora do Grant (decisão 0077).
+    """O Project Grant é o teto (decisão 0077): o Manager só expande permissões delegáveis.
 
-    `ipm.organization.delete` existe no `roles-ipm`, mas não está no Grant da Organization.
+    `ipm.organizationAdmin` traz `ipm.organization.create` e `ipm.organization.delete`, que existem
+    no `roles-ipm` mas não são delegáveis à Organization (decisão 0092); ficam de fora do `desired`
+    e, portanto, do Zitadel. A recusa do provedor (`Rejected`) deixou de ser alcançável por esse
+    caminho.
     """
     resource_id = str(uuid.uuid7())
     created.append(resource_id)
@@ -182,9 +195,15 @@ async def test_a_permission_outside_the_grant_is_refused_by_the_provider(
         request(
             resource_id,
             "create",
-            {"specification": specification(organization_id, ["ipm.organization.delete"])},
+            {"specification": specification(organization_id, ["ipm.organizationAdmin"])},
         ),
     )
-    failed = await last(jetstream, "failed", resource_id, timeout=READY_SECONDS)
-    assert_valid("common/failed.v1.schema.json", failed["data"])
-    assert (failed["data"]["reason"], failed["data"]["retryable"]) == ("Rejected", False)
+    await confirmed(jetstream, resource_id, 1)
+    desired = await last(jetstream, "desired", resource_id)
+    assert_valid("ipm/user/desired.v1.schema.json", desired["data"])
+    granted = ["ipm.organization.get", "ipm.organization.list", "ipm.organization.update"]
+    assert desired["data"]["permissions"] == granted
+    observed = await wait_for(
+        jetstream, "observed", resource_id, lambda m: m.get("presence") == "present"
+    )
+    assert observed["data"]["permissions"] == granted

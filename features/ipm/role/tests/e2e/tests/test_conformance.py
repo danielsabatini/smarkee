@@ -134,7 +134,8 @@ async def test_create_is_accepted_and_the_operation_is_readable(
         "organizationId": "test-org",
         "name": role_name,
         "description": "Role aceita pelo Receiver",
-        "permissions": ["ipm.permission.get", "ipm.user.get"],
+        # Só permissões delegáveis à Organization (decisão 0092): `ipm.permission.*` não são.
+        "permissions": ["ipm.role.get", "ipm.user.get"],
     }
     assert_valid("ipm/role/api-create-request.v1.schema.json", create_payload)
     response = await api.post(

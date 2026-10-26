@@ -154,11 +154,14 @@ async def test_the_whole_loop_creates_updates_and_removes_the_organization(
         "organizationState": "active",
         "deletionProtection": True,  # metadado no Zitadel (decisão 0074)
     }
-    # Pronta para usuários (decisão 0081): o Grant com o catálogo do contrato e as permissões das
-    # contas do ipm/user, criados pelo loop, sem o operador.
+    # Pronta para usuários (decisão 0081) e para service accounts (decisão 0094): o Grant com o
+    # catálogo do contrato e as permissões das contas do ipm/user e do ipm/serviceaccount (um
+    # Executor e um Observer de cada), criadas pelo loop, sem o operador.
     assert user_access["grantPermissions"] == grant_catalog()
     assert sorted(sorted(item["permissions"]) for item in user_access["administrators"]) == [
         ["ORG_OWNER_VIEWER"],
+        ["ORG_OWNER_VIEWER"],
+        ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"],
         ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"],
     ]
     raw = await jetstream.get_last_msg(
