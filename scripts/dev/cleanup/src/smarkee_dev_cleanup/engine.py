@@ -8,6 +8,7 @@ from smarkee_dev_cleanup.model import (
     GROUPS,
     ORGANIZATION_USERS,
     ORGANIZATIONS,
+    PERMISSIONS,
     POLL_SECONDS,
     REMOVAL_WAIT_SECONDS,
     ROLES,
@@ -15,6 +16,7 @@ from smarkee_dev_cleanup.model import (
     TEST_BILLING_ACCOUNT_NAME,
     TEST_GROUP_NAME,
     TEST_ORGANIZATION_NAME,
+    TEST_PERMISSION_NAME,
     TEST_ROLE_NAME,
     TEST_USER_EMAIL,
     UNPROTECTION_WAIT_SECONDS,
@@ -64,6 +66,9 @@ def find(ports: Ports, *, orphans: bool = False) -> Findings:
     findings.platform_role_rows = [
         row for row in ports.ssot.data_plane_rows(ROLES) if TEST_ROLE_NAME.match(row.label)
     ]
+    findings.permission_rows = [
+        row for row in ports.ssot.rows(PERMISSIONS) if TEST_PERMISSION_NAME.match(row.label)
+    ]
     findings.group_rows = [
         row for row in ports.ssot.rows(GROUPS) if TEST_GROUP_NAME.match(row.label)
     ]
@@ -99,6 +104,7 @@ def _find_history(
         SERVICES,
         ORGANIZATION_USERS,
         ROLES,
+        PERMISSIONS,
         GROUPS,
     ):
         live = {row.resource_id for row in ports.ssot.rows(kind)}
@@ -113,6 +119,7 @@ def _find_history(
         ],
         ORGANIZATION_USERS: [row for row in orphans[ORGANIZATION_USERS] if is_test_user(row.label)],
         ROLES: [row for row in orphans[ROLES] if TEST_ROLE_NAME.match(row.label)],
+        PERMISSIONS: [row for row in orphans[PERMISSIONS] if TEST_PERMISSION_NAME.match(row.label)],
         GROUPS: [row for row in orphans[GROUPS] if TEST_GROUP_NAME.match(row.label)],
     }
     # Uma ligação é de teste se o dono é uma conta de teste (viva ou já removida).
@@ -137,6 +144,7 @@ async def find_everywhere(ports: Ports, *, orphans: bool) -> Findings:
                 SERVICES,
                 ORGANIZATION_USERS,
                 ROLES,
+                PERMISSIONS,
                 GROUPS,
             )
         }
@@ -194,6 +202,7 @@ async def apply(
         (GROUPS, findings.group_rows),
         (ORGANIZATIONS, findings.organization_rows),
         (ROLES, findings.role_rows),
+        (PERMISSIONS, findings.permission_rows),
         (BILLING_ACCOUNTS, findings.billing_account_rows),
         (ACCOUNTS, findings.account_rows),
     ):
@@ -214,6 +223,7 @@ async def apply(
         (GROUPS, remaining.group_rows),
         (ORGANIZATIONS, remaining.organization_rows),
         (ROLES, remaining.role_rows),
+        (PERMISSIONS, remaining.permission_rows),
         (BILLING_ACCOUNTS, remaining.billing_account_rows),
         (ACCOUNTS, remaining.account_rows),
     ):
@@ -237,6 +247,7 @@ async def apply(
         GROUPS,
         ORGANIZATIONS,
         ROLES,
+        PERMISSIONS,
         BILLING_ACCOUNTS,
         ACCOUNTS,
     ):

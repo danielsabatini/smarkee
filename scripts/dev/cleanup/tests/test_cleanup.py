@@ -19,6 +19,7 @@ from smarkee_dev_cleanup.model import (
     GROUPS,
     ORGANIZATION_USERS,
     ORGANIZATIONS,
+    PERMISSIONS,
     ROLES,
     SERVICES,
     Findings,
@@ -461,6 +462,7 @@ def test_history_of_removed_test_resources_is_found_and_the_rest_is_kept() -> No
         SERVICES: 2,
         ORGANIZATION_USERS: 1,
         ROLES: 0,
+        PERMISSIONS: 0,
         GROUPS: 0,
     }
     assert not findings.is_clean()
@@ -666,3 +668,59 @@ async def test_a_test_group_is_removed_through_the_loop_and_what_is_left_in_the_
     assert [r.resource_id for r in world.ssot.platform[GROUPS]] == ["group-real"]
     assert [r.resource_id for r in world.ssot.tables[GROUPS]] == ["group-real"]
 
+
+PERMISSION_ID = "01a17821-6d77-7786-a89b-6f18fe547eb4"
+
+
+@pytest.mark.parametrize(
+    "name", ["bsm.e2e.p1a2b3c4", "bsm.chaos.c1a2b3", "e2e.test.pde38f7", "e2e.test.p1a2b3c4"]
+)
+def test_a_test_permission_is_found_in_the_ssot_only(name: str) -> None:
+    world = World()
+    world.ssot.tables = {PERMISSIONS: [Row(PERMISSION_ID, name)]}
+
+    findings = find(world.ports())
+
+    assert [row.resource_id for row in findings.permission_rows] == [PERMISSION_ID]
+    assert any("SSOT ipm.permission" in line for line in findings.lines())
+    assert PERMISSIONS in findings.resource_ids()
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["bsm.account.get", "ipm.user.bind", "bsm.e2e.ok", "bsm.e2e.p1a2b3", "zzz.stale.probe"],
+)
+def test_real_permissions_are_never_test_data(name: str) -> None:
+    world = World()
+    world.ssot.tables = {PERMISSIONS: [Row("permission-x", name)]}
+
+    assert find(world.ports()).is_clean()
+
+
+async def test_a_test_permission_is_removed_through_the_loop() -> None:
+    world = World()
+    world.ssot.tables = {
+        PERMISSIONS: [
+            Row(PERMISSION_ID, "bsm.e2e.p1a2b3c4"),
+            Row("permission-real", "ipm.user.get"),
+        ]
+    }
+    world.bus.phases = {PERMISSION_ID: "Ready"}
+
+    code = await clean(world.ports(), apply_changes=True, say=say_nothing)
+
+    assert code == 0
+    assert world.bus.unprotection_requested == [PERMISSION_ID]
+    assert world.bus.requested == [PERMISSION_ID]
+    assert [r.resource_id for r in world.ssot.tables[PERMISSIONS]] == ["permission-real"]
+
+
+async def test_a_test_permission_stuck_outside_ready_is_removed_directly() -> None:
+    """Uma permission em `Failed`/`Deleting` (como a do incidente de 2026-10-26) sai direto."""
+    world = World()
+    world.ssot.tables = {PERMISSIONS: [Row(PERMISSION_ID, "e2e.test.pde38f7")]}
+    world.bus.phases = {PERMISSION_ID: "Deleting"}
+
+    assert await clean(world.ports(), apply_changes=True, say=say_nothing) == 0
+    assert world.ssot.tables[PERMISSIONS] == []
+    assert world.bus.requested == []

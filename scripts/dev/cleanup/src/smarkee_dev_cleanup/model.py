@@ -25,6 +25,12 @@ TEST_ROLE_NAME = re.compile(r"^test\.(?:role|chaos)[0-9a-f]{6}$")
 # Grupos de teste (`ipm.group`): nomes dos testes e2e da feature (`test-group-`, `test-loop-` ou
 # `test-chaos-` seguido de 6 a 8 hexadecimais).
 TEST_GROUP_NAME = re.compile(r"^test-(?:group|loop|chaos)-[0-9a-f]{6,8}$")
+# Permissions de teste (`ipm.permission`): nomes dos testes e2e da feature (`bsm.e2e.p` mais 7
+# hexadecimais, `bsm.chaos.c` mais 5, ou o antigo `e2e.test.p` mais 6 ou 7). As permissions reais
+# da plataforma (`ipm.user.get`...) nunca casam.
+TEST_PERMISSION_NAME = re.compile(
+    r"^(?:bsm\.e2e\.p[0-9a-f]{7}|bsm\.chaos\.c[0-9a-f]{5}|e2e\.test\.p[0-9a-f]{6,7})$"
+)
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 # Usuários de teste: o e-mail é de `example.com` e começa por um destes rótulos, ou é `ana.` ou
 # `dup.` mais 10 hexadecimais (os e-mails dos testes de integração do Manager da Account). `ana@` e
@@ -120,6 +126,18 @@ BILLING_ACCOUNTS = Kind(
     "displayName",
     deletion_protected=True,
 )
+# Permissions atômicas (decisão 0084): existem só no SSOT, como role de projeto no Zitadel; não têm
+# tabela no `platform`. Nascem protegidas contra exclusão.
+PERMISSIONS = Kind(
+    "ipm",
+    "permission",
+    "ipm.permission",
+    ("ipm.permission_outbox", "ipm.permission_operation", "ipm.permission_action_result"),
+    "ipm_permission_manager_login",
+    "ipm_maintenance_login",
+    "name",
+    deletion_protected=True,
+)
 # Roles compostas (decisões 0083 e 0086): definição no SSOT e estado aplicado no `platform`.
 ROLES = Kind(
     "ipm",
@@ -170,6 +188,7 @@ class Findings:
     role_rows: list[Row] = field(default_factory=lambda: [])
     platform_role_rows: list[Row] = field(default_factory=lambda: [])
     """Roles de teste no banco `platform` (plano de dados), com ou sem linha no SSOT."""
+    permission_rows: list[Row] = field(default_factory=lambda: [])
     group_rows: list[Row] = field(default_factory=lambda: [])
     platform_group_rows: list[Row] = field(default_factory=lambda: [])
     """Grupos de teste no banco `platform` (plano de dados), com ou sem linha no SSOT."""
@@ -192,6 +211,7 @@ class Findings:
             or self.organization_user_rows
             or self.role_rows
             or self.platform_role_rows
+            or self.permission_rows
             or self.group_rows
             or self.platform_group_rows
             or any(self.history.values())
@@ -234,6 +254,10 @@ class Findings:
             *(
                 f"platform ipm.role {row.resource_id}  {row.label}"
                 for row in self.platform_role_rows
+            ),
+            *(
+                f"SSOT ipm.permission {row.resource_id}  {row.label}"
+                for row in self.permission_rows
             ),
             *(f"SSOT ipm.group {row.resource_id}  {row.label}" for row in self.group_rows),
             *(
@@ -281,6 +305,9 @@ class Findings:
             | {row.resource_id for row in self.platform_role_rows}
             | self._history_ids(ROLES)
             | self.message_orphans.get(ROLES, set()),
+            PERMISSIONS: {row.resource_id for row in self.permission_rows}
+            | self._history_ids(PERMISSIONS)
+            | self.message_orphans.get(PERMISSIONS, set()),
             GROUPS: {row.resource_id for row in self.group_rows}
             | {row.resource_id for row in self.platform_group_rows}
             | self._history_ids(GROUPS)
