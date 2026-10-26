@@ -5,7 +5,7 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - **Regras, contratos e decisões:** `AGENTS.md`, `docs/` e `.decisions/`.
 
 ## Estado operacional atual
-- **Branch `dev` (`origin/dev`):** features `core/account`, `sum/service`, `bsm/account` (decisão `0082`), `ipm/organization`, `ipm/user`, `ipm/permission`, `ipm/role` e `ipm/group` (decisões `0083`, `0084`, `0085`, `0088`, `0092`: roles `custom` por Organization; `0091`: Operation `superseded`) operacionais no Compose; comandos `sk ipm permission`, `sk ipm role`, `sk ipm group` e suporte a `roles`/`groups` em `sk ipm user` implementados e verificados.
+- **Branch `dev` (`origin/dev`):** features `core/account`, `sum/service`, `bsm/account` (decisão `0082`), `ipm/organization`, `ipm/user`, `ipm/permission`, `ipm/role` e `ipm/group` e `ipm/serviceaccount` (decisão `0094`: identidade de máquina da Organization, chave privada gerada no cliente; `sk ipm serviceaccount` e `sk auth login --key-file`, validados ao vivo) (decisões `0083`, `0084`, `0085`, `0088`, `0092`: roles `custom` por Organization; `0091`: Operation `superseded`) operacionais no Compose; comandos `sk ipm permission`, `sk ipm role`, `sk ipm group` e suporte a `roles`/`groups` em `sk ipm user` implementados e verificados.
 - **Banco `platform` (decisões `0086`, `0088`):** Executor e Observer de `ipm/role` e `ipm/group` usam o banco `platform` (plano de dados multi-tenant, tabelas `ipm.role`, `ipm.role_permission`, `ipm.group`, `ipm.group_role`) fora do SSOT; ativo no dev.
 - **Banco `ssot` (decisão `0087`):** o SSOT passou de `smarkee` para `ssot` (banco e dono), aplicado no dev, verificado e commitado (`0a36f6e`). Backups anteriores a isto não restauram pela ferramenta.
 - **Identidade (`infrastructure/dev/identity`):** chaves das service accounts do Zitadel persistem no volume Docker `identity-bootstrap`.
@@ -22,6 +22,7 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 
 ## Armadilhas operacionais ativas
 - `ObservationStale` (decisão `0090`): um recurso `unknown` vai a `Failed` só na próxima observação após o prazo (até ~300 s + jitter); em `stg`/`prd` repetir `ORG_OWNER_VIEWER` na `operator` para o Observer de `ipm/permission`, os Grants/autorizações `ipm.group.*` e `ipm.role.*`, as migrações `*-operation-superseded` e `ipm/role` `0004-role-organization`, e `update grantable=true` de `ipm.role.get|list`.
+- Em `stg`/`prd`, para `ipm/serviceaccount`: contas `ipm-serviceaccount-executor/observer`, papéis, Grants, autorizações, migrações, `update grantable=true` e rota do gateway (decisão `0094`). O `--key-file` de `sk auth login` não é chave de config.
 - Em ambiente existente, aplicar como `postgres` `platform.sql`, `ipm.sql` e `telemetry.sql` (o `initdb.d` só roda em volume novo); o MCP `postgresql` não cobre o `platform`: use `docker exec database.smarkee.internal psql -U postgres -d platform`.
 - O `scripts/dev/cleanup` cobre Roles (`test.role*`/`test.chaos*`) e Grupos (`test-group-*`/`test-loop-*`/`test-chaos-*`) de teste no SSOT e no `platform`.
 - Recriar um Receiver exige reiniciar o gateway (cache de DNS); recriar um telemeter exige reiniciar o `telemetry-router`.
