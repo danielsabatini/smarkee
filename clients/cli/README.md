@@ -25,7 +25,7 @@ uv run sk config get api.url                   # só o valor efetivo, para uso e
 uv run sk config set api.url http://api-dev.smarkee.com.br:8080   # cria o arquivo, se não existir
 ```
 
-Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `api.url`, `api.allowInsecureHttp`, `core.projectId`, `sum.projectId`, `ipm.projectId` e `ipm.organizationId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro **só com as sobrescritas**: um valor que ficou no padrão não vai para o arquivo, e comentários feitos à mão não são preservados. Não há `unset`: para voltar ao padrão, apague a chave do arquivo.
+Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `api.url`, `api.allowInsecureHttp`, `core.projectId`, `sum.projectId`, `ipm.projectId`, `ipm.organizationId`, `bsm.projectId`, `bsm.accountId` e `operator.projectId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro **só com as sobrescritas**: um valor que ficou no padrão não vai para o arquivo, e comentários feitos à mão não são preservados. Não há `unset`: para voltar ao padrão, apague a chave do arquivo.
 
 **O que ainda não tem padrão de produção:** o client ID e os IDs dos projetos de roles só nascem quando o Zitadel de produção for provisionado. Até lá o padrão é o marcador `000000000000000000` (18 zeros), e `sk auth login` recusa o login dizendo quais valores faltam (em vez de seguir e falhar adiante). Em desenvolvimento, sobrescreva cada um:
 
@@ -163,7 +163,7 @@ O endereço da API e a permissão de HTTP sem TLS **não têm opção de linha d
 | `get --resource-id ID` | `GET` do serviço (e da Operation, se `--operation-id`) | `state` (`enabled` / `disabled`), `phase` e `observedPermissions` |
 | `list` | `GET /v1/sum/services` | Uma linha por serviço do solicitante (habilitado ou desabilitado) |
 
-Habilitar e desabilitar são assíncronos: o comando confirma o aceite, e `get` mostra quando a fase chega a `Ready`. **O token só traz as permissões que existiam quando foi emitido**: as do serviço (`ipm.*`) chegam depois do aceite e saem ao desligar. Por isso `--wait` espera a convergência (`Ready` e Operation `completed`, até `--timeout`, 60 s por padrão) e **renova a sessão** pelo refresh token, e o token já reflete o novo estado. Sem `--wait`, rode `sk auth refresh` quando a fase for `Ready`. Se a renovação falhar (por exemplo, sem refresh token), o comando avisa e sai com `0`, porque o pedido já valeu. Os nomes dos campos e os valores de estado saem em inglês (`resourceId`, `state`, `phase`); só as mensagens e a ajuda são em português. Usa a API de `[api] url` e o token da sessão. Precisa de um solicitante com as permissões `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`.
+Habilitar e desabilitar são assíncronos: o comando confirma o aceite, e `get` mostra quando a fase chega a `Ready`. **O token só traz as permissões que existiam quando foi emitido**: as do serviço (`ipm.*`) chegam depois do aceite e saem ao desligar. Por isso `--wait` espera a convergência (`Ready` e Operation `completed`, até `--timeout`, 60 s por padrão) e **renova a sessão** pelo refresh token, e o token já reflete o novo estado. Sem `--wait`, rode `sk auth refresh` quando a fase for `Ready`. Se a renovação falhar (por exemplo, sem refresh token), o comando avisa e sai com `0`, porque o pedido já valeu. Os nomes dos campos e os valores de estado saem em inglês (`resourceId`, `state`, `phase`); as mensagens e a ajuda também são em inglês (ver *Idioma*, abaixo). Usa a API de `[api] url` e o token da sessão. Precisa de um solicitante com as permissões `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`.
 
 Códigos de saída: `0` sucesso; `1` sessão ausente, API recusou ou indisponível, ou `--wait` sem convergir (Operation recusada ou tempo esgotado); `2` opção obrigatória ausente, identificador fora do contrato, endereço sem HTTPS ou configuração inválida.
 
@@ -190,13 +190,50 @@ O endereço da API vem do ambiente, do arquivo ou do padrão, sem opção de lin
 | `get --resource-id ID` | `GET` da Organization (e da Operation, se `--operation-id`) | `name`, `state` (`active`, `inactive` ou `unknown` enquanto não observada), `phase`, `platformAccess` e `protected` (`yes` ou `no`) |
 | `list` | `GET /v1/ipm/organizations`, seguindo o cursor | Uma linha por Organization do solicitante |
 
-**Organization ativa.** Como o projeto ativo do `gcloud`, a Organization ativa dispensa repetir o `--resource-id`: sem a opção, os comandos usam `[ipm] organizationId` (ou `SK_IPM_ORGANIZATION_ID`, que prevalece sobre o arquivo); `--resource-id` sempre prevalece sobre os dois. Quem grava e troca a Organization ativa é o `sk config set ipm.organizationId ID`: `organization` não tem comando próprio para isso. A única gravação automática é a do `create --wait`: quando a Organization converge e **ainda não há uma ativa** (do ambiente ou do arquivo), ela vira a ativa e a saída avisa; havendo uma, nada muda e a saída mostra o `sk config set` para trocar. Sem `--wait`, o `create` não grava e a saída indica o `sk config set`. Se a gravação falhar, o `create` continua com sucesso e avisa. `list` marca com `*` a Organization ativa. `delete` da Organization ativa avisa que a chave passa a apontar para um recurso removido e mostra o `sk config set` para trocar. O `sk config set` só confere o formato do `resourceId`: um id que não é seu falha com `404` no primeiro comando que o usar.
+**Organization ativa.** Como o projeto ativo do `gcloud`, a Organization ativa dispensa repetir o `--resource-id`: sem a opção, os comandos usam `[ipm] organizationId` (ou `SK_IPM_ORGANIZATION_ID`, que prevalece sobre o arquivo); `--resource-id` sempre prevalece sobre os dois. Quem grava e troca a Organization ativa é o `sk config set ipm.organizationId ID`: `organization` não tem comando próprio para isso. A única gravação automática é a do `create --wait`: quando a Organization converge e **ainda não há uma ativa** (do ambiente ou do arquivo), ela vira a ativa e a saída avisa; havendo uma, nada muda e a saída mostra o `sk config set` para trocar. Sem `--wait`, o `create` não grava e a saída indica o `sk config set`. Se a gravação falhar, o `create` continua com sucesso e avisa. `delete` da Organization ativa avisa que a chave passa a apontar para um recurso removido e mostra o `sk config set` para trocar. O `sk config set` só confere o formato do `resourceId`: um id que não é seu falha com `404` no primeiro comando que o usar.
 
 As escritas são assíncronas, como as do SUM: o comando confirma o aceite e mostra como acompanhar. A dica de acompanhamento é só `sk ipm organization get` (com `--resource-id` quando a Organization não é a ativa); o `--operation-id` é opcional e serve para diagnosticar um pedido recusado, e a saída de uma recusa já traz o comando completo. Com `--wait`, ele espera a Operation `completed` (até `--timeout`, 60 s por padrão) e trata o `404` logo depois do `202` como espera, porque o Manager ainda pode não ter gravado o pedido. A sessão não precisa ser renovada: criar uma Organization não muda as permissões do token. O dono altera só o `name`; `platformAccess` é do operador e não tem comando nesta CLI.
 
 **Pré-requisitos.** O token precisa trazer as permissões `ipm.organization.*`, que vêm de `sk sum service enable --service ipm --wait` (a sessão já sai renovada). Para criar, o e-mail da conta precisa estar verificado, e a cota é de uma Organization por conta. As recusas da API viram dicas: sem a permissão, a saída manda habilitar o `ipm`; sem e-mail verificado, abrir o link do e-mail de ativação; cota esgotada, remover uma Organization.
 
 Códigos de saída: como em `sk sum service`.
+
+## Usuários, grupos, roles e permissões (`sk ipm user|group|role|permission`)
+
+```bash
+uv run sk ipm user create --name NOME --surname SOBRENOME --email EMAIL [--role ROLE]... [--group GRUPO]... [--organization-id ID] [--wait]
+uv run sk ipm user update --resource-id ID [--role ROLE]... [--no-roles] [--group GRUPO]... [--no-groups] [--wait]
+uv run sk ipm group create --name SLUG --description TEXTO [--role ROLE]... [--organization-id ID] [--wait]
+uv run sk ipm group update --resource-id ID --description TEXTO [--role ROLE]... [--no-roles] [--wait]
+uv run sk ipm role create --name MODULO.NOME --description TEXTO --permission PERMISSAO... [--organization-id ID] [--wait]
+uv run sk ipm role update --resource-id ID --description TEXTO --permission PERMISSAO... [--wait]
+uv run sk ipm permission create --name MODULO.TIPO.ACAO --description TEXTO [--grantable | --not-grantable] [--wait]
+uv run sk ipm permission update --resource-id ID --description TEXTO [--grantable | --not-grantable] [--wait]
+uv run sk ipm user|group|role|permission get|list|protect|unprotect|delete ...
+```
+
+Os quatro tipos seguem o mesmo ciclo das Organizations: `create`, `update`, `protect`, `unprotect` e `delete` são assíncronos (`202`, com `Idempotency-Key` por pedido), e `--wait` espera a Operation `completed` até `--timeout` (60 s por padrão). `delete` lê a `resourceVersion` antes de pedir, e um recurso protegido responde `409 DeletionProtected`: a saída manda rodar `unprotect` antes. `get` aceita `--operation-id`, para ver por que um pedido foi recusado ou falhou. A API vem do ambiente, do arquivo ou do padrão, como nos demais comandos.
+
+| Tipo | Escopo | Detalhes |
+|---|---|---|
+| `user` | Organization (`--organization-id` ou a ativa) | Nasce **sem senha**: a pessoa define a senha pelo e-mail de ativação e entra com `sk auth login`. `update` **substitui** as roles e os grupos pelos valores dados; `--no-roles` e `--no-groups` removem todos. Novos usuários não nascem protegidos |
+| `group` | Organization | Agrupa roles compostas. `--role` substitui as roles do grupo; `--no-roles` limpa. O nome é um slug de 2 a 63 caracteres (minúsculas, números e hífen) |
+| `role` | Organization (`custom`) ou da plataforma (predefinida) | Nome no formato `<módulo>.<nomeDaRole>`. `--permission` lista as permissões atômicas da role e, no `update`, substitui as atuais. `list` mostra as predefinidas e as `custom` da Organization |
+| `permission` | Plataforma (operador) | Permissão atômica no formato `<módulo>.<tipo>.<ação>`. `--grantable` / `--not-grantable` diz se pode ser delegada a Organizations de clientes; no `update`, sem a opção, o valor não muda. Criar, alterar e remover exigem `ipm.permission.admin`; consultar exige `ipm.permission.get` / `list` |
+
+As recusas da API viram dicas na saída (por exemplo, `ipm.user.bind` para mudar roles de um usuário e `ipm.group.bind` para as de um grupo). Códigos de saída: como em `sk sum service`.
+
+## Billing Accounts (`sk bsm account`)
+
+```bash
+uv run sk bsm account create --display-name NOME --currency BRL|USD|EUR --contact EMAIL... [--wait]
+uv run sk bsm account get [--resource-id ID] [--operation-id OPERACAO]
+uv run sk bsm account list
+uv run sk bsm account update [--resource-id ID] [--display-name NOME] [--contact EMAIL]... [--wait]
+uv run sk bsm account protect|unprotect|delete [--resource-id ID] [--wait]
+```
+
+Usa o token da sessão e a API de `[api] url`; o token precisa trazer as permissões `bsm.account.*`. `--currency` não muda depois da criação. `--contact` aceita de 1 a 10 e-mails distintos e, no `update`, **substitui** a lista. Como na Organization, existe a **Billing Account ativa** (`[bsm] accountId` ou `SK_BSM_ACCOUNT_ID`): sem `--resource-id`, os comandos usam a ativa. O `create --wait` grava a nova como ativa **só se não houver uma**; havendo, a saída mostra o `sk config set bsm.accountId ID` para trocar. A Billing Account nasce protegida: `unprotect` precede o `delete`.
 
 ## Service accounts (`sk ipm serviceaccount`, alias `sa`)
 
