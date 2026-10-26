@@ -1,5 +1,6 @@
 """Entrypoint do CLI `sk` da plataforma smarkee."""
 
+from importlib.metadata import version as package_version
 from typing import Annotated
 
 import typer
@@ -14,15 +15,27 @@ from sk.commands.ipm import ipm_app
 from sk.commands.sum import sum_app
 from sk.help import option
 
+DOCUMENTATION_URL = "https://docs.smarkee.com.br"
+
 app = SkTyper(
     name="sk",
     help="Smarkee Platform Command Line Interface (CLI).",
+    epilog=f"Documentation: {DOCUMENTATION_URL}",
+    # `-h` vale como `--help` em toda a árvore: o contexto de cada subcomando herda da raiz.
+    context_settings={"help_option_names": ["-h", "--help"]},
     no_args_is_help=True,
     # Ajuda colorida pelo Rich. Colchetes literais nos textos são escapados com "\\[".
     rich_markup_mode="rich",
     # Explícito: mostrar variáveis locais em erros exporia tokens.
     pretty_exceptions_show_locals=False,
 )
+
+
+def _show_version(requested: bool) -> None:
+    """Callback ansioso de `--version`: imprime a versão do pacote e encerra o comando."""
+    if requested:
+        typer.echo(f"sk {package_version('sk')}")
+        raise typer.Exit()
 
 
 @app.callback()
@@ -51,6 +64,21 @@ def root(
                 "Plain output for scripts: no boxes, colors or decoration; tables become "
                 "tab-separated lines with a header, and json becomes a single line. Goes "
                 "before the command, as in `sk --raw ipm role list`.",
+                kind="Boolean",
+                variable=None,
+                file=None,
+                default="off",
+            ),
+        ),
+    ] = False,
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            callback=_show_version,
+            is_eager=True,
+            help=option(
+                "Show the sk version and exit.",
                 kind="Boolean",
                 variable=None,
                 file=None,

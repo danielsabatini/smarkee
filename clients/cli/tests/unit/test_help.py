@@ -163,3 +163,26 @@ def test_no_option_repeats_the_default_in_the_typer_format() -> None:
         result = runner.invoke(app, [*path, "--help"], env={"COLUMNS": "200"})
         assert result.exit_code == 0, path
         assert "[default:" not in result.stdout, path
+
+
+def test_short_help_option_matches_the_long_one_in_every_command() -> None:
+    paths: list[list[str]] = [[], *(name.split() for name, _ in _commands())]
+    for path in paths:
+        short = runner.invoke(app, [*path, "-h"], env={"COLUMNS": "200"})
+        long = runner.invoke(app, [*path, "--help"], env={"COLUMNS": "200"})
+        assert short.exit_code == 0, path
+        assert short.stdout == long.stdout, path
+
+
+def test_root_help_points_to_the_documentation() -> None:
+    result = runner.invoke(app, ["--help"], env={"COLUMNS": "200"})
+    assert "https://docs.smarkee.com.br" in result.stdout
+
+
+def test_version_prints_the_package_version_and_exits_without_running_a_command() -> None:
+    from importlib.metadata import version
+
+    for arguments in (["--version"], ["--raw", "--version"], ["--output", "json", "--version"]):
+        result = runner.invoke(app, arguments)
+        assert result.exit_code == 0, arguments
+        assert result.stdout.strip() == f"sk {version('sk')}", arguments

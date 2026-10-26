@@ -25,14 +25,15 @@ Reexecute as verificações antes de repetir um estado: o código muda mais ráp
 | Regra | Estado | Evidência / como verificar |
 |---|---|---|
 | `--help` em todo comando | Conforme | `test_help.py` |
-| `-h` também mostra a ajuda | **Divergência SEM decisão** | `sk -h` → código 2 ("No such option"). Typer só liga `-h` com `context_settings={"help_option_names": ["-h","--help"]}` |
+| `-h` também mostra a ajuda | Conforme | `sk -h` e `sk ipm role list -h` → código 0 (`help_option_names` em `main.py`) |
 | Ajuda concisa sem argumentos | Conforme (com ressalva) | `sk` e `sk ipm` mostram a ajuda; o código de saída é 2 (o clig.dev não fixa o código) |
 | `sk help <cmd>` (CLIs estilo git) | Lacuna | `sk help ipm` → código 2 |
 | Sugestão quando o usuário erra o nome | Conforme | `sk ipm rol list` → "Did you mean 'role'?" |
 | Exemplos na ajuda, antes das opções | **Lacuna** | `sk/help.py` não tem campo de exemplo; 0 ocorrências de "example" em `sk --help` |
-| Link de suporte/feedback e para a doc web na ajuda | **Lacuna** | 0 URLs em `sk --help` |
+| Link para a doc web na ajuda | Conforme | rodapé de `sk --help` com `https://docs.smarkee.com.br` |
+| Link de suporte/feedback na ajuda | **Lacuna** | só há o endereço da documentação; falta um canal de suporte |
 | Comandos/opções mais comuns primeiro | Não verificado | a ordem dos grupos na raiz não foi avaliada contra o uso real |
-| `--version` | **Lacuna** | `sk --version` → código 2 |
+| `--version` | Conforme | `sk --version` → `sk <versão do pacote>`, código 0, também com `--raw`/`--output json` |
 
 ## Output
 
@@ -71,7 +72,7 @@ Reexecute as verificações antes de repetir um estado: o código muda mais ráp
 |---|---|---|
 | Preferir flags a argumentos posicionais | Conforme | tudo é `--opção` (`--resource-id`, `--name`) |
 | Versão longa de toda flag | Conforme | |
-| Poucas flags de uma letra | Conforme | nenhuma (e `-h` não existe: ver Help) |
+| Poucas flags de uma letra | Conforme | só `-h` (ajuda) |
 | Nomes padrão de flags | Parcial | `--output` na `sk` é formato; no clig.dev `-o/--output` é arquivo de saída. `--force`/`--dry-run` não existem; `--yes` só em `account delete` |
 | Confirmar antes de algo perigoso | Divergência registrada | a CLI não tem prompt: a guarda é o par `protect`/`unprotect` no loop (0043) e `--yes` na conta |
 | Nunca exigir um prompt | Conforme | só o login abre navegador |

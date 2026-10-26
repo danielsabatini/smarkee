@@ -4,7 +4,8 @@ CLI do usuário da plataforma, em Typer e Pydantic. Requer Python 3.14 e [uv](ht
 
 ```bash
 uv sync
-uv run sk --help
+uv run sk --help      # ou -h; o rodapé aponta a documentação (https://docs.smarkee.com.br)
+uv run sk --version
 ```
 
 ## Configuração
