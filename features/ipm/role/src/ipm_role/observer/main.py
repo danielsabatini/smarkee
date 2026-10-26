@@ -1,8 +1,8 @@
 """Entrypoint do Observer de Role (`ipm-role-observer`, decisões 0015, 0063 e 0083).
 
 Só inicializa e encerra: valida a configuração, conecta ao NATS, cria os consumers de estado da
-instância e roda a observação periódica. O Observer não acessa o SSOT e só lê o estado do recurso no banco `platform`, de
-estado do recurso.
+instância e roda a observação periódica. O Observer não acessa o SSOT e só lê o estado do
+recurso no banco `platform`.
 
 Os logs do Observer não carregam o `traceparent` das mensagens que ele consome: a observação é
 periódica e não consequência de uma requisição (`traced=False`, decisão 0055).

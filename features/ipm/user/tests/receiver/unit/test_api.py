@@ -346,9 +346,7 @@ async def test_without_bind_no_roles_can_be_given(
     refused_own = await create(harness, "bia", roles=["ipm.userViewer"])
     assert (refused_bind.status_code, refused_own.status_code) == (403, 403)
     assert (await create(harness, "bia", roles=[])).status_code == 202
-    assert (
-        await create(harness, "binder", roles=["ipm.organizationViewer"])
-    ).status_code == 202
+    assert (await create(harness, "binder", roles=["ipm.organizationViewer"])).status_code == 202
     assert (await create(harness, "root", roles=["ipm.userAdmin"])).status_code == 202
 
 

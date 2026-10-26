@@ -47,11 +47,7 @@ class FakeRepository:
         self, *, organization_id: str, after: str | None, limit: int
     ) -> list[ResourceRecord]:
         items = sorted(
-            (
-                r
-                for r in self.groups.values()
-                if r.desired.get("organizationId") == organization_id
-            ),
+            (r for r in self.groups.values() if r.desired.get("organizationId") == organization_id),
             key=lambda r: r.resource_id,
         )
         if after:
@@ -60,9 +56,7 @@ class FakeRepository:
 
     async def count_groups_in(self, organization_id: str) -> int:
         return sum(
-            1
-            for r in self.groups.values()
-            if r.desired.get("organizationId") == organization_id
+            1 for r in self.groups.values() if r.desired.get("organizationId") == organization_id
         )
 
     async def find_operation(self, operation_id: str) -> OperationRecord | None:

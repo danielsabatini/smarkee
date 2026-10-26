@@ -98,7 +98,7 @@ def groups_metadata(value: str | None) -> dict[str, list[str]]:
         doc: object = json.loads(value)
         if isinstance(doc, list):
             return {"groups": sorted({str(g) for g in cast("list[object]", doc)})}
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return {}
     return {}
 

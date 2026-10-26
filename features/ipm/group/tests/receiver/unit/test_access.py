@@ -29,9 +29,7 @@ def test_binding_allowed_requires_can_bind_when_roles_change() -> None:
     assert binding_allowed(
         ["ipm.userViewer"], ["ipm.userViewer"], ["ipm.group.update"], can_bind=False
     )
-    assert not binding_allowed(
-        [], ["ipm.userViewer"], ["ipm.group.create"], can_bind=False
-    )
+    assert not binding_allowed([], ["ipm.userViewer"], ["ipm.group.create"], can_bind=False)
     assert binding_allowed(
         [], ["ipm.userViewer"], ["ipm.group.create", "ipm.group.bind"], can_bind=True
     )
