@@ -229,4 +229,4 @@ def test_get_and_list_roles(api: FakeApi) -> None:
     listed = runner.invoke(app, ["ipm", "role", "list"])
     assert listed.exit_code == 0
     assert "ipm.userAdmin" in listed.stdout
-    assert RID not in listed.stdout  # a listagem é um resumo; o resourceId fica no `get`
+    assert RID in listed.stdout  # o resourceId é o valor que o `get --resource-id` pede

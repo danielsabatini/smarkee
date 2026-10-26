@@ -526,7 +526,7 @@ def list_command() -> None:
         return
     ui.table(
         "Roles",
-        ["name", "type", "permissions", "description"],
-        [[r.name, r.role_type, str(len(r.permissions)), r.description] for r in roles],
+        ["name", "resourceId", "description"],
+        [[r.name, r.resource_id, r.description] for r in roles],
         wrap=["description"],
     )
