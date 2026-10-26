@@ -27,7 +27,19 @@ Script descartável em `.workspace/`, executado no contêiner do Executor da Org
 | 3 | Papéis mínimos | `ORG_USER_CREATOR` + `PROJECT_GRANT_OWNER` bastam para: criar o machine user na organização do cliente **com `userId` informado** (o ID devolvido é o informado, então `resourceId` = ID do Zitadel), `AddKey`, `ListKeys`, `DeleteKey`, `CreateAuthorization` no Grant e remover o usuário. Criar machine user na `core` é recusado (`403 AUTH-AWfge`). Não exige `ORG_USER_MANAGER` nem papel de instância. |
 | 4 | Token e login | `jwt-bearer` com a chave gerada no cliente: `200`. `sub` = ID do machine user; `iss` = issuer; `aud` contém `roles-ipm`; roles em `urn:zitadel:iam:org:project:<id>:roles` ligadas à organização; `resourceowner:id` = organização (mesmo formato do usuário humano, `0077`). Assertion assinada com **outra** chave: `400`. Depois de `DeleteKey`: `400` (remoção revoga o login). |
 
-**Não verificado nesta sonda** (fica para a implementação, §19): o PEM cru (sem base64) no `publicKey`; o conteúdo do `ListKeys` (só o status `200` foi conferido); o comportamento de uma chave **expirada**; a aceitação do token pelo gateway e pelos Receivers (a sonda parou no Zitadel); `accessTokenType` padrão.
+### Mini-sonda (parte 2, 2026-10-26)
+
+Mesmo método, tudo removido no fim (`smarkee-dev-cleanup` limpo, `/tmp` do contêiner vazio, script apagado).
+
+| # | Pergunta | Resultado |
+|---|---|---|
+| 5 | PEM cru no `publicKey` | **`400`** (`invalid value for bytes field publicKey`). O PEM vai **sempre em base64**. |
+| 6 | `accessTokenType` padrão | Sem o campo, o login funciona mas o `access_token` **não é JWT** (opaco). O Executor **deve sempre** enviar `ACCESS_TOKEN_TYPE_JWT`, e o Observer deve conferi-lo. |
+| 7 | `ListKeys` | O filtro é `{"userIdFilter": {"id": <userId>}}` (com `userId` no lugar de `id`, volta **vazio** sem erro). Há também `organizationIdFilter.id` e `keyIdFilter.id`. Cada item traz `id` (= `keyId`), `userId`, `organizationId`, `creationDate`, `changeDate`, `expirationDate` e **nenhum material privado**. |
+| 8 | Chave expirada | O login da chave vencida dá `400 invalid assertion`, e a chave **some do `ListKeys`**. Logo `expired` no `observed` = chave do `desired` ausente no Zitadel com `expiresAt` no passado. |
+| 9 | Gateway e Receivers | Token de machine user JWT **passa no gateway** (sem token: `401`). No `ipm/user` chegou ao Receiver (`400` por parâmetro obrigatório ausente); no `ipm/organization` voltou `403`: **confirma o Bloco C**, porque o `sub` da máquina não é reconhecido como dono ou membro. |
+
+**Não verificado:** o Receiver do `ipm` aceitando o token de máquina com a Organization informada (depende do Bloco C).
 
 ## Decisão
 
