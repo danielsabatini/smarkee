@@ -556,19 +556,7 @@ def list_command(organization_id: OrganizationOption = None) -> None:
         return
     ui.table(
         "Users",
-        ["resourceId", "email", "state", "phase", "permissions"],
-        [
-            [
-                user.resource_id,
-                user.email or "-",
-                user.user_state or "unknown",
-                _styled_phase(user),
-                ", ".join(user.permissions) or "-",
-            ]
-            for user in users
-        ],
-        wrap=(
-            "permissions",
-        ),  # as permissões quebram linha; o resourceId e o e-mail ficam inteiros
+        ["name", "resourceId", "phase"],
+        [[user.email or "-", user.resource_id, _styled_phase(user)] for user in users],
         data=users,
     )

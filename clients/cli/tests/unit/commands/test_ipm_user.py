@@ -339,14 +339,14 @@ def test_get_and_list_show_the_users(api: FakeApi) -> None:
     assert f"organizationId={ORG}" in api.requests[-1].full_url
 
 
-def test_the_list_keeps_the_id_and_the_email_whole_with_many_permissions(api: FakeApi) -> None:
-    """As permissões quebram linha; o `resourceId` não pode ser cortado (o usuário o copia)."""
+def test_the_list_keeps_the_id_and_the_email_whole(api: FakeApi) -> None:
+    """O `resourceId` e o e-mail não podem ser cortados (o usuário os copia)."""
     permissions = ["ipm.organization.get", "ipm.user.bind", "ipm.user.create", "ipm.user.get"]
     api.routes[("GET", PATH)] = Response(200, {"items": [user_document(permissions=permissions)]})
     listed = runner.invoke(app, ["ipm", "user", "list"])
     assert listed.exit_code == 0
     assert UID in listed.stdout and "bia@example.com" in listed.stdout
-    assert "ipm.organization.get" in listed.stdout  # a primeira permissão, na primeira linha
+    assert "ipm.organization.get" not in listed.stdout  # as permissões ficam no `get`
 
 
 def test_without_an_active_organization_the_option_is_required(

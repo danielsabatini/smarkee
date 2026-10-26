@@ -114,16 +114,10 @@ def _fail_api(
     )
 
 
-STATE_STYLES = {"enabled": "green", "disabled": "dim"}
 PHASE_STYLES = {
     "Ready": "green",
     "Failed": "red",
 }  # as demais fases (em andamento) ficam em amarelo
-
-
-def _styled_state(link: ServiceLink) -> Text:
-    label = _phase_label(link)
-    return Text(label, style=STATE_STYLES[label])
 
 
 def _styled_phase(link: ServiceLink) -> Text:
@@ -450,10 +444,7 @@ def list_command() -> None:
         return
     ui.table(
         "Services",
-        ["resourceId", "service", "state", "phase"],
-        [
-            [link.resource_id, link.service, _styled_state(link), _styled_phase(link)]
-            for link in links
-        ],
+        ["name", "resourceId", "phase"],
+        [[link.service, link.resource_id, _styled_phase(link)] for link in links],
         data=links,
     )

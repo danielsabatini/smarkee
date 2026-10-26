@@ -78,7 +78,6 @@ NO_PERMISSION_HINT = (
     "bsm.account.* permission and renew the session with `sk auth refresh`."
 )
 
-PRESENCE_STYLES = {"present": "green", "absent": "dim"}
 PHASE_STYLES = {
     "Ready": "green",
     "Failed": "red",
@@ -209,10 +208,6 @@ def _contacts(values: list[str] | None) -> list[str]:
 
 def _presence_label(account: BillingAccount) -> str:
     return account.presence or "unknown"
-
-
-def _styled_presence(account: BillingAccount) -> Text:
-    return Text(_presence_label(account), style=PRESENCE_STYLES.get(_presence_label(account), ""))
 
 
 def _styled_phase(account: BillingAccount) -> Text:
@@ -681,20 +676,9 @@ def list_command() -> None:
     if not accounts:
         ui.empty("No Billing Accounts.")
         return
-    active = _active_account()
     ui.table(
         "Billing Accounts",
-        ["active", "resourceId", "displayName", "currency", "presence", "phase"],
-        [
-            [
-                "*" if account.resource_id == active else "",
-                account.resource_id,
-                account.display_name,
-                account.billing_currency,
-                _styled_presence(account),
-                _styled_phase(account),
-            ]
-            for account in accounts
-        ],
+        ["name", "resourceId", "phase"],
+        [[a.display_name, a.resource_id, _styled_phase(a)] for a in accounts],
         data=accounts,
     )

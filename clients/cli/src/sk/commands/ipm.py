@@ -89,7 +89,6 @@ NO_PERMISSION_HINT = (
     "enabled yet, run `sk sum service enable --service ipm --wait`."
 )
 
-STATE_STYLES = {"active": "green", "inactive": "dim"}
 PHASE_STYLES = {
     "Ready": "green",
     "Failed": "red",
@@ -191,10 +190,6 @@ def _name(value: str | None) -> str:
 
 def _state_label(organization: Organization) -> str:
     return organization.organization_state or "unknown"
-
-
-def _styled_state(organization: Organization) -> Text:
-    return Text(_state_label(organization), style=STATE_STYLES.get(_state_label(organization), ""))
 
 
 def _styled_phase(organization: Organization) -> Text:
@@ -666,19 +661,9 @@ def list_command() -> None:
     if not organizations:
         ui.empty("No Organizations.")
         return
-    active = _active_organization()
     ui.table(
         "Organizations",
-        ["active", "resourceId", "name", "state", "phase"],
-        [
-            [
-                "*" if organization.resource_id == active else "",
-                organization.resource_id,
-                organization.name,
-                _styled_state(organization),
-                _styled_phase(organization),
-            ]
-            for organization in organizations
-        ],
+        ["name", "resourceId", "phase"],
+        [[o.name, o.resource_id, _styled_phase(o)] for o in organizations],
         data=organizations,
     )

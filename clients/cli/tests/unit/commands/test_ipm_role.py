@@ -258,14 +258,14 @@ def test_create_role_without_organization_fails_with_a_hint(api: FakeApi) -> Non
     assert not api.requests
 
 
-def test_list_roles_of_an_organization_sends_the_organization_and_shows_the_type(
+def test_list_roles_of_an_organization_sends_the_organization_and_shows_the_phase(
     api: FakeApi,
 ) -> None:
     api.routes[("GET", PATH)] = Response(200, {"items": [role_document()]})
     listed = runner.invoke(app, ["ipm", "role", "list", "--organization-id", "org-acme"])
     assert listed.exit_code == 0, listed.stderr
     assert "organizationId=org-acme" in api.requests[-1].full_url
-    assert "custom" in listed.stdout
+    assert "Ready" in listed.stdout
 
 
 def test_delete_role_still_in_use_explains_what_to_do(api: FakeApi) -> None:

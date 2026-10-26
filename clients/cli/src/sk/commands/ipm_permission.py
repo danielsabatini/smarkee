@@ -503,18 +503,8 @@ def list_command() -> None:
         return
     ui.table(
         "Permissions",
-        ["resourceId", "name", "grantable", "protected", "phase", "description"],
-        [
-            [
-                p.resource_id,
-                p.name,
-                "yes" if p.grantable else "no",
-                "yes" if p.deletion_protection else "no",
-                _styled_phase(p),
-                p.description,
-            ]
-            for p in permissions
-        ],
+        ["name", "resourceId", "phase", "description"],
+        [[p.name, p.resource_id, _styled_phase(p), p.description] for p in permissions],
         wrap=["description"],
         data=permissions,
     )

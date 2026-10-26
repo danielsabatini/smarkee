@@ -528,7 +528,7 @@ def test_the_state_is_shown_in_english(api: FakeApi) -> None:
     assert "disabled" in shown.stdout and "desabilitado" not in shown.stdout
     api.routes[("GET", "/v1/sum/services")] = Response(200, {"items": [link_document()]})
     listed = runner.invoke(app, ["sum", "service", "list"])
-    assert "enabled" in listed.stdout and "ligado" not in listed.stdout
+    assert "Ready" in listed.stdout
 
 
 def test_wait_keeps_polling_while_the_manager_has_not_recorded_the_request_yet(

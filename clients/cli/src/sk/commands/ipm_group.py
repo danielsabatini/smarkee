@@ -502,17 +502,8 @@ def list_command(organization_id: OrganizationOption = None) -> None:
         return
     ui.table(
         "Groups",
-        ["resourceId", "name", "phase", "roles", "description"],
-        [
-            [
-                g.resource_id,
-                g.name,
-                _styled_phase(g),
-                ", ".join(g.roles) or "-",
-                g.description,
-            ]
-            for g in groups
-        ],
-        wrap=("description", "roles"),
+        ["name", "resourceId", "phase", "description"],
+        [[g.name, g.resource_id, _styled_phase(g), g.description] for g in groups],
+        wrap=["description"],
         data=groups,
     )

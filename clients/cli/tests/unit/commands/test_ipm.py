@@ -330,7 +330,7 @@ def test_list_shows_a_table_and_follows_the_cursor(api: FakeApi) -> None:
     result = runner.invoke(app, ["ipm", "organization", "list"])
 
     assert result.exit_code == 0, result.stderr
-    assert "uma" in result.stdout and "duas" in result.stdout and "unknown" in result.stdout
+    assert "uma" in result.stdout and "duas" in result.stdout and "Reconciling" in result.stdout
     assert "cursor=abc" in api.requests[-1].full_url
 
 
@@ -699,14 +699,14 @@ def test_create_wait_still_succeeds_when_saving_the_active_organization_fails(
     assert RID in result.stderr
 
 
-def test_list_marks_the_active_organization(api: FakeApi, tmp_path: Path) -> None:
+def test_list_shows_only_name_resource_id_and_phase(api: FakeApi, tmp_path: Path) -> None:
     set_active(tmp_path, RID)
     api.routes[("GET", PATH)] = Response(200, {"items": [organization_document()]})
 
-    result = runner.invoke(app, ["ipm", "organization", "list"])
+    result = runner.invoke(app, ["--raw", "ipm", "organization", "list"])
 
     assert result.exit_code == 0, result.stderr
-    assert "active" in result.stdout and "*" in result.stdout
+    assert result.stdout.splitlines()[0].split("\t") == ["name", "resourceId", "phase"]
 
 
 def test_create_hint_has_no_operation_id_and_drops_resource_id_for_the_active_organization(

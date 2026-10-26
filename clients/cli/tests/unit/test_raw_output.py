@@ -198,8 +198,8 @@ def test_raw_list_prints_a_tsv_with_header(served: dict[str, Response]) -> None:
     result = runner.invoke(app, ["--raw", "ipm", "role", "list"])
     assert result.exit_code == 0, result.stderr
     header, record = result.stdout.splitlines()
-    assert header.split("\t") == ["name", "resourceId", "type", "description"]
-    assert record.split("\t") == ["ipm.userAdmin", RID, "custom", "Admin com tab"]
+    assert header.split("\t") == ["name", "resourceId", "phase", "description"]
+    assert record.split("\t") == ["ipm.userAdmin", RID, "Ready", "Admin com tab"]
 
 
 def test_without_raw_the_output_keeps_the_panel(served: dict[str, Response]) -> None:

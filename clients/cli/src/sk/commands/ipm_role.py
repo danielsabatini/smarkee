@@ -10,6 +10,7 @@ from typing import Annotated, NoReturn
 
 import typer
 from pydantic import ValidationError
+from rich.text import Text
 
 from sk import output, ui
 from sk.command_app import SkTyper
@@ -78,6 +79,8 @@ NO_PERMISSION_HINT = (
     "ipm.role.create, ipm.role.update, ipm.role.delete or ipm.role.bind in the Organization."
 )
 
+
+PHASE_STYLES = {"Ready": "green", "Failed": "red"}
 
 role_app = SkTyper(
     help=ROLE_HELP,
@@ -173,6 +176,10 @@ def _organization(value: str | None) -> str:
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     return identifier(value, "--organization-id", what="organizationId")
+
+
+def _styled_phase(role: Role) -> Text:
+    return Text(role.phase, style=PHASE_STYLES.get(role.phase, "yellow"))
 
 
 def _rows(role: Role) -> list[tuple[str, str]]:
@@ -507,8 +514,8 @@ def list_command(organization_id: OrganizationOption = None) -> None:
         return
     ui.table(
         "Roles",
-        ["name", "resourceId", "type", "description"],
-        [[r.name, r.resource_id, r.role_type, r.description] for r in roles],
+        ["name", "resourceId", "phase", "description"],
+        [[r.name, r.resource_id, _styled_phase(r), r.description] for r in roles],
         wrap=["description"],
         data=roles,
     )

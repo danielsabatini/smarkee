@@ -397,7 +397,7 @@ def test_list_shows_a_table_and_follows_the_cursor(api: FakeApi) -> None:
     result = runner.invoke(app, ["bsm", "account", "list"])
 
     assert result.exit_code == 0, result.stderr
-    assert "uma" in result.stdout and "duas" in result.stdout and "unknown" in result.stdout
+    assert "uma" in result.stdout and "duas" in result.stdout and "Reconciling" in result.stdout
     assert "cursor=abc" in api.requests[-1].full_url
 
 
