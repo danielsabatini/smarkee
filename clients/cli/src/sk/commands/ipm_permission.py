@@ -171,12 +171,20 @@ def _wait_for_convergence(
                 operation_id=accepted.operation_id,
                 allow_insecure_http=insecure,
             )
-            if op.operation_status in ("rejected", "failed"):
-                reason = op.reason or "validation"
-                hint = REJECTION_HINTS.get(reason, "Inspect the Operation for details.")
+            if op.operation_status in ("rejected", "failed", "superseded"):
+                if op.operation_status == "rejected":
+                    reason = op.reason or "validation"
+                    title, text = "Request rejected", f"The request was rejected: {reason}."
+                    hint = REJECTION_HINTS.get(reason, "Inspect the Operation for details.")
+                else:
+                    # `failed` (prazo ou limite esgotado) e `superseded` (trocada por outro
+                    # pedido) não têm motivo de rejeição.
+                    title = "Request not completed"
+                    text = f"The Operation ended as {op.operation_status}."
+                    hint = "Inspect the Operation for details."
                 ui.error(
-                    "Request rejected",
-                    f"The request was rejected: {reason}.",
+                    title,
+                    text,
                     hint=f"{hint} `{_get_command(accepted, with_operation=True)}`.",
                 )
                 raise typer.Exit(EXIT_FAILURE)

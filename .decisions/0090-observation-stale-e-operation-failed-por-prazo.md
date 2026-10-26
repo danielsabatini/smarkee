@@ -26,4 +26,4 @@
 
 ## Fora desta decisão
 
-A Operation `superseded` (substituída por outra geração antes de convergir) continua `failed`. Separar os dois exige acrescentar um valor a um enum fechado em schema, SQL, modelos gerados e CLI, e será decidido à parte.
+A Operation `superseded` (substituída por outra geração antes de convergir) foi decidida à parte, na `0091`.

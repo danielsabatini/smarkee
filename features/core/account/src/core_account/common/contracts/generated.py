@@ -243,6 +243,7 @@ class OperationStatus(StrEnum):
     completed = "completed"
     failed = "failed"
     rejected = "rejected"
+    superseded = "superseded"
 
 
 class OperationStatusReason(StrEnum):

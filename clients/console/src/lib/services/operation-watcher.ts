@@ -93,7 +93,8 @@ export class OperationWatcher {
 				const isTerminal =
 					operation.operationStatus === 'completed' ||
 					operation.operationStatus === 'failed' ||
-					operation.operationStatus === 'rejected';
+					operation.operationStatus === 'rejected' ||
+					operation.operationStatus === 'superseded';
 
 				if (isTerminal) {
 					this.activeTimers.delete(operationId);

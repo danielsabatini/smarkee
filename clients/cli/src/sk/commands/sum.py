@@ -186,7 +186,7 @@ def _wait_for_convergence(
             continue
         except ApiError as error:
             _fail_api(error)
-        if operation.operation_status in ("rejected", "failed"):
+        if operation.operation_status in ("rejected", "failed", "superseded"):
             ui.error(
                 "Request not completed",
                 f"The Operation ended as {operation.operation_status}"

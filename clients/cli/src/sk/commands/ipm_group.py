@@ -225,7 +225,7 @@ def _wait_for_convergence(
                 operation_id=accepted.operation_id,
                 allow_insecure_http=insecure,
             )
-            if operation.operation_status in ("rejected", "failed"):
+            if operation.operation_status in ("rejected", "failed", "superseded"):
                 reason = operation.reason
                 ui.error(
                     "Request not completed",

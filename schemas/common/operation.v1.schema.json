@@ -68,7 +68,8 @@
         "in_progress",
         "completed",
         "failed",
-        "rejected"
+        "rejected",
+        "superseded"
       ],
       "x-enumPolicy": "closed",
       "x-writer": "server",

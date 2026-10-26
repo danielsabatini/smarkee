@@ -85,7 +85,8 @@ export class ConsoleState {
 			(item) =>
 				item.operation.operationStatus === 'completed' ||
 				item.operation.operationStatus === 'failed' ||
-				item.operation.operationStatus === 'rejected'
+				item.operation.operationStatus === 'rejected' ||
+				item.operation.operationStatus === 'superseded'
 		)
 	);
 

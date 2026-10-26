@@ -353,6 +353,16 @@ def test_desired_carries_the_deletion_protection_as_an_optional_boolean(director
     assert not _is_valid(desired_path, {**present, "deletionProtection": "false"})
 
 
+def test_superseded_operation_is_terminal_without_a_rejection_reason() -> None:
+    operation_path = SCHEMAS_ROOT / "common" / "operation.v1.schema.json"
+    operation = json.loads(_example_for(operation_path).read_text(encoding="utf-8"))
+    assert _is_valid(operation_path, {**operation, "operationStatus": "superseded"})
+    assert not _is_valid(
+        operation_path,
+        {**operation, "operationStatus": "superseded", "operationStatusReason": "conflict"},
+    )
+
+
 def test_rejection_reason_protected_is_accepted_by_the_operation_contract() -> None:
     operation_path = SCHEMAS_ROOT / "common" / "operation.v1.schema.json"
     operation = json.loads(_example_for(operation_path).read_text(encoding="utf-8"))

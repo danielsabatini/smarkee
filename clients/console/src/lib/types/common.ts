@@ -39,7 +39,13 @@ export interface RequestAccepted {
 
 export type OperationType = 'create' | 'update' | 'delete';
 
-export type OperationStatus = 'accepted' | 'in_progress' | 'completed' | 'failed' | 'rejected';
+export type OperationStatus =
+	| 'accepted'
+	| 'in_progress'
+	| 'completed'
+	| 'failed'
+	| 'rejected'
+	| 'superseded';
 
 export type OperationStatusReason = 'conflict' | 'validation' | 'not_found' | 'protected';
 

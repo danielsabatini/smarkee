@@ -133,7 +133,7 @@ def _wait_until_completed(
         except ApiError as error:
             _fail_api(error)
         else:
-            if operation.operation_status in ("rejected", "failed"):
+            if operation.operation_status in ("rejected", "failed", "superseded"):
                 ui.error(
                     "Request not completed",
                     f"The Operation ended as {operation.operation_status}.",
@@ -258,7 +258,7 @@ def _wait_until_gone(
         except ApiError as error:
             _fail_api(error)
         else:
-            if operation.operation_status in ("rejected", "failed"):
+            if operation.operation_status in ("rejected", "failed", "superseded"):
                 ui.error(
                     "Request not completed",
                     f"The Operation ended as {operation.operation_status}.",

@@ -265,7 +265,7 @@ class SsotStore:
         """
         await self._connection.execute(
             sql.SQL(
-                "UPDATE {table} SET operation_status = 'failed', updated_at = now(),"
+                "UPDATE {table} SET operation_status = 'superseded', updated_at = now(),"
                 " completed_at = now() WHERE resource_id = %s"
                 " AND operation_status IN ('accepted', 'in_progress') AND desired_generation < %s"
             ).format(table=self._tables.operation),

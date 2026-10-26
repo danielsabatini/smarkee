@@ -42,6 +42,8 @@
 					return { label: customLabel ?? 'Falhou', tone: 'failed' as const };
 				case 'rejected':
 					return { label: customLabel ?? 'Rejeitado', tone: 'warning' as const };
+				case 'superseded':
+					return { label: customLabel ?? 'Substituído', tone: 'warning' as const };
 			}
 		}
 

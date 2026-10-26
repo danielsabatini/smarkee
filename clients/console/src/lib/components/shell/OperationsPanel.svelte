@@ -249,7 +249,7 @@
 												>
 													<CheckCircle2 class="h-4 w-4" aria-hidden="true" />
 												</div>
-											{:else if status === 'rejected'}
+											{:else if status === 'rejected' || status === 'superseded'}
 												<div
 													class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700"
 												>

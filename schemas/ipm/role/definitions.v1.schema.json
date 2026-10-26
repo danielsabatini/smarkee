@@ -17,7 +17,8 @@
       "enum": [
         "predefined",
         "custom"
-      ]
+      ],
+      "x-enumPolicy": "closed"
     },
     "description": {
       "description": "Descrição legível do propósito e alcance da Role.",

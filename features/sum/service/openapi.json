@@ -247,7 +247,8 @@
           "in_progress",
           "completed",
           "failed",
-          "rejected"
+          "rejected",
+          "superseded"
         ],
         "title": "OperationStatus",
         "type": "string"

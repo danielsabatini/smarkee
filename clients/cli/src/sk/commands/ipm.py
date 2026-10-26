@@ -283,7 +283,7 @@ def _wait_for_convergence(
                 allow_insecure_http=insecure,
             )
             # Recusa ou falha primeiro: num `create` recusado, o recurso nem existe (`404`).
-            if operation.operation_status in ("rejected", "failed"):
+            if operation.operation_status in ("rejected", "failed", "superseded"):
                 reason = operation.reason
                 ui.error(
                     "Request not completed",

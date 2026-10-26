@@ -133,7 +133,7 @@ describe('Contratos JSON Schema (schemas/) vs MockDataAdapter', () => {
 		expect(validateList!({ items: services })).toBe(true);
 	});
 
-	it('valida todas as Operation (accepted, in_progress, completed, failed, rejected) contra common/operation.v1.schema.json', async () => {
+	it('valida todas as Operation (accepted, in_progress, completed, failed, rejected, superseded) contra common/operation.v1.schema.json', async () => {
 		const ops = await adapter.listOperations();
 		expect(ops.length).toBeGreaterThanOrEqual(4);
 
