@@ -107,6 +107,10 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
         monkeypatch.setenv(
             f"IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_{account}_ACCOUNT_ID", f"user-{account}"
         )
+        monkeypatch.setenv(
+            f"IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_{account}_ACCOUNT_ID",
+            f"machine-{account}",
+        )
     return fake
 
 
@@ -122,6 +126,7 @@ async def test_the_manager_starts_one_task_per_consumer(runtime: FakeRuntime) ->
     ]
     rolled_out = runtime.rolled_out_kind.policy.rolled_out({"lifecycle": "present"})
     assert rolled_out["userAccess"]["userExecutorAccountId"] == "user-EXECUTOR"
+    assert rolled_out["userAccess"]["serviceaccountExecutorAccountId"] == "machine-EXECUTOR"
     assert len(runtime.closers) == 1
 
 

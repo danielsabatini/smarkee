@@ -25,6 +25,10 @@ TEST_ROLE_NAME = re.compile(r"^test\.(?:role|chaos)[0-9a-f]{6}$")
 # Grupos de teste (`ipm.group`): nomes dos testes e2e da feature (`test-group-`, `test-loop-` ou
 # `test-chaos-` seguido de 6 a 8 hexadecimais).
 TEST_GROUP_NAME = re.compile(r"^test-(?:group|loop|chaos)-[0-9a-f]{6,8}$")
+# Service accounts de teste (`ipm.serviceaccount`, decisão 0094): nomes dos testes da feature
+# (`sa`, `loop`, `conf`, `chaos` ou `cons` mais `-` e 6 a 10 hexadecimais). Nomes reais
+# (`ci-deploy`) nunca casam.
+TEST_SERVICEACCOUNT_NAME = re.compile(r"^(?:sa|loop|conf|chaos|cons)-[0-9a-f]{6,10}$")
 # Permissions de teste (`ipm.permission`): nomes dos testes e2e da feature (`bsm.e2e.p` mais 7
 # hexadecimais, `bsm.chaos.c` mais 5, ou o antigo `e2e.test.p` mais 6 ou 7). As permissions reais
 # da plataforma (`ipm.user.get`...) nunca casam.
@@ -164,6 +168,22 @@ GROUPS = Kind(
     data_plane_table="ipm.group",
     data_plane_role="ipm_group_executor_login",
 )
+# Identidades de máquina da Organization (decisão 0094): só no SSOT; a chave pública mora no Zitadel
+# e sai com o usuário (o Executor remove o machine user). Nascem protegidas contra exclusão.
+SERVICEACCOUNTS = Kind(
+    "ipm",
+    "serviceaccount",
+    "ipm.serviceaccount",
+    (
+        "ipm.serviceaccount_outbox",
+        "ipm.serviceaccount_operation",
+        "ipm.serviceaccount_action_result",
+    ),
+    "ipm_serviceaccount_manager_login",
+    "ipm_maintenance_login",
+    "name",
+    deletion_protected=True,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,6 +212,7 @@ class Findings:
     group_rows: list[Row] = field(default_factory=lambda: [])
     platform_group_rows: list[Row] = field(default_factory=lambda: [])
     """Grupos de teste no banco `platform` (plano de dados), com ou sem linha no SSOT."""
+    serviceaccount_rows: list[Row] = field(default_factory=lambda: [])
     history: dict[Kind, list[Row]] = field(default_factory=lambda: {})
     """Histórico (outbox, Operations e resultados) de recursos de teste já removidos."""
     kept_history: dict[Kind, int] = field(default_factory=lambda: {})
@@ -214,6 +235,7 @@ class Findings:
             or self.permission_rows
             or self.group_rows
             or self.platform_group_rows
+            or self.serviceaccount_rows
             or any(self.history.values())
             or any(self.message_orphans.values())
             or self.mails
@@ -264,6 +286,10 @@ class Findings:
                 f"platform ipm.group {row.resource_id}  {row.label}"
                 for row in self.platform_group_rows
             ),
+            *(
+                f"SSOT ipm.serviceaccount {row.resource_id}  {row.label}"
+                for row in self.serviceaccount_rows
+            ),
         ]
         found.extend(
             f"SSOT histórico de {len(rows)} recurso(s) de teste removido(s) de "
@@ -312,6 +338,9 @@ class Findings:
             | {row.resource_id for row in self.platform_group_rows}
             | self._history_ids(GROUPS)
             | self.message_orphans.get(GROUPS, set()),
+            SERVICEACCOUNTS: {row.resource_id for row in self.serviceaccount_rows}
+            | self._history_ids(SERVICEACCOUNTS)
+            | self.message_orphans.get(SERVICEACCOUNTS, set()),
         }
 
     def _history_ids(self, kind: Kind) -> set[str]:

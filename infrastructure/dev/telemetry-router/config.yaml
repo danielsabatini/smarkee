@@ -3,7 +3,8 @@
 # Entrada: OTLP gRPC (4317, do telemetry-agent) e OTLP HTTP (4318, do APISIX).
 # Saída: OTLP gRPC para o telemeter que grava:
 #   - o telemeter da feature dona do sinal (`bsm-account-telemeter`, `core-account-telemeter`,
-#     `ipm-organization-telemeter`, `ipm-permission-telemeter`, `ipm-role-telemeter`, `ipm-user-telemeter`
+#     `ipm-organization-telemeter`, `ipm-permission-telemeter`, `ipm-role-telemeter`,
+#     `ipm-serviceaccount-telemeter`, `ipm-user-telemeter`
 #     e `sum-service-telemeter`): os logs de app e os spans da feature;
 #   - `platform-telemeter` (plataforma): tudo o mais (a infra, as métricas e o app/spans de quem não tem telemeter).
 #
@@ -50,6 +51,9 @@ connectors:
         condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "user"
         pipelines: [logs/ipm_user]
       - context: resource
+        condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "serviceaccount"
+        pipelines: [logs/ipm_serviceaccount]
+      - context: resource
         condition: attributes["smarkee.module"] == "sum" and attributes["smarkee.resource.type"] == "service"
         pipelines: [logs/sum_service]
   routing/traces:
@@ -77,6 +81,9 @@ connectors:
       - context: span
         condition: attributes["apisix.service_name"] == "ipm-user-receiver"
         pipelines: [traces/ipm_user]
+      - context: span
+        condition: attributes["apisix.service_name"] == "ipm-serviceaccount-receiver"
+        pipelines: [traces/ipm_serviceaccount]
       - context: span
         condition: attributes["apisix.service_name"] == "sum-service-receiver"
         pipelines: [traces/sum_service]
@@ -217,6 +224,20 @@ exporters:
       initial_interval: 5s
       max_interval: 30s
       max_elapsed_time: 10m
+  otlp_grpc/ipm_serviceaccount:
+    endpoint: ipm-serviceaccount-telemeter.smarkee.internal:4317
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      block_on_overflow: false
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 10m
   otlp_grpc/sum_service:
     endpoint: sum-service-telemeter.smarkee.internal:4317
     tls:
@@ -277,6 +298,10 @@ service:
       receivers: [routing/logs]
       processors: [batch]
       exporters: [otlp_grpc/ipm_user]
+    logs/ipm_serviceaccount:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [otlp_grpc/ipm_serviceaccount]
     logs/sum_service:
       receivers: [routing/logs]
       processors: [batch]
@@ -319,6 +344,10 @@ service:
       receivers: [routing/traces]
       processors: [batch]
       exporters: [otlp_grpc/ipm_user]
+    traces/ipm_serviceaccount:
+      receivers: [routing/traces]
+      processors: [batch]
+      exporters: [otlp_grpc/ipm_serviceaccount]
     traces/sum_service:
       receivers: [routing/traces]
       processors: [batch]

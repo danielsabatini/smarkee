@@ -301,6 +301,29 @@ async def test_create_prepares_the_grant_before_the_roles_of_the_user_accounts()
     ]
 
 
+async def test_the_serviceaccount_accounts_get_the_same_roles_when_the_desired_names_them() -> None:
+    """Decisão 0094: Executor e Observer do `ipm/serviceaccount` entram como os do `ipm/user`."""
+    access = FakeUserAccess(grant=CATALOG)
+    desired = prepared(
+        userAccess={
+            **USER_ACCESS,
+            "serviceaccountExecutorAccountId": "machine-executor",
+            "serviceaccountObserverAccountId": "machine-observer",
+        }
+    )
+    writer = FakeOrganizationDriver()
+    writer.organizations["org-1"] = IdentityOrganization("acme", active=True)
+    await execute("update", "org-1", desired, drivers(writer, None, access))
+    assert set(access.writes) == {
+        ("create_administrator", "user-executor", "organization", "ORG_USER_CREATOR"),
+        ("create_administrator", "user-executor", "grant", "PROJECT_GRANT_OWNER"),
+        ("create_administrator", "user-observer", "organization", "ORG_OWNER_VIEWER"),
+        ("create_administrator", "machine-executor", "organization", "ORG_USER_CREATOR"),
+        ("create_administrator", "machine-executor", "grant", "PROJECT_GRANT_OWNER"),
+        ("create_administrator", "machine-observer", "organization", "ORG_OWNER_VIEWER"),
+    }
+
+
 async def test_a_prepared_organization_is_not_written_again() -> None:
     access = FakeUserAccess(
         grant=list(reversed(CATALOG)),

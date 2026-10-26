@@ -112,6 +112,8 @@ SERVICE_ACCOUNTS = {
     "ipm-organization-observer",
     "ipm-permission-executor",
     "ipm-permission-observer",
+    "ipm-serviceaccount-executor",
+    "ipm-serviceaccount-observer",
     "ipm-user-executor",
     "ipm-user-observer",
     "sum-service-executor",
@@ -391,7 +393,9 @@ def test_service_accounts_live_in_core(zitadel: Zitadel, orgs: dict[str, str]) -
     assert not {
         n
         for n in user_names(zitadel, orgs["register"])
-        if n.startswith(("core-", "sum-service-", "ipm-organization-", "ipm-user-"))
+        if n.startswith(
+            ("core-", "sum-service-", "ipm-organization-", "ipm-serviceaccount-", "ipm-user-"),
+        )
     }
 
 
@@ -428,13 +432,26 @@ def test_executor_and_observer_have_roles_only_in_register(
     assert in_register.get("sum-service-observer") == {"ORG_OWNER_VIEWER"}
     assert "sum-service-executor" not in in_register
     # As contas da Organization têm só papel de instância (abaixo), nenhum na `register`; as do
-    # User só têm papéis nas organizações de cliente, dados pelo loop da Organization (0081).
-    assert not {n for n in in_register if n.startswith(("ipm-organization-", "ipm-user-"))}
+    # User e da ServiceAccount só têm papéis nas organizações de cliente, dados pelo loop da
+    # Organization (0081 e 0094).
+    assert not {
+        n
+        for n in in_register
+        if n.startswith(("ipm-organization-", "ipm-serviceaccount-", "ipm-user-"))
+    }
     in_core = organization_administrators(zitadel, orgs["core"])
     assert not {
         name
         for name in in_core
-        if name.startswith(("core-account-", "sum-service-", "ipm-organization-", "ipm-user-"))
+        if name.startswith(
+            (
+                "core-account-",
+                "sum-service-",
+                "ipm-organization-",
+                "ipm-serviceaccount-",
+                "ipm-user-",
+            )
+        )
     }, "o Executor e o Observer não têm papel na organização core (decisão 0027)"
 
 
@@ -510,8 +527,9 @@ def test_instance_administrators(zitadel: Zitadel) -> None:
     assert by_name.get("platform-bootstrap@smarkee.internal") == {"IAM_OWNER"}
     assert by_name.get("ipm-organization-executor") == {"IAM_ORG_MANAGER"}
     assert by_name.get("ipm-organization-observer") == {"IAM_OWNER_VIEWER"}
-    # As contas do User não têm papel de instância: só os da organização de cliente (decisão 0077).
-    assert not {name for name in by_name if name.startswith("ipm-user-")}
+    # As contas do User e da ServiceAccount não têm papel de instância: só os da organização de
+    # cliente (decisões 0077 e 0094).
+    assert not {name for name in by_name if name.startswith(("ipm-user-", "ipm-serviceaccount-"))}
 
 
 def operator_authorizations(
@@ -593,6 +611,7 @@ ENV_FILES = {
     "ipm.role": REPOSITORY / "features" / "ipm" / "role" / ".env",
     "ipm.group": REPOSITORY / "features" / "ipm" / "group" / ".env",
     "ipm.user": REPOSITORY / "features" / "ipm" / "user" / ".env",
+    "ipm.serviceaccount": REPOSITORY / "features" / "ipm" / "serviceaccount" / ".env",
 }
 # Variável de cada `.env` → o que ela deve apontar na instância.
 EXPECTED_AUDIENCE = {
@@ -604,17 +623,22 @@ EXPECTED_AUDIENCE = {
     "ipm.role": ("IPM_ROLE_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.group": ("IPM_GROUP_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.user": ("IPM_USER_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
+    "ipm.serviceaccount": ("IPM_SERVICEACCOUNT_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
 }
 # Um projeto de roles só, o do próprio módulo (o Executor e o Observer do User, decisão 0077).
 EXPECTED_PROJECT_ID = {
     "ipm.user": ("IPM_USER_IDENTITY_PROJECT_ID", "roles-ipm"),
+    "ipm.serviceaccount": ("IPM_SERVICEACCOUNT_IDENTITY_PROJECT_ID", "roles-ipm"),
     "ipm.organization": ("IPM_ORGANIZATION_IDENTITY_PROJECT_ID", "roles-ipm"),
 }
-# Contas do `ipm/user` que o Manager da Organization prepara em cada Organization (decisão 0081).
+# Contas do `ipm/user` e do `ipm/serviceaccount` que o Manager da Organization prepara em cada
+# Organization (decisões 0081 e 0094).
 EXPECTED_ACCOUNT_IDS = {
     "ipm.organization": {
         "IPM_ORGANIZATION_USER_EXECUTOR_ACCOUNT_ID": "ipm-user-executor",
         "IPM_ORGANIZATION_USER_OBSERVER_ACCOUNT_ID": "ipm-user-observer",
+        "IPM_ORGANIZATION_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID": "ipm-serviceaccount-executor",
+        "IPM_ORGANIZATION_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID": "ipm-serviceaccount-observer",
     }
 }
 EXPECTED_REGISTER = {
@@ -696,6 +720,7 @@ def test_the_ids_in_the_env_files_match_the_instance(
         "ipm.role",
         "ipm.group",
         "ipm.user",
+        "ipm.serviceaccount",
     ):
         if not ENV_FILES[feature].exists():
             continue

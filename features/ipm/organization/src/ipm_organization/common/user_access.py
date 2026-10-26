@@ -33,17 +33,27 @@ def desired_user_access(
     *,
     user_executor_account_id: str,
     user_observer_account_id: str,
+    serviceaccount_executor_account_id: str | None = None,
+    serviceaccount_observer_account_id: str | None = None,
     grant_permissions: Iterable[str] | None = None,
 ) -> dict[str, Any]:
-    """O `userAccess` que o `desired` deve ter agora: o catálogo e as contas do `ipm/user`."""
+    """O `userAccess` que o `desired` deve ter agora: o catálogo e as contas dos tipos.
+
+    As contas do `ipm/serviceaccount` (decisão 0094) entram quando informadas.
+    """
     permissions = (
         sorted(set(grant_permissions)) if grant_permissions is not None else grant_catalog()
     )
-    return {
+    result: dict[str, Any] = {
         "grantPermissions": permissions,
         "userExecutorAccountId": user_executor_account_id,
         "userObserverAccountId": user_observer_account_id,
     }
+    if serviceaccount_executor_account_id is not None:
+        result["serviceaccountExecutorAccountId"] = serviceaccount_executor_account_id
+    if serviceaccount_observer_account_id is not None:
+        result["serviceaccountObserverAccountId"] = serviceaccount_observer_account_id
+    return result
 
 
 def required_administrators(user_access: Mapping[str, Any]) -> dict[str, frozenset[str]]:
@@ -54,6 +64,15 @@ def required_administrators(user_access: Mapping[str, Any]) -> dict[str, frozens
         executor: {ORGANIZATION_USER_CREATOR, PROJECT_GRANT_OWNER},
     }
     required.setdefault(observer, set()).add(ORGANIZATION_OWNER_VIEWER)
+    # Contas do `ipm/serviceaccount` (decisão 0094): as mesmas permissões, em cada Organization.
+    machine_executor = user_access.get("serviceaccountExecutorAccountId")
+    if machine_executor is not None:
+        required.setdefault(str(machine_executor), set()).update(
+            {ORGANIZATION_USER_CREATOR, PROJECT_GRANT_OWNER}
+        )
+    machine_observer = user_access.get("serviceaccountObserverAccountId")
+    if machine_observer is not None:
+        required.setdefault(str(machine_observer), set()).add(ORGANIZATION_OWNER_VIEWER)
     return {account: frozenset(permissions) for account, permissions in required.items()}
 
 

@@ -231,6 +231,69 @@ services:
                 WWW-Authenticate: Bearer realm="smarkee"
             body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
 
+  # Receiver de ipm.serviceaccount (decisão 0094): a API `/v1/ipm/serviceaccounts`.
+  - name: ipm-serviceaccount-receiver
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: ipm-serviceaccount-receiver.smarkee.internal
+          port: 8000
+          weight: 100
+    routes:
+      - name: ipm-serviceaccount-receiver
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/ipm/serviceaccounts
+          - /v1/ipm/serviceaccounts/*
+        plugins:
+          # Autentica o token na porta de entrada (decisão 0052). Os Receivers repetem a validação e decidem as roles.
+          openid-connect:
+            client_id: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_SERVICEACCOUNT}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_SERVICEACCOUNT}
+                    - type: array
+                      contains:
+                        const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_SERVICEACCOUNT}
+          # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
+          # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                # Sem error_description: ele repetiria ao cliente o valor que ele mandou e falhas internas (por exemplo,
+                # o corpo de um 503 do Zitadel). O motivo fica no log do gateway.
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
+
   # Receiver de ipm.permission (decisão 0083): a API `/v1/ipm/permissions`.
   - name: ipm-permission-receiver
     upstream:

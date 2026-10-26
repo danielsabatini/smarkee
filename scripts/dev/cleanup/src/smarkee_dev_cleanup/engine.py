@@ -12,12 +12,14 @@ from smarkee_dev_cleanup.model import (
     POLL_SECONDS,
     REMOVAL_WAIT_SECONDS,
     ROLES,
+    SERVICEACCOUNTS,
     SERVICES,
     TEST_BILLING_ACCOUNT_NAME,
     TEST_GROUP_NAME,
     TEST_ORGANIZATION_NAME,
     TEST_PERMISSION_NAME,
     TEST_ROLE_NAME,
+    TEST_SERVICEACCOUNT_NAME,
     TEST_USER_EMAIL,
     UNPROTECTION_WAIT_SECONDS,
     UUID,
@@ -75,6 +77,9 @@ def find(ports: Ports, *, orphans: bool = False) -> Findings:
     findings.platform_group_rows = [
         row for row in ports.ssot.data_plane_rows(GROUPS) if TEST_GROUP_NAME.match(row.label)
     ]
+    findings.serviceaccount_rows = [
+        row for row in ports.ssot.rows(SERVICEACCOUNTS) if TEST_SERVICEACCOUNT_NAME.match(row.label)
+    ]
     # Ligação de serviço é de teste se o dono é de teste, ou se o dono nem existe mais no Zitadel
     # (sem usuário, a ligação não tem como convergir nem como ser desligada).
     test_owners = set(findings.zitadel_users) | {row.resource_id for row in findings.account_rows}
@@ -103,6 +108,7 @@ def _find_history(
         ORGANIZATIONS,
         SERVICES,
         ORGANIZATION_USERS,
+        SERVICEACCOUNTS,
         ROLES,
         PERMISSIONS,
         GROUPS,
@@ -121,6 +127,9 @@ def _find_history(
         ROLES: [row for row in orphans[ROLES] if TEST_ROLE_NAME.match(row.label)],
         PERMISSIONS: [row for row in orphans[PERMISSIONS] if TEST_PERMISSION_NAME.match(row.label)],
         GROUPS: [row for row in orphans[GROUPS] if TEST_GROUP_NAME.match(row.label)],
+        SERVICEACCOUNTS: [
+            row for row in orphans[SERVICEACCOUNTS] if TEST_SERVICEACCOUNT_NAME.match(row.label)
+        ],
     }
     # Uma ligação é de teste se o dono é uma conta de teste (viva ou já removida).
     owners = test_owners | {row.resource_id for row in test[ACCOUNTS]}
@@ -143,6 +152,7 @@ async def find_everywhere(ports: Ports, *, orphans: bool) -> Findings:
                 ORGANIZATIONS,
                 SERVICES,
                 ORGANIZATION_USERS,
+                SERVICEACCOUNTS,
                 ROLES,
                 PERMISSIONS,
                 GROUPS,
@@ -199,6 +209,7 @@ async def apply(
     # Os usuários da Organization antes dela: a Organization só é removida vazia (decisão 0077).
     for kind, rows in (
         (ORGANIZATION_USERS, findings.organization_user_rows),
+        (SERVICEACCOUNTS, findings.serviceaccount_rows),
         (GROUPS, findings.group_rows),
         (ORGANIZATIONS, findings.organization_rows),
         (ROLES, findings.role_rows),
@@ -220,6 +231,7 @@ async def apply(
     for kind, rows in (
         (SERVICES, remaining.service_rows),
         (ORGANIZATION_USERS, remaining.organization_user_rows),
+        (SERVICEACCOUNTS, remaining.serviceaccount_rows),
         (GROUPS, remaining.group_rows),
         (ORGANIZATIONS, remaining.organization_rows),
         (ROLES, remaining.role_rows),
@@ -244,6 +256,7 @@ async def apply(
     for kind in (
         SERVICES,
         ORGANIZATION_USERS,
+        SERVICEACCOUNTS,
         GROUPS,
         ORGANIZATIONS,
         ROLES,

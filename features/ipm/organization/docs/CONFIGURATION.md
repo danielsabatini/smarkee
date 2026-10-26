@@ -153,6 +153,8 @@ Entrypoint do Manager de Organization (`ipm-organization-manager`, decisões 001
 - `IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD`
 - `IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_EXECUTOR_ACCOUNT_ID`
 - `IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_OBSERVER_ACCOUNT_ID`
+- `IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID`
+- `IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID`
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
@@ -170,6 +172,8 @@ Entrypoint do Manager de Organization (`ipm-organization-manager`, decisões 001
 | `loop.progress_deadline_seconds` | `IPM_ORGANIZATION_MANAGER_LOOP_PROGRESS_DEADLINE_SECONDS` | `--loop.progress_deadline_seconds` | `int` | `300` | Prazo para a geração convergir antes de `Failed` com `ProgressDeadlineExceeded` (`schemas/ipm/organization/desired`, `progressDeadline`; decisão 0078). |
 | `user_access.user_executor_account_id` | `IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_EXECUTOR_ACCOUNT_ID` | `--user_access.user_executor_account_id` | `str \| None` | — | Obrigatória. Conta `ipm-user-executor` (organização `core`). |
 | `user_access.user_observer_account_id` | `IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_OBSERVER_ACCOUNT_ID` | `--user_access.user_observer_account_id` | `str \| None` | — | Obrigatória. Conta `ipm-user-observer` (organização `core`). |
+| `user_access.serviceaccount_executor_account_id` | `IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID` | `--user_access.serviceaccount_executor_account_id` | `str \| None` | — | Obrigatória. Conta `ipm-serviceaccount-executor` (organização `core`; decisão 0094). |
+| `user_access.serviceaccount_observer_account_id` | `IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID` | `--user_access.serviceaccount_observer_account_id` | `str \| None` | — | Obrigatória. Conta `ipm-serviceaccount-observer` (organização `core`; decisão 0094). |
 | `health.port` | `IPM_ORGANIZATION_MANAGER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 
 **Definido no `config.toml` de dev:**

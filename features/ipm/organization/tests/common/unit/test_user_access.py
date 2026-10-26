@@ -78,3 +78,30 @@ def test_it_is_managed_only_with_user_access_and_platform_access() -> None:
     assert access.is_managed({"platformAccess": "granted", "userAccess": DESIRED})
     assert not access.is_managed({"platformAccess": "revoked", "userAccess": DESIRED})
     assert not access.is_managed({"platformAccess": "granted"})  # anterior à decisão 0081
+
+
+def test_the_serviceaccount_accounts_are_required_only_when_the_desired_names_them() -> None:
+    """Decisão 0094: contrato aditivo; a Organization anterior à 0094 segue convergida."""
+    desired = access.desired_user_access(
+        user_executor_account_id="executor",
+        user_observer_account_id="observer",
+        serviceaccount_executor_account_id="machine-executor",
+        serviceaccount_observer_account_id="machine-observer",
+    )
+    assert access.required_administrators(desired)["machine-executor"] == {
+        "ORG_USER_CREATOR",
+        "PROJECT_GRANT_OWNER",
+    }
+    assert access.required_administrators(desired)["machine-observer"] == {"ORG_OWNER_VIEWER"}
+    assert not access.converged(desired, READY)
+    ready = observed(
+        access.grant_catalog(),
+        executor=["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"],
+        observer=["ORG_OWNER_VIEWER"],
+        **{
+            "machine-executor": ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"],
+            "machine-observer": ["ORG_OWNER_VIEWER"],
+        },
+    )
+    assert access.converged(desired, ready)
+    assert "machine-executor" not in access.required_administrators(DESIRED)

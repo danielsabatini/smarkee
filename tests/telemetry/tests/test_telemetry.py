@@ -41,6 +41,7 @@ FEATURE_TELEMETRY_DIRS = [
                 ("ipm", "organization"),
                 ("ipm", "permission"),
                 ("ipm", "role"),
+                ("ipm", "serviceaccount"),
                 ("ipm", "user"),
                 ("sum", "service"),
             )
@@ -386,6 +387,7 @@ FEATURE_ROUTES = {
     "ipm-organization": "/v1/ipm/organizations",
     "ipm-permission": "/v1/ipm/permissions",
     "ipm-role": "/v1/ipm/roles",
+    "ipm-serviceaccount": "/v1/ipm/serviceaccounts",
     "ipm-user": "/v1/ipm/users",
     "sum-service": "/v1/sum/services",
 }
@@ -618,6 +620,7 @@ def test_infra_metrics_cover_database_identity_and_messaging_with_otel_semconv(
         "permission_outbox",
         "role_outbox",
         "service_outbox",
+        "serviceaccount_outbox",
         "user_outbox",
     } <= outbox_collections
 

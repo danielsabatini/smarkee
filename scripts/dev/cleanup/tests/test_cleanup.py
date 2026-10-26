@@ -21,6 +21,7 @@ from smarkee_dev_cleanup.model import (
     ORGANIZATIONS,
     PERMISSIONS,
     ROLES,
+    SERVICEACCOUNTS,
     SERVICES,
     Findings,
     Kind,
@@ -463,6 +464,7 @@ def test_history_of_removed_test_resources_is_found_and_the_rest_is_kept() -> No
         ORGANIZATION_USERS: 1,
         ROLES: 0,
         PERMISSIONS: 0,
+        SERVICEACCOUNTS: 0,
         GROUPS: 0,
     }
     assert not findings.is_clean()
@@ -667,6 +669,44 @@ async def test_a_test_group_is_removed_through_the_loop_and_what_is_left_in_the_
     assert world.bus.requested == [GROUP_ID]
     assert [r.resource_id for r in world.ssot.platform[GROUPS]] == ["group-real"]
     assert [r.resource_id for r in world.ssot.tables[GROUPS]] == ["group-real"]
+
+
+SERVICEACCOUNT_ID = "01a17821-0000-7786-a89b-6f18fe547eb5"
+
+
+@pytest.mark.parametrize("name", ["sa-6d7092", "loop-0a1b2c3d4e", "chaos-abcdef", "conf-123456ab"])
+def test_a_test_serviceaccount_is_found_in_the_ssot(name: str) -> None:
+    world = World()
+    world.ssot.tables = {SERVICEACCOUNTS: [Row(SERVICEACCOUNT_ID, name)]}
+
+    findings = find(world.ports())
+
+    assert [row.resource_id for row in findings.serviceaccount_rows] == [SERVICEACCOUNT_ID]
+    assert any("SSOT ipm.serviceaccount" in line for line in findings.lines())
+    assert SERVICEACCOUNTS in findings.resource_ids()
+
+
+@pytest.mark.parametrize("name", ["ci-deploy", "sa-prod", "deploy", "loop-xyz"])
+def test_real_serviceaccounts_are_never_test_data(name: str) -> None:
+    world = World()
+    world.ssot.tables = {SERVICEACCOUNTS: [Row("sa-x", name)]}
+
+    assert find(world.ports()).is_clean()
+
+
+async def test_a_test_serviceaccount_is_removed_through_the_loop() -> None:
+    world = World()
+    world.ssot.tables = {
+        SERVICEACCOUNTS: [Row(SERVICEACCOUNT_ID, "sa-6d7092"), Row("sa-real", "ci-deploy")]
+    }
+    world.bus.phases = {SERVICEACCOUNT_ID: "Ready"}
+
+    code = await clean(world.ports(), apply_changes=True, say=say_nothing)
+
+    assert code == 0
+    assert world.bus.unprotection_requested == [SERVICEACCOUNT_ID]
+    assert world.bus.requested == [SERVICEACCOUNT_ID]
+    assert [r.resource_id for r in world.ssot.tables[SERVICEACCOUNTS]] == ["sa-real"]
 
 
 PERMISSION_ID = "01a17821-6d77-7786-a89b-6f18fe547eb4"

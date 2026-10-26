@@ -83,8 +83,16 @@ async def run(settings: OrganizationManagerSettings) -> int:
 def _user_access(settings: OrganizationManagerSettings) -> dict[str, object]:
     executor = settings.user_access.user_executor_account_id
     observer = settings.user_access.user_observer_account_id
+    machine_executor = settings.user_access.serviceaccount_executor_account_id
+    machine_observer = settings.user_access.serviceaccount_observer_account_id
     assert executor and observer  # noqa: S101 (garantido por `missing_required`)
-    return desired_user_access(user_executor_account_id=executor, user_observer_account_id=observer)
+    assert machine_executor and machine_observer  # noqa: S101 (idem)
+    return desired_user_access(
+        user_executor_account_id=executor,
+        user_observer_account_id=observer,
+        serviceaccount_executor_account_id=machine_executor,
+        serviceaccount_observer_account_id=machine_observer,
+    )
 
 
 def main() -> None:

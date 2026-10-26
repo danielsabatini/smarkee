@@ -185,15 +185,13 @@ async def _ensure_user_access(
             await driver.update_grant(organization_id, permissions)  # criado por outra tentativa
     elif current != permissions:
         await driver.update_grant(organization_id, permissions)
-    executor = str(user_access["userExecutorAccountId"])
-    observer = str(user_access["userObserverAccountId"])
     organization = driver.organization_resource(organization_id)
-    for account_id, resource, permission in (
-        (executor, organization, access.ORGANIZATION_USER_CREATOR),
-        (executor, driver.grant_resource(organization_id), access.PROJECT_GRANT_OWNER),
-        (observer, organization, access.ORGANIZATION_OWNER_VIEWER),
-    ):
-        await _ensure_administrator(driver, account_id, resource, permission)
+    grant = driver.grant_resource(organization_id)
+    # Mesmas regras de `common/user_access.py` (contas do `ipm/user` e do `ipm/serviceaccount`).
+    for account_id, permissions in sorted(access.required_administrators(user_access).items()):
+        for permission in sorted(permissions):
+            resource = grant if permission == access.PROJECT_GRANT_OWNER else organization
+            await _ensure_administrator(driver, account_id, resource, permission)
 
 
 async def _ensure_administrator(

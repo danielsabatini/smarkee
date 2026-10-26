@@ -39,6 +39,12 @@ class UserAccessSettings(Section):
     user_observer_account_id: str | None = None
     """Conta `ipm-user-observer` (organização `core`)."""
 
+    serviceaccount_executor_account_id: str | None = None
+    """Conta `ipm-serviceaccount-executor` (organização `core`; decisão 0094)."""
+
+    serviceaccount_observer_account_id: str | None = None
+    """Conta `ipm-serviceaccount-observer` (organização `core`; decisão 0094)."""
+
 
 class OrganizationManagerSettings(RoleSettings):
     model_config = role_config("manager")
@@ -68,6 +74,12 @@ def missing_required(settings: OrganizationManagerSettings) -> list[str]:
             ),
             "USER_ACCESS_USER_OBSERVER_ACCOUNT_ID": bool(
                 settings.user_access.user_observer_account_id
+            ),
+            "USER_ACCESS_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID": bool(
+                settings.user_access.serviceaccount_executor_account_id
+            ),
+            "USER_ACCESS_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID": bool(
+                settings.user_access.serviceaccount_observer_account_id
             ),
         },
     )

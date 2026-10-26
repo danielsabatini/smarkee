@@ -414,7 +414,7 @@ class AdministratorPermission(RootModel[str]):
 
 class OrganizationUserAccess(ContractModel):
     """
-    Preparo da organização para os usuários dela (ipm.user, decisão 0081): o Project Grant do projeto de permissões do ipm com as permissões de grantPermissions, e as permissões de administração das contas do ipm/user nela. O Executor do ipm/user recebe ORG_USER_CREATOR na organização e PROJECT_GRANT_OWNER no Grant; o Observer do ipm/user, ORG_OWNER_VIEWER na organização. Vem da configuração do Manager, que é a fonte única.
+    Preparo da organização para os usuários dela (ipm.user, decisão 0081): o Project Grant do projeto de permissões do ipm com as permissões de grantPermissions, e as permissões de administração das contas do ipm/user nela. O Executor do ipm/user recebe ORG_USER_CREATOR na organização e PROJECT_GRANT_OWNER no Grant; o Observer do ipm/user, ORG_OWNER_VIEWER na organização. Vem da configuração do Manager, que é a fonte única. Desde a decisão 0094, as contas do ipm/serviceaccount recebem o mesmo (ORG_USER_CREATOR e PROJECT_GRANT_OWNER para o Executor, ORG_OWNER_VIEWER para o Observer); os campos são opcionais para que a Organization gravada antes da 0094 continue válida, e o rollout os preenche.
     """
 
     model_config = ConfigDict(
@@ -441,6 +441,30 @@ class OrganizationUserAccess(ContractModel):
     ]
     """
     Conta de serviço do Observer do ipm/user.
+    """
+    serviceaccount_executor_account_id: Annotated[
+        str | None,
+        Field(
+            alias="serviceaccountExecutorAccountId",
+            max_length=128,
+            min_length=1,
+            pattern="^[A-Za-z0-9-]+$",
+        ),
+    ] = None
+    """
+    Conta de serviço do Executor do ipm/serviceaccount (decisão 0094).
+    """
+    serviceaccount_observer_account_id: Annotated[
+        str | None,
+        Field(
+            alias="serviceaccountObserverAccountId",
+            max_length=128,
+            min_length=1,
+            pattern="^[A-Za-z0-9-]+$",
+        ),
+    ] = None
+    """
+    Conta de serviço do Observer do ipm/serviceaccount (decisão 0094).
     """
 
 
