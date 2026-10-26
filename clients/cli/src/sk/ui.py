@@ -19,7 +19,17 @@ DEFAULT_WIDTH = 100
 
 def _console(*, stderr: bool = False) -> Console:
     # Criado a cada uso: a saída vigente (inclusive a de testes) é a que vale no momento.
-    return Console(stderr=stderr, highlight=False, width=DEFAULT_WIDTH)
+    # Em terminal interativo, aproveita a largura do terminal (mínimo DEFAULT_WIDTH);
+    # em pipes/testes (não-tty), fixa em DEFAULT_WIDTH para estabilidade.
+    import shutil
+    import sys
+
+    stream = sys.stderr if stderr else sys.stdout
+    if stream.isatty():
+        width = max(shutil.get_terminal_size().columns, DEFAULT_WIDTH)
+    else:
+        width = DEFAULT_WIDTH
+    return Console(stderr=stderr, highlight=False, width=width)
 
 
 def panel(title: str, rows: Sequence[tuple[str, str]], *, style: str = "green") -> None:

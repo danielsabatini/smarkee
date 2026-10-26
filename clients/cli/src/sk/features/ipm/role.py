@@ -50,9 +50,7 @@ def validate_role_name(name: str) -> str:
     """Nome da role no padrão <módulo>.<papel>, ou `ValueError`."""
     trimmed = name.strip()
     if not (3 <= len(trimmed) <= 128) or not ROLE_NAME_PATTERN.fullmatch(trimmed):
-        raise ValueError(
-            "role name invalid: use <module>.<roleName>, for example ipm.userAdmin"
-        )
+        raise ValueError("role name invalid: use <module>.<roleName>, for example ipm.userAdmin")
     return trimmed
 
 
@@ -85,9 +83,7 @@ def _role(document: object) -> Role:
     desired = as_object(body.get("desired"), what="role (desired)")
     spec_obj = desired.get("specification")
     spec = (
-        as_object(spec_obj, what="role (specification)")
-        if isinstance(spec_obj, dict)
-        else desired
+        as_object(spec_obj, what="role (specification)") if isinstance(spec_obj, dict) else desired
     )
     name = spec.get("name")
     if not isinstance(name, str):

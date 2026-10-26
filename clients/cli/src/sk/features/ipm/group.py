@@ -72,9 +72,7 @@ def validate_roles_list(values: list[str]) -> list[str]:
     if len(roles) > MAXIMUM_ROLES_PER_GROUP:
         raise ValueError(f"too many roles: at most {MAXIMUM_ROLES_PER_GROUP}")
     if any(not ROLE_NAME_PATTERN.fullmatch(r) for r in roles):
-        raise ValueError(
-            "role invalid: use <module>.<roleName>, for example ipm.userViewer"
-        )
+        raise ValueError("role invalid: use <module>.<roleName>, for example ipm.userViewer")
     return roles
 
 

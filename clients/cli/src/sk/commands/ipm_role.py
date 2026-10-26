@@ -531,17 +531,20 @@ def list_command() -> None:
         return
     ui.table(
         "Roles",
-        ["resourceId", "name", "protected", "phase", "permissions", "description"],
+        ["resourceId", "name", "phase", "permissions", "description"],
         [
             [
                 r.resource_id,
                 r.name,
-                "yes" if r.deletion_protection else "no",
                 _styled_phase(r),
-                ", ".join(r.permissions),
+                (
+                    f"{len(r.permissions)} perm"
+                    if len(r.permissions) == 1
+                    else f"{len(r.permissions)} perms"
+                ),
                 r.description,
             ]
             for r in roles
         ],
-        wrap=["permissions", "description"],
+        wrap=["description"],
     )
