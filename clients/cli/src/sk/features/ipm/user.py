@@ -28,6 +28,8 @@ MAXIMUM_PERMISSIONS = 64
 # `roleName` de `schemas/ipm/user/definitions.v1.schema.json`: `<módulo>.<tipo><Admin|Viewer>`.
 ROLE_PATTERN = re.compile(r"^[a-z][a-z0-9]*\.[a-z][a-zA-Z0-9]*$")
 MAXIMUM_ROLES = 32
+GROUP_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,61}[a-z0-9]$")
+MAXIMUM_GROUPS = 32
 LIST_PAGE_SIZE = 200  # o máximo da API
 MAXIMUM_LIST_PAGES = 50  # trava contra um cursor que nunca termina
 
@@ -52,6 +54,7 @@ class User:
     """Estado lido do provedor (`initial` até a ativação); `None` enquanto não foi observado."""
 
     roles: tuple[str, ...] = ()
+    groups: tuple[str, ...] = ()
 
 
 def validate_permissions(values: list[str]) -> list[str]:
@@ -76,6 +79,16 @@ def validate_roles(values: list[str]) -> list[str]:
     return roles
 
 
+def validate_groups(values: list[str]) -> list[str]:
+    """Grupos sem repetição e em ordem, ou `ValueError`."""
+    groups = sorted(set(values))
+    if len(groups) > MAXIMUM_GROUPS:
+        raise ValueError(f"too many groups: at most {MAXIMUM_GROUPS}")
+    if any(not GROUP_PATTERN.fullmatch(group) for group in groups):
+        raise ValueError("group invalid: use lowercase slug (e.g. ops, sre-team)")
+    return groups
+
+
 def _user(document: object) -> User:
     body = as_object(document, what="user")
     desired = as_object(body.get("desired"), what="user (desired)")
@@ -84,6 +97,7 @@ def _user(document: object) -> User:
     if not isinstance(permissions, list):
         raise ApiUnavailableError("API response without the user permissions")
     roles: Any = desired.get("roles")
+    groups: Any = desired.get("groups")
     email = desired.get("email")
     state = observed.get("userState")
     return User(
@@ -99,6 +113,9 @@ def _user(document: object) -> User:
         roles=tuple(str(role) for role in cast("list[object]", roles))
         if isinstance(roles, list)
         else (),
+        groups=tuple(str(group) for group in cast("list[object]", groups))
+        if isinstance(groups, list)
+        else (),
     )
 
 
@@ -112,6 +129,7 @@ def create_user(
     email: str,
     permissions: list[str] | None = None,
     roles: list[str] | None = None,
+    groups: list[str] | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
 ) -> RequestAccepted:
@@ -126,6 +144,8 @@ def create_user(
         body["permissions"] = validate_permissions(permissions)
     if roles is not None:
         body["roles"] = validate_roles(roles)
+    if groups is not None:
+        body["groups"] = validate_groups(groups)
     _, document = call_api(
         "POST",
         api_url,
@@ -146,17 +166,20 @@ def update_user(
     resource_version: str,
     permissions: list[str] | None = None,
     roles: list[str] | None = None,
+    groups: list[str] | None = None,
     protected: bool | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
 ) -> RequestAccepted:
-    """Troca as permissões, as roles e/ou a proteção contra exclusão."""
+    """Troca as permissões, as roles, os grupos e/ou a proteção contra exclusão."""
     resource_id = validate_identifier(resource_id, what="resourceId")
     body: dict[str, Any] = {"resourceVersion": resource_version}
     if permissions is not None:
         body["permissions"] = validate_permissions(permissions)
     if roles is not None:
         body["roles"] = validate_roles(roles)
+    if groups is not None:
+        body["groups"] = validate_groups(groups)
     if protected is not None:
         body["deletionProtection"] = protected
     _, document = call_api(

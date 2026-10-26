@@ -234,5 +234,7 @@ async def test_create_and_update_write_the_deletion_protection_as_metadata() -> 
     await execute("update", "u-1", {**DESIRED, "deletionProtection": True}, both(writer, metadata))
     assert metadata.values[("u-1", "deletionProtection")] == "true"
 
+    assert metadata.values[("u-1", "groups")] == "[]"
+
     await execute("delete", "u-1", {"lifecycle": "absent"}, both(writer, metadata))
-    assert len(metadata.values) == 1  # a remoção não grava metadado
+    assert len(metadata.values) == 2  # a remoção não grava metadado

@@ -71,9 +71,11 @@ async def execute(
         case "create":
             await _create(user_id, desired, drivers)
             await _ensure_deletion_protection(user_id, desired, drivers.metadata)
+            await _ensure_groups_metadata(user_id, desired, drivers.metadata)
         case "update":
             await _update(user_id, desired, drivers)
             await _ensure_deletion_protection(user_id, desired, drivers.metadata)
+            await _ensure_groups_metadata(user_id, desired, drivers.metadata)
         case "delete":
             await drivers.users.delete_user(user_id)  # ausente é sucesso idempotente
         case _:
@@ -169,6 +171,7 @@ async def _ensure_permissions(
 
 
 DELETION_PROTECTION_KEY = "deletionProtection"
+GROUPS_METADATA_KEY = "groups"
 
 
 async def _ensure_deletion_protection(
@@ -181,3 +184,21 @@ async def _ensure_deletion_protection(
     """
     protected = desired.get("deletionProtection", False) is True
     await metadata.set_value(resource_id, DELETION_PROTECTION_KEY, "true" if protected else "false")
+
+
+async def _ensure_groups_metadata(
+    resource_id: str, desired: Mapping[str, Any], metadata: Metadata
+) -> None:
+    """Grava no provedor os grupos aos quais o usuário pertence (decisão 0088).
+
+    JSON serializado de lista de slugs, por exemplo '["ops", "sre"]'.
+    """
+    import json
+
+    raw_groups = desired.get("groups")
+    groups: list[str] = (
+        sorted({str(g) for g in cast("list[object]", raw_groups)})
+        if isinstance(raw_groups, list)
+        else []
+    )
+    await metadata.set_value(resource_id, GROUPS_METADATA_KEY, json.dumps(groups))

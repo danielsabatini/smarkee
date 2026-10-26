@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GroupDesiredData",
+  "description": "data de desired do Grupo (ipm.group): estado pretendido e controle de reconciliação. Publicado somente pelo Manager. Não carrega dados pessoais.",
+  "x-schemaVersion": "1.0",
+  "x-resourceParameters": {
+    "observationInterval": "PT5M",
+    "observationValidity": "PT10M",
+    "actionDeadline": "PT2M",
+    "failureLimit": 5,
+    "progressDeadline": "PT5M"
+  },
+  "x-actionIdFormat": "<resourceId>.<desiredGeneration>.<operation>.<messageId do observed que motivou a decisão>",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lifecycle",
+    "reconciliation",
+    "organizationId",
+    "name",
+    "description",
+    "roles"
+  ],
+  "properties": {
+    "lifecycle": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/lifecycle",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "organizationId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "description": "Organization onde o grupo vive (o resourceId da Organization). Imutável.",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "name": {
+      "$ref": "definitions.v1.schema.json#/$defs/groupName",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": true,
+      "x-sensitivity": "public"
+    },
+    "description": {
+      "$ref": "definitions.v1.schema.json#/$defs/description",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "public"
+    },
+    "roles": {
+      "$ref": "definitions.v1.schema.json#/$defs/roles",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    }
+  }
+}

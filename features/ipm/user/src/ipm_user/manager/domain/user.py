@@ -40,8 +40,16 @@ def _parse_resource_version(value: str) -> int:
         raise PermanentMessageError("resourceVersion não numérico") from None
 
 
-def _roles(values: list[generated.RoleName] | None) -> list[str]:
-    return sorted({role.root for role in values or []})
+def _roles(values: list[generated.RoleName] | set[str] | None) -> list[str]:
+    if values is None:
+        return []
+    return sorted({getattr(role, "root", str(role)) for role in values})
+
+
+def _groups(values: list[generated.GroupName] | set[str] | None) -> list[str]:
+    if values is None:
+        return []
+    return sorted({getattr(group, "root", str(group)) for group in values})
 
 
 class UserPolicy:
@@ -67,6 +75,7 @@ class UserPolicy:
                     "familyName": specification.family_name,
                     "email": str(specification.email).strip().lower(),
                     "roles": _roles(specification.roles),
+                    "groups": _groups(specification.groups),
                     "deletionProtection": specification.deletion_protection is True,
                 }
                 return Request(
@@ -84,6 +93,8 @@ class UserPolicy:
                 if update.specification is not None:
                     if update.specification.roles is not None:
                         changes["roles"] = _roles(update.specification.roles)
+                    if update.specification.groups is not None:
+                        changes["groups"] = _groups(update.specification.groups)
                     if update.specification.deletion_protection is not None:
                         changes["deletionProtection"] = update.specification.deletion_protection
                 return Request(
@@ -112,35 +123,50 @@ class UserPolicy:
         # A proteção contra exclusão nasce desligada no usuário da Organization (exceção à
         # decisão 0043, registrada na 0077).
         spec = dict(request.specification)
-        roles = [str(r) for r in spec.get("roles", [])]
-        effective = self._catalog.expand_roles(roles)
+        org_id = str(spec.get("organizationId", ""))
+        direct_roles = [str(r) for r in spec.get("roles", [])]
+        user_groups = [str(g) for g in spec.get("groups", [])]
+        group_roles = self._catalog.expand_groups(org_id, user_groups)
+        all_roles = sorted(set(direct_roles) | set(group_roles))
+        effective = self._catalog.expand_roles(all_roles)
         return {
             "lifecycle": "present",
             **spec,
-            "roles": roles,
+            "roles": direct_roles,
+            "groups": user_groups,
             "permissions": effective,
         }
 
     def desired_for_update(self, current: Mapping[str, Any], request: Request) -> dict[str, Any]:
         spec = dict(request.specification or {})
-        roles = [str(r) for r in spec.get("roles", current.get("roles", []))]
-        effective = self._catalog.expand_roles(roles)
+        org_id = str(current.get("organizationId", ""))
+        direct_roles = [str(r) for r in spec.get("roles", current.get("roles", []))]
+        user_groups = [str(g) for g in spec.get("groups", current.get("groups", []))]
+        group_roles = self._catalog.expand_groups(org_id, user_groups)
+        all_roles = sorted(set(direct_roles) | set(group_roles))
+        effective = self._catalog.expand_roles(all_roles)
         return {
             **current,
             **spec,
-            "roles": roles,
+            "roles": direct_roles,
+            "groups": user_groups,
             "permissions": effective,
         }
 
     def rolled_out(self, current: Mapping[str, Any]) -> dict[str, Any] | None:
-        """Re-expande as `permissions` do usuário quando uma `ipm.role` atribuída muda (0083)."""
+        """Re-expande `permissions` quando uma `ipm.role` ou `ipm.group` muda."""
         if current.get("lifecycle") != "present":
             return None
+        org_id = str(current.get("organizationId", ""))
         raw_roles = cast(list[Any], current.get("roles") or [])
-        roles = [str(r) for r in raw_roles]
-        if not roles:
+        direct_roles = [str(r) for r in raw_roles]
+        raw_groups = cast(list[Any], current.get("groups") or [])
+        user_groups = [str(g) for g in raw_groups]
+        if not direct_roles and not user_groups:
             return None
-        effective = self._catalog.expand_roles(roles)
+        group_roles = self._catalog.expand_groups(org_id, user_groups)
+        all_roles = sorted(set(direct_roles) | set(group_roles))
+        effective = self._catalog.expand_roles(all_roles)
         if current.get("permissions") == effective:
             return None
         return {**current, "permissions": effective}

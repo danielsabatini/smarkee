@@ -36,4 +36,6 @@ class CatalogWatcher:
             return self._catalog.apply_permission_desired(envelope.resource_id, payload)
         if envelope.resource_type == "role":
             return self._catalog.apply_role_desired(envelope.resource_id, payload)
+        if envelope.resource_type == "group":
+            return self._catalog.apply_group_desired(envelope.resource_id, payload)
         return False

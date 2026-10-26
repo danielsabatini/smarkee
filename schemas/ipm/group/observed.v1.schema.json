@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GroupObservedData",
+  "description": "data de observed do Grupo (ipm.group): estado observado do grupo no banco platform. Os campos estão presentes quando presence é present; com absent ou unknown, data é vazio.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "name": {
+      "$ref": "definitions.v1.schema.json#/$defs/groupName",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "description": {
+      "$ref": "definitions.v1.schema.json#/$defs/description",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "roles": {
+      "$ref": "definitions.v1.schema.json#/$defs/roles",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "description": "Proteção contra exclusão observada (decisões 0074 e 0088).",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

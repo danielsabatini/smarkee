@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "IpmGroupContracts",
+  "description": "Índice dos contratos usados pelos componentes de group do módulo ipm: entrada do gerador de modelos (decisões 0012, 0085 e 0088). Não é um contrato. Todo contrato de common/ e de ipm/group/ deve estar listado (verificado pelos testes de contrato).",
+  "anyOf": [
+    {
+      "$ref": "common/message-envelope.v1.schema.json"
+    },
+    {
+      "$ref": "common/condition.v1.schema.json"
+    },
+    {
+      "$ref": "common/action.v1.schema.json"
+    },
+    {
+      "$ref": "common/completed.v1.schema.json"
+    },
+    {
+      "$ref": "common/failed.v1.schema.json"
+    },
+    {
+      "$ref": "common/updated.v1.schema.json"
+    },
+    {
+      "$ref": "common/operation.v1.schema.json"
+    },
+    {
+      "$ref": "common/api-accepted-response.v1.schema.json"
+    },
+    {
+      "$ref": "common/api-error.v1.schema.json"
+    },
+    {
+      "$ref": "ipm/group/desired.v1.schema.json"
+    },
+    {
+      "$ref": "ipm/group/observed.v1.schema.json"
+    },
+    {
+      "$ref": "ipm/group/requested-create.v1.schema.json"
+    },
+    {
+      "$ref": "ipm/group/requested-update.v1.schema.json"
+    },
+    {
+      "$ref": "ipm/group/requested-delete.v1.schema.json"
+    },
+    {
+      "$ref": "ipm/group/api-create-request.v1.schema.json"
+    },
+    {
+      "$ref": "ipm/group/api-update-request.v1.schema.json"
+    },
+    {
+      "$ref": "ipm/group/resource.v1.schema.json"
+    },
+    {
+      "$ref": "ipm/group/resource-list.v1.schema.json"
+    }
+  ]
+}

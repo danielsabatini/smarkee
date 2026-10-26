@@ -35,6 +35,9 @@ connectors:
         condition: attributes["smarkee.module"] == "core" and attributes["smarkee.resource.type"] == "account"
         pipelines: [logs/core_account]
       - context: resource
+        condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "group"
+        pipelines: [logs/ipm_group]
+      - context: resource
         condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "organization"
         pipelines: [logs/ipm_organization]
       - context: resource
@@ -59,6 +62,9 @@ connectors:
       - context: span
         condition: attributes["apisix.service_name"] == "core-account-receiver"
         pipelines: [traces/core_account]
+      - context: span
+        condition: attributes["apisix.service_name"] == "ipm-group-receiver"
+        pipelines: [traces/ipm_group]
       - context: span
         condition: attributes["apisix.service_name"] == "ipm-organization-receiver"
         pipelines: [traces/ipm_organization]
@@ -129,6 +135,20 @@ exporters:
       max_elapsed_time: 10m
   otlp_grpc/core_account:
     endpoint: core-account-telemeter.smarkee.internal:4317
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      block_on_overflow: false
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 10m
+  otlp_grpc/ipm_group:
+    endpoint: ipm-group-telemeter.smarkee.internal:4317
     tls:
       insecure: true
     sending_queue:
@@ -237,6 +257,10 @@ service:
       receivers: [routing/logs]
       processors: [batch]
       exporters: [otlp_grpc/core_account]
+    logs/ipm_group:
+      receivers: [routing/logs]
+      processors: [batch]
+      exporters: [otlp_grpc/ipm_group]
     logs/ipm_organization:
       receivers: [routing/logs]
       processors: [batch]
@@ -275,6 +299,10 @@ service:
       receivers: [routing/traces]
       processors: [batch]
       exporters: [otlp_grpc/core_account]
+    traces/ipm_group:
+      receivers: [routing/traces]
+      processors: [batch]
+      exporters: [otlp_grpc/ipm_group]
     traces/ipm_organization:
       receivers: [routing/traces]
       processors: [batch]

@@ -159,6 +159,11 @@ def _roles_of(values: Iterable[generated.RoleName | str] | None) -> list[str]:
     return sorted({value if isinstance(value, str) else value.root for value in values or []})
 
 
+def _groups_of(values: Iterable[generated.GroupName | str] | None) -> list[str]:
+    """Grupos sem repetição e em ordem alfabética (decisão 0088)."""
+    return sorted({value if isinstance(value, str) else value.root for value in values or []})
+
+
 # ---------------------------------------------------------------------- rotas
 
 
@@ -245,6 +250,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         if standing is None:
             raise not_found()
         requested_roles = _roles_of(body.roles) if body.roles is not None else []
+        requested_groups = _groups_of(body.groups) if body.groups is not None else []
         check_roles(principal, standing, [], requested_roles)
         quota: int | None = None
         if standing is not Standing.OPERATOR:
@@ -262,6 +268,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             # O e-mail é também o nome de login na organização: normalizado (decisão 0077).
             "email": str(body.email).strip().lower(),
             "roles": requested_roles,
+            "groups": requested_groups,
             "deletionProtection": body.deletion_protection is True,
         }
         new_user_id = deps.identifiers()
@@ -346,6 +353,8 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             current_roles = _roles_of(record.desired.get("roles"))
             check_roles(principal, standing, current_roles, requested_roles)
             specification["roles"] = requested_roles
+        if body.groups is not None:
+            specification["groups"] = _groups_of(body.groups)
         if body.deletion_protection is not None:
             specification["deletionProtection"] = body.deletion_protection
         reconciliation = body.reconciliation.value if body.reconciliation is not None else None

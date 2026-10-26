@@ -97,6 +97,13 @@
         "title": "ConditionStatus",
         "type": "string"
       },
+      "GroupName": {
+        "maxLength": 63,
+        "minLength": 2,
+        "pattern": "^[a-z][a-z0-9-]{0,61}[a-z0-9]$",
+        "title": "GroupName",
+        "type": "string"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -400,6 +407,21 @@
             "title": "Givenname",
             "type": "string"
           },
+          "groups": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/GroupName"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups"
+          },
           "organizationId": {
             "maxLength": 128,
             "minLength": 1,
@@ -485,6 +507,21 @@
               }
             ],
             "title": "Givenname"
+          },
+          "groups": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/GroupName"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups"
           },
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle"
@@ -591,6 +628,21 @@
             ],
             "title": "Emailverified"
           },
+          "groups": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/GroupName"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups"
+          },
           "observedAt": {
             "format": "date-time",
             "title": "Observedat",
@@ -657,6 +709,21 @@
               }
             ],
             "title": "Deletionprotection"
+          },
+          "groups": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/GroupName"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups"
           },
           "reconciliation": {
             "anyOf": [

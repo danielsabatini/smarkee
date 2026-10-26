@@ -1,0 +1,41 @@
+{
+  "resourceId": "0199c8b3-0a1b-7c2d-8e3f-4a5b6c7d8e99",
+  "resourceVersion": "1",
+  "desiredGeneration": 1,
+  "phase": "Ready",
+  "conditions": [
+    {
+      "type": "Ready",
+      "status": "True",
+      "reason": "Converged",
+      "message": "Resource matches desired specification.",
+      "observedGeneration": 1,
+      "lastTransitionAt": "2026-10-25T12:00:00Z"
+    }
+  ],
+  "desired": {
+    "lifecycle": "present",
+    "reconciliation": "active",
+    "organizationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+    "name": "finops",
+    "description": "Equipe de FinOps da Organization",
+    "roles": [
+      "bsm.accountViewer",
+      "ipm.userViewer"
+    ],
+    "deletionProtection": false
+  },
+  "observed": {
+    "presence": "present",
+    "observedAt": "2026-10-25T12:00:00Z",
+    "name": "finops",
+    "description": "Equipe de FinOps da Organization",
+    "roles": [
+      "bsm.accountViewer",
+      "ipm.userViewer"
+    ],
+    "deletionProtection": false
+  },
+  "createdAt": "2026-10-25T12:00:00Z",
+  "updatedAt": "2026-10-25T12:00:00Z"
+}

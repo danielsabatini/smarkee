@@ -47,6 +47,13 @@ ACTION_ROLES_BY_PROJECT = {
         "ipm.permission.list",
         "ipm.role.get",
         "ipm.role.list",
+        # Grupos de usuários da Organization (decisão 0088).
+        "ipm.group.bind",
+        "ipm.group.create",
+        "ipm.group.delete",
+        "ipm.group.get",
+        "ipm.group.list",
+        "ipm.group.update",
         # Usuários da Organization (decisão 0077): o root as recebe pelo Grant da `register`.
         "ipm.user.bind",
         "ipm.user.create",
@@ -68,6 +75,7 @@ ADMIN_ROLES_BY_PROJECT = {
         "ipm.organization.admin",
         "ipm.permission.admin",
         "ipm.role.admin",
+        "ipm.group.admin",
         "ipm.user.admin",
     },
     "roles-sum": set[str](),
@@ -559,6 +567,7 @@ ENV_FILES = {
     "ipm.organization": REPOSITORY / "features" / "ipm" / "organization" / ".env",
     "ipm.permission": REPOSITORY / "features" / "ipm" / "permission" / ".env",
     "ipm.role": REPOSITORY / "features" / "ipm" / "role" / ".env",
+    "ipm.group": REPOSITORY / "features" / "ipm" / "group" / ".env",
     "ipm.user": REPOSITORY / "features" / "ipm" / "user" / ".env",
 }
 # Variável de cada `.env` → o que ela deve apontar na instância.
@@ -569,6 +578,7 @@ EXPECTED_AUDIENCE = {
     "ipm.organization": ("IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.permission": ("IPM_PERMISSION_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.role": ("IPM_ROLE_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
+    "ipm.group": ("IPM_GROUP_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.user": ("IPM_USER_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
 }
 # Um projeto de roles só, o do próprio módulo (o Executor e o Observer do User, decisão 0077).
@@ -660,6 +670,7 @@ def test_the_ids_in_the_env_files_match_the_instance(
         "ipm.organization",
         "ipm.permission",
         "ipm.role",
+        "ipm.group",
         "ipm.user",
     ):
         if not ENV_FILES[feature].exists():

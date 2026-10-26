@@ -1,0 +1,7 @@
+{
+  "resourceVersion": "2",
+  "roles": [
+    "bsm.accountViewer",
+    "ipm.userAdmin"
+  ]
+}

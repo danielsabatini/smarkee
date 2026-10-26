@@ -39,6 +39,7 @@ from sk.features.ipm.user import (
     get_user,
     list_users,
     update_user,
+    validate_groups,
     validate_roles,
 )
 from sk.help import command, option
@@ -141,6 +142,20 @@ RoleOption = Annotated[
         ),
     ),
 ]
+GroupOption = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--group",
+        help=option(
+            "Organization group name the user belongs to, for example ops. Repeat it for more "
+            "groups.",
+            kind="String",
+            variable=None,
+            file=None,
+            default="no groups",
+        ),
+    ),
+]
 
 
 def _fail_api(error: ApiError, *, not_found: str = NOT_FOUND) -> NoReturn:
@@ -172,6 +187,13 @@ def _roles(values: list[str] | None) -> list[str]:
         return validate_roles(values or [])
     except ValueError as error:
         _usage_error(str(error), "--role")
+
+
+def _groups(values: list[str] | None) -> list[str]:
+    try:
+        return validate_groups(values or [])
+    except ValueError as error:
+        _usage_error(str(error), "--group")
 
 
 def _organization(value: str | None) -> str:
@@ -207,6 +229,7 @@ def _rows(user: User) -> list[tuple[str, str]]:
         ("state", user.user_state or "unknown"),
         ("phase", user.phase),
         ("roles", ", ".join(user.roles) or "-"),
+        ("groups", ", ".join(user.groups) or "-"),
         ("permissions", ", ".join(user.permissions) or "-"),
         ("protected", "yes" if user.deletion_protection else "no"),
     ]
@@ -364,6 +387,7 @@ def create_command(
         ),
     ] = None,
     role: RoleOption = None,
+    group: GroupOption = None,
     organization_id: OrganizationOption = None,
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
@@ -378,6 +402,7 @@ def create_command(
         ui.error("Value not accepted", str(error), hint="Fix the given value and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     roles = _roles(role) if role is not None else None
+    groups = _groups(group) if group is not None else None
     organization = _organization(organization_id)
     url, insecure = load_api()
     token = session_token()
@@ -390,6 +415,7 @@ def create_command(
             family_name=surname.strip(),
             email=email.strip(),
             roles=roles,
+            groups=groups,
             idempotency_key=str(uuid.uuid7()),
             allow_insecure_http=insecure,
         )
@@ -407,6 +433,7 @@ def _change(
     resource_id: str | None,
     *,
     roles: list[str] | None,
+    groups: list[str] | None,
     protected: bool | None,
     title: str,
     wait: bool,
@@ -419,8 +446,9 @@ def _change(
     try:
         current = get_user(url, token=token, resource_id=user_id, allow_insecure_http=insecure)
         same_roles = roles is None or sorted(roles) == sorted(current.roles)
+        same_groups = groups is None or sorted(groups) == sorted(current.groups)
         same_protection = protected is None or protected == current.deletion_protection
-        if same_roles and same_protection:
+        if same_roles and same_groups and same_protection:
             ui.note(f"User {user_id} already has it. Nothing to do.")
             return
         accepted = update_user(
@@ -429,6 +457,7 @@ def _change(
             resource_id=user_id,
             resource_version=current.resource_version,
             roles=None if same_roles else roles,
+            groups=None if same_groups else groups,
             protected=None if same_protection else protected,
             idempotency_key=str(uuid.uuid7()),
             allow_insecure_http=insecure,
@@ -444,8 +473,8 @@ def _change(
 @user_app.command(
     "update",
     help=command(
-        "Set the roles of a user: the given --role values replace the current roles "
-        "(--no-roles removes them)."
+        "Set the roles or groups of a user: the given --role/--group values replace current ones "
+        "(--no-roles / --no-groups removes them)."
     ),
 )
 def update_command(
@@ -456,7 +485,21 @@ def update_command(
         typer.Option(
             "--no-roles",
             help=option(
-                "Remove every role of the user.",
+                "Remove every direct role of the user.",
+                kind="Boolean",
+                variable=None,
+                file=None,
+                default="off",
+            ),
+        ),
+    ] = False,
+    group: GroupOption = None,
+    no_groups: Annotated[
+        bool,
+        typer.Option(
+            "--no-groups",
+            help=option(
+                "Remove the user from every group.",
                 kind="Boolean",
                 variable=None,
                 file=None,
@@ -470,11 +513,17 @@ def update_command(
     has_role_change = role is not None or no_roles
     if has_role_change and (bool(role) == no_roles):
         _usage_error("Give at least one --role, or --no-roles (not both).", "--role")
-    if not has_role_change:
-        _usage_error("Give at least one --role, or --no-roles.", "--role")
+    has_group_change = group is not None or no_groups
+    if has_group_change and (bool(group) == no_groups):
+        _usage_error("Give at least one --group, or --no-groups (not both).", "--group")
+    if not has_role_change and not has_group_change:
+        _usage_error("Give at least one --role, --no-roles, --group, or --no-groups.", "--role")
+    roles_list = [] if no_roles else (_roles(role) if role is not None else None)
+    groups_list = [] if no_groups else (_groups(group) if group is not None else None)
     _change(
         resource_id,
-        roles=[] if no_roles else (_roles(role) if role is not None else None),
+        roles=roles_list,
+        groups=groups_list,
         protected=None,
         title="User updated",
         wait=wait,
@@ -491,6 +540,7 @@ def protect_command(
     _change(
         resource_id,
         roles=None,
+        groups=None,
         protected=True,
         title="User protected",
         wait=wait,
@@ -510,6 +560,7 @@ def unprotect_command(
     _change(
         resource_id,
         roles=None,
+        groups=None,
         protected=False,
         title="User unprotected",
         wait=wait,

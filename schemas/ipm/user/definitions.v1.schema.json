@@ -65,6 +65,22 @@
       "items": {
         "$ref": "#/$defs/roleName"
       }
+    },
+    "groupName": {
+      "description": "Nome único de um grupo de usuários na Organization (slug curto, decisão 0088).",
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9-]{0,61}[a-z0-9]$"
+    },
+    "groups": {
+      "description": "Grupos de usuários da Organization aos quais o usuário pertence (decisão 0088). Suas roles são expandidas pelo Manager em permissions no desired.",
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/groupName"
+      }
     }
   }
 }

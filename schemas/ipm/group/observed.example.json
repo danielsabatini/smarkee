@@ -1,0 +1,9 @@
+{
+  "name": "finops",
+  "description": "Equipe de FinOps da Organization",
+  "roles": [
+    "bsm.accountViewer",
+    "ipm.userViewer"
+  ],
+  "deletionProtection": false
+}

@@ -78,6 +78,16 @@ async def run(settings: UserManagerSettings) -> int:
                 traced=False,
                 on_cycle=runtime.health.beat,
             ),
+            "groups": StateConsumer(
+                runtime.stream,
+                watcher,
+                durable=f"ipm-user-manager-groups-{instance}",
+                stream="DESIRED",
+                filter_subject="manager.desired.ipm.group.>",
+                inactive_threshold_seconds=300,
+                traced=False,
+                on_cycle=runtime.health.beat,
+            ),
         }
         for name, consumer in consumers.items():
             runtime.start(name, consumer.run(runtime.stop))

@@ -263,12 +263,24 @@ def test_update_replaces_the_roles_reading_the_current_version(api: FakeApi) -> 
     api.routes[("GET", USER)] = Response(200, user_document(version="7"))
     api.routes[("PATCH", USER)] = accepted()
     result = runner.invoke(
-        app, ["ipm", "user", "update", "--resource-id", UID, "--role", "ipm.userViewer"]
+        app,
+        [
+            "ipm",
+            "user",
+            "update",
+            "--resource-id",
+            UID,
+            "--role",
+            "ipm.userViewer",
+            "--group",
+            "devops",
+        ],
     )
     assert result.exit_code == 0, result.stderr
     assert body_of(api.requests[-1]) == {
         "resourceVersion": "7",
         "roles": ["ipm.userViewer"],
+        "groups": ["devops"],
     }
 
 

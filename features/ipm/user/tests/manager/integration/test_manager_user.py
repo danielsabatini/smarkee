@@ -119,6 +119,7 @@ async def test_create_is_accepted_and_publishes_desired(
     assert row["desired"] == {
         "lifecycle": "present",
         **specification,
+        "groups": [],
         "permissions": ["ipm.user.get", "ipm.user.list"],
     }
 
@@ -149,6 +150,7 @@ async def test_create_is_accepted_and_publishes_desired(
         "lifecycle": "present",
         "reconciliation": "active",
         **specification,
+        "groups": [],
         "permissions": ["ipm.user.get", "ipm.user.list"],
     }
 

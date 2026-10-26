@@ -43,6 +43,7 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "receiver-http": (
         "bsm/account",
         "core/account",
+        "ipm/group",
         "ipm/organization",
         "ipm/permission",
         "ipm/role",
@@ -53,6 +54,7 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "manager-handlers": (
         "bsm/account",
         "core/account",
+        "ipm/group",
         "ipm/organization",
         "ipm/permission",
         "ipm/role",
@@ -63,7 +65,14 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "identity-metadata": ("core/account", "ipm/organization", "ipm/user"),
     # Motores sem regra do tipo: Observer e Executor (com a revalidação), com o teste do motor do
     # Observer (decisão 0075).
-    "loop-engines": ("bsm/account", "core/account", "ipm/organization", "ipm/role", "ipm/user"),
+    "loop-engines": (
+        "bsm/account",
+        "core/account",
+        "ipm/group",
+        "ipm/organization",
+        "ipm/role",
+        "ipm/user",
+    ),
 }
 
 

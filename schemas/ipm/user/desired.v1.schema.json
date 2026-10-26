@@ -52,7 +52,15 @@
     },
     "roles": {
       "$ref": "definitions.v1.schema.json#/$defs/roles",
-      "description": "Roles compostas atribuídas ao usuário na Organization (decisão 0083). São expandidas pelo Manager em permissions e não criam objetos no provedor de identidade.",
+      "description": "Roles compostas atribuídas diretamente ao usuário na Organization (decisão 0083). São expandidas pelo Manager em permissions e não criam objetos no provedor de identidade.",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "groups": {
+      "$ref": "definitions.v1.schema.json#/$defs/groups",
+      "description": "Grupos de usuários aos quais o usuário pertence na Organization (decisão 0088). Suas roles são expandidas transitivamente pelo Manager em permissions e o conjunto é gravado em metadados no provedor.",
       "x-writer": "client",
       "x-mutability": "mutable",
       "x-managed": false,

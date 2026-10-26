@@ -415,6 +415,15 @@ class RoleName(RootModel[str]):
     """
 
 
+class GroupName(RootModel[str]):
+    root: Annotated[
+        str, Field(max_length=63, min_length=2, pattern="^[a-z][a-z0-9-]{0,61}[a-z0-9]$")
+    ]
+    """
+    Nome único de um grupo de usuários na Organization (slug curto, decisão 0088).
+    """
+
+
 class UserCreateSpecification(ContractModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -446,6 +455,10 @@ class UserCreateSpecification(ContractModel):
     roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
     """
     Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
+    """
+    groups: Annotated[list[GroupName] | None, Field(max_length=32)] = None
+    """
+    Grupos de usuários da Organization aos quais o usuário pertence (decisão 0088). Suas roles são expandidas pelo Manager em permissions no desired.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -530,6 +543,10 @@ class UserUpdateSpecification(ContractModel):
     """
     Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
     """
+    groups: Annotated[list[GroupName] | None, Field(max_length=32)] = None
+    """
+    Grupos de usuários da Organization aos quais o usuário pertence (decisão 0088). Suas roles são expandidas pelo Manager em permissions no desired.
+    """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
     Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
@@ -613,6 +630,10 @@ class UserCreateRequest(ContractModel):
     """
     Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
     """
+    groups: Annotated[list[GroupName] | None, Field(max_length=32)] = None
+    """
+    Grupos de usuários da Organization aos quais o usuário pertence (decisão 0088). Suas roles são expandidas pelo Manager em permissions no desired.
+    """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
     Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
@@ -636,6 +657,10 @@ class UserUpdateRequest(ContractModel):
     roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
     """
     Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
+    """
+    groups: Annotated[list[GroupName] | None, Field(max_length=32)] = None
+    """
+    Grupos de usuários da Organization aos quais o usuário pertence (decisão 0088). Suas roles são expandidas pelo Manager em permissions no desired.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -813,6 +838,10 @@ class UserObservedData(ContractModel):
     """
     Permissões que o usuário tem hoje na Organization, lidas das autorizações dele no provedor de identidade.
     """
+    groups: Annotated[list[GroupName] | None, Field(max_length=32)] = None
+    """
+    Grupos de usuários aos quais o usuário pertence lidos do metadado `groups` no provedor de identidade (decisão 0088).
+    """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
     Proteção contra exclusão lida do metadado `deletionProtection` do usuário (decisão 0074). Ausente quando o metadado não existe ou tem valor que não é true nem false: o Reconciler trata como divergência e o Executor o regrava.
@@ -844,6 +873,10 @@ class UserDesiredView(ContractModel):
     roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
     """
     Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.
+    """
+    groups: Annotated[list[GroupName] | None, Field(max_length=32)] = None
+    """
+    Grupos de usuários da Organization aos quais o usuário pertence (decisão 0088). Suas roles são expandidas pelo Manager em permissions no desired.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -883,6 +916,10 @@ class UserObservedView(ContractModel):
     permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
     """
     Conjunto de permissões, sem repetição e em ordem alfabética.
+    """
+    groups: Annotated[list[GroupName] | None, Field(max_length=32)] = None
+    """
+    Grupos de usuários da Organization aos quais o usuário pertence (decisão 0088). Suas roles são expandidas pelo Manager em permissions no desired.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -983,7 +1020,11 @@ class UserDesiredData(ContractModel):
     """
     roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
     """
-    Roles compostas atribuídas ao usuário na Organization (decisão 0083). São expandidas pelo Manager em permissions e não criam objetos no provedor de identidade.
+    Roles compostas atribuídas diretamente ao usuário na Organization (decisão 0083). São expandidas pelo Manager em permissions e não criam objetos no provedor de identidade.
+    """
+    groups: Annotated[list[GroupName] | None, Field(max_length=32)] = None
+    """
+    Grupos de usuários aos quais o usuário pertence na Organization (decisão 0088). Suas roles são expandidas transitivamente pelo Manager em permissions e o conjunto é gravado em metadados no provedor.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """

@@ -33,6 +33,7 @@ ENV_FILES = (
     "features/ipm/organization/.env",
     "features/ipm/permission/.env",
     "features/ipm/role/.env",
+    "features/ipm/group/.env",
     "features/ipm/user/.env",
     "features/sum/service/.env",
     "clients/cli/.env",
@@ -43,6 +44,7 @@ FEATURE_DIRECTORIES = (
     "features/ipm/organization",
     "features/ipm/permission",
     "features/ipm/role",
+    "features/ipm/group",
     "features/ipm/user",
     "features/sum/service",
 )

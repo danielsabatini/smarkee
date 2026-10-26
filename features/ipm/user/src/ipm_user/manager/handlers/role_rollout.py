@@ -173,6 +173,8 @@ class RoleCatalogWatcher:
             changed = catalog.apply_permission_desired(envelope.resource_id, payload)
         elif envelope.resource_type == "role":
             changed = catalog.apply_role_desired(envelope.resource_id, payload)
+        elif envelope.resource_type == "group":
+            changed = catalog.apply_group_desired(envelope.resource_id, payload)
         else:
             return 0
         if not changed:

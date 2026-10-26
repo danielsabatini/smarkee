@@ -11,6 +11,9 @@ DECLARE
   function_role text;
 BEGIN
   FOREACH function_role IN ARRAY ARRAY[
+    'ipm_group_manager', 'ipm_group_receiver', 'ipm_group_publisher',
+    -- Plano de dados (banco `platform`): Executor lê e escreve; Observer só lê.
+    'ipm_group_executor', 'ipm_group_observer',
     'ipm_organization_manager', 'ipm_organization_receiver', 'ipm_organization_publisher',
     'ipm_permission_manager', 'ipm_permission_receiver', 'ipm_permission_publisher',
     'ipm_role_manager', 'ipm_role_receiver', 'ipm_role_publisher',

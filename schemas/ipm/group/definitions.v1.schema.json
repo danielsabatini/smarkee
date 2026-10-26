@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GroupDefinitions",
+  "description": "Campos de domínio do Grupo de usuários (ipm.group) reutilizados pelos contratos do recurso (decisões 0085 e 0088). Um Grupo é um agrupador de roles mantido na Organization, cujas roles são herdadas pelos usuários membros.",
+  "x-schemaVersion": "1.0",
+  "$defs": {
+    "groupName": {
+      "description": "Nome único do grupo dentro da Organization. Minúsculas, dígitos e hífen (slug). Imutável após a criação.",
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9-]{0,61}[a-z0-9]$"
+    },
+    "description": {
+      "description": "Descrição legível do propósito do grupo na Organization.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "roleName": {
+      "description": "Identificador semântico da Role composta delegável à Organization (decisão 0083), por exemplo ipm.userViewer ou ipm.organizationViewer.",
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$"
+    },
+    "roles": {
+      "description": "Conjunto de Roles atribuídas ao grupo na Organization, sem repetição e em ordem alfabética (decisões 0085 e 0088).",
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/roleName"
+      }
+    }
+  }
+}

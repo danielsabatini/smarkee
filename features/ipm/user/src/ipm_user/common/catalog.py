@@ -51,6 +51,15 @@ PREDEFINED_ROLES: dict[str, list[str]] = {
     ],
     "ipm.roleViewer": ["ipm.role.get", "ipm.role.list"],
     "ipm.roleAdmin": ["ipm.role.admin", "ipm.role.get", "ipm.role.list"],
+    "ipm.groupViewer": ["ipm.group.get", "ipm.group.list"],
+    "ipm.groupAdmin": [
+        "ipm.group.bind",
+        "ipm.group.create",
+        "ipm.group.delete",
+        "ipm.group.get",
+        "ipm.group.list",
+        "ipm.group.update",
+    ],
 }
 
 
@@ -65,13 +74,14 @@ def default_roles_catalog() -> dict[str, list[str]]:
 
 
 class AccessCatalog:
-    """Catálogo dinâmico de permissões `grantable` e de Roles compostas (decisão 0083)."""
+    """Catálogo de permissões `grantable`, Roles compostas e Grupos (0083, 0088)."""
 
     def __init__(
         self,
         *,
         grantable_permissions: Iterable[str] | None = None,
         roles: Mapping[str, Iterable[str]] | None = None,
+        groups: Mapping[tuple[str, str], Iterable[str]] | None = None,
     ) -> None:
         self._grantable: set[str] = (
             set(grantable_permissions)
@@ -83,8 +93,14 @@ class AccessCatalog:
             if roles is not None
             else default_roles_catalog()
         )
+        self._groups: dict[tuple[str, str], list[str]] = (
+            {(org, name): sorted(set(r)) for (org, name), r in groups.items()}
+            if groups is not None
+            else {}
+        )
         self._permission_names_by_id: dict[str, str] = {}
         self._role_names_by_id: dict[str, str] = {}
+        self._group_keys_by_id: dict[str, tuple[str, str]] = {}
 
     @property
     def grantable_permissions(self) -> set[str]:
@@ -113,6 +129,21 @@ class AccessCatalog:
                 if perm in self._grantable:
                     expanded.add(perm)
         return sorted(expanded)
+
+    def group_roles(self, organization_id: str, group_name: str) -> list[str]:
+        """Roles atribuídas ao grupo na Organization."""
+        return list(self._groups.get((organization_id, group_name), []))
+
+    def expand_groups(self, organization_id: str, group_names: Iterable[str]) -> list[str]:
+        """Expande grupos nas suas roles compostas na Organization."""
+        roles: set[str] = set()
+        for g_name in group_names:
+            roles.update(self._groups.get((organization_id, g_name), ()))
+        return sorted(roles)
+
+    def is_group_known(self, organization_id: str, group_name: str) -> bool:
+        """Informa se o grupo está registrado na Organization."""
+        return (organization_id, group_name) in self._groups
 
     def effective_permissions(
         self, direct_permissions: Iterable[str], role_names: Iterable[str]
@@ -163,3 +194,30 @@ class AccessCatalog:
         else:
             self._roles.pop(name, None)
         return self._roles != before
+
+    def apply_group_desired(self, resource_id: str, payload: Mapping[str, Any]) -> bool:
+        """Aplica um evento `desired` de `ipm.group`; devolve `True` se o catálogo mudou."""
+        org_id = payload.get("organizationId")
+        name = payload.get("name")
+        if isinstance(org_id, str) and isinstance(name, str) and org_id and name:
+            key = (org_id, name)
+            previous = self._group_keys_by_id.get(resource_id)
+            if previous and previous != key:
+                self._groups.pop(previous, None)
+            self._group_keys_by_id[resource_id] = key
+        else:
+            key = self._group_keys_by_id.get(resource_id)
+        if key is None:
+            return False
+        before = dict(self._groups)
+        if payload.get("lifecycle") == "present":
+            raw_roles = payload.get("roles")
+            roles = (
+                sorted({r for r in cast(list[Any], raw_roles) if isinstance(r, str)})
+                if isinstance(raw_roles, list)
+                else []
+            )
+            self._groups[key] = roles
+        else:
+            self._groups.pop(key, None)
+        return self._groups != before

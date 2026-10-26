@@ -98,7 +98,7 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
 
 async def test_the_manager_starts_one_task_per_consumer(runtime: FakeRuntime) -> None:
     assert await manager_main.run(UserManagerSettings()) == 0
-    assert runtime.started == ["requested", "observed", "result", "permissions", "roles"]
+    assert runtime.started == ["requested", "observed", "result", "permissions", "roles", "groups"]
     assert len(runtime.closers) == 1
 
 
@@ -139,6 +139,6 @@ async def test_the_receiver_serves_http_and_leaves_the_probes_to_the_app(
 ) -> None:
     monkeypatch.setenv("IPM_USER_RECEIVER_AUTH_AUDIENCE", "project")
     assert await receiver_main.run(UserReceiverSettings()) == 0
-    assert runtime.started == ["permissions", "roles", "http"]
+    assert runtime.started == ["permissions", "roles", "groups", "http"]
     assert runtime.health_port is None
     assert len(runtime.closers) == 2

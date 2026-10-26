@@ -20,6 +20,11 @@
       "x-writer": "client",
       "x-sensitivity": "internal"
     },
+    "groups": {
+      "$ref": "definitions.v1.schema.json#/$defs/groups",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
     "deletionProtection": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
       "x-writer": "client",

@@ -1,7 +1,7 @@
 """Resultado de uma observação: mapeia o Zitadel para o contrato `observed` do usuário."""
 
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from ipm_user.observer.domain.identity import IdentityUser, ProviderError
 
@@ -68,6 +68,7 @@ async def observe(drivers: Drivers, user_id: str) -> Observation:
             return Observation("absent", {})
         permissions = await drivers.authorizations.granted_permissions(user_id)
         protection = await drivers.metadata.get_value(user_id, DELETION_PROTECTION_KEY)
+        groups_raw = await drivers.metadata.get_value(user_id, GROUPS_METADATA_KEY)
     except ProviderError:
         return Observation("unknown", {})
     return Observation(
@@ -77,12 +78,29 @@ async def observe(drivers: Drivers, user_id: str) -> Observation:
             "userState": user_state(user),
             "permissions": sorted(permissions),
             **deletion_protection(protection),
+            **groups_metadata(groups_raw),
         },
     )
 
 
 DELETION_PROTECTION_KEY = "deletionProtection"
+GROUPS_METADATA_KEY = "groups"
 _PROTECTION = {"true": True, "false": False}
+
+
+def groups_metadata(value: str | None) -> dict[str, list[str]]:
+    """O campo `groups` do `observed`, lido do metadado (decisão 0088)."""
+    if not value:
+        return {}
+    import json
+
+    try:
+        doc: object = json.loads(value)
+        if isinstance(doc, list):
+            return {"groups": sorted({str(g) for g in cast("list[object]", doc)})}
+    except (ValueError, TypeError):
+        return {}
+    return {}
 
 
 def deletion_protection(value: str | None) -> dict[str, bool]:

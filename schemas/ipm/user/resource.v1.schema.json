@@ -84,6 +84,11 @@
           "x-writer": "server",
           "x-sensitivity": "internal"
         },
+        "groups": {
+          "$ref": "definitions.v1.schema.json#/$defs/groups",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
         "deletionProtection": {
           "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
           "x-writer": "server",
@@ -140,6 +145,11 @@
         },
         "permissions": {
           "$ref": "definitions.v1.schema.json#/$defs/permissions",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "groups": {
+          "$ref": "definitions.v1.schema.json#/$defs/groups",
           "x-writer": "server",
           "x-sensitivity": "internal"
         },

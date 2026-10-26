@@ -17,6 +17,7 @@ from rich.text import Text
 
 from sk import ui
 from sk.commands.config import known_keys, store_value
+from sk.commands.ipm_group import group_app
 from sk.commands.ipm_permission import permission_app
 from sk.commands.ipm_role import role_app
 from sk.commands.ipm_user import user_app
@@ -109,6 +110,7 @@ organization_app = typer.Typer(
 )
 ipm_app.add_typer(organization_app, name="organization")
 ipm_app.add_typer(user_app, name="user")
+ipm_app.add_typer(group_app, name="group")
 ipm_app.add_typer(permission_app, name="permission")
 ipm_app.add_typer(role_app, name="role")
 

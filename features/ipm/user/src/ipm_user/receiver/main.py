@@ -38,6 +38,7 @@ async def run(settings: UserReceiverSettings) -> int:
         for suffix, subject in (
             ("permissions", "manager.desired.ipm.permission.>"),
             ("roles", "manager.desired.ipm.role.>"),
+            ("groups", "manager.desired.ipm.group.>"),
         ):
             runtime.start(
                 suffix,

@@ -280,6 +280,7 @@ async def test_root_creates_a_user_and_the_requested_carries_the_quota(harness: 
         "familyName": "Reis",
         "email": "caio.reis@example.com",  # normalizado: é o nome de login
         "roles": ["ipm.userViewer"],
+        "groups": [],
         "deletionProtection": False,  # nasce desprotegido (decisão 0077)
     }
     assert data["specification"] == specification
