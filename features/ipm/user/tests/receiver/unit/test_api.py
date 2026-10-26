@@ -42,6 +42,8 @@ PRINCIPALS = {
     "eve": principal("eve", USER_PERMISSIONS | {"ipm.user.bind"}),
     "admin": principal("admin", USER_PERMISSIONS | {"ipm.user.admin"}),
     "norole": principal("norole", frozenset()),
+    # Identidade de máquina da `org-1` (reconhecida pelo Receiver de ServiceAccount; 0094).
+    "machine": principal("machine", USER_PERMISSIONS),
 }
 
 
@@ -166,17 +168,32 @@ def operation(operation_id: str, requested_by: str, *, digest: str = "d" * 64) -
 
 
 @dataclass
+class FakeServiceAccounts:
+    """Receiver de ServiceAccount: a Organization de cada identidade de máquina, pelo `sub`."""
+
+    machines: dict[str, str] = field(default_factory=lambda: {})
+
+    async def get_serviceaccount_organization(
+        self, serviceaccount_id: str, access_token: str
+    ) -> str | None:
+        _ = access_token
+        return self.machines.get(serviceaccount_id)
+
+
+@dataclass
 class Harness:
     client: httpx.AsyncClient
     publisher: FakePublisher
     repository: FakeRepository
     organizations: FakeOrganizations
+    serviceaccounts: FakeServiceAccounts
 
 
 def dependencies(
     repository: FakeRepository,
     organizations: FakeOrganizations,
     publisher: FakePublisher,
+    serviceaccounts: FakeServiceAccounts | None = None,
     **overrides: Any,
 ) -> Dependencies:
     counter = itertools.count(1)
@@ -185,6 +202,7 @@ def dependencies(
         authenticator=FakeAuthenticator(),
         repository=repository,
         organizations=organizations,
+        serviceaccounts=serviceaccounts or FakeServiceAccounts(),
         publisher=publisher,
         clock=lambda: NOW,
         identifiers=lambda: f"id-{next(counter):04d}",
@@ -200,11 +218,12 @@ def harness() -> Harness:
         "binder": user("binder"),
         "eve": user("eve", OTHER_ORG),
     }
-    deps = dependencies(repository, organizations, publisher)
+    serviceaccounts = FakeServiceAccounts({"machine": ORG})
+    deps = dependencies(repository, organizations, publisher, serviceaccounts)
     client = httpx.AsyncClient(
         transport=httpx.ASGITransport(app=create_app(deps)), base_url="http://api"
     )
-    return Harness(client, publisher, repository, organizations)
+    return Harness(client, publisher, repository, organizations, serviceaccounts)
 
 
 def auth(subject: str) -> dict[str, str]:
@@ -316,6 +335,21 @@ async def test_nobody_creates_in_an_organization_where_they_do_not_act(
     response = await create(harness, subject, organizationId="org-9")
     assert response.status_code == 404
     assert harness.publisher.published == []
+
+
+async def test_a_serviceaccount_acts_as_a_member_of_its_own_organization_only(
+    harness: Harness,
+) -> None:
+    assert (
+        await harness.client.get(f"/v1/ipm/users?organizationId={ORG}", headers=auth("machine"))
+    ).status_code == 200
+    elsewhere = await harness.client.get(
+        "/v1/ipm/users?organizationId=org-9", headers=auth("machine")
+    )
+    assert elsewhere.status_code == 404
+    assert harness.organizations.calls == []  # reconhecida pelo Receiver de ServiceAccount
+    # Como MEMBER sem `bind`, não atribui roles (decisão 0077).
+    assert (await create(harness, "machine", roles=["ipm.userAdmin"])).status_code == 403
 
 
 async def test_a_user_being_removed_no_longer_acts_in_the_organization(harness: Harness) -> None:

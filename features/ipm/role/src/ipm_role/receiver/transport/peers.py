@@ -1,4 +1,4 @@
-"""Consulta aos Receivers parceiros (Organization, User e Group) na rede interna (decisão 0092).
+"""Consulta aos Receivers parceiros (Organization, User, Group, ServiceAccount; 0092 e 0094).
 
 Todas as consultas usam o token do solicitante (decisão 0040): o parceiro autoriza como se o
 próprio solicitante perguntasse. Na dúvida, a resposta é erro (`AccessCheckError`), nunca "não".
@@ -14,6 +14,7 @@ from ipm_role.receiver.settings import PeersSettings
 ORGANIZATIONS_PATH = "/v1/ipm/organizations"
 USERS_PATH = "/v1/ipm/users"
 GROUPS_PATH = "/v1/ipm/groups"
+SERVICEACCOUNTS_PATH = "/v1/ipm/serviceaccounts"
 HTTP_OK = 200
 HTTP_UNAUTHORIZED = 401
 HTTP_FORBIDDEN = 403
@@ -89,9 +90,32 @@ class UserPeer:
         organization_id = desired.get("organizationId")
         return str(organization_id) if organization_id is not None else None
 
+    async def get_serviceaccount_organization(
+        self, serviceaccount_id: str, access_token: str
+    ) -> str | None:
+        """Organization da service account solicitante (lê o próprio registro; decisão 0094)."""
+        try:
+            response = await self._client.get(
+                f"{self._settings.serviceaccounts_url}{SERVICEACCOUNTS_PATH}/{serviceaccount_id}",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=self._settings.timeout_seconds,
+            )
+        except httpx.HTTPError:
+            return None
+        if response.status_code != HTTP_OK:
+            return None
+        try:
+            desired = _desired_of(response.json())
+        except ValueError:
+            return None
+        if desired is None or desired.get("lifecycle") != "present":
+            return None
+        organization_id = desired.get("organizationId")
+        return str(organization_id) if organization_id is not None else None
+
 
 class RoleUsagePeer:
-    """Informa se algum usuário ou grupo da Organization usa uma Role (`ResourcesAttached`)."""
+    """Informa se usuário, grupo ou service account usa uma Role (`ResourcesAttached`)."""
 
     def __init__(self, settings: PeersSettings, client: httpx.AsyncClient) -> None:
         self._settings = settings
@@ -101,6 +125,7 @@ class RoleUsagePeer:
         for base_url, path in (
             (self._settings.users_url, USERS_PATH),
             (self._settings.groups_url, GROUPS_PATH),
+            (self._settings.serviceaccounts_url, SERVICEACCOUNTS_PATH),
         ):
             if await self._listing_uses_role(
                 f"{base_url}{path}", organization_id, role_name, access_token

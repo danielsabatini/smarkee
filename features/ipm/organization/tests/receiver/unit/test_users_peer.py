@@ -1,4 +1,4 @@
-"""Consulta ao Receiver do User: a Organization do solicitante e se ela ainda tem usuários."""
+"""Consulta aos Receivers de User e ServiceAccount: Organization do solicitante e ocupação."""
 
 from collections.abc import Callable
 
@@ -13,7 +13,12 @@ from ipm_organization.receiver.transport.users import UserPeer
 def peer(handler: Callable[[httpx.Request], httpx.Response]) -> UserPeer:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     return UserPeer(
-        PeersSettings(users_url="http://users", billing_accounts_url="http://bsm"), client
+        PeersSettings(
+            users_url="http://users",
+            serviceaccounts_url="http://machines",
+            billing_accounts_url="http://bsm",
+        ),
+        client,
     )
 
 
@@ -40,6 +45,48 @@ async def test_the_own_record_gives_the_organization_with_the_requester_token() 
 )
 async def test_not_a_user_or_being_removed_is_none(response: httpx.Response) -> None:
     assert await peer(lambda r: response).organization_of("bia", "tok") is None
+
+
+async def test_a_serviceaccount_is_recognized_when_it_is_not_a_user() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.host == "users":
+            return httpx.Response(404, json={})
+        return httpx.Response(
+            200, json={"desired": {"lifecycle": "present", "organizationId": "o-2"}}
+        )
+
+    assert await peer(handler).organization_of("machine", "tok") == "o-2"
+    assert [r.url.path for r in seen] == [
+        "/v1/ipm/users/machine",
+        "/v1/ipm/serviceaccounts/machine",
+    ]
+    assert seen[1].headers["authorization"] == "Bearer tok"
+
+
+async def test_neither_a_user_nor_a_serviceaccount_is_none() -> None:
+    assert await peer(lambda r: httpx.Response(404, json={})).organization_of("x", "tok") is None
+
+
+async def test_the_organization_with_only_serviceaccounts_is_not_empty() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        items = [{"resourceId": "m-1"}] if request.url.host == "machines" else []
+        return httpx.Response(200, json={"items": items})
+
+    assert await peer(handler).has_users("o-1", "tok") is True
+
+
+async def test_a_serviceaccount_peer_that_does_not_answer_blocks_the_removal() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "machines":
+            return httpx.Response(503, json={})
+        return httpx.Response(200, json={"items": []})
+
+    with pytest.raises(UsersCheckError) as raised:
+        await peer(handler).has_users("o-1", "tok")
+    assert raised.value.retryable is True
 
 
 async def test_has_users_asks_one_item_of_the_organization() -> None:

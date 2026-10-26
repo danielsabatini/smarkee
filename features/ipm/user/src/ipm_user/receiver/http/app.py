@@ -44,7 +44,7 @@ from ipm_user.receiver.domain.principal import Principal
 from ipm_user.receiver.domain.records import ResourceRecord
 from ipm_user.receiver.domain.views import operation_view, user_view
 from ipm_user.receiver.http.health_routes import register_health_routes
-from ipm_user.receiver.http.ports import Organizations, Repository
+from ipm_user.receiver.http.ports import Organizations, Repository, ServiceAccounts
 from ipm_user.receiver.http.submission import submit
 from ipm_user.receiver.http.trace_context import TraceContextMiddleware
 from ipm_user.receiver.settings import ApiSettings
@@ -76,6 +76,7 @@ class Dependencies:
     authenticator: Authenticator
     repository: Repository
     organizations: Organizations
+    serviceaccounts: ServiceAccounts
     publisher: Publisher
     catalog: AccessCatalog = field(default_factory=AccessCatalog)
     clock: Callable[[], datetime] = utc_now
@@ -183,6 +184,12 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
                 own.lifecycle == "present" and own.desired.get("organizationId") == organization_id
             )
             return Standing.MEMBER if belongs else None
+        # Identidade de máquina da Organization (decisão 0094): age só na Organization dela.
+        machine_organization = await deps.serviceaccounts.get_serviceaccount_organization(
+            principal.subject, principal.access_token
+        )
+        if machine_organization is not None:
+            return Standing.MEMBER if machine_organization == organization_id else None
         try:
             access = await deps.organizations.access(organization_id, principal.access_token)
         except AccessCheckError as error:

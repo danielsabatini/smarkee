@@ -44,7 +44,7 @@ from ipm_group.receiver.domain.principal import Principal
 from ipm_group.receiver.domain.records import ResourceRecord
 from ipm_group.receiver.domain.views import group_view, operation_view
 from ipm_group.receiver.http.health_routes import register_health_routes
-from ipm_group.receiver.http.ports import Organizations, Repository, Users
+from ipm_group.receiver.http.ports import Organizations, Repository, ServiceAccounts, Users
 from ipm_group.receiver.http.submission import submit
 from ipm_group.receiver.http.trace_context import TraceContextMiddleware
 from ipm_group.receiver.settings import ApiSettings
@@ -76,6 +76,7 @@ class Dependencies:
     repository: Repository
     organizations: Organizations
     users: Users
+    serviceaccounts: ServiceAccounts
     publisher: Publisher
     catalog: RolesCatalog = field(default_factory=RolesCatalog)
     clock: Callable[[], datetime] = utc_now
@@ -165,6 +166,11 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         member_org = await deps.users.get_user_organization(
             principal.subject, principal.access_token
         )
+        if member_org is None:
+            # Identidade de máquina da Organization (decisão 0094).
+            member_org = await deps.serviceaccounts.get_serviceaccount_organization(
+                principal.subject, principal.access_token
+            )
         if member_org == organization_id:
             return Standing.MEMBER
         try:

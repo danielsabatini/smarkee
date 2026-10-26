@@ -1,10 +1,11 @@
-"""Consulta ao Receiver do User, pelo fluxo normal e com o token do solicitante (decisão 0040).
+"""Consulta aos Receivers de User e ServiceAccount, pelo fluxo normal e com o token do solicitante.
 
-A Organization não lê o banco do User nem usa credencial própria nele. Pergunta ao Receiver do
-User:
+A Organization não lê o banco de outro tipo nem usa credencial própria nele (decisão 0040).
+Pergunta aos Receivers de User e de ServiceAccount (decisão 0094):
 
-- de que Organization o solicitante é usuário (o próprio registro, lido sem permissão adicional);
-- se a Organization ainda tem usuários, antes de removê-la (decisão 0077: só vazia).
+- de que Organization o solicitante é usuário ou service account (o próprio registro, lido sem
+  permissão adicional);
+- se a Organization ainda tem usuários ou service accounts, antes de removê-la (0077: só vazia).
 
 Qualquer resposta fora do contrato vira `UsersCheckError`: na dúvida, o pedido não segue.
 """
@@ -17,6 +18,7 @@ from ipm_organization.receiver.domain.users import BillingAccountCheckError, Use
 from ipm_organization.receiver.settings import PeersSettings
 
 USERS_PATH = "/v1/ipm/users"
+SERVICEACCOUNTS_PATH = "/v1/ipm/serviceaccounts"
 BILLING_ACCOUNTS_PATH = "/v1/bsm/accounts"
 HTTP_OK = 200
 HTTP_UNAUTHORIZED = 401
@@ -30,28 +32,43 @@ class UserPeer:
         self._client = client
 
     async def organization_of(self, user_id: str, access_token: str) -> str | None:
-        """A Organization de que o solicitante é usuário, ou `None` se ele não é um."""
-        response = await self._get(f"{USERS_PATH}/{user_id}", access_token, {})
-        if response.status_code == HTTP_NOT_FOUND:
-            return None
-        desired = self._object(self._document(response).get("desired"))
-        if desired.get("lifecycle") != "present":
-            return None
-        organization_id = desired.get("organizationId")
-        return organization_id if isinstance(organization_id, str) else None
+        """A Organization de que o solicitante é usuário ou service account, ou `None`.
+
+        Pergunta ao Receiver de User e, se ele não é um usuário, ao de ServiceAccount (0094).
+        """
+        for base_url, path in (
+            (self._settings.users_url, USERS_PATH),
+            (self._settings.serviceaccounts_url, SERVICEACCOUNTS_PATH),
+        ):
+            response = await self._get(base_url, f"{path}/{user_id}", access_token, {})
+            if response.status_code == HTTP_NOT_FOUND:
+                continue
+            desired = self._object(self._document(response).get("desired"))
+            if desired.get("lifecycle") != "present":
+                continue
+            organization_id = desired.get("organizationId")
+            if isinstance(organization_id, str):
+                return organization_id
+        return None
 
     async def has_users(self, organization_id: str, access_token: str) -> bool:
-        """`True` enquanto a Organization tiver usuários (os em remoção contam)."""
-        response = await self._get(
-            USERS_PATH, access_token, {"organizationId": organization_id, "limit": 1}
-        )
-        if response.status_code == HTTP_NOT_FOUND:
-            # O Receiver do User só responde `404` quando não confirma a Organization: não decide.
-            raise UsersCheckError(retryable=False)
-        items: object = self._document(response).get("items")
-        if not isinstance(items, list):
-            raise UsersCheckError(retryable=True)
-        return bool(cast("list[object]", items))
+        """`True` enquanto houver usuário ou service account na Organization (em remoção conta)."""
+        for base_url, path in (
+            (self._settings.users_url, USERS_PATH),
+            (self._settings.serviceaccounts_url, SERVICEACCOUNTS_PATH),
+        ):
+            response = await self._get(
+                base_url, path, access_token, {"organizationId": organization_id, "limit": 1}
+            )
+            if response.status_code == HTTP_NOT_FOUND:
+                # O Receiver parceiro só responde `404` quando não confirma a Organization.
+                raise UsersCheckError(retryable=False)
+            items: object = self._document(response).get("items")
+            if not isinstance(items, list):
+                raise UsersCheckError(retryable=True)
+            if cast("list[object]", items):
+                return True
+        return False
 
     async def is_ready_billing_account(self, billing_account_id: str, access_token: str) -> bool:
         """`True` se a Billing Account pertence ao solicitante, está presente e `Ready`."""
@@ -84,10 +101,12 @@ class UserPeer:
             and cast("dict[str, Any]", desired).get("lifecycle") == "present"
         )
 
-    async def _get(self, path: str, access_token: str, params: dict[str, Any]) -> httpx.Response:
+    async def _get(
+        self, base_url: str, path: str, access_token: str, params: dict[str, Any]
+    ) -> httpx.Response:
         try:
             response = await self._client.get(
-                self._settings.users_url + path,
+                base_url + path,
                 params=params,
                 headers={"Authorization": f"Bearer {access_token}"},
                 timeout=self._settings.timeout_seconds,

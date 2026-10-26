@@ -85,6 +85,7 @@ Entrypoint do Receiver de User (`ipm-user-receiver`, decisão 0015).
 | `api.port` | `IPM_USER_RECEIVER_API_PORT` | `--api.port` | `int` | `8000` |  |
 | `api.user_quota` | `IPM_USER_RECEIVER_API_USER_QUOTA` | `--api.user_quota` | `int` | `5` | Usuários por Organization para quem não é operador (decisão 0077; valor provisório). |
 | `peers.organizations_url` | `IPM_USER_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.serviceaccounts_url` | `IPM_USER_RECEIVER_PEERS_SERVICEACCOUNTS_URL` | `--peers.serviceaccounts_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.timeout_seconds` | `IPM_USER_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
 **Definido no `config.toml` de dev:**
@@ -107,6 +108,7 @@ user = "smarkee"
 
 [tool.ipm.user.receiver.peers]
 organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
+serviceaccounts_url = "http://ipm-serviceaccount-receiver.smarkee.internal:8000"
 ```
 
 **Executar** (de `features/ipm/user`):

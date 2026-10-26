@@ -46,6 +46,7 @@ class PeersSettings(Section):
     """Receivers consultados na rede interna, com o token de quem pede (decisões 0040 e 0082)."""
 
     users_url: str = "http://localhost:8000"
+    serviceaccounts_url: str = "http://localhost:8000"
     billing_accounts_url: str = "http://localhost:8000"
     timeout_seconds: float = 5.0
 

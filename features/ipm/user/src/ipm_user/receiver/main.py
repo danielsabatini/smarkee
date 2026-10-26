@@ -21,6 +21,7 @@ from ipm_user.receiver.settings import UserReceiverSettings, missing_required
 from ipm_user.receiver.store.repository import SsotRepository
 from ipm_user.receiver.transport.catalog_consumer import CatalogWatcher
 from ipm_user.receiver.transport.organizations import OrganizationPeer
+from ipm_user.receiver.transport.serviceaccounts import ServiceAccountPeer
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ async def run(settings: UserReceiverSettings) -> int:
                 authenticator=TokenVerifier(settings.auth, http),
                 repository=SsotRepository(pool),
                 organizations=OrganizationPeer(settings.peers, http),
+                serviceaccounts=ServiceAccountPeer(settings.peers, http),
                 publisher=StreamPublisher(runtime.stream),
                 catalog=catalog,
                 is_ready=lambda: runtime.client.is_connected,

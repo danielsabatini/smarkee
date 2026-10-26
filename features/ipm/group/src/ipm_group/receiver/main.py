@@ -19,7 +19,7 @@ from ipm_group.receiver.auth.tokens import TokenVerifier
 from ipm_group.receiver.http.app import Dependencies, create_app
 from ipm_group.receiver.settings import GroupReceiverSettings, missing_required
 from ipm_group.receiver.store.repository import SsotRepository
-from ipm_group.receiver.transport.peers import OrganizationPeer, UserPeer
+from ipm_group.receiver.transport.peers import OrganizationPeer, ServiceAccountPeer, UserPeer
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,7 @@ async def run(settings: GroupReceiverSettings) -> int:
                 repository=SsotRepository(pool),
                 organizations=OrganizationPeer(settings.peers, http),
                 users=UserPeer(settings.peers, http),
+                serviceaccounts=ServiceAccountPeer(settings.peers, http),
                 publisher=StreamPublisher(runtime.stream),
                 catalog=catalog,
                 is_ready=lambda: runtime.client.is_connected,

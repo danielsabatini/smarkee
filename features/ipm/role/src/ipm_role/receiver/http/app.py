@@ -182,6 +182,11 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         member_of = await deps.users.get_user_organization(
             principal.subject, principal.access_token
         )
+        if member_of is None:
+            # Identidade de máquina da Organization (decisão 0094).
+            member_of = await deps.users.get_serviceaccount_organization(
+                principal.subject, principal.access_token
+            )
         if member_of == organization_id:
             return Standing.MEMBER
         try:

@@ -22,3 +22,11 @@ class Organizations(Protocol):
     """Receiver da Organization, consultado com o token do solicitante (decisão 0040)."""
 
     async def access(self, organization_id: str, access_token: str) -> OrganizationAccess: ...
+
+
+class ServiceAccounts(Protocol):
+    """Receiver de ServiceAccount: reconhece a identidade de máquina da Organization (0094)."""
+
+    async def get_serviceaccount_organization(
+        self, serviceaccount_id: str, access_token: str
+    ) -> str | None: ...

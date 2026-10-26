@@ -83,6 +83,7 @@ Entrypoint do Receiver de Role (`ipm-role-receiver`, decisões 0015, 0083 e 0092
 | `peers.organizations_url` | `IPM_ROLE_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.users_url` | `IPM_ROLE_RECEIVER_PEERS_USERS_URL` | `--peers.users_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.groups_url` | `IPM_ROLE_RECEIVER_PEERS_GROUPS_URL` | `--peers.groups_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.serviceaccounts_url` | `IPM_ROLE_RECEIVER_PEERS_SERVICEACCOUNTS_URL` | `--peers.serviceaccounts_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.timeout_seconds` | `IPM_ROLE_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
 **Definido no `config.toml` de dev:**
@@ -107,6 +108,7 @@ user = "smarkee"
 groups_url = "http://ipm-group-receiver.smarkee.internal:8000"
 organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
 users_url = "http://ipm-user-receiver.smarkee.internal:8000"
+serviceaccounts_url = "http://ipm-serviceaccount-receiver.smarkee.internal:8000"
 ```
 
 **Executar** (de `features/ipm/role`):

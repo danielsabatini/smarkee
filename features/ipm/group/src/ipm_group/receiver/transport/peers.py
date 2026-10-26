@@ -1,4 +1,4 @@
-"""Consulta aos Receivers parceiros (Organization e User) na rede interna (decisões 0040 e 0088)."""
+"""Consulta aos Receivers parceiros (Organization, User, ServiceAccount) na rede interna."""
 
 from typing import cast
 
@@ -9,6 +9,7 @@ from ipm_group.receiver.settings import PeersSettings
 
 ORGANIZATIONS_PATH = "/v1/ipm/organizations"
 USERS_PATH = "/v1/ipm/users"
+SERVICEACCOUNTS_PATH = "/v1/ipm/serviceaccounts"
 HTTP_OK = 200
 HTTP_UNAUTHORIZED = 401
 HTTP_FORBIDDEN = 403
@@ -119,3 +120,40 @@ class UserPeer:
             return count
         except Exception:
             return 0
+
+
+class ServiceAccountPeer:
+    """Reconhece a service account (identidade de máquina) pelo próprio registro (decisão 0094)."""
+
+    def __init__(self, settings: PeersSettings, client: httpx.AsyncClient) -> None:
+        self._settings = settings
+        self._client = client
+
+    async def get_serviceaccount_organization(
+        self, serviceaccount_id: str, access_token: str
+    ) -> str | None:
+        """Organization da service account, ou `None` quando o solicitante não é uma."""
+        try:
+            response = await self._client.get(
+                f"{self._settings.serviceaccounts_url}{SERVICEACCOUNTS_PATH}/{serviceaccount_id}",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=self._settings.timeout_seconds,
+            )
+        except httpx.HTTPError:
+            return None
+        if response.status_code != HTTP_OK:
+            return None
+        try:
+            data: object = response.json()
+        except ValueError:
+            return None
+        if not isinstance(data, dict):
+            return None
+        desired = cast("dict[str, object]", data).get("desired")
+        if not isinstance(desired, dict):
+            return None
+        fields = cast("dict[str, object]", desired)
+        organization_id = fields.get("organizationId")
+        if fields.get("lifecycle") != "present" or organization_id is None:
+            return None
+        return str(organization_id)

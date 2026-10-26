@@ -92,6 +92,16 @@ class FakeUsers:
         return self.member_org_by_subject.get(user_id)
 
 
+class FakeServiceAccounts:
+    """Receiver de ServiceAccount: `machine-1` é uma identidade de máquina da `ORG_ID`."""
+
+    async def get_serviceaccount_organization(
+        self, serviceaccount_id: str, access_token: str
+    ) -> str | None:
+        _ = access_token
+        return ORG_ID if serviceaccount_id == "machine-1" else None
+
+
 class FakePublisher:
     def __init__(self) -> None:
         self.published: list[tuple[str, bytes, str | None]] = []
@@ -168,6 +178,11 @@ def _setup(
                 permissions=frozenset({GROUP_CREATE, GROUP_UPDATE, GROUP_BIND}),
                 access_token="member-bind-token",
             ),
+            "machine-token": Principal(
+                subject="machine-1",
+                permissions=frozenset({GROUP_GET, GROUP_LIST, GROUP_CREATE}),
+                access_token="machine-token",
+            ),
             "outsider-token": Principal(
                 subject="outsider-1",
                 permissions=frozenset({GROUP_GET, GROUP_LIST, GROUP_CREATE}),
@@ -189,6 +204,7 @@ def _setup(
             repository=repo,
             organizations=FakeOrganizations(),
             users=users,
+            serviceaccounts=FakeServiceAccounts(),
             publisher=pub,
             clock=lambda: FIXED_NOW,
             identifiers=next_id,
@@ -236,6 +252,36 @@ async def test_create_group_enforces_scope_catalog_bind_and_quota() -> None:
         )
         assert accepted.status_code == 202
         assert len(pub.published) == 1
+
+
+async def test_a_serviceaccount_acts_in_its_own_organization_as_a_member() -> None:
+    client, _, _, pub = _setup()
+    async with client:
+        listed = await client.get(
+            "/v1/ipm/groups",
+            params={"organizationId": ORG_ID},
+            headers={"Authorization": "Bearer machine-token"},
+        )
+        assert listed.status_code == 200
+        elsewhere = await client.get(
+            "/v1/ipm/groups",
+            params={"organizationId": "org-other"},
+            headers={"Authorization": "Bearer machine-token"},
+        )
+        assert elsewhere.status_code == 404
+        # Como MEMBER sem `bind`, não atribui roles (decisão 0094).
+        created = await client.post(
+            "/v1/ipm/groups",
+            json={
+                "organizationId": ORG_ID,
+                "name": "auditors",
+                "description": "Auditores da Organization.",
+                "roles": ["ipm.userViewer"],
+            },
+            headers={"Authorization": "Bearer machine-token"},
+        )
+        assert created.status_code == 403
+        assert pub.published == []
 
 
 async def test_get_list_and_update_group() -> None:

@@ -85,10 +85,17 @@ class FakeUsers:
 
     def __init__(self) -> None:
         self.members: dict[str, str] = {}
+        self.machines: dict[str, str] = {}
 
     async def get_user_organization(self, user_id: str, access_token: str) -> str | None:
         _ = access_token
         return self.members.get(user_id)
+
+    async def get_serviceaccount_organization(
+        self, serviceaccount_id: str, access_token: str
+    ) -> str | None:
+        _ = access_token
+        return self.machines.get(serviceaccount_id)
 
 
 class FakeRoleUsage:
@@ -182,6 +189,12 @@ class Harness:
                     ),
                     "member-token",
                 ),
+                # Service account (identidade de máquina) de `org-acme`, com `bind`.
+                "machine-token": Principal(
+                    "machine-1",
+                    frozenset({ROLE_CREATE, ROLE_BIND, ROLE_GET, ROLE_LIST}),
+                    "machine-token",
+                ),
                 # Membro sem `bind`.
                 "nobind-token": Principal(
                     "member-2",
@@ -197,6 +210,7 @@ class Harness:
             }
         )
         self.organizations.owners["owner-token"] = "org-acme"
+        self.users.machines["machine-1"] = "org-acme"
         self.users.members.update(
             {"member-1": "org-acme", "member-2": "org-acme", "member-3": "org-other"}
         )
@@ -282,6 +296,25 @@ async def test_member_without_bind_cannot_define_permissions() -> None:
         )
         assert denied.status_code == 403
     assert harness.pub.published == []
+
+
+async def test_a_serviceaccount_acts_in_its_own_organization_as_a_member() -> None:
+    harness = Harness()
+    async with harness.client() as client:
+        listed = await client.get(
+            "/v1/ipm/roles", params={"organizationId": "org-acme"}, headers=_bearer("machine-token")
+        )
+        assert listed.status_code == 200
+        other = await client.get(
+            "/v1/ipm/roles",
+            params={"organizationId": "org-other"},
+            headers=_bearer("machine-token"),
+        )
+        assert other.status_code == 404
+        created = await client.post(
+            "/v1/ipm/roles", json=CREATE_BODY, headers=_bearer("machine-token")
+        )
+        assert created.status_code == 202
 
 
 async def test_permissions_are_capped_at_the_grantable_catalog() -> None:

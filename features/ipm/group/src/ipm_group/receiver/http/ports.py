@@ -32,3 +32,11 @@ class Users(Protocol):
     ) -> int: ...
 
     async def get_user_organization(self, user_id: str, access_token: str) -> str | None: ...
+
+
+class ServiceAccounts(Protocol):
+    """Receiver de ServiceAccount: reconhece a identidade de máquina da Organization (0094)."""
+
+    async def get_serviceaccount_organization(
+        self, serviceaccount_id: str, access_token: str
+    ) -> str | None: ...

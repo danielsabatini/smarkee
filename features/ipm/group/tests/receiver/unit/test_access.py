@@ -14,7 +14,7 @@ from ipm_group.receiver.domain.access import (
     outside_roles_catalog,
 )
 from ipm_group.receiver.settings import PeersSettings
-from ipm_group.receiver.transport.peers import OrganizationPeer, UserPeer
+from ipm_group.receiver.transport.peers import OrganizationPeer, ServiceAccountPeer, UserPeer
 
 
 def test_outside_roles_catalog_lists_the_refused_roles_sorted() -> None:
@@ -159,3 +159,26 @@ async def test_user_peer_counts_users_with_group_and_reads_organization() -> Non
     assert await user_peer.count_users_with_group("org-1", "auditors", "tok") == 2
     assert await user_peer.get_user_organization("u-1", "tok") == "org-1"
     assert await user_peer.get_user_organization("missing", "tok") is None
+
+
+async def test_serviceaccount_peer_reads_the_organization_of_a_present_machine() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/machine-1"):
+            return httpx.Response(
+                200, json={"desired": {"lifecycle": "present", "organizationId": "org-1"}}
+            )
+        if request.url.path.endswith("/removed"):
+            return httpx.Response(
+                200, json={"desired": {"lifecycle": "absent", "organizationId": "org-1"}}
+            )
+        if request.url.path.endswith("/broken"):
+            return httpx.Response(200, text="não é json")
+        return httpx.Response(404)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    peer = ServiceAccountPeer(PeersSettings(), client)
+
+    assert await peer.get_serviceaccount_organization("machine-1", "tok") == "org-1"
+    assert await peer.get_serviceaccount_organization("removed", "tok") is None
+    assert await peer.get_serviceaccount_organization("broken", "tok") is None
+    assert await peer.get_serviceaccount_organization("missing", "tok") is None

@@ -40,9 +40,10 @@ class ApiSettings(Section):
 
 
 class PeersSettings(Section):
-    """Receiver da Organization, na rede interna: confirma o dono com o token de quem pede."""
+    """Receivers da Organization e da ServiceAccount, na rede interna: confirmam quem pede."""
 
     organizations_url: str = "http://localhost:8000"
+    serviceaccounts_url: str = "http://localhost:8000"
     timeout_seconds: float = 5.0
 
 

@@ -40,11 +40,12 @@ class ApiSettings(Section):
 
 
 class PeersSettings(Section):
-    """Receivers de Organization, User e Group na rede interna."""
+    """Receivers de Organization, User, Group e ServiceAccount na rede interna."""
 
     organizations_url: str = "http://localhost:8000"
     users_url: str = "http://localhost:8000"
     groups_url: str = "http://localhost:8000"
+    serviceaccounts_url: str = "http://localhost:8000"
     timeout_seconds: float = 5.0
 
 

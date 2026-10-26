@@ -86,6 +86,7 @@ Entrypoint do Receiver de Grupo (`ipm-group-receiver`, decisões 0015, 0085 e 00
 | `api.group_quota` | `IPM_GROUP_RECEIVER_API_GROUP_QUOTA` | `--api.group_quota` | `int` | `10` | Grupos por Organization para quem não é operador (decisão 0088). |
 | `peers.organizations_url` | `IPM_GROUP_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.users_url` | `IPM_GROUP_RECEIVER_PEERS_USERS_URL` | `--peers.users_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.serviceaccounts_url` | `IPM_GROUP_RECEIVER_PEERS_SERVICEACCOUNTS_URL` | `--peers.serviceaccounts_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.timeout_seconds` | `IPM_GROUP_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
 **Definido no `config.toml` de dev:**
@@ -109,6 +110,7 @@ user = "smarkee"
 [tool.ipm.group.receiver.peers]
 organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
 users_url = "http://ipm-user-receiver.smarkee.internal:8000"
+serviceaccounts_url = "http://ipm-serviceaccount-receiver.smarkee.internal:8000"
 ```
 
 **Executar** (de `features/ipm/group`):

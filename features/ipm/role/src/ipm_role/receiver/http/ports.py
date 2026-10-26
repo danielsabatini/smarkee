@@ -27,13 +27,17 @@ class Organizations(Protocol):
 
 
 class Users(Protocol):
-    """Receiver de User, consultado para descobrir a Organization do solicitante."""
+    """Receivers de User e ServiceAccount, para descobrir a Organization do solicitante."""
 
     async def get_user_organization(self, user_id: str, access_token: str) -> str | None: ...
 
+    async def get_serviceaccount_organization(
+        self, serviceaccount_id: str, access_token: str
+    ) -> str | None: ...
+
 
 class RoleUsage(Protocol):
-    """Receivers de User e Group, consultados para saber se uma Role está em uso."""
+    """Receivers de User, Group e ServiceAccount: dizem se uma Role está em uso."""
 
     async def role_in_use(
         self, organization_id: str, role_name: str, access_token: str
