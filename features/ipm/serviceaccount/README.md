@@ -6,7 +6,7 @@ Decisões que definem esta feature: `0094` (o tipo, as chaves, o login e o escop
 
 # 1. Estado da implementação
 
-Etapa 1 da `0094`: Receiver, Manager, Publisher, Reconciler, Observer e Executor implementados e verificados por testes unitários e de integração. Pendente para fechar a etapa: reconhecimento cruzado nos outros tipos do `ipm`, registro na infraestrutura (gateway, telemetria, contas do Zitadel, banco), a CLI e a validação ao vivo. O estado atual está em `docs/platform/IMPLEMENTATION-STATUS.md`.
+Etapa 1 da `0094` completa: os seis papéis, o registro na infraestrutura (gateway, telemetria, contas do Zitadel, banco), o reconhecimento cruzado nos outros tipos do `ipm` e a CLI (`sk ipm serviceaccount`, `sk auth login --key-file`) implementados e verificados por testes unitários, de integração, de contrato, e2e e ao vivo no dev. Pendências antes de `stg`/`prd`: ver `docs/platform/IMPLEMENTATION-STATUS.md`.
 
 | Papel | Projeto | Responsabilidade |
 |---|---|---|

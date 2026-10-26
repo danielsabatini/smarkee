@@ -92,6 +92,14 @@ A aplicação do `sk` mora no projeto `clients` (sem permissões), e não num pr
 
 Códigos de saída: `0` sucesso; `1` falha no login ou na gravação, ou cancelamento (Ctrl+C); `2` uso incorreto (issuer ou client ID ausente, configuração inválida).
 
+### Login de máquina (`sk auth login --key-file`)
+
+```bash
+uv run sk auth login --key-file sa-ci.json     # ou SK_AUTH_KEY_FILE=sa-ci.json
+```
+
+Autentica uma service account (decisão 0094) sem navegador: a CLI assina uma assertion RS256 (`iss` e `sub` = `userId`, `aud` = issuer, `kid` = `keyId`) com a chave privada do arquivo e a troca por um access token (`jwt-bearer`). Não há refresh token nem `client_id`: a sessão se renova reassinando a assertion a partir do caminho do arquivo, gravado em `keyFile` nas credenciais; o arquivo precisa continuar acessível. O `--key-file` é só opção ou `SK_AUTH_KEY_FILE` (não é chave do `config.toml`). O formato do arquivo é o do Zitadel: `type` (`serviceaccount`), `keyId`, `key` (PEM privada) e `userId`. `sk auth whoami` mostra o `keyFile` da sessão de máquina.
+
 ### `sk auth refresh`
 
 ```bash
@@ -189,6 +197,21 @@ As escritas são assíncronas, como as do SUM: o comando confirma o aceite e mos
 **Pré-requisitos.** O token precisa trazer as permissões `ipm.organization.*`, que vêm de `sk sum service enable --service ipm --wait` (a sessão já sai renovada). Para criar, o e-mail da conta precisa estar verificado, e a cota é de uma Organization por conta. As recusas da API viram dicas: sem a permissão, a saída manda habilitar o `ipm`; sem e-mail verificado, abrir o link do e-mail de ativação; cota esgotada, remover uma Organization.
 
 Códigos de saída: como em `sk sum service`.
+
+## Service accounts (`sk ipm serviceaccount`, alias `sa`)
+
+```bash
+uv run sk ipm sa create --name NOME [--organization-id ID] [--description TEXTO] [--role ROLE]... [--key-file F | --public-key-file F.pub] [--expires-in DIAS] [--wait]
+uv run sk ipm sa get|list|update|protect|unprotect|delete ...
+uv run sk ipm sa key list --resource-id ID
+uv run sk ipm sa key add --resource-id ID [--key-file F | --public-key-file F.pub] [--expires-in DIAS] [--wait]
+uv run sk ipm sa key remove --resource-id ID --key-id KEYID_OU_FINGERPRINT [--wait]
+uv run sk ipm sa key-file --resource-id ID --key-file F
+```
+
+A identidade de máquina da Organization (decisão 0094). **A chave privada nasce e fica no cliente**: `create` e `key add` geram o par RSA 2048 localmente, gravam o arquivo de chave (`0600`, criação exclusiva: recusa sobrescrever; padrão `sa-<nome>.json`) e enviam só a pública. Com `--public-key-file` a CLI registra uma chave que você já tem e não grava nada. Cada chave vale até 365 dias (`--expires-in`, padrão 90) e há no máximo 3 por service account; a última não pode ser removida. A service account nasce protegida: `unprotect` precede o `delete`.
+
+O `keyId` só existe depois que o Zitadel registra a chave. Com `--wait`, a CLI completa `keyId` e `userId` no arquivo; sem ele, rode `key-file` quando a fase for `Ready`. Depois, `sk auth login --key-file F`. O papel mínimo para gerenciar é ter as permissões `ipm.serviceaccount.*` (roles `ipm.serviceaccountAdmin` e `ipm.serviceaccountViewer`).
 
 ## Cadastro (`sk account create`)
 
