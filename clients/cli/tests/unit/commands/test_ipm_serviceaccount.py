@@ -9,7 +9,7 @@ import urllib.request
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from typer.testing import CliRunner
@@ -207,3 +207,68 @@ def test_key_list_serviceaccount(api: FakeApi) -> None:
     result = runner.invoke(app, ["ipm", "serviceaccount", "key", "list", "--resource-id", RID])
     assert result.exit_code == 0, result.stderr
     assert "k-001" in result.stdout
+
+
+def test_key_remove_refuses_the_last_key(
+    api: FakeApi,
+) -> None:
+    api.routes[("GET", SERVICEACCOUNT)] = Response(
+        200,
+        {
+            **sa_document(),
+            "desired": {
+                **sa_document()["desired"],
+                "keys": [
+                    {
+                        "publicKey": "PK",
+                        "expiresAt": "2027-01-01T00:00:00Z",
+                        "fingerprint": "f" * 64,
+                    }
+                ],
+            },
+        },
+    )
+    result = runner.invoke(
+        app, ["ipm", "serviceaccount", "key", "remove", "--resource-id", RID, "--key-id", "k-001"]
+    )
+    assert result.exit_code == 2
+    assert "at least one key" in result.stderr
+    assert not [r for r in api.requests if r.get_method() == "PATCH"]
+
+
+def test_key_add_sends_only_publickey_and_expiresat(api: FakeApi, tmp_path: Path) -> None:
+    api.routes[("GET", SERVICEACCOUNT)] = Response(
+        200,
+        {
+            **sa_document(),
+            "desired": {
+                **sa_document()["desired"],
+                "keys": [
+                    {
+                        "publicKey": "PK",
+                        "expiresAt": "2027-01-01T00:00:00Z",
+                        "fingerprint": "f" * 64,
+                    }
+                ],
+            },
+        },
+    )
+    api.routes[("PATCH", SERVICEACCOUNT)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    result = runner.invoke(
+        app,
+        [
+            "ipm",
+            "serviceaccount",
+            "key",
+            "add",
+            "--resource-id",
+            RID,
+            "--key-file",
+            str(tmp_path / "k.json"),
+        ],
+    )
+    assert result.exit_code == 0, result.stderr
+    patch = next(r for r in api.requests if r.get_method() == "PATCH")
+    keys = json.loads(cast("bytes", patch.data))["keys"]
+    assert len(keys) == 2
+    assert all(set(k) == {"publicKey", "expiresAt"} for k in keys)

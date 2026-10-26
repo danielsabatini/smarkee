@@ -10,6 +10,7 @@ import contextlib
 import hashlib
 import json
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated, NoReturn
 
@@ -233,6 +234,12 @@ def _roles(values: list[str]) -> list[str]:
     except ValueError as error:
         ui.error("Invalid role", str(error), hint="Use <module>.<roleName>.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
+
+
+def _key_specifications(desired_keys: Sequence[dict[str, str]]) -> list[dict[str, str]]:
+    """Chaves do desired no formato do pedido: a API só aceita `publicKey` e `expiresAt`
+    (o `fingerprint` existe apenas no estado desejado, calculado pelo servidor)."""
+    return [{"publicKey": k["publicKey"], "expiresAt": k["expiresAt"]} for k in desired_keys]
 
 
 def _fingerprint_from_private_pem(private_pem: str) -> str:
@@ -907,7 +914,7 @@ def key_add_command(
             raise typer.Exit(EXIT_USAGE_ERROR) from error
 
     new_key_entry = {"publicKey": public_pem, "expiresAt": expires_at}
-    new_keys_list = [*current.desired_keys, new_key_entry]
+    new_keys_list = [*_key_specifications(current.desired_keys), new_key_entry]
 
     try:
         accepted = update_serviceaccount(
@@ -1016,9 +1023,17 @@ def key_remove_command(
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
 
-    remaining_keys = [
-        dk for dk in current.desired_keys if dk.get("fingerprint") != fingerprint_to_remove
-    ]
+    if len(current.desired_keys) <= 1:
+        ui.error(
+            "Last key",
+            "A service account must keep at least one key.",
+            hint="Add another key with `sk ipm serviceaccount key add` before removing this one.",
+        )
+        raise typer.Exit(EXIT_USAGE_ERROR)
+
+    remaining_keys = _key_specifications(
+        [dk for dk in current.desired_keys if dk.get("fingerprint") != fingerprint_to_remove]
+    )
 
     try:
         accepted = update_serviceaccount(
