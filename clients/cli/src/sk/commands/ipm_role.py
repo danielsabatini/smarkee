@@ -10,7 +10,6 @@ import uuid
 from typing import Annotated, NoReturn
 
 import typer
-from rich.text import Text
 
 from sk import ui
 from sk.commands.shared import (
@@ -65,7 +64,6 @@ NO_PERMISSION_HINT = (
     "You do not have permission for this operation. Modifying roles requires ipm.role.admin."
 )
 
-PHASE_STYLES = {"Ready": "green", "Failed": "red"}
 
 role_app = typer.Typer(
     help=ROLE_HELP,
@@ -133,10 +131,6 @@ def _identifier(value: str | None, option_name: str, *, what: str) -> str:
         return validate_identifier(require(value, option_name), what=what)
     except ValueError as error:
         _usage_error(str(error), option_name)
-
-
-def _styled_phase(role: Role) -> Text:
-    return Text(role.phase, style=PHASE_STYLES.get(role.phase, "yellow"))
 
 
 def _rows(role: Role) -> list[tuple[str, str]]:
@@ -532,21 +526,7 @@ def list_command() -> None:
         return
     ui.table(
         "Roles",
-        ["resourceId", "name", "type", "phase", "permissions", "description"],
-        [
-            [
-                r.resource_id,
-                r.name,
-                r.role_type,
-                _styled_phase(r),
-                (
-                    f"{len(r.permissions)} perm"
-                    if len(r.permissions) == 1
-                    else f"{len(r.permissions)} perms"
-                ),
-                r.description,
-            ]
-            for r in roles
-        ],
+        ["name", "type", "permissions", "description"],
+        [[r.name, r.role_type, str(len(r.permissions)), r.description] for r in roles],
         wrap=["description"],
     )

@@ -227,4 +227,6 @@ def test_get_and_list_roles(api: FakeApi) -> None:
     assert shown.exit_code == 0 and "ipm.userAdmin" in shown.stdout
     api.routes[("GET", PATH)] = Response(200, {"items": [role_document()]})
     listed = runner.invoke(app, ["ipm", "role", "list"])
-    assert listed.exit_code == 0 and RID in listed.stdout
+    assert listed.exit_code == 0
+    assert "ipm.userAdmin" in listed.stdout
+    assert RID not in listed.stdout  # a listagem é um resumo; o resourceId fica no `get`
