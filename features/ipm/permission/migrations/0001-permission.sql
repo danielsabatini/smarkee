@@ -153,7 +153,15 @@ WITH predefined(resource_id, permission_name, module_group, description, grantab
     ('01a17641-489c-75c9-81c4-34e1ce2459a7', 'ipm.group.list', 'ipm', 'Listar grupos de usuários da Organization', true),
     ('01a17641-489f-72ea-9647-b39cb4237b52', 'ipm.group.update', 'ipm', 'Alterar grupos de usuários da Organization', true),
     ('01a17641-48a1-77c5-9e35-69e7e1b1706f', 'ipm.group.bind', 'ipm', 'Atribuir e alterar roles de grupos de usuários da Organization', true),
-    ('01a17641-48a4-7790-9a6c-25f5aaea438c', 'ipm.group.admin', 'ipm', 'Operador: gerenciar qualquer grupo', false)
+    ('01a17641-48a4-7790-9a6c-25f5aaea438c', 'ipm.group.admin', 'ipm', 'Operador: gerenciar qualquer grupo', false),
+    -- ipm.serviceaccount (roles-ipm): delegáveis à Organization (exceto admin), decisão 0094
+    ('01a179e8-9222-762f-859b-b71c8ea23477', 'ipm.serviceaccount.create', 'ipm', 'Criar service accounts da Organization', true),
+    ('01a179e8-9225-7f05-9cb3-a887a2614955', 'ipm.serviceaccount.delete', 'ipm', 'Excluir service accounts da Organization', true),
+    ('01a179e8-9228-7ffb-b962-6041f9f195b6', 'ipm.serviceaccount.get', 'ipm', 'Ler service accounts da Organization', true),
+    ('01a179e8-922b-7c5e-b950-cae0d554ae40', 'ipm.serviceaccount.list', 'ipm', 'Listar service accounts da Organization', true),
+    ('01a179e8-922e-7575-98cc-e70de27d328c', 'ipm.serviceaccount.update', 'ipm', 'Alterar service accounts da Organization', true),
+    ('01a179e8-9231-77ac-8d48-8958a211148a', 'ipm.serviceaccount.bind', 'ipm', 'Atribuir e alterar roles e chaves de service accounts da Organization', true),
+    ('01a179e8-9234-78e2-a930-b7b782effe5c', 'ipm.serviceaccount.admin', 'ipm', 'Operador: gerenciar qualquer service account', false)
 ),
 inserted AS (
   INSERT INTO ipm.permission (

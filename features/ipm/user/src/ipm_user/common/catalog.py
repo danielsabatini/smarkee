@@ -63,6 +63,15 @@ PREDEFINED_ROLES: dict[str, list[str]] = {
         "ipm.group.list",
         "ipm.group.update",
     ],
+    "ipm.serviceaccountViewer": ["ipm.serviceaccount.get", "ipm.serviceaccount.list"],
+    "ipm.serviceaccountAdmin": [
+        "ipm.serviceaccount.bind",
+        "ipm.serviceaccount.create",
+        "ipm.serviceaccount.delete",
+        "ipm.serviceaccount.get",
+        "ipm.serviceaccount.list",
+        "ipm.serviceaccount.update",
+    ],
 }
 
 

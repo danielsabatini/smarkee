@@ -42,10 +42,11 @@ O Manager só insere no outbox. A publicação do outbox no NATS é do Publisher
 {"ipm": ["ipm.organization.create", "ipm.organization.delete", "ipm.organization.get", "ipm.organization.list", "ipm.organization.update",
          "ipm.user.bind", "ipm.user.create", "ipm.user.delete", "ipm.user.get", "ipm.user.list", "ipm.user.update",
          "ipm.group.bind", "ipm.group.create", "ipm.group.delete", "ipm.group.get", "ipm.group.list", "ipm.group.update",
-         "ipm.role.bind", "ipm.role.create", "ipm.role.delete", "ipm.role.get", "ipm.role.list", "ipm.role.update"]}
+         "ipm.role.bind", "ipm.role.create", "ipm.role.delete", "ipm.role.get", "ipm.role.list", "ipm.role.update",
+         "ipm.serviceaccount.bind", "ipm.serviceaccount.create", "ipm.serviceaccount.delete", "ipm.serviceaccount.get", "ipm.serviceaccount.list", "ipm.serviceaccount.update"]}
 ```
 
-As permissões `ipm.user.*`, `ipm.group.*` e `ipm.role.*` dão ao root (o dono da Organization) a gestão dos usuários, grupos e roles `custom` dela (decisões 0077, 0088 e 0092).
+As permissões `ipm.user.*`, `ipm.group.*`, `ipm.role.*` e `ipm.serviceaccount.*` dão ao root (o dono da Organization) a gestão dos usuários, grupos, roles `custom` e service accounts dela (decisões 0077, 0088, 0092 e 0094).
 
 O catálogo existe **só no Manager** (decisão 0079). O `desired` leva as permissões que o usuário deve ter (`servicePermissions`) e as que a ligação controla (`managedPermissions`: as do catálogo mais as que saíram dele), e o Observer e o Executor leem só o `desired`. Na partida, o Manager faz o **rollout** (`handlers/catalog_rollout.py`): cada ligação cujo `desired` difere do catálogo de agora ganha uma geração nova, com uma Operation `update` de `system:catalog`, e o loop aplica a mudança, inclusive para quem ligou antes. Repetir não grava nada (a linha é bloqueada e comparada). Um serviço que saiu do catálogo não é alterado.
 

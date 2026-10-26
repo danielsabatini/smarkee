@@ -59,6 +59,13 @@ ACTION_ROLES_BY_PROJECT = {
         "ipm.group.get",
         "ipm.group.list",
         "ipm.group.update",
+        # Service accounts da Organization (decisão 0094).
+        "ipm.serviceaccount.bind",
+        "ipm.serviceaccount.create",
+        "ipm.serviceaccount.delete",
+        "ipm.serviceaccount.get",
+        "ipm.serviceaccount.list",
+        "ipm.serviceaccount.update",
         # Usuários da Organization (decisão 0077): o root as recebe pelo Grant da `register`.
         "ipm.user.bind",
         "ipm.user.create",
@@ -81,6 +88,7 @@ ADMIN_ROLES_BY_PROJECT = {
         "ipm.permission.admin",
         "ipm.role.admin",
         "ipm.group.admin",
+        "ipm.serviceaccount.admin",
         "ipm.user.admin",
     },
     "roles-sum": set[str](),

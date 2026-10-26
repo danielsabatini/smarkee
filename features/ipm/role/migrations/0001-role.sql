@@ -201,6 +201,18 @@ WITH predefined(resource_id, role_name, description, permissions) AS (
       'ipm.groupAdmin',
       'Administração de grupos de usuários em ipm.group.',
       '["ipm.group.bind", "ipm.group.create", "ipm.group.delete", "ipm.group.get", "ipm.group.list", "ipm.group.update"]'::jsonb
+    ),
+    (
+      '01a179e8-9237-7c08-bb22-72457e162873',
+      'ipm.serviceaccountViewer',
+      'Leitura de service accounts em ipm.serviceaccount.',
+      '["ipm.serviceaccount.get", "ipm.serviceaccount.list"]'::jsonb
+    ),
+    (
+      '01a179e8-923a-7a7e-a13b-c12f9a41caeb',
+      'ipm.serviceaccountAdmin',
+      'Administração de service accounts em ipm.serviceaccount.',
+      '["ipm.serviceaccount.bind", "ipm.serviceaccount.create", "ipm.serviceaccount.delete", "ipm.serviceaccount.get", "ipm.serviceaccount.list", "ipm.serviceaccount.update"]'::jsonb
     )
 ),
 inserted AS (

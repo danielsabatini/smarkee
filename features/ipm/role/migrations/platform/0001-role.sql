@@ -87,7 +87,13 @@ WITH predefined(resource_id, role_name, description, permissions) AS (
      ARRAY['ipm.group.get', 'ipm.group.list']),
     ('01a17641-48a9-7074-a84a-6ae0dc0651c4', 'ipm.groupAdmin',
      'Administração de grupos de usuários em ipm.group.',
-     ARRAY['ipm.group.bind', 'ipm.group.create', 'ipm.group.delete', 'ipm.group.get', 'ipm.group.list', 'ipm.group.update'])
+     ARRAY['ipm.group.bind', 'ipm.group.create', 'ipm.group.delete', 'ipm.group.get', 'ipm.group.list', 'ipm.group.update']),
+    ('01a179e8-9237-7c08-bb22-72457e162873', 'ipm.serviceaccountViewer',
+     'Leitura de service accounts em ipm.serviceaccount.',
+     ARRAY['ipm.serviceaccount.get', 'ipm.serviceaccount.list']),
+    ('01a179e8-923a-7a7e-a13b-c12f9a41caeb', 'ipm.serviceaccountAdmin',
+     'Administração de service accounts em ipm.serviceaccount.',
+     ARRAY['ipm.serviceaccount.bind', 'ipm.serviceaccount.create', 'ipm.serviceaccount.delete', 'ipm.serviceaccount.get', 'ipm.serviceaccount.list', 'ipm.serviceaccount.update'])
 ),
 inserted AS (
   INSERT INTO ipm.role (resource_id, organization_id, name, description, deletion_protection)
