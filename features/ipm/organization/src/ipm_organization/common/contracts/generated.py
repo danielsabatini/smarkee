@@ -872,12 +872,24 @@ class OrganizationList(ContractModel):
 
 class GrantablePermission(StrEnum):
     """
-    Catálogo das permissões que uma Organization pode delegar aos usuários dela (decisão 0081): o Project Grant de cada Organization tem exatamente estas, e o Receiver do User recusa as demais antes do loop. Fonte única, versionada com o código e igual em todos os ambientes; não há operador nem criação e remoção de Organization aqui. Mudar o catálogo é mudar este enum, regerar os modelos do ipm/user e do ipm/organization e implantar: o Manager da Organization faz o rollout do Grant na partida.
+    Catálogo das permissões que uma Organization pode delegar aos usuários dela (decisão 0081): o Project Grant de cada Organization tem exatamente estas, e o Receiver do User recusa as demais antes do loop. Fonte única, versionada com o código e igual em todos os ambientes; não há operador nem criação e remoção de Organization aqui. Este enum é só a semente inicial: o catálogo vivo vem de `grantable = true` em `ipm.permission` (decisão 0083). Ele deve listar exatamente as permissões `ipm.*` `grantable` da semente `0001-permission.sql` (verificado por teste em ipm/permission); mudar é mudar este enum, regerar os modelos do ipm/user, do ipm/organization e do ipm/role e implantar.
     """
 
+    ipm_group_bind = "ipm.group.bind"
+    ipm_group_create = "ipm.group.create"
+    ipm_group_delete = "ipm.group.delete"
+    ipm_group_get = "ipm.group.get"
+    ipm_group_list = "ipm.group.list"
+    ipm_group_update = "ipm.group.update"
     ipm_organization_get = "ipm.organization.get"
     ipm_organization_list = "ipm.organization.list"
     ipm_organization_update = "ipm.organization.update"
+    ipm_role_bind = "ipm.role.bind"
+    ipm_role_create = "ipm.role.create"
+    ipm_role_delete = "ipm.role.delete"
+    ipm_role_get = "ipm.role.get"
+    ipm_role_list = "ipm.role.list"
+    ipm_role_update = "ipm.role.update"
     ipm_user_bind = "ipm.user.bind"
     ipm_user_create = "ipm.user.create"
     ipm_user_delete = "ipm.user.delete"
