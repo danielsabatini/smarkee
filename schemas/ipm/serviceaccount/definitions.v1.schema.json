@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ServiceAccountDefinitions",
+  "description": "Campos de domínio da service account (identidade de máquina) da Organization reutilizados pelos contratos do recurso (decisão 0094). A chave PRIVADA nunca aparece em contrato algum: nasce e fica no cliente; só a chave pública trafega.",
+  "x-schemaVersion": "1.0",
+  "$defs": {
+    "serviceAccountName": {
+      "description": "Nome único da service account dentro da Organization. Minúsculas, dígitos e hífen (slug). Imutável após a criação; é também o nome de usuário (username) da máquina no provedor de identidade.",
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9-]{0,61}[a-z0-9]$"
+    },
+    "description": {
+      "description": "Descrição legível do propósito da service account.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "permission": {
+      "description": "Permissão da plataforma no padrão <módulo>.<tipo>.<ação> (decisão 0028). Só são aceitas as permissões do Project Grant da Organization.",
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$"
+    },
+    "permissions": {
+      "description": "Conjunto de permissões, sem repetição e em ordem alfabética.",
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/permission"
+      }
+    },
+    "roleName": {
+      "description": "Identificador semântico da Role composta (<módulo>.<tipo><Admin|Viewer> ou custom, decisões 0083 e 0092), por exemplo ipm.serviceaccountViewer.",
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$"
+    },
+    "roles": {
+      "description": "Conjunto de Roles atribuídas à service account na Organization, sem repetição e em ordem alfabética. São expandidas pelo Manager em permissões atômicas no desired.",
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/roleName"
+      }
+    },
+    "publicKey": {
+      "description": "Chave pública RSA (mínimo 2048 bits) em PEM (SubjectPublicKeyInfo). Não é segredo. A chave privada correspondente nunca sai do cliente.",
+      "type": "string",
+      "minLength": 200,
+      "maxLength": 2048,
+      "pattern": "^-----BEGIN PUBLIC KEY-----\\n[A-Za-z0-9+/=\\n]+-----END PUBLIC KEY-----\\n?$"
+    },
+    "keyFingerprint": {
+      "description": "SHA-256, em hexadecimal minúsculo, do DER SubjectPublicKeyInfo da chave pública. Calculado pelo Receiver; identifica a chave entre o desired e o observed (o provedor não devolve a pública).",
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "keyId": {
+      "description": "Identificador da chave no provedor de identidade (kid da assertion).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.-]+$"
+    },
+    "keyStatus": {
+      "description": "active: a chave está no provedor e vale. expired: a chave do desired já venceu e o provedor a removeu.",
+      "type": "string",
+      "enum": [
+        "active",
+        "expired"
+      ],
+      "x-enumPolicy": "closed"
+    },
+    "keys": {
+      "description": "Chaves públicas pedidas pelo cliente (publicKey e expiresAt). No máximo 3, para rotação sem parada.",
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/keySpecification"
+      }
+    },
+    "keySpecification": {
+      "title": "ServiceAccountKeySpecification",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "publicKey",
+        "expiresAt"
+      ],
+      "properties": {
+        "publicKey": {
+          "$ref": "definitions.v1.schema.json#/$defs/publicKey",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        },
+        "expiresAt": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+          "description": "Vencimento da chave: no futuro e em até 365 dias da criação.",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        }
+      }
+    },
+    "desiredKey": {
+      "title": "ServiceAccountDesiredKey",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "publicKey",
+        "expiresAt",
+        "fingerprint"
+      ],
+      "properties": {
+        "publicKey": {
+          "$ref": "definitions.v1.schema.json#/$defs/publicKey",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "expiresAt": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "fingerprint": {
+          "$ref": "definitions.v1.schema.json#/$defs/keyFingerprint",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        }
+      }
+    },
+    "desiredKeys": {
+      "description": "Chaves pretendidas, já com o fingerprint calculado pelo Receiver. No máximo 3.",
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/desiredKey"
+      }
+    },
+    "observedKey": {
+      "title": "ServiceAccountObservedKey",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fingerprint",
+        "status"
+      ],
+      "properties": {
+        "fingerprint": {
+          "$ref": "definitions.v1.schema.json#/$defs/keyFingerprint",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "keyId": {
+          "$ref": "definitions.v1.schema.json#/$defs/keyId",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "expiresAt": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "status": {
+          "$ref": "definitions.v1.schema.json#/$defs/keyStatus",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        }
+      }
+    },
+    "observedKeys": {
+      "description": "Chaves lidas do provedor (e do metadado de mapeamento), sem material privado.",
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/observedKey"
+      }
+    },
+    "userState": {
+      "description": "Estado da service account (machine user) no provedor de identidade.",
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive",
+        "locked"
+      ],
+      "x-enumPolicy": "open"
+    },
+    "accessTokenType": {
+      "description": "Tipo do access token da máquina. A plataforma exige jwt (token opaco não é aceito pelo gateway).",
+      "type": "string",
+      "enum": [
+        "jwt",
+        "bearer"
+      ],
+      "x-enumPolicy": "open"
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ServiceAccountDesiredData",
+  "description": "data de desired da service account da Organization: estado pretendido e controle de reconciliação. Publicado somente pelo Manager. Só chaves públicas; nenhum segredo.",
+  "x-schemaVersion": "1.0",
+  "x-resourceParameters": {
+    "observationInterval": "PT5M",
+    "observationValidity": "PT10M",
+    "actionDeadline": "PT2M",
+    "failureLimit": 5,
+    "progressDeadline": "PT5M"
+  },
+  "x-actionIdFormat": "<resourceId>.<desiredGeneration>.<operation>.<messageId do observed que motivou a decisão>",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lifecycle",
+    "reconciliation",
+    "organizationId",
+    "name",
+    "permissions",
+    "keys"
+  ],
+  "properties": {
+    "lifecycle": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/lifecycle",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "organizationId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "description": "Organization dona da service account (o resourceId dela, também o ID da organização no provedor de identidade). Imutável.",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "name": {
+      "$ref": "definitions.v1.schema.json#/$defs/serviceAccountName",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": true,
+      "x-sensitivity": "public"
+    },
+    "description": {
+      "$ref": "definitions.v1.schema.json#/$defs/description",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "public"
+    },
+    "permissions": {
+      "$ref": "definitions.v1.schema.json#/$defs/permissions",
+      "description": "Permissões que a service account deve ter na Organization, por autorização no Project Grant dela. Inclui as diretas e as expandidas das roles.",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "roles": {
+      "$ref": "definitions.v1.schema.json#/$defs/roles",
+      "description": "Roles atribuídas diretamente; expandidas pelo Manager em permissions.",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "description": "Proteção contra exclusão. Na service account nasce true (decisão 0094); gravada como metadado no provedor (decisão 0074).",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    },
+    "keys": {
+      "$ref": "definitions.v1.schema.json#/$defs/desiredKeys",
+      "description": "Chaves públicas da service account (no máximo 3). Cada uma vira uma chave no provedor.",
+      "x-writer": "client",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ServiceAccountObservedData",
+  "description": "data de observed da service account: estado lido do provedor de identidade. Os campos estão presentes quando presence é present; com absent ou unknown, data é vazio. Sem material privado.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "userState": {
+      "$ref": "definitions.v1.schema.json#/$defs/userState",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "accessTokenType": {
+      "$ref": "definitions.v1.schema.json#/$defs/accessTokenType",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "description": {
+      "$ref": "definitions.v1.schema.json#/$defs/description",
+      "description": "Descrição lida da máquina no provedor; ausente quando vazia.",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "permissions": {
+      "$ref": "definitions.v1.schema.json#/$defs/permissions",
+      "description": "Permissões que a service account tem hoje na Organization, lidas das autorizações dela.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "description": "Lida do metadado deletionProtection (decisão 0074). Ausente quando o metadado não existe ou é inválido.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "keys": {
+      "$ref": "definitions.v1.schema.json#/$defs/observedKeys",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

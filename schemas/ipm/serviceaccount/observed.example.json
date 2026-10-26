@@ -1,0 +1,18 @@
+{
+  "userState": "active",
+  "accessTokenType": "jwt",
+  "description": "Pipeline de deploy",
+  "permissions": [
+    "ipm.organization.get",
+    "ipm.serviceaccount.get"
+  ],
+  "deletionProtection": true,
+  "keys": [
+    {
+      "fingerprint": "9f2b8c0e7d4a1b9c3e6f0a2d8b5c7e1f4a9d2c6b0e8f3a7d1c5b9e2f6a0d4c8b",
+      "keyId": "0199c8d2-4e5f-7a6b-9c7d-8e9f0a1b2c3d",
+      "expiresAt": "2027-01-24T14:00:00Z",
+      "status": "active"
+    }
+  ]
+}

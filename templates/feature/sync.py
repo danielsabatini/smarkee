@@ -47,6 +47,7 @@ PROFILES: dict[str, tuple[str, ...]] = {
         "ipm/organization",
         "ipm/permission",
         "ipm/role",
+        "ipm/serviceaccount",
         "ipm/user",
     ),
     # Envelope, publicação e persistência de `observed` e do resultado, com a convergência e os
@@ -58,11 +59,12 @@ PROFILES: dict[str, tuple[str, ...]] = {
         "ipm/organization",
         "ipm/permission",
         "ipm/role",
+        "ipm/serviceaccount",
         "ipm/user",
         "sum/service",
     ),
     # Driver de metadado do provedor de identidade, escrita (Executor) e leitura (Observer).
-    "identity-metadata": ("core/account", "ipm/organization", "ipm/user"),
+    "identity-metadata": ("core/account", "ipm/organization", "ipm/serviceaccount", "ipm/user"),
     # Motores sem regra do tipo: Observer e Executor (com a revalidação), com o teste do motor do
     # Observer (decisão 0075).
     "loop-engines": (
@@ -71,6 +73,7 @@ PROFILES: dict[str, tuple[str, ...]] = {
         "ipm/group",
         "ipm/organization",
         "ipm/role",
+        "ipm/serviceaccount",
         "ipm/user",
     ),
 }

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ServiceAccountUpdateRequest",
+  "description": "Corpo de PATCH /v1/ipm/serviceaccounts/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. keys substitui a lista inteira (adicionar ou remover chave é ler, alterar e enviar; mínimo 1). Mudar roles ou keys exige ipm.serviceaccount.bind; reconciliation é do operador.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "resourceVersion"
+  ],
+  "minProperties": 2,
+  "properties": {
+    "resourceVersion": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceVersion",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "description": {
+      "$ref": "definitions.v1.schema.json#/$defs/description",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "roles": {
+      "$ref": "definitions.v1.schema.json#/$defs/roles",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "keys": {
+      "$ref": "definitions.v1.schema.json#/$defs/keys",
+      "x-writer": "client",
+      "x-sensitivity": "internal",
+      "minItems": 1
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ServiceAccountRequestedCreateData",
+  "description": "data de requested com operation create. Publicado somente pelo Receiver, depois de conferir a Organization, o escopo de quem pede, a cota, o teto de roles e as chaves públicas (RSA de 2048 bits ou mais), que chegam com o fingerprint calculado (decisão 0094). Sem material privado.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operationId",
+    "requestDigest",
+    "specification"
+  ],
+  "properties": {
+    "operationId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/opaqueIdentifier",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "requestDigest": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/requestDigest",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "specification": {
+      "title": "ServiceAccountCreateSpecification",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "organizationId",
+        "name",
+        "keys"
+      ],
+      "x-writer": "client",
+      "x-sensitivity": "internal",
+      "properties": {
+        "organizationId": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        },
+        "name": {
+          "$ref": "definitions.v1.schema.json#/$defs/serviceAccountName",
+          "x-writer": "client",
+          "x-sensitivity": "public"
+        },
+        "description": {
+          "$ref": "definitions.v1.schema.json#/$defs/description",
+          "x-writer": "client",
+          "x-sensitivity": "public"
+        },
+        "roles": {
+          "$ref": "definitions.v1.schema.json#/$defs/roles",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        },
+        "deletionProtection": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        },
+        "keys": {
+          "$ref": "definitions.v1.schema.json#/$defs/desiredKeys",
+          "x-writer": "client",
+          "x-sensitivity": "internal",
+          "minItems": 1
+        }
+      }
+    },
+    "organizationQuotaLimit": {
+      "description": "Limite de service accounts da Organization, definido pelo Receiver (ausente para operadores: sem cota). O Manager aplica o limite na mesma unidade atômica do pedido, sob trava por Organization (decisão 0094).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

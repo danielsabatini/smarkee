@@ -1,0 +1,22 @@
+{
+  "lifecycle": "present",
+  "reconciliation": "active",
+  "organizationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "name": "ci-deploy",
+  "description": "Pipeline de deploy",
+  "permissions": [
+    "ipm.organization.get",
+    "ipm.serviceaccount.get"
+  ],
+  "roles": [
+    "ipm.serviceaccountViewer"
+  ],
+  "deletionProtection": true,
+  "keys": [
+    {
+      "publicKey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1LfVLPHCozMxH2Mo\n4lgOEePzNm0tRgeLezV6ffAt0gunVTLw7onLRnrq0/IzW7yWR7QkrmBL7jTKEn5u\n+qKhbwKfBstIs+bMY2Zkp18gnTxKLxoS2tFczGkPLPgizskuemMghRniWaoLcyeh\nkd3qqGElvW/VDL5AaWTg0nLVkjRo9z+40RQzuVaE8AkAFmxZzow3x+VJYKdjykkJ\n0iT9wCS0DRTXu269V264Vf/3jvredZiKRkgwlL9xNAwxXFMdc6U6mS0Dmj4ZW+EY\ntDV0FNsMzP5nkQa3iX7D4hFxNl9lXoB0iJhpgJmfrVfJLFSEfMyw72yW6Uq3Ohjf\nbwIDAQAB\n-----END PUBLIC KEY-----\n",
+      "expiresAt": "2027-01-24T14:00:00Z",
+      "fingerprint": "9f2b8c0e7d4a1b9c3e6f0a2d8b5c7e1f4a9d2c6b0e8f3a7d1c5b9e2f6a0d4c8b"
+    }
+  ]
+}

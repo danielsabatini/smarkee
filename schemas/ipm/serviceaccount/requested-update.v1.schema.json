@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ServiceAccountRequestedUpdateData",
+  "description": "data de requested com operation update. Traz a descrição, as roles, as chaves, a proteção contra exclusão, a mudança do controle de reconciliação, ou uma combinação delas. Publicado somente pelo Receiver.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operationId",
+    "requestDigest",
+    "resourceVersion"
+  ],
+  "minProperties": 4,
+  "properties": {
+    "operationId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/opaqueIdentifier",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "requestDigest": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/requestDigest",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "resourceVersion": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceVersion",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "specification": {
+      "title": "ServiceAccountUpdateSpecification",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "x-writer": "client",
+      "x-sensitivity": "internal",
+      "properties": {
+        "description": {
+          "$ref": "definitions.v1.schema.json#/$defs/description",
+          "x-writer": "client",
+          "x-sensitivity": "public"
+        },
+        "roles": {
+          "$ref": "definitions.v1.schema.json#/$defs/roles",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        },
+        "deletionProtection": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        },
+        "keys": {
+          "$ref": "definitions.v1.schema.json#/$defs/desiredKeys",
+          "x-writer": "client",
+          "x-sensitivity": "internal",
+          "minItems": 1
+        }
+      }
+    },
+    "reconciliation": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+      "description": "Muda só o controle de reconciliação; não incrementa desiredGeneration.",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    }
+  }
+}

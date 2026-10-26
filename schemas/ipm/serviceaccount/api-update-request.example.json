@@ -1,0 +1,6 @@
+{
+  "resourceVersion": "3",
+  "roles": [
+    "ipm.serviceaccountAdmin"
+  ]
+}

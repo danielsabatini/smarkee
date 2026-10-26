@@ -1,0 +1,10 @@
+{
+  "operationId": "0199c8b3-0a1b-7c2d-8e3f-4a5b6c7d8e02",
+  "requestDigest": "6a3c9d1f8e5b2c0d4f7a1b3e9c6d8f2a5b0e3d7c1f9a4b8e2d6c0f5a9b3e7d1c",
+  "resourceVersion": "3",
+  "specification": {
+    "roles": [
+      "ipm.serviceaccountAdmin"
+    ]
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ServiceAccount",
+  "description": "Visão consolidada da service account da Organization exposta pelo Receiver (GET /v1/ipm/serviceaccounts/{resourceId}), legível pelo dono da Organization, por usuários e service accounts dela com ipm.serviceaccount.get e por operadores. Não expõe campos internos do SSOT nem material privado.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "resourceId",
+    "resourceVersion",
+    "desiredGeneration",
+    "phase",
+    "conditions",
+    "desired",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "resourceId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "description": "Também o ID da máquina (machine user) no provedor de identidade e o userId do arquivo de chave.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "resourceVersion": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceVersion",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "desiredGeneration": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/generation",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "phase": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/phase",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "conditions": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "$ref": "../../common/condition.v1.schema.json"
+      },
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "desired": {
+      "title": "ServiceAccountDesiredView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lifecycle",
+        "reconciliation",
+        "organizationId",
+        "name",
+        "permissions",
+        "keys"
+      ],
+      "x-writer": "server",
+      "x-sensitivity": "internal",
+      "properties": {
+        "lifecycle": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/lifecycle",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "reconciliation": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "organizationId": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "name": {
+          "$ref": "definitions.v1.schema.json#/$defs/serviceAccountName",
+          "x-writer": "server",
+          "x-sensitivity": "public"
+        },
+        "description": {
+          "$ref": "definitions.v1.schema.json#/$defs/description",
+          "x-writer": "server",
+          "x-sensitivity": "public"
+        },
+        "permissions": {
+          "$ref": "definitions.v1.schema.json#/$defs/permissions",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "roles": {
+          "$ref": "definitions.v1.schema.json#/$defs/roles",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "deletionProtection": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "keys": {
+          "$ref": "definitions.v1.schema.json#/$defs/desiredKeys",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        }
+      }
+    },
+    "observed": {
+      "title": "ServiceAccountObservedView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "presence",
+        "observedAt"
+      ],
+      "description": "Última observação; ausente antes da primeira.",
+      "x-writer": "server",
+      "x-sensitivity": "internal",
+      "properties": {
+        "presence": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/presence",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "observedAt": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "userState": {
+          "$ref": "definitions.v1.schema.json#/$defs/userState",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "accessTokenType": {
+          "$ref": "definitions.v1.schema.json#/$defs/accessTokenType",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "description": {
+          "$ref": "definitions.v1.schema.json#/$defs/description",
+          "x-writer": "server",
+          "x-sensitivity": "public"
+        },
+        "permissions": {
+          "$ref": "definitions.v1.schema.json#/$defs/permissions",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "deletionProtection": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "keys": {
+          "$ref": "definitions.v1.schema.json#/$defs/observedKeys",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        }
+      }
+    },
+    "createdAt": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "updatedAt": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

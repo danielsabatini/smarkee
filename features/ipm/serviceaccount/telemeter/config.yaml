@@ -1,0 +1,66 @@
+# Telemeter de app da feature (decisão 0062): camada 2 da arquitetura de coleta
+# (docs/telemetry/OBSERVABILITY-ARCHITECTURE.md). Este arquivo é IDÊNTICO nos telemeters de todas as features; o que muda
+# entre elas é só o serviço no compose e as linhas de roteamento no telemetry-router. O teste `tests/telemetry`
+# falha se os arquivos divergirem.
+#
+# Recebe por OTLP (gRPC, rede `internal`) só os sinais de app da feature, que o telemetry-router roteia: os logs
+# pelo Resource (`smarkee.module` e `smarkee.resource.type`) e os spans pelo `apisix.service_name`. Não lê arquivos
+# nem usa o socket do Docker: quem lê os logs dos contêineres é o telemetry-agent (camada 1, da plataforma). Por
+# isso este arquivo vale igual em Docker e em Kubernetes; o que muda entre os ambientes fica no agente.
+#
+# Tudo o que este telemeter grava em `logs/` é log de app (ele só recebe app): não há subpasta `app`.
+# A política de app da feature mora aqui (hoje: nenhuma além dos limites). Destino: arquivos com rotação, até
+# haver backend; trocar o exporter é a única mudança necessária (decisão 0058).
+extensions:
+  # Sonda de saúde (HTTP em 13133, rede `internal`).
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 128
+    spike_limit_mib: 32
+  # Lotes curtos e com tamanho máximo: o exporter file, com rotação, rejeita um lote maior que max_megabytes.
+  batch:
+    timeout: 1s
+    send_batch_size: 100
+    send_batch_max_size: 200
+
+exporters:
+  # Rotação em 10 MB, 3 arquivos rotacionados, no máximo 1 dia (mesma política do platform-telemeter, decisão 0053).
+  file/logs_app:
+    path: /telemetry/logs/logs.jsonl
+    create_directory: true
+    rotation:
+      max_megabytes: 10
+      max_days: 1
+      max_backups: 3
+  file/traces:
+    path: /telemetry/traces/traces.jsonl
+    create_directory: true
+    rotation:
+      max_megabytes: 10
+      max_days: 1
+      max_backups: 3
+
+service:
+  extensions: [health_check]
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [file/logs_app]
+
+    # Os spans das rotas desta feature (`apisix.service_name = <módulo>-<tipo>-receiver`), já ajustados à semconv
+    # pelo telemetry-router.
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [file/traces]

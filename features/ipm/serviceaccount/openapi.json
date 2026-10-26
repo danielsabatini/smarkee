@@ -1,0 +1,1323 @@
+{
+  "components": {
+    "schemas": {
+      "AccessTokenType": {
+        "description": "Tipo do access token da máquina. A plataforma exige jwt (token opaco não é aceito pelo gateway).",
+        "enum": [
+          "jwt",
+          "bearer"
+        ],
+        "title": "AccessTokenType",
+        "type": "string"
+      },
+      "ApiAcceptedResponse": {
+        "additionalProperties": false,
+        "description": "Resposta das escritas assíncronas (POST, PATCH, DELETE): o pedido foi publicado, não aplicado (RESOURCE-CONTROL-LOOP.md, Interface HTTP).",
+        "properties": {
+          "operationId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+            "title": "Operationid",
+            "type": "string"
+          },
+          "resourceId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+            "title": "Resourceid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resourceId",
+          "operationId"
+        ],
+        "title": "ApiAcceptedResponse",
+        "type": "object"
+      },
+      "Condition": {
+        "additionalProperties": false,
+        "description": "Fato consolidado do recurso (RESOURCE-CONTROL-LOOP.md, Conditions). Mantida pelo Manager.",
+        "properties": {
+          "lastTransitionAt": {
+            "format": "date-time",
+            "title": "Lasttransitionat",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "observedGeneration": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observedgeneration"
+          },
+          "reason": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Z][A-Za-z0-9]*$",
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ConditionStatus"
+          },
+          "type": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Z][A-Za-z0-9]*$",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "status",
+          "reason",
+          "lastTransitionAt"
+        ],
+        "title": "Condition",
+        "type": "object"
+      },
+      "ConditionStatus": {
+        "enum": [
+          "True",
+          "False",
+          "Unknown"
+        ],
+        "title": "ConditionStatus",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "KeyStatus": {
+        "description": "active: a chave está no provedor e vale. expired: a chave do desired já venceu e o provedor a removeu.",
+        "enum": [
+          "active",
+          "expired"
+        ],
+        "title": "KeyStatus",
+        "type": "string"
+      },
+      "Lifecycle": {
+        "description": "Intenção de existência, em desired.",
+        "enum": [
+          "present",
+          "absent"
+        ],
+        "title": "Lifecycle",
+        "type": "string"
+      },
+      "Operation": {
+        "additionalProperties": false,
+        "description": "Acompanhamento de uma solicitação assíncrona, exposto por GET /v1/operations/{operationId} (SSOT.md, Operation).",
+        "properties": {
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "desiredGeneration": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Desiredgeneration"
+          },
+          "module": {
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "title": "Module",
+            "type": "string"
+          },
+          "operationId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+            "title": "Operationid",
+            "type": "string"
+          },
+          "operationStatus": {
+            "$ref": "#/components/schemas/OperationStatus"
+          },
+          "operationStatusReason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperationStatusReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "OperationStatusReason"
+          },
+          "operationType": {
+            "$ref": "#/components/schemas/OperationType"
+          },
+          "resourceId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+            "title": "Resourceid",
+            "type": "string"
+          },
+          "resourceType": {
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "title": "Resourcetype",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId",
+          "operationType",
+          "module",
+          "resourceType",
+          "resourceId",
+          "operationStatus",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "Operation",
+        "type": "object"
+      },
+      "OperationStatus": {
+        "enum": [
+          "accepted",
+          "in_progress",
+          "completed",
+          "failed",
+          "rejected",
+          "superseded"
+        ],
+        "title": "OperationStatus",
+        "type": "string"
+      },
+      "OperationStatusReason": {
+        "description": "Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).",
+        "enum": [
+          "conflict",
+          "validation",
+          "not_found",
+          "protected"
+        ],
+        "title": "OperationStatusReason",
+        "type": "string"
+      },
+      "OperationType": {
+        "enum": [
+          "create",
+          "update",
+          "delete"
+        ],
+        "title": "OperationType",
+        "type": "string"
+      },
+      "Permission": {
+        "maxLength": 128,
+        "minLength": 5,
+        "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$",
+        "title": "Permission",
+        "type": "string"
+      },
+      "Phase": {
+        "description": "Fase consolidada do recurso (RESOURCE-CONTROL-LOOP.md, Lifecycle).",
+        "enum": [
+          "Pending",
+          "Reconciling",
+          "Ready",
+          "Failed",
+          "Deleting"
+        ],
+        "title": "Phase",
+        "type": "string"
+      },
+      "Presence": {
+        "description": "Resultado da observação, no envelope de observed. unknown nunca é tratado como absent.",
+        "enum": [
+          "present",
+          "absent",
+          "unknown"
+        ],
+        "title": "Presence",
+        "type": "string"
+      },
+      "Reconciliation": {
+        "description": "Controle da reconciliação, em desired. Quando suspended, o Reconciler não decide.",
+        "enum": [
+          "active",
+          "suspended"
+        ],
+        "title": "Reconciliation",
+        "type": "string"
+      },
+      "RoleName": {
+        "maxLength": 128,
+        "minLength": 5,
+        "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$",
+        "title": "RoleName",
+        "type": "string"
+      },
+      "ServiceAccount": {
+        "additionalProperties": false,
+        "description": "Visão consolidada da service account da Organization exposta pelo Receiver (GET /v1/ipm/serviceaccounts/{resourceId}), legível pelo dono da Organization, por usuários e service accounts dela com ipm.serviceaccount.get e por operadores. Não expõe campos internos do SSOT nem material privado.",
+        "properties": {
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/Condition"
+            },
+            "maxItems": 32,
+            "title": "Conditions",
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "desired": {
+            "$ref": "#/components/schemas/ServiceAccountDesiredView"
+          },
+          "desiredGeneration": {
+            "maximum": 9007199254740991.0,
+            "minimum": 1.0,
+            "title": "Desiredgeneration",
+            "type": "integer"
+          },
+          "observed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServiceAccountObservedView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "ServiceAccountObservedView"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/Phase"
+          },
+          "resourceId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+            "title": "Resourceid",
+            "type": "string"
+          },
+          "resourceVersion": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9-]+$",
+            "title": "Resourceversion",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resourceId",
+          "resourceVersion",
+          "desiredGeneration",
+          "phase",
+          "conditions",
+          "desired",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "ServiceAccount",
+        "type": "object"
+      },
+      "ServiceAccountCreateRequest": {
+        "additionalProperties": false,
+        "description": "Corpo de POST /v1/ipm/serviceaccounts. O Receiver atribui resourceId (o ID da máquina no provedor), operationId, requestDigest e requestedBy. keys leva só chaves PÚBLICAS: a privada é gerada e guardada pelo cliente. deletionProtection ausente equivale a true (decisão 0094).",
+        "properties": {
+          "deletionProtection": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deletionprotection"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceAccountKeySpecification"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Keys",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 63,
+            "minLength": 2,
+            "pattern": "^[a-z][a-z0-9-]{0,61}[a-z0-9]$",
+            "title": "Name",
+            "type": "string"
+          },
+          "organizationId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+            "title": "Organizationid",
+            "type": "string"
+          },
+          "roles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RoleName"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roles"
+          }
+        },
+        "required": [
+          "organizationId",
+          "name",
+          "keys"
+        ],
+        "title": "ServiceAccountCreateRequest",
+        "type": "object"
+      },
+      "ServiceAccountDesiredKey": {
+        "additionalProperties": false,
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "title": "Expiresat",
+            "type": "string"
+          },
+          "fingerprint": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "publicKey": {
+            "maxLength": 2048,
+            "minLength": 200,
+            "pattern": "^-----BEGIN PUBLIC KEY-----\\n[A-Za-z0-9+/=\\n]+-----END PUBLIC KEY-----\\n?$",
+            "title": "Publickey",
+            "type": "string"
+          }
+        },
+        "required": [
+          "publicKey",
+          "expiresAt",
+          "fingerprint"
+        ],
+        "title": "ServiceAccountDesiredKey",
+        "type": "object"
+      },
+      "ServiceAccountDesiredView": {
+        "additionalProperties": false,
+        "properties": {
+          "deletionProtection": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deletionprotection"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceAccountDesiredKey"
+            },
+            "maxItems": 3,
+            "title": "Keys",
+            "type": "array"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/Lifecycle"
+          },
+          "name": {
+            "maxLength": 63,
+            "minLength": 2,
+            "pattern": "^[a-z][a-z0-9-]{0,61}[a-z0-9]$",
+            "title": "Name",
+            "type": "string"
+          },
+          "organizationId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+            "title": "Organizationid",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "maxItems": 64,
+            "title": "Permissions",
+            "type": "array"
+          },
+          "reconciliation": {
+            "$ref": "#/components/schemas/Reconciliation"
+          },
+          "roles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RoleName"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roles"
+          }
+        },
+        "required": [
+          "lifecycle",
+          "reconciliation",
+          "organizationId",
+          "name",
+          "permissions",
+          "keys"
+        ],
+        "title": "ServiceAccountDesiredView",
+        "type": "object"
+      },
+      "ServiceAccountKeySpecification": {
+        "additionalProperties": false,
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "title": "Expiresat",
+            "type": "string"
+          },
+          "publicKey": {
+            "maxLength": 2048,
+            "minLength": 200,
+            "pattern": "^-----BEGIN PUBLIC KEY-----\\n[A-Za-z0-9+/=\\n]+-----END PUBLIC KEY-----\\n?$",
+            "title": "Publickey",
+            "type": "string"
+          }
+        },
+        "required": [
+          "publicKey",
+          "expiresAt"
+        ],
+        "title": "ServiceAccountKeySpecification",
+        "type": "object"
+      },
+      "ServiceAccountList": {
+        "additionalProperties": false,
+        "description": "Resposta de GET /v1/ipm/serviceaccounts?organizationId=: página ordenada por resourceId, somente das service accounts da Organization pedida, quando quem pede é o dono dela, um usuário ou service account dela com ipm.serviceaccount.list ou um operador. nextCursor ausente indica a última página.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceAccount"
+            },
+            "maxItems": 200,
+            "title": "Items",
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ServiceAccountList",
+        "type": "object"
+      },
+      "ServiceAccountObservedKey": {
+        "additionalProperties": false,
+        "properties": {
+          "expiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
+          },
+          "fingerprint": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "keyId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_.-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/KeyStatus"
+          }
+        },
+        "required": [
+          "fingerprint",
+          "status"
+        ],
+        "title": "ServiceAccountObservedKey",
+        "type": "object"
+      },
+      "ServiceAccountObservedView": {
+        "additionalProperties": false,
+        "description": "Última observação; ausente antes da primeira.",
+        "properties": {
+          "accessTokenType": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccessTokenType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deletionProtection": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deletionprotection"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ServiceAccountObservedKey"
+                },
+                "maxItems": 8,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keys"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "title": "Observedat",
+            "type": "string"
+          },
+          "permissions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Permission"
+                },
+                "maxItems": 64,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permissions"
+          },
+          "presence": {
+            "$ref": "#/components/schemas/Presence"
+          },
+          "userState": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "presence",
+          "observedAt"
+        ],
+        "title": "ServiceAccountObservedView",
+        "type": "object"
+      },
+      "ServiceAccountUpdateRequest": {
+        "additionalProperties": false,
+        "description": "Corpo de PATCH /v1/ipm/serviceaccounts/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. keys substitui a lista inteira (adicionar ou remover chave é ler, alterar e enviar; mínimo 1). Mudar roles ou keys exige ipm.serviceaccount.bind; reconciliation é do operador.",
+        "properties": {
+          "deletionProtection": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deletionprotection"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ServiceAccountKeySpecification"
+                },
+                "maxItems": 3,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keys"
+          },
+          "reconciliation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reconciliation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resourceVersion": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9-]+$",
+            "title": "Resourceversion",
+            "type": "string"
+          },
+          "roles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RoleName"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roles"
+          }
+        },
+        "required": [
+          "resourceVersion"
+        ],
+        "title": "ServiceAccountUpdateRequest",
+        "type": "object"
+      },
+      "UserState": {
+        "description": "Estado da service account (machine user) no provedor de identidade.",
+        "enum": [
+          "active",
+          "inactive",
+          "locked"
+        ],
+        "title": "UserState",
+        "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "smarkee ipm serviceaccount api",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health/live": {
+      "get": {
+        "operationId": "health_live_health_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Live Health Live Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Live"
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "health_ready_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Ready"
+      }
+    },
+    "/health/startup": {
+      "get": {
+        "operationId": "health_startup_health_startup_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Startup Health Startup Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Startup"
+      }
+    },
+    "/v1/ipm/serviceaccounts": {
+      "get": {
+        "operationId": "list_serviceaccounts_v1_ipm_serviceaccounts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+              "title": "Organizationid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_-]{1,512}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceAccountList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Serviceaccounts"
+      },
+      "post": {
+        "operationId": "create_serviceaccount_v1_ipm_serviceaccounts_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceAccountCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Serviceaccount"
+      }
+    },
+    "/v1/ipm/serviceaccounts/{serviceaccount_id}": {
+      "delete": {
+        "operationId": "delete_serviceaccount_v1_ipm_serviceaccounts__serviceaccount_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serviceaccount_id",
+            "required": true,
+            "schema": {
+              "title": "Serviceaccount Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "resourceVersion",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{1,18}$",
+              "title": "Resourceversion",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Serviceaccount"
+      },
+      "get": {
+        "operationId": "get_serviceaccount_v1_ipm_serviceaccounts__serviceaccount_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serviceaccount_id",
+            "required": true,
+            "schema": {
+              "title": "Serviceaccount Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceAccount"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Serviceaccount"
+      },
+      "patch": {
+        "operationId": "update_serviceaccount_v1_ipm_serviceaccounts__serviceaccount_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serviceaccount_id",
+            "required": true,
+            "schema": {
+              "title": "Serviceaccount Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceAccountUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Serviceaccount"
+      }
+    },
+    "/v1/ipm/serviceaccounts/{serviceaccount_id}/operations/{operation_id}": {
+      "get": {
+        "operationId": "get_operation_v1_ipm_serviceaccounts__serviceaccount_id__operations__operation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serviceaccount_id",
+            "required": true,
+            "schema": {
+              "title": "Serviceaccount Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "operation_id",
+            "required": true,
+            "schema": {
+              "title": "Operation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Operation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Operation"
+      }
+    }
+  }
+}

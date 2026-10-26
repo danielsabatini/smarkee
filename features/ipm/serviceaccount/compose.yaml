@@ -1,0 +1,347 @@
+name: ipm-serviceaccount
+
+# Componentes de ipm.serviceaccount (decisões 0015, 0019 e 0063): migração, consumers, Receiver, Manager,
+# Publisher, Reconciler, Observer e Executor.
+# A plataforma (banco, messaging, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
+# e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait messaging database gateway identity identity-login`,
+# naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
+
+# Driver de log legível pelo coletor (decisão 0045, docs/telemetry/OBSERVABILITY.md §7): o padrão `local` do
+# Docker não é lido pelo `file_log` do OpenTelemetry Collector. Com rotação.
+x-logging: &component-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Limites de recursos dos componentes (decisão 0053): padrão calibrado com o consumo medido em dev (no máximo ~115 MiB de
+# memória e ~0,02 núcleo de CPU em média por componente). Ajuste pelo ambiente.
+x-deploy: &component-deploy
+  resources:
+    limits:
+      cpus: "${IPM_SERVICEACCOUNT_COMPONENT_CPUS:-0.5}"
+      memory: ${IPM_SERVICEACCOUNT_COMPONENT_MEMORY:-256M}
+
+# Imagem única da feature (decisão 0063): contém o código dos seis papéis, e cada serviço escolhe o
+# seu pelo `command`. Cada contêiner recebe só as variáveis e os segredos do seu papel.
+x-image: &component-image
+  build:
+    context: .
+  image: ${IPM_SERVICEACCOUNT_IMAGE:-smarkee-ipm-serviceaccount:dev}
+
+services:
+  # Consumer durável de trabalho do Manager para `requested` do tipo (docs/messaging/NATS.md §7.6). O manifesto
+  # do Manager e o do Executor ficam em `consumers/`. Inexistente é criado; existente com configuração idêntica
+  # não muda; configuração diferente falha de forma explícita. Exige os Streams REQUESTED, OBSERVED
+  # e RESULT, criados pelo messaging da plataforma.
+  ipm-serviceaccount-consumer:
+    build:
+      context: ../../../infrastructure/tools/nats-client
+    image: ${SMARKEE_MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}
+    container_name: ipm-serviceaccount-consumer.smarkee.internal
+    environment:
+      NATS_URL: nats://messaging.smarkee.internal:4222
+      NATS_USER: ${SMARKEE_MESSAGING_USER:-smarkee}
+      NATS_PASSWORD: ${IPM_SERVICEACCOUNT_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
+    command:
+      - sh
+      - -c
+      - >-
+        nats consumer add REQUESTED --config /consumers/ipm-serviceaccount-manager-requested.json &&
+        nats consumer add OBSERVED --config /consumers/ipm-serviceaccount-manager-observed.json &&
+        nats consumer add RESULT --config /consumers/ipm-serviceaccount-manager-result.json &&
+        for partition in 0 1 2 3; do
+          nats consumer add ACTION --config /consumers/ipm-serviceaccount-executor-action-p$$partition.json || exit 1;
+        done
+    volumes:
+      - ./consumers:/consumers:ro
+    networks:
+      - internal
+    restart: "no"
+
+  # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo
+  # (features/ipm/serviceaccount/migrations/*.sql, em ordem) como o dono `ssot`, no banco `ssot`.
+  # O código das migrações é do Manager (decisões 0015 e 0063); a execução é desta etapa de
+  # implantação, com o papel administrativo, e nunca com o papel de runtime do Manager.
+  # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/ipm.sql.
+  ipm-serviceaccount-migrate:
+    build:
+      context: ../../../infrastructure/tools/psql-client
+    image: ${SMARKEE_DATABASE_CLIENT_IMAGE:-smarkee-psql-client:dev}
+    container_name: ipm-serviceaccount-migrate.smarkee.internal
+    environment:
+      PGHOST: database.smarkee.internal
+      PGDATABASE: ssot
+      PGUSER: ssot
+      # Senha trivial de dev do dono do SSOT (database/bootstrap/ssot.sql).
+      PGPASSWORD: ssot
+      PGOPTIONS: -c client_min_messages=warning
+    command:
+      - sh
+      - -c
+      - for migration in /migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1; done
+    volumes:
+      - ./migrations:/migrations:ro
+    networks:
+      internal:
+        aliases:
+          - ipm-serviceaccount-migrate.smarkee.internal
+    restart: "no"
+
+  # Receiver (`ipm-serviceaccount-receiver`): só o gateway a alcança; a porta 8000 não é publicada no host.
+  ipm-serviceaccount-receiver:
+    <<: *component-image
+    command: [ipm-serviceaccount-receiver]
+    container_name: ipm-serviceaccount-receiver.smarkee.internal
+    logging: *component-logging
+    deploy: *component-deploy
+    environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+      # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
+      # defaults do componente (IPM_SERVICEACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>).
+      IPM_SERVICEACCOUNT_RECEIVER_AUTH_AUDIENCE: ${IPM_SERVICEACCOUNT_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-ipm, org core)}
+    secrets:
+      - IPM_SERVICEACCOUNT_RECEIVER_DATABASE_PASSWORD
+      - IPM_SERVICEACCOUNT_RECEIVER_MESSAGING_PASSWORD
+    volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
+    depends_on:
+      ipm-serviceaccount-migrate:
+        condition: service_completed_successfully
+      ipm-serviceaccount-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-serviceaccount-receiver.smarkee.internal
+    restart: unless-stopped
+    healthcheck: &component-healthcheck
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  # Manager (`ipm-serviceaccount-manager`): único escritor do SSOT do tipo. Papel de banco
+  # `ipm_serviceaccount_manager`, que só insere no outbox (decisão 0019).
+  ipm-serviceaccount-manager:
+    <<: *component-image
+    command: [ipm-serviceaccount-manager]
+    container_name: ipm-serviceaccount-manager.smarkee.internal
+    logging: *component-logging
+    deploy: *component-deploy
+    environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+    secrets:
+      - IPM_SERVICEACCOUNT_MANAGER_DATABASE_PASSWORD
+      - IPM_SERVICEACCOUNT_MANAGER_MESSAGING_PASSWORD
+    volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
+    depends_on:
+      ipm-serviceaccount-migrate:
+        condition: service_completed_successfully
+      ipm-serviceaccount-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-serviceaccount-manager.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *component-healthcheck
+
+  # Reconciler (`ipm-serviceaccount-reconciler`): decide a `action` a partir de `desired` e `observed`.
+  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/messaging/NATS.md §7.4).
+  ipm-serviceaccount-reconciler:
+    <<: *component-image
+    command: [ipm-serviceaccount-reconciler]
+    container_name: ipm-serviceaccount-reconciler.smarkee.internal
+    logging: *component-logging
+    deploy: *component-deploy
+    environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+    secrets:
+      - IPM_SERVICEACCOUNT_RECONCILER_MESSAGING_PASSWORD
+    volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
+    depends_on:
+      ipm-serviceaccount-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-serviceaccount-reconciler.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *component-healthcheck
+
+  # Observer (`ipm-serviceaccount-observer`): lê o Zitadel (conta somente leitura, ORG_OWNER_VIEWER em cada
+  # organização de cliente) e publica `observed`.
+  # Monta só a própria chave do volume da identidade (nunca a de bootstrap nem a do Executor).
+  ipm-serviceaccount-observer:
+    <<: *component-image
+    command: [ipm-serviceaccount-observer]
+    container_name: ipm-serviceaccount-observer.smarkee.internal
+    logging: *component-logging
+    deploy: *component-deploy
+    environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+      IPM_SERVICEACCOUNT_OBSERVER_IDENTITY_PROJECT_ID: ${IPM_SERVICEACCOUNT_IDENTITY_PROJECT_ID:?Defina no .env (ID do projeto roles-ipm, org core)}
+    secrets:
+      - IPM_SERVICEACCOUNT_OBSERVER_MESSAGING_PASSWORD
+    volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
+      - type: volume
+        source: identity-bootstrap
+        target: /run/secrets/zitadel-key.json
+        read_only: true
+        volume:
+          subpath: service-account-ipm-serviceaccount-observer.json
+    depends_on:
+      ipm-serviceaccount-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-serviceaccount-observer.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *component-healthcheck
+
+  # Executor (`ipm-serviceaccount-executor`): única identidade com escrita da service account no Zitadel (conta
+  # ipm-serviceaccount-executor: ORG_USER_CREATOR em cada organização de cliente e PROJECT_GRANT_OWNER no
+  # Grant de roles-ipm dela, decisão 0094). Monta só a própria chave.
+  ipm-serviceaccount-executor:
+    <<: *component-image
+    command: [ipm-serviceaccount-executor]
+    container_name: ipm-serviceaccount-executor.smarkee.internal
+    logging: *component-logging
+    deploy: *component-deploy
+    environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+      IPM_SERVICEACCOUNT_EXECUTOR_IDENTITY_PROJECT_ID: ${IPM_SERVICEACCOUNT_IDENTITY_PROJECT_ID:?Defina no .env (ID do projeto roles-ipm, org core)}
+    secrets:
+      - IPM_SERVICEACCOUNT_EXECUTOR_MESSAGING_PASSWORD
+    volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
+      - type: volume
+        source: identity-bootstrap
+        target: /run/secrets/zitadel-key.json
+        read_only: true
+        volume:
+          subpath: service-account-ipm-serviceaccount-executor.json
+    depends_on:
+      ipm-serviceaccount-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-serviceaccount-executor.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *component-healthcheck
+
+  # Publisher (`ipm-serviceaccount-publisher`): publica o outbox do tipo (uma instância ativa por trava
+  # consultiva). Papel de banco `ipm_serviceaccount_publisher`, que só lê o outbox e marca `published_at`, e
+  # identidade própria no NATS (decisão 0019).
+  ipm-serviceaccount-publisher:
+    <<: *component-image
+    command: [ipm-serviceaccount-publisher]
+    container_name: ipm-serviceaccount-publisher.smarkee.internal
+    logging: *component-logging
+    deploy: *component-deploy
+    environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+    secrets:
+      - IPM_SERVICEACCOUNT_PUBLISHER_DATABASE_PASSWORD
+      - IPM_SERVICEACCOUNT_PUBLISHER_MESSAGING_PASSWORD
+    volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
+    depends_on:
+      ipm-serviceaccount-migrate:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-serviceaccount-publisher.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *component-healthcheck
+
+  # Telemeter de app de ipm.serviceaccount (decisão 0062, docs/telemetry/OBSERVABILITY.md §14): recebe por OTLP, do
+  # telemetry-router da plataforma, os logs e os spans de app desta feature e os grava em `telemeter/logs/` e `telemeter/traces/`. Não lê logs de
+  # contêineres nem usa o socket do Docker (isso é do telemetry-agent). Sem privilégios e sem escrita fora da pasta.
+  ipm-serviceaccount-telemeter:
+    image: ${SMARKEE_TELEMETRY_IMAGE_VERSION:-otel/opentelemetry-collector-contrib:0.163.1}
+    container_name: ipm-serviceaccount-telemeter.smarkee.internal
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges=true"]
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+    volumes:
+      - ./telemeter/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+      # Saída do exporter file. A imagem não tem sistema de arquivos gravável: a pasta precisa existir no host e ser
+      # gravável pelo usuário 10001 (no Linux, `chmod o+rwx telemeter/logs telemeter/traces`; no Docker Desktop já é).
+      - ./telemeter/logs:/telemetry/logs
+      - ./telemeter/traces:/telemetry/traces
+    # O log do próprio coletor é de infra (o telemetry-agent o coleta pelas labels, só WARN ou acima).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: com.docker.compose.service,smarkee.layer
+    labels:
+      smarkee.layer: infra
+    deploy:
+      resources:
+        limits:
+          cpus: "${IPM_SERVICEACCOUNT_TELEMETER_CPUS:-0.25}"
+          memory: ${IPM_SERVICEACCOUNT_TELEMETER_MEMORY:-192M}
+    networks:
+      internal:
+        aliases:
+          - ipm-serviceaccount-telemeter.smarkee.internal
+    restart: unless-stopped
+    # Sem healthcheck do Compose: a imagem não tem shell nem wget/curl. A extensão `health_check` responde em 13133.
+    healthcheck:
+      disable: true
+
+# Senhas montadas em /run/secrets/<VARIÁVEL> (arquivo somente leitura, lido pelo `SecretFilesSource`; decisão 0070).
+# A origem em dev é o .env; cada papel recebe só a sua. Em stg e prd a origem passa a ser o cofre de segredos.
+secrets:
+  IPM_SERVICEACCOUNT_RECEIVER_DATABASE_PASSWORD:
+    environment: IPM_SERVICEACCOUNT_RECEIVER_DATABASE_PASSWORD
+  IPM_SERVICEACCOUNT_RECEIVER_MESSAGING_PASSWORD:
+    environment: IPM_SERVICEACCOUNT_RECEIVER_MESSAGING_PASSWORD
+  IPM_SERVICEACCOUNT_MANAGER_DATABASE_PASSWORD:
+    environment: IPM_SERVICEACCOUNT_MANAGER_DATABASE_PASSWORD
+  IPM_SERVICEACCOUNT_MANAGER_MESSAGING_PASSWORD:
+    environment: IPM_SERVICEACCOUNT_MANAGER_MESSAGING_PASSWORD
+  IPM_SERVICEACCOUNT_RECONCILER_MESSAGING_PASSWORD:
+    environment: IPM_SERVICEACCOUNT_RECONCILER_MESSAGING_PASSWORD
+  IPM_SERVICEACCOUNT_OBSERVER_MESSAGING_PASSWORD:
+    environment: IPM_SERVICEACCOUNT_OBSERVER_MESSAGING_PASSWORD
+  IPM_SERVICEACCOUNT_EXECUTOR_MESSAGING_PASSWORD:
+    environment: IPM_SERVICEACCOUNT_EXECUTOR_MESSAGING_PASSWORD
+  IPM_SERVICEACCOUNT_PUBLISHER_DATABASE_PASSWORD:
+    environment: IPM_SERVICEACCOUNT_PUBLISHER_DATABASE_PASSWORD
+  IPM_SERVICEACCOUNT_PUBLISHER_MESSAGING_PASSWORD:
+    environment: IPM_SERVICEACCOUNT_PUBLISHER_MESSAGING_PASSWORD
+
+volumes:
+  # Volume da identidade (chaves das contas de serviço), criado por `infrastructure/dev/identity`.
+  identity-bootstrap:
+    name: identity-bootstrap
+    external: true
+
+networks:
+  # Rede da plataforma, criada por `infrastructure/dev`.
+  internal:
+    name: internal
+    external: true

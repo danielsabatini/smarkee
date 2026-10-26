@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ServiceAccountCreateRequest",
+  "description": "Corpo de POST /v1/ipm/serviceaccounts. O Receiver atribui resourceId (o ID da máquina no provedor), operationId, requestDigest e requestedBy. keys leva só chaves PÚBLICAS: a privada é gerada e guardada pelo cliente. deletionProtection ausente equivale a true (decisão 0094).",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "organizationId",
+    "name",
+    "keys"
+  ],
+  "properties": {
+    "organizationId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "name": {
+      "$ref": "definitions.v1.schema.json#/$defs/serviceAccountName",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "description": {
+      "$ref": "definitions.v1.schema.json#/$defs/description",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "roles": {
+      "$ref": "definitions.v1.schema.json#/$defs/roles",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "keys": {
+      "$ref": "definitions.v1.schema.json#/$defs/keys",
+      "x-writer": "client",
+      "x-sensitivity": "internal",
+      "minItems": 1
+    }
+  }
+}
