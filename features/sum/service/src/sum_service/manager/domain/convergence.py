@@ -17,6 +17,11 @@ PROGRESSING = "Progressing"
 """Condition de progresso, como a do Deployment do Kubernetes: `True` enquanto a geração atual está
 sendo reconciliada dentro do prazo (`lastTransitionAt` marca o início da tentativa), `False` com
 `ProgressDeadlineExceeded` quando o prazo passou sem convergir (decisão 0078)."""
+OBSERVATION_STALE = "ObservationStale"
+"""Condition de observação inconclusiva (decisão 0090): `lastTransitionAt` marca o início da
+sequência de `unknown`; fica `False` (`ObservationUnknown`) dentro do prazo e `True` (`Timeout`)
+quando o recurso permanece `unknown` por mais que o prazo. Some quando volta uma observação
+conclusiva."""
 
 
 def _find(conditions: list[dict[str, Any]], condition_type: str) -> dict[str, Any] | None:
@@ -152,6 +157,71 @@ def progress(
     return Progress(conditions, exceeded=False, newly_exceeded=False)
 
 
+def observation_stale(
+    previous: list[dict[str, Any]],
+    *,
+    generation: int,
+    deadline_seconds: int | None,
+    now: datetime,
+) -> tuple[list[dict[str, Any]], bool, bool]:
+    """Condition `ObservationStale` depois de uma observação `unknown` (decisão 0090).
+
+    Devolve as conditions, se o prazo está esgotado e se esgotou agora (para o aviso sair uma vez
+    só). O relógio começa na primeira `unknown` da sequência e vale o `progressDeadline`.
+    """
+    if deadline_seconds is None:
+        return previous, False, False
+    existing = _find(previous, OBSERVATION_STALE)
+    if existing is not None and existing.get("status") == "True":
+        return previous, True, False
+    started = datetime.fromisoformat(existing["lastTransitionAt"]) if existing else now
+    if now - started > timedelta(seconds=deadline_seconds):
+        conditions = set_condition(
+            previous,
+            condition_type=OBSERVATION_STALE,
+            status="True",
+            reason="Timeout",
+            message=f"The resource stayed unknown for more than {deadline_seconds} s.",
+            generation=generation,
+            now=now,
+            since=now,
+        )
+        return conditions, True, True
+    conditions = set_condition(
+        previous,
+        condition_type=OBSERVATION_STALE,
+        status="False",
+        reason="ObservationUnknown",
+        message=None,
+        generation=generation,
+        now=now,
+        since=started,
+    )
+    return conditions, False, False
+
+
+def observation_resumed(
+    previous: list[dict[str, Any]], *, generation: int, now: datetime
+) -> list[dict[str, Any]]:
+    """Uma observação conclusiva encerra a sequência de `unknown`: a condition sai ou, se estava
+    `True`, passa a `False` (`ObservationResumed`) para registrar que o recurso voltou a ser
+    lido."""
+    existing = _find(previous, OBSERVATION_STALE)
+    if existing is None:
+        return previous
+    if existing.get("status") != "True":
+        return [c for c in previous if c.get("type") != OBSERVATION_STALE]
+    return set_condition(
+        previous,
+        condition_type=OBSERVATION_STALE,
+        status="False",
+        reason="ObservationResumed",
+        message=None,
+        generation=generation,
+        now=now,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class ObservedDecision:
     phase: str
@@ -162,6 +232,13 @@ class ObservedDecision:
 
     progress_deadline_exceeded: bool = False
     """O prazo de progresso esgotou nesta observação (decisão 0078)."""
+
+    observation_stale: bool = False
+    """O recurso passou do prazo em `unknown` nesta observação (decisão 0090)."""
+
+    exhausted: bool = False
+    """A geração com trabalho pendente esgotou o prazo (de progresso ou de observação): a
+    Operation vira `failed`, como no `failureLimit`. Sai sozinho da fase `Failed` ao convergir."""
 
 
 def decide_observed(
@@ -186,7 +263,9 @@ def decide_observed(
     mantém o registro não passa por `Deleting`: enquanto não converge, fica em `Reconciling`.
     """
     if presence == "unknown":
-        # Inconclusiva: registra o resultado, mas não altera a fase nem decide convergência.
+        # Inconclusiva: registra o resultado e não decide convergência. Além do prazo em `unknown`
+        # (decisão 0090), um recurso com trabalho pendente vai a `Failed`: sem isso uma exclusão
+        # que o Observer nunca consegue ler ficaria em `Deleting` para sempre.
         conditions = previous_conditions or ready_condition(
             [],
             status="Unknown",
@@ -195,7 +274,19 @@ def decide_observed(
             generation=generation,
             now=now,
         )
-        return ObservedDecision(previous_phase, conditions, converged=False, remove=False)
+        conditions, stale, newly_stale = observation_stale(
+            conditions, generation=generation, deadline_seconds=progress_deadline_seconds, now=now
+        )
+        pending = stale and previous_phase != "Ready"
+        return ObservedDecision(
+            "Failed" if pending else previous_phase,
+            conditions,
+            converged=False,
+            remove=False,
+            observation_stale=newly_stale,
+            exhausted=pending,
+        )
+    previous_conditions = observation_resumed(previous_conditions, generation=generation, now=now)
 
     # Converge só com o conteúdo igual **e** com uma observação feita depois da geração vigente
     # (o Observer informa a geração que conhecia antes de ler o provedor). Uma leitura anterior à
@@ -243,6 +334,7 @@ def decide_observed(
         converged=False,
         remove=False,
         progress_deadline_exceeded=tracked.newly_exceeded,
+        exhausted=tracked.exceeded,
     )
 
 

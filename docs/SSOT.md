@@ -130,7 +130,7 @@ O Receiver também calcula o **resumo do pedido** (`requestDigest`), uma funçã
 | `accepted` | Pedido gravado; `desired` registrado no outbox |
 | `in_progress` | Reconciliação da geração do pedido em andamento |
 | `completed` | A geração do pedido convergiu |
-| `failed` | A geração do pedido atingiu o `failureLimit` ou foi substituída por outra antes de convergir |
+| `failed` | A geração do pedido atingiu o `failureLimit`, esgotou o prazo de progresso ou de observação (decisão 0090) ou foi substituída por outra antes de convergir |
 | `rejected` | Pedido não aplicado; o Resource não foi alterado |
 
 Uma Operation `rejected` possui `operationStatusReason`, enumeração fechada:

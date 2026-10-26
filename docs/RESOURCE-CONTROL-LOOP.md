@@ -738,6 +738,8 @@ Isso evita decidir com uma leitura anterior à execução sem depender de relóg
 
 Se a observação causada não chegar dentro do prazo definido pelo domínio (por exemplo, o Observer da partição está indisponível), o Manager registra a condition `ObservationStale`, e o Reconciler volta a aceitar a próxima observação conclusiva. O mesmo ocorre quando o recurso permanece `unknown` por mais que o prazo.
 
+Implementação (decisão 0090): o prazo é o `progressDeadline`, contado desde a primeira `unknown` da sequência. Esgotado, `ObservationStale` fica `True` (`Timeout`) e um recurso com trabalho pendente (`Pending`, `Reconciling` ou `Deleting`) vai para `Failed`, sem suspender o loop. Uma observação conclusiva encerra a sequência e o recurso converge sozinho. Em ambos os prazos (progresso e observação) as Operations abertas da geração atual terminam `failed`.
+
 # 11. Fase 4 — Reconciliation
 
 O Reconciler recebe os dois estados.
@@ -1399,7 +1401,9 @@ Os contratos da plataforma definem o vocabulário padronizado de conditions:
 | **`Progressing`**<br/>*(decisão 0078)* | `True` | `Reconciling` | Há trabalho e progresso ativo sendo executado para a geração atual. |
 | | `True` | `Converged` | O progresso da geração foi concluído com sucesso. |
 | | `False` | `ProgressDeadlineExceeded` | O tempo decorrido desde o início da geração excedeu o `progressDeadline` (padrão de 5 minutos) sem convergir. |
-| **`ObservationStale`** | `True` | `Timeout` / `Unknown` | A observação causal ou periódica não ocorreu no prazo estipulado pelo contrato ou o provedor permaneceu em `unknown`. |
+| **`ObservationStale`**<br/>*(decisão 0090)* | `False` | `ObservationUnknown` | O recurso está `unknown` há menos que o prazo. |
+| | `True` | `Timeout` | O provedor permaneceu em `unknown` por mais que o `progressDeadline`. |
+| | `False` | `ObservationResumed` | Voltou uma observação conclusiva depois do `Timeout`. |
 | **`DriftLoop`** | `True` | `RepeatedDrift` | Correções de drift estão ocorrendo ciclicamente em curto intervalo de tempo. |
 
 # 39. Operation

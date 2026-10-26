@@ -95,6 +95,15 @@ class ObservedHandler:
                     "smarkee.progress.deadline_seconds": self._progress_deadline_seconds,
                 },
             )
+        if decision.observation_stale:
+            logger.warning(
+                "observation stale",
+                extra={
+                    "smarkee.resource.id": envelope.resource_id,
+                    "smarkee.desired.generation": generation,
+                    "smarkee.progress.deadline_seconds": self._progress_deadline_seconds,
+                },
+            )
 
         if decision.remove:
             return await self._remove(store, kind, envelope, row)
@@ -111,6 +120,12 @@ class ObservedHandler:
         await store.settle_operations(
             envelope.resource_id, generation, converged=decision.converged
         )
+        if decision.exhausted:
+            # Prazo esgotado sem convergir: a Operation termina `failed` (SSOT.md §6), como no
+            # `failureLimit`. O recurso segue sendo reconciliado e pode voltar a `Ready`.
+            await store.set_current_operations(
+                envelope.resource_id, generation, status="failed", finished=True
+            )
         await self._publishing.updated(
             store,
             kind,
