@@ -1,10 +1,11 @@
 """Conexão só de leitura com o Zitadel para o Observer (`docs/RESOURCE-CONTROL-SECURITY.md` §8).
 
 Só o transporte autenticado: a conta de serviço `ipm-permission-observer` (`PROJECT_OWNER_VIEWER`
-em cada projeto `roles-<módulo>`) por assertion JWT e a chamada HTTP. Não conhece recurso: as
-leituras ficam em `observer/drivers/`, espelhando os drivers de escrita do Executor. Toda falha de
-leitura vira `ProviderError`, e o chamador a trata como `unknown`: erro de leitura (timeout, 5xx,
-401/403, limite de taxa) **nunca** é `absent`.
+em cada projeto `roles-<módulo>` e `roles-operator`, mais `ORG_OWNER_VIEWER` nas organizações `core`
+e `operator`, sem o qual o Zitadel devolve a lista de roles vazia) por assertion JWT e a chamada
+HTTP. Não conhece recurso: as leituras ficam em `observer/drivers/`, espelhando os drivers de
+escrita do Executor. Toda falha de leitura vira `ProviderError`, e o chamador a trata como
+`unknown`: erro de leitura (timeout, 5xx, 401/403, limite de taxa) **nunca** é `absent`.
 """
 
 import time

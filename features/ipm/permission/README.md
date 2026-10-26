@@ -14,7 +14,7 @@ Os seis componentes do loop estão implementados para execução no ambiente de 
 | Manager | `manager/` (`ipm-permission-manager`) | Consome `requested`, `observed` e `completed`/`failed`; unicidade de `name` em Permissions ativas; migração `0001-permission.sql` semeia as 31 Permissions pré-definidas |
 | Publisher | `publisher/` (`ipm-permission-publisher`) | Publica o outbox no NATS (`manager.desired.ipm.permission.>` e `manager.updated.ipm.permission.>`) |
 | Reconciler | `reconciler/` (`ipm-permission-reconciler`) | Compara `name`, `description` e `group` (`<módulo>`) e decide `create`, `update` ou `delete` |
-| Observer | `observer/` (`ipm-permission-observer`) | Lê as roles de projeto em `roles-<módulo>` no Zitadel (`PROJECT_OWNER_VIEWER`) e publica `observed` |
+| Observer | `observer/` (`ipm-permission-observer`) | Lê as roles de projeto em `roles-<módulo>` e `roles-operator` no Zitadel (`PROJECT_OWNER_VIEWER` nos projetos e `ORG_OWNER_VIEWER` nas organizações `core` e `operator`) e publica `observed` |
 | Executor | `executor/` (`ipm-permission-executor`) | Cria, atualiza ou remove a role de projeto em `roles-<módulo>` no Zitadel (`PROJECT_OWNER`); revalida cada ação |
 
 # 2. Contratos e Configuração

@@ -3,7 +3,8 @@
 Espelho do driver de escrita do Executor (`executor/drivers/project_role.py`): resolve o ID do
 projeto `roles-<módulo>` via `ListProjects` (com cache em memória) e lê a role via
 `ListProjectRoles`. Só leitura, com a conta `ipm-permission-observer` (`PROJECT_OWNER_VIEWER` nos
-projetos `roles-<módulo>`). Qualquer falha vira `ProviderError`, tratada como `unknown`.
+projetos `roles-<módulo>` e `roles-operator`, mais `ORG_OWNER_VIEWER` nas organizações `core` e
+`operator`). Qualquer falha vira `ProviderError`, tratada como `unknown`.
 """
 
 from typing import Any, cast

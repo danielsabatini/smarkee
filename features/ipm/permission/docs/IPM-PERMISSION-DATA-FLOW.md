@@ -135,7 +135,7 @@ para atualizar dinamicamente os `ProjectGrants` das organizações (decisão 008
 
 Resolve o projeto `roles-<módulo>` no Zitadel a partir do prefixo de `key` (`core`, `sum`, `ipm` ou `bsm`) e consulta a role de
 projeto pela API v2 (`zitadel.project.v2.ProjectService/ListProjectRoles`), com a conta `ipm-permission-observer`
-(`ORG_OWNER_VIEWER` na organização `core` e `PROJECT_OWNER_VIEWER` nos projetos `roles-<módulo>`), além dos metadados locais de
+(`ORG_OWNER_VIEWER` nas organizações `core` e `operator` e `PROJECT_OWNER_VIEWER` nos projetos `roles-<módulo>` e `roles-operator`; sem o papel de organização o Zitadel devolve a lista de roles vazia e a role é observada como ausente, decisão 0084), além dos metadados locais de
 catálogo (`description`, `grantableToOrganizations`, `deletionProtection`). Produz:
 
 - `present`, com `key`, `displayName`, `description`, `grantableToOrganizations`, `deletionProtection` e `group` (`<módulo>.<tipo>`);

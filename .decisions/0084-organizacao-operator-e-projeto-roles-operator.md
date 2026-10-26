@@ -31,6 +31,7 @@ Essa convivência trazia três limitações:
    - Guarda exclusivamente todas as permissões `<módulo>.<tipo>.admin`, mantendo `group = <módulo>`.
    - **Nunca possui Project Grants** para nenhuma outra organização.
    - Administrado pelas mesmas service accounts do loop de permissões: `ipm-permission-executor` (`PROJECT_OWNER`) e `ipm-permission-observer` (`PROJECT_OWNER_VIEWER`).
+   - **Correção (2026-10-26):** `PROJECT_OWNER_VIEWER` não basta ao Observer. O Zitadel só devolve as roles de `ListProjectRoles` a quem lê a organização dona do projeto: no `roles-operator` a resposta trazia `totalResult` sem a lista, o Observer concluía `absent`, o Reconciler republicava o `create` sem efeito e toda `*.admin` terminava `Failed` por `ProgressDeadlineExceeded`. O Observer recebe também `ORG_OWNER_VIEWER` na organização `operator` (somente leitura, como já tem na `core`). O Executor não precisa: escreve com `PROJECT_OWNER`.
 3. **Projetos `roles-<módulo>` na organização `core`:**
    - Contêm **exclusivamente permissões de ação** (nenhuma `*.admin`).
    - Delegam suas permissões de ação via Project Grant tanto para `register` (e organizações de clientes, no caso de `roles-ipm`) quanto para `operator` (para que os operadores recebam as permissões de ação que exercem além do escopo `*.admin`, conforme decisão `0031`).
