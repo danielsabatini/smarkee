@@ -9,6 +9,9 @@ from ipm_role.common.contracts import generated
 from ipm_role.common.resource import MODULE, RESOURCE_TYPE
 from ipm_role.receiver.domain.records import OperationRecord, ResourceRecord
 
+PLATFORM_ORGANIZATION_ID = "core"
+"""Dado anterior à decisão 0092 não tem `organizationId`: vale `core`."""
+
 
 def _common(record: ResourceRecord) -> dict[str, Any]:
     return {
@@ -47,6 +50,7 @@ def role_view(record: ResourceRecord) -> generated.Role:
     payload["desired"] = {
         "lifecycle": record.lifecycle,
         "reconciliation": record.reconciliation,
+        "organizationId": record.desired.get("organizationId", PLATFORM_ORGANIZATION_ID),
         "name": record.desired["name"],
         "roleType": record.desired.get("roleType", "custom"),
         "description": record.desired["description"],

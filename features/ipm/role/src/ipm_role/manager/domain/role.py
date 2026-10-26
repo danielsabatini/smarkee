@@ -1,8 +1,10 @@
 """Regras de negócio da Role, aplicadas pelo Manager (decisão 0083).
 
-Puro: sem banco, rede ou relógio. A unicidade global de `name` entre Roles ativas (`lifecycle =
-present`) é declarada aqui (`unique_value`) e verificada na mesma unidade atômica do pedido pelo
-adaptador do SSOT (`docs/SSOT.md` §10.1).
+Puro: sem banco, rede ou relógio. A unicidade de `name` entre Roles ativas (`lifecycle = present`)
+é por Organization **e** contra as predefinidas da plataforma (`core`): é declarada aqui
+(`unique_value`) e verificada na mesma unidade atômica do pedido pelo adaptador do SSOT
+(`docs/SSOT.md` §10.1). A cota de Roles `custom` por Organization segue o mesmo caminho
+(`owner_quota`, decisão 0092).
 """
 
 from collections.abc import Mapping
@@ -13,10 +15,13 @@ from pydantic import ValidationError
 from ipm_role.common.contracts import generated
 from ipm_role.common.contracts.base import ContractModel, fields_of, validate_tolerant
 from ipm_role.manager.domain.errors import PermanentMessageError
-from ipm_role.manager.domain.policy import Request, UniqueValue
+from ipm_role.manager.domain.policy import OwnerQuota, Request, UniqueValue
 
 CUSTOM_ROLE_TYPE = "custom"
 """Natureza da Role criada por pedido via API; as `predefined` nascem do bootstrap."""
+
+PLATFORM_ORGANIZATION_ID = "core"
+"""Organization de sistema, dona das Roles `predefined`. Reservada: nenhuma `custom` nasce nela."""
 
 
 def _validated[M: ContractModel](model: type[M], data: Mapping[str, Any], *, label: str) -> M:
@@ -40,6 +45,11 @@ def _permissions(items: list[generated.Permission], *, label: str) -> list[str]:
     return sorted(set(values))
 
 
+def _organization_of(desired: Mapping[str, Any]) -> str:
+    """Organization dona da Role; a ausência (dado anterior à decisão 0092) vale `core`."""
+    return str(desired.get("organizationId") or PLATFORM_ORGANIZATION_ID)
+
+
 class RolePolicy:
     """Política de `ipm.role`."""
 
@@ -48,7 +58,13 @@ class RolePolicy:
             parsed = _validated(
                 generated.RoleRequestedCreateData, data, label="requested de create"
             )
+            organization_id = parsed.specification.organization_id.strip()
+            if organization_id == PLATFORM_ORGANIZATION_ID:
+                raise PermanentMessageError(
+                    "requested de create inválido nos campos: ['specification.organizationId']"
+                )
             specification = {
+                "organizationId": organization_id,
                 "name": parsed.specification.name.strip(),
                 "description": parsed.specification.description.strip(),
                 "permissions": _permissions(
@@ -60,6 +76,7 @@ class RolePolicy:
                 operation_id=str(parsed.operation_id),
                 request_digest=parsed.request_digest,
                 specification=specification,
+                organization_quota_limit=parsed.organization_quota_limit,
             )
         if operation == "update":
             parsed = _validated(
@@ -110,6 +127,7 @@ class RolePolicy:
             raise PermanentMessageError("create sem specification")
         return {
             "lifecycle": "present",
+            "organizationId": request.specification["organizationId"],
             "name": request.specification["name"],
             "roleType": CUSTOM_ROLE_TYPE,
             "description": request.specification["description"],
@@ -135,10 +153,28 @@ class RolePolicy:
         if desired.get("lifecycle") != "present":
             return None
         name = str(desired["name"])
+        organization_id = _organization_of(desired)
+        # Uma `custom` não pode repetir o nome de uma predefinida (`core`); as predefinidas só
+        # conferem entre si.
+        scope = (organization_id, PLATFORM_ORGANIZATION_ID)
         return UniqueValue(
             field="name",
             value=name,
-            lock_key=f"ipm.role:name:{name}",
+            lock_key=f"ipm.role.name:{organization_id}:{name}",
+            scope_field="organizationId",
+            scope_values=tuple(dict.fromkeys(scope)),
+        )
+
+    def owner_quota(self, request: Request, desired: Mapping[str, Any]) -> OwnerQuota | None:
+        """Cota de Roles `custom` por Organization, só no create e só com limite do Receiver."""
+        if request.operation != "create" or request.organization_quota_limit is None:
+            return None
+        organization_id = _organization_of(desired)
+        return OwnerQuota(
+            field="organizationId",
+            owner=organization_id,
+            limit=request.organization_quota_limit,
+            lock_key=f"ipm.role.organization:{organization_id}",
         )
 
     def invalid(self, desired: Mapping[str, Any]) -> bool:
@@ -153,6 +189,7 @@ class RolePolicy:
             {
                 "lifecycle": desired["lifecycle"],
                 "reconciliation": reconciliation,
+                "organizationId": _organization_of(desired),
                 "name": desired["name"],
                 "roleType": desired.get("roleType", CUSTOM_ROLE_TYPE),
                 "description": desired["description"],

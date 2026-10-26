@@ -11,6 +11,9 @@ from psycopg_pool import AsyncConnectionPool
 
 from ipm_role.receiver.domain.records import OperationRecord, ResourceRecord
 
+PLATFORM_ORGANIZATION_ID = "core"
+"""Organization de sistema, dona das Roles predefinidas (decisão 0092)."""
+
 RESOURCE_COLUMNS = (
     "resource_id, resource_version, desired_generation, lifecycle, reconciliation, phase,"
     " conditions, desired, presence, observed, observed_at, created_at, updated_at"
@@ -37,16 +40,42 @@ class SsotRepository:
             row = await cursor.fetchone()
         return None if row is None else ResourceRecord(**row)
 
-    async def list_roles(self, *, after: str | None, limit: int) -> list[ResourceRecord]:
-        clauses = ["resource_id > %s"] if after else []
-        parameters: list[Any] = [after] if after else []
-        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-        query = f"SELECT {RESOURCE_COLUMNS} FROM ipm.role_v1{where} ORDER BY resource_id LIMIT %s"  # noqa: S608 (constantes do módulo)
+    async def list_roles(
+        self, *, organization_id: str | None, after: str | None, limit: int
+    ) -> list[ResourceRecord]:
+        # As predefinidas pertencem a `core` (dado anterior à decisão 0092 não tem o campo).
+        owners = [PLATFORM_ORGANIZATION_ID]
+        if organization_id is not None and organization_id != PLATFORM_ORGANIZATION_ID:
+            owners.append(organization_id)
+        query = (
+            f"SELECT {RESOURCE_COLUMNS} FROM ipm.role_v1"  # noqa: S608 (constantes do módulo)
+            " WHERE COALESCE(desired ->> 'organizationId', %(core)s) = ANY(%(owners)s::text[])"
+            " AND (%(after)s::text IS NULL OR resource_id > %(after)s)"
+            " ORDER BY resource_id LIMIT %(limit)s"
+        )
         async with self._pool.connection() as connection:
             cursor = connection.cursor(row_factory=dict_row)
-            await cursor.execute(query, (*parameters, limit))
+            await cursor.execute(
+                query,
+                {
+                    "core": PLATFORM_ORGANIZATION_ID,
+                    "owners": owners,
+                    "after": after,
+                    "limit": limit,
+                },
+            )
             rows = await cursor.fetchall()
         return [ResourceRecord(**row) for row in rows]
+
+    async def count_custom_roles_in(self, organization_id: str) -> int:
+        query = (
+            "SELECT count(*) FROM ipm.role_v1"
+            " WHERE desired ->> 'organizationId' = %s AND lifecycle = 'present'"
+        )
+        async with self._pool.connection() as connection:
+            cursor = await connection.execute(query, (organization_id,))
+            row = await cursor.fetchone()
+        return 0 if row is None else int(row[0])
 
     async def find_operation(self, operation_id: str) -> OperationRecord | None:
         async with self._pool.connection() as connection:

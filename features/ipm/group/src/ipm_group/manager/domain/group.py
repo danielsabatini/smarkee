@@ -146,7 +146,8 @@ class GroupPolicy:
     def invalid(self, desired: Mapping[str, Any]) -> bool:
         """Role fora do catálogo: não pode ser atribuída."""
         roles: list[str] = desired.get("roles", [])
-        return bool(self._catalog.outside_catalog(roles))
+        organization_id = str(desired.get("organizationId") or "")
+        return bool(self._catalog.outside_catalog(roles, organization_id))
 
     def owner_quota(self, request: Request, desired: Mapping[str, Any]) -> OwnerQuota | None:
         """Cota de grupos por Organization, só no create e só com limite do Receiver."""

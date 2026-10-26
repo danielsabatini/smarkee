@@ -24,6 +24,8 @@ class Request:
     resource_version: int | None = None
     specification: Mapping[str, Any] | None = None
     reconciliation: str | None = None
+    organization_quota_limit: int | None = None
+    """Limite de Roles `custom` da Organization, definido pelo Receiver (ausente p/ operador)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +36,22 @@ class UniqueValue:
     value: str
     lock_key: str
     """Chave que serializa as transações que disputam o mesmo valor."""
+
+    scope_field: str | None = None
+    scope_values: tuple[str, ...] = ()
+    """Campo e valores que delimitam a unicidade (ex.: `organizationId` da Role e `core`)."""
+
+
+@dataclass(frozen=True, slots=True)
+class OwnerQuota:
+    """Cota de recursos do tipo por dono (aqui, a Organization), conferida na mesma unidade atômica
+    do pedido."""
+
+    field: str
+    owner: str
+    limit: int
+    lock_key: str
+    """Chave que serializa as transações do mesmo dono."""
 
 
 class ResourcePolicy(Protocol):
@@ -53,6 +71,10 @@ class ResourcePolicy(Protocol):
 
     def invalid(self, desired: Mapping[str, Any]) -> bool:
         """Regra pura sobre o `desired` que o torna recusado."""
+        ...
+
+    def owner_quota(self, request: Request, desired: Mapping[str, Any]) -> OwnerQuota | None:
+        """Cota de Roles `custom` por Organization, só no create e só com limite do Receiver."""
         ...
 
     def deletion_protected(self, current: Mapping[str, Any]) -> bool:

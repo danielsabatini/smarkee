@@ -440,6 +440,18 @@ class RoleCreateSpecification(ContractModel):
     model_config = ConfigDict(
         extra="forbid",
     )
+    organization_id: Annotated[
+        str,
+        Field(
+            alias="organizationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Organization dona da Role. Imutável.
+    """
     name: Annotated[
         str, Field(max_length=128, min_length=3, pattern="^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$")
     ]
@@ -485,6 +497,12 @@ class RoleRequestedCreateData(ContractModel):
     SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
     """
     specification: Annotated[RoleCreateSpecification, Field(title="RoleCreateSpecification")]
+    organization_quota_limit: Annotated[
+        int | None, Field(alias="organizationQuotaLimit", ge=1, le=1000)
+    ] = None
+    """
+    Limite de Roles `custom` da Organization, definido pelo Receiver (ausente para operadores: sem cota). O Manager aplica o limite na mesma unidade atômica do pedido, sob trava por Organization (decisão 0092).
+    """
 
 
 class RoleUpdateSpecification(ContractModel):
@@ -584,12 +602,24 @@ class RoleRequestedDeleteData(ContractModel):
 
 class RoleCreateRequest(ContractModel):
     """
-    Corpo de POST /v1/ipm/roles. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, e o Manager atribui deletionProtection = true.
+    Corpo de POST /v1/ipm/roles. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, e o Manager atribui roleType = custom e deletionProtection = true (decisão 0092).
     """
 
     model_config = ConfigDict(
         extra="forbid",
     )
+    organization_id: Annotated[
+        str,
+        Field(
+            alias="organizationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Organization dona da Role (o resourceId da Organization). Imutável. A Organization de sistema `core` é reservada às Roles predefinidas.
+    """
     name: Annotated[
         str, Field(max_length=128, min_length=3, pattern="^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$")
     ]
@@ -610,7 +640,7 @@ class RoleCreateRequest(ContractModel):
 
 class RoleUpdateRequest(ContractModel):
     """
-    Corpo de PATCH /v1/ipm/roles/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. name não é aceito porque é imutável.
+    Corpo de PATCH /v1/ipm/roles/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. name e organizationId não são aceitos porque são imutáveis.
     """
 
     model_config = ConfigDict(
@@ -645,6 +675,18 @@ class RoleDesiredView(ContractModel):
     )
     lifecycle: Lifecycle
     reconciliation: Reconciliation
+    organization_id: Annotated[
+        str,
+        Field(
+            alias="organizationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Organization dona da Role (`core` nas predefinidas).
+    """
     name: Annotated[
         str, Field(max_length=128, min_length=3, pattern="^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$")
     ]
@@ -767,6 +809,22 @@ class RoleList(ContractModel):
     """
     Cursor opaco da próxima página.
     """
+
+
+class GrantablePermission(StrEnum):
+    """
+    Catálogo das permissões que uma Organization pode delegar aos usuários dela (decisão 0081): o Project Grant de cada Organization tem exatamente estas, e o Receiver do User recusa as demais antes do loop. Fonte única, versionada com o código e igual em todos os ambientes; não há operador nem criação e remoção de Organization aqui. Mudar o catálogo é mudar este enum, regerar os modelos do ipm/user e do ipm/organization e implantar: o Manager da Organization faz o rollout do Grant na partida.
+    """
+
+    ipm_organization_get = "ipm.organization.get"
+    ipm_organization_list = "ipm.organization.list"
+    ipm_organization_update = "ipm.organization.update"
+    ipm_user_bind = "ipm.user.bind"
+    ipm_user_create = "ipm.user.create"
+    ipm_user_delete = "ipm.user.delete"
+    ipm_user_get = "ipm.user.get"
+    ipm_user_list = "ipm.user.list"
+    ipm_user_update = "ipm.user.update"
 
 
 class MessageEnvelope(ContractModel):
@@ -915,6 +973,18 @@ class RoleDesiredData(ContractModel):
     )
     lifecycle: Lifecycle
     reconciliation: Reconciliation
+    organization_id: Annotated[
+        str,
+        Field(
+            alias="organizationId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Organization dona da Role: `core` para as predefinidas (plataforma) e o resourceId da Organization para as `custom`. Imutável (decisão 0092).
+    """
     name: Annotated[
         str, Field(max_length=128, min_length=3, pattern="^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$")
     ]
@@ -958,6 +1028,7 @@ class IpmRoleContracts(
         | RoleUpdateRequest
         | Role
         | RoleList
+        | GrantablePermission
     ]
 ):
     root: Annotated[
@@ -978,7 +1049,8 @@ class IpmRoleContracts(
         | RoleCreateRequest
         | RoleUpdateRequest
         | Role
-        | RoleList,
+        | RoleList
+        | GrantablePermission,
         Field(title="IpmRoleContracts"),
     ]
     """

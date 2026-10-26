@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from contextlib import AbstractAsyncContextManager
 from typing import Any, Protocol
 
-from ipm_role.manager.domain.policy import UniqueValue
+from ipm_role.manager.domain.policy import OwnerQuota, UniqueValue
 
 
 class Store(Protocol):
@@ -15,6 +15,10 @@ class Store(Protocol):
     async def recorded_digest(self, operation_id: str) -> str | None: ...
 
     async def value_in_use(self, unique: UniqueValue, *, excluding_resource_id: str) -> bool: ...
+
+    async def owned_count(self, quota: OwnerQuota) -> int:
+        """Serializa as transações do dono e conta os recursos que ele já tem."""
+        ...
 
     async def insert_resource(
         self, resource_id: str, *, schema_version: str, desired: Mapping[str, Any]

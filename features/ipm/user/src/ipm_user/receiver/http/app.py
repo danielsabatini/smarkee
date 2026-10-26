@@ -206,9 +206,15 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         return record, standing
 
     def check_roles(
-        principal: Principal, standing: Standing, current: list[str], requested: list[str]
+        principal: Principal,
+        standing: Standing,
+        organization_id: str,
+        current: list[str],
+        requested: list[str],
     ) -> None:
-        rejected = outside_roles_catalog(requested, catalog=deps.catalog)
+        rejected = outside_roles_catalog(
+            requested, organization_id=organization_id, catalog=deps.catalog
+        )
         if rejected:
             raise bad_request(
                 f"Roles não liberadas para a Organization: {', '.join(rejected)}.",
@@ -251,7 +257,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             raise not_found()
         requested_roles = _roles_of(body.roles) if body.roles is not None else []
         requested_groups = _groups_of(body.groups) if body.groups is not None else []
-        check_roles(principal, standing, [], requested_roles)
+        check_roles(principal, standing, organization_id, [], requested_roles)
         quota: int | None = None
         if standing is not Standing.OPERATOR:
             quota = deps.settings.user_quota
@@ -351,7 +357,13 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         if body.roles is not None:
             requested_roles = _roles_of(body.roles)
             current_roles = _roles_of(record.desired.get("roles"))
-            check_roles(principal, standing, current_roles, requested_roles)
+            check_roles(
+                principal,
+                standing,
+                str(record.desired.get("organizationId", "")),
+                current_roles,
+                requested_roles,
+            )
             specification["roles"] = requested_roles
         if body.groups is not None:
             specification["groups"] = _groups_of(body.groups)

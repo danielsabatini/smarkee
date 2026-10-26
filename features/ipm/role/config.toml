@@ -16,6 +16,11 @@ user = "ipm_role_receiver_login"
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
+[tool.ipm.role.receiver.peers]
+groups_url = "http://ipm-group-receiver.smarkee.internal:8000"
+organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
+users_url = "http://ipm-user-receiver.smarkee.internal:8000"
+
 [tool.ipm.role.manager.database]
 host = "database.smarkee.internal"
 name = "ssot"

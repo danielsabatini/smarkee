@@ -49,6 +49,7 @@ def requested_message(resource_id: str, *, role_name: str | None = None) -> dict
             "operationId": str(uuid.uuid7()),
             "requestDigest": DIGEST,
             "specification": {
+                "organizationId": "test-org",
                 "name": name,
                 "description": "Role criada pelo teste de conformidade",
                 "permissions": ["ipm.permission.get", "ipm.user.get"],
@@ -130,6 +131,7 @@ async def test_create_is_accepted_and_the_operation_is_readable(
 ) -> None:
     role_name = f"test.role{uuid.uuid4().hex[:6]}"
     create_payload = {
+        "organizationId": "test-org",
         "name": role_name,
         "description": "Role aceita pelo Receiver",
         "permissions": ["ipm.permission.get", "ipm.user.get"],
@@ -168,6 +170,7 @@ async def test_unknown_body_field_is_400(
     response = await api.post(
         "/v1/ipm/roles",
         json={
+            "organizationId": "test-org",
             "name": "test.roleok",
             "description": "Descrição válida",
             "permissions": ["ipm.permission.get"],

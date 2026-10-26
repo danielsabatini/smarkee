@@ -2,15 +2,13 @@
   "operationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
   "requestDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "specification": {
-    "name": "ipm.userAdmin",
-    "description": "Gestão completa de usuários e atribuição de acessos na Organization.",
+    "organizationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+    "name": "acme.billingOperator",
+    "description": "Operação de cobrança da Organization Acme.",
     "permissions": [
-      "ipm.user.bind",
-      "ipm.user.create",
-      "ipm.user.delete",
       "ipm.user.get",
-      "ipm.user.list",
-      "ipm.user.update"
+      "ipm.user.list"
     ]
-  }
+  },
+  "organizationQuotaLimit": 10
 }

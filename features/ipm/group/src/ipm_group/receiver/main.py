@@ -9,16 +9,16 @@ import sys
 import httpx
 
 from ipm_group.common.catalog import RolesCatalog
+from ipm_group.common.catalog_watcher import RoleCatalogWatcher
 from ipm_group.common.database import open_pool
 from ipm_group.common.http.server import serve_http
 from ipm_group.common.lifecycle import start_role
-from ipm_group.common.messaging import StreamPublisher
+from ipm_group.common.messaging import StateConsumer, StreamPublisher, new_instance_name
 from ipm_group.common.runtime import role_runtime
 from ipm_group.receiver.auth.tokens import TokenVerifier
 from ipm_group.receiver.http.app import Dependencies, create_app
 from ipm_group.receiver.settings import GroupReceiverSettings, missing_required
 from ipm_group.receiver.store.repository import SsotRepository
-from ipm_group.receiver.transport.catalog_consumer import RoleCatalogConsumer
 from ipm_group.receiver.transport.peers import OrganizationPeer, UserPeer
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,17 @@ async def run(settings: GroupReceiverSettings) -> int:
         runtime.close_after(pool.close)
         catalog = RolesCatalog()
         runtime.start(
-            "role-catalog", RoleCatalogConsumer(runtime.stream, catalog).run(runtime.stop)
+            "role-catalog",
+            StateConsumer(
+                runtime.stream,
+                RoleCatalogWatcher(catalog),
+                durable=f"ipm-group-receiver-roles-{new_instance_name()}",
+                stream="DESIRED",
+                filter_subject="manager.desired.ipm.role.>",
+                inactive_threshold_seconds=300,
+                traced=False,
+                on_cycle=runtime.health.beat,
+            ).run(runtime.stop),
         )
         app = create_app(
             Dependencies(

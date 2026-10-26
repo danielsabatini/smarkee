@@ -16,7 +16,7 @@ from psycopg.types.json import Jsonb
 
 from ipm_role.common.logging_config import current_traceparent
 from ipm_role.manager.domain.errors import DuplicateWriteError
-from ipm_role.manager.domain.policy import UniqueValue
+from ipm_role.manager.domain.policy import OwnerQuota, UniqueValue
 from ipm_role.manager.store.tables import Tables
 
 _ROW_COLUMNS = (
@@ -63,11 +63,36 @@ class SsotStore:
                 "SELECT 1 FROM {table}"
                 " WHERE lifecycle = 'present'"
                 " AND desired ->> {field} = %s"
-                " AND resource_id <> %s LIMIT 1"
-            ).format(table=self._tables.resource, field=sql.Literal(unique.field)),
-            (unique.value, excluding_resource_id),
+                " AND resource_id <> %s"
+                " AND (%s::text[] IS NULL OR desired ->> {scope} = ANY(%s::text[])) LIMIT 1"
+            ).format(
+                table=self._tables.resource,
+                field=sql.Literal(unique.field),
+                scope=sql.Literal(unique.scope_field or unique.field),
+            ),
+            (
+                unique.value,
+                excluding_resource_id,
+                list(unique.scope_values) or None,
+                list(unique.scope_values) or None,
+            ),
         )
         return await cursor.fetchone() is not None
+
+    async def owned_count(self, quota: OwnerQuota) -> int:
+        """Serializa as transações do dono e conta os recursos que ele já tem."""
+        await self._connection.execute(
+            "SELECT pg_advisory_xact_lock(hashtext(%s))", (quota.lock_key,)
+        )
+        cursor = await self._connection.execute(
+            sql.SQL(
+                "SELECT count(*) FROM {table}"
+                " WHERE desired ->> {field} = %s AND lifecycle = 'present'"
+            ).format(table=self._tables.resource, field=sql.Literal(quota.field)),
+            (quota.owner,),
+        )
+        row = await cursor.fetchone()
+        return 0 if row is None else int(row[0])
 
     async def insert_resource(
         self, resource_id: str, *, schema_version: str, desired: Mapping[str, Any]

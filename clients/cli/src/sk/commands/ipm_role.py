@@ -1,7 +1,7 @@
-"""Comandos `sk ipm role`: agrupadores de permissões atômicas (decisão 0083).
+"""Comandos `sk ipm role`: agrupadores de permissões atômicas (decisões 0083 e 0092).
 
-Operadores com a permissão `ipm.role.admin` criam, consultam, alteram, protegem e removem
-roles mantidas no catálogo da Smarkee. Usuários consultam (`ipm.role.list` e `ipm.role.get`).
+As roles predefinidas são da plataforma; as `custom` pertencem a uma Organization e são
+criadas por quem tem `ipm.role.create` (e `update`, `delete`, `bind`) nela, ou pelo operador.
 Criar, alterar e remover são assíncronos: com `--wait`, o comando espera a role convergir.
 """
 
@@ -10,6 +10,7 @@ import uuid
 from typing import Annotated, NoReturn
 
 import typer
+from pydantic import ValidationError
 
 from sk import ui
 from sk.commands.shared import (
@@ -42,15 +43,20 @@ from sk.features.ipm.role import (
 from sk.help import command, option
 from sk.http import ApiError, ApiRejectedError
 from sk.identity.oidc import OidcError
+from sk.settings import ConfigurationError, SkSettings
 
-ROLE_HELP = command("List, inspect, create, update, protect and delete platform roles.")
+ACTIVE_ORGANIZATION_KEY = "ipm.organizationId"
+ROLE_HELP = command(
+    "List, inspect, create, update, protect and delete predefined and Organization roles."
+)
 
 NOT_FOUND = "Role not found."
 CONFLICT_ON_CHANGE = "The role changed since it was last read. Inspect it and try again."
 PROTECTED_HINT = "The role is protected against deletion. Run `sk ipm role unprotect` first."
 REJECTION_HINTS = {
     "validation": (
-        "The role name, description or permissions are invalid, or the name is already in use."
+        "The role name, description or permissions are invalid, the name is already in use, "
+        "or a permission is not delegable to Organizations."
     ),
     "conflict": CONFLICT_ON_CHANGE,
     "not_found": NOT_FOUND,
@@ -58,10 +64,17 @@ REJECTION_HINTS = {
 }
 ERROR_CODE_HINTS = {
     "DeletionProtected": PROTECTED_HINT,
-    "NameAlreadyInUse": "A role with this name already exists in the platform.",
+    "NameAlreadyInUse": (
+        "A role with this name already exists in the Organization or is a predefined role."
+    ),
+    "ResourcesAttached": (
+        "The role is still used by users or groups of the Organization. Detach it first."
+    ),
+    "QuotaExceeded": "The Organization reached its limit of custom roles. Delete one first.",
 }
 NO_PERMISSION_HINT = (
-    "You do not have permission for this operation. Modifying roles requires ipm.role.admin."
+    "You do not have permission for this operation. Managing Organization roles requires "
+    "ipm.role.create, ipm.role.update, ipm.role.delete or ipm.role.bind in the Organization."
 )
 
 
@@ -95,6 +108,20 @@ RoleIdOption = Annotated[
             variable=None,
             file=None,
             default="none",
+        ),
+    ),
+]
+OrganizationOption = Annotated[
+    str | None,
+    typer.Option(
+        "--organization-id",
+        help=option(
+            "resourceId of the Organization. Without it, the active Organization is used "
+            "(`sk config set ipm.organizationId`).",
+            kind="String",
+            variable=None,
+            file=None,
+            default="the active Organization",
         ),
     ),
 ]
@@ -133,9 +160,33 @@ def _identifier(value: str | None, option_name: str, *, what: str) -> str:
         _usage_error(str(error), option_name)
 
 
+def _active_organization() -> str | None:
+    try:
+        return SkSettings().ipm.organization_id or None
+    except (ValidationError, ConfigurationError) as error:
+        ui.error("Invalid configuration", str(error), hint="Fix the indicated file and repeat.")
+        raise typer.Exit(EXIT_USAGE_ERROR) from error
+
+
+def _organization(value: str | None) -> str:
+    value = value if value is not None else _active_organization()
+    if not value:
+        ui.error(
+            "Missing Organization",
+            "No --organization-id was given and no Organization is active.",
+            hint=(
+                "Repeat with --organization-id VALUE, or make one active with "
+                f"`sk config set {ACTIVE_ORGANIZATION_KEY} VALUE`."
+            ),
+        )
+        raise typer.Exit(EXIT_USAGE_ERROR)
+    return _identifier(value, "--organization-id", what="organizationId")
+
+
 def _rows(role: Role) -> list[tuple[str, str]]:
     return [
         ("resourceId", role.resource_id),
+        ("organizationId", role.organization_id),
         ("name", role.name),
         ("type", role.role_type),
         ("description", role.description),
@@ -255,14 +306,15 @@ def _finish_request(
     ui.panel(title, _rows(result))
 
 
-@role_app.command("create", help=command("Create a composite platform role."))
+@role_app.command("create", help=command("Create a custom role in the Organization."))
 def create_command(
+    organization_id: OrganizationOption = None,
     name: Annotated[
         str | None,
         typer.Option(
             "--name",
             help=option(
-                "Role name in <module>.<roleName> format, for example bsm.accountAdmin.",
+                "Role name in <module>.<roleName> format, for example acme.billingAdmin.",
                 kind="String",
                 variable=None,
                 file=None,
@@ -287,6 +339,7 @@ def create_command(
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
+    org_id = _organization(organization_id)
     r_name = require(name, "--name")
     r_desc = require(description, "--description")
     if not permission:
@@ -304,6 +357,7 @@ def create_command(
         accepted = create_role(
             url,
             token=token,
+            organization_id=org_id,
             name=valid_name,
             description=valid_desc,
             permissions=valid_perms,
@@ -519,12 +573,20 @@ def get_command(
     ui.panel("Role", rows)
 
 
-@role_app.command("list", help=command("List platform roles."))
-def list_command() -> None:
+@role_app.command(
+    "list",
+    help=command("List predefined roles and the custom roles of an Organization."),
+)
+def list_command(organization_id: OrganizationOption = None) -> None:
+    org_id = (
+        _identifier(organization_id, "--organization-id", what="organizationId")
+        if organization_id is not None
+        else _active_organization()
+    )
     url, insecure = load_api()
     token = session_token()
     try:
-        roles = list_roles(url, token=token, allow_insecure_http=insecure)
+        roles = list_roles(url, token=token, organization_id=org_id, allow_insecure_http=insecure)
     except OidcError as error:
         bad_address(error)
     except ApiError as error:
@@ -534,7 +596,7 @@ def list_command() -> None:
         return
     ui.table(
         "Roles",
-        ["name", "resourceId", "description"],
-        [[r.name, r.resource_id, r.description] for r in roles],
+        ["name", "resourceId", "type", "description"],
+        [[r.name, r.resource_id, r.role_type, r.description] for r in roles],
         wrap=["description"],
     )

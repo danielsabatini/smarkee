@@ -53,6 +53,7 @@ def store(pool: FakePool) -> StateStoreConnection:
 
 
 RECORD = {
+    "organizationId": "org-acme",
     "name": "ipm.userAdmin",
     "description": "d",
     "deletionProtection": True,
@@ -67,14 +68,15 @@ async def test_write_runs_in_one_transaction_with_parameters_only() -> None:
     connection = pool.connection_used
     assert connection.transactions == 1
     assert [sql.split()[0] for sql, _ in connection.calls] == ["INSERT", "DELETE", "INSERT"]
-    assert connection.calls[0][1] == ("role-1", "ipm.userAdmin", "d", True)
+    assert connection.calls[0][1] == ("role-1", "org-acme", "ipm.userAdmin", "d", True)
     assert connection.calls[1][1] == ("role-1", ["ipm.user.bind", "ipm.user.get"])
     assert all("role-1" not in sql and "ipm.user" not in sql for sql, _ in connection.calls)
 
 
 async def test_read_maps_the_row_to_a_record_and_missing_to_none() -> None:
-    row = ("ipm.userAdmin", "d", False, ["ipm.user.bind"])
+    row = ("org-acme", "ipm.userAdmin", "d", False, ["ipm.user.bind"])
     assert await store(FakePool(row)).read_record("role-1") == {
+        "organizationId": "org-acme",
         "name": "ipm.userAdmin",
         "description": "d",
         "deletionProtection": False,

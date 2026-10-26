@@ -18,6 +18,7 @@
       "desired": {
         "lifecycle": "present",
         "reconciliation": "active",
+        "organizationId": "core",
         "name": "ipm.userAdmin",
         "roleType": "predefined",
         "description": "Gestão completa de usuários e atribuição de acessos na Organization.",

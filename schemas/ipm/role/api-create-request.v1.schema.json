@@ -1,16 +1,23 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "RoleCreateRequest",
-  "description": "Corpo de POST /v1/ipm/roles. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, e o Manager atribui deletionProtection = true.",
+  "description": "Corpo de POST /v1/ipm/roles. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, e o Manager atribui roleType = custom e deletionProtection = true (decisão 0092).",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "organizationId",
     "name",
     "description",
     "permissions"
   ],
   "properties": {
+    "organizationId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "description": "Organization dona da Role (o resourceId da Organization). Imutável. A Organization de sistema `core` é reservada às Roles predefinidas.",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
     "name": {
       "$ref": "definitions.v1.schema.json#/$defs/roleName",
       "x-writer": "client",

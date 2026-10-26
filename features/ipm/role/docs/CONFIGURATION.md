@@ -46,7 +46,7 @@ Fora do Docker, os nomes `*.smarkee.internal` não resolvem: use as portas publi
 
 ## 3. `ipm-role-receiver`
 
-Entrypoint do Receiver de Role (`ipm-role-receiver`, decisões 0015 e 0083).
+Entrypoint do Receiver de Role (`ipm-role-receiver`, decisões 0015, 0083 e 0092).
 
 - **Prefixo das variáveis:** `IPM_ROLE_RECEIVER_`
 - **Tabela do `config.toml`:** `[tool.ipm.role.receiver.<seção>]`
@@ -79,6 +79,11 @@ Entrypoint do Receiver de Role (`ipm-role-receiver`, decisões 0015 e 0083).
 | `auth.jwks_cache_seconds` | `IPM_ROLE_RECEIVER_AUTH_JWKS_CACHE_SECONDS` | `--auth.jwks_cache_seconds` | `int` | `300` |  |
 | `api.host` | `IPM_ROLE_RECEIVER_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
 | `api.port` | `IPM_ROLE_RECEIVER_API_PORT` | `--api.port` | `int` | `8000` |  |
+| `api.role_quota` | `IPM_ROLE_RECEIVER_API_ROLE_QUOTA` | `--api.role_quota` | `int` | `10` | Roles `custom` por Organization para quem não é operador (decisão 0092). |
+| `peers.organizations_url` | `IPM_ROLE_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.users_url` | `IPM_ROLE_RECEIVER_PEERS_USERS_URL` | `--peers.users_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.groups_url` | `IPM_ROLE_RECEIVER_PEERS_GROUPS_URL` | `--peers.groups_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.timeout_seconds` | `IPM_ROLE_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
 **Definido no `config.toml` de dev:**
 
@@ -97,6 +102,11 @@ user = "ipm_role_receiver_login"
 [tool.ipm.role.receiver.messaging]
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
+
+[tool.ipm.role.receiver.peers]
+groups_url = "http://ipm-group-receiver.smarkee.internal:8000"
+organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
+users_url = "http://ipm-user-receiver.smarkee.internal:8000"
 ```
 
 **Executar** (de `features/ipm/role`):

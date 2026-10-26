@@ -53,6 +53,7 @@
       "required": [
         "lifecycle",
         "reconciliation",
+        "organizationId",
         "name",
         "roleType",
         "description",
@@ -68,6 +69,12 @@
         },
         "reconciliation": {
           "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "organizationId": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+          "description": "Organization dona da Role (`core` nas predefinidas).",
           "x-writer": "server",
           "x-sensitivity": "internal"
         },

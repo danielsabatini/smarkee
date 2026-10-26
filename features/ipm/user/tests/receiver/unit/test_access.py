@@ -105,9 +105,16 @@ async def test_network_failure_is_retryable() -> None:
 
 async def test_outside_roles_catalog_and_dynamic_catalog_watcher() -> None:
     catalog = AccessCatalog()
-    assert outside_roles_catalog(["ipm.userViewer", "ipm.userAdmin"], catalog=catalog) == []
+    assert (
+        outside_roles_catalog(
+            ["ipm.userViewer", "ipm.userAdmin"], organization_id="org-1", catalog=catalog
+        )
+        == []
+    )
     assert outside_roles_catalog(
-        ["core.accountAdmin", "ipm.permissionAdmin", "ipm.unknownRole"], catalog=catalog
+        ["core.accountAdmin", "ipm.permissionAdmin", "ipm.unknownRole"],
+        organization_id="org-1",
+        catalog=catalog,
     ) == ["core.accountAdmin", "ipm.permissionAdmin", "ipm.unknownRole"]
 
     watcher = CatalogWatcher(catalog)
@@ -137,4 +144,30 @@ async def test_outside_roles_catalog_and_dynamic_catalog_watcher() -> None:
         },
     }
     assert await watcher.on_message(json.dumps(role_msg).encode()) is True
-    assert outside_roles_catalog(["ipm.auditorViewer"], catalog=catalog) == []
+    assert (
+        outside_roles_catalog(["ipm.auditorViewer"], organization_id="org-1", catalog=catalog) == []
+    )
+
+    # Role `custom` (decisão 0092): só vale na Organization dona; as predefinidas valem em todas.
+    custom_msg = json.loads(json.dumps(role_msg))
+    custom_msg["resourceId"] = "role-acme-billing"
+    custom_msg["data"].update(
+        {"organizationId": "org-acme", "name": "acme.billing", "permissions": ["ipm.user.get"]}
+    )
+    assert await watcher.on_message(json.dumps(custom_msg).encode()) is True
+    assert (
+        outside_roles_catalog(["acme.billing"], organization_id="org-acme", catalog=catalog) == []
+    )
+    assert outside_roles_catalog(
+        ["acme.billing"], organization_id="org-other", catalog=catalog
+    ) == ["acme.billing"]
+    assert catalog.expand_roles(["acme.billing"], "org-acme") == ["ipm.user.get"]
+    assert catalog.expand_roles(["acme.billing"], "org-other") == []
+    assert (
+        outside_roles_catalog(["ipm.userViewer"], organization_id="org-acme", catalog=catalog) == []
+    )
+    custom_msg["data"]["lifecycle"] = "absent"
+    assert await watcher.on_message(json.dumps(custom_msg).encode()) is True
+    assert outside_roles_catalog(["acme.billing"], organization_id="org-acme", catalog=catalog) == [
+        "acme.billing"
+    ]

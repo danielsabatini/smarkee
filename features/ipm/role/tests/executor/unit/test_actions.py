@@ -12,6 +12,7 @@ from ipm_role.executor.drivers.role import RoleDriver
 
 DESIRED: dict[str, Any] = {
     "lifecycle": "present",
+    "organizationId": "org-acme",
     "name": "ipm.userAdmin",
     "description": "Administração de usuários.",
     "permissions": ["ipm.user.bind", "ipm.user.get"],
@@ -44,6 +45,7 @@ async def test_execute_create_update_and_delete_on_the_store() -> None:
     await execute("create", "role-ipm-user-admin", DESIRED, drivers)
     stored = await driver.get_role("role-ipm-user-admin")
     assert stored == StoredRole(
+        organization_id="org-acme",
         name="ipm.userAdmin",
         description="Administração de usuários.",
         permissions=["ipm.user.bind", "ipm.user.get"],
@@ -58,6 +60,13 @@ async def test_execute_create_update_and_delete_on_the_store() -> None:
             drivers,
         )
     assert exc_info.value.reason == "Rejected"
+
+    # A Organization dona também é imutável (decisão 0092).
+    with pytest.raises(ActionFailedError) as org_info:
+        await execute(
+            "update", "role-ipm-user-admin", {**DESIRED, "organizationId": "outra"}, drivers
+        )
+    assert org_info.value.reason == "Rejected"
 
     await execute(
         "update",

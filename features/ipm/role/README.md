@@ -1,6 +1,6 @@
 # ipm.role
 
-A **Role** é o catálogo de papéis compostos da plataforma (`.decisions/0083-ipm-permission-ipm-role-e-fim-da-trava-de-deploy.md`): um recurso global do módulo `ipm` que agrupa permissões atômicas (`<módulo>.<tipo>.<ação>`) sob o padrão de nomenclatura pré-definido `<módulo>.<tipo><Admin|Viewer>` (ex.: `core.accountViewer`, `core.accountAdmin`, `bsm.accountViewer`, `bsm.accountAdmin`, `ipm.organizationViewer`, `ipm.organizationAdmin`, `ipm.userViewer`, `ipm.userAdmin`, `ipm.permissionViewer`, `ipm.permissionAdmin`, `ipm.roleViewer`, `ipm.roleAdmin`, `sum.serviceViewer`, `sum.serviceAdmin`).
+A **Role** é o catálogo de papéis compostos da plataforma (`.decisions/0083-ipm-permission-ipm-role-e-fim-da-trava-de-deploy.md`): um recurso do módulo `ipm` que pode ser da plataforma (`predefined`, Organization `core`) ou de uma Organization (`custom`, decisão `0092`) e que agrupa permissões atômicas (`<módulo>.<tipo>.<ação>`) sob o padrão de nomenclatura pré-definido `<módulo>.<tipo><Admin|Viewer>` (ex.: `core.accountViewer`, `core.accountAdmin`, `bsm.accountViewer`, `bsm.accountAdmin`, `ipm.organizationViewer`, `ipm.organizationAdmin`, `ipm.userViewer`, `ipm.userAdmin`, `ipm.permissionViewer`, `ipm.permissionAdmin`, `ipm.roleViewer`, `ipm.roleAdmin`, `sum.serviceViewer`, `sum.serviceAdmin`).
 
 Uma Role composta vive **exclusivamente no SSOT da Smarkee**: não cria objetos nem projetos no Zitadel. Quando atribuída a um usuário organizacional (`ipm.user`), ela é expandida em suas permissões atômicas, e alterações no catálogo de `ipm.role` propagam-se assincronamente via NATS para reconciliar os usuários afetados sem necessidade de *redeploy*.
 
@@ -10,8 +10,8 @@ Os seis componentes do loop estão implementados para execução no ambiente de 
 
 | Papel | Projeto | Estado |
 |---|---|---|
-| Receiver | `receiver/` (`ipm-role-receiver`) | API `/v1/ipm/roles`: leitura por `ipm.role.get`/`ipm.role.list` e escrita restrita a operadores (`ipm.role.admin`). Contrato em `openapi.json` |
-| Manager | `manager/` (`ipm-role-manager`) | Consome `requested`, `observed` e `completed`/`failed`; unicidade de `name` em Roles ativas; migração `0001-role.sql` semeia as 16 Roles pré-definidas (`roleType = predefined`, `resourceId` UUIDv7 fixo; decisão 0089) |
+| Receiver | `receiver/` (`ipm-role-receiver`) | API `/v1/ipm/roles`: leitura por `ipm.role.get`/`ipm.role.list`; escrita por operadores (`ipm.role.admin`), pelo root da Organization ou por membros com `ipm.role.create|update|delete|bind`, com teto de permissões delegáveis, cota de 10 `custom` por Organization e `409 ResourcesAttached` ao excluir role em uso (decisão `0092`). Contrato em `openapi.json` |
+| Manager | `manager/` (`ipm-role-manager`) | Consome `requested`, `observed` e `completed`/`failed`; unicidade de `name` por Organization e contra as predefinidas; migração `0001-role.sql` semeia as 16 Roles pré-definidas (`roleType = predefined`, `resourceId` UUIDv7 fixo; decisão 0089) |
 | Publisher | `publisher/` (`ipm-role-publisher`) | Publica o outbox no NATS (`manager.desired.ipm.role.>` e `manager.updated.ipm.role.>`) |
 | Reconciler | `reconciler/` (`ipm-role-reconciler`) | Compara `name`, `description` e `permissions` e decide `create`, `update` ou `delete` |
 | Observer | `observer/` (`ipm-role-observer`) | Lê o estado da Role no banco `platform` (papel somente `SELECT`) e publica `observed` |

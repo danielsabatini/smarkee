@@ -12,12 +12,14 @@ class RoleDriver:
         record = await self._connection.read_record(role_id)
         if record is None:
             return None
+        organization_id = record.get("organizationId")
         name = record.get("name")
         description = record.get("description")
         permissions = record.get("permissions")
         protection = record.get("deletionProtection")
         if (
-            not isinstance(name, str)
+            not isinstance(organization_id, str)
+            or not isinstance(name, str)
             or not isinstance(description, str)
             or not isinstance(permissions, list)
             or not all(isinstance(item, str) for item in permissions)  # pyright: ignore[reportUnknownVariableType]
@@ -28,6 +30,7 @@ class RoleDriver:
                 detail="stored role is missing required fields",
             )
         return StoredRole(
+            organization_id=organization_id,
             name=name,
             description=description,
             permissions=[str(item) for item in permissions],  # pyright: ignore[reportUnknownVariableType,reportUnknownArgumentType]
@@ -38,6 +41,7 @@ class RoleDriver:
         await self._connection.write_record(
             role_id,
             {
+                "organizationId": role.organization_id,
                 "name": role.name,
                 "description": role.description,
                 "permissions": list(role.permissions),

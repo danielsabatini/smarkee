@@ -1,4 +1,4 @@
-"""Configuração do Receiver de Role (decisões 0015 e 0083).
+"""Configuração do Receiver de Role (decisões 0015, 0083 e 0092).
 
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 
@@ -35,6 +35,17 @@ class AuthSettings(Section):
 class ApiSettings(Section):
     host: str = "0.0.0.0"  # noqa: S104 (contêiner atrás do gateway; não é exposto direto)
     port: int = 8000
+    role_quota: int = 10
+    """Roles `custom` por Organization para quem não é operador (decisão 0092)."""
+
+
+class PeersSettings(Section):
+    """Receivers de Organization, User e Group na rede interna."""
+
+    organizations_url: str = "http://localhost:8000"
+    users_url: str = "http://localhost:8000"
+    groups_url: str = "http://localhost:8000"
+    timeout_seconds: float = 5.0
 
 
 class RoleReceiverSettings(RoleSettings):
@@ -44,6 +55,7 @@ class RoleReceiverSettings(RoleSettings):
     messaging: MessagingSettings = MessagingSettings()
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
+    peers: PeersSettings = PeersSettings()
 
 
 def missing_required(settings: RoleReceiverSettings) -> list[str]:

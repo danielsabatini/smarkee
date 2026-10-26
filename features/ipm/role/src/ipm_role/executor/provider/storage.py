@@ -18,7 +18,8 @@ from ipm_role.executor.domain.identity import ProviderError
 _RESOURCE_ID = re.compile(r"^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$")
 
 _SELECT_ROLE = """
-SELECT r.name,
+SELECT r.organization_id,
+       r.name,
        r.description,
        r.deletion_protection,
        COALESCE(
@@ -33,8 +34,8 @@ SELECT r.name,
 """
 
 _UPSERT_ROLE = """
-INSERT INTO ipm.role (resource_id, name, description, deletion_protection)
-VALUES (%s, %s, %s, %s)
+INSERT INTO ipm.role (resource_id, organization_id, name, description, deletion_protection)
+VALUES (%s, %s, %s, %s, %s)
 ON CONFLICT (resource_id) DO UPDATE
    SET name = EXCLUDED.name,
        description = EXCLUDED.description,
@@ -87,8 +88,9 @@ class StateStoreConnection:
             raise _provider_error(error, "read the role") from error
         if row is None:
             return None
-        name, description, protection, permissions = row
+        organization_id, name, description, protection, permissions = row
         return {
+            "organizationId": organization_id,
             "name": name,
             "description": description,
             "deletionProtection": protection,
@@ -104,6 +106,7 @@ class StateStoreConnection:
                     _UPSERT_ROLE,
                     (
                         resource_id,
+                        record["organizationId"],
                         record["name"],
                         record["description"],
                         record["deletionProtection"],

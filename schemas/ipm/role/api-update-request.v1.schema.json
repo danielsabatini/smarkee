@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "RoleUpdateRequest",
-  "description": "Corpo de PATCH /v1/ipm/roles/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. name não é aceito porque é imutável.",
+  "description": "Corpo de PATCH /v1/ipm/roles/{resourceId}. resourceVersion é a versão lida; pelo menos um campo deve ser alterado. name e organizationId não são aceitos porque são imutáveis.",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,

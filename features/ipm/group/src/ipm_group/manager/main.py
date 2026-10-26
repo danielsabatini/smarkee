@@ -8,10 +8,14 @@ configuração, abre as conexões e roda os consumers.
 import logging
 import sys
 
+from ipm_group.common.catalog import RolesCatalog
+from ipm_group.common.catalog_watcher import RoleCatalogWatcher
 from ipm_group.common.database import open_pool
 from ipm_group.common.lifecycle import start_role
+from ipm_group.common.messaging import StateConsumer, new_instance_name
 from ipm_group.common.runtime import role_runtime
-from ipm_group.manager.domain.kind import GROUP
+from ipm_group.manager.domain.group import GroupPolicy
+from ipm_group.manager.domain.kind import ResourceKind
 from ipm_group.manager.handlers.observed import ObservedHandler
 from ipm_group.manager.handlers.requested import RequestedHandler
 from ipm_group.manager.handlers.result import ResultHandler
@@ -29,18 +33,23 @@ async def run(settings: GroupManagerSettings) -> int:
     async with role_runtime(settings.messaging, name="ipm-group-manager") as runtime:
         pool = await open_pool(settings.database)
         runtime.close_after(pool.close)
+        # A regra `invalid` precisa conhecer as Roles `custom` das Organizations (decisão 0092).
+        catalog = RolesCatalog()
+        kind = ResourceKind(resource_type="group", policy=GroupPolicy(catalog))
+        watcher = RoleCatalogWatcher(catalog)
+        instance = new_instance_name()
         consumers = {
             "requested": RequestedConsumer(
                 runtime.stream,
                 pool,
-                GROUP,
+                kind,
                 handler=RequestedHandler(),
                 on_cycle=runtime.health.beat,
             ),
             "observed": ObservedConsumer(
                 runtime.stream,
                 pool,
-                GROUP,
+                kind,
                 handler=ObservedHandler(
                     progress_deadline_seconds=settings.loop.progress_deadline_seconds
                 ),
@@ -49,8 +58,18 @@ async def run(settings: GroupManagerSettings) -> int:
             "result": ResultConsumer(
                 runtime.stream,
                 pool,
-                GROUP,
+                kind,
                 handler=ResultHandler(failure_limit=settings.loop.failure_limit),
+                on_cycle=runtime.health.beat,
+            ),
+            "roles": StateConsumer(
+                runtime.stream,
+                watcher,
+                durable=f"ipm-group-manager-roles-{instance}",
+                stream="DESIRED",
+                filter_subject="manager.desired.ipm.role.>",
+                inactive_threshold_seconds=300,
+                traced=False,
                 on_cycle=runtime.health.beat,
             ),
         }

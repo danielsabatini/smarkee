@@ -125,6 +125,7 @@ async def create_ready(
             "create",
             {
                 "specification": {
+                    "organizationId": "test-org",
                     "name": name,
                     "description": description,
                     "permissions": sorted(permissions),
@@ -224,6 +225,7 @@ async def test_a_name_already_used_never_reaches_the_provider(
             "create",
             {
                 "specification": {
+                    "organizationId": "test-org",
                     "name": role_name,
                     "description": "Role duplicada",
                     "permissions": permissions,

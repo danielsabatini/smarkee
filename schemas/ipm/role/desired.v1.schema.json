@@ -16,6 +16,7 @@
   "required": [
     "lifecycle",
     "reconciliation",
+    "organizationId",
     "name",
     "description",
     "permissions"
@@ -32,6 +33,14 @@
       "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
       "x-writer": "server",
       "x-mutability": "mutable",
+      "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "organizationId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "description": "Organization dona da Role: `core` para as predefinidas (plataforma) e o resourceId da Organization para as `custom`. Imutável (decisão 0092).",
+      "x-writer": "client",
+      "x-mutability": "immutable",
       "x-managed": false,
       "x-sensitivity": "internal"
     },

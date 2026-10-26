@@ -39,6 +39,7 @@ async def create_requested(jetstream: JetStreamContext, created: list[str], *, l
     resource_id = str(uuid.uuid7())
     created.append(resource_id)
     specification = {
+        "organizationId": "test-org",
         "name": f"test.chaos{uuid.uuid4().hex[:6]}",
         "description": f"Chaos {label} test",
         "permissions": ["ipm.permission.get"],

@@ -13,6 +13,9 @@ from ipm_user.common.contracts import generated
 
 MODULE_PREFIX = "ipm."
 
+PLATFORM_ORGANIZATION_ID = "core"
+"""Organization de sistema, dona das Roles predefinidas; valem em qualquer Organization (0092)."""
+
 PREDEFINED_ROLES: dict[str, list[str]] = {
     "bsm.accountViewer": ["bsm.account.get", "bsm.account.list"],
     "bsm.accountAdmin": [
@@ -88,18 +91,19 @@ class AccessCatalog:
             if grantable_permissions is not None
             else default_grantable_permissions()
         )
-        self._roles: dict[str, list[str]] = (
-            {name: sorted(set(perms)) for name, perms in roles.items()}
-            if roles is not None
-            else default_roles_catalog()
-        )
+        # Chave `(organização, nome)`: as predefinidas ficam em `core` e valem para todas; as
+        # `custom` só valem na Organization dona (decisão 0092).
+        initial = roles if roles is not None else default_roles_catalog()
+        self._roles: dict[tuple[str, str], list[str]] = {
+            (PLATFORM_ORGANIZATION_ID, name): sorted(set(perms)) for name, perms in initial.items()
+        }
         self._groups: dict[tuple[str, str], list[str]] = (
             {(org, name): sorted(set(r)) for (org, name), r in groups.items()}
             if groups is not None
             else {}
         )
         self._permission_names_by_id: dict[str, str] = {}
-        self._role_names_by_id: dict[str, str] = {}
+        self._role_keys_by_id: dict[str, tuple[str, str]] = {}
         self._group_keys_by_id: dict[str, tuple[str, str]] = {}
 
     @property
@@ -108,11 +112,25 @@ class AccessCatalog:
 
     @property
     def roles(self) -> dict[str, list[str]]:
-        return {name: list(perms) for name, perms in self._roles.items()}
+        """Roles predefinidas da plataforma (`core`), por nome."""
+        return {
+            name: list(perms)
+            for (organization_id, name), perms in self._roles.items()
+            if organization_id == PLATFORM_ORGANIZATION_ID
+        }
 
-    def is_role_grantable(self, role_name: str) -> bool:
+    def _role_permissions(self, role_name: str, organization_id: str) -> list[str]:
+        """Permissões da Role visível à Organization: a própria `custom` ou a predefinida."""
+        found = self._roles.get((organization_id, role_name))
+        if found is None:
+            found = self._roles.get((PLATFORM_ORGANIZATION_ID, role_name))
+        return found or []
+
+    def is_role_grantable(
+        self, role_name: str, organization_id: str = PLATFORM_ORGANIZATION_ID
+    ) -> bool:
         """Uma Role é atribuível a um usuário de Organization se concede permissões dela."""
-        perms = self._roles.get(role_name)
+        perms = self._role_permissions(role_name, organization_id)
         if not perms:
             return False
         if set(perms) <= self._grantable:
@@ -121,11 +139,13 @@ class AccessCatalog:
         # concede as permissões delegáveis de `ipm.organization.*` (`get`, `list`, `update`).
         return role_name == "ipm.organizationAdmin" and bool(set(perms) & self._grantable)
 
-    def expand_roles(self, role_names: Iterable[str]) -> list[str]:
+    def expand_roles(
+        self, role_names: Iterable[str], organization_id: str = PLATFORM_ORGANIZATION_ID
+    ) -> list[str]:
         """Expande Roles em permissões atômicas delegáveis à Organization, sem repetição."""
         expanded: set[str] = set()
         for role_name in role_names:
-            for perm in self._roles.get(role_name, ()):
+            for perm in self._role_permissions(role_name, organization_id):
                 if perm in self._grantable:
                     expanded.add(perm)
         return sorted(expanded)
@@ -146,10 +166,13 @@ class AccessCatalog:
         return (organization_id, group_name) in self._groups
 
     def effective_permissions(
-        self, direct_permissions: Iterable[str], role_names: Iterable[str]
+        self,
+        direct_permissions: Iterable[str],
+        role_names: Iterable[str],
+        organization_id: str = PLATFORM_ORGANIZATION_ID,
     ) -> list[str]:
         """União ordenada entre as permissões atômicas diretas e as expandidas das Roles."""
-        return sorted(set(direct_permissions) | set(self.expand_roles(role_names)))
+        return sorted(set(direct_permissions) | set(self.expand_roles(role_names, organization_id)))
 
     def apply_permission_desired(self, resource_id: str, payload: Mapping[str, Any]) -> bool:
         """Aplica um evento `desired` de `ipm.permission`; devolve `True` se o catálogo mudou."""
@@ -174,13 +197,20 @@ class AccessCatalog:
         """Aplica um evento `desired` de `ipm.role`; devolve `True` se o catálogo mudou."""
         name = payload.get("name")
         if isinstance(name, str) and name:
-            previous = self._role_names_by_id.get(resource_id)
-            if previous and previous != name:
+            organization_id = payload.get("organizationId")
+            key = (
+                organization_id
+                if isinstance(organization_id, str) and organization_id
+                else PLATFORM_ORGANIZATION_ID,
+                name,
+            )
+            previous = self._role_keys_by_id.get(resource_id)
+            if previous and previous != key:
                 self._roles.pop(previous, None)
-            self._role_names_by_id[resource_id] = name
+            self._role_keys_by_id[resource_id] = key
         else:
-            name = self._role_names_by_id.get(resource_id)
-        if not isinstance(name, str) or not name:
+            key = self._role_keys_by_id.get(resource_id)
+        if key is None:
             return False
         before = dict(self._roles)
         if payload.get("lifecycle") == "present":
@@ -190,9 +220,9 @@ class AccessCatalog:
                 if isinstance(raw_perms, list)
                 else []
             )
-            self._roles[name] = perms
+            self._roles[key] = perms
         else:
-            self._roles.pop(name, None)
+            self._roles.pop(key, None)
         return self._roles != before
 
     def apply_group_desired(self, resource_id: str, payload: Mapping[str, Any]) -> bool:

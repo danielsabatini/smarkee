@@ -98,7 +98,7 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
 
 async def test_the_manager_starts_one_task_per_consumer(runtime: FakeRuntime) -> None:
     assert await manager_main.run(GroupManagerSettings()) == 0
-    assert runtime.started == ["requested", "observed", "result"]
+    assert runtime.started == ["requested", "observed", "result", "roles"]
     assert len(runtime.closers) == 1
 
 

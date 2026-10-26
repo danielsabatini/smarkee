@@ -84,8 +84,9 @@ CREATE INDEX IF NOT EXISTS role_outbox_published
 
 -- Índice de unicidade de `name` entre Roles ativas (`lifecycle = 'present'`), conferido na unidade
 -- atômica do pedido (docs/SSOT.md §10.1; decisão 0083).
-CREATE UNIQUE INDEX IF NOT EXISTS role_active_name
-  ON ipm.role ((desired ->> 'name'))
+-- Desde a decisão 0092 a unicidade é por Organization; a 0004 remove o índice antigo (só por `name`).
+CREATE UNIQUE INDEX IF NOT EXISTS role_active_organization_name
+  ON ipm.role ((desired ->> 'organizationId'), (desired ->> 'name'))
   WHERE lifecycle = 'present';
 
 -- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count. `requested_by` aparece

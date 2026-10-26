@@ -121,6 +121,7 @@ def role_document(
         "conditions": [],
         "desired": {
             "lifecycle": "present",
+            "organizationId": "org-acme",
             "specification": {
                 "name": name,
                 "description": description,
@@ -157,6 +158,8 @@ def test_create_role(api: FakeApi) -> None:
             "ipm",
             "role",
             "create",
+            "--organization-id",
+            "org-acme",
             "--name",
             "bsm.accountAdmin",
             "--description",
@@ -169,6 +172,7 @@ def test_create_role(api: FakeApi) -> None:
     )
     assert result.exit_code == 0, result.stdout + result.stderr
     assert body_of(api.requests[-1]) == {
+        "organizationId": "org-acme",
         "name": "bsm.accountAdmin",
         "description": "Administrador de cobrança",
         "permissions": ["bsm.account.create", "bsm.account.get"],
@@ -230,3 +234,41 @@ def test_get_and_list_roles(api: FakeApi) -> None:
     assert listed.exit_code == 0
     assert "ipm.userAdmin" in listed.stdout
     assert RID in listed.stdout  # o resourceId é o valor que o `get --resource-id` pede
+
+
+def test_create_role_without_organization_fails_with_a_hint(api: FakeApi) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "ipm",
+            "role",
+            "create",
+            "--name",
+            "acme.billing",
+            "--description",
+            "Cobrança",
+            "--permission",
+            "bsm.account.get",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "Missing Organization" in result.stdout + result.stderr
+    assert not api.requests
+
+
+def test_list_roles_of_an_organization_sends_the_organization_and_shows_the_type(
+    api: FakeApi,
+) -> None:
+    api.routes[("GET", PATH)] = Response(200, {"items": [role_document()]})
+    listed = runner.invoke(app, ["ipm", "role", "list", "--organization-id", "org-acme"])
+    assert listed.exit_code == 0, listed.stderr
+    assert "organizationId=org-acme" in api.requests[-1].full_url
+    assert "custom" in listed.stdout
+
+
+def test_delete_role_still_in_use_explains_what_to_do(api: FakeApi) -> None:
+    api.routes[("GET", ROLE)] = Response(200, role_document())
+    api.routes[("DELETE", ROLE)] = http_error(409, "ResourcesAttached", "in use")
+    result = runner.invoke(app, ["ipm", "role", "delete", "--resource-id", RID])
+    assert result.exit_code != 0
+    assert "users or groups" in result.stdout + result.stderr

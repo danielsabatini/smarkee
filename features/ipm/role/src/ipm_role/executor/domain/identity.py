@@ -14,6 +14,7 @@ class ProviderError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class StoredRole:
+    organization_id: str
     name: str
     description: str
     permissions: list[str]

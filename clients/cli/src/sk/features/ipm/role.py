@@ -1,8 +1,8 @@
-"""Cliente do `ipm.role` na API da plataforma (decisão 0083).
+"""Cliente do `ipm.role` na API da plataforma (decisões 0083 e 0092).
 
-Roles da plataforma: agrupadores de permissões atômicas mantidos 100% no SSOT da Smarkee.
-Criar, alterar e remover são escritas assíncronas do operador (`ipm.role.admin`).
-A leitura das respostas é estrita.
+Roles compostas: agrupadores de permissões atômicas mantidos 100% no SSOT da Smarkee. As
+`predefined` pertencem à plataforma (Organization `core`); as `custom` pertencem a uma
+Organization. Criar, alterar e remover são escritas assíncronas. A leitura é estrita.
 """
 
 import re
@@ -44,6 +44,8 @@ class Role:
     deletion_protection: bool
     status: str | None = None
     """Status operacional do recurso ('active' ou 'inactive')."""
+    organization_id: str = "core"
+    """Organization dona da role; `core` são as predefinidas da plataforma."""
     role_type: str = "custom"
     """Natureza da role: 'predefined' (catálogo da plataforma) ou 'custom' (criada por pedido)."""
 
@@ -106,6 +108,7 @@ def _role(document: object) -> Role:
         permissions=tuple(str(item) for item in raw_permissions),
         deletion_protection=spec.get("deletionProtection") is True,
         status=as_text(spec, "status", what="role (specification)") if "status" in spec else None,
+        organization_id=str(desired.get("organizationId") or "core"),
         role_type=str(spec.get("roleType") or "custom"),
     )
 
@@ -114,13 +117,15 @@ def create_role(
     api_url: str,
     *,
     token: str,
+    organization_id: str,
     name: str,
     description: str,
     permissions: list[str],
     idempotency_key: str,
     allow_insecure_http: bool,
 ) -> RequestAccepted:
-    """Pede a criação de uma role composta (requer ipm.role.admin)."""
+    """Pede a criação de uma role `custom` na Organization (requer ipm.role.create)."""
+    org_id = validate_identifier(organization_id, what="organizationId")
     valid_name = validate_role_name(name)
     valid_desc = validate_description(description, name=valid_name)
     valid_perms = validate_permissions_list(permissions)
@@ -130,6 +135,7 @@ def create_role(
         ROLES_PATH,
         token=token,
         body={
+            "organizationId": org_id,
             "name": valid_name,
             "description": valid_desc,
             "permissions": valid_perms,
@@ -228,13 +234,22 @@ def get_role(api_url: str, *, token: str, resource_id: str, allow_insecure_http:
     return _role(document)
 
 
-def list_roles(api_url: str, *, token: str, allow_insecure_http: bool) -> list[Role]:
-    """Lista todas as roles do catálogo, seguindo o cursor `after`."""
+def list_roles(
+    api_url: str,
+    *,
+    token: str,
+    organization_id: str | None = None,
+    allow_insecure_http: bool,
+) -> list[Role]:
+    """Lista as roles predefinidas e, com `organization_id`, as `custom` dessa Organization."""
+    if organization_id is not None:
+        organization_id = validate_identifier(organization_id, what="organizationId")
     found: list[Role] = []
     after: str | None = None
     for _ in range(MAXIMUM_LIST_PAGES):
         query = {
             "limit": str(LIST_PAGE_SIZE),
+            **({"organizationId": organization_id} if organization_id else {}),
             **({"after": after} if after else {}),
         }
         _, document = call_api(

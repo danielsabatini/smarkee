@@ -96,7 +96,7 @@ class RequestedHandler:
         now: datetime,
     ) -> Outcome:
         desired = kind.policy.desired_for_create(request, require(envelope.requested_by))
-        rejection = await self._rejection(store, kind, envelope.resource_id, desired)
+        rejection = await self._rejection(store, kind, envelope.resource_id, desired, request)
         if rejection is not None:
             await self._record_operation(
                 store, envelope, request, now, status="rejected", reason=rejection
@@ -136,7 +136,7 @@ class RequestedHandler:
         else:
             desired = kind.policy.desired_for_delete(current)
 
-        rejection = await self._rejection(store, kind, envelope.resource_id, desired)
+        rejection = await self._rejection(store, kind, envelope.resource_id, desired, request)
         if rejection is not None:
             return await self._reject(store, envelope, request, now, rejection)
 
@@ -200,8 +200,9 @@ class RequestedHandler:
         kind: ResourceKind,
         resource_id: str,
         desired: Mapping[str, Any],
+        request: Request,
     ) -> RejectionReason | None:
-        """Regras do tipo sobre o `desired`: valor recusado e valor único.
+        """Regras do tipo sobre o `desired`: valor recusado, valor único e cota por dono.
 
         Cada uma é conferida na mesma transação do pedido, com trava consultiva por chave.
         """
@@ -211,6 +212,9 @@ class RequestedHandler:
         if unique is not None and await store.value_in_use(
             unique, excluding_resource_id=resource_id
         ):
+            return RejectionReason.VALIDATION
+        quota = kind.policy.owner_quota(request, desired)
+        if quota is not None and await store.owned_count(quota) >= quota.limit:
             return RejectionReason.VALIDATION
         return None
 

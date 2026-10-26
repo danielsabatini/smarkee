@@ -34,11 +34,11 @@ class AccessCheckError(Exception):
 
 
 def outside_roles_catalog(
-    roles: Iterable[str], *, catalog: RolesCatalog | None = None
+    roles: Iterable[str], *, organization_id: str, catalog: RolesCatalog | None = None
 ) -> list[str]:
-    """Roles pedidas que não existem no catálogo."""
+    """Roles pedidas que não existem para a Organization (predefinidas ou `custom` dela)."""
     active_catalog = catalog if catalog is not None else RolesCatalog()
-    return active_catalog.outside_catalog(roles)
+    return active_catalog.outside_catalog(roles, organization_id)
 
 
 def binding_allowed(

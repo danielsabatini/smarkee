@@ -7,6 +7,9 @@ em tempo real pelos consumers de estado (`manager.desired.ipm.role.>`) sem exigi
 from collections.abc import Iterable, Mapping
 from typing import Any, cast
 
+PLATFORM_ORGANIZATION_ID = "core"
+"""Organization de sistema, dona das Roles predefinidas; valem em qualquer Organization."""
+
 PREDEFINED_ROLES: dict[str, list[str]] = {
     "bsm.accountViewer": ["bsm.account.get", "bsm.account.list"],
     "bsm.accountAdmin": [
@@ -63,32 +66,57 @@ def default_roles_catalog() -> dict[str, list[str]]:
 
 
 class RolesCatalog:
-    """Catálogo dinâmico de Roles compostas."""
+    """Catálogo dinâmico de Roles compostas, por `(organização, nome)` (decisão 0092).
+
+    As predefinidas (`core`) valem em qualquer Organization; as `custom` só na própria.
+    """
 
     def __init__(self, roles: Mapping[str, Iterable[str]] | None = None) -> None:
         initial = roles if roles is not None else default_roles_catalog()
-        self._roles: dict[str, list[str]] = {
-            name: sorted(set(perms)) for name, perms in initial.items()
+        self._roles: dict[tuple[str, str], list[str]] = {
+            (PLATFORM_ORGANIZATION_ID, name): sorted(set(perms)) for name, perms in initial.items()
         }
+        self._keys_by_id: dict[str, tuple[str, str]] = {}
 
-    def is_known_role(self, role_name: str) -> bool:
-        return role_name in self._roles
+    def is_known_role(
+        self, role_name: str, organization_id: str = PLATFORM_ORGANIZATION_ID
+    ) -> bool:
+        return (organization_id, role_name) in self._roles or (
+            PLATFORM_ORGANIZATION_ID,
+            role_name,
+        ) in self._roles
 
-    def outside_catalog(self, roles: Iterable[str]) -> list[str]:
-        return sorted([r for r in set(roles) if r not in self._roles])
+    def outside_catalog(
+        self, roles: Iterable[str], organization_id: str = PLATFORM_ORGANIZATION_ID
+    ) -> list[str]:
+        """Roles que não existem para a Organization (nem predefinidas, nem `custom` dela)."""
+        return sorted(r for r in set(roles) if not self.is_known_role(r, organization_id))
 
-    def update_role(self, role_name: str, permissions: Iterable[str]) -> None:
-        self._roles[role_name] = sorted(set(permissions))
-
-    def remove_role(self, role_name: str) -> None:
-        self._roles.pop(role_name, None)
-
-    def on_role_desired(self, data: Mapping[str, Any]) -> None:
-        name = str(data.get("name", ""))
-        if not name:
-            return
-        if data.get("lifecycle") == "absent":
-            self.remove_role(name)
-            return
-        perms = cast(list[Any], data.get("permissions") or [])
-        self.update_role(name, [str(p) for p in perms])
+    def apply_role_desired(self, resource_id: str, payload: Mapping[str, Any]) -> bool:
+        """Aplica um evento `desired` de `ipm.role`; devolve `True` se o catálogo mudou."""
+        name = payload.get("name")
+        if isinstance(name, str) and name:
+            organization_id = payload.get("organizationId")
+            key = (
+                organization_id
+                if isinstance(organization_id, str) and organization_id
+                else PLATFORM_ORGANIZATION_ID,
+                name,
+            )
+            previous = self._keys_by_id.get(resource_id)
+            if previous and previous != key:
+                self._roles.pop(previous, None)
+            self._keys_by_id[resource_id] = key
+        else:
+            key = self._keys_by_id.get(resource_id)
+        if key is None:
+            return False
+        before = dict(self._roles)
+        if payload.get("lifecycle") == "present":
+            raw = payload.get("permissions")
+            self._roles[key] = (
+                sorted({str(p) for p in cast(list[Any], raw)}) if isinstance(raw, list) else []
+            )
+        else:
+            self._roles.pop(key, None)
+        return self._roles != before

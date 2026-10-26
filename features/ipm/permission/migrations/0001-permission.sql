@@ -138,9 +138,13 @@ WITH predefined(resource_id, permission_name, module_group, description, grantab
     ('01a1763d-eb43-703d-a168-aa3ade79c4f8',   'ipm.permission.get',   'ipm', 'Ler permissões do catálogo da plataforma', false),
     ('01a1763d-eb45-7247-ab1a-90fdc45b217d',  'ipm.permission.list',  'ipm', 'Listar permissões do catálogo da plataforma', false),
     ('01a1763d-eb48-728c-ade2-0dbe753f70de', 'ipm.permission.admin', 'ipm', 'Operador: gerenciar o catálogo de permissões', false),
-    -- ipm.role (roles-ipm): catálogo global da plataforma
-    ('01a1763d-eb4a-7168-981a-0862f72aeeca',   'ipm.role.get',   'ipm', 'Ler Roles compostas do catálogo da plataforma', false),
-    ('01a1763d-eb4d-750a-b163-4e082cff09ee',  'ipm.role.list',  'ipm', 'Listar Roles compostas do catálogo da plataforma', false),
+    -- ipm.role (roles-ipm): predefinidas da plataforma e custom da Organization (decisão 0092)
+    ('01a1763d-eb4a-7168-981a-0862f72aeeca',   'ipm.role.get',   'ipm', 'Ler Roles compostas da plataforma e da Organization', true),
+    ('01a1763d-eb4d-750a-b163-4e082cff09ee',  'ipm.role.list',  'ipm', 'Listar Roles compostas da plataforma e da Organization', true),
+    ('01a1786d-a738-7610-9de8-ad451bbbb39f', 'ipm.role.create', 'ipm', 'Criar Roles custom da Organization', true),
+    ('01a1786d-a73c-7407-9e1a-50d78bdba2a5', 'ipm.role.update', 'ipm', 'Alterar Roles custom da Organization', true),
+    ('01a1786d-a740-7674-91a7-6deb899bffd3', 'ipm.role.delete', 'ipm', 'Excluir Roles custom da Organization', true),
+    ('01a1786d-a743-766f-862d-8b431ae57347', 'ipm.role.bind', 'ipm', 'Definir e alterar as permissões de Roles custom da Organization', true),
     ('01a1763d-eb4f-71f6-ad10-991a7f90c40a', 'ipm.role.admin', 'ipm', 'Operador: gerenciar o catálogo de Roles compostas', false),
     -- ipm.group (roles-ipm): delegáveis à Organization (exceto admin)
     ('01a17641-4895-761f-888f-24ca35143f79', 'ipm.group.create', 'ipm', 'Criar grupos de usuários da Organization', true),

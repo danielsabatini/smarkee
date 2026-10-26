@@ -1,7 +1,8 @@
 """Execução das operações da Role no estado da Role, no banco `platform` (`LOOP.md` §46).
 
 Compõe os drivers de `executor/drivers/` e não chama o provedor direto. Cada operação é idempotente
-e usa o `resourceId` como identificador da Role. `name` é imutável após a criação.
+e usa o `resourceId` como identificador da Role. `name` e `organizationId` são imutáveis após a
+criação.
 """
 
 from collections.abc import Mapping
@@ -60,6 +61,7 @@ def _role_of(desired: Mapping[str, Any]) -> StoredRole:
     permissions = sorted({str(item) for item in raw_permissions})  # pyright: ignore[reportUnknownVariableType,reportUnknownArgumentType]
     protected = desired.get("deletionProtection", True) is not False
     return StoredRole(
+        organization_id=str(desired.get("organizationId") or "core"),
         name=name,
         description=description,
         permissions=permissions,
@@ -70,8 +72,12 @@ def _role_of(desired: Mapping[str, Any]) -> StoredRole:
 async def _create(role_id: str, desired: Mapping[str, Any], writer: Roles) -> None:
     target = _role_of(desired)
     existing = await writer.get_role(role_id)
-    if existing is not None and existing.name != target.name:
-        raise ActionFailedError("Rejected", retryable=False, message="role name cannot be changed")
+    if existing is not None and (
+        existing.name != target.name or existing.organization_id != target.organization_id
+    ):
+        raise ActionFailedError(
+            "Rejected", retryable=False, message="role name and organization cannot be changed"
+        )
     await writer.save_role(role_id, target)
 
 
@@ -80,6 +86,8 @@ async def _update(role_id: str, desired: Mapping[str, Any], writer: Roles) -> No
     existing = await writer.get_role(role_id)
     if existing is None:
         raise ActionFailedError("Rejected", retryable=False, message="role does not exist")
-    if existing.name != target.name:
-        raise ActionFailedError("Rejected", retryable=False, message="role name cannot be changed")
+    if existing.name != target.name or existing.organization_id != target.organization_id:
+        raise ActionFailedError(
+            "Rejected", retryable=False, message="role name and organization cannot be changed"
+        )
     await writer.save_role(role_id, target)

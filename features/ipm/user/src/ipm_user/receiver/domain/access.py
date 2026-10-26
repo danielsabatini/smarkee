@@ -45,11 +45,13 @@ def outside_catalog(
 
 
 def outside_roles_catalog(
-    roles: Iterable[str], *, catalog: AccessCatalog | None = None
+    roles: Iterable[str], *, organization_id: str, catalog: AccessCatalog | None = None
 ) -> list[str]:
-    """Roles pedidas que não existem no catálogo ou não são delegáveis à Organization (0083)."""
+    """Roles pedidas inexistentes na Organization ou não delegáveis a ela (0083, 0092)."""
     active_catalog = catalog if catalog is not None else AccessCatalog()
-    return sorted(role for role in set(roles) if not active_catalog.is_role_grantable(role))
+    return sorted(
+        role for role in set(roles) if not active_catalog.is_role_grantable(role, organization_id)
+    )
 
 
 def binding_allowed(

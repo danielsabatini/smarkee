@@ -128,7 +128,7 @@ class UserPolicy:
         user_groups = [str(g) for g in spec.get("groups", [])]
         group_roles = self._catalog.expand_groups(org_id, user_groups)
         all_roles = sorted(set(direct_roles) | set(group_roles))
-        effective = self._catalog.expand_roles(all_roles)
+        effective = self._catalog.expand_roles(all_roles, org_id)
         return {
             "lifecycle": "present",
             **spec,
@@ -144,7 +144,7 @@ class UserPolicy:
         user_groups = [str(g) for g in spec.get("groups", current.get("groups", []))]
         group_roles = self._catalog.expand_groups(org_id, user_groups)
         all_roles = sorted(set(direct_roles) | set(group_roles))
-        effective = self._catalog.expand_roles(all_roles)
+        effective = self._catalog.expand_roles(all_roles, org_id)
         return {
             **current,
             **spec,
@@ -166,7 +166,7 @@ class UserPolicy:
             return None
         group_roles = self._catalog.expand_groups(org_id, user_groups)
         all_roles = sorted(set(direct_roles) | set(group_roles))
-        effective = self._catalog.expand_roles(all_roles)
+        effective = self._catalog.expand_roles(all_roles, org_id)
         if current.get("permissions") == effective:
             return None
         return {**current, "permissions": effective}

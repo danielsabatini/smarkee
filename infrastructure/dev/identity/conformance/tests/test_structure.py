@@ -45,8 +45,13 @@ ACTION_ROLES_BY_PROJECT = {
         # Catálogos de permissões e roles (decisão 0083).
         "ipm.permission.get",
         "ipm.permission.list",
+        # Roles `custom` da Organization (decisão 0092): `get`/`list` passam a ser delegáveis.
+        "ipm.role.bind",
+        "ipm.role.create",
+        "ipm.role.delete",
         "ipm.role.get",
         "ipm.role.list",
+        "ipm.role.update",
         # Grupos de usuários da Organization (decisão 0088).
         "ipm.group.bind",
         "ipm.group.create",

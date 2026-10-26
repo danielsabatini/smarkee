@@ -26,6 +26,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "organizationId",
         "name",
         "description",
         "permissions"
@@ -33,6 +34,12 @@
       "x-writer": "client",
       "x-sensitivity": "internal",
       "properties": {
+        "organizationId": {
+          "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+          "description": "Organization dona da Role. Imutável.",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        },
         "name": {
           "$ref": "definitions.v1.schema.json#/$defs/roleName",
           "x-writer": "client",
@@ -49,6 +56,14 @@
           "x-sensitivity": "internal"
         }
       }
+    },
+    "organizationQuotaLimit": {
+      "description": "Limite de Roles `custom` da Organization, definido pelo Receiver (ausente para operadores: sem cota). O Manager aplica o limite na mesma unidade atômica do pedido, sob trava por Organization (decisão 0092).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "x-writer": "server",
+      "x-sensitivity": "internal"
     }
   }
 }
