@@ -3,7 +3,7 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `IPM_ORGANIZATION_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
 `IPM_ORGANIZATION_EXECUTOR_MESSAGING_URL`
-(`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Executor
+(`docs/data/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Executor
 **não acessa o SSOT** e escreve no Zitadel só a organização e o preparo dela para os usuários
 (decisão 0081).
 """

@@ -5,7 +5,7 @@
 
 ## Contexto
 
-O Receiver lia diretamente as tabelas do SSOT, com `SELECT` por coluna. Isso fazia da estrutura de armazenamento um contrato implícito com o Receiver, o que contraria `docs/SCHEMA.md`: a persistência é uma representação mapeada do contrato, e não o contrato. Também acoplava as migrações da tabela ao código do Receiver.
+O Receiver lia diretamente as tabelas do SSOT, com `SELECT` por coluna. Isso fazia da estrutura de armazenamento um contrato implícito com o Receiver, o que contraria `docs/data/SCHEMA.md`: a persistência é uma representação mapeada do contrato, e não o contrato. Também acoplava as migrações da tabela ao código do Receiver.
 
 ## Decisão
 

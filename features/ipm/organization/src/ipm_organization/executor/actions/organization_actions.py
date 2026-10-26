@@ -1,4 +1,4 @@
-"""Execução das operações da Organization no Zitadel (`docs/RESOURCE-CONTROL-LOOP.md` §46).
+"""Execução das operações da Organization no Zitadel (`docs/loop/RESOURCE-CONTROL-LOOP.md` §46).
 
 Compõe os drivers de `executor/drivers/` (um por sub-recurso); não chama o provedor direto.
 O Executor escreve a organização e o preparo dela para os usuários (decisão 0081): o Project Grant

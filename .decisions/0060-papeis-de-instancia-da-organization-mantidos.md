@@ -17,7 +17,7 @@ Em 2026-10-18 foi verificado, na documentação e no `defaults.yaml` da v4.19.4 
 
 **Manter os dois papéis de instância, em todos os ambientes.** É uma **exceção deliberada, explícita e justificada** ao menor privilégio (§4.3), e não uma lacuna de dev (§2.5): vale também em stg e prd, até o Zitadel oferecer um papel padrão menor.
 
-- Registro: `docs/IMPLEMENTATION-STATUS.md`, seção 7.1, "Exceções deliberadas", com a justificativa, os controles compensatórios e o gatilho de revisão.
+- Registro: `docs/platform/IMPLEMENTATION-STATUS.md`, seção 7.1, "Exceções deliberadas", com a justificativa, os controles compensatórios e o gatilho de revisão.
 - O item "papéis de instância menores" sai de "Endurecimento para stg e prd" no `ROADMAP.md`.
 
 ## Justificativa

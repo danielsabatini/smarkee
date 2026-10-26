@@ -2,7 +2,7 @@
 
 Uso: `python -m ipm_role.receiver.http.openapi > openapi.json`. A aplicação não expõe o
 documento por HTTP (`openapi_url=None`); o arquivo versionado é o contrato descritivo, e o teste
-`tests/contract/test_openapi.py` falha se ele divergir do código (`docs/SCHEMA.md` §22).
+`tests/contract/test_openapi.py` falha se ele divergir do código (`docs/data/SCHEMA.md` §22).
 """
 
 import json

@@ -586,11 +586,11 @@ uv build
 
 As regras de contrato, mensageria e persistência pertencem aos documentos de `docs/`; este arquivo define apenas como o código Python as respeita:
 
-- **Modelos derivados de schemas** são arquivos gerados: altere o schema, regenere e confira a diferença na CI (`docs/SCHEMA.md`). Não edite o modelo gerado.
-- **Validação nas fronteiras:** validação estrita na entrada de clientes externos e na publicação, e tolerante no consumo interno, conforme `docs/SCHEMA.md`.
-- **Tempo:** use instantes com timezone explícito (UTC). Não compare relógios de componentes diferentes para ordenar eventos (`docs/MESSAGING.md`).
+- **Modelos derivados de schemas** são arquivos gerados: altere o schema, regenere e confira a diferença na CI (`docs/data/SCHEMA.md`). Não edite o modelo gerado.
+- **Validação nas fronteiras:** validação estrita na entrada de clientes externos e na publicação, e tolerante no consumo interno, conforme `docs/data/SCHEMA.md`.
+- **Tempo:** use instantes com timezone explícito (UTC). Não compare relógios de componentes diferentes para ordenar eventos (`docs/messaging/MESSAGING.md`).
 - **Idempotência:** todo consumidor trata a mesma mensagem mais de uma vez sem efeito nocivo. Confirme a mensagem apenas após o processamento durável.
-- **Logs e erros:** nunca registre campos `confidential`, segredos ou referências resolvidas (`docs/SCHEMA.md`). Mensagens de erro identificam a regra violada, e não repetem valores sensíveis.
+- **Logs e erros:** nunca registre campos `confidential`, segredos ou referências resolvidas (`docs/data/SCHEMA.md`). Mensagens de erro identificam a regra violada, e não repetem valores sensíveis.
 - **Testes:** além de unidade e integração, cubra testes de contrato, de idempotência do consumidor (mensagem duplicada) e de concorrência otimista.
 - **Sem biblioteca interna comum:** uma feature não importa outra nem uma biblioteca interna compartilhada. O que é idêntico entre features vem do template (`templates/feature`, decisão 0064); modelos são gerados dos schemas em cada feature, e o contrato comum é verificado pelos testes e2e (decisões 0015 e 0017).
 - **Clientes de mensageria e de banco:** a escolha das bibliotecas segue a seção de dependências e deve ser registrada como decisão em `.decisions/`. Não escolha por conveniência.

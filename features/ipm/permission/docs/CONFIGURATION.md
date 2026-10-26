@@ -329,7 +329,7 @@ Entrypoint do Observer de Permission (`ipm-permission-observer`, decisões 0015,
 | `partition.count` | `IPM_PERMISSION_OBSERVER_PARTITION_COUNT` | `--partition.count` | `int` | `1` | Partição por `resourceId`: a instância observa `hash(resourceId) mod count == index`. |
 | `health.port` | `IPM_PERMISSION_OBSERVER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 | `loop.observation_interval_seconds` | `IPM_PERMISSION_OBSERVER_LOOP_OBSERVATION_INTERVAL_SECONDS` | `--loop.observation_interval_seconds` | `int` | `300` | `observationInterval` de `schemas/ipm/permission/desired.v1.schema.json` (PT5M = 300 s). |
-| `loop.observation_jitter` | `IPM_PERMISSION_OBSERVER_LOOP_OBSERVATION_JITTER` | `--loop.observation_jitter` | `float` | `0.2` | Fração de jitter (±20%) aplicada ao intervalo periódico (`docs/RESOURCE-CONTROL-LOOP.md`). |
+| `loop.observation_jitter` | `IPM_PERMISSION_OBSERVER_LOOP_OBSERVATION_JITTER` | `--loop.observation_jitter` | `float` | `0.2` | Fração de jitter (±20%) aplicada ao intervalo periódico (`docs/loop/RESOURCE-CONTROL-LOOP.md`). |
 | `loop.maximum_concurrent_reads` | `IPM_PERMISSION_OBSERVER_LOOP_MAXIMUM_CONCURRENT_READS` | `--loop.maximum_concurrent_reads` | `int` | `10` | Limite de leituras simultâneas ao Zitadel por instância, na observação periódica. |
 
 **Definido no `config.toml` de dev:**

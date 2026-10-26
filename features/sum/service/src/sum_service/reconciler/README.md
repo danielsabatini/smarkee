@@ -17,7 +17,7 @@ quando há divergência.
 - No ar no dev (Compose), no ciclo de ligar e desligar com os outros componentes, inclusive reiniciando o Reconciler no meio
   de uma ligação pendente (`../../../tests/e2e`). Ver `docs/SUM-SERVICE-DATA-FLOW.md`.
 
-O estado em memória é um cache descartável (`docs/RESOURCE-CONTROL-LOOP.md` §3.8): ao iniciar, o consumer da instância
+O estado em memória é um cache descartável (`docs/loop/RESOURCE-CONTROL-LOOP.md` §3.8): ao iniciar, o consumer da instância
 entrega o último `desired`, `observed` e resultado de cada ligação, e o Reconciler volta a decidir.
 
 ## Decisão
@@ -27,7 +27,7 @@ entrega o último `desired`, `observed` e resultado de cada ligação, e o Recon
 - **Ligação desligada** (`lifecycle = absent`): nenhuma permissão do serviço pode estar presente
   (`PermissionsRemovalRequested`).
 
-Guardas do loop (`docs/RESOURCE-CONTROL-SECURITY.md` §7 e §8): sem os dois estados, não decide; `desired`
+Guardas do loop (`docs/loop/RESOURCE-CONTROL-SECURITY.md` §7 e §8): sem os dois estados, não decide; `desired`
 suspenso não decide; `observed` `unknown` ou vencido não decide; enquanto a observação causada por um
 resultado não chega, não decide; ação pendente da mesma geração não é reemitida antes do prazo; após falha,
 espera o backoff.

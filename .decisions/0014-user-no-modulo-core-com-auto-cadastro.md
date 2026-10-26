@@ -12,7 +12,7 @@ A decisão 0013 desliga o cadastro público do Zitadel. O usuário precisa de um
 
 Dois pontos limitam o desenho:
 
-- o `desired` de um recurso fica no SSOT e no stream `DESIRED` por tempo indeterminado, e `docs/SCHEMA.md` §20.1 proíbe senha em schema e em mensagem;
+- o `desired` de um recurso fica no SSOT e no stream `DESIRED` por tempo indeterminado, e `docs/data/SCHEMA.md` §20.1 proíbe senha em schema e em mensagem;
 - no cadastro não há solicitante autenticado, mas o `requested` exige `requestedBy`.
 
 ## Decisão
@@ -21,13 +21,13 @@ Dois pontos limitam o desenho:
 - **`resourceId` do User é o ID do usuário no Zitadel**, informado na criação (`user_id`), pela mesma regra da Organization (decisão 0006).
 - **Organização `core` no Zitadel.** É uma organização de sistema, separada da `smarkee` dos operadores. Nela vivem os usuários cadastrados e as service accounts dos Executors do módulo `core`. Não é uma Organization da plataforma: sem dono e sem cota. O nome `core` é reservado.
 - **Sem senha na mensagem.** O `desired` do User não tem senha. O Executor cria o usuário no Zitadel sem senha, e o Zitadel envia o e-mail "Verificar e-mail"; em seguida o Executor pede o link de definição de senha (`password_reset` com `sendLink`), que o Zitadel envia no e-mail "Redefinir senha". A pessoa define a senha na página do Zitadel. A senha nunca passa por CLI, Receiver, SSOT nem NATS. Por isso o comando é `sk account create --name --surname --email`, sem `--password`.
-- **Solicitante anônimo no cadastro:** o `requestedBy` é o literal `anonymous`. Proteções obrigatórias do endpoint anônimo (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.2):
+- **Solicitante anônimo no cadastro:** o `requestedBy` é o literal `anonymous`. Proteções obrigatórias do endpoint anônimo (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1.2):
   - limite de taxa por origem no gateway e no Receiver;
   - **resposta uniforme**: o mesmo `202` e o mesmo corpo, exista ou não o e-mail;
   - **sem consulta da Operation por anônimo**: o `operationId` devolvido não permite acompanhar o pedido, o que impede descobrir quais e-mails já estão cadastrados.
 - **Autorização após o cadastro.** O projeto `smarkee` pertence à organização `core` (decisão 0010), a mesma do usuário. O Executor autoriza o User diretamente nesse projeto, com o conjunto de roles de ação (`organization.create`, `organization.get`, `organization.list`, `organization.update`, `organization.delete`, `user.get` e `user.delete`). Esse conjunto é o `platformAccess = granted` do User. (Desde a decisão 0025 o conjunto fica registrado no SSOT, em `desired.platformRoles`.) Com e-mail verificado e a role `organization.create`, ele pode criar uma Organization dentro da cota.
 - **Service account `core-user-executor`**, na organização `core`, com o papel de **organização** `ORG_USER_MANAGER` (e não de instância), restrito aos usuários dessa organização. Verificado em dev: cria usuários sem senha, autoriza no projeto, lê e remove; não cria organização nem acessa outras organizações. Se for comprometida, o dano fica nos usuários cadastrados.
-- **Dados pessoais:** `email`, `givenName` e `familyName` são `confidential` (`docs/SCHEMA.md` §20.2): não aparecem em log, mensagem de erro nem métrica.
+- **Dados pessoais:** `email`, `givenName` e `familyName` são `confidential` (`docs/data/SCHEMA.md` §20.2): não aparecem em log, mensagem de erro nem métrica.
 
 ## Justificativa
 
@@ -38,7 +38,7 @@ Dois pontos limitam o desenho:
 
 ## Consequências
 
-- **Retenção de dados pessoais:** o `desired` do User, com e-mail e nome, fica retido no SSOT e em `DESIRED`. O `desired` com `lifecycle = absent` não carrega dados pessoais (a regra entra no contrato do User), e a limpeza do tombstone (`docs/NATS.md`) precisa cobrir esse caso.
+- **Retenção de dados pessoais:** o `desired` do User, com e-mail e nome, fica retido no SSOT e em `DESIRED`. O `desired` com `lifecycle = absent` não carrega dados pessoais (a regra entra no contrato do User), e a limpeza do tombstone (`docs/messaging/NATS.md`) precisa cobrir esse caso.
 - O cliente anônimo não acompanha a Operation: `sk account create` não tem `--wait` e orienta a verificar o e-mail.
 - **Verificado em dev (Zitadel v4.19.4, 2026-10-11):** `POST /v2/users/human` com `userId` informado cria o usuário ativo, sem senha e com o e-mail não verificado, e envia "Verificar e-mail"; `POST /v2/users/{id}/password_reset` com `sendLink` envia "Redefinir senha". O loop completo (criação, os dois e-mails no Mailpit, observação `userState = initial`, `Ready` e remoção) está coberto pelo teste e2e. **Ainda não verificado:** a pessoa seguindo os links, definindo a senha e fazendo `sk auth login` com o usuário novo.
 - O módulo `ipm` fica com o que vier depois, como os administradores e os usuários de uma Organization.

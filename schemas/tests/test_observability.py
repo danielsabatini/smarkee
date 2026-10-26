@@ -1,4 +1,4 @@
-"""Verificações do contrato de log em schemas/observability (docs/OBSERVABILITY.md, decisão 0045).
+"""Verificações do contrato de log em schemas/observability (docs/telemetry/OBSERVABILITY.md, decisão 0045).
 
 Cobre o schema da linha de log e a igualdade das cópias do formatter nos componentes (decisão 0046).
 """

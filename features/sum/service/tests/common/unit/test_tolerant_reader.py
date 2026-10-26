@@ -1,4 +1,4 @@
-"""Leitura tolerante de mensagens internas (`docs/SCHEMA.md` §15 e §13)."""
+"""Leitura tolerante de mensagens internas (`docs/data/SCHEMA.md` §15 e §13)."""
 
 import json
 from typing import Any

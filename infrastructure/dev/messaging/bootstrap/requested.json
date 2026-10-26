@@ -1,6 +1,6 @@
 {
   "name": "REQUESTED",
-  "description": "Trabalho: pedidos do Receiver ao Manager (docs/NATS.md, 6.3)",
+  "description": "Trabalho: pedidos do Receiver ao Manager (docs/messaging/NATS.md, 6.3)",
   "subjects": [
     "receiver.requested.>"
   ],

@@ -1,4 +1,6 @@
-"""Validação do envelope das mensagens consumidas pelo Manager (`docs/MESSAGING.md`)."""
+"""Validação do envelope das mensagens consumidas pelo Manager
+
+(`docs/messaging/MESSAGING.md`)."""
 
 from collections.abc import Mapping
 from typing import Any

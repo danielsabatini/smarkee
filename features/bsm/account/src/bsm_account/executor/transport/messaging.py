@@ -1,4 +1,4 @@
-"""Adaptadores do NATS JetStream do Executor (`docs/NATS.md` §7.5).
+"""Adaptadores do NATS JetStream do Executor (`docs/messaging/NATS.md` §7.5).
 
 - consumer **durável** de `ACTION` (um só, `max_ack_pending = 1`: uma `action` por vez no serviço,
   *single-flight*), criado pela infraestrutura;

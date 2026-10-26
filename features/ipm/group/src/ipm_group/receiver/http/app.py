@@ -1,4 +1,5 @@
-"""Aplicação HTTP do Receiver de Grupo (`docs/RESOURCE-CONTROL-LOOP.md` §6.1, decisões 0085 e 0088).
+"""Aplicação HTTP do Receiver de Grupo (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1, decisões 0085 e
+0088).
 
 O Receiver autentica, autoriza, valida, gera as identidades e **publica `requested`**; ele não
 escreve no SSOT. As leituras vêm das views do SSOT.

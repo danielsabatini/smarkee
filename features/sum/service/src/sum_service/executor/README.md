@@ -32,7 +32,7 @@ processo; decisão 0018). Cada `action` passa por, nesta ordem:
    Fora disso, é descartada e registrada. O `desired` lido do transporte precisa ser do emissor `manager`.
 2. **Idempotência:** um `actionId` com `completed` (ou `failed` permanente) já registrado não é executado de novo; o resultado
    é republicado com o mesmo `Nats-Msg-Id`.
-3. **Revalidação** (`domain/revalidation.py`, `docs/RESOURCE-CONTROL-SECURITY.md` §7), contra o último `desired` (leitura
+3. **Revalidação** (`domain/revalidation.py`, `docs/loop/RESOURCE-CONTROL-SECURITY.md` §7), contra o último `desired` (leitura
    direta do Stream `DESIRED`): sem `desired` ou geração diferente é `failed` `StaleAction`; `reconciliation = suspended` é
    `failed` `Suspended`; `lifecycle` ausente ou inválido, ou operação fora de `update`, é `failed` `Rejected`. Todas
    permanentes. Não existe `lifecycle` padrão: sem ele nada é concedido.

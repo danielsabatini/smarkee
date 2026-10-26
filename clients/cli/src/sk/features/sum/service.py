@@ -1,4 +1,4 @@
-"""Cliente do `sum.service` na API da plataforma (`docs/RESOURCE-CONTROL-LOOP.md`, §6.1).
+"""Cliente do `sum.service` na API da plataforma (`docs/loop/RESOURCE-CONTROL-LOOP.md`, §6.1).
 
 Ligar e desligar são escritas assíncronas: a API responde `202` com o `operationId`, e o estado
 definitivo vem da ligação (`phase`) e da Operation (`operationStatus`). Os dados chegam pelo mesmo

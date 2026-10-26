@@ -27,5 +27,5 @@ Com isso, qualquer módulo futuro (secrets, clusters) dependeria do módulo de i
 
 ## Consequências
 
-- `docs/MESSAGING.md`, `NATS.md`, `RESOURCE-CONTROL-LOOP.md` e `RESOURCE-CONTROL-SECURITY.md` passam a usar `ipm.organization`.
-- O SSOT ganha o schema `core` (um schema por módulo, `docs/POSTGRESQL.md`).
+- `docs/messaging/MESSAGING.md`, `NATS.md`, `RESOURCE-CONTROL-LOOP.md` e `RESOURCE-CONTROL-SECURITY.md` passam a usar `ipm.organization`.
+- O SSOT ganha o schema `core` (um schema por módulo, `docs/data/POSTGRESQL.md`).

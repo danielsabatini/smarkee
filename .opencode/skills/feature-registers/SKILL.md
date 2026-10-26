@@ -10,7 +10,7 @@ description: Guia de procedimentos para registrar uma feature nova nos arquivos 
 Esta skill é um **guia de procedimentos** que lista, confere e aplica os registros de uma feature **fora** de `features/<módulo>/<tipo>/`. O `sync.py --new` cria só a pasta da feature (decisão 0064); estes registros são alterações em arquivos compartilhados e ficam com quem cria a feature.
 
 ```text
-O que registrar e onde → docs/FEATURE-BOOTSTRAP.md, passos 5 a 9 (fonte da verdade)
+O que registrar e onde → docs/platform/FEATURE-BOOTSTRAP.md, passos 5 a 9 (fonte da verdade)
 Fluxo completo         → skill feature-bootstrap
 Banco / broker         → skills postgresql e nats
 ```
@@ -76,6 +76,6 @@ O `.gitignore` do telemeter e o teste de pacotes de `schemas/tests/test_feature_
 
 ## 5. Resultado
 
-Devolva a lista de arquivos compartilhados tocados, o resultado de cada verificação e o que **não** foi verificado: rotas do gateway, telemetria e identidade só se provam com a stack de dev no ar. Declare a diferença como lacuna de dev em `docs/IMPLEMENTATION-STATUS.md` (§2.5).
+Devolva a lista de arquivos compartilhados tocados, o resultado de cada verificação e o que **não** foi verificado: rotas do gateway, telemetria e identidade só se provam com a stack de dev no ar. Declare a diferença como lacuna de dev em `docs/platform/IMPLEMENTATION-STATUS.md` (§2.5).
 
-Se o roteiro não listar um registro que a feature exigiu, acrescente-o a `docs/FEATURE-BOOTSTRAP.md` (a fonte da verdade) e a esta tabela.
+Se o roteiro não listar um registro que a feature exigiu, acrescente-o a `docs/platform/FEATURE-BOOTSTRAP.md` (a fonte da verdade) e a esta tabela.

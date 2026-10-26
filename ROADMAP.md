@@ -15,20 +15,20 @@ Adotamos a metodologia **Now, Next, Later** para o planejamento. Em vez de datas
 
 ### 🟢 Now (Em Andamento / Curto Prazo)
 O que está sendo trabalhado ativamente neste momento.
-- [ ] **`[In Progress]` Contratos e Mensageria:** Modelagem semântica da troca assíncrona de mensagens e dos schemas de contrato (`docs/MESSAGING.md`, `docs/NATS.md` e `docs/SCHEMA.md`), já exercitada pelo User.
-- [ ] **`[In Progress]` Resource Control Loop:** Modelo de reconciliação entre `desired` e `observed` e sua segurança (`docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`).
-- [ ] **`[In Progress]` Primeira Fatia Vertical (`core`/`user`, `sum`/`service` e `ipm`/`organization` completos):** um projeto e uma imagem por feature, com um contêiner por papel (`receiver`, `manager`, `publisher`, `observer`, `reconciler` e `executor`), com servidor de saúde, partição do `ACTION` e testes e2e black-box (incluindo falhas de componentes), validando os contratos especificados (`docs/RESOURCE-CONTROL-LOOP.md`, seção 48).
+- [ ] **`[In Progress]` Contratos e Mensageria:** Modelagem semântica da troca assíncrona de mensagens e dos schemas de contrato (`docs/messaging/MESSAGING.md`, `docs/messaging/NATS.md` e `docs/data/SCHEMA.md`), já exercitada pelo User.
+- [ ] **`[In Progress]` Resource Control Loop:** Modelo de reconciliação entre `desired` e `observed` e sua segurança (`docs/loop/RESOURCE-CONTROL-LOOP.md` e `docs/loop/RESOURCE-CONTROL-SECURITY.md`).
+- [ ] **`[In Progress]` Primeira Fatia Vertical (`core`/`user`, `sum`/`service` e `ipm`/`organization` completos):** um projeto e uma imagem por feature, com um contêiner por papel (`receiver`, `manager`, `publisher`, `observer`, `reconciler` e `executor`), com servidor de saúde, partição do `ACTION` e testes e2e black-box (incluindo falhas de componentes), validando os contratos especificados (`docs/loop/RESOURCE-CONTROL-LOOP.md`, seção 48).
 - [ ] **`[Preview]` Usuários da Organization (`ipm`/`user`):** o dono da Organization cria usuários dentro dela, com roles da plataforma (decisões 0077, 0083 e 0085), API `/v1/ipm/users` e `sk ipm user`. Usuários recebem exclusivamente roles. Toda Organization já nasce preparada para usuários pelo loop (decisão 0081).
 - [ ] **`[In Design]` Grupos de Usuários da Organization (`ipm`/`group`):** agrupamentos lógicos de usuários por Organization (`ipm.group`) com atribuição em bloco de roles (decisão 0085).
 - [ ] **`[Preview]` Billing Account (`bsm`/`account`):** unidade de cobrança do módulo Billing Service Manager (`bsm`), gerenciada pelo Resource Control Loop (`/v1/bsm/accounts`) e pela CLI `sk bsm account` (fase P0 com estado local reconciliado).
-- [ ] **`[In Progress]` SSOT e Persistência:** Modelo e garantias de gravação do SSOT e sua implementação de referência em PostgreSQL com `jsonb` (`docs/SSOT.md` e `docs/POSTGRESQL.md`).
+- [ ] **`[In Progress]` SSOT e Persistência:** Modelo e garantias de gravação do SSOT e sua implementação de referência em PostgreSQL com `jsonb` (`docs/data/SSOT.md` e `docs/data/POSTGRESQL.md`).
 
 ### 🟡 Next (Próximos Passos / Médio Prazo)
 O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.
 - [ ] **`[Planned]` Implantação em Kubernetes:** CI/CD e GitOps por componente, com versão e imagem independentes.
 - [ ] **`[Planned]` Encerramento limpo dos componentes:** o Manager do User espera o `drain()` do NATS até o tempo limite (cerca de 30 s) e registra `task stopped unexpectedly` mesmo quando o encerramento foi pedido. O Manager do SUM já usa `close()` e só registra o erro sem pedido de parada; aplicar o mesmo ao User, e revisar os demais componentes que copiaram o padrão.
 - [ ] **`[Planned]` Observabilidade Básica:** Métricas de aplicação e spans nos componentes (hoje há logs estruturados com `trace_id` ligado ao trace do gateway, spans do gateway, métricas de contêiner e probes de saúde).
-- [ ] **`[Planned]` Endurecimento para stg e prd:** `pinned_client` no Executor, identidades e permissões por papel no NATS, TLS, quarentena de mensagens, retenção do SSOT, `ObservationStale`, limite de remoções e backup com recuperação (lacunas em `docs/IMPLEMENTATION-STATUS.md`).
+- [ ] **`[Planned]` Endurecimento para stg e prd:** `pinned_client` no Executor, identidades e permissões por papel no NATS, TLS, quarentena de mensagens, retenção do SSOT, `ObservationStale`, limite de remoções e backup com recuperação (lacunas em `docs/platform/IMPLEMENTATION-STATUS.md`).
 
 ### 🔴 Later (Exploratório / Longo Prazo)
 O que está no radar para o futuro, mas ainda carece de design, arquitetura ou Discovery.

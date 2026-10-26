@@ -1,4 +1,5 @@
-"""Decisões puras do Manager sobre `observed` e resultados de ação (`docs/SSOT.md` §9 e §10).
+"""Decisões puras do Manager sobre `observed` e resultados de ação (`docs/data/SSOT.md` §9 e
+§10).
 
 Recebem o estado lido do SSOT e devolvem o que gravar; a gravação é da orquestração e do
 adaptador `store/`.

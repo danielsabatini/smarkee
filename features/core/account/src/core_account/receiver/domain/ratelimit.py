@@ -1,7 +1,7 @@
 """Limite de taxa em memória, por origem, para as escritas anônimas.
 
 Janela deslizante. É um segundo nível de proteção: o primeiro é o gateway
-(`docs/RESOURCE-CONTROL-SECURITY.md` §12). O estado é por instância do serviço.
+(`docs/loop/RESOURCE-CONTROL-SECURITY.md` §12). O estado é por instância do serviço.
 """
 
 import time

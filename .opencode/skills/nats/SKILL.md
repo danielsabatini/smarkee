@@ -1,6 +1,6 @@
 ---
 name: NATS
-description: Guia de procedimentos para projetar, inspecionar, alterar, validar e diagnosticar a mensageria em NATS e JetStream definida em docs/MESSAGING.md e docs/NATS.md. Use ao criar ou revisar Streams, Consumers, Subjects, autorização ou ao diagnosticar backlog, redelivery e duplicidade.
+description: Guia de procedimentos para projetar, inspecionar, alterar, validar e diagnosticar a mensageria em NATS e JetStream definida em docs/messaging/MESSAGING.md e docs/messaging/NATS.md. Use ao criar ou revisar Streams, Consumers, Subjects, autorização ou ao diagnosticar backlog, redelivery e duplicidade.
 ---
 
 # NATS
@@ -12,25 +12,25 @@ Esta skill é um **guia de procedimentos** que chama ferramentas (CLI `nats`, le
 ```text
 AGENTS.md
     ↓
-docs/MESSAGING.md   → semântica
+docs/messaging/MESSAGING.md   → semântica
     ↓
-docs/NATS.md        → implementação em NATS
+docs/messaging/NATS.md        → implementação em NATS
     ↓
 esta skill          → procedimento
 ```
 
-Não redefina aqui Streams, retenção, Consumers, autorização ou nomenclatura: leia `docs/NATS.md`. Em conflito, os documentos prevalecem. Atenção ao Stream `ACTION`: ele é particionado por `subject_transform` (decisão 0018), então o Subject armazenado difere do publicado e os consumers do Executor são um por partição.
+Não redefina aqui Streams, retenção, Consumers, autorização ou nomenclatura: leia `docs/messaging/NATS.md`. Em conflito, os documentos prevalecem. Atenção ao Stream `ACTION`: ele é particionado por `subject_transform` (decisão 0018), então o Subject armazenado difere do publicado e os consumers do Executor são um por partição.
 
 Não use esta skill para decidir semântica de mensagem (use o agent `messaging`).
 
 ## 2. Regras de operação
 
 1. **Leitura por padrão.** Os procedimentos de projeto, inspeção, validação e diagnóstico só leem.
-2. **Mutação é declarativa e aprovada.** Streams e Consumers duráveis são criados pela infraestrutura a partir de configuração versionada (`docs/NATS.md`, administração). O agente prepara e revisa a configuração; a aplicação ocorre pelo pipeline da infraestrutura ou com aprovação explícita do operador.
+2. **Mutação é declarativa e aprovada.** Streams e Consumers duráveis são criados pela infraestrutura a partir de configuração versionada (`docs/messaging/NATS.md`, administração). O agente prepara e revisa a configuração; a aplicação ocorre pelo pipeline da infraestrutura ou com aprovação explícita do operador.
 3. **Sem comandos interativos.** Use sempre flags e arquivos de configuração (`--config`, `-j`), nunca assistentes interativos.
 4. **Sem efeito colateral em produção.** `nats consumer next` consome e confirma mensagem; publicar mensagem de teste altera estado. Só em ambiente de teste e com subject de teste.
 5. **Credenciais.** Use `nats context` ou variáveis de ambiente do ambiente. Nunca coloque credenciais na linha de comando, em log ou na resposta.
-6. **Operações destrutivas** (apagar Stream ou Consumer, `purge`, reduzir retenção) exigem confirmação explícita do operador. Serviços de runtime nunca recebem essas permissões (`docs/NATS.md`).
+6. **Operações destrutivas** (apagar Stream ou Consumer, `purge`, reduzir retenção) exigem confirmação explícita do operador. Serviços de runtime nunca recebem essas permissões (`docs/messaging/NATS.md`).
 7. **Não invente** nomes de arquivos, contextos, servidores ou versões. Se não existirem, informe e pare.
 8. Confirme as flags da CLI na versão pinada do ambiente; este guia não fixa versão.
 
@@ -38,16 +38,16 @@ Não use esta skill para decidir semântica de mensagem (use o agent `messaging`
 
 Entradas: o recurso (`<módulo>.<tipo>`) e o `messageType`.
 
-1. Ler `docs/MESSAGING.md` e `docs/NATS.md` (Subjects, Streams, Consumers).
-2. Classificar a mensagem: **trabalho**, **estado** ou **fato** (`docs/MESSAGING.md`).
-3. Derivar, a partir de `docs/NATS.md`, e registrar em uma tabela:
+1. Ler `docs/messaging/MESSAGING.md` e `docs/messaging/NATS.md` (Subjects, Streams, Consumers).
+2. Classificar a mensagem: **trabalho**, **estado** ou **fato** (`docs/messaging/MESSAGING.md`).
+3. Derivar, a partir de `docs/messaging/NATS.md`, e registrar em uma tabela:
    - Subject (gramática oficial);
    - Stream do `messageType` e sua retenção;
    - Consumers por serviço, com classe, filtro único `<módulo>.<tipo>` e nome;
    - política de ACK, retry, `max_deliver`, backoff e quarentena;
    - `Nats-Msg-Id` (quando aplicável) e a deduplicação obrigatória do consumidor;
    - autorização por serviço (publish e consumo).
-4. Conferir a janela de recuperação (`docs/NATS.md`): retenção maior ou igual.
+4. Conferir a janela de recuperação (`docs/messaging/NATS.md`): retenção maior ou igual.
 5. Entregar a tabela para revisão. Não aplique nada.
 
 ## 4. Procedimento B: inspecionar o estado atual (somente leitura)
@@ -62,7 +62,7 @@ Ferramentas e o que cada uma responde:
 | Qual o último estado de um recurso? | `nats stream get <STREAM> --last-for <SUBJECT>` |
 | Como está o servidor e o JetStream? | `nats server report jetstream` |
 
-Registre a evidência (saída resumida, sem credenciais) e compare com `docs/NATS.md`. Divergência é um achado, e não uma correção automática.
+Registre a evidência (saída resumida, sem credenciais) e compare com `docs/messaging/NATS.md`. Divergência é um achado, e não uma correção automática.
 
 ## 5. Procedimento C: alterar Streams ou Consumers
 

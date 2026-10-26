@@ -16,12 +16,12 @@ Este agent **cria uma feature nova** (`features/<módulo>/<tipo>`) e a leva até
 
 Em conformidade com o `AGENTS.md` (§1.1 e §24.1), este arquivo define apenas a atuação do agent. A fonte da verdade de cada tema está fora dele e não é repetida aqui:
 
-* roteiro completo, ordem dos passos, nomes derivados e o que ainda é manual: [`docs/FEATURE-BOOTSTRAP.md`](../../docs/FEATURE-BOOTSTRAP.md);
+* roteiro completo, ordem dos passos, nomes derivados e o que ainda é manual: [`docs/platform/FEATURE-BOOTSTRAP.md`](../../docs/platform/FEATURE-BOOTSTRAP.md);
 * template, marcadores, perfis e o que é da feature: [`.decisions/0064`](../../.decisions/0064-template-das-features-gerado-de-fonte-unica.md), [`0065`](../../.decisions/0065-publisher-no-template-perfil-do-receiver-e-nomes-de-configuracao.md) e [`0075`](../../.decisions/0075-motores-identicos-gerados-do-template.md) (motores idênticos gerados do template), `templates/feature/sync.py`;
 * um componente por feature, um entrypoint por papel: [`.decisions/0063`](../../.decisions/0063-um-componente-por-feature-com-um-entrypoint-por-papel.md);
-* loop de controle, papéis e segurança: `docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`; toda alteração pelo loop e geração confirmada pela observação: [`.decisions/0072`](../../.decisions/0072-toda-alteracao-percorre-o-loop-e-geracao-observada.md); `provider/` e `drivers/` espelhados entre Executor e Observer: [`0073`](../../.decisions/0073-drivers-espelhados-no-executor-e-no-observer.md); proteção contra exclusão como metadado no provedor: [`0074`](../../.decisions/0074-protecao-contra-exclusao-como-metadado-no-provedor.md);
-* contratos e mensagens: `docs/SCHEMA.md` e `docs/MESSAGING.md`; SSOT e banco: `docs/SSOT.md` e `docs/POSTGRESQL.md`; broker: `docs/NATS.md`;
-* telemetria: `docs/OBSERVABILITY.md` e `docs/OBSERVABILITY-ARCHITECTURE.md`.
+* loop de controle, papéis e segurança: `docs/loop/RESOURCE-CONTROL-LOOP.md` e `docs/loop/RESOURCE-CONTROL-SECURITY.md`; toda alteração pelo loop e geração confirmada pela observação: [`.decisions/0072`](../../.decisions/0072-toda-alteracao-percorre-o-loop-e-geracao-observada.md); `provider/` e `drivers/` espelhados entre Executor e Observer: [`0073`](../../.decisions/0073-drivers-espelhados-no-executor-e-no-observer.md); proteção contra exclusão como metadado no provedor: [`0074`](../../.decisions/0074-protecao-contra-exclusao-como-metadado-no-provedor.md);
+* contratos e mensagens: `docs/data/SCHEMA.md` e `docs/messaging/MESSAGING.md`; SSOT e banco: `docs/data/SSOT.md` e `docs/data/POSTGRESQL.md`; broker: `docs/messaging/NATS.md`;
+* telemetria: `docs/telemetry/OBSERVABILITY.md` e `docs/telemetry/OBSERVABILITY-ARCHITECTURE.md`.
 * procedimentos que o agent usa: skills `feature-bootstrap` (ordem e verificação de cada passo) e `feature-registers` (registros fora da pasta da feature).
 
 Quando houver conflito entre este arquivo e o `AGENTS.md`, o `AGENTS.md` prevalece.
@@ -57,7 +57,7 @@ Verifique antes de criar qualquer arquivo. Se alguma falhar, **pare e informe** 
 
 # 3. Como executar
 
-Siga o roteiro `docs/FEATURE-BOOTSTRAP.md` **na ordem**. Cada passo termina verificado antes do seguinte (`AGENTS.md` §2.2: valor e verificação em cada etapa):
+Siga o roteiro `docs/platform/FEATURE-BOOTSTRAP.md` **na ordem**. Cada passo termina verificado antes do seguinte (`AGENTS.md` §2.2: valor e verificação em cada etapa):
 
 ```text
 Contrato (schemas) → Projeto + template → Papéis → Banco → Mensageria
@@ -109,15 +109,15 @@ A feature só está pronta quando o roteiro (passo 11) passou. Execute e reporte
 * testes de `schemas/` (inclusive o do template);
 * análise do SonarQube pelo agent `sonarqube`: o Quality Gate é consultado pelo MCP, nunca estimado, e a cobertura do código novo fica acima de 80%. Não crie testes artificiais para subir a cobertura (`AGENTS.md` §19).
 
-Declare como **lacuna de dev** (`docs/IMPLEMENTATION-STATUS.md`, `AGENTS.md` §2.5) o que ainda não existe na infraestrutura de dev. Lacuna não declarada é violação.
+Declare como **lacuna de dev** (`docs/platform/IMPLEMENTATION-STATUS.md`, `AGENTS.md` §2.5) o que ainda não existe na infraestrutura de dev. Lacuna não declarada é violação.
 
 ---
 
 # 6. Documentação e registro
 
-Conforme o passo 10 do roteiro: `README.md` da feature, `DATA-FLOW`, diagramas, decisão em `.decisions/` para escolha relevante, `docs/IMPLEMENTATION-STATUS.md` e, no que for do produto, `CHANGELOG.md` e `ROADMAP.md`. O `CHANGELOG.md` e o `ROADMAP.md` relatam só o produto: nada de agents, skills ou harness (`AGENTS.md` §36.3).
+Conforme o passo 10 do roteiro: `README.md` da feature, `DATA-FLOW`, diagramas, decisão em `.decisions/` para escolha relevante, `docs/platform/IMPLEMENTATION-STATUS.md` e, no que for do produto, `CHANGELOG.md` e `ROADMAP.md`. O `CHANGELOG.md` e o `ROADMAP.md` relatam só o produto: nada de agents, skills ou harness (`AGENTS.md` §36.3).
 
-Se o roteiro estiver desatualizado ou errado no que o agent encontrou, **corrija `docs/FEATURE-BOOTSTRAP.md`** (a fonte da verdade) em vez de contornar o problema, e informe a correção.
+Se o roteiro estiver desatualizado ou errado no que o agent encontrou, **corrija `docs/platform/FEATURE-BOOTSTRAP.md`** (a fonte da verdade) em vez de contornar o problema, e informe a correção.
 
 ---
 

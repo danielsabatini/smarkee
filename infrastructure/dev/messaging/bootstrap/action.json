@@ -1,6 +1,6 @@
 {
   "name": "ACTION",
-  "description": "Trabalho: decis\u00f5es do Reconciler ao Executor, particionadas no servidor (docs/NATS.md, 6.3 e 7.5; decis\u00e3o 0018)",
+  "description": "Trabalho: decis\u00f5es do Reconciler ao Executor, particionadas no servidor (docs/messaging/NATS.md, 6.3 e 7.5; decis\u00e3o 0018)",
   "subjects": [
     "reconciler.action.>"
   ],

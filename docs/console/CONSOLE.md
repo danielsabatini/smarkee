@@ -4,7 +4,7 @@
 
 O **Smarkee Console** (`clients/console/`) é o console administrativo web unificado da plataforma Smarkee IT Solutions, construído com Svelte 5 e SvelteKit.
 
-O objetivo é oferecer uma interface funcional, responsiva, modular e extensível, inspirada na experiência operacional e de navegação do Google Cloud Console (referência de mercado, `AGENTS.md` §2.7), mas com identidade visual própria da Smarkee e aderência estrita ao modelo de recursos e segurança da plataforma (`docs/RESOURCE-CONTROL-LOOP.md` e `docs/RESOURCE-CONTROL-SECURITY.md`).
+O objetivo é oferecer uma interface funcional, responsiva, modular e extensível, inspirada na experiência operacional e de navegação do Google Cloud Console (referência de mercado, `AGENTS.md` §2.7), mas com identidade visual própria da Smarkee e aderência estrita ao modelo de recursos e segurança da plataforma (`docs/loop/RESOURCE-CONTROL-LOOP.md` e `docs/loop/RESOURCE-CONTROL-SECURITY.md`).
 
 Referências visuais:
 - Layout de referência aprovado: `images/console-main-layout.png`.

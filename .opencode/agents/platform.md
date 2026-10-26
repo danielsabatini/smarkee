@@ -280,11 +280,11 @@ O agent especialista deve permanecer responsável por seu próprio domínio.
 
 Os documentos do projeto atribuem à infraestrutura (e não aos serviços de runtime) as seguintes responsabilidades. Não as duplique aqui: consulte a fonte.
 
-* criar Streams e Consumers duráveis a partir de manifesto por tipo de recurso, e manter a identidade administrativa e a limpeza de tombstones: `docs/NATS.md`;
-* criar o banco `ssot` e o seu proprietário, executar as migrações do schema do SSOT (o código delas fica no projeto da feature, em `migrations/`, decisões 0015 e 0063), criar os papéis por serviço e os parâmetros de sessão dos papéis de login, e manter a retenção de outbox, resultados de ação e operações: `docs/POSTGRESQL.md`;
-* executar o procedimento de recuperação do SSOT após uma restauração, antes de liberar o Manager e o Publisher: `docs/SSOT.md` e `docs/POSTGRESQL.md`;
-* fornecer credenciais por gestão de segredos e proteção em repouso: `docs/RESOURCE-CONTROL-SECURITY.md` e `docs/POSTGRESQL.md`;
-* definir backup com recuperação a um ponto no tempo, teste de restauração e alta disponibilidade: `docs/POSTGRESQL.md` e `docs/NATS.md`;
+* criar Streams e Consumers duráveis a partir de manifesto por tipo de recurso, e manter a identidade administrativa e a limpeza de tombstones: `docs/messaging/NATS.md`;
+* criar o banco `ssot` e o seu proprietário, executar as migrações do schema do SSOT (o código delas fica no projeto da feature, em `migrations/`, decisões 0015 e 0063), criar os papéis por serviço e os parâmetros de sessão dos papéis de login, e manter a retenção de outbox, resultados de ação e operações: `docs/data/POSTGRESQL.md`;
+* executar o procedimento de recuperação do SSOT após uma restauração, antes de liberar o Manager e o Publisher: `docs/data/SSOT.md` e `docs/data/POSTGRESQL.md`;
+* fornecer credenciais por gestão de segredos e proteção em repouso: `docs/loop/RESOURCE-CONTROL-SECURITY.md` e `docs/data/POSTGRESQL.md`;
+* definir backup com recuperação a um ponto no tempo, teste de restauração e alta disponibilidade: `docs/data/POSTGRESQL.md` e `docs/messaging/NATS.md`;
 * fixar a versão de cada capacidade (NATS, PostgreSQL) por ambiente.
 
 ---

@@ -25,12 +25,12 @@ O banco de dados, o modelo lógico, o JSONB e o DDL são consequências desse mo
 
 Em conformidade com o `AGENTS.md` (seção 24.1), este arquivo define apenas a atuação do agent. A fonte oficial dos temas abaixo é `docs/`; consulte-a antes de qualquer decisão e não a duplique aqui:
 
-* padrão de reconciliação, papéis e persistência no SSOT: `docs/RESOURCE-CONTROL-LOOP.md`;
-* semântica de `desired` e `observed` nas mensagens: `docs/MESSAGING.md`;
-* contratos formais e ciclo de vida do schema até o SSOT: `docs/SCHEMA.md`;
-* segurança do control loop (identidades, proteção da `action`, credenciais): `docs/RESOURCE-CONTROL-SECURITY.md`;
-* modelo e garantias de gravação do SSOT (modelo lógico, atomicidade, concorrência, idempotência, outbox, segurança, recuperação): `docs/SSOT.md`;
-* implementação do SSOT em PostgreSQL com `jsonb` (tabelas, privilégios, Publisher, migrações, backup): `docs/POSTGRESQL.md`.
+* padrão de reconciliação, papéis e persistência no SSOT: `docs/loop/RESOURCE-CONTROL-LOOP.md`;
+* semântica de `desired` e `observed` nas mensagens: `docs/messaging/MESSAGING.md`;
+* contratos formais e ciclo de vida do schema até o SSOT: `docs/data/SCHEMA.md`;
+* segurança do control loop (identidades, proteção da `action`, credenciais): `docs/loop/RESOURCE-CONTROL-SECURITY.md`;
+* modelo e garantias de gravação do SSOT (modelo lógico, atomicidade, concorrência, idempotência, outbox, segurança, recuperação): `docs/data/SSOT.md`;
+* implementação do SSOT em PostgreSQL com `jsonb` (tabelas, privilégios, Publisher, migrações, backup): `docs/data/POSTGRESQL.md`.
 
 ---
 
@@ -77,7 +77,7 @@ O agente SSOT é responsável por:
 * definir o modelo genérico de recursos;
 * definir a identidade dos recursos;
 * definir `desired` e `observed`;
-* definir quando cada geração e a versão do recurso mudam, conforme `docs/SSOT.md`;
+* definir quando cada geração e a versão do recurso mudam, conforme `docs/data/SSOT.md`;
 * definir `resourceVersion`;
 * definir `conditions`;
 * definir o ciclo de vida dos recursos;
@@ -289,15 +289,15 @@ Nunca considere uma operação bem-sucedida apenas porque uma requisição foi e
 
 # Generations, versão e conditions
 
-As definições de `desiredGeneration`, `observedGeneration` e `resourceVersion`, e as regras de quando cada uma muda, pertencem a `docs/SSOT.md` (invariantes e concorrência), `docs/MESSAGING.md` (envelope) e `docs/RESOURCE-CONTROL-LOOP.md`. Consulte-os antes de modelar.
+As definições de `desiredGeneration`, `observedGeneration` e `resourceVersion`, e as regras de quando cada uma muda, pertencem a `docs/data/SSOT.md` (invariantes e concorrência), `docs/messaging/MESSAGING.md` (envelope) e `docs/loop/RESOURCE-CONTROL-LOOP.md`. Consulte-os antes de modelar.
 
 Pontos de atenção na revisão:
 
 * `desiredGeneration` só muda quando a **especificação** muda;
-* a convergência exige conteúdo igual entre `desired` e `observed` **e** uma observação feita depois da geração (o `observedGeneration` do envelope `observed`); o Manager grava a geração confirmada e a publica no `updated` (decisão 0072, `docs/RESOURCE-CONTROL-LOOP.md` §36);
+* a convergência exige conteúdo igual entre `desired` e `observed` **e** uma observação feita depois da geração (o `observedGeneration` do envelope `observed`); o Manager grava a geração confirmada e a publica no `updated` (decisão 0072, `docs/loop/RESOURCE-CONTROL-LOOP.md` §36);
 * toda alteração do `desired`, inclusive de campo da plataforma, percorre o loop: não existe Operation que conclua sem a observação da geração (decisão 0072);
 * `resourceVersion` serve ao controle de concorrência e não representa geração;
-* `conditions` seguem o contrato comum e o dicionário de `docs/SSOT.md`, e a saúde operacional é representada por elas e por `phase`.
+* `conditions` seguem o contrato comum e o dicionário de `docs/data/SSOT.md`, e a saúde operacional é representada por elas e por `phase`.
 
 ---
 
@@ -307,7 +307,7 @@ Pontos de atenção na revisão:
 
 # JSON
 
-O uso de `jsonb` para o conteúdo declarativo, as colunas fixas e as propriedades do tipo estão em `docs/POSTGRESQL.md`. A regra de contrato está em `docs/SCHEMA.md`.
+O uso de `jsonb` para o conteúdo declarativo, as colunas fixas e as propriedades do tipo estão em `docs/data/POSTGRESQL.md`. A regra de contrato está em `docs/data/SCHEMA.md`.
 
 Na revisão de um campo, aplique:
 
@@ -463,7 +463,7 @@ O SSOT Core não deve conhecer detalhes da implementação.
 
 # Exemplo de Resource
 
-Um recurso é representado conceitualmente por sua identidade, `desired`, `observed`, `phase`, `conditions` e versões, conforme `docs/SSOT.md`. O conteúdo de `desired` e `observed` pertence ao contrato do recurso (`docs/SCHEMA.md`).
+Um recurso é representado conceitualmente por sua identidade, `desired`, `observed`, `phase`, `conditions` e versões, conforme `docs/data/SSOT.md`. O conteúdo de `desired` e `observed` pertence ao contrato do recurso (`docs/data/SCHEMA.md`).
 
 O SSOT não deve precisar saber qual fornecedor implementa o recurso. Essa decisão pertence ao Domain Contract e ao Provider Adapter.
 
@@ -626,7 +626,7 @@ Defina como o modelo lógico será persistido.
 
 ## 11. Gerenciador de Banco de Dados
 
-Somente quando a tecnologia de persistência for explicitamente escolhida. A implementação de referência está em `docs/POSTGRESQL.md`; não a duplique aqui.
+Somente quando a tecnologia de persistência for explicitamente escolhida. A implementação de referência está em `docs/data/POSTGRESQL.md`; não a duplique aqui.
 
 ## 12. Índices e Constraints
 
@@ -640,9 +640,9 @@ DDL é o artefato final de implementação, nunca o ponto de partida.
 
 # Revisão contra o SSOT.md
 
-Ao revisar ou propor um modelo, confira-o contra o checklist e as invariantes de `docs/SSOT.md` (Manager como único escritor, unidade atômica por mensagem com outbox, idempotência semântica, concorrência otimista, ordem por recurso, privilégios mínimos, recuperação). Quando o modelo for materializado em PostgreSQL, use a skill `postgresql` e `docs/POSTGRESQL.md`.
+Ao revisar ou propor um modelo, confira-o contra o checklist e as invariantes de `docs/data/SSOT.md` (Manager como único escritor, unidade atômica por mensagem com outbox, idempotência semântica, concorrência otimista, ordem por recurso, privilégios mínimos, recuperação). Quando o modelo for materializado em PostgreSQL, use a skill `postgresql` e `docs/data/POSTGRESQL.md`.
 
-Se o modelo contradisser `docs/SSOT.md`, o documento prevalece e a divergência deve ser explicitada, e não resolvida em silêncio.
+Se o modelo contradisser `docs/data/SSOT.md`, o documento prevalece e a divergência deve ser explicitada, e não resolvida em silêncio.
 
 ---
 

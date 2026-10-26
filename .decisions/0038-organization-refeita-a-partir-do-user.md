@@ -5,7 +5,7 @@
 
 ## Contexto
 
-A feature `features/ipm/organization` era o desenho anterior: Receiver e Manager só para `requested`, `relay/` em vez de `publisher/`, `conformance/` em vez de `tests/e2e`, sem Reconciler, Observer e Executor. A feature `features/core/user` já estava no padrão das decisões 0015, 0017, 0018, 0019 e 0020, e o SUM já havia sido refeito a partir dela. O desenho original da Organization (decisão 0010 e `docs/RESOURCE-CONTROL-LOOP.md`, seção 46) previa dois passos no Executor: criar a organização e criar o Project Grant do projeto da plataforma para ela.
+A feature `features/ipm/organization` era o desenho anterior: Receiver e Manager só para `requested`, `relay/` em vez de `publisher/`, `conformance/` em vez de `tests/e2e`, sem Reconciler, Observer e Executor. A feature `features/core/user` já estava no padrão das decisões 0015, 0017, 0018, 0019 e 0020, e o SUM já havia sido refeito a partir dela. O desenho original da Organization (decisão 0010 e `docs/loop/RESOURCE-CONTROL-LOOP.md`, seção 46) previa dois passos no Executor: criar a organização e criar o Project Grant do projeto da plataforma para ela.
 
 ## Decisão
 
@@ -34,6 +34,6 @@ A feature `features/ipm/organization` era o desenho anterior: Receiver e Manager
 ## Consequências
 
 - **Papéis largos:** `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` são de instância e enxergam mais que as organizações da plataforma; estreitar com papéis customizados antes de prd (decisões 0010 e 0015).
-- **`docs/RESOURCE-CONTROL-LOOP.md` §46** passa a descrever só a organização (sem o passo do Project Grant); o contrato `schemas/ipm/organization/observed` tem a descrição de `platformAccess` ajustada (ativa ↔ `granted`).
+- **`docs/loop/RESOURCE-CONTROL-LOOP.md` §46** passa a descrever só a organização (sem o passo do Project Grant); o contrato `schemas/ipm/organization/observed` tem a descrição de `platformAccess` ajustada (ativa ↔ `granted`).
 - **Limitação:** o nome `register` (organização do Zitadel) não está entre os nomes reservados, então o pedido é aceito pelo Manager e falha no Executor (`Rejected`).
 - **Fora do escopo:** administradores, usuários e Agents, Project Grant por organização, recursos derivados (OpenBao, Kubernetes) e retenção da remoção.

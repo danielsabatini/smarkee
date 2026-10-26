@@ -1,6 +1,6 @@
 {
   "durable_name": "bsm-account-manager-observed",
-  "description": "Persistência: observed de account para o Manager, compartilhado pelas instâncias (docs/NATS.md, 7.6)",
+  "description": "Persistência: observed de account para o Manager, compartilhado pelas instâncias (docs/messaging/NATS.md, 7.6)",
   "deliver_policy": "all",
   "ack_policy": "explicit",
   "ack_wait": 15000000000,

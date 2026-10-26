@@ -1,6 +1,6 @@
 # ipm.permission
 
-A **Permission** é o catálogo operacional de permissões atômicas da plataforma (`.decisions/0083-ipm-permission-ipm-role-e-fim-da-trava-de-deploy.md`): um recurso global do módulo `ipm` sob o formato `<módulo>.<tipo>.<ação>` (ex.: `bsm.account.create`, `ipm.user.bind`, `ipm.permission.admin`) gerenciado pelo Resource Control Loop (`docs/RESOURCE-CONTROL-LOOP.md`).
+A **Permission** é o catálogo operacional de permissões atômicas da plataforma (`.decisions/0083-ipm-permission-ipm-role-e-fim-da-trava-de-deploy.md`): um recurso global do módulo `ipm` sob o formato `<módulo>.<tipo>.<ação>` (ex.: `bsm.account.create`, `ipm.user.bind`, `ipm.permission.admin`) gerenciado pelo Resource Control Loop (`docs/loop/RESOURCE-CONTROL-LOOP.md`).
 
 Cada Permission é reconciliada pelo `ipm-permission-executor` como uma role de projeto no projeto `roles-<módulo>` na organização `core` do Zitadel (`AddProjectRole`, `UpdateProjectRole` e `RemoveProjectRole`), eliminando travas de *redeploy* para criação e evolução de permissões na plataforma. Alterações em permissões com `grantable = true` propagam-se assincronamente via NATS para atualizar os Project Grants das Organizations (`ipm.organization`).
 

@@ -1,4 +1,6 @@
-"""Decisão sobre a mensagem no transporte: ACK, TERM ou RETRY (docs/NATS.md §7.3 e §11)."""
+"""Decisão sobre a mensagem no transporte: ACK, TERM ou RETRY (docs/messaging/NATS.md §7.3 e
+
+§11)."""
 
 import json
 import uuid

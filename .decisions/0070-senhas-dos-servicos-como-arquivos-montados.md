@@ -25,4 +25,4 @@ Segurança vence (§2.1): a senha sai do ambiente do processo e do `docker inspe
 - Serviço sem o arquivo recusa subir com `missing required configuration` (erro explícito).
 - A rotação ainda pede reinício: o serviço lê o segredo na partida.
 - Os 3 compose e a semente do template seguem o mesmo bloco; `sync.py --check` valida a semente.
-- Pendência para o stg: o cofre e a entrega dos arquivos nele (registrada em `docs/IMPLEMENTATION-STATUS.md` §7.1).
+- Pendência para o stg: o cofre e a entrega dos arquivos nele (registrada em `docs/platform/IMPLEMENTATION-STATUS.md` §7.1).

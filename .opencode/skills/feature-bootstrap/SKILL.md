@@ -10,7 +10,7 @@ description: Guia de procedimentos para criar uma feature nova (módulo × tipo)
 Esta skill é um **guia de procedimentos** que chama ferramentas (`templates/feature/sync.py`, `uv`, Ruff, Pyright, pytest). Ela define **a ordem e a verificação de cada passo**; não define regras.
 
 ```text
-Fonte da verdade do tema → docs/FEATURE-BOOTSTRAP.md (roteiro, nomes derivados, o que é manual)
+Fonte da verdade do tema → docs/platform/FEATURE-BOOTSTRAP.md (roteiro, nomes derivados, o que é manual)
 Template, semente, perfis → .decisions/0064, 0065 e 0075, templates/feature/sync.py
 Estrutura da feature     → .decisions/0063
 Atuação do agent         → .opencode/agents/feature.md
@@ -87,6 +87,6 @@ Depois, a skill `python-quality`: o Quality Gate vem do MCP do SonarQube, nunca 
 
 ## 6. Resultado
 
-Use o formato do `feature.md`, seção 8, e não reporte "pronta" com passo pulado ou item de verificação que falhou ou não rodou (§32). O que a infraestrutura de dev ainda não tem é uma lacuna declarada em `docs/IMPLEMENTATION-STATUS.md` (§2.5).
+Use o formato do `feature.md`, seção 8, e não reporte "pronta" com passo pulado ou item de verificação que falhou ou não rodou (§32). O que a infraestrutura de dev ainda não tem é uma lacuna declarada em `docs/platform/IMPLEMENTATION-STATUS.md` (§2.5).
 
-Se o roteiro estiver errado ou desatualizado, corrija `docs/FEATURE-BOOTSTRAP.md` em vez de contornar.
+Se o roteiro estiver errado ou desatualizado, corrija `docs/platform/FEATURE-BOOTSTRAP.md` em vez de contornar.

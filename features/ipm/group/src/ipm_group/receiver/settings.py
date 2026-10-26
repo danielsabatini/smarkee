@@ -3,7 +3,7 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 
 Nome da variável: `IPM_GROUP_RECEIVER_<SEÇÃO>_<CAMPO>`, por exemplo
-`IPM_GROUP_RECEIVER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
+`IPM_GROUP_RECEIVER_MESSAGING_URL` (`docs/data/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
 from ipm_group.common.settings import (

@@ -3,7 +3,7 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `BSM_ACCOUNT_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo
 `BSM_ACCOUNT_OBSERVER_MESSAGING_URL`
-(`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Observer
+(`docs/data/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Observer
 não acessa o SSOT e só **lê** o armazenamento de estado do recurso.
 """
 

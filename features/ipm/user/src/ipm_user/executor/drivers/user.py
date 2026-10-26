@@ -1,7 +1,8 @@
 """Driver de escrita do usuário no Zitadel (API v2 de usuários, verificada na v4.19.4).
 
 Um sub-recurso, operações pequenas e idempotentes: o `user_id` é o `resourceId`, e a repetição de
-um passo já feito é tratada como sucesso (`docs/RESOURCE-CONTROL-LOOP.md` §26). O usuário nasce na
+um passo já feito é tratada como sucesso (`docs/loop/RESOURCE-CONTROL-LOOP.md` §26). O usuário nasce
+na
 organização do cliente (`organizationId` do `desired`), e o Zitadel recusa qualquer organização em
 que o Executor não tem `ORG_USER_CREATOR` (decisão 0077). O driver não decide o que fazer: isso é
 das `actions/`. Nenhum dado pessoal entra em mensagens de erro.

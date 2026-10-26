@@ -3,7 +3,7 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `IPM_GROUP_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
 `IPM_GROUP_EXECUTOR_MESSAGING_URL`
-(`docs/SCHEMA.md` §8.3). Sem default: as senhas do banco e do NATS. O Executor
+(`docs/data/SCHEMA.md` §8.3). Sem default: as senhas do banco e do NATS. O Executor
 **não acessa o SSOT** e é o único componente com escrita no estado do recurso, no banco `platform`.
 """
 

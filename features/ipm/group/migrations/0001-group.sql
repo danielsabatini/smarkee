@@ -1,4 +1,4 @@
--- Migração 0001 de ipm.group: Grupo de usuários da Organization no SSOT da Smarkee (docs/POSTGRESQL.md §6 e §14.2; decisões 0085 e 0088).
+-- Migração 0001 de ipm.group: Grupo de usuários da Organization no SSOT da Smarkee (docs/data/POSTGRESQL.md §6 e §14.2; decisões 0085 e 0088).
 -- Projeto: ipm-group-manager (decisões 0015 e 0088), dono do esquema do tipo.
 -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
 -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/ipm.sql.
@@ -81,7 +81,7 @@ CREATE INDEX IF NOT EXISTS group_outbox_published
   ON ipm.group_outbox (published_at) WHERE published_at IS NOT NULL;
 
 -- Índice de unicidade de `name` por `organizationId` entre grupos ativos (`lifecycle = 'present'`),
--- conferido na unidade atômica do pedido sob advisory lock (docs/SSOT.md §10.1; decisões 0085 e 0088).
+-- conferido na unidade atômica do pedido sob advisory lock (docs/data/SSOT.md §10.1; decisões 0085 e 0088).
 CREATE UNIQUE INDEX IF NOT EXISTS group_active_organization_name
   ON ipm.group ((desired ->> 'organizationId'), (desired ->> 'name'))
   WHERE lifecycle = 'present';
@@ -91,7 +91,7 @@ CREATE INDEX IF NOT EXISTS group_organization_id
   ON ipm.group ((desired ->> 'organizationId'))
   WHERE lifecycle = 'present';
 
--- Interface de leitura do Receiver (docs/POSTGRESQL.md §14.2): views sem colunas internas de auditoria.
+-- Interface de leitura do Receiver (docs/data/POSTGRESQL.md §14.2): views sem colunas internas de auditoria.
 CREATE OR REPLACE VIEW ipm.group_v1 AS
   SELECT
     resource_id,

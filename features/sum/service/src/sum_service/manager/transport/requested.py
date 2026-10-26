@@ -1,4 +1,5 @@
-"""Consumo de `requested` de `sum.service` pelo Manager (`docs/NATS.md` §7.3; decisão 0033).
+"""Consumo de `requested` de `sum.service` pelo Manager (`docs/messaging/NATS.md` §7.3; decisão
+0033).
 
 O consumer de trabalho é durável e compartilhado (pull), declarado pela infraestrutura. O ACK vem
 **depois** da gravação durável. Falha transitória do banco volta à fila com atraso (`nak`). Mensagem

@@ -347,7 +347,7 @@ class ResourceFlow[R: Converging]:
                 if error.status != HTTP_NOT_FOUND:
                     self.fail_api(error)
                 # Logo depois do `202`, o Manager ainda pode não ter gravado a Operation e o
-                # recurso (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1): é espera, e não erro.
+                # recurso (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1.1): é espera, e não erro.
                 if time.monotonic() >= deadline:
                     self.timed_out(timeout, accepted)
                 time.sleep(WAIT_POLL_SECONDS)

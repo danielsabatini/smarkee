@@ -2,7 +2,7 @@
 
 Um sub-recurso, operações pequenas e idempotentes: o `organization_id` é o `resourceId` e vira o
 ID no Zitadel, então repetir a criação não duplica, e a repetição de um passo já feito é sucesso
-(`docs/RESOURCE-CONTROL-LOOP.md` §26). O driver não decide o que fazer: isso é das `actions/`.
+(`docs/loop/RESOURCE-CONTROL-LOOP.md` §26). O driver não decide o que fazer: isso é das `actions/`.
 """
 
 from typing import Any, cast

@@ -2,7 +2,8 @@
 
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `IPM_PERMISSION_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo
-`IPM_PERMISSION_OBSERVER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS. O
+`IPM_PERMISSION_OBSERVER_MESSAGING_URL` (`docs/data/SCHEMA.md` §8.3). Sem default: a senha do NATS.
+O
 Observer não acessa o SSOT e só **lê** o Zitadel (conta `ipm-permission-observer`, somente leitura
 nos projetos `roles-<módulo>`).
 """
@@ -33,7 +34,9 @@ class LoopSettings(Section):
     """`observationInterval` de `schemas/ipm/permission/desired.v1.schema.json` (PT5M = 300 s)."""
 
     observation_jitter: float = 0.2
-    """Fração de jitter (±20%) aplicada ao intervalo periódico (`docs/RESOURCE-CONTROL-LOOP.md`)."""
+    """Fração de jitter (±20%) aplicada ao intervalo periódico
+
+    (`docs/loop/RESOURCE-CONTROL-LOOP.md`)."""
 
     maximum_concurrent_reads: int = 10
     """Limite de leituras simultâneas ao Zitadel por instância, na observação periódica."""

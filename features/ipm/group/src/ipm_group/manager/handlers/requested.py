@@ -1,7 +1,7 @@
 """Tratamento de `requested` pelo Manager de Grupo (decisões 0085 e 0088).
 
-Cada mensagem é uma unidade atômica de gravação (`docs/SSOT.md` §10.1 e
-`docs/POSTGRESQL.md` §8 a §11): a linha do recurso é bloqueada antes de qualquer leitura de
+Cada mensagem é uma unidade atômica de gravação (`docs/data/SSOT.md` §10.1 e
+`docs/data/POSTGRESQL.md` §8 a §11): a linha do recurso é bloqueada antes de qualquer leitura de
 estado, a Operation é gravada uma única vez e o `desired` vai para o outbox na mesma
 transação. A confirmação ao transporte é responsabilidade de quem chama, **depois** do retorno
 (depois do `COMMIT`).

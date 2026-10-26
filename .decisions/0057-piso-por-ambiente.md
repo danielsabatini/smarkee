@@ -11,7 +11,7 @@ O §2.3 diz que nenhum pilar é adiado para uma etapa futura. Sem uma distinçã
 ## Decisão
 
 - **§2.5 Piso por ambiente.** Segurança e simplicidade valem integralmente em dev. Robustez e resiliência de **código** valem integralmente em dev, porque o código é o mesmo de prd. Robustez e resiliência de **infraestrutura** (réplicas, fila persistente, backup, retenção, quarentena, alta disponibilidade) e segurança de **infraestrutura que não existe em dev** (certificados, cofre, política de rede) podem ser menores em dev, como **lacuna declarada**. O stg tem o mesmo piso do prd.
-- **Lacuna declarada** é a que registra o que falta, por que é aceitável em dev e a condição que a fecha antes do stg. O registro é o `docs/IMPLEMENTATION-STATUS.md`. Uma lacuna não declarada é violação.
+- **Lacuna declarada** é a que registra o que falta, por que é aceitável em dev e a condição que a fecha antes do stg. O registro é o `docs/platform/IMPLEMENTATION-STATUS.md`. Uma lacuna não declarada é violação.
 - **Nada é promovido a stg com lacuna aberta.** O item "Endurecimento para stg e prd" do ROADMAP é a lista dessa condição.
 
 ## Justificativa

@@ -1,4 +1,4 @@
-"""Digest do pedido e identidade da Operation (`docs/SSOT.md` §7.2 e §12)."""
+"""Digest do pedido e identidade da Operation (`docs/data/SSOT.md` §7.2 e §12)."""
 
 import hashlib
 import json

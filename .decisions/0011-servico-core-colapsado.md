@@ -5,7 +5,7 @@
 
 ## Contexto
 
-O primeiro recurso do Resource Control Loop é a Organization (módulo `core`, decisão 0009). `docs/RESOURCE-CONTROL-LOOP.md` §48 define o formato colapsado como ponto de partida: um serviço com as responsabilidades de Receiver, Manager, Observer, Reconciler e Executor. A separação em processos exige justificativa registrada (§49).
+O primeiro recurso do Resource Control Loop é a Organization (módulo `core`, decisão 0009). `docs/loop/RESOURCE-CONTROL-LOOP.md` §48 define o formato colapsado como ponto de partida: um serviço com as responsabilidades de Receiver, Manager, Observer, Reconciler e Executor. A separação em processos exige justificativa registrada (§49).
 
 O `python.md` (§5 e §23) exige registrar o layout do pacote e a escolha das bibliotecas de mensageria e de banco.
 

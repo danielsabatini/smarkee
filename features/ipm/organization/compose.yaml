@@ -6,7 +6,7 @@ name: ipm-organization
 # e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait messaging database gateway identity identity-login`,
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
 
-# Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7): o padrão `local` do
+# Driver de log legível pelo coletor (decisão 0045, docs/telemetry/OBSERVABILITY.md §7): o padrão `local` do
 # Docker não é lido pelo `file_log` do OpenTelemetry Collector. Com rotação.
 x-logging: &component-logging
   driver: json-file
@@ -31,7 +31,7 @@ x-image: &component-image
 
 services:
   # Consumers duráveis de trabalho do tipo: o Manager (`requested`, `observed` e `result`) e o
-  # Executor (`action`, um por partição) (docs/NATS.md §7.5 e §7.6). Os manifestos são do Manager (`consumers/`). Inexistente é criado;
+  # Executor (`action`, um por partição) (docs/messaging/NATS.md §7.5 e §7.6). Os manifestos são do Manager (`consumers/`). Inexistente é criado;
   # existente com configuração idêntica não muda; configuração diferente falha de forma explícita.
   # Exige os Streams REQUESTED, OBSERVED, RESULT e ACTION, criados pelo messaging da plataforma. Os
   # consumers do Executor (um por partição) são do Executor (`consumers/`).
@@ -186,7 +186,7 @@ services:
     healthcheck: *component-healthcheck
 
   # Reconciler (`ipm-organization-reconciler`): decide a `action` a partir de `desired` e `observed`.
-  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/NATS.md §7.4).
+  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/messaging/NATS.md §7.4).
   ipm-organization-reconciler:
     <<: *component-image
     command: [ipm-organization-reconciler]
@@ -274,7 +274,7 @@ services:
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
-  # Telemeter de app de ipm.organization (decisão 0062, docs/OBSERVABILITY.md §14): recebe por OTLP, do
+  # Telemeter de app de ipm.organization (decisão 0062, docs/telemetry/OBSERVABILITY.md §14): recebe por OTLP, do
   # telemetry-router da plataforma, os logs e os spans de app desta feature e os grava em `telemeter/logs/` e `telemeter/traces/`. Não lê logs de
   # contêineres nem usa o socket do Docker (isso é do telemetry-agent). Sem privilégios e sem escrita fora da pasta.
   ipm-organization-telemeter:

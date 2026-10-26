@@ -1,4 +1,4 @@
--- Migração 0001 de core.account: Account no SSOT (docs/POSTGRESQL.md §6 e §14.2; decisão 0014).
+-- Migração 0001 de core.account: Account no SSOT (docs/data/POSTGRESQL.md §6 e §14.2; decisão 0014).
 -- Projeto: core-account-manager (decisão 0015), dono do esquema do tipo.
 -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
 -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/core.sql.
@@ -77,12 +77,12 @@ CREATE INDEX IF NOT EXISTS account_outbox_published
   ON core.account_outbox (published_at) WHERE published_at IS NOT NULL;
 
 -- Índice de busca do Manager: a unicidade do e-mail é conferida na unidade atômica do pedido
--- (docs/SSOT.md §10.1).
+-- (docs/data/SSOT.md §10.1).
 CREATE INDEX IF NOT EXISTS account_email
   ON core.account ((desired ->> 'email'));
 
 -- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count. `requested_by` aparece
--- só na view da Operation, para o Receiver autorizar a leitura (docs/POSTGRESQL.md §6.5).
+-- só na view da Operation, para o Receiver autorizar a leitura (docs/data/POSTGRESQL.md §6.5).
 CREATE OR REPLACE VIEW core.account_v1 AS
   SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
          resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
@@ -94,7 +94,7 @@ CREATE OR REPLACE VIEW core.account_operation_v1 AS
          requested_by
     FROM core.account_operation;
 
--- Privilégios (docs/POSTGRESQL.md §14.2).
+-- Privilégios (docs/data/POSTGRESQL.md §14.2).
 GRANT CONNECT ON DATABASE ssot
   TO core_account_manager, core_account_receiver, core_account_publisher, core_maintenance;
 

@@ -1,4 +1,4 @@
-"""Adaptador do SSOT em PostgreSQL: toda a leitura e gravação do Manager (`docs/SSOT.md`).
+"""Adaptador do SSOT em PostgreSQL: toda a leitura e gravação do Manager (`docs/data/SSOT.md`).
 
 Não decide regra de negócio: executa as gravações que a orquestração (`handlers/`) pede, dentro
 da transação que ela abre. A linha do recurso é bloqueada (`FOR UPDATE`) antes de qualquer leitura

@@ -2,7 +2,7 @@
 
 - **Data:** 2026-10-17
 - **Status:** Aceita e implementada em desenvolvimento (`infrastructure/dev/telemetry-agent`). stg e prd são direção a definir.
-- **Origem:** decisão 0045 (contrato de logs), seção 7 de `docs/OBSERVABILITY.md`, e a decisão 0050 (`telemetry-gateway`).
+- **Origem:** decisão 0045 (contrato de logs), seção 7 de `docs/telemetry/OBSERVABILITY.md`, e a decisão 0050 (`telemetry-gateway`).
 
 ## Contexto
 

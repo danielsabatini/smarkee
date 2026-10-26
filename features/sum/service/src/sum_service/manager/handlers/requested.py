@@ -71,7 +71,9 @@ class RequestedHandler:
         owner_account_id: str,
         service: str,
     ) -> Outcome:
-        """`resource_id` é atribuído pelo Receiver (`docs/RESOURCE-CONTROL-LOOP.md`, §6.1.1)."""
+        """`resource_id` é atribuído pelo Receiver (`docs/loop/RESOURCE-CONTROL-LOOP.md`,
+
+        §6.1.1)."""
         if await ssot.find_operation(conn, operation_id) is not None:
             return Duplicate(operation_id)
         # Religar um par já desligado reaproveita o recurso: o Receiver manda o `resourceId` dele.

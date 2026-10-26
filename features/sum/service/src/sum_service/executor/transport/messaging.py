@@ -1,4 +1,4 @@
-"""Leitura do `desired` e do último resultado pelo Executor (`docs/NATS.md`).
+"""Leitura do `desired` e do último resultado pelo Executor (`docs/messaging/NATS.md`).
 
 O `desired` é lido pela leitura direta do último valor do Stream `DESIRED` (`allow_direct`), com a
 identidade do Executor.

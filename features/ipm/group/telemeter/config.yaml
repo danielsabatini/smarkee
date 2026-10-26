@@ -1,5 +1,5 @@
 # Telemeter de app da feature (decisão 0062): camada 2 da arquitetura de coleta
-# (docs/OBSERVABILITY-ARCHITECTURE.md). Este arquivo é IDÊNTICO nos telemeters de todas as features; o que muda
+# (docs/telemetry/OBSERVABILITY-ARCHITECTURE.md). Este arquivo é IDÊNTICO nos telemeters de todas as features; o que muda
 # entre elas é só o serviço no compose e as linhas de roteamento no telemetry-router. O teste `tests/telemetry`
 # falha se os arquivos divergirem.
 #

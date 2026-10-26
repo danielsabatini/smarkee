@@ -30,7 +30,7 @@ Sonda descartável (`.workspace/`), com organização, Grant, conta de serviço 
   - o root tem tudo na Organization de que é dono;
   - `bind` é poder de administração da Organization (quem o tem pode dá-lo a outro): é dado com cuidado.
 - **Escopo por organização:** o Receiver aceita o operador, o root (dono) ou um usuário **da própria organização** com a role exigida. Um usuário nunca age em outra organização. O reconhecimento é positivo, e não pelo claim `resourceowner` do token (que a CLI não pede e que também valeria para a `register`): o usuário é reconhecido pelo **próprio registro** no SSOT do tipo (`resourceId` igual ao `sub`, `lifecycle present`), e o root pelo **Receiver da Organization**, consultado com o token de quem pede (decisão 0040). Todo usuário lê o próprio registro sem role (como o `SelfSubjectReview` do Kubernetes), e é por ele que o Receiver da Organization reconhece os usuários dela.
-- **Roles e Project Grant são atividade do operador nesta etapa:** o operador define as roles nos projetos de roles e cria, para cada organização de cliente, o Project Grant com as roles liberadas; o `ipm.user` só consome o que existe. Lacuna declarada em `docs/IMPLEMENTATION-STATUS.md`, com a condição que a fecha: automatizar o Grant na `ipm/organization` (caminho aditivo, §2.6; revisa a 0038 quando acontecer).
+- **Roles e Project Grant são atividade do operador nesta etapa:** o operador define as roles nos projetos de roles e cria, para cada organização de cliente, o Project Grant com as roles liberadas; o `ipm.user` só consome o que existe. Lacuna declarada em `docs/platform/IMPLEMENTATION-STATUS.md`, com a condição que a fecha: automatizar o Grant na `ipm/organization` (caminho aditivo, §2.6; revisa a 0038 quando acontecer).
 - **Credencial do Executor (menor privilégio):** conta de serviço própria, `ipm-user-executor`, na `core`, sem papel de instância. Junto com o Grant de cada organização, o operador lhe dá `ORG_USER_CREATOR` na organização e `PROJECT_GRANT_OWNER` no Grant. O Observer (`ipm-user-observer`) lê com papel só de leitura na organização (`ORG_OWNER_VIEWER`), dado da mesma forma.
 - **Recusa explícita:** o Receiver confere as roles pedidas contra o catálogo do Grant da organização e recusa as que o operador ainda não liberou, antes do loop; o Zitadel continua sendo a última barreira.
 
@@ -44,13 +44,13 @@ Sonda descartável (`.workspace/`), com organização, Grant, conta de serviço 
 
 ## Consequências
 
-- Nova feature `features/ipm/user`, pelo roteiro `docs/FEATURE-BOOTSTRAP.md`.
+- Nova feature `features/ipm/user`, pelo roteiro `docs/platform/FEATURE-BOOTSTRAP.md`.
 - `ipm/organization`: o Receiver passa a aceitar usuários da própria organização com role (além do dono) e a recusar o `delete` enquanto houver usuários (item 5).
 - Operação manual nova por organização: Grant, papéis do Executor e do Observer do `ipm.user`, documentada no `infrastructure/dev/README.md` quando a feature for criada.
 
 ## Implementação (2026-10-21)
 
-- **Feature `features/ipm/user`**, criada pelo roteiro `docs/FEATURE-BOOTSTRAP.md` com os quatro perfis do template (decisão 0075). O Manager confere o e-mail único **na Organization** (trava consultiva por Organization e e-mail), as roles do módulo `ipm` e a cota por Organization (`organizationQuotaLimit`, campo novo do `requested-create`). O Executor deixa no Zitadel **exatamente** as roles do `desired` (cria, atualiza ou remove a autorização) e grava o metadado da proteção.
+- **Feature `features/ipm/user`**, criada pelo roteiro `docs/platform/FEATURE-BOOTSTRAP.md` com os quatro perfis do template (decisão 0075). O Manager confere o e-mail único **na Organization** (trava consultiva por Organization e e-mail), as roles do módulo `ipm` e a cota por Organization (`organizationQuotaLimit`, campo novo do `requested-create`). O Executor deixa no Zitadel **exatamente** as roles do `desired` (cria, atualiza ou remove a autorização) e grava o metadado da proteção.
 - **Receiver:** o catálogo do Grant é a lista `IPM_USER_RECEIVER_API_GRANTABLE_ROLES` (igual para todas as Organizations, mantida igual ao Grant que o operador cria; vazia, recusa tudo). Sem `bind`, a regra vale para o que entra **e** para o que sai (quem não tem a role não a dá nem a tira).
 - **`ipm/organization`:** o Receiver aceita os usuários da Organization (pelo Receiver do User) e recusa o `delete` enquanto ela tiver usuários (`409 ResourcesAttached`; na dúvida, `503` ou `409 ResourcesNotVerifiable`).
 - **SUM:** o catálogo do serviço `ipm` ganha as roles `ipm.user.*` (sem o `admin`), e o Grant de `roles-ipm` para a `register` também: o root as recebe ao habilitar o `ipm`.

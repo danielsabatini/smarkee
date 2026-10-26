@@ -2,8 +2,9 @@
 
 O Reconciler decide e não executa: compara o `desired` (a ligação pedida) com o `observed` (as
 permissões que o usuário tem) e responde com a `action` a publicar, ou com nada
-(`docs/RESOURCE-CONTROL-LOOP.md`). As guardas são as do loop do User
-(`docs/RESOURCE-CONTROL-SECURITY.md` §7 e §8): não decide com `observed` inconclusivo, desatualizado
+(`docs/loop/RESOURCE-CONTROL-LOOP.md`). As guardas são as do loop do User
+(`docs/loop/RESOURCE-CONTROL-SECURITY.md` §7 e §8): não decide com `observed` inconclusivo,
+desatualizado
 ou ausente; não decide com `desired` suspenso; não reemite uma `action` pendente; e espera o backoff
 depois de uma falha.
 """
@@ -176,5 +177,5 @@ def drift(desired: DesiredState, observed: ObservedState) -> Decision | None:
 
 
 def action_id(resource_id: str, generation: int, operation: str, observed_message_id: str) -> str:
-    """Identidade determinística da decisão (`docs/RESOURCE-CONTROL-LOOP.md` §14.1)."""
+    """Identidade determinística da decisão (`docs/loop/RESOURCE-CONTROL-LOOP.md` §14.1)."""
     return f"{resource_id}.{generation}.{operation}.{observed_message_id}"

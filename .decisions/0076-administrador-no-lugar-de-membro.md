@@ -19,7 +19,7 @@ O projeto usava "membro" para o acesso de uma pessoa a uma Organization (decisã
 
 ## O que mudou
 
-- Decisões 0009, 0010, 0014, 0016, 0029, 0038, 0039 §5, 0042 e 0043; `docs/RESOURCE-CONTROL-LOOP.md`; o README de `ipm/organization`; o `CHANGELOG.md`; o `MEMORY.md`.
+- Decisões 0009, 0010, 0014, 0016, 0029, 0038, 0039 §5, 0042 e 0043; `docs/loop/RESOURCE-CONTROL-LOOP.md`; o README de `ipm/organization`; o `CHANGELOG.md`; o `MEMORY.md`.
 - Conformidade de identidade: a tabela do README ("Administradores da instância") e o teste (`organization_administrators`, `test_instance_administrators`).
 
 ## Consequências

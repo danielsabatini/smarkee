@@ -1,6 +1,6 @@
 {
   "durable_name": "@@KEBAB@@-manager-result",
-  "description": "Persistência: completed e failed de @@TYPE@@ para o Manager, compartilhado pelas instâncias (docs/NATS.md, 7.6)",
+  "description": "Persistência: completed e failed de @@TYPE@@ para o Manager, compartilhado pelas instâncias (docs/messaging/NATS.md, 7.6)",
   "deliver_policy": "all",
   "ack_policy": "explicit",
   "ack_wait": 15000000000,

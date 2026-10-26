@@ -1,6 +1,7 @@
 """Motor do Reconciler de `sum.service`: lê `desired`, `observed` e resultados, decide e publica.
 
-O Reconciler decide e não executa (`docs/RESOURCE-CONTROL-LOOP.md`). A `action` vai para o subject
+O Reconciler decide e não executa (`docs/loop/RESOURCE-CONTROL-LOOP.md`). A `action` vai para o
+subject
 `reconciler.action.sum.service.<resourceId>.<operation>`, com `Nats-Msg-Id` igual ao `actionId`,
 para que o transporte deduplique reemissões. A decisão é a de `domain/decision.py`.
 """

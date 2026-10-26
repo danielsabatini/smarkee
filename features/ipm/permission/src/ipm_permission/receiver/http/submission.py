@@ -1,7 +1,7 @@
 """Publicação do `requested` pelo Receiver: identidade da Operation, idempotência e envio.
 
 Cada escrita da API termina aqui: gera a Operation, evita republicar um pedido repetido com a mesma
-`Idempotency-Key` e publica o `requested` (`docs/RESOURCE-CONTROL-LOOP.md` §6.1).
+`Idempotency-Key` e publica o `requested` (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1).
 """
 
 import logging

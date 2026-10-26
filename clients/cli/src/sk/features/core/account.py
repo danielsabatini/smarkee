@@ -1,4 +1,4 @@
-"""Cliente de `core/account` na API da plataforma (`docs/RESOURCE-CONTROL-LOOP.md`, §6.1).
+"""Cliente de `core/account` na API da plataforma (`docs/loop/RESOURCE-CONTROL-LOOP.md`, §6.1).
 
 O cadastro (`POST /v1/core/accounts`) é anônimo: esta chamada **nunca** envia `Authorization`,
 mesmo que existam credenciais salvas. O servidor é a autoridade sobre o conteúdo: as validações

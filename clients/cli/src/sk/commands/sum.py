@@ -174,7 +174,7 @@ def _wait_for_convergence(
             if error.status != HTTP_NOT_FOUND:
                 _fail_api(error)
             # Logo depois do `202`, o Manager ainda pode não ter gravado a Operation e o recurso
-            # (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1): é espera, e não erro.
+            # (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1.1): é espera, e não erro.
             if time.monotonic() >= deadline:
                 _timed_out(timeout, accepted)
             time.sleep(WAIT_POLL_SECONDS)

@@ -1,4 +1,4 @@
-"""Base HTTP do `sk` para a API da plataforma (`docs/RESOURCE-CONTROL-LOOP.md`, §6.1).
+"""Base HTTP do `sk` para a API da plataforma (`docs/loop/RESOURCE-CONTROL-LOOP.md`, §6.1).
 
 Reúne a chamada autenticada (`call_api`), o envio de um pedido já montado (`send`) e os erros
 comuns aos clientes de cada feature (`features/core/account`, `features/sum/service`). Cada cliente

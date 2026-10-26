@@ -1,4 +1,4 @@
-"""Cliente do `ipm.organization` na API da plataforma (`docs/RESOURCE-CONTROL-LOOP.md`, §6.1 e §46).
+"""Cliente do `ipm.organization` na API (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1 e §46).
 
 Criar, alterar e remover são escritas assíncronas: a API responde `202` com o `operationId`, e o
 estado definitivo vem da Organization (`phase`) e da Operation (`operationStatus`). Os dados chegam

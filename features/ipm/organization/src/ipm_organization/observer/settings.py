@@ -3,7 +3,7 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `IPM_ORGANIZATION_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo
 `IPM_ORGANIZATION_OBSERVER_MESSAGING_URL`
-(`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Observer
+(`docs/data/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Observer
 não acessa o SSOT e só **lê** o Zitadel (conta `ipm-organization-observer`, somente leitura).
 """
 

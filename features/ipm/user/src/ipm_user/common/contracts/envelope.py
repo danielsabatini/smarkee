@@ -1,4 +1,6 @@
-"""Leitura do envelope das mensagens consumidas, em modo tolerante (`docs/SCHEMA.md` §13, §15)."""
+"""Leitura do envelope das mensagens consumidas, em modo tolerante (`docs/data/SCHEMA.md` §13,
+
+§15)."""
 
 import json
 from collections.abc import Mapping

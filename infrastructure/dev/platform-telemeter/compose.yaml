@@ -20,7 +20,7 @@ services:
       - ./logs:/telemetry/logs
       - ./metrics:/telemetry/metrics
       - ./traces:/telemetry/traces
-    # Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7), com rotação.
+    # Driver de log legível pelo coletor (decisão 0045, docs/telemetry/OBSERVABILITY.md §7), com rotação.
     logging:
       driver: json-file
       options:

@@ -1,4 +1,5 @@
-"""Consumo de `observed` e de resultados pelo Manager (`docs/NATS.md` §7.3; decisões 0033 e 0080).
+"""Consumo de `observed` e de resultados pelo Manager (`docs/messaging/NATS.md` §7.3; decisões 0033
+e 0080).
 
 Mesmo contrato do consumo de `requested`: a mensagem é confirmada depois da gravação. Erro
 transitório do banco volta à fila; mensagem fora do contrato é retirada do fluxo (`term`).

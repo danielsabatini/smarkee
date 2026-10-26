@@ -32,8 +32,8 @@ Fontes da verdade relacionadas (não duplicadas aqui):
 - Especificação do Console, layout, rotas e escopo: [`docs/console/CONSOLE.md`](../../docs/console/CONSOLE.md) e referência visual `images/console-main-layout.png`.
 - Ordem `API → CLI → Console` e proteção do Zitadel: [`.decisions/0013`](../../.decisions/0013-api-cli-console-e-zitadel-como-backend-protegido.md).
 - Pasta `clients/` e projeto `clients` no Zitadel: [`.decisions/0034`](../../.decisions/0034-projeto-clients-e-a-aplicacao-cli.md).
-- Loop de controle (`desired` / `observed`), `Operation` (`202 Accepted`) e `conditions` (`Ready`, `Progressing`): [`docs/RESOURCE-CONTROL-LOOP.md`](../../docs/RESOURCE-CONTROL-LOOP.md) e [`.decisions/0078`](../../.decisions/0078-progresso-acao-sem-efeito-e-configuracao-visivel.md).
-- Contratos JSON Schema da plataforma: [`docs/SCHEMA.md`](../../docs/SCHEMA.md) e `schemas/`.
+- Loop de controle (`desired` / `observed`), `Operation` (`202 Accepted`) e `conditions` (`Ready`, `Progressing`): [`docs/loop/RESOURCE-CONTROL-LOOP.md`](../../docs/loop/RESOURCE-CONTROL-LOOP.md) e [`.decisions/0078`](../../.decisions/0078-progresso-acao-sem-efeito-e-configuracao-visivel.md).
+- Contratos JSON Schema da plataforma: [`docs/data/SCHEMA.md`](../../docs/data/SCHEMA.md) e `schemas/`.
 - Análise de código e Quality Gate: agent [`sonarqube`](./sonarqube.md).
 
 Skills procedimentais que este agent utiliza para operar as tools e MCPs:

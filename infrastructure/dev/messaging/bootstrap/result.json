@@ -1,6 +1,6 @@
 {
   "name": "RESULT",
-  "description": "Fato: completed e failed do Executor (docs/NATS.md, 6.5)",
+  "description": "Fato: completed e failed do Executor (docs/messaging/NATS.md, 6.5)",
   "subjects": [
     "executor.completed.>",
     "executor.failed.>"

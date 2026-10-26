@@ -13,7 +13,7 @@ Cada valor é resolvido nesta ordem, do mais forte para o mais fraco: **variáve
 
 - Variáveis: `SK_<SEÇÃO>_<CAMPO>`, por exemplo `SK_AUTH_CLIENT_ID`. Os módulos usam a própria seção (`SK_IPM_*`).
 - Arquivo: `$XDG_CONFIG_HOME/sk/config.toml` (padrão `~/.config/sk/config.toml`), com uma tabela por seção e **chaves em camelCase**. Uma chave desconhecida ou fora do camelCase (por exemplo `client_id`) é rejeitada.
-- O mesmo nome muda só de grafia entre os meios: variável `SK_AUTH_CLIENT_ID`, chave `clientId`; as opções de linha de comando (`--resource-id`, `--wait`) são kebab-case (`docs/SCHEMA.md`, *Grafia dos nomes por meio*).
+- O mesmo nome muda só de grafia entre os meios: variável `SK_AUTH_CLIENT_ID`, chave `clientId`; as opções de linha de comando (`--resource-id`, `--wait`) são kebab-case (`docs/data/SCHEMA.md`, *Grafia dos nomes por meio*).
 
 **Em produção não há nada a configurar.** Os valores da plataforma (provedor de identidade, URL da API, client ID e os IDs dos projetos de roles dos módulos) são o **padrão** da CLI: ela funciona sem arquivo e sem variável, e não há `sk init` (decisão 0036). O arquivo, as variáveis e as opções existem só para **sobrescrever**, o que o desenvolvimento e o stg fazem. O `allowInsecureHttp` é só de desenvolvimento e vem desligado.
 

@@ -1,4 +1,5 @@
-"""Conexão só de leitura com o Zitadel para o Observer (`docs/RESOURCE-CONTROL-SECURITY.md` §8).
+"""Conexão só de leitura com o Zitadel para o Observer (`docs/loop/RESOURCE-CONTROL-SECURITY.md`
+§8).
 
 Só o transporte autenticado: a conta de serviço `core-account-observer` (papel `ORG_OWNER_VIEWER`)
 por assertion JWT e a chamada HTTP. Não conhece recurso: as leituras de cada sub-recurso ficam em

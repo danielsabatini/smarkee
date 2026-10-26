@@ -1,6 +1,7 @@
 """Adaptadores do NATS JetStream do Manager: consumers de trabalho e de persistência.
 
-Regras (`docs/NATS.md`): o Manager não publica (o Publisher do tipo publica o outbox). O consumer de
+Regras (`docs/messaging/NATS.md`): o Manager não publica (o Publisher do tipo publica o outbox). O
+consumer de
 trabalho é **durável e compartilhado** (pull), declarado pela infraestrutura, com ACK explícito
 **depois** da gravação durável; falha transitória volta à fila com atraso (`nak`); mensagem
 inválida é retirada do fluxo (`term`) e registrada.
@@ -99,7 +100,7 @@ async def apply_message(
 
 
 class StreamConsumer:
-    """Consumer durável e compartilhado do Manager (`docs/NATS.md` §7.3)."""
+    """Consumer durável e compartilhado do Manager (`docs/messaging/NATS.md` §7.3)."""
 
     def __init__(
         self,

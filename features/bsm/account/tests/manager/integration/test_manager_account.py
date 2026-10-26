@@ -1,4 +1,4 @@
-"""Manager: `requested` de Billing Account contra o SSOT real (docs/SSOT.md §10.1)."""
+"""Manager: `requested` de Billing Account contra o SSOT real (docs/data/SSOT.md §10.1)."""
 
 import asyncio
 import uuid

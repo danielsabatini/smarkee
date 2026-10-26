@@ -19,7 +19,7 @@ A 0064 levou ao template o que era idêntico entre as features e deixou os motor
 - **Perfil `receiver-http` ampliado:** `receiver/domain/errors.py`, `records.py` e `requests.py`.
 - **Marcador novo `@@TYPE_CLASS@@`** (`Account`, `Organization`): o prefixo de classe do tipo, como em `AccountObserverSettings`.
 - **Gancho em vez de exceção:** a única diferença do motor do Observer (o `organization_id` nos logs da Organization) virou a função `log_identifiers(resource_id)` em `observer/domain/observation.py`, de cada feature.
-- **Feature nova:** se ela segue um modelo que declara os perfis, declara os mesmos perfis logo depois do `sync.py --new` e escreve os arquivos de contrato que cada perfil exige (`docs/FEATURE-BOOTSTRAP.md`, passo 3). O `pyright` mostra o que ainda falta. Uma feature cujo papel precise de um motor diferente não declara o perfil e registra a divergência.
+- **Feature nova:** se ela segue um modelo que declara os perfis, declara os mesmos perfis logo depois do `sync.py --new` e escreve os arquivos de contrato que cada perfil exige (`docs/platform/FEATURE-BOOTSTRAP.md`, passo 3). O `pyright` mostra o que ainda falta. Uma feature cujo papel precise de um motor diferente não declara o perfil e registra a divergência.
 - **Continuam na feature**, porque têm regra do tipo: o motor do Reconciler e a decisão dele, o Manager fora do perfil `manager-handlers` (store, `requested`, consumers, política), as `actions` e os drivers do provedor, a observação, os `settings.py` e `main.py`, o `app.py` do Receiver. Voltar a medir quando uma feature nova repetir algum deles.
 
 ## Justificativa

@@ -1,4 +1,4 @@
-"""Execução das operações da Account no Zitadel (`docs/RESOURCE-CONTROL-LOOP.md` §46.1).
+"""Execução das operações da Account no Zitadel (`docs/loop/RESOURCE-CONTROL-LOOP.md` §46.1).
 
 Compõe os drivers de `executor/drivers/` (usuário e autorização); não chama o provedor direto.
 

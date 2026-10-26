@@ -1,6 +1,6 @@
 ---
 name: PostgreSQL
-description: Guia de procedimentos para implementar, migrar, validar, inspecionar e diagnosticar o SSOT em PostgreSQL com jsonb, conforme docs/SSOT.md e docs/POSTGRESQL.md. Use ao adicionar um tipo de recurso, alterar o modelo, revisar privilégios, validar DDL ou diagnosticar outbox, bloqueios e conflitos.
+description: Guia de procedimentos para implementar, migrar, validar, inspecionar e diagnosticar o SSOT em PostgreSQL com jsonb, conforme docs/data/SSOT.md e docs/data/POSTGRESQL.md. Use ao adicionar um tipo de recurso, alterar o modelo, revisar privilégios, validar DDL ou diagnosticar outbox, bloqueios e conflitos.
 ---
 
 # PostgreSQL
@@ -12,14 +12,14 @@ Esta skill é um **guia de procedimentos** que chama ferramentas (MCP `postgresq
 ```text
 AGENTS.md
     ↓
-docs/SSOT.md          → modelo e garantias (agnóstico)
+docs/data/SSOT.md          → modelo e garantias (agnóstico)
     ↓
-docs/POSTGRESQL.md    → implementação em PostgreSQL com jsonb
+docs/data/POSTGRESQL.md    → implementação em PostgreSQL com jsonb
     ↓
 esta skill            → procedimento
 ```
 
-Não redefina aqui colunas, restrições, privilégios, Publisher ou retenção: leia `docs/POSTGRESQL.md`. Em conflito, os documentos prevalecem.
+Não redefina aqui colunas, restrições, privilégios, Publisher ou retenção: leia `docs/data/POSTGRESQL.md`. Em conflito, os documentos prevalecem.
 
 Para decidir **o que modelar**, use o agent `ssot`. Esta skill cuida de **como implementar e validar** no PostgreSQL.
 
@@ -28,27 +28,27 @@ Para decidir **o que modelar**, use o agent `ssot`. Esta skill cuida de **como i
 1. **Leitura por padrão.** Inspeção e diagnóstico usam um papel de **somente leitura**.
 2. **DDL só por migração da infraestrutura.** O agente prepara e revisa a migração; a aplicação ocorre pelo mecanismo de migração definido pela infraestrutura, com o proprietário dos objetos. Serviços de runtime e esta skill não executam DDL em ambientes compartilhados.
 3. **Validação em contêiner descartável**, nunca em ambiente compartilhado, e sem dados reais.
-4. **Imagem fixada e aprovada.** Use a versão do PostgreSQL pinada no ambiente (`docs/POSTGRESQL.md`, versão). **Verifique se a imagem existe localmente antes de executar** (`docker image inspect <imagem>`). Se for preciso baixá-la, **peça aprovação antes**: a listagem de imagens pode não refletir o que o `run` precisará baixar.
+4. **Imagem fixada e aprovada.** Use a versão do PostgreSQL pinada no ambiente (`docs/data/POSTGRESQL.md`, versão). **Verifique se a imagem existe localmente antes de executar** (`docker image inspect <imagem>`). Se for preciso baixá-la, **peça aprovação antes**: a listagem de imagens pode não refletir o que o `run` precisará baixar.
 5. **Credenciais** por arquivo de senha, serviço de conexão ou variável de ambiente do ambiente. Nunca na linha de comando, em log, em arquivo versionado ou na resposta.
 6. **Operações destrutivas** (`DROP`, `TRUNCATE`, `DELETE` sem filtro, restauração) exigem confirmação explícita do operador e um ponto de retorno (backup validado).
-7. **Dados `confidential`** (`docs/SCHEMA.md`) não são exibidos: ao inspecionar, selecione colunas de controle, e não o conteúdo de `desired` e `observed`.
+7. **Dados `confidential`** (`docs/data/SCHEMA.md`) não são exibidos: ao inspecionar, selecione colunas de controle, e não o conteúdo de `desired` e `observed`.
 8. **Não invente** nomes de bancos, schemas, papéis, ferramentas de migração ou versões. Se não existirem, informe e pare.
 
 ## 3. Procedimento A: adicionar um tipo de recurso
 
-Entradas: módulo, tipo e o contrato do recurso (`docs/SCHEMA.md`, parâmetros e anotações).
+Entradas: módulo, tipo e o contrato do recurso (`docs/data/SCHEMA.md`, parâmetros e anotações).
 
-1. Ler `docs/SSOT.md` (modelo, dicionário, invariantes) e `docs/POSTGRESQL.md` (mapeamento e DDL de referência).
+1. Ler `docs/data/SSOT.md` (modelo, dicionário, invariantes) e `docs/data/POSTGRESQL.md` (mapeamento e DDL de referência).
 2. Confirmar que o contrato do recurso define limites, sensibilidade e os parâmetros do loop. Se não definir, parar e devolver ao agent `ssot`.
-3. **Gerar** as quatro tabelas (`<tipo>`, `<tipo>_operation`, `<tipo>_action_result`, `<tipo>_outbox`) e as duas views de leitura (`<tipo>_v<MAJOR>`, `<tipo>_operation_v<MAJOR>`) **a partir do modelo único** (DDL de referência de `docs/POSTGRESQL.md`), como migração do projeto do Manager do tipo (`.decisions/0015-componentes-por-papel-autocontidos.md`). Não escreva o DDL à mão por tipo fora desse modelo e não edite a tabela gerada (`AGENTS.md`, arquivos gerados). Se o modelo ainda não existir, proponha-o como artefato versionado e pare.
-4. Gerar os papéis e os `GRANT` da matriz de `docs/POSTGRESQL.md` (por serviço) e conferir contra a matriz de identidades de `docs/RESOURCE-CONTROL-SECURITY.md`.
+3. **Gerar** as quatro tabelas (`<tipo>`, `<tipo>_operation`, `<tipo>_action_result`, `<tipo>_outbox`) e as duas views de leitura (`<tipo>_v<MAJOR>`, `<tipo>_operation_v<MAJOR>`) **a partir do modelo único** (DDL de referência de `docs/data/POSTGRESQL.md`), como migração do projeto do Manager do tipo (`.decisions/0015-componentes-por-papel-autocontidos.md`). Não escreva o DDL à mão por tipo fora desse modelo e não edite a tabela gerada (`AGENTS.md`, arquivos gerados). Se o modelo ainda não existir, proponha-o como artefato versionado e pare.
+4. Gerar os papéis e os `GRANT` da matriz de `docs/data/POSTGRESQL.md` (por serviço) e conferir contra a matriz de identidades de `docs/loop/RESOURCE-CONTROL-SECURITY.md`.
 5. Executar o Procedimento C (validação em contêiner) com o DDL gerado.
 6. Entregar a migração para revisão. Não aplique.
 
 ## 4. Procedimento B: alterar o modelo (migração)
 
-1. Classificar a mudança conforme `docs/SCHEMA.md`: compatível (`MINOR`) ou incompatível (`MAJOR`).
-2. Planejar em três fases (`docs/POSTGRESQL.md`, migrações): **expandir** (adicionar de forma compatível), **migrar** o conteúdo e a mensagem retida (republicando com a mesma geração e o mesmo conteúdo) e só então **contrair**.
+1. Classificar a mudança conforme `docs/data/SCHEMA.md`: compatível (`MINOR`) ou incompatível (`MAJOR`).
+2. Planejar em três fases (`docs/data/POSTGRESQL.md`, migrações): **expandir** (adicionar de forma compatível), **migrar** o conteúdo e a mensagem retida (republicando com a mesma geração e o mesmo conteúdo) e só então **contrair**.
 3. Avaliar o bloqueio: DDL que reescreve a tabela inteira ou exige bloqueio longo é um risco. Anote como a mudança evitará bloqueio prolongado.
 4. Definir a conversão na leitura durante a coexistência, e como identificar o que ainda está na versão antiga (`schema_version`).
 5. Executar o Procedimento C com o estado anterior e o posterior da migração, incluindo os dados de teste da versão antiga.
@@ -59,7 +59,7 @@ Entradas: módulo, tipo e o contrato do recurso (`docs/SCHEMA.md`, parâmetros e
 1. Verificar a imagem fixada: `docker image inspect <imagem>`. Se faltar, **pedir aprovação** para baixá-la.
 2. Subir um cluster descartável e isolado (`docker run --rm`), sem rede externa e sem volumes do host além do necessário para ler os scripts. Algumas imagens não trazem inicialização automática; nesse caso inicialize o cluster dentro do contêiner e use um diretório de socket gravável.
 3. Aplicar o DDL e os `GRANT` com `psql -X -v ON_ERROR_STOP=1 -f <arquivo>`.
-4. Executar os testes funcionais do que foi alterado. O conjunto de verificações de referência está em `docs/POSTGRESQL.md` (verificação do DDL): restrições, concorrência otimista e geração, monotonia de `observed_at`, serialização por `FOR UPDATE`, duplicata de `action_id` e de `operation_id`, privilégios por papel (incluindo as negações e a leitura do Receiver somente pelas views), parâmetros de sessão no papel de login, ordem do outbox com duas sessões, trava consultiva e consulta de posse.
+4. Executar os testes funcionais do que foi alterado. O conjunto de verificações de referência está em `docs/data/POSTGRESQL.md` (verificação do DDL): restrições, concorrência otimista e geração, monotonia de `observed_at`, serialização por `FOR UPDATE`, duplicata de `action_id` e de `operation_id`, privilégios por papel (incluindo as negações e a leitura do Receiver somente pelas views), parâmetros de sessão no papel de login, ordem do outbox com duas sessões, trava consultiva e consulta de posse.
 5. Executar os **casos negativos** (devem falhar): identificador inválido, `jsonb` que não é objeto, fase inválida, escrita sem privilégio.
 6. Remover o contêiner e qualquer arquivo temporário (`--rm`; scripts em `.workspace/`).
 7. Reportar o que foi e o que **não** foi verificado (carga, failover, PITR, proteção em repouso, *pooling*).
@@ -85,7 +85,7 @@ Evite `SELECT *` e qualquer exibição do conteúdo de `desired` e `observed`.
 
 ## 7. Procedimento E: revisar segurança
 
-1. Conferir os papéis e os `GRANT` contra a matriz de `docs/POSTGRESQL.md` e de `docs/RESOURCE-CONTROL-SECURITY.md`: um papel por serviço; Manager sem `DELETE` em outbox, resultados de ação e operation; Receiver só com leitura pelas views; Publisher do tipo (`<módulo>_<tipo>_publisher`) só com `SELECT` no outbox e `UPDATE (published_at)`; manutenção separada.
+1. Conferir os papéis e os `GRANT` contra a matriz de `docs/data/POSTGRESQL.md` e de `docs/loop/RESOURCE-CONTROL-SECURITY.md`: um papel por serviço; Manager sem `DELETE` em outbox, resultados de ação e operation; Receiver só com leitura pelas views; Publisher do tipo (`<módulo>_<tipo>_publisher`) só com `SELECT` no outbox e `UPDATE (published_at)`; manutenção separada.
 2. Confirmar que `PUBLIC` não possui privilégios no banco, no schema `public`, no schema do módulo nem nas tabelas, e que os papéis de login de runtime têm os parâmetros de sessão.
 3. Confirmar que nenhum serviço de runtime é proprietário de objeto nem executa DDL.
 4. Confirmar TLS fora do ambiente local, proteção em repouso (validada no ambiente) e que log não registra parâmetros nem colunas `confidential`.

@@ -2,7 +2,8 @@
 
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `IPM_PERMISSION_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
-`IPM_PERMISSION_EXECUTOR_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS. O
+`IPM_PERMISSION_EXECUTOR_MESSAGING_URL` (`docs/data/SCHEMA.md` §8.3). Sem default: a senha do NATS.
+O
 Executor não acessa o SSOT: só lê o NATS e escreve no Zitadel (`roles-<módulo>`, conta
 `ipm-permission-executor`).
 """

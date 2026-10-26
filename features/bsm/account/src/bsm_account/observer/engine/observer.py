@@ -1,7 +1,7 @@
 """Motor do Observer: decide o que observar, lê o Zitadel e publica `observed`.
 
 O Observer transforma a realidade externa em `observed` e **não altera** o sistema externo. Observa
-um recurso (`docs/RESOURCE-CONTROL-LOOP.md` §6.3, §10, §25 e §26.1):
+um recurso (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.3, §10, §25 e §26.1):
 
 - quando o `desired` é novo ou muda de geração;
 - depois de cada `completed` ou `failed`, com `causationId` igual ao `messageId` do resultado;

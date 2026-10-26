@@ -1,4 +1,4 @@
-"""Tratamento de `observed` pelo Manager (`docs/SSOT.md` §10.2).
+"""Tratamento de `observed` pelo Manager (`docs/data/SSOT.md` §10.2).
 
 Cada mensagem é uma unidade atômica de gravação: a linha do recurso é bloqueada antes de qualquer
 leitura de estado (invariante 9), a idempotência é semântica (monotonia de `observedAt`) e a

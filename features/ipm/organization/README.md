@@ -1,6 +1,6 @@
 # ipm.organization
 
-A **Organization** é a unidade de isolamento da plataforma (`.decisions/0006-organization-como-unidade-de-isolamento.md`): um recurso do módulo `ipm` (`.decisions/0016-organization-no-modulo-ipm.md`), criado por um usuário registrado (a Account, do módulo `core`), que passa a ser o dono dela. É gerenciada pelo Resource Control Loop (`docs/RESOURCE-CONTROL-LOOP.md`, seção 46) e vive, no Zitadel, como uma organização com o mesmo ID (`resourceId`).
+A **Organization** é a unidade de isolamento da plataforma (`.decisions/0006-organization-como-unidade-de-isolamento.md`): um recurso do módulo `ipm` (`.decisions/0016-organization-no-modulo-ipm.md`), criado por um usuário registrado (a Account, do módulo `core`), que passa a ser o dono dela. É gerenciada pelo Resource Control Loop (`docs/loop/RESOURCE-CONTROL-LOOP.md`, seção 46) e vive, no Zitadel, como uma organização com o mesmo ID (`resourceId`).
 
 Decisões que definem esta feature: `0006` e `0016` (o que é a Organization e onde mora), `0010` (roles, dono, cota e acesso no Zitadel), `0015` (componentes por papel), `0017` (estrutura interna e testes e2e), `0018` (partições e saúde), `0019` (Publisher), `0020` (Receiver) e `0038` (refeita a partir da Account: só a organização no Zitadel). A feature `features/core/account` é o **modelo** desta estrutura.
 
@@ -142,7 +142,7 @@ O fluxo de dados completo, passo a passo, está em [`docs/IPM-ORGANIZATION-DATA-
 | `RESULT` | `executor.*.ipm.organization.>` | `ipm-organization-manager-result` (durável); `ipm-organization-{reconciler,observer}-result-<instância>` | Manager, Reconciler, Observer |
 | `ACTION` | `reconciler.action.ipm.organization.<partição>.>` | `ipm-organization-executor-action-p0..p3` (duráveis) | Executor |
 
-Os consumers de trabalho (Manager e Executor) são duráveis, compartilhados e declarados pelo serviço `ipm-organization-consumer`, a partir dos manifestos em `consumers/`. O Reconciler e o Observer não têm manifesto: cada instância cria os próprios consumers de estado, com nome único por execução, `DeliverLastPerSubject` e `inactive_threshold`, e reconstrói o estado da mensageria (`docs/NATS.md` §7.4).
+Os consumers de trabalho (Manager e Executor) são duráveis, compartilhados e declarados pelo serviço `ipm-organization-consumer`, a partir dos manifestos em `consumers/`. O Reconciler e o Observer não têm manifesto: cada instância cria os próprios consumers de estado, com nome único por execução, `DeliverLastPerSubject` e `inactive_threshold`, e reconstrói o estado da mensageria (`docs/messaging/NATS.md` §7.4).
 
 No `ACTION`, a partição é aplicada pelo servidor (`subject_transform`, decisão 0018), com `max_ack_pending = 1`: uma ação por recurso por vez.
 
@@ -191,12 +191,12 @@ Depois de recriar o contêiner do Receiver, o gateway volta a resolver o nome so
 # 10. Limitações e pendências
 
 - A Operation não vira `failed`: a falha aparece na fase `Failed` da Organization.
-- Logo depois do `202`, a leitura pode dar `404` até o Manager gravar a Operation (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1).
+- Logo depois do `202`, a leitura pode dar `404` até o Manager gravar a Operation (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1.1).
 - O Executor não cria usuários nem autoriza o dono. Os usuários da Organization são a feature `ipm/user` (decisão 0077); a Organization só os prepara (Grant e papéis, decisão 0081). Trocar a conta do Executor ou do Observer do User não retira os papéis da antiga (o Executor só acrescenta). Agents e os recursos derivados (OpenBao, Kubernetes) são de outras features.
 - Os papéis de instância `IAM_ORG_MANAGER` e `IAM_OWNER_VIEWER` são mais largos que o necessário, e ficam assim por exceção deliberada (decisão 0060).
 - Remover não tem retenção: a organização some do Zitadel e a linha é apagada ao convergir.
 - As chaves das contas de serviço vencem em 2030-01-01 e a rotação é manual (`infrastructure/dev/README.md`).
-- Endurecimento comum aos módulos, ainda pendente: `cap_drop` e `no-new-privileges` no Compose, limite de taxa e de tamanho nas rotas autenticadas do gateway, e `pinned_client` no Executor (`docs/IMPLEMENTATION-STATUS.md`).
+- Endurecimento comum aos módulos, ainda pendente: `cap_drop` e `no-new-privileges` no Compose, limite de taxa e de tamanho nas rotas autenticadas do gateway, e `pinned_client` no Executor (`docs/platform/IMPLEMENTATION-STATUS.md`).
 
 # 11. Banco de dados (SSOT da Organization)
 

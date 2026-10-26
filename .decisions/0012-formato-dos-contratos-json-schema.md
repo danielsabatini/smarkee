@@ -5,7 +5,7 @@
 
 ## Contexto
 
-`docs/SCHEMA.md` §5.3 deixa o formato dos contratos em aberto e exige registrá-lo em `.decisions/`. O `schemas/` está vazio, e o primeiro recurso (Organization) precisa dos contratos antes da implementação (`SCHEMA.md` §25).
+`docs/data/SCHEMA.md` §5.3 deixa o formato dos contratos em aberto e exige registrá-lo em `.decisions/`. O `schemas/` está vazio, e o primeiro recurso (Organization) precisa dos contratos antes da implementação (`SCHEMA.md` §25).
 
 ## Decisão
 

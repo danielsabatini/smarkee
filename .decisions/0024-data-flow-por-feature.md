@@ -25,7 +25,7 @@ Toda feature (`features/<módulo>/<tipo>`) tem **um** documento de fluxo de dado
   8. **Leitura:** as rotas `GET` e as views que as servem.
   9. **Demais operações:** remoção e as outras que o tipo tiver, em resumo.
   10. **Mapa de gravações:** mensagem por tabela e privilégio por papel de banco, mais as divergências e limitações conhecidas.
-- **Fonte única da verdade (`AGENTS.md` §1.1):** o documento mostra um caso concreto e **linka** as especificações (`docs/MESSAGING.md`, `docs/NATS.md`, `docs/SSOT.md`, `docs/POSTGRESQL.md`), os schemas e a migração; não repete as regras.
+- **Fonte única da verdade (`AGENTS.md` §1.1):** o documento mostra um caso concreto e **linka** as especificações (`docs/messaging/MESSAGING.md`, `docs/messaging/NATS.md`, `docs/data/SSOT.md`, `docs/data/POSTGRESQL.md`), os schemas e a migração; não repete as regras.
 - **Exemplos verificáveis:** valores fictícios (`example.com`, UUIDs de exemplo), sem credenciais (`AGENTS.md` §4.1), conferidos contra o código, os schemas e a migração. Quando não vierem de uma execução real, o documento diz isso.
 - **Manutenção:** mudou um contrato de mensagem, uma rota, um schema, uma migração ou um privilégio da feature? O mesmo trabalho atualiza o `DATA-FLOW`. Em caso de divergência com outro documento da feature, vale o código (a migração, para o banco), e a divergência é registrada no próprio `DATA-FLOW`.
 - **Escopo:** o documento descreve só a feature; não entra em `CHANGELOG.md` nem em `ROADMAP.md` (`AGENTS.md` §36.3).

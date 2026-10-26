@@ -25,7 +25,7 @@ Connection = psycopg.AsyncConnection[Any]
 
 
 def register_message(cleanup: Cleanup, *, email: str | None = None) -> dict[str, Any]:
-    """Um auto-cadastro: escrita anônima (docs/RESOURCE-CONTROL-LOOP.md §6.1.2)."""
+    """Um auto-cadastro: escrita anônima (docs/loop/RESOURCE-CONTROL-LOOP.md §6.1.2)."""
     return requested_message(
         resource_type="account",
         resource_id=cleanup.track(str(uuid.uuid7())),

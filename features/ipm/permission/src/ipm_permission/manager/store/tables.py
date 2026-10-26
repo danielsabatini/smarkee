@@ -1,4 +1,4 @@
-"""Tabelas do SSOT de cada tipo de recurso (`docs/POSTGRESQL.md`)."""
+"""Tabelas do SSOT de cada tipo de recurso (`docs/data/POSTGRESQL.md`)."""
 
 from dataclasses import dataclass
 

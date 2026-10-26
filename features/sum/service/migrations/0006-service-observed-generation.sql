@@ -1,5 +1,5 @@
 -- Migração 0006 de sum."service": geração confirmada pela observação (decisões 0072 e 0080).
--- Aditiva e idempotente (expandir, `docs/POSTGRESQL.md` §15). `observed_generation` é a última
+-- Aditiva e idempotente (expandir, `docs/data/POSTGRESQL.md` §15). `observed_generation` é a última
 -- geração cuja convergência o Manager confirmou com uma observação feita depois dela, como o
 -- `status.observedGeneration` do Kubernetes: nula até a primeira confirmação, só cresce e nunca
 -- passa de `desired_generation`.

@@ -1,5 +1,5 @@
 -- Proprietário e banco do SSOT (apenas desenvolvimento local; credenciais triviais).
--- Conforme docs/POSTGRESQL.md: banco único `ssot`, proprietário `ssot` (não superusuário),
+-- Conforme docs/data/POSTGRESQL.md: banco único `ssot`, proprietário `ssot` (não superusuário),
 -- usado somente por migração e recuperação. Os papéis de serviço são criados por `core.sql` e `ipm.sql`
 -- (um arquivo por módulo), e os privilégios, pela migração de cada tipo.
 -- Idempotente: pode ser reaplicado sem erro.

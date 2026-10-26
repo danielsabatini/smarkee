@@ -16,7 +16,7 @@
    - `ipm.organization` (`SubAccountId`) recebe o campo aditivo e opcional `billingAccountId` no `desired` e nos contratos de criação e atualização (`POST`/`PATCH /v1/ipm/organizations`), referenciando a `bsm.account` que paga pelos recursos daquela Organization.
 
 3. **Separação entre o plano mutável de recursos e o plano imutável de fatos financeiros.**
-   - Entidades cadastrais e de configuração (`bsm.account`, `bsm.export`, `ipm.organization`) usam o **Resource Control Loop** (`docs/RESOURCE-CONTROL-LOOP.md`) sobre o SSOT em PostgreSQL (`docs/SSOT.md`).
+   - Entidades cadastrais e de configuração (`bsm.account`, `bsm.export`, `ipm.organization`) usam o **Resource Control Loop** (`docs/loop/RESOURCE-CONTROL-LOOP.md`) sobre o SSOT em PostgreSQL (`docs/data/SSOT.md`).
    - Fatos financeiros (`Metering`, `Pricing` e `Invoicing`) usam um pipeline assíncrono **append-only** via NATS JetStream, sem reconciliação nem mutação retroativa: períodos fechados são corrigidos exclusivamente por lançamentos compensatórios com `ChargeClass = "Correction"`.
    - É **vedado** usar o pipeline de observabilidade OpenTelemetry (`docs/telemetry/OBSERVABILITY-ARCHITECTURE.md`) para transportar eventos de `Metering`, pois coletores de telemetria admitem descarte e amostragem sob pressão.
 

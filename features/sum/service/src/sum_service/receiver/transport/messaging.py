@@ -1,4 +1,4 @@
-"""Publicação do `requested` pelo Receiver (`docs/NATS.md`).
+"""Publicação do `requested` pelo Receiver (`docs/messaging/NATS.md`).
 
 Publica com `Nats-Msg-Id` igual ao `operationId`: o transporte descarta a repetição do mesmo pedido.
 O `traceparent` da requisição, se houver, vai no header NATS de mesmo nome, sem alteração

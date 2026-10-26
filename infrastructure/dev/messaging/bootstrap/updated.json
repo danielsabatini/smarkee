@@ -1,6 +1,6 @@
 {
   "name": "UPDATED",
-  "description": "Fato: alterações consolidadas pelo Manager (docs/NATS.md, 6.5)",
+  "description": "Fato: alterações consolidadas pelo Manager (docs/messaging/NATS.md, 6.5)",
   "subjects": [
     "manager.updated.>"
   ],

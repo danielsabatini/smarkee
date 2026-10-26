@@ -141,7 +141,7 @@ Valores sensíveis ficam nos arquivos `.env` (fora do git). As senhas dos bancos
 | NATS | `SMARKEE_MESSAGING_USER` (`smarkee`) | `SMARKEE_MESSAGING_PASSWORD` | `messaging/.env` (um único usuário em dev, compartilhado pelos serviços) |
 | Gateway (APISIX), Admin API e console web | — | `SMARKEE_GATEWAY_ADMIN_KEY` | `gateway/.env` (chave obrigatória, sem padrão) |
 
-O usuário `ssot` é o proprietário do SSOT, destinado a migrações (`docs/POSTGRESQL.md`). Cada serviço usa um papel de login próprio, membro de um papel de função sem login (`docs/POSTGRESQL.md` §14.2 e §14.3). Criar papéis exige `CREATEROLE`, que o `smarkee` não tem: os papéis são criados como administrador em `database/bootstrap/<módulo>.sql`, e os privilégios são concedidos pela migração do módulo.
+O usuário `ssot` é o proprietário do SSOT, destinado a migrações (`docs/data/POSTGRESQL.md`). Cada serviço usa um papel de login próprio, membro de um papel de função sem login (`docs/data/POSTGRESQL.md` §14.2 e §14.3). Criar papéis exige `CREATEROLE`, que o `smarkee` não tem: os papéis são criados como administrador em `database/bootstrap/<módulo>.sql`, e os privilégios são concedidos pela migração do módulo.
 
 ## Strings de conexão
 
@@ -228,7 +228,7 @@ uv run sk auth login
 
 ### Conta de bootstrap da plataforma (`platform-bootstrap@smarkee.internal`)
 
-`platform-bootstrap@smarkee.internal` é o usuário de máquina administrativo da instância do Zitadel (`IAM_OWNER`). Ele é usado **somente pela infraestrutura**, para configurar a plataforma no Zitadel: o projeto `roles`, as roles, a aplicação `cli` e um usuário de máquina por Executor, com papel mínimo (por exemplo, `ipm-organization-executor`). **Nenhum serviço de runtime usa essa conta** (decisão 0011): cada Executor tem a sua identidade (`docs/RESOURCE-CONTROL-SECURITY.md`). A chave fica em `/zitadel/bootstrap/service-account-platform-bootstrap.json`, no volume `identity-bootstrap`.
+`platform-bootstrap@smarkee.internal` é o usuário de máquina administrativo da instância do Zitadel (`IAM_OWNER`). Ele é usado **somente pela infraestrutura**, para configurar a plataforma no Zitadel: o projeto `roles`, as roles, a aplicação `cli` e um usuário de máquina por Executor, com papel mínimo (por exemplo, `ipm-organization-executor`). **Nenhum serviço de runtime usa essa conta** (decisão 0011): cada Executor tem a sua identidade (`docs/loop/RESOURCE-CONTROL-SECURITY.md`). A chave fica em `/zitadel/bootstrap/service-account-platform-bootstrap.json`, no volume `identity-bootstrap`.
 
 - **Instância nova** (depois de `docker compose down -v`): o próprio Zitadel cria a conta e grava a chave, pelas variáveis `ZITADEL_FIRSTINSTANCE_ORG_MACHINE_*` e `ZITADEL_FIRSTINSTANCE_MACHINEKEYPATH` de `identity/compose.yaml`.
 - **Instância existente**: as variáveis não se aplicam. Crie pelo console, uma vez:
@@ -272,7 +272,7 @@ Faça a rotação antes do aviso da suíte (90 dias antes do vencimento). A vali
 O estado inicial é configurado, em primeiro lugar, **por variáveis de ambiente ou pela forma mais simples que a ferramenta oferecer**. Arquivo de bootstrap é o último recurso, usado só quando não há alternativa; nesse caso, o serviço guarda o seu **estado inicial declarado** em `bootstrap/`: arquivos direto na raiz da pasta, cada um com o nome do que configura, em formato nativo da ferramenta e sem scripts. Por isso o Zitadel não tem pasta (primeira instância por `ZITADEL_FIRSTINSTANCE_*` e `ZITADEL_DEFAULTINSTANCE_*` em `identity/compose.yaml`), e database, messaging e gateway têm:
 
 - database: as variáveis da imagem criam um único banco e usuário; são necessários três bancos com donos próprios, a localidade do `ssot` e as revogações de `PUBLIC`;
-- messaging: o `nats-server` não declara Streams por configuração nem por variável, e serviços de runtime não podem criá-los (`docs/NATS.md`);
+- messaging: o `nats-server` não declara Streams por configuração nem por variável, e serviços de runtime não podem criá-los (`docs/messaging/NATS.md`);
 - gateway: o console web do APISIX exige a Admin API e o etcd (modo tradicional), que não aceitam um arquivo de rotas; o estado é aplicado pelo ADC a partir de `adc.yaml`. A configuração do servidor (`nats.conf`, `postgresql.conf`, `pg_hba.conf`, `pg_ident.conf`, `config.yaml` do gateway) fica fora de `bootstrap/`. Decisão em `.decisions/0005-bootstrap-declarativo-da-infraestrutura.md`.
 
 | Serviço | Fonte | Quem aplica | Quando | Efeito de alterar um arquivo depois |
@@ -281,13 +281,13 @@ O estado inicial é configurado, em primeiro lugar, **por variáveis de ambiente
 | identity | Sem pasta: variáveis `ZITADEL_FIRSTINSTANCE_*` e `ZITADEL_DEFAULTINSTANCE_*` (nome da instância, marca d'água e textos de e-mail) em `identity/compose.yaml` | `identity-init` (`zitadel init zitadel`: schemas internos) → `identity` (`start-from-setup`) | Só na primeira inicialização da instância | Nenhum, até recriar a instância (`docker compose down -v`) |
 | gateway | `bootstrap/adc.yaml` (formato do ADC: serviços, rotas e plugins) | `gateway-etcd` → `gateway` → `gateway-sync` (`adc sync`) | A cada `up`, depois que o `gateway` fica saudável | Reaplica na hora, sem reiniciar; remove do gateway o que saiu do arquivo (pontos de atenção) |
 | messaging | `bootstrap/<stream>.json` (Stream do JetStream). Os consumers duráveis de cada tipo são das features (`consumers/` e `<módulo>-<tipo>-consumer` no `compose.yaml` delas) | Um serviço `messaging-bootstrap-<nome>` por arquivo | A cada `up`, depois que o messaging fica saudável | Falha de forma explícita até a alteração deliberada (abaixo) |
-| features (fora deste diretório) | `features/core/account/migrations/*.sql` (schema `core`) e `features/ipm/organization/migrations/*.sql` (schema `ipm`): tabelas, views e privilégios no SSOT. O código é do Manager de cada tipo (decisão 0015) | `core-account-migrate` e `ipm-organization-migrate`, no `compose.yaml` da feature (`psql` como o dono `smarkee`, arquivos em ordem) | A cada `up`, depois que o banco fica saudável | Aplicado no próximo `up`; as migrações são idempotentes e seguem expandir → migrar → contrair (`docs/POSTGRESQL.md` §15) |
+| features (fora deste diretório) | `features/core/account/migrations/*.sql` (schema `core`) e `features/ipm/organization/migrations/*.sql` (schema `ipm`): tabelas, views e privilégios no SSOT. O código é do Manager de cada tipo (decisão 0015) | `core-account-migrate` e `ipm-organization-migrate`, no `compose.yaml` da feature (`psql` como o dono `smarkee`, arquivos em ordem) | A cada `up`, depois que o banco fica saudável | Aplicado no próximo `up`; as migrações são idempotentes e seguem expandir → migrar → contrair (`docs/data/POSTGRESQL.md` §15) |
 
 Os contêineres de inicialização equivalem a *initContainers*: cada um executa um único comando da CLI oficial e termina; o serviço seguinte declara `depends_on` com `service_completed_successfully`.
 
 NATS:
 
-- Os seis Streams operacionais de `docs/NATS.md` são `REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT` e `UPDATED`. O `nats-server` não declara Streams no `nats.conf`; por isso, a criação é pela CLI oficial (imagem mínima `smarkee-nats-client:dev`, em `infrastructure/tools/nats-client`).
+- Os seis Streams operacionais de `docs/messaging/NATS.md` são `REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT` e `UPDATED`. O `nats-server` não declara Streams no `nats.conf`; por isso, a criação é pela CLI oficial (imagem mínima `smarkee-nats-client:dev`, em `infrastructure/tools/nats-client`).
 - **Todo arquivo novo em `messaging/bootstrap/` exige o seu serviço `messaging-bootstrap-<stream>`** em `messaging/compose.yaml` (âncora `x-messaging-bootstrap`); sem ele, o arquivo é ignorado.
 - O Stream `ACTION` é **particionado** por `resourceId` (`subject_transform` em `bootstrap/action.json`, 4 partições, decisão 0018): o Subject armazenado ganha o token da partição, e cada Executor tem um consumer por partição. Mudar o número de partições exige recriar o Stream e os consumers.
 - Stream inexistente é criado; existente com a mesma configuração não muda. Com configuração diferente, o contêiner falha (`stream name already in use with a different configuration`). Para aplicar a alteração de forma deliberada:
@@ -310,7 +310,7 @@ SSOT: num volume do banco já existente, os papéis de `database/bootstrap/core.
 
 ## Exemplos
 
-PostgreSQL (o banco `ssot` é o SSOT, conforme `docs/POSTGRESQL.md`; as tabelas dos tipos `core.account` e `ipm.organization` são criadas pelas migrações das features):
+PostgreSQL (o banco `ssot` é o SSOT, conforme `docs/data/POSTGRESQL.md`; as tabelas dos tipos `core.account` e `ipm.organization` são criadas pelas migrações das features):
 
 ```bash
 # Com psql instalado no host
@@ -358,7 +358,7 @@ docker run --rm --network internal curlimages/curl -s -H 'Host: ipm-dev.smarkee.
   ```
 
 - A senha trivial do banco `identity` deve ser trocada antes de qualquer ambiente `stg` ou `prd`.
-- O NATS usa um único usuário em dev. A identidade e as permissões por serviço de `docs/NATS.md` e `docs/RESOURCE-CONTROL-SECURITY.md` não são exercitadas aqui; erros de permissão só aparecem em ambientes que as aplicam.
+- O NATS usa um único usuário em dev. A identidade e as permissões por serviço de `docs/messaging/NATS.md` e `docs/loop/RESOURCE-CONTROL-SECURITY.md` não são exercitadas aqui; erros de permissão só aparecem em ambientes que as aplicam.
 - Na subida a frio, o gateway pode responder 502/503 para um serviço que ainda não existia por alguns segundos, até resolver o nome. Normaliza sozinho.
 - Depois de recriar o contêiner de um Receiver (por exemplo, `docker compose up -d --build` de uma feature), o APISIX volta a resolver o nome sozinho: medido na PoC, a rota se recuperou em cerca de 3 s (com `502` nesse intervalo). Não é preciso reiniciar o gateway.
 - Desenvolvimento apenas: o Zitadel roda como root, não há TLS e não há arquivamento de WAL (o procedimento de recuperação do SSOT não é testável aqui).

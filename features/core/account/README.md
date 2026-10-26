@@ -1,6 +1,6 @@
 # core.account
 
-O **Account** é a identidade da plataforma: a pessoa que se cadastra sozinha (`sk account create`) e depois se autentica (`sk auth login`) para criar Organizations. É um recurso do módulo `core`, gerenciado pelo Resource Control Loop (`docs/RESOURCE-CONTROL-LOOP.md`), e vive na organização de sistema `core` do Zitadel.
+O **Account** é a identidade da plataforma: a pessoa que se cadastra sozinha (`sk account create`) e depois se autentica (`sk auth login`) para criar Organizations. É um recurso do módulo `core`, gerenciado pelo Resource Control Loop (`docs/loop/RESOURCE-CONTROL-LOOP.md`), e vive na organização de sistema `core` do Zitadel.
 
 Decisões que definem este módulo: `.decisions/0014-user-no-modulo-core-com-auto-cadastro.md` (Account, auto-cadastro sem senha), `0013` (API → CLI → console, Zitadel protegido), `0010` (roles e dono), `0015` (componentes por papel), `0017` (estrutura interna dos componentes e testes e2e), `0018` (partição do `ACTION`, saúde e erro permanente do Publisher), `0019` (Publisher como sexto papel) e `0020` (Receiver em lugar de API). **Esta é a primeira feature e o modelo das demais.**
 
@@ -20,7 +20,7 @@ Decisões que definem este módulo: `.decisions/0014-user-no-modulo-core-com-aut
 
 **Estrutura interna.** Os seis papéis seguem a decisão 0017 (camadas `domain/` puro, orquestração, adaptadores e `main.py`, com um teste por projeto que falha se o `domain/` importar um adaptador) e a decisão 0018 (`/health/live`, `/health/ready` e `/health/startup` em cada componente; no Publisher, a readiness também cai diante de recusa permanente do transporte; o Stream `ACTION` é particionado por `resourceId`). Verificado em 2026-10-11: testes de cada projeto, `ruff`, `pyright` e os testes e2e contra o Zitadel e o Mailpit reais.
 
-O loop completo foi verificado em desenvolvimento contra o Zitadel e o Mailpit reais (conformidade, 2026-10-11): cadastro anônimo, criação do usuário sem senha, e-mail "Verificar e-mail" (um só, que também define a senha), observação, `Ready` e remoção pelo próprio loop. A ativação foi verificada em dev em 2026-10-12: a pessoa definiu a senha e confirmou o e-mail, e os reenvios pelo provedor funcionaram (`docs/IMPLEMENTATION-STATUS.md` §7). **Não verificado de ponta a ponta:** o `sk auth login` com o usuário novo.
+O loop completo foi verificado em desenvolvimento contra o Zitadel e o Mailpit reais (conformidade, 2026-10-11): cadastro anônimo, criação do usuário sem senha, e-mail "Verificar e-mail" (um só, que também define a senha), observação, `Ready` e remoção pelo próprio loop. A ativação foi verificada em dev em 2026-10-12: a pessoa definiu a senha e confirmou o e-mail, e os reenvios pelo provedor funcionaram (`docs/platform/IMPLEMENTATION-STATUS.md` §7). **Não verificado de ponta a ponta:** o `sk auth login` com o usuário novo.
 
 # 2. Arquitetura
 
@@ -193,9 +193,9 @@ Em desenvolvimento, as mensagens chegam ao Mailpit (http://localhost:8025). Em o
 - **Senha:** na tela de login do Zitadel (`http://ipm-dev.smarkee.com.br:8080/ui/v2/login/`), use a opção de recuperar a senha ("Esqueci a senha") e informe o e-mail do cadastro, que é também o nome de login. O Zitadel envia um novo link. Use sempre o link da mensagem mais recente.
 - **Verificação do e-mail:** na página de verificação, use a opção de reenviar o código.
 
-Esses reenvios não passam pela plataforma, de propósito: um reenvio anônimo revelaria se um e-mail já está cadastrado (`docs/RESOURCE-CONTROL-LOOP.md`, seção 6.1.2).
+Esses reenvios não passam pela plataforma, de propósito: um reenvio anônimo revelaria se um e-mail já está cadastrado (`docs/loop/RESOURCE-CONTROL-LOOP.md`, seção 6.1.2).
 
-**Procedimento do operador (dev).** Se a opção do provedor não estiver disponível, um operador reenvia com a conta de serviço do Executor, que já tem essa permissão (`docs/RESOURCE-CONTROL-SECURITY.md`, seção 9): `POST /v2/users/{id}/password_reset` com `{"sendLink": {}}` para o link de senha, e `POST /v2/users/{id}/email/resend` com `{"sendCode": {}}` para o código de verificação. A chave da conta de serviço nunca sai do volume `identity-bootstrap`.
+**Procedimento do operador (dev).** Se a opção do provedor não estiver disponível, um operador reenvia com a conta de serviço do Executor, que já tem essa permissão (`docs/loop/RESOURCE-CONTROL-SECURITY.md`, seção 9): `POST /v2/users/{id}/password_reset` com `{"sendLink": {}}` para o link de senha, e `POST /v2/users/{id}/email/resend` com `{"sendCode": {}}` para o código de verificação. A chave da conta de serviço nunca sai do volume `identity-bootstrap`.
 
 ## 4.8 Remoção
 
@@ -217,7 +217,7 @@ Fontes: [`01-fase-do-recurso.mmd`](docs/state/01-fase-do-recurso.mmd) e [`02-ope
 
 # 6. Mensageria
 
-Gramática: `<emitter>.<messageType>.<module>.<resourceType>.<resourceId>.<operation>` (`docs/MESSAGING.md`). Para este tipo, `module = core` e `resourceType = user`.
+Gramática: `<emitter>.<messageType>.<module>.<resourceType>.<resourceId>.<operation>` (`docs/messaging/MESSAGING.md`). Para este tipo, `module = core` e `resourceType = user`.
 
 | Mensagem | Subject | Publica | Consome | Stream |
 |---|---|---|---|---|
@@ -289,14 +289,14 @@ Os e-mails do Zitadel de dev são capturados pelo Mailpit (http://localhost:8025
 - **Retomada de `Failed`:** a Account não tem `update`; falta definir a intervenção explícita.
 - **Remoção com dependentes:** a ordem de remoção entre recursos dependentes (um usuário dono de Organizations) não está definida.
 - **Quarentena e `ObservationStale`:** mensagens esgotadas não têm quarentena, e a condition `ObservationStale` ainda não é registrada pelo Manager.
-- **Executor:** os consumers de `ACTION` usam `max_ack_pending = 1` sem `pinned_client` (a validar no servidor, `docs/NATS.md` §7.5). O número de partições (4) é fixado no bootstrap do messaging.
+- **Executor:** os consumers de `ACTION` usam `max_ack_pending = 1` sem `pinned_client` (a validar no servidor, `docs/messaging/NATS.md` §7.5). O número de partições (4) é fixado no bootstrap do messaging.
 - **Migrações:** sem controle de versão (obrigatório antes de stg e prd).
 - **Observer:** em dev, uma só partição (`0/1`, aplicada na aplicação por `hash(resourceId) mod count`); com mais réplicas, defina `CORE_ACCOUNT_OBSERVER_PARTITION_INDEX` e `CORE_ACCOUNT_OBSERVER_PARTITION_COUNT` por réplica (por exemplo, `StatefulSet` no Kubernetes).
-- **Identidades no NATS em dev:** os componentes se conectam com um único usuário (`smarkee`) e a senha da plataforma; o nome de conexão é o `core-account-<papel>`. As identidades e permissões por papel (`docs/NATS.md` §18 e §26) são o alvo para stg e prd.
+- **Identidades no NATS em dev:** os componentes se conectam com um único usuário (`smarkee`) e a senha da plataforma; o nome de conexão é o `core-account-<papel>`. As identidades e permissões por papel (`docs/messaging/NATS.md` §18 e §26) são o alvo para stg e prd.
 
 # 11. Banco de dados (SSOT da Account)
 
-O SSOT da Account é o schema `core` do banco PostgreSQL `smarkee` (decisão 0001), de propriedade do usuário `smarkee`, que só migra e recupera. A especificação lógica está em [`docs/SSOT.md`](../../../docs/SSOT.md) e a física, em [`docs/POSTGRESQL.md`](../../../docs/POSTGRESQL.md); esta seção descreve o que existe de fato para o tipo `account`.
+O SSOT da Account é o schema `core` do banco PostgreSQL `smarkee` (decisão 0001), de propriedade do usuário `smarkee`, que só migra e recupera. A especificação lógica está em [`docs/data/SSOT.md`](../../../docs/data/SSOT.md) e a física, em [`docs/data/POSTGRESQL.md`](../../../docs/data/POSTGRESQL.md); esta seção descreve o que existe de fato para o tipo `account`.
 
 - **Criação:** a migração [`migrations/0001-account.sql`](migrations/0001-account.sql) (código do Manager, decisões 0015 e 0063) é aplicada pelo serviço `core-account-migrate`, com o papel administrativo, a cada `up`; é idempotente. Os papéis de serviço vêm de [`infrastructure/dev/database/bootstrap/core.sql`](../../../infrastructure/dev/database/bootstrap/core.sql).
 - **Nomes:** a tabela do tipo é `core.account`, e as demais são `core.account_operation`, `core.account_action_result` e `core.account_outbox`; as views (`core.account_v1`, `core.account_operation_v1`) não precisam de aspas.
@@ -357,7 +357,7 @@ A figura genérica, por mensagem: [`docs/diagrams/ssot-gravacao-por-mensagem.svg
 
 ## 11.6 Dados pessoais no banco
 
-`givenName`, `familyName` e `email` ficam em claro em `core.account.desired` e no `payload` da linha do outbox que carregou o `desired` de criação. O `request_digest` da Operation é o SHA-256 do conteúdo do pedido (inclui esses campos), e não o conteúdo. Com a remoção do usuário, a linha de `core.account` sai e o `desired` de remoção não os carrega, **mas o outbox e as Operations não têm retenção implementada**: o `payload` do `desired` de criação permanece no outbox (e no Stream `DESIRED`, como tombstone até a limpeza). É uma pendência de privacidade, registrada em `docs/IMPLEMENTATION-STATUS.md`.
+`givenName`, `familyName` e `email` ficam em claro em `core.account.desired` e no `payload` da linha do outbox que carregou o `desired` de criação. O `request_digest` da Operation é o SHA-256 do conteúdo do pedido (inclui esses campos), e não o conteúdo. Com a remoção do usuário, a linha de `core.account` sai e o `desired` de remoção não os carrega, **mas o outbox e as Operations não têm retenção implementada**: o `payload` do `desired` de criação permanece no outbox (e no Stream `DESIRED`, como tombstone até a limpeza). É uma pendência de privacidade, registrada em `docs/platform/IMPLEMENTATION-STATUS.md`.
 
 ## 11.7 Consultas úteis (dev)
 

@@ -1265,7 +1265,7 @@ Cada serviço escala conforme o seu papel. Nem toda réplica adicional aumenta a
 | Publisher | Disponibilidade | Uma instância ativa por outbox (trava consultiva de sessão); as demais aguardam a trava |
 | Observer | Vazão de observação e disponibilidade | Partição por `resourceId` (ver *Coordenação da observação*) |
 | Reconciler | Disponibilidade | Cada réplica mantém o estado completo e toma decisões equivalentes. Se a CPU exigir, aplicar a partição por `resourceId` |
-| Executor | Disponibilidade | Uma `action` por vez em cada recurso (*single-flight*), com paralelismo entre recursos por partição do Stream `ACTION` por `resourceId` (`docs/NATS.md` §7.5; decisão 0018). A vazão total é limitada pelo provider |
+| Executor | Disponibilidade | Uma `action` por vez em cada recurso (*single-flight*), com paralelismo entre recursos por partição do Stream `ACTION` por `resourceId` (`docs/messaging/NATS.md` §7.5; decisão 0018). A vazão total é limitada pelo provider |
 
 # 34. Concorrência
 

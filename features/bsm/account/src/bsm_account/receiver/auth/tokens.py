@@ -2,7 +2,7 @@
 
 O Receiver só **valida** tokens: assinatura pelas chaves públicas (JWKS), `iss`, `aud` (ID do
 projeto do módulo) e `exp`. Ela não tem credencial de escrita no provedor
-(`docs/RESOURCE-CONTROL-SECURITY.md` §9). As permissões vêm do claim
+(`docs/loop/RESOURCE-CONTROL-SECURITY.md` §9). As permissões vêm do claim
 `urn:zitadel:iam:org:project:<ID do projeto>:roles` (camada anticorrupção do Zitadel). O
 pertencimento da Billing Account é decidido pelo dono (`ownerAccountId`) guardado no SSOT.
 """

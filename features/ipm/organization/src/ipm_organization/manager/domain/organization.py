@@ -2,7 +2,7 @@
 
 Puro: sem banco, rede ou relógio. O nome único, os nomes reservados e a cota por dono são declarados
 aqui (`unique_value`, `invalid`, `owner_quota`) e verificados na mesma unidade atômica do pedido
-pelo adaptador do SSOT (`docs/SSOT.md` §10.1).
+pelo adaptador do SSOT (`docs/data/SSOT.md` §10.1).
 """
 
 from collections.abc import Iterable, Mapping

@@ -65,7 +65,7 @@ Quando houver conflito:
 ```text
 AGENTS.md
     >
-docs/SCHEMA.md
+docs/data/SCHEMA.md
     >
 schemas/<contract>
     >
@@ -843,9 +843,9 @@ A governança de schemas é considerada adequada quando:
 
 # 31. Referências
 
-- [MESSAGING.md](MESSAGING.md): semântica de mensageria e campos do envelope.
-- [RESOURCE-CONTROL-LOOP.md](RESOURCE-CONTROL-LOOP.md): padrão de convergência que consome estes contratos.
-- [RESOURCE-CONTROL-SECURITY.md](RESOURCE-CONTROL-SECURITY.md): segurança do control loop.
+- [MESSAGING.md](../messaging/MESSAGING.md): semântica de mensageria e campos do envelope.
+- [RESOURCE-CONTROL-LOOP.md](../loop/RESOURCE-CONTROL-LOOP.md): padrão de convergência que consome estes contratos.
+- [RESOURCE-CONTROL-SECURITY.md](../loop/RESOURCE-CONTROL-SECURITY.md): segurança do control loop.
 - [SSOT.md](SSOT.md): modelo e garantias de gravação do SSOT.
-- [NATS.md](NATS.md): implementação do transporte.
+- [NATS.md](../messaging/NATS.md): implementação do transporte.
 - `schemas/`: fonte de verdade dos contratos formais individuais.

@@ -1,6 +1,6 @@
 """Motor do Observer de `sum.service`: decide quando observar, lê o Zitadel e publica `observed`.
 
-O Observer não altera o sistema externo (`docs/RESOURCE-CONTROL-LOOP.md`). Observa uma ligação:
+O Observer não altera o sistema externo (`docs/loop/RESOURCE-CONTROL-LOOP.md`). Observa uma ligação:
 
 - quando o `desired` é novo ou muda de geração (com o dono e o serviço vindos do `desired`);
 - depois de cada `completed` ou `failed`, com `causationId` igual ao `messageId` do resultado;

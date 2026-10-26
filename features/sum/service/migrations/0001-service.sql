@@ -99,7 +99,7 @@ CREATE OR REPLACE VIEW sum.service_operation_v1 AS
          requested_by
     FROM sum.service_operation;
 
--- Privilégios (docs/POSTGRESQL.md §14.2).
+-- Privilégios (docs/data/POSTGRESQL.md §14.2).
 GRANT CONNECT ON DATABASE ssot
   TO sum_service_manager, sum_service_receiver, sum_service_publisher, sum_service_maintenance;
 

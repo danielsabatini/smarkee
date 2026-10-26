@@ -1,7 +1,7 @@
 """Montagem das mensagens que o Manager registra no outbox (`desired` e `updated`).
 
 O Manager não publica: grava no outbox, na mesma transação, e o Publisher publica
-(`docs/POSTGRESQL.md` §11).
+(`docs/data/POSTGRESQL.md` §11).
 """
 
 from collections.abc import Callable, Mapping

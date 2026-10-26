@@ -1,6 +1,6 @@
 # ipm.group: telemeter
 
-O **telemeter** de `ipm.group` **processa e grava a telemetria de aplicação** desta feature (logs e spans), para que a feature seja dona da sua observabilidade de app. Decisão [`0062`](../../../../.decisions/0062-coleta-de-telemetria-em-duas-camadas.md); a arquitetura inteira, com os diagramas, está em [`OBSERVABILITY-ARCHITECTURE.md`](../../../../docs/OBSERVABILITY-ARCHITECTURE.md).
+O **telemeter** de `ipm.group` **processa e grava a telemetria de aplicação** desta feature (logs e spans), para que a feature seja dona da sua observabilidade de app. Decisão [`0062`](../../../../.decisions/0062-coleta-de-telemetria-em-duas-camadas.md); a arquitetura inteira, com os diagramas, está em [`OBSERVABILITY-ARCHITECTURE.md`](../../../../docs/telemetry/OBSERVABILITY-ARCHITECTURE.md).
 
 Ele **não é um dos seis papéis do loop** (Receiver, Manager, Publisher, Reconciler, Observer e Executor): nenhum componente depende dele. É um papel de **observabilidade**, ao lado deles na pasta da feature (pasta `telemeter/`, contêiner `ipm-group-telemeter`).
 

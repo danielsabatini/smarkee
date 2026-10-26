@@ -1,4 +1,4 @@
-"""Laço de consumo pull de um consumer durável (`docs/NATS.md` §7.3).
+"""Laço de consumo pull de um consumer durável (`docs/messaging/NATS.md` §7.3).
 
 A mensagem é confirmada (ACK) depois que o motor a processa. Se o motor falhar, a mensagem volta
 à fila com atraso (`nak`). Os consumers são declarados pela infraestrutura (`sum-service-consumer`).

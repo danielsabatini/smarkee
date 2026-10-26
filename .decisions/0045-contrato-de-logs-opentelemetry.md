@@ -1,7 +1,7 @@
 # 0045 — Contrato de logs da plataforma, 100% OpenTelemetry
 
 - **Data:** 2026-10-16
-- **Status:** Aceita e implementada nos 18 componentes (`core.account`, `ipm.organization` e `sum.service`). O contrato está em [`docs/OBSERVABILITY.md`](../docs/OBSERVABILITY.md). Complementa a segurança de logs de `docs/RESOURCE-CONTROL-SECURITY.md` §13 e não altera a 0015.
+- **Status:** Aceita e implementada nos 18 componentes (`core.account`, `ipm.organization` e `sum.service`). O contrato está em [`docs/telemetry/OBSERVABILITY.md`](../docs/telemetry/OBSERVABILITY.md). Complementa a segurança de logs de `docs/loop/RESOURCE-CONTROL-SECURITY.md` §13 e não altera a 0015.
 
 ## Contexto
 
@@ -15,7 +15,7 @@ Restrição que deve continuar valendo: a mensagem de exceção não entra no lo
 - **O formatter continua sendo código próprio de cada componente**, sem o SDK de logs do OpenTelemetry para Python e sem dependência nova.
 - **O componente não envia o log a nenhum destino.** O stdout é lido por um coletor (OpenTelemetry Collector, `filelog receiver`), que converte a linha em LogRecord e entrega ao destino.
 - **Exceção deliberada à semconv:** `exception.message` e `exception.stacktrace` não são emitidos (por segurança). `exception.type` e o local do último quadro (`code.*`) são suficientes para o diagnóstico. A semconv só exige `exception.message` quando `exception.type` não está definido, então a regra é compatível.
-- O detalhe do contrato (campos, severidade, atributos, proibições, coleta e conformidade) pertence a `docs/OBSERVABILITY.md`; este registro não o repete.
+- O detalhe do contrato (campos, severidade, atributos, proibições, coleta e conformidade) pertence a `docs/telemetry/OBSERVABILITY.md`; este registro não o repete.
 
 ## Justificativa
 

@@ -4,7 +4,7 @@ A política interpreta o `requested` do seu tipo, calcula o novo `desired` e inf
 unicidade. Quem consulta o estado do SSOT para aplicá-las é o adaptador `store/` (decisão 0017).
 O `desired` guardado no SSOT tem o formato do contrato (camelCase) e contém a especificação **e**
 o `lifecycle`; a `reconciliation` é um campo à parte, porque mudá-la não incrementa a geração
-(`docs/SCHEMA.md` §7.1).
+(`docs/data/SCHEMA.md` §7.1).
 """
 
 from collections.abc import Mapping
@@ -64,5 +64,5 @@ class ResourcePolicy(Protocol):
     def is_converged(
         self, desired: Mapping[str, Any], presence: str, observed: Mapping[str, Any] | None
     ) -> bool:
-        """Compara `desired` e `observed` pelos campos gerenciados (`docs/SCHEMA.md` §9.1)."""
+        """Compara `desired` e `observed` pelos campos gerenciados (`docs/data/SCHEMA.md` §9.1)."""
         ...

@@ -1,8 +1,10 @@
 """Decisão de reconciliação do Grupo: função pura sobre o estado em memória.
 
 O Reconciler decide, e não executa: compara `desired` e `observed` e responde com a `action` a
-publicar, ou com nada (`docs/RESOURCE-CONTROL-LOOP.md`). A decisão respeita as regras de segurança
-do loop (`docs/RESOURCE-CONTROL-SECURITY.md` §7 e §8): não decide com `observed` inconclusivo ou
+publicar, ou com nada (`docs/loop/RESOURCE-CONTROL-LOOP.md`). A decisão respeita as regras de
+segurança
+do loop (`docs/loop/RESOURCE-CONTROL-SECURITY.md` §7 e §8): não decide com `observed` inconclusivo
+ou
 desatualizado, nem com `desired` suspenso, e não reemite uma `action` pendente.
 """
 
@@ -191,5 +193,5 @@ def drift(desired: DesiredState, observed: ObservedState) -> Decision | None:
 
 
 def action_id(resource_id: str, generation: int, operation: str, observed_message_id: str) -> str:
-    """Identidade determinística da decisão (`docs/RESOURCE-CONTROL-LOOP.md` §14.1)."""
+    """Identidade determinística da decisão (`docs/loop/RESOURCE-CONTROL-LOOP.md` §14.1)."""
     return f"{resource_id}.{generation}.{operation}.{observed_message_id}"

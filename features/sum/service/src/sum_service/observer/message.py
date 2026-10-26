@@ -1,4 +1,4 @@
-"""Mensagem `observed` de `sum.service` (`docs/RESOURCE-CONTROL-LOOP.md`; decisão 0033).
+"""Mensagem `observed` de `sum.service` (`docs/loop/RESOURCE-CONTROL-LOOP.md`; decisão 0033).
 
 O Observer publica o estado lido do Zitadel. Não decide: quem compara é o Reconciler.
 """

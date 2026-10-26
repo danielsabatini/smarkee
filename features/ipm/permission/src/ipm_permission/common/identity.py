@@ -1,7 +1,8 @@
 """Credencial das contas de serviço no Zitadel: configuração e token de acesso (decisão 0063).
 
 Observer (leitura) e Executor (escrita) autenticam do mesmo modo: *assertion* JWT assinada com a
-chave da conta de serviço, trocada por um access token (`docs/RESOURCE-CONTROL-SECURITY.md` §8,
+chave da conta de serviço, trocada por um access token (`docs/loop/RESOURCE-CONTROL-SECURITY.md`
+§8,
 §9). Só isto é comum; o que cada um faz com o token, e como trata os erros, é do papel.
 """
 

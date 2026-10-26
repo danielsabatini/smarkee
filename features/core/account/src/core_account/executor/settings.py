@@ -3,7 +3,8 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `CORE_ACCOUNT_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
 `CORE_ACCOUNT_EXECUTOR_MESSAGING_URL`
-(`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS e os identificadores do Zitadel. O Executor
+(`docs/data/SCHEMA.md` §8.3). Sem default: a senha do NATS e os identificadores do Zitadel. O
+Executor
 **não acessa o SSOT** e é a única identidade com escrita no Zitadel.
 """
 

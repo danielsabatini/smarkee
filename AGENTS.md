@@ -148,7 +148,7 @@ Os quatro pilares valem em todo ambiente, mas o nível exigido de cada um varia:
 
 1. **Segurança de código e de configuração** (redação de dados, autorização, menor privilégio, validação) não varia por ambiente. Somente a segurança de **infraestrutura que não existe em dev** (certificados, cofre de segredos, política de rede) pode diferir em dev, como lacuna declarada.
 2. **Robustez e resiliência de código** (validação de entrada, idempotência, erros explícitos, escrita atômica, tolerância a mensagens duplicadas) não variam por ambiente, porque o mesmo código vai a prd. Somente a de **infraestrutura** (réplicas, fila persistente, backup, retenção, quarentena, alta disponibilidade) pode ser menor em dev.
-3. Toda redução em dev é uma **lacuna declarada**: o que falta, por que é aceitável em dev e a condição que a fecha antes do stg. O registro é o `docs/IMPLEMENTATION-STATUS.md`. Uma lacuna que não esteja declarada é uma violação do piso.
+3. Toda redução em dev é uma **lacuna declarada**: o que falta, por que é aceitável em dev e a condição que a fecha antes do stg. O registro é o `docs/platform/IMPLEMENTATION-STATUS.md`. Uma lacuna que não esteja declarada é uma violação do piso.
 4. O stg tem o mesmo piso do prd. Nada é promovido a stg com lacuna aberta.
 
 ## 2.6 Caminho de evolução: do simples ao avançado

@@ -1,4 +1,6 @@
-"""Decisão de reconciliação da Billing Account (`docs/RESOURCE-CONTROL-LOOP.md` e segurança)."""
+"""Decisão de reconciliação da Billing Account (`docs/loop/RESOURCE-CONTROL-LOOP.md` e
+
+segurança)."""
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta

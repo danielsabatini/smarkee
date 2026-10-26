@@ -420,7 +420,7 @@ processors:
           - set(metric.name, "smarkee.messaging.server.connections") where metric.name == "nats_varz_connections"
 
   # Termina o LogRecord a partir da linha do contrato 0045: `event_name`, os ids de trace e a raiz de `attributes`
-  # (que o operador `move` do file_log não aceita como destino) são movidos aqui (docs/OBSERVABILITY.md §7).
+  # (que o operador `move` do file_log não aceita como destino) são movidos aqui (docs/telemetry/OBSERVABILITY.md §7).
   # O Resource e o escopo são por registro e já saíram no file_log; mexer neles aqui afetaria o lote inteiro.
   transform/smarkee_components:
     error_mode: ignore

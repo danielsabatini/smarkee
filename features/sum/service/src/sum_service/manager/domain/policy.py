@@ -14,5 +14,5 @@ class ResourcePolicy(Protocol):
     def is_converged(
         self, desired: Mapping[str, Any], presence: str, observed: Mapping[str, Any] | None
     ) -> bool:
-        """Compara `desired` e `observed` pelos campos gerenciados (`docs/SCHEMA.md` §9.1)."""
+        """Compara `desired` e `observed` pelos campos gerenciados (`docs/data/SCHEMA.md` §9.1)."""
         ...

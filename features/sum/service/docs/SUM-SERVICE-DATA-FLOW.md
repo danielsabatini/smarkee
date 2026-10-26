@@ -46,7 +46,7 @@ descritivo é `openapi.json`.
 Erros, todos no formato `api-error`: `400` entrada inválida (sem repetir o valor enviado), `401` sem token válido, `403`
 sem a role da ação, `404` inexistente ou de outro dono, `409` serviço já ligado ou versão desatualizada, `422` reuso da
 `Idempotency-Key` com outro pedido, `503` pedido não registrado (com `Retry-After`). Logo depois do `202`, a leitura pode
-dar `404` até o Manager gravar a ligação e a Operation (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1). Diagrama:
+dar `404` até o Manager gravar a ligação e a Operation (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1.1). Diagrama:
 [`flow/02-validacao-e-borda.svg`](flow/02-validacao-e-borda.svg).
 
 ## 2. Manager consome `requested` e grava (implementado)
@@ -133,7 +133,7 @@ Antes de executar, cada `action` passa por:
    emissor `manager`.
 2. **Idempotência:** um `actionId` com `completed` ou `failed` permanente já registrado não é executado de novo; o
    resultado é republicado com o mesmo `Nats-Msg-Id` (o transporte deduplica).
-3. **Revalidação contra o `desired` vigente** (`docs/RESOURCE-CONTROL-SECURITY.md` §7): sem `desired` ou com geração
+3. **Revalidação contra o `desired` vigente** (`docs/loop/RESOURCE-CONTROL-SECURITY.md` §7): sem `desired` ou com geração
    diferente é `failed` `StaleAction`; `reconciliation` suspenso é `failed` `Suspended`; `lifecycle` ausente ou
    inválido, ou operação não permitida, é `failed` `Rejected`. Todas permanentes. Não existe `lifecycle` padrão:
    sem ele o Executor não concede nada.

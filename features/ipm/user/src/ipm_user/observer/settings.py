@@ -3,7 +3,7 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `IPM_USER_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo
 `IPM_USER_OBSERVER_MESSAGING_URL`
-(`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS e o ID do projeto de roles. O Observer
+(`docs/data/SCHEMA.md` §8.3). Sem default: a senha do NATS e o ID do projeto de roles. O Observer
 não acessa o SSOT e só **lê** o Zitadel (conta `ipm-user-observer`, `ORG_OWNER_VIEWER` em cada
 organização de cliente, decisão 0077).
 """

@@ -1,4 +1,4 @@
-"""Conexão com o SSOT, com o papel de login de cada papel (`docs/POSTGRESQL.md` §14.2).
+"""Conexão com o SSOT, com o papel de login de cada papel (`docs/data/POSTGRESQL.md` §14.2).
 
 Os parâmetros de sessão (`search_path`, timeouts) vêm do papel de login (§14.3). As conexões do pool
 são `autocommit`: toda gravação abre a sua transação explícita (`connection.transaction()`).

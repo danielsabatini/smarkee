@@ -1,4 +1,4 @@
-"""Revalidação da `action` contra o `desired` vigente (`docs/RESOURCE-CONTROL-SECURITY.md` §7).
+"""Revalidação da `action` contra o `desired` vigente (`docs/loop/RESOURCE-CONTROL-SECURITY.md` §7).
 
 O Executor é o último ponto de controle antes do sistema externo: não confia cegamente em quem lhe
 enviou a `action`. Puro: recebe o `desired` já lido e devolve o motivo da recusa, ou `None`.

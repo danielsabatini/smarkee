@@ -1,4 +1,6 @@
-"""Identidade do recurso desta feature nas mensagens e nos subjects (`docs/MESSAGING.md`)."""
+"""Identidade do recurso desta feature nas mensagens e nos subjects
+
+(`docs/messaging/MESSAGING.md`)."""
 
 MODULE = "@@MODULE@@"
 RESOURCE_TYPE = "@@TYPE@@"

@@ -16,9 +16,9 @@ Este subagent é responsável pelo conhecimento semântico de mensageria assínc
 
 As regras gerais de comportamento dos agentes permanecem definidas no `AGENTS.md`.
 
-A especificação detalhada do contrato de mensageria é definida em `docs/MESSAGING.md`.
+A especificação detalhada do contrato de mensageria é definida em `docs/messaging/MESSAGING.md`.
 
-A implementação específica de NATS é definida em `docs/NATS.md` e deve ser executada por meio da skill `nats` quando a tarefa exigir operação ou configuração do broker.
+A implementação específica de NATS é definida em `docs/messaging/NATS.md` e deve ser executada por meio da skill `nats` quando a tarefa exigir operação ou configuração do broker.
 
 Este agent não executa comandos, altera arquivos ou administra brokers. Sua função é analisar, projetar, revisar e explicar decisões relacionadas ao modelo de mensageria.
 
@@ -48,11 +48,11 @@ Em mensageria, os critérios específicos a avaliar, que detalham os pilares sem
 
 # 3. Fonte de verdade e precedência
 
-A especificação semântica oficial está em `docs/MESSAGING.md`.
+A especificação semântica oficial está em `docs/messaging/MESSAGING.md`.
 
-A implementação NATS está em `docs/NATS.md`.
+A implementação NATS está em `docs/messaging/NATS.md`.
 
-As regras de criação e evolução dos schemas dos contratos estão em `docs/SCHEMA.md`.
+As regras de criação e evolução dos schemas dos contratos estão em `docs/data/SCHEMA.md`.
 
 A relação entre os artefatos é:
 
@@ -61,11 +61,11 @@ AGENTS.md
     ↓
 comportamento geral do agent
     ↓
-docs/MESSAGING.md
+docs/messaging/MESSAGING.md
     ↓
 semântica de mensageria
     ↓
-docs/NATS.md
+docs/messaging/NATS.md
     ↓
 implementação NATS
     ↓
@@ -98,7 +98,7 @@ reconciler
 executor
 ```
 
-Cada `messageType` possui um emissor típico (ver a matriz em `docs/MESSAGING.md`). Emissores de dois tokens (por exemplo, `worker.platform`) só são válidos quando `docs/MESSAGING.md` os definir, e exigem que filtros e autorizações considerem os dois tokens.
+Cada `messageType` possui um emissor típico (ver a matriz em `docs/messaging/MESSAGING.md`). Emissores de dois tokens (por exemplo, `worker.platform`) só são válidos quando `docs/messaging/MESSAGING.md` os definir, e exigem que filtros e autorizações considerem os dois tokens.
 
 ## 4.3 Destinatário não é identidade da mensagem
 
@@ -127,7 +127,7 @@ Não usar `task` e `reality` como substitutos semânticos desses conceitos.
 
 ## 4.5 Classes de mensagem
 
-Os sete `messageType` pertencem a três classes, que determinam entrega e retenção (`docs/MESSAGING.md`):
+Os sete `messageType` pertencem a três classes, que determinam entrega e retenção (`docs/messaging/MESSAGING.md`):
 
 | Classe | Tipos | Característica |
 |---|---|---|
@@ -142,11 +142,11 @@ O resultado da observação (`present`, `absent`, `unknown`) é o campo `presenc
 Em conformidade com o `AGENTS.md` (seção 24.1 - Relação com Agentes e Skills), este arquivo atua estritamente como instrução e critério de revisão para a inteligência artificial, e não como documentação teórica do projeto.
 
 **Toda a modelagem semântica, taxonomia (desired/observed), envelopes, roteamento lógico, idempotência e evolução de contratos estão definidos na documentação oficial em:**
-👉 `docs/MESSAGING.md`
+👉 `docs/messaging/MESSAGING.md`
 
-Contratos formais, versionamento e compatibilidade de schemas: `docs/SCHEMA.md`. Padrão de reconciliação que origina as mensagens `desired` e `observed`: `docs/RESOURCE-CONTROL-LOOP.md`. Autorização e segurança das mensagens do loop: `docs/RESOURCE-CONTROL-SECURITY.md`.
+Contratos formais, versionamento e compatibilidade de schemas: `docs/data/SCHEMA.md`. Padrão de reconciliação que origina as mensagens `desired` e `observed`: `docs/loop/RESOURCE-CONTROL-LOOP.md`. Autorização e segurança das mensagens do loop: `docs/loop/RESOURCE-CONTROL-SECURITY.md`.
 
-Ao atuar como subagente, **você deve consultar, ler e aplicar as regras descritas no `docs/MESSAGING.md`** para realizar qualquer avaliação, decisão ou desenho de contratos assíncronos.
+Ao atuar como subagente, **você deve consultar, ler e aplicar as regras descritas no `docs/messaging/MESSAGING.md`** para realizar qualquer avaliação, decisão ou desenho de contratos assíncronos.
 
 # 6. Revisão de novos Subjects/Topics
 
@@ -174,7 +174,7 @@ Antes de aprovar um novo endereço, verificar:
 
 # 7. Revisão de novos campos
 
-Os campos do envelope são definidos em `docs/MESSAGING.md`; a representação formal, a anotação de campo (`writer`, `sensitivity`) e a evolução estão em `docs/SCHEMA.md`.
+Os campos do envelope são definidos em `docs/messaging/MESSAGING.md`; a representação formal, a anotação de campo (`writer`, `sensitivity`) e a evolução estão em `docs/data/SCHEMA.md`.
 
 Para cada campo avaliar:
 
@@ -215,7 +215,7 @@ Não assumir ordering global sem requisito explícito.
 
 Não usar ACK como prova de convergência.
 
-Não escolher retenção sem avaliar a janela de recuperação (definida em `docs/NATS.md`).
+Não escolher retenção sem avaliar a janela de recuperação (definida em `docs/messaging/NATS.md`).
 
 Não criar uma dimensão de routing para cada atributo disponível no payload.
 

@@ -3,7 +3,7 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 
 Nome da variável: `CORE_ACCOUNT_MANAGER_<SEÇÃO>_<CAMPO>`, por exemplo
-`CORE_ACCOUNT_MANAGER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
+`CORE_ACCOUNT_MANAGER_MESSAGING_URL` (`docs/data/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
 from core_account.common.settings import (

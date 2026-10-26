@@ -11,7 +11,7 @@ O cadastro de usuário não concede mais as roles de `ipm.organization.*` (decis
 
 - **Módulo e tipo:** `sum` / `service`. O recurso é **o uso de um serviço por um usuário**: o par `ownerUserId` + `service`. Não há recurso por serviço compartilhado.
 - **Escopo por usuário**, decidido pelo usuário. Um serviço ligado para um usuário não liga para os outros.
-- **`resourceId`:** atribuído pelo Receiver (UUIDv7), como todo recurso (`docs/RESOURCE-CONTROL-LOOP.md`). A unicidade do par `ownerUserId` + `service` é regra do Receiver, que consulta o SSOT antes de aceitar o pedido.
+- **`resourceId`:** atribuído pelo Receiver (UUIDv7), como todo recurso (`docs/loop/RESOURCE-CONTROL-LOOP.md`). A unicidade do par `ownerUserId` + `service` é regra do Receiver, que consulta o SSOT antes de aceitar o pedido.
 - **API** (`/v1/sum/services`):
 
   | Método e rota | Efeito | Resposta |

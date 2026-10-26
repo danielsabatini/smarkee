@@ -1,7 +1,8 @@
 """Identificadores e instantes.
 
 Instantes sempre com fuso explícito (UTC), e identificadores opacos em UUIDv7 minúsculo
-(`docs/MESSAGING.md` §6.5). Funções pequenas e separadas para serem substituídas nos testes.
+(`docs/messaging/MESSAGING.md` §6.5). Funções pequenas e separadas para serem substituídas nos
+testes.
 """
 
 import uuid

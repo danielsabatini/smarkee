@@ -59,15 +59,15 @@ O SSOT não compartilha banco com componentes de terceiros (por exemplo, gateway
 
 **Entidade e relacionamento físico** de um tipo de recurso (`tipo` é o nome do tipo; as quatro tabelas e as duas views têm sempre este formato):
 
-![ER físico](diagrams/postgresql-er-fisico.svg)
+![ER físico](../diagrams/postgresql-er-fisico.svg)
 
-*Fonte: [`diagrams/postgresql-er-fisico.mmd`](diagrams/postgresql-er-fisico.mmd).* Não há chave estrangeira: o relacionamento por `resource_id` é lógico (`SSOT.md`, seção 7). Um exemplo concreto, com os tipos e índices reais do banco, está em [`features/core/account/README.md`](../features/core/account/README.md) (seção 11).
+*Fonte: [`diagrams/postgresql-er-fisico.mmd`](../diagrams/postgresql-er-fisico.mmd).* Não há chave estrangeira: o relacionamento por `resource_id` é lógico (`SSOT.md`, seção 7). Um exemplo concreto, com os tipos e índices reais do banco, está em [`features/core/account/README.md`](../../features/core/account/README.md) (seção 11).
 
 **Quem lê e escreve cada tabela** (a matriz da seção 14.2, em figura):
 
-![Privilégios](diagrams/postgresql-privilegios.svg)
+![Privilégios](../diagrams/postgresql-privilegios.svg)
 
-*Fonte: [`diagrams/postgresql-privilegios.mmd`](diagrams/postgresql-privilegios.mmd).* O Manager só insere no outbox, e o Publisher só o lê e marca `published_at`. O Receiver não tem acesso às tabelas, só às views. As gravações por mensagem estão em [`diagrams/ssot-gravacao-por-mensagem.svg`](diagrams/ssot-gravacao-por-mensagem.svg).
+*Fonte: [`diagrams/postgresql-privilegios.mmd`](../diagrams/postgresql-privilegios.mmd).* O Manager só insere no outbox, e o Publisher só o lê e marca `published_at`. O Receiver não tem acesso às tabelas, só às views. As gravações por mensagem estão em [`diagrams/ssot-gravacao-por-mensagem.svg`](../diagrams/ssot-gravacao-por-mensagem.svg).
 
 **O conteúdo dos campos `jsonb`** (o que o banco trata como um objeto opaco e o contrato do recurso define):
 

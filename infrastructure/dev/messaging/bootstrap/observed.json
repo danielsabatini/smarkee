@@ -1,6 +1,6 @@
 {
   "name": "OBSERVED",
-  "description": "Estado: último observed por recurso, expira sem reobservação (docs/NATS.md, 6.4)",
+  "description": "Estado: último observed por recurso, expira sem reobservação (docs/messaging/NATS.md, 6.4)",
   "subjects": [
     "observer.observed.>"
   ],

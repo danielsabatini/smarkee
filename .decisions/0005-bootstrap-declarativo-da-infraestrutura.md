@@ -36,9 +36,9 @@ Era preciso um padrão único, explícito, sem código próprio para manter, e q
 ### Princípios comuns a todos os ambientes
 
 - Fonte declarativa e versionada.
-- Os mesmos nomes de streams, bancos, papéis e rotas em todos os ambientes (`docs/NATS.md`, configuração por ambiente).
+- Os mesmos nomes de streams, bancos, papéis e rotas em todos os ambientes (`docs/messaging/NATS.md`, configuração por ambiente).
 - Separação entre estado inicial e configuração do servidor.
-- Aplicação pela infraestrutura, com identidade administrativa própria (`docs/NATS.md` e `docs/POSTGRESQL.md`).
+- Aplicação pela infraestrutura, com identidade administrativa própria (`docs/messaging/NATS.md` e `docs/data/POSTGRESQL.md`).
 
 ### Direção para stg e prd (Kubernetes), a confirmar no desenho desses ambientes
 
@@ -48,7 +48,7 @@ Era preciso um padrão único, explícito, sem código próprio para manter, e q
 - **Kong:** migrações em `Job` e configuração declarativa aplicada por ferramenta de sincronização.
 - **Zitadel:** as mesmas configurações de primeira instância, por variáveis (por exemplo, valores do chart), com a senha do administrador vinda do gestor de segredos.
 - **Segredos:** vindos de gestor de segredos, nunca de arquivo.
-- **Identidade:** uma por serviço no NATS (`docs/NATS.md`, exemplos de autorização).
+- **Identidade:** uma por serviço no NATS (`docs/messaging/NATS.md`, exemplos de autorização).
 - **Parâmetros por ambiente** (réplicas, `max_age`, limites) em camadas de configuração por ambiente, sobre uma base comum.
 
 ## Justificativa

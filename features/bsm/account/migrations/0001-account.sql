@@ -1,4 +1,4 @@
--- Migração 0001 de bsm.account: Billing Account no SSOT (docs/POSTGRESQL.md §6 e §14.2).
+-- Migração 0001 de bsm.account: Billing Account no SSOT (docs/data/POSTGRESQL.md §6 e §14.2).
 -- Projeto: bsm-account-manager (decisão 0015), dono do esquema do tipo.
 -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
 -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/bsm.sql.
@@ -88,7 +88,7 @@ CREATE INDEX IF NOT EXISTS account_outbox_published
 
 -- Índices de busca do Manager e do Receiver: dono (listagem por dono) e unicidade de `displayName`
 -- por dono entre contas ativas (`lifecycle = 'present'`), conferidos na unidade atômica do pedido
--- (docs/SSOT.md §10.1).
+-- (docs/data/SSOT.md §10.1).
 CREATE INDEX IF NOT EXISTS account_owner
   ON bsm.account ((desired ->> 'ownerAccountId'));
 CREATE INDEX IF NOT EXISTS account_owner_display_name
@@ -96,7 +96,7 @@ CREATE INDEX IF NOT EXISTS account_owner_display_name
   WHERE lifecycle = 'present';
 
 -- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count. `requested_by` aparece
--- só na view da Operation, para o Receiver autorizar a leitura (docs/POSTGRESQL.md §6.5).
+-- só na view da Operation, para o Receiver autorizar a leitura (docs/data/POSTGRESQL.md §6.5).
 CREATE OR REPLACE VIEW bsm.account_v1 AS
   SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
          resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
@@ -108,7 +108,7 @@ CREATE OR REPLACE VIEW bsm.account_operation_v1 AS
          requested_by
     FROM bsm.account_operation;
 
--- Privilégios (docs/POSTGRESQL.md §14.2).
+-- Privilégios (docs/data/POSTGRESQL.md §14.2).
 GRANT CONNECT ON DATABASE ssot
   TO bsm_account_manager, bsm_account_receiver, bsm_account_publisher, bsm_maintenance;
 

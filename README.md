@@ -20,7 +20,7 @@ Para evitar duplicidade e conflitos operacionais, o projeto consolida o conhecim
 | Local | Finalidade |
 |---|---|
 | [`AGENTS.md`](AGENTS.md) | **Lei Geral.** Regras obrigatórias de governança, arquitetura e limites de atuação para Agentes de IA e Desenvolvedores. |
-| [`docs/`](docs/) | **Especificações Técnicas.** Fonte Única de Verdade (SSOT) para contratos, fluxos e implementação.<br>👉 *Ver: [`docs/MESSAGING.md`](docs/MESSAGING.md), [`docs/NATS.md`](docs/NATS.md), [`docs/SCHEMA.md`](docs/SCHEMA.md), [`docs/RESOURCE-CONTROL-LOOP.md`](docs/RESOURCE-CONTROL-LOOP.md), [`docs/RESOURCE-CONTROL-SECURITY.md`](docs/RESOURCE-CONTROL-SECURITY.md), [`docs/SSOT.md`](docs/SSOT.md) e [`docs/POSTGRESQL.md`](docs/POSTGRESQL.md)* |
+| [`docs/`](docs/) | **Especificações Técnicas.** Fonte Única de Verdade (SSOT) para contratos, fluxos e implementação.<br>👉 *Ver: [`docs/messaging/MESSAGING.md`](docs/messaging/MESSAGING.md), [`docs/messaging/NATS.md`](docs/messaging/NATS.md), [`docs/data/SCHEMA.md`](docs/data/SCHEMA.md), [`docs/loop/RESOURCE-CONTROL-LOOP.md`](docs/loop/RESOURCE-CONTROL-LOOP.md), [`docs/loop/RESOURCE-CONTROL-SECURITY.md`](docs/loop/RESOURCE-CONTROL-SECURITY.md), [`docs/data/SSOT.md`](docs/data/SSOT.md) e [`docs/data/POSTGRESQL.md`](docs/data/POSTGRESQL.md)* |
 | [`.decisions/`](.decisions/) | **ADRs.** Diretório de registro para decisões arquiteturais permanentes que mudam o rumo do projeto. |
 | [`ROADMAP.md`](ROADMAP.md) | **Planejamento.** Metas direcionais e de curto/longo prazo separadas em horizontes lógicos (*Now, Next, Later*). |
 | [`CHANGELOG.md`](CHANGELOG.md) | **Histórico de Releases.** Registro cronológico (SemVer) e semântico das novidades, correções e remoções. |

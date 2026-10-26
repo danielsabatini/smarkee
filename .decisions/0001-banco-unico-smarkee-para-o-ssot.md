@@ -5,7 +5,7 @@
 
 ## Contexto
 
-O SSOT será implementado em PostgreSQL (`docs/POSTGRESQL.md`), com um schema por módulo e tabelas por tipo de recurso. No ambiente de desenvolvimento, o mesmo servidor PostgreSQL também hospeda os bancos do gateway (`kong`) e do provedor de identidade (`zitadel`). Era preciso decidir quantos bancos o SSOT usa, como ele se chama e com quem divide o servidor.
+O SSOT será implementado em PostgreSQL (`docs/data/POSTGRESQL.md`), com um schema por módulo e tabelas por tipo de recurso. No ambiente de desenvolvimento, o mesmo servidor PostgreSQL também hospeda os bancos do gateway (`kong`) e do provedor de identidade (`zitadel`). Era preciso decidir quantos bancos o SSOT usa, como ele se chama e com quem divide o servidor.
 
 ## Decisão
 
@@ -17,7 +17,7 @@ O SSOT será implementado em PostgreSQL (`docs/POSTGRESQL.md`), com um schema po
 ## Justificativa
 
 - Um banco por módulo multiplicaria conexões, backups, procedimentos de recuperação e migrações sem acrescentar isolamento que os privilégios já não garantam.
-- O SSOT tem objetivos de recuperação e um procedimento de recuperação próprios (`docs/SSOT.md`). Restaurar o SSOT a um ponto no tempo não pode restaurar o gateway ou o provedor de identidade junto, o que exige separação de cluster fora do desenvolvimento.
+- O SSOT tem objetivos de recuperação e um procedimento de recuperação próprios (`docs/data/SSOT.md`). Restaurar o SSOT a um ponto no tempo não pode restaurar o gateway ou o provedor de identidade junto, o que exige separação de cluster fora do desenvolvimento.
 - O proprietário não superusuário limita o impacto de uma credencial de migração exposta.
 
 ## Consequências

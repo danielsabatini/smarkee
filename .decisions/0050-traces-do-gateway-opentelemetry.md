@@ -25,7 +25,7 @@ O destino dos traces é um coletor OTLP. Em dev é o `telemetry-gateway` (`infra
 
 - **Segurança:** a redação por padrão evita que códigos e tokens do OIDC cheguem ao armazenamento de traces; o span não usa cabeçalhos forjáveis.
 - **Simplicidade:** a transformação fica num lugar só (o coletor), é declarativa e não exige código próprio no gateway; qualquer outro emissor Lua da mesma stack não é tocado.
-- **Corretude:** verificado contra a semconv v1.44.0 (2026-10-17) com 41 regras: o plugin sem ajustes reprova 7 obrigatórias, 1 "deve", 7 recomendadas, 1 de propagação e 1 do projeto; com os ajustes, nenhuma. Detalhes e escopo da verificação em `docs/OBSERVABILITY.md` seção 11.
+- **Corretude:** verificado contra a semconv v1.44.0 (2026-10-17) com 41 regras: o plugin sem ajustes reprova 7 obrigatórias, 1 "deve", 7 recomendadas, 1 de propagação e 1 do projeto; com os ajustes, nenhuma. Detalhes e escopo da verificação em `docs/telemetry/OBSERVABILITY.md` seção 11.
 - **Alternativas:** (a) patch ou plugin Lua para emitir os nomes certos: vetado e frágil a cada atualização do APISIX; (b) deixar os nomes depreciados e a query como estão: reprova a semconv e vaza dados; (c) transformar no próprio gateway com `serverless-*`: não testada, e acoplada ao funcionamento interno do plugin.
 
 ## Consequências

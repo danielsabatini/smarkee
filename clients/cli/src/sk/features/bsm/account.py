@@ -1,4 +1,4 @@
-"""Cliente do `bsm.account` na API da plataforma (`docs/RESOURCE-CONTROL-LOOP.md`, §6.1 e §46).
+"""Cliente do `bsm.account` na API da plataforma (`docs/loop/RESOURCE-CONTROL-LOOP.md`, §6.1 e §46).
 
 Criar, alterar e remover são escritas assíncronas: a API responde `202` com o `operationId`, e o
 estado definitivo vem da Billing Account (`phase`) e da Operation (`operationStatus`). Os dados

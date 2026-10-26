@@ -2,7 +2,7 @@ name: mail
 
 # Captura de e-mail só para desenvolvimento (decisão 0013): o Zitadel envia os e-mails de ativação e
 # de redefinição de senha para cá, e nada sai da máquina. Em stg e prd o SMTP é um serviço real.
-# Driver de log legível pelo telemetry-agent (decisão 0053, docs/OBSERVABILITY.md §7): json-file com rotação e as labels
+# Driver de log legível pelo telemetry-agent (decisão 0053, docs/telemetry/OBSERVABILITY.md §7): json-file com rotação e as labels
 # que identificam o serviço e a camada (infra) em cada linha.
 x-infra-logging: &infra-logging
   driver: json-file

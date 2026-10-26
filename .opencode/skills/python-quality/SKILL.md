@@ -94,8 +94,8 @@ Uma análise de qualidade não deve ser considerada concluída quando os testes 
 
 Quando o componente consumir ou produzir contratos de `schemas/`:
 
-- executar os testes de contrato definidos para o componente (`docs/SCHEMA.md`, testes de contrato);
-- regenerar os artefatos derivados dos schemas e **falhar** se houver diferença em relação ao versionado (`docs/SCHEMA.md`, artefatos derivados). Use o mecanismo de geração do projeto; não invente comandos;
+- executar os testes de contrato definidos para o componente (`docs/data/SCHEMA.md`, testes de contrato);
+- regenerar os artefatos derivados dos schemas e **falhar** se houver diferença em relação ao versionado (`docs/data/SCHEMA.md`, artefatos derivados). Use o mecanismo de geração do projeto; não invente comandos;
 - quando existir a suíte e2e do tipo (`features/<módulo>/<tipo>/tests/e2e`), executá-la contra a stack em execução e registrá-la em `Contratos`;
 - registrar o resultado separadamente (`Contratos`).
 

@@ -4,7 +4,7 @@ Cada papel declara a sua classe `RoleSettings` com o prefixo `IPM_ROLE_<PAPEL>_`
 seções abaixo. Precedência, da maior para a menor:
 
 1. argumentos da linha de comando (só pelo entrypoint, via `load_settings`; nunca segredos);
-2. variáveis de ambiente `<PREFIXO><SEÇÃO>_<CAMPO>` (`docs/SCHEMA.md` §8.3);
+2. variáveis de ambiente `<PREFIXO><SEÇÃO>_<CAMPO>` (`docs/data/SCHEMA.md` §8.3);
 3. `config.toml`, tabela `[tool.ipm.role.<papel>.<seção>]`, no caminho de
    `SMARKEE_CONFIG_PATH` (padrão `config.toml`);
 4. arquivos de segredo, um por variável completa, em `SMARKEE_SECRETS_DIR` (padrão

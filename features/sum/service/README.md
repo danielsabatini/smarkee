@@ -168,7 +168,7 @@ O fluxo de dados completo, passo a passo, está em [`docs/SUM-SERVICE-DATA-FLOW.
 Os consumers de trabalho (Manager e Executor) são duráveis, compartilhados e declarados pelo serviço
 `sum-service-consumer`, a partir dos manifestos em `consumers/`. O Reconciler e o
 Observer não têm manifesto: cada instância cria os próprios consumers de estado, com nome único por execução,
-`DeliverLastPerSubject` e `inactive_threshold`, e reconstrói o estado da mensageria (`docs/NATS.md` §7.4).
+`DeliverLastPerSubject` e `inactive_threshold`, e reconstrói o estado da mensageria (`docs/messaging/NATS.md` §7.4).
 
 No `ACTION`, a partição é aplicada pelo servidor (`subject_transform`, decisão 0018), com `max_ack_pending = 1`: uma
 ação por recurso por vez. O Executor roda um laço por partição, no mesmo processo.
@@ -240,7 +240,7 @@ intervalo); não é preciso reiniciá-lo.
 # 10. Limitações e pendências
 
 - A Operation não vira `failed`: a falha aparece na fase `Failed` da ligação.
-- Logo depois do `202`, a leitura pode dar `404` até o Manager gravar a Operation (`docs/RESOURCE-CONTROL-LOOP.md` §6.1.1).
+- Logo depois do `202`, a leitura pode dar `404` até o Manager gravar a Operation (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1.1).
 - A verificação de e-mail do solicitante (a Account exige) ainda não foi decidida para o SUM.
 - Desligar não apaga: a linha fica como histórico. A estratégia de apagar os recursos do usuário no serviço fica para depois
   (decisão 0033), e ainda não há retenção das linhas desligadas.
@@ -248,7 +248,7 @@ intervalo); não é preciso reiniciá-lo.
 - A validade curta do access token (decisão 0033, opção B) não está aplicada no Zitadel de dev; a CLI já renova a sessão.
 - As chaves das contas de serviço vencem em 2027-10-15 e a rotação é manual (`infrastructure/dev/README.md`).
 - Endurecimento comum aos módulos, ainda pendente: `cap_drop` e `no-new-privileges` no Compose, limite de taxa e de tamanho
-  nas rotas autenticadas do gateway, e `pinned_client` no Executor (`docs/IMPLEMENTATION-STATUS.md`).
+  nas rotas autenticadas do gateway, e `pinned_client` no Executor (`docs/platform/IMPLEMENTATION-STATUS.md`).
 
 # 11. Banco de dados (SSOT do SUM)
 

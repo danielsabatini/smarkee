@@ -28,5 +28,5 @@ Cada garantia passa a ter um registro durável com retenção definida, em vez d
 ## Consequências
 
 - O número de tabelas por tipo continua quatro: `<tipo>`, `<tipo>_operation`, `<tipo>_action_result` e `<tipo>_outbox`.
-- O contrato `requested` passa a ter os campos `operationId` e `requestDigest` (`docs/SCHEMA.md`).
+- O contrato `requested` passa a ter os campos `operationId` e `requestDigest` (`docs/data/SCHEMA.md`).
 - A retenção da Operation precisa ser maior que o prazo máximo de reentrega do `requested`, e a de `ActionResult`, maior que a retenção dos resultados no transporte.

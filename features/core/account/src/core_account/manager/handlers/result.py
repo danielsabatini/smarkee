@@ -1,4 +1,4 @@
-"""Tratamento de `completed` e `failed` de uma ação pelo Manager (`docs/SSOT.md` §10.3).
+"""Tratamento de `completed` e `failed` de uma ação pelo Manager (`docs/data/SSOT.md` §10.3).
 
 Conta as falhas por geração e suspende a reconciliação no limite. A idempotência é semântica
 (`actionId` em `ActionResult`).

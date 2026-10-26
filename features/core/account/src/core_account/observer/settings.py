@@ -3,7 +3,8 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `CORE_ACCOUNT_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo
 `CORE_ACCOUNT_OBSERVER_MESSAGING_URL`
-(`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS e os identificadores do Zitadel. O Observer
+(`docs/data/SCHEMA.md` §8.3). Sem default: a senha do NATS e os identificadores do Zitadel. O
+Observer
 não acessa o SSOT e só **lê** o Zitadel (conta de serviço `core-account-observer`, somente leitura).
 """
 

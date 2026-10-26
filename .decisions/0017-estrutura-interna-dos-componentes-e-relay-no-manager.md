@@ -7,7 +7,7 @@
 
 A 0015 definiu um projeto por papel e por tipo de recurso, com seis papéis (`api`, `manager`, `relay`, `observer`, `reconciler` e `executor`) e uma suíte de conformidade ao lado deles. A implementação do User (`features/core/user`), a primeira feature e o modelo das demais, mostrou três problemas:
 
-- **O relay não é um papel do padrão.** O `docs/RESOURCE-CONTROL-LOOP.md` define cinco papéis (Receiver, Manager, Observer, Reconciler e Executor). O relay é a publicação do outbox, e a publicação dos eventos consolidados é uma responsabilidade do Manager (§3.5). Separá-lo em projeto próprio acrescentou um sexto papel que o padrão não pede e uma imagem a mais por feature, sem um perfil de código diferente: ele muda junto com o Manager.
+- **O relay não é um papel do padrão.** O `docs/loop/RESOURCE-CONTROL-LOOP.md` define cinco papéis (Receiver, Manager, Observer, Reconciler e Executor). O relay é a publicação do outbox, e a publicação dos eventos consolidados é uma responsabilidade do Manager (§3.5). Separá-lo em projeto próprio acrescentou um sexto papel que o padrão não pede e uma imagem a mais por feature, sem um perfil de código diferente: ele muda junto com o Manager.
 - **A suíte de conformidade não é um componente.** Ela não participa do loop, não é implantada e só existe para provar o contrato. Ao lado dos componentes, parecia um sétimo papel.
 - **Não havia regra para a estrutura interna.** O código do Manager misturava a regra de negócio com o SQL (`policies.py`), o que dificulta testar a regra sem banco e trocar de linguagem.
 
@@ -53,7 +53,7 @@ A suíte black-box deixa de ser um projeto irmão dos componentes e passa a vive
 
 ## Consequências
 
-- `docs/RESOURCE-CONTROL-LOOP.md` (§3.7, §6.6, §46, §48 a §50 e o checklist), `docs/SSOT.md` (§13 e §16), `docs/POSTGRESQL.md`, `docs/RESOURCE-CONTROL-SECURITY.md`, `docs/NATS.md`, os agents `python` e `platform`, as skills e o README do User passam a descrever a estrutura interna e `tests/e2e` (e, a partir da decisão 0019, seis papéis).
+- `docs/loop/RESOURCE-CONTROL-LOOP.md` (§3.7, §6.6, §46, §48 a §50 e o checklist), `docs/data/SSOT.md` (§13 e §16), `docs/data/POSTGRESQL.md`, `docs/loop/RESOURCE-CONTROL-SECURITY.md`, `docs/messaging/NATS.md`, os agents `python` e `platform`, as skills e o README do User passam a descrever a estrutura interna e `tests/e2e` (e, a partir da decisão 0019, seis papéis).
 - A decisão 0015 continua valendo, exceto onde cita o relay como papel próprio e a suíte de conformidade como componente (ajustado nela).
 - O **User** (`features/core/user`) segue esta decisão nos seis papéis, com teste de isolamento do `domain/` em cada projeto (2026-10-11). A Organization (`features/ipm/organization`) foi refeita a partir do User e segue esta decisão (decisão 0038, 2026-10-16). Saúde e erro permanente do Publisher: decisão 0018.
 - Fusão dos nomes (**substituída pela decisão 0019**): o projeto `<módulo>-<tipo>-relay` deixou de existir como modo do Manager e voltou como projeto próprio, o Publisher.

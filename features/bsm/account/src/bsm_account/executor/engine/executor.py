@@ -1,7 +1,7 @@
 """Motor do Executor: revalida a `action`, executa no Zitadel e publica `completed` ou `failed`.
 
 O Executor é o último ponto de controle antes do sistema externo
-(`docs/RESOURCE-CONTROL-SECURITY.md` §7): ele **não** confia cegamente em quem lhe enviou a
+(`docs/loop/RESOURCE-CONTROL-SECURITY.md` §7): ele **não** confia cegamente em quem lhe enviou a
 `action`. Antes de escrever, confere o `desired` vigente (geração, coerência da operação,
 reconciliação ativa) e o desfecho já registrado do `actionId`. Falhas do provedor viram `failed`
 (com `retryable`), e o retry é do Reconciler, sob backoff.

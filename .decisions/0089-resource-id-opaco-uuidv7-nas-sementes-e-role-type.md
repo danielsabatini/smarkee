@@ -1,11 +1,11 @@
 # 0089 — Sementes do catálogo com `resourceId` UUIDv7 e `roleType` na Role
 
 - **Data:** 2026-10-26
-- **Status:** Aceita. Corrige as sementes das decisões `0083` e `0088` e complementa `docs/SCHEMA.md` §8.1.
+- **Status:** Aceita. Corrige as sementes das decisões `0083` e `0088` e complementa `docs/data/SCHEMA.md` §8.1.
 
 ## Contexto
 
-O `resourceId` é opaco e independente do nome (`docs/SCHEMA.md` §8.1), e todo recurso criado pela API recebe um UUIDv7. As sementes de `ipm.permission` e `ipm.role` usavam IDs legíveis (`perm-ipm-user-create`, `role-ipm-user-admin`), o que misturava semântica na identidade e deixava o catálogo fora do padrão dos demais recursos. As sementes de `ipm.group*` existiam só no banco de dev, sem migração.
+O `resourceId` é opaco e independente do nome (`docs/data/SCHEMA.md` §8.1), e todo recurso criado pela API recebe um UUIDv7. As sementes de `ipm.permission` e `ipm.role` usavam IDs legíveis (`perm-ipm-user-create`, `role-ipm-user-admin`), o que misturava semântica na identidade e deixava o catálogo fora do padrão dos demais recursos. As sementes de `ipm.group*` existiam só no banco de dev, sem migração.
 
 Além disso, nada distinguia uma Role do catálogo da plataforma de uma Role criada por pedido.
 

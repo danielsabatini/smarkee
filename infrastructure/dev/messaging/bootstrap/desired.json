@@ -1,6 +1,6 @@
 {
   "name": "DESIRED",
-  "description": "Estado: último desired por recurso (docs/NATS.md, 6.4)",
+  "description": "Estado: último desired por recurso (docs/messaging/NATS.md, 6.4)",
   "subjects": [
     "manager.desired.>"
   ],

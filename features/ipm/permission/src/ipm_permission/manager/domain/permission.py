@@ -2,7 +2,7 @@
 
 Puro: sem banco, rede ou relógio. A unicidade global de `name` entre Permissions ativas (`lifecycle
 = present`) é declarada aqui (`unique_value`) e verificada na mesma unidade atômica do pedido pelo
-adaptador do SSOT (`docs/SSOT.md` §10.1).
+adaptador do SSOT (`docs/data/SSOT.md` §10.1).
 """
 
 from collections.abc import Mapping

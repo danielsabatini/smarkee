@@ -1,4 +1,6 @@
-"""Consumer do Executor e leitura direta do estado: desfechos e ausência (`docs/NATS.md` §7.3)."""
+"""Consumer do Executor e leitura direta do estado: desfechos e ausência (`docs/messaging/NATS.md`
+
+§7.3)."""
 
 import asyncio
 from dataclasses import dataclass, field

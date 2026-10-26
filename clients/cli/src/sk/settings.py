@@ -13,7 +13,7 @@ inicialização, ambiente e default). O arquivo TOML é acrescentado entre o amb
 default por `settings_customise_sources`. Arquivos `.env` e diretórios de secrets não são
 lidos.
 
-Grafia dos nomes por meio (`docs/SCHEMA.md`, *Grafia dos nomes por meio*): os campos são
+Grafia dos nomes por meio (`docs/data/SCHEMA.md`, *Grafia dos nomes por meio*): os campos são
 `snake_case` no código, as chaves do arquivo são camelCase (`clientId`), as variáveis são
 `SK_AUTH_CLIENT_ID`. A conversão do arquivo é feita só pela
 fonte TOML: uma chave fora do camelCase (por exemplo `client_id`) é rejeitada.

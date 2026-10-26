@@ -1,4 +1,4 @@
-"""Publicação do outbox de `sum.service` (`docs/POSTGRESQL.md` §11; decisão 0033).
+"""Publicação do outbox de `sum.service` (`docs/data/POSTGRESQL.md` §11; decisão 0033).
 
 Publica, em ordem de `sequence`, as mensagens que o Manager gravou no outbox, e só marca
 `published_at` depois da confirmação do transporte (entrega pelo menos uma vez; o transporte
@@ -49,7 +49,9 @@ PUBLISHED_BY = "sum-service-publisher"
 """Identidade de mensageria desta instância (`publishedBy`). O `emitter` continua `manager`."""
 OUTBOX_TABLE = sql.Identifier("sum", "service_outbox")
 LOCK_KEY = "sum.service_outbox"
-"""Chave da trava consultiva de sessão: uma por tabela de outbox (`docs/POSTGRESQL.md` §11.4)."""
+"""Chave da trava consultiva de sessão: uma por tabela de outbox (`docs/data/POSTGRESQL.md`
+
+§11.4)."""
 
 
 def publication_envelope(payload: dict[str, Any], published_at: datetime) -> bytes:

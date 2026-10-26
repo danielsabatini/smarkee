@@ -1,4 +1,4 @@
-"""Publisher do outbox contra o SSOT real, com publicador simulado (docs/POSTGRESQL.md §11)."""
+"""Publisher do outbox contra o SSOT real, com publicador simulado (docs/data/POSTGRESQL.md §11)."""
 
 import json
 import uuid

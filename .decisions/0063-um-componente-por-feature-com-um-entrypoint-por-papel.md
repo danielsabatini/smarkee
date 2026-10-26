@@ -19,7 +19,7 @@ A 0015 separou os papéis por **credencial e fronteira** (Receiver anônimo e ex
 - **Isolamento verificado por teste.** Um papel não importa outro papel. Um teste em cada feature falha se isso ocorrer, no mesmo espírito do teste de isolamento do `domain/` (0017).
 - **Etapas de implantação** (`migrate` e criação dos consumers do NATS) usam a mesma imagem, com outro `command`; a migração continua com o papel administrativo do banco, nunca com o de runtime do Manager (0015).
 - **A duplicação entre features continua e continua com fonte única** (0046), agora em 3 cópias do `common/` em vez de 18. Uma biblioteca comum entre features, se um dia for necessária, é decisão posterior e aditiva.
-- **Telemetria não muda** (0062 e `docs/OBSERVABILITY-ARCHITECTURE.md`): `telemetry-agent`, `telemetry-router`, um `platform-telemeter` e um `<módulo>-<tipo>-telemeter` por feature, que segue sendo um contêiner do OpenTelemetry Collector com imagem própria, fora da imagem da aplicação.
+- **Telemetria não muda** (0062 e `docs/telemetry/OBSERVABILITY-ARCHITECTURE.md`): `telemetry-agent`, `telemetry-router`, um `platform-telemeter` e um `<módulo>-<tipo>-telemeter` por feature, que segue sendo um contêiner do OpenTelemetry Collector com imagem própria, fora da imagem da aplicação.
 - **Auditor: em aberto.** Será decidido em decisão própria. A orientação inicial, ainda não decidida, é um auditor por feature, que consome os fatos duráveis (outbox e NATS) com identidade de leitura própria. A questão de ser um sétimo entrypoint da imagem da feature ou uma peça separada fica para essa decisão.
 
 ## Justificativa
@@ -40,7 +40,7 @@ A opção adotada reduz a duplicação onde ela é maior (entre os papéis da me
 - **Versão única por feature:** mudar o Executor gera uma imagem nova para todos os papéis da feature. Em stg e prd, só reinicia o Deployment cujo manifesto mudou de versão; o rastreio de "qual versão roda onde" fica menos fino.
 - **Troca de linguagem por papel deixa de ser simples.** Um papel em outra linguagem exigiria extraí-lo para um projeto próprio, e a suíte e2e black-box (0017) continua sendo o contrato que ele deve cumprir.
 - **Contratos afetados e migração (AGENTS §10):** muda o nome da imagem (`core-account-receiver` → `core-account`) e o layout (`features/<módulo>/<tipo>/<papel>/` → um projeto por feature). Não mudam: nomes de contêiner, variáveis (`<MÓDULO>_<TIPO>_<PAPEL>_<SEÇÃO>_<CAMPO>`), papéis de banco, identidades no NATS, subjects, rotas e schemas. A migração é por feature, uma de cada vez, com a suíte e2e passando antes e depois.
-- **Documentos a alinhar quando a decisão for aceita:** `docs/RESOURCE-CONTROL-LOOP.md` (§48 e checklist), `docs/IMPLEMENTATION-STATUS.md` (§2.6), os READMEs das features, `.opencode/agents/` e `.opencode/skills/` (AGENTS §24.1). O `sync.py` da 0046 passa a tratar o `common/` por feature.
+- **Documentos a alinhar quando a decisão for aceita:** `docs/loop/RESOURCE-CONTROL-LOOP.md` (§48 e checklist), `docs/platform/IMPLEMENTATION-STATUS.md` (§2.6), os READMEs das features, `.opencode/agents/` e `.opencode/skills/` (AGENTS §24.1). O `sync.py` da 0046 passa a tratar o `common/` por feature.
 - **Piloto:** migrar `core/account` primeiro e medir (linhas, arquivos, tempo de build, tamanho da imagem, suíte e2e e de resiliência) antes de aceitar a decisão e migrar as demais.
 
 ## Piloto em `core/account` (2026-10-19)

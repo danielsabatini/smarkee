@@ -1,6 +1,7 @@
 """Motor do Reconciler: mantém o estado por recurso e publica as `action` decididas.
 
-O estado é um cache descartável reconstruído da mensageria (`docs/RESOURCE-CONTROL-LOOP.md` §3.8):
+O estado é um cache descartável reconstruído da mensageria (`docs/loop/RESOURCE-CONTROL-LOOP.md`
+§3.8):
 o Reconciler não acessa o SSOT. Instâncias distintas podem decidir o mesmo recurso, o que é
 inofensivo porque a `action` tem `actionId` determinístico.
 """
@@ -251,7 +252,8 @@ class Reconciler:
         )
         subject = f"reconciler.action.{MODULE}.{RESOURCE_TYPE}.{resource_id}.{decision.operation}"
         try:
-            # `Nats-Msg-Id` = `actionId`: o transporte deduplica reemissões (`docs/NATS.md` §6.3).
+            # `Nats-Msg-Id` = `actionId`: o transporte deduplica reemissões
+            # (`docs/messaging/NATS.md` §6.3).
             await self._publisher.publish(
                 subject,
                 envelope.model_dump_json(exclude_none=True).encode(),

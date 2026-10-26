@@ -17,7 +17,7 @@ x-identity-database-environment: &identity-database-environment
   ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${SMARKEE_IDENTITY_DATABASE_PASSWORD:?Defina SMARKEE_IDENTITY_DATABASE_PASSWORD no .env}
   ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE: disable
 
-# Driver de log legível pelo telemetry-agent (decisão 0053, docs/OBSERVABILITY.md §7): json-file com rotação e as labels
+# Driver de log legível pelo telemetry-agent (decisão 0053, docs/telemetry/OBSERVABILITY.md §7): json-file com rotação e as labels
 # que identificam o serviço e a camada (infra) em cada linha.
 x-infra-logging: &infra-logging
   driver: json-file

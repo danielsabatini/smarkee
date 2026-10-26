@@ -6,7 +6,7 @@ name: ipm-role
 # e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait messaging database gateway identity identity-login`,
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
 
-# Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7): o padrão `local` do
+# Driver de log legível pelo coletor (decisão 0045, docs/telemetry/OBSERVABILITY.md §7): o padrão `local` do
 # Docker não é lido pelo `file_log` do OpenTelemetry Collector. Com rotação.
 x-logging: &component-logging
   driver: json-file
@@ -30,7 +30,7 @@ x-image: &component-image
   image: ${IPM_ROLE_IMAGE:-smarkee-ipm-role:dev}
 
 services:
-  # Consumer durável de trabalho do Manager para `requested` do tipo (docs/NATS.md §7.6). O manifesto
+  # Consumer durável de trabalho do Manager para `requested` do tipo (docs/messaging/NATS.md §7.6). O manifesto
   # do Manager e o do Executor ficam em `consumers/`. Inexistente é criado; existente com configuração idêntica
   # não muda; configuração diferente falha de forma explícita. Exige os Streams REQUESTED, OBSERVED
   # e RESULT, criados pelo messaging da plataforma.
@@ -163,7 +163,7 @@ services:
     healthcheck: *component-healthcheck
 
   # Reconciler (`ipm-role-reconciler`): decide a `action` a partir de `desired` e `observed`.
-  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/NATS.md §7.4).
+  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/messaging/NATS.md §7.4).
   ipm-role-reconciler:
     <<: *component-image
     command: [ipm-role-reconciler]
@@ -270,7 +270,7 @@ services:
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
-  # Telemeter de app de ipm.role (decisão 0062, docs/OBSERVABILITY.md §14): recebe por OTLP, do
+  # Telemeter de app de ipm.role (decisão 0062, docs/telemetry/OBSERVABILITY.md §14): recebe por OTLP, do
   # telemetry-router da plataforma, os logs e os spans de app desta feature e os grava em `telemeter/logs/` e `telemeter/traces/`. Não lê logs de
   # contêineres nem usa o socket do Docker (isso é do telemetry-agent). Sem privilégios e sem escrita fora da pasta.
   ipm-role-telemeter:

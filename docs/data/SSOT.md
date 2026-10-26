@@ -91,13 +91,13 @@ Não existe inbox: a idempotência de entrada é garantida pelas regras semânti
 
 # 7. Modelo Lógico
 
-![Modelo lógico do SSOT](diagrams/ssot-er-logico.svg)
+![Modelo lógico do SSOT](../diagrams/ssot-er-logico.svg)
 
-*Fonte: [`diagrams/ssot-er-logico.mmd`](diagrams/ssot-er-logico.mmd).* Para cada tipo de recurso existem **quatro conjuntos de registros**, todos com a mesma estrutura: o **Resource** (o estado consolidado, um registro por recurso), a **Operation** (um registro por pedido), o **ActionResult** (um por `actionId` já contabilizado) e o **Outbox** (uma mensagem por linha, à espera de publicação). Todos se relacionam pelo `resourceId`.
+*Fonte: [`diagrams/ssot-er-logico.mmd`](../diagrams/ssot-er-logico.mmd).* Para cada tipo de recurso existem **quatro conjuntos de registros**, todos com a mesma estrutura: o **Resource** (o estado consolidado, um registro por recurso), a **Operation** (um registro por pedido), o **ActionResult** (um por `actionId` já contabilizado) e o **Outbox** (uma mensagem por linha, à espera de publicação). Todos se relacionam pelo `resourceId`.
 
 **As relações são lógicas, e não chaves estrangeiras, de propósito:** a Operation sobrevive à remoção física do recurso até a sua retenção (ela é a resposta a "o que aconteceu com o meu pedido?"), e o ActionResult e o Outbox têm ciclos de vida próprios. A consistência entre eles vem da **unidade atômica de gravação** (seção 10): tudo o que uma mensagem altera é gravado em uma única transação.
 
-Quais registros cada mensagem altera: [`diagrams/ssot-gravacao-por-mensagem.svg`](diagrams/ssot-gravacao-por-mensagem.svg) (fonte: [`.mmd`](diagrams/ssot-gravacao-por-mensagem.mmd)). A representação física no PostgreSQL está em `POSTGRESQL.md`, seção 6.
+Quais registros cada mensagem altera: [`diagrams/ssot-gravacao-por-mensagem.svg`](../diagrams/ssot-gravacao-por-mensagem.svg) (fonte: [`.mmd`](../diagrams/ssot-gravacao-por-mensagem.mmd)). A representação física no PostgreSQL está em `POSTGRESQL.md`, seção 6.
 
 ## 7.1 Resource
 
@@ -403,10 +403,10 @@ O SSOT está adequado quando:
 
 # 23. Referências
 
-- [MESSAGING.md](MESSAGING.md): semântica das mensagens e do envelope.
+- [MESSAGING.md](../messaging/MESSAGING.md): semântica das mensagens e do envelope.
 - [SCHEMA.md](SCHEMA.md): contratos formais, versionamento e classificação.
-- [RESOURCE-CONTROL-LOOP.md](RESOURCE-CONTROL-LOOP.md): padrão de convergência.
-- [RESOURCE-CONTROL-SECURITY.md](RESOURCE-CONTROL-SECURITY.md): segurança do loop.
+- [RESOURCE-CONTROL-LOOP.md](../loop/RESOURCE-CONTROL-LOOP.md): padrão de convergência.
+- [RESOURCE-CONTROL-SECURITY.md](../loop/RESOURCE-CONTROL-SECURITY.md): segurança do loop.
 - [POSTGRESQL.md](POSTGRESQL.md): implementação de referência do armazenamento.
 
 # 24. Fonte de Verdade

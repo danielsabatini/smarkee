@@ -593,7 +593,7 @@ services:
                 WWW-Authenticate: Bearer realm="smarkee"
             body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
       # Auto-cadastro (escrita anônima): limite de taxa por IP já no gateway, o primeiro nível
-      # de proteção (docs/RESOURCE-CONTROL-SECURITY.md §12). O Receiver aplica o segundo.
+      # de proteção (docs/loop/RESOURCE-CONTROL-SECURITY.md §12). O Receiver aplica o segundo.
       # O IP vem do plugin global `real-ip` (decisão 0054): em dev é o do par TCP; em stg e prd, atrás de
       # um balanceador, é o do cliente, desde que `SMARKEE_GATEWAY_TRUSTED_PROXIES` seja o do balanceador.
       - name: core-account-register
@@ -669,7 +669,7 @@ global_rules:
 
 plugin_metadata:
   opentelemetry:
-    # Resource do gateway (docs/OBSERVABILITY.md §4). `service.instance.id` e `host.name` vêm do otel-gateway.
+    # Resource do gateway (docs/telemetry/OBSERVABILITY.md §4). `service.instance.id` e `host.name` vêm do otel-gateway.
     resource:
       service.name: gateway
       service.namespace: smarkee

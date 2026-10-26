@@ -2,7 +2,7 @@
 
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `IPM_GROUP_OBSERVER_<SEÇÃO>_<CAMPO>`, por exemplo
-`IPM_GROUP_OBSERVER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3).
+`IPM_GROUP_OBSERVER_MESSAGING_URL` (`docs/data/SCHEMA.md` §8.3).
 Sem default: as senhas do banco e do NATS. O Observer **não acessa o SSOT**;
 só lê o banco `platform`.
 """

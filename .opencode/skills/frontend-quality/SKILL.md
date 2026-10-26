@@ -13,7 +13,7 @@ Esta skill é um **guia de procedimento** que orquestra a execução das ferrame
 
 - Engenharia Frontend → `.opencode/agents/frontend.md`
 - Especificação do Console → `docs/console/CONSOLE.md`
-- Contratos oficiais → `docs/SCHEMA.md` e `schemas/`
+- Contratos oficiais → `docs/data/SCHEMA.md` e `schemas/`
 - SonarQube e Quality Gate → `.opencode/agents/sonarqube.md`
 - Regras universais → `AGENTS.md`
 

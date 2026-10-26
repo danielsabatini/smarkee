@@ -1,7 +1,7 @@
 """Tratamento de `requested` pelo Manager.
 
-Cada mensagem é uma unidade atômica de gravação (`docs/SSOT.md` §10.1 e
-`docs/POSTGRESQL.md` §8 a §11): a linha do recurso é bloqueada antes de qualquer leitura de
+Cada mensagem é uma unidade atômica de gravação (`docs/data/SSOT.md` §10.1 e
+`docs/data/POSTGRESQL.md` §8 a §11): a linha do recurso é bloqueada antes de qualquer leitura de
 estado, a Operation é gravada uma única vez e o `desired` vai para o outbox na mesma
 transação. A confirmação ao transporte é responsabilidade de quem chama, **depois** do retorno
 (depois do `COMMIT`).
@@ -141,7 +141,7 @@ class RequestedHandler:
             return await self._reject(store, envelope, request, now, rejection)
 
         specification_changed = desired != current
-        # Nova geração volta a reconciliar, salvo declaração em contrário (docs/SSOT.md §10.4).
+        # Nova geração volta a reconciliar, salvo declaração em contrário (docs/data/SSOT.md §10.4).
         reconciliation = request.reconciliation or (
             "active" if specification_changed else row["reconciliation"]
         )

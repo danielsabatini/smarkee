@@ -1,4 +1,5 @@
-"""Conexão só de leitura com o Zitadel para o Observer (`docs/RESOURCE-CONTROL-SECURITY.md` §8).
+"""Conexão só de leitura com o Zitadel para o Observer (`docs/loop/RESOURCE-CONTROL-SECURITY.md`
+§8).
 
 Só o transporte autenticado: a conta de serviço `ipm-permission-observer` (`PROJECT_OWNER_VIEWER`
 em cada projeto `roles-<módulo>` e `roles-operator`, mais `ORG_OWNER_VIEWER` nas organizações `core`

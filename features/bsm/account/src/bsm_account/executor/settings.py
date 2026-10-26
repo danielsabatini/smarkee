@@ -3,7 +3,7 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `BSM_ACCOUNT_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
 `BSM_ACCOUNT_EXECUTOR_MESSAGING_URL`
-(`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Executor
+(`docs/data/SCHEMA.md` §8.3). Sem default: a senha do NATS. O Executor
 **não acessa o SSOT** e é o único componente com escrita no armazenamento de estado do recurso.
 """
 

@@ -2,7 +2,7 @@
 
 Puro: sem banco, rede ou relógio. A unicidade de `displayName` por dono (`ownerAccountId`) entre
 contas ativas (`lifecycle = present`) é declarada aqui (`unique_value`) e verificada na mesma
-unidade atômica do pedido pelo adaptador do SSOT (`docs/SSOT.md` §10.1).
+unidade atômica do pedido pelo adaptador do SSOT (`docs/data/SSOT.md` §10.1).
 """
 
 import hashlib

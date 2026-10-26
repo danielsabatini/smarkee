@@ -1,7 +1,8 @@
 """Motor do Executor de `sum.service`: executa uma `action` no Zitadel e publica o resultado.
 
 Cada `action` é validada (emissor, tipo, módulo) e revalidada contra o `desired` atual
-(`docs/RESOURCE-CONTROL-SECURITY.md` §7): geração, suspensão e `lifecycle`. Uma ação recusada ou
+(`docs/loop/RESOURCE-CONTROL-SECURITY.md` §7): geração, suspensão e `lifecycle`. Uma ação recusada
+ou
 velha vira `failed` (permanente), nunca é executada. Concede as permissões pedidas (ligar) ou revoga
 as permissões do serviço (desligar). Um `actionId` com desfecho já registrado não é executado de
 novo. Erro transitório não vira `failed`: a mensagem volta à fila.

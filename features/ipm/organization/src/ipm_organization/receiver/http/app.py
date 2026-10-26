@@ -1,4 +1,4 @@
-"""Aplicação HTTP do Receiver (`docs/RESOURCE-CONTROL-LOOP.md` §6.1).
+"""Aplicação HTTP do Receiver (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1).
 
 O Receiver autentica, autoriza, valida, gera as identidades e **publica `requested`**; ele não
 escreve no SSOT e não tem credencial de escrita no provedor de identidade. As leituras vêm das

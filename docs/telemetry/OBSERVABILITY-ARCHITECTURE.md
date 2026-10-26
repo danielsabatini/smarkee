@@ -4,7 +4,7 @@
 >
 > **Fora do escopo:** **o que** a telemetria contém (formato e campos dos logs, atributos, semconv, contexto de negócio, spans do gateway). Isso é o contrato e está em [`OBSERVABILITY.md`](OBSERVABILITY.md).
 >
-> **Decisões:** [`0050`](../.decisions/0050-traces-do-gateway-opentelemetry.md), [`0051`](../.decisions/0051-telemetry-agent-coleta-em-dev.md), [`0053`](../.decisions/0053-telemetria-infra-app-limites-e-rotas-zitadel.md), [`0059`](../.decisions/0059-telemetria-no-piso.md), [`0061`](../.decisions/0061-contexto-de-negocio-nos-logs-dos-apps.md) e [`0062`](../.decisions/0062-coleta-de-telemetria-em-duas-camadas.md) (a que define esta arquitetura). Em conflito, vale `AGENTS.md`.
+> **Decisões:** [`0050`](../../.decisions/0050-traces-do-gateway-opentelemetry.md), [`0051`](../../.decisions/0051-telemetry-agent-coleta-em-dev.md), [`0053`](../../.decisions/0053-telemetria-infra-app-limites-e-rotas-zitadel.md), [`0059`](../../.decisions/0059-telemetria-no-piso.md), [`0061`](../../.decisions/0061-contexto-de-negocio-nos-logs-dos-apps.md) e [`0062`](../../.decisions/0062-coleta-de-telemetria-em-duas-camadas.md) (a que define esta arquitetura). Em conflito, vale `AGENTS.md`.
 
 **Telemetria não é auditoria.** A telemetria pode perder dado (a fila descarta quando cheia, a rotação apaga em cerca de 1 dia, o trace pode ser amostrado) e é **de operador**. A auditoria, que precisa de completude, retenção e acesso por dono, é outro produto, alimentado pelos fatos de negócio duráveis (outbox e NATS), e **não** passa por esta arquitetura.
 
@@ -23,9 +23,9 @@ Quatro peças, **um verbo cada**. Todas são o OpenTelemetry Collector (distribu
 
 # 2. Visão geral
 
-![Arquitetura de observabilidade](diagrams/observability-architecture.svg)
+![Arquitetura de observabilidade](../diagrams/observability-architecture.svg)
 
-*Fonte: [`diagrams/observability-architecture.mmd`](diagrams/observability-architecture.mmd).*
+*Fonte: [`diagrams/observability-architecture.mmd`](../diagrams/observability-architecture.mmd).*
 
 ## 2.1 As peças
 
@@ -37,7 +37,7 @@ Quatro peças, **um verbo cada**. Todas são o OpenTelemetry Collector (distribu
 | **`<módulo>-<tipo>-telemeter`** | `features/<módulo>/<tipo>/telemeter` (serviço no `compose.yaml` da feature) | OTLP gRPC (`4317`, do roteador) | arquivos: `telemeter/logs/`, `telemeter/traces/` | nenhum | uma por feature, quando houver necessidade (hoje só `core/account`) |
 | `tests/telemetry` | `tests/telemetry` | — | — | — | teste black-box da cadeia inteira (não é serviço) |
 
-Todas expõem `health_check` em `13133` (rede `internal`) e não publicam portas no host. O README de cada peça detalha a função: [`telemetry-router`](../infrastructure/dev/telemetry-router/README.md), [`platform-telemeter`](../infrastructure/dev/platform-telemeter/README.md) e [`core-account-telemeter`](../features/core/account/telemeter/README.md).
+Todas expõem `health_check` em `13133` (rede `internal`) e não publicam portas no host. O README de cada peça detalha a função: [`telemetry-router`](../../infrastructure/dev/telemetry-router/README.md), [`platform-telemeter`](../../infrastructure/dev/platform-telemeter/README.md) e [`core-account-telemeter`](../../features/core/account/telemeter/README.md).
 
 ## 2.2 O que cada peça não faz
 
@@ -52,9 +52,9 @@ O `telemeter` **não é um dos seis papéis do loop** (Receiver, Manager, Publis
 
 # 3. Sinais e roteamento
 
-![Decisão de roteamento](diagrams/observability-routing.svg)
+![Decisão de roteamento](../diagrams/observability-routing.svg)
 
-*Fonte: [`diagrams/observability-routing.mmd`](diagrams/observability-routing.mmd).*
+*Fonte: [`diagrams/observability-routing.mmd`](../diagrams/observability-routing.mmd).*
 
 | Sinal | Origem | Chave de roteamento | Telemeter da feature | Padrão |
 |---|---|---|---|---|
@@ -153,7 +153,7 @@ Nada muda nos apps nem no agente.
 
 - **Implementado e verificado em dev:** o agente, o roteador, o `platform-telemeter` e e os três telemeters de feature (`core-account-telemeter`, `ipm-organization-telemeter` e `sum-service-telemeter`, com `config.yaml` idêntico). O `platform-telemeter` recebe a infra e o app de qualquer feature sem telemeter próprio.
 - **Destino ainda é arquivo.** Não há backend; trocar o exportador do telemeter é a mudança necessária.
-- **Lacunas de dev declaradas:** OTLP sem TLS nem autenticação; o agente privilegiado; roteador e telemeters únicos (sem alta disponibilidade). Condições de saída em [`IMPLEMENTATION-STATUS.md`](IMPLEMENTATION-STATUS.md) 7.1.
+- **Lacunas de dev declaradas:** OTLP sem TLS nem autenticação; o agente privilegiado; roteador e telemeters únicos (sem alta disponibilidade). Condições de saída em [`IMPLEMENTATION-STATUS.md`](../platform/IMPLEMENTATION-STATUS.md) 7.1.
 - **Ainda não existe:** métricas de aplicação (`metrics/app` está vazio), spans dos componentes (só o span do gateway), o auditor, o formato CRI testado em Kubernetes.
 - **Evolução (decisão 0058: do simples ao avançado, sem descartar):** política própria por feature neste `config.yaml`; métricas de app derivadas dos logs (conector `count`); backend ou fila no lugar do arquivo; os componentes enviarem OTLP direto (SDK), quando o agente de nó fica só com a infra.
 

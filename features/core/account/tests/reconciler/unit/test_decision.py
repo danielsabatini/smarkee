@@ -1,4 +1,6 @@
-"""Decisão de reconciliação da Account: regras de `docs/RESOURCE-CONTROL-LOOP.md` e de segurança."""
+"""Decisão de reconciliação da Account: regras de `docs/loop/RESOURCE-CONTROL-LOOP.md` e de
+
+segurança."""
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta

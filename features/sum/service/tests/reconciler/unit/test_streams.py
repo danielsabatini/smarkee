@@ -1,4 +1,4 @@
-"""Streams lidos pelo Reconciler para reconstruir o estado (`docs/NATS.md` §7.4)."""
+"""Streams lidos pelo Reconciler para reconstruir o estado (`docs/messaging/NATS.md` §7.4)."""
 
 import pytest
 

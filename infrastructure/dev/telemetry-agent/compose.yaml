@@ -2,7 +2,7 @@ name: telemetry-agent
 
 # Agente de coleta do ambiente de desenvolvimento: lê as métricas (docker_stats) e os logs dos contêineres da
 # plataforma e das features e os envia, em OTLP/gRPC, ao telemetry-router. Os logs são os JSON dos
-# componentes (decisão 0045, docs/OBSERVABILITY.md §7); as métricas são as de contêiner (container.*) dos
+# componentes (decisão 0045, docs/telemetry/OBSERVABILITY.md §7); as métricas são as de contêiner (container.*) dos
 # contêineres `*.smarkee.internal`. Baseado no otel-agent da stack de observabilidade do desenvolvedor.
 # Depende do telemetry-router: o arquivo dele é incluído para que o `depends_on` funcione também no modo isolado.
 # O Compose trata inclusões repetidas do mesmo arquivo como um único serviço.
@@ -40,7 +40,7 @@ services:
     depends_on:
       telemetry-router:
         condition: service_started
-    # Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7), com rotação. O agente lê
+    # Driver de log legível pelo coletor (decisão 0045, docs/telemetry/OBSERVABILITY.md §7), com rotação. O agente lê
     # o próprio log, mas só encaminha linhas JSON com service.namespace = smarkee, então não há laço.
     logging:
       driver: json-file

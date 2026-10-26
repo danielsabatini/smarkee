@@ -1,4 +1,4 @@
--- Migração 0001 de ipm.permission: Permissão atômica no SSOT da Smarkee (docs/POSTGRESQL.md §6 e §14.2; decisão 0083).
+-- Migração 0001 de ipm.permission: Permissão atômica no SSOT da Smarkee (docs/data/POSTGRESQL.md §6 e §14.2; decisão 0083).
 -- Projeto: ipm-permission-manager (decisões 0015 e 0083), dono do esquema do tipo.
 -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
 -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/ipm.sql.
@@ -83,13 +83,13 @@ CREATE INDEX IF NOT EXISTS permission_outbox_published
   ON ipm.permission_outbox (published_at) WHERE published_at IS NOT NULL;
 
 -- Índice de unicidade de `name` entre Permissions ativas (`lifecycle = 'present'`), conferido na
--- unidade atômica do pedido (docs/SSOT.md §10.1; decisão 0083).
+-- unidade atômica do pedido (docs/data/SSOT.md §10.1; decisão 0083).
 CREATE UNIQUE INDEX IF NOT EXISTS permission_active_name
   ON ipm.permission ((desired ->> 'name'))
   WHERE lifecycle = 'present';
 
 -- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count. `requested_by`
--- aparece só na view da Operation, para o Receiver autorizar a leitura (docs/POSTGRESQL.md §6.5).
+-- aparece só na view da Operation, para o Receiver autorizar a leitura (docs/data/POSTGRESQL.md §6.5).
 CREATE OR REPLACE VIEW ipm.permission_v1 AS
   SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
          resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
@@ -274,7 +274,7 @@ SELECT
 FROM inserted i
 ON CONFLICT (message_id) DO NOTHING;
 
--- Privilégios (docs/POSTGRESQL.md §14.2).
+-- Privilégios (docs/data/POSTGRESQL.md §14.2).
 GRANT CONNECT ON DATABASE ssot
   TO ipm_permission_manager, ipm_permission_receiver, ipm_permission_publisher, ipm_maintenance;
 

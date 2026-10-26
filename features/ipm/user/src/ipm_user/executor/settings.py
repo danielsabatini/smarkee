@@ -3,7 +3,7 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `IPM_USER_EXECUTOR_<SEÇÃO>_<CAMPO>`, por exemplo
 `IPM_USER_EXECUTOR_MESSAGING_URL`
-(`docs/SCHEMA.md` §8.3). Sem default: a senha do NATS e o ID do projeto de roles. O Executor
+(`docs/data/SCHEMA.md` §8.3). Sem default: a senha do NATS e o ID do projeto de roles. O Executor
 **não acessa o SSOT** e escreve no Zitadel só o usuário, as autorizações dele e o metadado.
 """
 

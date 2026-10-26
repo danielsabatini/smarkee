@@ -2,7 +2,7 @@
 
 O Receiver só **valida** tokens: assinatura pelas chaves públicas (JWKS), `iss`, `aud` (ID do
 projeto da plataforma) e `exp`. Ela não tem credencial de escrita no provedor
-(`docs/RESOURCE-CONTROL-SECURITY.md` §9). As permissões vêm do claim
+(`docs/loop/RESOURCE-CONTROL-SECURITY.md` §9). As permissões vêm do claim
 `urn:zitadel:iam:org:project:<ID do projeto>:roles` (no Zitadel, cada permissão atômica da Smarkee
 é uma Project Role; decisões 0010 e 0083).
 """

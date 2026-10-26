@@ -1,7 +1,7 @@
 """Auxiliares dos testes de integração (PostgreSQL de desenvolvimento, papéis reais).
 
 O Receiver não importa o Manager: os dados de teste entram no SSOT por SQL, com o papel do Manager
-do tipo, como o contrato de armazenamento (`docs/POSTGRESQL.md` §6) permite.
+do tipo, como o contrato de armazenamento (`docs/data/POSTGRESQL.md` §6) permite.
 """
 
 import os

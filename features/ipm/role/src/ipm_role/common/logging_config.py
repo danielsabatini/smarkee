@@ -1,6 +1,7 @@
 """Logs como LogRecord do OpenTelemetry: uma linha JSON por evento no stdout (decisão 0045).
 
-O formato, os campos e as proibições estão em `docs/OBSERVABILITY.md`. As chaves de contexto vêm
+O formato, os campos e as proibições estão em `docs/telemetry/OBSERVABILITY.md`. As chaves de
+contexto vêm
 do argumento `extra` dos loggers e são nomes de atributo da semconv ou `smarkee.*`, em inglês
 (`AGENTS.md` §16.1). A mensagem e a pilha de uma exceção **não** entram no log: elas podem conter
 valores de colunas (por exemplo, o detalhe de uma violação de unicidade traz o e-mail), então só o
@@ -156,7 +157,7 @@ def bind_context(
 
 
 def bind_message_context(message: bytes | str | Mapping[str, Any]) -> None:
-    """Preenche o contexto a partir de um envelope de mensagem (`docs/MESSAGING.md`).
+    """Preenche o contexto a partir de um envelope de mensagem (`docs/messaging/MESSAGING.md`).
 
     Lê `requestedBy`, `resourceId`, `operation`, `data.ownerAccountId` e, para Organization, o
     `resourceId` como organização. Mensagem sem solicitante registrado (as `observed` do Observer,

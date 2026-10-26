@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "LogRecordLine",
-  "description": "Linha de log emitida no stdout por um componente: representação em JSON de um LogRecord do OpenTelemetry (docs/OBSERVABILITY.md, decisão 0045). Fecha os atributos permitidos: nomes da semconv listados aqui e o namespace smarkee.*. exception.message e exception.stacktrace são proibidos.",
+  "description": "Linha de log emitida no stdout por um componente: representação em JSON de um LogRecord do OpenTelemetry (docs/telemetry/OBSERVABILITY.md, decisão 0045). Fecha os atributos permitidos: nomes da semconv listados aqui e o namespace smarkee.*. exception.message e exception.stacktrace são proibidos.",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,

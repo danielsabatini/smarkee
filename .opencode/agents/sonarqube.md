@@ -120,7 +120,7 @@ A consulta do Quality Gate deve ser realizada **pelas ferramentas do servidor MC
 
 Quando a análise estiver associada a uma branch ou pull request, utilize o parâmetro correspondente. Sem eles, a consulta é da branch principal.
 
-**Ferramentas que alteram o SonarQube** (`change_sonar_issue_status`, `change_security_hotspot_status`, `toggle_automatic_analysis`) só são usadas por instrução explícita do responsável, com o motivo registrado no comentário da issue e, quando a causa for uma lacuna de infraestrutura, declarada no `docs/IMPLEMENTATION-STATUS.md` (`AGENTS.md`, seção 2.5). Mudar o status de uma issue para fazer o Quality Gate passar, sem esse registro, é ocultar um problema.
+**Ferramentas que alteram o SonarQube** (`change_sonar_issue_status`, `change_security_hotspot_status`, `toggle_automatic_analysis`) só são usadas por instrução explícita do responsável, com o motivo registrado no comentário da issue e, quando a causa for uma lacuna de infraestrutura, declarada no `docs/platform/IMPLEMENTATION-STATUS.md` (`AGENTS.md`, seção 2.5). Mudar o status de uma issue para fazer o Quality Gate passar, sem esse registro, é ocultar um problema.
 
 **Alternativa.** Se o MCP não estiver disponível, o mesmo resultado vem da Web API (`GET /api/qualitygates/project_status?projectKey=<PROJECT_KEY>`), com a credencial fornecida de forma segura (seção 15). O MCP indisponível não autoriza estimar o resultado (seção 21).
 

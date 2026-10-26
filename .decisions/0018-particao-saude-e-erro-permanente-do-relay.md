@@ -17,7 +17,7 @@ Uma avaliação de um projeto de referência com NATS JetStream (o `k8s-meter-ex
 
 A ordem por recurso e o paralelismo passam a vir do **Stream**, e não do código do componente:
 
-- o Stream declara `subject_transform` com `partition(N, <token do resourceId>)`, que acrescenta ao subject o token da partição; quem publica continua publicando o subject definido em `docs/NATS.md`;
+- o Stream declara `subject_transform` com `partition(N, <token do resourceId>)`, que acrescenta ao subject o token da partição; quem publica continua publicando o subject definido em `docs/messaging/NATS.md`;
 - cada partição tem **um consumer durável** com `filter_subject` da partição e `max_ack_pending = 1`: uma ação por vez em cada recurso, e até `N` recursos em paralelo;
 - o número de partições `N` é definido no bootstrap do Stream (decisão 0005), nunca pela aplicação. Mudar `N` exige recriar o Stream e é uma operação planejada.
 
@@ -60,7 +60,7 @@ Não se descarta nem se pula a mensagem: pular quebraria a ordem por recurso, e 
 ## Consequências
 
 - Implementado nos cinco papéis de `core.user`: `http/health.py` em cada componente (no Receiver, rotas no próprio app), `outbox/relay.py` e `transport/publisher.py` no Manager, com testes. A Organization adota ao ser derivada do User.
-- `docs/NATS.md` passa a descrever a partição, a saúde e a política do relay.
+- `docs/messaging/NATS.md` passa a descrever a partição, a saúde e a política do relay.
 - A `Nats-Expected-Last-Subject-Sequence` como endurecimento adicional do relay foi testada e funciona, mas **não** é adotada agora: depende da partição aplicada e não tem necessidade medida.
 
 ## Verificação de resiliência
@@ -69,6 +69,6 @@ Os testes e2e do User (`features/core/user/tests/e2e/tests/test_chaos.py`, com `
 
 ## Pendente
 
-- Substituir o `max_ack_pending=1` sem `pinned_client` por `pinned_client` antes de stg e prd (`docs/NATS.md` §7.5).
+- Substituir o `max_ack_pending=1` sem `pinned_client` por `pinned_client` antes de stg e prd (`docs/messaging/NATS.md` §7.5).
 - Avaliar a partição do Observer quando houver carga medida.
 - A topologia de implantação (`maintain` como terceiro modo do Manager, *sidecar* do relay, KEDA em stg e prd) **não** está decidida aqui: segue como proposta aguardando confirmação.

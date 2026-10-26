@@ -3,7 +3,7 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 
 Nome da variável: `BSM_ACCOUNT_MANAGER_<SEÇÃO>_<CAMPO>`, por exemplo
-`BSM_ACCOUNT_MANAGER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
+`BSM_ACCOUNT_MANAGER_MESSAGING_URL` (`docs/data/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
 from bsm_account.common.settings import (

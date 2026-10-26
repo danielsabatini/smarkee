@@ -3,7 +3,7 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 Nome da variável: `CORE_ACCOUNT_RECONCILER_<SEÇÃO>_<CAMPO>`, por exemplo
 `CORE_ACCOUNT_RECONCILER_MESSAGING_URL`
-(`docs/SCHEMA.md` §8.3). A senha do NATS não tem default. O Reconciler não acessa o SSOT.
+(`docs/data/SCHEMA.md` §8.3). A senha do NATS não tem default. O Reconciler não acessa o SSOT.
 """
 
 from core_account.common.settings import (

@@ -41,7 +41,7 @@ class StateStore:
             async with self._connection.transaction():
                 yield
         except psycopg.errors.UniqueViolation:
-            # Duas entregas simultâneas disputam a chave primária (docs/POSTGRESQL.md §8).
+            # Duas entregas simultâneas disputam a chave primária (docs/data/POSTGRESQL.md §8).
             raise DuplicateWriteError from None
 
     async def add_to_outbox(

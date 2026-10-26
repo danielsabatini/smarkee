@@ -1,4 +1,4 @@
--- Migração 0001 de ipm.organization: Organization no SSOT (docs/POSTGRESQL.md §6 e §14.2).
+-- Migração 0001 de ipm.organization: Organization no SSOT (docs/data/POSTGRESQL.md §6 e §14.2).
 -- Projeto: ipm-organization-manager (decisão 0015), dono do esquema do tipo.
 -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
 -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/ipm.sql.
@@ -76,14 +76,14 @@ CREATE INDEX IF NOT EXISTS organization_outbox_published
   ON ipm.organization_outbox (published_at) WHERE published_at IS NOT NULL;
 
 -- Índices de busca do Manager: dono (cota por dono, decisão 0010) e nome (unicidade), conferidos
--- na unidade atômica do pedido (docs/SSOT.md §10.1).
+-- na unidade atômica do pedido (docs/data/SSOT.md §10.1).
 CREATE INDEX IF NOT EXISTS organization_owner
   ON ipm.organization ((desired ->> 'ownerAccountId'));
 CREATE INDEX IF NOT EXISTS organization_name
   ON ipm.organization ((desired ->> 'name'));
 
 -- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count. `requested_by` aparece
--- só na view da Operation, para o Receiver autorizar a leitura (docs/POSTGRESQL.md §6.5).
+-- só na view da Operation, para o Receiver autorizar a leitura (docs/data/POSTGRESQL.md §6.5).
 CREATE OR REPLACE VIEW ipm.organization_v1 AS
   SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
          resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
@@ -95,7 +95,7 @@ CREATE OR REPLACE VIEW ipm.organization_operation_v1 AS
          requested_by
     FROM ipm.organization_operation;
 
--- Privilégios (docs/POSTGRESQL.md §14.2).
+-- Privilégios (docs/data/POSTGRESQL.md §14.2).
 GRANT CONNECT ON DATABASE ssot
   TO ipm_organization_manager, ipm_organization_receiver, ipm_organization_publisher, ipm_maintenance;
 

@@ -3,7 +3,7 @@
 Precedência: CLI → ambiente → config.toml → segredos → default (`common/settings.py`).
 
 Nome da variável: `BSM_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>`, por exemplo
-`BSM_ACCOUNT_RECEIVER_MESSAGING_URL` (`docs/SCHEMA.md` §8.3). As senhas não têm default.
+`BSM_ACCOUNT_RECEIVER_MESSAGING_URL` (`docs/data/SCHEMA.md` §8.3). As senhas não têm default.
 """
 
 from bsm_account.common.settings import (

@@ -9,7 +9,7 @@ Os documentos usavam *Tenant* como tipo de recurso e unidade de isolamento. A im
 
 Com dois conceitos (Tenant na plataforma e organização no Zitadel), cada sistema passaria a ter o seu próprio identificador, e a plataforma precisaria de uma tabela de correspondência entre eles.
 
-O `resourceId` é atribuído pelo Receiver antes de o recurso existir em qualquer sistema externo (`docs/SCHEMA.md`, *Identificador do recurso*), porque ele compõe o subject do `requested` e a criação pelo loop precisa ser idempotente. O Zitadel aceita um ID informado na criação da organização (`organization_id` em `AddOrganizationRequest`, de 1 a 200 caracteres, verificado no `org_service.proto` da v4.19.4).
+O `resourceId` é atribuído pelo Receiver antes de o recurso existir em qualquer sistema externo (`docs/data/SCHEMA.md`, *Identificador do recurso*), porque ele compõe o subject do `requested` e a criação pelo loop precisa ser idempotente. O Zitadel aceita um ID informado na criação da organização (`organization_id` em `AddOrganizationRequest`, de 1 a 200 caracteres, verificado no `org_service.proto` da v4.19.4).
 
 ## Decisão
 
@@ -25,7 +25,7 @@ O `resourceId` é atribuído pelo Receiver antes de o recurso existir em qualque
 
 ## Consequências
 
-- `docs/SCHEMA.md` (*Organization e identificadores derivados*), `MESSAGING.md`, `NATS.md`, `RESOURCE-CONTROL-LOOP.md`, `RESOURCE-CONTROL-SECURITY.md` e `POSTGRESQL.md` passam a usar Organization.
+- `docs/data/SCHEMA.md` (*Organization e identificadores derivados*), `MESSAGING.md`, `NATS.md`, `RESOURCE-CONTROL-LOOP.md`, `RESOURCE-CONTROL-SECURITY.md` e `POSTGRESQL.md` passam a usar Organization.
 - O valor precisa ser válido em todos os sistemas: o namespace do Kubernetes limita a 63 caracteres em formato de rótulo DNS. O UUIDv7 atende; as restrições de nome de namespace do OpenBao ainda precisam ser verificadas.
 - O autocadastro de organization do Zitadel (ID gerado por ele) deixa de existir: a decisão 0013 o desliga, e toda Organization nasce pelo loop.
 - Verificado no Zitadel v4.19.4 (2026-10-10): criar uma organização com `organization_id` informado devolve esse ID. Repetir o mesmo ID devolve HTTP 409 (`Errors.Org.AlreadyExisting`), e o mesmo nome com outro ID também devolve 409 ("nome ou ID já está em uso"). O Executor trata o 409 lendo a organização pelo ID: se existe com o nome esperado, é sucesso idempotente; se existe com outro nome, ou não existe (nome em uso por outra), é falha permanente.

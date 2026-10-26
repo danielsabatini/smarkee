@@ -1,4 +1,4 @@
-"""Adaptadores comuns do NATS JetStream (`docs/NATS.md`).
+"""Adaptadores comuns do NATS JetStream (`docs/messaging/NATS.md`).
 
 Conexão com a identidade do papel, publicação com deduplicação pelo `messageId` e o laço de
 consumo por *pull*. As regras de negócio de cada papel ficam nos seus pacotes.
@@ -148,7 +148,7 @@ class MessageSink(Protocol):
 
 
 class StateConsumer:
-    """Consumer de estado de uma instância, para um Stream (`docs/NATS.md` §7.4, §7.6).
+    """Consumer de estado de uma instância, para um Stream (`docs/messaging/NATS.md` §7.4, §7.6).
 
     Estado em memória exige **um consumer por instância**, com `DeliverLastPerSubject`, nome único
     por execução do processo e `inactive_threshold`: assim cada instância reconstrói o estado

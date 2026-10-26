@@ -74,7 +74,7 @@ async def wait_for_operation(
     path = f"/v1/sum/services/{resource_id}/operations/{operation_id}"
     while True:
         response = await api.get(path, headers=headers)
-        # `404` até o Manager gravar a Operation (`docs/RESOURCE-CONTROL-LOOP.md`, §6.1.1).
+        # `404` até o Manager gravar a Operation (`docs/loop/RESOURCE-CONTROL-LOOP.md`, §6.1.1).
         if response.status_code == 404 and asyncio.get_running_loop().time() <= deadline:
             await asyncio.sleep(POLL_INTERVAL_SECONDS)
             continue

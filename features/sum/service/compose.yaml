@@ -6,7 +6,7 @@ name: sum-service
 # e saudável antes: este arquivo só referencia a rede `internal` que ela cria.
 #
 
-# Driver de log legível pelo coletor (decisão 0045, docs/OBSERVABILITY.md §7): o padrão `local` do
+# Driver de log legível pelo coletor (decisão 0045, docs/telemetry/OBSERVABILITY.md §7): o padrão `local` do
 # Docker não é lido pelo `file_log` do OpenTelemetry Collector. Com rotação.
 x-logging: &component-logging
   driver: json-file
@@ -30,7 +30,7 @@ x-image: &component-image
   image: ${SUM_SERVICE_IMAGE:-smarkee-sum-service:dev}
 
 services:
-  # Consumers duráveis de trabalho de sum.service (docs/NATS.md §7.6): `requested`, `observed`, resultados e a
+  # Consumers duráveis de trabalho de sum.service (docs/messaging/NATS.md §7.6): `requested`, `observed`, resultados e a
   # remoção da conta (`updated` de core.account) do Manager, e `action` do Executor. Os manifestos ficam em cada componente. O Reconciler e o Observer não
   # têm manifesto: cada instância cria o próprio consumer de estado, com DeliverLastPerSubject (§7.4).
   # Inexistente é criado; existente com configuração idêntica não muda; configuração diferente falha
@@ -272,7 +272,7 @@ services:
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
-  # Telemeter de app de sum.service (decisão 0062, docs/OBSERVABILITY.md §14): recebe por OTLP, do
+  # Telemeter de app de sum.service (decisão 0062, docs/telemetry/OBSERVABILITY.md §14): recebe por OTLP, do
   # telemetry-router da plataforma, os logs e os spans de app desta feature e os grava em `telemeter/logs/` e `telemeter/traces/`. Não lê logs de
   # contêineres nem usa o socket do Docker (isso é do telemetry-agent). Sem privilégios e sem escrita fora da pasta.
   sum-service-telemeter:

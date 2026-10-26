@@ -1,4 +1,4 @@
-"""Aplicação HTTP do Receiver (`docs/RESOURCE-CONTROL-LOOP.md` §6.1, decisão 0092).
+"""Aplicação HTTP do Receiver (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1, decisão 0092).
 
 O Receiver autentica, autoriza, valida, gera as identidades e **publica `requested`**; ele não
 escreve no SSOT. As leituras vêm das views do SSOT. Toda escrita responde `202 Accepted` com o

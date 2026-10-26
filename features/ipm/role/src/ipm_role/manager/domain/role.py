@@ -3,7 +3,7 @@
 Puro: sem banco, rede ou relógio. A unicidade de `name` entre Roles ativas (`lifecycle = present`)
 é por Organization **e** contra as predefinidas da plataforma (`core`): é declarada aqui
 (`unique_value`) e verificada na mesma unidade atômica do pedido pelo adaptador do SSOT
-(`docs/SSOT.md` §10.1). A cota de Roles `custom` por Organization segue o mesmo caminho
+(`docs/data/SSOT.md` §10.1). A cota de Roles `custom` por Organization segue o mesmo caminho
 (`owner_quota`, decisão 0092).
 """
 

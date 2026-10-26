@@ -1,4 +1,4 @@
-"""O OpenAPI versionado descreve a aplicação (artefato neutro, `docs/SCHEMA.md` §22)."""
+"""O OpenAPI versionado descreve a aplicação (artefato neutro, `docs/data/SCHEMA.md` §22)."""
 
 import json
 from pathlib import Path

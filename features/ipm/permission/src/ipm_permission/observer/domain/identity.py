@@ -7,7 +7,7 @@ class ProviderError(Exception):
     """Qualquer falha ao consultar o Zitadel (rede, timeout, 4xx/5xx, JSON inválido).
 
     Para o Observer, toda falha de leitura é inconclusiva (`presence = unknown`), nunca `absent`
-    (`docs/RESOURCE-CONTROL-SECURITY.md` §8).
+    (`docs/loop/RESOURCE-CONTROL-SECURITY.md` §8).
     """
 
 

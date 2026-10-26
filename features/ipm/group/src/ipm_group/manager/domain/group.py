@@ -2,7 +2,7 @@
 
 Puro: sem banco, rede ou relógio. O nome único na Organization, as roles fora do catálogo e a
 cota de grupos por Organization são declarados aqui (`unique_value`, `invalid`, `owner_quota`) e
-verificados na mesma unidade atômica do pedido pelo adaptador do SSOT (`docs/SSOT.md` §10.1).
+verificados na mesma unidade atômica do pedido pelo adaptador do SSOT (`docs/data/SSOT.md` §10.1).
 """
 
 from collections.abc import Mapping

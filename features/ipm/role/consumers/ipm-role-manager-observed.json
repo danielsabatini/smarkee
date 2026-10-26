@@ -1,6 +1,6 @@
 {
   "durable_name": "ipm-role-manager-observed",
-  "description": "Persistência: observed de role para o Manager, compartilhado pelas instâncias (docs/NATS.md, 7.6)",
+  "description": "Persistência: observed de role para o Manager, compartilhado pelas instâncias (docs/messaging/NATS.md, 7.6)",
   "deliver_policy": "all",
   "ack_policy": "explicit",
   "ack_wait": 15000000000,

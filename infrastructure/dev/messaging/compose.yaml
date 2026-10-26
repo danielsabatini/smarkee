@@ -17,7 +17,7 @@ x-messaging-bootstrap: &messaging-bootstrap
     - internal
   restart: "no"
 
-# Driver de log legível pelo telemetry-agent (decisão 0053, docs/OBSERVABILITY.md §7): json-file com rotação e as labels
+# Driver de log legível pelo telemetry-agent (decisão 0053, docs/telemetry/OBSERVABILITY.md §7): json-file com rotação e as labels
 # que identificam o serviço e a camada (infra) em cada linha.
 x-infra-logging: &infra-logging
   driver: json-file
