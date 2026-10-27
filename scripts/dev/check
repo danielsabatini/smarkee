@@ -154,6 +154,16 @@ def run_checks(mode: str) -> int:
         return 1
     print("✅ Limites arquiteturais respeitados (0 violações).")
 
+    # 1.1 Cópias do template de feature (arquivos gerais e perfis) em sincronia com o modelo
+    print("\n🧬 1.1 Verificando sincronia das features com o template...")
+    code, out = run_command(
+        [sys.executable, str(ROOT / "templates" / "feature" / "sync.py"), "--check"], cwd=ROOT
+    )
+    if code != 0:
+        print(f"❌ Features divergentes do template (use sync.py --write):\n{out}")
+        return 1
+    print("✅ Features em sincronia com o template.")
+
     features = find_features()
     scripts_dev = find_scripts_dev()
     all_targets = features + scripts_dev

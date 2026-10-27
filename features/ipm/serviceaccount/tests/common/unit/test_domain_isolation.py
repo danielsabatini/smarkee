@@ -29,14 +29,18 @@ FORBIDDEN_COMMON = {
     "identity",
 }
 FORBIDDEN_LAYERS = {
+    "api": {"http", "auth", "store", "transport", "main", "settings"},
     "receiver": {"http", "auth", "store", "transport", "main", "settings"},
     "manager": {"handlers", "store", "outbox", "transport", "http", "main", "settings"},
     "publisher": {"outbox", "transport", "http", "main", "settings"},
     "controller": {"engine", "drivers", "store", "http", "main", "settings"},
+    "observer": {"engine", "provider", "transport", "http", "main", "settings"},
+    "reconciler": {"engine", "transport", "http", "main", "settings"},
+    "executor": {"engine", "actions", "provider", "transport", "http", "main", "settings"},
 }
 # `http` é um pacote da stdlib (`HTTPStatus`) que o domínio do Receiver usa; nos demais papéis é a
 # camada de saúde e é proibida.
-STDLIB_HTTP_ALLOWED = {"receiver"}
+STDLIB_HTTP_ALLOWED = {"api", "receiver"}
 
 
 def _imports_of(path: Path) -> set[str]:
@@ -74,6 +78,8 @@ def _violation(role: str, module: str) -> bool:
         ("manager", "ipm_serviceaccount.common.contracts.base", False),
         ("manager", "ipm_serviceaccount.manager.domain.policy", False),
         ("receiver", "http", False),
+        ("api", "http", False),
+        ("executor", "http", True),
         ("controller", "http", True),
     ],
 )
@@ -83,7 +89,14 @@ def test_the_rule_flags_what_the_domain_must_not_import(
     assert _violation(role, module) is forbidden
 
 
-@pytest.mark.parametrize("role", FORBIDDEN_LAYERS)
+SOURCE_ROOT = Path(__file__).resolve().parents[3] / "src" / "ipm_serviceaccount"
+PRESENT_ROLES = sorted(
+    role for role in FORBIDDEN_LAYERS if (SOURCE_ROOT / role / "domain").is_dir()
+)
+"""Papéis que a feature tem (cada uma tem o conjunto do seu loop) e que possuem `domain/`."""
+
+
+@pytest.mark.parametrize("role", PRESENT_ROLES)
 def test_domain_does_not_import_adapters_or_orchestration(role: str) -> None:
     domain_package = importlib.import_module(f"ipm_serviceaccount.{role}.domain")
     directories = list(domain_package.__path__)

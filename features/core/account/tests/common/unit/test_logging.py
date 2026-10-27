@@ -26,7 +26,16 @@ _PACKAGE = "core_account"
 _PACKAGE_PARTS = _PACKAGE.split("_")
 # O papel é informado a `build_resource` por cada entrypoint (decisão 0063); aqui, o Receiver.
 _ROLE = "receiver"
-_ROLES = ("receiver", "manager", "publisher", "observer", "reconciler", "executor")
+_ROLES = (
+    "api",
+    "receiver",
+    "manager",
+    "publisher",
+    "controller",
+    "observer",
+    "reconciler",
+    "executor",
+)
 _LOGGER_METHODS = {"debug", "info", "warning", "error", "critical", "exception", "log"}
 _SOURCE_ROOT = (
     next(parent for parent in Path(__file__).resolve().parents if (parent / "src").is_dir()) / "src"

@@ -63,18 +63,35 @@ PROFILES: dict[str, tuple[str, ...]] = {
         "ipm/user",
         "sum/service",
     ),
+    # Observação e resultado no Manager (`observed`, `result`, convergência e prazo de observação): só
+    # nas features com o loop de sete papéis; o Controller (decisão 0096) faz isso no próprio ciclo.
+    "manager-observation": (
+        "bsm/account",
+        "core/account",
+        "ipm/group",
+        "ipm/permission",
+        "ipm/role",
+        "sum/service",
+    ),
+    # Fontes de estado do Reconciler (`DESIRED`, `OBSERVED` e `RESULT`): só as features com o loop
+    # de sete papéis (decisão 0096 aposenta o Reconciler nas demais).
+    "reconciler-streams": (
+        "bsm/account",
+        "core/account",
+        "ipm/group",
+        "ipm/permission",
+        "ipm/role",
+        "sum/service",
+    ),
     # Driver de metadado do provedor de identidade, escrita (Executor) e leitura (Observer).
-    "identity-metadata": ("core/account", "ipm/organization", "ipm/serviceaccount", "ipm/user"),
+    "identity-metadata": ("core/account",),
     # Motores sem regra do tipo: Observer e Executor (com a revalidação), com o teste do motor do
     # Observer (decisão 0075).
     "loop-engines": (
         "bsm/account",
         "core/account",
         "ipm/group",
-        "ipm/organization",
         "ipm/role",
-        "ipm/serviceaccount",
-        "ipm/user",
     ),
 }
 

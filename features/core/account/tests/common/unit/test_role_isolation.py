@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 
 SOURCE_ROOT = Path(__file__).resolve().parents[3] / "src" / "core_account"
-ROLES = ("receiver", "manager", "publisher", "observer", "reconciler", "executor")
+# Os papéis da feature são os diretórios do pacote (com exceção do código comum): cada feature tem
+# o conjunto do seu loop (por exemplo, `api`, `publisher` e `controller`).
+ROLES = tuple(
+    sorted(path.name for path in SOURCE_ROOT.iterdir() if path.is_dir() and path.name != "common")
+    if SOURCE_ROOT.is_dir()
+    else ()
+)
 
 
 def _imported_modules(path: Path) -> set[str]:
@@ -20,7 +26,8 @@ def _imported_modules(path: Path) -> set[str]:
 
 
 def test_every_role_has_its_own_directory() -> None:
-    assert {path.name for path in SOURCE_ROOT.iterdir() if path.is_dir()} >= {*ROLES, "common"}
+    assert ROLES
+    assert "common" in {path.name for path in SOURCE_ROOT.iterdir() if path.is_dir()}
 
 
 @pytest.mark.parametrize("role", ROLES)

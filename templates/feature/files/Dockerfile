@@ -1,6 +1,6 @@
-# Imagem única de @@DOTTED@@ (decisão 0063): contém o código dos seis papéis (receiver, manager,
-# publisher, observer, reconciler e executor). Cada papel roda como contêiner próprio, escolhido pelo
-# `command` (por exemplo, `@@KEBAB@@-receiver`); sem `command`, a imagem não inicia nenhum papel.
+# Imagem única de @@DOTTED@@ (decisão 0063): contém o código de todos os papéis da feature. Cada
+# papel roda como contêiner próprio, escolhido pelo `command` (por exemplo, `@@KEBAB@@-publisher`);
+# sem `command`, a imagem não inicia nenhum papel.
 # As credenciais não ficam na imagem: cada contêiner recebe só as do seu papel.
 #
 # Segue o guia do uv para Docker (https://docs.astral.sh/uv/guides/integration/docker/):
