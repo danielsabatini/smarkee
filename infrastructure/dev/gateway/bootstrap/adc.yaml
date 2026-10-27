@@ -106,17 +106,17 @@ services:
   # cadastro (`core-account-register`, POST /v1/core/accounts); as rotas do Zitadel são públicas.
   # Uma rota por tipo de recurso (decisão 0015). Cada rota casa o caminho exato e os subcaminhos
   # (`/v1/<módulo>/<tipos>` e `/v1/<módulo>/<tipos>/*`), nunca um prefixo parecido (decisão 0030).
-  - name: ipm-organization-receiver
+  - name: ipm-organization-api
     upstream:
       scheme: http
       type: roundrobin
       pass_host: pass
       nodes:
-        - host: ipm-organization-receiver.smarkee.internal
+        - host: ipm-organization-api.smarkee.internal
           port: 8000
           weight: 100
     routes:
-      - name: ipm-organization-receiver
+      - name: ipm-organization-api
         hosts:
           - api-dev.smarkee.com.br
         uris:

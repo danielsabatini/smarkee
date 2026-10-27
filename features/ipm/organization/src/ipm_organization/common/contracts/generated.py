@@ -47,6 +47,13 @@ class MessageOperation(StrEnum):
     noop = "noop"
 
 
+class RequestDigest(RootModel[str]):
+    root: Annotated[str, Field(max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")]
+    """
+    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
+    """
+
+
 class Duration(RootModel[timedelta]):
     root: timedelta
     """
@@ -229,133 +236,6 @@ class UpdatedData(ContractModel):
     removed: bool | None = None
     """
     true quando o recurso foi removido do SSOT (remoção convergida).
-    """
-
-
-class OperationType(StrEnum):
-    create = "create"
-    update = "update"
-    delete = "delete"
-
-
-class OperationStatus(StrEnum):
-    accepted = "accepted"
-    in_progress = "in_progress"
-    completed = "completed"
-    failed = "failed"
-    rejected = "rejected"
-    superseded = "superseded"
-
-
-class OperationStatusReason(StrEnum):
-    """
-    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
-    """
-
-    conflict = "conflict"
-    validation = "validation"
-    not_found = "not_found"
-    protected = "protected"
-
-
-class Operation(ContractModel):
-    """
-    Acompanhamento de uma solicitação assíncrona, exposto por GET /v1/operations/{operationId} (SSOT.md, Operation).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    operation_type: Annotated[OperationType, Field(alias="operationType", title="OperationType")]
-    module: Annotated[str, Field(max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")]
-    resource_type: Annotated[
-        str, Field(alias="resourceType", max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")
-    ]
-    resource_id: Annotated[
-        str,
-        Field(
-            alias="resourceId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-    desired_generation: Annotated[
-        int | None, Field(alias="desiredGeneration", ge=1, le=9007199254740991)
-    ] = None
-    """
-    Geração produzida pelo pedido; ausente quando rejeitado.
-    """
-    operation_status: Annotated[
-        OperationStatus, Field(alias="operationStatus", title="OperationStatus")
-    ]
-    operation_status_reason: Annotated[
-        OperationStatusReason | None,
-        Field(alias="operationStatusReason", title="OperationStatusReason"),
-    ] = None
-    """
-    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
-    """
-    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-    updated_at: Annotated[AwareDatetime, Field(alias="updatedAt")]
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-    completed_at: Annotated[AwareDatetime | None, Field(alias="completedAt")] = None
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-
-
-class ApiAcceptedResponse(ContractModel):
-    """
-    Resposta das escritas assíncronas (POST, PATCH, DELETE): o pedido foi publicado, não aplicado (RESOURCE-CONTROL-LOOP.md, Interface HTTP).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    resource_id: Annotated[
-        str,
-        Field(
-            alias="resourceId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
     """
 
 
@@ -556,171 +436,6 @@ class OrganizationObservedData(ContractModel):
     """
 
 
-class OrganizationCreateSpecification(ContractModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    name: Annotated[
-        str, Field(max_length=63, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
-    ]
-    """
-    Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
-    """
-    platform_access: Annotated[PlatformAccess, Field(alias="platformAccess")]
-    billing_account_id: Annotated[
-        str | None,
-        Field(
-            alias="billingAccountId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ] = None
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-
-
-class OrganizationRequestedCreateData(ContractModel):
-    """
-    data de requested com operation create. Publicado somente pelo Receiver; o dono é o requestedBy.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    specification: Annotated[
-        OrganizationCreateSpecification, Field(title="OrganizationCreateSpecification")
-    ]
-    owner_quota_limit: Annotated[int | None, Field(alias="ownerQuotaLimit", ge=1, le=1000)] = None
-    """
-    Limite de Organizations do dono, definido pelo Receiver a partir do papel do solicitante (ausente para operadores: sem cota). O Manager aplica o limite na mesma unidade atômica do pedido (decisão 0010).
-    """
-
-
-class OrganizationUpdateSpecification(ContractModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    name: Annotated[
-        str | None,
-        Field(max_length=63, min_length=1, pattern="^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"),
-    ] = None
-    """
-    Nome único da organização na instância de identidade. Minúsculas, dígitos e hífen, como rótulo DNS.
-    """
-    platform_access: Annotated[PlatformAccess | None, Field(alias="platformAccess")] = None
-    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
-    """
-    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
-    """
-    billing_account_id: Annotated[
-        str | None,
-        Field(
-            alias="billingAccountId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ] = None
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-
-
-class OrganizationRequestedUpdateData(ContractModel):
-    """
-    data de requested com operation update. Traz a especificação alterada, a mudança do controle de reconciliação, ou ambas. Publicado somente pelo Receiver.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    resource_version: Annotated[
-        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
-    ]
-    """
-    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
-    """
-    specification: Annotated[
-        OrganizationUpdateSpecification | None, Field(title="OrganizationUpdateSpecification")
-    ] = None
-    reconciliation: Reconciliation | None = None
-    """
-    Muda só o controle de reconciliação; não incrementa desiredGeneration.
-    """
-
-
-class OrganizationRequestedDeleteData(ContractModel):
-    """
-    data de requested com operation delete: declara lifecycle absent. Publicado somente pelo Receiver.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    resource_version: Annotated[
-        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
-    ]
-    """
-    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
-    """
-
-
 class OrganizationCreateRequest(ContractModel):
     """
     Corpo de POST /v1/ipm/organizations. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, registra platformAccess = granted e o dono (ownerAccountId = solicitante autenticado): uma Organization criada sem acesso à plataforma não tem uso.
@@ -878,6 +593,12 @@ class Organization(ContractModel):
     desired_generation: Annotated[int, Field(alias="desiredGeneration", ge=1, le=9007199254740991)]
     """
     Geração lógica do estado desejado (desiredGeneration, observedGeneration).
+    """
+    observed_generation: Annotated[
+        int | None, Field(alias="observedGeneration", ge=1, le=9007199254740991)
+    ] = None
+    """
+    Última geração do desired confirmada pela observação; ausente antes da primeira. A alteração terminou quando observedGeneration >= desiredGeneration e a phase é Ready ou Failed (decisão 0098).
     """
     phase: Phase
     conditions: Annotated[list[Condition], Field(max_length=32)]
@@ -1145,14 +866,9 @@ class IpmOrganizationContracts(
         | CompletedData
         | FailedData
         | UpdatedData
-        | Operation
-        | ApiAcceptedResponse
         | ApiError
         | OrganizationDesiredData
         | OrganizationObservedData
-        | OrganizationRequestedCreateData
-        | OrganizationRequestedUpdateData
-        | OrganizationRequestedDeleteData
         | OrganizationCreateRequest
         | OrganizationUpdateRequest
         | Organization
@@ -1167,14 +883,9 @@ class IpmOrganizationContracts(
         | CompletedData
         | FailedData
         | UpdatedData
-        | Operation
-        | ApiAcceptedResponse
         | ApiError
         | OrganizationDesiredData
         | OrganizationObservedData
-        | OrganizationRequestedCreateData
-        | OrganizationRequestedUpdateData
-        | OrganizationRequestedDeleteData
         | OrganizationCreateRequest
         | OrganizationUpdateRequest
         | Organization

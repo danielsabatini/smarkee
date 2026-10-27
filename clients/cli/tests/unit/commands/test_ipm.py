@@ -21,10 +21,8 @@ from sk.main import app
 runner = CliRunner()
 API = "https://api.teste"
 RID = "01a14168-b59d-7475-8db7-c5cf57fa100b"
-OPID = "b9c4c98c-7392-5016-a724-6e1cd0c1bed9"
 PATH = "/v1/ipm/organizations"
 ORGANIZATION = f"{PATH}/{RID}"
-OPERATION = f"{ORGANIZATION}/operations/{OPID}"
 
 
 class Response:
@@ -115,13 +113,17 @@ def organization_document(
     state: str | None = "active",
     version: str = "3",
     protected: bool = True,
+    desired_generation: int = 1,
+    observed_generation: int | None = 1,
+    conditions: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     return {
         "resourceId": RID,
         "resourceVersion": version,
-        "desiredGeneration": 1,
+        "desiredGeneration": desired_generation,
+        **({"observedGeneration": observed_generation} if observed_generation is not None else {}),
         "phase": phase,
-        "conditions": [],
+        "conditions": conditions or [],
         "desired": {
             "lifecycle": "present",
             "reconciliation": "active",
@@ -139,23 +141,14 @@ def organization_document(
     }
 
 
-def operation_document(status: str, reason: str | None = None) -> Response:
-    document: dict[str, Any] = {"operationId": OPID, "operationStatus": status}
-    if reason:
-        document["operationStatusReason"] = reason
-    return Response(200, document)
-
-
-def accepted() -> Response:
-    return Response(202, {"resourceId": RID, "operationId": OPID})
-
-
 def body_of(request: urllib.request.Request) -> object:
     return json.loads(cast(bytes, request.data))
 
 
 def test_create_sends_the_name_with_the_session_token_and_an_idempotency_key(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
+    api.routes[("POST", PATH)] = Response(
+        201, organization_document(phase="Pending", observed_generation=None)
+    )
 
     result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme"])
 
@@ -164,7 +157,7 @@ def test_create_sends_the_name_with_the_session_token_and_an_idempotency_key(api
     assert request.get_header("Authorization") == "Bearer access-1"
     assert request.get_header("Idempotency-key")
     assert body_of(request) == {"name": "acme"}
-    assert RID in result.stdout and OPID in result.stdout
+    assert RID in result.stdout
     assert "sk ipm organization get --resource-id" in " ".join(result.stdout.split())
 
 
@@ -182,13 +175,13 @@ def test_create_requires_the_name_and_a_valid_one_before_any_call(api: FakeApi) 
 
 
 def test_create_wait_waits_for_ready_and_shows_the_organization(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = [
-        operation_document("in_progress"),
-        operation_document("completed"),
-    ]
+    api.routes[("POST", PATH)] = Response(
+        201, organization_document(phase="Pending", observed_generation=None)
+    )
     api.routes[("GET", ORGANIZATION)] = [
-        Response(200, organization_document(phase="Reconciling", state=None)),
+        Response(
+            200, organization_document(phase="Reconciling", state=None, observed_generation=None)
+        ),
         Response(200, organization_document()),
     ]
 
@@ -199,39 +192,32 @@ def test_create_wait_waits_for_ready_and_shows_the_organization(api: FakeApi) ->
     assert "Ready" in result.stdout and "active" in result.stdout
 
 
-def test_create_wait_does_not_stop_on_the_old_name_after_a_rename_is_pending(
-    api: FakeApi,
-) -> None:
-    """A espera confere o nome pedido: `Ready` com outro nome ainda não é o resultado."""
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
-    api.routes[("GET", ORGANIZATION)] = [
-        Response(200, organization_document(name="antigo")),
-        Response(200, organization_document(name="acme")),
-    ]
-
-    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"])
-
-    assert result.exit_code == 0, result.stdout + result.stderr
-    assert [request.get_method() for request in api.requests].count("GET") == 4
-
-
-def test_wait_stops_with_the_reason_when_the_operation_is_rejected(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("rejected", "validation")
-    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(phase="Pending"))
+def test_wait_stops_with_the_reason_when_phase_is_failed(api: FakeApi) -> None:
+    api.routes[("POST", PATH)] = Response(
+        201, organization_document(phase="Pending", observed_generation=None)
+    )
+    api.routes[("GET", ORGANIZATION)] = Response(
+        200,
+        organization_document(
+            phase="Failed",
+            observed_generation=1,
+            conditions=[{"type": "Ready", "status": "False", "reason": "QuotaExceeded"}],
+        ),
+    )
 
     result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"])
 
     assert result.exit_code == 1
-    assert "Request not completed" in result.stderr and "validation" in result.stderr
-    assert "reserved or already in use" in " ".join(result.stderr.split())
+    assert "QuotaExceeded" in result.stderr
 
 
 def test_wait_times_out_with_a_hint(api: FakeApi, monkeypatch: pytest.MonkeyPatch) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("in_progress")
-    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(phase="Reconciling"))
+    api.routes[("POST", PATH)] = Response(
+        201, organization_document(phase="Pending", observed_generation=None)
+    )
+    api.routes[("GET", ORGANIZATION)] = Response(
+        200, organization_document(phase="Reconciling", observed_generation=None)
+    )
     clock = iter(range(0, 1000, 20))  # cada leitura do relógio avança 20 s
     monkeypatch.setattr("sk.commands.shared.time.monotonic", lambda: next(clock))
 
@@ -248,13 +234,11 @@ def test_wait_times_out_with_a_hint(api: FakeApi, monkeypatch: pytest.MonkeyPatc
 def test_wait_asks_for_a_fresh_token_on_every_poll(
     api: FakeApi, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = [
-        operation_document("in_progress"),
-        operation_document("completed"),
-    ]
+    api.routes[("POST", PATH)] = Response(
+        201, organization_document(phase="Pending", observed_generation=None)
+    )
     api.routes[("GET", ORGANIZATION)] = [
-        Response(200, organization_document(phase="Reconciling")),
+        Response(200, organization_document(phase="Reconciling", observed_generation=None)),
         Response(200, organization_document()),
     ]
     asked: list[bool] = []
@@ -268,7 +252,7 @@ def test_wait_asks_for_a_fresh_token_on_every_poll(
     result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
-    assert len(asked) >= 3  # o pedido de criar e uma vez por leitura (2)
+    assert len(asked) >= 2  # uma vez por leitura do recurso
 
 
 @pytest.mark.parametrize(
@@ -292,17 +276,16 @@ def test_create_translates_the_api_refusals_into_hints(
     assert expected in " ".join(result.stderr.split())
 
 
-def test_get_shows_the_organization_and_the_operation(api: FakeApi) -> None:
+def test_get_shows_the_organization(api: FakeApi) -> None:
     api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
-    api.routes[("GET", OPERATION)] = operation_document("completed")
 
     result = runner.invoke(
         app,
-        ["ipm", "organization", "get", "--resource-id", RID, "--operation-id", OPID],
+        ["ipm", "organization", "get", "--resource-id", RID],
     )
 
     assert result.exit_code == 0, result.stderr
-    for text in ("acme", "active", "Ready", "granted", "completed"):
+    for text in ("acme", "active", "Ready", "granted"):
         assert text in result.stdout
 
 
@@ -345,7 +328,9 @@ def test_list_without_organizations_says_so(api: FakeApi) -> None:
 
 def test_update_reads_the_current_version_before_renaming(api: FakeApi) -> None:
     api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(version="7"))
-    api.routes[("PATCH", ORGANIZATION)] = accepted()
+    api.routes[("PATCH", ORGANIZATION)] = Response(
+        200, organization_document(name="novo", version="8", desired_generation=2)
+    )
 
     result = runner.invoke(
         app, ["ipm", "organization", "update", "--resource-id", RID, "--name", "novo"]
@@ -372,11 +357,25 @@ def test_update_to_the_same_name_does_nothing(api: FakeApi) -> None:
 def test_update_wait_waits_for_the_new_name(api: FakeApi) -> None:
     api.routes[("GET", ORGANIZATION)] = [
         Response(200, organization_document(name="antigo")),  # leitura antes do pedido
-        Response(200, organization_document(name="antigo")),  # ainda o nome antigo
-        Response(200, organization_document(name="novo")),
+        Response(
+            200,
+            organization_document(
+                name="novo", desired_generation=2, observed_generation=1, phase="Reconciling"
+            ),
+        ),
+        Response(
+            200,
+            organization_document(
+                name="novo", desired_generation=2, observed_generation=2, phase="Ready"
+            ),
+        ),
     ]
-    api.routes[("PATCH", ORGANIZATION)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("PATCH", ORGANIZATION)] = Response(
+        200,
+        organization_document(
+            name="novo", desired_generation=2, observed_generation=1, phase="Reconciling"
+        ),
+    )
 
     result = runner.invoke(
         app,
@@ -401,7 +400,9 @@ def test_update_conflict_tells_to_inspect_again(api: FakeApi) -> None:
 
 def test_unprotect_sends_the_flag_with_the_current_version(api: FakeApi) -> None:
     api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(version="9"))
-    api.routes[("PATCH", ORGANIZATION)] = accepted()
+    api.routes[("PATCH", ORGANIZATION)] = Response(
+        200, organization_document(version="10", protected=False, desired_generation=2)
+    )
 
     result = runner.invoke(app, ["ipm", "organization", "unprotect", "--resource-id", RID])
 
@@ -423,11 +424,20 @@ def test_protect_is_idempotent_when_already_protected(api: FakeApi) -> None:
 
 
 def test_unprotect_wait_shows_the_organization_when_completed(api: FakeApi) -> None:
-    api.routes[("PATCH", ORGANIZATION)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("PATCH", ORGANIZATION)] = Response(
+        200,
+        organization_document(
+            protected=False, desired_generation=2, observed_generation=1, phase="Reconciling"
+        ),
+    )
     api.routes[("GET", ORGANIZATION)] = [
         Response(200, organization_document(protected=True)),
-        Response(200, organization_document(protected=False)),
+        Response(
+            200,
+            organization_document(
+                protected=False, desired_generation=2, observed_generation=2, phase="Ready"
+            ),
+        ),
     ]
 
     result = runner.invoke(
@@ -489,20 +499,11 @@ def test_delete_of_an_organization_with_users_points_to_the_users(
     assert expected in text and "changed since it was last read" not in text
 
 
-def test_a_protected_rejection_points_to_unprotect(api: FakeApi) -> None:
-    api.routes[("DELETE", ORGANIZATION)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("rejected", "protected")
-    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
-
-    result = runner.invoke(app, ["ipm", "organization", "delete", "--resource-id", RID, "--wait"])
-
-    assert result.exit_code == 1
-    assert "sk ipm organization unprotect" in " ".join(result.stderr.split())
-
-
 def test_delete_reads_the_current_version_and_sends_it(api: FakeApi) -> None:
     api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(version="9"))
-    api.routes[("DELETE", ORGANIZATION)] = accepted()
+    api.routes[("DELETE", ORGANIZATION)] = Response(
+        202, organization_document(version="10", phase="Deleting")
+    )
 
     result = runner.invoke(app, ["ipm", "organization", "delete", "--resource-id", RID])
 
@@ -513,11 +514,7 @@ def test_delete_reads_the_current_version_and_sends_it(api: FakeApi) -> None:
 
 
 def test_delete_wait_ends_when_the_organization_is_gone(api: FakeApi) -> None:
-    api.routes[("DELETE", ORGANIZATION)] = accepted()
-    api.routes[("GET", OPERATION)] = [
-        operation_document("in_progress"),
-        operation_document("completed"),
-    ]
+    api.routes[("DELETE", ORGANIZATION)] = Response(202, organization_document(phase="Deleting"))
     # Antes do pedido a Organization existe; depois, ainda `Deleting`; por fim, a linha some (404).
     api.routes[("GET", ORGANIZATION)] = [
         Response(200, organization_document()),
@@ -529,37 +526,6 @@ def test_delete_wait_ends_when_the_organization_is_gone(api: FakeApi) -> None:
 
     assert result.exit_code == 0, result.stdout + result.stderr
     assert "Organization deleted" in result.stdout and "removed" in result.stdout
-
-
-def test_wait_keeps_polling_while_the_manager_has_not_recorded_the_request_yet(
-    api: FakeApi,
-) -> None:
-    """Logo depois do `202`, a leitura dá `404` até o Manager gravar (LOOP §6.1.1): é espera."""
-    api.routes[("POST", PATH)] = accepted()
-    not_yet = http_error(404, "NotFound", "Recurso não encontrado.")
-    api.routes[("GET", OPERATION)] = [not_yet, not_yet, operation_document("completed")]
-    api.routes[("GET", ORGANIZATION)] = [not_yet, not_yet, Response(200, organization_document())]
-
-    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"])
-
-    assert result.exit_code == 0, result.stdout + result.stderr
-    assert "Organization created" in result.stdout
-
-
-def test_wait_times_out_when_the_request_never_becomes_visible(
-    api: FakeApi, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = http_error(404, "NotFound", "Recurso não encontrado.")
-    clock = iter(range(0, 1000, 20))
-    monkeypatch.setattr("sk.commands.shared.time.monotonic", lambda: next(clock))
-
-    result = runner.invoke(
-        app, ["ipm", "organization", "create", "--name", "acme", "--wait", "--timeout", "30"]
-    )
-
-    assert result.exit_code == 1
-    assert "Timed out" in result.stderr and "not visible yet" in result.stderr
 
 
 OTHER_RID = "02b25279-c6ae-7586-9ec9-d6d068fb211c"
@@ -632,8 +598,9 @@ def test_an_active_organization_outside_the_contract_is_refused_by_the_configura
 
 
 def test_create_wait_saves_the_organization_as_the_active_one(api: FakeApi, tmp_path: Path) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("POST", PATH)] = Response(
+        201, organization_document(phase="Pending", observed_generation=None)
+    )
     api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
 
     result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"])
@@ -650,8 +617,9 @@ def test_create_wait_keeps_the_organization_that_is_already_active(
     api: FakeApi, tmp_path: Path
 ) -> None:
     set_active(tmp_path, OTHER_RID)
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("POST", PATH)] = Response(
+        201, organization_document(phase="Pending", observed_generation=None)
+    )
     api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
 
     result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"])
@@ -666,7 +634,9 @@ def test_create_wait_keeps_the_organization_that_is_already_active(
 def test_create_without_wait_does_not_save_and_points_to_config_set(
     api: FakeApi, tmp_path: Path
 ) -> None:
-    api.routes[("POST", PATH)] = accepted()
+    api.routes[("POST", PATH)] = Response(
+        201, organization_document(phase="Pending", observed_generation=None)
+    )
     before = config_path(tmp_path).read_text(encoding="utf-8")
 
     result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme"])
@@ -679,8 +649,9 @@ def test_create_without_wait_does_not_save_and_points_to_config_set(
 def test_create_wait_still_succeeds_when_saving_the_active_organization_fails(
     api: FakeApi, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("POST", PATH)] = Response(
+        201, organization_document(phase="Pending", observed_generation=None)
+    )
     api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
 
     def refuse(*_: object, **__: object) -> None:
@@ -712,7 +683,9 @@ def test_list_shows_only_name_resource_id_and_phase(api: FakeApi, tmp_path: Path
 def test_create_hint_has_no_operation_id_and_drops_resource_id_for_the_active_organization(
     api: FakeApi, tmp_path: Path
 ) -> None:
-    api.routes[("POST", PATH)] = accepted()
+    api.routes[("POST", PATH)] = Response(
+        201, organization_document(phase="Pending", observed_generation=None)
+    )
 
     result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme"])
     text = " ".join(result.stdout.split())
@@ -724,42 +697,15 @@ def test_create_hint_has_no_operation_id_and_drops_resource_id_for_the_active_or
     assert "Follow it with `sk ipm organization get`." in " ".join(result.stdout.split())
 
 
-def test_a_rejected_request_shows_the_full_diagnostic_command(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("rejected", "validation")
-    api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
-
-    result = runner.invoke(
-        app, ["ipm", "organization", "create", "--name", "acme", "--wait"], env={"COLUMNS": "200"}
-    )
-
-    assert result.exit_code == 1
-    assert "sk ipm" in result.stderr and "organization get" in result.stderr
-    assert RID in result.stderr
-    assert OPID in result.stderr
-
-
 def test_deleting_the_active_organization_warns_how_to_switch(api: FakeApi, tmp_path: Path) -> None:
     set_active(tmp_path, RID)
     api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(protected=False))
-    api.routes[("DELETE", ORGANIZATION)] = accepted()
+    api.routes[("DELETE", ORGANIZATION)] = Response(202, organization_document(phase="Deleting"))
 
     result = runner.invoke(app, ["ipm", "organization", "delete"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
     assert "This is the active Organization" in " ".join(result.stderr.split())
-
-
-def test_a_rejected_creation_is_reported_even_without_the_organization(api: FakeApi) -> None:
-    """Num `create` recusado, a Organization não existe (`404`): a recusa vem da Operation."""
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("rejected", "validation")
-    api.routes[("GET", ORGANIZATION)] = http_error(404, "NotFound", "Recurso não encontrado.")
-
-    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--wait"])
-
-    assert result.exit_code == 1
-    assert "rejected" in result.stderr and "Timed out" not in result.stderr
 
 
 # --- `--output json` (decisão 0093) -----------------------------------------------------------
@@ -794,11 +740,13 @@ def test_json_get_and_list_print_native_types(api: FakeApi) -> None:
 
 
 @pytest.mark.usefixtures("default_output_mode")
-def test_json_create_without_wait_prints_only_the_acceptance(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
+def test_json_create_without_wait_prints_only_the_admission(api: FakeApi) -> None:
+    api.routes[("POST", PATH)] = Response(
+        201, organization_document(phase="Pending", observed_generation=None)
+    )
     result = runner.invoke(app, [*JSON, "ipm", "organization", "create", "--name", "acme"])
     assert result.exit_code == 0, result.stderr
-    assert _document(result.stdout) == {"resourceId": RID, "operationId": OPID}
+    assert _document(result.stdout)["resourceId"] == RID
     assert "Follow it with" in result.stderr
 
 
@@ -806,8 +754,9 @@ def test_json_create_without_wait_prints_only_the_acceptance(api: FakeApi) -> No
 def test_json_create_with_wait_prints_the_converged_organization_only(
     api: FakeApi, tmp_path: Path
 ) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("POST", PATH)] = Response(
+        201, organization_document(phase="Pending", observed_generation=None)
+    )
     api.routes[("GET", ORGANIZATION)] = Response(200, organization_document())
     result = runner.invoke(
         app, [*JSON, "ipm", "organization", "create", "--name", "acme", "--wait"]
@@ -820,8 +769,7 @@ def test_json_create_with_wait_prints_the_converged_organization_only(
 
 @pytest.mark.usefixtures("default_output_mode")
 def test_json_delete_with_wait_prints_the_removed_state(api: FakeApi) -> None:
-    api.routes[("DELETE", ORGANIZATION)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("DELETE", ORGANIZATION)] = Response(202, organization_document(phase="Deleting"))
     api.routes[("GET", ORGANIZATION)] = [
         Response(200, organization_document()),
         http_error(404, "NotFound", "Recurso não encontrado."),

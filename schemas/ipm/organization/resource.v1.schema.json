@@ -32,6 +32,12 @@
       "x-writer": "server",
       "x-sensitivity": "internal"
     },
+    "observedGeneration": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/generation",
+      "description": "Última geração do desired confirmada pela observação; ausente antes da primeira. A alteração terminou quando observedGeneration >= desiredGeneration e a phase é Ready ou Failed (decisão 0098).",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
     "phase": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/phase",
       "x-writer": "server",

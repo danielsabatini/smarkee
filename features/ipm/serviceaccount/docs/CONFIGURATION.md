@@ -107,7 +107,7 @@ url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
 [tool.ipm.serviceaccount.api.peers]
-organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
+organizations_url = "http://ipm-organization-api.smarkee.internal:8000"
 users_url = "http://ipm-user-api.smarkee.internal:8000"
 ```
 

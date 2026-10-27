@@ -18,7 +18,7 @@ user = "smarkee"
 
 [tool.ipm.role.receiver.peers]
 groups_url = "http://ipm-group-receiver.smarkee.internal:8000"
-organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
+organizations_url = "http://ipm-organization-api.smarkee.internal:8000"
 users_url = "http://ipm-user-receiver.smarkee.internal:8000"
 serviceaccounts_url = "http://ipm-serviceaccount-receiver.smarkee.internal:8000"
 

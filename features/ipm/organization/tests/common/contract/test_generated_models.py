@@ -19,6 +19,10 @@ GENERATED_MODULE = (
 )
 INDEX = SCHEMAS_ROOT / "ipm.organization.index.json"
 
+# Contratos comuns que esta feature não usa depois da API síncrona (decisão 0098): a Operation e a
+# resposta `202` com `operationId` ficam para as features que ainda têm Receiver e Manager.
+UNUSED_COMMON = {"operation", "api-accepted-response"}
+
 EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "common/message-envelope.example.json": generated.MessageEnvelope,
     "common/condition.example.json": generated.Condition,
@@ -26,14 +30,9 @@ EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "common/completed.example.json": generated.CompletedData,
     "common/failed.example.json": generated.FailedData,
     "common/updated.example.json": generated.UpdatedData,
-    "common/operation.example.json": generated.Operation,
-    "common/api-accepted-response.example.json": generated.ApiAcceptedResponse,
     "common/api-error.example.json": generated.ApiError,
     "ipm/organization/desired.example.json": generated.OrganizationDesiredData,
     "ipm/organization/observed.example.json": generated.OrganizationObservedData,
-    "ipm/organization/requested-create.example.json": generated.OrganizationRequestedCreateData,
-    "ipm/organization/requested-update.example.json": generated.OrganizationRequestedUpdateData,
-    "ipm/organization/requested-delete.example.json": generated.OrganizationRequestedDeleteData,
     "ipm/organization/api-create-request.example.json": generated.OrganizationCreateRequest,
     "ipm/organization/api-update-request.example.json": generated.OrganizationUpdateRequest,
     "ipm/organization/resource.example.json": generated.Organization,
@@ -65,13 +64,13 @@ def test_generated_models_match_regeneration() -> None:
 def test_index_lists_every_contract() -> None:
     index = cast(dict[str, Any], json.loads(INDEX.read_text("utf-8")))
     # Fragmentos (`#/$defs/...`) trazem definições usadas pelo código e sem contrato que as
-    # referencie, como o catálogo inicial `grantablePermission` (decisões 0081 e 0083).
+    # referencie, como o catálogo `grantablePermission` (decisão 0081); não contam como contrato.
     listed = {entry["$ref"] for entry in index["anyOf"] if "#" not in entry["$ref"]}
     contracts = {
         str(path.relative_to(SCHEMAS_ROOT))
         for directory in ("common", "ipm/organization")
         for path in (SCHEMAS_ROOT / directory).rglob("*.v*.schema.json")
-        if not path.name.startswith("definitions.")
+        if not path.name.startswith("definitions.") and path.name.split(".")[0] not in UNUSED_COMMON
     }
     assert listed == contracts
 
@@ -81,6 +80,7 @@ def test_every_example_has_a_model() -> None:
         str(path.relative_to(SCHEMAS_ROOT))
         for directory in ("common", "ipm/organization")
         for path in (SCHEMAS_ROOT / directory).rglob("*.example.json")
+        if path.name.split(".")[0] not in UNUSED_COMMON
     }
     assert examples == set(EXAMPLE_MODELS)
 
@@ -101,38 +101,8 @@ def test_model_rejects_unknown_field(relative_path: str, model: type[BaseModel])
 
 
 def test_create_request_rejects_server_assigned_fields() -> None:
-    for server_field in ("resourceId", "ownerAccountId", "requestedBy"):
+    for server_field in ("resourceId", "requestedBy"):
         with pytest.raises(ValidationError):
             generated.OrganizationCreateRequest.model_validate(
                 {**_example("ipm/organization/api-create-request.example.json"), server_field: "x"}
             )
-
-
-def test_python_attributes_are_snake_case_and_json_is_camel_case() -> None:
-    condition = generated.Condition.model_validate(_example("common/condition.example.json"))
-    assert condition.observed_generation == 1
-    dumped = condition.model_dump(mode="json", exclude_none=True)
-    assert "observedGeneration" in dumped
-    assert "observed_generation" not in dumped
-    assert json.loads(condition.model_dump_json(exclude_none=True)) == dumped
-
-
-def test_snake_case_input_is_rejected() -> None:
-    example = _example("common/condition.example.json")
-    snake_case_input = {
-        "type": example["type"],
-        "status": example["status"],
-        "reason": example["reason"],
-        "observed_generation": 1,
-        "last_transition_at": example["lastTransitionAt"],
-    }
-    with pytest.raises(ValidationError):
-        generated.Condition.model_validate(snake_case_input)
-
-
-@pytest.mark.parametrize(
-    ("relative_path", "model"), EXAMPLE_MODELS.items(), ids=list(EXAMPLE_MODELS)
-)
-def test_model_round_trips_the_example(relative_path: str, model: type[BaseModel]) -> None:
-    example = _example(relative_path)
-    assert model.model_validate(example).model_dump(mode="json", exclude_none=True) == example

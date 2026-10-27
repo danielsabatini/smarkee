@@ -1,36 +1,26 @@
 # Configuração de dev de ipm.organization (decisão 0067). Sem segredos: eles vêm do ambiente ou de /run/secrets.
 # Tabela por papel: [tool.ipm.organization.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
 
-[tool.ipm.organization.receiver.auth]
+[tool.ipm.organization.api.auth]
 host_header = "ipm-dev.smarkee.com.br:8080"
 issuer = "http://ipm-dev.smarkee.com.br:8080"
 jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 userinfo_url = "http://gateway.smarkee.internal:8000/oidc/v1/userinfo"
 
-[tool.ipm.organization.receiver.database]
+[tool.ipm.organization.api.database]
 host = "database.smarkee.internal"
 name = "ssot"
 port = 5432
-user = "ipm_organization_receiver_login"
+user = "ipm_organization_api_login"
 
-[tool.ipm.organization.receiver.messaging]
+[tool.ipm.organization.api.messaging]
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
-[tool.ipm.organization.receiver.peers]
-users_url = "http://ipm-user-receiver.smarkee.internal:8000"
+[tool.ipm.organization.api.peers]
+users_url = "http://ipm-user-api.smarkee.internal:8000"
 serviceaccounts_url = "http://ipm-serviceaccount-api.smarkee.internal:8000"
 billing_accounts_url = "http://bsm-account-receiver.smarkee.internal:8000"
-
-[tool.ipm.organization.manager.database]
-host = "database.smarkee.internal"
-name = "ssot"
-port = 5432
-user = "ipm_organization_manager_login"
-
-[tool.ipm.organization.manager.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
 
 [tool.ipm.organization.publisher.database]
 host = "database.smarkee.internal"

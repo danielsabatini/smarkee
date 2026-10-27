@@ -1,23 +1,15 @@
 """Cliente do `ipm.organization` na API (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1 e §46).
 
-Criar, alterar e remover são escritas assíncronas: a API responde `202` com o `operationId`, e o
-estado definitivo vem da Organization (`phase`) e da Operation (`operationStatus`). Os dados chegam
-pelo mesmo `call_api`, com o token da sessão. A leitura das respostas é estrita.
+Criar, alterar e remover são escritas síncronas na admissão (decisão 0098): a API responde `201`,
+`200` e `202` (na remoção) com o recurso, e a convergência se lê em `observedGeneration` e `phase`.
+Não há Operation. Os dados chegam pelo mesmo `call_api`, com o token da sessão.
 """
 
 import re
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 
-from sk.features.api_contract import (
-    OperationStatus,
-    RequestAccepted,
-    as_object,
-    as_text,
-    parse_accepted,
-    parse_operation,
-    validate_identifier,
-)
+from sk.features.api_contract import as_object, as_text, validate_identifier
 from sk.http import ApiUnavailableError, call_api
 
 ORGANIZATIONS_PATH = "/v1/ipm/organizations"
@@ -33,6 +25,8 @@ class Organization:
 
     resource_id: str
     resource_version: str
+    desired_generation: int
+    observed_generation: int | None
     phase: str
     name: str
     lifecycle: str
@@ -43,6 +37,8 @@ class Organization:
     """Estado lido do provedor (`active` ou `inactive`); `None` enquanto não foi observada."""
     billing_account_id: str | None = None
     """`resourceId` da Billing Account (`bsm.account`) vinculada à Organization, se informada."""
+    failure_reason: str | None = None
+    """Motivo da primeira condition `False`, quando houver (para explicar a fase `Failed`)."""
 
 
 def validate_name(value: str) -> str:
@@ -55,6 +51,28 @@ def validate_name(value: str) -> str:
     return value
 
 
+def _generation(body: dict[str, Any], key: str, *, required: bool) -> int | None:
+    value = body.get(key)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if required or value is not None:
+        raise ApiUnavailableError(f"API response without {key}: organization")
+    return None
+
+
+def _failure_reason(body: dict[str, Any]) -> str | None:
+    conditions = body.get("conditions")
+    if not isinstance(conditions, list):
+        return None
+    for item in cast("list[object]", conditions):
+        if isinstance(item, dict):
+            condition = cast("dict[str, object]", item)
+            reason = condition.get("reason")
+            if condition.get("status") == "False" and isinstance(reason, str):
+                return reason
+    return None
+
+
 def _organization(document: object) -> Organization:
     body = as_object(document, what="organization")
     desired = as_object(body.get("desired"), what="organization (desired)")
@@ -64,6 +82,8 @@ def _organization(document: object) -> Organization:
     return Organization(
         resource_id=as_text(body, "resourceId", what="organization"),
         resource_version=as_text(body, "resourceVersion", what="organization"),
+        desired_generation=cast("int", _generation(body, "desiredGeneration", required=True)),
+        observed_generation=_generation(body, "observedGeneration", required=False),
         phase=as_text(body, "phase", what="organization"),
         name=as_text(desired, "name", what="organization (desired)"),
         lifecycle=as_text(desired, "lifecycle", what="organization (desired)"),
@@ -71,6 +91,7 @@ def _organization(document: object) -> Organization:
         deletion_protection=desired.get("deletionProtection") is not False,
         organization_state=state if isinstance(state, str) else None,
         billing_account_id=billing_account_id if isinstance(billing_account_id, str) else None,
+        failure_reason=_failure_reason(body),
     )
 
 
@@ -82,7 +103,7 @@ def create_organization(
     idempotency_key: str,
     allow_insecure_http: bool,
     billing_account_id: str | None = None,
-) -> RequestAccepted:
+) -> Organization:
     validate_name(name)
     body: dict[str, object] = {"name": name}
     if billing_account_id is not None:
@@ -96,7 +117,7 @@ def create_organization(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _organization(document)
 
 
 def update_organization(
@@ -109,7 +130,7 @@ def update_organization(
     billing_account_id: str | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Organization:
     resource_id = validate_identifier(resource_id, what="resourceId")
     body: dict[str, object] = {"resourceVersion": resource_version}
     if name is not None:
@@ -126,7 +147,7 @@ def update_organization(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _organization(document)
 
 
 def set_organization_protection(
@@ -138,7 +159,7 @@ def set_organization_protection(
     protected: bool,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Organization:
     resource_id = validate_identifier(resource_id, what="resourceId")
     _, document = call_api(
         "PATCH",
@@ -149,7 +170,7 @@ def set_organization_protection(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _organization(document)
 
 
 def delete_organization(
@@ -160,7 +181,7 @@ def delete_organization(
     resource_version: str,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Organization:
     resource_id = validate_identifier(resource_id, what="resourceId")
     _, document = call_api(
         "DELETE",
@@ -171,7 +192,7 @@ def delete_organization(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _organization(document)
 
 
 def get_organization(
@@ -214,23 +235,3 @@ def list_organizations(
             return found
         cursor = next_cursor
     raise ApiUnavailableError("API listing did not end")
-
-
-def get_operation(
-    api_url: str,
-    *,
-    token: str,
-    resource_id: str,
-    operation_id: str,
-    allow_insecure_http: bool,
-) -> OperationStatus:
-    resource_id = validate_identifier(resource_id, what="resourceId")
-    operation_id = validate_identifier(operation_id, what="operationId")
-    _, document = call_api(
-        "GET",
-        api_url,
-        f"{ORGANIZATIONS_PATH}/{resource_id}/operations/{operation_id}",
-        token=token,
-        allow_insecure_http=allow_insecure_http,
-    )
-    return parse_operation(document)

@@ -1,6 +1,6 @@
 name: ipm-organization
 
-# Componentes de ipm.organization (decisões 0015 e 0019): migração, consumers, Receiver, Manager,
+# Componentes de ipm.organization (decisões 0015, 0019, 0063 e 0098): migração, API (decisão 0098),
 # Publisher e Controller (decisão 0096).
 # A plataforma (banco, messaging, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
 # e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait messaging database gateway identity identity-login`,
@@ -22,7 +22,7 @@ x-deploy: &component-deploy
       cpus: "${IPM_ORGANIZATION_COMPONENT_CPUS:-0.5}"
       memory: ${IPM_ORGANIZATION_COMPONENT_MEMORY:-256M}
 
-# Imagem única da feature (decisão 0063): contém o código dos seis papéis, e cada serviço escolhe o
+# Imagem única da feature (decisão 0063): contém o código dos três papéis, e cada serviço escolhe o
 # seu pelo `command`. Cada contêiner recebe só as variáveis e os segredos do seu papel.
 x-image: &component-image
   build:
@@ -30,33 +30,10 @@ x-image: &component-image
   image: ${IPM_ORGANIZATION_IMAGE:-smarkee-ipm-organization:dev}
 
 services:
-  # Consumers duráveis de trabalho do tipo: o Manager (`requested`) (docs/messaging/NATS.md §7.6). Os manifestos são do Manager (`consumers/`). Inexistente é criado;
-  # existente com configuração idêntica não muda; configuração diferente falha de forma explícita.
-  # Exige o Stream REQUESTED, criado pelo messaging da plataforma.
-  ipm-organization-consumer:
-    build:
-      context: ../../../infrastructure/tools/nats-client
-    image: ${SMARKEE_MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}
-    container_name: ipm-organization-consumer.smarkee.internal
-    environment:
-      NATS_URL: nats://messaging.smarkee.internal:4222
-      NATS_USER: ${SMARKEE_MESSAGING_USER:-smarkee}
-      NATS_PASSWORD: ${IPM_ORGANIZATION_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
-    command:
-      - sh
-      - -c
-      - >-
-        nats consumer add REQUESTED --config /consumers/ipm-organization-manager-requested.json
-    volumes:
-      - ./consumers:/consumers:ro
-    networks:
-      - internal
-    restart: "no"
-
   # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo
   # (features/ipm/organization/migrations/*.sql, em ordem) como o dono `ssot`, no banco `ssot`.
-  # O código das migrações é do projeto do Manager (decisão 0015); a execução é desta etapa de
-  # implantação, com o papel administrativo, e nunca com o papel de runtime do Manager.
+  # O código das migrações é da API (decisões 0015, 0063 e 0098); a execução é desta etapa de
+  # implantação, com o papel administrativo, e nunca com o papel de runtime da API.
   # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/ipm.sql.
   ipm-organization-migrate:
     build:
@@ -82,33 +59,39 @@ services:
           - ipm-organization-migrate.smarkee.internal
     restart: "no"
 
-  # Receiver (ipm-organization-receiver): só o gateway a alcança; a porta 8000 não é publicada no host.
-  ipm-organization-receiver:
+  # API (`ipm-organization-api`, decisão 0098): autentica, autoriza e admite a escrita de forma síncrona
+  # (recurso e `desired` no outbox, numa transação). Papel de banco `ipm_organization_api`. Só o gateway a
+  # alcança; a porta 8000 não é publicada no host.
+  ipm-organization-api:
     <<: *component-image
-    command: [ipm-organization-receiver]
-    container_name: ipm-organization-receiver.smarkee.internal
+    command: [ipm-organization-api]
+    container_name: ipm-organization-api.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
-      # defaults do componente (IPM_ORGANIZATION_RECEIVER_<SEÇÃO>_<CAMPO>).
-      IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE: ${IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-ipm, org core)}
+      # defaults do componente (IPM_ORGANIZATION_API_<SEÇÃO>_<CAMPO>).
+      IPM_ORGANIZATION_API_AUTH_AUDIENCE: ${IPM_ORGANIZATION_API_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-ipm, org core)}
+      IPM_ORGANIZATION_API_USER_ACCESS_USER_EXECUTOR_ACCOUNT_ID: ${IPM_ORGANIZATION_USER_EXECUTOR_ACCOUNT_ID:?Defina no .env (ID da conta ipm-user-executor, org core)}
+      IPM_ORGANIZATION_API_USER_ACCESS_USER_OBSERVER_ACCOUNT_ID: ${IPM_ORGANIZATION_USER_OBSERVER_ACCOUNT_ID:?Defina no .env (ID da conta ipm-user-observer, org core)}
+      IPM_ORGANIZATION_API_USER_ACCESS_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID: ${IPM_ORGANIZATION_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID:?Defina no .env (ID da conta ipm-serviceaccount-executor, org core)}
+      IPM_ORGANIZATION_API_USER_ACCESS_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID: ${IPM_ORGANIZATION_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID:?Defina no .env (ID da conta ipm-serviceaccount-observer, org core)}
+      IPM_ORGANIZATION_API_USER_ACCESS_SERVICEACCOUNT_CONTROLLER_ACCOUNT_ID: ${IPM_ORGANIZATION_SERVICEACCOUNT_CONTROLLER_ACCOUNT_ID:?Defina no .env (ID da conta ipm-serviceaccount-controller, org core)}
+      IPM_ORGANIZATION_API_USER_ACCESS_USER_CONTROLLER_ACCOUNT_ID: ${IPM_ORGANIZATION_USER_CONTROLLER_ACCOUNT_ID:?Defina no .env (ID da conta ipm-user-controller, org core)}
     secrets:
-      - IPM_ORGANIZATION_RECEIVER_DATABASE_PASSWORD
-      - IPM_ORGANIZATION_RECEIVER_MESSAGING_PASSWORD
+      - IPM_ORGANIZATION_API_DATABASE_PASSWORD
+      - IPM_ORGANIZATION_API_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
       ipm-organization-migrate:
         condition: service_completed_successfully
-      ipm-organization-consumer:
-        condition: service_completed_successfully
     networks:
       internal:
         aliases:
-          - ipm-organization-receiver.smarkee.internal
+          - ipm-organization-api.smarkee.internal
     restart: unless-stopped
     healthcheck: &component-healthcheck
       test:
@@ -120,41 +103,6 @@ services:
       timeout: 5s
       retries: 6
       start_period: 10s
-
-  # Manager (`ipm-organization-manager`): único escritor do SSOT do tipo. Grava no `desired` o
-  # preparo de cada Organization para os usuários (decisão 0081): o catálogo vem do contrato, e as
-  # contas do ipm/user, daqui.
-  ipm-organization-manager:
-    <<: *component-image
-    command: [ipm-organization-manager]
-    container_name: ipm-organization-manager.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_EXECUTOR_ACCOUNT_ID: ${IPM_ORGANIZATION_USER_EXECUTOR_ACCOUNT_ID:?Defina no .env (ID da conta ipm-user-executor, org core)}
-      IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_OBSERVER_ACCOUNT_ID: ${IPM_ORGANIZATION_USER_OBSERVER_ACCOUNT_ID:?Defina no .env (ID da conta ipm-user-observer, org core)}
-      IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID: ${IPM_ORGANIZATION_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID:?Defina no .env (ID da conta ipm-serviceaccount-executor, org core)}
-      IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID: ${IPM_ORGANIZATION_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID:?Defina no .env (ID da conta ipm-serviceaccount-observer, org core)}
-      IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_CONTROLLER_ACCOUNT_ID: ${IPM_ORGANIZATION_SERVICEACCOUNT_CONTROLLER_ACCOUNT_ID:?Defina no .env (ID da conta ipm-serviceaccount-controller, org core)}
-      IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_CONTROLLER_ACCOUNT_ID: ${IPM_ORGANIZATION_USER_CONTROLLER_ACCOUNT_ID:?Defina no .env (ID da conta ipm-user-controller, org core)}
-    secrets:
-      - IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD
-      - IPM_ORGANIZATION_MANAGER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      ipm-organization-migrate:
-        condition: service_completed_successfully
-      ipm-organization-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-organization-manager.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
 
   # Publisher (`ipm-organization-publisher`): publica o outbox do tipo (uma instância ativa por
   # trava consultiva).
@@ -210,8 +158,6 @@ services:
     depends_on:
       ipm-organization-migrate:
         condition: service_completed_successfully
-      ipm-organization-consumer:
-        condition: service_completed_successfully
     networks:
       internal:
         aliases:
@@ -261,14 +207,10 @@ services:
 # Senhas montadas em /run/secrets/<VARIÁVEL> (arquivo somente leitura, lido pelo `SecretFilesSource`; decisão 0070).
 # A origem em dev é o .env; cada papel recebe só a sua. Em stg e prd a origem passa a ser o cofre de segredos.
 secrets:
-  IPM_ORGANIZATION_RECEIVER_DATABASE_PASSWORD:
-    environment: IPM_ORGANIZATION_RECEIVER_DATABASE_PASSWORD
-  IPM_ORGANIZATION_RECEIVER_MESSAGING_PASSWORD:
-    environment: IPM_ORGANIZATION_RECEIVER_MESSAGING_PASSWORD
-  IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD:
-    environment: IPM_ORGANIZATION_MANAGER_DATABASE_PASSWORD
-  IPM_ORGANIZATION_MANAGER_MESSAGING_PASSWORD:
-    environment: IPM_ORGANIZATION_MANAGER_MESSAGING_PASSWORD
+  IPM_ORGANIZATION_API_DATABASE_PASSWORD:
+    environment: IPM_ORGANIZATION_API_DATABASE_PASSWORD
+  IPM_ORGANIZATION_API_MESSAGING_PASSWORD:
+    environment: IPM_ORGANIZATION_API_MESSAGING_PASSWORD
   IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD:
     environment: IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD
   IPM_ORGANIZATION_PUBLISHER_MESSAGING_PASSWORD:

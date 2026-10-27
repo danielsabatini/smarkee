@@ -22,12 +22,6 @@
       "$ref": "common/updated.v1.schema.json"
     },
     {
-      "$ref": "common/operation.v1.schema.json"
-    },
-    {
-      "$ref": "common/api-accepted-response.v1.schema.json"
-    },
-    {
       "$ref": "common/api-error.v1.schema.json"
     },
     {
@@ -35,15 +29,6 @@
     },
     {
       "$ref": "ipm/organization/observed.v1.schema.json"
-    },
-    {
-      "$ref": "ipm/organization/requested-create.v1.schema.json"
-    },
-    {
-      "$ref": "ipm/organization/requested-update.v1.schema.json"
-    },
-    {
-      "$ref": "ipm/organization/requested-delete.v1.schema.json"
     },
     {
       "$ref": "ipm/organization/api-create-request.v1.schema.json"

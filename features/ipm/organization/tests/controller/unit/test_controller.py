@@ -103,7 +103,6 @@ async def test_reconcile_creates_absent_organization_and_saves_observation() -> 
     # Estado gravado com fase aceita pelo CHECK do SSOT e geração confirmada.
     update = next(p for q, p in statements if "UPDATE ipm.organization SET observed" in q)
     assert "Ready" in update
-    # Operation concluída e `updated` no outbox, na mesma transação.
-    assert any("completed" in p for q, p in statements if "organization_operation" in q)
+    # `updated` no outbox, na mesma transação.
     outbox = next(p for q, p in statements if "organization_outbox" in q)
     assert outbox[2] == "manager.updated.ipm.organization.org-1.changed"

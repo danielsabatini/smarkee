@@ -5,7 +5,7 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - **Regras, contratos e decisões:** `AGENTS.md`, `docs/` e `.decisions/`.
 
 ## Estado operacional atual
-- **Branch `dev`:** commits locais `0aca7522` (template/check) e `44960285` (S3 piloto `ipm/serviceaccount`). Features `core/account`, `sum/service`, `bsm/account`, `ipm/organization`, `ipm/user`, `ipm/permission`, `ipm/role`, `ipm/group` e `ipm/serviceaccount` operacionais no Compose. `ipm/serviceaccount` e `ipm/user` têm apenas 3 papéis (`api`, `publisher`, `controller`), sem Operation e sem Stream REQUESTED (decisão `0098`).
+- **Branch `dev`:** commits locais até `1ef8c2c4` (S3 em `ipm/serviceaccount` e `ipm/user`) mais a migração de `ipm/organization` (S3, commit seguinte). Features `core/account`, `sum/service`, `bsm/account`, `ipm/organization`, `ipm/user`, `ipm/permission`, `ipm/role`, `ipm/group` e `ipm/serviceaccount` operacionais no Compose. `ipm/serviceaccount`, `ipm/user` e `ipm/organization` têm apenas 3 papéis (`api`, `publisher`, `controller`), sem Operation e sem Stream REQUESTED (decisão `0098`).
 - **Banco `platform` (decisões `0086`, `0088`):** Executor e Observer de `ipm/role` e `ipm/group` usam o banco `platform` (plano de dados multi-tenant) fora do SSOT; ativo no dev.
 - **Banco `ssot` (decisão `0087`):** SSOT em `ssot` (banco e dono).
 - **Identidade (`infrastructure/dev/identity`):** chaves das service accounts do Zitadel persistem no volume Docker `identity-bootstrap`.
@@ -13,7 +13,7 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 
 ## Próximos passos imediatos
 00. **Plano de evolução ipm/* e loop** (`~/.opencode/plan/ipm-resource-control-loop-evolution.md`; ordem `S0 → S2 → S1 → S3 → S4 → S5 → S6`):
-  - **S3 (API síncrona, decisão `0098`):** `ipm/serviceaccount` e `ipm/user` concluídos. Próximo passo na S3: replicar em `ipm/organization`.
+  - **S3 (API síncrona, decisão `0098`):** `ipm/serviceaccount`, `ipm/user` e `ipm/organization` concluídos. Próximo passo na S3: replicar nas demais (group, role, permission) conforme o plano.
   - Seguem: S4 (plano de dados do `ipm`: group, role, permission), S5 (loop de reconciliação puro) e S6 (higiene/telemetria).
   - Pendências menores acumuladas: contas Zitadel `*-executor/observer` (lacuna declarada), diagramas `docs/{flow,architecture,state,database}`, `reconciliation` no schema de serviceaccount.
 0. Os `list` da CLI `sk` mostram só `name | resourceId | phase | description` (padronizados; `--output json` mantém todos os campos). Commitado em `14ccbd9` (as opções `--output`/`--raw`, decisão `0093`, já estão em `origin/dev`, `0bdba35`). O scanner da CLI exige `-Dsonar.python.coverage.reportPaths=coverage.xml` (o `sonar-project.properties` não define); Quality Gate `smarkee-clients-cli` em OK.

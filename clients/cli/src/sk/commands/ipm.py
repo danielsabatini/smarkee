@@ -1,10 +1,10 @@
 """Comandos `sk ipm organization`: criar, consultar, renomear e remover Organizations.
 
 Usam o token da sessão (`sk auth login`), renovado quando está para vencer. A API é a mesma do
-`sk account create` (`[api] url`). Criar, renomear e remover são assíncronos: o comando garante o
-e mostra como acompanhar a Operation. Com `--wait`, ele espera a Organization convergir. O token
-precisa trazer as permissões `ipm.organization.*`, que vêm de `sk sum service enable --service ipm`
-(com `--wait`, a sessão já é renovada).
+`sk account create` (`[api] url`). Criar, renomear e remover são escritas síncronas na admissão
+(decisão 0098): o comando recebe o recurso admitido e, com `--wait`, acompanha até convergir.
+O token precisa trazer as permissões `ipm.organization.*`, que vêm de
+`sk sum service enable --service ipm` (com `--wait`, a sessão já é renovada).
 """
 
 import uuid
@@ -14,7 +14,7 @@ import typer
 from pydantic import ValidationError
 from rich.text import Text
 
-from sk import output, ui
+from sk import ui
 from sk.command_app import SkTyper
 from sk.commands.config import known_keys, store_value
 from sk.commands.ipm_group import group_app
@@ -25,7 +25,7 @@ from sk.commands.ipm_user import user_app
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
     EXIT_USAGE_ERROR,
-    ResourceFlow,
+    SyncResourceFlow,
     TimeoutOption,
     already_done,
     bad_address,
@@ -35,12 +35,10 @@ from sk.commands.shared import (
     require,
     session_token,
 )
-from sk.features.api_contract import OperationStatus, RequestAccepted
 from sk.features.ipm.organization import (
     Organization,
     create_organization,
     delete_organization,
-    get_operation,
     get_organization,
     list_organizations,
     set_organization_protection,
@@ -64,12 +62,6 @@ CONFLICT_ON_CHANGE = "The Organization changed since it was last read. Inspect i
 PROTECTED_HINT = (
     "The Organization is protected against deletion. Run `sk ipm organization unprotect` first."
 )
-REJECTION_HINTS = {
-    "validation": "The name is reserved or already in use, or your Organization quota is used.",
-    "conflict": CONFLICT_ON_CHANGE,
-    "not_found": NOT_FOUND,
-    "protected": PROTECTED_HINT,
-}
 ERROR_CODE_HINTS = {
     "DeletionProtected": PROTECTED_HINT,
     "EmailNotVerified": (
@@ -121,7 +113,7 @@ WaitOption = Annotated[
     typer.Option(
         "--wait",
         help=option(
-            "Wait for the Organization to converge (phase Ready and Operation completed).",
+            "Wait for the Organization to converge (phase Ready).",
             kind="Boolean",
             variable=None,
             file=None,
@@ -213,24 +205,12 @@ def _rows(organization: Organization) -> list[tuple[str, str]]:
     return rows
 
 
-def _operation_rows(operation: OperationStatus) -> list[tuple[str, str]]:
-    rows = [
-        ("operationId", operation.operation_id),
-        ("operationStatus", operation.operation_status),
-    ]
-    if operation.reason is not None:
-        rows.append(("reason", operation.reason))
-    return rows
-
-
-def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> str:
+def _get_command(resource_id: str) -> str:
     """Comando `get` que acompanha o pedido. `--resource-id` só aparece quando a Organization
-    não é a ativa; `--operation-id` só no diagnóstico de um pedido que não concluiu."""
+    não é a ativa."""
     parts = ["sk ipm organization get"]
-    if accepted.resource_id != _active_organization():
-        parts.append(f"--resource-id {accepted.resource_id}")
-    if with_operation:
-        parts.append(f"--operation-id {accepted.operation_id}")
+    if resource_id != _active_organization():
+        parts.append(f"--resource-id {resource_id}")
     return " ".join(parts)
 
 
@@ -261,13 +241,11 @@ def _activate_if_none(resource_id: str) -> None:
     ui.note(f"Saved as the active Organization in {path}.")
 
 
-_flow = ResourceFlow(
+_flow = SyncResourceFlow(
     subject="Organization",
     get_command=_get_command,
     read_resource=get_organization,
-    read_operation=get_operation,
     fail_api=_fail_api,
-    rejection_hints=REJECTION_HINTS,
     rows=_rows,
     removed_key="state",
 )
@@ -320,7 +298,7 @@ def create_command(
     url, insecure = load_api()
     token = session_token()
     try:
-        accepted = create_organization(
+        created = create_organization(
             url,
             token=token,
             name=name,
@@ -332,33 +310,28 @@ def create_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    ui.panel(
+    _flow.requested_panel(
         "Creation requested",
-        [
-            ("name", name),
-            *([("billingAccountId", billing_account_id)] if billing_account_id is not None else []),
-            ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
-        ],
-        data=accepted,
-        interim=wait,
+        created,
+        ("name", name),
+        *([("billingAccountId", billing_account_id)] if billing_account_id is not None else []),
+        wait=wait,
     )
-    organization = _flow.finish(
+    converged = _flow.finish(
         url,
         insecure,
-        accepted,
+        created,
         title="Organization created",
         removal=False,
         wait=wait,
         timeout=timeout,
-        matches=lambda r: r.name == name,
     )
-    if organization is not None:
-        _activate_if_none(organization.resource_id)
+    if converged is not None:
+        _activate_if_none(converged.resource_id)
     elif not wait:
         ui.note(
             "To make it the active Organization, run "
-            f"`sk config set {ACTIVE_ORGANIZATION_KEY} {accepted.resource_id}`."
+            f"`sk config set {ACTIVE_ORGANIZATION_KEY} {created.resource_id}`."
         )
 
 
@@ -428,7 +401,7 @@ def update_command(
                     current, f"Organization {resource_id} already has these values. Nothing to do."
                 )
             return
-        accepted = update_organization(
+        admitted = update_organization(
             url,
             token=token,
             resource_id=resource_id,
@@ -442,26 +415,21 @@ def update_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    ui.panel(
+    _flow.requested_panel(
         "Rename requested" if validated_billing is None else "Update requested",
-        [
-            ("name", validated_name or current.name),
-            *([("billingAccountId", validated_billing)] if validated_billing is not None else []),
-            ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
-        ],
-        data=accepted,
-        interim=wait,
+        admitted,
+        ("name", validated_name or current.name),
+        *([("billingAccountId", validated_billing)] if validated_billing is not None else []),
+        wait=wait,
     )
     _flow.finish(
         url,
         insecure,
-        accepted,
+        admitted,
         title="Organization renamed" if validated_billing is None else "Organization updated",
         removal=False,
         wait=wait,
         timeout=timeout,
-        matches=(lambda r: r.name == validated_name) if validated_name is not None else None,
     )
 
 
@@ -478,7 +446,7 @@ def _set_protection(resource_id: str | None, *, protected: bool, wait: bool, tim
             state = "protected" if protected else "unprotected"
             already_done(current, f"Organization {resource_id} is already {state}. Nothing to do.")
             return
-        accepted = set_organization_protection(
+        admitted = set_organization_protection(
             url,
             token=token,
             resource_id=resource_id,
@@ -491,21 +459,17 @@ def _set_protection(resource_id: str | None, *, protected: bool, wait: bool, tim
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    ui.panel(
+    _flow.requested_panel(
         "Protection change requested",
-        [
-            ("name", current.name),
-            ("protected", "yes" if protected else "no"),
-            ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
-        ],
-        data=accepted,
-        interim=wait,
+        admitted,
+        ("name", current.name),
+        ("protected", "yes" if protected else "no"),
+        wait=wait,
     )
     _flow.finish(
         url,
         insecure,
-        accepted,
+        admitted,
         title="Organization protected" if protected else "Organization unprotected",
         removal=False,
         wait=wait,
@@ -556,7 +520,7 @@ def delete_command(
         current = get_organization(
             url, token=token, resource_id=resource_id, allow_insecure_http=insecure
         )
-        accepted = delete_organization(
+        admitted = delete_organization(
             url,
             token=token,
             resource_id=resource_id,
@@ -568,16 +532,7 @@ def delete_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    ui.panel(
-        "Deletion requested",
-        [
-            ("name", current.name),
-            ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
-        ],
-        data=accepted,
-        interim=wait,
-    )
+    _flow.requested_panel("Deletion requested", admitted, ("name", current.name), wait=wait)
     if resource_id == _active_organization():
         ui.warning(
             "This is the active Organization. Once it is gone, point to another with "
@@ -586,7 +541,7 @@ def delete_command(
     _flow.finish(
         url,
         insecure,
-        accepted,
+        admitted,
         title="Organization deleted",
         removal=True,
         wait=wait,
@@ -597,28 +552,12 @@ def delete_command(
 @organization_app.command(
     "get",
     structured=True,
-    help=command("Show the state of an Organization and, if given, of an Operation."),
+    help=command("Show the state of an Organization."),
 )
 def get_command(
     resource_id: ResourceIdOption = None,
-    operation_id: Annotated[
-        str | None,
-        typer.Option(
-            "--operation-id",
-            help=option(
-                "operationId of a request, to see why it was rejected or failed (returned by "
-                "`create`, `update` or `delete`).",
-                kind="String",
-                variable=None,
-                file=None,
-                default="no Operation lookup",
-            ),
-        ),
-    ] = None,
 ) -> None:
     resource_id = _organization_identifier(resource_id)
-    if operation_id is not None:
-        operation_id = identifier(operation_id, "--operation-id", what="operationId")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -629,27 +568,7 @@ def get_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    operation: OperationStatus | None = None
-    if operation_id is not None:
-        try:
-            operation = get_operation(
-                url,
-                token=token,
-                resource_id=resource_id,
-                operation_id=operation_id,
-                allow_insecure_http=insecure,
-            )
-        except OidcError as error:
-            bad_address(error)
-        except ApiError as error:
-            _fail_api(error, not_found="Operation not found for this Organization.")
-    rows = _rows(organization)
-    if operation is not None:
-        rows.extend(_operation_rows(operation))
-    document = output.to_data(organization)
-    if operation is not None:
-        document["operation"] = output.to_data(operation)
-    ui.panel("Organization", rows, data=document)
+    ui.panel("Organization", _rows(organization), data=organization)
 
 
 @organization_app.command(

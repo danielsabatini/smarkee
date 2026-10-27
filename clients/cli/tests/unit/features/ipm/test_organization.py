@@ -12,7 +12,6 @@ from sk.http import ApiUnavailableError
 
 API = "https://api.teste"
 RID = "01a14168-b59d-7475-8db7-c5cf57fa100b"
-OPID = "b9c4c98c-7392-5016-a724-6e1cd0c1bed9"
 
 
 class Response:
@@ -52,6 +51,8 @@ def organization_document(**changes: object) -> dict[str, Any]:
     document: dict[str, Any] = {
         "resourceId": RID,
         "resourceVersion": "3",
+        "desiredGeneration": 1,
+        "observedGeneration": 1,
         "phase": "Ready",
         "desired": {
             "lifecycle": "present",
@@ -88,13 +89,13 @@ def test_a_name_outside_the_contract_is_refused_without_being_repeated(value: st
 
 
 def test_create_posts_the_name_with_the_idempotency_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    sent = serve(monkeypatch, {"resourceId": RID, "operationId": OPID}, status=202)
+    sent = serve(monkeypatch, organization_document(), status=201)
 
-    accepted = organization.create_organization(
+    created = organization.create_organization(
         API, token="t", name="acme", idempotency_key="k-1", allow_insecure_http=False
     )
 
-    assert (accepted.resource_id, accepted.operation_id) == (RID, OPID)
+    assert (created.resource_id, created.name, created.phase) == (RID, "acme", "Ready")
     request = last(sent)
     assert (request.get_method(), request.full_url) == ("POST", f"{API}/v1/ipm/organizations")
     assert request.get_header("Idempotency-key") == "k-1"
@@ -103,9 +104,9 @@ def test_create_posts_the_name_with_the_idempotency_key(monkeypatch: pytest.Monk
 
 
 def test_update_patches_the_name_with_the_version(monkeypatch: pytest.MonkeyPatch) -> None:
-    sent = serve(monkeypatch, {"resourceId": RID, "operationId": OPID}, status=202)
+    sent = serve(monkeypatch, organization_document(name="novo"), status=200)
 
-    organization.update_organization(
+    updated = organization.update_organization(
         API,
         token="t",
         resource_id=RID,
@@ -115,6 +116,7 @@ def test_update_patches_the_name_with_the_version(monkeypatch: pytest.MonkeyPatc
         allow_insecure_http=False,
     )
 
+    assert updated.resource_id == RID
     request = last(sent)
     assert (request.get_method(), request.full_url) == (
         "PATCH",
@@ -124,9 +126,16 @@ def test_update_patches_the_name_with_the_version(monkeypatch: pytest.MonkeyPatc
 
 
 def test_delete_sends_the_version_in_the_query(monkeypatch: pytest.MonkeyPatch) -> None:
-    sent = serve(monkeypatch, {"resourceId": RID, "operationId": OPID}, status=202)
+    sent = serve(
+        monkeypatch,
+        organization_document(
+            phase="Deleting",
+            desired={"lifecycle": "absent", "name": "acme", "platformAccess": "granted"},
+        ),
+        status=202,
+    )
 
-    organization.delete_organization(
+    deleted = organization.delete_organization(
         API,
         token="t",
         resource_id=RID,
@@ -135,6 +144,7 @@ def test_delete_sends_the_version_in_the_query(monkeypatch: pytest.MonkeyPatch) 
         allow_insecure_http=False,
     )
 
+    assert (deleted.resource_id, deleted.phase) == (RID, "Deleting")
     request = last(sent)
     assert request.get_method() == "DELETE"
     assert request.full_url == f"{API}/v1/ipm/organizations/{RID}?resourceVersion=3"
@@ -151,6 +161,8 @@ def test_get_reads_the_fields_of_the_organization(monkeypatch: pytest.MonkeyPatc
     assert found == organization.Organization(
         resource_id=RID,
         resource_version="3",
+        desired_generation=1,
+        observed_generation=1,
         phase="Ready",
         name="acme",
         lifecycle="present",
@@ -175,7 +187,7 @@ def test_deletion_protection_is_read_as_sent_and_absent_means_protected(
 def test_set_protection_patches_the_flag_with_the_version(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    sent = serve(monkeypatch, {"resourceId": RID, "operationId": OPID}, status=202)
+    sent = serve(monkeypatch, organization_document(), status=200)
 
     organization.set_organization_protection(
         API,
@@ -276,9 +288,6 @@ def test_every_call_that_puts_an_identifier_in_the_path_refuses_a_bad_one(
             idempotency_key="k",
             allow_insecure_http=False,
         ),
-        lambda: organization.get_operation(
-            API, token="t", resource_id=RID, operation_id=bad, allow_insecure_http=False
-        ),
     )
     for call in calls:
         with pytest.raises(ValueError):
@@ -286,28 +295,10 @@ def test_every_call_that_puts_an_identifier_in_the_path_refuses_a_bad_one(
     assert sent.requests == []  # nenhum pedido saiu
 
 
-def test_the_operation_has_a_reason_only_when_refused(monkeypatch: pytest.MonkeyPatch) -> None:
-    serve(
-        monkeypatch,
-        {"operationId": OPID, "operationStatus": "rejected", "operationStatusReason": "validation"},
-        {"operationId": OPID, "operationStatus": "completed"},
-    )
-
-    refused = organization.get_operation(
-        API, token="t", resource_id=RID, operation_id=OPID, allow_insecure_http=False
-    )
-    done = organization.get_operation(
-        API, token="t", resource_id=RID, operation_id=OPID, allow_insecure_http=False
-    )
-
-    assert (refused.operation_status, refused.reason) == ("rejected", "validation")
-    assert (done.operation_status, done.reason) == ("completed", None)
-
-
 def test_create_and_update_send_billing_account_id_when_given(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    sent = serve(monkeypatch, {"resourceId": RID, "operationId": OPID}, status=202)
+    sent = serve(monkeypatch, organization_document(), status=201)
     ba_id = "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d99"
 
     organization.create_organization(
