@@ -47,7 +47,6 @@ PROFILES: dict[str, tuple[str, ...]] = {
         "ipm/organization",
         "ipm/permission",
         "ipm/role",
-        "ipm/user",
     ),
     # Contexto de trace e OpenAPI do Receiver: todas as features com Receiver (a `ipm/serviceaccount`
     # tem `api`, decisão 0098).
@@ -58,11 +57,13 @@ PROFILES: dict[str, tuple[str, ...]] = {
         "ipm/organization",
         "ipm/permission",
         "ipm/role",
-        "ipm/user",
         "sum/service",
     ),
     # Processo `api` (decisão 0098): probes, OpenAPI e contexto de trace; as demais peças são do tipo.
-    "api-http": ("ipm/serviceaccount",),
+    "api-http": (
+        "ipm/serviceaccount",
+        "ipm/user",
+    ),
     # Envelope, publicação e persistência de `observed` e do resultado, com a convergência e os
     # erros do Manager, sem regra do tipo. O `sum/service` usa só este perfil (decisão 0080).
     "manager-handlers": (
@@ -72,7 +73,6 @@ PROFILES: dict[str, tuple[str, ...]] = {
         "ipm/organization",
         "ipm/permission",
         "ipm/role",
-        "ipm/user",
         "sum/service",
     ),
     # Observação e resultado no Manager (`observed`, `result`, convergência e prazo de observação): só

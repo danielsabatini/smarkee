@@ -125,7 +125,6 @@ async def test_reconcile_creates_absent_user_and_saves_observation() -> None:
     statements = [(str(query), params) for query, params in pool.conn.executed]
     update = next(p for q, p in statements if "UPDATE ipm.user SET observed" in q)
     assert "Ready" in update
-    assert any("completed" in p for q, p in statements if "user_operation" in q)
     outbox = next(p for q, p in statements if "user_outbox" in q)
     assert outbox[2] == "manager.updated.ipm.user.user-1.changed"
 

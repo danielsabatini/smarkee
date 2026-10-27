@@ -353,12 +353,10 @@ class UserController:
         )
         self._log_deadlines(resource_id, generation, decision)
         messages = Messages(self._clock, self._identifiers)
-        requested_by, correlation_id = await store.current_cause(resource_id, generation)
+        # Causa da geração vigente, gravada pela API na admissão (decisão 0098).
+        requested_by, correlation_id = row["requested_by"], row["correlation_id"]
 
         if decision.remove:
-            await store.settle_operations(
-                resource_id, generation, status="completed", finished=True
-            )
             await store.delete_resource(resource_id)
             await self._add_updated(
                 store,
@@ -435,15 +433,6 @@ class UserController:
             failure_count=failure_count,
             reconciliation=reconciliation,
             changed=changed,
-        )
-        failed_operation = suspended or decision.exhausted
-        await store.settle_operations(
-            resource_id,
-            generation,
-            status="completed"
-            if decision.converged
-            else ("failed" if failed_operation else "in_progress"),
-            finished=decision.converged or failed_operation,
         )
         if suspended:
             await self._add_to_outbox(

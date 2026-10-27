@@ -11,14 +11,12 @@ from typing import Any
 
 import pytest
 
+from ipm_user.api import main as api_main
+from ipm_user.api.settings import UserApiSettings
 from ipm_user.controller import main as controller_main
 from ipm_user.controller.settings import UserControllerSettings
-from ipm_user.manager import main as manager_main
-from ipm_user.manager.settings import UserManagerSettings
 from ipm_user.publisher import main as publisher_main
 from ipm_user.publisher.settings import IpmUserPublisherSettings
-from ipm_user.receiver import main as receiver_main
-from ipm_user.receiver.settings import UserReceiverSettings
 
 
 class FakeHealth:
@@ -78,23 +76,16 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
         yield fake
 
     modules: tuple[ModuleType, ...] = (
+        api_main,
         controller_main,
-        manager_main,
         publisher_main,
-        receiver_main,
     )
     for module in modules:
         monkeypatch.setattr(module, "role_runtime", fake_role_runtime)
-    for module in (controller_main, manager_main, receiver_main):
+    for module in (api_main, controller_main):
         monkeypatch.setattr(module, "open_pool", fake_open_pool)
     monkeypatch.setenv("IPM_USER_CONTROLLER_IDENTITY_PROJECT_ID", "roles-ipm")
     return fake
-
-
-async def test_the_manager_starts_one_task_per_consumer(runtime: FakeRuntime) -> None:
-    assert await manager_main.run(UserManagerSettings()) == 0
-    assert runtime.started == ["requested"]
-    assert len(runtime.closers) == 1
 
 
 async def test_the_publisher_is_ready_while_no_permanent_failure_blocks_it(
@@ -105,11 +96,11 @@ async def test_the_publisher_is_ready_while_no_permanent_failure_blocks_it(
     assert runtime.health.checks["publication"]() is True
 
 
-async def test_the_receiver_serves_http_and_leaves_the_probes_to_the_app(
+async def test_the_api_serves_http_and_leaves_the_probes_to_the_app(
     runtime: FakeRuntime, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("IPM_USER_RECEIVER_AUTH_AUDIENCE", "project")
-    assert await receiver_main.run(UserReceiverSettings()) == 0
+    monkeypatch.setenv("IPM_USER_API_AUTH_AUDIENCE", "project")
+    assert await api_main.run(UserApiSettings()) == 0
     assert runtime.started == ["permissions", "roles", "groups", "http"]
     assert runtime.health_port is None
     assert len(runtime.closers) == 2

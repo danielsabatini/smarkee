@@ -22,10 +22,8 @@ runner = CliRunner()
 API = "https://api.teste"
 ORG = "01a14168-b59d-7475-8db7-c5cf57fa100b"
 UID = "01a15e61-6d1e-7096-878a-d5f450b858f2"
-OPID = "b9c4c98c-7392-5016-a724-6e1cd0c1bed9"
 PATH = "/v1/ipm/users"
 USER = f"{PATH}/{UID}"
-OPERATION = f"{USER}/operations/{OPID}"
 
 
 class Response:
@@ -117,14 +115,18 @@ def user_document(
     protected: bool = False,
     version: str = "3",
     state: str | None = "initial",
+    desired_generation: int = 1,
+    observed_generation: int | None = 1,
+    conditions: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     permissions = permissions if permissions is not None else ["ipm.user.get"]
     return {
         "resourceId": UID,
         "resourceVersion": version,
-        "desiredGeneration": 1,
+        "desiredGeneration": desired_generation,
+        **({"observedGeneration": observed_generation} if observed_generation is not None else {}),
         "phase": phase,
-        "conditions": [],
+        "conditions": conditions or [],
         "desired": {
             "lifecycle": "present",
             "reconciliation": "active",
@@ -152,17 +154,6 @@ def user_document(
     }
 
 
-def operation_document(status: str, reason: str | None = None) -> Response:
-    document: dict[str, Any] = {"operationId": OPID, "operationStatus": status}
-    if reason:
-        document["operationStatusReason"] = reason
-    return Response(200, document)
-
-
-def accepted() -> Response:
-    return Response(202, {"resourceId": UID, "operationId": OPID})
-
-
 def body_of(request: urllib.request.Request) -> Any:
     return json.loads(cast(bytes, request.data))
 
@@ -175,7 +166,9 @@ def create(*extra: str) -> list[str]:
 
 
 def test_create_uses_the_active_organization_and_sends_sorted_roles(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
+    api.routes[("POST", PATH)] = Response(
+        201, user_document(phase="Pending", observed_generation=None)
+    )
 
     result = runner.invoke(app, create("--role", "ipm.userViewer", "--role", "ipm.userAdmin"))
 
@@ -196,7 +189,9 @@ def test_create_uses_the_active_organization_and_sends_sorted_roles(api: FakeApi
 
 def test_create_takes_the_organization_option_over_the_active_one(api: FakeApi) -> None:
     other = "01a15e61-1eca-71b3-96b9-4068290bd618"
-    api.routes[("POST", PATH)] = accepted()
+    api.routes[("POST", PATH)] = Response(
+        201, user_document(phase="Pending", observed_generation=None)
+    )
     result = runner.invoke(app, create("--organization-id", other))
     assert result.exit_code == 0, result.stderr
     assert body_of(api.requests[-1])["organizationId"] == other
@@ -215,27 +210,25 @@ def test_create_validates_before_any_call(api: FakeApi) -> None:
 
 
 def test_create_wait_waits_for_ready_and_shows_the_user(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = [
-        operation_document("in_progress"),
-        operation_document("completed"),
-    ]
+    api.routes[("POST", PATH)] = Response(
+        201, user_document(phase="Pending", observed_generation=None)
+    )
     api.routes[("GET", USER)] = [
-        Response(200, user_document(phase="Pending", state=None)),
-        Response(200, user_document()),
+        Response(200, user_document(phase="Pending", state=None, observed_generation=None)),
+        Response(200, user_document(phase="Reconciling", state=None, observed_generation=None)),
+        Response(200, user_document(phase="Ready", observed_generation=1)),
     ]
     result = runner.invoke(app, create("--role", "ipm.userViewer", "--wait"))
     assert result.exit_code == 0, result.stdout + result.stderr
     assert "User created" in result.stdout and "initial" in result.stdout
+    assert [r.get_method() for r in api.requests].count("GET") == 3
 
 
-def test_a_rejected_creation_explains_why(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("rejected", "validation")
-    api.routes[("GET", USER)] = http_error(404, "NotFound", "Recurso não encontrado.")
-    result = runner.invoke(app, create("--wait"))
+def test_name_in_use_is_explained(api: FakeApi) -> None:
+    api.routes[("POST", PATH)] = http_error(409, "NameInUse", "e-mail em uso", "email")
+    result = runner.invoke(app, create())
     assert result.exit_code == 1
-    assert "already in use in the Organization" in " ".join(result.stderr.split())
+    assert "already exists in the Organization" in " ".join(result.stderr.split())
 
 
 @pytest.mark.parametrize(
@@ -262,7 +255,9 @@ def test_api_refusals_have_english_hints(
 
 def test_update_replaces_the_roles_reading_the_current_version(api: FakeApi) -> None:
     api.routes[("GET", USER)] = Response(200, user_document(version="7"))
-    api.routes[("PATCH", USER)] = accepted()
+    api.routes[("PATCH", USER)] = Response(
+        200, user_document(phase="Reconciling", desired_generation=2, version="8")
+    )
     result = runner.invoke(
         app,
         [
@@ -308,9 +303,53 @@ def test_update_needs_roles_or_no_roles_and_is_idempotent(api: FakeApi) -> None:
     assert [r.get_method() for r in api.requests] == ["GET"]
 
 
+def test_update_waits_for_the_new_generation_not_a_stale_ready(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = [
+        Response(200, user_document(protected=True)),  # leitura que escolhe a versão
+        Response(200, user_document(phase="Ready", desired_generation=2, observed_generation=1)),
+        Response(200, user_document(phase="Ready", desired_generation=2, observed_generation=2)),
+    ]
+    api.routes[("PATCH", USER)] = Response(
+        200, user_document(phase="Reconciling", desired_generation=2, version="4")
+    )
+    result = runner.invoke(app, ["ipm", "user", "unprotect", "--resource-id", UID, "--wait"])
+    assert result.exit_code == 0, result.stderr
+    assert [r.get_method() for r in api.requests].count("GET") == 3
+
+
+def test_a_failed_phase_with_the_generation_observed_is_a_failure(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = [
+        Response(200, user_document(protected=True)),
+        Response(
+            200,
+            user_document(
+                phase="Failed",
+                desired_generation=2,
+                observed_generation=2,
+                conditions=[
+                    {
+                        "type": "Ready",
+                        "status": "False",
+                        "reason": "ProviderRejected",
+                        "lastTransitionAt": "2026-10-27T10:00:00Z",
+                    }
+                ],
+            ),
+        ),
+    ]
+    api.routes[("PATCH", USER)] = Response(
+        200, user_document(phase="Reconciling", desired_generation=2, version="4")
+    )
+    result = runner.invoke(app, ["ipm", "user", "unprotect", "--resource-id", UID, "--wait"])
+    assert result.exit_code == 1
+    assert "ProviderRejected" in result.stderr
+
+
 def test_protect_and_unprotect_change_only_the_protection(api: FakeApi) -> None:
     api.routes[("GET", USER)] = Response(200, user_document(protected=False))
-    api.routes[("PATCH", USER)] = accepted()
+    api.routes[("PATCH", USER)] = Response(
+        200, user_document(phase="Reconciling", desired_generation=2, version="4")
+    )
     result = runner.invoke(app, ["ipm", "user", "protect", "--resource-id", UID])
     assert result.exit_code == 0, result.stderr
     assert body_of(api.requests[-1]) == {"resourceVersion": "3", "deletionProtection": True}
@@ -320,13 +359,27 @@ def test_protect_and_unprotect_change_only_the_protection(api: FakeApi) -> None:
 
 def test_delete_reads_the_version_and_explains_the_protection(api: FakeApi) -> None:
     api.routes[("GET", USER)] = Response(200, user_document(version="4"))
-    api.routes[("DELETE", USER)] = accepted()
+    api.routes[("DELETE", USER)] = Response(202, user_document(phase="Deleting"))
     result = runner.invoke(app, ["ipm", "user", "delete", "--resource-id", UID])
     assert result.exit_code == 0, result.stderr
     assert "resourceVersion=4" in api.requests[-1].full_url
     api.routes[("DELETE", USER)] = http_error(409, "DeletionProtected", "x")
     refused = runner.invoke(app, ["ipm", "user", "delete", "--resource-id", UID])
     assert refused.exit_code == 1 and "sk ipm user unprotect" in refused.stderr
+
+
+def test_delete_with_wait_finishes_when_the_resource_is_gone(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = [
+        Response(200, user_document(protected=False)),
+        Response(200, user_document(phase="Deleting", desired_generation=2, observed_generation=1)),
+        http_error(404, "NotFound", "não encontrado"),
+    ]
+    api.routes[("DELETE", USER)] = Response(
+        202, user_document(phase="Deleting", desired_generation=2)
+    )
+    result = runner.invoke(app, ["ipm", "user", "delete", "--resource-id", UID, "--wait"])
+    assert result.exit_code == 0, result.stderr
+    assert "removed" in result.stdout
 
 
 def test_get_and_list_show_the_users(api: FakeApi) -> None:
@@ -405,19 +458,7 @@ def test_json_delete_with_wait_prints_the_removed_state(api: FakeApi) -> None:
         Response(200, user_document(protected=False)),  # leitura antes do pedido
         http_error(404, "NotFound", "gone"),  # já removido
     ]
-    api.routes[("DELETE", USER)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("DELETE", USER)] = Response(202, user_document(phase="Deleting"))
     result = runner.invoke(app, [*JSON, "ipm", "user", "delete", "--resource-id", UID, "--wait"])
     assert result.exit_code == 0, result.stderr
     assert _document(result.stdout) == {"resourceId": UID, "state": "removed"}
-
-
-@pytest.mark.usefixtures("default_output_mode")
-def test_json_get_with_operation_adds_the_operation(api: FakeApi) -> None:
-    api.routes[("GET", USER)] = Response(200, user_document())
-    api.routes[("GET", OPERATION)] = operation_document("completed")
-    result = runner.invoke(
-        app, [*JSON, "ipm", "user", "get", "--resource-id", UID, "--operation-id", OPID]
-    )
-    assert result.exit_code == 0, result.stderr
-    assert _document(result.stdout)["operation"]["operationStatus"] == "completed"

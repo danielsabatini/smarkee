@@ -44,158 +44,91 @@ Pontos que costumam surpreender:
 
 Fora do Docker, os nomes `*.smarkee.internal` não resolvem: use as portas publicadas em `127.0.0.1` (Postgres `5432`, NATS `4222`) por flag ou variável.
 
-## 3. `ipm-user-receiver`
+## 3. `ipm-user-api`
 
-Entrypoint do Receiver de User (`ipm-user-receiver`, decisão 0015).
+Entrypoint da API de User (`ipm-user-api`, decisões 0015 e 0098).
 
-- **Prefixo das variáveis:** `IPM_USER_RECEIVER_`
-- **Tabela do `config.toml`:** `[tool.ipm.user.receiver.<seção>]`
-- **Comando:** `ipm-user-receiver` (entrypoint `ipm_user.receiver.main:main`)
+- **Prefixo das variáveis:** `IPM_USER_API_`
+- **Tabela do `config.toml`:** `[tool.ipm.user.api.<seção>]`
+- **Comando:** `ipm-user-api` (entrypoint `ipm_user.api.main:main`)
 
 **Obrigatórias** (sem default; o serviço não sobe sem elas):
 
-- `IPM_USER_RECEIVER_AUTH_AUDIENCE`
-- `IPM_USER_RECEIVER_MESSAGING_URL`
-- `IPM_USER_RECEIVER_MESSAGING_USER`
-- `IPM_USER_RECEIVER_MESSAGING_PASSWORD`
-- `IPM_USER_RECEIVER_DATABASE_HOST`
-- `IPM_USER_RECEIVER_DATABASE_PORT`
-- `IPM_USER_RECEIVER_DATABASE_NAME`
-- `IPM_USER_RECEIVER_DATABASE_USER`
-- `IPM_USER_RECEIVER_DATABASE_PASSWORD`
+- `IPM_USER_API_AUTH_AUDIENCE`
+- `IPM_USER_API_MESSAGING_URL`
+- `IPM_USER_API_MESSAGING_USER`
+- `IPM_USER_API_MESSAGING_PASSWORD`
+- `IPM_USER_API_DATABASE_HOST`
+- `IPM_USER_API_DATABASE_PORT`
+- `IPM_USER_API_DATABASE_NAME`
+- `IPM_USER_API_DATABASE_USER`
+- `IPM_USER_API_DATABASE_PASSWORD`
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
-| `log.level` | `IPM_USER_RECEIVER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
-| `log.dependencies_level` | `IPM_USER_RECEIVER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
-| `database.host` | `IPM_USER_RECEIVER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Obrigatória. Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
-| `database.port` | `IPM_USER_RECEIVER_DATABASE_PORT` | `--database.port` | `int \| None` | — | Obrigatória. |
-| `database.name` | `IPM_USER_RECEIVER_DATABASE_NAME` | `--database.name` | `str \| None` | — | Obrigatória. |
-| `database.user` | `IPM_USER_RECEIVER_DATABASE_USER` | `--database.user` | `str \| None` | — | Obrigatória. Papel de login do banco, um por papel. Sem default: vem do ambiente ou do `config.toml`. |
-| `database.password` | `IPM_USER_RECEIVER_DATABASE_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
-| `messaging.url` | `IPM_USER_RECEIVER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.user` | `IPM_USER_RECEIVER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.password` | `IPM_USER_RECEIVER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
-| `auth.issuer` | `IPM_USER_RECEIVER_AUTH_ISSUER` | `--auth.issuer` | `str` | `'http://localhost:8080'` | Valor esperado de `iss`: o endereço público do provedor de identidade. |
-| `auth.jwks_url` | `IPM_USER_RECEIVER_AUTH_JWKS_URL` | `--auth.jwks_url` | `str` | `'http://localhost:8000/oauth/v2/keys'` | Endereço (da rede interna) em que as chaves públicas são buscadas. |
-| `auth.host_header` | `IPM_USER_RECEIVER_AUTH_HOST_HEADER` | `--auth.host_header` | `str` | `'localhost:8080'` | `Host` enviado ao provedor nas chamadas internas: ele resolve a instância por esse valor. |
-| `auth.audience` | `IPM_USER_RECEIVER_AUTH_AUDIENCE` | `--auth.audience` | `str \| None` | — | Obrigatória. ID do projeto `roles-ipm` (audience dos access tokens). Sem default. |
-| `auth.jwks_cache_seconds` | `IPM_USER_RECEIVER_AUTH_JWKS_CACHE_SECONDS` | `--auth.jwks_cache_seconds` | `int` | `300` |  |
-| `api.host` | `IPM_USER_RECEIVER_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
-| `api.port` | `IPM_USER_RECEIVER_API_PORT` | `--api.port` | `int` | `8000` |  |
-| `api.user_quota` | `IPM_USER_RECEIVER_API_USER_QUOTA` | `--api.user_quota` | `int` | `5` | Usuários por Organization para quem não é operador (decisão 0077; valor provisório). |
-| `peers.organizations_url` | `IPM_USER_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
-| `peers.serviceaccounts_url` | `IPM_USER_RECEIVER_PEERS_SERVICEACCOUNTS_URL` | `--peers.serviceaccounts_url` | `str` | `'http://localhost:8000'` |  |
-| `peers.timeout_seconds` | `IPM_USER_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
+| `log.level` | `IPM_USER_API_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `IPM_USER_API_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
+| `database.host` | `IPM_USER_API_DATABASE_HOST` | `--database.host` | `str \| None` | — | Obrigatória. Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
+| `database.port` | `IPM_USER_API_DATABASE_PORT` | `--database.port` | `int \| None` | — | Obrigatória. |
+| `database.name` | `IPM_USER_API_DATABASE_NAME` | `--database.name` | `str \| None` | — | Obrigatória. |
+| `database.user` | `IPM_USER_API_DATABASE_USER` | `--database.user` | `str \| None` | — | Obrigatória. Papel de login do banco, um por papel. Sem default: vem do ambiente ou do `config.toml`. |
+| `database.password` | `IPM_USER_API_DATABASE_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
+| `messaging.url` | `IPM_USER_API_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.user` | `IPM_USER_API_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.password` | `IPM_USER_API_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
+| `auth.issuer` | `IPM_USER_API_AUTH_ISSUER` | `--auth.issuer` | `str` | `'http://localhost:8080'` | Valor esperado de `iss`: o endereço público do provedor de identidade. |
+| `auth.jwks_url` | `IPM_USER_API_AUTH_JWKS_URL` | `--auth.jwks_url` | `str` | `'http://localhost:8000/oauth/v2/keys'` | Endereço (da rede interna) em que as chaves públicas são buscadas. |
+| `auth.host_header` | `IPM_USER_API_AUTH_HOST_HEADER` | `--auth.host_header` | `str` | `'localhost:8080'` | `Host` enviado ao provedor nas chamadas internas: ele resolve a instância por esse valor. |
+| `auth.audience` | `IPM_USER_API_AUTH_AUDIENCE` | `--auth.audience` | `str \| None` | — | Obrigatória. ID do projeto `roles-ipm` (audience dos access tokens). Sem default. |
+| `auth.jwks_cache_seconds` | `IPM_USER_API_AUTH_JWKS_CACHE_SECONDS` | `--auth.jwks_cache_seconds` | `int` | `300` |  |
+| `api.host` | `IPM_USER_API_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
+| `api.port` | `IPM_USER_API_API_PORT` | `--api.port` | `int` | `8000` |  |
+| `api.user_quota` | `IPM_USER_API_API_USER_QUOTA` | `--api.user_quota` | `int` | `5` | Usuários por Organization para quem não é operador (decisão 0077; valor provisório). |
+| `peers.organizations_url` | `IPM_USER_API_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.serviceaccounts_url` | `IPM_USER_API_PEERS_SERVICEACCOUNTS_URL` | `--peers.serviceaccounts_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.timeout_seconds` | `IPM_USER_API_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
 **Definido no `config.toml` de dev:**
 
 ```toml
-[tool.ipm.user.receiver.auth]
+[tool.ipm.user.api.auth]
 host_header = "ipm-dev.smarkee.com.br:8080"
 issuer = "http://ipm-dev.smarkee.com.br:8080"
 jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
-[tool.ipm.user.receiver.database]
+[tool.ipm.user.api.database]
 host = "database.smarkee.internal"
 name = "ssot"
 port = 5432
-user = "ipm_user_receiver_login"
+user = "ipm_user_api_login"
 
-[tool.ipm.user.receiver.messaging]
+[tool.ipm.user.api.messaging]
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
-[tool.ipm.user.receiver.peers]
+[tool.ipm.user.api.peers]
 organizations_url = "http://ipm-organization-receiver.smarkee.internal:8000"
-serviceaccounts_url = "http://ipm-serviceaccount-receiver.smarkee.internal:8000"
+serviceaccounts_url = "http://ipm-serviceaccount-api.smarkee.internal:8000"
 ```
 
 **Executar** (de `features/ipm/user`):
 
 ```bash
 # Contêiner (dev): sobe só este papel; usa config.toml, .env e /run/secrets
-docker compose up -d ipm-user-receiver
-docker compose logs -f ipm-user-receiver
+docker compose up -d ipm-user-api
+docker compose logs -f ipm-user-api
 
 # Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
-uv run --env-file .env ipm-user-receiver \
+uv run --env-file .env ipm-user-api \
     --api.port 8001 \
     --database.host localhost \
     --messaging.url nats://localhost:4222
 
 # Lista todas as flags aceitas pelo papel
-uv run ipm-user-receiver --help
+uv run ipm-user-api --help
 ```
 
-## 4. `ipm-user-manager`
-
-Entrypoint do Manager de User (`ipm-user-manager`, decisões 0015, 0019 e 0063).
-
-- **Prefixo das variáveis:** `IPM_USER_MANAGER_`
-- **Tabela do `config.toml`:** `[tool.ipm.user.manager.<seção>]`
-- **Comando:** `ipm-user-manager` (entrypoint `ipm_user.manager.main:main`)
-
-**Obrigatórias** (sem default; o serviço não sobe sem elas):
-
-- `IPM_USER_MANAGER_MESSAGING_URL`
-- `IPM_USER_MANAGER_MESSAGING_USER`
-- `IPM_USER_MANAGER_MESSAGING_PASSWORD`
-- `IPM_USER_MANAGER_DATABASE_HOST`
-- `IPM_USER_MANAGER_DATABASE_PORT`
-- `IPM_USER_MANAGER_DATABASE_NAME`
-- `IPM_USER_MANAGER_DATABASE_USER`
-- `IPM_USER_MANAGER_DATABASE_PASSWORD`
-
-| Campo | Variável | Flag | Tipo | Default | Descrição |
-|---|---|---|---|---|---|
-| `log.level` | `IPM_USER_MANAGER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
-| `log.dependencies_level` | `IPM_USER_MANAGER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
-| `database.host` | `IPM_USER_MANAGER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Obrigatória. Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
-| `database.port` | `IPM_USER_MANAGER_DATABASE_PORT` | `--database.port` | `int \| None` | — | Obrigatória. |
-| `database.name` | `IPM_USER_MANAGER_DATABASE_NAME` | `--database.name` | `str \| None` | — | Obrigatória. |
-| `database.user` | `IPM_USER_MANAGER_DATABASE_USER` | `--database.user` | `str \| None` | — | Obrigatória. Papel de login do banco, um por papel. Sem default: vem do ambiente ou do `config.toml`. |
-| `database.password` | `IPM_USER_MANAGER_DATABASE_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
-| `messaging.url` | `IPM_USER_MANAGER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.user` | `IPM_USER_MANAGER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.password` | `IPM_USER_MANAGER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
-| `loop.failure_limit` | `IPM_USER_MANAGER_LOOP_FAILURE_LIMIT` | `--loop.failure_limit` | `int` | `5` | Falhas por geração antes de `Failed` (`schemas/ipm/user/desired`, `failureLimit`). |
-| `loop.progress_deadline_seconds` | `IPM_USER_MANAGER_LOOP_PROGRESS_DEADLINE_SECONDS` | `--loop.progress_deadline_seconds` | `int` | `300` | Prazo para a geração convergir antes de `Failed` com `ProgressDeadlineExceeded` (`schemas/ipm/user/desired`, `progressDeadline`; decisão 0078). |
-| `health.port` | `IPM_USER_MANAGER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
-
-**Definido no `config.toml` de dev:**
-
-```toml
-[tool.ipm.user.manager.database]
-host = "database.smarkee.internal"
-name = "ssot"
-port = 5432
-user = "ipm_user_manager_login"
-
-[tool.ipm.user.manager.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-```
-
-**Executar** (de `features/ipm/user`):
-
-```bash
-# Contêiner (dev): sobe só este papel; usa config.toml, .env e /run/secrets
-docker compose up -d ipm-user-manager
-docker compose logs -f ipm-user-manager
-
-# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
-uv run --env-file .env ipm-user-manager \
-    --health.port 8002 \
-    --database.host localhost \
-    --messaging.url nats://localhost:4222 \
-    --loop.failure_limit 3
-
-# Lista todas as flags aceitas pelo papel
-uv run ipm-user-manager --help
-```
-
-## 5. `ipm-user-publisher`
+## 4. `ipm-user-publisher`
 
 Entrypoint do Publisher de `ipm.user` (decisões 0015 e 0033).
 

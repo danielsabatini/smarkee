@@ -17,6 +17,10 @@ SCHEMAS_ROOT = PROJECT_ROOT.parents[2] / "schemas"
 GENERATED_MODULE = PROJECT_ROOT / "src" / "ipm_user" / "common" / "contracts" / "generated.py"
 INDEX = SCHEMAS_ROOT / "ipm.user.index.json"
 
+# Contratos comuns que esta feature não usa depois da API síncrona (decisão 0098): a Operation e a
+# resposta `202` com `operationId` ficam para as features que ainda têm Receiver e Manager.
+UNUSED_COMMON = {"operation", "api-accepted-response"}
+
 EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "common/message-envelope.example.json": generated.MessageEnvelope,
     "common/condition.example.json": generated.Condition,
@@ -24,14 +28,9 @@ EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "common/completed.example.json": generated.CompletedData,
     "common/failed.example.json": generated.FailedData,
     "common/updated.example.json": generated.UpdatedData,
-    "common/operation.example.json": generated.Operation,
-    "common/api-accepted-response.example.json": generated.ApiAcceptedResponse,
     "common/api-error.example.json": generated.ApiError,
     "ipm/user/desired.example.json": generated.UserDesiredData,
     "ipm/user/observed.example.json": generated.UserObservedData,
-    "ipm/user/requested-create.example.json": generated.UserRequestedCreateData,
-    "ipm/user/requested-update.example.json": generated.UserRequestedUpdateData,
-    "ipm/user/requested-delete.example.json": generated.UserRequestedDeleteData,
     "ipm/user/api-create-request.example.json": generated.UserCreateRequest,
     "ipm/user/api-update-request.example.json": generated.UserUpdateRequest,
     "ipm/user/resource.example.json": generated.User,
@@ -69,7 +68,7 @@ def test_index_lists_every_contract() -> None:
         str(path.relative_to(SCHEMAS_ROOT))
         for directory in ("common", "ipm/user")
         for path in (SCHEMAS_ROOT / directory).rglob("*.v*.schema.json")
-        if not path.name.startswith("definitions.")
+        if not path.name.startswith("definitions.") and path.name.split(".")[0] not in UNUSED_COMMON
     }
     assert listed == contracts
 
@@ -79,6 +78,7 @@ def test_every_example_has_a_model() -> None:
         str(path.relative_to(SCHEMAS_ROOT))
         for directory in ("common", "ipm/user")
         for path in (SCHEMAS_ROOT / directory).rglob("*.example.json")
+        if path.name.split(".")[0] not in UNUSED_COMMON
     }
     assert examples == set(EXAMPLE_MODELS)
 
@@ -102,7 +102,10 @@ def test_create_request_rejects_server_assigned_fields() -> None:
     for server_field in ("resourceId", "requestedBy"):
         with pytest.raises(ValidationError):
             generated.UserCreateRequest.model_validate(
-                {**_example("ipm/user/api-create-request.example.json"), server_field: "x"}
+                {
+                    **_example("ipm/user/api-create-request.example.json"),
+                    server_field: "x",
+                }
             )
 
 

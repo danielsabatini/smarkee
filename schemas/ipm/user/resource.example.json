@@ -2,6 +2,7 @@
   "resourceId": "0199c8c1-1d2e-7f3a-8b4c-5d6e7f8a9b0c",
   "resourceVersion": "3",
   "desiredGeneration": 1,
+  "observedGeneration": 1,
   "phase": "Ready",
   "conditions": [
     {

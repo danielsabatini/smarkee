@@ -4,7 +4,8 @@ O dono da Organization (o root) e os usuários dela com as permissões `ipm.user
 alteram as roles, protegem e removem usuários da Organization. Cada usuário nasce sem senha: a
 pessoa define a senha pelo e-mail de ativação e entra com `sk auth login`. A Organization é a de
 `--organization-id` ou, na falta dela, a ativa (`sk config set ipm.organizationId`). Criar, alterar
-e remover são assíncronos: com `--wait`, o comando espera o usuário convergir.
+e remover são admitidos na hora pela API (decisão 0098); a convergência no provedor é assíncrona:
+com `--wait`, o comando espera `observedGeneration` alcançar a geração admitida.
 """
 
 import uuid
@@ -14,14 +15,14 @@ import typer
 from pydantic import ValidationError
 from rich.text import Text
 
-from sk import output, ui
+from sk import ui
 from sk.command_app import SkTyper
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
     EXIT_USAGE_ERROR,
     PersonNameOption,
     PersonSurnameOption,
-    ResourceFlow,
+    SyncResourceFlow,
     TimeoutOption,
     already_done,
     bad_address,
@@ -32,13 +33,11 @@ from sk.commands.shared import (
     session_token,
     usage_error,
 )
-from sk.features.api_contract import OperationStatus, RequestAccepted
 from sk.features.core.account import validate_registration
 from sk.features.ipm.user import (
     User,
     create_user,
     delete_user,
-    get_operation,
     get_user,
     list_users,
     update_user,
@@ -59,16 +58,11 @@ USER_HELP = command(
 NOT_FOUND = "User not found in an Organization you act on."
 CONFLICT_ON_CHANGE = "The user changed since it was last read. Inspect it and try again."
 PROTECTED_HINT = "The user is protected against deletion. Run `sk ipm user unprotect` first."
-REJECTION_HINTS = {
-    "validation": (
-        "The e-mail is already in use in the Organization, or a permission is not allowed."
-    ),
-    "conflict": CONFLICT_ON_CHANGE,
-    "not_found": NOT_FOUND,
-    "protected": PROTECTED_HINT,
-}
 ERROR_CODE_HINTS = {
     "DeletionProtected": PROTECTED_HINT,
+    "NameInUse": "A user with this e-mail already exists in the Organization.",
+    "NotPresent": "The user is being deleted and cannot be changed.",
+    "IdempotencyKeyReused": "The idempotency key was already used for a different request.",
     "QuotaExceeded": "The Organization reached its user limit. Delete a user or ask an operator.",
     "OrganizationUnavailable": "The Organization could not be checked now. Try again.",
 }
@@ -93,7 +87,7 @@ WaitOption = Annotated[
     typer.Option(
         "--wait",
         help=option(
-            "Wait for the user to converge (phase Ready and Operation completed).",
+            "Wait for the user to converge (its generation observed and phase Ready).",
             kind="Boolean",
             variable=None,
             file=None,
@@ -221,20 +215,15 @@ def _rows(user: User) -> list[tuple[str, str]]:
     ]
 
 
-def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> str:
-    parts = ["sk ipm user get", f"--resource-id {accepted.resource_id}"]
-    if with_operation:
-        parts.append(f"--operation-id {accepted.operation_id}")
-    return " ".join(parts)
+def _get_command(resource_id: str) -> str:
+    return f"sk ipm user get --resource-id {resource_id}"
 
 
-_flow = ResourceFlow(
+_flow = SyncResourceFlow(
     subject="user",
     get_command=_get_command,
     read_resource=get_user,
-    read_operation=get_operation,
     fail_api=_fail_api,
-    rejection_hints=REJECTION_HINTS,
     rows=_rows,
 )
 
@@ -289,7 +278,7 @@ def create_command(
     url, insecure = load_api()
     token = session_token()
     try:
-        accepted = create_user(
+        created = create_user(
             url,
             token=token,
             organization_id=organization,
@@ -305,11 +294,11 @@ def create_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error, not_found="Organization not found, or you do not act on it.")
-    _flow.accepted_panel(
-        "Creation requested", accepted, ("organizationId", organization), wait=wait
+    _flow.requested_panel(
+        "Creation requested", created, ("organizationId", organization), wait=wait
     )
     _flow.finish(
-        url, insecure, accepted, title="User created", removal=False, wait=wait, timeout=timeout
+        url, insecure, created, title="User created", removal=False, wait=wait, timeout=timeout
     )
 
 
@@ -335,7 +324,7 @@ def _change(
         if same_roles and same_groups and same_protection:
             already_done(current, f"User {user_id} already has it. Nothing to do.")
             return
-        accepted = update_user(
+        admitted = update_user(
             url,
             token=token,
             resource_id=user_id,
@@ -350,8 +339,8 @@ def _change(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Change requested", accepted, wait=wait)
-    _flow.finish(url, insecure, accepted, title=title, removal=False, wait=wait, timeout=timeout)
+    _flow.requested_panel("Change requested", admitted, wait=wait)
+    _flow.finish(url, insecure, admitted, title=title, removal=False, wait=wait, timeout=timeout)
 
 
 @user_app.command(
@@ -469,7 +458,7 @@ def delete_command(
     token = session_token()
     try:
         current = get_user(url, token=token, resource_id=user_id, allow_insecure_http=insecure)
-        accepted = delete_user(
+        admitted = delete_user(
             url,
             token=token,
             resource_id=user_id,
@@ -481,61 +470,28 @@ def delete_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Deletion requested", accepted, ("email", current.email or "-"), wait=wait)
+    _flow.requested_panel(
+        "Deletion requested", admitted, ("email", current.email or "-"), wait=wait
+    )
     _flow.finish(
-        url, insecure, accepted, title="User deleted", removal=True, wait=wait, timeout=timeout
+        url, insecure, admitted, title="User deleted", removal=True, wait=wait, timeout=timeout
     )
 
 
-@user_app.command(
-    "get", structured=True, help=command("Show the state of a user and, if given, of an Operation.")
-)
+@user_app.command("get", structured=True, help=command("Show the state of a user."))
 def get_command(
     resource_id: UserIdOption = None,
-    operation_id: Annotated[
-        str | None,
-        typer.Option(
-            "--operation-id",
-            help=option(
-                "operationId of a request, to see why it was rejected or failed (returned by "
-                "`create`, `update` or `delete`).",
-                kind="String",
-                variable=None,
-                file=None,
-                default="no Operation lookup",
-            ),
-        ),
-    ] = None,
 ) -> None:
     user_id = identifier(resource_id, "--resource-id", what="resourceId")
-    if operation_id is not None:
-        operation_id = identifier(operation_id, "--operation-id", what="operationId")
     url, insecure = load_api()
     token = session_token()
-    operation: OperationStatus | None = None
     try:
         user = get_user(url, token=token, resource_id=user_id, allow_insecure_http=insecure)
-        if operation_id is not None:
-            operation = get_operation(
-                url,
-                token=token,
-                resource_id=user_id,
-                operation_id=operation_id,
-                allow_insecure_http=insecure,
-            )
     except OidcError as error:
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    rows = _rows(user)
-    if operation is not None:
-        rows.append(("operationStatus", operation.operation_status))
-        if operation.reason is not None:
-            rows.append(("reason", operation.reason))
-    document = output.to_data(user)
-    if operation is not None:
-        document["operation"] = output.to_data(operation)
-    ui.panel("User", rows, data=document)
+    ui.panel("User", _rows(user), data=user)
 
 
 @user_app.command("list", structured=True, help=command("List the users of an Organization."))

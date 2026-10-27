@@ -27,6 +27,8 @@ def document(**desired: Any) -> dict[str, Any]:
     return {
         "resourceId": "u-1",
         "resourceVersion": "2",
+        "desiredGeneration": 1,
+        "observedGeneration": 1,
         "phase": "Deleting",
         "desired": {
             "lifecycle": "absent",
@@ -39,6 +41,15 @@ def document(**desired: Any) -> dict[str, Any]:
 def test_a_user_being_removed_has_no_email_and_is_unprotected_by_default() -> None:
     user = _user(document())
     assert (user.email, user.deletion_protection, user.user_state) == (None, False, None)
+    assert (user.desired_generation, user.observed_generation) == (1, 1)
+    assert user.failure_reason is None
+
+
+def test_user_parser_without_observed_generation() -> None:
+    body = document()
+    del body["observedGeneration"]
+    user = _user(body)
+    assert user.observed_generation is None
 
 
 def test_effective_permissions_come_from_the_observed_state() -> None:

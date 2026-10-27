@@ -7,9 +7,7 @@ from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
-
-from ipm_user.manager.store.ssot import SsotStore
-from ipm_user.manager.store.tables import tables_of
+from psycopg.types.json import Jsonb
 
 DATABASE_HOST = os.environ.get("IPM_TEST_DATABASE_HOST", "localhost")
 DATABASE_PORT = os.environ.get("IPM_TEST_DATABASE_PORT", "5432")
@@ -57,36 +55,21 @@ def unique_suffix() -> str:
     return uuid.uuid4().hex[:10]
 
 
-def requested_message(resource_id: str) -> dict[str, Any]:
-    """Um `requested` de criação válido, como o Receiver o publicaria."""
-    return {
-        "messageId": str(uuid.uuid7()),
-        "schemaVersion": "1.0",
-        "messageType": "requested",
-        "emitter": "receiver",
-        "module": "ipm",
-        "resourceType": "user",
-        "resourceId": resource_id,
-        "operation": "create",
-        "requestedBy": "owner-1",
-        "correlationId": str(uuid.uuid7()),
-        "occurredAt": "2026-10-10T12:00:00Z",
-        "publishedAt": "2026-10-10T12:00:00Z",
-        "data": {
-            "operationId": f"op-{unique_suffix()}",
-            "requestDigest": "0" * 64,
-            "specification": {
-                "organizationId": "org-ctl",
-                "givenName": "Bia",
-                "familyName": "Lima",
-                "email": f"ctl-{unique_suffix()}@example.com",
-                "roles": ["ipm.userViewer"],
-                "deletionProtection": False,
-            },
-        },
+async def seed_user(api: psycopg.AsyncConnection[Any], resource_id: str) -> None:
+    """Grava o recurso como a admissão da API o grava (decisão 0098), sem passar pelo loop."""
+    desired = {
+        "lifecycle": "present",
+        "organizationId": "org-ctl",
+        "givenName": "Bia",
+        "familyName": "Lima",
+        "email": f"ctl-{unique_suffix()}@example.com",
+        "roles": ["ipm.userViewer"],
+        "groups": [],
+        "deletionProtection": False,
     }
-
-
-def ssot(connection: psycopg.AsyncConnection[Any]) -> SsotStore:
-    """Adaptador do SSOT do usuário para o Manager criar o recurso do teste."""
-    return SsotStore(connection, tables_of("user"))
+    await api.execute(
+        "INSERT INTO ipm.user (resource_id, schema_version, lifecycle, reconciliation,"
+        " desired, desired_generation, resource_version, phase, requested_by, correlation_id)"
+        " VALUES (%s, '1.0', 'present', 'active', %s, 1, 1, 'Pending', 'owner-1', %s)",
+        (resource_id, Jsonb(desired), str(uuid.uuid7())),
+    )

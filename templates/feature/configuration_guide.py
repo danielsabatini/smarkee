@@ -80,7 +80,7 @@ def field_docs(section: type) -> dict[str, str]:
             continue
         try:
             tree = ast.parse(textwrap.dedent(inspect.getsource(klass)))
-        except OSError, TypeError:
+        except (OSError, TypeError):
             continue
         body = getattr(tree.body[0], "body", [])
         for current, following in pairwise(body):

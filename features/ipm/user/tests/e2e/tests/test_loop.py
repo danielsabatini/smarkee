@@ -1,7 +1,8 @@
-"""Loop completo de ipm.user (Receiver até Controller), com os componentes reais e o Zitadel de dev.
+"""Loop completo de ipm.user (API ao Controller), com o Zitadel de dev.
 
-Os pedidos entram direto no NATS, como o Receiver os publicaria, numa Organization preparada pelo
-operador (`CONFORMANCE_ORGANIZATION_ID`). Cada usuário é removido pelo próprio loop ao final
+Os pedidos entram pela API HTTP (decisão 0098), com o token de um operador
+(`CONFORMANCE_ACCESS_TOKEN`), numa Organization preparada pelo operador
+(`CONFORMANCE_ORGANIZATION_ID`). Cada usuário é removido pelo próprio loop ao final
 (fixture `created`).
 """
 
@@ -11,7 +12,8 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from conftest import current_row, read_ssot, request, send
+import httpx
+from conftest import current_row, read_ssot
 from contracts import assert_valid
 from nats.js import JetStreamContext
 
@@ -94,9 +96,9 @@ async def confirmed(
 async def settled_version(resource_id: str) -> str:
     """A `resourceVersion` atual, depois que ela para de mudar.
 
-    Depois de cada `updated`, o Manager ainda grava a observação e o resultado seguintes (cada um
+    Depois de cada `updated`, o Controller ainda grava a observação seguinte (que
     sobe a versão): um cliente real lê a versão atual antes de alterar, e é isso que o teste imita.
-    Usar a versão de um `updated` já superado faz o Manager recusar o pedido (`conflict`).
+    Usar a versão de um `updated` já superado faz a API recusar o pedido (`409 Conflict`).
     """
     current = await current_row(resource_id)
     assert current is not None
@@ -107,6 +109,37 @@ async def settled_version(resource_id: str) -> str:
         if latest["resource_version"] == current["resource_version"]:
             return str(latest["resource_version"])
         current = latest
+
+
+COLLECTION = "/v1/ipm/users"
+
+
+async def post(
+    api: httpx.AsyncClient, headers: dict[str, str], specification: dict[str, Any]
+) -> dict[str, Any]:
+    """`POST` da API: devolve o recurso (`201`)."""
+    response = await api.post(COLLECTION, json=specification, headers=headers)
+    assert response.status_code == 201, response.text
+    resource = response.json()
+    assert_valid("ipm/user/resource.v1.schema.json", resource)
+    return resource
+
+
+async def patch(
+    api: httpx.AsyncClient,
+    headers: dict[str, str],
+    resource_id: str,
+    version: str,
+    changes: dict[str, Any],
+) -> dict[str, Any]:
+    """`PATCH` da API: devolve o recurso (`200`)."""
+    response = await api.patch(
+        f"{COLLECTION}/{resource_id}",
+        json={"resourceVersion": version, **changes},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
 
 
 def specification(organization_id: str, roles: list[str]) -> dict[str, Any]:
@@ -121,21 +154,20 @@ def specification(organization_id: str, roles: list[str]) -> dict[str, Any]:
 
 
 async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_the_user(
-    jetstream: JetStreamContext, created: list[str], organization_id: str
+    api: httpx.AsyncClient,
+    headers: dict[str, str],
+    jetstream: JetStreamContext,
+    created: list[str],
+    organization_id: str,
 ) -> None:
-    resource_id = str(uuid.uuid7())
-    created.append(resource_id)
-
     # 1. Criação: o usuário nasce na Organization, sem senha. As `roles` são expandidas pelo
     # Controller em permissões efetivas (decisões 0085 e 0097); o `desired` guarda só a intenção.
-    await send(
-        jetstream,
-        request(
-            resource_id,
-            "create",
-            {"specification": specification(organization_id, ["ipm.userViewer"])},
-        ),
-    )
+    resource = await post(api, headers, specification(organization_id, ["ipm.userViewer"]))
+    resource_id = str(resource["resourceId"])
+    created.append(resource_id)
+    assert (resource["phase"], resource["desiredGeneration"]) == ("Pending", 1)
+    assert "observedGeneration" not in resource  # ainda não observado
+
     updated = await confirmed(jetstream, resource_id, 1)
     assert_valid("common/updated.v1.schema.json", updated["data"])
     desired = await last(jetstream, "desired", resource_id)
@@ -160,14 +192,8 @@ async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_t
         "ipm.user.list",
         "ipm.user.update",
     ]
-    await send(
-        jetstream,
-        request(
-            resource_id,
-            "update",
-            {"resourceVersion": version, "specification": {"roles": ["ipm.userAdmin"]}},
-        ),
-    )
+    changed = await patch(api, headers, resource_id, version, {"roles": ["ipm.userAdmin"]})
+    assert changed["desiredGeneration"] == 2
     await confirmed(jetstream, resource_id, 2)
     observed = await observed_where(
         resource_id,
@@ -178,24 +204,25 @@ async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_t
     )
 
     # 3. Proteção: gravada como metadado no usuário e observada de volta (decisão 0074).
-    await send(
-        jetstream,
-        request(
-            resource_id,
-            "update",
-            {
-                "resourceVersion": await settled_version(resource_id),
-                "specification": {"deletionProtection": True},
-            },
-        ),
+    await patch(
+        api, headers, resource_id, await settled_version(resource_id), {"deletionProtection": True}
     )
     await confirmed(jetstream, resource_id, 3)
     await observed_where(resource_id, lambda m: m["data"].get("deletionProtection") is True)
-    # 4. A remoção (fixture `created`) tira a proteção e remove o usuário pelo loop.
+
+    # 4. A convergência também se lê pela API: `observedGeneration` alcança a geração desejada.
+    read = await api.get(f"{COLLECTION}/{resource_id}", headers=headers)
+    assert read.status_code == 200
+    assert read.json()["observedGeneration"] == read.json()["desiredGeneration"] == 3
+    # 5. A remoção (fixture `created`) tira a proteção e remove o usuário pelo loop.
 
 
 async def test_a_role_permission_outside_the_grant_is_not_granted(
-    jetstream: JetStreamContext, created: list[str], organization_id: str
+    api: httpx.AsyncClient,
+    headers: dict[str, str],
+    jetstream: JetStreamContext,
+    created: list[str],
+    organization_id: str,
 ) -> None:
     """O Project Grant é o teto (decisão 0077): o Controller só expande permissões delegáveis.
 
@@ -204,16 +231,9 @@ async def test_a_role_permission_outside_the_grant_is_not_granted(
     permissões efetivas e, portanto, do Zitadel. A recusa do provedor (`Rejected`) deixou de ser
     alcançável por esse caminho.
     """
-    resource_id = str(uuid.uuid7())
+    resource = await post(api, headers, specification(organization_id, ["ipm.organizationAdmin"]))
+    resource_id = str(resource["resourceId"])
     created.append(resource_id)
-    await send(
-        jetstream,
-        request(
-            resource_id,
-            "create",
-            {"specification": specification(organization_id, ["ipm.organizationAdmin"])},
-        ),
-    )
     await confirmed(jetstream, resource_id, 1)
     desired = await last(jetstream, "desired", resource_id)
     assert_valid("ipm/user/desired.v1.schema.json", desired["data"])

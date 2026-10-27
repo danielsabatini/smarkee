@@ -18,7 +18,8 @@ from ipm_user.common.logging_config import current_traceparent
 
 _ROW_COLUMNS = (
     "resource_id, resource_version, desired_generation, observed_generation, lifecycle,"
-    " reconciliation, failure_count, phase, conditions, desired, observed, presence"
+    " reconciliation, failure_count, phase, conditions, desired, observed, presence,"
+    " requested_by, correlation_id"
 )
 
 
@@ -93,29 +94,6 @@ class ControllerSsotStore:
             sql.SQL("DELETE FROM ipm.user WHERE resource_id = %s"), (resource_id,)
         )
 
-    async def settle_operations(
-        self, resource_id: str, generation: int, *, status: str, finished: bool
-    ) -> None:
-        """Operations de gerações anteriores ainda abertas viram `superseded`; as da geração
-        atual recebem o `status` (`completed`, `in_progress` ou `failed`)."""
-        await self._connection.execute(
-            sql.SQL(
-                "UPDATE ipm.user_operation SET operation_status = 'superseded',"
-                " updated_at = now(), completed_at = now() WHERE resource_id = %s"
-                " AND operation_status IN ('accepted', 'in_progress') AND desired_generation < %s"
-            ),
-            (resource_id, generation),
-        )
-        await self._connection.execute(
-            sql.SQL(
-                "UPDATE ipm.user_operation SET operation_status = %s, updated_at = now(),"
-                " completed_at = CASE WHEN %s THEN now() ELSE completed_at END"
-                " WHERE resource_id = %s AND operation_status IN ('accepted', 'in_progress')"
-                " AND desired_generation = %s"
-            ),
-            (status, finished, resource_id, generation),
-        )
-
     async def add_to_outbox(
         self, message: Mapping[str, Any], *, resource_id: str, subject: str
     ) -> None:
@@ -127,24 +105,3 @@ class ControllerSsotStore:
             ),
             (message["messageId"], resource_id, subject, Jsonb(message), current_traceparent()),
         )
-
-    async def current_cause(
-        self, resource_id: str, generation: int
-    ) -> tuple[str | None, str | None]:
-        """`requestedBy` e `correlationId` da Operation da geração vigente (herdados nas mensagens).
-
-        Sem Operation (geração criada por outro caminho), nenhum dos dois.
-        """
-        cursor = self._connection.cursor(row_factory=dict_row)
-        await cursor.execute(
-            sql.SQL(
-                "SELECT requested_by, correlation_id FROM ipm.user_operation"
-                " WHERE resource_id = %s AND desired_generation = %s"
-                " ORDER BY created_at DESC LIMIT 1"
-            ),
-            (resource_id, generation),
-        )
-        row = await cursor.fetchone()
-        if row is None:
-            return None, None
-        return str(row["requested_by"]), str(row["correlation_id"])
