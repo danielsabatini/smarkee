@@ -1,4 +1,4 @@
-"""Modo de saída da execução do `sk` (decisão 0093): `--raw` e `--output`.
+"""Modo de saída da execução do `sk` (decisões 0093 e 0095): `--raw`, `--output` e `--quiet`.
 
 O callback raiz grava o modo a cada invocação, inclusive o padrão, para que um estado não vaze de
 uma execução para a seguinte (por exemplo, entre testes que usam o mesmo processo). Este módulo
@@ -29,6 +29,7 @@ class OutputMode:
 
     raw: bool = False
     format: OutputFormat = OutputFormat.TABLE
+    quiet: bool = False
 
 
 _mode = OutputMode()
@@ -44,11 +45,13 @@ _LINE_BREAKS = re.compile(r"[\t\n]+")
 _JSON_UNESCAPED_CONTROL = re.compile(r"[\x7f-\x9f]")
 
 
-def configure(*, raw: bool, output_format: OutputFormat = OutputFormat.TABLE) -> None:
+def configure(
+    *, raw: bool, output_format: OutputFormat = OutputFormat.TABLE, quiet: bool = False
+) -> None:
     """Define o modo da execução. Chamado pelo callback raiz, a cada invocação."""
     # Estado da execução: a CLI processa um comando por vez.
     global _mode
-    _mode = OutputMode(raw=raw, format=output_format)
+    _mode = OutputMode(raw=raw, format=output_format, quiet=quiet)
 
 
 def is_raw() -> bool:
@@ -57,6 +60,11 @@ def is_raw() -> bool:
 
 def is_json() -> bool:
     return _mode.format is OutputFormat.JSON
+
+
+def is_quiet() -> bool:
+    """`--quiet` (decisão 0095): sem notas de orientação nem progresso; erro e dados seguem."""
+    return _mode.quiet
 
 
 def sanitize(text: str) -> str:

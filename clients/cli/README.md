@@ -306,11 +306,13 @@ Duas opções do grupo raiz, válidas para qualquer comando e **antes do subcoma
 uv run sk --output json ipm role list | jq '.[].name'    # um documento JSON na saída padrão
 uv run sk --output json ipm organization get --resource-id <ID> | jq -r .phase
 uv run sk --raw ipm role list                            # TSV com cabeçalho, sem caixas nem cor
+uv run sk -q ipm role create --name x ...              # --quiet: sem notas de orientação nem progresso do --wait
 ```
 
 - `--output table` é o padrão. `--output json` emite **um único documento** por execução: objeto no `get`, array no `list` (`[]` se vazio), o aceite (`resourceId`, `operationId`) num pedido sem `--wait` e o recurso convergido com `--wait` (`{"resourceId": ..., "state": "removed"}` na remoção). As chaves são as da API, em camelCase.
 - `--raw` imprime tabelas em TSV e painéis como `rótulo<TAB>valor`; com `--output json` o JSON sai compacto, em uma linha.
 - As orientações ("Follow it with ...", "Nothing to do") vão para a **saída de erro** em `--raw` e em `--output json`, para a saída padrão ter só dados. Em falha a saída padrão fica vazia e o código de saída não muda.
+- `-q`/`--quiet` (decisão 0095) esconde só o que é informativo: as notas de orientação e o progresso do `--wait`. Erros, avisos, o painel ou a tabela de resultado e o JSON não são afetados, nem o código de saída. Não há `SK_QUIET`. Vem antes do subcomando, como as outras duas.
 - `auth login`, `auth refresh` e `config get|set` não têm saída em JSON e recusam `--output json` com código 2, antes de qualquer chamada. `config get` segue imprimindo só o valor.
 - Sequências de escape e caracteres de controle vindos da API são removidos da saída em todos os modos.
 

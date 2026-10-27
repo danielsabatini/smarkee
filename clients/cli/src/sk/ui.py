@@ -167,7 +167,10 @@ def note(text: str) -> None:
     """Linha de orientação ao usuário, abaixo de um painel.
 
     Em `--raw` e em `--output json` vai para a saída de erro: a saída padrão fica só com os dados.
+    Com `--quiet` não sai (decisão 0095).
     """
+    if output.is_quiet():
+        return
     to_stderr = output.is_raw() or output.is_json()
     _console(stderr=to_stderr).print(Text(output.sanitize(text), style="dim"))
 
@@ -185,10 +188,13 @@ class WaitProgress:
         self._started = time.monotonic()
         self._last_state: str | None = None
         self._frame = 0
+        self._quiet = output.is_quiet()
         self._interactive = sys.stderr.isatty() and os.environ.get("TERM") != "dumb"
 
     def update(self, state: str) -> None:
-        """Informa o estado observado na leitura mais recente."""
+        """Informa o estado observado na leitura mais recente (nada sai com `--quiet`)."""
+        if self._quiet:
+            return
         global _indicator_visible
         elapsed = int(time.monotonic() - self._started)
         text = output.sanitize(state)

@@ -46,7 +46,7 @@ Reexecute as verificações antes de repetir um estado: o código muda mais ráp
 | Quando `stdout` não é TTY, sair legível por máquina | **Divergência SEM decisão** | em pipe a `sk` mantém as bordas Rich (largura 100) e só vira TSV com `--raw`. A 0093 define `--raw`, mas não registra por que o pipe não o ativa sozinho |
 | Dizer ao usuário o que mudou; sugerir o próximo comando | Conforme | painel + `note` com o `get` (`shared.py`) |
 | Sem animação fora de TTY | Conforme | não há animação (ver Robustness) |
-| `-q`/`--quiet` | Lacuna | não existe |
+| `-q`/`--quiet` | Conforme | Opção global (decisão 0095): esconde `ui.note` e o progresso do `--wait`; erro, aviso e dados permanecem. Sem `SK_QUIET` |
 | Cor só com intenção; desligar fora de TTY | Conforme | pipe → 0 escapes de cor; `stderr` é avaliado à parte (erro colorido com `stdout` em pipe) |
 | `NO_COLOR` | Conforme | pseudo-terminal (`script -q /dev/null`): padrão 15 linhas com cor; `NO_COLOR=1` → 0. Sobram atributos (negrito), que o NO_COLOR não proíbe |
 | `TERM=dumb` | Conforme | pseudo-terminal: 0 escapes |

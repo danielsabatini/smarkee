@@ -71,6 +71,21 @@ def root(
             ),
         ),
     ] = False,
+    quiet: Annotated[
+        bool,
+        typer.Option(
+            "--quiet",
+            "-q",
+            help=option(
+                "Hide guidance notes and the progress of --wait; results, warnings and errors "
+                "are still shown. Goes before the command, as in `sk -q ipm role list`.",
+                kind="Boolean",
+                variable=None,
+                file=None,
+                default="off",
+            ),
+        ),
+    ] = False,
     version: Annotated[
         bool,
         typer.Option(
@@ -88,7 +103,7 @@ def root(
     ] = False,
 ) -> None:
     # Grava o modo a cada execução, inclusive o padrão, para um estado não vazar para a seguinte.
-    output.configure(raw=raw, output_format=output_format)
+    output.configure(raw=raw, output_format=output_format, quiet=quiet)
 
 
 app.add_typer(auth_app, name="auth")
