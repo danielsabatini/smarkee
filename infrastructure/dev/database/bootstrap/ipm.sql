@@ -21,7 +21,8 @@ BEGIN
     'ipm_role_manager', 'ipm_role_receiver', 'ipm_role_publisher',
     -- Plano de dados (banco `platform`): Executor lê e escreve; Observer só lê.
     'ipm_role_executor', 'ipm_role_observer',
-    'ipm_serviceaccount_manager', 'ipm_serviceaccount_receiver', 'ipm_serviceaccount_publisher',
+    -- API síncrona (decisão 0098): admissão na requisição, no lugar de Receiver e Manager.
+    'ipm_serviceaccount_api', 'ipm_serviceaccount_publisher',
     'ipm_user_manager', 'ipm_user_receiver', 'ipm_user_publisher',
     'ipm_maintenance'
   ] LOOP

@@ -82,7 +82,7 @@ connectors:
         condition: attributes["apisix.service_name"] == "ipm-user-receiver"
         pipelines: [traces/ipm_user]
       - context: span
-        condition: attributes["apisix.service_name"] == "ipm-serviceaccount-receiver"
+        condition: attributes["apisix.service_name"] == "ipm-serviceaccount-api"
         pipelines: [traces/ipm_serviceaccount]
       - context: span
         condition: attributes["apisix.service_name"] == "sum-service-receiver"

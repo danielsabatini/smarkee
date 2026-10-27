@@ -2,23 +2,15 @@
 
 Service accounts da Organization: identidades de máquina criadas dentro dela, sem e-mail e sem
 senha, autenticadas por chave assimétrica (par RSA gerado no cliente). Criar, alterar e remover são
-escritas assíncronas: a API responde `202` com o `operationId`, e o estado definitivo vem do
-recurso (`phase`) e da Operation (`operationStatus`).
+escritas síncronas na admissão (decisão 0098): a API devolve o recurso (`201`, `200` e `202` na
+remoção), e a convergência se lê em `observedGeneration` e `phase`. Não há Operation.
 """
 
 import re
 from dataclasses import dataclass
 from typing import Any, cast
 
-from sk.features.api_contract import (
-    OperationStatus,
-    RequestAccepted,
-    as_object,
-    as_text,
-    parse_accepted,
-    parse_operation,
-    validate_identifier,
-)
+from sk.features.api_contract import as_object, as_text, validate_identifier
 from sk.http import ApiUnavailableError, call_api
 
 SERVICEACCOUNTS_PATH = "/v1/ipm/serviceaccounts"
@@ -49,6 +41,8 @@ class ServiceAccount:
 
     resource_id: str
     resource_version: str
+    desired_generation: int
+    observed_generation: int | None
     phase: str
     lifecycle: str
     organization_id: str
@@ -59,6 +53,8 @@ class ServiceAccount:
     deletion_protection: bool
     keys: tuple[ServiceAccountKey, ...]
     desired_keys: tuple[dict[str, str], ...] = ()
+    failure_reason: str | None = None
+    """Motivo da primeira condition `False`, quando houver (para explicar a fase `Failed`)."""
 
 
 def validate_name(value: str) -> str:
@@ -96,6 +92,28 @@ def _key(document: object) -> ServiceAccountKey:
     )
 
 
+def _generation(body: dict[str, Any], key: str, *, required: bool) -> int | None:
+    value = body.get(key)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if required or value is not None:
+        raise ApiUnavailableError(f"API response without {key}: serviceaccount")
+    return None
+
+
+def _failure_reason(body: dict[str, Any]) -> str | None:
+    conditions = body.get("conditions")
+    if not isinstance(conditions, list):
+        return None
+    for item in cast("list[object]", conditions):
+        if isinstance(item, dict):
+            condition = cast("dict[str, object]", item)
+            reason = condition.get("reason")
+            if condition.get("status") == "False" and isinstance(reason, str):
+                return reason
+    return None
+
+
 def _serviceaccount(document: object) -> ServiceAccount:
     body = as_object(document, what="serviceaccount")
     desired = as_object(body.get("desired"), what="serviceaccount (desired)")
@@ -121,6 +139,8 @@ def _serviceaccount(document: object) -> ServiceAccount:
     return ServiceAccount(
         resource_id=as_text(body, "resourceId", what="serviceaccount"),
         resource_version=as_text(body, "resourceVersion", what="serviceaccount"),
+        desired_generation=cast("int", _generation(body, "desiredGeneration", required=True)),
+        observed_generation=_generation(body, "observedGeneration", required=False),
         phase=as_text(body, "phase", what="serviceaccount"),
         lifecycle=as_text(desired, "lifecycle", what="serviceaccount (desired)"),
         organization_id=as_text(desired, "organizationId", what="serviceaccount (desired)"),
@@ -135,6 +155,7 @@ def _serviceaccount(document: object) -> ServiceAccount:
         deletion_protection=desired.get("deletionProtection") is True,
         keys=tuple(keys),
         desired_keys=tuple(parsed_desired_keys),
+        failure_reason=_failure_reason(body),
     )
 
 
@@ -151,8 +172,8 @@ def create_serviceaccount(
     deletion_protection: bool = True,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
-    """Pede a criação da service account (202 Accepted)."""
+) -> ServiceAccount:
+    """Cria a service account: a API a admite e devolve o recurso (`201`)."""
     organization_id = validate_identifier(organization_id, what="organizationId")
     validated_name = validate_name(name)
     body: dict[str, Any] = {
@@ -174,7 +195,7 @@ def create_serviceaccount(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _serviceaccount(document)
 
 
 def update_serviceaccount(
@@ -189,8 +210,8 @@ def update_serviceaccount(
     keys: list[dict[str, str]] | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
-    """Atualiza papéis, descrição, proteção ou chaves públicas da service account."""
+) -> ServiceAccount:
+    """Altera papéis, descrição, proteção ou chaves públicas; devolve o recurso (`200`)."""
     resource_id = validate_identifier(resource_id, what="resourceId")
     body: dict[str, Any] = {"resourceVersion": resource_version}
     if description is not None:
@@ -210,7 +231,7 @@ def update_serviceaccount(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _serviceaccount(document)
 
 
 def delete_serviceaccount(
@@ -221,8 +242,8 @@ def delete_serviceaccount(
     resource_version: str,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
-    """Pede a remoção da service account (202 Accepted)."""
+) -> ServiceAccount:
+    """Pede a remoção: a API a admite e devolve o recurso em `Deleting` (`202`)."""
     resource_id = validate_identifier(resource_id, what="resourceId")
     _, document = call_api(
         "DELETE",
@@ -233,7 +254,7 @@ def delete_serviceaccount(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _serviceaccount(document)
 
 
 def get_serviceaccount(
@@ -284,24 +305,3 @@ def list_serviceaccounts(
             break
         cursor = next_cursor
     return found
-
-
-def get_operation(
-    api_url: str,
-    *,
-    token: str,
-    resource_id: str,
-    operation_id: str,
-    allow_insecure_http: bool,
-) -> OperationStatus:
-    """Consulta o andamento de uma operação assíncrona."""
-    resource_id = validate_identifier(resource_id, what="resourceId")
-    operation_id = validate_identifier(operation_id, what="operationId")
-    _, document = call_api(
-        "GET",
-        api_url,
-        f"{SERVICEACCOUNTS_PATH}/{resource_id}/operations/{operation_id}",
-        token=token,
-        allow_insecure_http=allow_insecure_http,
-    )
-    return parse_operation(document)

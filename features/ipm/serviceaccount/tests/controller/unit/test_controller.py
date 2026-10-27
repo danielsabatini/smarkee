@@ -126,7 +126,6 @@ async def test_reconcile_creates_absent_serviceaccount_and_saves_observation() -
     statements = [(str(query), params) for query, params in pool.conn.executed]
     update = next(p for q, p in statements if "UPDATE ipm.serviceaccount SET observed" in q)
     assert "Ready" in update
-    assert any("completed" in p for q, p in statements if "serviceaccount_operation" in q)
     outbox = next(p for q, p in statements if "serviceaccount_outbox" in q)
     assert outbox[2] == "manager.updated.ipm.serviceaccount.sa-1.changed"
 

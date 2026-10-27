@@ -75,6 +75,9 @@ class Kind:
     """Papel de login com escrita nessa tabela (o do Executor)."""
     delete_role: str | None = None
     """Papel de login que apaga a linha, quando não é o do Manager (o Controller, decisão 0096)."""
+    removable_through_requested: bool = True
+    """Tem Receiver e Manager: a remoção pode ser pedida por `requested`. A API síncrona (decisão
+    0098) não tem esse caminho: a limpeza apaga direto, e o Zitadel sai com a Organization."""
 
 
 ACCOUNTS = Kind(
@@ -174,12 +177,13 @@ SERVICEACCOUNTS = Kind(
     "ipm",
     "serviceaccount",
     "ipm.serviceaccount",
-    ("ipm.serviceaccount_outbox", "ipm.serviceaccount_operation"),
-    "ipm_serviceaccount_manager_login",
+    ("ipm.serviceaccount_outbox", "ipm.serviceaccount_idempotency"),
+    "ipm_serviceaccount_api_login",
     "ipm_maintenance_login",
     "name",
     deletion_protected=True,
     delete_role="ipm_serviceaccount_controller_login",
+    removable_through_requested=False,
 )
 
 

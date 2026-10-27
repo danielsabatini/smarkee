@@ -180,6 +180,8 @@ async def remove_through_the_loop(
     ports: Ports, kind: Kind, resource_id: str, say: Callable[[str], None]
 ) -> bool:
     """Pede a remoção como a plataforma faz e espera o loop concluir. `False` se não deu."""
+    if not kind.removable_through_requested:
+        return False
     current = await ports.bus.last_version(kind, resource_id)
     if current is None or current[0] != "Ready":
         return False  # sem `Ready` o loop não remove com segurança: segue o caminho direto

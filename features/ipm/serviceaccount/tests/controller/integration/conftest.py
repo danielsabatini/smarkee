@@ -1,7 +1,7 @@
 """Fixtures de integração do Controller: PostgreSQL de desenvolvimento, com os papéis reais.
 
 Requer a stack de dev no ar com a migração `0002-serviceaccount-controller`. Sem o banco acessível,
-os testes são pulados. O recurso é criado pelo Manager (como o loop faria) e o Controller roda com
+os testes são pulados. O recurso é criado pela API (como a admissão faria) e o Controller roda com
 o próprio papel de login, que não tem `INSERT` em `serviceaccount`.
 """
 
@@ -34,19 +34,18 @@ async def cleanup(database_available: None) -> AsyncIterator[Cleanup]:
         await controller.execute(
             "DELETE FROM ipm.serviceaccount WHERE resource_id = ANY(%s)", (tracker.resource_ids,)
         )
-        for suffix in ("outbox", "operation"):
-            await maintenance.execute(
-                f"DELETE FROM ipm.serviceaccount_{suffix} WHERE resource_id = ANY(%s)",  # noqa: S608 (tabelas fixas)
-                (tracker.resource_ids,),
-            )
+        await maintenance.execute(
+            "DELETE FROM ipm.serviceaccount_outbox WHERE resource_id = ANY(%s)",
+            (tracker.resource_ids,),
+        )
     finally:
         await controller.close()
         await maintenance.close()
 
 
 @pytest_asyncio.fixture
-async def manager(database_available: None) -> AsyncIterator[psycopg.AsyncConnection[Any]]:
-    connection = await connect("ipm_serviceaccount_manager_login")
+async def api(database_available: None) -> AsyncIterator[psycopg.AsyncConnection[Any]]:
+    connection = await connect("ipm_serviceaccount_api_login")
     yield connection
     await connection.close()
 

@@ -82,9 +82,10 @@ CREATE INDEX IF NOT EXISTS serviceaccount_outbox_published
 CREATE INDEX IF NOT EXISTS serviceaccount_organization
   ON ipm.serviceaccount ((desired ->> 'organizationId'), (desired ->> 'name'));
 
--- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count. `requested_by` aparece
--- só na view da Operation, para o Receiver autorizar a leitura (docs/data/POSTGRESQL.md §6.5).
-CREATE OR REPLACE VIEW ipm.serviceaccount_v1 AS
+-- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count.
+-- DROP VIEW prévio permite reaplicar a migração mesmo após 0005 adicionar observed_generation.
+DROP VIEW IF EXISTS ipm.serviceaccount_v1;
+CREATE VIEW ipm.serviceaccount_v1 AS
   SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
          resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
     FROM ipm.serviceaccount;

@@ -410,3 +410,127 @@ class ResourceFlow[R: Converging]:
             return None
         ui.panel(title, self.rows(resource), data=resource)
         return resource
+
+
+class Generational(Converging, Protocol):
+    """Recurso de API síncrona (decisão 0098): a convergência se lê nas gerações e na fase."""
+
+    @property
+    def resource_id(self) -> str: ...
+
+    @property
+    def desired_generation(self) -> int: ...
+
+    @property
+    def observed_generation(self) -> int | None: ...
+
+    @property
+    def failure_reason(self) -> str | None: ...
+
+
+@dataclass(frozen=True)
+class SyncResourceFlow[R: Generational]:
+    """Acompanhamento de uma escrita de API síncrona (`--wait`), sem Operation (decisão 0098).
+
+    A API devolve o recurso já admitido (`201`, `200` ou `202`). A alteração terminou quando
+    `observedGeneration` alcança a geração desejada devolvida e a fase é `Ready` (ou `Failed`,
+    que é falha); na remoção, quando o recurso deixa de existir (`404`).
+    """
+
+    subject: str  # como o recurso aparece nas mensagens ("service account")
+    get_command: Callable[[str], str]
+    read_resource: ReadResource[R]
+    fail_api: Callable[[ApiError], NoReturn]
+    rows: Callable[[R], list[tuple[str, str]]]
+    removed_key: str = "state"
+
+    def requested_panel(self, title: str, resource: R, *extra: tuple[str, str], wait: bool) -> None:
+        # Em JSON, o recurso admitido é o resultado sem --wait; com --wait, é o convergido.
+        rows = [*extra, ("resourceId", resource.resource_id), ("phase", resource.phase)]
+        ui.panel(title, rows, data=resource, interim=wait)
+
+    def timed_out(self, timeout: int, resource_id: str, state: str) -> NoReturn:
+        ui.error(
+            "Timed out",
+            f"{timeout} s passed and the {self.subject} {state}.",
+            hint=f"The request is still in progress: `{self.get_command(resource_id)}`.",
+        )
+        raise typer.Exit(EXIT_FAILURE)
+
+    def wait_for_convergence(
+        self, url: str, insecure: bool, admitted: R, *, removal: bool, timeout: int
+    ) -> R | None:
+        """Espera a geração admitida ser observada. Na remoção, devolve `None` com o `404`.
+
+        O token é pedido a cada leitura: o acesso dura 15 minutos, e uma espera longa
+        (`--timeout`) pode atravessar o vencimento (a sessão se renova pelo refresh token).
+        """
+        target = admitted.desired_generation
+        with ui.waiting(timeout) as progress:
+            progress.update("request admitted")
+            deadline = time.monotonic() + timeout
+            while True:
+                try:
+                    current = self.read_resource(
+                        url,
+                        token=session_token(),
+                        resource_id=admitted.resource_id,
+                        allow_insecure_http=insecure,
+                    )
+                except OidcError as error:
+                    bad_address(error)
+                except ApiRejectedError as error:
+                    # Na remoção, o `404` é o esperado (o Controller apagou o registro).
+                    if removal and error.status == HTTP_NOT_FOUND:
+                        return None
+                    self.fail_api(error)
+                except ApiError as error:
+                    self.fail_api(error)
+                observed = current.observed_generation
+                progress.update(f"phase {current.phase}, generation {observed or 0} of {target}")
+                if observed is not None and observed >= target:
+                    if current.phase == "Failed":
+                        reason = current.failure_reason
+                        ui.error(
+                            "Request not completed",
+                            f"The {self.subject} ended in phase Failed"
+                            + (f": {reason}" if reason else "."),
+                            hint=f"Inspect it with `{self.get_command(admitted.resource_id)}`.",
+                        )
+                        raise typer.Exit(EXIT_FAILURE)
+                    if not removal and current.phase == "Ready":
+                        return current
+                if time.monotonic() >= deadline:
+                    self.timed_out(timeout, admitted.resource_id, f"is in phase {current.phase}")
+                time.sleep(WAIT_POLL_SECONDS)
+
+    def finish(
+        self,
+        url: str,
+        insecure: bool,
+        admitted: R,
+        *,
+        title: str,
+        removal: bool,
+        wait: bool,
+        timeout: int,
+    ) -> R | None:
+        """Fim de `create`, `update` e `delete`: orienta o acompanhamento ou, com `--wait`, espera.
+
+        Devolve o recurso convergido, ou `None` sem `--wait` e quando ele foi removido.
+        """
+        if not wait:
+            ui.note(f"Follow it with `{self.get_command(admitted.resource_id)}`.")
+            return None
+        resource = self.wait_for_convergence(
+            url, insecure, admitted, removal=removal, timeout=timeout
+        )
+        if resource is None:
+            ui.panel(
+                title,
+                [("resourceId", admitted.resource_id), (self.removed_key, "removed")],
+                data={"resourceId": admitted.resource_id, "state": "removed"},
+            )
+            return None
+        ui.panel(title, self.rows(resource), data=resource)
+        return resource

@@ -21,10 +21,8 @@ runner = CliRunner()
 API = "https://api.teste"
 ORG = "01a15e61-6d1e-7096-878a-d5f450b858f1"
 RID = "01a15e61-6d1e-7096-878a-d5f450b858f2"
-OPID = "b9c4c98c-7392-5016-a724-6e1cd0c1bed9"
 PATH = "/v1/ipm/serviceaccounts"
 SERVICEACCOUNT = f"{PATH}/{RID}"
-OPERATION = f"{SERVICEACCOUNT}/operations/{OPID}"
 
 
 class Response:
@@ -112,12 +110,18 @@ def sa_document(
     roles: list[str] | None = None,
     protected: bool = True,
     version: str = "1",
+    desired_generation: int = 1,
+    observed_generation: int | None = 1,
+    conditions: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     roles = roles or ["ipm.serviceaccountViewer"]
     return {
         "resourceId": RID,
         "resourceVersion": version,
+        "desiredGeneration": desired_generation,
+        **({"observedGeneration": observed_generation} if observed_generation is not None else {}),
         "phase": phase,
+        "conditions": conditions or [],
         "desired": {
             "lifecycle": "active",
             "organizationId": ORG,
@@ -150,7 +154,9 @@ def sa_document(
 def test_create_serviceaccount_generates_key_and_requests_creation(
     api: FakeApi, tmp_path: Path
 ) -> None:
-    api.routes[("POST", PATH)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    api.routes[("POST", PATH)] = Response(
+        201, sa_document(phase="Pending", observed_generation=None)
+    )
     key_file = tmp_path / "sa.json"
     result = runner.invoke(
         app,
@@ -188,7 +194,9 @@ def test_list_serviceaccounts(api: FakeApi) -> None:
 
 def test_protect_and_unprotect_serviceaccount(api: FakeApi) -> None:
     api.routes[("GET", SERVICEACCOUNT)] = Response(200, sa_document(protected=True))
-    api.routes[("PATCH", SERVICEACCOUNT)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    api.routes[("PATCH", SERVICEACCOUNT)] = Response(
+        200, sa_document(phase="Reconciling", desired_generation=2, version="2")
+    )
     result = runner.invoke(app, ["ipm", "serviceaccount", "unprotect", "--resource-id", RID])
     assert result.exit_code == 0, result.stderr
     assert "Update requested" in result.stdout
@@ -196,7 +204,7 @@ def test_protect_and_unprotect_serviceaccount(api: FakeApi) -> None:
 
 def test_delete_serviceaccount(api: FakeApi) -> None:
     api.routes[("GET", SERVICEACCOUNT)] = Response(200, sa_document(protected=False))
-    api.routes[("DELETE", SERVICEACCOUNT)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    api.routes[("DELETE", SERVICEACCOUNT)] = Response(202, sa_document(phase="Deleting"))
     result = runner.invoke(app, ["ipm", "serviceaccount", "delete", "--resource-id", RID])
     assert result.exit_code == 0, result.stderr
     assert "Deletion requested" in result.stdout
@@ -253,7 +261,9 @@ def test_key_add_sends_only_publickey_and_expiresat(api: FakeApi, tmp_path: Path
             },
         },
     )
-    api.routes[("PATCH", SERVICEACCOUNT)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    api.routes[("PATCH", SERVICEACCOUNT)] = Response(
+        200, sa_document(phase="Reconciling", desired_generation=2, version="2")
+    )
     result = runner.invoke(
         app,
         [
@@ -293,7 +303,9 @@ def test_create_reads_the_public_key_from_stdin(
 
     monkeypatch.chdir(tmp_path)
     keypair = generate_key_pair()
-    api.routes[("POST", PATH)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    api.routes[("POST", PATH)] = Response(
+        201, sa_document(phase="Pending", observed_generation=None)
+    )
     result = runner.invoke(
         app,
         [
@@ -304,3 +316,100 @@ def test_create_reads_the_public_key_from_stdin(
     )
     assert result.exit_code == 0, result.output
     assert list(tmp_path.glob("*.json")) == []  # com a pública dada, nenhum arquivo de chave nasce
+
+
+def test_create_with_wait_waits_for_the_admitted_generation_to_be_observed(
+    api: FakeApi, tmp_path: Path
+) -> None:
+    api.routes[("POST", PATH)] = Response(
+        201, sa_document(phase="Pending", observed_generation=None)
+    )
+    api.routes[("GET", SERVICEACCOUNT)] = [
+        Response(200, sa_document(phase="Pending", observed_generation=None)),
+        Response(200, sa_document(phase="Reconciling", observed_generation=None)),
+        Response(200, sa_document(phase="Ready", observed_generation=1)),
+    ]
+    result = runner.invoke(
+        app,
+        [
+            *["ipm", "serviceaccount", "create", "--name", "ci-deployer", "--wait"],
+            *["--organization-id", ORG, "--key-file", str(tmp_path / "sa.json")],
+        ],
+    )
+    assert result.exit_code == 0, result.stderr
+    assert "Service account created" in result.stdout
+    assert [r.get_method() for r in api.requests].count("GET") == 3
+    assert not [r for r in api.requests if "operations" in r.full_url]
+
+
+def test_update_waits_for_the_new_generation_not_a_stale_ready(api: FakeApi) -> None:
+    api.routes[("GET", SERVICEACCOUNT)] = [
+        Response(200, sa_document(protected=True)),  # leitura que escolhe a versão
+        Response(200, sa_document(phase="Ready", desired_generation=2, observed_generation=1)),
+        Response(200, sa_document(phase="Ready", desired_generation=2, observed_generation=2)),
+    ]
+    api.routes[("PATCH", SERVICEACCOUNT)] = Response(
+        200, sa_document(phase="Reconciling", desired_generation=2, version="2")
+    )
+    result = runner.invoke(
+        app, ["ipm", "serviceaccount", "unprotect", "--resource-id", RID, "--wait"]
+    )
+    assert result.exit_code == 0, result.stderr
+    assert [r.get_method() for r in api.requests].count("GET") == 3
+
+
+def test_a_failed_phase_with_the_generation_observed_is_a_failure(api: FakeApi) -> None:
+    api.routes[("GET", SERVICEACCOUNT)] = [
+        Response(200, sa_document(protected=True)),
+        Response(
+            200,
+            sa_document(
+                phase="Failed",
+                desired_generation=2,
+                observed_generation=2,
+                conditions=[
+                    {
+                        "type": "Ready",
+                        "status": "False",
+                        "reason": "ProviderRejected",
+                        "lastTransitionAt": "2026-10-27T10:00:00Z",
+                    }
+                ],
+            ),
+        ),
+    ]
+    api.routes[("PATCH", SERVICEACCOUNT)] = Response(
+        200, sa_document(phase="Reconciling", desired_generation=2, version="2")
+    )
+    result = runner.invoke(
+        app, ["ipm", "serviceaccount", "unprotect", "--resource-id", RID, "--wait"]
+    )
+    assert result.exit_code == 1
+    assert "ProviderRejected" in result.stderr
+
+
+def test_delete_with_wait_finishes_when_the_resource_is_gone(api: FakeApi) -> None:
+    api.routes[("GET", SERVICEACCOUNT)] = [
+        Response(200, sa_document(protected=False)),
+        Response(200, sa_document(phase="Deleting", desired_generation=2, observed_generation=1)),
+        http_error(404, "NotFound", "não encontrada"),
+    ]
+    api.routes[("DELETE", SERVICEACCOUNT)] = Response(
+        202, sa_document(phase="Deleting", desired_generation=2)
+    )
+    result = runner.invoke(app, ["ipm", "serviceaccount", "delete", "--resource-id", RID, "--wait"])
+    assert result.exit_code == 0, result.stderr
+    assert "removed" in result.stdout
+
+
+def test_name_in_use_is_explained(api: FakeApi, tmp_path: Path) -> None:
+    api.routes[("POST", PATH)] = http_error(409, "NameInUse", "nome em uso", "name")
+    result = runner.invoke(
+        app,
+        [
+            *["ipm", "serviceaccount", "create", "--name", "ci-deployer"],
+            *["--organization-id", ORG, "--key-file", str(tmp_path / "sa.json")],
+        ],
+    )
+    assert result.exit_code == 1
+    assert "name already exists" in result.stderr

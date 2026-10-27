@@ -145,10 +145,16 @@ def test_ipm_serviceaccount_create_payload_conforms_to_schema(
 
     def fake_call_api(
         method: str, url: str, path: str, *, body: dict[str, Any] | None = None, **_: Any
-    ) -> tuple[int, dict[str, str]]:
+    ) -> tuple[int, dict[str, Any]]:
         if body is not None:
             captured.append(body)
-        return 202, {"resourceId": "sa-1", "operationId": "op-1"}
+        return 201, {
+            "resourceId": "sa-1",
+            "resourceVersion": "1",
+            "desiredGeneration": 1,
+            "phase": "Pending",
+            "desired": {"lifecycle": "present", "organizationId": "org-1", "name": "ci-deploy"},
+        }
 
     monkeypatch.setattr("sk.features.ipm.serviceaccount.call_api", fake_call_api)
     ipm_serviceaccount.create_serviceaccount(

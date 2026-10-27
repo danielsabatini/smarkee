@@ -1,6 +1,6 @@
 # NATS
 
-> **Vigência (decisão [`0096`](../../.decisions/0096-unificacao-do-loop-de-reconciliacao-no-controller.md)):** `ipm/organization`, `ipm/serviceaccount` e `ipm/user` não têm mais Observer, Reconciler e Executor: um único processo `controller` observa, decide, age e reobserva numa transação, e os Streams `OBSERVED`, `ACTION` e `RESULT` e a tabela `<tipo>_action_result` não existem para eles. Esses tipos só consomem `REQUESTED` (Manager) e `DESIRED` (Controller); os Streams continuam existindo porque os demais tipos ainda os usam. Este documento descreve o modelo com os três papéis, que segue valendo para os demais tipos até a etapa S6 do plano de evolução, que o reescreve.
+> **Vigência (decisão [`0096`](../../.decisions/0096-unificacao-do-loop-de-reconciliacao-no-controller.md)):** `ipm/organization`, `ipm/serviceaccount` e `ipm/user` não têm mais Observer, Reconciler e Executor: um único processo `controller` observa, decide, age e reobserva numa transação, e os Streams `OBSERVED`, `ACTION` e `RESULT` e a tabela `<tipo>_action_result` não existem para eles. Esses tipos só consomem `REQUESTED` (Manager) e `DESIRED` (Controller); **`ipm/serviceaccount` não usa `REQUESTED`** (decisão 0098: a API admite a escrita de forma síncrona e grava o `desired` no outbox, `emitter: api`); os Streams continuam existindo porque os demais tipos ainda os usam. Este documento descreve o modelo com os três papéis, que segue valendo para os demais tipos até a etapa S6 do plano de evolução, que o reescreve.
 
 # 1. Introdução
 

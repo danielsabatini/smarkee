@@ -627,7 +627,7 @@ EXPECTED_AUDIENCE = {
     "ipm.role": ("IPM_ROLE_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.group": ("IPM_GROUP_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.user": ("IPM_USER_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
-    "ipm.serviceaccount": ("IPM_SERVICEACCOUNT_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
+    "ipm.serviceaccount": ("IPM_SERVICEACCOUNT_API_AUTH_AUDIENCE", "roles-ipm"),
 }
 # Um projeto de roles só, o do próprio módulo (o Executor e o Observer do User, decisão 0077).
 EXPECTED_PROJECT_ID = {

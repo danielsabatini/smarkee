@@ -33,6 +33,8 @@ def test_serviceaccount_parser() -> None:
     payload = {
         "resourceId": "019a1234-5678-7000-8000-000000000001",
         "resourceVersion": "1",
+        "desiredGeneration": 2,
+        "observedGeneration": 1,
         "phase": "Ready",
         "desired": {
             "lifecycle": "active",
@@ -65,6 +67,20 @@ def test_serviceaccount_parser() -> None:
     assert sa.resource_id == "019a1234-5678-7000-8000-000000000001"
     assert sa.name == "ci-deployer"
     assert sa.deletion_protection is True
+    assert (sa.desired_generation, sa.observed_generation) == (2, 1)
+    assert sa.failure_reason is None
     assert len(sa.keys) == 1
     assert sa.keys[0].key_id == "k-001"
     assert sa.keys[0].status == "active"
+
+
+def test_serviceaccount_parser_without_observed_generation() -> None:
+    payload = {
+        "resourceId": "019a1234-5678-7000-8000-000000000001",
+        "resourceVersion": "1",
+        "desiredGeneration": 1,
+        "phase": "Pending",
+        "desired": {"lifecycle": "present", "organizationId": "org-1", "name": "ci"},
+    }
+    sa = _serviceaccount(payload)
+    assert sa.observed_generation is None

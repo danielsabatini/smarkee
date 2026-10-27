@@ -19,6 +19,10 @@ GENERATED_MODULE = (
 )
 INDEX = SCHEMAS_ROOT / "ipm.serviceaccount.index.json"
 
+# Contratos comuns que esta feature não usa depois da API síncrona (decisão 0098): a Operation e a
+# resposta `202` com `operationId` ficam para as features que ainda têm Receiver e Manager.
+UNUSED_COMMON = {"operation", "api-accepted-response"}
+
 EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "common/message-envelope.example.json": generated.MessageEnvelope,
     "common/condition.example.json": generated.Condition,
@@ -26,14 +30,9 @@ EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "common/completed.example.json": generated.CompletedData,
     "common/failed.example.json": generated.FailedData,
     "common/updated.example.json": generated.UpdatedData,
-    "common/operation.example.json": generated.Operation,
-    "common/api-accepted-response.example.json": generated.ApiAcceptedResponse,
     "common/api-error.example.json": generated.ApiError,
     "ipm/serviceaccount/desired.example.json": generated.ServiceAccountDesiredData,
     "ipm/serviceaccount/observed.example.json": generated.ServiceAccountObservedData,
-    "ipm/serviceaccount/requested-create.example.json": generated.ServiceAccountRequestedCreateData,
-    "ipm/serviceaccount/requested-update.example.json": generated.ServiceAccountRequestedUpdateData,
-    "ipm/serviceaccount/requested-delete.example.json": generated.ServiceAccountRequestedDeleteData,
     "ipm/serviceaccount/api-create-request.example.json": generated.ServiceAccountCreateRequest,
     "ipm/serviceaccount/api-update-request.example.json": generated.ServiceAccountUpdateRequest,
     "ipm/serviceaccount/resource.example.json": generated.ServiceAccount,
@@ -71,7 +70,7 @@ def test_index_lists_every_contract() -> None:
         str(path.relative_to(SCHEMAS_ROOT))
         for directory in ("common", "ipm/serviceaccount")
         for path in (SCHEMAS_ROOT / directory).rglob("*.v*.schema.json")
-        if not path.name.startswith("definitions.")
+        if not path.name.startswith("definitions.") and path.name.split(".")[0] not in UNUSED_COMMON
     }
     assert listed == contracts
 
@@ -81,6 +80,7 @@ def test_every_example_has_a_model() -> None:
         str(path.relative_to(SCHEMAS_ROOT))
         for directory in ("common", "ipm/serviceaccount")
         for path in (SCHEMAS_ROOT / directory).rglob("*.example.json")
+        if path.name.split(".")[0] not in UNUSED_COMMON
     }
     assert examples == set(EXAMPLE_MODELS)
 

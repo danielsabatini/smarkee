@@ -58,7 +58,7 @@ SERVICEACCOUNTS = Kind(
     "serviceaccount",
     "ipm.serviceaccount",
     "ipm.serviceaccount_outbox",
-    "ipm_serviceaccount_manager_login",
+    "ipm_serviceaccount_api_login",
 )
 
 ALL_KINDS: tuple[Kind, ...] = (

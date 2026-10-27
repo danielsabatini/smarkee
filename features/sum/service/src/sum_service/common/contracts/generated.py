@@ -26,6 +26,7 @@ class MessageEmitter(StrEnum):
     Emissor lógico (identidade funcional, não a instância).
     """
 
+    api = "api"
     receiver = "receiver"
     manager = "manager"
     observer = "observer"

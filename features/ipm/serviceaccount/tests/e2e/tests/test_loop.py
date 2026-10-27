@@ -1,7 +1,8 @@
-"""Loop completo de ipm.serviceaccount (Receiver ao Controller), com o Zitadel de dev.
+"""Loop completo de ipm.serviceaccount (API ao Controller), com o Zitadel de dev.
 
-Os pedidos entram direto no NATS, como o Receiver os publicaria, numa Organization preparada pelo
-operador (`CONFORMANCE_ORGANIZATION_ID`). Cada service account é removida pelo próprio loop ao final
+Os pedidos entram pela API HTTP (decisão 0098), com o token de um operador
+(`CONFORMANCE_ACCESS_TOKEN`), numa Organization preparada pelo operador
+(`CONFORMANCE_ORGANIZATION_ID`). Cada service account é removida pelo próprio loop ao final
 (fixture `created`).
 """
 
@@ -13,7 +14,8 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from conftest import current_row, read_ssot, request, send
+import httpx
+from conftest import current_row, read_ssot
 from contracts import assert_valid
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -98,9 +100,9 @@ async def confirmed(
 async def settled_version(resource_id: str) -> str:
     """A `resourceVersion` atual, depois que ela para de mudar.
 
-    Depois de cada `updated`, o Manager ainda grava a observação e o resultado seguintes (cada um
+    Depois de cada `updated`, o Controller ainda grava a observação seguinte (que
     sobe a versão): um cliente real lê a versão atual antes de alterar, e é isso que o teste imita.
-    Usar a versão de um `updated` já superado faz o Manager recusar o pedido (`conflict`).
+    Usar a versão de um `updated` já superado faz a API recusar o pedido (`409 Conflict`).
     """
     current = await current_row(resource_id)
     assert current is not None
@@ -111,6 +113,52 @@ async def settled_version(resource_id: str) -> str:
         if latest["resource_version"] == current["resource_version"]:
             return str(latest["resource_version"])
         current = latest
+
+
+COLLECTION = "/v1/ipm/serviceaccounts"
+
+
+async def post(
+    api: httpx.AsyncClient, headers: dict[str, str], specification: dict[str, Any]
+) -> dict[str, Any]:
+    """`POST` da API: devolve o recurso (`201`), com chaves só públicas (sem fingerprint)."""
+    body = {
+        **specification,
+        "keys": [
+            {"publicKey": key["publicKey"], "expiresAt": key["expiresAt"]}
+            for key in specification["keys"]
+        ],
+    }
+    response = await api.post(COLLECTION, json=body, headers=headers)
+    assert response.status_code == 201, response.text
+    resource = response.json()
+    assert_valid("ipm/serviceaccount/resource.v1.schema.json", resource)
+    return resource
+
+
+async def patch(
+    api: httpx.AsyncClient,
+    headers: dict[str, str],
+    resource_id: str,
+    version: str,
+    changes: dict[str, Any],
+) -> dict[str, Any]:
+    """`PATCH` da API: devolve o recurso (`200`)."""
+    if "keys" in changes:
+        changes = {
+            **changes,
+            "keys": [
+                {"publicKey": key["publicKey"], "expiresAt": key["expiresAt"]}
+                for key in changes["keys"]
+            ],
+        }
+    response = await api.patch(
+        f"{COLLECTION}/{resource_id}",
+        json={"resourceVersion": version, **changes},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
 
 
 def desired_key() -> dict[str, str]:
@@ -143,25 +191,22 @@ def specification(
 
 
 async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_removes(
-    jetstream: JetStreamContext, created: list[str], organization_id: str
+    api: httpx.AsyncClient,
+    headers: dict[str, str],
+    jetstream: JetStreamContext,
+    created: list[str],
+    organization_id: str,
 ) -> None:
-    resource_id = str(uuid.uuid7())
-    created.append(resource_id)
     first_key = desired_key()
 
     # 1. Criação: a máquina nasce na Organization com o token JWT, a chave pública e as permissões.
-    await send(
-        jetstream,
-        request(
-            resource_id,
-            "create",
-            {
-                "specification": specification(
-                    organization_id, ["ipm.serviceaccountViewer"], [first_key]
-                )
-            },
-        ),
+    resource = await post(
+        api, headers, specification(organization_id, ["ipm.serviceaccountViewer"], [first_key])
     )
+    resource_id = str(resource["resourceId"])
+    created.append(resource_id)
+    assert (resource["phase"], resource["desiredGeneration"]) == ("Pending", 1)
+    assert "observedGeneration" not in resource  # ainda não observada
     updated = await confirmed(jetstream, resource_id, 1)
     assert_valid("common/updated.v1.schema.json", updated["data"])
     desired = await last(jetstream, "desired", resource_id)
@@ -194,14 +239,10 @@ async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_remo
         "ipm.serviceaccount.list",
         "ipm.serviceaccount.update",
     ]
-    await send(
-        jetstream,
-        request(
-            resource_id,
-            "update",
-            {"resourceVersion": version, "specification": {"roles": ["ipm.serviceaccountAdmin"]}},
-        ),
+    changed = await patch(
+        api, headers, resource_id, version, {"roles": ["ipm.serviceaccountAdmin"]}
     )
+    assert changed["desiredGeneration"] == 2
     await confirmed(jetstream, resource_id, 2)
     await observed_where(
         resource_id,
@@ -213,16 +254,12 @@ async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_remo
 
     # 3. Rotação: entra a segunda chave e a primeira sai; o mapa de fingerprints acompanha.
     second_key = desired_key()
-    await send(
-        jetstream,
-        request(
-            resource_id,
-            "update",
-            {
-                "resourceVersion": await settled_version(resource_id),
-                "specification": {"keys": [first_key, second_key]},
-            },
-        ),
+    await patch(
+        api,
+        headers,
+        resource_id,
+        await settled_version(resource_id),
+        {"keys": [first_key, second_key]},
     )
     await confirmed(jetstream, resource_id, 3)
     both = {first_key["fingerprint"], second_key["fingerprint"]}
@@ -233,16 +270,8 @@ async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_remo
             and all(k["status"] == "active" for k in m["data"]["keys"])
         ),
     )
-    await send(
-        jetstream,
-        request(
-            resource_id,
-            "update",
-            {
-                "resourceVersion": await settled_version(resource_id),
-                "specification": {"keys": [second_key]},
-            },
-        ),
+    await patch(
+        api, headers, resource_id, await settled_version(resource_id), {"keys": [second_key]}
     )
     await confirmed(jetstream, resource_id, 4)
     await observed_where(
@@ -253,40 +282,33 @@ async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_remo
     )
 
     # 4. Proteção: gravada como metadado na máquina e observada de volta (decisão 0074).
-    await send(
-        jetstream,
-        request(
-            resource_id,
-            "update",
-            {
-                "resourceVersion": await settled_version(resource_id),
-                "specification": {"deletionProtection": True},
-            },
-        ),
+    await patch(
+        api, headers, resource_id, await settled_version(resource_id), {"deletionProtection": True}
     )
     await confirmed(jetstream, resource_id, 5)
     await observed_where(resource_id, lambda m: m["data"].get("deletionProtection") is True)
-    # 5. A remoção (fixture `created`) tira a proteção e remove a máquina pelo loop.
+
+    # 5. A convergência também se lê pela API: `observedGeneration` alcança a geração desejada.
+    read = await api.get(f"{COLLECTION}/{resource_id}", headers=headers)
+    assert read.status_code == 200
+    assert read.json()["observedGeneration"] == read.json()["desiredGeneration"] == 5
+    # 6. A remoção (fixture `created`) tira a proteção e remove a máquina pelo loop.
 
 
 async def test_a_role_grants_only_the_delegable_permissions_of_the_organization(
-    jetstream: JetStreamContext, created: list[str], organization_id: str
+    api: httpx.AsyncClient,
+    headers: dict[str, str],
+    created: list[str],
+    organization_id: str,
 ) -> None:
     """O teto é o Project Grant da Organization (decisão 0094): o Controller expande a role só
     nas permissões delegáveis.
 
     `ipm.organizationAdmin` inclui `create` e `delete` (escopo de conta), que ficam de fora.
     """
-    resource_id = str(uuid.uuid7())
+    resource = await post(api, headers, specification(organization_id, ["ipm.organizationAdmin"]))
+    resource_id = str(resource["resourceId"])
     created.append(resource_id)
-    await send(
-        jetstream,
-        request(
-            resource_id,
-            "create",
-            {"specification": specification(organization_id, ["ipm.organizationAdmin"])},
-        ),
-    )
     observed = await observed_where(resource_id, lambda m: m.get("presence") == "present")
     assert observed["data"]["permissions"] == [
         "ipm.organization.get",

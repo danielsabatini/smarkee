@@ -694,7 +694,7 @@ def test_real_serviceaccounts_are_never_test_data(name: str) -> None:
     assert find(world.ports()).is_clean()
 
 
-async def test_a_test_serviceaccount_is_removed_through_the_loop() -> None:
+async def test_a_test_serviceaccount_is_removed_directly_by_cleanup() -> None:
     world = World()
     world.ssot.tables = {
         SERVICEACCOUNTS: [Row(SERVICEACCOUNT_ID, "sa-6d7092"), Row("sa-real", "ci-deploy")]
@@ -704,8 +704,9 @@ async def test_a_test_serviceaccount_is_removed_through_the_loop() -> None:
     code = await clean(world.ports(), apply_changes=True, say=say_nothing)
 
     assert code == 0
-    assert world.bus.unprotection_requested == [SERVICEACCOUNT_ID]
-    assert world.bus.requested == [SERVICEACCOUNT_ID]
+    # API síncrona (decisão 0098): sem `requested`, a limpeza apaga direto do SSOT.
+    assert world.bus.unprotection_requested == []
+    assert world.bus.requested == []
     assert [r.resource_id for r in world.ssot.tables[SERVICEACCOUNTS]] == ["sa-real"]
 
 

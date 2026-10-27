@@ -3,7 +3,8 @@
 Service accounts são identidades de máquina (machine users) no Zitadel, sem senha e sem e-mail,
 autenticadas exclusivamente por chave assimétrica (par RSA gerado no cliente). A Organization é
 a de `--organization-id` ou, na falta dela, a ativa (`sk config set ipm.organizationId`). Criar,
-alterar e remover são assíncronos: com `--wait`, o comando espera convergir.
+alterar e remover são admitidos na hora pela API (decisão 0098); a convergência no provedor é
+assíncrona: com `--wait`, o comando espera `observedGeneration` alcançar a geração admitida.
 """
 
 import contextlib
@@ -20,12 +21,12 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from pydantic import ValidationError
 from rich.text import Text
 
-from sk import output, ui
+from sk import ui
 from sk.command_app import SkTyper
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
     EXIT_USAGE_ERROR,
-    ResourceFlow,
+    SyncResourceFlow,
     TimeoutOption,
     already_done,
     bad_address,
@@ -36,13 +37,11 @@ from sk.commands.shared import (
     session_token,
     usage_error,
 )
-from sk.features.api_contract import OperationStatus, RequestAccepted
 from sk.features.ipm.serviceaccount import (
     MAXIMUM_KEYS,
     ServiceAccount,
     create_serviceaccount,
     delete_serviceaccount,
-    get_operation,
     get_serviceaccount,
     list_serviceaccounts,
     update_serviceaccount,
@@ -74,16 +73,11 @@ PROTECTED_HINT = (
     "The service account is protected against deletion. "
     "Run `sk ipm serviceaccount unprotect` first."
 )
-REJECTION_HINTS = {
-    "validation": (
-        "The name is in use in the Organization, a role is not allowed, or a key is invalid."
-    ),
-    "conflict": CONFLICT_ON_CHANGE,
-    "not_found": NOT_FOUND,
-    "protected": PROTECTED_HINT,
-}
 ERROR_CODE_HINTS = {
     "DeletionProtected": PROTECTED_HINT,
+    "NameInUse": "A service account with this name already exists in the Organization.",
+    "NotPresent": "The service account is being deleted and cannot be changed.",
+    "IdempotencyKeyReused": "The idempotency key was already used for a different request.",
     "QuotaExceeded": ("The Organization reached its service account limit. Delete an unused one."),
     "OrganizationUnavailable": "The Organization could not be checked now. Try again.",
     "ResourcesAttached": (
@@ -118,7 +112,7 @@ WaitOption = Annotated[
     typer.Option(
         "--wait",
         help=option(
-            "Wait for the service account to converge (phase Ready and Operation completed).",
+            "Wait for the service account to converge (its generation observed and phase Ready).",
             kind="Boolean",
             variable=None,
             file=None,
@@ -221,11 +215,8 @@ def _rows(sa: ServiceAccount) -> list[tuple[str, str]]:
     ]
 
 
-def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> str:
-    parts = ["sk ipm serviceaccount get", f"--resource-id {accepted.resource_id}"]
-    if with_operation:
-        parts.append(f"--operation-id {accepted.operation_id}")
-    return " ".join(parts)
+def _get_command(resource_id: str) -> str:
+    return f"sk ipm serviceaccount get --resource-id {resource_id}"
 
 
 def _roles(values: list[str]) -> list[str]:
@@ -254,13 +245,11 @@ def _fingerprint_from_private_pem(private_pem: str) -> str:
     return hashlib.sha256(spki_der).hexdigest()
 
 
-_flow = ResourceFlow(
+_flow = SyncResourceFlow(
     subject="service account",
     get_command=_get_command,
     read_resource=get_serviceaccount,
-    read_operation=get_operation,
     fail_api=_fail_api,
-    rejection_hints=REJECTION_HINTS,
     rows=_rows,
 )
 
@@ -404,7 +393,7 @@ def create_command(
     url, insecure = load_api()
     token = session_token()
     try:
-        accepted = create_serviceaccount(
+        created = create_serviceaccount(
             url,
             token=token,
             organization_id=org_id,
@@ -426,14 +415,14 @@ def create_command(
     if target_key_file is not None:
         extra_rows.append(("keyFile", str(target_key_file)))
 
-    _flow.accepted_panel("Creation requested", accepted, *extra_rows, wait=wait)
+    _flow.requested_panel("Creation requested", created, *extra_rows, wait=wait)
 
     if not wait and target_key_file is not None:
         with contextlib.suppress(KeyFileError):
-            update_key_file(target_key_file, user_id=accepted.resource_id, key_id="")
+            update_key_file(target_key_file, user_id=created.resource_id, key_id="")
         ui.note(
             f"Key file {target_key_file} created. When Ready, run:\n"
-            f"  sk ipm serviceaccount key-file --resource-id {accepted.resource_id} "
+            f"  sk ipm serviceaccount key-file --resource-id {created.resource_id} "
             f"--key-file {target_key_file}"
         )
         return
@@ -441,7 +430,7 @@ def create_command(
     converged = _flow.finish(
         url,
         insecure,
-        accepted,
+        created,
         title="Service account created",
         removal=False,
         wait=wait,
@@ -484,7 +473,7 @@ def _change(
         if same_desc and same_roles and same_protection and same_keys:
             already_done(current, f"Service account {sa_id} already has it. Nothing to do.")
             return
-        accepted = update_serviceaccount(
+        admitted = update_serviceaccount(
             url,
             token=token,
             resource_id=sa_id,
@@ -500,8 +489,8 @@ def _change(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Update requested", accepted, ("name", current.name), wait=wait)
-    _flow.finish(url, insecure, accepted, title=title, removal=False, wait=wait, timeout=timeout)
+    _flow.requested_panel("Update requested", admitted, ("name", current.name), wait=wait)
+    _flow.finish(url, insecure, admitted, title=title, removal=False, wait=wait, timeout=timeout)
 
 
 @serviceaccount_app.command(
@@ -614,7 +603,7 @@ def delete_command(
         current = get_serviceaccount(
             url, token=token, resource_id=sa_id, allow_insecure_http=insecure
         )
-        accepted = delete_serviceaccount(
+        admitted = delete_serviceaccount(
             url,
             token=token,
             resource_id=sa_id,
@@ -626,11 +615,11 @@ def delete_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Deletion requested", accepted, ("name", current.name), wait=wait)
+    _flow.requested_panel("Deletion requested", admitted, ("name", current.name), wait=wait)
     _flow.finish(
         url,
         insecure,
-        accepted,
+        admitted,
         title="Service account deleted",
         removal=True,
         wait=wait,
@@ -641,53 +630,19 @@ def delete_command(
 @serviceaccount_app.command(
     "get",
     structured=True,
-    help=command("Show the state of a service account and, if given, of an Operation."),
+    help=command("Show the state of a service account."),
 )
-def get_command(
-    resource_id: ServiceAccountIdOption = None,
-    operation_id: Annotated[
-        str | None,
-        typer.Option(
-            "--operation-id",
-            help=option(
-                "operationId of a request, to see why it was rejected or failed.",
-                kind="String",
-                variable=None,
-                file=None,
-                default="no Operation lookup",
-            ),
-        ),
-    ] = None,
-) -> None:
+def get_command(resource_id: ServiceAccountIdOption = None) -> None:
     sa_id = identifier(resource_id, "--resource-id", what="resourceId")
-    if operation_id is not None:
-        operation_id = identifier(operation_id, "--operation-id", what="operationId")
     url, insecure = load_api()
     token = session_token()
-    operation: OperationStatus | None = None
     try:
         sa = get_serviceaccount(url, token=token, resource_id=sa_id, allow_insecure_http=insecure)
-        if operation_id is not None:
-            operation = get_operation(
-                url,
-                token=token,
-                resource_id=sa_id,
-                operation_id=operation_id,
-                allow_insecure_http=insecure,
-            )
     except OidcError as error:
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    rows = _rows(sa)
-    if operation is not None:
-        rows.append(("operationStatus", operation.operation_status))
-        if operation.reason is not None:
-            rows.append(("reason", operation.reason))
-    document = output.to_data(sa)
-    if operation is not None:
-        document["operation"] = output.to_data(operation)
-    ui.panel("Service Account", rows, data=document)
+    ui.panel("Service Account", _rows(sa), data=sa)
 
 
 @serviceaccount_app.command(
@@ -934,7 +889,7 @@ def key_add_command(
     new_keys_list = [*_key_specifications(current.desired_keys), new_key_entry]
 
     try:
-        accepted = update_serviceaccount(
+        admitted = update_serviceaccount(
             url,
             token=token,
             resource_id=sa_id,
@@ -952,7 +907,7 @@ def key_add_command(
     if target_key_file is not None:
         extra_rows.append(("keyFile", str(target_key_file)))
 
-    _flow.accepted_panel("Key addition requested", accepted, *extra_rows, wait=wait)
+    _flow.requested_panel("Key addition requested", admitted, *extra_rows, wait=wait)
 
     if not wait and target_key_file is not None:
         with contextlib.suppress(KeyFileError):
@@ -965,7 +920,7 @@ def key_add_command(
         return
 
     converged = _flow.finish(
-        url, insecure, accepted, title="Key added", removal=False, wait=wait, timeout=timeout
+        url, insecure, admitted, title="Key added", removal=False, wait=wait, timeout=timeout
     )
     if converged is not None and target_key_file is not None:
         matched = next((k for k in converged.keys if k.fingerprint == fingerprint), None)
@@ -1053,7 +1008,7 @@ def key_remove_command(
     )
 
     try:
-        accepted = update_serviceaccount(
+        admitted = update_serviceaccount(
             url,
             token=token,
             resource_id=sa_id,
@@ -1067,12 +1022,12 @@ def key_remove_command(
     except ApiError as error:
         _fail_api(error)
 
-    _flow.accepted_panel(
+    _flow.requested_panel(
         "Key removal requested",
-        accepted,
+        admitted,
         ("keyFingerprint", fingerprint_to_remove[:16]),
         wait=wait,
     )
     _flow.finish(
-        url, insecure, accepted, title="Key removed", removal=False, wait=wait, timeout=timeout
+        url, insecure, admitted, title="Key removed", removal=False, wait=wait, timeout=timeout
     )

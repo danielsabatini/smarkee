@@ -457,6 +457,7 @@ Exemplos:
 
 ```text
 receiver
+api
 manager
 observer
 reconciler
@@ -470,7 +471,7 @@ worker.runner
 worker.tools
 ```
 
-O emissor deve representar uma identidade funcional estável. Ela não é o processo: as mensagens `desired` e `updated` são originadas pelo Manager (que decide e registra no outbox) e entregues ao transporte pelo Publisher (`SSOT.md`), mas o emissor é sempre `manager`: o `emitter` identifica **quem decidiu**, e não quem entregou. Quem entregou aparece na identidade de mensageria que publica, nas permissões e nos logs do transporte (`RESOURCE-CONTROL-LOOP.md`, seção 6.6.2).
+O emissor deve representar uma identidade funcional estável. Ela não é o processo: as mensagens `desired` e `updated` são originadas pelo Manager (que decide e registra no outbox) e entregues ao transporte pelo Publisher (`SSOT.md`), mas o emissor é sempre `manager`: o `emitter` identifica **quem decidiu**, e não quem entregou. **Exceção (decisão `0098`):** nos tipos com API síncrona, o `desired` é decidido na admissão pela `api` (`emitter: api`); o `updated` do Controller continua `manager`. Quem entregou aparece na identidade de mensageria que publica, nas permissões e nos logs do transporte (`RESOURCE-CONTROL-LOOP.md`, seção 6.6.2).
 
 A identificação da instância concreta do processo pertence aos metadados de observabilidade.
 

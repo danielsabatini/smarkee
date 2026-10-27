@@ -7,9 +7,7 @@ from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
-
-from ipm_serviceaccount.manager.store.ssot import SsotStore
-from ipm_serviceaccount.manager.store.tables import tables_of
+from psycopg.types.json import Jsonb
 
 DATABASE_HOST = os.environ.get("IPM_TEST_DATABASE_HOST", "localhost")
 DATABASE_PORT = os.environ.get("IPM_TEST_DATABASE_PORT", "5432")
@@ -66,35 +64,19 @@ SAMPLE_KEYS: list[dict[str, str]] = [
 ]
 
 
-def requested_message(resource_id: str) -> dict[str, Any]:
-    """Um `requested` de criação válido, como o Receiver o publicaria."""
-    return {
-        "messageId": str(uuid.uuid7()),
-        "schemaVersion": "1.0",
-        "messageType": "requested",
-        "emitter": "receiver",
-        "module": "ipm",
-        "resourceType": "serviceaccount",
-        "resourceId": resource_id,
-        "operation": "create",
-        "requestedBy": "owner-1",
-        "correlationId": str(uuid.uuid7()),
-        "occurredAt": "2026-10-10T12:00:00Z",
-        "publishedAt": "2026-10-10T12:00:00Z",
-        "data": {
-            "operationId": f"op-{unique_suffix()}",
-            "requestDigest": "0" * 64,
-            "specification": {
-                "organizationId": "org-ctl",
-                "name": f"sa-{unique_suffix()}",
-                "keys": SAMPLE_KEYS,
-                "roles": ["ipm.serviceaccountViewer"],
-                "deletionProtection": False,
-            },
-        },
+async def seed_serviceaccount(api: psycopg.AsyncConnection[Any], resource_id: str) -> None:
+    """Grava o recurso como a admissão da API o grava (decisão 0098), sem passar pelo loop."""
+    desired = {
+        "lifecycle": "present",
+        "organizationId": "org-ctl",
+        "name": f"sa-{unique_suffix()}",
+        "keys": SAMPLE_KEYS,
+        "roles": ["ipm.serviceaccountViewer"],
+        "deletionProtection": False,
     }
-
-
-def ssot(connection: psycopg.AsyncConnection[Any]) -> SsotStore:
-    """Adaptador do SSOT da service account para o Manager criar o recurso do teste."""
-    return SsotStore(connection, tables_of("serviceaccount"))
+    await api.execute(
+        "INSERT INTO ipm.serviceaccount (resource_id, schema_version, lifecycle, reconciliation,"
+        " desired, desired_generation, resource_version, phase, requested_by, correlation_id)"
+        " VALUES (%s, '1.0', 'present', 'active', %s, 1, 1, 'Pending', 'owner-1', %s)",
+        (resource_id, Jsonb(desired), str(uuid.uuid7())),
+    )

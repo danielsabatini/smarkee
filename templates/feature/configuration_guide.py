@@ -29,14 +29,14 @@ from typing import Any
 
 from pydantic_core import PydanticUndefined
 
-ROLES = ("receiver", "manager", "publisher", "reconciler", "observer", "executor")
+ROLES = ("api", "receiver", "manager", "publisher", "reconciler", "observer", "executor")
 GUIDE = Path("docs") / "CONFIGURATION.md"
 HEADER = (
     "<!-- Gerado por templates/feature/configuration_guide.py a partir dos settings.py dos papéis. "
     "Não edite: altere o código e regenere. -->"
 )
 
-# Porta de saúde de cada papel no exemplo do host (o Receiver usa a porta da API).
+# Porta de saúde de cada papel no exemplo do host (o Receiver e a API usam a porta HTTP).
 HOST_PORTS = {
     "manager": 8002,
     "publisher": 8003,
