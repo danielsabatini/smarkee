@@ -534,14 +534,6 @@
             "title": "Organizationid",
             "type": "string"
           },
-          "permissions": {
-            "items": {
-              "$ref": "#/components/schemas/Permission"
-            },
-            "maxItems": 64,
-            "title": "Permissions",
-            "type": "array"
-          },
           "reconciliation": {
             "$ref": "#/components/schemas/Reconciliation"
           },
@@ -564,8 +556,7 @@
         "required": [
           "lifecycle",
           "reconciliation",
-          "organizationId",
-          "permissions"
+          "organizationId"
         ],
         "title": "UserDesiredView",
         "type": "object"
@@ -617,6 +608,21 @@
               }
             ],
             "title": "Deletionprotection"
+          },
+          "effectivePermissions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Permission"
+                },
+                "maxItems": 64,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effectivepermissions"
           },
           "emailVerified": {
             "anyOf": [

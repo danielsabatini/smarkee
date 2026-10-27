@@ -2,8 +2,8 @@
 
 Compara o estado pretendido (`desired`) com o observado (`observed`) e devolve a ação a executar
 (`create`, `update`, `delete`), ou `None` se já convergiu. Os campos gerenciados são `lifecycle`,
-`permissions` e `deletionProtection` (decisões 0074 e 0077). Dados pessoais e Organization são
-imutáveis e definidos na criação.
+`permissions` (as efetivas, do catálogo; decisão 0097) e `deletionProtection` (decisões 0074 e
+0077). Dados pessoais e Organization são imutáveis e definidos na criação.
 """
 
 from dataclasses import dataclass

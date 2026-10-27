@@ -19,10 +19,6 @@
         "lifecycle": "present",
         "reconciliation": "active",
         "organizationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
-        "permissions": [
-          "ipm.organization.get",
-          "ipm.user.get"
-        ],
         "deletionProtection": false,
         "givenName": "Bia",
         "familyName": "Lima",
@@ -34,6 +30,10 @@
         "emailVerified": true,
         "userState": "active",
         "permissions": [
+          "ipm.organization.get",
+          "ipm.user.get"
+        ],
+        "effectivePermissions": [
           "ipm.organization.get",
           "ipm.user.get"
         ],

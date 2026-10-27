@@ -58,7 +58,7 @@
       "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$"
     },
     "roles": {
-      "description": "Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). São expandidas pelo Manager em permissões atômicas no desired.",
+      "description": "Conjunto de Roles compostas atribuídas ao usuário na Organization, sem repetição e em ordem alfabética (decisão 0083). O Controller as expande em permissões atômicas (`observed.effectivePermissions`, decisão 0097).",
       "type": "array",
       "maxItems": 32,
       "uniqueItems": true,
@@ -74,7 +74,7 @@
       "pattern": "^[a-z][a-z0-9-]{0,61}[a-z0-9]$"
     },
     "groups": {
-      "description": "Grupos de usuários da Organization aos quais o usuário pertence (decisão 0088). Suas roles são expandidas pelo Manager em permissions no desired.",
+      "description": "Grupos de usuários da Organization aos quais o usuário pertence (decisão 0088). Suas roles são expandidas pelo Controller em permissões atômicas (`observed.effectivePermissions`, decisão 0097).",
       "type": "array",
       "maxItems": 32,
       "uniqueItems": true,

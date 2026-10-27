@@ -1,16 +1,15 @@
 """Regras de negócio do usuário da Organization, aplicadas pelo Manager (decisão 0077).
 
-Puro: sem banco, rede ou relógio. O e-mail único na Organization, as permissões fora do módulo e a
-cota de usuários por Organization são declarados aqui (`unique_value`, `invalid`, `owner_quota`) e
-verificados na mesma unidade atômica do pedido pelo adaptador do SSOT (`docs/data/SSOT.md` §10.1).
+Puro: sem banco, rede ou relógio. O e-mail único na Organization e a cota de usuários por
+Organization são declarados aqui (`unique_value`, `owner_quota`) e verificados na mesma unidade
+atômica do pedido pelo adaptador do SSOT (`docs/data/SSOT.md` §10.1).
 """
 
 from collections.abc import Mapping
-from typing import Any, cast
+from typing import Any
 
 from pydantic import ValidationError
 
-from ipm_user.common.catalog import AccessCatalog
 from ipm_user.common.contracts import generated
 from ipm_user.common.contracts.base import ContractModel, fields_of, validate_tolerant
 from ipm_user.manager.domain.errors import PermanentMessageError
@@ -19,11 +18,9 @@ from ipm_user.manager.domain.policy import OwnerQuota, Request, UniqueValue
 PERSONAL_FIELDS = ("givenName", "familyName", "email")
 """Dados pessoais do `desired`: saem dele na remoção (`schemas/ipm/user/desired`)."""
 
-INTERNAL_DESIRED_FIELDS = ("directPermissions",)
-"""Campos internos do `desired` no SSOT para re-expansão de Roles; não saem na mensageria."""
-
-PERMISSION_MODULE_PREFIX = "ipm."
-"""O Executor só concede permissões do projeto `roles-ipm` (o Project Grant da Organization)."""
+LEGACY_DESIRED_FIELDS = ("permissions", "directPermissions")
+"""Campos que o `desired` já teve e não tem mais (decisão 0097): as permissões efetivas são
+calculadas pelo Controller. Registros gravados antes dela os descartam ao serem relidos."""
 
 
 def _validated[M: ContractModel](model: type[M], data: Mapping[str, Any], *, label: str) -> M:
@@ -54,13 +51,6 @@ def _groups(values: list[generated.GroupName] | set[str] | None) -> list[str]:
 
 class UserPolicy:
     """Usuário da Organization: e-mail único nela, Organization imutável e cota por Organization."""
-
-    def __init__(self, catalog: AccessCatalog | None = None) -> None:
-        self._catalog = catalog if catalog is not None else AccessCatalog()
-
-    @property
-    def catalog(self) -> AccessCatalog:
-        return self._catalog
 
     def parse(self, operation: str, data: Mapping[str, Any]) -> Request:
         match operation:
@@ -121,62 +111,31 @@ class UserPolicy:
     def desired_for_create(self, request: Request, requested_by: str) -> dict[str, Any]:
         assert request.specification is not None  # noqa: S101 (invariante de parse)
         # A proteção contra exclusão nasce desligada no usuário da Organization (exceção à
-        # decisão 0043, registrada na 0077).
+        # decisão 0043, registrada na 0077). O `desired` guarda só a intenção: `roles` e `groups`.
         spec = dict(request.specification)
-        org_id = str(spec.get("organizationId", ""))
-        direct_roles = [str(r) for r in spec.get("roles", [])]
-        user_groups = [str(g) for g in spec.get("groups", [])]
-        group_roles = self._catalog.expand_groups(org_id, user_groups)
-        all_roles = sorted(set(direct_roles) | set(group_roles))
-        effective = self._catalog.expand_roles(all_roles, org_id)
         return {
             "lifecycle": "present",
             **spec,
-            "roles": direct_roles,
-            "groups": user_groups,
-            "permissions": effective,
+            "roles": [str(role) for role in spec.get("roles", [])],
+            "groups": [str(group) for group in spec.get("groups", [])],
         }
 
     def desired_for_update(self, current: Mapping[str, Any], request: Request) -> dict[str, Any]:
         spec = dict(request.specification or {})
-        org_id = str(current.get("organizationId", ""))
-        direct_roles = [str(r) for r in spec.get("roles", current.get("roles", []))]
-        user_groups = [str(g) for g in spec.get("groups", current.get("groups", []))]
-        group_roles = self._catalog.expand_groups(org_id, user_groups)
-        all_roles = sorted(set(direct_roles) | set(group_roles))
-        effective = self._catalog.expand_roles(all_roles, org_id)
+        kept = {key: value for key, value in current.items() if key not in LEGACY_DESIRED_FIELDS}
         return {
-            **current,
+            **kept,
             **spec,
-            "roles": direct_roles,
-            "groups": user_groups,
-            "permissions": effective,
+            "roles": [str(role) for role in spec.get("roles", current.get("roles", []))],
+            "groups": [str(group) for group in spec.get("groups", current.get("groups", []))],
         }
-
-    def rolled_out(self, current: Mapping[str, Any]) -> dict[str, Any] | None:
-        """Re-expande `permissions` quando uma `ipm.role` ou `ipm.group` muda."""
-        if current.get("lifecycle") != "present":
-            return None
-        org_id = str(current.get("organizationId", ""))
-        raw_roles = cast(list[Any], current.get("roles") or [])
-        direct_roles = [str(r) for r in raw_roles]
-        raw_groups = cast(list[Any], current.get("groups") or [])
-        user_groups = [str(g) for g in raw_groups]
-        if not direct_roles and not user_groups:
-            return None
-        group_roles = self._catalog.expand_groups(org_id, user_groups)
-        all_roles = sorted(set(direct_roles) | set(group_roles))
-        effective = self._catalog.expand_roles(all_roles, org_id)
-        if current.get("permissions") == effective:
-            return None
-        return {**current, "permissions": effective}
 
     def desired_for_delete(self, current: Mapping[str, Any]) -> dict[str, Any]:
         # Com `lifecycle: absent`, o `desired` não carrega dados pessoais (schema `desired`).
         kept = {
             key: value
             for key, value in current.items()
-            if key not in (*PERSONAL_FIELDS, *INTERNAL_DESIRED_FIELDS)
+            if key not in (*PERSONAL_FIELDS, *LEGACY_DESIRED_FIELDS)
         }
         return {**kept, "lifecycle": "absent"}
 
@@ -195,11 +154,9 @@ class UserPolicy:
         )
 
     def invalid(self, desired: Mapping[str, Any]) -> bool:
-        """Permissão fora do módulo `ipm`: o Executor não a concederia (o Receiver recusa antes)."""
-        permissions: list[str] = desired.get("permissions", [])
-        return any(
-            not permission.startswith(PERMISSION_MODULE_PREFIX) for permission in permissions
-        )
+        """Sem regra de valor recusado: as permissões efetivas não fazem parte do `desired`."""
+        _ = desired
+        return False
 
     def owner_quota(self, request: Request, desired: Mapping[str, Any]) -> OwnerQuota | None:
         """Cota de usuários por Organization, só no create e só com limite do Receiver.
@@ -221,25 +178,9 @@ class UserPolicy:
 
     def message_data(self, desired: Mapping[str, Any], reconciliation: str) -> dict[str, Any]:
         external = {
-            key: value for key, value in desired.items() if key not in INTERNAL_DESIRED_FIELDS
+            key: value for key, value in desired.items() if key not in LEGACY_DESIRED_FIELDS
         }
         model = generated.UserDesiredData.model_validate(
             {**external, "reconciliation": reconciliation}
         )
         return model.model_dump(mode="json", exclude_none=True)
-
-    def is_converged(
-        self, desired: Mapping[str, Any], presence: str, observed: Mapping[str, Any] | None
-    ) -> bool:
-        # Campos gerenciados do usuário: `lifecycle`, `permissions` e `deletionProtection`, este
-        # pelo metadado (schemas/ipm/user/desired; decisão 0074). Os dados pessoais e a
-        # Organization não são gerenciados: são imutáveis e definidos na criação.
-        if desired["lifecycle"] == "absent":
-            return presence == "absent"
-        return (
-            presence == "present"
-            and observed is not None
-            and sorted(observed.get("permissions") or [])
-            == sorted(desired.get("permissions") or [])
-            and observed.get("deletionProtection") == self.deletion_protected(desired)
-        )

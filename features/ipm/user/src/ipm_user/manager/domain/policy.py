@@ -82,9 +82,3 @@ class ResourcePolicy(Protocol):
         ...
 
     def message_data(self, desired: Mapping[str, Any], reconciliation: str) -> dict[str, Any]: ...
-
-    def is_converged(
-        self, desired: Mapping[str, Any], presence: str, observed: Mapping[str, Any] | None
-    ) -> bool:
-        """Compara `desired` e `observed` pelos campos gerenciados (`docs/data/SCHEMA.md` §9.1)."""
-        ...

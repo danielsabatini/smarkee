@@ -380,15 +380,17 @@ def check_is_converged(
 ) -> bool:
     """Compara `desired` e `observed` pelos campos gerenciados do usuário.
 
-    `lifecycle`, `permissions` e `deletionProtection` (pelo metadado; decisão 0074). Os dados
-    pessoais e a Organization não são gerenciados: são imutáveis e definidos na criação
-    (`schemas/ipm/user/desired`).
+    `lifecycle`, as permissões e `deletionProtection` (pelo metadado; decisão 0074). As permissões
+    do provedor (`observed.permissions`) devem ser as efetivas (`observed.effectivePermissions`,
+    calculadas do catálogo; decisão 0097). Os dados pessoais e a Organization não são gerenciados:
+    são imutáveis e definidos na criação (`schemas/ipm/user/desired`).
     """
     if desired.get("lifecycle") == "absent":
         return presence == "absent"
     return (
         presence == "present"
         and observed is not None
-        and sorted(observed.get("permissions") or []) == sorted(desired.get("permissions") or [])
+        and sorted(observed.get("permissions") or [])
+        == sorted(observed.get("effectivePermissions") or [])
         and observed.get("deletionProtection") == (desired.get("deletionProtection", False) is True)
     )

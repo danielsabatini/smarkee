@@ -16,10 +16,9 @@ from support_manager import (
     unique_suffix,
 )
 
-from ipm_user.common.catalog import AccessCatalog
 from ipm_user.common.contracts import generated
 from ipm_user.manager.domain.errors import PermanentMessageError
-from ipm_user.manager.domain.kind import USER, user_kind
+from ipm_user.manager.domain.kind import USER
 from ipm_user.manager.domain.outcome import OutcomeKind, RejectionReason
 from ipm_user.manager.handlers.requested import RequestedHandler
 
@@ -120,7 +119,6 @@ async def test_create_is_accepted_and_publishes_desired(
         "lifecycle": "present",
         **specification,
         "groups": [],
-        "permissions": ["ipm.user.get", "ipm.user.list"],
     }
 
     operations = await fetch_all(
@@ -151,7 +149,6 @@ async def test_create_is_accepted_and_publishes_desired(
         "reconciliation": "active",
         **specification,
         "groups": [],
-        "permissions": ["ipm.user.get", "ipm.user.list"],
     }
 
 
@@ -174,34 +171,6 @@ async def test_same_operation_with_other_digest_is_flagged_and_original_prevails
     outcome = await handle(user_manager, other)
     assert outcome.kind is OutcomeKind.DUPLICATE and outcome.digest_mismatch
     assert await resource_row(user_manager, other["resourceId"]) is None
-
-
-async def test_a_role_outside_the_module_is_rejected_without_changing_anything(
-    cleanup: Cleanup, user_manager: Connection, outbox_reader: Connection
-) -> None:
-    # Simula um catálogo que expande para uma permissão fora do módulo `ipm.`
-    custom_catalog = AccessCatalog(
-        grantable_permissions=["core.account.get", "ipm.user.get"],
-        roles={"custom.alienRole": ["core.account.get"]},
-    )
-    custom_kind = user_kind(catalog=custom_catalog)
-    message = create_message(cleanup, roles=["custom.alienRole"])
-    outcome = await handler.handle(ssot(user_manager), custom_kind, message)
-
-    assert (outcome.kind, outcome.reason) == (OutcomeKind.REJECTED, RejectionReason.VALIDATION)
-    assert await resource_row(user_manager, message["resourceId"]) is None
-    assert await outbox(outbox_reader, message["resourceId"]) == []
-    recorded = await fetch_one(
-        user_manager,
-        "SELECT operation_status, operation_status_reason, desired_generation"
-        " FROM ipm.user_operation WHERE operation_id = %s",
-        message["data"]["operationId"],
-    )
-    assert recorded == {
-        "operation_status": "rejected",
-        "operation_status_reason": "validation",
-        "desired_generation": None,
-    }
 
 
 async def test_the_email_is_unique_within_the_organization_only(
@@ -277,7 +246,7 @@ async def test_update_of_roles_bumps_generation_and_version_and_publishes(
         "Reconciling",
     )
     assert row["desired"]["roles"] == roles
-    assert "ipm.user.bind" in row["desired"]["permissions"]
+    assert "permissions" not in row["desired"]  # as efetivas são do Controller (decisão 0097)
     messages = await outbox(outbox_reader, create["resourceId"])
     assert [item["payload"]["desiredGeneration"] for item in messages] == [1, 2]
 

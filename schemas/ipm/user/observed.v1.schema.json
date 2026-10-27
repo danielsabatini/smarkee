@@ -24,6 +24,12 @@
       "x-writer": "server",
       "x-sensitivity": "internal"
     },
+    "effectivePermissions": {
+      "$ref": "definitions.v1.schema.json#/$defs/permissions",
+      "description": "Permissões efetivas que o Controller calculou das `roles` e dos `groups` do usuário a partir do catálogo (decisão 0097) e que reconcilia no provedor. Não fazem parte do `desired`: mudar uma Role ou um Grupo as recalcula sem nova geração.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
     "groups": {
       "$ref": "definitions.v1.schema.json#/$defs/groups",
       "description": "Grupos de usuários aos quais o usuário pertence lidos do metadado `groups` no provedor de identidade (decisão 0088).",

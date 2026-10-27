@@ -66,14 +66,18 @@ def test_unknown_presence_defers_decision() -> None:
 
 
 def test_check_is_converged_matches_the_decision() -> None:
-    desired_doc = {
-        "lifecycle": "present",
+    desired_doc = {"lifecycle": "present", "deletionProtection": False}
+    observed_doc = {
         "permissions": ["ipm.user.get"],
+        "effectivePermissions": ["ipm.user.get"],
         "deletionProtection": False,
     }
-    observed_doc = {"permissions": ["ipm.user.get"], "deletionProtection": False}
     assert check_is_converged(desired_doc, "present", observed_doc) is True
     assert check_is_converged(desired_doc, "present", {**observed_doc, "permissions": []}) is False
+    assert (
+        check_is_converged(desired_doc, "present", {**observed_doc, "effectivePermissions": []})
+        is False
+    )
     assert check_is_converged(desired_doc, "present", {"permissions": ["ipm.user.get"]}) is False
     assert check_is_converged({"lifecycle": "absent"}, "absent", None) is True
     assert check_is_converged(desired_doc, "unknown", None) is False

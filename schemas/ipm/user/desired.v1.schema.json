@@ -16,8 +16,7 @@
   "required": [
     "lifecycle",
     "reconciliation",
-    "organizationId",
-    "permissions"
+    "organizationId"
   ],
   "properties": {
     "lifecycle": {
@@ -42,17 +41,9 @@
       "x-managed": false,
       "x-sensitivity": "internal"
     },
-    "permissions": {
-      "$ref": "definitions.v1.schema.json#/$defs/permissions",
-      "description": "Permissões da plataforma que o usuário deve ter na Organization, por autorização no Project Grant dela (decisão 0077). Inclui as permissões diretas e as expandidas a partir de roles (decisão 0083).",
-      "x-writer": "client",
-      "x-mutability": "mutable",
-      "x-managed": true,
-      "x-sensitivity": "internal"
-    },
     "roles": {
       "$ref": "definitions.v1.schema.json#/$defs/roles",
-      "description": "Roles compostas atribuídas diretamente ao usuário na Organization (decisão 0083). São expandidas pelo Manager em permissions e não criam objetos no provedor de identidade.",
+      "description": "Roles compostas atribuídas diretamente ao usuário na Organization (decisão 0083). São expandidas pelo Controller em permissões efetivas (`observed.effectivePermissions`, decisão 0097) e não criam objetos no provedor de identidade.",
       "x-writer": "client",
       "x-mutability": "mutable",
       "x-managed": false,
@@ -60,7 +51,7 @@
     },
     "groups": {
       "$ref": "definitions.v1.schema.json#/$defs/groups",
-      "description": "Grupos de usuários aos quais o usuário pertence na Organization (decisão 0088). Suas roles são expandidas transitivamente pelo Manager em permissions e o conjunto é gravado em metadados no provedor.",
+      "description": "Grupos de usuários aos quais o usuário pertence na Organization (decisão 0088). Suas roles são expandidas transitivamente pelo Controller em permissões efetivas (decisão 0097) e o conjunto é gravado em metadados no provedor.",
       "x-writer": "client",
       "x-mutability": "mutable",
       "x-managed": false,

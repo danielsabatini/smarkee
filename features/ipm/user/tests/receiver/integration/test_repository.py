@@ -19,7 +19,7 @@ async def test_user_is_read_through_the_view(
 
     assert record is not None
     assert (record.resource_version, record.desired_generation, record.phase) == (1, 1, "Pending")
-    assert record.desired["permissions"] == ["ipm.user.get"]
+    assert record.desired["roles"] == ["ipm.userViewer"]
     assert record.presence is None and record.observed is None
     assert await repository.get_user("inexistente") is None
 

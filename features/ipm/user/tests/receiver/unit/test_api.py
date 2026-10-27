@@ -84,10 +84,8 @@ def user(
         "organizationId": organization_id,
         "roles": roles if roles is not None else ["ipm.userViewer"],
         "groups": groups if groups is not None else [],
-        "permissions": (
-            permissions if permissions is not None else ["ipm.user.get", "ipm.user.list"]
-        ),
     }
+    effective = permissions if permissions is not None else ["ipm.user.get", "ipm.user.list"]
     if lifecycle == "present":
         desired |= {"givenName": "Bia", "familyName": "Lima", "email": f"{resource_id}@x.com"}
     if protected is not None:
@@ -103,7 +101,8 @@ def user(
         desired=desired,
         presence="present",
         observed={
-            "permissions": desired["permissions"],
+            "permissions": effective,
+            "effectivePermissions": effective,
             "userState": "active",
             "emailVerified": True,
         },

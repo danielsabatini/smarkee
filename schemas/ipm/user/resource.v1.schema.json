@@ -53,8 +53,7 @@
       "required": [
         "lifecycle",
         "reconciliation",
-        "organizationId",
-        "permissions"
+        "organizationId"
       ],
       "x-writer": "server",
       "x-sensitivity": "confidential",
@@ -71,11 +70,6 @@
         },
         "organizationId": {
           "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
-          "x-writer": "server",
-          "x-sensitivity": "internal"
-        },
-        "permissions": {
-          "$ref": "definitions.v1.schema.json#/$defs/permissions",
           "x-writer": "server",
           "x-sensitivity": "internal"
         },
@@ -145,6 +139,12 @@
         },
         "permissions": {
           "$ref": "definitions.v1.schema.json#/$defs/permissions",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "effectivePermissions": {
+          "$ref": "definitions.v1.schema.json#/$defs/permissions",
+          "description": "Permissões efetivas que o Controller calculou das `roles` e dos `groups` do usuário a partir do catálogo (decisão 0097) e que reconcilia no provedor. Não fazem parte do `desired`: mudar uma Role ou um Grupo as recalcula sem nova geração.",
           "x-writer": "server",
           "x-sensitivity": "internal"
         },

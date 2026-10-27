@@ -137,6 +137,19 @@ class AccessCatalog:
             roles.update(self._groups.get((organization_id, g_name), ()))
         return sorted(roles)
 
+    def groups_with_role(self, role_name: str) -> list[tuple[str, str]]:
+        """Grupos `(organização, nome)` que atribuem a Role: os afetados por uma mudança dela."""
+        return sorted(key for key, roles in self._groups.items() if role_name in roles)
+
+    def role_name_of(self, resource_id: str) -> str | None:
+        """Nome da Role do `ipm.role` conhecido por `resource_id` (a última vez que foi visto)."""
+        key = self._role_keys_by_id.get(resource_id)
+        return key[1] if key is not None else None
+
+    def group_key_of(self, resource_id: str) -> tuple[str, str] | None:
+        """Chave `(organização, nome)` do `ipm.group` conhecido por `resource_id`."""
+        return self._group_keys_by_id.get(resource_id)
+
     def is_group_known(self, organization_id: str, group_name: str) -> bool:
         """Informa se o grupo está registrado na Organization."""
         return (organization_id, group_name) in self._groups

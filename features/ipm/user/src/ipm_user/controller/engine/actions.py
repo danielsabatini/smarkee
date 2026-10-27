@@ -4,8 +4,8 @@ Compõe os drivers de `drivers/` (usuário, autorização e metadado); não cham
 Cada operação é idempotente e usa o `resourceId` como ID do usuário, criado na organização do
 cliente (`organizationId`). A criação não envia nem recebe senha: o Zitadel envia o e-mail de
 verificação, cuja página também define a senha (um e-mail só). A senha nunca passa por CLI,
-Receiver, SSOT nem NATS. As permissões são as do `desired`, exatamente: as que sobrarem no provedor
-são revogadas.
+Receiver, SSOT nem NATS. As permissões são as efetivas (calculadas do catálogo; decisão 0097),
+exatamente: as que sobrarem no provedor são revogadas.
 """
 
 import json
@@ -30,6 +30,7 @@ async def execute(
     operation: str,
     user_id: str,
     desired: Mapping[str, Any],
+    permissions: frozenset[str],
     *,
     users: UserDriver,
     authorizations: AuthorizationDriver,
@@ -37,10 +38,10 @@ async def execute(
 ) -> None:
     match operation:
         case "create":
-            await _create(user_id, desired, users, authorizations)
+            await _create(user_id, desired, permissions, users, authorizations)
             await _ensure_metadata(user_id, desired, metadata)
         case "update":
-            await _update(user_id, desired, users, authorizations)
+            await _update(user_id, desired, permissions, users, authorizations)
             await _ensure_metadata(user_id, desired, metadata)
         case "delete":
             await users.delete_user(user_id)  # ausente é sucesso idempotente
@@ -57,23 +58,14 @@ def _organization_of(desired: Mapping[str, Any]) -> str:
     return organization_id
 
 
-def _permissions_of(desired: Mapping[str, Any]) -> frozenset[str]:
-    permissions: Any = desired.get("permissions")
-    if not isinstance(permissions, list):
-        raise ActionFailedError(
-            "Rejected", retryable=False, message="desired without the permissions"
-        )
-    return frozenset(str(permission) for permission in cast("list[Any]", permissions))
-
-
 async def _create(
     user_id: str,
     desired: Mapping[str, Any],
+    permissions: frozenset[str],
     users: UserDriver,
     authorizations: AuthorizationDriver,
 ) -> None:
     organization_id = _organization_of(desired)
-    permissions = _permissions_of(desired)
     given_name, family_name, email = (
         str(desired.get("givenName", "")),
         str(desired.get("familyName", "")),
@@ -111,6 +103,7 @@ async def _create(
 async def _update(
     user_id: str,
     desired: Mapping[str, Any],
+    permissions: frozenset[str],
     users: UserDriver,
     authorizations: AuthorizationDriver,
 ) -> None:
@@ -122,7 +115,7 @@ async def _update(
         raise ActionFailedError(
             "Rejected", retryable=False, message="user belongs to another organization"
         )
-    await _ensure_permissions(user_id, organization_id, _permissions_of(desired), authorizations)
+    await _ensure_permissions(user_id, organization_id, permissions, authorizations)
 
 
 async def _ensure_permissions(
@@ -131,7 +124,7 @@ async def _ensure_permissions(
     expected: frozenset[str],
     authorizations: AuthorizationDriver,
 ) -> None:
-    """Deixa o usuário com exatamente as permissões do `desired` em `roles-ipm`.
+    """Deixa o usuário com exatamente as permissões efetivas em `roles-ipm`.
 
     Uma autorização por usuário: criada quando há permissões, atualizada quando difere e removida
     quando o `desired` não tem nenhuma.

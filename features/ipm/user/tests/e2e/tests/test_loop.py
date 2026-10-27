@@ -126,8 +126,8 @@ async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_t
     resource_id = str(uuid.uuid7())
     created.append(resource_id)
 
-    # 1. Criação: o usuário nasce na Organization, sem senha. As `roles` são expandidas pelo Manager
-    # em permissões atômicas (decisão 0085); o pedido não leva permissões diretas.
+    # 1. Criação: o usuário nasce na Organization, sem senha. As `roles` são expandidas pelo
+    # Controller em permissões efetivas (decisões 0085 e 0097); o `desired` guarda só a intenção.
     await send(
         jetstream,
         request(
@@ -143,13 +143,14 @@ async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_t
     observed = await observed_where(resource_id, lambda m: m.get("presence") == "present")
     assert_valid("ipm/user/observed.v1.schema.json", observed["data"])
     assert desired["data"]["roles"] == ["ipm.userViewer"]
-    assert desired["data"]["permissions"] == ["ipm.user.get", "ipm.user.list"]
+    assert "permissions" not in desired["data"]
     assert observed["data"]["permissions"] == ["ipm.user.get", "ipm.user.list"]
+    assert observed["data"]["effectivePermissions"] == ["ipm.user.get", "ipm.user.list"]
     assert observed["data"]["deletionProtection"] is False  # nasce desprotegido (decisão 0077)
     assert observed["data"]["userState"] == "initial"  # ativa pelo e-mail, sem senha
     assert "email" not in observed["data"]  # o observado não traz dado pessoal
 
-    # 2. Roles: o Manager re-expande e o Controller deixa no Zitadel exatamente as do `desired`.
+    # 2. Roles: o Controller recalcula as efetivas e deixa no Zitadel exatamente essas.
     version = await settled_version(resource_id)
     permissions = [
         "ipm.user.bind",
@@ -169,7 +170,11 @@ async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_t
     )
     await confirmed(jetstream, resource_id, 2)
     observed = await observed_where(
-        resource_id, lambda m: m["data"].get("permissions") == permissions
+        resource_id,
+        lambda m: (
+            m["data"].get("permissions") == permissions
+            and m["data"].get("effectivePermissions") == permissions
+        ),
     )
 
     # 3. Proteção: gravada como metadado no usuário e observada de volta (decisão 0074).
@@ -192,12 +197,12 @@ async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_t
 async def test_a_role_permission_outside_the_grant_is_not_granted(
     jetstream: JetStreamContext, created: list[str], organization_id: str
 ) -> None:
-    """O Project Grant é o teto (decisão 0077): o Manager só expande permissões delegáveis.
+    """O Project Grant é o teto (decisão 0077): o Controller só expande permissões delegáveis.
 
     `ipm.organizationAdmin` traz `ipm.organization.create` e `ipm.organization.delete`, que existem
-    no `roles-ipm` mas não são delegáveis à Organization (decisão 0092); ficam de fora do `desired`
-    e, portanto, do Zitadel. A recusa do provedor (`Rejected`) deixou de ser alcançável por esse
-    caminho.
+    no `roles-ipm` mas não são delegáveis à Organization (decisão 0092); ficam de fora das
+    permissões efetivas e, portanto, do Zitadel. A recusa do provedor (`Rejected`) deixou de ser
+    alcançável por esse caminho.
     """
     resource_id = str(uuid.uuid7())
     created.append(resource_id)
@@ -213,6 +218,8 @@ async def test_a_role_permission_outside_the_grant_is_not_granted(
     desired = await last(jetstream, "desired", resource_id)
     assert_valid("ipm/user/desired.v1.schema.json", desired["data"])
     granted = ["ipm.organization.get", "ipm.organization.list", "ipm.organization.update"]
-    assert desired["data"]["permissions"] == granted
-    observed = await observed_where(resource_id, lambda m: m.get("presence") == "present")
+    assert "permissions" not in desired["data"]
+    observed = await observed_where(
+        resource_id, lambda m: m["data"].get("effectivePermissions") == granted
+    )
     assert observed["data"]["permissions"] == granted

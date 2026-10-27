@@ -1,6 +1,6 @@
 """Entrypoint do Manager de User (`ipm-user-manager`, decisões 0015, 0019 e 0063).
 
-Consome `requested` e os catálogos (`DESIRED`) e escreve no SSOT; só insere no outbox. A
+Consome `requested` e escreve no SSOT; só insere no outbox. A
 publicação do outbox é do Publisher (`../publisher`). Só inicializa e encerra: valida a
 configuração, abre as conexões e roda os consumers.
 """
@@ -10,11 +10,9 @@ import sys
 
 from ipm_user.common.database import open_pool
 from ipm_user.common.lifecycle import start_role
-from ipm_user.common.messaging import StateConsumer, new_instance_name
 from ipm_user.common.runtime import role_runtime
 from ipm_user.manager.domain.kind import user_kind
 from ipm_user.manager.handlers.requested import RequestedHandler
-from ipm_user.manager.handlers.role_rollout import RoleCatalogWatcher
 from ipm_user.manager.settings import UserManagerSettings, missing_required
 from ipm_user.manager.transport.consumers import RequestedConsumer
 
@@ -26,48 +24,6 @@ async def run(settings: UserManagerSettings) -> int:
         pool = await open_pool(settings.database)
         runtime.close_after(pool.close)
         kind = user_kind()
-        catalog_consumers: dict[str, StateConsumer] = {}
-
-        def is_catalog_synced() -> bool:
-            return bool(catalog_consumers) and all(c.is_synced for c in catalog_consumers.values())
-
-        watcher = RoleCatalogWatcher(
-            pool,
-            kind,
-            is_synced=is_catalog_synced,
-            debounce_seconds=0.2,
-        )
-        instance = new_instance_name()
-        catalog_consumers["permissions"] = StateConsumer(
-            runtime.stream,
-            watcher,
-            durable=f"ipm-user-manager-permissions-{instance}",
-            stream="DESIRED",
-            filter_subject="manager.desired.ipm.permission.>",
-            inactive_threshold_seconds=300,
-            traced=False,
-            on_cycle=runtime.health.beat,
-        )
-        catalog_consumers["roles"] = StateConsumer(
-            runtime.stream,
-            watcher,
-            durable=f"ipm-user-manager-roles-{instance}",
-            stream="DESIRED",
-            filter_subject="manager.desired.ipm.role.>",
-            inactive_threshold_seconds=300,
-            traced=False,
-            on_cycle=runtime.health.beat,
-        )
-        catalog_consumers["groups"] = StateConsumer(
-            runtime.stream,
-            watcher,
-            durable=f"ipm-user-manager-groups-{instance}",
-            stream="DESIRED",
-            filter_subject="manager.desired.ipm.group.>",
-            inactive_threshold_seconds=300,
-            traced=False,
-            on_cycle=runtime.health.beat,
-        )
         consumers = {
             "requested": RequestedConsumer(
                 runtime.stream,
@@ -76,7 +32,6 @@ async def run(settings: UserManagerSettings) -> int:
                 handler=RequestedHandler(),
                 on_cycle=runtime.health.beat,
             ),
-            **catalog_consumers,
         }
         for name, consumer in consumers.items():
             runtime.start(name, consumer.run(runtime.stop))

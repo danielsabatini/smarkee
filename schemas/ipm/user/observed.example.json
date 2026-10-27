@@ -5,5 +5,9 @@
     "ipm.organization.get",
     "ipm.user.get"
   ],
-  "deletionProtection": false
+  "deletionProtection": false,
+  "effectivePermissions": [
+    "ipm.organization.get",
+    "ipm.user.get"
+  ]
 }

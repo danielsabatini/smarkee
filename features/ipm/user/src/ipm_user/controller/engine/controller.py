@@ -20,10 +20,12 @@ from typing import Any, cast
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
+from ipm_user.common.catalog import AccessCatalog
 from ipm_user.common.contracts.envelope import read_envelope
 from ipm_user.common.ids import new_identifier, utc_now
 from ipm_user.common.logging_config import bind_context, restore_context, save_context
 from ipm_user.common.resource import MODULE, RESOURCE_TYPE
+from ipm_user.controller.domain.access import MembershipIndex, effective_permissions
 from ipm_user.controller.domain.convergence import (
     ObservedDecision,
     check_is_converged,
@@ -55,7 +57,7 @@ def owns(resource_id: str, index: int, count: int) -> bool:
 
 
 def _strings(value: object) -> frozenset[str]:
-    """Os itens de uma lista do `desired` ou do `observed` como conjunto de texto."""
+    """Os itens de uma lista do `observed` como conjunto de texto."""
     if not isinstance(value, list):
         return frozenset()
     return frozenset(str(item) for item in cast("list[object]", value))
@@ -77,6 +79,7 @@ class UserController:
         *,
         clock: Callable[[], datetime] = utc_now,
         identifiers: Callable[[], str] = new_identifier,
+        catalog: AccessCatalog | None = None,
     ) -> None:
         self._pool = pool
         self._drivers = drivers
@@ -85,10 +88,20 @@ class UserController:
         self._identifiers = identifiers
         self._workqueue = Workqueue()
         self._stop = asyncio.Event()
+        self._catalog = catalog if catalog is not None else AccessCatalog()
+        self._members = MembershipIndex()
 
     @property
     def workqueue(self) -> Workqueue:
         return self._workqueue
+
+    @property
+    def catalog(self) -> AccessCatalog:
+        return self._catalog
+
+    @property
+    def members(self) -> MembershipIndex:
+        return self._members
 
     def owns_resource(self, resource_id: str) -> bool:
         return owns(
@@ -113,14 +126,53 @@ class UserController:
             )
             return None
 
-        if envelope.module != MODULE or envelope.resource_type != RESOURCE_TYPE:
+        if envelope.module != MODULE:
+            return None
+        if envelope.resource_type != RESOURCE_TYPE:
+            self._apply_catalog(envelope.resource_type, envelope.resource_id, envelope.data)
             return None
 
         resource_id = envelope.resource_id
         if self.owns_resource(resource_id):
+            self._members.apply(resource_id, envelope.data)
             self._workqueue.add(resource_id)
             return resource_id
         return None
+
+    def _apply_catalog(self, resource_type: str, resource_id: str, data: Mapping[str, Any]) -> None:
+        """Aplica a mudança de catálogo e reenfileira só os usuários afetados (decisão 0097)."""
+        if resource_type == "role":
+            before = self._catalog.role_name_of(resource_id)
+            if not self._catalog.apply_role_desired(resource_id, data):
+                return
+            names = {name for name in (before, self._catalog.role_name_of(resource_id)) if name}
+            affected: set[str] = set()
+            for name in names:
+                affected |= self._members.with_role(name, self._catalog)
+        elif resource_type == "group":
+            before_key = self._catalog.group_key_of(resource_id)
+            if not self._catalog.apply_group_desired(resource_id, data):
+                return
+            keys = {k for k in (before_key, self._catalog.group_key_of(resource_id)) if k}
+            affected = set()
+            for organization_id, group_name in keys:
+                affected |= self._members.in_group(organization_id, group_name)
+        elif resource_type == "permission":
+            if not self._catalog.apply_permission_desired(resource_id, data):
+                return
+            affected = self._members.with_any_access()
+        else:
+            return
+        for member_id in affected:
+            self._workqueue.add(member_id)
+        if affected:
+            logger.info(
+                "catalog change requeued users",
+                extra={
+                    "smarkee.resource.type": resource_type,
+                    "smarkee.users.affected": len(affected),
+                },
+            )
 
     async def run_periodic_reevaluation(self) -> None:
         """Enfileira periodicamente todos os recursos da partição para detectar drift externo."""
@@ -224,14 +276,29 @@ class UserController:
             metadata=self._drivers.metadata,
         )
 
+    @staticmethod
+    def _with_effective(
+        observation: ObservationResult, permissions: frozenset[str]
+    ) -> ObservationResult:
+        """Acrescenta ao `observed` as permissões efetivas que o Controller calculou (0097)."""
+        if observation.presence != "present":
+            return observation
+        data = {**observation.data, "effectivePermissions": sorted(permissions)}
+        return ObservationResult(observation.presence, data)
+
     async def _act(
-        self, resource_id: str, desired: Mapping[str, Any], operation: str
+        self,
+        resource_id: str,
+        desired: Mapping[str, Any],
+        permissions: frozenset[str],
+        operation: str,
     ) -> ActionFailedError | None:
         try:
             await execute(
                 operation,
                 resource_id,
                 desired,
+                permissions,
                 users=self._drivers.users,
                 authorizations=self._drivers.authorizations,
                 metadata=self._drivers.metadata,
@@ -250,11 +317,12 @@ class UserController:
         lifecycle: str = row["lifecycle"]
         now = self._clock()
 
-        observation = await self._observe(resource_id)
+        permissions = effective_permissions(self._catalog, {**desired, "lifecycle": lifecycle})
+        observation = self._with_effective(await self._observe(resource_id), permissions)
         action = decide(
             DesiredState(
                 lifecycle=lifecycle,
-                permissions=_strings(desired.get("permissions")),
+                permissions=permissions,
                 deletion_protection=desired.get("deletionProtection", False) is True,
             ),
             ObservedState(
@@ -265,8 +333,9 @@ class UserController:
         )
         failure: ActionFailedError | None = None
         if action is not None:
-            failure = await self._act(resource_id, desired, action.operation)
-            observation = await self._observe(resource_id)  # reobserva logo após a ação
+            failure = await self._act(resource_id, desired, permissions, action.operation)
+            # reobserva logo após a ação
+            observation = self._with_effective(await self._observe(resource_id), permissions)
 
         # A observação é feita dentro do ciclo, depois da geração vigente: a confirma.
         decision = decide_observed(
