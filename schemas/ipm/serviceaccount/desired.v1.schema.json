@@ -18,7 +18,6 @@
     "reconciliation",
     "organizationId",
     "name",
-    "permissions",
     "keys"
   ],
   "properties": {
@@ -58,17 +57,9 @@
       "x-managed": true,
       "x-sensitivity": "public"
     },
-    "permissions": {
-      "$ref": "definitions.v1.schema.json#/$defs/permissions",
-      "description": "Permissões que a service account deve ter na Organization, por autorização no Project Grant dela. Inclui as diretas e as expandidas das roles.",
-      "x-writer": "client",
-      "x-mutability": "mutable",
-      "x-managed": true,
-      "x-sensitivity": "internal"
-    },
     "roles": {
       "$ref": "definitions.v1.schema.json#/$defs/roles",
-      "description": "Roles atribuídas diretamente; expandidas pelo Manager em permissions.",
+      "description": "Roles atribuídas diretamente; expandidas pelo Controller em `observed.effectivePermissions` (decisão 0097).",
       "x-writer": "client",
       "x-mutability": "mutable",
       "x-managed": false,

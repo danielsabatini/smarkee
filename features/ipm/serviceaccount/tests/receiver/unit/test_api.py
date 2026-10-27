@@ -121,15 +121,15 @@ def serviceaccount(
     keys: list[dict[str, str]] | None = None,
 ) -> ResourceRecord:
     """`protected=None` simula o registro sem o campo (vale protegido, decisão 0094)."""
+    effective = (
+        permissions
+        if permissions is not None
+        else ["ipm.serviceaccount.get", "ipm.serviceaccount.list"]
+    )
     desired: dict[str, Any] = {
         "lifecycle": lifecycle,
         "organizationId": organization_id,
         "roles": roles if roles is not None else ["ipm.serviceaccountViewer"],
-        "permissions": (
-            permissions
-            if permissions is not None
-            else ["ipm.serviceaccount.get", "ipm.serviceaccount.list"]
-        ),
         "keys": keys if keys is not None else [desired_key(KEY_A)],
     }
     if lifecycle == "present":
@@ -147,7 +147,8 @@ def serviceaccount(
         desired=desired,
         presence="present",
         observed={
-            "permissions": desired["permissions"],
+            "permissions": effective,
+            "effectivePermissions": effective,
             "userState": "active",
             "accessTokenType": "jwt",
             "keys": [

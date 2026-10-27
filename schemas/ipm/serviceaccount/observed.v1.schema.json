@@ -29,6 +29,12 @@
       "x-writer": "server",
       "x-sensitivity": "internal"
     },
+    "effectivePermissions": {
+      "$ref": "definitions.v1.schema.json#/$defs/permissions",
+      "description": "Permissões efetivas que o Controller calculou das `roles` da service account a partir do catálogo (decisão 0097) e que reconcilia no provedor. Não fazem parte do `desired`: mudar uma Role as recalcula sem nova geração.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
     "deletionProtection": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
       "description": "Lida do metadado deletionProtection (decisão 0074). Ausente quando o metadado não existe ou é inválido.",

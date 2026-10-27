@@ -42,7 +42,7 @@
       "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$"
     },
     "roles": {
-      "description": "Conjunto de Roles atribuídas à service account na Organization, sem repetição e em ordem alfabética. São expandidas pelo Manager em permissões atômicas no desired.",
+      "description": "Conjunto de Roles atribuídas à service account na Organization, sem repetição e em ordem alfabética. O Controller as expande em permissões atômicas (`observed.effectivePermissions`, decisão 0097).",
       "type": "array",
       "maxItems": 32,
       "uniqueItems": true,

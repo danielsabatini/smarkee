@@ -14,5 +14,9 @@
       "expiresAt": "2027-01-24T14:00:00Z",
       "status": "active"
     }
+  ],
+  "effectivePermissions": [
+    "ipm.organization.get",
+    "ipm.serviceaccount.get"
   ]
 }

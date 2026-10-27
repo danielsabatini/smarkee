@@ -166,6 +166,7 @@ async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_remo
     assert_valid("common/updated.v1.schema.json", updated["data"])
     desired = await last(jetstream, "desired", resource_id)
     assert_valid("ipm/serviceaccount/desired.v1.schema.json", desired["data"])
+    assert "permissions" not in desired["data"]  # o desired guarda só a intenção (decisão 0097)
     observed = await observed_where(
         resource_id,
         lambda m: m.get("presence") == "present" and bool(m["data"].get("keys")),
@@ -175,6 +176,7 @@ async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_remo
         "ipm.serviceaccount.get",
         "ipm.serviceaccount.list",
     ]
+    assert observed["data"]["effectivePermissions"] == observed["data"]["permissions"]
     assert observed["data"]["deletionProtection"] is False
     assert observed["data"]["accessTokenType"] == "jwt"
     assert [(k["fingerprint"], k["status"]) for k in observed["data"]["keys"]] == [
@@ -182,7 +184,7 @@ async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_remo
     ]
     assert "publicKey" not in json.dumps(observed["data"])  # o observado só traz identificadores
 
-    # 2. Roles: o Manager as expande em permissões; o Controller deixa no Zitadel as do `desired`.
+    # 2. Roles: o Controller as expande em permissões efetivas e deixa no Zitadel exatamente essas.
     version = await settled_version(resource_id)
     permissions = [
         "ipm.serviceaccount.bind",
@@ -201,7 +203,13 @@ async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_remo
         ),
     )
     await confirmed(jetstream, resource_id, 2)
-    await observed_where(resource_id, lambda m: m["data"].get("permissions") == permissions)
+    await observed_where(
+        resource_id,
+        lambda m: (
+            m["data"].get("permissions") == permissions
+            and m["data"].get("effectivePermissions") == permissions
+        ),
+    )
 
     # 3. Rotação: entra a segunda chave e a primeira sai; o mapa de fingerprints acompanha.
     second_key = desired_key()
@@ -264,8 +272,8 @@ async def test_the_whole_loop_creates_changes_permissions_keys_protects_and_remo
 async def test_a_role_grants_only_the_delegable_permissions_of_the_organization(
     jetstream: JetStreamContext, created: list[str], organization_id: str
 ) -> None:
-    """O teto é o Project Grant da Organization (decisão 0094): o Manager expande a role só nas
-    permissões delegáveis.
+    """O teto é o Project Grant da Organization (decisão 0094): o Controller expande a role só
+    nas permissões delegáveis.
 
     `ipm.organizationAdmin` inclui `create` e `delete` (escopo de conta), que ficam de fora.
     """

@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 
-from ipm_serviceaccount.common.catalog import AccessCatalog
 from ipm_serviceaccount.manager.domain.policy import ResourcePolicy
 from ipm_serviceaccount.manager.domain.serviceaccount import ServiceAccountPolicy
 
@@ -15,8 +14,8 @@ class ResourceKind:
     """A remoção convergida apaga o registro do SSOT (o padrão do loop)."""
 
 
-def serviceaccount_kind(catalog: AccessCatalog | None = None) -> ResourceKind:
-    return ResourceKind(resource_type="serviceaccount", policy=ServiceAccountPolicy(catalog))
+def serviceaccount_kind() -> ResourceKind:
+    return ResourceKind(resource_type="serviceaccount", policy=ServiceAccountPolicy())
 
 
 SERVICEACCOUNT = serviceaccount_kind()

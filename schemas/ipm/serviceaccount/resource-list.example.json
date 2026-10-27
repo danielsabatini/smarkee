@@ -21,10 +21,6 @@
         "organizationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
         "name": "ci-deploy",
         "description": "Pipeline de deploy",
-        "permissions": [
-          "ipm.organization.get",
-          "ipm.serviceaccount.get"
-        ],
         "roles": [
           "ipm.serviceaccountViewer"
         ],
@@ -44,6 +40,10 @@
         "accessTokenType": "jwt",
         "description": "Pipeline de deploy",
         "permissions": [
+          "ipm.organization.get",
+          "ipm.serviceaccount.get"
+        ],
+        "effectivePermissions": [
           "ipm.organization.get",
           "ipm.serviceaccount.get"
         ],

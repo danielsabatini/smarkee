@@ -19,10 +19,6 @@
     "organizationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
     "name": "ci-deploy",
     "description": "Pipeline de deploy",
-    "permissions": [
-      "ipm.organization.get",
-      "ipm.serviceaccount.get"
-    ],
     "roles": [
       "ipm.serviceaccountViewer"
     ],
@@ -53,6 +49,10 @@
         "expiresAt": "2027-01-24T14:00:00Z",
         "status": "active"
       }
+    ],
+    "effectivePermissions": [
+      "ipm.organization.get",
+      "ipm.serviceaccount.get"
     ]
   },
   "createdAt": "2026-10-21T14:00:00Z",

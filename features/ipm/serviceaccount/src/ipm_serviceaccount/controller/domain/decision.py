@@ -2,7 +2,8 @@
 
 Compara o estado pretendido (`desired`) com o observado (`observed`) e devolve a ação a executar
 (`create`, `update`, `delete`), ou `None` se já convergiu. Os campos gerenciados são `lifecycle`,
-`permissions`, `deletionProtection`, `keys` (por fingerprint) e `description`.
+`permissions` (as efetivas, do catálogo; decisão 0097), `deletionProtection`, `keys` (por
+fingerprint) e `description`.
 """
 
 from dataclasses import dataclass

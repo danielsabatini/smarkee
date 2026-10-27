@@ -545,14 +545,6 @@
             "title": "Organizationid",
             "type": "string"
           },
-          "permissions": {
-            "items": {
-              "$ref": "#/components/schemas/Permission"
-            },
-            "maxItems": 64,
-            "title": "Permissions",
-            "type": "array"
-          },
           "reconciliation": {
             "$ref": "#/components/schemas/Reconciliation"
           },
@@ -577,7 +569,6 @@
           "reconciliation",
           "organizationId",
           "name",
-          "permissions",
           "keys"
         ],
         "title": "ServiceAccountDesiredView",
@@ -724,6 +715,21 @@
               }
             ],
             "title": "Description"
+          },
+          "effectivePermissions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Permission"
+                },
+                "maxItems": 64,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effectivepermissions"
           },
           "keys": {
             "anyOf": [

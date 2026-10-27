@@ -40,7 +40,6 @@ def serviceaccount_view(record: ResourceRecord) -> generated.ServiceAccount:
         "reconciliation": record.reconciliation,
         "organizationId": desired["organizationId"],
         "name": desired["name"],
-        "permissions": desired.get("permissions", []),
         **({"description": desired["description"]} if "description" in desired else {}),
         **({"roles": desired["roles"]} if "roles" in desired else {}),
         # Na service account a proteção nasce ligada (decisão 0094).

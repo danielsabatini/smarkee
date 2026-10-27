@@ -37,7 +37,7 @@ async def seed_serviceaccount(
         "organizationId": organization,
         "name": f"repo-{unique_suffix()}",
         "keys": [],
-        "permissions": ["ipm.serviceaccount.get"],
+        "roles": ["ipm.serviceaccountViewer"],
         "deletionProtection": False,
     }
     await manager.execute(

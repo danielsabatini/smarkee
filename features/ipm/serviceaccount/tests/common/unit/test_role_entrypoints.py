@@ -93,7 +93,7 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
 
 async def test_the_manager_starts_one_task_per_consumer(runtime: FakeRuntime) -> None:
     assert await manager_main.run(ServiceaccountManagerSettings()) == 0
-    assert runtime.started == ["requested", "permissions", "roles"]
+    assert runtime.started == ["requested"]
     assert len(runtime.closers) == 1
 
 
@@ -119,7 +119,8 @@ async def test_the_controller_starts_informer_workers_and_periodic(
     runtime: FakeRuntime,
 ) -> None:
     assert await controller_main.run(ServiceAccountControllerSettings()) == 0
-    assert "desired" in runtime.started
+    for informer in ("desired", "permissions", "roles"):
+        assert informer in runtime.started
     assert "worker-0" in runtime.started
     assert "periodic" in runtime.started
     assert len(runtime.closers) == 2

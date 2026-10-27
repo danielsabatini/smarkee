@@ -522,6 +522,12 @@ class ServiceAccountObservedData(ContractModel):
     """
     Permissões que a service account tem hoje na Organization, lidas das autorizações dela.
     """
+    effective_permissions: Annotated[
+        list[Permission] | None, Field(alias="effectivePermissions", max_length=64)
+    ] = None
+    """
+    Permissões efetivas que o Controller calculou das `roles` da service account a partir do catálogo (decisão 0097) e que reconcilia no provedor. Não fazem parte do `desired`: mudar uma Role as recalcula sem nova geração.
+    """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
     Lida do metadado deletionProtection (decisão 0074). Ausente quando o metadado não existe ou é inválido.
@@ -562,7 +568,7 @@ class ServiceAccountCreateSpecification(ContractModel):
     """
     roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
     """
-    Conjunto de Roles atribuídas à service account na Organization, sem repetição e em ordem alfabética. São expandidas pelo Manager em permissões atômicas no desired.
+    Conjunto de Roles atribuídas à service account na Organization, sem repetição e em ordem alfabética. O Controller as expande em permissões atômicas (`observed.effectivePermissions`, decisão 0097).
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -657,7 +663,7 @@ class ServiceAccountUpdateSpecification(ContractModel):
     """
     roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
     """
-    Conjunto de Roles atribuídas à service account na Organization, sem repetição e em ordem alfabética. São expandidas pelo Manager em permissões atômicas no desired.
+    Conjunto de Roles atribuídas à service account na Organization, sem repetição e em ordem alfabética. O Controller as expande em permissões atômicas (`observed.effectivePermissions`, decisão 0097).
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -744,7 +750,7 @@ class ServiceAccountCreateRequest(ContractModel):
     """
     roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
     """
-    Conjunto de Roles atribuídas à service account na Organization, sem repetição e em ordem alfabética. São expandidas pelo Manager em permissões atômicas no desired.
+    Conjunto de Roles atribuídas à service account na Organization, sem repetição e em ordem alfabética. O Controller as expande em permissões atômicas (`observed.effectivePermissions`, decisão 0097).
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -778,7 +784,7 @@ class ServiceAccountUpdateRequest(ContractModel):
     """
     roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
     """
-    Conjunto de Roles atribuídas à service account na Organization, sem repetição e em ordem alfabética. São expandidas pelo Manager em permissões atômicas no desired.
+    Conjunto de Roles atribuídas à service account na Organization, sem repetição e em ordem alfabética. O Controller as expande em permissões atômicas (`observed.effectivePermissions`, decisão 0097).
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -823,13 +829,9 @@ class ServiceAccountDesiredView(ContractModel):
     """
     Descrição legível do propósito da service account.
     """
-    permissions: Annotated[list[Permission], Field(max_length=64)]
-    """
-    Conjunto de permissões, sem repetição e em ordem alfabética.
-    """
     roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
     """
-    Conjunto de Roles atribuídas à service account na Organization, sem repetição e em ordem alfabética. São expandidas pelo Manager em permissões atômicas no desired.
+    Conjunto de Roles atribuídas à service account na Organization, sem repetição e em ordem alfabética. O Controller as expande em permissões atômicas (`observed.effectivePermissions`, decisão 0097).
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -865,6 +867,12 @@ class ServiceAccountObservedView(ContractModel):
     permissions: Annotated[list[Permission] | None, Field(max_length=64)] = None
     """
     Conjunto de permissões, sem repetição e em ordem alfabética.
+    """
+    effective_permissions: Annotated[
+        list[Permission] | None, Field(alias="effectivePermissions", max_length=64)
+    ] = None
+    """
+    Permissões efetivas que o Controller calculou das `roles` da service account a partir do catálogo (decisão 0097) e que reconcilia no provedor. Não fazem parte do `desired`: mudar uma Role as recalcula sem nova geração.
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """
@@ -1147,13 +1155,9 @@ class ServiceAccountDesiredData(ContractModel):
     """
     Descrição legível do propósito da service account.
     """
-    permissions: Annotated[list[Permission], Field(max_length=64)]
-    """
-    Permissões que a service account deve ter na Organization, por autorização no Project Grant dela. Inclui as diretas e as expandidas das roles.
-    """
     roles: Annotated[list[RoleName] | None, Field(max_length=32)] = None
     """
-    Roles atribuídas diretamente; expandidas pelo Manager em permissions.
+    Roles atribuídas diretamente; expandidas pelo Controller em `observed.effectivePermissions` (decisão 0097).
     """
     deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
     """

@@ -3,6 +3,7 @@
 Unifica observação, decisão pura e execução idempotente com padrão Informer + Workqueue.
 """
 
+import asyncio
 import logging
 import sys
 from collections.abc import Sequence
@@ -51,24 +52,36 @@ async def run(settings: ServiceAccountControllerSettings) -> int:
         controller = ServiceAccountController(pool, drivers, settings)
         runtime.close_after(controller.shutdown)
 
-        # Informer do stream DESIRED
-        consumer = StateConsumer(
-            runtime.stream,
-            controller,
-            durable=f"ipm-serviceaccount-controller-desired-{instance}",
-            stream="DESIRED",
-            filter_subject="manager.desired.ipm.serviceaccount.>",
-            inactive_threshold_seconds=settings.messaging.consumer_inactive_threshold_seconds,
-            traced=False,
-            on_cycle=runtime.health.beat,
-        )
+        # Informers do stream DESIRED: o do próprio tipo e os catálogos que expandem as permissões
+        # (decisão 0097). Um consumer por instância reconstrói o estado completo na partida.
+        informers = {
+            name: StateConsumer(
+                runtime.stream,
+                controller,
+                durable=f"ipm-serviceaccount-controller-{name}-{instance}",
+                stream="DESIRED",
+                filter_subject=subject,
+                inactive_threshold_seconds=settings.messaging.consumer_inactive_threshold_seconds,
+                traced=False,
+                on_cycle=runtime.health.beat,
+            )
+            for name, subject in (
+                ("desired", "manager.desired.ipm.serviceaccount.>"),
+                ("permissions", "manager.desired.ipm.permission.>"),
+                ("roles", "manager.desired.ipm.role.>"),
+            )
+        }
+        for name, consumer in informers.items():
+            runtime.start(name, consumer.run(runtime.stop))
 
-        # Inicia o Informer (StateConsumer)
-        runtime.start("desired", consumer.run(runtime.stop))
+        async def run_worker_when_synced(worker_id: int) -> None:
+            # Um catálogo incompleto revogaria permissões no provedor: os workers só começam
+            # depois que todos os informers sincronizaram (WaitForCacheSync).
+            await asyncio.gather(*(consumer.wait_synced() for consumer in informers.values()))
+            await controller.run_worker(worker_id)
 
-        # Inicia os workers
         for worker_id in range(settings.loop.workers):
-            runtime.start(f"worker-{worker_id}", controller.run_worker(worker_id))
+            runtime.start(f"worker-{worker_id}", run_worker_when_synced(worker_id))
 
         # Inicia a reavaliação periódica
         runtime.start("periodic", controller.run_periodic_reevaluation())

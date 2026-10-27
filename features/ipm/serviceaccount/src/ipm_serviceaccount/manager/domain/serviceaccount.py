@@ -1,10 +1,10 @@
 """Regras de negócio da service account da Organization, aplicadas pelo Manager (decisão 0094).
 
-Puro: sem banco, rede ou relógio. O nome único na Organization, as permissões fora do módulo e a
-cota de service accounts por Organization são declarados aqui (`unique_value`, `invalid`,
-`owner_quota`) e verificados na mesma unidade atômica do pedido pelo adaptador do SSOT
-(`docs/data/SSOT.md` §10.1). O `desired` guarda só chaves **públicas** (com o fingerprint calculado
-pelo Receiver); a chave privada nunca chega ao servidor.
+Puro: sem banco, rede ou relógio. O nome único na Organization e a cota de service accounts por
+Organization são declarados aqui (`unique_value`, `owner_quota`) e verificados na mesma unidade
+atômica do pedido pelo adaptador do SSOT (`docs/data/SSOT.md` §10.1). O `desired` guarda só
+chaves **públicas** (com o fingerprint calculado pelo Receiver); a chave privada nunca chega ao
+servidor.
 """
 
 from collections.abc import Mapping
@@ -12,14 +12,14 @@ from typing import Any, cast
 
 from pydantic import ValidationError
 
-from ipm_serviceaccount.common.catalog import AccessCatalog
 from ipm_serviceaccount.common.contracts import generated
 from ipm_serviceaccount.common.contracts.base import ContractModel, fields_of, validate_tolerant
 from ipm_serviceaccount.manager.domain.errors import PermanentMessageError
 from ipm_serviceaccount.manager.domain.policy import OwnerQuota, Request, UniqueValue
 
-PERMISSION_MODULE_PREFIX = "ipm."
-"""O Executor só concede permissões do projeto `roles-ipm` (o Project Grant da Organization)."""
+LEGACY_DESIRED_FIELDS = ("permissions",)
+"""Campos que o `desired` já teve e não tem mais (decisão 0097): as permissões efetivas são
+calculadas pelo Controller. Registros gravados antes dela os descartam ao serem relidos."""
 
 
 def _validated[M: ContractModel](model: type[M], data: Mapping[str, Any], *, label: str) -> M:
@@ -61,13 +61,6 @@ def key_fingerprints(keys: object) -> list[str]:
 
 class ServiceAccountPolicy:
     """Service account da Organization: nome único nela, Organization imutável e cota por ela."""
-
-    def __init__(self, catalog: AccessCatalog | None = None) -> None:
-        self._catalog = catalog if catalog is not None else AccessCatalog()
-
-    @property
-    def catalog(self) -> AccessCatalog:
-        return self._catalog
 
     def parse(self, operation: str, data: Mapping[str, Any]) -> Request:
         match operation:
@@ -130,47 +123,32 @@ class ServiceAccountPolicy:
                     f"operação não suportada para serviceaccount: {operation}"
                 )
 
-    def _effective(self, organization_id: str, roles: list[str]) -> list[str]:
-        return self._catalog.expand_roles(roles, organization_id)
-
     def desired_for_create(self, request: Request, requested_by: str) -> dict[str, Any]:
         assert request.specification is not None  # noqa: S101 (invariante de parse)
+        # O `desired` guarda só a intenção: `roles`. As permissões efetivas são do Controller.
         spec = dict(request.specification)
-        organization_id = str(spec.get("organizationId", ""))
-        roles = [str(role) for role in spec.get("roles", [])]
         return {
             "lifecycle": "present",
             **spec,
-            "roles": roles,
-            "permissions": self._effective(organization_id, roles),
+            "roles": [str(role) for role in spec.get("roles", [])],
         }
 
     def desired_for_update(self, current: Mapping[str, Any], request: Request) -> dict[str, Any]:
         spec = dict(request.specification or {})
-        organization_id = str(current.get("organizationId", ""))
-        roles = [str(role) for role in spec.get("roles", current.get("roles", []))]
+        kept = {key: value for key, value in current.items() if key not in LEGACY_DESIRED_FIELDS}
         return {
-            **current,
+            **kept,
             **spec,
-            "roles": roles,
-            "permissions": self._effective(organization_id, roles),
+            "roles": [str(role) for role in spec.get("roles", current.get("roles", []))],
         }
-
-    def rolled_out(self, current: Mapping[str, Any]) -> dict[str, Any] | None:
-        """Re-expande `permissions` quando uma `ipm.role` ou `ipm.permission` muda (0083)."""
-        if current.get("lifecycle") != "present":
-            return None
-        roles = [str(role) for role in cast("list[Any]", current.get("roles") or [])]
-        if not roles:
-            return None
-        effective = self._effective(str(current.get("organizationId", "")), roles)
-        if current.get("permissions") == effective:
-            return None
-        return {**current, "permissions": effective}
 
     def desired_for_delete(self, current: Mapping[str, Any]) -> dict[str, Any]:
         # Com `lifecycle: absent`, o `desired` deixa de carregar as chaves públicas.
-        kept = {key: value for key, value in current.items() if key != "keys"}
+        kept = {
+            key: value
+            for key, value in current.items()
+            if key not in ("keys", *LEGACY_DESIRED_FIELDS)
+        }
         return {**kept, "lifecycle": "absent", "keys": []}
 
     def unique_value(self, desired: Mapping[str, Any]) -> UniqueValue | None:
@@ -188,11 +166,9 @@ class ServiceAccountPolicy:
         )
 
     def invalid(self, desired: Mapping[str, Any]) -> bool:
-        """Permissão fora do módulo `ipm`: o Executor não a concederia (o Receiver recusa antes)."""
-        permissions: list[str] = desired.get("permissions", [])
-        return any(
-            not permission.startswith(PERMISSION_MODULE_PREFIX) for permission in permissions
-        )
+        """Sem regra de valor recusado: as permissões efetivas não fazem parte do `desired`."""
+        _ = desired
+        return False
 
     def owner_quota(self, request: Request, desired: Mapping[str, Any]) -> OwnerQuota | None:
         """Cota de service accounts por Organization, só no create e só com limite do Receiver.
@@ -218,21 +194,3 @@ class ServiceAccountPolicy:
             {**desired, "reconciliation": reconciliation}
         )
         return model.model_dump(mode="json", by_alias=True, exclude_none=True)
-
-    def is_converged(
-        self, desired: Mapping[str, Any], presence: str, observed: Mapping[str, Any] | None
-    ) -> bool:
-        # Campos gerenciados: `lifecycle`, `permissions`, `description`, `deletionProtection` e
-        # `keys` (por fingerprint; chave vencida continua listada como `expired`). A Organization
-        # e o nome são imutáveis e definidos na criação (schemas/ipm/serviceaccount/desired).
-        if desired["lifecycle"] == "absent":
-            return presence == "absent"
-        return (
-            presence == "present"
-            and observed is not None
-            and sorted(observed.get("permissions") or [])
-            == sorted(desired.get("permissions") or [])
-            and observed.get("deletionProtection") == self.deletion_protected(desired)
-            and (observed.get("description") or None) == (desired.get("description") or None)
-            and key_fingerprints(observed.get("keys")) == key_fingerprints(desired.get("keys"))
-        )

@@ -391,16 +391,18 @@ def check_is_converged(
 ) -> bool:
     """Compara `desired` e `observed` pelos campos gerenciados da service account.
 
-    `lifecycle`, `permissions`, `description`, `deletionProtection` e `keys` (por fingerprint; a
-    chave vencida segue listada como `expired`). A Organization e o nome são imutáveis e definidos
-    na criação (`schemas/ipm/serviceaccount/desired`).
+    `lifecycle`, as permissões, `description`, `deletionProtection` e `keys` (por fingerprint; a
+    chave vencida segue listada como `expired`). As permissões do provedor (`observed.permissions`)
+    devem ser as efetivas (`observed.effectivePermissions`, decisão 0097). A Organization e o nome
+    são imutáveis e definidos na criação (`schemas/ipm/serviceaccount/desired`).
     """
     if desired.get("lifecycle") == "absent":
         return presence == "absent"
     return (
         presence == "present"
         and observed is not None
-        and sorted(observed.get("permissions") or []) == sorted(desired.get("permissions") or [])
+        and sorted(observed.get("permissions") or [])
+        == sorted(observed.get("effectivePermissions") or [])
         and observed.get("deletionProtection")
         == (desired.get("deletionProtection", True) is not False)
         and (observed.get("description") or None) == (desired.get("description") or None)

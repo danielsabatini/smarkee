@@ -20,10 +20,12 @@ from typing import Any, cast
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
+from ipm_serviceaccount.common.catalog import AccessCatalog
 from ipm_serviceaccount.common.contracts.envelope import read_envelope
 from ipm_serviceaccount.common.ids import new_identifier, utc_now
 from ipm_serviceaccount.common.logging_config import bind_context, restore_context, save_context
 from ipm_serviceaccount.common.resource import MODULE, RESOURCE_TYPE
+from ipm_serviceaccount.controller.domain.access import MembershipIndex, effective_permissions
 from ipm_serviceaccount.controller.domain.convergence import (
     ObservedDecision,
     check_is_converged,
@@ -56,7 +58,7 @@ def owns(resource_id: str, index: int, count: int) -> bool:
 
 
 def _strings(value: object) -> frozenset[str]:
-    """Os itens de uma lista do `desired` ou do `observed` como conjunto de texto."""
+    """Os itens de uma lista do `observed` como conjunto de texto."""
     if not isinstance(value, list):
         return frozenset()
     return frozenset(str(item) for item in cast("list[object]", value))
@@ -78,6 +80,7 @@ class ServiceAccountController:
         *,
         clock: Callable[[], datetime] = utc_now,
         identifiers: Callable[[], str] = new_identifier,
+        catalog: AccessCatalog | None = None,
     ) -> None:
         self._pool = pool
         self._drivers = drivers
@@ -86,10 +89,20 @@ class ServiceAccountController:
         self._identifiers = identifiers
         self._workqueue = Workqueue()
         self._stop = asyncio.Event()
+        self._catalog = catalog if catalog is not None else AccessCatalog()
+        self._members = MembershipIndex()
 
     @property
     def workqueue(self) -> Workqueue:
         return self._workqueue
+
+    @property
+    def catalog(self) -> AccessCatalog:
+        return self._catalog
+
+    @property
+    def members(self) -> MembershipIndex:
+        return self._members
 
     def owns_resource(self, resource_id: str) -> bool:
         return owns(
@@ -114,14 +127,44 @@ class ServiceAccountController:
             )
             return None
 
-        if envelope.module != MODULE or envelope.resource_type != RESOURCE_TYPE:
+        if envelope.module != MODULE:
+            return None
+        if envelope.resource_type != RESOURCE_TYPE:
+            self._apply_catalog(envelope.resource_type, envelope.resource_id, envelope.data)
             return None
 
         resource_id = envelope.resource_id
         if self.owns_resource(resource_id):
+            self._members.apply(resource_id, envelope.data)
             self._workqueue.add(resource_id)
             return resource_id
         return None
+
+    def _apply_catalog(self, resource_type: str, resource_id: str, data: Mapping[str, Any]) -> None:
+        """Aplica a mudança de catálogo e reenfileira só as service accounts afetadas (0097)."""
+        affected: set[str] = set()
+        if resource_type == "role":
+            before = self._catalog.role_name_of(resource_id)
+            if not self._catalog.apply_role_desired(resource_id, data):
+                return
+            for name in {n for n in (before, self._catalog.role_name_of(resource_id)) if n}:
+                affected |= self._members.with_role(name)
+        elif resource_type == "permission":
+            if not self._catalog.apply_permission_desired(resource_id, data):
+                return
+            affected = self._members.with_any_access()
+        else:
+            return  # grupos só valem para usuários
+        for member_id in affected:
+            self._workqueue.add(member_id)
+        if affected:
+            logger.info(
+                "catalog change requeued serviceaccounts",
+                extra={
+                    "smarkee.resource.type": resource_type,
+                    "smarkee.serviceaccounts.affected": len(affected),
+                },
+            )
 
     async def run_periodic_reevaluation(self) -> None:
         """Enfileira periodicamente todos os recursos da partição para detectar drift externo."""
@@ -227,14 +270,29 @@ class ServiceAccountController:
             metadata=self._drivers.metadata,
         )
 
+    @staticmethod
+    def _with_effective(
+        observation: ObservationResult, permissions: frozenset[str]
+    ) -> ObservationResult:
+        """Acrescenta ao `observed` as permissões efetivas que o Controller calculou (0097)."""
+        if observation.presence != "present":
+            return observation
+        data = {**observation.data, "effectivePermissions": sorted(permissions)}
+        return ObservationResult(observation.presence, data)
+
     async def _act(
-        self, resource_id: str, desired: Mapping[str, Any], operation: str
+        self,
+        resource_id: str,
+        desired: Mapping[str, Any],
+        permissions: frozenset[str],
+        operation: str,
     ) -> ActionFailedError | None:
         try:
             await execute(
                 operation,
                 resource_id,
                 desired,
+                permissions,
                 now=self._clock(),
                 machines=self._drivers.machines,
                 authorizations=self._drivers.authorizations,
@@ -254,11 +312,12 @@ class ServiceAccountController:
         lifecycle: str = row["lifecycle"]
         now = self._clock()
 
-        observation = await self._observe(resource_id)
+        permissions = effective_permissions(self._catalog, {**desired, "lifecycle": lifecycle})
+        observation = self._with_effective(await self._observe(resource_id), permissions)
         action = decide(
             DesiredState(
                 lifecycle=lifecycle,
-                permissions=_strings(desired.get("permissions")),
+                permissions=permissions,
                 deletion_protection=desired.get("deletionProtection", True) is not False,
                 key_fingerprints=frozenset(key_fingerprints(desired.get("keys"))),
                 description=desired.get("description") or None,
@@ -273,8 +332,9 @@ class ServiceAccountController:
         )
         failure: ActionFailedError | None = None
         if action is not None:
-            failure = await self._act(resource_id, desired, action.operation)
-            observation = await self._observe(resource_id)  # reobserva logo após a ação
+            failure = await self._act(resource_id, desired, permissions, action.operation)
+            # reobserva logo após a ação
+            observation = self._with_effective(await self._observe(resource_id), permissions)
 
         # A observação é feita dentro do ciclo, depois da geração vigente: a confirma.
         decision = decide_observed(
