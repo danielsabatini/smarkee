@@ -1,5 +1,7 @@
 # Resource Control Security
 
+> **Vigência (decisão [`0096`](../../.decisions/0096-unificacao-do-loop-de-reconciliacao-no-controller.md)):** `ipm/organization`, `ipm/serviceaccount` e `ipm/user` não têm mais Observer, Reconciler e Executor: um único processo `controller` observa, decide, age e reobserva numa transação, e os Streams `OBSERVED`, `ACTION` e `RESULT` e a tabela `<tipo>_action_result` não existem para eles. A identidade de provedor desses tipos é a conta do Controller (`ipm-<tipo>-controller`), com o menor privilégio dela; o Manager deixa de ter `DELETE` no recurso e `UPDATE` nas Operations. Este documento descreve o modelo com os três papéis, que segue valendo para os demais tipos até a etapa S6 do plano de evolução, que o reescreve.
+
 > **Escopo:** requisitos de segurança do padrão Resource Control Loop.
 >
 > **Papel:** Fonte de Verdade da segurança específica do control loop.

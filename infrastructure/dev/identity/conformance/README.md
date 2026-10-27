@@ -11,7 +11,7 @@ decisões 0010, 0014, 0026, 0027 e 0028 mandam, e não altera nada. Usa só a AP
 | Um projeto de roles por módulo; um Project Grant por projeto só com as roles de ação (sem `*.admin`) | 0027, 0032 |
 | Contas de serviço na `core`; Executor (`ORG_USER_CREATOR`) e Observer com papel só na `register`; Executor da Account `PROJECT_GRANT_OWNER` só nos Grants de `core` e `sum` | 0027, 0032 |
 | Contas de serviço do SUM: Executor `PROJECT_GRANT_OWNER` só no Grant de `roles-ipm`; Observer `ORG_OWNER_VIEWER` só na `register`; chaves de todas as contas de serviço válidas por mais de 90 dias | 0032, 0033 |
-| Administradores da instância (`platform-bootstrap`, `ipm-organization-executor`, `ipm-organization-observer`) | 0011 |
+| Administradores da instância (`platform-bootstrap`, `ipm-organization-controller`, `ipm-organization-executor`, `ipm-organization-observer`) | 0011 |
 | Desvio de configuração: os IDs dos `.env` (CLI, Account, SUM e Organization) batem com os da instância; um `.env` ausente é pulado | 0037 |
 | Na `core`, só operadores (cada autorização com uma `*.admin` e roles de ação); o operador padrão com todas as roles; a `register` sem projeto próprio | 0027, 0031 |
 

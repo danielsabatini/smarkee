@@ -291,7 +291,7 @@ Os contêineres de inicialização equivalem a *initContainers*: cada um executa
 
 NATS:
 
-- Os seis Streams operacionais de `docs/messaging/NATS.md` são `REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT` e `UPDATED`. O `nats-server` não declara Streams no `nats.conf`; por isso, a criação é pela CLI oficial (imagem mínima `smarkee-nats-client:dev`, em `infrastructure/tools/nats-client`).
+- Os seis Streams operacionais de `docs/messaging/NATS.md` (os tipos `ipm/organization`, `ipm/serviceaccount` e `ipm/user` só usam `REQUESTED`, `DESIRED` e `UPDATED` desde a decisão 0096) são `REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT` e `UPDATED`. O `nats-server` não declara Streams no `nats.conf`; por isso, a criação é pela CLI oficial (imagem mínima `smarkee-nats-client:dev`, em `infrastructure/tools/nats-client`).
 - **Todo arquivo novo em `messaging/bootstrap/` exige o seu serviço `messaging-bootstrap-<stream>`** em `messaging/compose.yaml` (âncora `x-messaging-bootstrap`); sem ele, o arquivo é ignorado.
 - O Stream `ACTION` é **particionado** por `resourceId` (`subject_transform` em `bootstrap/action.json`, 4 partições, decisão 0018): o Subject armazenado ganha o token da partição, e cada Executor tem um consumer por partição. Mudar o número de partições exige recriar o Stream e os consumers.
 - Stream inexistente é criado; existente com a mesma configuração não muda. Com configuração diferente, o contêiner falha (`stream name already in use with a different configuration`). Para aplicar a alteração de forma deliberada:
