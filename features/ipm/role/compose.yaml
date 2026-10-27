@@ -1,7 +1,7 @@
 name: ipm-role
 
-# Componentes de ipm.role (decisões 0015, 0019 e 0063): migração, consumers, Receiver, Manager,
-# Publisher, Reconciler, Observer e Executor.
+# Componentes de ipm.role (decisões 0015, 0019, 0063 e 0098): migração, API e Publisher. A Role é só
+# dado do SSOT (nada externo a materializa): não tem Controller nem plano de dados (S4).
 # A plataforma (banco, messaging, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
 # e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait messaging database gateway identity identity-login`,
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
@@ -22,7 +22,7 @@ x-deploy: &component-deploy
       cpus: "${IPM_ROLE_COMPONENT_CPUS:-0.5}"
       memory: ${IPM_ROLE_COMPONENT_MEMORY:-256M}
 
-# Imagem única da feature (decisão 0063): contém o código dos seis papéis, e cada serviço escolhe o
+# Imagem única da feature (decisão 0063): contém o código dos dois papéis, e cada serviço escolhe o
 # seu pelo `command`. Cada contêiner recebe só as variáveis e os segredos do seu papel.
 x-image: &component-image
   build:
@@ -30,43 +30,11 @@ x-image: &component-image
   image: ${IPM_ROLE_IMAGE:-smarkee-ipm-role:dev}
 
 services:
-  # Consumer durável de trabalho do Manager para `requested` do tipo (docs/messaging/NATS.md §7.6). O manifesto
-  # do Manager e o do Executor ficam em `consumers/`. Inexistente é criado; existente com configuração idêntica
-  # não muda; configuração diferente falha de forma explícita. Exige os Streams REQUESTED, OBSERVED
-  # e RESULT, criados pelo messaging da plataforma.
-  ipm-role-consumer:
-    build:
-      context: ../../../infrastructure/tools/nats-client
-    image: ${SMARKEE_MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}
-    container_name: ipm-role-consumer.smarkee.internal
-    environment:
-      NATS_URL: nats://messaging.smarkee.internal:4222
-      NATS_USER: ${SMARKEE_MESSAGING_USER:-smarkee}
-      NATS_PASSWORD: ${IPM_ROLE_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
-    command:
-      - sh
-      - -c
-      - >-
-        nats consumer add REQUESTED --config /consumers/ipm-role-manager-requested.json &&
-        nats consumer add OBSERVED --config /consumers/ipm-role-manager-observed.json &&
-        nats consumer add RESULT --config /consumers/ipm-role-manager-result.json &&
-        for partition in 0 1 2 3; do
-          nats consumer add ACTION --config /consumers/ipm-role-executor-action-p$$partition.json || exit 1;
-        done
-    volumes:
-      - ./consumers:/consumers:ro
-    networks:
-      - internal
-    restart: "no"
-
-  # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo em dois bancos,
-  # sempre como o dono de cada um e nunca com o papel de runtime:
-  #   1. features/ipm/role/migrations/*.sql, no banco `ssot` (SSOT), como `ssot`;
-  #   2. features/ipm/role/migrations/platform/*.sql, no banco `platform` (plano de dados do Executor e do
-  #      Observer, decisão 0086), como `platform`.
-  # O código das migrações do SSOT é do Manager (decisões 0015 e 0063); o do `platform`, do Executor.
-  # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/ipm.sql e o banco,
-  # de database/bootstrap/platform.sql.
+  # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo
+  # (features/ipm/role/migrations/*.sql, em ordem) como o dono `ssot`, no banco `ssot`.
+  # O código das migrações é da API (decisões 0015, 0063 e 0098); a execução é desta etapa de
+  # implantação, com o papel administrativo, e nunca com o papel de runtime da API.
+  # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/ipm.sql.
   ipm-role-migrate:
     build:
       context: ../../../infrastructure/tools/psql-client
@@ -82,11 +50,7 @@ services:
     command:
       - sh
       - -c
-      - >-
-        for migration in /migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1; done;
-        for migration in /migrations/platform/*.sql; do
-        PGDATABASE=platform PGUSER=platform PGPASSWORD=platform psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1;
-        done
+      - for migration in /migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1; done
     volumes:
       - ./migrations:/migrations:ro
     networks:
@@ -95,33 +59,33 @@ services:
           - ipm-role-migrate.smarkee.internal
     restart: "no"
 
-  # Receiver (`ipm-role-receiver`): só o gateway a alcança; a porta 8000 não é publicada no host.
-  ipm-role-receiver:
+  # API (`ipm-role-api`, decisão 0098): autentica, autoriza e admite a escrita de forma síncrona
+  # (recurso e `desired` no outbox, numa transação). Papel de banco `ipm_role_api`. Só o gateway a
+  # alcança; a porta 8000 não é publicada no host.
+  ipm-role-api:
     <<: *component-image
-    command: [ipm-role-receiver]
-    container_name: ipm-role-receiver.smarkee.internal
+    command: [ipm-role-api]
+    container_name: ipm-role-api.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
-      # defaults do componente (IPM_ROLE_RECEIVER_<SEÇÃO>_<CAMPO>).
-      IPM_ROLE_RECEIVER_AUTH_AUDIENCE: ${IPM_ROLE_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-ipm, org core)}
+      # defaults do componente (IPM_ROLE_API_<SEÇÃO>_<CAMPO>).
+      IPM_ROLE_API_AUTH_AUDIENCE: ${IPM_ROLE_API_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-ipm, org core)}
     secrets:
-      - IPM_ROLE_RECEIVER_DATABASE_PASSWORD
-      - IPM_ROLE_RECEIVER_MESSAGING_PASSWORD
+      - IPM_ROLE_API_DATABASE_PASSWORD
+      - IPM_ROLE_API_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
       ipm-role-migrate:
         condition: service_completed_successfully
-      ipm-role-consumer:
-        condition: service_completed_successfully
     networks:
       internal:
         aliases:
-          - ipm-role-receiver.smarkee.internal
+          - ipm-role-api.smarkee.internal
     restart: unless-stopped
     healthcheck: &component-healthcheck
       test:
@@ -133,115 +97,6 @@ services:
       timeout: 5s
       retries: 6
       start_period: 10s
-
-  # Manager (`ipm-role-manager`): único escritor do SSOT do tipo. Papel de banco
-  # `ipm_role_manager`, que só insere no outbox (decisão 0019).
-  ipm-role-manager:
-    <<: *component-image
-    command: [ipm-role-manager]
-    container_name: ipm-role-manager.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - IPM_ROLE_MANAGER_DATABASE_PASSWORD
-      - IPM_ROLE_MANAGER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      ipm-role-migrate:
-        condition: service_completed_successfully
-      ipm-role-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-role-manager.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Reconciler (`ipm-role-reconciler`): decide a `action` a partir de `desired` e `observed`.
-  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/messaging/NATS.md §7.4).
-  ipm-role-reconciler:
-    <<: *component-image
-    command: [ipm-role-reconciler]
-    container_name: ipm-role-reconciler.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - IPM_ROLE_RECONCILER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      ipm-role-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-role-reconciler.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Observer (`ipm-role-observer`): lê o estado da Role no banco `platform` (papel somente leitura) e
-  # publica `observed`. Não acessa o SSOT.
-  ipm-role-observer:
-    <<: *component-image
-    command: [ipm-role-observer]
-    container_name: ipm-role-observer.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - IPM_ROLE_OBSERVER_DATABASE_PASSWORD
-      - IPM_ROLE_OBSERVER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      ipm-role-consumer:
-        condition: service_completed_successfully
-      ipm-role-migrate:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-role-observer.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Executor (`ipm-role-executor`): único com escrita no estado da Role, no banco `platform` (decisões 0083 e
-  # 0086). Não acessa o SSOT.
-  ipm-role-executor:
-    <<: *component-image
-    command: [ipm-role-executor]
-    container_name: ipm-role-executor.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - IPM_ROLE_EXECUTOR_DATABASE_PASSWORD
-      - IPM_ROLE_EXECUTOR_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      ipm-role-consumer:
-        condition: service_completed_successfully
-      ipm-role-migrate:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-role-executor.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
 
   # Publisher (`ipm-role-publisher`): publica o outbox do tipo (uma instância ativa por trava
   # consultiva). Papel de banco `ipm_role_publisher`, que só lê o outbox e marca `published_at`, e
@@ -312,24 +167,10 @@ services:
 # Senhas montadas em /run/secrets/<VARIÁVEL> (arquivo somente leitura, lido pelo `SecretFilesSource`; decisão 0070).
 # A origem em dev é o .env; cada papel recebe só a sua. Em stg e prd a origem passa a ser o cofre de segredos.
 secrets:
-  IPM_ROLE_RECEIVER_DATABASE_PASSWORD:
-    environment: IPM_ROLE_RECEIVER_DATABASE_PASSWORD
-  IPM_ROLE_RECEIVER_MESSAGING_PASSWORD:
-    environment: IPM_ROLE_RECEIVER_MESSAGING_PASSWORD
-  IPM_ROLE_MANAGER_DATABASE_PASSWORD:
-    environment: IPM_ROLE_MANAGER_DATABASE_PASSWORD
-  IPM_ROLE_MANAGER_MESSAGING_PASSWORD:
-    environment: IPM_ROLE_MANAGER_MESSAGING_PASSWORD
-  IPM_ROLE_RECONCILER_MESSAGING_PASSWORD:
-    environment: IPM_ROLE_RECONCILER_MESSAGING_PASSWORD
-  IPM_ROLE_OBSERVER_DATABASE_PASSWORD:
-    environment: IPM_ROLE_OBSERVER_DATABASE_PASSWORD
-  IPM_ROLE_OBSERVER_MESSAGING_PASSWORD:
-    environment: IPM_ROLE_OBSERVER_MESSAGING_PASSWORD
-  IPM_ROLE_EXECUTOR_DATABASE_PASSWORD:
-    environment: IPM_ROLE_EXECUTOR_DATABASE_PASSWORD
-  IPM_ROLE_EXECUTOR_MESSAGING_PASSWORD:
-    environment: IPM_ROLE_EXECUTOR_MESSAGING_PASSWORD
+  IPM_ROLE_API_DATABASE_PASSWORD:
+    environment: IPM_ROLE_API_DATABASE_PASSWORD
+  IPM_ROLE_API_MESSAGING_PASSWORD:
+    environment: IPM_ROLE_API_MESSAGING_PASSWORD
   IPM_ROLE_PUBLISHER_DATABASE_PASSWORD:
     environment: IPM_ROLE_PUBLISHER_DATABASE_PASSWORD
   IPM_ROLE_PUBLISHER_MESSAGING_PASSWORD:

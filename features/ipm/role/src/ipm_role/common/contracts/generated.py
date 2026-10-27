@@ -47,6 +47,13 @@ class MessageOperation(StrEnum):
     noop = "noop"
 
 
+class RequestDigest(RootModel[str]):
+    root: Annotated[str, Field(max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")]
+    """
+    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
+    """
+
+
 class Duration(RootModel[timedelta]):
     root: timedelta
     """
@@ -232,133 +239,6 @@ class UpdatedData(ContractModel):
     """
 
 
-class OperationType(StrEnum):
-    create = "create"
-    update = "update"
-    delete = "delete"
-
-
-class OperationStatus(StrEnum):
-    accepted = "accepted"
-    in_progress = "in_progress"
-    completed = "completed"
-    failed = "failed"
-    rejected = "rejected"
-    superseded = "superseded"
-
-
-class OperationStatusReason(StrEnum):
-    """
-    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
-    """
-
-    conflict = "conflict"
-    validation = "validation"
-    not_found = "not_found"
-    protected = "protected"
-
-
-class Operation(ContractModel):
-    """
-    Acompanhamento de uma solicitação assíncrona, exposto por GET /v1/operations/{operationId} (SSOT.md, Operation).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    operation_type: Annotated[OperationType, Field(alias="operationType", title="OperationType")]
-    module: Annotated[str, Field(max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")]
-    resource_type: Annotated[
-        str, Field(alias="resourceType", max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")
-    ]
-    resource_id: Annotated[
-        str,
-        Field(
-            alias="resourceId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-    desired_generation: Annotated[
-        int | None, Field(alias="desiredGeneration", ge=1, le=9007199254740991)
-    ] = None
-    """
-    Geração produzida pelo pedido; ausente quando rejeitado.
-    """
-    operation_status: Annotated[
-        OperationStatus, Field(alias="operationStatus", title="OperationStatus")
-    ]
-    operation_status_reason: Annotated[
-        OperationStatusReason | None,
-        Field(alias="operationStatusReason", title="OperationStatusReason"),
-    ] = None
-    """
-    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
-    """
-    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-    updated_at: Annotated[AwareDatetime, Field(alias="updatedAt")]
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-    completed_at: Annotated[AwareDatetime | None, Field(alias="completedAt")] = None
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-
-
-class ApiAcceptedResponse(ContractModel):
-    """
-    Resposta das escritas assíncronas (POST, PATCH, DELETE): o pedido foi publicado, não aplicado (RESOURCE-CONTROL-LOOP.md, Interface HTTP).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    resource_id: Annotated[
-        str,
-        Field(
-            alias="resourceId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-
-
 class ApiError(ContractModel):
     """
     Corpo das respostas de erro do Receiver. A mensagem identifica o campo e a regra violada e não repete valores confidential nem secretReference (SCHEMA.md, Limites e erros).
@@ -437,173 +317,9 @@ class RoleObservedData(ContractModel):
     """
 
 
-class RoleCreateSpecification(ContractModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    organization_id: Annotated[
-        str,
-        Field(
-            alias="organizationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Organization dona da Role. Imutável.
-    """
-    name: Annotated[
-        str, Field(max_length=128, min_length=3, pattern="^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$")
-    ]
-    """
-    Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, core.accountViewer). Imutável após a criação.
-    """
-    description: Annotated[
-        str, Field(max_length=256, min_length=1, pattern="^[^\\u0000-\\u001f\\u007f]+$")
-    ]
-    """
-    Descrição legível do propósito e alcance da Role.
-    """
-    permissions: Annotated[list[Permission], Field(max_length=64, min_length=1)]
-    """
-    Conjunto de permissões atômicas agrupadas pela Role, sem repetição e em ordem alfabética.
-    """
-
-
-class RoleRequestedCreateData(ContractModel):
-    """
-    data de requested com operation create da Role (ipm.role). Publicado somente pelo Receiver.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    specification: Annotated[RoleCreateSpecification, Field(title="RoleCreateSpecification")]
-    organization_quota_limit: Annotated[
-        int | None, Field(alias="organizationQuotaLimit", ge=1, le=1000)
-    ] = None
-    """
-    Limite de Roles `custom` da Organization, definido pelo Receiver (ausente para operadores: sem cota). O Manager aplica o limite na mesma unidade atômica do pedido, sob trava por Organization (decisão 0092).
-    """
-
-
-class RoleUpdateSpecification(ContractModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    description: Annotated[
-        str | None, Field(max_length=256, min_length=1, pattern="^[^\\u0000-\\u001f\\u007f]+$")
-    ] = None
-    """
-    Descrição legível do propósito e alcance da Role.
-    """
-    permissions: Annotated[list[Permission] | None, Field(max_length=64, min_length=1)] = None
-    """
-    Conjunto de permissões atômicas agrupadas pela Role, sem repetição e em ordem alfabética.
-    """
-    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
-    """
-    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
-    """
-
-
-class RoleRequestedUpdateData(ContractModel):
-    """
-    data de requested com operation update da Role (ipm.role). Traz a especificação alterada, a mudança do controle de reconciliação, ou ambas. Publicado somente pelo Receiver.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    resource_version: Annotated[
-        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
-    ]
-    """
-    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
-    """
-    specification: Annotated[
-        RoleUpdateSpecification | None, Field(title="RoleUpdateSpecification")
-    ] = None
-    reconciliation: Reconciliation | None = None
-    """
-    Muda só o controle de reconciliação; não incrementa desiredGeneration.
-    """
-
-
-class RoleRequestedDeleteData(ContractModel):
-    """
-    data de requested com operation delete da Role (ipm.role): declara lifecycle absent. Publicado somente pelo Receiver.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    resource_version: Annotated[
-        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
-    ]
-    """
-    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
-    """
-
-
 class RoleCreateRequest(ContractModel):
     """
-    Corpo de POST /v1/ipm/roles. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, e o Manager atribui roleType = custom e deletionProtection = true (decisão 0092).
+    Corpo de POST /v1/ipm/roles. A API atribui resourceId e requestedBy, além de roleType = custom e deletionProtection = true (decisões 0092 e 0098).
     """
 
     model_config = ConfigDict(
@@ -749,7 +465,7 @@ class RoleObservedView(ContractModel):
 
 class Role(ContractModel):
     """
-    Visão consolidada da Role (ipm.role) exposta pelo Receiver (GET). Não expõe campos internos do SSOT (failureCount, requestedBy).
+    Visão consolidada da Role (ipm.role) exposta pela API (GET). Não expõe campos internos do SSOT (failureCount, requestedBy).
     """
 
     model_config = ConfigDict(
@@ -776,6 +492,12 @@ class Role(ContractModel):
     desired_generation: Annotated[int, Field(alias="desiredGeneration", ge=1, le=9007199254740991)]
     """
     Geração lógica do estado desejado (desiredGeneration, observedGeneration).
+    """
+    observed_generation: Annotated[
+        int | None, Field(alias="observedGeneration", ge=1, le=9007199254740991)
+    ] = None
+    """
+    Última geração do desired confirmada pela observação; ausente antes da primeira. A alteração terminou quando observedGeneration >= desiredGeneration e a phase é Ready ou Failed (decisão 0098).
     """
     phase: Phase
     conditions: Annotated[list[Condition], Field(max_length=32)]
@@ -984,7 +706,7 @@ class MessageEnvelope(ContractModel):
 
 class RoleDesiredData(ContractModel):
     """
-    data de desired da Role (ipm.role): estado pretendido e controle de reconciliação. Publicado somente pelo Manager. Não carrega dados pessoais.
+    data de desired da Role (ipm.role): estado pretendido e controle de reconciliação. Publicado somente pela API (decisão 0098). Não carrega dados pessoais.
     """
 
     model_config = ConfigDict(
@@ -1035,14 +757,9 @@ class IpmRoleContracts(
         | CompletedData
         | FailedData
         | UpdatedData
-        | Operation
-        | ApiAcceptedResponse
         | ApiError
         | RoleDesiredData
         | RoleObservedData
-        | RoleRequestedCreateData
-        | RoleRequestedUpdateData
-        | RoleRequestedDeleteData
         | RoleCreateRequest
         | RoleUpdateRequest
         | Role
@@ -1057,14 +774,9 @@ class IpmRoleContracts(
         | CompletedData
         | FailedData
         | UpdatedData
-        | Operation
-        | ApiAcceptedResponse
         | ApiError
         | RoleDesiredData
         | RoleObservedData
-        | RoleRequestedCreateData
-        | RoleRequestedUpdateData
-        | RoleRequestedDeleteData
         | RoleCreateRequest
         | RoleUpdateRequest
         | Role

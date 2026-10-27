@@ -574,16 +574,14 @@ ROLE_ID = "01a170c3-7b04-72f3-9c18-2da346a43296"
 
 
 @pytest.mark.parametrize("name", ["test.role6d7092", "test.chaos0a1b2c"])
-def test_a_test_role_is_found_in_the_ssot_and_in_the_platform_database(name: str) -> None:
+def test_a_test_role_is_found_in_the_ssot(name: str) -> None:
     world = World()
     world.ssot.tables = {ROLES: [Row(ROLE_ID, name)]}
-    world.ssot.platform = {ROLES: [Row(ROLE_ID, name)]}
 
     findings = find(world.ports())
 
     assert [row.resource_id for row in findings.role_rows] == [ROLE_ID]
-    assert [row.resource_id for row in findings.platform_role_rows] == [ROLE_ID]
-    assert any("platform ipm.role" in line for line in findings.lines())
+    assert any("SSOT ipm.role" in line for line in findings.lines())
     assert ROLES in findings.resource_ids()
 
 
@@ -593,37 +591,22 @@ def test_a_test_role_is_found_in_the_ssot_and_in_the_platform_database(name: str
 def test_predefined_and_real_roles_are_never_test_data(name: str) -> None:
     world = World()
     world.ssot.tables = {ROLES: [Row("role-x", name)]}
-    world.ssot.platform = {ROLES: [Row("role-x", name)]}
 
     assert find(world.ports()).is_clean()
 
 
-async def test_a_test_role_is_removed_through_the_loop_and_what_is_left_in_the_platform() -> None:
-    """O loop remove o estado do `platform`; o que sobra sai direto, só o que é de teste."""
+async def test_a_test_role_is_removed_directly_by_cleanup() -> None:
+    """A API síncrona (decisão 0098) não tem `requested`: a limpeza apaga só o que é de teste."""
     world = World()
     world.ssot.tables = {
         ROLES: [Row(ROLE_ID, "test.role6d7092"), Row("role-ipm-user-admin", "ipm.userAdmin")]
     }
-    world.ssot.platform = {
-        ROLES: [Row(ROLE_ID, "test.role6d7092"), Row("role-ipm-user-admin", "ipm.userAdmin")]
-    }
-    world.bus.phases = {ROLE_ID: "Ready"}
 
     code = await clean(world.ports(), apply_changes=True, say=say_nothing)
 
     assert code == 0
-    assert world.bus.unprotection_requested == [ROLE_ID]
-    assert world.bus.requested == [ROLE_ID]
-    assert [r.resource_id for r in world.ssot.platform[ROLES]] == ["role-ipm-user-admin"]
+    assert world.bus.requested == []
     assert [r.resource_id for r in world.ssot.tables[ROLES]] == ["role-ipm-user-admin"]
-
-
-async def test_a_test_role_only_in_the_platform_database_is_removed_directly() -> None:
-    world = World()
-    world.ssot.platform = {ROLES: [Row(ROLE_ID, "test.role6d7092")]}
-
-    assert await clean(world.ports(), apply_changes=True, say=say_nothing) == 0
-    assert world.ssot.platform[ROLES] == []
 
 
 GROUP_ID = "01a170c3-7b04-72f3-9c18-2da346a49999"

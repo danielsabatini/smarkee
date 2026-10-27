@@ -44,154 +44,91 @@ Pontos que costumam surpreender:
 
 Fora do Docker, os nomes `*.smarkee.internal` não resolvem: use as portas publicadas em `127.0.0.1` (Postgres `5432`, NATS `4222`) por flag ou variável.
 
-## 3. `ipm-role-receiver`
+## 3. `ipm-role-api`
 
-Entrypoint do Receiver de Role (`ipm-role-receiver`, decisões 0015, 0083 e 0092).
+Entrypoint da API de Role (`ipm-role-api`, decisões 0015, 0083, 0092 e 0098).
 
-- **Prefixo das variáveis:** `IPM_ROLE_RECEIVER_`
-- **Tabela do `config.toml`:** `[tool.ipm.role.receiver.<seção>]`
-- **Comando:** `ipm-role-receiver` (entrypoint `ipm_role.receiver.main:main`)
+- **Prefixo das variáveis:** `IPM_ROLE_API_`
+- **Tabela do `config.toml`:** `[tool.ipm.role.api.<seção>]`
+- **Comando:** `ipm-role-api` (entrypoint `ipm_role.api.main:main`)
 
 **Obrigatórias** (sem default; o serviço não sobe sem elas):
 
-- `IPM_ROLE_RECEIVER_DATABASE_PASSWORD`
-- `IPM_ROLE_RECEIVER_MESSAGING_URL`
-- `IPM_ROLE_RECEIVER_MESSAGING_USER`
-- `IPM_ROLE_RECEIVER_MESSAGING_PASSWORD`
-- `IPM_ROLE_RECEIVER_AUTH_AUDIENCE`
+- `IPM_ROLE_API_DATABASE_PASSWORD`
+- `IPM_ROLE_API_MESSAGING_URL`
+- `IPM_ROLE_API_MESSAGING_USER`
+- `IPM_ROLE_API_MESSAGING_PASSWORD`
+- `IPM_ROLE_API_AUTH_AUDIENCE`
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
-| `log.level` | `IPM_ROLE_RECEIVER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
-| `log.dependencies_level` | `IPM_ROLE_RECEIVER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
-| `database.host` | `IPM_ROLE_RECEIVER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
-| `database.port` | `IPM_ROLE_RECEIVER_DATABASE_PORT` | `--database.port` | `int \| None` | — |  |
-| `database.name` | `IPM_ROLE_RECEIVER_DATABASE_NAME` | `--database.name` | `str \| None` | — |  |
-| `database.user` | `IPM_ROLE_RECEIVER_DATABASE_USER` | `--database.user` | `str \| None` | — | Papel de login do banco, um por papel. Sem default: vem do ambiente ou do `config.toml`. |
-| `database.password` | `IPM_ROLE_RECEIVER_DATABASE_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
-| `messaging.url` | `IPM_ROLE_RECEIVER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.user` | `IPM_ROLE_RECEIVER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.password` | `IPM_ROLE_RECEIVER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
-| `auth.issuer` | `IPM_ROLE_RECEIVER_AUTH_ISSUER` | `--auth.issuer` | `str` | `'http://localhost:8080'` | Valor esperado de `iss`: o endereço público do provedor de identidade. |
-| `auth.jwks_url` | `IPM_ROLE_RECEIVER_AUTH_JWKS_URL` | `--auth.jwks_url` | `str` | `'http://localhost:8000/oauth/v2/keys'` | Endereço (da rede interna) em que as chaves públicas são buscadas. |
-| `auth.host_header` | `IPM_ROLE_RECEIVER_AUTH_HOST_HEADER` | `--auth.host_header` | `str` | `'localhost:8080'` | `Host` enviado ao provedor nas chamadas internas: ele resolve a instância por esse valor. |
-| `auth.audience` | `IPM_ROLE_RECEIVER_AUTH_AUDIENCE` | `--auth.audience` | `str \| None` | — | Obrigatória. ID do projeto `roles-ipm` (organização `core` do Zitadel): obrigatório, sem default. |
-| `auth.jwks_cache_seconds` | `IPM_ROLE_RECEIVER_AUTH_JWKS_CACHE_SECONDS` | `--auth.jwks_cache_seconds` | `int` | `300` |  |
-| `api.host` | `IPM_ROLE_RECEIVER_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
-| `api.port` | `IPM_ROLE_RECEIVER_API_PORT` | `--api.port` | `int` | `8000` |  |
-| `api.role_quota` | `IPM_ROLE_RECEIVER_API_ROLE_QUOTA` | `--api.role_quota` | `int` | `10` | Roles `custom` por Organization para quem não é operador (decisão 0092). |
-| `peers.organizations_url` | `IPM_ROLE_RECEIVER_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
-| `peers.users_url` | `IPM_ROLE_RECEIVER_PEERS_USERS_URL` | `--peers.users_url` | `str` | `'http://localhost:8000'` |  |
-| `peers.groups_url` | `IPM_ROLE_RECEIVER_PEERS_GROUPS_URL` | `--peers.groups_url` | `str` | `'http://localhost:8000'` |  |
-| `peers.serviceaccounts_url` | `IPM_ROLE_RECEIVER_PEERS_SERVICEACCOUNTS_URL` | `--peers.serviceaccounts_url` | `str` | `'http://localhost:8000'` |  |
-| `peers.timeout_seconds` | `IPM_ROLE_RECEIVER_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
+| `log.level` | `IPM_ROLE_API_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
+| `log.dependencies_level` | `IPM_ROLE_API_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
+| `database.host` | `IPM_ROLE_API_DATABASE_HOST` | `--database.host` | `str \| None` | — | Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
+| `database.port` | `IPM_ROLE_API_DATABASE_PORT` | `--database.port` | `int \| None` | — |  |
+| `database.name` | `IPM_ROLE_API_DATABASE_NAME` | `--database.name` | `str \| None` | — |  |
+| `database.user` | `IPM_ROLE_API_DATABASE_USER` | `--database.user` | `str \| None` | — | Papel de login do banco, um por papel. Sem default: vem do ambiente ou do `config.toml`. |
+| `database.password` | `IPM_ROLE_API_DATABASE_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
+| `messaging.url` | `IPM_ROLE_API_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.user` | `IPM_ROLE_API_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
+| `messaging.password` | `IPM_ROLE_API_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
+| `auth.issuer` | `IPM_ROLE_API_AUTH_ISSUER` | `--auth.issuer` | `str` | `'http://localhost:8080'` | Valor esperado de `iss`: o endereço público do provedor de identidade. |
+| `auth.jwks_url` | `IPM_ROLE_API_AUTH_JWKS_URL` | `--auth.jwks_url` | `str` | `'http://localhost:8000/oauth/v2/keys'` | Endereço (da rede interna) em que as chaves públicas são buscadas. |
+| `auth.host_header` | `IPM_ROLE_API_AUTH_HOST_HEADER` | `--auth.host_header` | `str` | `'localhost:8080'` | `Host` enviado ao provedor nas chamadas internas: ele resolve a instância por esse valor. |
+| `auth.audience` | `IPM_ROLE_API_AUTH_AUDIENCE` | `--auth.audience` | `str \| None` | — | Obrigatória. ID do projeto `roles-ipm` (organização `core` do Zitadel): obrigatório, sem default. |
+| `auth.jwks_cache_seconds` | `IPM_ROLE_API_AUTH_JWKS_CACHE_SECONDS` | `--auth.jwks_cache_seconds` | `int` | `300` |  |
+| `api.host` | `IPM_ROLE_API_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
+| `api.port` | `IPM_ROLE_API_API_PORT` | `--api.port` | `int` | `8000` |  |
+| `api.role_quota` | `IPM_ROLE_API_API_ROLE_QUOTA` | `--api.role_quota` | `int` | `10` | Roles `custom` por Organization para quem não é operador (decisão 0092). |
+| `peers.organizations_url` | `IPM_ROLE_API_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.users_url` | `IPM_ROLE_API_PEERS_USERS_URL` | `--peers.users_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.groups_url` | `IPM_ROLE_API_PEERS_GROUPS_URL` | `--peers.groups_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.serviceaccounts_url` | `IPM_ROLE_API_PEERS_SERVICEACCOUNTS_URL` | `--peers.serviceaccounts_url` | `str` | `'http://localhost:8000'` |  |
+| `peers.timeout_seconds` | `IPM_ROLE_API_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
 **Definido no `config.toml` de dev:**
 
 ```toml
-[tool.ipm.role.receiver.auth]
+[tool.ipm.role.api.auth]
 host_header = "ipm-dev.smarkee.com.br:8080"
 issuer = "http://ipm-dev.smarkee.com.br:8080"
 jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
-[tool.ipm.role.receiver.database]
+[tool.ipm.role.api.database]
 host = "database.smarkee.internal"
 name = "ssot"
 port = 5432
-user = "ipm_role_receiver_login"
+user = "ipm_role_api_login"
 
-[tool.ipm.role.receiver.messaging]
+[tool.ipm.role.api.messaging]
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
-[tool.ipm.role.receiver.peers]
+[tool.ipm.role.api.peers]
 groups_url = "http://ipm-group-receiver.smarkee.internal:8000"
 organizations_url = "http://ipm-organization-api.smarkee.internal:8000"
-users_url = "http://ipm-user-receiver.smarkee.internal:8000"
-serviceaccounts_url = "http://ipm-serviceaccount-receiver.smarkee.internal:8000"
+users_url = "http://ipm-user-api.smarkee.internal:8000"
+serviceaccounts_url = "http://ipm-serviceaccount-api.smarkee.internal:8000"
 ```
 
 **Executar** (de `features/ipm/role`):
 
 ```bash
 # Contêiner (dev): sobe só este papel; usa config.toml, .env e /run/secrets
-docker compose up -d ipm-role-receiver
-docker compose logs -f ipm-role-receiver
+docker compose up -d ipm-role-api
+docker compose logs -f ipm-role-api
 
 # Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
-uv run --env-file .env ipm-role-receiver \
+uv run --env-file .env ipm-role-api \
     --api.port 8001 \
     --database.host localhost \
     --messaging.url nats://localhost:4222
 
 # Lista todas as flags aceitas pelo papel
-uv run ipm-role-receiver --help
+uv run ipm-role-api --help
 ```
 
-## 4. `ipm-role-manager`
-
-Entrypoint do Manager de Role (`ipm-role-manager`, decisões 0015, 0019, 0063 e 0083).
-
-- **Prefixo das variáveis:** `IPM_ROLE_MANAGER_`
-- **Tabela do `config.toml`:** `[tool.ipm.role.manager.<seção>]`
-- **Comando:** `ipm-role-manager` (entrypoint `ipm_role.manager.main:main`)
-
-**Obrigatórias** (sem default; o serviço não sobe sem elas):
-
-- `IPM_ROLE_MANAGER_DATABASE_PASSWORD`
-- `IPM_ROLE_MANAGER_MESSAGING_URL`
-- `IPM_ROLE_MANAGER_MESSAGING_USER`
-- `IPM_ROLE_MANAGER_MESSAGING_PASSWORD`
-
-| Campo | Variável | Flag | Tipo | Default | Descrição |
-|---|---|---|---|---|---|
-| `log.level` | `IPM_ROLE_MANAGER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
-| `log.dependencies_level` | `IPM_ROLE_MANAGER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
-| `database.host` | `IPM_ROLE_MANAGER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
-| `database.port` | `IPM_ROLE_MANAGER_DATABASE_PORT` | `--database.port` | `int \| None` | — |  |
-| `database.name` | `IPM_ROLE_MANAGER_DATABASE_NAME` | `--database.name` | `str \| None` | — |  |
-| `database.user` | `IPM_ROLE_MANAGER_DATABASE_USER` | `--database.user` | `str \| None` | — | Papel de login do banco, um por papel. Sem default: vem do ambiente ou do `config.toml`. |
-| `database.password` | `IPM_ROLE_MANAGER_DATABASE_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
-| `messaging.url` | `IPM_ROLE_MANAGER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.user` | `IPM_ROLE_MANAGER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.password` | `IPM_ROLE_MANAGER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
-| `loop.failure_limit` | `IPM_ROLE_MANAGER_LOOP_FAILURE_LIMIT` | `--loop.failure_limit` | `int` | `5` | Falhas por geração antes de `Failed` (`schemas/ipm/role/desired`, `failureLimit`). |
-| `loop.progress_deadline_seconds` | `IPM_ROLE_MANAGER_LOOP_PROGRESS_DEADLINE_SECONDS` | `--loop.progress_deadline_seconds` | `int` | `300` | Prazo para a geração convergir antes de `Failed` com `ProgressDeadlineExceeded` (`schemas/ipm/role/desired`, `progressDeadline`; decisão 0078). |
-| `health.port` | `IPM_ROLE_MANAGER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
-
-**Definido no `config.toml` de dev:**
-
-```toml
-[tool.ipm.role.manager.database]
-host = "database.smarkee.internal"
-name = "ssot"
-port = 5432
-user = "ipm_role_manager_login"
-
-[tool.ipm.role.manager.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-```
-
-**Executar** (de `features/ipm/role`):
-
-```bash
-# Contêiner (dev): sobe só este papel; usa config.toml, .env e /run/secrets
-docker compose up -d ipm-role-manager
-docker compose logs -f ipm-role-manager
-
-# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
-uv run --env-file .env ipm-role-manager \
-    --health.port 8002 \
-    --database.host localhost \
-    --messaging.url nats://localhost:4222 \
-    --loop.failure_limit 3
-
-# Lista todas as flags aceitas pelo papel
-uv run ipm-role-manager --help
-```
-
-## 5. `ipm-role-publisher`
+## 4. `ipm-role-publisher`
 
 Entrypoint do Publisher de `ipm.role` (decisões 0015 e 0033).
 
@@ -253,188 +190,4 @@ uv run --env-file .env ipm-role-publisher \
 
 # Lista todas as flags aceitas pelo papel
 uv run ipm-role-publisher --help
-```
-
-## 6. `ipm-role-reconciler`
-
-Entrypoint do Reconciler de Role (`ipm-role-reconciler`, decisões 0015, 0063 e 0083).
-
-- **Prefixo das variáveis:** `IPM_ROLE_RECONCILER_`
-- **Tabela do `config.toml`:** `[tool.ipm.role.reconciler.<seção>]`
-- **Comando:** `ipm-role-reconciler` (entrypoint `ipm_role.reconciler.main:main`)
-
-**Obrigatórias** (sem default; o serviço não sobe sem elas):
-
-- `IPM_ROLE_RECONCILER_MESSAGING_URL`
-- `IPM_ROLE_RECONCILER_MESSAGING_USER`
-- `IPM_ROLE_RECONCILER_MESSAGING_PASSWORD`
-
-| Campo | Variável | Flag | Tipo | Default | Descrição |
-|---|---|---|---|---|---|
-| `log.level` | `IPM_ROLE_RECONCILER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
-| `log.dependencies_level` | `IPM_ROLE_RECONCILER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
-| `messaging.url` | `IPM_ROLE_RECONCILER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.user` | `IPM_ROLE_RECONCILER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.password` | `IPM_ROLE_RECONCILER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
-| `messaging.consumer_inactive_threshold_seconds` | `IPM_ROLE_RECONCILER_MESSAGING_CONSUMER_INACTIVE_THRESHOLD_SECONDS` | `--messaging.consumer_inactive_threshold_seconds` | `int` | `300` | Tempo sem uso após o qual o servidor remove o consumer da instância. |
-| `loop.observation_validity_seconds` | `IPM_ROLE_RECONCILER_LOOP_OBSERVATION_VALIDITY_SECONDS` | `--loop.observation_validity_seconds` | `int` | `600` | `observationValidity` (PT10M): idade máxima de um `observed` para decidir. |
-| `loop.action_deadline_seconds` | `IPM_ROLE_RECONCILER_LOOP_ACTION_DEADLINE_SECONDS` | `--loop.action_deadline_seconds` | `int` | `120` | `actionDeadline` (PT2M): prazo da `action` pendente e da espera pela observação causada. |
-| `loop.reevaluation_interval_seconds` | `IPM_ROLE_RECONCILER_LOOP_REEVALUATION_INTERVAL_SECONDS` | `--loop.reevaluation_interval_seconds` | `int` | `30` | Período da reavaliação periódica de todos os recursos (com jitter). |
-| `loop.reevaluation_jitter` | `IPM_ROLE_RECONCILER_LOOP_REEVALUATION_JITTER` | `--loop.reevaluation_jitter` | `float` | `0.2` |  |
-| `loop.failure_backoff_seconds` | `IPM_ROLE_RECONCILER_LOOP_FAILURE_BACKOFF_SECONDS` | `--loop.failure_backoff_seconds` | `int` | `5` | Atraso após o primeiro `failed`; dobra a cada falha seguida, até o máximo. |
-| `loop.failure_backoff_maximum_seconds` | `IPM_ROLE_RECONCILER_LOOP_FAILURE_BACKOFF_MAXIMUM_SECONDS` | `--loop.failure_backoff_maximum_seconds` | `int` | `300` |  |
-| `health.port` | `IPM_ROLE_RECONCILER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
-
-**Definido no `config.toml` de dev:**
-
-```toml
-[tool.ipm.role.reconciler.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-```
-
-**Executar** (de `features/ipm/role`):
-
-```bash
-# Contêiner (dev): sobe só este papel; usa config.toml, .env e /run/secrets
-docker compose up -d ipm-role-reconciler
-docker compose logs -f ipm-role-reconciler
-
-# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
-uv run --env-file .env ipm-role-reconciler \
-    --health.port 8004 \
-    --messaging.url nats://localhost:4222 \
-    --loop.reevaluation_interval_seconds 10
-
-# Lista todas as flags aceitas pelo papel
-uv run ipm-role-reconciler --help
-```
-
-## 7. `ipm-role-observer`
-
-Entrypoint do Observer de Role (`ipm-role-observer`, decisões 0015, 0063 e 0083).
-
-- **Prefixo das variáveis:** `IPM_ROLE_OBSERVER_`
-- **Tabela do `config.toml`:** `[tool.ipm.role.observer.<seção>]`
-- **Comando:** `ipm-role-observer` (entrypoint `ipm_role.observer.main:main`)
-
-**Obrigatórias** (sem default; o serviço não sobe sem elas):
-
-- `IPM_ROLE_OBSERVER_DATABASE_PASSWORD`
-- `IPM_ROLE_OBSERVER_MESSAGING_URL`
-- `IPM_ROLE_OBSERVER_MESSAGING_USER`
-- `IPM_ROLE_OBSERVER_MESSAGING_PASSWORD`
-
-| Campo | Variável | Flag | Tipo | Default | Descrição |
-|---|---|---|---|---|---|
-| `log.level` | `IPM_ROLE_OBSERVER_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
-| `log.dependencies_level` | `IPM_ROLE_OBSERVER_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
-| `database.host` | `IPM_ROLE_OBSERVER_DATABASE_HOST` | `--database.host` | `str \| None` | — | Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
-| `database.port` | `IPM_ROLE_OBSERVER_DATABASE_PORT` | `--database.port` | `int \| None` | — |  |
-| `database.name` | `IPM_ROLE_OBSERVER_DATABASE_NAME` | `--database.name` | `str \| None` | — |  |
-| `database.user` | `IPM_ROLE_OBSERVER_DATABASE_USER` | `--database.user` | `str \| None` | — | Papel de login do banco, um por papel. Sem default: vem do ambiente ou do `config.toml`. |
-| `database.password` | `IPM_ROLE_OBSERVER_DATABASE_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
-| `messaging.url` | `IPM_ROLE_OBSERVER_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.user` | `IPM_ROLE_OBSERVER_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.password` | `IPM_ROLE_OBSERVER_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
-| `messaging.consumer_inactive_threshold_seconds` | `IPM_ROLE_OBSERVER_MESSAGING_CONSUMER_INACTIVE_THRESHOLD_SECONDS` | `--messaging.consumer_inactive_threshold_seconds` | `int` | `300` | Tempo sem uso após o qual o servidor remove o consumer da instância. |
-| `partition.index` | `IPM_ROLE_OBSERVER_PARTITION_INDEX` | `--partition.index` | `int` | `0` |  |
-| `partition.count` | `IPM_ROLE_OBSERVER_PARTITION_COUNT` | `--partition.count` | `int` | `1` | Partição por `resourceId`: a instância observa só `hash mod count == index`. |
-| `health.port` | `IPM_ROLE_OBSERVER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
-| `loop.observation_interval_seconds` | `IPM_ROLE_OBSERVER_LOOP_OBSERVATION_INTERVAL_SECONDS` | `--loop.observation_interval_seconds` | `int` | `300` | `observationInterval` (PT5M) de `schemas/ipm/role/desired`. |
-| `loop.observation_jitter` | `IPM_ROLE_OBSERVER_LOOP_OBSERVATION_JITTER` | `--loop.observation_jitter` | `float` | `0.2` |  |
-| `loop.maximum_concurrent_reads` | `IPM_ROLE_OBSERVER_LOOP_MAXIMUM_CONCURRENT_READS` | `--loop.maximum_concurrent_reads` | `int` | `4` | Leituras simultâneas no banco `platform`. |
-
-**Definido no `config.toml` de dev:**
-
-```toml
-[tool.ipm.role.observer.database]
-host = "database.smarkee.internal"
-name = "platform"
-port = 5432
-user = "ipm_role_observer_login"
-
-[tool.ipm.role.observer.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-```
-
-**Executar** (de `features/ipm/role`):
-
-```bash
-# Contêiner (dev): sobe só este papel; usa config.toml, .env e /run/secrets
-docker compose up -d ipm-role-observer
-docker compose logs -f ipm-role-observer
-
-# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
-uv run --env-file .env ipm-role-observer \
-    --health.port 8005 \
-    --database.host localhost \
-    --messaging.url nats://localhost:4222 \
-    --loop.observation_interval_seconds 60
-
-# Lista todas as flags aceitas pelo papel
-uv run ipm-role-observer --help
-```
-
-## 8. `ipm-role-executor`
-
-Entrypoint do Executor de Role (`ipm-role-executor`, decisões 0015, 0063 e 0083).
-
-- **Prefixo das variáveis:** `IPM_ROLE_EXECUTOR_`
-- **Tabela do `config.toml`:** `[tool.ipm.role.executor.<seção>]`
-- **Comando:** `ipm-role-executor` (entrypoint `ipm_role.executor.main:main`)
-
-**Obrigatórias** (sem default; o serviço não sobe sem elas):
-
-- `IPM_ROLE_EXECUTOR_DATABASE_PASSWORD`
-- `IPM_ROLE_EXECUTOR_MESSAGING_URL`
-- `IPM_ROLE_EXECUTOR_MESSAGING_USER`
-- `IPM_ROLE_EXECUTOR_MESSAGING_PASSWORD`
-
-| Campo | Variável | Flag | Tipo | Default | Descrição |
-|---|---|---|---|---|---|
-| `log.level` | `IPM_ROLE_EXECUTOR_LOG_LEVEL` | `--log.level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'INFO'` | Nível dos logs do próprio código do papel. |
-| `log.dependencies_level` | `IPM_ROLE_EXECUTOR_LOG_DEPENDENCIES_LEVEL` | `--log.dependencies_level` | `Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']` | `'WARNING'` | Nível dos logs das bibliotecas (cliente HTTP, servidor HTTP, NATS, banco): por padrão só avisos e erros, para não repetirem a cada chamada o que o próprio papel já registra. |
-| `database.host` | `IPM_ROLE_EXECUTOR_DATABASE_HOST` | `--database.host` | `str \| None` | — | Endereço do banco. Sem default: vem do ambiente ou do `config.toml`. |
-| `database.port` | `IPM_ROLE_EXECUTOR_DATABASE_PORT` | `--database.port` | `int \| None` | — |  |
-| `database.name` | `IPM_ROLE_EXECUTOR_DATABASE_NAME` | `--database.name` | `str \| None` | — |  |
-| `database.user` | `IPM_ROLE_EXECUTOR_DATABASE_USER` | `--database.user` | `str \| None` | — | Papel de login do banco, um por papel. Sem default: vem do ambiente ou do `config.toml`. |
-| `database.password` | `IPM_ROLE_EXECUTOR_DATABASE_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
-| `messaging.url` | `IPM_ROLE_EXECUTOR_MESSAGING_URL` | `--messaging.url` | `str \| None` | — | Obrigatória. Endereço do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.user` | `IPM_ROLE_EXECUTOR_MESSAGING_USER` | `--messaging.user` | `str \| None` | — | Obrigatória. Usuário do NATS. Sem default: vem do ambiente ou do `config.toml`. |
-| `messaging.password` | `IPM_ROLE_EXECUTOR_MESSAGING_PASSWORD` | _recusada_ | `SecretStr \| None` | — | Obrigatória. Só por ambiente ou arquivo de segredo. |
-| `partition.count` | `IPM_ROLE_EXECUTOR_PARTITION_COUNT` | `--partition.count` | `int` | `4` | Partições do Stream `ACTION` (bootstrap do messaging): um consumer e um laço por partição. |
-| `health.port` | `IPM_ROLE_EXECUTOR_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
-
-**Definido no `config.toml` de dev:**
-
-```toml
-[tool.ipm.role.executor.database]
-host = "database.smarkee.internal"
-name = "platform"
-port = 5432
-user = "ipm_role_executor_login"
-
-[tool.ipm.role.executor.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-```
-
-**Executar** (de `features/ipm/role`):
-
-```bash
-# Contêiner (dev): sobe só este papel; usa config.toml, .env e /run/secrets
-docker compose up -d ipm-role-executor
-docker compose logs -f ipm-role-executor
-
-# Host, com o ambiente do .env; as flags sobrescrevem tudo (menos segredo)
-uv run --env-file .env ipm-role-executor \
-    --health.port 8006 \
-    --database.host localhost \
-    --messaging.url nats://localhost:4222 \
-    --partition.count 4
-
-# Lista todas as flags aceitas pelo papel
-uv run ipm-role-executor --help
 ```

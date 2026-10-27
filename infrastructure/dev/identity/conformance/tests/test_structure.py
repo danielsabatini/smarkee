@@ -624,7 +624,7 @@ EXPECTED_AUDIENCE = {
     "sum.service": ("SUM_SERVICE_RECEIVER_AUTH_AUDIENCE", "roles-sum"),
     "ipm.organization": ("IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.permission": ("IPM_PERMISSION_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
-    "ipm.role": ("IPM_ROLE_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
+    "ipm.role": ("IPM_ROLE_API_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.group": ("IPM_GROUP_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.user": ("IPM_USER_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.serviceaccount": ("IPM_SERVICEACCOUNT_API_AUTH_AUDIENCE", "roles-ipm"),

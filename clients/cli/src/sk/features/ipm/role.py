@@ -2,22 +2,16 @@
 
 Roles compostas: agrupadores de permissões atômicas mantidos 100% no SSOT da Smarkee. As
 `predefined` pertencem à plataforma (Organization `core`); as `custom` pertencem a uma
-Organization. Criar, alterar e remover são escritas assíncronas. A leitura é estrita.
+Organization. Criar, alterar e remover são escritas síncronas na admissão (decisão 0098): a API
+devolve o recurso (`201`, `200` e `202` na remoção). A Role é só dado do SSOT e nasce `Ready` e
+convergida. Não há Operation. A leitura é estrita.
 """
 
 import re
 from dataclasses import dataclass
 from typing import Any, cast
 
-from sk.features.api_contract import (
-    OperationStatus,
-    RequestAccepted,
-    as_object,
-    as_text,
-    parse_accepted,
-    parse_operation,
-    validate_identifier,
-)
+from sk.features.api_contract import as_object, as_text, validate_identifier
 from sk.http import ApiUnavailableError, call_api
 
 ROLES_PATH = "/v1/ipm/roles"
@@ -36,6 +30,8 @@ class Role:
 
     resource_id: str
     resource_version: str
+    desired_generation: int
+    observed_generation: int | None
     phase: str
     lifecycle: str
     name: str
@@ -48,6 +44,8 @@ class Role:
     """Organization dona da role; `core` são as predefinidas da plataforma."""
     role_type: str = "custom"
     """Natureza da role: 'predefined' (catálogo da plataforma) ou 'custom' (criada por pedido)."""
+    failure_reason: str | None = None
+    """Motivo da primeira condition `False`, quando houver (para explicar a fase `Failed`)."""
 
 
 def validate_role_name(name: str) -> str:
@@ -82,6 +80,28 @@ def validate_permissions_list(values: list[str]) -> list[str]:
     return perms
 
 
+def _generation(body: dict[str, Any], key: str, *, required: bool) -> int | None:
+    value = body.get(key)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if required or value is not None:
+        raise ApiUnavailableError(f"API response without {key}: role")
+    return None
+
+
+def _failure_reason(body: dict[str, Any]) -> str | None:
+    conditions = body.get("conditions")
+    if not isinstance(conditions, list):
+        return None
+    for item in cast("list[object]", conditions):
+        if isinstance(item, dict):
+            condition = cast("dict[str, object]", item)
+            reason = condition.get("reason")
+            if condition.get("status") == "False" and isinstance(reason, str):
+                return reason
+    return None
+
+
 def _role(document: object) -> Role:
     body = as_object(document, what="role")
     desired = as_object(body.get("desired"), what="role (desired)")
@@ -103,6 +123,8 @@ def _role(document: object) -> Role:
     return Role(
         resource_id=as_text(body, "resourceId", what="role"),
         resource_version=as_text(body, "resourceVersion", what="role"),
+        desired_generation=cast("int", _generation(body, "desiredGeneration", required=True)),
+        observed_generation=_generation(body, "observedGeneration", required=False),
         phase=as_text(body, "phase", what="role"),
         lifecycle=as_text(desired, "lifecycle", what="role (desired)"),
         name=name,
@@ -112,6 +134,7 @@ def _role(document: object) -> Role:
         status=as_text(spec, "status", what="role (specification)") if "status" in spec else None,
         organization_id=str(desired.get("organizationId") or "core"),
         role_type=str(spec.get("roleType") or "custom"),
+        failure_reason=_failure_reason(body),
     )
 
 
@@ -125,7 +148,7 @@ def create_role(
     permissions: list[str],
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Role:
     """Pede a criação de uma role `custom` na Organization (requer ipm.role.create)."""
     org_id = validate_identifier(organization_id, what="organizationId")
     valid_name = validate_role_name(name)
@@ -145,7 +168,7 @@ def create_role(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _role(document)
 
 
 def update_role(
@@ -159,7 +182,7 @@ def update_role(
     protected: bool | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Role:
     """Altera descrição, permissões e/ou proteção contra exclusão."""
     resource_id = validate_identifier(resource_id, what="resourceId")
     body: dict[str, Any] = {"resourceVersion": resource_version}
@@ -178,7 +201,7 @@ def update_role(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _role(document)
 
 
 def set_role_protection(
@@ -190,7 +213,7 @@ def set_role_protection(
     protected: bool,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Role:
     return update_role(
         api_url,
         token=token,
@@ -210,7 +233,7 @@ def delete_role(
     resource_version: str,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Role:
     resource_id = validate_identifier(resource_id, what="resourceId")
     _, document = call_api(
         "DELETE",
@@ -221,7 +244,7 @@ def delete_role(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _role(document)
 
 
 def get_role(api_url: str, *, token: str, resource_id: str, allow_insecure_http: bool) -> Role:
@@ -271,23 +294,3 @@ def list_roles(
         if not isinstance(after, str) or not after:
             break
     return found
-
-
-def get_operation(
-    api_url: str,
-    *,
-    token: str,
-    resource_id: str,
-    operation_id: str,
-    allow_insecure_http: bool,
-) -> OperationStatus:
-    resource_id = validate_identifier(resource_id, what="resourceId")
-    operation_id = validate_identifier(operation_id, what="operationId")
-    _, document = call_api(
-        "GET",
-        api_url,
-        f"{ROLES_PATH}/{resource_id}/operations/{operation_id}",
-        token=token,
-        allow_insecure_http=allow_insecure_http,
-    )
-    return parse_operation(document)

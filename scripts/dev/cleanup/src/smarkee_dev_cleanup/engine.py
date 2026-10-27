@@ -65,9 +65,6 @@ def find(ports: Ports, *, orphans: bool = False) -> Findings:
         row for row in ports.ssot.rows(ORGANIZATION_USERS) if is_test_user(row.label)
     ]
     findings.role_rows = [row for row in ports.ssot.rows(ROLES) if TEST_ROLE_NAME.match(row.label)]
-    findings.platform_role_rows = [
-        row for row in ports.ssot.data_plane_rows(ROLES) if TEST_ROLE_NAME.match(row.label)
-    ]
     findings.permission_rows = [
         row for row in ports.ssot.rows(PERMISSIONS) if TEST_PERMISSION_NAME.match(row.label)
     ]
@@ -246,10 +243,7 @@ async def apply(
             say(f"  SSOT: {len(rows)} linha(s) de {kind.module}.{kind.resource_type}")
 
     # O loop (Executor) já removeu o estado do `platform` quando concluiu; aqui só o que sobrou.
-    for kind, platform_rows in (
-        (ROLES, remaining.platform_role_rows),
-        (GROUPS, remaining.platform_group_rows),
-    ):
+    for kind, platform_rows in ((GROUPS, remaining.platform_group_rows),):
         if platform_rows:
             ids = {row.resource_id for row in platform_rows}
             ports.ssot.delete_data_plane(kind, ids)

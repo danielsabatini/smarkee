@@ -103,10 +103,23 @@ def test_ipm_role_create_payload_conforms_to_schema(monkeypatch: pytest.MonkeyPa
 
     def fake_call_api(
         method: str, url: str, path: str, *, body: dict[str, Any] | None = None, **_: Any
-    ) -> tuple[int, dict[str, str]]:
+    ) -> tuple[int, dict[str, Any]]:
         if body is not None:
             captured.append(body)
-        return 202, {"resourceId": "role-1", "operationId": "op-1"}
+        return 201, {
+            "resourceId": "role-1",
+            "resourceVersion": "1",
+            "desiredGeneration": 1,
+            "observedGeneration": 1,
+            "phase": "Ready",
+            "desired": {
+                "lifecycle": "present",
+                "organizationId": "01950000-0000-7000-8000-000000000001",
+                "name": "ipm.auditor",
+                "description": "Auditor role",
+                "permissions": ["core.account.get", "ipm.user.get"],
+            },
+        }
 
     monkeypatch.setattr("sk.features.ipm.role.call_api", fake_call_api)
     ipm_role.create_role(

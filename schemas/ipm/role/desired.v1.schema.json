@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "RoleDesiredData",
-  "description": "data de desired da Role (ipm.role): estado pretendido e controle de reconciliação. Publicado somente pelo Manager. Não carrega dados pessoais.",
+  "description": "data de desired da Role (ipm.role): estado pretendido e controle de reconciliação. Publicado somente pela API (decisão 0098). Não carrega dados pessoais.",
   "x-schemaVersion": "1.0",
   "x-resourceParameters": {
     "observationInterval": "PT5M",

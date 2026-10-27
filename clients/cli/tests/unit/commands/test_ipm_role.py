@@ -22,10 +22,8 @@ runner = CliRunner()
 JSON = ["--output", "json"]
 API = "https://api.teste"
 RID = "01a15e61-6d1e-7096-878a-d5f450b858f2"
-OPID = "b9c4c98c-7392-5016-a724-6e1cd0c1bed9"
 PATH = "/v1/ipm/roles"
 ROLE = f"{PATH}/{RID}"
-OPERATION = f"{ROLE}/operations/{OPID}"
 
 
 class Response:
@@ -113,12 +111,15 @@ def role_document(
     permissions: list[str] | None = None,
     protected: bool = False,
     version: str = "1",
+    generation: int = 1,
+    observed: int | None = 1,
 ) -> dict[str, Any]:
     permissions = permissions or ["ipm.user.get", "ipm.user.list"]
     return {
         "resourceId": RID,
         "resourceVersion": version,
-        "desiredGeneration": 1,
+        "desiredGeneration": generation,
+        **({"observedGeneration": observed} if observed is not None else {}),
         "phase": phase,
         "conditions": [],
         "desired": {
@@ -137,15 +138,9 @@ def role_document(
     }
 
 
-def operation_document(status: str, reason: str | None = None) -> Response:
-    document: dict[str, Any] = {"operationId": OPID, "operationStatus": status}
-    if reason:
-        document["operationStatusReason"] = reason
-    return Response(200, document)
-
-
-def accepted() -> Response:
-    return Response(202, {"resourceId": RID, "operationId": OPID})
+def admitted(status: int = 200, **kwargs: Any) -> Response:
+    """O recurso admitido pela API síncrona (decisão 0098): `201`, `200` ou `202`."""
+    return Response(status, role_document(**kwargs))
 
 
 def body_of(request: urllib.request.Request) -> Any:
@@ -153,7 +148,7 @@ def body_of(request: urllib.request.Request) -> Any:
 
 
 def test_create_role(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
+    api.routes[("POST", PATH)] = admitted(201)
     result = runner.invoke(
         app,
         [
@@ -183,7 +178,7 @@ def test_create_role(api: FakeApi) -> None:
 
 def test_update_role(api: FakeApi) -> None:
     api.routes[("GET", ROLE)] = Response(200, role_document(version="2"))
-    api.routes[("PATCH", ROLE)] = accepted()
+    api.routes[("PATCH", ROLE)] = admitted(200, version="2")
     result = runner.invoke(
         app,
         [
@@ -208,7 +203,7 @@ def test_protect_and_unprotect_role(api: FakeApi) -> None:
         Response(200, role_document(protected=False)),
         Response(200, role_document(protected=True)),
     ]
-    api.routes[("PATCH", ROLE)] = accepted()
+    api.routes[("PATCH", ROLE)] = admitted(200, version="2")
     result = runner.invoke(app, ["ipm", "role", "protect", "--resource-id", RID])
     assert result.exit_code == 0, result.stderr
     assert body_of(api.requests[-1]) == {
@@ -221,7 +216,7 @@ def test_protect_and_unprotect_role(api: FakeApi) -> None:
 
 def test_delete_role(api: FakeApi) -> None:
     api.routes[("GET", ROLE)] = Response(200, role_document(version="3"))
-    api.routes[("DELETE", ROLE)] = accepted()
+    api.routes[("DELETE", ROLE)] = admitted(202, phase="Deleting")
     result = runner.invoke(app, ["ipm", "role", "delete", "--resource-id", RID])
     assert result.exit_code == 0, result.stderr
     assert "resourceVersion=3" in api.requests[-1].full_url
@@ -300,18 +295,6 @@ def test_json_get_prints_the_role_with_native_types(api: FakeApi) -> None:
     assert document["permissions"] == ["ipm.user.get", "ipm.user.list"]
     assert document["deletionProtection"] is True
     assert document["organizationId"] == "org-acme"
-    assert "operation" not in document
-
-
-@pytest.mark.usefixtures("default_output_mode")
-def test_json_get_with_operation_adds_the_operation(api: FakeApi) -> None:
-    api.routes[("GET", ROLE)] = Response(200, role_document())
-    api.routes[("GET", OPERATION)] = operation_document("completed")
-    result = runner.invoke(
-        app, [*JSON, "ipm", "role", "get", "--resource-id", RID, "--operation-id", OPID]
-    )
-    assert result.exit_code == 0, result.stderr
-    assert _document(result.stdout)["operation"]["operationStatus"] == "completed"
 
 
 @pytest.mark.usefixtures("default_output_mode")
@@ -326,12 +309,13 @@ def test_json_list_prints_an_array_and_an_empty_one_without_note(api: FakeApi) -
 
 
 @pytest.mark.usefixtures("default_output_mode")
-def test_json_delete_without_wait_prints_only_the_acceptance(api: FakeApi) -> None:
+def test_json_delete_without_wait_prints_the_admitted_role(api: FakeApi) -> None:
     api.routes[("GET", ROLE)] = Response(200, role_document(version="3"))
-    api.routes[("DELETE", ROLE)] = accepted()
+    api.routes[("DELETE", ROLE)] = admitted(202, phase="Deleting")
     result = runner.invoke(app, [*JSON, "ipm", "role", "delete", "--resource-id", RID])
     assert result.exit_code == 0, result.stderr
-    assert _document(result.stdout) == {"resourceId": RID, "operationId": OPID}
+    document = _document(result.stdout)
+    assert (document["resourceId"], document["phase"]) == (RID, "Deleting")
     assert "Follow it with" in result.stderr  # a nota não polui a saída padrão
 
 
@@ -339,10 +323,9 @@ def test_json_delete_without_wait_prints_only_the_acceptance(api: FakeApi) -> No
 def test_json_delete_with_wait_prints_a_single_document(api: FakeApi) -> None:
     api.routes[("GET", ROLE)] = [
         Response(200, role_document(version="3")),  # leitura antes do pedido
-        http_error(404, "NotFound", "gone"),  # já removida
+        http_error(404, "NotFound", "gone"),  # já removida (síncrona)
     ]
-    api.routes[("DELETE", ROLE)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("DELETE", ROLE)] = admitted(202, phase="Deleting")
     result = runner.invoke(app, [*JSON, "ipm", "role", "delete", "--resource-id", RID, "--wait"])
     assert result.exit_code == 0, result.stderr
     assert _document(result.stdout) == {"resourceId": RID, "state": "removed"}
@@ -350,8 +333,7 @@ def test_json_delete_with_wait_prints_a_single_document(api: FakeApi) -> None:
 
 @pytest.mark.usefixtures("default_output_mode")
 def test_json_create_with_wait_prints_the_converged_role_only(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("POST", PATH)] = admitted(201)
     api.routes[("GET", ROLE)] = Response(200, role_document())
     result = runner.invoke(
         app,

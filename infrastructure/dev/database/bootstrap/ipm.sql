@@ -17,11 +17,10 @@ BEGIN
     -- Controller (decisão 0096): reconcilia o recurso externo e grava o estado observado.
     'ipm_organization_controller', 'ipm_serviceaccount_controller', 'ipm_user_controller',
     'ipm_permission_manager', 'ipm_permission_receiver', 'ipm_permission_publisher',
-    'ipm_role_manager', 'ipm_role_receiver', 'ipm_role_publisher',
-    -- Plano de dados (banco `platform`): Executor lê e escreve; Observer só lê.
-    'ipm_role_executor', 'ipm_role_observer',
+    'ipm_role_publisher',
     -- API síncrona (decisão 0098): admissão na requisição, no lugar de Receiver e Manager.
     'ipm_organization_api', 'ipm_organization_publisher',
+    'ipm_role_api',
     'ipm_serviceaccount_api', 'ipm_serviceaccount_publisher',
     'ipm_user_api', 'ipm_user_publisher',
     'ipm_maintenance'

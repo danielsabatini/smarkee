@@ -44,6 +44,8 @@ def test_role_document_parsing() -> None:
     raw: dict[str, Any] = {
         "resourceId": "r-1",
         "resourceVersion": "2",
+        "desiredGeneration": 2,
+        "observedGeneration": 2,
         "phase": "Ready",
         "desired": {
             "lifecycle": "present",
@@ -62,12 +64,35 @@ def test_role_document_parsing() -> None:
     assert role.permissions == ("ipm.user.create", "ipm.user.get")
     assert role.deletion_protection is True
     assert role.role_type == "custom"  # sem roleType (dados antigos), vale custom
+    assert (role.desired_generation, role.observed_generation) == (2, 2)
+    assert role.failure_reason is None
+
+
+def test_role_parser_without_observed_generation_or_with_a_failed_condition() -> None:
+    raw: dict[str, Any] = {
+        "resourceId": "r-1",
+        "resourceVersion": "1",
+        "desiredGeneration": 1,
+        "phase": "Failed",
+        "conditions": [{"status": "False", "reason": "Rejected"}],
+        "desired": {
+            "lifecycle": "present",
+            "name": "ipm.userAdmin",
+            "description": "Administrador de usuários",
+            "permissions": [],
+        },
+    }
+    role = _role(raw)
+    assert role.observed_generation is None
+    assert role.failure_reason == "Rejected"
 
 
 def test_role_type_is_read_from_the_api() -> None:
     raw: dict[str, Any] = {
         "resourceId": "r-1",
         "resourceVersion": "1",
+        "desiredGeneration": 1,
+        "observedGeneration": 1,
         "phase": "Ready",
         "desired": {
             "lifecycle": "present",
@@ -84,6 +109,7 @@ def test_role_missing_specification_fields() -> None:
     raw: dict[str, Any] = {
         "resourceId": "r-1",
         "resourceVersion": "1",
+        "desiredGeneration": 1,
         "phase": "Ready",
         "desired": {"lifecycle": "present", "specification": {"name": "ipm.userAdmin"}},
     }

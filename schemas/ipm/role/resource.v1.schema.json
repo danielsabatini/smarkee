@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Role",
-  "description": "Visão consolidada da Role (ipm.role) exposta pelo Receiver (GET). Não expõe campos internos do SSOT (failureCount, requestedBy).",
+  "description": "Visão consolidada da Role (ipm.role) exposta pela API (GET). Não expõe campos internos do SSOT (failureCount, requestedBy).",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,
@@ -29,6 +29,12 @@
     },
     "desiredGeneration": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/generation",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "observedGeneration": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/generation",
+      "description": "Última geração do desired confirmada pela observação; ausente antes da primeira. A alteração terminou quando observedGeneration >= desiredGeneration e a phase é Ready ou Failed (decisão 0098).",
       "x-writer": "server",
       "x-sensitivity": "internal"
     },

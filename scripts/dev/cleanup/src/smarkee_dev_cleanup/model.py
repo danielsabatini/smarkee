@@ -145,18 +145,18 @@ PERMISSIONS = Kind(
     "name",
     deletion_protected=True,
 )
-# Roles compostas (decisões 0083 e 0086): definição no SSOT e estado aplicado no `platform`.
+# Roles compostas (decisões 0083 e 0098): só no SSOT. A API síncrona apaga a linha (tem DELETE) e
+# publica o tombstone; não há `requested`. Nascem protegidas contra exclusão.
 ROLES = Kind(
     "ipm",
     "role",
     "ipm.role",
-    ("ipm.role_outbox", "ipm.role_operation", "ipm.role_action_result"),
-    "ipm_role_manager_login",
+    ("ipm.role_outbox", "ipm.role_idempotency"),
+    "ipm_role_api_login",
     "ipm_maintenance_login",
     "name",
     deletion_protected=True,
-    data_plane_table="ipm.role",
-    data_plane_role="ipm_role_executor_login",
+    removable_through_requested=False,
 )
 # Grupos da Organization (decisões 0086 e 0088): definição no SSOT e estado aplicado no `platform`.
 GROUPS = Kind(
@@ -207,8 +207,6 @@ class Findings:
     organization_rows: list[Row] = field(default_factory=lambda: [])
     organization_user_rows: list[Row] = field(default_factory=lambda: [])
     role_rows: list[Row] = field(default_factory=lambda: [])
-    platform_role_rows: list[Row] = field(default_factory=lambda: [])
-    """Roles de teste no banco `platform` (plano de dados), com ou sem linha no SSOT."""
     permission_rows: list[Row] = field(default_factory=lambda: [])
     group_rows: list[Row] = field(default_factory=lambda: [])
     platform_group_rows: list[Row] = field(default_factory=lambda: [])
@@ -232,7 +230,6 @@ class Findings:
             or self.organization_rows
             or self.organization_user_rows
             or self.role_rows
-            or self.platform_role_rows
             or self.permission_rows
             or self.group_rows
             or self.platform_group_rows
@@ -274,10 +271,6 @@ class Findings:
                 for row in self.organization_user_rows
             ),
             *(f"SSOT ipm.role {row.resource_id}  {row.label}" for row in self.role_rows),
-            *(
-                f"platform ipm.role {row.resource_id}  {row.label}"
-                for row in self.platform_role_rows
-            ),
             *(
                 f"SSOT ipm.permission {row.resource_id}  {row.label}"
                 for row in self.permission_rows
@@ -329,7 +322,6 @@ class Findings:
             | self._history_ids(ORGANIZATION_USERS)
             | self.message_orphans.get(ORGANIZATION_USERS, set()),
             ROLES: {row.resource_id for row in self.role_rows}
-            | {row.resource_id for row in self.platform_role_rows}
             | self._history_ids(ROLES)
             | self.message_orphans.get(ROLES, set()),
             PERMISSIONS: {row.resource_id for row in self.permission_rows}

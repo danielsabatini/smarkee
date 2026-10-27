@@ -2,7 +2,8 @@
 
 As roles predefinidas são da plataforma; as `custom` pertencem a uma Organization e são
 criadas por quem tem `ipm.role.create` (e `update`, `delete`, `bind`) nela, ou pelo operador.
-Criar, alterar e remover são assíncronos: com `--wait`, o comando espera a role convergir.
+Criar, alterar e remover são admitidos na hora pela API (decisão 0098); a Role é só dado do SSOT e
+nasce convergida. Com `--wait`, o comando espera `observedGeneration` alcançar a geração admitida.
 """
 
 import uuid
@@ -12,12 +13,12 @@ import typer
 from pydantic import ValidationError
 from rich.text import Text
 
-from sk import output, ui
+from sk import ui
 from sk.command_app import SkTyper
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
     EXIT_USAGE_ERROR,
-    ResourceFlow,
+    SyncResourceFlow,
     TimeoutOption,
     already_done,
     bad_address,
@@ -28,12 +29,10 @@ from sk.commands.shared import (
     session_token,
     usage_error,
 )
-from sk.features.api_contract import OperationStatus, RequestAccepted
 from sk.features.ipm.role import (
     Role,
     create_role,
     delete_role,
-    get_operation,
     get_role,
     list_roles,
     set_role_protection,
@@ -55,17 +54,10 @@ ROLE_HELP = command(
 NOT_FOUND = "Role not found."
 CONFLICT_ON_CHANGE = "The role changed since it was last read. Inspect it and try again."
 PROTECTED_HINT = "The role is protected against deletion. Run `sk ipm role unprotect` first."
-REJECTION_HINTS = {
-    "validation": (
-        "The role name, description or permissions are invalid, the name is already in use, "
-        "or a permission is not delegable to Organizations."
-    ),
-    "conflict": CONFLICT_ON_CHANGE,
-    "not_found": NOT_FOUND,
-    "protected": PROTECTED_HINT,
-}
 ERROR_CODE_HINTS = {
     "DeletionProtected": PROTECTED_HINT,
+    "NotPresent": "The role is being deleted and cannot be changed.",
+    "IdempotencyKeyReused": "The idempotency key was already used for a different request.",
     "NameAlreadyInUse": (
         "A role with this name already exists in the Organization or is a predefined role."
     ),
@@ -94,7 +86,7 @@ WaitOption = Annotated[
     typer.Option(
         "--wait",
         help=option(
-            "Wait for the role to converge (phase Ready and Operation completed).",
+            "Wait for the role to converge (its generation observed and phase Ready).",
             kind="Boolean",
             variable=None,
             file=None,
@@ -196,22 +188,16 @@ def _rows(role: Role) -> list[tuple[str, str]]:
     ]
 
 
-def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> str:
-    parts = ["sk ipm role get", f"--resource-id {accepted.resource_id}"]
-    if with_operation:
-        parts.append(f"--operation-id {accepted.operation_id}")
-    return " ".join(parts)
+def _get_command(resource_id: str) -> str:
+    return f"sk ipm role get --resource-id {resource_id}"
 
 
-_flow = ResourceFlow(
+_flow = SyncResourceFlow(
     subject="role",
     get_command=_get_command,
     read_resource=get_role,
-    read_operation=get_operation,
     fail_api=_fail_api,
-    rejection_hints=REJECTION_HINTS,
     rows=_rows,
-    inspect_row=True,
 )
 
 
@@ -268,12 +254,12 @@ def create_command(
         valid_desc = validate_description(r_desc, name=valid_name)
         valid_perms = validate_permissions_list(permission)
     except ValueError as error:
-        ui.error("Value not accepted", str(error), hint="Fix the given value and repeat.")
+        ui.error("Value not admitted", str(error), hint="Fix the given value and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     url, insecure = load_api()
     token = session_token()
     try:
-        accepted = create_role(
+        admitted = create_role(
             url,
             token=token,
             organization_id=org_id,
@@ -287,9 +273,9 @@ def create_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Creation requested", accepted, wait=wait)
+    _flow.requested_panel("Creation requested", admitted, wait=wait)
     _flow.finish(
-        url, insecure, accepted, title="Role created", removal=False, wait=wait, timeout=timeout
+        url, insecure, admitted, title="Role created", removal=False, wait=wait, timeout=timeout
     )
 
 
@@ -329,7 +315,7 @@ def update_command(
         if same_desc and same_perms:
             already_done(current, f"Role {role_id} already has it. Nothing to do.")
             return
-        accepted = update_role(
+        admitted = update_role(
             url,
             token=token,
             resource_id=role_id,
@@ -343,9 +329,9 @@ def update_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.requested_panel("Change requested", admitted, wait=wait)
     _flow.finish(
-        url, insecure, accepted, title="Role updated", removal=False, wait=wait, timeout=timeout
+        url, insecure, admitted, title="Role updated", removal=False, wait=wait, timeout=timeout
     )
 
 
@@ -363,7 +349,7 @@ def protect_command(
         if current.deletion_protection:
             already_done(current, f"Role {role_id} already has it. Nothing to do.")
             return
-        accepted = set_role_protection(
+        admitted = set_role_protection(
             url,
             token=token,
             resource_id=role_id,
@@ -376,9 +362,9 @@ def protect_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.requested_panel("Change requested", admitted, wait=wait)
     _flow.finish(
-        url, insecure, accepted, title="Role protected", removal=False, wait=wait, timeout=timeout
+        url, insecure, admitted, title="Role protected", removal=False, wait=wait, timeout=timeout
     )
 
 
@@ -400,7 +386,7 @@ def unprotect_command(
         if not current.deletion_protection:
             already_done(current, f"Role {role_id} already has it. Nothing to do.")
             return
-        accepted = set_role_protection(
+        admitted = set_role_protection(
             url,
             token=token,
             resource_id=role_id,
@@ -413,9 +399,9 @@ def unprotect_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.requested_panel("Change requested", admitted, wait=wait)
     _flow.finish(
-        url, insecure, accepted, title="Role unprotected", removal=False, wait=wait, timeout=timeout
+        url, insecure, admitted, title="Role unprotected", removal=False, wait=wait, timeout=timeout
     )
 
 
@@ -434,7 +420,7 @@ def delete_command(
     token = session_token()
     try:
         current = get_role(url, token=token, resource_id=role_id, allow_insecure_http=insecure)
-        accepted = delete_role(
+        admitted = delete_role(
             url,
             token=token,
             resource_id=role_id,
@@ -446,56 +432,24 @@ def delete_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Deletion requested", accepted, wait=wait)
+    _flow.requested_panel("Deletion requested", admitted, wait=wait)
     _flow.finish(
-        url, insecure, accepted, title="Role deleted", removal=True, wait=wait, timeout=timeout
+        url, insecure, admitted, title="Role deleted", removal=True, wait=wait, timeout=timeout
     )
 
 
 @role_app.command("get", structured=True, help=command("Inspect a composite role."))
-def get_command(
-    resource_id: RoleIdOption = None,
-    operation_id: Annotated[
-        str | None,
-        typer.Option(
-            "--operation-id",
-            help=option(
-                "operationId to inspect alongside the role (returned by `create`).",
-                kind="String",
-                variable=None,
-                file=None,
-                default="none",
-            ),
-        ),
-    ] = None,
-) -> None:
+def get_command(resource_id: RoleIdOption = None) -> None:
     role_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
-    operation: OperationStatus | None = None
     try:
         role = get_role(url, token=token, resource_id=role_id, allow_insecure_http=insecure)
-        if operation_id is not None:
-            operation = get_operation(
-                url,
-                token=token,
-                resource_id=role_id,
-                operation_id=operation_id,
-                allow_insecure_http=insecure,
-            )
     except OidcError as error:
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    rows = _rows(role)
-    if operation is not None:
-        rows.append(("operationStatus", operation.operation_status))
-        if operation.reason is not None:
-            rows.append(("reason", operation.reason))
-    document = output.to_data(role)
-    if operation is not None:
-        document["operation"] = output.to_data(operation)
-    ui.panel("Role", rows, data=document)
+    ui.panel("Role", _rows(role), data=role)
 
 
 @role_app.command(

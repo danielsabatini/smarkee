@@ -109,8 +109,8 @@ user = "smarkee"
 
 [tool.ipm.group.receiver.peers]
 organizations_url = "http://ipm-organization-api.smarkee.internal:8000"
-users_url = "http://ipm-user-receiver.smarkee.internal:8000"
-serviceaccounts_url = "http://ipm-serviceaccount-receiver.smarkee.internal:8000"
+users_url = "http://ipm-user-api.smarkee.internal:8000"
+serviceaccounts_url = "http://ipm-serviceaccount-api.smarkee.internal:8000"
 ```
 
 **Executar** (de `features/ipm/group`):

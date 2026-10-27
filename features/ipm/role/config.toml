@@ -1,36 +1,26 @@
 # Configuração de dev de ipm.role (decisões 0067 e 0083). Sem segredos: eles vêm do ambiente ou de /run/secrets.
 # Tabela por papel: [tool.ipm.role.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
 
-[tool.ipm.role.receiver.auth]
+[tool.ipm.role.api.auth]
 host_header = "ipm-dev.smarkee.com.br:8080"
 issuer = "http://ipm-dev.smarkee.com.br:8080"
 jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
-[tool.ipm.role.receiver.database]
+[tool.ipm.role.api.database]
 host = "database.smarkee.internal"
 name = "ssot"
 port = 5432
-user = "ipm_role_receiver_login"
+user = "ipm_role_api_login"
 
-[tool.ipm.role.receiver.messaging]
+[tool.ipm.role.api.messaging]
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
-[tool.ipm.role.receiver.peers]
+[tool.ipm.role.api.peers]
 groups_url = "http://ipm-group-receiver.smarkee.internal:8000"
 organizations_url = "http://ipm-organization-api.smarkee.internal:8000"
-users_url = "http://ipm-user-receiver.smarkee.internal:8000"
-serviceaccounts_url = "http://ipm-serviceaccount-receiver.smarkee.internal:8000"
-
-[tool.ipm.role.manager.database]
-host = "database.smarkee.internal"
-name = "ssot"
-port = 5432
-user = "ipm_role_manager_login"
-
-[tool.ipm.role.manager.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
+users_url = "http://ipm-user-api.smarkee.internal:8000"
+serviceaccounts_url = "http://ipm-serviceaccount-api.smarkee.internal:8000"
 
 [tool.ipm.role.publisher.database]
 host = "database.smarkee.internal"
@@ -39,31 +29,5 @@ port = 5432
 user = "ipm_role_publisher_login"
 
 [tool.ipm.role.publisher.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-
-# Observer e Executor usam o banco `platform` (plano de dados, decisão 0086), e não o SSOT. Para apontar para
-# outro servidor, mude só `host`, `port` e `name`.
-[tool.ipm.role.observer.database]
-host = "database.smarkee.internal"
-name = "platform"
-port = 5432
-user = "ipm_role_observer_login"
-
-[tool.ipm.role.observer.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-
-[tool.ipm.role.reconciler.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-
-[tool.ipm.role.executor.database]
-host = "database.smarkee.internal"
-name = "platform"
-port = 5432
-user = "ipm_role_executor_login"
-
-[tool.ipm.role.executor.messaging]
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"

@@ -6,7 +6,7 @@ Ele **não é um dos seis papéis do loop** (Receiver, Manager, Publisher, Recon
 
 ## O que ele faz
 
-1. **Recebe** por OTLP (gRPC, porta `4317`, só na rede `internal`) os sinais de **app** de `ipm.role`, que o **`telemetry-router`** entrega: os **logs** pelo Resource (`smarkee.module = ipm` e `smarkee.resource.type = role`) e os **spans** do gateway de borda pelo `apisix.service_name = ipm-role-receiver`.
+1. **Recebe** por OTLP (gRPC, porta `4317`, só na rede `internal`) os sinais de **app** de `ipm.role`, que o **`telemetry-router`** entrega: os **logs** pelo Resource (`smarkee.module = ipm` e `smarkee.resource.type = role`) e os **spans** do gateway de borda pelo `apisix.service_name = ipm-role-api`.
 2. **Aplica a política de app da feature** (hoje só os limites de memória e o agrupamento em lotes).
 3. **Grava**, até haver backend, em arquivos com rotação (10 MB, 3 rotacionados, no máximo 1 dia): `telemeter/logs/` e `telemeter/traces/`. Como só chega sinal de app, não há subpasta `app`.
 
