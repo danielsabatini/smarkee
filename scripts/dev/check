@@ -51,9 +51,15 @@ def check_architectural_boundaries() -> list[str]:
     1. Uma feature NÃO PODE importar módulos internos de outra feature.
     2. O subpacote `domain` de uma feature NÃO PODE importar adaptadores impuros
        (ex.: psycopg, httpx, nats, fastapi, store, transport, drivers, provider).
+    3. Zero acoplamento HTTP síncrono entre features (decisão 0098/0100):
+       Nenhuma feature de `ipm/*` pode realizar chamadas HTTP nem declarar peers apontando
+       para endpoints ou nomes de serviços de outras features `ipm/*`. Toda coordenação
+       ocorre exclusivamente através de projeções locais do stream `DESIRED`.
     """
     violations: list[str] = []
     features = find_features()
+
+    ipm_types = {"organization", "user", "serviceaccount", "group", "role", "permission"}
 
     for feature_path in features:
         # Exemplo: features/ipm/user -> expected_pkg = "ipm_user"
@@ -61,6 +67,9 @@ def check_architectural_boundaries() -> list[str]:
         src_dir = feature_path / "src"
         if not src_dir.is_dir():
             continue
+
+        is_ipm = feature_path.parent.name == "ipm"
+        current_type = feature_path.name
 
         for py_file in src_dir.rglob("*.py"):
             try:
@@ -72,6 +81,16 @@ def check_architectural_boundaries() -> list[str]:
             is_domain = "/domain/" in str(py_file) or str(py_file).endswith("/domain.py")
 
             for node in ast.walk(tree):
+                # Análise de strings literais para detectar chamadas HTTP cruzadas em ipm/*
+                if is_ipm and isinstance(node, ast.Constant) and isinstance(node.value, str):
+                    val = node.value
+                    for other_type in ipm_types:
+                        if other_type != current_type:
+                            if f"/v1/ipm/{other_type}s" in val or f"ipm-{other_type}-api" in val:
+                                violations.append(
+                                    f"{rel_file}:{node.lineno}: Chamada HTTP síncrona ilegal para feature '{other_type}' (decisão 0100: use projeção local do stream DESIRED)"
+                                )
+
                 # Análise de 'import x'
                 if isinstance(node, ast.Import):
                     for alias in node.names:

@@ -5,15 +5,14 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - **Regras, contratos e decisões:** `AGENTS.md`, `docs/` e `.decisions/`.
 
 ## Estado operacional atual
-- **Branch `dev`:** o plano `ipm/*` (decisão `0098`) está migrado: `ipm/serviceaccount|user|organization|permission` têm `api`, `publisher`, `controller`; `ipm/role|group` têm só `api` e `publisher`; banco `platform` extinto (`0099`). `origin/dev` em `470f89b1`; **1 commit local sem push**: `26a9de4e` (`ipm/permission`). Pedir autorização antes de push. `core/account`, `sum/service` e `bsm/account` seguem no modelo antigo (Receiver/Manager/Operation).
+- **Branch `dev`:** o plano `ipm/*` (decisões `0098`, `0099` e `0100`) está migrado até a etapa S5: `ipm/serviceaccount|user|organization|permission` têm `api`, `publisher`, `controller`; `ipm/role|group` têm só `api` e `publisher`; banco `platform` extinto (`0099`); 0 chamadas HTTP mútuas entre features `ipm/*` com projeções locais via stream `DESIRED` e auditoria no `scripts/dev/check` (`0100`). `origin/dev` em `13004e6d`; commits locais sem push: `ae811653` (S5.1), `aa7bfdca` (S5.2 pt 1), `e8cc5b04` (S5.2 pt 2), `c9b72e8b` (S5.3). Pedir autorização antes de push. `core/account`, `sum/service` e `bsm/account` seguem no modelo antigo (Receiver/Manager/Operation).
 - **Banco `ssot`** (decisão `0087`) é o único banco de recursos; o banco `platform` foi extinto (decisão `0099`; dump prévio em `.workspace/platform-before-drop.dump`).
 - **Identidade (`infrastructure/dev/identity`):** chaves das service accounts do Zitadel persistem no volume Docker `identity-bootstrap`.
 - **Ambiente local OpenCode:** `~/.config/opencode/opencode.json` carrega `AGENTS.md` e `MEMORY.md` globalmente.
 
 ## Próximos passos imediatos
 00. **Plano de evolução ipm/* e loop** (`~/.opencode/plan/ipm-resource-control-loop-evolution.md`; ordem `S0 → S2 → S1 → S3 → S4 → S5 → S6`):
-  - **Próximo: S5** (loop de reconciliação puro: projeção local + finalizers no lugar das chamadas HTTP entre features). `ipm/permission` já migrada e plano/decisão `0098` corrigidos.
-  - Seguem: S5 (loop de reconciliação puro) e S6 (higiene/telemetria).
+  - **Próximo: S6** (migração de `core/account`, `bsm/account` e `sum/service`, limpeza do template de feature e consolidação documental).
   - Pendências menores: contas Zitadel `*-executor/observer` (lacuna declarada), diagramas `docs/{flow,architecture,state,database}` e `*-DATA-FLOW.md` de role/group (modelo antigo, declarado nos READMEs), Console desatualizado (fase própria).
 0. Os `list` da CLI `sk` mostram só `name | resourceId | phase | description` (padronizados; `--output json` mantém todos os campos). Commitado em `14ccbd9` (as opções `--output`/`--raw`, decisão `0093`, já estão em `origin/dev`, `0bdba35`). O scanner da CLI exige `-Dsonar.python.coverage.reportPaths=coverage.xml` (o `sonar-project.properties` não define); Quality Gate `smarkee-clients-cli` em OK.
 0a. A UX da CLI `sk` é auditada pela skill `cli-ux` (matriz `references/clig-conformance.md`, lacunas em aberto listadas lá); lotes A e B e as etapas 1 a 3 entregues e em `origin/dev` (até `1474acb2`): timeout `api.timeoutSeconds`, `config unset`, `--public-key-file -`, progresso do `--wait`, `-q/--quiet` (decisão `0095`) e exemplos na ajuda de 8 comandos. Em aberto: `sk help <cmd>` (só se o responsável quiser; o `-h` já cobre), exemplos nos demais comandos, canal de suporte e modo de diagnóstico (traceback) para erro inesperado.
