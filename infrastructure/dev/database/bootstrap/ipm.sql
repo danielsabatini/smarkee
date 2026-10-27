@@ -12,8 +12,6 @@ DECLARE
 BEGIN
   FOREACH function_role IN ARRAY ARRAY[
     'ipm_group_publisher',
-    -- Plano de dados (banco `platform`): Executor lê e escreve; Observer só lê.
-    'ipm_group_executor', 'ipm_group_observer',
     -- Controller (decisão 0096): reconcilia o recurso externo e grava o estado observado.
     'ipm_organization_controller', 'ipm_serviceaccount_controller', 'ipm_user_controller',
     'ipm_permission_manager', 'ipm_permission_receiver', 'ipm_permission_publisher',

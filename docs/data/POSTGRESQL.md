@@ -47,7 +47,7 @@ Este documento não fixa uma versão. O DDL de referência foi exercitado em Pos
 
 As tabelas e as views de cada tipo seguem **um único modelo** (o DDL de referência da seção 6.6) e o contrato do recurso. Como as features não compartilham código (decisões 0015 e 0063), cada tipo versiona as suas migrações a partir desse modelo (hoje escritas à mão, sem gerador), e os testes de integração do Manager e os testes e2e verificam o comportamento do resultado. O objeto criado não é editado manualmente (`AGENTS.md`, arquivos gerados).
 
-Motivo do banco único: o SSOT é um só sistema, com um só procedimento de backup, de recuperação e de migração. O isolamento entre módulos e tipos é feito por schema, por tabela e por `GRANT`, e não por banco. Bancos separados por módulo multiplicariam conexões, backups e procedimentos sem acrescentar isolamento que os privilégios já não garantam. O plano de dados dos Executors e Observers (`platform`, decisão 0086) é outro sistema, fora do SSOT, e por isso tem banco próprio.
+Motivo do banco único: o SSOT é um só sistema, com um só procedimento de backup, de recuperação e de migração. O isolamento entre módulos e tipos é feito por schema, por tabela e por `GRANT`, e não por banco. Bancos separados por módulo multiplicariam conexões, backups e procedimentos sem acrescentar isolamento que os privilégios já não garantam.
 
 Motivo da tabela por tipo: o isolamento de acesso é feito por `GRANT` por tabela, sem exigir políticas por linha, e combina com a identidade por serviço. O custo é a quantidade de tabelas, que são idênticas, pois seguem o mesmo modelo (hoje as migrações são escritas à mão a partir dele).
 

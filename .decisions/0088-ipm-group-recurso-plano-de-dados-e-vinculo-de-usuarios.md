@@ -1,7 +1,7 @@
 # 0088 — `ipm.group`: recurso, plano de dados no banco `platform` e vínculo com usuários
 
 - **Data:** 2026-10-25
-- **Status:** Aceita. Evolui e detalha as decisões `0085` (`ipm.group` e concessão exclusiva por `roles`) e `0086` (banco `platform` para planos de dados multi-tenant).
+- **Status:** Aceita. **Parcialmente revogada pela decisão `0099`:** o plano de dados no banco `platform` (e o Executor/Observer/Reconciler de grupo) deixou de existir; o restante (identificação, nome, `roles`, vínculo com usuários, cota, `bind`) permanece. Evolui e detalha as decisões `0085` (`ipm.group` e concessão exclusiva por `roles`) e `0086` (banco `platform` para planos de dados multi-tenant).
 - **Origem:** Planejamento e especificação dos requisitos de grupos de usuários (`ipm.group`) na Organization e sua integração com `ipm.user` e o provedor de identidade (Zitadel).
 
 ## Contexto

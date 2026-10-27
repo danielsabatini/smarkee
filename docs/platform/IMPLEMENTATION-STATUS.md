@@ -198,7 +198,6 @@ Lacuna declarada: o que dev não tem, por que é aceitável em dev e a condiçã
 | Lacuna (dev) | Pilar | Por que é aceitável em dev | Condição de saída (antes do stg) |
 |---|---|---|---|
 | etcd do gateway sem autenticação nem TLS; a Admin API aceita a rede `internal` (com a chave) | Segurança, infraestrutura | rede interna do Compose, ambiente descartável | etcd com autenticação e TLS; Admin API fora da rede de carga (decisão 0049) |
-| Banco `platform` (decisão 0086) no mesmo servidor do SSOT, com senhas triviais dos papéis (`platform`, `ipm_role_executor_login`, `ipm_role_observer_login`), sem réplica nem backup próprio além do script de dev e com `CONNECT` público no banco `postgres` | Segurança, robustez e resiliência, infraestrutura | dev tem um só servidor e sem cofre de segredos | servidor ou cluster dedicado com backup e réplica, segredos no cofre e `CONNECT` público revogado |
 | NATS com um só usuário e sem TLS | Segurança, infraestrutura | sem certificados em dev | identidade por serviço e TLS (`NATS.md`, seção 3 acima) |
 | Senhas dos papéis montadas em `/run/secrets` a partir do `.env` (decisão 0070); não há cofre de segredos | Segurança, infraestrutura | o `.env` fica fora do git e a senha não aparece no ambiente do processo | cofre de segredos escolhido e senhas fornecidas por ele, sem valor trivial igual ao nome do papel (decisão 0070) |
 | PostgreSQL sem TLS nem proteção em repouso | Segurança, infraestrutura | sem certificados nem cofre em dev | TLS e proteção em repouso (seção 4 acima) |

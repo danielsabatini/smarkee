@@ -8,10 +8,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
-# Bancos do PostgreSQL de dev: Zitadel, o SSOT e o plano de dados `platform` (o gateway usa o etcd,
+# Bancos do PostgreSQL de dev: Zitadel e o SSOT (o gateway usa o etcd,
 # e não o PostgreSQL). Lista fixa; o nome entra em comandos SQL, então só passa o que casa com
 # `DATABASE_NAME`.
-DATABASES = ("identity", "ssot", "platform")
+DATABASES = ("identity", "ssot")
 DATABASE_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 # Volumes com estado que não se reconstrói pelo git: chaves das service accounts e PAT do login
 # (`identity-bootstrap`) e estado externo das Billing Accounts na fase P0 (`bsm-account-state`).

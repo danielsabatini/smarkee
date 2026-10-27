@@ -1,7 +1,7 @@
 # 0086 — Banco `platform`: plano de dados multi-tenant das soluções próprias
 
 - **Data:** 2026-10-25
-- **Status:** Aceita. Revisa os trechos das decisões `0073` e `0083` que mantinham o estado de `ipm.role` em arquivos no disco do Executor e do Observer.
+- **Status:** **Revogada pela decisão `0099`** (o banco `platform` foi extinto; Role e Grupo vivem só no SSOT). Texto mantido como histórico. Era: Aceita. Revisa os trechos das decisões `0073` e `0083` que mantinham o estado de `ipm.role` em arquivos no disco do Executor e do Observer.
 - **Origem:** O estado de `ipm.role` em `<stateDir>/<resourceId>.json` (volume `ipm-role-state`) não escala para os próximos recursos (`ipm.user`, `ipm.group`, e possivelmente `sum` e `bsm`), não é consultável nem transacional e não é multi-tenant.
 
 ## Contexto

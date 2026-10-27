@@ -47,7 +47,7 @@ receivers:
     username: telemetry_login
     password: ${env:SMARKEE_DATABASE_TELEMETRY_PASSWORD:-telemetry_login}
     connect_database: ssot
-    databases: [ssot, identity, platform]
+    databases: [ssot, identity]
     exclude_databases: [postgres]
     collection_interval: 30s
     tls:
