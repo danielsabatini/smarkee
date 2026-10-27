@@ -58,8 +58,8 @@ async def jetstream() -> AsyncIterator[JetStreamContext]:
 async def created(jetstream: JetStreamContext) -> AsyncIterator[list[str]]:
     """Identificadores criados pelo teste.
 
-    Ao final, cada Organization é removida **pelo próprio loop** (pedido `delete` e Controller), para não deixar organizações no Zitadel. O que sobrar no SSOT é limpo
-    diretamente.
+    Ao final, cada Organization é removida **pelo próprio loop** (pedido `delete` e Controller),
+    para não deixar organizações no Zitadel. O que sobrar no SSOT é limpo diretamente.
     """
     resource_ids: list[str] = []
     yield resource_ids

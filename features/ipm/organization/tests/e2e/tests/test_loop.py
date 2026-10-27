@@ -1,4 +1,4 @@
-"""Loop completo de ipm.organization (Receiver até Controller), com os componentes reais e o Zitadel.
+"""Loop completo de ipm.organization (Receiver até Controller), com componentes reais e o Zitadel.
 
 Usa os componentes reais e o Zitadel de dev. Os pedidos entram direto no NATS, como o Receiver os
 publicaria; cada Organization é removida pelo próprio loop ao final (fixture `created`).
