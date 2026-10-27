@@ -5,17 +5,16 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - **Regras, contratos e decisões:** `AGENTS.md`, `docs/` e `.decisions/`.
 
 ## Estado operacional atual
-- **Branch `dev`:** commits locais até `1ef8c2c4` (S3 em `ipm/serviceaccount` e `ipm/user`) mais a migração de `ipm/organization` (S3, commit seguinte). Features `core/account`, `sum/service`, `bsm/account`, `ipm/organization`, `ipm/user`, `ipm/permission`, `ipm/role`, `ipm/group` e `ipm/serviceaccount` operacionais no Compose. `ipm/serviceaccount`, `ipm/user` e `ipm/organization` têm apenas 3 papéis (`api`, `publisher`, `controller`), sem Operation e sem Stream REQUESTED (decisão `0098`).
-- **Banco `platform` (decisões `0086`, `0088`):** Executor e Observer de `ipm/role` e `ipm/group` usam o banco `platform` (plano de dados multi-tenant) fora do SSOT; ativo no dev.
-- **Banco `ssot` (decisão `0087`):** SSOT em `ssot` (banco e dono).
+- **Branch `dev`:** commits locais (sem push) até `5995306c`: S3 em `ipm/serviceaccount`, `ipm/user`, `ipm/organization`; S4 em `ipm/role` (`bb35fd1e`) e `ipm/group` (`a0c29328`); fim do banco `platform` (decisão `0099`, `5995306c`). `ipm/serviceaccount|user|organization` têm `api`, `publisher`, `controller`; `ipm/role|group` têm só `api` e `publisher` (decisão `0098`). Features `core/account`, `sum/service`, `bsm/account` e `ipm/permission` seguem no modelo antigo (Receiver/Manager/Operation).
+- **Banco `ssot`** (decisão `0087`) é o único banco de recursos; o banco `platform` foi extinto (decisão `0099`; dump prévio em `.workspace/platform-before-drop.dump`).
 - **Identidade (`infrastructure/dev/identity`):** chaves das service accounts do Zitadel persistem no volume Docker `identity-bootstrap`.
 - **Ambiente local OpenCode:** `~/.config/opencode/opencode.json` carrega `AGENTS.md` e `MEMORY.md` globalmente.
 
 ## Próximos passos imediatos
 00. **Plano de evolução ipm/* e loop** (`~/.opencode/plan/ipm-resource-control-loop-evolution.md`; ordem `S0 → S2 → S1 → S3 → S4 → S5 → S6`):
-  - **S3 (API síncrona, decisão `0098`):** `ipm/serviceaccount`, `ipm/user` e `ipm/organization` concluídos. Próximo passo na S3: replicar nas demais (group, role, permission) conforme o plano.
-  - Seguem: S4 (plano de dados do `ipm`: group, role, permission), S5 (loop de reconciliação puro) e S6 (higiene/telemetria).
-  - Pendências menores acumuladas: contas Zitadel `*-executor/observer` (lacuna declarada), diagramas `docs/{flow,architecture,state,database}`, `reconciliation` no schema de serviceaccount.
+  - **Próximo: `ipm/permission`.** Fala com o Zitadel (project roles), então precisa de `controller` (S2) + `api` (S3), e não só S4 como diz o plano (corrigir o plano). Molde: `ipm/serviceaccount`/`ipm/organization`. Depois: corrigir o Status da decisão `0098` (cita só serviceaccount, user, organization; acrescentar role e group).
+  - Seguem: S5 (loop de reconciliação puro) e S6 (higiene/telemetria).
+  - Pendências menores: contas Zitadel `*-executor/observer` (lacuna declarada), diagramas `docs/{flow,architecture,state,database}` e `*-DATA-FLOW.md` de role/group (modelo antigo, declarado nos READMEs), Console desatualizado (fase própria).
 0. Os `list` da CLI `sk` mostram só `name | resourceId | phase | description` (padronizados; `--output json` mantém todos os campos). Commitado em `14ccbd9` (as opções `--output`/`--raw`, decisão `0093`, já estão em `origin/dev`, `0bdba35`). O scanner da CLI exige `-Dsonar.python.coverage.reportPaths=coverage.xml` (o `sonar-project.properties` não define); Quality Gate `smarkee-clients-cli` em OK.
 0a. A UX da CLI `sk` é auditada pela skill `cli-ux` (matriz `references/clig-conformance.md`, lacunas em aberto listadas lá); lotes A e B e as etapas 1 a 3 entregues e em `origin/dev` (até `1474acb2`): timeout `api.timeoutSeconds`, `config unset`, `--public-key-file -`, progresso do `--wait`, `-q/--quiet` (decisão `0095`) e exemplos na ajuda de 8 comandos. Em aberto: `sk help <cmd>` (só se o responsável quiser; o `-h` já cobre), exemplos nos demais comandos, canal de suporte e modo de diagnóstico (traceback) para erro inesperado.
 1. Higiene operacional: ruído de WARN `NotFound` em `ipm/user` e `trace_id` não propagado entre receivers (não pedidos); isolar testes de integração para não publicar no loop em execução; limpeza reconhecer usuário removido; supressão de logs repetitivos por recurso; trace novo por tentativa com link (quando houver spans).
@@ -28,8 +27,8 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 ## Armadilhas operacionais ativas
 - `ObservationStale` (decisão `0090`): um recurso `unknown` vai a `Failed` só na próxima observação após o prazo (até ~300 s + jitter); em `stg`/`prd` repetir `ORG_OWNER_VIEWER` na `operator` para o Observer de `ipm/permission`, os Grants/autorizações `ipm.group.*` e `ipm.role.*`, as migrações `*-operation-superseded` e `ipm/role` `0004-role-organization`, e `update grantable=true` de `ipm.role.get|list`.
 - Em `stg`/`prd`, para `ipm/serviceaccount`: contas `ipm-serviceaccount-executor/observer`, papéis, Grants, autorizações, migrações, `update grantable=true` e rota do gateway (decisão `0094`). O `--key-file` de `sk auth login` não é chave de config.
-- Em ambiente existente, aplicar como `postgres` `platform.sql`, `ipm.sql` e `telemetry.sql` (o `initdb.d` só roda em volume novo); o MCP `postgresql` não cobre o `platform`: use `docker exec database.smarkee.internal psql -U postgres -d platform`.
-- O `scripts/dev/cleanup` cobre Roles (`test.role*`/`test.chaos*`) e Grupos (`test-group-*`/`test-loop-*`/`test-chaos-*`) de teste no SSOT e no `platform`.
+- Em ambiente existente, aplicar como `postgres` `ipm.sql` e `telemetry.sql` (o `initdb.d` só roda em volume novo).
+- O `scripts/dev/cleanup` cobre Roles (`test.role*`/`test.chaos*`) e Grupos (`test-group-*`/`test-loop-*`/`test-chaos-*`) de teste no SSOT.
 - Recriar um Receiver exige reiniciar o gateway (cache de DNS); recriar um telemeter exige reiniciar o `telemetry-router`.
 - `docker compose up --build` numa feature falha ao reconstruir `*-migrate` (`apk` sem rede); usar `docker compose build <feature>-observer` e `up -d --no-build <papéis>`.
 - Resíduo de testes: `scripts/dev/cleanup`; sinais em disco: `scripts/dev/telemetry-reset --apply`.
