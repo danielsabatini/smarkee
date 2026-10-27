@@ -18,7 +18,7 @@ runner = CliRunner()
 INTEGER_TYPES = {"int", "integer", "int range"}
 IGNORED = {"help", "install_completion", "show_completion"}
 # Os subcomandos de `sk config` operam só no arquivo: não há ordem de resolução a explicar.
-WITHOUT_RESOLUTION_ORDER = {"config list", "config get", "config set"}
+WITHOUT_RESOLUTION_ORDER = {"config list", "config get", "config set", "config unset"}
 OPTION_FORMAT = re.compile(r"\[(String|Integer|Boolean)\](?: \[(.+)\])? \[(required|optional)\]$")
 
 

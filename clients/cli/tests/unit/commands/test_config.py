@@ -247,3 +247,63 @@ def test_an_integer_key_out_of_range_is_refused_before_writing(value: str, tmp_p
     result = runner.invoke(app, ["config", "set", "api.timeoutSeconds", value])
     assert result.exit_code == 2
     assert not config_file(tmp_path).exists()
+
+
+def test_unset_returns_the_key_to_the_default_and_drops_an_empty_section(tmp_path: Path) -> None:
+    runner.invoke(app, ["config", "set", "api.url", "https://api.example"])
+    runner.invoke(app, ["config", "set", "auth.issuer", "https://issuer.example"])
+    result = runner.invoke(app, ["config", "unset", "api.url"])
+    assert result.exit_code == 0
+    content = config_file(tmp_path).read_text(encoding="utf-8")
+    assert "[api]" not in content
+    assert "api.example" not in content
+    assert "issuer.example" in content
+    assert runner.invoke(app, ["config", "get", "api.url"]).stdout.strip() == PRD_API_URL
+
+
+def test_unset_keeps_the_other_keys_of_the_section(tmp_path: Path) -> None:
+    runner.invoke(app, ["config", "set", "api.url", "https://api.example"])
+    runner.invoke(app, ["config", "set", "api.timeoutSeconds", "30"])
+    runner.invoke(app, ["config", "unset", "api.timeoutSeconds"])
+    content = config_file(tmp_path).read_text(encoding="utf-8")
+    assert "timeoutSeconds" not in content
+    assert "api.example" in content
+
+
+def test_unset_is_idempotent_and_does_not_touch_the_file(tmp_path: Path) -> None:
+    write_overrides(tmp_path)
+    before = config_file(tmp_path).read_text(encoding="utf-8")
+    result = runner.invoke(app, ["config", "unset", "sum.projectId"])
+    assert result.exit_code == 0
+    assert "already at the default" in result.output
+    assert config_file(tmp_path).read_text(encoding="utf-8") == before
+
+
+def test_unset_without_a_file_creates_nothing(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["config", "unset", "api.url"])
+    assert result.exit_code == 0
+    assert not config_file(tmp_path).exists()
+
+
+def test_unset_warns_when_an_environment_variable_still_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_overrides(tmp_path)
+    monkeypatch.setenv("SK_API_URL", "https://from-env.example")
+    result = runner.invoke(app, ["config", "unset", "api.url"])
+    assert result.exit_code == 0
+    assert "SK_API_URL" in result.output
+    assert "still takes precedence" in result.output
+
+
+def test_unset_refuses_an_unknown_key_and_a_missing_argument() -> None:
+    assert runner.invoke(app, ["config", "unset", "api.nada"]).exit_code == 2
+    assert runner.invoke(app, ["config", "unset"]).exit_code == 2
+
+
+def test_unset_refuses_an_invalid_file_without_rewriting_it(tmp_path: Path) -> None:
+    config_file(tmp_path).parent.mkdir()
+    config_file(tmp_path).write_text("garbage = [", encoding="utf-8")
+    result = runner.invoke(app, ["config", "unset", "api.url"])
+    assert result.exit_code == 2
+    assert config_file(tmp_path).read_text(encoding="utf-8") == "garbage = ["

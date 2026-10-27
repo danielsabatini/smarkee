@@ -216,6 +216,25 @@ def _source_of(key: ConfigKey, document: dict[str, Any]) -> str:
     return "file" if _stored_value(document, key) is not None else "default"
 
 
+def _rewrite_file(document: dict[str, Any], *, path: Path) -> dict[str, BaseModel]:
+    """Valida o `document` inteiro, como o carregamento faz, e regrava o arquivo `path`.
+
+    Devolve as seções validadas. Levanta `ValidationError` ou `ConfigurationError` se o documento
+    não vale, e `OSError` se a gravação falha.
+    """
+    values = convert_file_document(SkSettings, document, path=path)
+    sections = {
+        name: model.model_validate(values.get(name, {})) for name, model in SECTION_MODELS.items()
+    }
+    # Todas as seções são regravadas, mas só com os campos que o arquivo tem (as sobrescritas):
+    # um valor que ficou no padrão não vai para o arquivo.
+    content = "\n".join(
+        render_section(name, model) for name, model in sections.items() if model.model_fields_set
+    )
+    write_private_file(path, content)
+    return sections
+
+
 def store_value(
     key: ConfigKey, value: ConfigValue, document: dict[str, Any], *, path: Path
 ) -> dict[str, BaseModel]:
@@ -228,18 +247,20 @@ def store_value(
     """
     section = dict(document.get(key.section, {}))
     section[key.file_name] = value
-    document = {**document, key.section: section}
-    values = convert_file_document(SkSettings, document, path=path)
-    sections = {
-        name: model.model_validate(values.get(name, {})) for name, model in SECTION_MODELS.items()
+    return _rewrite_file({**document, key.section: section}, path=path)
+
+
+def remove_value(key: ConfigKey, document: dict[str, Any], *, path: Path) -> None:
+    """Remove `key` do arquivo `path` (o valor volta a ser o padrão) e o regrava.
+
+    O contrário de `store_value`, com os mesmos erros. Uma seção que fica sem chaves deixa de
+    existir no arquivo.
+    """
+    section = {
+        name: v for name, v in dict(document.get(key.section, {})).items() if name != key.file_name
     }
-    # Todas as seções são regravadas, mas só com os campos que o arquivo tem (as sobrescritas):
-    # um valor que ficou no padrão não vai para o arquivo.
-    content = "\n".join(
-        render_section(name, model) for name, model in sections.items() if model.model_fields_set
-    )
-    write_private_file(path, content)
-    return sections
+    rest = {name: v for name, v in document.items() if name != key.section}
+    _rewrite_file({**rest, **({key.section: section} if section else {})}, path=path)
 
 
 @config_app.command(
@@ -325,3 +346,38 @@ def set_command(
             f"{key.dotted} is HTTP without permission: use will refuse this address until "
             f"`{key.section}.allowInsecureHttp` is true."
         )
+
+
+@config_app.command(
+    "unset",
+    help=(
+        "Remove a key from the file, so its value goes back to the default. Comments written by "
+        "hand are not preserved."
+    ),
+)
+def unset_command(
+    name: Annotated[
+        str | None,
+        typer.Argument(help="Key, such as auth.issuer or api.url (required)."),
+    ] = None,
+) -> None:
+    key = _key_or_exit(name)
+    path = config_file_path()
+    document = _read_or_exit()
+    variable = f"SK_{key.section.upper()}_{key.field_name.upper()}"
+
+    if _stored_value(document, key) is None:
+        # Idempotente: já está no padrão, e o arquivo nem é tocado.
+        ui.note(f"{key.dotted} is not in the file: it is already at the default.")
+    else:
+        try:
+            remove_value(key, document, path=path)
+        except (ValidationError, ConfigurationError) as error:
+            _exit_with(error, "Could not update", "Fix the file and repeat.", EXIT_USAGE_ERROR)
+        except OSError as error:
+            ui.error("Could not write the configuration", f"{path}: {error.strerror}")
+            raise typer.Exit(EXIT_FAILURE) from error
+        ui.panel("Configuration updated", [("key", key.dotted), ("file", str(path))])
+        ui.note(f"{key.dotted} is back to the default.")
+    if variable in os.environ:
+        ui.warning(f"{variable} is set and still takes precedence over the file and the default.")
