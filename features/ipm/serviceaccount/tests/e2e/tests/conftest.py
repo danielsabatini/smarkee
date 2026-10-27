@@ -23,7 +23,7 @@ ORGANIZATION_ID = os.environ.get("CONFORMANCE_ORGANIZATION_ID")
 DATABASE_HOST = os.environ.get("CONFORMANCE_DATABASE_HOST", "localhost")
 DATABASE_PORT = os.environ.get("CONFORMANCE_DATABASE_PORT", "5432")
 
-MANAGER_LOGIN = "ipm_serviceaccount_manager_login"
+MANAGER_LOGIN = "ipm_serviceaccount_controller_login"  # apaga o recurso (decisão 0096)
 MAINTENANCE_LOGIN = "ipm_maintenance_login"
 TABLE = "ipm.serviceaccount"
 DIGEST = "0" * 64

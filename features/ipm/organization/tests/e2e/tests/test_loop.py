@@ -177,6 +177,8 @@ async def test_the_whole_loop_creates_updates_and_removes_the_organization(
     assert sorted(sorted(item["permissions"]) for item in user_access["administrators"]) == [
         ["ORG_OWNER_VIEWER"],
         ["ORG_OWNER_VIEWER"],
+        ["ORG_OWNER_VIEWER", "ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"],
+        ["ORG_OWNER_VIEWER", "ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"],
         ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"],
         ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"],
     ]
