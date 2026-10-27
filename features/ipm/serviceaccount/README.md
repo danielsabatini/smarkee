@@ -2,7 +2,7 @@
 
 A **service account** é a identidade de máquina da Organization: um usuário de máquina do Zitadel, na organização do cliente, que se autentica com uma **chave privada que nasce e fica no cliente** (a plataforma guarda só a pública) e recebe permissões da plataforma como qualquer usuário. Decisão [`0094`](../../../.decisions/0094-ipm-serviceaccount-identidade-de-maquina-da-organization.md). É gerenciada pelo Resource Control Loop (`docs/loop/RESOURCE-CONTROL-LOOP.md`); o `resourceId` é o ID do Zitadel (`userId`).
 
-Decisões que definem esta feature: `0094` (o tipo, as chaves, o login e o escopo), `0096` (o Controller unifica observar, decidir e agir), `0077` (usuário da Organization: escopo, permissões e `bind`), `0071` (`bind`), `0040` (consulta entre Receivers com o token de quem pede), `0043` e `0074` (proteção contra exclusão como metadado; aqui ela **nasce ligada**), `0072` (toda alteração percorre o loop), `0073` (drivers espelhados) e `0075` (motores gerados do template). `features/ipm/user` é o **modelo** desta estrutura.
+Decisões que definem esta feature: `0094` (o tipo, as chaves, o login e o escopo), `0097` (`desired` puro e permissões efetivas calculadas pelo Controller), `0096` (o Controller unifica observar, decidir e agir), `0077` (usuário da Organization: escopo, permissões e `bind`), `0071` (`bind`), `0040` (consulta entre Receivers com o token de quem pede), `0043` e `0074` (proteção contra exclusão como metadado; aqui ela **nasce ligada**), `0072` (toda alteração percorre o loop), `0073` (drivers espelhados) e `0075` (motores gerados do template). `features/ipm/user` é o **modelo** desta estrutura.
 
 # 1. Estado da implementação
 
@@ -11,7 +11,7 @@ Etapa 1 da `0094` completa: os quatro papéis (Receiver, Manager, Publisher e Co
 | Papel | Projeto | Responsabilidade |
 |---|---|---|
 | Receiver | `receiver/` (`ipm-serviceaccount-receiver`) | API `/v1/ipm/serviceaccounts`: autentica, decide o escopo, valida as chaves públicas, confere catálogo, `bind` e cota, publica `requested`. Contrato em `openapi.json` |
-| Manager | `manager/` | Consome `requested` (e os catálogos `DESIRED` de permission e role); nome único na Organization, permissões do módulo e cota na unidade atômica |
+| Manager | `manager/` | Consome `requested`; nome único na Organization e cota na unidade atômica. O `desired` guarda só a intenção (`roles`); as permissões efetivas são do Controller (decisão 0097) |
 | Publisher | `publisher/` | Publica o outbox no NATS (decisão 0065) |
 | Controller | `controller/` | Decisão 0096: consome `desired`, e numa só transação observa a máquina, as chaves, as autorizações e os metadados no Zitadel, decide `create`, `update` ou `delete`, age, reobserva e grava o estado e o `updated` no outbox. Leia o [README](src/ipm_serviceaccount/controller/README.md) |
 | Testes e2e | `tests/e2e/` | Black-box: loop completo, incluindo a rotação de chaves |
@@ -48,7 +48,7 @@ Os quatro papéis são **um projeto e uma imagem** (decisão 0063), cada um com 
 
 Detalhes no [README do Controller](src/ipm_serviceaccount/controller/README.md) e na decisão `0096`.
 
-- **Decisão:** campos gerenciados `lifecycle`, `permissions`, `deletionProtection`, `description` e os fingerprints das chaves; `organizationId` e `name` são imutáveis. Chave vencida segue no `desired` e no observado como `expired`, sem divergência.
+- **Decisão:** campos gerenciados `lifecycle`, as permissões efetivas (calculadas do catálogo a partir de `roles`, decisão 0097), `deletionProtection`, `description` e os fingerprints das chaves; `organizationId` e `name` são imutáveis. Chave vencida segue no `desired` e no observado como `expired`, sem divergência.
 - **Observação:** lê o usuário de máquina (`userState`, `accessTokenType`), a lista de chaves (`ListKeys`: só IDs e vencimentos, nunca material), as permissões em `roles-ipm` e os metadados `deletionProtection`, `description` e `keys` (mapa `fingerprint → keyId`). `absent` só com o `404` do usuário exato; qualquer falha é `unknown`.
 - **Ação:** cria o usuário de máquina com `ACCESS_TOKEN_TYPE_JWT` (sempre), adiciona as chaves novas (`AddKey` com a pública) e grava o mapa no metadado `keys`; remove a chave do provedor sem registro no mapa e as fora do `desired`; deixa a autorização com **exatamente** as permissões do `desired`; remove a máquina no `delete`. O Project Grant é o teto.
 - **Ciclo:** por `resourceId`, com a linha bloqueada, observa, decide, age, reobserva e grava estado, fase, Operations e `updated` (e apaga o registro quando a remoção converge). A reavaliação periódica detecta divergência externa.
@@ -74,7 +74,7 @@ A convergência e os handlers do Manager e o domínio comum do Receiver vêm do 
 |---|---|---|---|
 | `REQUESTED` | `receiver.requested.ipm.serviceaccount.>` | `ipm-serviceaccount-manager-requested` (durável) | Manager |
 | `DESIRED` | `manager.desired.ipm.serviceaccount.>` | `ipm-serviceaccount-controller-desired-<instância>` | Controller |
-| `DESIRED` (catálogos) | `manager.desired.ipm.permission.>` e `manager.desired.ipm.role.>` | `ipm-serviceaccount-manager-{permissions,roles}-<instância>` | Manager |
+| `DESIRED` (catálogos) | `manager.desired.ipm.permission.>` e `manager.desired.ipm.role.>` | `ipm-serviceaccount-controller-{permissions,roles}-<instância>` | Controller |
 
 `OBSERVED`, `ACTION` e `RESULT` **não existem** para este tipo (decisão 0096): o Controller observa, age e grava o resultado na mesma transação. O `updated` sai pelo outbox, publicado pelo Publisher em `UPDATED`. Os Streams e as regras de consumo estão em [`docs/messaging/NATS.md`](../../../docs/messaging/NATS.md).
 

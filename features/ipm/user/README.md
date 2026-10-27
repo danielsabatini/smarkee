@@ -2,7 +2,7 @@
 
 O **usuário da Organization** é a pessoa que trabalha numa Organization sem ser a dona dela, no modelo das clouds: o dono (o *root*, a Account que criou a Organization) cria usuários **dentro** da própria Organization, e cada um recebe só permissões da plataforma. Decisão [`0077`](../../../.decisions/0077-ipm-user-usuarios-da-organizacao.md). É gerenciado pelo Resource Control Loop (`docs/loop/RESOURCE-CONTROL-LOOP.md`) e vive, no Zitadel, como um usuário humano da organização do cliente, com o mesmo ID (`resourceId`), e uma autorização no Project Grant de `roles-ipm` para essa organização.
 
-Decisões que definem esta feature: `0096` (o loop unificado no Controller), `0077` (o tipo, o escopo, as permissões e o `bind`), `0076` (administrador no lugar de membro), `0028` (padrão das permissões, com a ação `bind`), `0040` (consulta entre Receivers com o token de quem pede), `0043` e `0074` (proteção contra exclusão como metadado; aqui ela nasce desligada), `0072` (toda alteração percorre o loop) e `0075` (motores gerados do template). A `0096` substitui, para este tipo, a separação em Observer, Reconciler e Executor (`0063`, `0065`, `0072` e `0073`). A feature `features/ipm/organization` é o **modelo** desta estrutura.
+Decisões que definem esta feature: `0096` (o loop unificado no Controller), `0097` (`desired` puro e permissões efetivas calculadas pelo Controller), `0077` (o tipo, o escopo, as permissões e o `bind`), `0076` (administrador no lugar de membro), `0028` (padrão das permissões, com a ação `bind`), `0040` (consulta entre Receivers com o token de quem pede), `0043` e `0074` (proteção contra exclusão como metadado; aqui ela nasce desligada), `0072` (toda alteração percorre o loop) e `0075` (motores gerados do template). A `0096` substitui, para este tipo, a separação em Observer, Reconciler e Executor (`0063`, `0065`, `0072` e `0073`). A feature `features/ipm/organization` é o **modelo** desta estrutura.
 
 # 1. Estado da implementação
 
@@ -11,9 +11,9 @@ Os quatro papéis do loop e a CLI estão implementados e rodam no dev (Compose).
 | Papel | Projeto | Estado |
 |---|---|---|
 | Receiver | `receiver/` (`ipm-user-receiver`) | API `/v1/ipm/users`: autentica, decide o escopo (operador, root ou usuário da Organization), confere o catálogo do Grant, a regra do `bind` e a cota, publica `requested`. Contrato em `openapi.json` |
-| Manager | `manager/` (`ipm-user-manager`) | Consome `requested` e os catálogos `DESIRED` de permission, role e group; e-mail único na Organization, permissões do módulo e cota por Organization na unidade atômica |
+| Manager | `manager/` (`ipm-user-manager`) | Consome `requested`; e-mail único na Organization e cota por Organization na unidade atômica. O `desired` guarda só a intenção (`roles`, `groups`); as permissões efetivas são do Controller (decisão 0097) |
 | Publisher | `publisher/` (`ipm-user-publisher`) | Publica o outbox no NATS (template, decisão 0065) |
-| Controller | `controller/` (`ipm-user-controller`) | Decisão 0096: lê o `desired` do Stream `DESIRED` e, por usuário, observa o Zitadel, decide, age e reobserva numa só transação, e grava o estado e `updated` no outbox. Substitui o Reconciler, o Observer e o Executor |
+| Controller | `controller/` (`ipm-user-controller`) | Decisão 0096: lê o `desired` do Stream `DESIRED` e, por usuário, observa o Zitadel, decide, age e reobserva numa só transação, e grava o estado e `updated` no outbox. Também consome os catálogos `DESIRED` de permission, role e group e calcula as permissões efetivas. Substitui o Reconciler, o Observer e o Executor |
 | Testes e2e | `tests/e2e/` | Black-box: contrato e loop completo numa Organization preparada pelo operador |
 
 Além dos papéis, dois serviços rodam e saem: `ipm-user-migrate` (migrações) e `ipm-user-consumer` (consumer de `requested` do Manager).
@@ -57,9 +57,9 @@ Os papéis são **um projeto e uma imagem** (decisão 0063), cada um rodando com
 
 - **Publisher:** o do template (decisão 0065), sem regra do tipo. Publica `desired` (que o Manager gravou) e `updated` (que o Controller gravou) do mesmo outbox.
 - **Controller:** consome o Stream `DESIRED`, enfileira o `resourceId` numa fila com deduplicação e backoff e, para cada um, executa o ciclo atômico `reconcile`. Detalhes no [README do Controller](src/ipm_user/controller/README.md) e em [`docs/IPM-USER-DATA-FLOW.md`](docs/IPM-USER-DATA-FLOW.md), seção 4.
-  - **Decisão:** campos gerenciados `lifecycle`, `permissions` e `deletionProtection`; a Organization e os dados pessoais são imutáveis.
+  - **Decisão:** campos gerenciados `lifecycle`, as permissões efetivas (calculadas do catálogo a partir de `roles` e `groups`, decisão 0097) e `deletionProtection`; a Organization e os dados pessoais são imutáveis.
   - **Observação:** lê o usuário (`userState`, `initial` até a senha ser definida, e `emailVerified`), as permissões dele em `roles-ipm` e o metadado `deletionProtection`. `absent` só com o `404` do usuário exato; qualquer falha é `unknown`. Não grava dados pessoais no `observed`.
-  - **Ação:** cria o usuário humano **sem senha** na organização do cliente (o Zitadel envia o e-mail de verificação, que define a senha), deixa a autorização em `roles-ipm` com **exatamente** as permissões do `desired` e grava o metadado; remove o usuário no `delete`. O Project Grant é o teto: uma permissão fora dele é recusada pelo Zitadel.
+  - **Ação:** cria o usuário humano **sem senha** na organização do cliente (o Zitadel envia o e-mail de verificação, que define a senha), deixa a autorização em `roles-ipm` com **exatamente** as permissões efetivas e grava o metadado; remove o usuário no `delete`. O Project Grant é o teto: uma permissão fora dele é recusada pelo Zitadel.
 
 ## 3.4 Um projeto, uma imagem, quatro papéis (decisões 0063 e 0096)
 
@@ -113,7 +113,7 @@ Este tipo só usa os Streams `REQUESTED` e `DESIRED` (decisão 0096): os Streams
 |---|---|---|---|
 | `REQUESTED` | `receiver.requested.ipm.user.>` | `ipm-user-manager-requested` (durável) | Manager |
 | `DESIRED` | `manager.desired.ipm.user.>` | `ipm-user-controller-desired-<instância>` | Controller |
-| `DESIRED` | `manager.desired.ipm.{permission,role,group}.>` | `ipm-user-manager-{permissions,roles,groups}-<instância>` | Manager (catálogos que expandem as permissões do usuário) |
+| `DESIRED` | `manager.desired.ipm.{permission,role,group}.>` | `ipm-user-controller-{permissions,roles,groups}-<instância>` | Controller (catálogos que expandem as permissões do usuário; os workers só iniciam após sincronizar) |
 
 O consumer do Manager para `requested` é declarado pelo serviço `ipm-user-consumer`, a partir do manifesto em `consumers/`.
 
@@ -136,7 +136,7 @@ Em `schemas/ipm/user/` (e `schemas/common/`), com o índice `schemas/ipm.user.in
 | Papel | Banco | NATS | Zitadel |
 |---|---|---|---|
 | Receiver | `SELECT` nas views `user_v1` e `user_operation_v1` | publica `requested` | só valida tokens (JWKS) |
-| Manager | `SELECT`, `INSERT` e `UPDATE` em `user`; `SELECT` e `INSERT` em `user_operation`; `INSERT` no outbox | lê `requested` e os catálogos `DESIRED` | — |
+| Manager | `SELECT`, `INSERT` e `UPDATE` em `user`; `SELECT` e `INSERT` em `user_operation`; `INSERT` no outbox | lê `requested` | — |
 | Publisher | `SELECT` no outbox e `UPDATE (published_at)` | publica `desired` e `updated` | — |
 | Controller | `SELECT`, `UPDATE` e `DELETE` em `user`; `SELECT` e `UPDATE` em `user_operation`; `INSERT` no outbox | lê `desired` | `ORG_USER_CREATOR` e `ORG_OWNER_VIEWER` na organização; `PROJECT_GRANT_OWNER` no Grant dela |
 
@@ -184,8 +184,8 @@ A migração [`0001-user.sql`](migrations/0001-user.sql) nasce com o estado atua
 
 ## 11.3 O que cada coluna `jsonb` guarda
 
-- `user.desired`: `lifecycle`, `organizationId`, `permissions`, `deletionProtection` e, enquanto `present`, `givenName`, `familyName` e `email`.
-- `user.observed`: `emailVerified`, `userState`, `permissions` e `deletionProtection`, lidos do Zitadel pelo Controller.
+- `user.desired`: `lifecycle`, `organizationId`, `roles`, `groups`, `deletionProtection` e, enquanto `present`, `givenName`, `familyName` e `email`.
+- `user.observed`: `emailVerified`, `userState`, `permissions` (as do Zitadel), `effectivePermissions` (as calculadas pelo Controller) e `deletionProtection`.
 
 ## 11.4 Índices e restrições
 
