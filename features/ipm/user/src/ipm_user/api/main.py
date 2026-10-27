@@ -15,7 +15,10 @@ from ipm_user.api.settings import UserApiSettings, missing_required
 from ipm_user.api.store.admission import SsotAdmissionStore
 from ipm_user.api.store.repository import SsotRepository
 from ipm_user.api.transport.catalog_consumer import CatalogWatcher
-from ipm_user.api.transport.organizations import OrganizationPeer
+from ipm_user.api.transport.organization_projection import (
+    ORGANIZATION_SUBJECT,
+    OrganizationProjection,
+)
 from ipm_user.api.transport.serviceaccounts import ServiceAccountPeer
 from ipm_user.common.catalog import AccessCatalog
 from ipm_user.common.database import open_pool
@@ -56,15 +59,33 @@ async def run(settings: UserApiSettings) -> int:
             catalog_consumers[suffix] = consumer
             runtime.start(suffix, consumer.run(runtime.stop))
 
+        # Dono e ciclo de vida das Organizations, sem consulta à API da Organization (0100).
+        organizations = OrganizationProjection()
+        organization_consumer = StateConsumer(
+            runtime.stream,
+            organizations,
+            durable=f"ipm-user-api-organizations-{instance}",
+            stream="DESIRED",
+            filter_subject=ORGANIZATION_SUBJECT,
+            inactive_threshold_seconds=300,
+            traced=False,
+            on_cycle=runtime.health.beat,
+        )
+        runtime.start("organization-projection", organization_consumer.run(runtime.stop))
+
         def is_catalog_synced() -> bool:
-            return bool(catalog_consumers) and all(c.is_synced for c in catalog_consumers.values())
+            return (
+                bool(catalog_consumers)
+                and all(c.is_synced for c in catalog_consumers.values())
+                and organization_consumer.is_synced
+            )
 
         app = create_app(
             Dependencies(
                 settings=api,
                 authenticator=TokenVerifier(settings.auth, http),
                 repository=SsotRepository(pool),
-                organizations=OrganizationPeer(settings.peers, http),
+                organizations=organizations,
                 serviceaccounts=ServiceAccountPeer(settings.peers, http),
                 admissions=SsotAdmissionStore(pool),
                 catalog=catalog,

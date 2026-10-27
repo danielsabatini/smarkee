@@ -4,7 +4,6 @@ from typing import cast
 
 import httpx
 
-from ipm_group.api.domain.access import AccessCheckError, OrganizationAccess
 from ipm_group.api.settings import PeersSettings
 
 ORGANIZATIONS_PATH = "/v1/ipm/organizations"
@@ -14,41 +13,6 @@ HTTP_OK = 200
 HTTP_UNAUTHORIZED = 401
 HTTP_FORBIDDEN = 403
 HTTP_NOT_FOUND = 404
-
-
-class OrganizationPeer:
-    def __init__(self, settings: PeersSettings, client: httpx.AsyncClient) -> None:
-        self._settings = settings
-        self._client = client
-
-    async def access(self, organization_id: str, access_token: str) -> OrganizationAccess:
-        try:
-            response = await self._client.get(
-                f"{self._settings.organizations_url}{ORGANIZATIONS_PATH}/{organization_id}",
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=self._settings.timeout_seconds,
-            )
-        except httpx.HTTPError:
-            raise AccessCheckError(retryable=True) from None
-        if response.status_code in (HTTP_NOT_FOUND, HTTP_FORBIDDEN):
-            return OrganizationAccess.NOT_OWNED
-        if response.status_code == HTTP_UNAUTHORIZED:
-            raise AccessCheckError(retryable=False)
-        if response.status_code != HTTP_OK:
-            raise AccessCheckError(retryable=True)
-        try:
-            document: object = response.json()
-        except ValueError:
-            raise AccessCheckError(retryable=True) from None
-        desired: object = (
-            cast("dict[str, object]", document).get("desired")
-            if isinstance(document, dict)
-            else None
-        )
-        if not isinstance(desired, dict):
-            raise AccessCheckError(retryable=True)
-        lifecycle = cast("dict[str, object]", desired).get("lifecycle")
-        return OrganizationAccess.OWNED if lifecycle == "present" else OrganizationAccess.NOT_OWNED
 
 
 class UserPeer:

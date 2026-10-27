@@ -84,7 +84,6 @@ Entrypoint da API de Service Account (`ipm-serviceaccount-api`, decisões 0015 e
 | `api.host` | `IPM_SERVICEACCOUNT_API_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
 | `api.port` | `IPM_SERVICEACCOUNT_API_API_PORT` | `--api.port` | `int` | `8000` |  |
 | `api.serviceaccount_quota` | `IPM_SERVICEACCOUNT_API_API_SERVICEACCOUNT_QUOTA` | `--api.serviceaccount_quota` | `int` | `5` | Service accounts por Organization para quem não é operador (decisão 0094; provisório). |
-| `peers.organizations_url` | `IPM_SERVICEACCOUNT_API_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.users_url` | `IPM_SERVICEACCOUNT_API_PEERS_USERS_URL` | `--peers.users_url` | `str` | `'http://localhost:8000'` | Receiver de User: reconhece o usuário humano da Organization (decisão 0094). |
 | `peers.timeout_seconds` | `IPM_SERVICEACCOUNT_API_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
@@ -107,7 +106,6 @@ url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
 [tool.ipm.serviceaccount.api.peers]
-organizations_url = "http://ipm-organization-api.smarkee.internal:8000"
 users_url = "http://ipm-user-api.smarkee.internal:8000"
 ```
 

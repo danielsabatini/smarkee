@@ -42,7 +42,6 @@ class ApiSettings(Section):
 class PeersSettings(Section):
     """Receivers de Organization e User, na rede interna: confirmam o solicitante com o token dele."""
 
-    organizations_url: str = "http://localhost:8000"
     users_url: str = "http://localhost:8000"
     """Receiver de User: reconhece o usuário humano da Organization (decisão 0094)."""
 

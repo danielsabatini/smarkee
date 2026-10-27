@@ -1,19 +1,15 @@
 """Regras de acesso puras (catálogo e `bind`) e a consulta aos Receivers parceiros."""
 
-from collections.abc import Callable
 from typing import Any
 
 import httpx
-import pytest
 
 from ipm_group.api.domain.access import (
-    AccessCheckError,
-    OrganizationAccess,
     binding_allowed,
     outside_roles_catalog,
 )
 from ipm_group.api.settings import PeersSettings
-from ipm_group.api.transport.peers import OrganizationPeer, ServiceAccountPeer, UserPeer
+from ipm_group.api.transport.peers import ServiceAccountPeer, UserPeer
 from ipm_group.common.catalog import RolesCatalog
 
 
@@ -89,36 +85,6 @@ def test_custom_role_is_visible_only_in_its_organization() -> None:
     assert outside_roles_catalog(["acme.billing"], organization_id="org-acme", catalog=catalog) == [
         "acme.billing"
     ]
-
-
-async def test_organization_peer_interprets_status_and_lifecycle() -> None:
-    seen_headers: dict[str, str] = {}
-
-    def peer(handler: Callable[[httpx.Request], httpx.Response]) -> OrganizationPeer:
-        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        return OrganizationPeer(PeersSettings(), client)
-
-    def ok_present(request: httpx.Request) -> httpx.Response:
-        seen_headers.update(request.headers)
-        return httpx.Response(200, json={"desired": {"lifecycle": "present"}})
-
-    assert await peer(ok_present).access("org-1", "tok") is OrganizationAccess.OWNED
-    assert seen_headers["authorization"] == "Bearer tok"
-
-    def ok_absent(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"desired": {"lifecycle": "absent"}})
-
-    assert await peer(ok_absent).access("org-1", "tok") is OrganizationAccess.NOT_OWNED
-
-    def missing(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(404, json={"errorCode": "NotFound", "message": "x"})
-
-    assert await peer(missing).access("org-1", "tok") is OrganizationAccess.NOT_OWNED
-
-    for status, retryable in ((401, False), (503, True)):
-        with pytest.raises(AccessCheckError) as raised:
-            await peer(lambda _, code=status: httpx.Response(code)).access("org-1", "tok")
-        assert raised.value.retryable is retryable
 
 
 async def test_user_peer_counts_users_with_group_and_reads_organization() -> None:

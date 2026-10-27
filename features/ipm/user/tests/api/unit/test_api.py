@@ -10,7 +10,7 @@ from typing import Any
 import httpx
 import pytest
 
-from ipm_user.api.domain.access import AccessCheckError, OrganizationAccess
+from ipm_user.api.domain.access import OrganizationAccess
 from ipm_user.api.domain.errors import unauthorized, unavailable
 from ipm_user.api.domain.principal import Principal
 from ipm_user.api.domain.records import ResourceRecord
@@ -121,17 +121,14 @@ class FakeRepository:
 
 @dataclass
 class FakeOrganizations:
-    """Receiver da Organization: o dono de cada uma, pelo token."""
+    """Projeção local das Organizations: o dono (`subject`) de cada uma."""
 
-    owners: dict[str, str] = field(default_factory=lambda: {ORG: "token-root"})
-    error: AccessCheckError | None = None
+    owners: dict[str, str] = field(default_factory=lambda: {ORG: "root"})
     calls: list[str] = field(default_factory=lambda: [])
 
-    async def access(self, organization_id: str, access_token: str) -> OrganizationAccess:
+    def access(self, organization_id: str, subject: str) -> OrganizationAccess:
         self.calls.append(organization_id)
-        if self.error is not None:
-            raise self.error
-        if self.owners.get(organization_id) == access_token:
+        if self.owners.get(organization_id) == subject:
             return OrganizationAccess.OWNED
         return OrganizationAccess.NOT_OWNED
 
@@ -471,15 +468,6 @@ async def test_a_user_being_removed_no_longer_acts_in_the_organization(
 ) -> None:
     harness.repository.resources["bia"] = user("bia", lifecycle="absent")
     assert (await create(harness, "bia")).status_code == 404
-
-
-async def test_organization_check_failures_are_explicit(harness: Harness) -> None:
-    harness.organizations.error = AccessCheckError(retryable=True)
-    unavailable = await create(harness, "root")
-    assert (unavailable.status_code, unavailable.headers["retry-after"]) == (503, "5")
-    harness.organizations.error = AccessCheckError(retryable=False)
-    assert (await create(harness, "root")).status_code == 403
-    assert harness.admissions.outbox == []
 
 
 async def test_roles_outside_the_grant_catalog_are_400(harness: Harness) -> None:

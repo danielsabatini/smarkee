@@ -26,7 +26,6 @@ from fastapi.responses import JSONResponse
 
 from ipm_user.api.domain import principal as permissions
 from ipm_user.api.domain.access import (
-    AccessCheckError,
     OrganizationAccess,
     binding_allowed,
     outside_groups_catalog,
@@ -197,17 +196,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         )
         if machine_organization is not None:
             return Standing.MEMBER if machine_organization == organization_id else None
-        try:
-            access = await deps.organizations.access(organization_id, principal.access_token)
-        except AccessCheckError as error:
-            if not error.retryable:
-                raise forbidden() from None
-            raise ApiError(
-                HTTPStatus.SERVICE_UNAVAILABLE,
-                "OrganizationUnavailable",
-                "Não foi possível confirmar a Organization agora. Tente de novo.",
-                headers={"Retry-After": RETRY_AFTER_SECONDS},
-            ) from None
+        access = deps.organizations.access(organization_id, principal.subject)
         return Standing.OWNER if access is OrganizationAccess.OWNED else None
 
     async def visible_user(principal: Principal, user_id: str) -> tuple[ResourceRecord, Standing]:

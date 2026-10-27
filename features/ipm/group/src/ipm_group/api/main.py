@@ -13,7 +13,11 @@ from ipm_group.api.http.app import Dependencies, create_app
 from ipm_group.api.settings import GroupApiSettings, missing_required
 from ipm_group.api.store.admission import SsotAdmissionStore
 from ipm_group.api.store.repository import SsotRepository
-from ipm_group.api.transport.peers import OrganizationPeer, ServiceAccountPeer, UserPeer
+from ipm_group.api.transport.organization_projection import (
+    ORGANIZATION_SUBJECT,
+    OrganizationProjection,
+)
+from ipm_group.api.transport.peers import ServiceAccountPeer, UserPeer
 from ipm_group.common.catalog import RolesCatalog
 from ipm_group.common.catalog_watcher import RoleCatalogWatcher
 from ipm_group.common.database import open_pool
@@ -32,30 +36,45 @@ async def run(settings: GroupApiSettings) -> int:
         pool = await open_pool(settings.database)
         runtime.close_after(pool.close)
         catalog = RolesCatalog()
-        runtime.start(
-            "role-catalog",
-            StateConsumer(
-                runtime.stream,
-                RoleCatalogWatcher(catalog),
-                durable=f"ipm-group-api-roles-{new_instance_name()}",
-                stream="DESIRED",
-                filter_subject="manager.desired.ipm.role.>",
-                inactive_threshold_seconds=300,
-                traced=False,
-                on_cycle=runtime.health.beat,
-            ).run(runtime.stop),
+        roles = StateConsumer(
+            runtime.stream,
+            RoleCatalogWatcher(catalog),
+            durable=f"ipm-group-api-roles-{new_instance_name()}",
+            stream="DESIRED",
+            filter_subject="manager.desired.ipm.role.>",
+            inactive_threshold_seconds=300,
+            traced=False,
+            on_cycle=runtime.health.beat,
         )
+        runtime.start("role-catalog", roles.run(runtime.stop))
+        # Dono e ciclo de vida das Organizations, sem consulta à API da Organization (0100).
+        organizations = OrganizationProjection()
+        organization_consumer = StateConsumer(
+            runtime.stream,
+            organizations,
+            durable=f"ipm-group-api-organizations-{new_instance_name()}",
+            stream="DESIRED",
+            filter_subject=ORGANIZATION_SUBJECT,
+            inactive_threshold_seconds=300,
+            traced=False,
+            on_cycle=runtime.health.beat,
+        )
+        runtime.start("organization-projection", organization_consumer.run(runtime.stop))
+
+        def is_synced() -> bool:
+            return roles.is_synced and organization_consumer.is_synced
+
         app = create_app(
             Dependencies(
                 settings=settings.api,
                 authenticator=TokenVerifier(settings.auth, http),
                 repository=SsotRepository(pool),
-                organizations=OrganizationPeer(settings.peers, http),
+                organizations=organizations,
                 users=UserPeer(settings.peers, http),
                 serviceaccounts=ServiceAccountPeer(settings.peers, http),
                 admissions=SsotAdmissionStore(pool),
                 catalog=catalog,
-                is_ready=lambda: runtime.client.is_connected,
+                is_ready=lambda: runtime.client.is_connected and is_synced(),
             )
         )
         runtime.start(

@@ -24,9 +24,9 @@ class Users(Protocol):
 
 
 class Organizations(Protocol):
-    """Receiver da Organization, consultado com o token do solicitante (decisão 0040)."""
+    """Projeção local das Organizations, alimentada pelo `DESIRED` (decisão 0100)."""
 
-    async def access(self, organization_id: str, access_token: str) -> OrganizationAccess: ...
+    def access(self, organization_id: str, subject: str) -> OrganizationAccess: ...
 
 
 class AdmissionTransaction(Protocol):

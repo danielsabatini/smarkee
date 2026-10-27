@@ -42,7 +42,6 @@ class ApiSettings(Section):
 class PeersSettings(Section):
     """APIs de Organization, User, Group e ServiceAccount na rede interna."""
 
-    organizations_url: str = "http://localhost:8000"
     users_url: str = "http://localhost:8000"
     groups_url: str = "http://localhost:8000"
     serviceaccounts_url: str = "http://localhost:8000"

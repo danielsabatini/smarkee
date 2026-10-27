@@ -1,23 +1,15 @@
 """Regras de acesso puras (catálogo e `bind`) e a consulta ao Receiver da Organization."""
 
 import json
-from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-import httpx
-import pytest
-
 from ipm_serviceaccount.api.domain.access import (
-    AccessCheckError,
-    OrganizationAccess,
     binding_allowed,
     outside_catalog,
     outside_roles_catalog,
 )
-from ipm_serviceaccount.api.settings import PeersSettings
 from ipm_serviceaccount.api.transport.catalog_consumer import CatalogWatcher
-from ipm_serviceaccount.api.transport.organizations import OrganizationPeer
 from ipm_serviceaccount.common.catalog import AccessCatalog
 from ipm_serviceaccount.common.contracts import generated
 
@@ -52,65 +44,6 @@ def test_binding_without_bind_forbids_any_permission_change() -> None:
     )
     assert binding_allowed([], ["ipm.serviceaccount.bind"], mine, can_bind=True)
     assert binding_allowed([], ["ipm.serviceaccount.get"], mine, can_bind=True)
-
-
-def peer(handler: Callable[[httpx.Request], httpx.Response]) -> OrganizationPeer:
-    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    return OrganizationPeer(PeersSettings(organizations_url="http://org"), client)
-
-
-def organization(lifecycle: str) -> dict[str, object]:
-    return {"resourceId": "org-1", "desired": {"lifecycle": lifecycle, "name": "acme"}}
-
-
-async def test_the_owner_is_confirmed_with_the_requester_token() -> None:
-    seen: list[httpx.Request] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen.append(request)
-        return httpx.Response(200, json=organization("present"))
-
-    assert await peer(handler).access("org-1", "tok") is OrganizationAccess.OWNED
-    assert seen[0].url == "http://org/v1/ipm/organizations/org-1"
-    assert seen[0].headers["authorization"] == "Bearer tok"
-
-
-@pytest.mark.parametrize(
-    "response",
-    [
-        httpx.Response(404, json={}),
-        httpx.Response(403, json={}),
-        httpx.Response(200, json=organization("absent")),
-    ],
-)
-async def test_not_found_forbidden_or_being_removed_is_not_owned(response: httpx.Response) -> None:
-    assert await peer(lambda r: response).access("org-1", "tok") is OrganizationAccess.NOT_OWNED
-
-
-@pytest.mark.parametrize(
-    ("response", "retryable"),
-    [
-        (httpx.Response(401, json={}), False),
-        (httpx.Response(500, json={}), True),
-        (httpx.Response(200, text="não é json"), True),
-        (httpx.Response(200, json={"desired": "x"}), True),
-    ],
-)
-async def test_anything_else_is_an_explicit_check_error(
-    response: httpx.Response, retryable: bool
-) -> None:
-    with pytest.raises(AccessCheckError) as raised:
-        await peer(lambda r: response).access("org-1", "tok")
-    assert raised.value.retryable is retryable
-
-
-async def test_network_failure_is_retryable() -> None:
-    def boom(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("down")
-
-    with pytest.raises(AccessCheckError) as raised:
-        await peer(boom).access("org-1", "tok")
-    assert raised.value.retryable
 
 
 async def test_outside_roles_catalog_and_dynamic_catalog_watcher() -> None:

@@ -60,6 +60,14 @@ PROFILES: dict[str, tuple[str, ...]] = {
         "ipm/serviceaccount",
         "ipm/user",
     ),
+    # Projeção local das Organizations (dono e ciclo de vida) a partir do `DESIRED`: substitui a
+    # consulta HTTP à API da Organization (decisão 0100).
+    "organization-projection": (
+        "ipm/group",
+        "ipm/role",
+        "ipm/serviceaccount",
+        "ipm/user",
+    ),
     # Envelope, publicação e persistência de `observed` e do resultado, com a convergência e os
     # erros do Manager, sem regra do tipo. O `sum/service` usa só este perfil (decisão 0080).
     "manager-handlers": (

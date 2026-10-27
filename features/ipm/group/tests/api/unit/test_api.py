@@ -61,10 +61,10 @@ class FakeRepository:
 
 class FakeOrganizations:
     def __init__(self) -> None:
-        self.owned_by_token: set[tuple[str, str]] = {("owner-token", ORG_ID)}
+        self.owned_by_subject: set[tuple[str, str]] = {("owner-1", ORG_ID)}
 
-    async def access(self, organization_id: str, access_token: str) -> OrganizationAccess:
-        if (access_token, organization_id) in self.owned_by_token:
+    def access(self, organization_id: str, subject: str) -> OrganizationAccess:
+        if (subject, organization_id) in self.owned_by_subject:
             return OrganizationAccess.OWNED
         return OrganizationAccess.NOT_OWNED
 

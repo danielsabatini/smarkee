@@ -84,7 +84,6 @@ Entrypoint da API de User (`ipm-user-api`, decisões 0015 e 0098).
 | `api.host` | `IPM_USER_API_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
 | `api.port` | `IPM_USER_API_API_PORT` | `--api.port` | `int` | `8000` |  |
 | `api.user_quota` | `IPM_USER_API_API_USER_QUOTA` | `--api.user_quota` | `int` | `5` | Usuários por Organization para quem não é operador (decisão 0077; valor provisório). |
-| `peers.organizations_url` | `IPM_USER_API_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.serviceaccounts_url` | `IPM_USER_API_PEERS_SERVICEACCOUNTS_URL` | `--peers.serviceaccounts_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.timeout_seconds` | `IPM_USER_API_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
@@ -107,7 +106,6 @@ url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
 [tool.ipm.user.api.peers]
-organizations_url = "http://ipm-organization-api.smarkee.internal:8000"
 serviceaccounts_url = "http://ipm-serviceaccount-api.smarkee.internal:8000"
 ```
 

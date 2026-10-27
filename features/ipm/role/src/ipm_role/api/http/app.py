@@ -193,10 +193,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             )
         if member_of == organization_id:
             return Standing.MEMBER
-        try:
-            access = await deps.organizations.access(organization_id, principal.access_token)
-        except AccessCheckError as error:
-            raise unavailable(error) from None
+        access = deps.organizations.access(organization_id, principal.subject)
         return Standing.OWNER if access is OrganizationAccess.OWNED else None
 
     def organization_of(record: ResourceRecord) -> str:

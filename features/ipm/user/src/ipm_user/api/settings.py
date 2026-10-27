@@ -42,7 +42,6 @@ class ApiSettings(Section):
 class PeersSettings(Section):
     """Receivers da Organization e da ServiceAccount, na rede interna: confirmam quem pede."""
 
-    organizations_url: str = "http://localhost:8000"
     serviceaccounts_url: str = "http://localhost:8000"
     timeout_seconds: float = 5.0
 

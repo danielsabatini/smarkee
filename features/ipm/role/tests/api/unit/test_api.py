@@ -59,16 +59,13 @@ class FakeRepository:
 
 
 class FakeOrganizations:
-    """API da Organization: `owners` mapeia o token à Organization de que ele é dono."""
+    """Projeção local das Organizations: `owners` mapeia o `subject` à Organization dele."""
 
     def __init__(self) -> None:
         self.owners: dict[str, str] = {}
-        self.error: AccessCheckError | None = None
 
-    async def access(self, organization_id: str, access_token: str) -> OrganizationAccess:
-        if self.error is not None:
-            raise self.error
-        owned = self.owners.get(access_token) == organization_id
+    def access(self, organization_id: str, subject: str) -> OrganizationAccess:
+        owned = self.owners.get(subject) == organization_id
         return OrganizationAccess.OWNED if owned else OrganizationAccess.NOT_OWNED
 
 
@@ -327,7 +324,7 @@ class Harness:
                 ),
             }
         )
-        self.organizations.owners["owner-token"] = "org-acme"
+        self.organizations.owners["owner-1"] = "org-acme"
         self.users.machines["machine-1"] = "org-acme"
         self.users.members.update(
             {"member-1": "org-acme", "member-2": "org-acme", "member-3": "org-other"}
@@ -477,22 +474,6 @@ async def test_quota_blocks_the_creation_beyond_the_limit_for_non_operators() ->
             "/v1/ipm/roles", json=CREATE_BODY, headers=_bearer("admin-token")
         )
         assert allowed.status_code == 201
-
-
-async def test_organization_unavailable_is_a_retryable_503() -> None:
-    harness = Harness()
-    harness.organizations.error = AccessCheckError(retryable=True)
-    async with harness.client() as client:
-        response = await client.post(
-            "/v1/ipm/roles", json=CREATE_BODY, headers=_bearer("no-perm-token")
-        )
-        assert response.status_code == 403  # sem permissão: nem chega a consultar
-        harness.users.members.pop("member-1")
-        unavailable = await client.post(
-            "/v1/ipm/roles", json=CREATE_BODY, headers=_bearer("member-token")
-        )
-        assert unavailable.status_code == 503
-        assert unavailable.headers["retry-after"] == "5"
 
 
 async def test_reads_see_predefined_plus_own_roles_and_never_another_organizations() -> None:

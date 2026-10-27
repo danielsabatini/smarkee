@@ -80,7 +80,6 @@ Entrypoint da API de Role (`ipm-role-api`, decisões 0015, 0083, 0092 e 0098).
 | `api.host` | `IPM_ROLE_API_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
 | `api.port` | `IPM_ROLE_API_API_PORT` | `--api.port` | `int` | `8000` |  |
 | `api.role_quota` | `IPM_ROLE_API_API_ROLE_QUOTA` | `--api.role_quota` | `int` | `10` | Roles `custom` por Organization para quem não é operador (decisão 0092). |
-| `peers.organizations_url` | `IPM_ROLE_API_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.users_url` | `IPM_ROLE_API_PEERS_USERS_URL` | `--peers.users_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.groups_url` | `IPM_ROLE_API_PEERS_GROUPS_URL` | `--peers.groups_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.serviceaccounts_url` | `IPM_ROLE_API_PEERS_SERVICEACCOUNTS_URL` | `--peers.serviceaccounts_url` | `str` | `'http://localhost:8000'` |  |
@@ -106,7 +105,6 @@ user = "smarkee"
 
 [tool.ipm.role.api.peers]
 groups_url = "http://ipm-group-api.smarkee.internal:8000"
-organizations_url = "http://ipm-organization-api.smarkee.internal:8000"
 users_url = "http://ipm-user-api.smarkee.internal:8000"
 serviceaccounts_url = "http://ipm-serviceaccount-api.smarkee.internal:8000"
 ```

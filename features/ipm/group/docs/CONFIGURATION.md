@@ -84,7 +84,6 @@ Entrypoint da API de Grupo (`ipm-group-api`, decisões 0015, 0085, 0088 e 0098).
 | `api.host` | `IPM_GROUP_API_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
 | `api.port` | `IPM_GROUP_API_API_PORT` | `--api.port` | `int` | `8000` |  |
 | `api.group_quota` | `IPM_GROUP_API_API_GROUP_QUOTA` | `--api.group_quota` | `int` | `10` | Grupos por Organization para quem não é operador (decisão 0088). |
-| `peers.organizations_url` | `IPM_GROUP_API_PEERS_ORGANIZATIONS_URL` | `--peers.organizations_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.users_url` | `IPM_GROUP_API_PEERS_USERS_URL` | `--peers.users_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.serviceaccounts_url` | `IPM_GROUP_API_PEERS_SERVICEACCOUNTS_URL` | `--peers.serviceaccounts_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.timeout_seconds` | `IPM_GROUP_API_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
@@ -108,7 +107,6 @@ url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
 [tool.ipm.group.api.peers]
-organizations_url = "http://ipm-organization-api.smarkee.internal:8000"
 users_url = "http://ipm-user-api.smarkee.internal:8000"
 serviceaccounts_url = "http://ipm-serviceaccount-api.smarkee.internal:8000"
 ```
