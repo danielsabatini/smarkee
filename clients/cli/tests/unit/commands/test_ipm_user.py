@@ -129,7 +129,6 @@ def user_document(
             "lifecycle": "present",
             "reconciliation": "active",
             "organizationId": ORG,
-            "permissions": permissions,
             "deletionProtection": protected,
             "givenName": "Bia",
             "familyName": "Lima",
@@ -142,6 +141,7 @@ def user_document(
                     "observedAt": "2026-10-21T10:00:00+00:00",
                     "userState": state,
                     "permissions": permissions,
+                    "effectivePermissions": permissions,
                 }
             }
             if state

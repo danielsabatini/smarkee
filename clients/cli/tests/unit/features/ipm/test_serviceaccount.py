@@ -40,7 +40,6 @@ def test_serviceaccount_parser() -> None:
             "name": "ci-deployer",
             "description": "CI agent",
             "roles": ["ipm.serviceaccountViewer"],
-            "permissions": ["ipm.serviceaccount.get"],
             "deletionProtection": True,
             "keys": [
                 {
@@ -51,6 +50,7 @@ def test_serviceaccount_parser() -> None:
             ],
         },
         "observed": {
+            "effectivePermissions": ["ipm.serviceaccount.get"],
             "keys": [
                 {
                     "keyId": "k-001",
@@ -58,7 +58,7 @@ def test_serviceaccount_parser() -> None:
                     "expiresAt": "2027-01-01T00:00:00Z",
                     "status": "active",
                 }
-            ]
+            ],
         },
     }
     sa = _serviceaccount(payload)

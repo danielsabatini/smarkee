@@ -75,9 +75,6 @@ ERROR_CODE_HINTS = {
 NO_PERMISSION_HINT = (
     "You do not have permission for this operation. Changing permissions requires ipm.user.bind."
 )
-PERMISSIONS_HINT = (
-    "A permission is not allowed for the Organization. Use only the permissions of its grant."
-)
 ROLES_HINT = (
     "A role is not allowed for the Organization. Use only the predefined roles in its catalog."
 )
@@ -166,8 +163,6 @@ def _fail_api(error: ApiError, *, not_found: str = NOT_FOUND) -> NoReturn:
     if isinstance(error, ApiRejectedError):
         if error.status == 403:
             by_code["Forbidden"] = NO_PERMISSION_HINT
-        if error.status == 400 and error.field == "permissions":
-            by_code[error.error_code] = PERMISSIONS_HINT
         if error.status == 400 and error.field == "roles":
             by_code[error.error_code] = ROLES_HINT
     fail_api(error, not_found=not_found, conflict=CONFLICT_ON_CHANGE, by_error_code=by_code)

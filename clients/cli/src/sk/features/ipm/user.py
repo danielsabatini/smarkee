@@ -1,9 +1,10 @@
 """Cliente do `ipm.user` na API da plataforma (decisão 0077).
 
 Usuários da Organization: criados dentro dela, sem senha (a pessoa define a senha pelo e-mail de
-ativação), com permissões da plataforma. Criar, alterar e remover são escritas assíncronas: a API
-responde `202` com o `operationId`, e o estado definitivo vem do usuário (`phase`) e da Operation
-(`operationStatus`). A leitura das respostas é estrita.
+ativação), com roles e grupos (as permissões efetivas vêm do `observed`, decisão 0097). Criar,
+alterar e remover são escritas assíncronas: a API responde `202` com o `operationId`, e o estado
+definitivo vem do usuário (`phase`) e da Operation (`operationStatus`). A leitura das respostas é
+estrita.
 """
 
 import re
@@ -22,9 +23,6 @@ from sk.features.api_contract import (
 from sk.http import ApiUnavailableError, call_api
 
 USERS_PATH = "/v1/ipm/users"
-# `permission` de `schemas/ipm/user/definitions.v1.schema.json`: `<módulo>.<tipo>.<ação>`.
-PERMISSION_PATTERN = re.compile(r"^[a-z][a-z0-9]*\.[a-z][a-z0-9]*\.[a-z][a-z0-9]*$")
-MAXIMUM_PERMISSIONS = 64
 # `roleName` de `schemas/ipm/user/definitions.v1.schema.json`: `<módulo>.<tipo><Admin|Viewer>`.
 ROLE_PATTERN = re.compile(r"^[a-z][a-z0-9]*\.[a-z][a-zA-Z0-9]*$")
 MAXIMUM_ROLES = 32
@@ -57,18 +55,6 @@ class User:
     groups: tuple[str, ...] = ()
 
 
-def validate_permissions(values: list[str]) -> list[str]:
-    """Permissões sem repetição e em ordem, ou `ValueError` (sem repetir o valor recusado)."""
-    permissions = sorted(set(values))
-    if len(permissions) > MAXIMUM_PERMISSIONS:
-        raise ValueError(f"too many permissions: at most {MAXIMUM_PERMISSIONS}")
-    if any(not PERMISSION_PATTERN.fullmatch(permission) for permission in permissions):
-        raise ValueError(
-            "permission invalid: use <module>.<type>.<action>, for example ipm.user.get"
-        )
-    return permissions
-
-
 def validate_roles(values: list[str]) -> list[str]:
     """Roles sem repetição e em ordem, ou `ValueError`."""
     roles = sorted(set(values))
@@ -93,9 +79,8 @@ def _user(document: object) -> User:
     body = as_object(document, what="user")
     desired = as_object(body.get("desired"), what="user (desired)")
     observed = as_object(body.get("observed") or {}, what="user (observed)")
-    permissions: Any = desired.get("permissions")
-    if not isinstance(permissions, list):
-        raise ApiUnavailableError("API response without the user permissions")
+    # Calculadas pelo Controller (decisão 0097); ausentes até o usuário ser observado.
+    permissions: Any = observed.get("effectivePermissions")
     roles: Any = desired.get("roles")
     groups: Any = desired.get("groups")
     email = desired.get("email")
@@ -107,7 +92,9 @@ def _user(document: object) -> User:
         lifecycle=as_text(desired, "lifecycle", what="user (desired)"),
         organization_id=as_text(desired, "organizationId", what="user (desired)"),
         email=email if isinstance(email, str) else None,
-        permissions=tuple(str(permission) for permission in cast("list[object]", permissions)),
+        permissions=tuple(str(permission) for permission in cast("list[object]", permissions))
+        if isinstance(permissions, list)
+        else (),
         deletion_protection=desired.get("deletionProtection") is True,
         user_state=state if isinstance(state, str) else None,
         roles=tuple(str(role) for role in cast("list[object]", roles))
@@ -127,7 +114,6 @@ def create_user(
     given_name: str,
     family_name: str,
     email: str,
-    permissions: list[str] | None = None,
     roles: list[str] | None = None,
     groups: list[str] | None = None,
     idempotency_key: str,
@@ -140,8 +126,6 @@ def create_user(
         "familyName": family_name,
         "email": email,
     }
-    if permissions is not None:
-        body["permissions"] = validate_permissions(permissions)
     if roles is not None:
         body["roles"] = validate_roles(roles)
     if groups is not None:
@@ -164,18 +148,15 @@ def update_user(
     token: str,
     resource_id: str,
     resource_version: str,
-    permissions: list[str] | None = None,
     roles: list[str] | None = None,
     groups: list[str] | None = None,
     protected: bool | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
 ) -> RequestAccepted:
-    """Troca as permissões, as roles, os grupos e/ou a proteção contra exclusão."""
+    """Troca as roles, os grupos e/ou a proteção contra exclusão."""
     resource_id = validate_identifier(resource_id, what="resourceId")
     body: dict[str, Any] = {"resourceVersion": resource_version}
-    if permissions is not None:
-        body["permissions"] = validate_permissions(permissions)
     if roles is not None:
         body["roles"] = validate_roles(roles)
     if groups is not None:

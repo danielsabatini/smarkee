@@ -100,9 +100,8 @@ def _serviceaccount(document: object) -> ServiceAccount:
     body = as_object(document, what="serviceaccount")
     desired = as_object(body.get("desired"), what="serviceaccount (desired)")
     observed = as_object(body.get("observed") or {}, what="serviceaccount (observed)")
-    permissions: Any = desired.get("permissions")
-    if not isinstance(permissions, list):
-        raise ApiUnavailableError("API response without the serviceaccount permissions")
+    # Calculadas pelo Controller (decisão 0097); ausentes até a service account ser observada.
+    permissions: Any = observed.get("effectivePermissions")
     roles: Any = desired.get("roles")
     description = desired.get("description")
     observed_keys = observed.get("keys")
@@ -130,7 +129,9 @@ def _serviceaccount(document: object) -> ServiceAccount:
         roles=tuple(str(role) for role in cast("list[object]", roles))
         if isinstance(roles, list)
         else (),
-        permissions=tuple(str(permission) for permission in cast("list[object]", permissions)),
+        permissions=tuple(str(permission) for permission in cast("list[object]", permissions))
+        if isinstance(permissions, list)
+        else (),
         deletion_protection=desired.get("deletionProtection") is True,
         keys=tuple(keys),
         desired_keys=tuple(parsed_desired_keys),
