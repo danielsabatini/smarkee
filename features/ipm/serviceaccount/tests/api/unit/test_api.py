@@ -182,15 +182,15 @@ class FakeOrganizations:
 
 
 @dataclass
-class FakeUsers:
-    """Receiver de User: a Organização de cada usuário humano, pelo token."""
+class FakeMembers:
+    """Projeção local do pertencimento: a Organization de cada usuário humano, pelo `subject`."""
 
-    members: dict[str, str] = field(default_factory=lambda: {"token-human": ORG})
+    members: dict[str, str] = field(default_factory=lambda: {"human": ORG})
     calls: list[str] = field(default_factory=lambda: [])
 
-    async def get_user_organization(self, user_id: str, access_token: str) -> str | None:
-        self.calls.append(user_id)
-        return self.members.get(access_token)
+    def organization_of(self, subject: str) -> str | None:
+        self.calls.append(subject)
+        return self.members.get(subject)
 
 
 class FakeAdmissionTransaction:
@@ -328,14 +328,14 @@ class Harness:
     admissions: FakeAdmissionStore
     repository: FakeRepository
     organizations: FakeOrganizations
-    users: FakeUsers
+    members: FakeMembers
 
 
 def dependencies(
     repository: FakeRepository,
     organizations: FakeOrganizations,
     admissions: FakeAdmissionStore | None = None,
-    users: FakeUsers | None = None,
+    members: FakeMembers | None = None,
     **overrides: Any,
 ) -> Dependencies:
     counter = itertools.count(1)
@@ -344,7 +344,7 @@ def dependencies(
         authenticator=FakeAuthenticator(),
         repository=repository,
         organizations=organizations,
-        users=users if users is not None else FakeUsers(),
+        members=members if members is not None else FakeMembers(),
         admissions=admissions if admissions is not None else FakeAdmissionStore(repository),
         clock=lambda: NOW,
         identifiers=lambda: f"id-{next(counter):04d}",
@@ -356,17 +356,17 @@ def dependencies(
 def harness() -> Harness:
     repository, organizations = FakeRepository(), FakeOrganizations()
     admissions = FakeAdmissionStore(repository)
-    users = FakeUsers()
+    members = FakeMembers()
     repository.resources |= {
         "bia": serviceaccount("bia", permissions=sorted(SA_PERMISSIONS)),
         "binder": serviceaccount("binder"),
         "eve": serviceaccount("eve", OTHER_ORG),
     }
-    deps = dependencies(repository, organizations, admissions, users)
+    deps = dependencies(repository, organizations, admissions, members)
     client = httpx.AsyncClient(
         transport=httpx.ASGITransport(app=create_app(deps)), base_url="http://api"
     )
-    return Harness(client, admissions, repository, organizations, users)
+    return Harness(client, admissions, repository, organizations, members)
 
 
 def auth(subject: str) -> dict[str, str]:
@@ -517,7 +517,7 @@ async def test_catalog_sync_pending_returns_503(harness: Harness) -> None:
         harness.repository,
         harness.organizations,
         harness.admissions,
-        harness.users,
+        harness.members,
         is_catalog_synced=lambda: False,
     )
     client = httpx.AsyncClient(
@@ -952,7 +952,7 @@ async def test_a_human_user_of_the_organization_acts_in_it_through_the_user_rece
         f"/v1/ipm/serviceaccounts?organizationId={ORG}", headers=auth("human")
     )
     assert ok.status_code == 200
-    assert harness.users.calls == ["human"]
+    assert harness.members.calls == ["human"]
     other = await harness.client.get(
         f"/v1/ipm/serviceaccounts?organizationId={OTHER_ORG}", headers=auth("human")
     )

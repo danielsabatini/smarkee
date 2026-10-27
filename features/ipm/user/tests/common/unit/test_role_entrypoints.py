@@ -101,7 +101,15 @@ async def test_the_api_serves_http_and_leaves_the_probes_to_the_app(
 ) -> None:
     monkeypatch.setenv("IPM_USER_API_AUTH_AUDIENCE", "project")
     assert await api_main.run(UserApiSettings()) == 0
-    assert runtime.started == ["permissions", "roles", "groups", "organization-projection", "http"]
+    assert runtime.started == [
+        "permissions",
+        "roles",
+        "groups",
+        "organization-projection",
+        "member-projection-0",
+        "member-projection-1",
+        "http",
+    ]
     assert runtime.health_port is None
     assert len(runtime.closers) == 2
 

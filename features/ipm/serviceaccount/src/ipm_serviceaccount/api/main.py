@@ -21,11 +21,15 @@ from ipm_serviceaccount.api.settings import ServiceaccountApiSettings, missing_r
 from ipm_serviceaccount.api.store.admission import SsotAdmissionStore
 from ipm_serviceaccount.api.store.repository import SsotRepository
 from ipm_serviceaccount.api.transport.catalog_consumer import CatalogWatcher
+from ipm_serviceaccount.api.transport.member_projection import (
+    SERVICEACCOUNT_SUBJECT,
+    USER_SUBJECT,
+    MemberProjection,
+)
 from ipm_serviceaccount.api.transport.organization_projection import (
     ORGANIZATION_SUBJECT,
     OrganizationProjection,
 )
-from ipm_serviceaccount.api.transport.users import UserPeer
 
 logger = logging.getLogger(__name__)
 
@@ -72,11 +76,33 @@ async def run(settings: ServiceaccountApiSettings) -> int:
         )
         runtime.start("organization-projection", organization_consumer.run(runtime.stop))
 
+        # Organization dos membros (usuários e service accounts), sem consultar as APIs deles.
+        members = MemberProjection()
+        member_consumers = [
+            StateConsumer(
+                runtime.stream,
+                members,
+                durable=f"ipm-serviceaccount-api-{name}-{instance}",
+                stream="DESIRED",
+                filter_subject=subject,
+                inactive_threshold_seconds=300,
+                traced=False,
+                on_cycle=runtime.health.beat,
+            )
+            for name, subject in (
+                ("users", USER_SUBJECT),
+                ("serviceaccounts", SERVICEACCOUNT_SUBJECT),
+            )
+        ]
+        for index, consumer in enumerate(member_consumers):
+            runtime.start(f"member-projection-{index}", consumer.run(runtime.stop))
+
         def is_catalog_synced() -> bool:
             return (
                 bool(catalog_consumers)
                 and all(c.is_synced for c in catalog_consumers.values())
                 and organization_consumer.is_synced
+                and all(consumer.is_synced for consumer in member_consumers)
             )
 
         app = create_app(
@@ -85,7 +111,7 @@ async def run(settings: ServiceaccountApiSettings) -> int:
                 authenticator=TokenVerifier(settings.auth, http),
                 repository=SsotRepository(pool),
                 organizations=organizations,
-                users=UserPeer(settings.peers, http),
+                members=members,
                 admissions=SsotAdmissionStore(pool),
                 catalog=catalog,
                 is_catalog_synced=is_catalog_synced,

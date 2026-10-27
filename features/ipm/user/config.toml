@@ -16,9 +16,6 @@ user = "ipm_user_api_login"
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
-[tool.ipm.user.api.peers]
-serviceaccounts_url = "http://ipm-serviceaccount-api.smarkee.internal:8000"
-
 [tool.ipm.user.publisher.database]
 host = "database.smarkee.internal"
 name = "ssot"

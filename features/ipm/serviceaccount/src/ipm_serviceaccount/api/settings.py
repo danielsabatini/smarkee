@@ -39,15 +39,6 @@ class ApiSettings(Section):
     """Service accounts por Organization para quem não é operador (decisão 0094; provisório)."""
 
 
-class PeersSettings(Section):
-    """Receivers de Organization e User, na rede interna: confirmam o solicitante com o token dele."""
-
-    users_url: str = "http://localhost:8000"
-    """Receiver de User: reconhece o usuário humano da Organization (decisão 0094)."""
-
-    timeout_seconds: float = 5.0
-
-
 class ServiceaccountApiSettings(RoleSettings):
     model_config = role_config("api")
 
@@ -55,7 +46,6 @@ class ServiceaccountApiSettings(RoleSettings):
     messaging: MessagingSettings = MessagingSettings()
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
-    peers: PeersSettings = PeersSettings()
 
 
 def missing_required(settings: ServiceaccountApiSettings) -> list[str]:

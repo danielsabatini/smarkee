@@ -23,12 +23,10 @@ class Organizations(Protocol):
     def access(self, organization_id: str, subject: str) -> OrganizationAccess: ...
 
 
-class ServiceAccounts(Protocol):
-    """API de ServiceAccount: reconhece a identidade de máquina da Organization (0094)."""
+class Members(Protocol):
+    """Projeção local do pertencimento de usuários e service accounts (decisão 0100)."""
 
-    async def get_serviceaccount_organization(
-        self, serviceaccount_id: str, access_token: str
-    ) -> str | None: ...
+    def organization_of(self, subject: str) -> str | None: ...
 
 
 class AdmissionTransaction(Protocol):

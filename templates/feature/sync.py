@@ -73,6 +73,8 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "member-projection": (
         "ipm/group",
         "ipm/role",
+        "ipm/serviceaccount",
+        "ipm/user",
     ),
     # Envelope, publicação e persistência de `observed` e do resultado, com a convergência e os
     # erros do Manager, sem regra do tipo. O `sum/service` usa só este perfil (decisão 0080).

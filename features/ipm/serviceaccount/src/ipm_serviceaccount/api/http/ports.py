@@ -17,10 +17,10 @@ class Repository(Protocol):
     ) -> list[ResourceRecord]: ...
 
 
-class Users(Protocol):
-    """Receiver de User, consultado com o token do solicitante (decisão 0040)."""
+class Members(Protocol):
+    """Projeção local do pertencimento de usuários e service accounts (decisão 0100)."""
 
-    async def get_user_organization(self, user_id: str, access_token: str) -> str | None: ...
+    def organization_of(self, subject: str) -> str | None: ...
 
 
 class Organizations(Protocol):

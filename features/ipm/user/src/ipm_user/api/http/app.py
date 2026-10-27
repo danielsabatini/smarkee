@@ -46,7 +46,7 @@ from ipm_user.api.domain.requests import checked_idempotency_key, request_digest
 from ipm_user.api.domain.views import user_view
 from ipm_user.api.http.admission import admit
 from ipm_user.api.http.health_routes import register_health_routes
-from ipm_user.api.http.ports import AdmissionStore, Organizations, Repository, ServiceAccounts
+from ipm_user.api.http.ports import AdmissionStore, Members, Organizations, Repository
 from ipm_user.api.http.trace_context import TraceContextMiddleware
 from ipm_user.api.settings import ApiSettings
 from ipm_user.common.catalog import AccessCatalog
@@ -81,7 +81,7 @@ class Dependencies:
     authenticator: Authenticator
     repository: Repository
     organizations: Organizations
-    serviceaccounts: ServiceAccounts
+    members: Members
     admissions: AdmissionStore
     catalog: AccessCatalog = field(default_factory=AccessCatalog)
     is_catalog_synced: Callable[[], bool] = lambda: True
@@ -191,9 +191,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             )
             return Standing.MEMBER if belongs else None
         # Identidade de máquina da Organization (decisão 0094): age só na Organization dela.
-        machine_organization = await deps.serviceaccounts.get_serviceaccount_organization(
-            principal.subject, principal.access_token
-        )
+        machine_organization = deps.members.organization_of(principal.subject)
         if machine_organization is not None:
             return Standing.MEMBER if machine_organization == organization_id else None
         access = deps.organizations.access(organization_id, principal.subject)

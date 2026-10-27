@@ -134,17 +134,15 @@ class FakeOrganizations:
 
 
 @dataclass
-class FakeServiceAccounts:
-    """API de ServiceAccount: a Organization de cada service account, pelo token."""
+class FakeMembers:
+    """Projeção local do pertencimento: a Organization de cada service account, pelo `subject`."""
 
-    machines: dict[str, str] = field(default_factory=lambda: {"token-machine": ORG})
+    machines: dict[str, str] = field(default_factory=lambda: {"machine": ORG})
     calls: list[str] = field(default_factory=lambda: [])
 
-    async def get_serviceaccount_organization(
-        self, serviceaccount_id: str, access_token: str
-    ) -> str | None:
-        self.calls.append(serviceaccount_id)
-        return self.machines.get(access_token)
+    def organization_of(self, subject: str) -> str | None:
+        self.calls.append(subject)
+        return self.machines.get(subject)
 
 
 class FakeAdmissionTransaction:
@@ -282,7 +280,7 @@ class Harness:
     admissions: FakeAdmissionStore
     repository: FakeRepository
     organizations: FakeOrganizations
-    serviceaccounts: FakeServiceAccounts
+    members: FakeMembers
     catalog: AccessCatalog
 
 
@@ -290,7 +288,7 @@ def dependencies(
     repository: FakeRepository,
     organizations: FakeOrganizations,
     admissions: FakeAdmissionStore | None = None,
-    serviceaccounts: FakeServiceAccounts | None = None,
+    members: FakeMembers | None = None,
     catalog: AccessCatalog | None = None,
     **overrides: Any,
 ) -> Dependencies:
@@ -300,7 +298,7 @@ def dependencies(
         authenticator=FakeAuthenticator(),
         repository=repository,
         organizations=organizations,
-        serviceaccounts=serviceaccounts if serviceaccounts is not None else FakeServiceAccounts(),
+        members=members if members is not None else FakeMembers(),
         admissions=admissions if admissions is not None else FakeAdmissionStore(repository),
         catalog=catalog if catalog is not None else AccessCatalog(),
         clock=lambda: NOW,
@@ -313,7 +311,7 @@ def dependencies(
 def harness() -> Harness:
     repository, organizations = FakeRepository(), FakeOrganizations()
     admissions = FakeAdmissionStore(repository)
-    serviceaccounts = FakeServiceAccounts()
+    members = FakeMembers()
     catalog = AccessCatalog()
     catalog.apply_group_desired(
         "grp-1",
@@ -329,11 +327,11 @@ def harness() -> Harness:
         "binder": user("binder"),
         "eve": user("eve", OTHER_ORG),
     }
-    deps = dependencies(repository, organizations, admissions, serviceaccounts, catalog)
+    deps = dependencies(repository, organizations, admissions, members, catalog)
     client = httpx.AsyncClient(
         transport=httpx.ASGITransport(app=create_app(deps)), base_url="http://api"
     )
-    return Harness(client, admissions, repository, organizations, serviceaccounts, catalog)
+    return Harness(client, admissions, repository, organizations, members, catalog)
 
 
 def auth(subject: str) -> dict[str, str]:
@@ -458,7 +456,7 @@ async def test_a_serviceaccount_acts_as_a_member_of_its_own_organization_only(
 ) -> None:
     response = await create(harness, "machine")
     assert response.status_code == 201
-    assert harness.serviceaccounts.calls == ["machine"]
+    assert harness.members.calls == ["machine"]
     other = await create(harness, "machine", organizationId="org-9")
     assert other.status_code == 404
 
@@ -497,7 +495,7 @@ async def test_catalog_sync_pending_returns_503(harness: Harness) -> None:
         harness.repository,
         harness.organizations,
         harness.admissions,
-        harness.serviceaccounts,
+        harness.members,
         harness.catalog,
         is_catalog_synced=lambda: False,
     )
