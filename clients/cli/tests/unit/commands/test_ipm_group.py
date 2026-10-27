@@ -22,10 +22,8 @@ runner = CliRunner()
 API = "https://api.teste"
 ORG = "01a15e61-6d1e-7096-878a-d5f450b858f1"
 RID = "01a15e61-6d1e-7096-878a-d5f450b858f2"
-OPID = "b9c4c98c-7392-5016-a724-6e1cd0c1bed9"
 PATH = "/v1/ipm/groups"
 GROUP = f"{PATH}/{RID}"
-OPERATION = f"{GROUP}/operations/{OPID}"
 
 
 class Response:
@@ -113,12 +111,15 @@ def group_document(
     roles: list[str] | None = None,
     protected: bool = False,
     version: str = "1",
+    generation: int = 1,
+    observed: int | None = 1,
 ) -> dict[str, Any]:
     roles = roles or ["ipm.userViewer"]
     return {
         "resourceId": RID,
         "resourceVersion": version,
-        "desiredGeneration": 1,
+        "desiredGeneration": generation,
+        **({"observedGeneration": observed} if observed is not None else {}),
         "phase": phase,
         "conditions": [],
         "desired": {
@@ -137,15 +138,13 @@ def group_document(
     }
 
 
-def operation_document(status: str, reason: str | None = None) -> Response:
-    document: dict[str, Any] = {"operationId": OPID, "operationStatus": status}
-    if reason:
-        document["operationStatusReason"] = reason
-    return Response(200, document)
+def admitted(status: int = 200, **kwargs: Any) -> Response:
+    """O recurso admitido pela API síncrona (decisão 0098): `201`, `200` ou `202`."""
+    return Response(status, group_document(**kwargs))
 
 
 def test_create_group(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    api.routes[("POST", PATH)] = admitted(201)
     result = runner.invoke(
         app,
         [
@@ -186,7 +185,7 @@ def test_list_groups(api: FakeApi) -> None:
 
 def test_delete_group(api: FakeApi) -> None:
     api.routes[("GET", GROUP)] = Response(200, group_document(version="3"))
-    api.routes[("DELETE", GROUP)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    api.routes[("DELETE", GROUP)] = admitted(202, phase="Deleting")
     result = runner.invoke(app, ["ipm", "group", "delete", "--resource-id", RID])
     assert result.exit_code == 0
     assert "Deletion requested" in result.output
@@ -194,7 +193,7 @@ def test_delete_group(api: FakeApi) -> None:
 
 def test_update_group(api: FakeApi) -> None:
     api.routes[("GET", GROUP)] = Response(200, group_document(version="1"))
-    api.routes[("PATCH", GROUP)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    api.routes[("PATCH", GROUP)] = admitted(200, version="2")
     result = runner.invoke(
         app,
         [
@@ -247,14 +246,15 @@ def test_json_get_and_list_print_native_types(api: FakeApi) -> None:
 
 
 @pytest.mark.usefixtures("default_output_mode")
-def test_json_delete_prints_only_the_acceptance_and_nothing_to_do_prints_the_group(
+def test_json_delete_prints_the_admitted_group_and_nothing_to_do_prints_the_group(
     api: FakeApi,
 ) -> None:
     api.routes[("GET", GROUP)] = Response(200, group_document(version="3"))
-    api.routes[("DELETE", GROUP)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    api.routes[("DELETE", GROUP)] = admitted(202, phase="Deleting")
     deleted = runner.invoke(app, [*JSON, "ipm", "group", "delete", "--resource-id", RID])
     assert deleted.exit_code == 0, deleted.stderr
-    assert _document(deleted.stdout) == {"resourceId": RID, "operationId": OPID}
+    document = _document(deleted.stdout)
+    assert (document["resourceId"], document["phase"]) == (RID, "Deleting")
     api.routes[("GET", GROUP)] = Response(200, group_document(protected=True))
     again = runner.invoke(app, [*JSON, "ipm", "group", "protect", "--resource-id", RID])
     assert again.exit_code == 0, again.stderr
@@ -274,19 +274,32 @@ def test_json_delete_with_wait_prints_the_removed_state(api: FakeApi) -> None:
         Response(200, group_document(version="3")),  # leitura antes do pedido
         http_error(404, "NotFound", "gone"),  # já removido
     ]
-    api.routes[("DELETE", GROUP)] = Response(202, {"resourceId": RID, "operationId": OPID})
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("DELETE", GROUP)] = admitted(202, phase="Deleting")
     result = runner.invoke(app, [*JSON, "ipm", "group", "delete", "--resource-id", RID, "--wait"])
     assert result.exit_code == 0, result.stderr
     assert _document(result.stdout) == {"resourceId": RID, "state": "removed"}
 
 
-@pytest.mark.usefixtures("default_output_mode")
-def test_json_get_with_operation_adds_the_operation(api: FakeApi) -> None:
-    api.routes[("GET", GROUP)] = Response(200, group_document())
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+def test_create_with_wait_waits_for_the_observed_generation(api: FakeApi) -> None:
+    api.routes[("POST", PATH)] = admitted(201, phase="Pending", observed=None)
+    api.routes[("GET", GROUP)] = [
+        Response(200, group_document(phase="Pending", observed=0)),
+        Response(200, group_document()),
+    ]
     result = runner.invoke(
-        app, [*JSON, "ipm", "group", "get", "--resource-id", RID, "--operation-id", OPID]
+        app,
+        [
+            "ipm",
+            "group",
+            "create",
+            "--organization-id",
+            ORG,
+            "--name",
+            "devops",
+            "--description",
+            "Time de DevOps",
+            "--wait",
+        ],
     )
-    assert result.exit_code == 0, result.stderr
-    assert _document(result.stdout)["operation"]["operationStatus"] == "completed"
+    assert result.exit_code == 0, result.output
+    assert "Group created" in result.output

@@ -151,32 +151,6 @@ class PostgresSsot:
             found = connection.execute(query).fetchall()
         return [Row(str(row[0]), str(row[1])) for row in found]
 
-    def _connect_platform(self, role: str) -> psycopg.Connection[Any]:
-        return psycopg.connect(
-            f"host={self.HOST} port={self.PORT} dbname=platform user={role} password={role} "
-            "connect_timeout=3",
-            autocommit=True,
-        )
-
-    def data_plane_rows(self, kind: Kind) -> list[Row]:
-        if kind.data_plane_table is None or kind.data_plane_role is None:
-            return []
-        query = sql.SQL("SELECT resource_id, name FROM {table}").format(
-            table=self._table(kind.data_plane_table)
-        )
-        with self._connect_platform(kind.data_plane_role) as connection:
-            found = connection.execute(query).fetchall()
-        return [Row(str(row[0]), str(row[1])) for row in found]
-
-    def delete_data_plane(self, kind: Kind, resource_ids: set[str]) -> None:
-        if kind.data_plane_table is None or kind.data_plane_role is None:
-            return
-        delete = sql.SQL("DELETE FROM {table} WHERE resource_id = ANY(%s)").format(
-            table=self._table(kind.data_plane_table)
-        )
-        with self._connect_platform(kind.data_plane_role) as connection:
-            connection.execute(delete, (sorted(resource_ids),))
-
     def delete(self, kind: Kind, resource_ids: set[str]) -> None:
         ids = sorted(resource_ids)
         delete = sql.SQL("DELETE FROM {table} WHERE resource_id = ANY(%s)")

@@ -1,7 +1,7 @@
 name: ipm-group
 
-# Componentes de ipm.group (decisões 0015, 0019 e 0063): migração, consumers, Receiver, Manager,
-# Publisher, Reconciler, Observer e Executor.
+# Componentes de ipm.group (decisões 0015, 0019, 0063 e 0098): migração, API e Publisher. O Grupo é só
+# dado do SSOT (nada externo o materializa): não tem Controller nem plano de dados (S4).
 # A plataforma (banco, messaging, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
 # e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait messaging database gateway identity identity-login`,
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
@@ -22,7 +22,7 @@ x-deploy: &component-deploy
       cpus: "${IPM_GROUP_COMPONENT_CPUS:-0.5}"
       memory: ${IPM_GROUP_COMPONENT_MEMORY:-256M}
 
-# Imagem única da feature (decisão 0063): contém o código dos seis papéis, e cada serviço escolhe o
+# Imagem única da feature (decisão 0063): contém o código dos dois papéis, e cada serviço escolhe o
 # seu pelo `command`. Cada contêiner recebe só as variáveis e os segredos do seu papel.
 x-image: &component-image
   build:
@@ -30,44 +30,11 @@ x-image: &component-image
   image: ${IPM_GROUP_IMAGE:-smarkee-ipm-group:dev}
 
 services:
-  # Consumer durável de trabalho do Manager para `requested` do tipo (docs/messaging/NATS.md §7.6). O manifesto
-  # do Manager e o do Executor ficam em `consumers/`. Inexistente é criado; existente com configuração idêntica
-  # não muda; configuração diferente falha de forma explícita. Exige os Streams REQUESTED, OBSERVED
-  # e RESULT, criados pelo messaging da plataforma.
-  ipm-group-consumer:
-    build:
-      context: ../../../infrastructure/tools/nats-client
-    image: ${SMARKEE_MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}
-    container_name: ipm-group-consumer.smarkee.internal
-    environment:
-      NATS_URL: nats://messaging.smarkee.internal:4222
-      NATS_USER: ${SMARKEE_MESSAGING_USER:-smarkee}
-      NATS_PASSWORD: ${IPM_GROUP_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
-    command:
-      - sh
-      - -c
-      - >-
-        nats consumer add REQUESTED --config /consumers/ipm-group-manager-requested.json &&
-        nats consumer add OBSERVED --config /consumers/ipm-group-manager-observed.json &&
-        nats consumer add RESULT --config /consumers/ipm-group-manager-result.json &&
-        for partition in 0 1 2 3; do
-          nats consumer add ACTION --config /consumers/ipm-group-executor-action-p$$partition.json || exit 1;
-        done
-    volumes:
-      - ./consumers:/consumers:ro
-    networks:
-      - internal
-    restart: "no"
-
-  # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo em dois bancos,
-  # sempre como o dono de cada um e nunca com o papel de runtime:
-  #   1. features/ipm/group/migrations/*.sql, no banco `ssot` (SSOT), como `ssot`;
-  #   2. features/ipm/group/migrations/platform/*.sql, no banco `platform` (plano de dados do Executor e do
-  #      Observer, decisões 0086 e 0088), como `platform`. Sem este passo as tabelas ficam com outro dono
-  #      e o `ipm-role-migrate` falha ao conceder privilégios sobre `ipm.group`.
-  # O código das migrações do SSOT é do Manager (decisões 0015 e 0063); o do `platform`, do Executor.
-  # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/ipm.sql e o banco,
-  # de database/bootstrap/platform.sql.
+  # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo
+  # (features/ipm/group/migrations/*.sql, em ordem) como o dono `ssot`, no banco `ssot`.
+  # O código das migrações é da API (decisões 0015, 0063 e 0098); a execução é desta etapa de
+  # implantação, com o papel administrativo, e nunca com o papel de runtime da API.
+  # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/ipm.sql.
   ipm-group-migrate:
     build:
       context: ../../../infrastructure/tools/psql-client
@@ -83,11 +50,7 @@ services:
     command:
       - sh
       - -c
-      - >-
-        for migration in /migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1; done;
-        for migration in /migrations/platform/*.sql; do
-        PGDATABASE=platform PGUSER=platform PGPASSWORD=platform psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1;
-        done
+      - for migration in /migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -f "$$migration" || exit 1; done
     volumes:
       - ./migrations:/migrations:ro
     networks:
@@ -96,33 +59,33 @@ services:
           - ipm-group-migrate.smarkee.internal
     restart: "no"
 
-  # Receiver (`ipm-group-receiver`): só o gateway a alcança; a porta 8000 não é publicada no host.
-  ipm-group-receiver:
+  # API (`ipm-group-api`, decisão 0098): autentica, autoriza e admite a escrita de forma síncrona
+  # (recurso e `desired` no outbox, numa transação). Papel de banco `ipm_group_api`. Só o gateway a
+  # alcança; a porta 8000 não é publicada no host.
+  ipm-group-api:
     <<: *component-image
-    command: [ipm-group-receiver]
-    container_name: ipm-group-receiver.smarkee.internal
+    command: [ipm-group-api]
+    container_name: ipm-group-api.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
-      # defaults do componente (IPM_GROUP_RECEIVER_<SEÇÃO>_<CAMPO>).
-      IPM_GROUP_RECEIVER_AUTH_AUDIENCE: ${IPM_GROUP_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-ipm, org core)}
+      # defaults do componente (IPM_GROUP_API_<SEÇÃO>_<CAMPO>).
+      IPM_GROUP_API_AUTH_AUDIENCE: ${IPM_GROUP_API_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-ipm, org core)}
     secrets:
-      - IPM_GROUP_RECEIVER_DATABASE_PASSWORD
-      - IPM_GROUP_RECEIVER_MESSAGING_PASSWORD
+      - IPM_GROUP_API_DATABASE_PASSWORD
+      - IPM_GROUP_API_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
       ipm-group-migrate:
         condition: service_completed_successfully
-      ipm-group-consumer:
-        condition: service_completed_successfully
     networks:
       internal:
         aliases:
-          - ipm-group-receiver.smarkee.internal
+          - ipm-group-api.smarkee.internal
     restart: unless-stopped
     healthcheck: &component-healthcheck
       test:
@@ -134,115 +97,6 @@ services:
       timeout: 5s
       retries: 6
       start_period: 10s
-
-  # Manager (`ipm-group-manager`): único escritor do SSOT do tipo. Papel de banco
-  # `ipm_group_manager`, que só insere no outbox (decisão 0019).
-  ipm-group-manager:
-    <<: *component-image
-    command: [ipm-group-manager]
-    container_name: ipm-group-manager.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - IPM_GROUP_MANAGER_DATABASE_PASSWORD
-      - IPM_GROUP_MANAGER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      ipm-group-migrate:
-        condition: service_completed_successfully
-      ipm-group-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-group-manager.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Reconciler (`ipm-group-reconciler`): decide a `action` a partir de `desired` e `observed`.
-  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/messaging/NATS.md §7.4).
-  ipm-group-reconciler:
-    <<: *component-image
-    command: [ipm-group-reconciler]
-    container_name: ipm-group-reconciler.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - IPM_GROUP_RECONCILER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      ipm-group-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-group-reconciler.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Observer (`ipm-group-observer`): lê o estado do Grupo no banco `platform` (papel somente leitura) e
-  # publica `observed`. Não acessa o SSOT.
-  ipm-group-observer:
-    <<: *component-image
-    command: [ipm-group-observer]
-    container_name: ipm-group-observer.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - IPM_GROUP_OBSERVER_DATABASE_PASSWORD
-      - IPM_GROUP_OBSERVER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      ipm-group-consumer:
-        condition: service_completed_successfully
-      ipm-group-migrate:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-group-observer.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Executor (`ipm-group-executor`): único com escrita no estado do Grupo, no banco `platform` (decisões 0085 e
-  # 0088). Não acessa o SSOT.
-  ipm-group-executor:
-    <<: *component-image
-    command: [ipm-group-executor]
-    container_name: ipm-group-executor.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - IPM_GROUP_EXECUTOR_DATABASE_PASSWORD
-      - IPM_GROUP_EXECUTOR_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      ipm-group-consumer:
-        condition: service_completed_successfully
-      ipm-group-migrate:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-group-executor.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
 
   # Publisher (`ipm-group-publisher`): publica o outbox do tipo (uma instância ativa por trava
   # consultiva). Papel de banco `ipm_group_publisher`, que só lê o outbox e marca `published_at`, e
@@ -313,24 +167,10 @@ services:
 # Senhas montadas em /run/secrets/<VARIÁVEL> (arquivo somente leitura, lido pelo `SecretFilesSource`; decisão 0070).
 # A origem em dev é o .env; cada papel recebe só a sua. Em stg e prd a origem passa a ser o cofre de segredos.
 secrets:
-  IPM_GROUP_RECEIVER_DATABASE_PASSWORD:
-    environment: IPM_GROUP_RECEIVER_DATABASE_PASSWORD
-  IPM_GROUP_RECEIVER_MESSAGING_PASSWORD:
-    environment: IPM_GROUP_RECEIVER_MESSAGING_PASSWORD
-  IPM_GROUP_MANAGER_DATABASE_PASSWORD:
-    environment: IPM_GROUP_MANAGER_DATABASE_PASSWORD
-  IPM_GROUP_MANAGER_MESSAGING_PASSWORD:
-    environment: IPM_GROUP_MANAGER_MESSAGING_PASSWORD
-  IPM_GROUP_RECONCILER_MESSAGING_PASSWORD:
-    environment: IPM_GROUP_RECONCILER_MESSAGING_PASSWORD
-  IPM_GROUP_OBSERVER_MESSAGING_PASSWORD:
-    environment: IPM_GROUP_OBSERVER_MESSAGING_PASSWORD
-  IPM_GROUP_EXECUTOR_MESSAGING_PASSWORD:
-    environment: IPM_GROUP_EXECUTOR_MESSAGING_PASSWORD
-  IPM_GROUP_EXECUTOR_DATABASE_PASSWORD:
-    environment: IPM_GROUP_EXECUTOR_DATABASE_PASSWORD
-  IPM_GROUP_OBSERVER_DATABASE_PASSWORD:
-    environment: IPM_GROUP_OBSERVER_DATABASE_PASSWORD
+  IPM_GROUP_API_DATABASE_PASSWORD:
+    environment: IPM_GROUP_API_DATABASE_PASSWORD
+  IPM_GROUP_API_MESSAGING_PASSWORD:
+    environment: IPM_GROUP_API_MESSAGING_PASSWORD
   IPM_GROUP_PUBLISHER_DATABASE_PASSWORD:
     environment: IPM_GROUP_PUBLISHER_DATABASE_PASSWORD
   IPM_GROUP_PUBLISHER_MESSAGING_PASSWORD:

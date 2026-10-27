@@ -43,7 +43,6 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "receiver-http": (
         "bsm/account",
         "core/account",
-        "ipm/group",
         "ipm/permission",
     ),
     # Contexto de trace e OpenAPI do Receiver: todas as features com Receiver (a `ipm/serviceaccount`
@@ -51,12 +50,12 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "receiver-base": (
         "bsm/account",
         "core/account",
-        "ipm/group",
         "ipm/permission",
         "sum/service",
     ),
     # Processo `api` (decisão 0098): probes, OpenAPI e contexto de trace; as demais peças são do tipo.
     "api-http": (
+        "ipm/group",
         "ipm/organization",
         "ipm/role",
         "ipm/serviceaccount",
@@ -67,7 +66,6 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "manager-handlers": (
         "bsm/account",
         "core/account",
-        "ipm/group",
         "ipm/permission",
         "sum/service",
     ),
@@ -76,7 +74,6 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "manager-observation": (
         "bsm/account",
         "core/account",
-        "ipm/group",
         "ipm/permission",
         "sum/service",
     ),
@@ -85,7 +82,6 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "reconciler-streams": (
         "bsm/account",
         "core/account",
-        "ipm/group",
         "ipm/permission",
         "sum/service",
     ),
@@ -96,7 +92,6 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "loop-engines": (
         "bsm/account",
         "core/account",
-        "ipm/group",
     ),
 }
 

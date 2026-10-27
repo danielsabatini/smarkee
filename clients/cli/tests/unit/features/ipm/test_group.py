@@ -42,6 +42,8 @@ def test_group_document_parsing() -> None:
     raw: dict[str, Any] = {
         "resourceId": "g-1",
         "resourceVersion": "2",
+        "desiredGeneration": 2,
+        "observedGeneration": 2,
         "phase": "Ready",
         "desired": {
             "lifecycle": "present",
@@ -61,12 +63,36 @@ def test_group_document_parsing() -> None:
     assert group.name == "devops"
     assert group.roles == ("ipm.userViewer",)
     assert group.deletion_protection is True
+    assert (group.desired_generation, group.observed_generation) == (2, 2)
+    assert group.failure_reason is None
+
+
+def test_group_parser_without_observed_generation_or_with_a_failed_condition() -> None:
+    raw: dict[str, Any] = {
+        "resourceId": "g-1",
+        "resourceVersion": "1",
+        "desiredGeneration": 1,
+        "phase": "Failed",
+        "conditions": [{"status": "False", "reason": "Rejected"}],
+        "desired": {
+            "lifecycle": "present",
+            "organizationId": "org-1",
+            "name": "devops",
+            "description": "Equipe",
+            "roles": [],
+        },
+    }
+    group = _group(raw)  # pyright: ignore[reportPrivateUsage]
+    assert group.observed_generation is None
+    assert group.failure_reason == "Rejected"
 
 
 def test_group_missing_fields_raises() -> None:
     raw: dict[str, Any] = {
         "resourceId": "g-1",
         "resourceVersion": "1",
+        "desiredGeneration": 1,
+        "observedGeneration": 1,
         "phase": "Ready",
         "desired": {
             "lifecycle": "present",

@@ -410,18 +410,18 @@ services:
                 WWW-Authenticate: Bearer realm="smarkee"
             body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
 
-  # Receiver de ipm.group (decisões 0085 e 0088): a API `/v1/ipm/groups`.
-  - name: ipm-group-receiver
+  # API de ipm.group (decisões 0085, 0088 e 0098): a API `/v1/ipm/groups`.
+  - name: ipm-group-api
     upstream:
       scheme: http
       type: roundrobin
       pass_host: pass
       nodes:
-        - host: ipm-group-receiver.smarkee.internal
+        - host: ipm-group-api.smarkee.internal
           port: 8000
           weight: 100
     routes:
-      - name: ipm-group-receiver
+      - name: ipm-group-api
         hosts:
           - api-dev.smarkee.com.br
         uris:

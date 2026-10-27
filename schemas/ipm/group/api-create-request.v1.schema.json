@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "GroupCreateRequest",
-  "description": "Corpo de POST /v1/ipm/groups. O Receiver atribui resourceId, operationId, requestDigest e requestedBy. roles ausente equivale a nenhuma; deletionProtection ausente equivale a false (decisão 0088).",
+  "description": "Corpo de POST /v1/ipm/groups. A API atribui resourceId e requestedBy (decisão 0098). roles ausente equivale a nenhuma; deletionProtection ausente equivale a false (decisão 0088).",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,

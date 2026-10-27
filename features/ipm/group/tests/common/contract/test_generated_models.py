@@ -17,6 +17,10 @@ SCHEMAS_ROOT = PROJECT_ROOT.parents[2] / "schemas"
 GENERATED_MODULE = PROJECT_ROOT / "src" / "ipm_group" / "common" / "contracts" / "generated.py"
 INDEX = SCHEMAS_ROOT / "ipm.group.index.json"
 
+# Contratos comuns que esta feature não usa depois da API síncrona (decisão 0098): a Operation e a
+# resposta `202` com `operationId` ficam para as features que ainda têm Receiver e Manager.
+UNUSED_COMMON = {"operation", "api-accepted-response"}
+
 EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "common/message-envelope.example.json": generated.MessageEnvelope,
     "common/condition.example.json": generated.Condition,
@@ -24,14 +28,9 @@ EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "common/completed.example.json": generated.CompletedData,
     "common/failed.example.json": generated.FailedData,
     "common/updated.example.json": generated.UpdatedData,
-    "common/operation.example.json": generated.Operation,
-    "common/api-accepted-response.example.json": generated.ApiAcceptedResponse,
     "common/api-error.example.json": generated.ApiError,
     "ipm/group/desired.example.json": generated.GroupDesiredData,
     "ipm/group/observed.example.json": generated.GroupObservedData,
-    "ipm/group/requested-create.example.json": generated.GroupRequestedCreateData,
-    "ipm/group/requested-update.example.json": generated.GroupRequestedUpdateData,
-    "ipm/group/requested-delete.example.json": generated.GroupRequestedDeleteData,
     "ipm/group/api-create-request.example.json": generated.GroupCreateRequest,
     "ipm/group/api-update-request.example.json": generated.GroupUpdateRequest,
     "ipm/group/resource.example.json": generated.Group,
@@ -44,6 +43,8 @@ def _example(relative_path: str) -> dict[str, Any]:
 
 
 def test_generated_models_match_regeneration() -> None:
+    # Dentro do projeto, para o formatador usar a mesma configuração (line-length) do arquivo
+    # versionado; o diretório temporário é removido ao final.
     with tempfile.TemporaryDirectory(prefix=".codegen-check-", dir=PROJECT_ROOT) as directory:
         regenerated = Path(directory) / "generated.py"
         subprocess.run(  # noqa: S603 (comando fixo, sem entrada externa)
@@ -60,12 +61,14 @@ def test_generated_models_match_regeneration() -> None:
 
 def test_index_lists_every_contract() -> None:
     index = cast(dict[str, Any], json.loads(INDEX.read_text("utf-8")))
-    listed = {entry["$ref"] for entry in index["anyOf"]}
+    # Fragmentos (`#/$defs/...`) trazem definições usadas pelo código e sem contrato que as
+    # referencie, como o catálogo `grantablePermission` (decisão 0081); não contam como contrato.
+    listed = {entry["$ref"] for entry in index["anyOf"] if "#" not in entry["$ref"]}
     contracts = {
         str(path.relative_to(SCHEMAS_ROOT))
         for directory in ("common", "ipm/group")
         for path in (SCHEMAS_ROOT / directory).rglob("*.v*.schema.json")
-        if not path.name.startswith("definitions.")
+        if not path.name.startswith("definitions.") and path.name.split(".")[0] not in UNUSED_COMMON
     }
     assert listed == contracts
 
@@ -75,6 +78,7 @@ def test_every_example_has_a_model() -> None:
         str(path.relative_to(SCHEMAS_ROOT))
         for directory in ("common", "ipm/group")
         for path in (SCHEMAS_ROOT / directory).rglob("*.example.json")
+        if path.name.split(".")[0] not in UNUSED_COMMON
     }
     assert examples == set(EXAMPLE_MODELS)
 
@@ -92,3 +96,11 @@ def test_model_accepts_example(relative_path: str, model: type[BaseModel]) -> No
 def test_model_rejects_unknown_field(relative_path: str, model: type[BaseModel]) -> None:
     with pytest.raises(ValidationError):
         model.model_validate({**_example(relative_path), "unknownField": "x"})
+
+
+def test_create_request_rejects_server_assigned_fields() -> None:
+    for server_field in ("resourceId", "requestedBy"):
+        with pytest.raises(ValidationError):
+            generated.GroupCreateRequest.model_validate(
+                {**_example("ipm/group/api-create-request.example.json"), server_field: "x"}
+            )

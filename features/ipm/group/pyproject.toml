@@ -1,7 +1,7 @@
 [project]
 name = "ipm-group"
 version = "0.1.0"
-description = "Componente ipm.group (decisão 0063): um projeto e uma imagem, com um entrypoint por papel (receiver, manager, publisher, observer, reconciler e executor)."
+description = "Componente ipm.group (decisão 0063): um projeto e uma imagem, com um entrypoint por papel (api e publisher)."
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.143.0",
@@ -17,12 +17,8 @@ dependencies = [
 
 # Um entrypoint por papel: cada papel roda como processo e contêiner próprios (decisão 0063).
 [project.scripts]
-ipm-group-receiver = "ipm_group.receiver.main:main"
-ipm-group-manager = "ipm_group.manager.main:main"
+ipm-group-api = "ipm_group.api.main:main"
 ipm-group-publisher = "ipm_group.publisher.main:main"
-ipm-group-observer = "ipm_group.observer.main:main"
-ipm-group-reconciler = "ipm_group.reconciler.main:main"
-ipm-group-executor = "ipm_group.executor.main:main"
 
 [build-system]
 requires = ["uv_build>=0.11.19,<0.12"]
@@ -50,14 +46,14 @@ select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
 [tool.pyright]
 pythonVersion = "3.14"
 typeCheckingMode = "strict"
-include = ["src", "tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/observer", "tests/reconciler", "tests/executor"]
+include = ["src", "tests/common", "tests/api", "tests/publisher"]
 
 [tool.pytest.ini_options]
 # `tests/e2e` é um projeto à parte (black-box, decisão 0017) e não entra aqui.
-testpaths = ["tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/observer", "tests/reconciler", "tests/executor"]
+testpaths = ["tests/common", "tests/api", "tests/publisher"]
 addopts = ["--import-mode=importlib"]
 # Cada papel com testes de integração tem o seu módulo de apoio (`support_<papel>`).
-pythonpath = ["tests/receiver/integration", "tests/manager/integration", "tests/publisher/integration"]
+pythonpath = ["tests/api/integration", "tests/publisher/integration"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 

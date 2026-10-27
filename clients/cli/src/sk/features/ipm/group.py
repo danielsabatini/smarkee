@@ -1,23 +1,16 @@
 """Cliente do `ipm.group` na API da plataforma (decisão 0088).
 
-Grupos de usuários da Organization: agrupadores de Roles compostas mantidos no SSOT da Smarkee
-com estado materializado no banco `platform`.
-Criar, alterar e remover são escritas assíncronas. A leitura das respostas é estrita.
+Grupos de usuários da Organization: agrupadores de Roles compostas mantidos só no SSOT da Smarkee.
+Criar, alterar e remover são escritas síncronas na admissão (decisão 0098): a API devolve o recurso
+(`201`, `200` e `202` na remoção). O Grupo nasce `Ready` e convergido. Não há Operation. A leitura
+das respostas é estrita.
 """
 
 import re
 from dataclasses import dataclass
 from typing import Any, cast
 
-from sk.features.api_contract import (
-    OperationStatus,
-    RequestAccepted,
-    as_object,
-    as_text,
-    parse_accepted,
-    parse_operation,
-    validate_identifier,
-)
+from sk.features.api_contract import as_object, as_text, validate_identifier
 from sk.http import ApiUnavailableError, call_api
 
 GROUPS_PATH = "/v1/ipm/groups"
@@ -36,6 +29,8 @@ class Group:
 
     resource_id: str
     resource_version: str
+    desired_generation: int
+    observed_generation: int | None
     phase: str
     lifecycle: str
     organization_id: str
@@ -44,6 +39,8 @@ class Group:
     roles: tuple[str, ...]
     deletion_protection: bool
     status: str | None = None
+    failure_reason: str | None = None
+    """Motivo da primeira condition `False`, quando houver (para explicar a fase `Failed`)."""
 
 
 def validate_group_name(name: str) -> str:
@@ -76,6 +73,28 @@ def validate_roles_list(values: list[str]) -> list[str]:
     return roles
 
 
+def _generation(body: dict[str, Any], key: str, *, required: bool) -> int | None:
+    value = body.get(key)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if required or value is not None:
+        raise ApiUnavailableError(f"API response without {key}: group")
+    return None
+
+
+def _failure_reason(body: dict[str, Any]) -> str | None:
+    conditions = body.get("conditions")
+    if not isinstance(conditions, list):
+        return None
+    for item in cast("list[object]", conditions):
+        if isinstance(item, dict):
+            condition = cast("dict[str, object]", item)
+            reason = condition.get("reason")
+            if condition.get("status") == "False" and isinstance(reason, str):
+                return reason
+    return None
+
+
 def _group(document: object) -> Group:
     body = as_object(document, what="group")
     desired = as_object(body.get("desired"), what="group (desired)")
@@ -97,6 +116,8 @@ def _group(document: object) -> Group:
     return Group(
         resource_id=as_text(body, "resourceId", what="group"),
         resource_version=as_text(body, "resourceVersion", what="group"),
+        desired_generation=cast("int", _generation(body, "desiredGeneration", required=True)),
+        observed_generation=_generation(body, "observedGeneration", required=False),
         phase=as_text(body, "phase", what="group"),
         lifecycle=as_text(desired, "lifecycle", what="group (desired)"),
         organization_id=as_text(desired, "organizationId", what="group (desired)"),
@@ -105,6 +126,7 @@ def _group(document: object) -> Group:
         roles=tuple(str(item) for item in cast("list[object]", raw_roles)),
         deletion_protection=spec.get("deletionProtection") is True,
         status=as_text(spec, "status", what="group (specification)") if "status" in spec else None,
+        failure_reason=_failure_reason(body),
     )
 
 
@@ -118,8 +140,8 @@ def create_group(
     roles: list[str] | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
-    """Pede a criação de um grupo na Organization."""
+) -> Group:
+    """Pede a criação de um grupo na Organization (admitida na hora)."""
     org_id = validate_identifier(organization_id, what="organizationId")
     valid_name = validate_group_name(name)
     valid_desc = validate_description(description, name=valid_name)
@@ -139,7 +161,7 @@ def create_group(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _group(document)
 
 
 def update_group(
@@ -153,7 +175,7 @@ def update_group(
     protected: bool | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Group:
     """Altera descrição, roles e/ou proteção contra exclusão."""
     resource_id = validate_identifier(resource_id, what="resourceId")
     body: dict[str, Any] = {"resourceVersion": resource_version}
@@ -172,7 +194,7 @@ def update_group(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _group(document)
 
 
 def set_group_protection(
@@ -184,7 +206,7 @@ def set_group_protection(
     protected: bool,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Group:
     return update_group(
         api_url,
         token=token,
@@ -204,7 +226,7 @@ def delete_group(
     resource_version: str,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Group:
     resource_id = validate_identifier(resource_id, what="resourceId")
     _, document = call_api(
         "DELETE",
@@ -215,7 +237,7 @@ def delete_group(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _group(document)
 
 
 def get_group(api_url: str, *, token: str, resource_id: str, allow_insecure_http: bool) -> Group:
@@ -264,23 +286,3 @@ def list_groups(
         if not isinstance(after, str) or not after:
             break
     return found
-
-
-def get_operation(
-    api_url: str,
-    *,
-    token: str,
-    resource_id: str,
-    operation_id: str,
-    allow_insecure_http: bool,
-) -> OperationStatus:
-    resource_id = validate_identifier(resource_id, what="resourceId")
-    operation_id = validate_identifier(operation_id, what="operationId")
-    _, document = call_api(
-        "GET",
-        api_url,
-        f"{GROUPS_PATH}/{resource_id}/operations/{operation_id}",
-        token=token,
-        allow_insecure_http=allow_insecure_http,
-    )
-    return parse_operation(document)

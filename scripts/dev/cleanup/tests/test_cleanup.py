@@ -59,23 +59,12 @@ class FakeIdentity:
 class FakeSsot:
     tables: dict[Kind, list[Row]] = field(default_factory=lambda: {})
     deleted: list[tuple[str, set[str]]] = field(default_factory=lambda: [])
-    platform: dict[Kind, list[Row]] = field(default_factory=lambda: {})
-    """Linhas do plano de dados (banco `platform`) por tipo."""
     never_unprotects: bool = False
     support: dict[Kind, list[Row]] = field(default_factory=lambda: {})
     """Histórico (outbox, Operations e resultados) por tipo, com o rótulo do outbox."""
 
     def rows(self, kind: Kind) -> list[Row]:
         return list(self.tables.get(kind, []))
-
-    def data_plane_rows(self, kind: Kind) -> list[Row]:
-        return list(self.platform.get(kind, []))
-
-    def delete_data_plane(self, kind: Kind, resource_ids: set[str]) -> None:
-        self.deleted.append((f"platform:{kind.table}", set(resource_ids)))
-        self.platform[kind] = [
-            r for r in self.platform.get(kind, []) if r.resource_id not in resource_ids
-        ]
 
     def unprotected_version(self, kind: Kind, resource_id: str) -> str | None:
         return None if self.never_unprotects else "3"
@@ -613,16 +602,14 @@ GROUP_ID = "01a170c3-7b04-72f3-9c18-2da346a49999"
 
 
 @pytest.mark.parametrize("name", ["test-group-6d7092", "test-loop-0a1b2c3d", "test-chaos-abcdef"])
-def test_a_test_group_is_found_in_the_ssot_and_in_the_platform_database(name: str) -> None:
+def test_a_test_group_is_found_in_the_ssot(name: str) -> None:
     world = World()
     world.ssot.tables = {GROUPS: [Row(GROUP_ID, name)]}
-    world.ssot.platform = {GROUPS: [Row(GROUP_ID, name)]}
 
     findings = find(world.ports())
 
     assert [row.resource_id for row in findings.group_rows] == [GROUP_ID]
-    assert [row.resource_id for row in findings.platform_group_rows] == [GROUP_ID]
-    assert any("platform ipm.group" in line for line in findings.lines())
+    assert any("SSOT ipm.group" in line for line in findings.lines())
     assert GROUPS in findings.resource_ids()
 
 
@@ -630,27 +617,21 @@ def test_a_test_group_is_found_in_the_ssot_and_in_the_platform_database(name: st
 def test_real_groups_are_never_test_data(name: str) -> None:
     world = World()
     world.ssot.tables = {GROUPS: [Row("group-x", name)]}
-    world.ssot.platform = {GROUPS: [Row("group-x", name)]}
 
     assert find(world.ports()).is_clean()
 
 
-async def test_a_test_group_is_removed_through_the_loop_and_what_is_left_in_the_platform() -> None:
+async def test_a_test_group_is_removed_directly_by_cleanup() -> None:
+    """A API síncrona (decisão 0098) não tem `requested`: a limpeza apaga só o que é de teste."""
     world = World()
     world.ssot.tables = {
         GROUPS: [Row(GROUP_ID, "test-group-6d7092"), Row("group-real", "auditors")]
     }
-    world.ssot.platform = {
-        GROUPS: [Row(GROUP_ID, "test-group-6d7092"), Row("group-real", "auditors")]
-    }
-    world.bus.phases = {GROUP_ID: "Ready"}
 
     code = await clean(world.ports(), apply_changes=True, say=say_nothing)
 
     assert code == 0
-    assert world.bus.unprotection_requested == [GROUP_ID]
-    assert world.bus.requested == [GROUP_ID]
-    assert [r.resource_id for r in world.ssot.platform[GROUPS]] == ["group-real"]
+    assert world.bus.requested == []
     assert [r.resource_id for r in world.ssot.tables[GROUPS]] == ["group-real"]
 
 

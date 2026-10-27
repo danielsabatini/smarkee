@@ -69,10 +69,6 @@ class Kind:
     """Campo de `desired` que identifica a linha como de teste (e-mail, nome ou dono)."""
     deletion_protected: bool = False
     """O tipo pode estar protegido contra exclusão (decisão 0043): a limpeza desprotege antes."""
-    data_plane_table: str | None = None
-    """Tabela do tipo no banco `platform` (plano de dados, decisão 0086), se o tipo tiver uma."""
-    data_plane_role: str | None = None
-    """Papel de login com escrita nessa tabela (o do Executor)."""
     delete_role: str | None = None
     """Papel de login que apaga a linha, quando não é o do Manager (o Controller, decisão 0096)."""
     removable_through_requested: bool = True
@@ -134,7 +130,7 @@ BILLING_ACCOUNTS = Kind(
     deletion_protected=True,
 )
 # Permissions atômicas (decisão 0084): existem só no SSOT, como role de projeto no Zitadel; não têm
-# tabela no `platform`. Nascem protegidas contra exclusão.
+# plano de dados. Nascem protegidas contra exclusão.
 PERMISSIONS = Kind(
     "ipm",
     "permission",
@@ -158,18 +154,18 @@ ROLES = Kind(
     deletion_protected=True,
     removable_through_requested=False,
 )
-# Grupos da Organization (decisões 0086 e 0088): definição no SSOT e estado aplicado no `platform`.
+# Grupos da Organization (decisões 0088 e 0098): só no SSOT. A API síncrona apaga a linha e publica
+# o tombstone; não há `requested`.
 GROUPS = Kind(
     "ipm",
     "group",
     "ipm.group",
-    ("ipm.group_outbox", "ipm.group_operation", "ipm.group_action_result"),
-    "ipm_group_manager_login",
+    ("ipm.group_outbox", "ipm.group_idempotency"),
+    "ipm_group_api_login",
     "ipm_maintenance_login",
     "name",
     deletion_protected=True,
-    data_plane_table="ipm.group",
-    data_plane_role="ipm_group_executor_login",
+    removable_through_requested=False,
 )
 # Identidades de máquina da Organization (decisão 0094): só no SSOT; a chave pública mora no Zitadel
 # e sai com o usuário (o Executor remove o machine user). Nascem protegidas contra exclusão.
@@ -209,8 +205,6 @@ class Findings:
     role_rows: list[Row] = field(default_factory=lambda: [])
     permission_rows: list[Row] = field(default_factory=lambda: [])
     group_rows: list[Row] = field(default_factory=lambda: [])
-    platform_group_rows: list[Row] = field(default_factory=lambda: [])
-    """Grupos de teste no banco `platform` (plano de dados), com ou sem linha no SSOT."""
     serviceaccount_rows: list[Row] = field(default_factory=lambda: [])
     history: dict[Kind, list[Row]] = field(default_factory=lambda: {})
     """Histórico (outbox, Operations e resultados) de recursos de teste já removidos."""
@@ -232,7 +226,6 @@ class Findings:
             or self.role_rows
             or self.permission_rows
             or self.group_rows
-            or self.platform_group_rows
             or self.serviceaccount_rows
             or any(self.history.values())
             or any(self.message_orphans.values())
@@ -276,10 +269,6 @@ class Findings:
                 for row in self.permission_rows
             ),
             *(f"SSOT ipm.group {row.resource_id}  {row.label}" for row in self.group_rows),
-            *(
-                f"platform ipm.group {row.resource_id}  {row.label}"
-                for row in self.platform_group_rows
-            ),
             *(
                 f"SSOT ipm.serviceaccount {row.resource_id}  {row.label}"
                 for row in self.serviceaccount_rows
@@ -328,7 +317,6 @@ class Findings:
             | self._history_ids(PERMISSIONS)
             | self.message_orphans.get(PERMISSIONS, set()),
             GROUPS: {row.resource_id for row in self.group_rows}
-            | {row.resource_id for row in self.platform_group_rows}
             | self._history_ids(GROUPS)
             | self.message_orphans.get(GROUPS, set()),
             SERVICEACCOUNTS: {row.resource_id for row in self.serviceaccount_rows}
@@ -379,14 +367,6 @@ class Ssot(Protocol):
 
     def delete(self, kind: Kind, resource_ids: set[str]) -> None:
         """Apaga as linhas e o apoio (outbox, Operations e resultados) dos recursos."""
-        ...
-
-    def data_plane_rows(self, kind: Kind) -> list[Row]:
-        """Linhas do tipo no banco `platform` (plano de dados), ou `[]` se o tipo não tem."""
-        ...
-
-    def delete_data_plane(self, kind: Kind, resource_ids: set[str]) -> None:
-        """Apaga as linhas dos recursos no banco `platform`."""
         ...
 
 

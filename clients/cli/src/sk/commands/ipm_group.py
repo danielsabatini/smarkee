@@ -1,7 +1,8 @@
 """Comandos `sk ipm group`: grupos de usuários da Organization (decisões 0085 e 0088).
 
-Agrupadores de Roles compostas por Organization. Criar, alterar e remover são assíncronos:
-com `--wait`, o comando espera o grupo convergir.
+Agrupadores de Roles compostas por Organization. Criar, alterar e remover são admitidos na hora pela
+API (decisão 0098); o Grupo é só dado do SSOT e nasce convergido. Com `--wait`, o comando espera
+`observedGeneration` alcançar a geração admitida.
 """
 
 import uuid
@@ -11,12 +12,12 @@ import typer
 from pydantic import ValidationError
 from rich.text import Text
 
-from sk import output, ui
+from sk import ui
 from sk.command_app import SkTyper
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
     EXIT_USAGE_ERROR,
-    ResourceFlow,
+    SyncResourceFlow,
     TimeoutOption,
     already_done,
     bad_address,
@@ -27,13 +28,11 @@ from sk.commands.shared import (
     session_token,
     usage_error,
 )
-from sk.features.api_contract import OperationStatus, RequestAccepted
 from sk.features.ipm.group import (
     Group,
     create_group,
     delete_group,
     get_group,
-    get_operation,
     list_groups,
     update_group,
     validate_description,
@@ -51,16 +50,10 @@ GROUP_HELP = command("List, inspect, create, update, protect and delete Organiza
 NOT_FOUND = "Group not found in an Organization you act on."
 CONFLICT_ON_CHANGE = "The group changed since it was last read. Inspect it and try again."
 PROTECTED_HINT = "The group is protected against deletion. Run `sk ipm group unprotect` first."
-REJECTION_HINTS = {
-    "validation": (
-        "The group name, description or roles are invalid, or the name is already in use."
-    ),
-    "conflict": CONFLICT_ON_CHANGE,
-    "not_found": NOT_FOUND,
-    "protected": PROTECTED_HINT,
-}
 ERROR_CODE_HINTS = {
     "DeletionProtected": PROTECTED_HINT,
+    "NotPresent": "The group is being deleted and cannot be changed.",
+    "IdempotencyKeyReused": "The idempotency key was already used for a different request.",
     "NameAlreadyInUse": "A group with this name already exists in the Organization.",
     "ResourcesAttached": "The group still has users attached. Detach them before deleting.",
 }
@@ -82,7 +75,7 @@ WaitOption = Annotated[
     typer.Option(
         "--wait",
         help=option(
-            "Wait for the group to converge (phase Ready and Operation completed).",
+            "Wait for the group to converge (its generation observed and phase Ready).",
             kind="Boolean",
             variable=None,
             file=None,
@@ -185,20 +178,15 @@ def _rows(group: Group) -> list[tuple[str, str]]:
     ]
 
 
-def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> str:
-    parts = ["sk ipm group get", f"--resource-id {accepted.resource_id}"]
-    if with_operation:
-        parts.append(f"--operation-id {accepted.operation_id}")
-    return " ".join(parts)
+def _get_command(resource_id: str) -> str:
+    return f"sk ipm group get --resource-id {resource_id}"
 
 
-_flow = ResourceFlow(
+_flow = SyncResourceFlow(
     subject="group",
     get_command=_get_command,
     read_resource=get_group,
-    read_operation=get_operation,
     fail_api=_fail_api,
-    rejection_hints=REJECTION_HINTS,
     rows=_rows,
 )
 
@@ -247,13 +235,13 @@ def create_command(
         valid_name = validate_group_name(name_str)
         valid_desc = validate_description(desc_str, name=valid_name)
     except ValueError as error:
-        ui.error("Value not accepted", str(error), hint="Fix the given value and repeat.")
+        ui.error("Value not admitted", str(error), hint="Fix the given value and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     roles = _roles(role) if role is not None else []
     url, insecure = load_api()
     token = session_token()
     try:
-        accepted = create_group(
+        admitted = create_group(
             url,
             token=token,
             organization_id=org_id,
@@ -267,9 +255,9 @@ def create_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Creation requested", accepted, ("name", valid_name), wait=wait)
+    _flow.requested_panel("Creation requested", admitted, ("name", valid_name), wait=wait)
     _flow.finish(
-        url, insecure, accepted, title="Group created", removal=False, wait=wait, timeout=timeout
+        url, insecure, admitted, title="Group created", removal=False, wait=wait, timeout=timeout
     )
 
 
@@ -294,7 +282,7 @@ def _change(
         if same_desc and same_roles and same_protection:
             already_done(current, f"Group {group_id} already has it. Nothing to do.")
             return
-        accepted = update_group(
+        admitted = update_group(
             url,
             token=token,
             resource_id=group_id,
@@ -309,8 +297,8 @@ def _change(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Change requested", accepted, wait=wait)
-    _flow.finish(url, insecure, accepted, title=title, removal=False, wait=wait, timeout=timeout)
+    _flow.requested_panel("Change requested", admitted, wait=wait)
+    _flow.finish(url, insecure, admitted, title=title, removal=False, wait=wait, timeout=timeout)
 
 
 @group_app.command(
@@ -416,7 +404,7 @@ def delete_command(
     token = session_token()
     try:
         current = get_group(url, token=token, resource_id=group_id, allow_insecure_http=insecure)
-        accepted = delete_group(
+        admitted = delete_group(
             url,
             token=token,
             resource_id=group_id,
@@ -428,62 +416,24 @@ def delete_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Deletion requested", accepted, ("name", current.name), wait=wait)
+    _flow.requested_panel("Deletion requested", admitted, ("name", current.name), wait=wait)
     _flow.finish(
-        url, insecure, accepted, title="Group deleted", removal=True, wait=wait, timeout=timeout
+        url, insecure, admitted, title="Group deleted", removal=True, wait=wait, timeout=timeout
     )
 
 
-@group_app.command(
-    "get",
-    structured=True,
-    help=command("Show the state of a group and, if given, of an Operation."),
-)
-def get_command(
-    resource_id: GroupIdOption = None,
-    operation_id: Annotated[
-        str | None,
-        typer.Option(
-            "--operation-id",
-            help=option(
-                "operationId of a request, to see why it was rejected or failed.",
-                kind="String",
-                variable=None,
-                file=None,
-                default="no Operation lookup",
-            ),
-        ),
-    ] = None,
-) -> None:
+@group_app.command("get", structured=True, help=command("Show the state of a group."))
+def get_command(resource_id: GroupIdOption = None) -> None:
     group_id = identifier(resource_id, "--resource-id", what="resourceId")
-    if operation_id is not None:
-        operation_id = identifier(operation_id, "--operation-id", what="operationId")
     url, insecure = load_api()
     token = session_token()
-    operation: OperationStatus | None = None
     try:
         group = get_group(url, token=token, resource_id=group_id, allow_insecure_http=insecure)
-        if operation_id is not None:
-            operation = get_operation(
-                url,
-                token=token,
-                resource_id=group_id,
-                operation_id=operation_id,
-                allow_insecure_http=insecure,
-            )
     except OidcError as error:
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    rows = _rows(group)
-    if operation is not None:
-        rows.append(("operationStatus", operation.operation_status))
-        if operation.reason is not None:
-            rows.append(("reason", operation.reason))
-    document = output.to_data(group)
-    if operation is not None:
-        document["operation"] = output.to_data(operation)
-    ui.panel("Group", rows, data=document)
+    ui.panel("Group", _rows(group), data=group)
 
 
 @group_app.command("list", structured=True, help=command("List all groups of an Organization."))
