@@ -1,6 +1,6 @@
 # ipm-user-publisher
 
-Publisher de `ipm.user` (`ipm-user-publisher`), um dos seis papéis da imagem única `ipm-user` (decisão 0063) e sexto papel do loop (`.decisions/0019-publisher-como-sexto-papel.md`).
+Publisher de `ipm.user` (`ipm-user-publisher`), um dos quatro papéis da imagem única `ipm-user` (decisões 0063 e 0096) e papel do loop (`.decisions/0019-publisher-como-sexto-papel.md`).
 
 Publica no transporte, em ordem e de forma sequencial, o que o Manager registrou no **outbox** do tipo (`ipm.user_outbox`). **Não executa regra de negócio**: o Subject e o payload já estão na linha do outbox.
 

@@ -2,36 +2,30 @@
 
 A **service account** é a identidade de máquina da Organization: um usuário de máquina do Zitadel, na organização do cliente, que se autentica com uma **chave privada que nasce e fica no cliente** (a plataforma guarda só a pública) e recebe permissões da plataforma como qualquer usuário. Decisão [`0094`](../../../.decisions/0094-ipm-serviceaccount-identidade-de-maquina-da-organization.md). É gerenciada pelo Resource Control Loop (`docs/loop/RESOURCE-CONTROL-LOOP.md`); o `resourceId` é o ID do Zitadel (`userId`).
 
-Decisões que definem esta feature: `0094` (o tipo, as chaves, o login e o escopo), `0077` (usuário da Organization: escopo, permissões e `bind`), `0071` (`bind`), `0040` (consulta entre Receivers com o token de quem pede), `0043` e `0074` (proteção contra exclusão como metadado; aqui ela **nasce ligada**), `0072` (toda alteração percorre o loop), `0073` (drivers espelhados) e `0075` (motores gerados do template). `features/ipm/user` é o **modelo** desta estrutura.
+Decisões que definem esta feature: `0094` (o tipo, as chaves, o login e o escopo), `0096` (o Controller unifica observar, decidir e agir), `0077` (usuário da Organization: escopo, permissões e `bind`), `0071` (`bind`), `0040` (consulta entre Receivers com o token de quem pede), `0043` e `0074` (proteção contra exclusão como metadado; aqui ela **nasce ligada**), `0072` (toda alteração percorre o loop), `0073` (drivers espelhados) e `0075` (motores gerados do template). `features/ipm/user` é o **modelo** desta estrutura.
 
 # 1. Estado da implementação
 
-Etapa 1 da `0094` completa: os seis papéis, o registro na infraestrutura (gateway, telemetria, contas do Zitadel, banco), o reconhecimento cruzado nos outros tipos do `ipm` e a CLI (`sk ipm serviceaccount`, `sk auth login --key-file`) implementados e verificados por testes unitários, de integração, de contrato, e2e e ao vivo no dev. Pendências antes de `stg`/`prd`: ver `docs/platform/IMPLEMENTATION-STATUS.md`.
+Etapa 1 da `0094` completa: os quatro papéis (Receiver, Manager, Publisher e Controller), o registro na infraestrutura (gateway, telemetria, contas do Zitadel, banco), o reconhecimento cruzado nos outros tipos do `ipm` e a CLI (`sk ipm serviceaccount`, `sk auth login --key-file`) implementados e verificados por testes unitários, de integração, de contrato, e2e e ao vivo no dev. Pendências antes de `stg`/`prd`: ver `docs/platform/IMPLEMENTATION-STATUS.md`.
 
 | Papel | Projeto | Responsabilidade |
 |---|---|---|
 | Receiver | `receiver/` (`ipm-serviceaccount-receiver`) | API `/v1/ipm/serviceaccounts`: autentica, decide o escopo, valida as chaves públicas, confere catálogo, `bind` e cota, publica `requested`. Contrato em `openapi.json` |
-| Manager | `manager/` | Consome `requested`, `observed` e resultados; nome único na Organization, permissões do módulo e cota na unidade atômica |
+| Manager | `manager/` | Consome `requested` (e os catálogos `DESIRED` de permission e role); nome único na Organization, permissões do módulo e cota na unidade atômica |
 | Publisher | `publisher/` | Publica o outbox no NATS (decisão 0065) |
-| Reconciler | `reconciler/` | Compara `permissions`, `deletionProtection`, `description` e os fingerprints das chaves e decide `create`, `update` ou `delete` |
-| Observer | `observer/` | Lê a máquina, as chaves, as autorizações e os metadados no Zitadel (somente leitura) |
-| Executor | `executor/` | Cria a máquina, adiciona e remove chaves, escreve autorização e metadados |
-| Controller | `controller/` | Decisão 0096: observa, decide, age e reobserva numa só transação, e grava `updated` no outbox. Substitui Reconciler, Observer e Executor, que seguem no código até a remoção final |
+| Controller | `controller/` | Decisão 0096: consome `desired`, e numa só transação observa a máquina, as chaves, as autorizações e os metadados no Zitadel, decide `create`, `update` ou `delete`, age, reobserva e grava o estado e o `updated` no outbox. Leia o [README](src/ipm_serviceaccount/controller/README.md) |
 | Testes e2e | `tests/e2e/` | Black-box: loop completo, incluindo a rotação de chaves |
 
 # 2. Papéis e componentes
 
-Os seis papéis são **um projeto e uma imagem** (decisão 0063), cada um com processo e contêiner próprios, o próprio papel de banco (`ipm_serviceaccount_<papel>`, em `infrastructure/dev/database/bootstrap/ipm.sql`), a própria identidade no NATS e, quando usa o Zitadel, a própria conta de serviço.
+Os quatro papéis são **um projeto e uma imagem** (decisão 0063), cada um com processo e contêiner próprios, o próprio papel de banco (`ipm_serviceaccount_<papel>`, em `infrastructure/dev/database/bootstrap/ipm.sql`), a própria identidade no NATS e, quando usa o Zitadel, a própria conta de serviço. Além deles, `ipm-serviceaccount-migrate` (migrações) e `ipm-serviceaccount-consumer` (consumer do Manager) rodam e saem.
 
 | Componente | Serviço no Compose | Papel de banco | Conta no Zitadel | Escreve |
 |---|---|---|---|---|
 | Receiver | `ipm-serviceaccount-receiver` | `ipm_serviceaccount_receiver` (só leitura das views) | — | `requested` no NATS |
 | Manager | `ipm-serviceaccount-manager` | `ipm_serviceaccount_manager` | — | SSOT (`ipm.serviceaccount*`) e outbox |
 | Publisher | `ipm-serviceaccount-publisher` | `ipm_serviceaccount_publisher` | — | `published_at` do outbox; NATS |
-| Reconciler | `ipm-serviceaccount-reconciler` | — | — | `action` no NATS |
-| Observer | `ipm-serviceaccount-observer` | — | `ipm-serviceaccount-observer` (`ORG_OWNER_VIEWER` em cada organização de cliente) | `observed` no NATS |
-| Executor | `ipm-serviceaccount-executor` | — | `ipm-serviceaccount-executor` (`ORG_USER_CREATOR` na organização e `PROJECT_GRANT_OWNER` no Grant dela) | `completed` e `failed`; a máquina no Zitadel |
-| Controller | `ipm-serviceaccount-controller` | `ipm_serviceaccount_controller` (lê e atualiza `serviceaccount`; `INSERT` só no outbox) | `ipm-serviceaccount-controller` (os três papéis acima, por organização de cliente) | estado observado, fase, Operations e `updated` no SSOT; a máquina no Zitadel |
+| Controller | `ipm-serviceaccount-controller` | `ipm_serviceaccount_controller` (lê e atualiza `serviceaccount`; `INSERT` só no outbox) | `ipm-serviceaccount-controller` (`ORG_USER_CREATOR` e `ORG_OWNER_VIEWER` em cada organização de cliente e `PROJECT_GRANT_OWNER` no Grant dela) | estado observado, fase, Operations e `updated` no SSOT (e o `desired` suspenso, ao suspender); a máquina no Zitadel |
 
 ## 2.1 Receiver
 
@@ -46,40 +40,43 @@ Os seis papéis são **um projeto e uma imagem** (decisão 0063), cada um com pr
 
 ## 2.2 Manager
 
-- Único escritor do SSOT (`ipm.serviceaccount`, `ipm.serviceaccount_operation`, `ipm.serviceaccount_action_result`) e do outbox.
+- Único escritor do SSOT (`ipm.serviceaccount` e `ipm.serviceaccount_operation`) e do `desired` no outbox. Só admite pedidos: não aplica observação nem resultado de ação, que são do Controller.
 - Recusa com `validation` o nome já usado na Organization, a permissão fora do módulo `ipm` e a cota esgotada (na unidade atômica, sob trava consultiva); `protected` o `delete` de uma máquina protegida; `conflict` e `not_found` como em toda feature.
 - Ao remover, o `desired` perde `name` e `keys` (`lifecycle absent`, só com a Organization).
 
-## 2.3 Reconciler, Observer e Executor
+## 2.3 Controller
 
-- **Reconciler:** campos gerenciados `lifecycle`, `permissions`, `deletionProtection`, `description` e os fingerprints das chaves; `organizationId` e `name` são imutáveis. Chave vencida segue no `desired` e no `observed` como `expired`, sem divergência.
-- **Observer:** lê o usuário de máquina (`userState`, `accessTokenType`), a lista de chaves (`ListKeys`: só IDs e vencimentos, nunca material), as permissões em `roles-ipm` e os metadados `deletionProtection`, `description` e `keys` (mapa `fingerprint → keyId`). `absent` só com o `404` do usuário exato; qualquer falha é `unknown`.
-- **Executor:** cria o usuário de máquina com `ACCESS_TOKEN_TYPE_JWT` (sempre), adiciona as chaves novas (`AddKey` com a pública) e grava o mapa no metadado `keys`; remove a chave do provedor sem registro no mapa e as fora do `desired`; deixa a autorização com **exatamente** as permissões do `desired`; remove a máquina no `delete`. O Project Grant é o teto.
+Detalhes no [README do Controller](src/ipm_serviceaccount/controller/README.md) e na decisão `0096`.
+
+- **Decisão:** campos gerenciados `lifecycle`, `permissions`, `deletionProtection`, `description` e os fingerprints das chaves; `organizationId` e `name` são imutáveis. Chave vencida segue no `desired` e no observado como `expired`, sem divergência.
+- **Observação:** lê o usuário de máquina (`userState`, `accessTokenType`), a lista de chaves (`ListKeys`: só IDs e vencimentos, nunca material), as permissões em `roles-ipm` e os metadados `deletionProtection`, `description` e `keys` (mapa `fingerprint → keyId`). `absent` só com o `404` do usuário exato; qualquer falha é `unknown`.
+- **Ação:** cria o usuário de máquina com `ACCESS_TOKEN_TYPE_JWT` (sempre), adiciona as chaves novas (`AddKey` com a pública) e grava o mapa no metadado `keys`; remove a chave do provedor sem registro no mapa e as fora do `desired`; deixa a autorização com **exatamente** as permissões do `desired`; remove a máquina no `delete`. O Project Grant é o teto.
+- **Ciclo:** por `resourceId`, com a linha bloqueada, observa, decide, age, reobserva e grava estado, fase, Operations e `updated` (e apaga o registro quando a remoção converge). A reavaliação periódica detecta divergência externa.
 
 ## 2.4 Estrutura
 
 ```text
 src/ipm_serviceaccount/
   common/      igual em todos os papéis (template, decisão 0064), exceto resource.py, catalog.py e contracts/generated.py
-  receiver/  manager/  publisher/  observer/  reconciler/  executor/    (cada um com o seu README)
+  receiver/  manager/  publisher/  controller/    (cada um com o seu README)
 tests/
-  common/  receiver/  manager/  publisher/  observer/  reconciler/  executor/    (unit, contract e integration)
-  e2e/                                                                             (projeto à parte, black-box)
-migrations/    SQL do Manager, aplicado pelo serviço ipm-serviceaccount-migrate
-consumers/     manifestos dos consumers do Manager e do Executor
+  common/  receiver/  manager/  publisher/  controller/    (unit, contract e integration)
+  e2e/                                                (projeto à parte, black-box)
+migrations/    SQL do tipo (esquema e privilégios do Manager e do Controller), aplicado pelo serviço ipm-serviceaccount-migrate
+consumers/     manifesto do consumer do Manager (`requested`)
 ```
 
-Os motores do Observer e do Executor, a convergência e os handlers do Manager e o domínio comum do Receiver vêm do template (decisão 0075): altere o modelo em `templates/feature/`, não a cópia.
+A convergência e os handlers do Manager e o domínio comum do Receiver vêm do template (decisão 0075): altere o modelo em `templates/feature/`, não a cópia.
 
 # 3. Mensageria
 
 | Stream | Subject | Consumer | Quem lê |
 |---|---|---|---|
 | `REQUESTED` | `receiver.requested.ipm.serviceaccount.>` | `ipm-serviceaccount-manager-requested` (durável) | Manager |
-| `DESIRED` | `manager.desired.ipm.serviceaccount.>` | `ipm-serviceaccount-{reconciler,observer}-desired-<instância>` | Reconciler, Observer |
-| `OBSERVED` | `observer.observed.ipm.serviceaccount.>` | `ipm-serviceaccount-manager-observed` (durável); `ipm-serviceaccount-reconciler-observed-<instância>` | Manager, Reconciler |
-| `RESULT` | `executor.*.ipm.serviceaccount.>` | `ipm-serviceaccount-manager-result` (durável); `ipm-serviceaccount-{reconciler,observer}-result-<instância>` | Manager, Reconciler, Observer |
-| `ACTION` | `reconciler.action.ipm.serviceaccount.<partição>.>` | `ipm-serviceaccount-executor-action-p0..p3` (duráveis) | Executor |
+| `DESIRED` | `manager.desired.ipm.serviceaccount.>` | `ipm-serviceaccount-controller-desired-<instância>` | Controller |
+| `DESIRED` (catálogos) | `manager.desired.ipm.permission.>` e `manager.desired.ipm.role.>` | `ipm-serviceaccount-manager-{permissions,roles}-<instância>` | Manager |
+
+`OBSERVED`, `ACTION` e `RESULT` **não existem** para este tipo (decisão 0096): o Controller observa, age e grava o resultado na mesma transação. O `updated` sai pelo outbox, publicado pelo Publisher em `UPDATED`. Os Streams e as regras de consumo estão em [`docs/messaging/NATS.md`](../../../docs/messaging/NATS.md).
 
 # 4. Contratos
 
@@ -90,9 +87,9 @@ Em `schemas/ipm/serviceaccount/` (e `schemas/common/`), com o índice `schemas/i
 - **Chave privada só no cliente:** nunca passa por CLI-para-API, Receiver, SSOT, NATS, logs ou telemetria. O contrato não tem campo para ela e o Receiver recusa o envio.
 - **Só permissões da plataforma:** a máquina nunca recebe papel nativo do Zitadel.
 - **O Grant é o teto, três vezes:** o Receiver recusa a permissão fora do catálogo, o Manager a permissão fora do módulo `ipm` e o Zitadel a permissão fora do Project Grant.
-- **Token sempre JWT:** o gateway não valida token opaco; o Executor força `ACCESS_TOKEN_TYPE_JWT` e o Observer confere.
+- **Token sempre JWT:** o gateway não valida token opaco; o Controller força `ACCESS_TOKEN_TYPE_JWT` na criação e confere na observação.
 - **`bind`:** sem ele, ninguém concede mais do que tem, nem altera as chaves de outra máquina (MEMBER).
-- **Menor privilégio no Zitadel:** o Executor só tem `ORG_USER_CREATOR` e `PROJECT_GRANT_OWNER` nas organizações de cliente, e o Observer só `ORG_OWNER_VIEWER`.
+- **Menor privilégio:** a conta `ipm-serviceaccount-controller` no Zitadel só tem `ORG_USER_CREATOR`, `ORG_OWNER_VIEWER` e `PROJECT_GRANT_OWNER` nas organizações de cliente. No banco, o papel `ipm_serviceaccount_controller` lê e atualiza `serviceaccount` e `serviceaccount_operation`, apaga só a linha da remoção convergida e só insere no outbox; o Manager não apaga nem atualiza Operations (migrações `0002` e `0003`).
 
 # 6. Configuração, execução e testes
 

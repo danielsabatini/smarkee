@@ -39,8 +39,8 @@ async def api() -> AsyncIterator[httpx.AsyncClient]:
 
 @pytest.fixture
 def organization_id() -> str:
-    """Organization preparada pelo operador: Grant de `roles-ipm` e os papéis do Executor e do
-    Observer nela (decisão 0077, `infrastructure/dev/README.md`). Sem ela, o loop é pulado."""
+    """Organization preparada pelo operador: Grant de `roles-ipm` e os papéis do Controller
+    nela (decisão 0077, `infrastructure/dev/README.md`). Sem ela, o loop é pulado."""
     if ORGANIZATION_ID is None:
         pytest.skip("CONFORMANCE_ORGANIZATION_ID não definida")
     return ORGANIZATION_ID

@@ -56,7 +56,7 @@ async def converges(jetstream: JetStreamContext, resource_id: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "component", ["manager", "publisher", "reconciler", "observer", "executor"]
+    "component", ["manager", "publisher", "controller"]
 )
 async def test_a_request_made_while_a_component_is_down_converges_when_it_returns(
     jetstream: JetStreamContext, created: list[str], component: str

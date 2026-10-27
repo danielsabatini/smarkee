@@ -1,7 +1,7 @@
 name: ipm-organization
 
 # Componentes de ipm.organization (decisões 0015 e 0019): migração, consumers, Receiver, Manager,
-# Publisher, Reconciler, Observer e Executor.
+# Publisher e Controller (decisão 0096).
 # A plataforma (banco, messaging, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
 # e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait messaging database gateway identity identity-login`,
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.

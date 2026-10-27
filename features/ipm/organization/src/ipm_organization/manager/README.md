@@ -1,8 +1,8 @@
 # ipm-organization-manager
 
-Manager de `ipm.organization` (`ipm-organization-manager`), um dos seis papéis da imagem única `ipm-organization` (decisão 0063), com processo e contêiner próprios. Veja o [README da feature](../../../README.md).
+Manager de `ipm.organization` (`ipm-organization-manager`), um dos quatro papéis da imagem única `ipm-organization` (decisões 0063 e 0096), com processo e contêiner próprios. Veja o [README da feature](../../../README.md).
 
-Único escritor do SSOT do tipo (só insere no outbox; quem o publica é o Publisher): consome `requested`, `observed` e o resultado das ações (`completed` e `failed`) e aplica cada mensagem em uma unidade atômica (linha bloqueada, Operation única, `desired` no outbox), confirmando ao transporte depois do `COMMIT`. O código das migrações (`migrations/`) é deste projeto; a execução é uma etapa de implantação com o papel administrativo.
+Admite os pedidos no SSOT do tipo (só insere no outbox; quem o publica é o Publisher): consome `requested` e o catálogo `DESIRED` de permission (`manager.desired.ipm.permission.>`) e aplica cada mensagem em uma unidade atômica (linha bloqueada, Operation única, `desired` no outbox), confirmando ao transporte depois do `COMMIT`. O estado observado, a fase e a conclusão das Operations são do Controller (decisão 0096). O código das migrações (`migrations/`) é deste projeto; a execução é uma etapa de implantação com o papel administrativo.
 
 Regras próprias da Organization, aplicadas na mesma unidade atômica: o nome não pode ser reservado (`core`, `smarkee`, `register`, `platform`, `system`, `admin`, `zitadel`) nem repetido; a cota por dono (`ownerQuotaLimit`, decidida pelo Receiver; o operador não tem cota) é conferida sob trava consultiva por dono.
 
@@ -12,10 +12,10 @@ Regras próprias da Organization, aplicadas na mesma unidade atômica: o nome n�
 
 ```text
 src/ipm_organization/manager/
-  domain/      regras da Organization, puras (política, convergência, resultado de ação)
+  domain/      regras da Organization, puras (política e decisão do pedido)
   handlers/    uma unidade atômica por mensagem; portas do SSOT em ports.py
   store/       único código com SQL do SSOT (SsotStore)
-  transport/   adaptadores NATS (consumers de requested, observed e resultados)
+  transport/   adaptadores NATS (consumers de requested e do catálogo DESIRED de permission)
   main.py
 ```
 

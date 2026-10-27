@@ -1,6 +1,6 @@
 # ipm-serviceaccount-publisher
 
-Publisher de `ipm.serviceaccount` (`ipm-serviceaccount-publisher`), um dos seis papéis da imagem única `ipm-serviceaccount` (decisão 0063) e sexto papel do loop (`.decisions/0019-publisher-como-sexto-papel.md`).
+Publisher de `ipm.serviceaccount` (`ipm-serviceaccount-publisher`), um dos quatro papéis da imagem única `ipm-serviceaccount` (decisão 0063) e papel do loop (`.decisions/0019-publisher-como-sexto-papel.md`).
 
 Publica no transporte, em ordem e de forma sequencial, o que o Manager registrou no **outbox** do tipo (`ipm.serviceaccount_outbox`). **Não executa regra de negócio**: o Subject e o payload já estão na linha do outbox.
 

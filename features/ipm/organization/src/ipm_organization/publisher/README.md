@@ -1,6 +1,6 @@
 # ipm-organization-publisher
 
-Publisher de `ipm.organization` (`ipm-organization-publisher`), um dos seis papéis da imagem única `ipm-organization` (decisão 0063) e sexto papel do loop (`.decisions/0019-publisher-como-sexto-papel.md`).
+Publisher de `ipm.organization` (`ipm-organization-publisher`), um dos quatro papéis da imagem única `ipm-organization` (decisões 0063 e 0096) e papel do loop definido na decisão `0019` (`.decisions/0019-publisher-como-sexto-papel.md`).
 
 Publica no transporte, em ordem e de forma sequencial, o que o Manager registrou no **outbox** do tipo (`ipm.organization_outbox`). **Não executa regra de negócio**: o Subject e o payload já estão na linha do outbox.
 

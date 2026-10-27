@@ -25,6 +25,6 @@ export CONFORMANCE_MESSAGING_PASSWORD=$(grep ^SMARKEE_MESSAGING_PASSWORD= ../../
 uv run pytest
 ```
 
-`tests/test_loop.py` fecha o loop com os componentes reais e o Zitadel de dev: os pedidos entram direto no NATS (como o Receiver os publicaria, sem token), a organização é criada, renomeada, desativada e reativada (`platformAccess`) e removida pelo próprio loop, e o Observer confirma cada passo. Cada Organization de teste é removida pelo loop ao final; sem isso, sobrariam organizações no Zitadel.
+`tests/test_loop.py` fecha o loop com os componentes reais e o Zitadel de dev: os pedidos entram direto no NATS (como o Receiver os publicaria, sem token), a organização é criada, renomeada, desativada e reativada (`platformAccess`) e removida pelo próprio loop, e a observação do Controller confirma cada passo. Cada Organization de teste é removida pelo loop ao final; sem isso, sobrariam organizações no Zitadel.
 
-Testes de resiliência (opt-in, `E2E_CHAOS=1`): `tests/test_chaos.py` derruba, com o `docker`, cada um dos papéis (Manager, Publisher, Reconciler, Observer e Executor) durante um pedido e verifica que o trabalho não se perde e o loop converge quando o componente volta. Restauram o componente ao final.
+Testes de resiliência (opt-in, `E2E_CHAOS=1`): `tests/test_chaos.py` derruba, com o `docker`, cada um dos papéis (Manager, Publisher e Controller) durante um pedido e verifica que o trabalho não se perde e o loop converge quando o componente volta. Restauram o componente ao final.

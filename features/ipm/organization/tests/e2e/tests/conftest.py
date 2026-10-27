@@ -58,8 +58,7 @@ async def jetstream() -> AsyncIterator[JetStreamContext]:
 async def created(jetstream: JetStreamContext) -> AsyncIterator[list[str]]:
     """Identificadores criados pelo teste.
 
-    Ao final, cada Organization é removida **pelo próprio loop** (pedido `delete`, Reconciler,
-    Executor e Observer), para não deixar organizações no Zitadel. O que sobrar no SSOT é limpo
+    Ao final, cada Organization é removida **pelo próprio loop** (pedido `delete` e Controller), para não deixar organizações no Zitadel. O que sobrar no SSOT é limpo
     diretamente.
     """
     resource_ids: list[str] = []
@@ -80,7 +79,7 @@ async def remove_through_the_loop(jetstream: JetStreamContext, resource_id: str)
         )
     except Exception:
         return
-    # Espera o loop convergir (Ready) antes de pedir a remoção; sem isso, o Executor poderia
+    # Espera o loop convergir (Ready) antes de pedir a remoção; sem isso, o Controller poderia
     # criar a organização no Zitadel depois do pedido de remoção.
     updated: dict[str, Any] = {}
     deadline = asyncio.get_running_loop().time() + 60.0

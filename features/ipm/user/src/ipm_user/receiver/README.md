@@ -1,6 +1,6 @@
 # ipm-user-receiver
 
-Receiver de `ipm.user` (`ipm-user-receiver`), um dos seis papéis da imagem única `ipm-user` (decisão 0063), com processo e contêiner próprios. Veja o [README da feature](../../../README.md).
+Receiver de `ipm.user` (`ipm-user-receiver`), um dos quatro papéis da imagem única `ipm-user` (decisões 0063 e 0096), com processo e contêiner próprios. Veja o [README da feature](../../../README.md).
 
 Autentica e autoriza o solicitante, valida o pedido, gera as identidades (`resourceId`, `operationId`, `requestDigest`) e publica `requested`. Lê o SSOT somente pelas views `ipm.user_v1` e `ipm.user_operation_v1`. Não escreve no SSOT nem no provedor de identidade.
 

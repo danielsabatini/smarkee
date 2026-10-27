@@ -1,6 +1,6 @@
 # ipm-serviceaccount-receiver
 
-Receiver de `ipm.serviceaccount` (`ipm-serviceaccount-receiver`), um dos seis papéis da imagem única `ipm-serviceaccount` (decisão 0063), com processo e contêiner próprios. Veja o [README da feature](../../../README.md).
+Receiver de `ipm.serviceaccount` (`ipm-serviceaccount-receiver`), um dos quatro papéis da imagem única `ipm-serviceaccount` (decisão 0063), com processo e contêiner próprios. Veja o [README da feature](../../../README.md).
 
 Autentica e autoriza o solicitante, valida o pedido, gera as identidades (`resourceId`, `operationId`, `requestDigest`) e publica `requested`. Lê o SSOT somente pelas views `ipm.serviceaccount_v1` e `ipm.serviceaccount_operation_v1`. Não escreve no SSOT nem no provedor de identidade.
 

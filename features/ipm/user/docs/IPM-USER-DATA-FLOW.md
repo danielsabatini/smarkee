@@ -3,7 +3,9 @@
 Documento de fluxo de dados da feature, no padrão da [decisão 0024](../../../../.decisions/0024-data-flow-por-feature.md) e de
 `features/ipm/organization/docs/IPM-ORGANIZATION-DATA-FLOW.md`. Todos os passos estão implementados e rodam no dev (Compose),
 verificados pela suíte e2e (`tests/e2e`) contra o Zitadel real. A decisão de desenho é a
-[0077](../../../../.decisions/0077-ipm-user-usuarios-da-organizacao.md).
+[0077](../../../../.decisions/0077-ipm-user-usuarios-da-organizacao.md); o loop unificado no Controller é a
+[0096](../../../../.decisions/0096-unificacao-do-loop-de-reconciliacao-no-controller.md), que substituiu o Observer, o Reconciler e o
+Executor deste tipo.
 
 **Origem dos exemplos.** Os exemplos foram tirados de uma execução no dev e sanitizados: os valores (UUIDs, horários, e-mails)
 são fictícios.
@@ -23,23 +25,26 @@ da plataforma dadas por autorização no Project Grant de `roles-ipm` para essa 
 | 1a | Receiver → Receiver da Organization | HTTP, na rede interna, com o token de quem pede | `GET /v1/ipm/organizations/{id}` (só para o root) | nada |
 | 2 | Receiver → Manager | NATS, Stream `REQUESTED` | `requested` / `create` | nada |
 | 3 | Manager → banco | SQL, uma transação | (nada publicado) | `ipm.user`, `ipm.user_operation`, `ipm.user_outbox` |
-| 4 | Publisher → consumidores | NATS, Stream `DESIRED` | `desired` | `ipm.user_outbox.published_at` |
-| 5 | Observer → Manager/Reconciler | NATS, Stream `OBSERVED` | `observed` (`absent`) | `ipm.user` (observação), `ipm.user_operation` |
-| 6 | Reconciler → Executor | NATS, Stream `ACTION` | `action` / `create` | nada |
-| 7 | Executor → Zitadel; Executor → Manager | HTTP no Zitadel; NATS, Stream `RESULT` | `completed` | `ipm.user_action_result`, `ipm.user` |
-| 8 | Observer → Manager | NATS, Stream `OBSERVED` | `observed` (`present`) | `ipm.user` → `Ready`, `ipm.user_operation` → `completed` |
-| 9 | Manager → consumidores | outbox + Publisher, Stream `UPDATED` | `updated` (a cada mudança de fase) | `ipm.user_outbox` |
+| 4 | Publisher → Controller | NATS, Stream `DESIRED` | `desired` | `ipm.user_outbox.published_at` |
+| 5 | Controller → Zitadel; Controller → banco | HTTP no Zitadel; SQL, uma transação | (nada publicado) | o usuário, a autorização e o metadado no Zitadel; `ipm.user` (observado, fase, conditions), `ipm.user_operation` → `completed`, `ipm.user_outbox` |
+| 6 | Publisher → consumidores | NATS, Stream `UPDATED` | `updated` (a cada mudança de fase) | `ipm.user_outbox.published_at` |
 
-Só o **Manager** escreve no SSOT de `ipm.user`. Receiver, Reconciler, Executor, Observer e Publisher não gravam nas tabelas de
-recurso (o Publisher só marca `published_at` no outbox).
+Só o **Manager** admite pedidos e escreve o `desired` no SSOT de `ipm.user`; só o **Controller** escreve o estado observado, a fase, as
+conditions e a conclusão das Operations (e remove a linha quando a remoção converge). Receiver e Publisher não gravam nas tabelas de
+recurso (o Publisher só marca `published_at` no outbox). O tipo só usa os Streams `REQUESTED` e `DESIRED` (mais `UPDATED`, de saída):
+`OBSERVED`, `ACTION` e `RESULT` não existem para ele (decisão 0096).
 
 Diagramas: criar [`flow/01-criar-usuario.svg`](flow/01-criar-usuario.svg), erros antes do loop
 [`02`](flow/02-validacao-e-borda.svg), alterar as permissões e remover [`03`](flow/03-alterar-roles-e-remover.svg), falhas no
 Manager e na mensageria [`04`](flow/04-falhas-no-manager-e-mensageria.svg), na reconciliação
-[`05`](flow/05-falhas-na-reconciliacao.svg) e no Executor [`06`](flow/06-falhas-no-executor.svg). Componentes:
+[`05`](flow/05-falhas-na-reconciliacao.svg) e na ação do provedor [`06`](flow/06-falhas-no-executor.svg). Componentes:
 [`architecture/01-componentes.svg`](architecture/01-componentes.svg). Estados:
 [`state/01-fase-do-recurso.svg`](state/01-fase-do-recurso.svg) e [`state/02-operation.svg`](state/02-operation.svg). Banco:
 [`database/01-er-fisico.svg`](database/01-er-fisico.svg).
+
+> **Diagramas pendentes (decisão 0096):** os SVGs e os `.mmd` de `flow/`, `architecture/` e `state/` ainda mostram o modelo anterior,
+> com Observer, Reconciler e Executor, os Streams `OBSERVED`, `ACTION` e `RESULT` e `user_action_result`. O texto deste documento é
+> o vigente.
 
 ### Identificadores que ligam tudo
 
@@ -50,7 +55,6 @@ Manager e na mensageria [`04`](flow/04-falhas-no-manager-e-mensageria.svg), na r
 | `operationId`, `requestDigest` | Receiver | UUIDv7 (ou determinístico com `Idempotency-Key`); SHA-256 do pedido | Identidade da Operation; a repetição produz o mesmo valor. |
 | `messageId` | Quem emite | UUIDv7 | É o `Nats-Msg-Id` (deduplicação) e a chave única do outbox. |
 | `correlationId`, `causationId` | Receiver; quem emite | UUIDv7; `messageId` da causa | Rastreiam o pedido do início ao fim e encadeiam causa e efeito. |
-| `actionId` | Reconciler | `<resourceId>.<desiredGeneration>.<operação>.<messageId do observed>` | Identidade determinística da decisão; Executor e Manager a usam para ser idempotentes. |
 
 ## 1. CLI → Receiver: `POST /v1/ipm/users`
 
@@ -104,7 +108,7 @@ dados (desvio é `TERM`), aplica tudo numa transação com a linha bloqueada e a
 | Pedido | Condição | Resultado |
 |---|---|---|
 | criar | e-mail já usado por outro usuário presente da mesma Organization (trava `ipm.user.email:<organização>:<e-mail>`) | recusa `validation` |
-| criar ou alterar | permissão fora do módulo `ipm` (o Executor só concede em `roles-ipm`) | recusa `validation` |
+| criar ou alterar | permissão fora do módulo `ipm` (o Controller só concede em `roles-ipm`) | recusa `validation` |
 | criar | cota de usuários da Organization esgotada (conferida de novo sob trava por Organization; o Receiver só pré-checa) | recusa `validation` |
 | alterar ou remover | usuário inexistente ou já removido | recusa `not_found` |
 | alterar ou remover | `resourceVersion` diferente da atual | recusa `conflict` |
@@ -134,86 +138,117 @@ O Publisher (`ipm-user-publisher`) publica em `manager.desired.ipm.user.<resourc
 }
 ```
 
-O `desired` carrega dados pessoais enquanto o usuário existe (o Executor precisa deles para criar): ficam no SSOT e no Stream
+O `desired` carrega dados pessoais enquanto o usuário existe (o Controller precisa deles para criar): ficam no SSOT e no Stream
 `DESIRED`, e nunca em logs, erros ou métricas (`SCHEMA.md`, Classificação).
 
-## 4. Observer (`ipm-user-observer`)
+## 4. Controller (`ipm-user-controller`)
 
-Lê o Zitadel só de leitura, com a conta `ipm-user-observer` (`ORG_OWNER_VIEWER` em cada organização de cliente), pelos drivers
-espelhados dos do Executor (decisão 0073):
+Decisão 0096, no padrão do Kubernetes Controller (Informer + Workqueue, AGENTS.md §2.7). Um único processo observa o Zitadel,
+decide, age e reobserva; a lógica está em `src/ipm_user/controller/` (README do papel:
+[`controller`](../src/ipm_user/controller/README.md)).
 
-- **usuário** (`GET /v2/users/{resourceId}`): `userState` (`initial` enquanto a senha não foi definida) e `emailVerified`;
-- **autorização** (`ListAuthorizations` do usuário): as `permissions` dele em `roles-ipm` (as de outros projetos não contam);
-- **metadado** `deletionProtection` do usuário (decisão 0074).
+### 4.1 Entrada: Informer, fila e reavaliação
 
-Produz `present` com esses campos, `absent` **só** com o `404` do usuário exato, e `unknown` para qualquer falha de leitura.
-O `observed` não traz dados pessoais.
+- O **Informer** consome o Stream `DESIRED` (`manager.desired.ipm.user.>`, consumer `ipm-user-controller-desired-<instância>`) com
+  barreira de sincronização inicial. A mensagem só avisa que o recurso mudou: o `resourceId` entra na **Workqueue**, e quem decide
+  lê o `desired` no SSOT.
+- A **Workqueue** deduplica por `resourceId` (várias mensagens do mesmo usuário viram um só ciclo) e repete com *backoff* exponencial
+  com *jitter* quando o provedor falha de forma transitória. Mensagens de outro tipo ou de outra partição (`resourceId`
+  determinístico, `hash mod count`) são ignoradas.
+- A **reavaliação periódica** (padrão 300 s, com *jitter*) enfileira todos os usuários `active` da partição, para detectar *drift*
+  feito fora do loop.
+- `workers` ciclos rodam em paralelo; um mesmo usuário nunca é reconciliado por dois ao mesmo tempo.
 
-```json
-{"messageType": "observed", "emitter": "observer", "presence": "present", "observedAt": "2026-10-21T12:12:39Z",
- "observedGeneration": 1,
- "data": {"emailVerified": false, "userState": "initial", "permissions": ["ipm.user.get", "ipm.user.list"],
-          "deletionProtection": false}}
-```
+### 4.2 O ciclo atômico `reconcile(resourceId)`
 
-## 5. Reconciler (`ipm-user-reconciler`)
+Tudo numa só transação, com a linha de `ipm.user` bloqueada (`FOR UPDATE`); usuário inexistente ou com `reconciliation` `suspended`
+encerra o ciclo sem agir.
 
-O estado é um cache descartável, reconstruído da mensageria. Com as guardas do loop, compara `lifecycle`, `permissions` e
-`deletionProtection`:
+1. **Observa** o Zitadel, só leitura (conta `ipm-user-controller`, `ORG_OWNER_VIEWER` na organização de cliente), pelos drivers:
+   - **usuário** (`GET /v2/users/{resourceId}`): `userState` (`initial` enquanto a senha não foi definida) e `emailVerified`;
+   - **autorização** (`ListAuthorizations` do usuário): as `permissions` dele em `roles-ipm` (as de outros projetos não contam);
+   - **metadado** `deletionProtection` do usuário (decisão 0074).
 
-- `observed` ausente com `lifecycle present` → `create` (`Missing`);
-- `permissions` ou `deletionProtection` diferentes → `update` (`Drift`);
-- `lifecycle absent` com o usuário presente → `delete` (`DeletionRequested`).
+   O resultado é `present` com esses campos, `absent` **só** com o `404` do usuário exato, e `unknown` para qualquer falha de
+   leitura. O `observed` não traz dados pessoais.
 
-Os dados pessoais e a Organization não são campos gerenciados: são imutáveis e definidos na criação.
+   ```json
+   {"presence": "present", "observedAt": "2026-10-21T12:12:39Z",
+    "data": {"emailVerified": false, "userState": "initial", "permissions": ["ipm.user.get", "ipm.user.list"],
+             "deletionProtection": false}}
+   ```
 
-## 6. Executor (`ipm-user-executor`)
+2. **Decide** com a função pura `decide(desired, observed)`, que compara `lifecycle`, `permissions` e `deletionProtection`:
+   - `unknown` nunca autoriza ação;
+   - `lifecycle present` com o usuário `absent` → `create`;
+   - `permissions` ou `deletionProtection` diferentes → `update` (*drift*);
+   - `lifecycle absent` com o usuário `present` → `delete`;
+   - senão, nada a fazer.
 
-Único componente que escreve o usuário no Zitadel, com a conta `ipm-user-executor`: `ORG_USER_CREATOR` em cada organização de
-cliente (cria e remove usuários, sem conceder permissões) e `PROJECT_GRANT_OWNER` no Project Grant de `roles-ipm` para ela (concede
-só as permissões do Grant). Os dois papéis são dados pelo loop da `ipm/organization` a cada organização (decisão 0081). Valida a
-mensagem, não repete um `actionId` concluído e revalida a ação contra o `desired` vigente, como em toda feature. Depois:
+   Os dados pessoais e a Organization não são campos gerenciados: são imutáveis e definidos na criação.
 
-- **`create`:** cria o usuário humano **sem senha** na organização do `desired` (`organizationId`), com o `resourceId` como ID e
-  o e-mail como nome de login; o Zitadel envia o e-mail de verificação, cuja página também define a senha. Usuário já existente
-  com o mesmo ID leva a lê-lo: mesmo e-mail e mesma organização é sucesso idempotente; senão, `failed` `Rejected`. Depois deixa
-  as permissões e o metadado.
-- **`update`:** confere que o usuário existe e é da organização do `desired`; deixa a autorização em `roles-ipm` com
-  **exatamente** as permissões do `desired` (cria, atualiza ou remove) e grava o metadado `deletionProtection`.
-- **`delete`:** remove o usuário; ausente também é sucesso.
+3. **Age**, se houver ação, de forma idempotente (o `resourceId` é o ID do usuário no Zitadel), com `ORG_USER_CREATOR` na organização
+   e `PROJECT_GRANT_OWNER` no Project Grant de `roles-ipm` para ela (dados pelo loop da `ipm/organization` a cada organização,
+   decisão 0081):
+   - **`create`:** cria o usuário humano **sem senha** na organização do `desired` (`organizationId`), com o `resourceId` como ID e
+     o e-mail como nome de login; o Zitadel envia o e-mail de verificação, cuja página também define a senha. Usuário já existente
+     com o mesmo ID leva a lê-lo: mesmo e-mail e mesma organização é sucesso idempotente; senão, a ação falha com `Rejected`.
+     Depois deixa as permissões e o metadado.
+   - **`update`:** confere que o usuário existe e é da organização do `desired`; deixa a autorização em `roles-ipm` com
+     **exatamente** as permissões do `desired` (cria, atualiza ou remove) e grava o metadado `deletionProtection`.
+   - **`delete`:** remove o usuário; ausente também é sucesso.
 
-O Project Grant é o teto: uma permissão do `roles-ipm` fora do catálogo da organização é recusada pelo Zitadel
-(`failed` `Rejected`, verificado pelo e2e).
+   O Project Grant é o teto: uma permissão do `roles-ipm` fora do catálogo da organização é recusada pelo Zitadel (`Rejected`,
+   verificado pelo e2e).
 
-## 7. Manager aplica `observed` e resultados
+4. **Reobserva** logo após a ação. Essa observação, feita depois da geração vigente, é a que confirma a convergência.
 
-Como em toda feature (decisão 0072): `Ready` quando `permissions` e `deletionProtection` convergem **e** a observação foi feita depois
-da geração atual (`observedGeneration`); a geração confirmada vai para `observed_generation`. Remoção convergida apaga a linha e
-publica `updated` com `removed`. Um `failed` marca a fase `Failed`; no limite (5) a `reconciliation` vira `suspended`.
+5. **Grava** no SSOT, na mesma transação: o `observed`, a presença, a fase, as conditions, a geração confirmada
+   (`observed_generation`), a conclusão das Operations e, quando algo mudou, o `updated` no outbox (que o Publisher entrega). O
+   `updated` só é gerado se a fase, as conditions, a reconciliação, o contador de falhas, a presença, o `observed` ou a geração
+   confirmada mudaram.
+
+### 4.3 Convergência, falhas e remoção
+
+Como em toda feature (decisão 0072; fase e conditions em `docs/data/SSOT.md` §9 e §10), agora decididas pelo Controller:
+
+- **`Ready`** quando `permissions` e `deletionProtection` convergem **e** a observação foi feita depois da geração atual; a
+  geração confirmada vai para `observed_generation` e a Operation vira `completed`. A ação concluída sozinha não é `Ready`: só a
+  reobservação compatível converge.
+- **Remoção convergida** (`lifecycle absent` e usuário `absent`): a Operation vira `completed`, a linha é apagada e o `updated` sai
+  com `removed`.
+- **Falha da ação:** conta no `failure_count` e marca a fase `Failed`; ao chegar no limite (`loop.failure_limit`, padrão 5) a
+  `reconciliation` vira `suspended`, a Operation vira `failed` e o Controller grava um `desired` suspenso no outbox, para o estado
+  ficar visível a quem acompanha. Falha transitória do provedor devolve o usuário à fila com *backoff*; erro permanente é
+  registrado e o usuário só volta pela reavaliação periódica.
+- **Prazos:** a geração que não converge dentro de `loop.progress_deadline_seconds` (padrão 300) recebe a condition
+  `Progressing` `False` (`ProgressDeadlineExceeded`) e a Operation vira `failed`; um usuário `unknown` por mais que o prazo recebe a
+  condition `ObservationStale` (decisão 0090). Os dois saem sozinhos ao convergir.
+- **Idempotência:** não há registro por ação (`user_action_result` deixou de existir). Repetir o ciclo é seguro porque a decisão é
+  recalculada do estado real a cada vez e as ações do provedor são idempotentes.
+- **Reinício:** o Controller não guarda estado próprio. Ao subir, o Informer relê o `DESIRED` e a reavaliação periódica cobre os
+  demais; um ciclo interrompido no meio desfaz a transação do banco e é refeito.
 
 ## 8. Estados
 
-- **Fase** (`phase`): [`state/01-fase-do-recurso.svg`](state/01-fase-do-recurso.svg). `completed` não é `Ready`.
+- **Fase** (`phase`): [`state/01-fase-do-recurso.svg`](state/01-fase-do-recurso.svg). A ação concluída não é `Ready`.
 - **Operation:** [`state/02-operation.svg`](state/02-operation.svg).
 
 ## 9. Mapa: quem grava o quê
 
 | Tabela, stream ou serviço | Escritor | Leitor |
 |---|---|---|
-| `ipm.user` | Manager | Receiver (view `ipm.user_v1`) |
-| `ipm.user_operation` | Manager | Receiver (view `ipm.user_operation_v1`) |
-| `ipm.user_action_result` | Manager | Manager (dedupe por `actionId`) |
-| `ipm.user_outbox` | Manager (insere) | Publisher (lê, e marca `published_at`) |
+| `ipm.user` | Manager (intenção); Controller (observado, fase, conditions; remove a linha ao convergir a remoção) | Receiver (view `ipm.user_v1`); Controller |
+| `ipm.user_operation` | Manager (insere); Controller (conclui) | Receiver (view `ipm.user_operation_v1`) |
+| `ipm.user_outbox` | Manager (insere o `desired`); Controller (insere o `updated` e o `desired` suspenso) | Publisher (lê, e marca `published_at`) |
 | `REQUESTED` | Receiver | Manager |
-| `DESIRED` | Publisher | Reconciler, Observer, Executor (revalidação) |
-| `OBSERVED` | Observer | Reconciler, Manager |
-| `ACTION` | Reconciler | Executor |
-| `RESULT` | Executor | Reconciler, Observer, Manager |
-| Zitadel (o usuário, a autorização em `roles-ipm` e o metadado) | Executor | Observer (leitura) |
+| `DESIRED` | Publisher | Controller (e, nos catálogos de permission, role e group, o Manager) |
+| `UPDATED` | Publisher | consumidores do estado do usuário |
+| Zitadel (o usuário, a autorização em `roles-ipm` e o metadado) | Controller | Controller |
 
 ## 10. Verificação (2026-10-21, dev)
 
-Com os seis componentes no Compose e o Zitadel real, numa Organization preparada pelo operador:
+Histórico, anterior à decisão 0096 (então com seis componentes; o Controller substituiu três deles, e o comportamento observável é o mesmo). Com os componentes no Compose e o Zitadel real, numa Organization preparada pelo operador:
 
 - a suíte e2e (`tests/e2e`) cria o usuário até `Ready` (geração confirmada), troca as permissões, liga a proteção e o remove pelo loop,
   e confirma que uma permissão fora do Grant é recusada pelo Zitadel;

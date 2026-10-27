@@ -1,4 +1,4 @@
-"""Loop completo de ipm.organization (Receiver até Observer), com os componentes reais e o Zitadel.
+"""Loop completo de ipm.organization (Receiver até Controller), com os componentes reais e o Zitadel.
 
 Usa os componentes reais e o Zitadel de dev. Os pedidos entram direto no NATS, como o Receiver os
 publicaria; cada Organization é removida pelo próprio loop ao final (fixture `created`).
@@ -171,8 +171,8 @@ async def test_the_whole_loop_creates_updates_and_removes_the_organization(
         "deletionProtection": True,  # metadado no Zitadel (decisão 0074)
     }
     # Pronta para usuários (decisão 0081) e para service accounts (decisão 0094): o Grant com o
-    # catálogo do contrato e as permissões das contas do ipm/user e do ipm/serviceaccount (um
-    # Executor e um Observer de cada), criadas pelo loop, sem o operador.
+    # catálogo do contrato e as permissões das contas do ipm/user e do ipm/serviceaccount (as
+    # contas de cada uma), criadas pelo loop, sem o operador.
     assert user_access["grantPermissions"] == grant_catalog()
     assert sorted(sorted(item["permissions"]) for item in user_access["administrators"]) == [
         ["ORG_OWNER_VIEWER"],
