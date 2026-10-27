@@ -14,11 +14,11 @@ marcadores ocupam o lugar dos nomes da feature:
 - `@@CLASS@@` prefixo de classe (`CoreAccount`), `@@TYPE_CLASS@@` prefixo de classe do tipo
   (`Account`, como em `AccountObserverSettings`) e `@@SPACED@@` nome em texto (`core account`).
 
-Sem argumentos, grava as cópias em cada `features/<módulo>/<tipo>/`; com `--check`, falha se alguma
-divergir da fonte. Com `--new <módulo> <tipo>`, cria a pasta da feature com os arquivos da
-semente (`seed/`, gravada uma única vez porque cada feature o ajusta) e grava as cópias. Usa apenas
-a biblioteca padrão. Alterar o template: editar o modelo, rodar este script e rodar a suíte de cada
-feature (AGENTS §22).
+Sem argumentos ou com `--check`, verifica se alguma feature divergiu da fonte (modo somente leitura).
+Com `--write`, grava as cópias em cada `features/<módulo>/<tipo>/`. Com `--new <módulo> <tipo>`, cria a
+pasta da feature com os arquivos da semente (`seed/`, gravada uma única vez porque cada feature o
+ajusta) e grava as cópias. Usa apenas a biblioteca padrão. Alterar o template: editar o modelo, rodar
+`sync.py --write` e rodar a suíte de cada feature (AGENTS §22).
 """
 
 import re
@@ -167,17 +167,20 @@ def main() -> int:
             print(f"erro: {error}", file=sys.stderr)
             return 2
         print(f"criada: {project.relative_to(FEATURES)}")
-    if "--check" in arguments:
-        divergent = divergent_files()
-        for path in divergent:
-            print(f"divergente: {path.relative_to(FEATURES)}")
-        return 1 if divergent else 0
-    expected = expected_files()
-    for path, content in expected.items():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
-    print(f"{len(expected)} arquivos gravados")
-    return 0
+        return 0
+    if "--write" in arguments:
+        expected = expected_files()
+        for path, content in expected.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        print(f"{len(expected)} arquivos gravados")
+        return 0
+
+    # Modo padrão: somente leitura (--check explícito ou padrão sem argumentos)
+    divergent = divergent_files()
+    for path in divergent:
+        print(f"divergente: {path.relative_to(FEATURES)}")
+    return 1 if divergent else 0
 
 
 if __name__ == "__main__":

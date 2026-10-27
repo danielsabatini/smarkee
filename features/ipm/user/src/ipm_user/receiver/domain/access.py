@@ -54,6 +54,16 @@ def outside_roles_catalog(
     )
 
 
+def outside_groups_catalog(
+    groups: Iterable[str], *, organization_id: str, catalog: AccessCatalog | None = None
+) -> list[str]:
+    """Grupos pedidos inexistentes na Organization (decisão 0088)."""
+    active_catalog = catalog if catalog is not None else AccessCatalog()
+    return sorted(
+        group for group in set(groups) if not active_catalog.is_group_known(organization_id, group)
+    )
+
+
 def binding_allowed(
     current: Iterable[str],
     requested: Iterable[str],

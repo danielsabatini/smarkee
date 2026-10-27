@@ -81,6 +81,7 @@ class Dependencies:
     users: Users
     publisher: Publisher
     catalog: AccessCatalog = field(default_factory=AccessCatalog)
+    is_catalog_synced: Callable[[], bool] = lambda: True
     clock: Callable[[], datetime] = utc_now
     identifiers: Callable[[], str] = new_identifier
     is_ready: Callable[[], bool] = lambda: True
@@ -227,6 +228,15 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         except InvalidKeyError as error:
             raise bad_request(str(error), field="keys") from None
 
+    def _check_catalog_synced() -> None:
+        if not deps.is_catalog_synced():
+            raise ApiError(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "CatalogSyncPending",
+                "Catálogo de permissões em sincronização. Tente de novo em instantes.",
+                headers={"Retry-After": "2"},
+            )
+
     def check_roles(
         principal: Principal,
         standing: Standing,
@@ -234,6 +244,8 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         current: list[str],
         requested: list[str],
     ) -> None:
+        if requested:
+            _check_catalog_synced()
         rejected = outside_roles_catalog(
             requested, organization_id=organization_id, catalog=deps.catalog
         )

@@ -44,8 +44,8 @@ TEST_USER_EMAIL = re.compile(
 )
 MAIL_QUERIES = ("to:e2e-", "to:loop.", "to:conf.", "to:chaos.", "to:cons.", "to:sa.test.")
 
-# Streams e prefixos de Subject por mensagem (`docs/messaging/NATS.md`); o `ACTION` é particionado pelo
-# servidor e não dá para filtrar por recurso, então não é limpo aqui.
+# Streams e prefixos de Subject por mensagem (`docs/messaging/NATS.md`); o `ACTION` é
+# particionado pelo servidor e não dá para filtrar por recurso, então não é limpo aqui.
 STREAM_SUBJECTS = (
     ("REQUESTED", "receiver.requested"),
     ("DESIRED", "manager.desired"),

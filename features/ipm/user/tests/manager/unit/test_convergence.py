@@ -1,5 +1,6 @@
 """Decisões puras sobre `observed` e resultados de ação, sem banco."""
 
+import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
@@ -298,3 +299,109 @@ async def test_user_policy_expands_roles_into_atomic_permissions_and_rolls_out_o
         "ipm.user.update",
     ]
     assert policy.rolled_out(rolled) is None
+
+
+async def test_role_catalog_watcher_defers_and_debounces(
+    monkeypatch: Any,
+) -> None:
+    kind = user_kind()
+    rollouts: list[int] = []
+
+    async def fake_rollout(pool: Any, kind_arg: Any, **_: Any) -> int:
+        rollouts.append(1)
+        return 1
+
+    monkeypatch.setattr(role_rollout, "roll_out_user_roles", fake_rollout)
+
+    synced = False
+    watcher = role_rollout.RoleCatalogWatcher(
+        cast(Any, object()),
+        kind,
+        is_synced=lambda: synced,
+        debounce_seconds=0.02,
+    )
+    now_iso = NOW.isoformat()
+    msg_bytes = json.dumps(
+        {
+            "messageId": "01950000-0000-7000-8000-000000000010",
+            "schemaVersion": "1.0",
+            "messageType": "desired",
+            "emitter": "manager",
+            "module": "ipm",
+            "resourceType": "role",
+            "resourceId": "role-ipm-user-viewer",
+            "operation": "changed",
+            "desiredGeneration": 2,
+            "requestedBy": "system",
+            "correlationId": "01950000-0000-7000-8000-000000000011",
+            "causationId": "01950000-0000-7000-8000-000000000012",
+            "occurredAt": now_iso,
+            "publishedAt": now_iso,
+            "data": {
+                "lifecycle": "present",
+                "name": "ipm.userViewer",
+                "permissions": ["ipm.user.get", "ipm.user.list", "ipm.user.update"],
+            },
+        }
+    ).encode()
+
+    # 1. Enquanto synced=False, on_message não executa rollout imediatamente
+    assert await watcher.on_message(msg_bytes) == 0
+    assert len(rollouts) == 0
+
+    # 2. Quando sincroniza, o worker ou flush executa o rollout pendente
+    synced = True
+    assert await watcher.flush_pending_rollout() == 1
+    assert len(rollouts) == 1
+
+    # 3. Debounce: várias rajadas de mudanças com debounce_seconds disparam apenas um rollout
+    msg_r1 = json.dumps(
+        {
+            "messageId": "01950000-0000-7000-8000-000000000020",
+            "schemaVersion": "1.0",
+            "messageType": "desired",
+            "emitter": "manager",
+            "module": "ipm",
+            "resourceType": "role",
+            "resourceId": "role-ipm-admin-1",
+            "operation": "changed",
+            "desiredGeneration": 1,
+            "requestedBy": "system",
+            "correlationId": "01950000-0000-7000-8000-000000000021",
+            "causationId": "01950000-0000-7000-8000-000000000022",
+            "occurredAt": now_iso,
+            "publishedAt": now_iso,
+            "data": {
+                "lifecycle": "present",
+                "name": "ipm.customAdmin1",
+                "permissions": ["ipm.user.get"],
+            },
+        }
+    ).encode()
+    msg_r2 = json.dumps(
+        {
+            "messageId": "01950000-0000-7000-8000-000000000030",
+            "schemaVersion": "1.0",
+            "messageType": "desired",
+            "emitter": "manager",
+            "module": "ipm",
+            "resourceType": "role",
+            "resourceId": "role-ipm-admin-2",
+            "operation": "changed",
+            "desiredGeneration": 1,
+            "requestedBy": "system",
+            "correlationId": "01950000-0000-7000-8000-000000000031",
+            "causationId": "01950000-0000-7000-8000-000000000032",
+            "occurredAt": now_iso,
+            "publishedAt": now_iso,
+            "data": {
+                "lifecycle": "present",
+                "name": "ipm.customAdmin2",
+                "permissions": ["ipm.user.list"],
+            },
+        }
+    ).encode()
+    await watcher.on_message(msg_r1)
+    await watcher.on_message(msg_r2)
+    await asyncio.sleep(0.05)
+    assert len(rollouts) == 2

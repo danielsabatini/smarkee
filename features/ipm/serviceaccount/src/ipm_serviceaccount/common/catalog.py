@@ -6,7 +6,10 @@ atualizado em tempo real pelos consumers de estado (`manager.desired.ipm.permiss
 `manager.desired.ipm.role.>`) sem exigir redeploy.
 """
 
+import contextlib
+import json
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 from typing import Any, cast
 
 from ipm_serviceaccount.common.contracts import generated
@@ -16,73 +19,37 @@ MODULE_PREFIX = "ipm."
 PLATFORM_ORGANIZATION_ID = "core"
 """Organization de sistema, dona das Roles predefinidas; valem em qualquer Organization (0092)."""
 
-PREDEFINED_ROLES: dict[str, list[str]] = {
-    "bsm.accountViewer": ["bsm.account.get", "bsm.account.list"],
-    "bsm.accountAdmin": [
-        "bsm.account.create",
-        "bsm.account.delete",
-        "bsm.account.get",
-        "bsm.account.list",
-        "bsm.account.update",
-    ],
-    "core.accountViewer": ["core.account.get"],
-    "core.accountAdmin": ["core.account.delete", "core.account.get"],
-    "sum.serviceViewer": ["sum.ipm.get"],
-    "sum.serviceAdmin": ["sum.ipm.disable", "sum.ipm.enable", "sum.ipm.get"],
-    "ipm.organizationViewer": ["ipm.organization.get", "ipm.organization.list"],
-    "ipm.organizationAdmin": [
-        "ipm.organization.create",
-        "ipm.organization.delete",
-        "ipm.organization.get",
-        "ipm.organization.list",
-        "ipm.organization.update",
-    ],
-    "ipm.userViewer": ["ipm.user.get", "ipm.user.list"],
-    "ipm.userAdmin": [
-        "ipm.user.bind",
-        "ipm.user.create",
-        "ipm.user.delete",
-        "ipm.user.get",
-        "ipm.user.list",
-        "ipm.user.update",
-    ],
-    "ipm.permissionViewer": ["ipm.permission.get", "ipm.permission.list"],
-    "ipm.permissionAdmin": [
-        "ipm.permission.admin",
-        "ipm.permission.get",
-        "ipm.permission.list",
-    ],
-    "ipm.roleViewer": ["ipm.role.get", "ipm.role.list"],
-    "ipm.roleAdmin": ["ipm.role.admin", "ipm.role.get", "ipm.role.list"],
-    "ipm.groupViewer": ["ipm.group.get", "ipm.group.list"],
-    "ipm.groupAdmin": [
-        "ipm.group.bind",
-        "ipm.group.create",
-        "ipm.group.delete",
-        "ipm.group.get",
-        "ipm.group.list",
-        "ipm.group.update",
-    ],
-    "ipm.serviceaccountViewer": ["ipm.serviceaccount.get", "ipm.serviceaccount.list"],
-    "ipm.serviceaccountAdmin": [
-        "ipm.serviceaccount.bind",
-        "ipm.serviceaccount.create",
-        "ipm.serviceaccount.delete",
-        "ipm.serviceaccount.get",
-        "ipm.serviceaccount.list",
-        "ipm.serviceaccount.update",
-    ],
-}
+
+def _load_access_definitions() -> tuple[set[str], dict[str, list[str]]]:
+    """Carrega o catálogo declarativo a partir de access.v1.json (Ajuste 2 / S0)."""
+    candidates = (
+        Path(__file__).resolve().parent / "access.v1.json",
+        Path(__file__).resolve().parents[4] / "schemas" / "ipm" / "access.v1.json",
+        Path("/app/schemas/ipm/access.v1.json"),
+    )
+    for path in candidates:
+        if path.is_file():
+            with contextlib.suppress(Exception):
+                data = json.loads(path.read_text(encoding="utf-8"))
+                perms = set(data.get("grantablePermissions", []))
+                roles = {str(k): list(v) for k, v in data.get("predefinedRoles", {}).items()}
+                if perms and roles:
+                    return perms, roles
+    perms = {permission.value for permission in generated.GrantablePermission}
+    return perms, {}
+
+
+_GRANTABLE_PERMISSIONS, _PREDEFINED_ROLES = _load_access_definitions()
 
 
 def default_grantable_permissions() -> set[str]:
     """Conjunto inicial de permissões delegáveis à Organization (`GrantablePermission`)."""
-    return {permission.value for permission in generated.GrantablePermission}
+    return set(_GRANTABLE_PERMISSIONS)
 
 
 def default_roles_catalog() -> dict[str, list[str]]:
     """Mapa inicial `roleName -> permissions` das Roles predefinidas (decisão 0083)."""
-    return {name: list(perms) for name, perms in PREDEFINED_ROLES.items()}
+    return {name: list(perms) for name, perms in _PREDEFINED_ROLES.items()}
 
 
 class AccessCatalog:

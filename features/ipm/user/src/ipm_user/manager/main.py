@@ -32,8 +32,48 @@ async def run(settings: UserManagerSettings) -> int:
         pool = await open_pool(settings.database)
         runtime.close_after(pool.close)
         kind = user_kind()
-        watcher = RoleCatalogWatcher(pool, kind)
+        catalog_consumers: dict[str, StateConsumer] = {}
+
+        def is_catalog_synced() -> bool:
+            return bool(catalog_consumers) and all(c.is_synced for c in catalog_consumers.values())
+
+        watcher = RoleCatalogWatcher(
+            pool,
+            kind,
+            is_synced=is_catalog_synced,
+            debounce_seconds=0.2,
+        )
         instance = new_instance_name()
+        catalog_consumers["permissions"] = StateConsumer(
+            runtime.stream,
+            watcher,
+            durable=f"ipm-user-manager-permissions-{instance}",
+            stream="DESIRED",
+            filter_subject="manager.desired.ipm.permission.>",
+            inactive_threshold_seconds=300,
+            traced=False,
+            on_cycle=runtime.health.beat,
+        )
+        catalog_consumers["roles"] = StateConsumer(
+            runtime.stream,
+            watcher,
+            durable=f"ipm-user-manager-roles-{instance}",
+            stream="DESIRED",
+            filter_subject="manager.desired.ipm.role.>",
+            inactive_threshold_seconds=300,
+            traced=False,
+            on_cycle=runtime.health.beat,
+        )
+        catalog_consumers["groups"] = StateConsumer(
+            runtime.stream,
+            watcher,
+            durable=f"ipm-user-manager-groups-{instance}",
+            stream="DESIRED",
+            filter_subject="manager.desired.ipm.group.>",
+            inactive_threshold_seconds=300,
+            traced=False,
+            on_cycle=runtime.health.beat,
+        )
         consumers = {
             "requested": RequestedConsumer(
                 runtime.stream,
@@ -58,36 +98,7 @@ async def run(settings: UserManagerSettings) -> int:
                 handler=ResultHandler(failure_limit=settings.loop.failure_limit),
                 on_cycle=runtime.health.beat,
             ),
-            "permissions": StateConsumer(
-                runtime.stream,
-                watcher,
-                durable=f"ipm-user-manager-permissions-{instance}",
-                stream="DESIRED",
-                filter_subject="manager.desired.ipm.permission.>",
-                inactive_threshold_seconds=300,
-                traced=False,
-                on_cycle=runtime.health.beat,
-            ),
-            "roles": StateConsumer(
-                runtime.stream,
-                watcher,
-                durable=f"ipm-user-manager-roles-{instance}",
-                stream="DESIRED",
-                filter_subject="manager.desired.ipm.role.>",
-                inactive_threshold_seconds=300,
-                traced=False,
-                on_cycle=runtime.health.beat,
-            ),
-            "groups": StateConsumer(
-                runtime.stream,
-                watcher,
-                durable=f"ipm-user-manager-groups-{instance}",
-                stream="DESIRED",
-                filter_subject="manager.desired.ipm.group.>",
-                inactive_threshold_seconds=300,
-                traced=False,
-                on_cycle=runtime.health.beat,
-            ),
+            **catalog_consumers,
         }
         for name, consumer in consumers.items():
             runtime.start(name, consumer.run(runtime.stop))

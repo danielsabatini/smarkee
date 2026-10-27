@@ -15,6 +15,7 @@ from ipm_user.receiver.domain.access import (
     OrganizationAccess,
     binding_allowed,
     outside_catalog,
+    outside_groups_catalog,
     outside_roles_catalog,
 )
 from ipm_user.receiver.settings import PeersSettings
@@ -28,6 +29,28 @@ def test_outside_catalog_lists_the_refused_permissions_sorted() -> None:
     assert outside_catalog(refused) == ["ipm.organization.delete", "ipm.user.admin"]
     assert outside_catalog([permission.value for permission in generated.GrantablePermission]) == []
     assert outside_catalog([]) == []
+
+
+def test_outside_groups_catalog_detects_unknown_groups() -> None:
+    catalog = AccessCatalog()
+    catalog.apply_group_desired(
+        "grp-1",
+        {
+            "lifecycle": "present",
+            "organizationId": "org-1",
+            "name": "devs",
+            "roles": ["ipm.userViewer"],
+        },
+    )
+    assert outside_groups_catalog(["devs"], organization_id="org-1", catalog=catalog) == []
+    assert outside_groups_catalog(
+        ["devs", "unknown", "other"], organization_id="org-1", catalog=catalog
+    ) == [
+        "other",
+        "unknown",
+    ]
+    # Em outra organization, o grupo 'devs' não existe
+    assert outside_groups_catalog(["devs"], organization_id="org-2", catalog=catalog) == ["devs"]
 
 
 def test_binding_without_bind_forbids_any_permission_change() -> None:

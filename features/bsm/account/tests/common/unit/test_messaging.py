@@ -261,8 +261,48 @@ async def test_the_state_consumer_replays_the_last_message_per_subject_and_acks(
     assert config.inactive_threshold == 300.0
     assert sink.received == [b"estado"]
     assert message.acked
+    assert consumer.is_synced
     handled = [record for record in caplog.records if record.getMessage() == "message handled"]
     assert bool(handled) is traced
+
+
+async def test_state_consumer_sync_status_with_consumer_info() -> None:
+    @dataclass
+    class FakeInfo:
+        num_pending: int
+        num_ack_pending: int = 0
+
+    class SubscriptionWithInfo(FakeSubscription):
+        def __init__(
+            self, stop: asyncio.Event, batches: list[list[FakeMessage] | Exception]
+        ) -> None:
+            super().__init__(stop, batches)
+            self._info_calls = 0
+
+        async def consumer_info(self) -> FakeInfo:
+            self._info_calls += 1
+            # Na primeira chamada (partida), ainda há mensagens pendentes
+            pending = 1 if self._info_calls == 1 else 0
+            return FakeInfo(num_pending=pending, num_ack_pending=0)
+
+    stop = asyncio.Event()
+    message = FakeMessage(None, b"primeiro")
+    subscription = SubscriptionWithInfo(stop, [[message]])
+    jetstream = FakeStateStream(subscription)
+    sink = RecordingSink()
+    consumer = StateConsumer(
+        cast(JetStreamContext, jetstream),
+        sink,
+        durable="sub-test",
+        stream="DESIRED",
+        filter_subject="test.>",
+        inactive_threshold_seconds=300,
+        traced=False,
+    )
+    assert not consumer.is_synced
+    await consumer.run(stop)
+    assert consumer.is_synced
+    assert await consumer.wait_synced(timeout=0.1)
 
 
 def test_each_process_run_gets_its_own_instance_name() -> None:

@@ -31,6 +31,7 @@ from ipm_user.receiver.domain.access import (
     AccessCheckError,
     OrganizationAccess,
     binding_allowed,
+    outside_groups_catalog,
     outside_roles_catalog,
 )
 from ipm_user.receiver.domain.errors import (
@@ -79,6 +80,7 @@ class Dependencies:
     serviceaccounts: ServiceAccounts
     publisher: Publisher
     catalog: AccessCatalog = field(default_factory=AccessCatalog)
+    is_catalog_synced: Callable[[], bool] = lambda: True
     clock: Callable[[], datetime] = utc_now
     identifiers: Callable[[], str] = new_identifier
     is_ready: Callable[[], bool] = lambda: True
@@ -212,6 +214,15 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             raise not_found()  # não revela usuários de outras Organizations
         return record, standing
 
+    def _check_catalog_synced() -> None:
+        if not deps.is_catalog_synced():
+            raise ApiError(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "CatalogSyncPending",
+                "Catálogo de permissões em sincronização. Tente de novo em instantes.",
+                headers={"Retry-After": "2"},
+            )
+
     def check_roles(
         principal: Principal,
         standing: Standing,
@@ -219,6 +230,8 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         current: list[str],
         requested: list[str],
     ) -> None:
+        if requested:
+            _check_catalog_synced()
         rejected = outside_roles_catalog(
             requested, organization_id=organization_id, catalog=deps.catalog
         )
@@ -234,6 +247,32 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             raise forbidden(
                 f"É necessária a permissão {permissions.USER_BIND} para atribuir ou alterar"
                 " roles de um usuário."
+            )
+
+    def check_groups(
+        principal: Principal,
+        standing: Standing,
+        organization_id: str,
+        current: list[str],
+        requested: list[str],
+    ) -> None:
+        if requested:
+            _check_catalog_synced()
+        rejected = outside_groups_catalog(
+            requested, organization_id=organization_id, catalog=deps.catalog
+        )
+        if rejected:
+            raise bad_request(
+                f"Grupos não encontrados na Organization: {', '.join(rejected)}.",
+                field="groups",
+            )
+        can_bind = standing is not Standing.MEMBER or principal.has_permission(
+            permissions.USER_BIND
+        )
+        if not binding_allowed(current, requested, principal.permissions, can_bind=can_bind):
+            raise forbidden(
+                f"É necessária a permissão {permissions.USER_BIND} para atribuir ou alterar"
+                " grupos de um usuário."
             )
 
     def check_version(record: ResourceRecord, version: str) -> None:
@@ -265,6 +304,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         requested_roles = _roles_of(body.roles) if body.roles is not None else []
         requested_groups = _groups_of(body.groups) if body.groups is not None else []
         check_roles(principal, standing, organization_id, [], requested_roles)
+        check_groups(principal, standing, organization_id, [], requested_groups)
         quota: int | None = None
         if standing is not Standing.OPERATOR:
             quota = deps.settings.user_quota
@@ -373,7 +413,16 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             )
             specification["roles"] = requested_roles
         if body.groups is not None:
-            specification["groups"] = _groups_of(body.groups)
+            requested_groups = _groups_of(body.groups)
+            current_groups = _groups_of(record.desired.get("groups"))
+            check_groups(
+                principal,
+                standing,
+                str(record.desired.get("organizationId", "")),
+                current_groups,
+                requested_groups,
+            )
+            specification["groups"] = requested_groups
         if body.deletion_protection is not None:
             specification["deletionProtection"] = body.deletion_protection
         reconciliation = body.reconciliation.value if body.reconciliation is not None else None

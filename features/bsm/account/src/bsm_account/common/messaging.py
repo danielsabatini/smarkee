@@ -103,6 +103,7 @@ async def consume(
     batch_size: int,
     fetch_timeout_seconds: float = 2.0,
     on_cycle: Callable[[], None] = lambda: None,
+    on_batch: Callable[[JetStreamContext.PullSubscription], Awaitable[None]] | None = None,
     with_trace: bool = True,
 ) -> None:
     """Busca mensagens em lotes até `stop` e entrega cada uma a `settle` (que dá o ACK).
@@ -120,6 +121,8 @@ async def consume(
             try:
                 messages = await subscription.fetch(batch_size, timeout=fetch_timeout_seconds)
             except TimeoutError:
+                if on_batch is not None:
+                    await on_batch(subscription)
                 continue
             except (nats.errors.Error, nats.js.errors.Error) as error:
                 logger.warning("fetch failed", exc_info=error)
@@ -131,6 +134,8 @@ async def consume(
                         await settle(message)
                 else:
                     await settle(message)
+            if on_batch is not None:
+                await on_batch(subscription)
     finally:
         with contextlib.suppress(nats.errors.Error, nats.js.errors.Error):
             await subscription.unsubscribe()
@@ -179,6 +184,33 @@ class StateConsumer:
         self._batch_size = batch_size
         self._fetch_timeout = fetch_timeout_seconds
         self._on_cycle = on_cycle
+        self._synced = asyncio.Event()
+
+    @property
+    def is_synced(self) -> bool:
+        """Informa se o consumer já processou todos os eventos existentes na partida."""
+        return self._synced.is_set()
+
+    async def wait_synced(self, timeout: float | None = None) -> bool:
+        """Aguarda a sincronização inicial de estado."""
+        if self._synced.is_set():
+            return True
+        try:
+            await asyncio.wait_for(self._synced.wait(), timeout=timeout)
+            return True
+        except TimeoutError:
+            return False
+
+    async def _check_synced(self, subscription: JetStreamContext.PullSubscription) -> None:
+        if self._synced.is_set():
+            return
+        if not hasattr(subscription, "consumer_info"):
+            self._synced.set()
+            return
+        with contextlib.suppress(Exception):
+            info = await subscription.consumer_info()
+            if getattr(info, "num_pending", 0) == 0 and getattr(info, "num_ack_pending", 0) == 0:
+                self._synced.set()
 
     async def run(self, stop: asyncio.Event) -> None:
         subscription = await self._jetstream.pull_subscribe(
@@ -192,6 +224,7 @@ class StateConsumer:
                 inactive_threshold=self._inactive,
             ),
         )
+        await self._check_synced(subscription)
         await consume(
             subscription,
             self._settle,
@@ -199,6 +232,7 @@ class StateConsumer:
             batch_size=self._batch_size,
             fetch_timeout_seconds=self._fetch_timeout,
             on_cycle=self._on_cycle,
+            on_batch=self._check_synced,
             with_trace=self._traced,
         )
 

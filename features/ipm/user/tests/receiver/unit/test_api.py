@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 import pytest
 
+from ipm_user.common.catalog import AccessCatalog
 from ipm_user.common.contracts import generated
 from ipm_user.common.ports import PublishError
 from ipm_user.receiver.domain.access import AccessCheckError, OrganizationAccess
@@ -72,6 +73,7 @@ def user(
     *,
     permissions: list[str] | None = None,
     roles: list[str] | None = None,
+    groups: list[str] | None = None,
     version: int = 3,
     lifecycle: str = "present",
     protected: bool | None = False,
@@ -81,6 +83,7 @@ def user(
         "lifecycle": lifecycle,
         "organizationId": organization_id,
         "roles": roles if roles is not None else ["ipm.userViewer"],
+        "groups": groups if groups is not None else [],
         "permissions": (
             permissions if permissions is not None else ["ipm.user.get", "ipm.user.list"]
         ),
@@ -187,6 +190,7 @@ class Harness:
     repository: FakeRepository
     organizations: FakeOrganizations
     serviceaccounts: FakeServiceAccounts
+    catalog: AccessCatalog
 
 
 def dependencies(
@@ -219,11 +223,12 @@ def harness() -> Harness:
         "eve": user("eve", OTHER_ORG),
     }
     serviceaccounts = FakeServiceAccounts({"machine": ORG})
-    deps = dependencies(repository, organizations, publisher, serviceaccounts)
+    catalog = AccessCatalog()
+    deps = dependencies(repository, organizations, publisher, serviceaccounts, catalog=catalog)
     client = httpx.AsyncClient(
         transport=httpx.ASGITransport(app=create_app(deps)), base_url="http://api"
     )
-    return Harness(client, publisher, repository, organizations, serviceaccounts)
+    return Harness(client, publisher, repository, organizations, serviceaccounts, catalog)
 
 
 def auth(subject: str) -> dict[str, str]:
@@ -384,6 +389,86 @@ async def test_without_bind_no_roles_can_be_given(
     assert (await create(harness, "root", roles=["ipm.userAdmin"])).status_code == 202
 
 
+async def test_catalog_sync_pending_returns_503(harness: Harness) -> None:
+    deps = dependencies(
+        harness.repository,
+        harness.organizations,
+        harness.publisher,
+        harness.serviceaccounts,
+        catalog=harness.catalog,
+        is_catalog_synced=lambda: False,
+    )
+    client = httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=create_app(deps)), base_url="http://api"
+    )
+    # Criar sem roles/groups passa mesmo com catálogo sincronizando
+    no_roles = await client.post("/v1/ipm/users", json=body(roles=[]), headers=auth("root"))
+    assert no_roles.status_code == 202
+
+    # Criar com roles retorna 503 CatalogSyncPending e Retry-After
+    with_roles = await client.post(
+        "/v1/ipm/users", json=body(roles=["ipm.userViewer"]), headers=auth("root")
+    )
+    assert with_roles.status_code == 503
+    assert with_roles.json()["errorCode"] == "CatalogSyncPending"
+    assert with_roles.headers.get("retry-after") == "2"
+
+    # Criar com groups retorna 503 CatalogSyncPending
+    with_groups = await client.post(
+        "/v1/ipm/users", json=body(roles=[], groups=["devs"]), headers=auth("root")
+    )
+    assert with_groups.status_code == 503
+    assert with_groups.json()["errorCode"] == "CatalogSyncPending"
+
+    # Patch alterando roles retorna 503 CatalogSyncPending
+    patch_roles = await client.patch(
+        "/v1/ipm/users/binder",
+        json={"resourceVersion": "3", "roles": ["ipm.userViewer"]},
+        headers=auth("binder"),
+    )
+    assert patch_roles.status_code == 503
+    assert patch_roles.json()["errorCode"] == "CatalogSyncPending"
+
+    # Patch sem mexer em roles/groups passa
+    patch_clean = await client.patch(
+        "/v1/ipm/users/binder",
+        json={"resourceVersion": "3", "deletionProtection": True},
+        headers=auth("binder"),
+    )
+    assert patch_clean.status_code == 202
+
+
+async def test_without_bind_no_groups_can_be_given_and_unknown_groups_are_rejected(
+    harness: Harness,
+) -> None:
+    harness.catalog.apply_group_desired(
+        "grp-1",
+        {
+            "lifecycle": "present",
+            "organizationId": ORG,
+            "name": "devs",
+            "roles": ["ipm.userViewer"],
+        },
+    )
+    # Membro sem bind não pode atribuir grupos
+    refused_bind = await create(harness, "bia", groups=["devs"])
+    assert refused_bind.status_code == 403
+    assert "ipm.user.bind" in refused_bind.json()["message"]
+
+    # Membro com bind tentando grupo inexistente recebe 400 com field="groups"
+    unknown = await create(harness, "binder", groups=["ops"])
+    assert (unknown.status_code, unknown.json()["field"]) == (400, "groups")
+    assert "ops" in unknown.json()["message"]
+
+    # Membro com bind pode atribuir grupo conhecido
+    allowed_bind = await create(harness, "binder", groups=["devs"])
+    assert allowed_bind.status_code == 202
+
+    # Dono da organization pode atribuir grupo conhecido sem ter ipm.user.bind
+    allowed_root = await create(harness, "root", groups=["devs"])
+    assert allowed_root.status_code == 202
+
+
 async def test_quota_is_checked_before_publishing(harness: Harness) -> None:
     harness.repository.resources["u-9"] = user("u-9")  # bia, binder e u-9: 3 na org-1
     response = await create(harness, "root")
@@ -540,6 +625,60 @@ async def test_without_bind_roles_cannot_be_given_or_taken(
         headers=auth("binder"),
     )
     assert allowed_with_bind.status_code == 202
+
+
+async def test_without_bind_groups_cannot_be_given_or_taken(
+    harness: Harness,
+) -> None:
+    harness.catalog.apply_group_desired(
+        "grp-1",
+        {
+            "lifecycle": "present",
+            "organizationId": ORG,
+            "name": "devs",
+            "roles": ["ipm.userViewer"],
+        },
+    )
+    harness.catalog.apply_group_desired(
+        "grp-2",
+        {
+            "lifecycle": "present",
+            "organizationId": ORG,
+            "name": "ops",
+            "roles": ["ipm.organizationViewer"],
+        },
+    )
+    harness.repository.resources["x"] = user("x", groups=["devs"])
+    path = "/v1/ipm/users/x"
+
+    # Membro sem bind não pode retirar grupo
+    taken = await harness.client.patch(
+        path, json={"resourceVersion": "3", "groups": []}, headers=auth("bia")
+    )
+    # Membro sem bind não pode adicionar outro grupo
+    given = await harness.client.patch(
+        path, json={"resourceVersion": "3", "groups": ["devs", "ops"]}, headers=auth("bia")
+    )
+    assert (taken.status_code, given.status_code) == (403, 403)
+    assert "ipm.user.bind" in taken.json()["message"]
+
+    # Membro sem bind pode manter os mesmos grupos
+    unchanged = await harness.client.patch(
+        path, json={"resourceVersion": "3", "groups": ["devs"]}, headers=auth("bia")
+    )
+    assert unchanged.status_code == 202
+
+    # Membro com bind tentando grupo desconhecido recebe 400
+    unknown = await harness.client.patch(
+        path, json={"resourceVersion": "3", "groups": ["inexistente"]}, headers=auth("binder")
+    )
+    assert (unknown.status_code, unknown.json()["field"]) == (400, "groups")
+
+    # Membro com bind pode alterar grupos para grupos conhecidos
+    allowed = await harness.client.patch(
+        path, json={"resourceVersion": "3", "groups": ["ops"]}, headers=auth("binder")
+    )
+    assert allowed.status_code == 202
 
 
 @pytest.mark.parametrize(

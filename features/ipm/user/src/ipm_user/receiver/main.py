@@ -36,24 +36,28 @@ async def run(settings: UserReceiverSettings) -> int:
         catalog = AccessCatalog()
         watcher = CatalogWatcher(catalog)
         instance = new_instance_name()
+        catalog_consumers: dict[str, StateConsumer] = {}
         for suffix, subject in (
             ("permissions", "manager.desired.ipm.permission.>"),
             ("roles", "manager.desired.ipm.role.>"),
             ("groups", "manager.desired.ipm.group.>"),
         ):
-            runtime.start(
-                suffix,
-                StateConsumer(
-                    runtime.stream,
-                    watcher,
-                    durable=f"ipm-user-receiver-{suffix}-{instance}",
-                    stream="DESIRED",
-                    filter_subject=subject,
-                    inactive_threshold_seconds=300,
-                    traced=False,
-                    on_cycle=runtime.health.beat,
-                ).run(runtime.stop),
+            consumer = StateConsumer(
+                runtime.stream,
+                watcher,
+                durable=f"ipm-user-receiver-{suffix}-{instance}",
+                stream="DESIRED",
+                filter_subject=subject,
+                inactive_threshold_seconds=300,
+                traced=False,
+                on_cycle=runtime.health.beat,
             )
+            catalog_consumers[suffix] = consumer
+            runtime.start(suffix, consumer.run(runtime.stop))
+
+        def is_catalog_synced() -> bool:
+            return bool(catalog_consumers) and all(c.is_synced for c in catalog_consumers.values())
+
         app = create_app(
             Dependencies(
                 settings=api,
@@ -63,7 +67,8 @@ async def run(settings: UserReceiverSettings) -> int:
                 serviceaccounts=ServiceAccountPeer(settings.peers, http),
                 publisher=StreamPublisher(runtime.stream),
                 catalog=catalog,
-                is_ready=lambda: runtime.client.is_connected,
+                is_catalog_synced=is_catalog_synced,
+                is_ready=lambda: runtime.client.is_connected and is_catalog_synced(),
             )
         )
         runtime.start("http", serve_http(app, host=api.host, port=api.port, stop=runtime.stop))

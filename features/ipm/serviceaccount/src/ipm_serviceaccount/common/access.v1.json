@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "1.0",
+  "module": "ipm",
+  "grantablePermissions": [
+    "ipm.group.bind",
+    "ipm.group.create",
+    "ipm.group.delete",
+    "ipm.group.get",
+    "ipm.group.list",
+    "ipm.group.update",
+    "ipm.organization.get",
+    "ipm.organization.list",
+    "ipm.organization.update",
+    "ipm.role.bind",
+    "ipm.role.create",
+    "ipm.role.delete",
+    "ipm.role.get",
+    "ipm.role.list",
+    "ipm.role.update",
+    "ipm.serviceaccount.bind",
+    "ipm.serviceaccount.create",
+    "ipm.serviceaccount.delete",
+    "ipm.serviceaccount.get",
+    "ipm.serviceaccount.list",
+    "ipm.serviceaccount.update",
+    "ipm.user.bind",
+    "ipm.user.create",
+    "ipm.user.delete",
+    "ipm.user.get",
+    "ipm.user.list",
+    "ipm.user.update"
+  ],
+  "predefinedRoles": {
+    "bsm.accountViewer": [
+      "bsm.account.get",
+      "bsm.account.list"
+    ],
+    "bsm.accountAdmin": [
+      "bsm.account.create",
+      "bsm.account.delete",
+      "bsm.account.get",
+      "bsm.account.list",
+      "bsm.account.update"
+    ],
+    "core.accountViewer": [
+      "core.account.get"
+    ],
+    "core.accountAdmin": [
+      "core.account.delete",
+      "core.account.get"
+    ],
+    "sum.serviceViewer": [
+      "sum.ipm.get"
+    ],
+    "sum.serviceAdmin": [
+      "sum.ipm.disable",
+      "sum.ipm.enable",
+      "sum.ipm.get"
+    ],
+    "ipm.organizationViewer": [
+      "ipm.organization.get",
+      "ipm.organization.list"
+    ],
+    "ipm.organizationAdmin": [
+      "ipm.organization.create",
+      "ipm.organization.delete",
+      "ipm.organization.get",
+      "ipm.organization.list",
+      "ipm.organization.update"
+    ],
+    "ipm.userViewer": [
+      "ipm.user.get",
+      "ipm.user.list"
+    ],
+    "ipm.userAdmin": [
+      "ipm.user.bind",
+      "ipm.user.create",
+      "ipm.user.delete",
+      "ipm.user.get",
+      "ipm.user.list",
+      "ipm.user.update"
+    ],
+    "ipm.permissionViewer": [
+      "ipm.permission.get",
+      "ipm.permission.list"
+    ],
+    "ipm.permissionAdmin": [
+      "ipm.permission.admin",
+      "ipm.permission.get",
+      "ipm.permission.list"
+    ],
+    "ipm.roleViewer": [
+      "ipm.role.get",
+      "ipm.role.list"
+    ],
+    "ipm.roleAdmin": [
+      "ipm.role.admin",
+      "ipm.role.get",
+      "ipm.role.list"
+    ],
+    "ipm.groupViewer": [
+      "ipm.group.get",
+      "ipm.group.list"
+    ],
+    "ipm.groupAdmin": [
+      "ipm.group.bind",
+      "ipm.group.create",
+      "ipm.group.delete",
+      "ipm.group.get",
+      "ipm.group.list",
+      "ipm.group.update"
+    ],
+    "ipm.serviceaccountViewer": [
+      "ipm.serviceaccount.get",
+      "ipm.serviceaccount.list"
+    ],
+    "ipm.serviceaccountAdmin": [
+      "ipm.serviceaccount.bind",
+      "ipm.serviceaccount.create",
+      "ipm.serviceaccount.delete",
+      "ipm.serviceaccount.get",
+      "ipm.serviceaccount.list",
+      "ipm.serviceaccount.update"
+    ]
+  }
+}

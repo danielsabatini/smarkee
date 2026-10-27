@@ -9,6 +9,8 @@ uma geração nova com Operation `update` (`system:catalog`), acionando o Reconc
 para atualizar a autorização no Zitadel com as permissões atômicas expandidas.
 """
 
+import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -143,8 +145,8 @@ class RoleCatalogWatcher:
     """Observa `manager.desired.ipm.role.>` e `manager.desired.ipm.permission.>` (decisão 0083).
 
     Atualiza o `AccessCatalog` da `ServiceAccountPolicy` e dispara `roll_out_serviceaccount_roles`
-    sempre que o
-    catálogo de Roles ou de permissões delegáveis muda.
+    sempre que o catálogo de Roles ou de permissões delegáveis muda. Bloqueia disparo prematuro
+    durante a sincronização inicial e coalescer rajadas de eventos com debounce.
     """
 
     def __init__(
@@ -152,6 +154,8 @@ class RoleCatalogWatcher:
         pool: AsyncConnectionPool[Any],
         kind: ResourceKind,
         *,
+        is_synced: Callable[[], bool] = lambda: True,
+        debounce_seconds: float = 0.0,
         clock: Callable[[], datetime] = utc_now,
         identifiers: Callable[[], str] = new_identifier,
     ) -> None:
@@ -161,8 +165,12 @@ class RoleCatalogWatcher:
         self._pool = pool
         self._kind = kind
         self._policy = policy
+        self._is_synced = is_synced
+        self._debounce_seconds = debounce_seconds
         self._clock = clock
         self._identifiers = identifiers
+        self._pending_rollout = False
+        self._rollout_task: asyncio.Task[int] | None = None
 
     async def on_message(self, data: bytes) -> int:
         try:
@@ -183,9 +191,45 @@ class RoleCatalogWatcher:
             return 0
         if not changed:
             return 0
+        self._pending_rollout = True
+        return await self._trigger_rollout()
+
+    async def _trigger_rollout(self) -> int:
+        if not self._is_synced():
+            logger.debug("catalog message applied during sync; rollout deferred until all synced")
+            self._schedule_coalesced_rollout()
+            return 0
+        if self._debounce_seconds <= 0:
+            return await self._run_rollout()
+        self._schedule_coalesced_rollout()
+        return 0
+
+    def _schedule_coalesced_rollout(self) -> None:
+        if self._rollout_task is None or self._rollout_task.done():
+            self._rollout_task = asyncio.create_task(self._coalesced_worker())
+
+    async def _coalesced_worker(self) -> int:
+        if self._debounce_seconds > 0:
+            await asyncio.sleep(self._debounce_seconds)
+        while not self._is_synced():
+            await asyncio.sleep(0.05)
+        return await self._run_rollout()
+
+    async def _run_rollout(self) -> int:
+        if not self._pending_rollout:
+            return 0
+        self._pending_rollout = False
         return await roll_out_serviceaccount_roles(
             self._pool,
             self._kind,
             clock=self._clock,
             identifiers=self._identifiers,
         )
+
+    async def flush_pending_rollout(self) -> int:
+        """Força a execução de qualquer rollout pendente."""
+        if self._rollout_task and not self._rollout_task.done():
+            self._rollout_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._rollout_task
+        return await self._run_rollout()

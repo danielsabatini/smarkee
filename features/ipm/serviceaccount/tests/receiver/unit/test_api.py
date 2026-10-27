@@ -424,6 +424,51 @@ async def test_without_bind_no_roles_can_be_given(
     assert (await create(harness, "root", roles=["ipm.serviceaccountAdmin"])).status_code == 202
 
 
+async def test_catalog_sync_pending_returns_503(harness: Harness) -> None:
+    deps = dependencies(
+        harness.repository,
+        harness.organizations,
+        harness.publisher,
+        harness.users,
+        is_catalog_synced=lambda: False,
+    )
+    client = httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=create_app(deps)), base_url="http://api"
+    )
+    # Criar sem roles passa
+    no_roles = await client.post(
+        "/v1/ipm/serviceaccounts", json=body(roles=[]), headers=auth("root")
+    )
+    assert no_roles.status_code == 202
+
+    # Criar com roles retorna 503 CatalogSyncPending e Retry-After: 2
+    with_roles = await client.post(
+        "/v1/ipm/serviceaccounts",
+        json=body(roles=["ipm.serviceaccountViewer"]),
+        headers=auth("root"),
+    )
+    assert with_roles.status_code == 503
+    assert with_roles.json()["errorCode"] == "CatalogSyncPending"
+    assert with_roles.headers.get("retry-after") == "2"
+
+    # Patch alterando roles retorna 503 CatalogSyncPending
+    patch_roles = await client.patch(
+        "/v1/ipm/serviceaccounts/binder",
+        json={"resourceVersion": "3", "roles": ["ipm.serviceaccountViewer"]},
+        headers=auth("binder"),
+    )
+    assert patch_roles.status_code == 503
+    assert patch_roles.json()["errorCode"] == "CatalogSyncPending"
+
+    # Patch sem mexer em roles passa
+    patch_clean = await client.patch(
+        "/v1/ipm/serviceaccounts/binder",
+        json={"resourceVersion": "3", "deletionProtection": True},
+        headers=auth("binder"),
+    )
+    assert patch_clean.status_code == 202
+
+
 async def test_quota_is_checked_before_publishing(harness: Harness) -> None:
     harness.repository.resources["u-9"] = serviceaccount("u-9")  # bia, binder e u-9: 3 na org-1
     response = await create(harness, "root")
@@ -476,6 +521,70 @@ async def test_same_key_with_other_content_is_422(harness: Harness) -> None:
         "/v1/ipm/serviceaccounts", json=body(), headers={**auth("root"), "Idempotency-Key": "k-1"}
     )
     assert (response.status_code, response.json()["errorCode"]) == (422, "IdempotencyKeyReused")
+
+
+async def test_same_key_with_same_digest_returns_cached_operation_without_publishing(
+    harness: Harness,
+) -> None:
+    first_resp = await harness.client.post(
+        "/v1/ipm/serviceaccounts",
+        json=body(),
+        headers={**auth("root"), "Idempotency-Key": "k-stable"},
+    )
+    assert first_resp.status_code == 202
+    op_id = first_resp.json()["operationId"]
+    assert len(harness.publisher.published) == 1
+    digest = harness.publisher.published[0][1]["data"]["requestDigest"]
+
+    # Simula a persistência da operação no SSOT
+    harness.repository.operations[op_id] = operation(op_id, "root", digest=digest)
+    harness.publisher.published.clear()
+
+    second_resp = await harness.client.post(
+        "/v1/ipm/serviceaccounts",
+        json=body(),
+        headers={**auth("root"), "Idempotency-Key": "k-stable"},
+    )
+    assert second_resp.status_code == 202
+    assert second_resp.json()["operationId"] == op_id
+    assert len(harness.publisher.published) == 0
+
+
+async def test_create_and_update_with_empty_description_is_rejected(harness: Harness) -> None:
+    create_resp = await harness.client.post(
+        "/v1/ipm/serviceaccounts",
+        json={**body(), "description": ""},
+        headers=auth("root"),
+    )
+    assert create_resp.status_code == 400
+    assert create_resp.json()["field"] == "description"
+
+    patch_resp = await harness.client.patch(
+        "/v1/ipm/serviceaccounts/binder",
+        json={"resourceVersion": "3", "description": ""},
+        headers=auth("root"),
+    )
+    assert patch_resp.status_code == 400
+    assert patch_resp.json()["field"] == "description"
+
+
+async def test_patch_retained_key_ignores_new_expires_at(harness: Harness) -> None:
+    original_expiry = NOW + timedelta(days=15)
+    harness.repository.resources["retained-sa"] = serviceaccount(
+        "retained-sa", keys=[desired_key(KEY_A, original_expiry)]
+    )
+    attempted_expiry = NOW + timedelta(days=60)
+    response = await harness.client.patch(
+        "/v1/ipm/serviceaccounts/retained-sa",
+        json={"resourceVersion": "3", "keys": [key_spec(KEY_A, attempted_expiry)]},
+        headers=auth("root"),
+    )
+    assert response.status_code == 202
+    keys = harness.publisher.published[0][1]["data"]["specification"]["keys"]
+    by_fingerprint = {key["fingerprint"]: key for key in keys}
+    # O vencimento mantido DEVE ser o original retido, não o tentado
+    expected_expiry = desired_key(KEY_A, original_expiry)["expiresAt"]
+    assert by_fingerprint[_fingerprint(KEY_A)]["expiresAt"] == expected_expiry
 
 
 # ---------------------------------------------------------------------- ler e listar
