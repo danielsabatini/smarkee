@@ -24,18 +24,14 @@ from ipm_user.common.resource import MODULE
 from ipm_user.manager.domain.errors import PermanentMessageError
 from ipm_user.manager.domain.kind import ResourceKind
 from ipm_user.manager.domain.outcome import Outcome
-from ipm_user.manager.handlers.observed import ObservedHandler
 from ipm_user.manager.handlers.ports import Store
 from ipm_user.manager.handlers.requested import RequestedHandler
-from ipm_user.manager.handlers.result import ResultHandler
 from ipm_user.manager.store.ssot import SsotStore
 from ipm_user.manager.store.tables import tables_of
 
 logger = logging.getLogger(__name__)
 
 REQUESTED_STREAM = "REQUESTED"
-OBSERVED_STREAM = "OBSERVED"
-RESULT_STREAM = "RESULT"
 TRANSIENT_RETRY_DELAYS_SECONDS = (0.1, 0.5, 1.0)
 REDELIVERY_DELAY_SECONDS = 5.0
 
@@ -186,56 +182,6 @@ class RequestedConsumer(StreamConsumer):
             stream=REQUESTED_STREAM,
             name_suffix="requested",
             batch_size=batch_size,
-            fetch_timeout_seconds=fetch_timeout_seconds,
-            on_cycle=on_cycle,
-        )
-
-
-class ObservedConsumer(StreamConsumer):
-    """Consumer de `observed` do tipo (persistência)."""
-
-    def __init__(
-        self,
-        jetstream: JetStreamContext,
-        pool: psycopg_pool.AsyncConnectionPool[Any],
-        kind: ResourceKind,
-        *,
-        handler: ObservedHandler | None = None,
-        fetch_timeout_seconds: float = 2.0,
-        on_cycle: Callable[[], None] = lambda: None,
-    ) -> None:
-        super().__init__(
-            jetstream,
-            pool,
-            kind,
-            handler or ObservedHandler(),
-            stream=OBSERVED_STREAM,
-            name_suffix="observed",
-            fetch_timeout_seconds=fetch_timeout_seconds,
-            on_cycle=on_cycle,
-        )
-
-
-class ResultConsumer(StreamConsumer):
-    """Consumer de `completed` e `failed` do tipo (persistência)."""
-
-    def __init__(
-        self,
-        jetstream: JetStreamContext,
-        pool: psycopg_pool.AsyncConnectionPool[Any],
-        kind: ResourceKind,
-        *,
-        handler: ResultHandler | None = None,
-        fetch_timeout_seconds: float = 2.0,
-        on_cycle: Callable[[], None] = lambda: None,
-    ) -> None:
-        super().__init__(
-            jetstream,
-            pool,
-            kind,
-            handler or ResultHandler(),
-            stream=RESULT_STREAM,
-            name_suffix="result",
             fetch_timeout_seconds=fetch_timeout_seconds,
             on_cycle=on_cycle,
         )

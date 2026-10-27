@@ -61,16 +61,6 @@ CREATE INDEX IF NOT EXISTS user_operation_retention
   ON ipm.user_operation (updated_at)
   WHERE operation_status IN ('completed', 'failed', 'rejected');
 
-CREATE TABLE IF NOT EXISTS ipm.user_action_result (
-  action_id          text        PRIMARY KEY CHECK (length(action_id) BETWEEN 1 AND 512),
-  resource_id        text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
-  desired_generation bigint      NOT NULL CHECK (desired_generation >= 1),
-  action_outcome     text        NOT NULL CHECK (action_outcome IN ('completed', 'failed')),
-  recorded_at        timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS user_action_result_recorded
-  ON ipm.user_action_result (recorded_at);
-
 CREATE TABLE IF NOT EXISTS ipm.user_outbox (
   sequence     bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   message_id   text        NOT NULL UNIQUE CHECK (length(message_id) BETWEEN 1 AND 128),
@@ -116,7 +106,6 @@ GRANT USAGE ON SCHEMA ipm
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON ipm.user               TO ipm_user_manager;
 GRANT SELECT, INSERT, UPDATE         ON ipm.user_operation     TO ipm_user_manager;
-GRANT SELECT, INSERT                 ON ipm.user_action_result TO ipm_user_manager;
 GRANT INSERT                         ON ipm.user_outbox        TO ipm_user_manager;
 
 GRANT SELECT ON ipm.user_v1, ipm.user_operation_v1 TO ipm_user_receiver;
@@ -125,5 +114,5 @@ GRANT SELECT ON ipm.user_outbox TO ipm_user_publisher;
 GRANT UPDATE (published_at) ON ipm.user_outbox TO ipm_user_publisher;
 
 GRANT SELECT, DELETE
-  ON ipm.user_outbox, ipm.user_action_result, ipm.user_operation
+  ON ipm.user_outbox, ipm.user_operation
   TO ipm_maintenance;

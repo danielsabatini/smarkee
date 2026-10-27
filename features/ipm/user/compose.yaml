@@ -31,9 +31,9 @@ x-image: &component-image
 
 services:
   # Consumer durável de trabalho do Manager para `requested` do tipo (docs/messaging/NATS.md §7.6). O manifesto
-  # do Manager e o do Executor ficam em `consumers/`. Inexistente é criado; existente com configuração idêntica
-  # não muda; configuração diferente falha de forma explícita. Exige os Streams REQUESTED, OBSERVED
-  # e RESULT, criados pelo messaging da plataforma.
+  # do Manager fica em `consumers/`. Inexistente é criado; existente com configuração idêntica
+  # não muda; configuração diferente falha de forma explícita. Exige o Stream REQUESTED, criado pelo
+  # messaging da plataforma.
   ipm-user-consumer:
     build:
       context: ../../../infrastructure/tools/nats-client
@@ -47,12 +47,7 @@ services:
       - sh
       - -c
       - >-
-        nats consumer add REQUESTED --config /consumers/ipm-user-manager-requested.json &&
-        nats consumer add OBSERVED --config /consumers/ipm-user-manager-observed.json &&
-        nats consumer add RESULT --config /consumers/ipm-user-manager-result.json &&
-        for partition in 0 1 2 3; do
-          nats consumer add ACTION --config /consumers/ipm-user-executor-action-p$$partition.json || exit 1;
-        done
+        nats consumer add REQUESTED --config /consumers/ipm-user-manager-requested.json
     volumes:
       - ./consumers:/consumers:ro
     networks:
@@ -152,97 +147,6 @@ services:
       internal:
         aliases:
           - ipm-user-manager.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Reconciler (`ipm-user-reconciler`): decide a `action` a partir de `desired` e `observed`.
-  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/messaging/NATS.md §7.4).
-  ipm-user-reconciler:
-    <<: *component-image
-    command: [ipm-user-reconciler]
-    container_name: ipm-user-reconciler.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - IPM_USER_RECONCILER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      ipm-user-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-user-reconciler.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Observer (`ipm-user-observer`): lê o Zitadel (conta somente leitura, ORG_OWNER_VIEWER em cada
-  # organização de cliente) e publica `observed`.
-  # Monta só a própria chave do volume da identidade (nunca a de bootstrap nem a do Executor).
-  ipm-user-observer:
-    <<: *component-image
-    command: [ipm-user-observer]
-    container_name: ipm-user-observer.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      IPM_USER_OBSERVER_IDENTITY_PROJECT_ID: ${IPM_USER_IDENTITY_PROJECT_ID:?Defina no .env (ID do projeto roles-ipm, org core)}
-    secrets:
-      - IPM_USER_OBSERVER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-      - type: volume
-        source: identity-bootstrap
-        target: /run/secrets/zitadel-key.json
-        read_only: true
-        volume:
-          subpath: service-account-ipm-user-observer.json
-    depends_on:
-      ipm-user-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-user-observer.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Executor (`ipm-user-executor`): única identidade com escrita do usuário no Zitadel (conta
-  # ipm-user-executor: ORG_USER_CREATOR em cada organização de cliente e PROJECT_GRANT_OWNER no
-  # Grant de roles-ipm dela, decisão 0077). Monta só a própria chave.
-  ipm-user-executor:
-    <<: *component-image
-    command: [ipm-user-executor]
-    container_name: ipm-user-executor.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      IPM_USER_EXECUTOR_IDENTITY_PROJECT_ID: ${IPM_USER_IDENTITY_PROJECT_ID:?Defina no .env (ID do projeto roles-ipm, org core)}
-    secrets:
-      - IPM_USER_EXECUTOR_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-      - type: volume
-        source: identity-bootstrap
-        target: /run/secrets/zitadel-key.json
-        read_only: true
-        volume:
-          subpath: service-account-ipm-user-executor.json
-    depends_on:
-      ipm-user-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-user-executor.smarkee.internal
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
@@ -361,12 +265,6 @@ secrets:
     environment: IPM_USER_MANAGER_DATABASE_PASSWORD
   IPM_USER_MANAGER_MESSAGING_PASSWORD:
     environment: IPM_USER_MANAGER_MESSAGING_PASSWORD
-  IPM_USER_RECONCILER_MESSAGING_PASSWORD:
-    environment: IPM_USER_RECONCILER_MESSAGING_PASSWORD
-  IPM_USER_OBSERVER_MESSAGING_PASSWORD:
-    environment: IPM_USER_OBSERVER_MESSAGING_PASSWORD
-  IPM_USER_EXECUTOR_MESSAGING_PASSWORD:
-    environment: IPM_USER_EXECUTOR_MESSAGING_PASSWORD
   IPM_USER_CONTROLLER_DATABASE_PASSWORD:
     environment: IPM_USER_CONTROLLER_DATABASE_PASSWORD
   IPM_USER_CONTROLLER_MESSAGING_PASSWORD:

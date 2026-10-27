@@ -1,5 +1,5 @@
-# Imagem única de ipm.user (decisão 0063): contém o código dos seis papéis (receiver, manager,
-# publisher, observer, reconciler e executor). Cada papel roda como contêiner próprio, escolhido pelo
+# Imagem única de ipm.user (decisão 0063): contém o código dos quatro papéis (receiver, manager,
+# publisher e controller). Cada papel roda como contêiner próprio, escolhido pelo
 # `command` (por exemplo, `ipm-user-receiver`); sem `command`, a imagem não inicia nenhum papel.
 # As credenciais não ficam na imagem: cada contêiner recebe só as do seu papel.
 #

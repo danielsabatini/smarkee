@@ -1,7 +1,7 @@
 [project]
 name = "ipm-user"
 version = "0.1.0"
-description = "Componente ipm.user (decisão 0063): um projeto e uma imagem, com um entrypoint por papel (receiver, manager, publisher, controller, observer, reconciler e executor)."
+description = "Componente ipm.user (decisão 0063): um projeto e uma imagem, com um entrypoint por papel (receiver, manager, publisher e controller)."
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.143.0",
@@ -21,9 +21,6 @@ ipm-user-receiver = "ipm_user.receiver.main:main"
 ipm-user-manager = "ipm_user.manager.main:main"
 ipm-user-publisher = "ipm_user.publisher.main:main"
 ipm-user-controller = "ipm_user.controller.main:main"
-ipm-user-observer = "ipm_user.observer.main:main"
-ipm-user-reconciler = "ipm_user.reconciler.main:main"
-ipm-user-executor = "ipm_user.executor.main:main"
 
 [build-system]
 requires = ["uv_build>=0.11.19,<0.12"]
@@ -52,11 +49,11 @@ select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
 [tool.pyright]
 pythonVersion = "3.14"
 typeCheckingMode = "strict"
-include = ["src", "tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/controller", "tests/observer", "tests/reconciler", "tests/executor"]
+include = ["src", "tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/controller"]
 
 [tool.pytest.ini_options]
 # `tests/e2e` é um projeto à parte (black-box, decisão 0017) e não entra aqui.
-testpaths = ["tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/controller", "tests/observer", "tests/reconciler", "tests/executor"]
+testpaths = ["tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/controller"]
 addopts = ["--import-mode=importlib"]
 # Cada papel com testes de integração tem o seu módulo de apoio (`support_<papel>`).
 pythonpath = ["tests/receiver/integration", "tests/manager/integration", "tests/publisher/integration", "tests/controller/integration"]

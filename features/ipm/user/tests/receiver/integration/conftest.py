@@ -32,19 +32,20 @@ async def manager() -> AsyncIterator[psycopg.AsyncConnection[Any]]:
 async def cleanup(manager: psycopg.AsyncConnection[Any]) -> AsyncIterator[list[str]]:
     resource_ids: list[str] = []
     yield resource_ids
-    await manager.execute("DELETE FROM ipm.user WHERE resource_id = ANY(%s)", (resource_ids,))
+    controller = await connect("ipm_user_controller_login")
+    await controller.execute("DELETE FROM ipm.user WHERE resource_id = ANY(%s)", (resource_ids,))
     maintenance = await connect("ipm_maintenance_login")
     try:
         for table in (
             "user_outbox",
             "user_operation",
-            "user_action_result",
         ):
             await maintenance.execute(
                 f"DELETE FROM ipm.{table} WHERE resource_id = ANY(%s)",  # noqa: S608 (tabelas fixas)
                 (resource_ids,),
             )
     finally:
+        await controller.close()
         await maintenance.close()
 
 

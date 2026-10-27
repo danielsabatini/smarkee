@@ -32,9 +32,7 @@ FORBIDDEN_LAYERS = {
     "receiver": {"http", "auth", "store", "transport", "main", "settings"},
     "manager": {"handlers", "store", "outbox", "transport", "http", "main", "settings"},
     "publisher": {"outbox", "transport", "http", "main", "settings"},
-    "observer": {"engine", "provider", "transport", "http", "main", "settings"},
-    "reconciler": {"engine", "transport", "http", "main", "settings"},
-    "executor": {"engine", "actions", "provider", "transport", "http", "main", "settings"},
+    "controller": {"engine", "drivers", "store", "http", "main", "settings"},
 }
 # `http` é um pacote da stdlib (`HTTPStatus`) que o domínio do Receiver usa; nos demais papéis é a
 # camada de saúde e é proibida.
@@ -76,7 +74,7 @@ def _violation(role: str, module: str) -> bool:
         ("manager", "ipm_user.common.contracts.base", False),
         ("manager", "ipm_user.manager.domain.policy", False),
         ("receiver", "http", False),
-        ("executor", "http", True),
+        ("controller", "http", True),
     ],
 )
 def test_the_rule_flags_what_the_domain_must_not_import(
