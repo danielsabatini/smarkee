@@ -48,6 +48,9 @@ class UserAccessSettings(Section):
     serviceaccount_controller_account_id: str | None = None
     """Conta `ipm-serviceaccount-controller` (organização `core`; decisão 0096)."""
 
+    user_controller_account_id: str | None = None
+    """Conta `ipm-user-controller` (organização `core`; decisão 0096)."""
+
 
 class OrganizationManagerSettings(RoleSettings):
     model_config = role_config("manager")
@@ -86,6 +89,9 @@ def missing_required(settings: OrganizationManagerSettings) -> list[str]:
             ),
             "USER_ACCESS_SERVICEACCOUNT_CONTROLLER_ACCOUNT_ID": bool(
                 settings.user_access.serviceaccount_controller_account_id
+            ),
+            "USER_ACCESS_USER_CONTROLLER_ACCOUNT_ID": bool(
+                settings.user_access.user_controller_account_id
             ),
         },
     )

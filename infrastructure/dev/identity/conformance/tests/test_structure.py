@@ -116,6 +116,7 @@ SERVICE_ACCOUNTS = {
     "ipm-serviceaccount-controller",
     "ipm-serviceaccount-executor",
     "ipm-serviceaccount-observer",
+    "ipm-user-controller",
     "ipm-user-executor",
     "ipm-user-observer",
     "sum-service-executor",
@@ -643,6 +644,7 @@ EXPECTED_ACCOUNT_IDS = {
         "IPM_ORGANIZATION_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID": "ipm-serviceaccount-executor",
         "IPM_ORGANIZATION_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID": "ipm-serviceaccount-observer",
         "IPM_ORGANIZATION_SERVICEACCOUNT_CONTROLLER_ACCOUNT_ID": "ipm-serviceaccount-controller",
+        "IPM_ORGANIZATION_USER_CONTROLLER_ACCOUNT_ID": "ipm-user-controller",
     }
 }
 EXPECTED_REGISTER = {

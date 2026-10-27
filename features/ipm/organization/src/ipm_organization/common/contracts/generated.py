@@ -478,6 +478,15 @@ class OrganizationUserAccess(ContractModel):
     """
     Conta de serviço do Controller do ipm/serviceaccount (decisão 0096): reúne os papéis do Executor e do Observer.
     """
+    user_controller_account_id: Annotated[
+        str | None,
+        Field(
+            alias="userControllerAccountId", max_length=128, min_length=1, pattern="^[A-Za-z0-9-]+$"
+        ),
+    ] = None
+    """
+    Conta de serviço do Controller do ipm/user (decisão 0096): reúne os papéis do Executor e do Observer.
+    """
 
 
 class OrganizationAdministrator(ContractModel):

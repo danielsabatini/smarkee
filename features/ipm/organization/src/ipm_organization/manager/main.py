@@ -87,13 +87,16 @@ def _user_access(settings: OrganizationManagerSettings) -> dict[str, object]:
     machine_observer = settings.user_access.serviceaccount_observer_account_id
     assert executor and observer  # noqa: S101 (garantido por `missing_required`)
     machine_controller = settings.user_access.serviceaccount_controller_account_id
+    user_controller = settings.user_access.user_controller_account_id
     assert machine_executor and machine_observer and machine_controller  # noqa: S101 (idem)
+    assert user_controller  # noqa: S101 (idem)
     return desired_user_access(
         user_executor_account_id=executor,
         user_observer_account_id=observer,
         serviceaccount_executor_account_id=machine_executor,
         serviceaccount_observer_account_id=machine_observer,
         serviceaccount_controller_account_id=machine_controller,
+        user_controller_account_id=user_controller,
     )
 
 

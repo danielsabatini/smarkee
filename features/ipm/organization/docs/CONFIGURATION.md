@@ -156,6 +156,7 @@ Entrypoint do Manager de Organization (`ipm-organization-manager`, decisões 001
 - `IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID`
 - `IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID`
 - `IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_CONTROLLER_ACCOUNT_ID`
+- `IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_CONTROLLER_ACCOUNT_ID`
 
 | Campo | Variável | Flag | Tipo | Default | Descrição |
 |---|---|---|---|---|---|
@@ -176,6 +177,7 @@ Entrypoint do Manager de Organization (`ipm-organization-manager`, decisões 001
 | `user_access.serviceaccount_executor_account_id` | `IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID` | `--user_access.serviceaccount_executor_account_id` | `str \| None` | — | Obrigatória. Conta `ipm-serviceaccount-executor` (organização `core`; decisão 0094). |
 | `user_access.serviceaccount_observer_account_id` | `IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID` | `--user_access.serviceaccount_observer_account_id` | `str \| None` | — | Obrigatória. Conta `ipm-serviceaccount-observer` (organização `core`; decisão 0094). |
 | `user_access.serviceaccount_controller_account_id` | `IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_CONTROLLER_ACCOUNT_ID` | `--user_access.serviceaccount_controller_account_id` | `str \| None` | — | Obrigatória. Conta `ipm-serviceaccount-controller` (organização `core`; decisão 0096). |
+| `user_access.user_controller_account_id` | `IPM_ORGANIZATION_MANAGER_USER_ACCESS_USER_CONTROLLER_ACCOUNT_ID` | `--user_access.user_controller_account_id` | `str \| None` | — | Obrigatória. Conta `ipm-user-controller` (organização `core`; decisão 0096). |
 | `health.port` | `IPM_ORGANIZATION_MANAGER_HEALTH_PORT` | `--health.port` | `int` | `8000` | Porta das probes `/health/live`, `/health/ready` e `/health/startup` (decisão 0018). |
 
 **Definido no `config.toml` de dev:**

@@ -36,6 +36,10 @@ ADMINISTRATOR_KEY_ROLES: tuple[tuple[str, frozenset[str]], ...] = (
         "serviceaccountControllerAccountId",
         frozenset({ORGANIZATION_USER_CREATOR, PROJECT_GRANT_OWNER, ORGANIZATION_OWNER_VIEWER}),
     ),
+    (
+        "userControllerAccountId",
+        frozenset({ORGANIZATION_USER_CREATOR, PROJECT_GRANT_OWNER, ORGANIZATION_OWNER_VIEWER}),
+    ),
 )
 
 
@@ -51,6 +55,7 @@ def desired_user_access(
     serviceaccount_executor_account_id: str | None = None,
     serviceaccount_observer_account_id: str | None = None,
     serviceaccount_controller_account_id: str | None = None,
+    user_controller_account_id: str | None = None,
     grant_permissions: Iterable[str] | None = None,
     administrator_accounts: Mapping[str, Iterable[str]] | None = None,
 ) -> dict[str, Any]:
@@ -73,6 +78,8 @@ def desired_user_access(
         result["serviceaccountObserverAccountId"] = serviceaccount_observer_account_id
     if serviceaccount_controller_account_id is not None:
         result["serviceaccountControllerAccountId"] = serviceaccount_controller_account_id
+    if user_controller_account_id is not None:
+        result["userControllerAccountId"] = user_controller_account_id
 
     if administrator_accounts:
         declared: list[dict[str, Any]] = [
