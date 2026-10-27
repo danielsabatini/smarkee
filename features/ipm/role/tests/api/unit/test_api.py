@@ -69,22 +69,14 @@ class FakeOrganizations:
         return OrganizationAccess.OWNED if owned else OrganizationAccess.NOT_OWNED
 
 
-class FakeUsers:
-    """API de User: `members` mapeia o `sub` à Organization dele."""
+class FakeMembers:
+    """Projeção local do pertencimento: `members` mapeia o `sub` à Organization dele."""
 
     def __init__(self) -> None:
         self.members: dict[str, str] = {}
-        self.machines: dict[str, str] = {}
 
-    async def get_user_organization(self, user_id: str, access_token: str) -> str | None:
-        _ = access_token
-        return self.members.get(user_id)
-
-    async def get_serviceaccount_organization(
-        self, serviceaccount_id: str, access_token: str
-    ) -> str | None:
-        _ = access_token
-        return self.machines.get(serviceaccount_id)
+    def organization_of(self, subject: str) -> str | None:
+        return self.members.get(subject)
 
 
 class FakeRoleUsage:
@@ -278,7 +270,7 @@ class Harness:
         self.repo = FakeRepository()
         self.admissions = FakeAdmissionStore(self.repo)
         self.organizations = FakeOrganizations()
-        self.users = FakeUsers()
+        self.users = FakeMembers()
         self.usage = FakeRoleUsage()
         self.quota = 2
 
@@ -325,7 +317,7 @@ class Harness:
             }
         )
         self.organizations.owners["owner-1"] = "org-acme"
-        self.users.machines["machine-1"] = "org-acme"
+        self.users.members["machine-1"] = "org-acme"
         self.users.members.update(
             {"member-1": "org-acme", "member-2": "org-acme", "member-3": "org-other"}
         )
@@ -341,7 +333,7 @@ class Harness:
                 settings=ApiSettings(role_quota=self.quota),
                 repository=self.repo,
                 organizations=self.organizations,
-                users=self.users,
+                members=self.users,
                 role_usage=self.usage,
                 admissions=self.admissions,
                 authenticator=auth,

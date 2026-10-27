@@ -24,21 +24,17 @@ class Organizations(Protocol):
 
 
 class Users(Protocol):
-    """API de User: associação de usuários a grupos e Organization do solicitante."""
+    """API de User: associação de usuários a grupos."""
 
     async def count_users_with_group(
         self, organization_id: str, group_name: str, access_token: str
     ) -> int: ...
 
-    async def get_user_organization(self, user_id: str, access_token: str) -> str | None: ...
 
+class Members(Protocol):
+    """Projeção local do pertencimento de usuários e service accounts (decisão 0100)."""
 
-class ServiceAccounts(Protocol):
-    """API de ServiceAccount: reconhece a identidade de máquina da Organization (0094)."""
-
-    async def get_serviceaccount_organization(
-        self, serviceaccount_id: str, access_token: str
-    ) -> str | None: ...
+    def organization_of(self, subject: str) -> str | None: ...
 
 
 class AdmissionTransaction(Protocol):

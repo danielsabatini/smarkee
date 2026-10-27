@@ -101,6 +101,8 @@ async def test_the_api_serves_http_and_leaves_the_probes_to_the_app(
     assert runtime.started == [
         "permission-catalog",
         "organization-projection",
+        "member-projection-0",
+        "member-projection-1",
         "http",
     ]  # catálogo, Organizations, HTTP
     assert runtime.health_port is None

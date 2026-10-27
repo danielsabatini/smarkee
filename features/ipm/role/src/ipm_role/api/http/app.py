@@ -44,7 +44,7 @@ from ipm_role.api.domain.role import organization_of as desired_organization
 from ipm_role.api.domain.views import role_view
 from ipm_role.api.http.admission import admit
 from ipm_role.api.http.health_routes import register_health_routes
-from ipm_role.api.http.ports import AdmissionStore, Organizations, Repository, RoleUsage, Users
+from ipm_role.api.http.ports import AdmissionStore, Members, Organizations, Repository, RoleUsage
 from ipm_role.api.http.trace_context import TraceContextMiddleware
 from ipm_role.api.settings import ApiSettings
 from ipm_role.common.catalog import GrantableCatalog
@@ -79,7 +79,7 @@ class Dependencies:
     settings: ApiSettings
     repository: Repository
     organizations: Organizations
-    users: Users
+    members: Members
     role_usage: RoleUsage
     admissions: AdmissionStore
     authenticator: Authenticator
@@ -182,16 +182,8 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     async def standing_in(principal: Principal, organization_id: str) -> Standing | None:
         if principal.is_operator:
             return Standing.OPERATOR
-        # Pergunta à API de User se o solicitante é membro desta Organization.
-        member_of = await deps.users.get_user_organization(
-            principal.subject, principal.access_token
-        )
-        if member_of is None:
-            # Identidade de máquina da Organization (decisão 0094).
-            member_of = await deps.users.get_serviceaccount_organization(
-                principal.subject, principal.access_token
-            )
-        if member_of == organization_id:
+        # Usuário ou identidade de máquina (decisão 0094) da Organization, pela projeção local.
+        if deps.members.organization_of(principal.subject) == organization_id:
             return Standing.MEMBER
         access = deps.organizations.access(organization_id, principal.subject)
         return Standing.OWNER if access is OrganizationAccess.OWNED else None

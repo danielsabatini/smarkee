@@ -13,11 +13,16 @@ from ipm_group.api.http.app import Dependencies, create_app
 from ipm_group.api.settings import GroupApiSettings, missing_required
 from ipm_group.api.store.admission import SsotAdmissionStore
 from ipm_group.api.store.repository import SsotRepository
+from ipm_group.api.transport.member_projection import (
+    SERVICEACCOUNT_SUBJECT,
+    USER_SUBJECT,
+    MemberProjection,
+)
 from ipm_group.api.transport.organization_projection import (
     ORGANIZATION_SUBJECT,
     OrganizationProjection,
 )
-from ipm_group.api.transport.peers import ServiceAccountPeer, UserPeer
+from ipm_group.api.transport.peers import UserPeer
 from ipm_group.common.catalog import RolesCatalog
 from ipm_group.common.catalog_watcher import RoleCatalogWatcher
 from ipm_group.common.database import open_pool
@@ -61,8 +66,33 @@ async def run(settings: GroupApiSettings) -> int:
         )
         runtime.start("organization-projection", organization_consumer.run(runtime.stop))
 
+        # Organization dos membros (usuários e service accounts), sem consultar as APIs deles.
+        members = MemberProjection()
+        member_consumers = [
+            StateConsumer(
+                runtime.stream,
+                members,
+                durable=f"ipm-group-api-{name}-{new_instance_name()}",
+                stream="DESIRED",
+                filter_subject=subject,
+                inactive_threshold_seconds=300,
+                traced=False,
+                on_cycle=runtime.health.beat,
+            )
+            for name, subject in (
+                ("users", USER_SUBJECT),
+                ("serviceaccounts", SERVICEACCOUNT_SUBJECT),
+            )
+        ]
+        for index, consumer in enumerate(member_consumers):
+            runtime.start(f"member-projection-{index}", consumer.run(runtime.stop))
+
         def is_synced() -> bool:
-            return roles.is_synced and organization_consumer.is_synced
+            return (
+                roles.is_synced
+                and organization_consumer.is_synced
+                and all(consumer.is_synced for consumer in member_consumers)
+            )
 
         app = create_app(
             Dependencies(
@@ -71,7 +101,7 @@ async def run(settings: GroupApiSettings) -> int:
                 repository=SsotRepository(pool),
                 organizations=organizations,
                 users=UserPeer(settings.peers, http),
-                serviceaccounts=ServiceAccountPeer(settings.peers, http),
+                members=members,
                 admissions=SsotAdmissionStore(pool),
                 catalog=catalog,
                 is_ready=lambda: runtime.client.is_connected and is_synced(),

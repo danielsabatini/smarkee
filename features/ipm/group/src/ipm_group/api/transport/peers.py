@@ -20,32 +20,6 @@ class UserPeer:
         self._settings = settings
         self._client = client
 
-    async def get_user_organization(self, user_id: str, access_token: str) -> str | None:
-        try:
-            response = await self._client.get(
-                f"{self._settings.users_url}{USERS_PATH}/{user_id}",
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=self._settings.timeout_seconds,
-            )
-        except httpx.HTTPError:
-            return None
-        if response.status_code != HTTP_OK:
-            return None
-        try:
-            data: object = response.json()
-            if not isinstance(data, dict):
-                return None
-            desired = cast("dict[str, object]", data).get("desired")
-            if (
-                isinstance(desired, dict)
-                and cast("dict[str, object]", desired).get("lifecycle") == "present"
-            ):
-                org_id = cast("dict[str, object]", desired).get("organizationId")
-                return str(org_id) if org_id is not None else None
-        except Exception:
-            return None
-        return None
-
     async def count_users_with_group(
         self, organization_id: str, group_name: str, access_token: str
     ) -> int:
@@ -84,40 +58,3 @@ class UserPeer:
             return count
         except Exception:
             return 0
-
-
-class ServiceAccountPeer:
-    """Reconhece a service account (identidade de máquina) pelo próprio registro (decisão 0094)."""
-
-    def __init__(self, settings: PeersSettings, client: httpx.AsyncClient) -> None:
-        self._settings = settings
-        self._client = client
-
-    async def get_serviceaccount_organization(
-        self, serviceaccount_id: str, access_token: str
-    ) -> str | None:
-        """Organization da service account, ou `None` quando o solicitante não é uma."""
-        try:
-            response = await self._client.get(
-                f"{self._settings.serviceaccounts_url}{SERVICEACCOUNTS_PATH}/{serviceaccount_id}",
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=self._settings.timeout_seconds,
-            )
-        except httpx.HTTPError:
-            return None
-        if response.status_code != HTTP_OK:
-            return None
-        try:
-            data: object = response.json()
-        except ValueError:
-            return None
-        if not isinstance(data, dict):
-            return None
-        desired = cast("dict[str, object]", data).get("desired")
-        if not isinstance(desired, dict):
-            return None
-        fields = cast("dict[str, object]", desired)
-        organization_id = fields.get("organizationId")
-        if fields.get("lifecycle") != "present" or organization_id is None:
-            return None
-        return str(organization_id)

@@ -5,28 +5,7 @@ import pytest
 
 from ipm_role.api.domain.access import AccessCheckError
 from ipm_role.api.settings import PeersSettings
-from ipm_role.api.transport.peers import RoleUsagePeer, UserPeer
-
-
-async def test_user_peer_reads_the_organization_of_a_present_serviceaccount() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path.startswith("/v1/ipm/serviceaccounts/")
-        name = request.url.path.rsplit("/", 1)[-1]
-        if name == "machine-1":
-            return httpx.Response(
-                200, json={"desired": {"lifecycle": "present", "organizationId": "org-1"}}
-            )
-        if name == "removed":
-            return httpx.Response(
-                200, json={"desired": {"lifecycle": "absent", "organizationId": "org-1"}}
-            )
-        return httpx.Response(404)
-
-    peer = UserPeer(PeersSettings(), httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-
-    assert await peer.get_serviceaccount_organization("machine-1", "tok") == "org-1"
-    assert await peer.get_serviceaccount_organization("removed", "tok") is None
-    assert await peer.get_serviceaccount_organization("missing", "tok") is None
+from ipm_role.api.transport.peers import RoleUsagePeer
 
 
 async def test_role_in_use_looks_at_serviceaccounts_too() -> None:

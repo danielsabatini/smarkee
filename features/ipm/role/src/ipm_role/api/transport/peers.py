@@ -31,56 +31,6 @@ def _desired_of(document: object) -> dict[str, Any] | None:
     return cast("dict[str, Any]", desired) if isinstance(desired, dict) else None
 
 
-class UserPeer:
-    def __init__(self, settings: PeersSettings, client: httpx.AsyncClient) -> None:
-        self._settings = settings
-        self._client = client
-
-    async def get_user_organization(self, user_id: str, access_token: str) -> str | None:
-        """Organization do próprio solicitante (todo usuário lê o próprio registro)."""
-        try:
-            response = await self._client.get(
-                f"{self._settings.users_url}{USERS_PATH}/{user_id}",
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=self._settings.timeout_seconds,
-            )
-        except httpx.HTTPError:
-            return None
-        if response.status_code != HTTP_OK:
-            return None
-        try:
-            desired = _desired_of(response.json())
-        except ValueError:
-            return None
-        if desired is None or desired.get("lifecycle") != "present":
-            return None
-        organization_id = desired.get("organizationId")
-        return str(organization_id) if organization_id is not None else None
-
-    async def get_serviceaccount_organization(
-        self, serviceaccount_id: str, access_token: str
-    ) -> str | None:
-        """Organization da service account solicitante (lê o próprio registro; decisão 0094)."""
-        try:
-            response = await self._client.get(
-                f"{self._settings.serviceaccounts_url}{SERVICEACCOUNTS_PATH}/{serviceaccount_id}",
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=self._settings.timeout_seconds,
-            )
-        except httpx.HTTPError:
-            return None
-        if response.status_code != HTTP_OK:
-            return None
-        try:
-            desired = _desired_of(response.json())
-        except ValueError:
-            return None
-        if desired is None or desired.get("lifecycle") != "present":
-            return None
-        organization_id = desired.get("organizationId")
-        return str(organization_id) if organization_id is not None else None
-
-
 class RoleUsagePeer:
     """Informa se usuário, grupo ou service account usa uma Role (`ResourcesAttached`)."""
 

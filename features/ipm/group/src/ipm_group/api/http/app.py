@@ -45,9 +45,9 @@ from ipm_group.api.http.admission import admit
 from ipm_group.api.http.health_routes import register_health_routes
 from ipm_group.api.http.ports import (
     AdmissionStore,
+    Members,
     Organizations,
     Repository,
-    ServiceAccounts,
     Users,
 )
 from ipm_group.api.http.trace_context import TraceContextMiddleware
@@ -84,7 +84,7 @@ class Dependencies:
     repository: Repository
     organizations: Organizations
     users: Users
-    serviceaccounts: ServiceAccounts
+    members: Members
     admissions: AdmissionStore
     catalog: RolesCatalog = field(default_factory=RolesCatalog)
     clock: Callable[[], datetime] = utc_now
@@ -170,16 +170,8 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     async def standing_in(principal: Principal, organization_id: str) -> Standing | None:
         if principal.is_operator:
             return Standing.OPERATOR
-        # Pergunta ao User receiver se o subject é membro desta Organization
-        member_org = await deps.users.get_user_organization(
-            principal.subject, principal.access_token
-        )
-        if member_org is None:
-            # Identidade de máquina da Organization (decisão 0094).
-            member_org = await deps.serviceaccounts.get_serviceaccount_organization(
-                principal.subject, principal.access_token
-            )
-        if member_org == organization_id:
+        # Usuário ou identidade de máquina (decisão 0094) da Organization, pela projeção local.
+        if deps.members.organization_of(principal.subject) == organization_id:
             return Standing.MEMBER
         access = deps.organizations.access(organization_id, principal.subject)
         return Standing.OWNER if access is OrganizationAccess.OWNED else None

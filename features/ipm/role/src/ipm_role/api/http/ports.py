@@ -25,14 +25,10 @@ class Organizations(Protocol):
     def access(self, organization_id: str, subject: str) -> OrganizationAccess: ...
 
 
-class Users(Protocol):
-    """APIs de User e ServiceAccount, para descobrir a Organization do solicitante."""
+class Members(Protocol):
+    """Projeção local do pertencimento de usuários e service accounts (decisão 0100)."""
 
-    async def get_user_organization(self, user_id: str, access_token: str) -> str | None: ...
-
-    async def get_serviceaccount_organization(
-        self, serviceaccount_id: str, access_token: str
-    ) -> str | None: ...
+    def organization_of(self, subject: str) -> str | None: ...
 
 
 class RoleUsage(Protocol):

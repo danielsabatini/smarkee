@@ -15,11 +15,16 @@ from ipm_role.api.settings import RoleApiSettings, missing_required
 from ipm_role.api.store.admission import SsotAdmissionStore
 from ipm_role.api.store.repository import SsotRepository
 from ipm_role.api.transport.catalog_consumer import PermissionCatalogWatcher
+from ipm_role.api.transport.member_projection import (
+    SERVICEACCOUNT_SUBJECT,
+    USER_SUBJECT,
+    MemberProjection,
+)
 from ipm_role.api.transport.organization_projection import (
     ORGANIZATION_SUBJECT,
     OrganizationProjection,
 )
-from ipm_role.api.transport.peers import RoleUsagePeer, UserPeer
+from ipm_role.api.transport.peers import RoleUsagePeer
 from ipm_role.common.catalog import GrantableCatalog
 from ipm_role.common.database import open_pool
 from ipm_role.common.http.server import serve_http
@@ -63,15 +68,40 @@ async def run(settings: RoleApiSettings) -> int:
         )
         runtime.start("organization-projection", organization_consumer.run(runtime.stop))
 
+        # Organization dos membros (usuários e service accounts), sem consultar as APIs deles.
+        members = MemberProjection()
+        member_consumers = [
+            StateConsumer(
+                runtime.stream,
+                members,
+                durable=f"ipm-role-api-{name}-{new_instance_name()}",
+                stream="DESIRED",
+                filter_subject=subject,
+                inactive_threshold_seconds=300,
+                traced=False,
+                on_cycle=runtime.health.beat,
+            )
+            for name, subject in (
+                ("users", USER_SUBJECT),
+                ("serviceaccounts", SERVICEACCOUNT_SUBJECT),
+            )
+        ]
+        for index, consumer in enumerate(member_consumers):
+            runtime.start(f"member-projection-{index}", consumer.run(runtime.stop))
+
         def is_synced() -> bool:
-            return permissions.is_synced and organization_consumer.is_synced
+            return (
+                permissions.is_synced
+                and organization_consumer.is_synced
+                and all(consumer.is_synced for consumer in member_consumers)
+            )
 
         app = create_app(
             Dependencies(
                 settings=settings.api,
                 repository=SsotRepository(pool),
                 organizations=organizations,
-                users=UserPeer(settings.peers, http),
+                members=members,
                 role_usage=RoleUsagePeer(settings.peers, http),
                 grantable=grantable,
                 admissions=SsotAdmissionStore(pool),

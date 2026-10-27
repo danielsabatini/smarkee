@@ -71,10 +71,6 @@ class FakeOrganizations:
 
 class FakeUsers:
     def __init__(self) -> None:
-        self.member_org_by_subject: dict[str, str] = {
-            "member-no-bind": ORG_ID,
-            "member-with-bind": ORG_ID,
-        }
         self.attached_counts: dict[tuple[str, str], int] = {}
 
     async def count_users_with_group(
@@ -83,19 +79,19 @@ class FakeUsers:
         _ = access_token
         return self.attached_counts.get((organization_id, group_name), 0)
 
-    async def get_user_organization(self, user_id: str, access_token: str) -> str | None:
-        _ = access_token
-        return self.member_org_by_subject.get(user_id)
 
+class FakeMembers:
+    """Projeção local do pertencimento: `machine-1` é uma identidade de máquina da `ORG_ID`."""
 
-class FakeServiceAccounts:
-    """API de ServiceAccount: `machine-1` é uma identidade de máquina da `ORG_ID`."""
+    def __init__(self) -> None:
+        self.organization_by_subject: dict[str, str] = {
+            "member-no-bind": ORG_ID,
+            "member-with-bind": ORG_ID,
+            "machine-1": ORG_ID,
+        }
 
-    async def get_serviceaccount_organization(
-        self, serviceaccount_id: str, access_token: str
-    ) -> str | None:
-        _ = access_token
-        return ORG_ID if serviceaccount_id == "machine-1" else None
+    def organization_of(self, subject: str) -> str | None:
+        return self.organization_by_subject.get(subject)
 
 
 class FakeAdmissionTransaction:
@@ -321,7 +317,7 @@ def _setup(
             repository=repo,
             organizations=FakeOrganizations(),
             users=users,
-            serviceaccounts=FakeServiceAccounts(),
+            members=FakeMembers(),
             admissions=admissions,
             clock=lambda: FIXED_NOW,
             identifiers=next_id,
