@@ -24,6 +24,17 @@ PROJECT_GRANT_OWNER = "PROJECT_GRANT_OWNER"
 ORGANIZATION_OWNER_VIEWER = "ORG_OWNER_VIEWER"
 
 
+ADMINISTRATOR_KEY_ROLES: tuple[tuple[str, frozenset[str]], ...] = (
+    ("userExecutorAccountId", frozenset({ORGANIZATION_USER_CREATOR, PROJECT_GRANT_OWNER})),
+    ("userObserverAccountId", frozenset({ORGANIZATION_OWNER_VIEWER})),
+    (
+        "serviceaccountExecutorAccountId",
+        frozenset({ORGANIZATION_USER_CREATOR, PROJECT_GRANT_OWNER}),
+    ),
+    ("serviceaccountObserverAccountId", frozenset({ORGANIZATION_OWNER_VIEWER})),
+)
+
+
 def grant_catalog() -> list[str]:
     """O catálogo inicial `grantablePermission` do contrato, em ordem alfabética."""
     return sorted(permission.value for permission in generated.GrantablePermission)
@@ -31,48 +42,71 @@ def grant_catalog() -> list[str]:
 
 def desired_user_access(
     *,
-    user_executor_account_id: str,
-    user_observer_account_id: str,
+    user_executor_account_id: str | None = None,
+    user_observer_account_id: str | None = None,
     serviceaccount_executor_account_id: str | None = None,
     serviceaccount_observer_account_id: str | None = None,
     grant_permissions: Iterable[str] | None = None,
+    administrator_accounts: Mapping[str, Iterable[str]] | None = None,
 ) -> dict[str, Any]:
     """O `userAccess` que o `desired` deve ter agora: o catálogo e as contas dos tipos.
 
-    As contas do `ipm/serviceaccount` (decisão 0094) entram quando informadas.
+    Suporta argumentos nomeados conhecidos e/ou registro declarativo de contas
+    (Ajuste 3 do plano de evolução).
     """
     permissions = (
         sorted(set(grant_permissions)) if grant_permissions is not None else grant_catalog()
     )
-    result: dict[str, Any] = {
-        "grantPermissions": permissions,
-        "userExecutorAccountId": user_executor_account_id,
-        "userObserverAccountId": user_observer_account_id,
-    }
+    result: dict[str, Any] = {"grantPermissions": permissions}
+    if user_executor_account_id is not None:
+        result["userExecutorAccountId"] = user_executor_account_id
+    if user_observer_account_id is not None:
+        result["userObserverAccountId"] = user_observer_account_id
     if serviceaccount_executor_account_id is not None:
         result["serviceaccountExecutorAccountId"] = serviceaccount_executor_account_id
     if serviceaccount_observer_account_id is not None:
         result["serviceaccountObserverAccountId"] = serviceaccount_observer_account_id
+
+    if administrator_accounts:
+        declared: list[dict[str, Any]] = [
+            {"accountId": acc, "permissions": sorted(perms)}
+            for acc, perms in administrator_accounts.items()
+        ]
+        result["administratorAccounts"] = declared
+
     return result
 
 
-def required_administrators(user_access: Mapping[str, Any]) -> dict[str, frozenset[str]]:
-    """Conta → permissões de administração que ela precisa ter, somando a organização e o Grant."""
-    executor = str(user_access["userExecutorAccountId"])
-    observer = str(user_access["userObserverAccountId"])
-    required: dict[str, set[str]] = {
-        executor: {ORGANIZATION_USER_CREATOR, PROJECT_GRANT_OWNER},
-    }
-    required.setdefault(observer, set()).add(ORGANIZATION_OWNER_VIEWER)
-    # Contas do `ipm/serviceaccount` (decisão 0094): as mesmas permissões, em cada Organization.
-    machine_executor = user_access.get("serviceaccountExecutorAccountId")
-    if machine_executor is not None:
-        required.setdefault(str(machine_executor), set()).update(
-            {ORGANIZATION_USER_CREATOR, PROJECT_GRANT_OWNER}
-        )
-    machine_observer = user_access.get("serviceaccountObserverAccountId")
-    if machine_observer is not None:
-        required.setdefault(str(machine_observer), set()).add(ORGANIZATION_OWNER_VIEWER)
+def required_administrators(
+    user_access: Mapping[str, Any],
+    extra_declarative_accounts: Mapping[str, Iterable[str]] | None = None,
+) -> dict[str, frozenset[str]]:
+    """Conta → permissões de administração que ela precisa ter, somando a organização e o Grant.
+
+    Avalia as chaves padrão conhecidas e registros declarativos (Ajuste 3).
+    """
+    required: dict[str, set[str]] = {}
+
+    for key, perms in ADMINISTRATOR_KEY_ROLES:
+        account_id = user_access.get(key)
+        if account_id:
+            required.setdefault(str(account_id), set()).update(perms)
+
+    # Contas declarativas embutidas no próprio documento
+    for item in cast("list[object]", user_access.get("administratorAccounts") or []):
+        if isinstance(item, Mapping):
+            entry = cast("Mapping[str, Any]", item)
+            acc = entry.get("accountId")
+            declared = entry.get("permissions")
+            if acc and isinstance(declared, list):
+                items = cast("list[object]", declared)
+                required.setdefault(str(acc), set()).update(str(p) for p in items)
+
+    # Contas declarativas fornecidas externamente (ex.: catálogo ou configuração dinâmica)
+    if extra_declarative_accounts:
+        for acc, perms in extra_declarative_accounts.items():
+            required.setdefault(str(acc), set()).update(str(p) for p in perms)
+
     return {account: frozenset(permissions) for account, permissions in required.items()}
 
 

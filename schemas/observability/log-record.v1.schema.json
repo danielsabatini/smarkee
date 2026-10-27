@@ -99,7 +99,7 @@
         "smarkee.resource.type": {"type": "string", "pattern": "^[a-z0-9]+$", "maxLength": 64},
         "smarkee.component.role": {
           "type": "string",
-          "enum": ["receiver", "manager", "publisher", "observer", "reconciler", "executor"]
+          "enum": ["receiver", "manager", "publisher", "controller", "observer", "reconciler", "executor"]
         }
       }
     },

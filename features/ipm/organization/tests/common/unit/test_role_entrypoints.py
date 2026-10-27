@@ -11,6 +11,8 @@ from typing import Any
 
 import pytest
 
+from ipm_organization.controller import main as controller_main
+from ipm_organization.controller.settings import OrganizationControllerSettings
 from ipm_organization.executor import main as executor_main
 from ipm_organization.executor.settings import OrganizationExecutorSettings
 from ipm_organization.manager import main as manager_main
@@ -83,6 +85,7 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
         yield fake
 
     modules: tuple[ModuleType, ...] = (
+        controller_main,
         executor_main,
         manager_main,
         observer_main,
@@ -92,7 +95,7 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
     )
     for module in modules:
         monkeypatch.setattr(module, "role_runtime", fake_role_runtime)
-    for module in (manager_main, receiver_main):
+    for module in (controller_main, manager_main, receiver_main):
         monkeypatch.setattr(module, "open_pool", fake_open_pool)
 
     async def fake_rollout(_pool: Any, kind: Any) -> int:
@@ -101,7 +104,11 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
         return 0
 
     monkeypatch.setattr(manager_main, "roll_out_user_access", fake_rollout)
-    for prefix in ("IPM_ORGANIZATION_OBSERVER_", "IPM_ORGANIZATION_EXECUTOR_"):
+    for prefix in (
+        "IPM_ORGANIZATION_OBSERVER_",
+        "IPM_ORGANIZATION_EXECUTOR_",
+        "IPM_ORGANIZATION_CONTROLLER_",
+    ):
         monkeypatch.setenv(f"{prefix}IDENTITY_PROJECT_ID", "roles-ipm")
     for account in ("EXECUTOR", "OBSERVER"):
         monkeypatch.setenv(
@@ -112,6 +119,18 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
             f"machine-{account}",
         )
     return fake
+
+
+async def test_the_controller_starts_informer_workers_and_periodic(
+    runtime: FakeRuntime,
+) -> None:
+    settings = OrganizationControllerSettings()
+    assert await controller_main.run(settings) == 0
+    assert "desired" in runtime.started
+    assert "worker-0" in runtime.started
+    assert "worker-1" in runtime.started
+    assert "periodic" in runtime.started
+    assert len(runtime.closers) == 2
 
 
 async def test_the_manager_starts_one_task_per_consumer(runtime: FakeRuntime) -> None:

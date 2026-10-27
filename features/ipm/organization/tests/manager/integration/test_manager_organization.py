@@ -302,6 +302,36 @@ async def test_update_bumps_generation_and_version_and_publishes(
     assert [item["payload"]["desiredGeneration"] for item in messages] == [1, 2]
 
 
+@pytest.mark.parametrize("reserved_name", sorted(RESERVED_ORGANIZATION_NAMES))
+async def test_update_to_reserved_name_is_rejected_without_changing_desired(
+    cleanup: Cleanup,
+    organization_manager: Connection,
+    outbox_reader: Connection,
+    reserved_name: str,
+) -> None:
+    original_name = "org-" + unique_suffix()
+    create = create_message(cleanup, owner="user-1", name=original_name)
+    await handler.handle(ssot(organization_manager), ORGANIZATION, create)
+
+    outcome = await handler.handle(
+        ssot(organization_manager),
+        ORGANIZATION,
+        change_message(
+            cleanup,
+            create=create,
+            operation="update",
+            version="1",
+            specification={"name": reserved_name},
+        ),
+    )
+
+    assert (outcome.kind, outcome.reason) == (OutcomeKind.REJECTED, RejectionReason.VALIDATION)
+    row = await resource_row(organization_manager, create["resourceId"])
+    assert row is not None
+    assert row["desired"]["name"] == original_name
+    assert row["desired_generation"] == 1
+
+
 async def test_stale_resource_version_is_a_conflict(
     cleanup: Cleanup, organization_manager: Connection, outbox_reader: Connection
 ) -> None:

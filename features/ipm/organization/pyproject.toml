@@ -20,6 +20,7 @@ dependencies = [
 ipm-organization-receiver = "ipm_organization.receiver.main:main"
 ipm-organization-manager = "ipm_organization.manager.main:main"
 ipm-organization-publisher = "ipm_organization.publisher.main:main"
+ipm-organization-controller = "ipm_organization.controller.main:main"
 ipm-organization-observer = "ipm_organization.observer.main:main"
 ipm-organization-reconciler = "ipm_organization.reconciler.main:main"
 ipm-organization-executor = "ipm_organization.executor.main:main"
@@ -50,11 +51,11 @@ select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
 [tool.pyright]
 pythonVersion = "3.14"
 typeCheckingMode = "strict"
-include = ["src", "tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/observer", "tests/reconciler", "tests/executor"]
+include = ["src", "tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/controller", "tests/observer", "tests/reconciler", "tests/executor"]
 
 [tool.pytest.ini_options]
 # `tests/e2e` é um projeto à parte (black-box, decisão 0017) e não entra aqui.
-testpaths = ["tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/observer", "tests/reconciler", "tests/executor"]
+testpaths = ["tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/controller", "tests/observer", "tests/reconciler", "tests/executor"]
 addopts = ["--import-mode=importlib"]
 # Cada papel com testes de integração tem o seu módulo de apoio (`support_<papel>`).
 pythonpath = ["tests/receiver/integration", "tests/manager/integration", "tests/publisher/integration"]

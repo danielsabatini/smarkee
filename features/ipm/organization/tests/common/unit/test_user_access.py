@@ -105,3 +105,19 @@ def test_the_serviceaccount_accounts_are_required_only_when_the_desired_names_th
     )
     assert access.converged(desired, ready)
     assert "machine-executor" not in access.required_administrators(DESIRED)
+
+
+def test_declarative_administrator_accounts_are_supported() -> None:
+    desired = access.desired_user_access(
+        user_executor_account_id="executor",
+        user_observer_account_id="observer",
+        administrator_accounts={
+            "custom-worker": ["ORG_USER_CREATOR"],
+        },
+    )
+    reqs = access.required_administrators(
+        desired, extra_declarative_accounts={"external-auditor": ["ORG_OWNER_VIEWER"]}
+    )
+    assert reqs["custom-worker"] == frozenset({"ORG_USER_CREATOR"})
+    assert reqs["external-auditor"] == frozenset({"ORG_OWNER_VIEWER"})
+    assert reqs["executor"] == frozenset({"ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"})
