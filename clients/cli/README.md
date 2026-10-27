@@ -24,9 +24,10 @@ Cada valor é resolvido nesta ordem, do mais forte para o mais fraco: **variáve
 uv run sk config list                              # cada chave, o valor efetivo e a origem (default, file ou env)
 uv run sk config get api.url                   # só o valor efetivo, para uso em scripts
 uv run sk config set api.url http://api-dev.smarkee.com.br:8080   # cria o arquivo, se não existir
+uv run sk config set api.timeoutSeconds 30   # segundos que cada pedido à API espera (1 a 300; padrão 10)
 ```
 
-Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `api.url`, `api.allowInsecureHttp`, `core.projectId`, `sum.projectId`, `ipm.projectId`, `ipm.organizationId`, `bsm.projectId`, `bsm.accountId` e `operator.projectId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro **só com as sobrescritas**: um valor que ficou no padrão não vai para o arquivo, e comentários feitos à mão não são preservados. Não há `unset`: para voltar ao padrão, apague a chave do arquivo.
+Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `api.url`, `api.allowInsecureHttp`, `api.timeoutSeconds`, `core.projectId`, `sum.projectId`, `ipm.projectId`, `ipm.organizationId`, `bsm.projectId`, `bsm.accountId` e `operator.projectId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro **só com as sobrescritas**: um valor que ficou no padrão não vai para o arquivo, e comentários feitos à mão não são preservados. Não há `unset`: para voltar ao padrão, apague a chave do arquivo.
 
 **O que ainda não tem padrão de produção:** o client ID e os IDs dos projetos de roles só nascem quando o Zitadel de produção for provisionado. Até lá o padrão é o marcador `000000000000000000` (18 zeros), e `sk auth login` recusa o login dizendo quais valores faltam (em vez de seguir e falhar adiante). Em desenvolvimento, sobrescreva cada um:
 

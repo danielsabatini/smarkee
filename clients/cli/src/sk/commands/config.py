@@ -34,6 +34,9 @@ from sk.settings import (
     render_section,
 )
 
+ConfigValue = str | bool | int
+"""Tipos de valor que o arquivo guarda: texto, booleano ou inteiro."""
+
 EXIT_FAILURE = 1
 EXIT_USAGE_ERROR = 2
 
@@ -65,6 +68,7 @@ class ConfigKey:
     file_name: str
     field_name: str
     is_boolean: bool
+    is_integer: bool = False
 
     @property
     def dotted(self) -> str:
@@ -80,6 +84,7 @@ def known_keys() -> dict[str, ConfigKey]:
                 file_name=to_camel(field_name),
                 field_name=field_name,
                 is_boolean=field.annotation is bool,
+                is_integer=field.annotation is int,
             )
             keys[key.dotted] = key
     return keys
@@ -139,22 +144,22 @@ def _key_or_exit(name: str | None) -> ConfigKey:
     return keys[name]
 
 
-def _stored_value(document: dict[str, Any], key: ConfigKey) -> str | bool | None:
+def _stored_value(document: dict[str, Any], key: ConfigKey) -> ConfigValue | None:
     section: object = document.get(key.section)
     if not isinstance(section, dict):
         return None
     table = cast(dict[str, object], section)
     value = table.get(key.file_name)
-    return value if isinstance(value, str | bool) else None
+    return value if isinstance(value, str | bool | int) else None
 
 
-def _text(value: str | bool) -> str:
+def _text(value: ConfigValue) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
-    return value
+    return str(value)
 
 
-def _parse_value(key: ConfigKey, raw: str) -> str | bool:
+def _parse_value(key: ConfigKey, raw: str) -> ConfigValue:
     if key.is_boolean:
         if raw not in ("true", "false"):
             ui.error(
@@ -164,6 +169,15 @@ def _parse_value(key: ConfigKey, raw: str) -> str | bool:
             )
             raise typer.Exit(EXIT_USAGE_ERROR)
         return raw == "true"
+    if key.is_integer:
+        if not (raw.isascii() and raw.isdecimal()):
+            ui.error(
+                "Invalid value",
+                f"{key.dotted} accepts only a whole number.",
+                hint="Use digits only, for example 10.",
+            )
+            raise typer.Exit(EXIT_USAGE_ERROR)
+        return int(raw)
     if not raw.strip():
         ui.error("Empty value", f"{key.dotted} cannot be empty.")
         raise typer.Exit(EXIT_USAGE_ERROR)
@@ -177,7 +191,7 @@ def _parse_value(key: ConfigKey, raw: str) -> str | bool:
     return raw
 
 
-def _effective_values() -> dict[str, str | bool]:
+def _effective_values() -> dict[str, ConfigValue]:
     """Valor efetivo de cada chave (parâmetro, variável, arquivo ou padrão, nesta ordem)."""
     try:
         settings = SkSettings()
@@ -188,10 +202,10 @@ def _effective_values() -> dict[str, str | bool]:
             "Fix the file or the SK_* variables.",
             EXIT_USAGE_ERROR,
         )
-    values: dict[str, str | bool] = {}
+    values: dict[str, ConfigValue] = {}
     for key in known_keys().values():
         section = cast(BaseModel, getattr(settings, key.section))
-        values[key.dotted] = cast("str | bool", getattr(section, key.field_name))
+        values[key.dotted] = cast("ConfigValue", getattr(section, key.field_name))
     return values
 
 
@@ -203,7 +217,7 @@ def _source_of(key: ConfigKey, document: dict[str, Any]) -> str:
 
 
 def store_value(
-    key: ConfigKey, value: str | bool, document: dict[str, Any], *, path: Path
+    key: ConfigKey, value: ConfigValue, document: dict[str, Any], *, path: Path
 ) -> dict[str, BaseModel]:
     """Grava `value` em `key` no arquivo `path`, a partir do `document` lido dele.
 

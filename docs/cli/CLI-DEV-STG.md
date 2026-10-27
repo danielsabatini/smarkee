@@ -33,6 +33,7 @@ Preencha o `.env` com os valores do ambiente. Os IDs vêm do console do Zitadel 
 | `SK_AUTH_ALLOW_INSECURE_HTTP` | `true` só onde não há TLS (dev) |
 | `SK_API_URL` | Endereço da API (gateway), para todos os módulos |
 | `SK_API_ALLOW_INSECURE_HTTP` | `true` só onde não há TLS (dev) |
+| `SK_API_TIMEOUT_SECONDS` | Segundos que cada pedido à API espera (1 a 300; padrão 10). Opcional |
 | `SK_CORE_PROJECT_ID` | ID do projeto `roles-core` |
 | `SK_SUM_PROJECT_ID` | ID do projeto `roles-sum` |
 | `SK_IPM_PROJECT_ID` | ID do projeto `roles-ipm` |

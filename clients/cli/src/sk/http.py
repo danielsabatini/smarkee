@@ -19,6 +19,7 @@ from typing import Any, cast
 from sk.identity.oidc import ensure_secure_url
 
 HTTP_TIMEOUT_SECONDS = 10.0
+"""Segundos que cada pedido à API espera quando `[api] timeoutSeconds` não está definido."""
 
 Opener = Callable[..., Any]
 
@@ -68,15 +69,38 @@ def _error_body(error: urllib.error.HTTPError) -> dict[str, object]:
     return cast(dict[str, object], document) if isinstance(document, dict) else {}
 
 
+def configured_timeout() -> float:
+    """Tempo máximo de um pedido: `SK_API_TIMEOUT_SECONDS`, `[api] timeoutSeconds` ou o padrão.
+
+    A leitura é tardia porque `sk.settings` importa este módulo (via `api_contract`). Uma
+    configuração inválida já foi recusada por `load_api` antes de qualquer pedido; se ainda assim
+    chegar aqui, vale o padrão, em vez de um erro novo no meio da chamada.
+    """
+    from pydantic import ValidationError
+
+    from sk.settings import ConfigurationError, SkSettings
+
+    try:
+        return float(SkSettings().api.timeout_seconds)
+    except ValidationError, ConfigurationError:
+        return HTTP_TIMEOUT_SECONDS
+
+
+def _is_timeout(error: BaseException) -> bool:
+    reason = error.reason if isinstance(error, urllib.error.URLError) else error
+    return isinstance(reason, TimeoutError)
+
+
 def send(request: urllib.request.Request, *, opener: Opener | None = None) -> tuple[int, object]:
     """Envia o pedido e devolve `(status, corpo JSON)`.
 
     `4xx` vira `ApiRejectedError` com o motivo da API; `5xx`, rede ou corpo fora de JSON viram
-    `ApiUnavailableError`.
+    `ApiUnavailableError`. O tempo máximo vem de `configured_timeout`.
     """
     open_url = opener or urllib.request.urlopen  # resolvido na chamada (testes substituem)
+    timeout = configured_timeout()
     try:
-        with open_url(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+        with open_url(request, timeout=timeout) as response:
             return response.status, json.loads(response.read() or b"{}")
     except urllib.error.HTTPError as error:
         document = _error_body(error)
@@ -92,6 +116,11 @@ def send(request: urllib.request.Request, *, opener: Opener | None = None) -> tu
             ) from None
         raise ApiUnavailableError(f"the API answered HTTP {error.code}") from None
     except (urllib.error.URLError, OSError, TimeoutError) as error:
+        if _is_timeout(error):
+            raise ApiUnavailableError(
+                f"could not reach the API (TimeoutError after {timeout:g} s; "
+                "raise it with `sk config set api.timeoutSeconds` if the network is slow)"
+            ) from None
         raise ApiUnavailableError(f"could not reach the API ({type(error).__name__})") from None
     except ValueError:
         raise ApiUnavailableError("the API response is not JSON") from None

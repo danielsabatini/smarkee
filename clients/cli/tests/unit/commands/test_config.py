@@ -226,3 +226,24 @@ def test_invalid_file_does_not_suggest_a_removed_command(tmp_path: Path) -> None
     result = runner.invoke(app, ["config", "list"])
     assert result.exit_code == 2
     assert "sk init" not in result.output
+
+
+def test_an_integer_key_is_stored_as_a_number_and_shown_back(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["config", "set", "api.timeoutSeconds", "30"])
+    assert result.exit_code == 0
+    assert "timeoutSeconds = 30\n" in config_file(tmp_path).read_text(encoding="utf-8")
+    assert runner.invoke(app, ["config", "get", "api.timeoutSeconds"]).stdout.strip() == "30"
+
+
+@pytest.mark.parametrize("value", ["abc", "1.5", "-3", "٣"])
+def test_an_integer_key_refuses_text(value: str, tmp_path: Path) -> None:
+    result = runner.invoke(app, ["config", "set", "api.timeoutSeconds", value])
+    assert result.exit_code == 2
+    assert not config_file(tmp_path).exists()
+
+
+@pytest.mark.parametrize("value", ["0", "301"])
+def test_an_integer_key_out_of_range_is_refused_before_writing(value: str, tmp_path: Path) -> None:
+    result = runner.invoke(app, ["config", "set", "api.timeoutSeconds", value])
+    assert result.exit_code == 2
+    assert not config_file(tmp_path).exists()

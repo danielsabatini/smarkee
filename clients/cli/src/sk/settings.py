@@ -29,7 +29,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 from pydantic.fields import FieldInfo
 from pydantic_settings import (
@@ -49,6 +49,7 @@ from sk.defaults import (
     PRD_SUM_PROJECT_ID,
 )
 from sk.features.api_contract import validate_identifier
+from sk.http import HTTP_TIMEOUT_SECONDS
 
 CONFIG_DIRECTORY_NAME = "sk"
 CONFIG_FILE_NAME = "config.toml"
@@ -168,6 +169,9 @@ class ApiSettings(BaseModel):
     allow_insecure_http: bool = False
     """Aceita `url` em `http`. Somente em desenvolvimento."""
 
+    timeout_seconds: int = Field(default=int(HTTP_TIMEOUT_SECONDS), ge=1, le=300)
+    """Segundos que cada pedido à API espera antes de desistir (de 1 a 300)."""
+
 
 class CoreSettings(BaseModel):
     """Seção `core`: o módulo core (`sk account create`)."""
@@ -270,9 +274,11 @@ class SkSettings(BaseSettings):
         )
 
 
-def _render_toml_value(value: str | bool) -> str:
+def _render_toml_value(value: str | bool | int) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
     # Uma string JSON é uma string básica TOML válida (mesmas regras de escape).
     return json.dumps(value, ensure_ascii=False)
 
@@ -284,6 +290,6 @@ def render_section(section_name: str, settings: BaseModel) -> str:
     """
     lines = [f"[{section_name}]"]
     for field_name, value in settings.model_dump(exclude_unset=True).items():
-        if isinstance(value, str | bool):
+        if isinstance(value, str | bool | int):
             lines.append(f"{to_camel(field_name)} = {_render_toml_value(value)}")
     return "\n".join(lines) + "\n"

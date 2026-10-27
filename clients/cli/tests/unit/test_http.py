@@ -222,3 +222,50 @@ def test_send_returns_the_status_and_the_body_of_a_prepared_request() -> None:
     opener = ok({"resourceId": "r"}, 202)
     assert send(request, opener=opener) == (202, {"resourceId": "r"})
     assert opener.request is request
+
+
+def test_the_timeout_comes_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SK_API_TIMEOUT_SECONDS", "45")
+    opener = ok({})
+    call(opener)
+    assert opener.timeout == 45.0
+
+
+def test_the_timeout_comes_from_the_file(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    (tmp_path / "sk").mkdir()
+    (tmp_path / "sk" / "config.toml").write_text("[api]\ntimeoutSeconds = 30\n", encoding="utf-8")
+    opener = ok({})
+    call(opener)
+    assert opener.timeout == 30.0
+
+
+@pytest.mark.parametrize("value", ["0", "301", "-1", "abc", "1.5"])
+def test_an_invalid_timeout_is_refused_by_the_settings(
+    value: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pydantic import ValidationError
+
+    from sk.settings import SkSettings
+
+    monkeypatch.setenv("SK_API_TIMEOUT_SECONDS", value)
+    with pytest.raises(ValidationError):
+        SkSettings()
+
+
+def test_an_invalid_timeout_does_not_break_the_call_in_the_middle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SK_API_TIMEOUT_SECONDS", "0")
+    opener = ok({})
+    call(opener)
+    assert opener.timeout == 10.0
+
+
+def test_a_timeout_names_the_limit_and_how_to_raise_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SK_API_TIMEOUT_SECONDS", "7")
+    with pytest.raises(ApiUnavailableError) as caught:
+        call(Opener(urllib.error.URLError(TimeoutError("detalhe-interno"))))
+    assert "7 s" in str(caught.value)
+    assert "sk config set api.timeoutSeconds" in str(caught.value)
+    assert "detalhe-interno" not in str(caught.value)

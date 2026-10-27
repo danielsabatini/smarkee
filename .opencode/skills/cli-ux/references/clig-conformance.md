@@ -104,7 +104,7 @@ Reexecute as verificações antes de repetir um estado: o código muda mais ráp
 |---|---|---|
 | Validar a entrada cedo | Conforme | código 2 antes de chamar a API; `--output json` recusado antes do efeito |
 | Responder em < 100 ms; progresso em operação longa | **Lacuna** | `--wait` faz `time.sleep(1)` em laço por até 60 s sem escrever nada |
-| Timeout configurável com padrão razoável | Parcial | `--timeout` do `--wait` existe; o timeout HTTP é a constante `HTTP_TIMEOUT_SECONDS` |
+| Timeout configurável com padrão razoável | Parcial | `--timeout` do `--wait` e `api.timeoutSeconds` (`SK_API_TIMEOUT_SECONDS`, 1 a 300, padrão 10) existem; o do provedor de identidade (`oidc.py`, 30 s) segue fixo |
 | Recuperável / idempotente | Conforme | `Idempotency-Key` por pedido; `disable` sobre desabilitado é "Nothing to do" (código 0) |
 
 ## Future-proofing
