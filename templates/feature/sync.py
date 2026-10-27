@@ -38,20 +38,18 @@ NAME = re.compile(r"[a-z][a-z0-9]*")
 # Uma feature entra num perfil quando o seu código já é igual ao do modelo; as demais seguem com
 # os seus.
 PROFILES: dict[str, tuple[str, ...]] = {
-    # Publicação do `requested`, probes e os tipos do domínio do Receiver (erros, linhas das views
-    # e pedidos), sem regra do tipo.
-    "receiver-http": (
-        "core/account",
-    ),
+    # Perfis do loop de sete papéis sem nenhuma feature (a `core/account` migrou para `api`,
+    # decisão 0098): ficam vazios até a limpeza do template (etapa S6).
+    "receiver-http": (),
+    "identity-metadata": (),
+    "loop-engines": (),
     # Contexto de trace e OpenAPI do Receiver: todas as features com Receiver (a `ipm/serviceaccount`
     # tem `api`, decisão 0098).
-    "receiver-base": (
-        "core/account",
-        "sum/service",
-    ),
+    "receiver-base": ("sum/service",),
     # Processo `api` (decisão 0098): probes, OpenAPI e contexto de trace; as demais peças são do tipo.
     "api-http": (
         "bsm/account",
+        "core/account",
         "ipm/group",
         "ipm/organization",
         "ipm/permission",
@@ -78,29 +76,13 @@ PROFILES: dict[str, tuple[str, ...]] = {
     ),
     # Envelope, publicação e persistência de `observed` e do resultado, com a convergência e os
     # erros do Manager, sem regra do tipo. O `sum/service` usa só este perfil (decisão 0080).
-    "manager-handlers": (
-        "core/account",
-        "sum/service",
-    ),
+    "manager-handlers": ("sum/service",),
     # Observação e resultado no Manager (`observed`, `result`, convergência e prazo de observação): só
     # nas features com o loop de sete papéis; o Controller (decisão 0096) faz isso no próprio ciclo.
-    "manager-observation": (
-        "core/account",
-        "sum/service",
-    ),
+    "manager-observation": ("sum/service",),
     # Fontes de estado do Reconciler (`DESIRED`, `OBSERVED` e `RESULT`): só as features com o loop
     # de sete papéis (decisão 0096 aposenta o Reconciler nas demais).
-    "reconciler-streams": (
-        "core/account",
-        "sum/service",
-    ),
-    # Driver de metadado do provedor de identidade, escrita (Executor) e leitura (Observer).
-    "identity-metadata": ("core/account",),
-    # Motores sem regra do tipo: Observer e Executor (com a revalidação), com o teste do motor do
-    # Observer (decisão 0075).
-    "loop-engines": (
-        "core/account",
-    ),
+    "reconciler-streams": ("sum/service",),
 }
 
 

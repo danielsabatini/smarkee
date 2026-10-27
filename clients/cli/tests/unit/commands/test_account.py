@@ -23,9 +23,7 @@ from sk.main import app
 runner = CliRunner()
 API = "https://api.teste"
 ME = "01a14168-b59d-7475-8db7-c5cf57fa100b"
-OPID = "b9c4c98c-7392-5016-a724-6e1cd0c1bed9"
 USER = f"/v1/core/accounts/{ME}"
-OPERATION = f"{USER}/operations/{OPID}"
 
 
 def jwt_for(subject: str) -> str:
@@ -90,7 +88,7 @@ def api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[FakeApi]:
     (tmp_path / "sk" / "config.toml").write_text(f'[api]\nurl = "{API}"\n', encoding="utf-8")
     fake = FakeApi()
     monkeypatch.setattr(urllib.request, "urlopen", fake)
-    monkeypatch.setattr("sk.commands.account.time.sleep", no_wait)
+    monkeypatch.setattr("sk.commands.shared.time.sleep", no_wait)
     save_credentials(
         default_credentials_path(),
         StoredCredentials(
@@ -108,11 +106,20 @@ def api(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[FakeApi]:
     yield fake
 
 
-def user_document(version: str = "3", *, protected: bool = True) -> dict[str, Any]:
+def user_document(
+    version: str = "3",
+    *,
+    protected: bool = True,
+    desired_generation: int = 1,
+    observed_generation: int | None = 1,
+    phase: str = "Ready",
+) -> dict[str, Any]:
     return {
         "resourceId": ME,
         "resourceVersion": version,
-        "phase": "Ready",
+        "desiredGeneration": desired_generation,
+        "observedGeneration": observed_generation,
+        "phase": phase,
         "desired": {
             "lifecycle": "present",
             "platformAccess": "granted",
@@ -124,12 +131,27 @@ def user_document(version: str = "3", *, protected: bool = True) -> dict[str, An
     }
 
 
-def operation(status: str) -> Response:
-    return Response(200, {"operationId": OPID, "operationStatus": status})
+def converging(*, protected: bool, phase: str = "Reconciling") -> Response:
+    """O recurso logo depois da escrita: a geração nova ainda não foi observada."""
+    return Response(
+        202,
+        user_document(
+            version="4",
+            protected=protected,
+            desired_generation=2,
+            observed_generation=1,
+            phase=phase,
+        ),
+    )
 
 
-def accepted() -> Response:
-    return Response(202, {"resourceId": ME, "operationId": OPID})
+def converged(*, protected: bool) -> Response:
+    return Response(
+        200,
+        user_document(
+            version="5", protected=protected, desired_generation=2, observed_generation=2
+        ),
+    )
 
 
 def test_the_subject_is_read_from_the_session_token() -> None:
@@ -172,7 +194,7 @@ def test_delete_requires_the_confirmation_before_any_call(api: FakeApi) -> None:
 
 def test_delete_reads_the_version_and_sends_it_with_an_idempotency_key(api: FakeApi) -> None:
     api.routes[("GET", USER)] = Response(200, user_document(version="9"))
-    api.routes[("DELETE", USER)] = accepted()
+    api.routes[("DELETE", USER)] = converging(protected=False, phase="Deleting")
 
     result = runner.invoke(app, ["account", "delete", "--yes"])
 
@@ -211,12 +233,15 @@ def test_delete_when_a_module_cannot_be_verified_points_to_renewing_the_session(
     assert "sk auth refresh" in " ".join(result.stderr.split())
 
 
-def test_delete_wait_ends_when_the_operation_completes_and_forgets_the_session(
+def test_delete_wait_ends_when_the_account_is_gone_and_forgets_the_session(
     api: FakeApi,
 ) -> None:
-    api.routes[("GET", USER)] = Response(200, user_document())
-    api.routes[("DELETE", USER)] = accepted()
-    api.routes[("GET", OPERATION)] = [operation("in_progress"), operation("completed")]
+    api.routes[("GET", USER)] = [
+        Response(200, user_document()),
+        converging(protected=False, phase="Deleting"),
+        http_error(404, "NotFound", "Conta não encontrada."),
+    ]
+    api.routes[("DELETE", USER)] = converging(protected=False, phase="Deleting")
 
     result = runner.invoke(app, ["account", "delete", "--yes", "--wait"])
 
@@ -227,12 +252,12 @@ def test_delete_wait_ends_when_the_operation_completes_and_forgets_the_session(
 
 def test_delete_wait_also_ends_when_the_token_stops_being_accepted(api: FakeApi) -> None:
     """Com o usuário removido do provedor, o fim da exclusão aparece como `401`."""
-    api.routes[("GET", USER)] = Response(200, user_document())
-    api.routes[("DELETE", USER)] = accepted()
-    api.routes[("GET", OPERATION)] = [
-        operation("in_progress"),
+    api.routes[("GET", USER)] = [
+        Response(200, user_document()),
+        converging(protected=False, phase="Deleting"),
         http_error(401, "Unauthorized", "Token ausente ou inválido."),
     ]
+    api.routes[("DELETE", USER)] = converging(protected=False, phase="Deleting")
 
     result = runner.invoke(app, ["account", "delete", "--yes", "--wait"])
 
@@ -243,11 +268,13 @@ def test_delete_wait_also_ends_when_the_token_stops_being_accepted(api: FakeApi)
 def test_delete_wait_times_out_without_forgetting_the_session(
     api: FakeApi, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    api.routes[("GET", USER)] = Response(200, user_document())
-    api.routes[("DELETE", USER)] = accepted()
-    api.routes[("GET", OPERATION)] = operation("in_progress")
+    api.routes[("GET", USER)] = [
+        Response(200, user_document()),
+        converging(protected=False, phase="Deleting"),
+    ]
+    api.routes[("DELETE", USER)] = converging(protected=False, phase="Deleting")
     clock = iter(range(0, 1000, 20))
-    monkeypatch.setattr("sk.commands.account.time.monotonic", lambda: next(clock))
+    monkeypatch.setattr("sk.commands.shared.time.monotonic", lambda: next(clock))
 
     result = runner.invoke(app, ["account", "delete", "--yes", "--wait", "--timeout", "30"])
 
@@ -258,7 +285,7 @@ def test_delete_wait_times_out_without_forgetting_the_session(
 
 def test_unprotect_sends_the_flag_with_the_current_version(api: FakeApi) -> None:
     api.routes[("GET", USER)] = Response(200, user_document(version="5"))
-    api.routes[("PATCH", USER)] = accepted()
+    api.routes[("PATCH", USER)] = converging(protected=False)
 
     result = runner.invoke(app, ["account", "unprotect"])
 
@@ -278,10 +305,13 @@ def test_protect_is_idempotent_when_already_protected(api: FakeApi) -> None:
     assert [request.get_method() for request in api.requests] == ["GET"]
 
 
-def test_unprotect_wait_ends_when_the_operation_completes(api: FakeApi) -> None:
-    api.routes[("GET", USER)] = Response(200, user_document())
-    api.routes[("PATCH", USER)] = accepted()
-    api.routes[("GET", OPERATION)] = [operation("in_progress"), operation("completed")]
+def test_unprotect_wait_ends_when_the_generation_is_observed(api: FakeApi) -> None:
+    api.routes[("GET", USER)] = [
+        Response(200, user_document()),
+        converging(protected=False),
+        converged(protected=False),
+    ]
+    api.routes[("PATCH", USER)] = converging(protected=False)
 
     result = runner.invoke(app, ["account", "unprotect", "--wait"])
 
@@ -347,12 +377,15 @@ def test_json_protect_when_already_protected_prints_the_current_account(api: Fak
 
 @pytest.mark.usefixtures("default_output_mode")
 def test_json_unprotect_wait_prints_a_single_document(api: FakeApi) -> None:
-    api.routes[("GET", USER)] = Response(200, user_document(protected=True))
-    api.routes[("PATCH", USER)] = accepted()
-    api.routes[("GET", OPERATION)] = operation("completed")
+    api.routes[("GET", USER)] = [
+        Response(200, user_document(protected=True)),
+        converged(protected=False),
+    ]
+    api.routes[("PATCH", USER)] = converging(protected=False)
     result = runner.invoke(app, [*JSON, "account", "unprotect", "--wait"])
     assert result.exit_code == 0, result.stderr
-    assert _document(result.stdout) == {"resourceId": ME, "protected": False}
+    document = _document(result.stdout)
+    assert document["resourceId"] == ME and document["deletionProtection"] is False
 
 
 @pytest.mark.usefixtures("default_output_mode")
@@ -364,9 +397,11 @@ def test_json_delete_without_yes_fails_with_empty_stdout(api: FakeApi) -> None:
 
 @pytest.mark.usefixtures("default_output_mode")
 def test_json_delete_wait_prints_the_removed_state_and_forgets_the_session(api: FakeApi) -> None:
-    api.routes[("GET", USER)] = Response(200, user_document())
-    api.routes[("DELETE", USER)] = accepted()
-    api.routes[("GET", OPERATION)] = operation("completed")
+    api.routes[("GET", USER)] = [
+        Response(200, user_document()),
+        http_error(404, "NotFound", "Conta não encontrada."),
+    ]
+    api.routes[("DELETE", USER)] = converging(protected=False, phase="Deleting")
     result = runner.invoke(app, [*JSON, "account", "delete", "--yes", "--wait"])
     assert result.exit_code == 0, result.stderr
     assert _document(result.stdout) == {"resourceId": ME, "state": "removed"}

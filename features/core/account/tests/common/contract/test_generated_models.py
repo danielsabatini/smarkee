@@ -17,6 +17,10 @@ SCHEMAS_ROOT = PROJECT_ROOT.parents[2] / "schemas"
 GENERATED_MODULE = PROJECT_ROOT / "src" / "core_account" / "common" / "contracts" / "generated.py"
 INDEX = SCHEMAS_ROOT / "core.account.index.json"
 
+# Contratos comuns que esta feature não usa depois da API síncrona (decisão 0098): a Operation e a
+# resposta `202` com `operationId` ficam para as features que ainda têm Receiver e Manager.
+UNUSED_COMMON = {"operation", "api-accepted-response"}
+
 EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "common/message-envelope.example.json": generated.MessageEnvelope,
     "common/condition.example.json": generated.Condition,
@@ -24,16 +28,12 @@ EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "common/completed.example.json": generated.CompletedData,
     "common/failed.example.json": generated.FailedData,
     "common/updated.example.json": generated.UpdatedData,
-    "common/operation.example.json": generated.Operation,
-    "common/api-accepted-response.example.json": generated.ApiAcceptedResponse,
     "common/api-error.example.json": generated.ApiError,
     "core/account/desired.example.json": generated.AccountDesiredData,
     "core/account/observed.example.json": generated.AccountObservedData,
-    "core/account/requested-create.example.json": generated.AccountRequestedCreateData,
-    "core/account/requested-delete.example.json": generated.AccountRequestedDeleteData,
-    "core/account/requested-update.example.json": generated.AccountRequestedUpdateData,
     "core/account/api-create-request.example.json": generated.AccountCreateRequest,
     "core/account/api-update-request.example.json": generated.AccountUpdateRequest,
+    "core/account/api-registration-response.example.json": generated.AccountRegistrationResponse,
     "core/account/resource.example.json": generated.Account,
 }
 
@@ -66,7 +66,7 @@ def test_index_lists_every_contract() -> None:
         str(path.relative_to(SCHEMAS_ROOT))
         for directory in ("common", "core/account")
         for path in (SCHEMAS_ROOT / directory).rglob("*.v*.schema.json")
-        if not path.name.startswith("definitions.")
+        if not path.name.startswith("definitions.") and path.name.split(".")[0] not in UNUSED_COMMON
     }
     assert listed == contracts
 
@@ -76,6 +76,7 @@ def test_every_example_has_a_model() -> None:
         str(path.relative_to(SCHEMAS_ROOT))
         for directory in ("common", "core/account")
         for path in (SCHEMAS_ROOT / directory).rglob("*.example.json")
+        if path.name.split(".")[0] not in UNUSED_COMMON
     }
     assert examples == set(EXAMPLE_MODELS)
 

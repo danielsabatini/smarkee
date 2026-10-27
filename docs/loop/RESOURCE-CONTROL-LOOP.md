@@ -380,9 +380,9 @@ Por padrão, toda escrita exige solicitante autenticado. A exceção deve estar 
 Uma escrita anônima:
 
 - usa `requestedBy = anonymous` (um valor fixo, que não identifica a pessoa);
-- tem **limite de taxa por origem** no gateway e no Receiver, com valores conservadores e configuráveis;
+- tem **limite de taxa por origem** no gateway e na API, com valores conservadores e configuráveis;
 - tem **resposta uniforme**: o mesmo `202` e o mesmo corpo, exista ou não o recurso ou o dado informado (por exemplo, o e-mail). Não pode haver diferença observável de status, de corpo nem, de forma relevante, de tempo;
-- **não permite acompanhar a Operation**: o cliente anônimo não consulta a Operation (`GET /v1/<módulo>/<tipos>/{resourceId}/operations/{operationId}`), e por isso não há `--wait`. Isso impede que a consulta revele se o dado já existia;
+- **não permite acompanhar o recurso**: o `202` traz só `{resourceId}` (sem Operation, decisão 0098) e o cliente anônimo não consulta o recurso, e por isso não há `--wait`. Isso impede que a consulta revele se o dado já existia (quando o dado já existia, a API reverte a transação, não grava nada e responde igual);
 - aplica a validação estrita e os limites de tamanho do contrato (`SCHEMA.md`);
 - não carrega segredo: a credencial é definida pelo próprio usuário no provedor de identidade, fora do loop.
 
@@ -1569,7 +1569,7 @@ A Account é um recurso da plataforma, no módulo `core` (decisão 0014), criado
 
 Quando o e-mail já está cadastrado no SSOT, o Manager rejeita o pedido (`validation`) sem criar nada; quando ele só existe no Zitadel, a criação do Executor falha de forma permanente (`Rejected`). O Zitadel responde `AlreadyExisting` (HTTP 400, id `COMMAND-7yiox1isql`, verificado na v4.19.4) a um ID ou e-mail já usado, e o Executor lê o usuário pelo ID: se existe com o e-mail esperado, é sucesso idempotente. Em todos os casos o solicitante anônimo recebe o mesmo `202`, sem revelar se o e-mail existia. O `desired` com `lifecycle = absent` não carrega dados pessoais (decisão 0014).
 
-Componentes (projetos em `features/core/account/`): `core-account-receiver`, `core-account-manager`, `core-account-publisher`, `core-account-observer`, `core-account-reconciler` e `core-account-executor`. O comando `sk account create` pertence ao CLI da plataforma.
+Componentes (projetos em `features/core/account/`, desde a decisão 0098): `core-account-api`, `core-account-publisher` e `core-account-controller`. O comando `sk account create` pertence ao CLI da plataforma.
 
 # 47. Aplicação a outros recursos
 

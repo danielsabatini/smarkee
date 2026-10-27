@@ -1,4 +1,9 @@
-"""Conformidade de core.account: Receiver, mensageria e SSOT pela rede."""
+"""Conformidade de core.account pela rede: gateway, API, mensageria e SSOT.
+
+O cadastro entra anônimo pela API (decisão 0098): `202` com o `resourceId`, sem Operation. O
+Controller converge a conta no Zitadel; o teste lê o `desired` e o `updated` no NATS e o `observed`
+no SSOT, e valida tudo contra os JSON Schemas de `schemas/`.
+"""
 
 import asyncio
 import json
@@ -9,179 +14,14 @@ from typing import Any
 
 import httpx
 import pytest
+from conftest import read_ssot
 from contracts import assert_valid
 from nats.js import JetStreamContext
 
 DESIRED_SUBJECT = "manager.desired.core.account.{resource_id}.changed"
-REQUESTED_SUBJECT = "receiver.requested.core.account.{resource_id}.{operation}"
-DIGEST = "0" * 64
+UPDATED_SUBJECT = "manager.updated.core.account.{resource_id}.changed"
 MAILPIT_URL = os.environ.get("CONFORMANCE_MAILPIT_URL")
-
-
-async def last_desired(
-    jetstream: JetStreamContext, resource_id: str, *, timeout: float = 15.0
-) -> dict[str, Any]:
-    deadline = asyncio.get_running_loop().time() + timeout
-    while True:
-        try:
-            raw = await jetstream.get_last_msg(
-                "DESIRED", DESIRED_SUBJECT.format(resource_id=resource_id)
-            )
-            return json.loads(raw.data or b"{}")
-        except Exception:  # ainda não publicado: tenta de novo até o prazo
-            if asyncio.get_running_loop().time() > deadline:
-                raise
-            await asyncio.sleep(0.2)
-
-
-def requested_message(resource_id: str) -> dict[str, Any]:
-    return {
-        "messageId": str(uuid.uuid7()),
-        "schemaVersion": "1.0",
-        "messageType": "requested",
-        "emitter": "receiver",
-        "module": "core",
-        "resourceType": "account",
-        "resourceId": resource_id,
-        "operation": "create",
-        "requestedBy": "anonymous",
-        "correlationId": str(uuid.uuid7()),
-        "occurredAt": "2026-10-10T12:00:00Z",
-        "publishedAt": "2026-10-10T12:00:00Z",
-        "data": {
-            "operationId": str(uuid.uuid7()),
-            "requestDigest": DIGEST,
-            "specification": {
-                "givenName": "Ana",
-                "familyName": "Souza",
-                "email": f"conf.{uuid.uuid4().hex[:10]}@example.com",
-            },
-        },
-    }
-
-
-# ---------------------------------------------------------------------- mensageria + SSOT
-
-
-async def test_requested_becomes_a_valid_desired(
-    jetstream: JetStreamContext, created: list[str]
-) -> None:
-    resource_id = str(uuid.uuid7())
-    created.append(resource_id)
-    message = requested_message(resource_id)
-    assert_valid("common/message-envelope.v1.schema.json", message)
-    await jetstream.publish(
-        REQUESTED_SUBJECT.format(resource_id=resource_id, operation="create"),
-        json.dumps(message).encode(),
-        headers={"Nats-Msg-Id": message["messageId"]},
-    )
-
-    desired = await last_desired(jetstream, resource_id)
-
-    assert_valid("common/message-envelope.v1.schema.json", desired)
-    assert (desired["messageType"], desired["emitter"], desired["operation"]) == (
-        "desired",
-        "manager",
-        "changed",
-    )
-    # O emissor é quem decidiu (Manager); `publishedBy` é quem entregou (Publisher).
-    assert desired["publishedBy"] == "core-account-publisher"
-    assert desired["desiredGeneration"] == 1
-    assert desired["causationId"] == message["messageId"]
-    assert desired["correlationId"] == message["correlationId"]
-    assert_valid("core/account/desired.v1.schema.json", desired["data"])
-
-
-async def test_consumers_ignore_an_unknown_field_of_a_newer_minor(
-    jetstream: JetStreamContext, created: list[str]
-) -> None:
-    """Leitura tolerante (`SCHEMA.md` §15): um MINOR mais novo pode acrescentar campos."""
-    resource_id = str(uuid.uuid7())
-    created.append(resource_id)
-    message = requested_message(resource_id)
-    assert_valid("common/message-envelope.v1.schema.json", message)
-    newer = {**message, "schemaVersion": "1.1", "campoDeUmaVersaoNova": "x"}
-    await jetstream.publish(
-        REQUESTED_SUBJECT.format(resource_id=resource_id, operation="create"),
-        json.dumps(newer).encode(),
-        headers={"Nats-Msg-Id": newer["messageId"]},
-    )
-
-    desired = await last_desired(jetstream, resource_id)
-
-    assert desired["causationId"] == message["messageId"]
-    assert desired["desiredGeneration"] == 1
-
-
-async def test_repeated_request_does_not_publish_a_second_desired(
-    jetstream: JetStreamContext, created: list[str]
-) -> None:
-    resource_id = str(uuid.uuid7())
-    created.append(resource_id)
-    first = requested_message(resource_id)
-    subject = REQUESTED_SUBJECT.format(resource_id=resource_id, operation="create")
-    await jetstream.publish(subject, json.dumps(first).encode())
-    original = await last_desired(jetstream, resource_id)
-
-    repeat = {**first, "messageId": str(uuid.uuid7())}  # reentrega com outro messageId
-    await jetstream.publish(subject, json.dumps(repeat).encode())
-    await asyncio.sleep(2.0)
-
-    assert await last_desired(jetstream, resource_id) == original
-
-
-# ---------------------------------------------------------------------- Receiver
-
-
-async def test_missing_token_is_401_with_the_error_contract(api: httpx.AsyncClient) -> None:
-    response = await api.get("/v1/core/accounts/qualquer")
-    assert response.status_code == 401
-    assert_valid("common/api-error.v1.schema.json", response.json())
-    assert response.json()["errorCode"] == "Unauthorized"
-
-
-async def test_invalid_token_is_401(api: httpx.AsyncClient) -> None:
-    response = await api.get(
-        "/v1/core/accounts/qualquer",
-        headers={"Authorization": "Bearer invalido"},
-    )
-    assert response.status_code == 401
-
-
-async def test_registration_is_anonymous_uniform_and_reaches_the_ssot(
-    api: httpx.AsyncClient, jetstream: JetStreamContext, created: list[str]
-) -> None:
-    email = f"conf.{uuid.uuid4().hex[:10]}@example.com"
-    body = {"givenName": "Ana", "familyName": "Souza", "email": email}
-
-    first = await api.post("/v1/core/accounts", json=body)
-    second = await api.post("/v1/core/accounts", json=body)
-
-    assert (first.status_code, second.status_code) == (202, 202)
-    for response in (first, second):
-        assert_valid("common/api-accepted-response.v1.schema.json", response.json())
-        assert set(response.json()) == {"resourceId", "operationId"}
-        created.append(response.json()["resourceId"])
-    desired = await last_desired(jetstream, first.json()["resourceId"])
-    assert_valid("core/account/desired.v1.schema.json", desired["data"])
-    assert desired["requestedBy"] == "anonymous"
-
-
-async def test_registration_rejects_a_password(api: httpx.AsyncClient) -> None:
-    response = await api.post(
-        "/v1/core/accounts",
-        json={
-            "givenName": "Ana",
-            "familyName": "Souza",
-            "email": "a@example.com",
-            "password": "Segredo!123",
-        },
-    )
-    assert response.status_code == 400
-    assert "Segredo!123" not in response.text  # o valor enviado nunca é repetido
-
-
-# ---------------------------------------------------------------------- loop completo
+READY_SECONDS = 60.0
 
 
 async def last_message(
@@ -196,6 +36,14 @@ async def last_message(
             if asyncio.get_running_loop().time() > deadline:
                 raise
             await asyncio.sleep(0.2)
+
+
+async def last_desired(
+    jetstream: JetStreamContext, resource_id: str, *, timeout: float = 15.0
+) -> dict[str, Any]:
+    return await last_message(
+        jetstream, "DESIRED", DESIRED_SUBJECT.format(resource_id=resource_id), timeout=timeout
+    )
 
 
 async def wait_for(
@@ -216,6 +64,111 @@ async def wait_for(
         await asyncio.sleep(0.3)
 
 
+async def wait_ready(jetstream: JetStreamContext, resource_id: str) -> dict[str, Any]:
+    """O `updated` em que a observação confirma a geração (decisão 0072)."""
+    return await wait_for(
+        jetstream,
+        "UPDATED",
+        UPDATED_SUBJECT.format(resource_id=resource_id),
+        lambda m: (
+            m["data"]["phase"] == "Ready"
+            and m["data"].get("observedGeneration") == m["data"].get("desiredGeneration")
+        ),
+        timeout=READY_SECONDS,
+    )
+
+
+def registration_body(prefix: str = "conf") -> dict[str, str]:
+    return {
+        "givenName": "Ana",
+        "familyName": "Souza",
+        "email": f"{prefix}.{uuid.uuid4().hex[:10]}@example.com",
+    }
+
+
+# ---------------------------------------------------------------------- autenticação
+
+
+async def test_missing_token_is_401_with_the_error_contract(api: httpx.AsyncClient) -> None:
+    response = await api.get("/v1/core/accounts/qualquer")
+    assert response.status_code == 401
+    assert_valid("common/api-error.v1.schema.json", response.json())
+    assert response.json()["errorCode"] == "Unauthorized"
+
+
+async def test_invalid_token_is_401(api: httpx.AsyncClient) -> None:
+    response = await api.get(
+        "/v1/core/accounts/qualquer",
+        headers={"Authorization": "Bearer invalido"},
+    )
+    assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------- cadastro anônimo
+
+
+async def test_registration_rejects_a_password(api: httpx.AsyncClient) -> None:
+    response = await api.post(
+        "/v1/core/accounts",
+        json={**registration_body(), "password": "Segredo!123"},
+    )
+    assert response.status_code == 400
+    assert "Segredo!123" not in response.text  # o valor enviado nunca é repetido
+
+
+async def test_registration_is_anonymous_uniform_and_reaches_the_ssot(
+    api: httpx.AsyncClient, jetstream: JetStreamContext, created: list[str]
+) -> None:
+    body = registration_body()
+
+    first = await api.post("/v1/core/accounts", json=body)
+    second = await api.post("/v1/core/accounts", json=body)
+
+    assert (first.status_code, second.status_code) == (202, 202)
+    for response in (first, second):
+        assert_valid("core/account/api-registration-response.v1.schema.json", response.json())
+        assert set(response.json()) == {"resourceId"}  # sem Operation (decisão 0098)
+        created.append(response.json()["resourceId"])
+    assert first.json()["resourceId"] != second.json()["resourceId"]
+
+    desired = await last_desired(jetstream, first.json()["resourceId"])
+    assert_valid("common/message-envelope.v1.schema.json", desired)
+    assert (desired["messageType"], desired["emitter"], desired["operation"]) == (
+        "desired",
+        "api",
+        "changed",
+    )
+    assert desired["requestedBy"] == "anonymous"
+    assert desired["desiredGeneration"] == 1
+    assert desired["publishedBy"] == "core-account-publisher"
+    assert_valid("core/account/desired.v1.schema.json", desired["data"])
+    assert desired["data"]["deletionProtection"] is True
+    assert desired["data"]["platformPermissions"]
+
+
+async def test_registration_with_a_known_email_looks_the_same_and_publishes_nothing(
+    api: httpx.AsyncClient, jetstream: JetStreamContext, created: list[str]
+) -> None:
+    body = registration_body()
+    first = await api.post("/v1/core/accounts", json=body)
+    created.append(first.json()["resourceId"])
+    await last_desired(jetstream, first.json()["resourceId"])
+
+    again = await api.post("/v1/core/accounts", json={**body, "email": body["email"].upper()})
+
+    assert again.status_code == 202
+    assert_valid("core/account/api-registration-response.v1.schema.json", again.json())
+    created.append(again.json()["resourceId"])
+    await asyncio.sleep(2.0)
+    with pytest.raises(Exception, match=r"no message found|not found"):
+        await jetstream.get_last_msg(
+            "DESIRED", DESIRED_SUBJECT.format(resource_id=again.json()["resourceId"])
+        )
+
+
+# ---------------------------------------------------------------------- loop completo
+
+
 async def mails_to(address: str, *, timeout: float = 20.0) -> list[str]:
     """Assuntos dos e-mails capturados pelo Mailpit para um destinatário."""
     assert MAILPIT_URL is not None
@@ -231,63 +184,77 @@ async def mails_to(address: str, *, timeout: float = 20.0) -> list[str]:
     return subjects
 
 
-async def test_the_whole_loop_runs_against_identity_provider_and_the_account_is_removed_at_the_end(
-    api: httpx.AsyncClient, jetstream: JetStreamContext, created: list[str]
+async def test_the_whole_loop_converges_the_account_at_the_identity_provider(
+    api: httpx.AsyncClient,
+    jetstream: JetStreamContext,
+    headers: dict[str, str],
+    created: list[str],
 ) -> None:
-    """Os componentes reais (Receiver a Executor) e o Zitadel."""
-    email = f"loop.{uuid.uuid4().hex[:10]}@example.com"
-    body = {"givenName": "Ana", "familyName": "Souza", "email": email}
+    """API, Publisher, Controller e o Zitadel reais."""
+    body = registration_body("loop")
 
-    # 1. Solicitação anônima: 202 uniforme.
     response = await api.post("/v1/core/accounts", json=body)
     assert response.status_code == 202
     resource_id = response.json()["resourceId"]
     created.append(resource_id)
 
-    # 2. O loop converge sozinho (Observer e Executor reais).
-    updated = await wait_for(
-        jetstream,
-        "UPDATED",
-        f"manager.updated.core.account.{resource_id}.changed",
-        lambda m: m["data"]["phase"] == "Ready",
-        timeout=60.0,
-    )
+    updated = await wait_ready(jetstream, resource_id)
     assert_valid("common/updated.v1.schema.json", updated["data"])
 
-    # 3. O Executor concluiu a criação e o Observer confirmou: usuário presente, com acesso.
-    completed = await last_message(
-        jetstream, "RESULT", f"executor.completed.core.account.{resource_id}.create"
-    )
-    assert_valid("common/message-envelope.v1.schema.json", completed)
-    assert completed["actionId"].startswith(f"{resource_id}.1.create.")
-    observed = await last_message(
-        jetstream, "OBSERVED", f"observer.observed.core.account.{resource_id}.changed"
-    )
-    assert observed["presence"] == "present"
-    assert_valid("core/account/observed.v1.schema.json", observed["data"])
-    assert observed["data"]["platformAccess"] == "granted"
-    # As permissões concedidas pelo Executor (as do desired) são as lidas pelo Observer (0025).
-    desired = await last_desired(jetstream, resource_id)
-    assert desired["data"]["platformPermissions"]
-    assert set(desired["data"]["platformPermissions"]) <= set(
-        observed["data"]["platformPermissions"]
-    )
-    assert observed["data"]["accountState"] == "initial"  # a senha ainda não foi definida
-    assert observed["data"]["deletionProtection"] is True  # metadado no Zitadel (decisão 0074)
-    assert observed["data"]["emailVerified"] is False
+    # O Controller grava o observado no SSOT: usuário presente, com acesso e protegido.
+    ssot = await read_ssot(resource_id)
+    if ssot is not None:
+        assert ssot["presence"] == "present"
+        assert_valid("core/account/observed.v1.schema.json", ssot["data"])
+        assert ssot["data"]["platformAccess"] == "granted"
+        desired = await last_desired(jetstream, resource_id)
+        assert set(desired["data"]["platformPermissions"]) <= set(
+            ssot["data"]["platformPermissions"]
+        )
+        assert ssot["data"]["accountState"] == "initial"  # a senha ainda não foi definida
+        assert ssot["data"]["deletionProtection"] is True  # metadado no Zitadel (decisão 0074)
+        assert ssot["data"]["emailVerified"] is False
 
-    # 4. A pessoa recebe o e-mail do Zitadel: o de verificação, que também define a senha.
+    # O operador lê a conta pela API.
+    read = await api.get(f"/v1/core/accounts/{resource_id}", headers=headers)
+    assert read.status_code == 200
+    assert_valid("core/account/resource.v1.schema.json", read.json())
+    assert read.json()["phase"] == "Ready"
+
+    # A pessoa recebe o e-mail do Zitadel: o de verificação, que também define a senha.
     if MAILPIT_URL is not None:
-        subjects = await mails_to(email)
+        subjects = await mails_to(body["email"])
         assert "Verificar e-mail" in subjects
         assert "Redefinir senha" not in subjects  # um e-mail só: o de verificação já define a senha
 
-    # 5. O mesmo e-mail de novo: resposta idêntica, mas nenhum desired (Manager rejeita).
-    again = await api.post("/v1/core/accounts", json=body)
-    assert again.status_code == 202
-    created.append(again.json()["resourceId"])
-    await asyncio.sleep(3.0)
-    with pytest.raises(Exception, match=r"no message found|not found"):
-        await jetstream.get_last_msg(
-            "DESIRED", DESIRED_SUBJECT.format(resource_id=again.json()["resourceId"])
-        )
+
+async def test_the_operator_cannot_delete_another_account_but_can_unprotect_it(
+    api: httpx.AsyncClient,
+    jetstream: JetStreamContext,
+    headers: dict[str, str],
+    created: list[str],
+) -> None:
+    response = await api.post("/v1/core/accounts", json=registration_body("loop"))
+    resource_id = response.json()["resourceId"]
+    created.append(resource_id)
+    await wait_ready(jetstream, resource_id)
+    read = await api.get(f"/v1/core/accounts/{resource_id}", headers=headers)
+    version = read.json()["resourceVersion"]
+
+    # O operador não é o dono: a exclusão não consegue verificar os recursos atrelados.
+    refused = await api.delete(
+        f"/v1/core/accounts/{resource_id}", params={"resourceVersion": version}, headers=headers
+    )
+    assert refused.status_code == 409
+    assert_valid("common/api-error.v1.schema.json", refused.json())
+    assert refused.json()["errorCode"] in {"DeletionProtected", "ResourcesNotVerifiable"}
+
+    # Tirar a proteção é permitido ao operador: 200 com o recurso na nova geração.
+    patched = await api.patch(
+        f"/v1/core/accounts/{resource_id}",
+        json={"resourceVersion": version, "deletionProtection": False},
+        headers=headers,
+    )
+    assert patched.status_code == 200
+    assert_valid("core/account/resource.v1.schema.json", patched.json())
+    assert patched.json()["desired"]["deletionProtection"] is False

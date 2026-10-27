@@ -9,17 +9,9 @@ import base64
 import json
 import urllib.request
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 
-from sk.features.api_contract import (
-    OperationStatus,
-    RequestAccepted,
-    as_object,
-    as_text,
-    parse_accepted,
-    parse_operation,
-    validate_identifier,
-)
+from sk.features.api_contract import as_object, as_text, validate_identifier
 from sk.http import ApiUnavailableError, Opener, call_api, send
 from sk.identity.oidc import ensure_secure_url
 
@@ -31,10 +23,9 @@ MAXIMUM_EMAIL_LENGTH = 254
 
 @dataclass(frozen=True, slots=True)
 class RegistrationAccepted:
-    """Resposta `202`: a identidade do pedido, para acompanhar o cadastro."""
+    """Resposta `202`: só a identidade do cadastro (uniforme, exista ou não o e-mail; 0098)."""
 
     resource_id: str
-    operation_id: str
 
 
 def validate_registration(given_name: str, family_name: str, email: str) -> None:
@@ -86,10 +77,9 @@ def submit_registration(
         raise ApiUnavailableError(f"unexpected API response (HTTP {status})")
     document = cast(dict[str, object], payload)
     resource_id = document.get("resourceId")
-    operation_id = document.get("operationId")
-    if not isinstance(resource_id, str) or not isinstance(operation_id, str):
-        raise ApiUnavailableError("the API response does not carry resourceId and operationId")
-    return RegistrationAccepted(resource_id=resource_id, operation_id=operation_id)
+    if not isinstance(resource_id, str):
+        raise ApiUnavailableError("the API response does not carry resourceId")
+    return RegistrationAccepted(resource_id=resource_id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +88,8 @@ class Account:
 
     resource_id: str
     resource_version: str
+    desired_generation: int
+    observed_generation: int | None
     phase: str
     given_name: str
     family_name: str
@@ -105,6 +97,7 @@ class Account:
     platform_access: str
     deletion_protection: bool
     """`True` impede a exclusão (decisão 0043); a API a devolve sempre, e ausente vale `True`."""
+    failure_reason: str | None = None
 
 
 def token_subject(access_token: str) -> str:
@@ -129,18 +122,43 @@ def token_subject(access_token: str) -> str:
     return validate_identifier(subject, what="resourceId")
 
 
+def _generation(body: dict[str, Any], key: str, *, required: bool) -> int | None:
+    value = body.get(key)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if required or value is not None:
+        raise ApiUnavailableError(f"API response without {key}: account")
+    return None
+
+
+def _failure_reason(body: dict[str, Any]) -> str | None:
+    conditions = body.get("conditions")
+    if not isinstance(conditions, list):
+        return None
+    for item in cast("list[object]", conditions):
+        if isinstance(item, dict):
+            condition = cast("dict[str, object]", item)
+            reason = condition.get("reason")
+            if condition.get("status") == "False" and isinstance(reason, str):
+                return reason
+    return None
+
+
 def _account(document: object) -> Account:
     body = as_object(document, what="account")
     desired = as_object(body.get("desired"), what="user (desired)")
     return Account(
         resource_id=as_text(body, "resourceId", what="account"),
         resource_version=as_text(body, "resourceVersion", what="account"),
+        desired_generation=cast("int", _generation(body, "desiredGeneration", required=True)),
+        observed_generation=_generation(body, "observedGeneration", required=False),
         phase=as_text(body, "phase", what="account"),
         given_name=as_text(desired, "givenName", what="user (desired)"),
         family_name=as_text(desired, "familyName", what="user (desired)"),
         email=as_text(desired, "email", what="user (desired)"),
         platform_access=as_text(desired, "platformAccess", what="user (desired)"),
         deletion_protection=desired.get("deletionProtection") is not False,
+        failure_reason=_failure_reason(body),
     )
 
 
@@ -167,7 +185,7 @@ def set_account_protection(
     protected: bool,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Account:
     resource_id = validate_identifier(resource_id, what="resourceId")
     _, document = call_api(
         "PATCH",
@@ -178,7 +196,7 @@ def set_account_protection(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _account(document)
 
 
 def delete_account(
@@ -189,7 +207,7 @@ def delete_account(
     resource_version: str,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Account:
     resource_id = validate_identifier(resource_id, what="resourceId")
     _, document = call_api(
         "DELETE",
@@ -200,24 +218,4 @@ def delete_account(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
-
-
-def get_operation(
-    api_url: str,
-    *,
-    token: str,
-    resource_id: str,
-    operation_id: str,
-    allow_insecure_http: bool,
-) -> OperationStatus:
-    resource_id = validate_identifier(resource_id, what="resourceId")
-    operation_id = validate_identifier(operation_id, what="operationId")
-    _, document = call_api(
-        "GET",
-        api_url,
-        f"{USER_REGISTRATION_PATH}/{resource_id}/operations/{operation_id}",
-        token=token,
-        allow_insecure_http=allow_insecure_http,
-    )
-    return parse_operation(document)
+    return _account(document)

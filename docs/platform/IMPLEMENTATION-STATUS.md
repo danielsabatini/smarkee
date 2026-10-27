@@ -12,7 +12,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Área | Situação |
 |---|---|
-| Loop completo da Account (Receiver, Manager, Publisher, Reconciler, Observer, Executor) | Atende: cadastro anônimo até `Ready` e remoção, contra o Zitadel e o Mailpit reais |
+| Loop completo da Account (API, Publisher e Controller; decisões 0096 e 0098) | Atende no código e nos testes unitários e de contrato (cadastro anônimo `202 {resourceId}`, exclusão segura por projeções do `DESIRED`, decisão 0100). Lacuna declarada: a suíte `tests/e2e` foi reescrita e ainda não foi executada contra a stack real; ver "Migração de `core/account` para stg e prd" abaixo |
 | Contratos (JSON Schema, modelos gerados, OpenAPI) | Atende: 268 testes dos schemas; modelos regerados e conferidos por teste em cada projeto |
 | Estrutura interna (`domain/` puro, camadas, saúde) | Atende nos seis papéis, com teste de isolamento do `domain/` em cada projeto |
 | Resiliência | Atende para queda de Manager, Executor e Publisher (testes e2e com `E2E_CHAOS=1`); queda do NATS e do banco não é testada |
@@ -50,7 +50,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Somente leitura, observa a realidade, publica `observed` com `observedAt` | Atende | conta `core-account-observer` (`ORG_OWNER_VIEWER`) |
+| Somente leitura, observa a realidade, publica `observed` com `observedAt` | Atende | conta `core-account-controller` (`ORG_OWNER_VIEWER`) |
 | Periódico, distingue `present`, `absent`, `unknown` | Atende | 5 min com jitter; `absent` só com 404 inequívoco |
 | Observa só a sua partição | Atende | `hash(resourceId) mod count` (em dev, `0/1`) |
 | Observa após `completed` e `failed`, com `causationId` | Atende | `engine/observer.py` |
@@ -80,7 +80,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Cada papel roda como processo e contêiner próprios; a feature é um projeto e uma imagem (decisão 0063), sem um papel importar outro | Atende: um projeto e uma imagem por feature; `core-account` e `sum-service` com seis contêineres e, desde a decisão 0096, `ipm-organization`, `ipm-user` e `ipm-serviceaccount` com três (api, publisher e controller; decisão 0098), e `tests/common/unit/test_role_isolation.py` | `features/core/account/`, `features/ipm/organization/` e `features/sum/service/` |
+| Cada papel roda como processo e contêiner próprios; a feature é um projeto e uma imagem (decisão 0063), sem um papel importar outro | Atende: um projeto e uma imagem por feature; `sum-service` com seis contêineres e, desde a decisão 0096, `core-account`, `ipm-organization`, `ipm-user` e `ipm-serviceaccount` com três (api, publisher e controller; decisão 0098), e `tests/common/unit/test_role_isolation.py` | `features/core/account/`, `features/ipm/organization/` e `features/sum/service/` |
 | Receiver com autenticação e autorização próprias | Atende | `receiver/auth/tokens.py` (JWKS) e `receiver/domain/principal.py`, em `features/core/account/src/core_account/` |
 | Manager dono das migrações, executadas como etapa de implantação | Atende | `features/core/account/migrations/`, serviço `core-account-migrate` |
 | Publisher como papel próprio, com papel de banco e identidade próprios | Atende | `features/core/account/src/core_account/publisher/`, papel de banco `core_account_publisher` |
@@ -103,7 +103,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | `desired` e `observed` com a operação `changed` | Atende | `manager.desired.core.account.<id>.changed` |
 | `WorkQueue` com `DiscardNew` e consumers sem filtro sobreposto | Atende | `REQUESTED` e `ACTION`; no `ACTION`, um consumer por partição, de filtros disjuntos |
 | Consumer de estado por instância (`DeliverLastPerSubject`, nome único, `inactive_threshold`) | Atende | Reconciler e Observer |
-| Consumer de trabalho ou persistência durável e compartilhado | Atende | `core-account-manager-{requested,observed,result}` |
+| Consumer de trabalho ou persistência durável e compartilhado | Atende | `sum-service-manager-{requested,observed,result}` |
 | Um único filtro por consumer, no nível `<módulo>.<tipo>` | Parcial | o do Executor adiciona o token da partição (`reconciler.action.core.account.<p>.>`), mais estreito, por decisão 0018 |
 | Executor: consumer por partição, `max_ack_pending=1`, Direct Get do `desired` | Atende | |
 | Executor com `pinned_client` | Alvo | em dev há uma só instância, sem `pinned_client` (`NATS.md` §7.5) |
@@ -184,7 +184,7 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Quarentena, `ObservationStale`, limite de remoções, retenção, métricas de aplicação e spans nos componentes | Pendentes | seções 2 a 6 |
 | Ativação de ponta a ponta | Verificada em dev em 2026-10-12: a pessoa definiu a senha e confirmou o e-mail pelos links, e os reenvios pelo provedor funcionaram. Falta confirmar o `sk auth login` com esse usuário | `features/core/account/README.md` §4.7 |
 | Configuração do Zitadel | Aplicada em dev por script temporário e não versionado; o mecanismo para stg e prd não está decidido | `infrastructure/dev/README.md` |
-| Leitor tolerante | Implementado: os consumidores de mensagens internas (Manager, Reconciler, Observer e Executor da Account e da Organization) validam em modo tolerante, ignoram campos de `MINOR` mais novo e recusam `MAJOR` não suportado. A entrada de clientes e a publicação continuam estritas. Testes unitários em cada feature e caso no e2e (`schemaVersion` 1.1 com campo desconhecido) | `schemas/`, `common/contracts/base.py` de cada feature, `tests/common/unit/test_tolerant_reader.py` |
+| Leitor tolerante | Implementado: os consumidores de mensagens internas (Manager, Reconciler, Observer e Executor do `sum/service` e, nas demais features, o Controller) validam em modo tolerante, ignoram campos de `MINOR` mais novo e recusam `MAJOR` não suportado. A entrada de clientes e a publicação continuam estritas. Testes unitários em cada feature e caso no e2e (`schemaVersion` 1.1 com campo desconhecido) | `schemas/`, `common/contracts/base.py` de cada feature, `tests/common/unit/test_tolerant_reader.py` |
 | Dados pessoais retidos | O `payload` do `desired` de criação (e-mail e nomes) permanece no outbox, e as Operations não são removidas, porque a retenção não existe; a limpeza do tombstone no `DESIRED` também não | `features/core/account/README.md` §11.6 |
 | Catálogo do SUM (decisão 0079) | Atende: uma fonte só (o Manager), `managedRoles` no `desired` e rollout na partida do Manager quando o catálogo muda, verificado em dev com a ligação real | `features/sum/service/README.md` |
 | Recurso que não converge (decisão 0078) | Atende em parte: o Reconciler das quatro features freia a ação sem efeito (backoff e aviso com os campos divergentes); a condition `Progressing` com `progressDeadline` vale nas quatro features (no `sum/service` desde a decisão 0080). Pendente: a Operation virar `failed` no prazo esgotado | `.decisions/0078-progresso-acao-sem-efeito-e-configuracao-visivel.md` |
@@ -206,6 +206,7 @@ Lacuna declarada: o que dev não tem, por que é aceitável em dev e a condiçã
 | OTLP sem TLS nem autenticação entre APISIX, agente, `telemetry-router`, `platform-telemeter` e os telemeters das features | Segurança, infraestrutura | rede `internal` do Compose, sem certificados | TLS e autenticação no receptor OTLP |
 | `telemetry-router`, `platform-telemeter` e os telemeters das features (`core-account`, `ipm-organization`, `ipm-user`, `sum-service`, `bsm-account`) únicos, sem backend: só arquivos com rotação em 10 MB (cerca de 4 h de métricas). As filas do agente e do roteador já são persistentes (decisões 0059 e 0062) | Resiliência, infraestrutura | não há consulta nem histórico longo em dev | backend persistente e alta disponibilidade do coletor |
 | Estado da Billing Account (`bsm.account`) na fase P0 persistido em volume local Docker (`bsm-account-state`), compartilhado entre Executor (`rw`) e Observer (`:ro`) | Robustez e resiliência, infraestrutura | o objetivo de P0 é exercitar o contrato e o loop de controle da Billing Account antes de acoplar o motor financeiro definitivo | substituição do driver de disco local pelo provedor de faturamento definitivo antes do stg |
+| Migração de `core/account` (S6.2, decisões 0098 e 0100) aplicada só no dev: migração `0011-account-api.sql`, papéis/logins `core_account_api` e `core_account_controller`, conta Zitadel `core-account-controller` (`ORG_USER_CREATOR` e `ORG_OWNER_VIEWER` na `register`; `PROJECT_GRANT_OWNER` nos Grants de `roles-core` e `roles-sum`), rota `core-account-api` no gateway e no `telemetry-router`, remoção dos consumers e contêineres antigos (`receiver`, `manager`, `executor`, `observer`, `reconciler`); contas `core-account-executor` e `core-account-observer` sem uso; suíte `tests/e2e` reescrita e ainda não executada contra a stack real | Segurança e robustez, infraestrutura | o provisionamento do Zitadel e do banco de dev é manual e o ambiente é descartável | repetir tudo em stg/prd, executar a e2e e remover as contas e os papéis de banco antigos (`core_account_manager`, `core_account_receiver`) |
 | Projeto de roles `roles-bsm` ainda não provisionado na instância Zitadel de dev | Segurança, infraestrutura | o provisionamento do Zitadel de dev é manual; a audience `SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_ACCOUNT` e `BSM_ACCOUNT_RECEIVER_AUTH_AUDIENCE` são obrigatórias ao subir a feature | provisionar `roles-bsm` e incluir `bsm` no catálogo do SUM / IaC antes do stg |
 
 **Violações do piso em aberto** (segurança de código e configuração: não são lacunas declaráveis, §2.5 item 1): nenhuma.

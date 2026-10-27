@@ -11,18 +11,12 @@ from typing import Any
 
 import pytest
 
-from core_account.executor import main as executor_main
-from core_account.executor.settings import AccountExecutorSettings
-from core_account.manager import main as manager_main
-from core_account.manager.settings import AccountManagerSettings
-from core_account.observer import main as observer_main
-from core_account.observer.settings import AccountObserverSettings
+from core_account.api import main as api_main
+from core_account.api.settings import AccountApiSettings
+from core_account.controller import main as controller_main
+from core_account.controller.settings import AccountControllerSettings
 from core_account.publisher import main as publisher_main
 from core_account.publisher.settings import CoreAccountPublisherSettings
-from core_account.receiver import main as receiver_main
-from core_account.receiver.settings import AccountReceiverSettings
-from core_account.reconciler import main as reconciler_main
-from core_account.reconciler.settings import AccountReconcilerSettings
 
 
 class FakeHealth:
@@ -82,48 +76,15 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
         yield fake
 
     modules: tuple[ModuleType, ...] = (
-        executor_main,
-        manager_main,
-        observer_main,
+        api_main,
+        controller_main,
         publisher_main,
-        receiver_main,
-        reconciler_main,
     )
     for module in modules:
         monkeypatch.setattr(module, "role_runtime", fake_role_runtime)
-    for module in (manager_main, receiver_main):
+    for module in (api_main, controller_main):
         monkeypatch.setattr(module, "open_pool", fake_open_pool)
     return fake
-
-
-async def test_the_manager_starts_one_task_per_consumer(runtime: FakeRuntime) -> None:
-    assert await manager_main.run(AccountManagerSettings()) == 0
-    assert runtime.started == ["requested", "observed", "result"]
-    assert len(runtime.closers) == 1
-
-
-async def test_the_observer_starts_the_state_consumers_and_the_periodic_loop(
-    runtime: FakeRuntime,
-) -> None:
-    assert await observer_main.run(AccountObserverSettings()) == 0
-    assert runtime.started[-1] == "periodic"
-    assert len(runtime.started) == len(observer_main.STREAMS) + 1
-
-
-async def test_the_executor_starts_one_consumer_per_partition(
-    runtime: FakeRuntime, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("CORE_ACCOUNT_EXECUTOR_PARTITION_COUNT", "3")
-    assert await executor_main.run(AccountExecutorSettings()) == 0
-    assert runtime.started == ["action-p0", "action-p1", "action-p2"]
-
-
-async def test_the_reconciler_starts_the_state_consumers_and_the_periodic_loop(
-    runtime: FakeRuntime,
-) -> None:
-    assert await reconciler_main.run(AccountReconcilerSettings()) == 0
-    assert runtime.started[-1] == "periodic"
-    assert len(runtime.started) == len(reconciler_main.STREAMS) + 1
 
 
 async def test_the_publisher_is_ready_while_no_permanent_failure_blocks_it(
@@ -134,11 +95,26 @@ async def test_the_publisher_is_ready_while_no_permanent_failure_blocks_it(
     assert runtime.health.checks["publication"]() is True
 
 
-async def test_the_receiver_serves_http_and_leaves_the_probes_to_the_app(
+async def test_the_api_serves_http_and_leaves_the_probes_to_the_app(
     runtime: FakeRuntime, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE", "project")
-    assert await receiver_main.run(AccountReceiverSettings()) == 0
-    assert runtime.started == ["http"]
+    monkeypatch.setenv("CORE_ACCOUNT_API_AUTH_AUDIENCE", "project")
+    assert await api_main.run(AccountApiSettings()) == 0
+    assert runtime.started == [
+        "ipm-organization-projection",
+        "bsm-account-projection",
+        "sum-service-projection",
+        "http",
+    ]
     assert runtime.health_port is None
+    assert len(runtime.closers) == 2
+
+
+async def test_the_controller_starts_informer_workers_and_periodic(
+    runtime: FakeRuntime,
+) -> None:
+    assert await controller_main.run(AccountControllerSettings()) == 0
+    assert "desired" in runtime.started
+    assert "worker-0" in runtime.started
+    assert "periodic" in runtime.started
     assert len(runtime.closers) == 2

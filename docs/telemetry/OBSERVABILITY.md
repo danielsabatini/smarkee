@@ -25,9 +25,9 @@ A linha é a representação, em JSON, dos campos do LogRecord. A conversão par
   "severity_text": "ERROR",
   "body": "task failed",
   "event_name": "smarkee.task.failed",
-  "scope": {"name": "core_account_manager.main"},
+  "scope": {"name": "core_account_controller.main"},
   "resource": {
-    "service.name": "core-account-manager",
+    "service.name": "core-account-controller",
     "service.namespace": "smarkee",
     "service.version": "0.1.0",
     "service.instance.id": "0199c8b2-6f0e-7a31-9d0c-1f6b5c2a8e44",
@@ -39,9 +39,9 @@ A linha é a representação, em JSON, dos campos do LogRecord. A conversão par
   "attributes": {
     "error.type": "ConnectionError",
     "exception.type": "ConnectionError",
-    "code.file.path": "core_account_manager/transport/messaging.py",
+    "code.file.path": "core_account_controller/transport/messaging.py",
     "code.line.number": 88,
-    "code.function.name": "core_account_manager.transport.nats.connect",
+    "code.function.name": "core_account_controller.transport.nats.connect",
     "smarkee.task.name": "consumer"
   }
 }
@@ -82,7 +82,7 @@ Atributos do componente, fixos durante o processo. Vêm de configuração explí
 
 | Atributo | Valor | Origem |
 |---|---|---|
-| `service.name` | `<módulo>-<tipo>-<papel>` (por exemplo, `core-account-manager`) | Derivado do nome do pacote Python (`<módulo>_<tipo>_<papel>`), o que mantém o arquivo idêntico em todos os componentes. |
+| `service.name` | `<módulo>-<tipo>-<papel>` (por exemplo, `core-account-controller`) | Derivado do nome do pacote Python (`<módulo>_<tipo>_<papel>`), o que mantém o arquivo idêntico em todos os componentes. |
 | `service.namespace` | `smarkee` | Fixo. |
 | `service.version` | Versão do pacote do componente | Metadados do pacote; omitido se o pacote não estiver instalado. |
 | `service.instance.id` | UUID gerado na partida | Gerado no processo. |

@@ -106,8 +106,7 @@ USER_SERVICE = "zitadel.user.v2.UserService"
 # Alerta antes do vencimento, para a rotação manual ter folga (`infrastructure/dev/README.md`).
 KEY_EXPIRATION_WARNING = timedelta(days=90)
 SERVICE_ACCOUNTS = {
-    "core-account-executor",
-    "core-account-observer",
+    "core-account-controller",
     "ipm-organization-controller",
     "ipm-organization-executor",
     "ipm-organization-observer",
@@ -430,8 +429,7 @@ def test_executor_and_observer_have_roles_only_in_register(
 ) -> None:
     in_register = organization_administrators(zitadel, orgs["register"])
     # `ORG_USER_CREATOR` cria e remove usuários, mas não concede roles (decisão 0032).
-    assert in_register.get("core-account-executor") == {"ORG_USER_CREATOR"}
-    assert in_register.get("core-account-observer") == {"ORG_OWNER_VIEWER"}
+    assert in_register.get("core-account-controller") == {"ORG_USER_CREATOR", "ORG_OWNER_VIEWER"}
     # O Observer do SUM só lê a register; o Executor do SUM não tem papel nela (só o Grant, abaixo).
     assert in_register.get("sum-service-observer") == {"ORG_OWNER_VIEWER"}
     assert "sum-service-executor" not in in_register
@@ -481,7 +479,7 @@ def test_user_executor_grants_roles_only_in_its_modules(
             zitadel,
             {"projectGrant": {"projectId": project_id, "organizationId": orgs["register"]}},
         )
-        has_role = owners.get("core-account-executor") == {"PROJECT_GRANT_OWNER"}
+        has_role = owners.get("core-account-controller") == {"PROJECT_GRANT_OWNER"}
         assert has_role == (name in USER_EXECUTOR_GRANT_PROJECTS), name
 
 

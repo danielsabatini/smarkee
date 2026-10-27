@@ -76,7 +76,7 @@ O `telemeter` **não é um dos seis papéis do loop** (Receiver, Manager, Publis
 
 ## 4.2 Spans de uma requisição a `core/account`
 
-`APISIX` (plugin `opentelemetry`, span de servidor) → `telemetry-router` (normaliza à semconv, casa `apisix.service_name = core-account-receiver`) → `core-account-telemeter` → `telemeter/traces/`. O `trace_id` do span é o mesmo dos logs dos componentes (decisão 0055), o que permite juntar os dois.
+`APISIX` (plugin `opentelemetry`, span de servidor) → `telemetry-router` (normaliza à semconv, casa `apisix.service_name = core-account-api`) → `core-account-telemeter` → `telemeter/traces/`. O `trace_id` do span é o mesmo dos logs dos componentes (decisão 0055), o que permite juntar os dois.
 
 ## 4.3 Logs e métricas da infra
 

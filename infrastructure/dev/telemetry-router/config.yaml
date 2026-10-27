@@ -64,7 +64,7 @@ connectors:
         condition: attributes["apisix.service_name"] == "bsm-account-receiver"
         pipelines: [traces/bsm_account]
       - context: span
-        condition: attributes["apisix.service_name"] == "core-account-receiver"
+        condition: attributes["apisix.service_name"] == "core-account-api"
         pipelines: [traces/core_account]
       - context: span
         condition: attributes["apisix.service_name"] == "ipm-group-api"

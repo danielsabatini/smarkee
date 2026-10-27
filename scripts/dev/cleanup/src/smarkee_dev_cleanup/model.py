@@ -80,11 +80,13 @@ ACCOUNTS = Kind(
     "core",
     "account",
     "core.account",
-    ("core.account_outbox", "core.account_operation", "core.account_action_result"),
-    "core_account_manager_login",
+    ("core.account_outbox", "core.account_idempotency"),
+    "core_account_api_login",
     "core_maintenance_login",
     "email",
     deletion_protected=True,
+    delete_role="core_account_controller_login",
+    removable_through_requested=False,
 )
 SERVICES = Kind(
     "sum",

@@ -310,7 +310,7 @@ def test_core_account_registration_payload_conforms_to_schema(
         status = 202
 
         def read(self) -> bytes:
-            return json.dumps({"resourceId": "acc-1", "operationId": "op-1"}).encode()
+            return json.dumps({"resourceId": "acc-1"}).encode()
 
         def __enter__(self) -> FakeResponse:
             return self

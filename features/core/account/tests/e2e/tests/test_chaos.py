@@ -2,7 +2,8 @@
 
 Derrubam contêineres reais com o `docker` e por isso só rodam com `E2E_CHAOS=1`. Cada teste
 restaura o componente ao final, mesmo em caso de falha. O contrato esperado: o trabalho que chegou
-durante a queda não se perde (consumers duráveis) e o loop converge depois que o componente volta.
+durante a queda não se perde (outbox e consumers duráveis) e o loop converge depois que o componente
+volta.
 """
 
 import os
@@ -61,19 +62,11 @@ async def converges(jetstream: JetStreamContext, resource_id: str) -> None:
     )
 
 
-async def test_requests_made_while_the_manager_is_down_are_processed_when_it_returns(
+async def test_accounts_registered_while_the_controller_is_down_converge_when_it_returns(
     api: httpx.AsyncClient, jetstream: JetStreamContext, created: list[str]
 ) -> None:
-    with component_down("core-account-manager.smarkee.internal"):
-        resource_id = await register_and_expect_ready(api, jetstream, created, label="manager")
-    await converges(jetstream, resource_id)
-
-
-async def test_actions_made_while_the_executor_is_down_are_executed_when_it_returns(
-    api: httpx.AsyncClient, jetstream: JetStreamContext, created: list[str]
-) -> None:
-    with component_down("core-account-executor.smarkee.internal"):
-        resource_id = await register_and_expect_ready(api, jetstream, created, label="executor")
+    with component_down("core-account-controller.smarkee.internal"):
+        resource_id = await register_and_expect_ready(api, jetstream, created, label="controller")
     await converges(jetstream, resource_id)
 
 

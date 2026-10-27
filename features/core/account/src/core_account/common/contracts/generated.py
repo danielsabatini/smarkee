@@ -47,6 +47,13 @@ class MessageOperation(StrEnum):
     noop = "noop"
 
 
+class RequestDigest(RootModel[str]):
+    root: Annotated[str, Field(max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")]
+    """
+    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
+    """
+
+
 class Duration(RootModel[timedelta]):
     root: timedelta
     """
@@ -232,133 +239,6 @@ class UpdatedData(ContractModel):
     """
 
 
-class OperationType(StrEnum):
-    create = "create"
-    update = "update"
-    delete = "delete"
-
-
-class OperationStatus(StrEnum):
-    accepted = "accepted"
-    in_progress = "in_progress"
-    completed = "completed"
-    failed = "failed"
-    rejected = "rejected"
-    superseded = "superseded"
-
-
-class OperationStatusReason(StrEnum):
-    """
-    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
-    """
-
-    conflict = "conflict"
-    validation = "validation"
-    not_found = "not_found"
-    protected = "protected"
-
-
-class Operation(ContractModel):
-    """
-    Acompanhamento de uma solicitação assíncrona, exposto por GET /v1/operations/{operationId} (SSOT.md, Operation).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    operation_type: Annotated[OperationType, Field(alias="operationType", title="OperationType")]
-    module: Annotated[str, Field(max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")]
-    resource_type: Annotated[
-        str, Field(alias="resourceType", max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")
-    ]
-    resource_id: Annotated[
-        str,
-        Field(
-            alias="resourceId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-    desired_generation: Annotated[
-        int | None, Field(alias="desiredGeneration", ge=1, le=9007199254740991)
-    ] = None
-    """
-    Geração produzida pelo pedido; ausente quando rejeitado.
-    """
-    operation_status: Annotated[
-        OperationStatus, Field(alias="operationStatus", title="OperationStatus")
-    ]
-    operation_status_reason: Annotated[
-        OperationStatusReason | None,
-        Field(alias="operationStatusReason", title="OperationStatusReason"),
-    ] = None
-    """
-    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
-    """
-    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-    updated_at: Annotated[AwareDatetime, Field(alias="updatedAt")]
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-    completed_at: Annotated[AwareDatetime | None, Field(alias="completedAt")] = None
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-
-
-class ApiAcceptedResponse(ContractModel):
-    """
-    Resposta das escritas assíncronas (POST, PATCH, DELETE): o pedido foi publicado, não aplicado (RESOURCE-CONTROL-LOOP.md, Interface HTTP).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    resource_id: Annotated[
-        str,
-        Field(
-            alias="resourceId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-
-
 class ApiError(ContractModel):
     """
     Corpo das respostas de erro do Receiver. A mensagem identifica o campo e a regra violada e não repete valores confidential nem secretReference (SCHEMA.md, Limites e erros).
@@ -408,135 +288,9 @@ class PlatformPermission(RootModel[str]):
     """
 
 
-class AccountCreateSpecification(ContractModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    given_name: Annotated[str, Field(alias="givenName", max_length=256, min_length=1)]
-    """
-    Nome próprio do usuário.
-    """
-    family_name: Annotated[str, Field(alias="familyName", max_length=256, min_length=1)]
-    """
-    Sobrenome do usuário.
-    """
-    email: Annotated[EmailStr, Field(max_length=254, min_length=3)]
-    """
-    E-mail do usuário; é também o nome de login. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
-    """
-
-
-class AccountRequestedCreateData(ContractModel):
-    """
-    data de requested com operation create. Publicado somente pelo Receiver, com requestedBy = anonymous no auto-cadastro. Sem senha (decisão 0014).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    specification: Annotated[AccountCreateSpecification, Field(title="AccountCreateSpecification")]
-
-
-class AccountRequestedDeleteData(ContractModel):
-    """
-    data de requested com operation delete: declara lifecycle absent. Publicado somente pelo Receiver.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    resource_version: Annotated[
-        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
-    ]
-    """
-    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
-    """
-
-
-class AccountUpdateSpecification(ContractModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    deletion_protection: Annotated[bool, Field(alias="deletionProtection")]
-    """
-    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
-    """
-
-
-class AccountRequestedUpdateData(ContractModel):
-    """
-    data de requested com operation update. A única alteração possível na Account é a proteção contra exclusão. Publicado somente pelo Receiver.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    resource_version: Annotated[
-        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
-    ]
-    """
-    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
-    """
-    specification: Annotated[AccountUpdateSpecification, Field(title="AccountUpdateSpecification")]
-
-
 class AccountCreateRequest(ContractModel):
     """
-    Corpo de POST /v1/core/accounts (auto-cadastro, escrita anônima). O Receiver atribui resourceId, operationId e requestDigest, e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.
+    Corpo de POST /v1/core/accounts (auto-cadastro, escrita anônima). A API atribui o resourceId e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.
     """
 
     model_config = ConfigDict(
@@ -573,6 +327,28 @@ class AccountUpdateRequest(ContractModel):
     deletion_protection: Annotated[bool, Field(alias="deletionProtection")]
     """
     Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
+    """
+
+
+class AccountRegistrationResponse(ContractModel):
+    """
+    Resposta de POST /v1/core/accounts (auto-cadastro, escrita anônima): o pedido foi aceito, não aplicado. Uniforme: é a mesma exista ou não o e-mail, e por isso não traz o recurso nem o estado (RESOURCE-CONTROL-LOOP.md §6.1.2). O resourceId só identifica o cadastro para quem o fez; o e-mail de ativação é o canal de confirmação.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    resource_id: Annotated[
+        str,
+        Field(
+            alias="resourceId",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ]
+    """
+    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
     """
 
 
@@ -804,7 +580,7 @@ class AccountObservedView(ContractModel):
 
 class Account(ContractModel):
     """
-    Visão consolidada da Account exposta pelo Receiver (GET /v1/core/accounts/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).
+    Visão consolidada da Account exposta pela API (GET /v1/core/accounts/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).
     """
 
     model_config = ConfigDict(
@@ -831,6 +607,12 @@ class Account(ContractModel):
     desired_generation: Annotated[int, Field(alias="desiredGeneration", ge=1, le=9007199254740991)]
     """
     Geração lógica do estado desejado (desiredGeneration, observedGeneration).
+    """
+    observed_generation: Annotated[
+        int | None, Field(alias="observedGeneration", ge=1, le=9007199254740991)
+    ] = None
+    """
+    Última geração do desired confirmada pela observação; ausente antes da primeira. A alteração terminou quando observedGeneration >= desiredGeneration e a phase é Ready ou Failed (decisão 0098).
     """
     phase: Phase
     conditions: Annotated[list[Condition], Field(max_length=32)]
@@ -897,16 +679,12 @@ class CoreAccountContracts(
         | CompletedData
         | FailedData
         | UpdatedData
-        | Operation
-        | ApiAcceptedResponse
         | ApiError
         | AccountDesiredData
         | AccountObservedData
-        | AccountRequestedCreateData
-        | AccountRequestedDeleteData
-        | AccountRequestedUpdateData
         | AccountCreateRequest
         | AccountUpdateRequest
+        | AccountRegistrationResponse
         | Account
     ]
 ):
@@ -917,16 +695,12 @@ class CoreAccountContracts(
         | CompletedData
         | FailedData
         | UpdatedData
-        | Operation
-        | ApiAcceptedResponse
         | ApiError
         | AccountDesiredData
         | AccountObservedData
-        | AccountRequestedCreateData
-        | AccountRequestedDeleteData
-        | AccountRequestedUpdateData
         | AccountCreateRequest
         | AccountUpdateRequest
+        | AccountRegistrationResponse
         | Account,
         Field(title="CoreAccountContracts"),
     ]

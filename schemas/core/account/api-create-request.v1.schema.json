@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AccountCreateRequest",
-  "description": "Corpo de POST /v1/core/accounts (auto-cadastro, escrita anônima). O Receiver atribui resourceId, operationId e requestDigest, e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.",
+  "description": "Corpo de POST /v1/core/accounts (auto-cadastro, escrita anônima). A API atribui o resourceId e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,

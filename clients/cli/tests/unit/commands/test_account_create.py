@@ -56,7 +56,7 @@ def test_without_any_configuration_the_production_api_is_used(
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
         "sk.commands.account.submit_registration",
-        fake_submit(calls, RegistrationAccepted("r-1", "o-1")),
+        fake_submit(calls, RegistrationAccepted("r-1")),
     )
     result = runner.invoke(app, REGISTER)
     assert result.exit_code == 0, result.stderr
@@ -70,7 +70,7 @@ def test_the_api_url_comes_from_the_configuration_file(
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
         "sk.commands.account.submit_registration",
-        fake_submit(calls, RegistrationAccepted("r-1", "o-1")),
+        fake_submit(calls, RegistrationAccepted("r-1")),
     )
     result = runner.invoke(app, REGISTER)
     assert result.exit_code == 0
@@ -85,7 +85,7 @@ def test_the_environment_overrides_the_file(
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
         "sk.commands.account.submit_registration",
-        fake_submit(calls, RegistrationAccepted("r-1", "o-1")),
+        fake_submit(calls, RegistrationAccepted("r-1")),
     )
     result = runner.invoke(app, REGISTER)
     assert result.exit_code == 0
@@ -118,12 +118,12 @@ def test_success_prints_the_identities_and_the_next_step(monkeypatch: pytest.Mon
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
         "sk.commands.account.submit_registration",
-        fake_submit(calls, RegistrationAccepted("0199-res", "0199-op")),
+        fake_submit(calls, RegistrationAccepted("0199-res")),
     )
     result = runner.invoke(app, REGISTER, env={"SK_API_URL": "https://api.example"})
     assert result.exit_code == 0
     assert "0199-res" in result.stdout
-    assert "0199-op" in result.stdout
+    assert "operationId" not in result.stdout
     assert "Registration requested" in result.stdout
     assert "open the link in the e-mail" in result.stdout
     assert calls[0]["given_name"] == "Ana"
@@ -182,10 +182,10 @@ def test_json_prints_the_acceptance_and_sends_the_next_steps_to_stderr(
     output.configure(raw=False)
     monkeypatch.setattr(
         "sk.commands.account.submit_registration",
-        fake_submit([], RegistrationAccepted("r-1", "o-1")),
+        fake_submit([], RegistrationAccepted("r-1")),
     )
     result = runner.invoke(app, ["--output", "json", *REGISTER])
     output.configure(raw=False)
     assert result.exit_code == 0, result.stderr
-    assert json.loads(result.stdout) == {"resourceId": "r-1", "operationId": "o-1"}
+    assert json.loads(result.stdout) == {"resourceId": "r-1"}
     assert "Next steps" in result.stderr and "Next steps" not in result.stdout

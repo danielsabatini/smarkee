@@ -83,7 +83,9 @@ CREATE INDEX IF NOT EXISTS account_email
 
 -- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count. `requested_by` aparece
 -- só na view da Operation, para o Receiver autorizar a leitura (docs/data/POSTGRESQL.md §6.5).
-CREATE OR REPLACE VIEW core.account_v1 AS
+-- DROP VIEW prévio permite reaplicar a migração mesmo após a 0011 adicionar observed_generation.
+DROP VIEW IF EXISTS core.account_v1;
+CREATE VIEW core.account_v1 AS
   SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
          resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
     FROM core.account;
@@ -95,21 +97,16 @@ CREATE OR REPLACE VIEW core.account_operation_v1 AS
     FROM core.account_operation;
 
 -- Privilégios (docs/data/POSTGRESQL.md §14.2).
+-- Os papéis `..._manager` e `..._receiver` não existem mais (decisão 0098): os privilégios do
+-- `api` e do `controller` vêm da migração 0011.
 GRANT CONNECT ON DATABASE ssot
-  TO core_account_manager, core_account_receiver, core_account_publisher, core_maintenance;
+  TO core_account_publisher, core_maintenance;
 
 REVOKE ALL ON SCHEMA core FROM PUBLIC;
 GRANT USAGE ON SCHEMA core
-  TO core_account_manager, core_account_receiver, core_account_publisher, core_maintenance;
+  TO core_account_publisher, core_maintenance;
 
 REVOKE ALL ON core.account, core.account_operation, core.account_action_result, core.account_outbox FROM PUBLIC;
-
-GRANT SELECT, INSERT, UPDATE, DELETE ON core.account                TO core_account_manager;
-GRANT SELECT, INSERT, UPDATE         ON core.account_operation        TO core_account_manager;
-GRANT SELECT, INSERT                 ON core.account_action_result    TO core_account_manager;
-GRANT INSERT                         ON core.account_outbox           TO core_account_manager;
-
-GRANT SELECT ON core.account_v1, core.account_operation_v1 TO core_account_receiver;
 
 GRANT SELECT ON core.account_outbox TO core_account_publisher;
 GRANT UPDATE (published_at) ON core.account_outbox TO core_account_publisher;

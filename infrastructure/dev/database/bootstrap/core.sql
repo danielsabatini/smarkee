@@ -11,7 +11,9 @@ DECLARE
   function_role text;
 BEGIN
   FOREACH function_role IN ARRAY ARRAY[
-    'core_account_manager', 'core_account_receiver', 'core_account_publisher', 'core_maintenance'
+    -- API síncrona (decisão 0098) e Controller (decisão 0096): substituem Receiver, Manager,
+    -- Observer, Reconciler e Executor.
+    'core_account_api', 'core_account_controller', 'core_account_publisher', 'core_maintenance'
   ] LOOP
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = function_role) THEN
       EXECUTE format('CREATE ROLE %I NOLOGIN', function_role);

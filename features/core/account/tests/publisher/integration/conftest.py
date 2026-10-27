@@ -1,7 +1,7 @@
 """Fixtures dos testes de integração: PostgreSQL de desenvolvimento, com os papéis reais.
 
 Requer a stack de dev no ar (`infrastructure/dev`, `docker compose up -d` e a migração de
-`core-organization-manager`). Sem o banco acessível, os testes são pulados. Os testes usam
+`core-account`). Sem o banco acessível, os testes são pulados. Os testes usam
 identificadores únicos e removem o que criam. As credenciais são as triviais de desenvolvimento
 (cada papel de login tem senha igual ao nome, `infrastructure/dev/README.md`).
 """
@@ -28,34 +28,33 @@ async def database_available() -> None:
 async def cleanup(database_available: None) -> AsyncIterator[Cleanup]:
     tracker = Cleanup()
     yield tracker
-    manager = await connect("core_account_manager_login")
+    controller = await connect("core_account_controller_login")
     maintenance = await connect("core_maintenance_login")
     try:
-        await manager.execute(
+        await controller.execute(
             "DELETE FROM core.account WHERE resource_id = ANY(%s)", (tracker.resource_ids,)
         )
-        for suffix in ("outbox", "operation", "action_result"):
-            await maintenance.execute(
-                f"DELETE FROM core.account_{suffix} WHERE resource_id = ANY(%s)",  # noqa: S608 (tabelas fixas)
-                (tracker.resource_ids,),
-            )
+        await maintenance.execute(
+            "DELETE FROM core.account_outbox WHERE resource_id = ANY(%s)",
+            (tracker.resource_ids,),
+        )
     finally:
-        await manager.close()
+        await controller.close()
         await maintenance.close()
 
 
 @pytest_asyncio.fixture
-async def account_manager(
+async def api_writer(
     database_available: None,
 ) -> AsyncIterator[psycopg.AsyncConnection[Any]]:
-    connection = await connect("core_account_manager_login")
+    connection = await connect("core_account_api_login")
     yield connection
     await connection.close()
 
 
 @pytest_asyncio.fixture
 async def outbox_reader(database_available: None) -> AsyncIterator[psycopg.AsyncConnection[Any]]:
-    """Papel de leitura do outbox do tipo (o Manager só insere nele)."""
+    """Papel de leitura do outbox do tipo (a API só insere nele)."""
     connection = await connect("core_account_publisher_login")
     yield connection
     await connection.close()

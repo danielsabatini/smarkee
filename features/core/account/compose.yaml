@@ -1,7 +1,7 @@
 name: core-account
 
-# Componentes de core.account (decisões 0015, 0019 e 0063): migração, consumers, Receiver, Manager,
-# Publisher, Reconciler, Observer e Executor.
+# Componentes de core.account (decisões 0015, 0019 e 0063): migração, API (decisão 0098),
+# Publisher e Controller (decisão 0096).
 # A plataforma (banco, messaging, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
 # e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait messaging database gateway identity identity-login`,
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
@@ -22,7 +22,7 @@ x-deploy: &component-deploy
       cpus: "${CORE_ACCOUNT_COMPONENT_CPUS:-0.5}"
       memory: ${CORE_ACCOUNT_COMPONENT_MEMORY:-256M}
 
-# Imagem única da feature (decisão 0063): contém o código dos seis papéis, e cada serviço escolhe o
+# Imagem única da feature (decisão 0063): contém o código de todos os papéis, e cada serviço escolhe o
 # seu pelo `command`. Cada contêiner recebe só as variáveis e os segredos do seu papel.
 x-image: &component-image
   build:
@@ -30,39 +30,10 @@ x-image: &component-image
   image: ${CORE_ACCOUNT_IMAGE:-smarkee-core-account:dev}
 
 services:
-  # Consumer durável de trabalho do Manager para `requested` do tipo (docs/messaging/NATS.md §7.6). O manifesto
-  # do Manager e o do Executor ficam em `consumers/`. Inexistente é criado; existente com configuração idêntica
-  # não muda; configuração diferente falha de forma explícita. Exige os Streams REQUESTED, OBSERVED
-  # e RESULT, criados pelo messaging da plataforma.
-  core-account-consumer:
-    build:
-      context: ../../../infrastructure/tools/nats-client
-    image: ${SMARKEE_MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}
-    container_name: core-account-consumer.smarkee.internal
-    environment:
-      NATS_URL: nats://messaging.smarkee.internal:4222
-      NATS_USER: ${SMARKEE_MESSAGING_USER:-smarkee}
-      NATS_PASSWORD: ${CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
-    command:
-      - sh
-      - -c
-      - >-
-        nats consumer add REQUESTED --config /consumers/core-account-manager-requested.json &&
-        nats consumer add OBSERVED --config /consumers/core-account-manager-observed.json &&
-        nats consumer add RESULT --config /consumers/core-account-manager-result.json &&
-        for partition in 0 1 2 3; do
-          nats consumer add ACTION --config /consumers/core-account-executor-action-p$$partition.json || exit 1;
-        done
-    volumes:
-      - ./consumers:/consumers:ro
-    networks:
-      - internal
-    restart: "no"
-
   # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo
   # (features/core/account/migrations/*.sql, em ordem) como o dono `ssot`, no banco `ssot`.
-  # O código das migrações é do Manager (decisões 0015 e 0063); a execução é desta etapa de
-  # implantação, com o papel administrativo, e nunca com o papel de runtime do Manager.
+  # O código das migrações é da API (decisões 0015, 0063 e 0098); a execução é desta etapa de
+  # implantação, com o papel administrativo, e nunca com o papel de runtime da API.
   # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/core.sql.
   core-account-migrate:
     build:
@@ -88,33 +59,33 @@ services:
           - core-account-migrate.smarkee.internal
     restart: "no"
 
-  # Receiver (`core-account-receiver`): só o gateway a alcança; a porta 8000 não é publicada no host.
-  core-account-receiver:
+  # API (`core-account-api`, decisão 0098): autentica, autoriza e admite a escrita de forma síncrona
+  # (recurso e `desired` no outbox, numa transação). Papel de banco `core_account_api`. Só o gateway a
+  # alcança; a porta 8000 não é publicada no host.
+  core-account-api:
     <<: *component-image
-    command: [core-account-receiver]
-    container_name: core-account-receiver.smarkee.internal
+    command: [core-account-api]
+    container_name: core-account-api.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
-      # defaults do componente (CORE_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>).
-      CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE: ${CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto de permissões de core, org core)}
+      # defaults do componente (CORE_ACCOUNT_API_<SEÇÃO>_<CAMPO>).
+      CORE_ACCOUNT_API_AUTH_AUDIENCE: ${CORE_ACCOUNT_API_AUTH_AUDIENCE:?Defina no .env (ID do projeto de permissões de core, org core)}
     secrets:
-      - CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD
-      - CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD
+      - CORE_ACCOUNT_API_DATABASE_PASSWORD
+      - CORE_ACCOUNT_API_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
       core-account-migrate:
         condition: service_completed_successfully
-      core-account-consumer:
-        condition: service_completed_successfully
     networks:
       internal:
         aliases:
-          - core-account-receiver.smarkee.internal
+          - core-account-api.smarkee.internal
     restart: unless-stopped
     healthcheck: &component-healthcheck
       test:
@@ -127,121 +98,40 @@ services:
       retries: 6
       start_period: 10s
 
-  # Manager (`core-account-manager`): único escritor do SSOT do tipo. Papel de banco
-  # `core_account_manager`, que só insere no outbox (decisão 0019).
-  core-account-manager:
+  # Controller (`core-account-controller`, decisão 0096): observa, decide, age e reobserva o usuário
+  # numa só transação, e substitui Observer, Reconciler e Executor. Única identidade do provedor
+  # (conta core-account-controller: ORG_USER_CREATOR e ORG_OWNER_VIEWER na organização `register` e
+  # PROJECT_GRANT_OWNER nos projetos de permissões que concede) e papel de banco próprio
+  # (`core_account_controller_login`, sem INSERT em `account`). Monta só a própria chave.
+  core-account-controller:
     <<: *component-image
-    command: [core-account-manager]
-    container_name: core-account-manager.smarkee.internal
+    command: [core-account-controller]
+    container_name: core-account-controller.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+      CORE_ACCOUNT_CONTROLLER_IDENTITY_REGISTER_ORGANIZATION_ID: ${CORE_ACCOUNT_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
+      CORE_ACCOUNT_CONTROLLER_IDENTITY_PROJECT_IDS: ${CORE_ACCOUNT_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de permissões que o Controller concede)}
     secrets:
-      - CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD
-      - CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD
+      - CORE_ACCOUNT_CONTROLLER_DATABASE_PASSWORD
+      - CORE_ACCOUNT_CONTROLLER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
+      - type: volume
+        source: identity-bootstrap
+        target: /run/secrets/zitadel-key.json
+        read_only: true
+        volume:
+          subpath: service-account-core-account-controller.json
     depends_on:
       core-account-migrate:
         condition: service_completed_successfully
-      core-account-consumer:
-        condition: service_completed_successfully
     networks:
       internal:
         aliases:
-          - core-account-manager.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Reconciler (`core-account-reconciler`): decide a `action` a partir de `desired` e `observed`.
-  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/messaging/NATS.md §7.4).
-  core-account-reconciler:
-    <<: *component-image
-    command: [core-account-reconciler]
-    container_name: core-account-reconciler.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      core-account-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - core-account-reconciler.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Observer (`core-account-observer`): lê o Zitadel (conta somente leitura) e publica `observed`.
-  # Monta só a própria chave do volume da identidade (nunca a de bootstrap nem a do Executor).
-  core-account-observer:
-    <<: *component-image
-    command: [core-account-observer]
-    container_name: core-account-observer.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      CORE_ACCOUNT_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID: ${CORE_ACCOUNT_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
-    secrets:
-      - CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-      - type: volume
-        source: identity-bootstrap
-        target: /run/secrets/zitadel-key.json
-        read_only: true
-        volume:
-          subpath: service-account-core-account-observer.json
-    depends_on:
-      core-account-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - core-account-observer.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Executor (`core-account-executor`): única identidade com escrita no Zitadel (conta
-  # core-account-executor, papel ORG_USER_MANAGER). Monta só a própria chave.
-  core-account-executor:
-    <<: *component-image
-    command: [core-account-executor]
-    container_name: core-account-executor.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      CORE_ACCOUNT_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID: ${CORE_ACCOUNT_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
-      CORE_ACCOUNT_EXECUTOR_IDENTITY_PROJECT_IDS: ${CORE_ACCOUNT_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de permissões que o Executor concede)}
-    secrets:
-      - CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-      - type: volume
-        source: identity-bootstrap
-        target: /run/secrets/zitadel-key.json
-        read_only: true
-        volume:
-          subpath: service-account-core-account-executor.json
-    depends_on:
-      core-account-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - core-account-executor.smarkee.internal
+          - core-account-controller.smarkee.internal
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
@@ -314,20 +204,14 @@ services:
 # Senhas montadas em /run/secrets/<VARIÁVEL> (arquivo somente leitura, lido pelo `SecretFilesSource`; decisão 0070).
 # A origem em dev é o .env; cada papel recebe só a sua. Em stg e prd a origem passa a ser o cofre de segredos.
 secrets:
-  CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD:
-    environment: CORE_ACCOUNT_RECEIVER_DATABASE_PASSWORD
-  CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD:
-    environment: CORE_ACCOUNT_RECEIVER_MESSAGING_PASSWORD
-  CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD:
-    environment: CORE_ACCOUNT_MANAGER_DATABASE_PASSWORD
-  CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD:
-    environment: CORE_ACCOUNT_MANAGER_MESSAGING_PASSWORD
-  CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD:
-    environment: CORE_ACCOUNT_RECONCILER_MESSAGING_PASSWORD
-  CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD:
-    environment: CORE_ACCOUNT_OBSERVER_MESSAGING_PASSWORD
-  CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD:
-    environment: CORE_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD
+  CORE_ACCOUNT_API_DATABASE_PASSWORD:
+    environment: CORE_ACCOUNT_API_DATABASE_PASSWORD
+  CORE_ACCOUNT_API_MESSAGING_PASSWORD:
+    environment: CORE_ACCOUNT_API_MESSAGING_PASSWORD
+  CORE_ACCOUNT_CONTROLLER_DATABASE_PASSWORD:
+    environment: CORE_ACCOUNT_CONTROLLER_DATABASE_PASSWORD
+  CORE_ACCOUNT_CONTROLLER_MESSAGING_PASSWORD:
+    environment: CORE_ACCOUNT_CONTROLLER_MESSAGING_PASSWORD
   CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD:
     environment: CORE_ACCOUNT_PUBLISHER_DATABASE_PASSWORD
   CORE_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD:

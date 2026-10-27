@@ -70,7 +70,7 @@ def submit(opener: Recorder, **overrides: Any) -> Any:
     return submit_registration("https://api.example", **arguments)
 
 
-ACCEPTED = {"resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e", "operationId": "op-1"}
+ACCEPTED = {"resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e"}
 
 
 def test_the_request_is_anonymous_and_carries_only_the_contract_fields(
@@ -92,7 +92,6 @@ def test_the_request_is_anonymous_and_carries_only_the_contract_fields(
         "email": "ana@example.com",
     }
     assert accepted.resource_id == ACCEPTED["resourceId"]
-    assert accepted.operation_id == "op-1"
 
 
 def test_a_password_is_never_part_of_the_request() -> None:
@@ -136,7 +135,7 @@ def test_a_network_failure_is_unavailable() -> None:
 
 def test_a_response_outside_the_contract_is_unavailable() -> None:
     with pytest.raises(ApiUnavailableError):
-        submit(Recorder(FakeResponse(202, {"resourceId": "x"})))
+        submit(Recorder(FakeResponse(202, {"operationId": "x"})))
 
 
 def test_a_non_json_body_is_unavailable() -> None:

@@ -6,23 +6,22 @@ CLI diz o que remover antes. A conta nasce protegida contra exclusão (decisão 
 `sk account unprotect` precede o `delete`.
 """
 
-import time
 import uuid
 from typing import Annotated, NoReturn
 
 import typer
 
-from sk import output, ui
+from sk import ui
 from sk.command_app import SkTyper
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
     EXIT_FAILURE,
     EXIT_USAGE_ERROR,
-    HTTP_NOT_FOUND,
-    WAIT_POLL_SECONDS,
     PersonNameOption,
     PersonSurnameOption,
+    SyncResourceFlow,
     TimeoutOption,
+    already_done,
     bad_address,
     fail_api,
     load_api,
@@ -33,7 +32,6 @@ from sk.features.core.account import (
     Account,
     delete_account,
     get_account,
-    get_operation,
     set_account_protection,
     submit_registration,
     token_subject,
@@ -54,6 +52,8 @@ account_app = SkTyper(
     pretty_exceptions_show_locals=False,
 )
 
+HTTP_UNAUTHORIZED = 401
+HTTP_NOT_FOUND = 404
 NOT_FOUND = "Your account was not found."
 CONFLICT_ON_CHANGE = "The account changed since it was last read. Inspect it and try again."
 ERROR_CODE_HINTS = {
@@ -114,49 +114,47 @@ def get_command() -> None:
     ui.panel("Account", _rows(account), data=account)
 
 
-def _wait_until_completed(
-    url: str, insecure: bool, resource_id: str, operation_id: str, *, timeout: int
-) -> None:
-    """Espera a Operation de proteção chegar a `completed` (ela não passa pelo provedor)."""
-    with ui.waiting(timeout) as progress:
-        progress.update("Operation submitted")
-        deadline = time.monotonic() + timeout
-        while True:
-            try:
-                operation = get_operation(
-                    url,
-                    token=session_token(),
-                    resource_id=resource_id,
-                    operation_id=operation_id,
-                    allow_insecure_http=insecure,
-                )
-            except OidcError as error:
-                bad_address(error)
-            except ApiRejectedError as error:
-                # Logo depois do `202`, a Operation pode ainda não existir: é espera, e não erro.
-                if error.status != HTTP_NOT_FOUND:
-                    _fail_api(error)
-            except ApiError as error:
-                _fail_api(error)
-            else:
-                progress.update(f"Operation {operation.operation_status}")
-                if operation.operation_status in ("rejected", "failed", "superseded"):
-                    ui.error(
-                        "Request not completed",
-                        f"The Operation ended as {operation.operation_status}.",
-                        hint="Inspect your account with `sk account get`.",
-                    )
-                    raise typer.Exit(EXIT_FAILURE)
-                if operation.operation_status == "completed":
-                    return
-            if time.monotonic() >= deadline:
-                ui.error(
-                    "Timed out",
-                    f"{timeout} s passed and the change is still in progress.",
-                    hint="Check it with `sk account get`.",
-                )
-                raise typer.Exit(EXIT_FAILURE)
-            time.sleep(WAIT_POLL_SECONDS)
+def _get_command(_resource_id: str) -> str:
+    return "sk account get"
+
+
+_flow = SyncResourceFlow(
+    subject="account",
+    get_command=_get_command,
+    read_resource=get_account,
+    fail_api=_fail_api,
+    rows=_rows,
+)
+
+
+def _read_until_gone(
+    api_url: str, *, token: str, resource_id: str, allow_insecure_http: bool
+) -> Account:
+    """Leitura da espera da exclusão: o `401` também diz que a conta saiu.
+
+    Quando o usuário é removido do provedor, o token da sessão deixa de valer: o fim da exclusão
+    pode aparecer como a recusa do próprio token. Vira o `404` que o acompanhamento espera.
+    """
+    try:
+        return get_account(
+            api_url, token=token, resource_id=resource_id, allow_insecure_http=allow_insecure_http
+        )
+    except ApiRejectedError as error:
+        if error.status == HTTP_UNAUTHORIZED:
+            raise ApiRejectedError(
+                HTTP_NOT_FOUND, "account removed", error_code=error.error_code
+            ) from error
+        raise
+
+
+_deletion_flow = SyncResourceFlow(
+    subject="account",
+    get_command=_get_command,
+    read_resource=_read_until_gone,
+    fail_api=_fail_api,
+    rows=_rows,
+    removed_key="session",
+)
 
 
 def _set_protection(*, protected: bool, wait: bool, timeout: int) -> None:
@@ -170,11 +168,9 @@ def _set_protection(*, protected: bool, wait: bool, timeout: int) -> None:
         if account.deletion_protection == protected:
             # Idempotente: pedir o estado que já vale não é erro.
             state = "protected" if protected else "unprotected"
-            ui.note(f"The account is already {state}. Nothing to do.")
-            if output.is_json():
-                output.emit(account)
+            already_done(account, f"The account is already {state}. Nothing to do.")
             return
-        accepted = set_account_protection(
+        changed = set_account_protection(
             url,
             token=token,
             resource_id=resource_id,
@@ -187,24 +183,15 @@ def _set_protection(*, protected: bool, wait: bool, timeout: int) -> None:
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    ui.panel(
-        "Protection change requested",
-        [
-            ("protected", "yes" if protected else "no"),
-            ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
-        ],
-        data=accepted,
-        interim=wait,
-    )
-    if not wait:
-        ui.note("Confirm it with `sk account get`.")
-        return
-    _wait_until_completed(url, insecure, resource_id, accepted.operation_id, timeout=timeout)
-    ui.panel(
-        "Account protected" if protected else "Account unprotected",
-        [("resourceId", resource_id), ("protected", "yes" if protected else "no")],
-        data={"resourceId": resource_id, "protected": protected},
+    _flow.requested_panel("Protection change requested", changed, wait=wait)
+    _flow.finish(
+        url,
+        insecure,
+        changed,
+        title="Account protected" if protected else "Account unprotected",
+        removal=False,
+        wait=wait,
+        timeout=timeout,
     )
 
 
@@ -241,56 +228,6 @@ def unprotect_command(
     wait: WaitOption = False, timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS
 ) -> None:
     _set_protection(protected=False, wait=wait, timeout=timeout)
-
-
-def _wait_until_gone(
-    url: str, insecure: bool, resource_id: str, operation_id: str, *, timeout: int
-) -> None:
-    """Espera a exclusão terminar: Operation `completed`, ou a conta sumir (`401` ou `404`).
-
-    Quando o usuário é removido do provedor, o token da sessão deixa de valer: o fim da exclusão
-    pode aparecer como a recusa do próprio token.
-    """
-    with ui.waiting(timeout) as progress:
-        progress.update("Operation submitted")
-        deadline = time.monotonic() + timeout
-        while True:
-            try:
-                operation = get_operation(
-                    url,
-                    token=session_token(),
-                    resource_id=resource_id,
-                    operation_id=operation_id,
-                    allow_insecure_http=insecure,
-                )
-            except OidcError as error:
-                bad_address(error)
-            except ApiRejectedError as error:
-                if error.status == 401:
-                    return  # o token deixou de valer: a conta foi removida do provedor
-                if error.status != HTTP_NOT_FOUND:
-                    _fail_api(error)
-            except ApiError as error:
-                _fail_api(error)
-            else:
-                progress.update(f"Operation {operation.operation_status}")
-                if operation.operation_status in ("rejected", "failed", "superseded"):
-                    ui.error(
-                        "Request not completed",
-                        f"The Operation ended as {operation.operation_status}.",
-                        hint="Inspect your account with `sk account get`.",
-                    )
-                    raise typer.Exit(EXIT_FAILURE)
-                if operation.operation_status == "completed":
-                    return
-            if time.monotonic() >= deadline:
-                ui.error(
-                    "Timed out",
-                    f"{timeout} s passed and the deletion is still in progress.",
-                    hint="Check it with `sk account get`.",
-                )
-                raise typer.Exit(EXIT_FAILURE)
-            time.sleep(WAIT_POLL_SECONDS)
 
 
 @account_app.command(
@@ -343,7 +280,7 @@ def delete_command(
         account = get_account(
             url, token=token, resource_id=resource_id, allow_insecure_http=insecure
         )
-        accepted = delete_account(
+        deleted = delete_account(
             url,
             token=token,
             resource_id=resource_id,
@@ -355,26 +292,23 @@ def delete_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    ui.panel(
-        "Deletion requested",
-        [
-            ("email", account.email),
-            ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
-        ],
-        data=accepted,
-        interim=wait,
+    _deletion_flow.requested_panel(
+        "Deletion requested", deleted, ("email", account.email), wait=wait
     )
-    if not wait:
-        ui.note("The account is removed shortly. Confirm it with `sk account get`.")
-        return
-    _wait_until_gone(url, insecure, resource_id, accepted.operation_id, timeout=timeout)
-    default_credentials_path().unlink(missing_ok=True)  # a sessão não vale mais
-    ui.panel(
-        "Account deleted",
-        [("resourceId", resource_id), ("session", "forgotten")],
-        data={"resourceId": resource_id, "state": "removed"},
-    )
+    if (
+        _deletion_flow.finish(
+            url,
+            insecure,
+            deleted,
+            title="Account deleted",
+            removal=True,
+            wait=wait,
+            timeout=timeout,
+        )
+        is None
+        and wait
+    ):
+        default_credentials_path().unlink(missing_ok=True)  # a sessão não vale mais
 
 
 @account_app.command(
@@ -463,7 +397,6 @@ def create_account(
             ("name", f"{name.strip()} {surname.strip()}"),
             ("email", email.strip()),
             ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
         ],
         data=accepted,
     )

@@ -3,7 +3,7 @@
     "schemas": {
       "Account": {
         "additionalProperties": false,
-        "description": "Visão consolidada da Account exposta pelo Receiver (GET /v1/core/accounts/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).",
+        "description": "Visão consolidada da Account exposta pela API (GET /v1/core/accounts/{resourceId}), legível pelo próprio usuário e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).",
         "properties": {
           "conditions": {
             "items": {
@@ -37,6 +37,19 @@
               }
             ],
             "title": "AccountObservedView"
+          },
+          "observedGeneration": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observedgeneration"
           },
           "phase": {
             "$ref": "#/components/schemas/Phase"
@@ -76,7 +89,7 @@
       },
       "AccountCreateRequest": {
         "additionalProperties": false,
-        "description": "Corpo de POST /v1/core/accounts (auto-cadastro, escrita anônima). O Receiver atribui resourceId, operationId e requestDigest, e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.",
+        "description": "Corpo de POST /v1/core/accounts (auto-cadastro, escrita anônima). A API atribui o resourceId e requestedBy = anonymous. Não há senha: a pessoa a define na página do provedor de identidade, pelo e-mail de ativação.",
         "properties": {
           "email": {
             "format": "email",
@@ -264,6 +277,24 @@
         "title": "AccountObservedView",
         "type": "object"
       },
+      "AccountRegistrationResponse": {
+        "additionalProperties": false,
+        "description": "Resposta de POST /v1/core/accounts (auto-cadastro, escrita anônima): o pedido foi aceito, não aplicado. Uniforme: é a mesma exista ou não o e-mail, e por isso não traz o recurso nem o estado (RESOURCE-CONTROL-LOOP.md §6.1.2). O resourceId só identifica o cadastro para quem o fez; o e-mail de ativação é o canal de confirmação.",
+        "properties": {
+          "resourceId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+            "title": "Resourceid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resourceId"
+        ],
+        "title": "AccountRegistrationResponse",
+        "type": "object"
+      },
       "AccountState": {
         "description": "Estado do usuário no provedor de identidade. initial: aguardando a ativação (definição da senha).",
         "enum": [
@@ -296,32 +327,6 @@
           "deletionProtection"
         ],
         "title": "AccountUpdateRequest",
-        "type": "object"
-      },
-      "ApiAcceptedResponse": {
-        "additionalProperties": false,
-        "description": "Resposta das escritas assíncronas (POST, PATCH, DELETE): o pedido foi publicado, não aplicado (RESOURCE-CONTROL-LOOP.md, Interface HTTP).",
-        "properties": {
-          "operationId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Operationid",
-            "type": "string"
-          },
-          "resourceId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Resourceid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "resourceId",
-          "operationId"
-        ],
-        "title": "ApiAcceptedResponse",
         "type": "object"
       },
       "Condition": {
@@ -414,136 +419,6 @@
           "absent"
         ],
         "title": "Lifecycle",
-        "type": "string"
-      },
-      "Operation": {
-        "additionalProperties": false,
-        "description": "Acompanhamento de uma solicitação assíncrona, exposto por GET /v1/operations/{operationId} (SSOT.md, Operation).",
-        "properties": {
-          "completedAt": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completedat"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "title": "Createdat",
-            "type": "string"
-          },
-          "desiredGeneration": {
-            "anyOf": [
-              {
-                "maximum": 9007199254740991.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Desiredgeneration"
-          },
-          "module": {
-            "maxLength": 63,
-            "minLength": 1,
-            "pattern": "^[a-z][a-z0-9-]*$",
-            "title": "Module",
-            "type": "string"
-          },
-          "operationId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Operationid",
-            "type": "string"
-          },
-          "operationStatus": {
-            "$ref": "#/components/schemas/OperationStatus"
-          },
-          "operationStatusReason": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/OperationStatusReason"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "OperationStatusReason"
-          },
-          "operationType": {
-            "$ref": "#/components/schemas/OperationType"
-          },
-          "resourceId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Resourceid",
-            "type": "string"
-          },
-          "resourceType": {
-            "maxLength": 63,
-            "minLength": 1,
-            "pattern": "^[a-z][a-z0-9-]*$",
-            "title": "Resourcetype",
-            "type": "string"
-          },
-          "updatedAt": {
-            "format": "date-time",
-            "title": "Updatedat",
-            "type": "string"
-          }
-        },
-        "required": [
-          "operationId",
-          "operationType",
-          "module",
-          "resourceType",
-          "resourceId",
-          "operationStatus",
-          "createdAt",
-          "updatedAt"
-        ],
-        "title": "Operation",
-        "type": "object"
-      },
-      "OperationStatus": {
-        "enum": [
-          "accepted",
-          "in_progress",
-          "completed",
-          "failed",
-          "rejected",
-          "superseded"
-        ],
-        "title": "OperationStatus",
-        "type": "string"
-      },
-      "OperationStatusReason": {
-        "description": "Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).",
-        "enum": [
-          "conflict",
-          "validation",
-          "not_found",
-          "protected"
-        ],
-        "title": "OperationStatusReason",
-        "type": "string"
-      },
-      "OperationType": {
-        "enum": [
-          "create",
-          "update",
-          "delete"
-        ],
-        "title": "OperationType",
         "type": "string"
       },
       "Phase": {
@@ -703,7 +578,7 @@
     },
     "/v1/core/accounts": {
       "post": {
-        "description": "Auto-cadastro: escrita anônima (`RESOURCE-CONTROL-LOOP.md` §6.1.2).\n\nResposta uniforme: nenhuma consulta ao SSOT, e o mesmo `202` exista ou não o e-mail.",
+        "description": "Auto-cadastro: escrita anônima (`RESOURCE-CONTROL-LOOP.md` §6.1.2).\n\nResposta uniforme: o mesmo `202` com um `resourceId` novo exista ou não o e-mail. Se ele já\nestá em uso, nada é gravado.",
         "operationId": "register_account_v1_core_accounts_post",
         "requestBody": {
           "content": {
@@ -720,7 +595,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                  "$ref": "#/components/schemas/AccountRegistrationResponse"
                 }
               }
             },
@@ -785,7 +660,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                  "$ref": "#/components/schemas/Account"
                 }
               }
             },
@@ -882,11 +757,11 @@
           "required": true
         },
         "responses": {
-          "202": {
+          "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                  "$ref": "#/components/schemas/Account"
                 }
               }
             },
@@ -904,54 +779,6 @@
           }
         },
         "summary": "Update Account"
-      }
-    },
-    "/v1/core/accounts/{account_id}/operations/{operation_id}": {
-      "get": {
-        "operationId": "get_operation_v1_core_accounts__account_id__operations__operation_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "operation_id",
-            "required": true,
-            "schema": {
-              "title": "Operation Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Operation"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Operation"
       }
     }
   }

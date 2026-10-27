@@ -11,7 +11,7 @@ o `docker` disponível para o último teste. O cadastro cria um usuário `conf.t
 | `traceparent` e `tracestate` forjados pelo cliente são ignorados: o `trace_id` forjado não aparece em nenhum log nem span | 0054 |
 | Os spans não têm `args`, `http.target` nem `url.full`, e todo valor de `url.query` é `REDACTED` | 0050 |
 | Os logs de infra criados durante o teste não têm e-mail nem código de verificação | 0059 |
-| Os spans das rotas de `core/account` (`apisix.service_name = core-account-receiver`) vão para `telemeter/traces/`, e não para o `platform-telemeter`; a pasta da feature só recebe a feature dela | 0062 |
+| Os spans das rotas de `core/account` (`apisix.service_name = core-account-api`) vão para `telemeter/traces/`, e não para o `platform-telemeter`; a pasta da feature só recebe a feature dela | 0062 |
 | Os logs de app de `core/account` vão para a pasta do telemeter da feature (`features/core/account/telemeter`) e **não** para o arquivo compartilhado | 0062 |
 | Para cada feature (`bsm/account`, `core/account`, `ipm/group`, `ipm/organization`, `ipm/permission`, `ipm/role`, `ipm/serviceaccount`, `ipm/user`, `sum/service`), um log sintético no formato do contrato e um span de rota chegam só ao telemeter dela, e não ao `platform-telemeter` | 0062 |
 | Os `config.yaml` dos telemeters das features são idênticos | 0062 |

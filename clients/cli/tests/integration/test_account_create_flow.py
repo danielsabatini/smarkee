@@ -33,9 +33,7 @@ class Recording(BaseHTTPRequestHandler):
                 "body": json.loads(body or b"{}"),
             }
         )
-        payload = json.dumps(
-            {"resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e", "operationId": "op-1"}
-        ).encode()
+        payload = json.dumps({"resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e"}).encode()
         self.send_response(Recording.status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
@@ -88,7 +86,6 @@ def test_the_request_reaches_the_api_without_any_token(
     )
 
     assert result.exit_code == 0, result.stderr
-    assert "op-1" in result.stdout
     assert "Registration requested" in result.stdout
     request = Recording.received[0]
     assert request["path"] == "/v1/core/accounts"

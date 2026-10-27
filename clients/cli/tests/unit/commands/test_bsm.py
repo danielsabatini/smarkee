@@ -471,9 +471,7 @@ def test_delete_wait_ends_when_the_account_is_gone(api: FakeApi) -> None:
     assert "Billing Account deleted" in result.stdout and "removed" in result.stdout
 
 
-def test_active_account_configuration_and_save_on_create_wait(
-    api: FakeApi, tmp_path: Path
-) -> None:
+def test_active_account_configuration_and_save_on_create_wait(api: FakeApi, tmp_path: Path) -> None:
     api.routes[("POST", PATH)] = admitted(201)
     api.routes[("GET", ACCOUNT)] = Response(200, account_document())
 
@@ -555,8 +553,6 @@ def test_json_delete_with_wait_prints_the_removed_state(api: FakeApi) -> None:
         http_error(404, "NotFound", "Recurso não encontrado."),
     ]
     api.routes[("DELETE", ACCOUNT)] = admitted(202, phase="Deleting")
-    result = runner.invoke(
-        app, [*JSON, "bsm", "account", "delete", "--resource-id", RID, "--wait"]
-    )
+    result = runner.invoke(app, [*JSON, "bsm", "account", "delete", "--resource-id", RID, "--wait"])
     assert result.exit_code == 0, result.stderr
     assert _document(result.stdout) == {"resourceId": RID, "state": "removed"}

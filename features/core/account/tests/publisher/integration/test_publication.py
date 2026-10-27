@@ -10,7 +10,11 @@ from psycopg.types.json import Jsonb
 from support_publisher import Cleanup, connect, fetch_all, unique_suffix
 
 from core_account.common.ports import PublishError
-from core_account.publisher.outbox.publication import holds_lock, publish_pending, try_acquire_lock
+from core_account.publisher.outbox.publication import (
+    holds_lock,
+    publish_pending,
+    try_acquire_lock,
+)
 
 Connection = psycopg.AsyncConnection[Any]
 
@@ -27,8 +31,8 @@ class RecordingPublisher:
         self.published.append((subject, json.loads(payload), message_id))
 
 
-async def seed(cleanup: Cleanup, manager: Connection, count: int) -> list[str]:
-    """Registra `count` mensagens no outbox, como o Manager faria (só `INSERT` é permitido)."""
+async def seed(cleanup: Cleanup, api_writer: Connection, count: int) -> list[str]:
+    """Registra `count` mensagens no outbox, como a API faria (só `INSERT`)."""
     resource_ids: list[str] = []
     for _ in range(count):
         resource_id = cleanup.track(str(uuid.uuid7()))
@@ -38,7 +42,7 @@ async def seed(cleanup: Cleanup, manager: Connection, count: int) -> list[str]:
             "messageId": message_id,
             "schemaVersion": "1.0",
             "messageType": "desired",
-            "emitter": "manager",
+            "emitter": "api",
             "module": "core",
             "resourceType": "account",
             "resourceId": resource_id,
@@ -50,7 +54,7 @@ async def seed(cleanup: Cleanup, manager: Connection, count: int) -> list[str]:
             "occurredAt": "2026-10-10T12:00:00Z",
             "data": {"lifecycle": "present", "reconciliation": "active"},
         }
-        await manager.execute(
+        await api_writer.execute(
             "INSERT INTO core.account_outbox (message_id, resource_id, subject, payload)"
             " VALUES (%s, %s, %s, %s)",
             (
@@ -74,9 +78,9 @@ async def pending_for(outbox_reader: Connection, resource_ids: list[str]) -> lis
 
 
 async def test_publishes_in_order_marks_published_and_stamps_the_publication_time(
-    cleanup: Cleanup, account_manager: Connection, outbox_reader: Connection
+    cleanup: Cleanup, api_writer: Connection, outbox_reader: Connection
 ) -> None:
-    ids = await seed(cleanup, account_manager, 3)
+    ids = await seed(cleanup, api_writer, 3)
     publisher = RecordingPublisher()
     # Mensagens pendentes de outras origens também são publicadas; só as deste teste importam.
     await publish_pending(outbox_reader, publisher, batch_size=1000)
@@ -95,11 +99,11 @@ async def test_publishes_in_order_marks_published_and_stamps_the_publication_tim
 
 
 async def test_a_failure_interrupts_the_batch_and_only_confirmed_messages_are_marked(
-    cleanup: Cleanup, account_manager: Connection, outbox_reader: Connection
+    cleanup: Cleanup, api_writer: Connection, outbox_reader: Connection
 ) -> None:
     # Esvazia o que já estava pendente, para o índice da falha ser previsível.
     await publish_pending(outbox_reader, RecordingPublisher(), batch_size=1000)
-    fresh = await seed(cleanup, account_manager, 3)
+    fresh = await seed(cleanup, api_writer, 3)
 
     publisher = RecordingPublisher(fail_on=2)
     result = await publish_pending(outbox_reader, publisher, batch_size=1000)
@@ -115,10 +119,10 @@ async def test_a_failure_interrupts_the_batch_and_only_confirmed_messages_are_ma
 
 
 async def test_a_permanent_refusal_blocks_the_queue_and_is_reported(
-    cleanup: Cleanup, account_manager: Connection, outbox_reader: Connection
+    cleanup: Cleanup, api_writer: Connection, outbox_reader: Connection
 ) -> None:
     await publish_pending(outbox_reader, RecordingPublisher(), batch_size=1000)
-    fresh = await seed(cleanup, account_manager, 2)
+    fresh = await seed(cleanup, api_writer, 2)
 
     result = await publish_pending(
         outbox_reader, RecordingPublisher(fail_on=1, permanent=True), batch_size=1000
@@ -152,12 +156,12 @@ async def test_only_one_instance_holds_the_session_lock(database_available: None
 
 
 async def test_the_publisher_identifies_itself_without_changing_the_emitter(
-    cleanup: Cleanup, account_manager: Connection, outbox_reader: Connection
+    cleanup: Cleanup, api_writer: Connection, outbox_reader: Connection
 ) -> None:
-    ids = await seed(cleanup, account_manager, 1)
+    ids = await seed(cleanup, api_writer, 1)
     publisher = RecordingPublisher()
     await publish_pending(outbox_reader, publisher, batch_size=1000)
 
     ours = [item[1] for item in publisher.published if item[1]["resourceId"] in ids]
     assert [payload["publishedBy"] for payload in ours] == ["core-account-publisher"]
-    assert all("emitter" not in payload or payload["emitter"] == "manager" for payload in ours)
+    assert all("emitter" not in payload or payload["emitter"] == "api" for payload in ours)

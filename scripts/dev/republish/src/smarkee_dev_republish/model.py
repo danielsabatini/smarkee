@@ -27,9 +27,7 @@ class Kind:
     manager_role: str
 
 
-ACCOUNTS = Kind(
-    "core", "account", "core.account", "core.account_outbox", "core_account_manager_login"
-)
+ACCOUNTS = Kind("core", "account", "core.account", "core.account_outbox", "core_account_api_login")
 SERVICES = Kind(
     "sum", "service", "sum.service", "sum.service_outbox", "sum_service_manager_login"
 )

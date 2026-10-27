@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AccountRegistrationResponse",
+  "description": "Resposta de POST /v1/core/accounts (auto-cadastro, escrita anônima): o pedido foi aceito, não aplicado. Uniforme: é a mesma exista ou não o e-mail, e por isso não traz o recurso nem o estado (RESOURCE-CONTROL-LOOP.md §6.1.2). O resourceId só identifica o cadastro para quem o fez; o e-mail de ativação é o canal de confirmação.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["resourceId"],
+  "properties": {
+    "resourceId": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}
