@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from sk import ui
 from sk.command_app import SkTyper
 from sk.defaults import PROVISIONAL
+from sk.files import STANDARD_INPUT
 from sk.help import command, option
 from sk.identity.credentials import (
     CredentialsError,
@@ -330,6 +331,15 @@ KeyFileOption = Annotated[
 def login(key_file: KeyFileOption = None) -> None:
     settings = _load_or_exit({})
     if key_file is not None:
+        if key_file == STANDARD_INPUT:
+            # A sessão guarda o caminho e relê o arquivo a cada renovação (15 min): sem arquivo,
+            # ela não se renovaria. Copiar a chave privada para outro lugar seria decisão à parte.
+            ui.error(
+                "Key file required",
+                "The session renews itself from the key file, so it cannot come from stdin.",
+                hint="Save the key to a file with restricted permissions and give its path.",
+            )
+            raise typer.Exit(EXIT_USAGE_ERROR)
         _refuse_provisional_module_projects()
         run_service_account_login(
             settings,

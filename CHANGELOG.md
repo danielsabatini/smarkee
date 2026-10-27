@@ -7,6 +7,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 ### Added
+- CLI `sk`: `--public-key-file -` (em `ipm serviceaccount create` e `key add`) lê a chave pública da entrada padrão. Recusa terminal, entrada vazia e mais de 64 KiB, e nunca repete o conteúdo em mensagem de erro. `sk auth login --key-file -` é recusado com explicação, porque a sessão relê o arquivo de chave a cada renovação.
 - CLI `sk`: `sk config unset <chave>` remove a chave do arquivo e devolve o valor ao padrão. É idempotente (chave já ausente não altera o arquivo) e avisa quando uma variável `SK_*` ainda prevalece.
 - CLI `sk`: o tempo máximo de cada pedido à API passa a ser configurável (`api.timeoutSeconds` / `SK_API_TIMEOUT_SECONDS`, de 1 a 300 segundos; padrão 10). O erro por tempo esgotado informa o limite e como aumentá-lo. `sk config set` passa a aceitar chaves numéricas.
 - CLI `sk`: uma falha inesperada (exceção que nenhum comando tratou) deixa de mostrar o traceback do Python e passa a mostrar o painel "Unexpected error", só com o tipo da exceção (a mensagem pode trazer dados sensíveis) e o endereço da documentação, com código de saída 1.

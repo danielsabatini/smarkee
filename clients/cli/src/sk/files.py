@@ -1,8 +1,37 @@
-"""Gravação de arquivos locais do sk (configuração e credenciais)."""
+"""Leitura e gravação de arquivos locais do sk (configuração, credenciais e chaves)."""
 
 import os
+import sys
 import tempfile
 from pathlib import Path
+
+STANDARD_INPUT = Path("-")
+"""Caminho que, numa opção que lê um arquivo, quer dizer a entrada padrão (como em `cat -`)."""
+
+MAXIMUM_STANDARD_INPUT_BYTES = 64 * 1024
+"""Teto da leitura da entrada padrão: uma entrada sem fim não pode consumir a memória."""
+
+
+class StandardInputError(Exception):
+    """A entrada padrão não pôde ser lida (é um terminal, está vazia ou passa do teto)."""
+
+
+def read_standard_input() -> bytes:
+    """Lê toda a entrada padrão, que precisa vir de um pipe ou redirecionamento.
+
+    Num terminal interativo a leitura esperaria a pessoa digitar sem aviso: falha de imediato.
+    O conteúdo nunca entra na mensagem de erro.
+    """
+    if sys.stdin.isatty():
+        raise StandardInputError("standard input is a terminal: pipe the content into the command")
+    content = sys.stdin.buffer.read(MAXIMUM_STANDARD_INPUT_BYTES + 1)
+    if len(content) > MAXIMUM_STANDARD_INPUT_BYTES:
+        raise StandardInputError(
+            f"standard input is larger than {MAXIMUM_STANDARD_INPUT_BYTES // 1024} KiB"
+        )
+    if not content.strip():
+        raise StandardInputError("standard input is empty")
+    return content
 
 
 def write_private_file(path: Path, content: str) -> None:

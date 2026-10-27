@@ -284,3 +284,23 @@ def test_key_file_missing_file_explains_the_path_without_raw_errno(tmp_path: Pat
     assert "Could not read the key file" in result.output
     assert "nao-existe.json" in result.output
     assert "Errno" not in result.output
+
+
+def test_create_reads_the_public_key_from_stdin(
+    api: FakeApi, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sk.identity.keys import generate_key_pair
+
+    monkeypatch.chdir(tmp_path)
+    keypair = generate_key_pair()
+    api.routes[("POST", PATH)] = Response(202, {"resourceId": RID, "operationId": OPID})
+    result = runner.invoke(
+        app,
+        [
+            *["ipm", "serviceaccount", "create", "--name", "ci", "--organization-id", ORG],
+            *["--public-key-file", "-"],
+        ],
+        input=keypair.public_pem,
+    )
+    assert result.exit_code == 0, result.output
+    assert list(tmp_path.glob("*.json")) == []  # com a pública dada, nenhum arquivo de chave nasce

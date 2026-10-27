@@ -319,7 +319,8 @@ def create_command(
         typer.Option(
             "--public-key-file",
             help=option(
-                "Path to an existing RSA public key in PEM format (BYO key).",
+                "Path to an existing RSA public key in PEM format (BYO key), or - to read it from "
+                "the standard input.",
                 kind="String",
                 variable=None,
                 file=None,
@@ -850,7 +851,8 @@ def key_add_command(
         typer.Option(
             "--public-key-file",
             help=option(
-                "Path to an existing RSA public key in PEM format (BYO key).",
+                "Path to an existing RSA public key in PEM format (BYO key), or - to read it from "
+                "the standard input.",
                 kind="String",
                 variable=None,
                 file=None,

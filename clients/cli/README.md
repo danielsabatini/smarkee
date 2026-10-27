@@ -249,6 +249,8 @@ uv run sk ipm sa key remove --resource-id ID --key-id KEYID_OU_FINGERPRINT [--wa
 uv run sk ipm sa key-file --resource-id ID --key-file F
 ```
 
+`--public-key-file -` lê a chave pública da entrada padrão (`cat chave.pub | uv run sk ipm sa create --name NOME --public-key-file -`): precisa vir de um pipe ou redirecionamento, tem teto de 64 KiB e o conteúdo nunca aparece em mensagem de erro. Um arquivo chamado `-` se refere como `./-`. O `sk auth login --key-file` **não** aceita `-`: a sessão relê o arquivo a cada renovação.
+
 A identidade de máquina da Organization (decisão 0094). **A chave privada nasce e fica no cliente**: `create` e `key add` geram o par RSA 2048 localmente, gravam o arquivo de chave (`0600`, criação exclusiva: recusa sobrescrever; padrão `sa-<nome>.json`) e enviam só a pública. Com `--public-key-file` a CLI registra uma chave que você já tem e não grava nada. Cada chave vale até 365 dias (`--expires-in`, padrão 90) e há no máximo 3 por service account; a última não pode ser removida. A service account nasce protegida: `unprotect` precede o `delete`.
 
 O `keyId` só existe depois que o Zitadel registra a chave. Com `--wait`, a CLI completa `keyId` e `userId` no arquivo; sem ele, rode `key-file` quando a fase for `Ready`. Depois, `sk auth login --key-file F`. O papel mínimo para gerenciar é ter as permissões `ipm.serviceaccount.*` (roles `ipm.serviceaccountAdmin` e `ipm.serviceaccountViewer`).

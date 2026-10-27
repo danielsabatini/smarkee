@@ -90,3 +90,60 @@ def test_sign_jwt_assertion() -> None:
     )
     parts = assertion.split(".")
     assert len(parts) == 3
+
+
+def _stdin(monkeypatch: pytest.MonkeyPatch, content: bytes, *, tty: bool = False) -> None:
+    import io
+
+    class FakeStdin:
+        buffer = io.BytesIO(content)
+
+        def isatty(self) -> bool:
+            return tty
+
+    monkeypatch.setattr("sys.stdin", FakeStdin())
+
+
+def test_parse_public_key_reads_the_standard_input_when_the_path_is_a_dash(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keypair = generate_key_pair()
+    _stdin(monkeypatch, keypair.public_pem.encode())
+    pem, fingerprint, _ = parse_public_key_file(Path("-"))
+    assert pem == keypair.public_pem
+    assert fingerprint == keypair.fingerprint
+
+
+def test_parse_public_key_from_a_terminal_fails_at_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    _stdin(monkeypatch, b"", tty=True)
+    with pytest.raises(KeyFileError, match="is a terminal"):
+        parse_public_key_file(Path("-"))
+
+
+def test_parse_public_key_from_an_empty_stdin_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    _stdin(monkeypatch, b"  \n")
+    with pytest.raises(KeyFileError, match="is empty"):
+        parse_public_key_file(Path("-"))
+
+
+def test_parse_public_key_from_a_huge_stdin_is_capped(monkeypatch: pytest.MonkeyPatch) -> None:
+    _stdin(monkeypatch, b"A" * (64 * 1024 + 1))
+    with pytest.raises(KeyFileError, match="larger than 64 KiB"):
+        parse_public_key_file(Path("-"))
+
+
+def test_parse_public_key_from_a_bad_stdin_never_echoes_the_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stdin(monkeypatch, b"conteudo-secreto-qualquer")
+    with pytest.raises(KeyFileError) as caught:
+        parse_public_key_file(Path("-"))
+    assert "standard input is not a valid PEM public key" in str(caught.value)
+    assert "conteudo-secreto" not in str(caught.value)
+
+
+def test_a_file_named_dash_is_reachable_with_a_relative_path(tmp_path: Path) -> None:
+    keypair = generate_key_pair()
+    (tmp_path / "-").write_text(keypair.public_pem, encoding="utf-8")
+    pem, _, _ = parse_public_key_file(tmp_path / "-")
+    assert pem == keypair.public_pem

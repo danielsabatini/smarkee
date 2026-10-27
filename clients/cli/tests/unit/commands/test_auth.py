@@ -286,3 +286,9 @@ def test_json_on_login_is_refused_before_opening_the_browser() -> None:
     result = runner.invoke(app, ["--output", "json", "auth", "login"])
     assert result.exit_code == 2
     assert "no structured output" in result.stderr
+
+
+def test_login_refuses_the_standard_input_as_key_file() -> None:
+    result = runner.invoke(app, ["auth", "login", "--key-file", "-"], input="qualquer")
+    assert result.exit_code == 2
+    assert "cannot come from stdin" in result.output

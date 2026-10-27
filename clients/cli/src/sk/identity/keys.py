@@ -18,7 +18,13 @@ from typing import Any, cast
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
-from sk.files import create_private_file, write_private_file
+from sk.files import (
+    STANDARD_INPUT,
+    StandardInputError,
+    create_private_file,
+    read_standard_input,
+    write_private_file,
+)
 
 DEFAULT_EXPIRES_IN_DAYS = 90
 MAXIMUM_EXPIRES_IN_DAYS = 365
@@ -86,22 +92,25 @@ def parse_public_key_file(
 ) -> tuple[str, str, str]:
     """Lê uma chave pública RSA existente (BYO key), valida o tamanho e calcula o fingerprint.
 
-    Devolve `(public_pem, fingerprint, expires_at)`.
+    `path` igual a `-` lê a entrada padrão. Devolve `(public_pem, fingerprint, expires_at)`.
     """
     expires_at = _format_expiry(expires_in_days)
     try:
-        content = path.read_bytes()
+        content = read_standard_input() if path == STANDARD_INPUT else path.read_bytes()
+    except StandardInputError as error:
+        raise KeyFileError(str(error)) from error
     except OSError as error:
         raise KeyFileError(f"could not read public key file {path}: {error.strerror}") from error
+    where = "standard input" if path == STANDARD_INPUT else f"file {path}"
     try:
         loaded = serialization.load_pem_public_key(content)
     except Exception as error:
-        raise KeyFileError(f"file {path} is not a valid PEM public key") from error
+        raise KeyFileError(f"{where} is not a valid PEM public key") from error
     if not isinstance(loaded, rsa.RSAPublicKey):
-        raise KeyFileError(f"public key in {path} must be an RSA key")
+        raise KeyFileError(f"public key in {where} must be an RSA key")
     if loaded.key_size < MINIMUM_RSA_KEY_SIZE:
         raise KeyFileError(
-            f"RSA key in {path} is too small ({loaded.key_size} bits; minimum is "
+            f"RSA key in {where} is too small ({loaded.key_size} bits; minimum is "
             f"{MINIMUM_RSA_KEY_SIZE})"
         )
     public_pem = loaded.public_bytes(

@@ -76,7 +76,7 @@ Reexecute as verificações antes de repetir um estado: o código muda mais ráp
 | Nomes padrão de flags | Parcial | `--output` na `sk` é formato; no clig.dev `-o/--output` é arquivo de saída. `--force`/`--dry-run` não existem; `--yes` só em `account delete` |
 | Confirmar antes de algo perigoso | Divergência registrada | a CLI não tem prompt: a guarda é o par `protect`/`unprotect` no loop (0043) e `--yes` na conta |
 | Nunca exigir um prompt | Conforme | só o login abre navegador |
-| `-` para ler `stdin`/escrever `stdout` | Lacuna | `--key-file` e `--public-key-file` só aceitam caminho |
+| `-` para ler `stdin`/escrever `stdout` | Parcial | `--public-key-file -` lê a `stdin` (pipe, teto de 64 KiB, sem eco do conteúdo). `auth login --key-file -` é recusado de propósito (a sessão relê o arquivo a cada renovação). Escrever em `stdout` não existe |
 | Valor opcional com palavra especial ("none") | Conforme | `sk config unset <chave>` devolve a chave ao padrão (idempotente; avisa se uma variável `SK_*` ainda vale) |
 | Ordem independente de opções e subcomandos | Divergência registrada | `--output`/`--raw` só antes do subcomando (0093); o clig.dev recomenda o contrário |
 | Segredo não vem por flag nem por variável de ambiente | Conforme | só `--key-file` (arquivo, `0600`); não há `--token`/`--password`; nenhum `SK_*` de token |
