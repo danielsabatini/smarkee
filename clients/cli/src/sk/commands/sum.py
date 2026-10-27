@@ -153,52 +153,54 @@ def _wait_for_convergence(
     O token é pedido a cada leitura: o acesso dura 15 minutos, e uma espera longa (`--timeout`)
     pode atravessar o vencimento (a sessão se renova pelo refresh token).
     """
-    ui.note(f"Waiting for convergence (up to {timeout} s)...")
-    deadline = time.monotonic() + timeout
-    while True:
-        token = session_token()
-        try:
-            operation = get_operation(
-                url,
-                token=token,
-                resource_id=accepted.resource_id,
-                operation_id=accepted.operation_id,
-                allow_insecure_http=insecure,
-            )
-            link = get_service(
-                url, token=token, resource_id=accepted.resource_id, allow_insecure_http=insecure
-            )
-        except OidcError as error:
-            bad_address(error)
-        except ApiRejectedError as error:
-            if error.status != HTTP_NOT_FOUND:
+    with ui.waiting(timeout) as progress:
+        progress.update("Operation submitted")
+        deadline = time.monotonic() + timeout
+        while True:
+            token = session_token()
+            try:
+                operation = get_operation(
+                    url,
+                    token=token,
+                    resource_id=accepted.resource_id,
+                    operation_id=accepted.operation_id,
+                    allow_insecure_http=insecure,
+                )
+                link = get_service(
+                    url, token=token, resource_id=accepted.resource_id, allow_insecure_http=insecure
+                )
+            except OidcError as error:
+                bad_address(error)
+            except ApiRejectedError as error:
+                if error.status != HTTP_NOT_FOUND:
+                    _fail_api(error)
+                # Logo depois do `202`, o Manager ainda pode não ter gravado a Operation e o recurso
+                # (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1.1): é espera, e não erro.
+                if time.monotonic() >= deadline:
+                    _timed_out(timeout, accepted)
+                time.sleep(WAIT_POLL_SECONDS)
+                continue
+            except ApiError as error:
                 _fail_api(error)
-            # Logo depois do `202`, o Manager ainda pode não ter gravado a Operation e o recurso
-            # (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1.1): é espera, e não erro.
+            progress.update(f"phase {link.phase}, Operation {operation.operation_status}")
+            if operation.operation_status in ("rejected", "failed", "superseded"):
+                ui.error(
+                    "Request not completed",
+                    f"The Operation ended as {operation.operation_status}"
+                    + (f": {operation.reason}" if operation.reason else "."),
+                    hint="Inspect it with `sk sum service get`.",
+                )
+                raise typer.Exit(EXIT_FAILURE)
+            reached = (link.lifecycle != "absent") == enabled
+            if operation.operation_status == "completed" and link.phase == "Ready" and reached:
+                return link
             if time.monotonic() >= deadline:
-                _timed_out(timeout, accepted)
+                _timed_out(
+                    timeout,
+                    accepted,
+                    f"is in phase {link.phase} (Operation {operation.operation_status})",
+                )
             time.sleep(WAIT_POLL_SECONDS)
-            continue
-        except ApiError as error:
-            _fail_api(error)
-        if operation.operation_status in ("rejected", "failed", "superseded"):
-            ui.error(
-                "Request not completed",
-                f"The Operation ended as {operation.operation_status}"
-                + (f": {operation.reason}" if operation.reason else "."),
-                hint="Inspect it with `sk sum service get`.",
-            )
-            raise typer.Exit(EXIT_FAILURE)
-        reached = (link.lifecycle != "absent") == enabled
-        if operation.operation_status == "completed" and link.phase == "Ready" and reached:
-            return link
-        if time.monotonic() >= deadline:
-            _timed_out(
-                timeout,
-                accepted,
-                f"is in phase {link.phase} (Operation {operation.operation_status})",
-            )
-        time.sleep(WAIT_POLL_SECONDS)
 
 
 def _operation_rows(operation: OperationStatus) -> list[tuple[str, str]]:

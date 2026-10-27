@@ -118,43 +118,45 @@ def _wait_until_completed(
     url: str, insecure: bool, resource_id: str, operation_id: str, *, timeout: int
 ) -> None:
     """Espera a Operation de proteção chegar a `completed` (ela não passa pelo provedor)."""
-    ui.note(f"Waiting for the change (up to {timeout} s)...")
-    deadline = time.monotonic() + timeout
-    while True:
-        try:
-            operation = get_operation(
-                url,
-                token=session_token(),
-                resource_id=resource_id,
-                operation_id=operation_id,
-                allow_insecure_http=insecure,
-            )
-        except OidcError as error:
-            bad_address(error)
-        except ApiRejectedError as error:
-            # Logo depois do `202`, a Operation pode ainda não existir: é espera, e não erro.
-            if error.status != HTTP_NOT_FOUND:
+    with ui.waiting(timeout) as progress:
+        progress.update("Operation submitted")
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                operation = get_operation(
+                    url,
+                    token=session_token(),
+                    resource_id=resource_id,
+                    operation_id=operation_id,
+                    allow_insecure_http=insecure,
+                )
+            except OidcError as error:
+                bad_address(error)
+            except ApiRejectedError as error:
+                # Logo depois do `202`, a Operation pode ainda não existir: é espera, e não erro.
+                if error.status != HTTP_NOT_FOUND:
+                    _fail_api(error)
+            except ApiError as error:
                 _fail_api(error)
-        except ApiError as error:
-            _fail_api(error)
-        else:
-            if operation.operation_status in ("rejected", "failed", "superseded"):
+            else:
+                progress.update(f"Operation {operation.operation_status}")
+                if operation.operation_status in ("rejected", "failed", "superseded"):
+                    ui.error(
+                        "Request not completed",
+                        f"The Operation ended as {operation.operation_status}.",
+                        hint="Inspect your account with `sk account get`.",
+                    )
+                    raise typer.Exit(EXIT_FAILURE)
+                if operation.operation_status == "completed":
+                    return
+            if time.monotonic() >= deadline:
                 ui.error(
-                    "Request not completed",
-                    f"The Operation ended as {operation.operation_status}.",
-                    hint="Inspect your account with `sk account get`.",
+                    "Timed out",
+                    f"{timeout} s passed and the change is still in progress.",
+                    hint="Check it with `sk account get`.",
                 )
                 raise typer.Exit(EXIT_FAILURE)
-            if operation.operation_status == "completed":
-                return
-        if time.monotonic() >= deadline:
-            ui.error(
-                "Timed out",
-                f"{timeout} s passed and the change is still in progress.",
-                hint="Check it with `sk account get`.",
-            )
-            raise typer.Exit(EXIT_FAILURE)
-        time.sleep(WAIT_POLL_SECONDS)
+            time.sleep(WAIT_POLL_SECONDS)
 
 
 def _set_protection(*, protected: bool, wait: bool, timeout: int) -> None:
@@ -249,44 +251,46 @@ def _wait_until_gone(
     Quando o usuário é removido do provedor, o token da sessão deixa de valer: o fim da exclusão
     pode aparecer como a recusa do próprio token.
     """
-    ui.note(f"Waiting for the deletion (up to {timeout} s)...")
-    deadline = time.monotonic() + timeout
-    while True:
-        try:
-            operation = get_operation(
-                url,
-                token=session_token(),
-                resource_id=resource_id,
-                operation_id=operation_id,
-                allow_insecure_http=insecure,
-            )
-        except OidcError as error:
-            bad_address(error)
-        except ApiRejectedError as error:
-            if error.status == 401:
-                return  # o token deixou de valer: a conta foi removida do provedor
-            if error.status != HTTP_NOT_FOUND:
+    with ui.waiting(timeout) as progress:
+        progress.update("Operation submitted")
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                operation = get_operation(
+                    url,
+                    token=session_token(),
+                    resource_id=resource_id,
+                    operation_id=operation_id,
+                    allow_insecure_http=insecure,
+                )
+            except OidcError as error:
+                bad_address(error)
+            except ApiRejectedError as error:
+                if error.status == 401:
+                    return  # o token deixou de valer: a conta foi removida do provedor
+                if error.status != HTTP_NOT_FOUND:
+                    _fail_api(error)
+            except ApiError as error:
                 _fail_api(error)
-        except ApiError as error:
-            _fail_api(error)
-        else:
-            if operation.operation_status in ("rejected", "failed", "superseded"):
+            else:
+                progress.update(f"Operation {operation.operation_status}")
+                if operation.operation_status in ("rejected", "failed", "superseded"):
+                    ui.error(
+                        "Request not completed",
+                        f"The Operation ended as {operation.operation_status}.",
+                        hint="Inspect your account with `sk account get`.",
+                    )
+                    raise typer.Exit(EXIT_FAILURE)
+                if operation.operation_status == "completed":
+                    return
+            if time.monotonic() >= deadline:
                 ui.error(
-                    "Request not completed",
-                    f"The Operation ended as {operation.operation_status}.",
-                    hint="Inspect your account with `sk account get`.",
+                    "Timed out",
+                    f"{timeout} s passed and the deletion is still in progress.",
+                    hint="Check it with `sk account get`.",
                 )
                 raise typer.Exit(EXIT_FAILURE)
-            if operation.operation_status == "completed":
-                return
-        if time.monotonic() >= deadline:
-            ui.error(
-                "Timed out",
-                f"{timeout} s passed and the deletion is still in progress.",
-                hint="Check it with `sk account get`.",
-            )
-            raise typer.Exit(EXIT_FAILURE)
-        time.sleep(WAIT_POLL_SECONDS)
+            time.sleep(WAIT_POLL_SECONDS)
 
 
 @account_app.command(

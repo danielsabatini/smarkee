@@ -7,6 +7,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 ### Added
+- CLI `sk`: `--wait` passa a mostrar o progresso na saída de erro, com o estado observado e o tempo decorrido. Em terminal é um indicador de uma linha, apagado ao terminar (inclusive com Ctrl-C); fora de terminal, uma linha só quando o estado muda. A saída padrão e o `--output json` não mudam.
 - CLI `sk`: `--public-key-file -` (em `ipm serviceaccount create` e `key add`) lê a chave pública da entrada padrão. Recusa terminal, entrada vazia e mais de 64 KiB, e nunca repete o conteúdo em mensagem de erro. `sk auth login --key-file -` é recusado com explicação, porque a sessão relê o arquivo de chave a cada renovação.
 - CLI `sk`: `sk config unset <chave>` remove a chave do arquivo e devolve o valor ao padrão. É idempotente (chave já ausente não altera o arquivo) e avisa quando uma variável `SK_*` ainda prevalece.
 - CLI `sk`: o tempo máximo de cada pedido à API passa a ser configurável (`api.timeoutSeconds` / `SK_API_TIMEOUT_SECONDS`, de 1 a 300 segundos; padrão 10). O erro por tempo esgotado informa o limite e como aumentá-lo. `sk config set` passa a aceitar chaves numéricas.

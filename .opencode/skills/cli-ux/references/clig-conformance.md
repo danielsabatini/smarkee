@@ -103,7 +103,7 @@ Reexecute as verificações antes de repetir um estado: o código muda mais ráp
 | Regra | Estado | Evidência |
 |---|---|---|
 | Validar a entrada cedo | Conforme | código 2 antes de chamar a API; `--output json` recusado antes do efeito |
-| Responder em < 100 ms; progresso em operação longa | **Lacuna** | `--wait` faz `time.sleep(1)` em laço por até 60 s sem escrever nada |
+| Responder em < 100 ms; progresso em operação longa | Conforme | `--wait` mostra o estado e o tempo decorrido na stderr (`ui.waiting`): em terminal, um indicador numa linha, apagado ao sair; fora de terminal, uma linha por mudança de estado. A stdout não é tocada |
 | Timeout configurável com padrão razoável | Parcial | `--timeout` do `--wait` e `api.timeoutSeconds` (`SK_API_TIMEOUT_SECONDS`, 1 a 300, padrão 10) existem; o do provedor de identidade (`oidc.py`, 30 s) segue fixo |
 | Recuperável / idempotente | Conforme | `Idempotency-Key` por pedido; `disable` sobre desabilitado é "Nothing to do" (código 0) |
 

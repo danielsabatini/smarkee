@@ -5,8 +5,11 @@ aparecem em terminal interativo; `NO_COLOR` é respeitado pelo próprio Rich. Es
 imprime tokens nem segredos: quem chama passa apenas o que pode ser mostrado.
 """
 
+import os
 import sys
-from collections.abc import Sequence
+import time
+from collections.abc import Generator, Sequence
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 
@@ -43,6 +46,22 @@ def _write_lines(lines: Sequence[Sequence[str | Text]]) -> None:
         sys.stdout.write("\t".join(output.flatten(_plain(cell)) for cell in line) + "\n")
 
 
+_indicator_visible = False
+"""Há um indicador de espera desenhado na linha atual da saída de erro."""
+
+_ERASE_LINE = "\r\x1b[2K"
+_SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+
+def _erase_indicator() -> None:
+    """Apaga o indicador de espera antes de qualquer outra escrita, para ele não deixar resíduo."""
+    global _indicator_visible
+    if _indicator_visible:
+        sys.stderr.write(_ERASE_LINE)
+        sys.stderr.flush()
+        _indicator_visible = False
+
+
 def _console(*, stderr: bool = False) -> Console:
     # Criado a cada uso: a saída vigente (inclusive a de testes) é a que vale no momento.
     # Em terminal interativo, aproveita a largura do terminal (mínimo DEFAULT_WIDTH);
@@ -50,6 +69,7 @@ def _console(*, stderr: bool = False) -> Console:
     import shutil
     import sys
 
+    _erase_indicator()
     stream = sys.stderr if stderr else sys.stdout
     if stream.isatty():
         width = max(shutil.get_terminal_size().columns, DEFAULT_WIDTH)
@@ -150,6 +170,48 @@ def note(text: str) -> None:
     """
     to_stderr = output.is_raw() or output.is_json()
     _console(stderr=to_stderr).print(Text(output.sanitize(text), style="dim"))
+
+
+class WaitProgress:
+    """Progresso de uma espera (`--wait`), sempre na saída de erro: a saída padrão não é tocada.
+
+    Em terminal, um indicador numa só linha, com o estado e o tempo decorrido, que é apagado antes
+    de qualquer outra escrita. Fora de terminal (pipe, arquivo, CI), uma linha por mudança de
+    estado, sem repetir o estado que não mudou.
+    """
+
+    def __init__(self, timeout: int) -> None:
+        self._timeout = timeout
+        self._started = time.monotonic()
+        self._last_state: str | None = None
+        self._frame = 0
+        self._interactive = sys.stderr.isatty() and os.environ.get("TERM") != "dumb"
+
+    def update(self, state: str) -> None:
+        """Informa o estado observado na leitura mais recente."""
+        global _indicator_visible
+        elapsed = int(time.monotonic() - self._started)
+        text = output.sanitize(state)
+        if self._interactive:
+            frame = _SPINNER_FRAMES[self._frame % len(_SPINNER_FRAMES)]
+            self._frame += 1
+            sys.stderr.write(f"{_ERASE_LINE}{frame} {text} · {elapsed} s of {self._timeout} s")
+            sys.stderr.flush()
+            _indicator_visible = True
+        elif text != self._last_state:
+            sys.stderr.write(f"waiting: {text} ({elapsed} s of {self._timeout} s)\n")
+            sys.stderr.flush()
+        self._last_state = text
+
+
+@contextmanager
+def waiting(timeout: int) -> Generator[WaitProgress]:
+    """Acompanha uma espera: ao sair, por qualquer caminho (inclusive Ctrl-C), apaga o indicador."""
+    progress = WaitProgress(timeout)
+    try:
+        yield progress
+    finally:
+        _erase_indicator()
 
 
 def empty(text: str) -> None:

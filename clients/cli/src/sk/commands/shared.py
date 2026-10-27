@@ -305,71 +305,79 @@ class ResourceFlow[R: Converging]:
         quê. O token é pedido a cada leitura: o acesso dura 15 minutos, e uma espera longa
         (`--timeout`) pode atravessar o vencimento (a sessão se renova pelo refresh token).
         """
-        ui.note(f"Waiting for convergence (up to {timeout} s)...")
-        deadline = time.monotonic() + timeout
-        while True:
-            token = session_token()
-            resource: R | None = None
-            try:
-                operation = self.read_operation(
-                    url,
-                    token=token,
-                    resource_id=accepted.resource_id,
-                    operation_id=accepted.operation_id,
-                    allow_insecure_http=insecure,
-                )
-                # Recusa ou falha primeiro: num `create` recusado, o recurso nem existe (`404`).
-                if operation.operation_status in ("rejected", "failed", "superseded"):
-                    reason = operation.reason
-                    hint = self.rejection_hints.get(reason or "", "Inspect the request.")
-                    ui.error(
-                        "Request not completed",
-                        f"The Operation ended as {operation.operation_status}"
-                        + (f": {reason}" if reason else "."),
-                        hint=f"{hint} Details: "
-                        f"`{self.get_command(accepted, with_operation=True)}`.",
-                    )
-                    raise typer.Exit(EXIT_FAILURE)
+        with ui.waiting(timeout) as progress:
+            progress.update("Operation submitted")
+            deadline = time.monotonic() + timeout
+            while True:
+                token = session_token()
+                resource: R | None = None
                 try:
-                    resource = self.read_resource(
+                    operation = self.read_operation(
                         url,
                         token=token,
                         resource_id=accepted.resource_id,
+                        operation_id=accepted.operation_id,
                         allow_insecure_http=insecure,
                     )
+                    progress.update(f"Operation {operation.operation_status}")
+                    # Recusa ou falha primeiro: num `create` recusado, o recurso nem existe (`404`).
+                    if operation.operation_status in ("rejected", "failed", "superseded"):
+                        reason = operation.reason
+                        hint = self.rejection_hints.get(reason or "", "Inspect the request.")
+                        ui.error(
+                            "Request not completed",
+                            f"The Operation ended as {operation.operation_status}"
+                            + (f": {reason}" if reason else "."),
+                            hint=f"{hint} Details: "
+                            f"`{self.get_command(accepted, with_operation=True)}`.",
+                        )
+                        raise typer.Exit(EXIT_FAILURE)
+                    try:
+                        resource = self.read_resource(
+                            url,
+                            token=token,
+                            resource_id=accepted.resource_id,
+                            allow_insecure_http=insecure,
+                        )
+                    except ApiRejectedError as error:
+                        # Na remoção, o `404` do recurso é o esperado (a linha foi apagada).
+                        if not (removal and error.status == HTTP_NOT_FOUND):
+                            raise
+                except OidcError as error:
+                    bad_address(error)
                 except ApiRejectedError as error:
-                    # Na remoção, o `404` do recurso é o esperado (a linha foi apagada).
-                    if not (removal and error.status == HTTP_NOT_FOUND):
-                        raise
-            except OidcError as error:
-                bad_address(error)
-            except ApiRejectedError as error:
-                if error.status != HTTP_NOT_FOUND:
+                    if error.status != HTTP_NOT_FOUND:
+                        self.fail_api(error)
+                    # Logo depois do `202`, o Manager ainda pode não ter gravado a Operation e o
+                    # recurso (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1.1): é espera, e não erro.
+                    if time.monotonic() >= deadline:
+                        self.timed_out(timeout, accepted)
+                    time.sleep(WAIT_POLL_SECONDS)
+                    continue
+                except ApiError as error:
                     self.fail_api(error)
-                # Logo depois do `202`, o Manager ainda pode não ter gravado a Operation e o
-                # recurso (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1.1): é espera, e não erro.
+                if resource is not None:
+                    progress.update(
+                        f"phase {resource.phase}, Operation {operation.operation_status}"
+                    )
+                if operation.operation_status == "completed":
+                    if removal and resource is None:
+                        return None
+                    if (
+                        not removal
+                        and resource is not None
+                        and resource.phase == "Ready"
+                        and (matches is None or matches(resource))
+                    ):
+                        return resource
                 if time.monotonic() >= deadline:
-                    self.timed_out(timeout, accepted)
+                    where = (
+                        f"is in phase {resource.phase}" if resource is not None else "was removed"
+                    )
+                    self.timed_out(
+                        timeout, accepted, f"{where} (Operation {operation.operation_status})"
+                    )
                 time.sleep(WAIT_POLL_SECONDS)
-                continue
-            except ApiError as error:
-                self.fail_api(error)
-            if operation.operation_status == "completed":
-                if removal and resource is None:
-                    return None
-                if (
-                    not removal
-                    and resource is not None
-                    and resource.phase == "Ready"
-                    and (matches is None or matches(resource))
-                ):
-                    return resource
-            if time.monotonic() >= deadline:
-                where = f"is in phase {resource.phase}" if resource is not None else "was removed"
-                self.timed_out(
-                    timeout, accepted, f"{where} (Operation {operation.operation_status})"
-                )
-            time.sleep(WAIT_POLL_SECONDS)
 
     def finish(
         self,
