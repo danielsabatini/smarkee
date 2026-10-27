@@ -32,11 +32,9 @@ class Members(Protocol):
 
 
 class RoleUsage(Protocol):
-    """APIs de User, Group e ServiceAccount: dizem se uma Role está em uso."""
+    """Projeção local do uso de Roles por usuários, grupos e service accounts (decisão 0100)."""
 
-    async def role_in_use(
-        self, organization_id: str, role_name: str, access_token: str
-    ) -> bool: ...
+    def is_role_in_use(self, organization_id: str, role_name: str) -> bool: ...
 
 
 class AdmissionTransaction(Protocol):

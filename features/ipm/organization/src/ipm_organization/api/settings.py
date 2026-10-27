@@ -54,10 +54,8 @@ class UserAccessSettings(Section):
 
 
 class PeersSettings(Section):
-    """APIs consultadas na rede interna, com o token de quem pede (decisões 0040 e 0082)."""
+    """APIs consultadas na rede interna (decisão 0082)."""
 
-    users_url: str = "http://localhost:8000"
-    serviceaccounts_url: str = "http://localhost:8000"
     billing_accounts_url: str = "http://localhost:8000"
     timeout_seconds: float = 5.0
 

@@ -39,14 +39,6 @@ class ApiSettings(Section):
     """Grupos por Organization para quem não é operador (decisão 0088)."""
 
 
-class PeersSettings(Section):
-    """APIs de Organization, User e ServiceAccount na rede interna."""
-
-    users_url: str = "http://localhost:8000"
-    serviceaccounts_url: str = "http://localhost:8000"
-    timeout_seconds: float = 5.0
-
-
 class GroupApiSettings(RoleSettings):
     model_config = role_config("api")
 
@@ -54,7 +46,6 @@ class GroupApiSettings(RoleSettings):
     messaging: MessagingSettings = MessagingSettings()
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
-    peers: PeersSettings = PeersSettings()
 
 
 def missing_required(settings: GroupApiSettings) -> list[str]:

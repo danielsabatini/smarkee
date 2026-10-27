@@ -24,11 +24,9 @@ class Organizations(Protocol):
 
 
 class Users(Protocol):
-    """API de User: associação de usuários a grupos."""
+    """Projeção local de uso de Grupos por usuários da Organization (decisão 0100)."""
 
-    async def count_users_with_group(
-        self, organization_id: str, group_name: str, access_token: str
-    ) -> int: ...
+    def count_users_with_group(self, organization_id: str, group_name: str) -> int: ...
 
 
 class Members(Protocol):

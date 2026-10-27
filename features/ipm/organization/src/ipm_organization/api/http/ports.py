@@ -23,12 +23,20 @@ class EmailVerifier(Protocol):
     async def is_verified(self, principal: Principal) -> bool: ...
 
 
-class Users(Protocol):
-    """APIs de User, ServiceAccount e Billing Account (decisões 0040, 0077, 0082 e 0094)."""
+class Members(Protocol):
+    """Projeção local do pertencimento de usuários e service accounts (decisão 0100)."""
 
-    async def organization_of(self, user_id: str, access_token: str) -> str | None: ...
+    def organization_of(self, subject: str) -> str | None: ...
 
-    async def has_users(self, organization_id: str, access_token: str) -> bool: ...
+
+class Dependents(Protocol):
+    """Projeção local dos recursos dependentes da Organization (decisões 0077, 0094 e 0100)."""
+
+    def has_dependents(self, organization_id: str) -> bool: ...
+
+
+class BillingAccounts(Protocol):
+    """API de Billing Account (decisão 0082): confirma se a conta de cobrança está pronta."""
 
     async def is_ready_billing_account(
         self, billing_account_id: str, access_token: str

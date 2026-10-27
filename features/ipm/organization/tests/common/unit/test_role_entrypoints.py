@@ -98,6 +98,10 @@ async def test_the_controller_starts_informer_workers_and_periodic(
     assert "worker-0" in runtime.started
     assert "worker-1" in runtime.started
     assert "periodic" in runtime.started
+    assert "dependent-projection-0" in runtime.started
+    assert "dependent-projection-1" in runtime.started
+    assert "dependent-projection-2" in runtime.started
+    assert "dependent-projection-3" in runtime.started
     assert len(runtime.closers) == 2
 
 
@@ -114,6 +118,14 @@ async def test_the_api_serves_http_and_leaves_the_probes_to_the_app(
 ) -> None:
     monkeypatch.setenv("IPM_ORGANIZATION_API_AUTH_AUDIENCE", "project")
     assert await api_main.run(OrganizationApiSettings()) == 0
-    assert runtime.started == ["http"]
+    assert runtime.started == [
+        "member-projection-0",
+        "member-projection-1",
+        "dependents-projection-0",
+        "dependents-projection-1",
+        "dependents-projection-2",
+        "dependents-projection-3",
+        "http",
+    ]
     assert runtime.health_port is None
     assert len(runtime.closers) == 2

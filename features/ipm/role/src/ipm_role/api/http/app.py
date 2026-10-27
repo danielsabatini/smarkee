@@ -24,7 +24,6 @@ from fastapi.responses import JSONResponse
 
 from ipm_role.api.domain import principal as permissions
 from ipm_role.api.domain.access import (
-    AccessCheckError,
     OrganizationAccess,
     permissions_changed,
 )
@@ -168,16 +167,6 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     def require(principal: Principal, permission: str) -> None:
         if not principal.has_permission(permission):
             raise forbidden()
-
-    def unavailable(error: AccessCheckError) -> ApiError:
-        if not error.retryable:
-            return forbidden()
-        return ApiError(
-            HTTPStatus.SERVICE_UNAVAILABLE,
-            "OrganizationUnavailable",
-            "Não foi possível confirmar o acesso agora. Tente de novo.",
-            headers={"Retry-After": RETRY_AFTER_SECONDS},
-        )
 
     async def standing_in(principal: Principal, organization_id: str) -> Standing | None:
         if principal.is_operator:
@@ -419,21 +408,16 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
                 " Desative deletionProtection antes de remover.",
             )
         organization_id = organization_of(record)
-        if organization_id != PLATFORM_ORGANIZATION_ID:
-            # Recusa a exclusão de uma Role que usuários ou grupos da Organization ainda usam.
-            try:
-                in_use = await deps.role_usage.role_in_use(
-                    organization_id, str(record.desired.get("name", "")), principal.access_token
-                )
-            except AccessCheckError as error:
-                raise unavailable(error) from None
-            if in_use:
-                raise ApiError(
-                    HTTPStatus.CONFLICT,
-                    "ResourcesAttached",
-                    "A Role está em uso por usuários ou grupos da Organization."
-                    " Retire-a deles antes de excluir.",
-                )
+        # Recusa a exclusão de uma Role que usuários, grupos ou service accounts ainda usam.
+        if organization_id != PLATFORM_ORGANIZATION_ID and deps.role_usage.is_role_in_use(
+            organization_id, str(record.desired.get("name", ""))
+        ):
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "ResourcesAttached",
+                "A Role está em uso por usuários ou grupos da Organization."
+                " Retire-a deles antes de excluir.",
+            )
         admission = admission_for(
             principal,
             "delete",

@@ -11,7 +11,7 @@ from ipm_organization.api.domain.errors import unauthorized, unavailable
 from ipm_organization.api.domain.organization import OwnerQuota, UniqueValue
 from ipm_organization.api.domain.principal import Principal
 from ipm_organization.api.domain.records import ResourceRecord
-from ipm_organization.api.domain.users import BillingAccountCheckError, UsersCheckError
+from ipm_organization.api.domain.users import BillingAccountCheckError
 from ipm_organization.api.http.app import Dependencies, create_app
 from ipm_organization.api.settings import OrganizationApiSettings
 
@@ -57,24 +57,25 @@ class FakeEmailVerifier:
 
 
 @dataclass
-class FakeUsers:
-    """Receiver do User e do Billing Account."""
-
+class FakeMembers:
     members: dict[str, str] = field(default_factory=lambda: {})
+
+    def organization_of(self, subject: str) -> str | None:
+        return self.members.get(subject)
+
+
+@dataclass
+class FakeDependents:
     populated: set[str] = field(default_factory=lambda: set())
-    ready_billing_accounts: set[str] = field(default_factory=lambda: {"ba-ready"})
-    error: UsersCheckError | None = None
-    billing_error: BillingAccountCheckError | None = None
 
-    async def organization_of(self, user_id: str, access_token: str) -> str | None:
-        if self.error is not None:
-            raise self.error
-        return self.members.get(user_id)
-
-    async def has_users(self, organization_id: str, access_token: str) -> bool:
-        if self.error is not None:
-            raise self.error
+    def has_dependents(self, organization_id: str) -> bool:
         return organization_id in self.populated
+
+
+@dataclass
+class FakeBillingAccounts:
+    ready_billing_accounts: set[str] = field(default_factory=lambda: {"ba-ready"})
+    billing_error: BillingAccountCheckError | None = None
 
     async def is_ready_billing_account(self, billing_account_id: str, access_token: str) -> bool:
         if self.billing_error is not None:
@@ -265,7 +266,9 @@ class Environment:
     client: httpx.AsyncClient
     repository: FakeRepository
     admissions: FakeAdmissionStore
-    users: FakeUsers
+    members: FakeMembers
+    dependents: FakeDependents
+    billing_accounts: FakeBillingAccounts
     email: FakeEmailVerifier
 
 
@@ -273,7 +276,9 @@ class Environment:
 def env() -> Environment:
     repo = FakeRepository()
     admissions = FakeAdmissionStore(repo)
-    users = FakeUsers()
+    members = FakeMembers()
+    dependents = FakeDependents()
+    billing_accounts = FakeBillingAccounts()
     email = FakeEmailVerifier()
     ids = [f"id-{n}" for n in range(1, 100)]
     deps = Dependencies(
@@ -281,7 +286,9 @@ def env() -> Environment:
         authenticator=FakeAuthenticator(),
         repository=repo,
         admissions=admissions,
-        users=users,
+        members=members,
+        dependents=dependents,
+        billing_accounts=billing_accounts,
         email_verifier=email,
         clock=lambda: NOW,
         identifiers=lambda: ids.pop(0),
@@ -290,7 +297,7 @@ def env() -> Environment:
         transport=httpx.ASGITransport(app=create_app(deps)),
         base_url="http://test",
     )
-    return Environment(client, repo, admissions, users, email)
+    return Environment(client, repo, admissions, members, dependents, billing_accounts, email)
 
 
 async def test_create_organization_returns_201_and_publishes_desired(env: Environment) -> None:
@@ -450,7 +457,7 @@ async def test_delete_fails_if_users_attached(env: Environment) -> None:
     env.repository.resources["org-1"] = sample_record(
         "org-1", owner="ana", version=1, deletion_protection=False
     )
-    env.users.populated.add("org-1")
+    env.dependents.populated.add("org-1")
     response = await env.client.delete(
         "/v1/ipm/organizations/org-1?resourceVersion=1",
         headers={"Authorization": "Bearer ana"},

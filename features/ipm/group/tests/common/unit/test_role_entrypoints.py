@@ -103,7 +103,8 @@ async def test_the_api_serves_http_and_leaves_the_probes_to_the_app(
         "organization-projection",
         "member-projection-0",
         "member-projection-1",
+        "group-usage-projection",
         "http",
-    ]  # catálogo, Organizations, HTTP
+    ]
     assert runtime.health_port is None
     assert len(runtime.closers) == 2

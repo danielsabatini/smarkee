@@ -1,6 +1,7 @@
-"""Entrypoint da API de Grupo (`ipm-group-api`, decisões 0015, 0085, 0088 e 0098).
+"""Entrypoint do Receiver de Group (`ipm-group-api`, decisões 0088 e 0098).
 
-Só inicializa e encerra: valida a configuração, abre as conexões e serve a aplicação HTTP.
+Valida a configuração, conecta ao banco e ao NATS e serve a API HTTP. As regras de admissão e
+consulta ficam em `http/`, `domain/` e `store/`.
 """
 
 import logging
@@ -13,6 +14,7 @@ from ipm_group.api.http.app import Dependencies, create_app
 from ipm_group.api.settings import GroupApiSettings, missing_required
 from ipm_group.api.store.admission import SsotAdmissionStore
 from ipm_group.api.store.repository import SsotRepository
+from ipm_group.api.transport.group_usage_projection import GroupUsageProjection
 from ipm_group.api.transport.member_projection import (
     SERVICEACCOUNT_SUBJECT,
     USER_SUBJECT,
@@ -22,7 +24,6 @@ from ipm_group.api.transport.organization_projection import (
     ORGANIZATION_SUBJECT,
     OrganizationProjection,
 )
-from ipm_group.api.transport.peers import UserPeer
 from ipm_group.common.catalog import RolesCatalog
 from ipm_group.common.catalog_watcher import RoleCatalogWatcher
 from ipm_group.common.database import open_pool
@@ -35,8 +36,10 @@ logger = logging.getLogger(__name__)
 
 
 async def run(settings: GroupApiSettings) -> int:
+    instance = new_instance_name()
+
     async with role_runtime(settings.messaging, name="ipm-group-api") as runtime:
-        http = httpx.AsyncClient(timeout=settings.peers.timeout_seconds)
+        http = httpx.AsyncClient(timeout=5.0)
         runtime.close_after(http.aclose)
         pool = await open_pool(settings.database)
         runtime.close_after(pool.close)
@@ -44,7 +47,7 @@ async def run(settings: GroupApiSettings) -> int:
         roles = StateConsumer(
             runtime.stream,
             RoleCatalogWatcher(catalog),
-            durable=f"ipm-group-api-roles-{new_instance_name()}",
+            durable=f"ipm-group-api-roles-{instance}",
             stream="DESIRED",
             filter_subject="manager.desired.ipm.role.>",
             inactive_threshold_seconds=300,
@@ -57,7 +60,7 @@ async def run(settings: GroupApiSettings) -> int:
         organization_consumer = StateConsumer(
             runtime.stream,
             organizations,
-            durable=f"ipm-group-api-organizations-{new_instance_name()}",
+            durable=f"ipm-group-api-organizations-{instance}",
             stream="DESIRED",
             filter_subject=ORGANIZATION_SUBJECT,
             inactive_threshold_seconds=300,
@@ -72,7 +75,7 @@ async def run(settings: GroupApiSettings) -> int:
             StateConsumer(
                 runtime.stream,
                 members,
-                durable=f"ipm-group-api-{name}-{new_instance_name()}",
+                durable=f"ipm-group-api-{name}-{instance}",
                 stream="DESIRED",
                 filter_subject=subject,
                 inactive_threshold_seconds=300,
@@ -87,11 +90,26 @@ async def run(settings: GroupApiSettings) -> int:
         for index, consumer in enumerate(member_consumers):
             runtime.start(f"member-projection-{index}", consumer.run(runtime.stop))
 
+        # Uso de Grupos por usuários, sem consulta HTTP (0100).
+        group_usage = GroupUsageProjection()
+        group_usage_consumer = StateConsumer(
+            runtime.stream,
+            group_usage,
+            durable=f"ipm-group-api-usage-{instance}",
+            stream="DESIRED",
+            filter_subject=USER_SUBJECT,
+            inactive_threshold_seconds=300,
+            traced=False,
+            on_cycle=runtime.health.beat,
+        )
+        runtime.start("group-usage-projection", group_usage_consumer.run(runtime.stop))
+
         def is_synced() -> bool:
             return (
                 roles.is_synced
                 and organization_consumer.is_synced
                 and all(consumer.is_synced for consumer in member_consumers)
+                and group_usage_consumer.is_synced
             )
 
         app = create_app(
@@ -100,7 +118,7 @@ async def run(settings: GroupApiSettings) -> int:
                 authenticator=TokenVerifier(settings.auth, http),
                 repository=SsotRepository(pool),
                 organizations=organizations,
-                users=UserPeer(settings.peers, http),
+                users=group_usage,
                 members=members,
                 admissions=SsotAdmissionStore(pool),
                 catalog=catalog,
@@ -116,12 +134,19 @@ async def run(settings: GroupApiSettings) -> int:
                 stop=runtime.stop,
             ),
         )
-        logger.info("group api started")
+        logger.info(
+            "group api started",
+            extra={
+                "smarkee.api.host": settings.api.host,
+                "smarkee.api.port": settings.api.port,
+            },
+        )
+        # As probes são rotas da própria aplicação HTTP (`http/health_routes.py`).
         return await runtime.serve(health_port=None)
 
 
-def main() -> None:
-    start_role("api", GroupApiSettings, missing_required, run, cli_args=sys.argv[1:])
+def main(argv: list[str] | None = None) -> None:
+    start_role("api", GroupApiSettings, missing_required, run, cli_args=argv or sys.argv[1:])
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from ipm_organization.common.contracts.envelope import read_envelope
+from ipm_organization.common.dependents import DependentsProjection
 from ipm_organization.common.ids import new_identifier, utc_now
 from ipm_organization.common.logging_config import bind_context, restore_context, save_context
 from ipm_organization.common.resource import MODULE, RESOURCE_TYPE
@@ -29,6 +30,7 @@ from ipm_organization.controller.domain.convergence import (
     check_is_converged,
     decide_observed,
     decide_result,
+    set_condition,
 )
 from ipm_organization.controller.domain.decision import DesiredState, ObservedState, decide
 from ipm_organization.controller.drivers.identity import ProviderError
@@ -65,12 +67,14 @@ class OrganizationController:
         drivers: ControllerDrivers,
         settings: OrganizationControllerSettings,
         *,
+        dependents: DependentsProjection | None = None,
         clock: Callable[[], datetime] = utc_now,
         identifiers: Callable[[], str] = new_identifier,
     ) -> None:
         self._pool = pool
         self._drivers = drivers
         self._settings = settings
+        self._dependents = dependents or DependentsProjection()
         self._clock = clock
         self._identifiers = identifiers
         self._workqueue = Workqueue()
@@ -243,41 +247,74 @@ class OrganizationController:
         now = self._clock()
 
         observation = await self._observe(resource_id)
-        action = decide(
-            DesiredState(
-                lifecycle=lifecycle,
-                name=str(desired.get("name", "")),
-                platform_access=str(desired.get("platformAccess", "granted")),
-                deletion_protection=desired.get("deletionProtection", True) is not False,
-                user_access=desired.get("userAccess"),
-            ),
-            ObservedState(
-                presence=observation.presence,
-                name=observation.data.get("name"),
-                platform_access=observation.data.get("platformAccess"),
-                deletion_protection=observation.data.get("deletionProtection"),
-                user_access=observation.data.get("userAccess"),
-            ),
+        has_dependents = self._dependents.has_dependents(resource_id)
+        blocked_by_dependents = lifecycle == "absent" and has_dependents
+
+        action = (
+            None
+            if blocked_by_dependents
+            else decide(
+                DesiredState(
+                    lifecycle=lifecycle,
+                    name=str(desired.get("name", "")),
+                    platform_access=str(desired.get("platformAccess", "granted")),
+                    deletion_protection=desired.get("deletionProtection", True) is not False,
+                    user_access=desired.get("userAccess"),
+                ),
+                ObservedState(
+                    presence=observation.presence,
+                    name=observation.data.get("name"),
+                    platform_access=observation.data.get("platformAccess"),
+                    deletion_protection=observation.data.get("deletionProtection"),
+                    user_access=observation.data.get("userAccess"),
+                ),
+            )
         )
         failure: ActionFailedError | None = None
         if action is not None:
             failure = await self._act(resource_id, desired, action.operation)
             observation = await self._observe(resource_id)  # reobserva logo após a ação
 
+        # Limpa DeletionBlockedByDependents quando os dependentes já foram removidos
+        row_conditions: list[dict[str, Any]] = row["conditions"] or []
+        prev_conditions = [
+            c for c in row_conditions if c.get("type") != "DeletionBlockedByDependents"
+        ]
+
         # A observação é feita dentro do ciclo, depois da geração vigente: a confirma.
-        decision = decide_observed(
-            check_is_converged,
-            desired=desired,
-            lifecycle=lifecycle,
-            generation=generation,
-            observation_generation=generation,
-            presence=observation.presence,
-            observed=observation.data,
-            previous_phase=row["phase"],
-            previous_conditions=row["conditions"],
-            now=now,
-            progress_deadline_seconds=self._settings.loop.progress_deadline_seconds,
-        )
+        if blocked_by_dependents:
+            conditions = set_condition(
+                prev_conditions,
+                condition_type="DeletionBlockedByDependents",
+                status="True",
+                reason="DependentsRemaining",
+                message=(
+                    "A Organization possui recursos dependentes ativos."
+                    " Remova-os antes de concluir a exclusão."
+                ),
+                generation=generation,
+                now=now,
+            )
+            decision = ObservedDecision(
+                phase="Deleting",
+                conditions=conditions,
+                converged=False,
+                remove=False,
+            )
+        else:
+            decision = decide_observed(
+                check_is_converged,
+                desired=desired,
+                lifecycle=lifecycle,
+                generation=generation,
+                observation_generation=generation,
+                presence=observation.presence,
+                observed=observation.data,
+                previous_phase=row["phase"],
+                previous_conditions=prev_conditions,
+                now=now,
+                progress_deadline_seconds=self._settings.loop.progress_deadline_seconds,
+            )
         self._log_deadlines(resource_id, generation, decision)
         messages = Messages(self._clock, self._identifiers)
         # Causa da geração vigente, gravada pela API na admissão (decisão 0098).

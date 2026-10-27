@@ -72,6 +72,7 @@ PROFILES: dict[str, tuple[str, ...]] = {
     # `DESIRED`: substitui a consulta HTTP às APIs de User e ServiceAccount (decisão 0100).
     "member-projection": (
         "ipm/group",
+        "ipm/organization",
         "ipm/role",
         "ipm/serviceaccount",
         "ipm/user",

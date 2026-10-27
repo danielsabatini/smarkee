@@ -73,10 +73,7 @@ class FakeUsers:
     def __init__(self) -> None:
         self.attached_counts: dict[tuple[str, str], int] = {}
 
-    async def count_users_with_group(
-        self, organization_id: str, group_name: str, access_token: str
-    ) -> int:
-        _ = access_token
+    def count_users_with_group(self, organization_id: str, group_name: str) -> int:
         return self.attached_counts.get((organization_id, group_name), 0)
 
 

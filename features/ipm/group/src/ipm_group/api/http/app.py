@@ -395,9 +395,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         # Verifica se há usuários da Organization associados a este grupo (decisão 0088)
         org_id = str(record.desired.get("organizationId", ""))
         group_name = str(record.desired.get("name", ""))
-        attached_users = await deps.users.count_users_with_group(
-            org_id, group_name, principal.access_token
-        )
+        attached_users = deps.users.count_users_with_group(org_id, group_name)
         if attached_users > 0:
             msg = (
                 f"O grupo possui {attached_users} usuário(s) associado(s). "

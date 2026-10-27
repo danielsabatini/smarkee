@@ -18,8 +18,6 @@ url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
 [tool.ipm.organization.api.peers]
-users_url = "http://ipm-user-api.smarkee.internal:8000"
-serviceaccounts_url = "http://ipm-serviceaccount-api.smarkee.internal:8000"
 billing_accounts_url = "http://bsm-account-receiver.smarkee.internal:8000"
 
 [tool.ipm.organization.publisher.database]

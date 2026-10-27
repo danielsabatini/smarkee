@@ -46,7 +46,7 @@ Fora do Docker, os nomes `*.smarkee.internal` não resolvem: use as portas publi
 
 ## 3. `ipm-organization-api`
 
-Entrypoint da API de Organization (`ipm-organization-api`, decisões 0015 e 0098).
+Entrypoint da API de Organization (`ipm-organization-api`, decisões 0015, 0098 e 0100).
 
 - **Prefixo das variáveis:** `IPM_ORGANIZATION_API_`
 - **Tabela do `config.toml`:** `[tool.ipm.organization.api.<seção>]`
@@ -92,8 +92,6 @@ Entrypoint da API de Organization (`ipm-organization-api`, decisões 0015 e 0098
 | `user_access.serviceaccount_observer_account_id` | `IPM_ORGANIZATION_API_USER_ACCESS_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID` | `--user_access.serviceaccount_observer_account_id` | `str \| None` | — |  |
 | `user_access.serviceaccount_controller_account_id` | `IPM_ORGANIZATION_API_USER_ACCESS_SERVICEACCOUNT_CONTROLLER_ACCOUNT_ID` | `--user_access.serviceaccount_controller_account_id` | `str \| None` | — |  |
 | `user_access.user_controller_account_id` | `IPM_ORGANIZATION_API_USER_ACCESS_USER_CONTROLLER_ACCOUNT_ID` | `--user_access.user_controller_account_id` | `str \| None` | — |  |
-| `peers.users_url` | `IPM_ORGANIZATION_API_PEERS_USERS_URL` | `--peers.users_url` | `str` | `'http://localhost:8000'` |  |
-| `peers.serviceaccounts_url` | `IPM_ORGANIZATION_API_PEERS_SERVICEACCOUNTS_URL` | `--peers.serviceaccounts_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.billing_accounts_url` | `IPM_ORGANIZATION_API_PEERS_BILLING_ACCOUNTS_URL` | `--peers.billing_accounts_url` | `str` | `'http://localhost:8000'` |  |
 | `peers.timeout_seconds` | `IPM_ORGANIZATION_API_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
@@ -117,8 +115,6 @@ url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
 [tool.ipm.organization.api.peers]
-users_url = "http://ipm-user-api.smarkee.internal:8000"
-serviceaccounts_url = "http://ipm-serviceaccount-api.smarkee.internal:8000"
 billing_accounts_url = "http://bsm-account-receiver.smarkee.internal:8000"
 ```
 

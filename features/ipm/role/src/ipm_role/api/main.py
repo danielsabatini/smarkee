@@ -24,7 +24,10 @@ from ipm_role.api.transport.organization_projection import (
     ORGANIZATION_SUBJECT,
     OrganizationProjection,
 )
-from ipm_role.api.transport.peers import RoleUsagePeer
+from ipm_role.api.transport.role_usage_projection import (
+    GROUP_SUBJECT,
+    RoleUsageProjection,
+)
 from ipm_role.common.catalog import GrantableCatalog
 from ipm_role.common.database import open_pool
 from ipm_role.common.http.server import serve_http
@@ -36,8 +39,10 @@ logger = logging.getLogger(__name__)
 
 
 async def run(settings: RoleApiSettings) -> int:
+    instance = new_instance_name()
+
     async with role_runtime(settings.messaging, name="ipm-role-api") as runtime:
-        http = httpx.AsyncClient(timeout=settings.peers.timeout_seconds)
+        http = httpx.AsyncClient(timeout=5.0)
         runtime.close_after(http.aclose)
         pool = await open_pool(settings.database)
         runtime.close_after(pool.close)
@@ -46,7 +51,7 @@ async def run(settings: RoleApiSettings) -> int:
         permissions = StateConsumer(
             runtime.stream,
             PermissionCatalogWatcher(grantable),
-            durable=f"ipm-role-api-permissions-{new_instance_name()}",
+            durable=f"ipm-role-api-permissions-{instance}",
             stream="DESIRED",
             filter_subject="manager.desired.ipm.permission.>",
             inactive_threshold_seconds=300,
@@ -59,7 +64,7 @@ async def run(settings: RoleApiSettings) -> int:
         organization_consumer = StateConsumer(
             runtime.stream,
             organizations,
-            durable=f"ipm-role-api-organizations-{new_instance_name()}",
+            durable=f"ipm-role-api-organizations-{instance}",
             stream="DESIRED",
             filter_subject=ORGANIZATION_SUBJECT,
             inactive_threshold_seconds=300,
@@ -74,7 +79,7 @@ async def run(settings: RoleApiSettings) -> int:
             StateConsumer(
                 runtime.stream,
                 members,
-                durable=f"ipm-role-api-{name}-{new_instance_name()}",
+                durable=f"ipm-role-api-{name}-{instance}",
                 stream="DESIRED",
                 filter_subject=subject,
                 inactive_threshold_seconds=300,
@@ -89,11 +94,34 @@ async def run(settings: RoleApiSettings) -> int:
         for index, consumer in enumerate(member_consumers):
             runtime.start(f"member-projection-{index}", consumer.run(runtime.stop))
 
+        # Uso de Roles por usuários, grupos e service accounts, sem consulta HTTP (0100).
+        role_usage = RoleUsageProjection()
+        role_usage_consumers = [
+            StateConsumer(
+                runtime.stream,
+                role_usage,
+                durable=f"ipm-role-api-usage-{name}-{instance}",
+                stream="DESIRED",
+                filter_subject=subject,
+                inactive_threshold_seconds=300,
+                traced=False,
+                on_cycle=runtime.health.beat,
+            )
+            for name, subject in (
+                ("users", USER_SUBJECT),
+                ("serviceaccounts", SERVICEACCOUNT_SUBJECT),
+                ("groups", GROUP_SUBJECT),
+            )
+        ]
+        for index, consumer in enumerate(role_usage_consumers):
+            runtime.start(f"role-usage-projection-{index}", consumer.run(runtime.stop))
+
         def is_synced() -> bool:
             return (
                 permissions.is_synced
                 and organization_consumer.is_synced
                 and all(consumer.is_synced for consumer in member_consumers)
+                and all(consumer.is_synced for consumer in role_usage_consumers)
             )
 
         app = create_app(
@@ -102,7 +130,7 @@ async def run(settings: RoleApiSettings) -> int:
                 repository=SsotRepository(pool),
                 organizations=organizations,
                 members=members,
-                role_usage=RoleUsagePeer(settings.peers, http),
+                role_usage=role_usage,
                 grantable=grantable,
                 admissions=SsotAdmissionStore(pool),
                 authenticator=TokenVerifier(settings.auth, http),
@@ -118,13 +146,19 @@ async def run(settings: RoleApiSettings) -> int:
                 stop=runtime.stop,
             ),
         )
-        logger.info("role api started")
+        logger.info(
+            "role api started",
+            extra={
+                "smarkee.api.host": settings.api.host,
+                "smarkee.api.port": settings.api.port,
+            },
+        )
         # As probes são rotas da própria aplicação HTTP (`http/health_routes.py`).
         return await runtime.serve(health_port=None)
 
 
-def main() -> None:
-    start_role("api", RoleApiSettings, missing_required, run, cli_args=sys.argv[1:])
+def main(argv: list[str] | None = None) -> None:
+    start_role("api", RoleApiSettings, missing_required, run, cli_args=argv or sys.argv[1:])
 
 
 if __name__ == "__main__":

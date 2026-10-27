@@ -106,3 +106,65 @@ async def test_reconcile_creates_absent_organization_and_saves_observation() -> 
     # `updated` no outbox, na mesma transação.
     outbox = next(p for q, p in statements if "organization_outbox" in q)
     assert outbox[2] == "manager.updated.ipm.organization.org-1.changed"
+
+
+@pytest.mark.asyncio
+async def test_reconcile_deletion_blocked_by_dependents() -> None:
+    from ipm_organization.common.dependents import DependentsProjection
+
+    row: dict[str, Any] = {
+        "resource_id": "org-1",
+        "desired_generation": 2,
+        "observed_generation": 1,
+        "resource_version": 2,
+        "lifecycle": "absent",
+        "reconciliation": "active",
+        "failure_count": 0,
+        "phase": "Deleting",
+        "conditions": [],
+        "desired": {"name": "acme", "lifecycle": "absent"},
+        "observed": {"name": "acme"},
+        "presence": "present",
+        "requested_by": "user-1",
+        "correlation_id": "corr-1",
+    }
+    pool = FakePool(row)
+
+    organizations: Any = AsyncMock()
+    metadata: Any = AsyncMock()
+    user_access: Any = AsyncMock()
+    organizations.get_organization.return_value = IdentityOrganization(name="acme", active=True)
+    metadata.get_value.return_value = "true"
+
+    dependents = DependentsProjection()
+    # Registra que há um usuário ativo na org-1
+    dependents.apply("user", "u-1", {"lifecycle": "present", "organizationId": "org-1"})
+
+    controller = OrganizationController(
+        cast("Any", pool),
+        ControllerDrivers(organizations=organizations, metadata=metadata, user_access=user_access),
+        OrganizationControllerSettings(),
+        dependents=dependents,
+        clock=lambda: NOW,
+    )
+
+    await controller.reconcile("org-1")
+
+    # Não deve tentar apagar nem desativar a organização no provedor de identidade
+    organizations.delete_organization.assert_not_called()
+    organizations.deactivate_organization.assert_not_called()
+
+    statements = [(str(query), params) for query, params in pool.conn.executed]
+    # O recurso NÃO é deletado do SSOT
+    assert not any("DELETE FROM ipm.organization" in q for q, _ in statements)
+
+    # Mas atualiza conditions com DeletionBlockedByDependents=True
+    update = next(p for q, p in statements if "UPDATE ipm.organization SET observed" in q)
+    assert "Deleting" in update
+    conditions = update[3].obj
+    assert any(
+        c.get("type") == "DeletionBlockedByDependents"
+        and c.get("status") == "True"
+        and c.get("reason") == "DependentsRemaining"
+        for c in conditions
+    )

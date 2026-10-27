@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from ipm_role.api.domain.access import AccessCheckError, OrganizationAccess
+from ipm_role.api.domain.access import OrganizationAccess
 from ipm_role.api.domain.errors import unauthorized, unavailable
 from ipm_role.api.domain.principal import (
     ROLE_ADMIN,
@@ -82,12 +82,8 @@ class FakeMembers:
 class FakeRoleUsage:
     def __init__(self) -> None:
         self.in_use: set[tuple[str, str]] = set()
-        self.error: AccessCheckError | None = None
 
-    async def role_in_use(self, organization_id: str, role_name: str, access_token: str) -> bool:
-        _ = access_token
-        if self.error is not None:
-            raise self.error
+    def is_role_in_use(self, organization_id: str, role_name: str) -> bool:
         return (organization_id, role_name) in self.in_use
 
 
@@ -598,11 +594,6 @@ async def test_delete_respects_protection_and_refuses_roles_in_use() -> None:
         assert attached.json()["errorCode"] == "ResourcesAttached"
         assert harness.admissions.outbox == []
 
-        harness.usage.error = AccessCheckError(retryable=True)
-        unknown = await client.delete(url, headers=_bearer("member-token"))
-        assert unknown.status_code == 503  # na dúvida, não exclui
-
-        harness.usage.error = None
         harness.usage.in_use.clear()
         deleted = await client.delete(url, headers=_bearer("member-token"))
         assert deleted.status_code == 202

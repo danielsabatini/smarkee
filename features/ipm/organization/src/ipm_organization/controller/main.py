@@ -10,6 +10,13 @@ from collections.abc import Sequence
 import httpx
 
 from ipm_organization.common.database import open_pool
+from ipm_organization.common.dependents import (
+    GROUP_SUBJECT,
+    ROLE_SUBJECT,
+    SERVICEACCOUNT_SUBJECT,
+    USER_SUBJECT,
+    DependentsProjection,
+)
 from ipm_organization.common.lifecycle import start_role
 from ipm_organization.common.messaging import StateConsumer, new_instance_name
 from ipm_organization.common.runtime import role_runtime
@@ -40,8 +47,35 @@ async def run(settings: OrganizationControllerSettings) -> int:
             user_access=UserAccessDriver(connection, str(settings.identity.project_id)),
         )
 
-        controller = OrganizationController(pool, drivers, settings)
+        dependents = DependentsProjection(
+            on_change=lambda org_id: (
+                controller.workqueue.add(org_id) if controller.owns_resource(org_id) else None
+            )
+        )
+        controller = OrganizationController(pool, drivers, settings, dependents=dependents)
         runtime.close_after(controller.shutdown)
+
+        # Informers dos dependentes (user, serviceaccount, group, role)
+        dependent_consumers = [
+            StateConsumer(
+                runtime.stream,
+                dependents,
+                durable=f"ipm-organization-controller-{name}-{instance}",
+                stream="DESIRED",
+                filter_subject=subject,
+                inactive_threshold_seconds=settings.messaging.consumer_inactive_threshold_seconds,
+                traced=False,
+                on_cycle=runtime.health.beat,
+            )
+            for name, subject in (
+                ("users", USER_SUBJECT),
+                ("serviceaccounts", SERVICEACCOUNT_SUBJECT),
+                ("groups", GROUP_SUBJECT),
+                ("roles", ROLE_SUBJECT),
+            )
+        ]
+        for index, dep_consumer in enumerate(dependent_consumers):
+            runtime.start(f"dependent-projection-{index}", dep_consumer.run(runtime.stop))
 
         # Informer do stream DESIRED
         consumer = StateConsumer(

@@ -35,15 +35,17 @@ from ipm_organization.api.domain.errors import (
 from ipm_organization.api.domain.principal import Principal
 from ipm_organization.api.domain.records import ResourceRecord
 from ipm_organization.api.domain.requests import checked_idempotency_key, request_digest
-from ipm_organization.api.domain.users import BillingAccountCheckError, UsersCheckError
+from ipm_organization.api.domain.users import BillingAccountCheckError
 from ipm_organization.api.domain.views import organization_view
 from ipm_organization.api.http.admission import admit
 from ipm_organization.api.http.health_routes import register_health_routes
 from ipm_organization.api.http.ports import (
     AdmissionStore,
+    BillingAccounts,
+    Dependents,
     EmailVerifier,
+    Members,
     Repository,
-    Users,
 )
 from ipm_organization.api.http.trace_context import TraceContextMiddleware
 from ipm_organization.api.settings import OrganizationApiSettings
@@ -68,7 +70,9 @@ class Dependencies:
     authenticator: Authenticator
     repository: Repository
     admissions: AdmissionStore
-    users: Users
+    members: Members
+    dependents: Dependents
+    billing_accounts: BillingAccounts
     email_verifier: EmailVerifier
     user_access_data: Mapping[str, Any] | None = None
     clock: Callable[[], datetime] = utc_now
@@ -159,26 +163,9 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     def is_owner(principal: Principal, record: ResourceRecord) -> bool:
         return principal.is_operator or record.desired.get("ownerAccountId") == principal.subject
 
-    def users_unverifiable(error: UsersCheckError) -> ApiError:
-        if error.retryable:
-            return ApiError(
-                HTTPStatus.SERVICE_UNAVAILABLE,
-                "UsersUnavailable",
-                "Não foi possível consultar os usuários da Organization agora. Tente de novo.",
-                headers={"Retry-After": RETRY_AFTER_SECONDS},
-            )
-        return ApiError(
-            HTTPStatus.CONFLICT,
-            "ResourcesNotVerifiable",
-            "Não foi possível confirmar os usuários da Organization.",
-        )
-
     async def member_organization(principal: Principal) -> str | None:
-        """A Organization de que o solicitante é usuário, pela API do User (decisão 0077)."""
-        try:
-            return await deps.users.organization_of(principal.subject, principal.access_token)
-        except UsersCheckError as error:
-            raise users_unverifiable(error) from None
+        """A Organization de que o solicitante é membro, pela projeção local (decisão 0100)."""
+        return deps.members.organization_of(principal.subject)
 
     async def owned_organization(principal: Principal, organization_id: str) -> ResourceRecord:
         """A Organization, se o solicitante é o dono, o operador ou um usuário dela."""
@@ -198,7 +185,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
     async def require_billing_account(principal: Principal, billing_account_id: str) -> None:
         """A Billing Account deve existir, pertencer ao solicitante e estar ativa (`Ready`)."""
         try:
-            ready = await deps.users.is_ready_billing_account(
+            ready = await deps.billing_accounts.is_ready_billing_account(
                 billing_account_id, principal.access_token
             )
         except BillingAccountCheckError as error:
@@ -409,13 +396,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             )
         # Só vazia: a remoção no provedor apagaria os usuários junto (decisão 0077). A repetição
         # de uma remoção já aceita não pergunta de novo.
-        try:
-            attached = record.lifecycle == "present" and await deps.users.has_users(
-                organization_id, principal.access_token
-            )
-        except UsersCheckError as error:
-            raise users_unverifiable(error) from None
-        if attached:
+        if record.lifecycle == "present" and deps.dependents.has_dependents(organization_id):
             raise ApiError(
                 HTTPStatus.CONFLICT,
                 "ResourcesAttached",

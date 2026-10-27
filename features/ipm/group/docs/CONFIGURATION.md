@@ -46,7 +46,7 @@ Fora do Docker, os nomes `*.smarkee.internal` não resolvem: use as portas publi
 
 ## 3. `ipm-group-api`
 
-Entrypoint da API de Grupo (`ipm-group-api`, decisões 0015, 0085, 0088 e 0098).
+Entrypoint do Receiver de Group (`ipm-group-api`, decisões 0088 e 0098).
 
 - **Prefixo das variáveis:** `IPM_GROUP_API_`
 - **Tabela do `config.toml`:** `[tool.ipm.group.api.<seção>]`
@@ -84,9 +84,6 @@ Entrypoint da API de Grupo (`ipm-group-api`, decisões 0015, 0085, 0088 e 0098).
 | `api.host` | `IPM_GROUP_API_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
 | `api.port` | `IPM_GROUP_API_API_PORT` | `--api.port` | `int` | `8000` |  |
 | `api.group_quota` | `IPM_GROUP_API_API_GROUP_QUOTA` | `--api.group_quota` | `int` | `10` | Grupos por Organization para quem não é operador (decisão 0088). |
-| `peers.users_url` | `IPM_GROUP_API_PEERS_USERS_URL` | `--peers.users_url` | `str` | `'http://localhost:8000'` |  |
-| `peers.serviceaccounts_url` | `IPM_GROUP_API_PEERS_SERVICEACCOUNTS_URL` | `--peers.serviceaccounts_url` | `str` | `'http://localhost:8000'` |  |
-| `peers.timeout_seconds` | `IPM_GROUP_API_PEERS_TIMEOUT_SECONDS` | `--peers.timeout_seconds` | `float` | `5.0` |  |
 
 **Definido no `config.toml` de dev:**
 
@@ -105,10 +102,6 @@ user = "ipm_group_api_login"
 [tool.ipm.group.api.messaging]
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
-
-[tool.ipm.group.api.peers]
-users_url = "http://ipm-user-api.smarkee.internal:8000"
-serviceaccounts_url = "http://ipm-serviceaccount-api.smarkee.internal:8000"
 ```
 
 **Executar** (de `features/ipm/group`):
