@@ -106,7 +106,8 @@ export interface OrganizationUserDesiredView {
 	lifecycle: Lifecycle;
 	reconciliation: Reconciliation;
 	organizationId: string;
-	permissions: GrantablePermission[];
+	/** Nomes de role (ex.: ipm.userAdmin); as permissões efetivas vão no observed (0097). */
+	roles: string[];
 	deletionProtection?: boolean;
 	givenName?: string;
 	familyName?: string;
@@ -119,6 +120,8 @@ export interface OrganizationUserObservedView {
 	emailVerified?: boolean;
 	userState?: UserState;
 	permissions?: GrantablePermission[];
+	/** Calculadas pelo Controller a partir das roles (decisão 0097). */
+	effectivePermissions?: GrantablePermission[];
 	deletionProtection?: boolean;
 }
 

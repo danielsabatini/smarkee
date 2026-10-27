@@ -81,7 +81,7 @@
 		editGivenName = user.desired.givenName ?? '';
 		editFamilyName = user.desired.familyName ?? '';
 		editEmail = user.desired.email ?? '';
-		editSelectedRoles = [...user.desired.permissions];
+		editSelectedRoles = [...(user.observed?.effectivePermissions ?? [])];
 	}
 
 	function cancelEditUser(): void {
@@ -276,7 +276,7 @@
 								</td>
 								<td class="px-4 py-3">
 									<div class="flex flex-wrap gap-1">
-										{#each user.desired.permissions as role (role)}
+										{#each user.observed?.effectivePermissions ?? [] as role (role)}
 											<span
 												class="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-700"
 											>

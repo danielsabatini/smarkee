@@ -44,6 +44,12 @@ const ORG_ACME_ID = '0199c8a4-8a01-7b01-9c01-1a2b3c4d5e01';
 const ORG_GLOBEX_ID = '0199c8a4-8a02-7b02-9c02-1a2b3c4d5e02';
 const ORG_INITECH_ID = '0199c8a4-8a03-7b03-9c03-1a2b3c4d5e03';
 
+/** O seletor do console trabalha com permissões; o contrato do usuário guarda nomes de role (0097). */
+function roleNamesFor(permissions: string[]): string[] {
+	const writes = permissions.some((p) => /\.(create|update|delete|bind)$/.test(p));
+	return [writes ? 'ipm.userAdmin' : 'ipm.userViewer'];
+}
+
 export class MockDataAdapter implements ConsoleDataAdapter {
 	private readonly transitionDelayMs: number;
 	private counter = 100;
@@ -248,14 +254,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						lifecycle: 'present',
 						reconciliation: 'active',
 						organizationId: ORG_ACME_ID,
-						permissions: [
-							'ipm.organization.get',
-							'ipm.organization.list',
-							'ipm.user.create',
-							'ipm.user.get',
-							'ipm.user.list',
-							'ipm.user.update'
-						],
+						roles: ['ipm.userAdmin'],
 						deletionProtection: true,
 						givenName: 'Beatriz',
 						familyName: 'Lima',
@@ -267,6 +266,14 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						emailVerified: true,
 						userState: 'active',
 						permissions: [
+							'ipm.organization.get',
+							'ipm.organization.list',
+							'ipm.user.create',
+							'ipm.user.get',
+							'ipm.user.list',
+							'ipm.user.update'
+						],
+						effectivePermissions: [
 							'ipm.organization.get',
 							'ipm.organization.list',
 							'ipm.user.create',
@@ -298,7 +305,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						lifecycle: 'present',
 						reconciliation: 'active',
 						organizationId: ORG_ACME_ID,
-						permissions: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
+						roles: ['ipm.userViewer'],
 						deletionProtection: false,
 						givenName: 'Carlos',
 						familyName: 'Mendes',
@@ -310,6 +317,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						emailVerified: false,
 						userState: 'initial',
 						permissions: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
+						effectivePermissions: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
 						deletionProtection: false
 					},
 					createdAt: '2026-10-21T13:48:00Z',
@@ -336,7 +344,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						lifecycle: 'present',
 						reconciliation: 'active',
 						organizationId: ORG_GLOBEX_ID,
-						permissions: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
+						roles: ['ipm.userViewer'],
 						deletionProtection: true,
 						givenName: 'Helena',
 						familyName: 'Rocha',
@@ -348,6 +356,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						emailVerified: true,
 						userState: 'active',
 						permissions: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
+						effectivePermissions: ['ipm.organization.get', 'ipm.user.get', 'ipm.user.list'],
 						deletionProtection: true
 					},
 					createdAt: '2026-10-20T16:00:00Z',
@@ -374,7 +383,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 						lifecycle: 'present',
 						reconciliation: 'active',
 						organizationId: ORG_INITECH_ID,
-						permissions: ['ipm.organization.get', 'ipm.user.get'],
+						roles: ['ipm.userViewer'],
 						deletionProtection: false,
 						givenName: 'Rafael',
 						familyName: 'Costa',
@@ -960,7 +969,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 				lifecycle: 'present',
 				reconciliation: 'active',
 				organizationId: validOrgId,
-				permissions: sortedRoles,
+				roles: roleNamesFor(sortedRoles),
 				deletionProtection: input.deletionProtection ?? false,
 				givenName: input.givenName.trim(),
 				familyName: input.familyName.trim(),
@@ -1019,6 +1028,7 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 					emailVerified: true,
 					userState: 'active',
 					permissions: sortedRoles,
+					effectivePermissions: sortedRoles,
 					deletionProtection: newUser.desired.deletionProtection
 				};
 				opEntry.subtitle = 'Usuário adicionado com sucesso.';
@@ -1459,7 +1469,10 @@ export class MockDataAdapter implements ConsoleDataAdapter {
 			foundUser.desired.email = input.email.trim();
 		}
 		if (input.roles !== undefined) {
-			foundUser.desired.permissions = [...input.roles];
+			foundUser.desired.roles = roleNamesFor(input.roles);
+			if (foundUser.observed) {
+				foundUser.observed.effectivePermissions = [...input.roles];
+			}
 		}
 		if (input.deletionProtection !== undefined) {
 			foundUser.desired.deletionProtection = input.deletionProtection;
