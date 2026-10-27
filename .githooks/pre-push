@@ -1,0 +1,13 @@
+#!/bin/sh
+# Hook de pre-push: garante que lint, typecheck, boundaries e testes passem antes de enviar commits.
+
+echo "🔍 Executando verificação de pre-push (scripts/dev/check)..."
+./scripts/dev/check
+
+STATUS=$?
+if [ $STATUS -ne 0 ]; then
+    echo "❌ Push cancelado: o script de verificação falhou."
+    exit 1
+fi
+
+exit 0

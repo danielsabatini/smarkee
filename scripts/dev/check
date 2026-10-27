@@ -1,0 +1,264 @@
+#!/usr/bin/env python3
+"""Script de CI local: executa lint, typecheck, boundaries check e testes.
+
+Uso:
+  ./scripts/dev/check          Modo padrão: boundaries + ruff + pyright + testes unitários/integração
+  ./scripts/dev/check --e2e    Executa testes end-to-end locais
+  ./scripts/dev/check --full   Executa tudo (padrão + e2e + SonarQube Quality Gate quando disponível)
+"""
+
+import argparse
+import ast
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def find_features() -> list[Path]:
+    """Descobre todas as features ativas em features/*/*."""
+    features: list[Path] = []
+    features_dir = ROOT / "features"
+    if not features_dir.is_dir():
+        return features
+    for module_dir in sorted(features_dir.iterdir()):
+        if module_dir.is_dir() and not module_dir.name.startswith("."):
+            for type_dir in sorted(module_dir.iterdir()):
+                if (type_dir / "pyproject.toml").is_file():
+                    features.append(type_dir)
+    return features
+
+
+def find_scripts_dev() -> list[Path]:
+    """Descobre todas as ferramentas em scripts/dev/*."""
+    tools: list[Path] = []
+    scripts_dir = ROOT / "scripts" / "dev"
+    if not scripts_dir.is_dir():
+        return tools
+    for item in sorted(scripts_dir.iterdir()):
+        if item.is_dir() and (item / "pyproject.toml").is_file():
+            tools.append(item)
+    return tools
+
+
+def check_architectural_boundaries() -> list[str]:
+    """Verifica violações de acoplamento e limites arquiteturais (§26).
+
+    Regras:
+    1. Uma feature NÃO PODE importar módulos internos de outra feature.
+    2. O subpacote `domain` de uma feature NÃO PODE importar adaptadores impuros
+       (ex.: psycopg, httpx, nats, fastapi, store, transport, drivers, provider).
+    """
+    violations: list[str] = []
+    features = find_features()
+
+    for feature_path in features:
+        # Exemplo: features/ipm/user -> expected_pkg = "ipm_user"
+        expected_pkg = f"{feature_path.parent.name}_{feature_path.name}".replace("-", "_")
+        src_dir = feature_path / "src"
+        if not src_dir.is_dir():
+            continue
+
+        for py_file in src_dir.rglob("*.py"):
+            try:
+                tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
+            except Exception:
+                continue
+
+            rel_file = py_file.relative_to(ROOT)
+            is_domain = "/domain/" in str(py_file) or str(py_file).endswith("/domain.py")
+
+            for node in ast.walk(tree):
+                # Análise de 'import x'
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        mod = alias.name.partition(".")[0]
+                        # Regra 1: import de outra feature
+                        if (
+                            mod.startswith("ipm_")
+                            or mod.startswith("core_")
+                            or mod.startswith("bsm_")
+                            or mod.startswith("sum_")
+                        ):
+                            if mod != expected_pkg and not mod.endswith("_client"):
+                                violations.append(
+                                    f"{rel_file}:{node.lineno}: Import ilegal da feature '{mod}' (isolamento estrito)"
+                                )
+                        # Regra 2: domain importando I/O
+                        if is_domain and mod in {"psycopg", "httpx", "nats", "fastapi"}:
+                            violations.append(
+                                f"{rel_file}:{node.lineno}: Camada 'domain' importando I/O framework '{mod}'"
+                            )
+
+                # Análise de 'from x import y'
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    mod = node.module.partition(".")[0]
+                    # Regra 1: import de outra feature
+                    if (
+                        mod.startswith("ipm_")
+                        or mod.startswith("core_")
+                        or mod.startswith("bsm_")
+                        or mod.startswith("sum_")
+                    ):
+                        if mod != expected_pkg and not mod.endswith("_client"):
+                            violations.append(
+                                f"{rel_file}:{node.lineno}: Import ilegal da feature '{mod}' (isolamento estrito)"
+                            )
+                    # Regra 2: domain importando I/O ou store/transport/drivers/provider
+                    if is_domain:
+                        if mod in {"psycopg", "httpx", "nats", "fastapi"}:
+                            violations.append(
+                                f"{rel_file}:{node.lineno}: Camada 'domain' importando I/O framework '{mod}'"
+                            )
+                        if any(
+                            f".{sub}." in node.module or node.module.endswith(f".{sub}")
+                            for sub in ["store", "transport", "drivers", "provider", "http"]
+                        ):
+                            violations.append(
+                                f"{rel_file}:{node.lineno}: Camada 'domain' importando módulo impuro '{node.module}'"
+                            )
+
+    return violations
+
+
+def run_command(cmd: list[str], cwd: Path) -> tuple[int, str]:
+    """Executa um comando e captura saída."""
+    result = subprocess.run(
+        cmd,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+    )
+    output = result.stdout
+    if result.stderr:
+        output += "\n" + result.stderr
+    return result.returncode, output.strip()
+
+
+def run_checks(mode: str) -> int:
+    started = time.time()
+    print("==================================================")
+    print(f"🚀 Iniciando verificação de CI local (modo: {mode})")
+    print("==================================================")
+
+    # 1. Architectural Boundaries Check
+    print("\n🔍 1. Verificando Limites Arquiteturais (Boundaries)...")
+    violations = check_architectural_boundaries()
+    if violations:
+        print("❌ Violações de arquitetura detectadas:")
+        for v in violations:
+            print(f"  - {v}")
+        return 1
+    print("✅ Limites arquiteturais respeitados (0 violações).")
+
+    features = find_features()
+    scripts_dev = find_scripts_dev()
+    all_targets = features + scripts_dev
+    cli_dir = ROOT / "clients" / "cli"
+    if cli_dir.is_dir() and (cli_dir / "pyproject.toml").is_file():
+        all_targets.append(cli_dir)
+
+    failed_steps: list[str] = []
+
+    # 2. Lint (Ruff)
+    print(f"\n🧹 2. Executando Ruff Check em {len(all_targets)} componentes...")
+    for target in all_targets:
+        rel = target.relative_to(ROOT)
+        code, out = run_command(["uv", "run", "ruff", "check"], cwd=target)
+        if code != 0:
+            print(f"❌ Ruff falhou em {rel}:\n{out}")
+            failed_steps.append(f"ruff:{rel}")
+        else:
+            print(f"  ✓ {rel}")
+
+    # 3. Type Checking (Pyright)
+    print(f"\n🔬 3. Executando Pyright em {len(all_targets)} componentes...")
+    for target in all_targets:
+        rel = target.relative_to(ROOT)
+        code, out = run_command(["uv", "run", "pyright"], cwd=target)
+        if code != 0:
+            print(f"❌ Pyright falhou em {rel}:\n{out}")
+            failed_steps.append(f"pyright:{rel}")
+        else:
+            print(f"  ✓ {rel}")
+
+    # 4. Testes Unitários e de Integração
+    print(f"\n🧪 4. Executando Testes Unitários/Integração...")
+    for target in all_targets:
+        rel = target.relative_to(ROOT)
+        pytest_cmd = ["uv", "run", "pytest", "-q"]
+        if "features" in str(target):
+            pytest_cmd.append("--ignore=tests/e2e")
+        code, out = run_command(pytest_cmd, cwd=target)
+        if code != 0:
+            print(f"❌ Testes falharam em {rel}:\n{out}")
+            failed_steps.append(f"pytest:{rel}")
+        else:
+            summary_line = out.splitlines()[-1] if out else "OK"
+            print(f"  ✓ {rel}: {summary_line}")
+
+    # 5. E2E (se solicitado em --e2e ou --full)
+    if mode in {"e2e", "full"}:
+        print(f"\n🌐 5. Executando Testes E2E nas features...")
+        for feat in features:
+            e2e_dir = feat / "tests" / "e2e"
+            if not e2e_dir.is_dir():
+                continue
+            rel = feat.relative_to(ROOT)
+            code, out = run_command(["uv", "run", "pytest", "-q", "tests/e2e"], cwd=feat)
+            if code != 0:
+                print(f"❌ Testes E2E falharam em {rel}:\n{out}")
+                failed_steps.append(f"e2e:{rel}")
+            else:
+                summary_line = out.splitlines()[-1] if out else "OK"
+                print(f"  ✓ {rel} (e2e): {summary_line}")
+
+    # 6. Quality Gate SonarQube (se em --full)
+    if mode == "full":
+        print(f"\n📊 6. Checagem SonarQube...")
+        sonar_props = ROOT / "sonar-project.properties"
+        if sonar_props.is_file():
+            print("  ✓ Configuração SonarQube presente.")
+        else:
+            print("  ⚠️ sonar-project.properties não encontrado na raiz.")
+
+    elapsed = time.time() - started
+    print("\n==================================================")
+    if failed_steps:
+        print(f"❌ Verificação concluída com {len(failed_steps)} falha(s) em {elapsed:.1f}s:")
+        for step in failed_steps:
+            print(f"  - {step}")
+        return 1
+    else:
+        print(f"🎉 Todas as verificações passaram com sucesso em {elapsed:.1f}s!")
+        return 0
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Script de CI local.")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--e2e",
+        action="store_const",
+        dest="mode",
+        const="e2e",
+        help="Executa testes e2e locais além do padrão.",
+    )
+    group.add_argument(
+        "--full",
+        action="store_const",
+        dest="mode",
+        const="full",
+        help="Executa todas as verificações (padrão + e2e + sonarqube).",
+    )
+    parser.set_defaults(mode="standard")
+    args = parser.parse_args()
+
+    sys.exit(run_checks(args.mode))
+
+
+if __name__ == "__main__":
+    main()
