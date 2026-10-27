@@ -108,6 +108,7 @@ KEY_EXPIRATION_WARNING = timedelta(days=90)
 SERVICE_ACCOUNTS = {
     "core-account-executor",
     "core-account-observer",
+    "ipm-organization-controller",
     "ipm-organization-executor",
     "ipm-organization-observer",
     "ipm-permission-executor",
@@ -525,6 +526,7 @@ def test_service_account_keys_exist_and_are_not_close_to_expiry(
 def test_instance_administrators(zitadel: Zitadel) -> None:
     by_name = administrators(zitadel, {"instance": True})
     assert by_name.get("platform-bootstrap@smarkee.internal") == {"IAM_OWNER"}
+    assert by_name.get("ipm-organization-controller") == {"IAM_ORG_MANAGER"}
     assert by_name.get("ipm-organization-executor") == {"IAM_ORG_MANAGER"}
     assert by_name.get("ipm-organization-observer") == {"IAM_OWNER_VIEWER"}
     # As contas do User e da ServiceAccount não têm papel de instância: só os da organização de

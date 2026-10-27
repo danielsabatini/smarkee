@@ -276,6 +276,43 @@ services:
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
+  # Controller (`ipm-organization-controller`, decisão 0096): observa, decide, age e reobserva a
+  # Organization numa só transação, e substitui Observer, Reconciler e Executor. Única identidade
+  # do provedor (conta ipm-organization-controller, papel IAM_ORG_MANAGER) e papel de banco próprio
+  # (`ipm_organization_controller_login`, sem INSERT em `organization`). Monta só a própria chave.
+  ipm-organization-controller:
+    <<: *component-image
+    command: [ipm-organization-controller]
+    container_name: ipm-organization-controller.smarkee.internal
+    logging: *component-logging
+    deploy: *component-deploy
+    environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+      IPM_ORGANIZATION_CONTROLLER_IDENTITY_PROJECT_ID: ${IPM_ORGANIZATION_IDENTITY_PROJECT_ID:?Defina no .env (ID do projeto roles-ipm, org core)}
+    secrets:
+      - IPM_ORGANIZATION_CONTROLLER_DATABASE_PASSWORD
+      - IPM_ORGANIZATION_CONTROLLER_MESSAGING_PASSWORD
+    volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
+      - type: volume
+        source: identity-bootstrap
+        target: /run/secrets/zitadel-key.json
+        read_only: true
+        volume:
+          subpath: service-account-ipm-organization-controller.json
+    depends_on:
+      ipm-organization-migrate:
+        condition: service_completed_successfully
+      ipm-organization-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-organization-controller.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *component-healthcheck
+
   # Telemeter de app de ipm.organization (decisão 0062, docs/telemetry/OBSERVABILITY.md §14): recebe por OTLP, do
   # telemetry-router da plataforma, os logs e os spans de app desta feature e os grava em `telemeter/logs/` e `telemeter/traces/`. Não lê logs de
   # contêineres nem usa o socket do Docker (isso é do telemetry-agent). Sem privilégios e sem escrita fora da pasta.
@@ -336,6 +373,10 @@ secrets:
     environment: IPM_ORGANIZATION_OBSERVER_MESSAGING_PASSWORD
   IPM_ORGANIZATION_EXECUTOR_MESSAGING_PASSWORD:
     environment: IPM_ORGANIZATION_EXECUTOR_MESSAGING_PASSWORD
+  IPM_ORGANIZATION_CONTROLLER_DATABASE_PASSWORD:
+    environment: IPM_ORGANIZATION_CONTROLLER_DATABASE_PASSWORD
+  IPM_ORGANIZATION_CONTROLLER_MESSAGING_PASSWORD:
+    environment: IPM_ORGANIZATION_CONTROLLER_MESSAGING_PASSWORD
 
 volumes:
   # Volume da identidade (chaves das contas de serviço), criado por `infrastructure/dev/identity`.
