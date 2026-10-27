@@ -1,7 +1,7 @@
 [project]
 name = "ipm-serviceaccount"
 version = "0.1.0"
-description = "Componente ipm.serviceaccount (decisão 0063): um projeto e uma imagem, com um entrypoint por papel (receiver, manager, publisher, observer, reconciler e executor)."
+description = "Componente ipm.serviceaccount (decisão 0063): um projeto e uma imagem, com um entrypoint por papel (receiver, manager, publisher, controller, observer, reconciler e executor)."
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.143.0",
@@ -20,6 +20,7 @@ dependencies = [
 ipm-serviceaccount-receiver = "ipm_serviceaccount.receiver.main:main"
 ipm-serviceaccount-manager = "ipm_serviceaccount.manager.main:main"
 ipm-serviceaccount-publisher = "ipm_serviceaccount.publisher.main:main"
+ipm-serviceaccount-controller = "ipm_serviceaccount.controller.main:main"
 ipm-serviceaccount-observer = "ipm_serviceaccount.observer.main:main"
 ipm-serviceaccount-reconciler = "ipm_serviceaccount.reconciler.main:main"
 ipm-serviceaccount-executor = "ipm_serviceaccount.executor.main:main"
@@ -57,6 +58,7 @@ select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
 "src/ipm_serviceaccount/*/settings.py" = ["E501"]
 "src/ipm_serviceaccount/*/main.py" = ["E501", "I001"]
 "src/ipm_serviceaccount/*/provider/identity.py" = ["E501"]
+"src/ipm_serviceaccount/controller/drivers/identity.py" = ["E501"]
 "tests/common/unit/test_messaging.py" = ["E501"]
 "tests/manager/integration/*.py" = ["E501"]
 # `ACCESS_TOKEN_TYPE_JWT` é o nome de um valor do enum do Zitadel, não uma senha.
@@ -65,14 +67,14 @@ select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
 [tool.pyright]
 pythonVersion = "3.14"
 typeCheckingMode = "strict"
-include = ["src", "tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/observer", "tests/reconciler", "tests/executor"]
+include = ["src", "tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/controller", "tests/observer", "tests/reconciler", "tests/executor"]
 
 [tool.pytest.ini_options]
 # `tests/e2e` é um projeto à parte (black-box, decisão 0017) e não entra aqui.
-testpaths = ["tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/observer", "tests/reconciler", "tests/executor"]
+testpaths = ["tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/controller", "tests/observer", "tests/reconciler", "tests/executor"]
 addopts = ["--import-mode=importlib"]
 # Cada papel com testes de integração tem o seu módulo de apoio (`support_<papel>`).
-pythonpath = ["tests/receiver/integration", "tests/manager/integration", "tests/publisher/integration"]
+pythonpath = ["tests/receiver/integration", "tests/manager/integration", "tests/publisher/integration", "tests/controller/integration"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 

@@ -246,6 +246,44 @@ services:
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
+  # Controller (`ipm-serviceaccount-controller`, decisão 0096): observa, decide, age e reobserva a
+  # service account numa só transação, e substitui Observer, Reconciler e Executor. Única identidade
+  # do provedor (conta ipm-serviceaccount-controller: ORG_USER_CREATOR e ORG_OWNER_VIEWER em cada
+  # organização de cliente e PROJECT_GRANT_OWNER no Grant de roles-ipm dela) e papel de banco próprio
+  # (`ipm_serviceaccount_controller_login`, sem INSERT em `serviceaccount`). Monta só a própria chave.
+  ipm-serviceaccount-controller:
+    <<: *component-image
+    command: [ipm-serviceaccount-controller]
+    container_name: ipm-serviceaccount-controller.smarkee.internal
+    logging: *component-logging
+    deploy: *component-deploy
+    environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+      IPM_SERVICEACCOUNT_CONTROLLER_IDENTITY_PROJECT_ID: ${IPM_SERVICEACCOUNT_IDENTITY_PROJECT_ID:?Defina no .env (ID do projeto roles-ipm, org core)}
+    secrets:
+      - IPM_SERVICEACCOUNT_CONTROLLER_DATABASE_PASSWORD
+      - IPM_SERVICEACCOUNT_CONTROLLER_MESSAGING_PASSWORD
+    volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
+      - type: volume
+        source: identity-bootstrap
+        target: /run/secrets/zitadel-key.json
+        read_only: true
+        volume:
+          subpath: service-account-ipm-serviceaccount-controller.json
+    depends_on:
+      ipm-serviceaccount-migrate:
+        condition: service_completed_successfully
+      ipm-serviceaccount-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-serviceaccount-controller.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *component-healthcheck
+
   # Publisher (`ipm-serviceaccount-publisher`): publica o outbox do tipo (uma instância ativa por trava
   # consultiva). Papel de banco `ipm_serviceaccount_publisher`, que só lê o outbox e marca `published_at`, e
   # identidade própria no NATS (decisão 0019).
@@ -327,6 +365,10 @@ secrets:
     environment: IPM_SERVICEACCOUNT_RECONCILER_MESSAGING_PASSWORD
   IPM_SERVICEACCOUNT_OBSERVER_MESSAGING_PASSWORD:
     environment: IPM_SERVICEACCOUNT_OBSERVER_MESSAGING_PASSWORD
+  IPM_SERVICEACCOUNT_CONTROLLER_DATABASE_PASSWORD:
+    environment: IPM_SERVICEACCOUNT_CONTROLLER_DATABASE_PASSWORD
+  IPM_SERVICEACCOUNT_CONTROLLER_MESSAGING_PASSWORD:
+    environment: IPM_SERVICEACCOUNT_CONTROLLER_MESSAGING_PASSWORD
   IPM_SERVICEACCOUNT_EXECUTOR_MESSAGING_PASSWORD:
     environment: IPM_SERVICEACCOUNT_EXECUTOR_MESSAGING_PASSWORD
   IPM_SERVICEACCOUNT_PUBLISHER_DATABASE_PASSWORD:

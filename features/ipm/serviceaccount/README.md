@@ -16,6 +16,7 @@ Etapa 1 da `0094` completa: os seis papéis, o registro na infraestrutura (gatew
 | Reconciler | `reconciler/` | Compara `permissions`, `deletionProtection`, `description` e os fingerprints das chaves e decide `create`, `update` ou `delete` |
 | Observer | `observer/` | Lê a máquina, as chaves, as autorizações e os metadados no Zitadel (somente leitura) |
 | Executor | `executor/` | Cria a máquina, adiciona e remove chaves, escreve autorização e metadados |
+| Controller | `controller/` | Decisão 0096: observa, decide, age e reobserva numa só transação, e grava `updated` no outbox. Substitui Reconciler, Observer e Executor, que seguem no código até a remoção final |
 | Testes e2e | `tests/e2e/` | Black-box: loop completo, incluindo a rotação de chaves |
 
 # 2. Papéis e componentes
@@ -30,6 +31,7 @@ Os seis papéis são **um projeto e uma imagem** (decisão 0063), cada um com pr
 | Reconciler | `ipm-serviceaccount-reconciler` | — | — | `action` no NATS |
 | Observer | `ipm-serviceaccount-observer` | — | `ipm-serviceaccount-observer` (`ORG_OWNER_VIEWER` em cada organização de cliente) | `observed` no NATS |
 | Executor | `ipm-serviceaccount-executor` | — | `ipm-serviceaccount-executor` (`ORG_USER_CREATOR` na organização e `PROJECT_GRANT_OWNER` no Grant dela) | `completed` e `failed`; a máquina no Zitadel |
+| Controller | `ipm-serviceaccount-controller` | `ipm_serviceaccount_controller` (lê e atualiza `serviceaccount`; `INSERT` só no outbox) | `ipm-serviceaccount-controller` (os três papéis acima, por organização de cliente) | estado observado, fase, Operations e `updated` no SSOT; a máquina no Zitadel |
 
 ## 2.1 Receiver
 
