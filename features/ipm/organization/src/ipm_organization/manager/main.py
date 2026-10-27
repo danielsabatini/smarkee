@@ -1,6 +1,6 @@
 """Entrypoint do Manager de Organization (`ipm-organization-manager`, decisões 0015, 0019 e 0063).
 
-Consome `requested`, `observed` e `completed`/`failed` e escreve no SSOT; só insere no outbox. A
+Consome `requested` e os catálogos (`DESIRED`) e escreve no SSOT; só insere no outbox. A
 publicação do outbox é do Publisher (`../publisher`). Só inicializa e encerra: valida a
 configuração, abre as conexões e roda os consumers.
 """
@@ -14,19 +14,13 @@ from ipm_organization.common.messaging import StateConsumer, new_instance_name
 from ipm_organization.common.runtime import role_runtime
 from ipm_organization.common.user_access import desired_user_access
 from ipm_organization.manager.domain.kind import organization_kind
-from ipm_organization.manager.handlers.observed import ObservedHandler
 from ipm_organization.manager.handlers.requested import RequestedHandler
-from ipm_organization.manager.handlers.result import ResultHandler
 from ipm_organization.manager.handlers.user_access_rollout import (
     PermissionCatalogWatcher,
     roll_out_user_access,
 )
 from ipm_organization.manager.settings import OrganizationManagerSettings, missing_required
-from ipm_organization.manager.transport.consumers import (
-    ObservedConsumer,
-    RequestedConsumer,
-    ResultConsumer,
-)
+from ipm_organization.manager.transport.consumers import RequestedConsumer
 
 logger = logging.getLogger(__name__)
 
@@ -45,22 +39,6 @@ async def run(settings: OrganizationManagerSettings) -> int:
                 pool,
                 kind,
                 handler=RequestedHandler(),
-                on_cycle=runtime.health.beat,
-            ),
-            "observed": ObservedConsumer(
-                runtime.stream,
-                pool,
-                kind,
-                handler=ObservedHandler(
-                    progress_deadline_seconds=settings.loop.progress_deadline_seconds
-                ),
-                on_cycle=runtime.health.beat,
-            ),
-            "result": ResultConsumer(
-                runtime.stream,
-                pool,
-                kind,
-                handler=ResultHandler(failure_limit=settings.loop.failure_limit),
                 on_cycle=runtime.health.beat,
             ),
             "permissions": StateConsumer(

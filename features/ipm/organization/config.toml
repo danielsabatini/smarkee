@@ -42,28 +42,6 @@ user = "ipm_organization_publisher_login"
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
-[tool.ipm.organization.observer.identity]
-base_url = "http://identity.smarkee.internal:8080"
-host_header = "ipm-dev.smarkee.com.br:8080"
-issuer = "http://ipm-dev.smarkee.com.br:8080"
-
-[tool.ipm.organization.observer.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-
-[tool.ipm.organization.reconciler.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-
-[tool.ipm.organization.executor.identity]
-base_url = "http://identity.smarkee.internal:8080"
-host_header = "ipm-dev.smarkee.com.br:8080"
-issuer = "http://ipm-dev.smarkee.com.br:8080"
-
-[tool.ipm.organization.executor.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-
 [tool.ipm.organization.controller.database]
 host = "database.smarkee.internal"
 name = "ssot"

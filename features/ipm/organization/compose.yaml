@@ -30,11 +30,9 @@ x-image: &component-image
   image: ${IPM_ORGANIZATION_IMAGE:-smarkee-ipm-organization:dev}
 
 services:
-  # Consumers duráveis de trabalho do tipo: o Manager (`requested`, `observed` e `result`) e o
-  # Executor (`action`, um por partição) (docs/messaging/NATS.md §7.5 e §7.6). Os manifestos são do Manager (`consumers/`). Inexistente é criado;
+  # Consumers duráveis de trabalho do tipo: o Manager (`requested`) (docs/messaging/NATS.md §7.6). Os manifestos são do Manager (`consumers/`). Inexistente é criado;
   # existente com configuração idêntica não muda; configuração diferente falha de forma explícita.
-  # Exige os Streams REQUESTED, OBSERVED, RESULT e ACTION, criados pelo messaging da plataforma. Os
-  # consumers do Executor (um por partição) são do Executor (`consumers/`).
+  # Exige o Stream REQUESTED, criado pelo messaging da plataforma.
   ipm-organization-consumer:
     build:
       context: ../../../infrastructure/tools/nats-client
@@ -48,12 +46,7 @@ services:
       - sh
       - -c
       - >-
-        nats consumer add REQUESTED --config /consumers/ipm-organization-manager-requested.json &&
-        nats consumer add OBSERVED --config /consumers/ipm-organization-manager-observed.json &&
-        nats consumer add RESULT --config /consumers/ipm-organization-manager-result.json &&
-        for partition in 0 1 2 3; do
-          nats consumer add ACTION --config /consumers/ipm-organization-executor-action-p$$partition.json || exit 1;
-        done
+        nats consumer add REQUESTED --config /consumers/ipm-organization-manager-requested.json
     volumes:
       - ./consumers:/consumers:ro
     networks:
@@ -189,95 +182,6 @@ services:
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
-  # Reconciler (`ipm-organization-reconciler`): decide a `action` a partir de `desired` e `observed`.
-  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/messaging/NATS.md §7.4).
-  ipm-organization-reconciler:
-    <<: *component-image
-    command: [ipm-organization-reconciler]
-    container_name: ipm-organization-reconciler.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - IPM_ORGANIZATION_RECONCILER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      ipm-organization-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-organization-reconciler.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Observer (`ipm-organization-observer`): lê o Zitadel (conta somente leitura, IAM_OWNER_VIEWER) e
-  # publica `observed`. Monta só a própria chave do volume da identidade.
-  ipm-organization-observer:
-    <<: *component-image
-    command: [ipm-organization-observer]
-    container_name: ipm-organization-observer.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      IPM_ORGANIZATION_OBSERVER_IDENTITY_PROJECT_ID: ${IPM_ORGANIZATION_IDENTITY_PROJECT_ID:?Defina no .env (ID do projeto roles-ipm, org core)}
-    secrets:
-      - IPM_ORGANIZATION_OBSERVER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-      - type: volume
-        source: identity-bootstrap
-        target: /run/secrets/zitadel-key.json
-        read_only: true
-        volume:
-          subpath: service-account-ipm-organization-observer.json
-    depends_on:
-      ipm-organization-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-organization-observer.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Executor (`ipm-organization-executor`): única identidade com escrita da Organization no Zitadel
-  # (conta ipm-organization-executor, papel IAM_ORG_MANAGER). Monta só a própria chave.
-  ipm-organization-executor:
-    <<: *component-image
-    command: [ipm-organization-executor]
-    container_name: ipm-organization-executor.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      IPM_ORGANIZATION_EXECUTOR_IDENTITY_PROJECT_ID: ${IPM_ORGANIZATION_IDENTITY_PROJECT_ID:?Defina no .env (ID do projeto roles-ipm, org core)}
-    secrets:
-      - IPM_ORGANIZATION_EXECUTOR_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-      - type: volume
-        source: identity-bootstrap
-        target: /run/secrets/zitadel-key.json
-        read_only: true
-        volume:
-          subpath: service-account-ipm-organization-executor.json
-    depends_on:
-      ipm-organization-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-organization-executor.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
   # Controller (`ipm-organization-controller`, decisão 0096): observa, decide, age e reobserva a
   # Organization numa só transação, e substitui Observer, Reconciler e Executor. Única identidade
   # do provedor (conta ipm-organization-controller, papel IAM_ORG_MANAGER) e papel de banco próprio
@@ -369,12 +273,6 @@ secrets:
     environment: IPM_ORGANIZATION_PUBLISHER_DATABASE_PASSWORD
   IPM_ORGANIZATION_PUBLISHER_MESSAGING_PASSWORD:
     environment: IPM_ORGANIZATION_PUBLISHER_MESSAGING_PASSWORD
-  IPM_ORGANIZATION_RECONCILER_MESSAGING_PASSWORD:
-    environment: IPM_ORGANIZATION_RECONCILER_MESSAGING_PASSWORD
-  IPM_ORGANIZATION_OBSERVER_MESSAGING_PASSWORD:
-    environment: IPM_ORGANIZATION_OBSERVER_MESSAGING_PASSWORD
-  IPM_ORGANIZATION_EXECUTOR_MESSAGING_PASSWORD:
-    environment: IPM_ORGANIZATION_EXECUTOR_MESSAGING_PASSWORD
   IPM_ORGANIZATION_CONTROLLER_DATABASE_PASSWORD:
     environment: IPM_ORGANIZATION_CONTROLLER_DATABASE_PASSWORD
   IPM_ORGANIZATION_CONTROLLER_MESSAGING_PASSWORD:

@@ -28,19 +28,19 @@ async def database_available() -> None:
 async def cleanup(database_available: None) -> AsyncIterator[Cleanup]:
     tracker = Cleanup()
     yield tracker
-    manager = await connect("ipm_organization_manager_login")
+    controller = await connect("ipm_organization_controller_login")
     maintenance = await connect("ipm_maintenance_login")
     try:
-        await manager.execute(
+        await controller.execute(
             "DELETE FROM ipm.organization WHERE resource_id = ANY(%s)", (tracker.resource_ids,)
         )
-        for suffix in ("outbox", "operation", "action_result"):
+        for suffix in ("outbox", "operation"):
             await maintenance.execute(
                 f"DELETE FROM ipm.organization_{suffix} WHERE resource_id = ANY(%s)",  # noqa: S608 (tabelas fixas)
                 (tracker.resource_ids,),
             )
     finally:
-        await manager.close()
+        await controller.close()
         await maintenance.close()
 
 
