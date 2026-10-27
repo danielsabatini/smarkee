@@ -134,18 +134,19 @@ class PostgresSsot:
         return None if found is None else str(found[0])
 
     def history(self, kind: Kind) -> list[Row]:
-        outbox, operation, result = (self._table(name) for name in kind.support_tables)
+        outbox, *others = (self._table(name) for name in kind.support_tables)
         label = sql.Literal(kind.label_field)
+        ids = sql.SQL(" UNION ").join(
+            sql.SQL("SELECT resource_id FROM {table}").format(table=table)
+            for table in (outbox, *others)
+        )
         query = sql.SQL(
-            "WITH ids AS ("
-            "SELECT resource_id FROM {outbox} UNION "
-            "SELECT resource_id FROM {operation} UNION "
-            "SELECT resource_id FROM {result}) "
+            "WITH ids AS ({ids}) "
             "SELECT i.resource_id, coalesce(("
             "SELECT o.payload -> 'data' ->> {label} FROM {outbox} o "
             "WHERE o.resource_id = i.resource_id AND o.payload -> 'data' ->> {label} IS NOT NULL "
             "LIMIT 1), '') FROM ids i"
-        ).format(outbox=outbox, operation=operation, result=result, label=label)
+        ).format(ids=ids, outbox=outbox, label=label)
         with self._connect(kind.maintenance_role) as connection:
             found = connection.execute(query).fetchall()
         return [Row(str(row[0]), str(row[1])) for row in found]
@@ -179,7 +180,7 @@ class PostgresSsot:
     def delete(self, kind: Kind, resource_ids: set[str]) -> None:
         ids = sorted(resource_ids)
         delete = sql.SQL("DELETE FROM {table} WHERE resource_id = ANY(%s)")
-        with self._connect(kind.manager_role) as manager:
+        with self._connect(kind.delete_role or kind.manager_role) as manager:
             manager.execute(delete.format(table=self._table(kind.table)), (ids,))
         with self._connect(kind.maintenance_role) as maintenance:
             for table in kind.support_tables:

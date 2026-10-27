@@ -73,6 +73,8 @@ class Kind:
     """Tabela do tipo no banco `platform` (plano de dados, decisão 0086), se o tipo tiver uma."""
     data_plane_role: str | None = None
     """Papel de login com escrita nessa tabela (o do Executor)."""
+    delete_role: str | None = None
+    """Papel de login que apaga a linha, quando não é o do Manager (o Controller, decisão 0096)."""
 
 
 ACCOUNTS = Kind(
@@ -98,15 +100,12 @@ ORGANIZATIONS = Kind(
     "ipm",
     "organization",
     "ipm.organization",
-    (
-        "ipm.organization_outbox",
-        "ipm.organization_operation",
-        "ipm.organization_action_result",
-    ),
+    ("ipm.organization_outbox", "ipm.organization_operation"),
     "ipm_organization_manager_login",
     "ipm_maintenance_login",
     "name",
     deletion_protected=True,
+    delete_role="ipm_organization_controller_login",
 )
 
 # Usuários da Organization (decisão 0077): nascem desprotegidos, mas podem ter sido protegidos.
@@ -114,11 +113,12 @@ ORGANIZATION_USERS = Kind(
     "ipm",
     "user",
     "ipm.user",
-    ("ipm.user_outbox", "ipm.user_operation", "ipm.user_action_result"),
+    ("ipm.user_outbox", "ipm.user_operation"),
     "ipm_user_manager_login",
     "ipm_maintenance_login",
     "email",
     deletion_protected=True,
+    delete_role="ipm_user_controller_login",
 )
 BILLING_ACCOUNTS = Kind(
     "bsm",
@@ -174,15 +174,12 @@ SERVICEACCOUNTS = Kind(
     "ipm",
     "serviceaccount",
     "ipm.serviceaccount",
-    (
-        "ipm.serviceaccount_outbox",
-        "ipm.serviceaccount_operation",
-        "ipm.serviceaccount_action_result",
-    ),
+    ("ipm.serviceaccount_outbox", "ipm.serviceaccount_operation"),
     "ipm_serviceaccount_manager_login",
     "ipm_maintenance_login",
     "name",
     deletion_protected=True,
+    delete_role="ipm_serviceaccount_controller_login",
 )
 
 
