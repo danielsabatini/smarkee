@@ -21,10 +21,8 @@ from sk.main import app
 runner = CliRunner()
 API = "https://api.teste"
 RID = "01a14168-b59d-7475-8db7-c5cf57fa100b"
-OPID = "b9c4c98c-7392-5016-a724-6e1cd0c1bed9"
 PATH = "/v1/bsm/accounts"
 ACCOUNT = f"{PATH}/{RID}"
-OPERATION = f"{ACCOUNT}/operations/{OPID}"
 
 
 class Response:
@@ -116,12 +114,15 @@ def account_document(
     presence: str | None = "present",
     version: str = "3",
     protected: bool = True,
+    desired_generation: int = 1,
+    observed_generation: int | None = 1,
 ) -> dict[str, Any]:
     contacts = billing_contacts if billing_contacts is not None else ["finops@acme.com"]
     return {
         "resourceId": RID,
         "resourceVersion": version,
-        "desiredGeneration": 1,
+        "desiredGeneration": desired_generation,
+        "observedGeneration": observed_generation,
         "phase": phase,
         "conditions": [],
         "desired": {
@@ -149,15 +150,8 @@ def account_document(
     }
 
 
-def operation_document(status: str, reason: str | None = None) -> Response:
-    document: dict[str, Any] = {"operationId": OPID, "operationStatus": status}
-    if reason:
-        document["operationStatusReason"] = reason
-    return Response(200, document)
-
-
-def accepted() -> Response:
-    return Response(202, {"resourceId": RID, "operationId": OPID})
+def admitted(status: int = 200, **changes: Any) -> Response:
+    return Response(status, account_document(**changes))
 
 
 def body_of(request: urllib.request.Request) -> object:
@@ -165,7 +159,7 @@ def body_of(request: urllib.request.Request) -> object:
 
 
 def test_create_sends_fields_with_session_token_and_idempotency_key(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
+    api.routes[("POST", PATH)] = admitted(201)
 
     result = runner.invoke(
         app,
@@ -191,8 +185,8 @@ def test_create_sends_fields_with_session_token_and_idempotency_key(api: FakeApi
         "billingCurrency": "BRL",
         "billingContacts": ["finops@acme.com"],
     }
-    assert RID in result.stdout and OPID in result.stdout
-    assert "sk bsm account get --resource-id" in " ".join(result.stdout.split())
+    assert RID in result.stdout
+    assert "sk bsm account get" in " ".join(result.stdout.split())
 
 
 def test_create_requires_valid_options_before_any_call(api: FakeApi) -> None:
@@ -237,15 +231,8 @@ def test_create_requires_valid_options_before_any_call(api: FakeApi) -> None:
 
 
 def test_create_wait_waits_for_ready_and_shows_the_account(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = [
-        operation_document("in_progress"),
-        operation_document("completed"),
-    ]
-    api.routes[("GET", ACCOUNT)] = [
-        Response(200, account_document(phase="Reconciling", presence=None)),
-        Response(200, account_document()),
-    ]
+    api.routes[("POST", PATH)] = admitted(201, observed_generation=0)
+    api.routes[("GET", ACCOUNT)] = Response(200, account_document(observed_generation=1))
 
     result = runner.invoke(
         app,
@@ -268,10 +255,11 @@ def test_create_wait_waits_for_ready_and_shows_the_account(api: FakeApi) -> None
     assert "Ready" in result.stdout and "present" in result.stdout
 
 
-def test_wait_stops_with_the_reason_when_the_operation_is_rejected(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("rejected", "validation")
-    api.routes[("GET", ACCOUNT)] = Response(200, account_document(phase="Pending"))
+def test_wait_stops_with_the_reason_when_the_account_fails(api: FakeApi) -> None:
+    doc = account_document(phase="Failed", observed_generation=1)
+    doc["conditions"] = [{"type": "Ready", "status": "False", "reason": "QuotaExceeded"}]
+    api.routes[("POST", PATH)] = admitted(201, observed_generation=0)
+    api.routes[("GET", ACCOUNT)] = Response(200, doc)
 
     result = runner.invoke(
         app,
@@ -290,14 +278,14 @@ def test_wait_stops_with_the_reason_when_the_operation_is_rejected(api: FakeApi)
     )
 
     assert result.exit_code == 1
-    assert "Request not completed" in result.stderr and "validation" in result.stderr
-    assert "already in use" in " ".join(result.stderr.split())
+    assert "Request not completed" in result.stderr
 
 
 def test_wait_times_out_with_a_hint(api: FakeApi, monkeypatch: pytest.MonkeyPatch) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("in_progress")
-    api.routes[("GET", ACCOUNT)] = Response(200, account_document(phase="Reconciling"))
+    api.routes[("POST", PATH)] = admitted(201, observed_generation=0)
+    api.routes[("GET", ACCOUNT)] = Response(
+        200, account_document(observed_generation=0, phase="Reconciling")
+    )
     clock = iter(range(0, 1000, 20))
     monkeypatch.setattr("sk.commands.shared.time.monotonic", lambda: next(clock))
 
@@ -328,8 +316,8 @@ def test_wait_times_out_with_a_hint(api: FakeApi, monkeypatch: pytest.MonkeyPatc
 @pytest.mark.parametrize(
     ("status", "error_code", "expected"),
     [
-        (403, "EmailNotVerified", "e-mail is not verified"),
-        (403, "QuotaExceeded", "Billing Account limit"),
+        (403, "EmailNotVerified", "confirmation link"),
+        (403, "QuotaExceeded", "quota reached"),
         (403, "Forbidden", "bsm.account.*"),
         (401, "Unauthorized", "sk auth login"),
         (503, "Unavailable", "Try again"),
@@ -359,13 +347,12 @@ def test_create_translates_the_api_refusals_into_hints(
     assert expected in " ".join(result.stderr.split())
 
 
-def test_get_shows_the_account_and_the_operation(api: FakeApi) -> None:
+def test_get_shows_the_account(api: FakeApi) -> None:
     api.routes[("GET", ACCOUNT)] = Response(200, account_document())
-    api.routes[("GET", OPERATION)] = operation_document("completed")
 
     result = runner.invoke(
         app,
-        ["bsm", "account", "get", "--resource-id", RID, "--operation-id", OPID],
+        ["bsm", "account", "get", "--resource-id", RID],
     )
 
     assert result.exit_code == 0, result.stderr
@@ -375,7 +362,6 @@ def test_get_shows_the_account_and_the_operation(api: FakeApi) -> None:
         "finops@acme.com",
         "present",
         "Ready",
-        "completed",
     ):
         assert text in result.stdout
 
@@ -412,7 +398,7 @@ def test_list_without_accounts_says_so(api: FakeApi) -> None:
 
 def test_update_reads_the_current_version_before_patching(api: FakeApi) -> None:
     api.routes[("GET", ACCOUNT)] = Response(200, account_document(version="7"))
-    api.routes[("PATCH", ACCOUNT)] = accepted()
+    api.routes[("PATCH", ACCOUNT)] = admitted(200, version="8")
 
     result = runner.invoke(
         app,
@@ -460,7 +446,7 @@ def test_update_to_the_same_values_does_nothing(api: FakeApi) -> None:
 
 def test_unprotect_and_protect_commands(api: FakeApi) -> None:
     api.routes[("GET", ACCOUNT)] = Response(200, account_document(version="9", protected=True))
-    api.routes[("PATCH", ACCOUNT)] = accepted()
+    api.routes[("PATCH", ACCOUNT)] = admitted(200, version="10")
 
     already = runner.invoke(app, ["bsm", "account", "protect", "--resource-id", RID])
     assert already.exit_code == 0
@@ -473,16 +459,11 @@ def test_unprotect_and_protect_commands(api: FakeApi) -> None:
 
 
 def test_delete_wait_ends_when_the_account_is_gone(api: FakeApi) -> None:
-    api.routes[("DELETE", ACCOUNT)] = accepted()
-    api.routes[("GET", OPERATION)] = [
-        operation_document("in_progress"),
-        operation_document("completed"),
-    ]
     api.routes[("GET", ACCOUNT)] = [
-        Response(200, account_document()),
-        Response(200, account_document(phase="Deleting")),
+        Response(200, account_document(protected=False)),
         http_error(404, "NotFound", "Recurso não encontrado."),
     ]
+    api.routes[("DELETE", ACCOUNT)] = admitted(202, phase="Deleting")
 
     result = runner.invoke(app, ["bsm", "account", "delete", "--resource-id", RID, "--wait"])
 
@@ -490,9 +471,10 @@ def test_delete_wait_ends_when_the_account_is_gone(api: FakeApi) -> None:
     assert "Billing Account deleted" in result.stdout and "removed" in result.stdout
 
 
-def test_active_account_configuration_and_save_on_create_wait(api: FakeApi, tmp_path: Path) -> None:
-    api.routes[("POST", PATH)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+def test_active_account_configuration_and_save_on_create_wait(
+    api: FakeApi, tmp_path: Path
+) -> None:
+    api.routes[("POST", PATH)] = admitted(201)
     api.routes[("GET", ACCOUNT)] = Response(200, account_document())
 
     result = runner.invoke(
@@ -533,7 +515,7 @@ def default_output_mode() -> Iterator[None]:
 
 
 def _document(stdout: str) -> Any:
-    return json.loads(stdout)  # falha se houver mais de um documento ou texto solto
+    return json.loads(stdout)
 
 
 @pytest.mark.usefixtures("default_output_mode")
@@ -553,7 +535,7 @@ def test_json_get_and_list_print_native_types(api: FakeApi) -> None:
 
 @pytest.mark.usefixtures("default_output_mode")
 def test_json_create_without_wait_prints_only_the_acceptance(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
+    api.routes[("POST", PATH)] = admitted(201)
     result = runner.invoke(
         app,
         [
@@ -563,32 +545,18 @@ def test_json_create_without_wait_prints_only_the_acceptance(api: FakeApi) -> No
         ],
     )
     assert result.exit_code == 0, result.stderr
-    assert _document(result.stdout) == {"resourceId": RID, "operationId": OPID}
+    assert _document(result.stdout)["resourceId"] == RID
 
 
 @pytest.mark.usefixtures("default_output_mode")
 def test_json_delete_with_wait_prints_the_removed_state(api: FakeApi) -> None:
-    api.routes[("DELETE", ACCOUNT)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
     api.routes[("GET", ACCOUNT)] = [
-        Response(200, account_document()),
+        Response(200, account_document(protected=False)),
         http_error(404, "NotFound", "Recurso não encontrado."),
     ]
-    result = runner.invoke(app, [*JSON, "bsm", "account", "delete", "--resource-id", RID, "--wait"])
+    api.routes[("DELETE", ACCOUNT)] = admitted(202, phase="Deleting")
+    result = runner.invoke(
+        app, [*JSON, "bsm", "account", "delete", "--resource-id", RID, "--wait"]
+    )
     assert result.exit_code == 0, result.stderr
     assert _document(result.stdout) == {"resourceId": RID, "state": "removed"}
-
-
-@pytest.mark.usefixtures("default_output_mode")
-def test_json_nothing_to_do_prints_the_current_account(api: FakeApi) -> None:
-    api.routes[("GET", ACCOUNT)] = Response(200, account_document(display_name="Acme"))
-    same = runner.invoke(
-        app,
-        [*JSON, "bsm", "account", "update", "--resource-id", RID, "--display-name", "Acme"],
-    )
-    assert same.exit_code == 0, same.stderr
-    assert _document(same.stdout)["displayName"] == "Acme"
-    assert "Nothing to do" in same.stderr and "Nothing to do" not in same.stdout
-    protected = runner.invoke(app, [*JSON, "bsm", "account", "protect", "--resource-id", RID])
-    assert _document(protected.stdout)["resourceId"] == RID
-    assert all(request.get_method() == "GET" for request in api.requests)

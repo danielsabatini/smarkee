@@ -5,7 +5,10 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - **Regras, contratos e decisões:** `AGENTS.md`, `docs/` e `.decisions/`.
 
 ## Estado operacional atual
-- **Branch `dev`:** o plano `ipm/*` (decisões `0098`, `0099` e `0100`) está migrado até a etapa S5: `ipm/serviceaccount|user|organization|permission` têm `api`, `publisher`, `controller`; `ipm/role|group` têm só `api` e `publisher`; banco `platform` extinto (`0099`); 0 chamadas HTTP mútuas entre features `ipm/*` com projeções locais via stream `DESIRED` e auditoria no `scripts/dev/check` (`0100`). `origin/dev` em `13004e6d`; commits locais sem push: `ae811653` (S5.1), `aa7bfdca` (S5.2 pt 1), `e8cc5b04` (S5.2 pt 2), `c9b72e8b` (S5.3). Pedir autorização antes de push. `core/account`, `sum/service` e `bsm/account` seguem no modelo antigo (Receiver/Manager/Operation).
+- **Branch `dev`:** o plano `ipm/*` e desmonte do loop legado (decisões `0098`, `0099`, `0100` e etapa S6):
+  - `bsm/account` migrada (S6.1) para `internal-state` (`api` + `publisher`): zero chamadas HTTP mútuas com `ipm/organization` via projeções no stream `DESIRED` (`BillingAccountProjection` em `ipm/organization` e `OrganizationUsageProjection` em `bsm/account`), CLI `sk` adaptada para `SyncResourceFlow`.
+  - `ipm/serviceaccount|user|organization|permission` têm `api`, `publisher`, `controller`; `ipm/role|group` e `bsm/account` têm só `api` e `publisher`; banco `platform` extinto (`0099`).
+  - Próximos na S6: `core/account` e `sum/service`.
 - **Banco `ssot`** (decisão `0087`) é o único banco de recursos; o banco `platform` foi extinto (decisão `0099`; dump prévio em `.workspace/platform-before-drop.dump`).
 - **Identidade (`infrastructure/dev/identity`):** chaves das service accounts do Zitadel persistem no volume Docker `identity-bootstrap`.
 - **Ambiente local OpenCode:** `~/.config/opencode/opencode.json` carrega `AGENTS.md` e `MEMORY.md` globalmente.

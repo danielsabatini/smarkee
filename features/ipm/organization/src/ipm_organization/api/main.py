@@ -14,7 +14,10 @@ from ipm_organization.api.http.app import Dependencies, create_app
 from ipm_organization.api.settings import OrganizationApiSettings, missing_required
 from ipm_organization.api.store.admission import SsotAdmissionStore
 from ipm_organization.api.store.repository import SsotRepository
-from ipm_organization.api.transport.billing_accounts import BillingAccountPeer
+from ipm_organization.api.transport.billing_account_projection import (
+    BILLING_ACCOUNT_SUBJECT,
+    BillingAccountProjection,
+)
 from ipm_organization.api.transport.member_projection import (
     SERVICEACCOUNT_SUBJECT,
     USER_SUBJECT,
@@ -88,9 +91,25 @@ async def run(settings: OrganizationApiSettings) -> int:
         for index, consumer in enumerate(dependent_consumers):
             runtime.start(f"dependents-projection-{index}", consumer.run(runtime.stop))
 
+        # Billing accounts ativas do BSM
+        billing_accounts = BillingAccountProjection()
+        billing_consumer = StateConsumer(
+            runtime.stream,
+            billing_accounts,
+            durable=f"ipm-organization-api-billing-{instance}",
+            stream="DESIRED",
+            filter_subject=BILLING_ACCOUNT_SUBJECT,
+            inactive_threshold_seconds=300,
+            traced=False,
+            on_cycle=runtime.health.beat,
+        )
+        runtime.start("billing-account-projection", billing_consumer.run(runtime.stop))
+
         def is_synced() -> bool:
-            return all(c.is_synced for c in member_consumers) and all(
-                c.is_synced for c in dependent_consumers
+            return (
+                all(c.is_synced for c in member_consumers)
+                and all(c.is_synced for c in dependent_consumers)
+                and billing_consumer.is_synced
             )
 
         user_access_data = desired_user_access(
@@ -110,7 +129,7 @@ async def run(settings: OrganizationApiSettings) -> int:
                 admissions=SsotAdmissionStore(pool),
                 members=members,
                 dependents=dependents,
-                billing_accounts=BillingAccountPeer(settings.peers, http),
+                billing_accounts=billing_accounts,
                 user_access_data=user_access_data,
                 is_ready=lambda: runtime.client.is_connected and is_synced(),
             )

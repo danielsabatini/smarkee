@@ -125,6 +125,7 @@ async def test_the_api_serves_http_and_leaves_the_probes_to_the_app(
         "dependents-projection-1",
         "dependents-projection-2",
         "dependents-projection-3",
+        "billing-account-projection",
         "http",
     ]
     assert runtime.health_port is None

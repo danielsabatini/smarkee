@@ -11,7 +11,6 @@ from ipm_organization.api.domain.errors import unauthorized, unavailable
 from ipm_organization.api.domain.organization import OwnerQuota, UniqueValue
 from ipm_organization.api.domain.principal import Principal
 from ipm_organization.api.domain.records import ResourceRecord
-from ipm_organization.api.domain.users import BillingAccountCheckError
 from ipm_organization.api.http.app import Dependencies, create_app
 from ipm_organization.api.settings import OrganizationApiSettings
 
@@ -75,11 +74,8 @@ class FakeDependents:
 @dataclass
 class FakeBillingAccounts:
     ready_billing_accounts: set[str] = field(default_factory=lambda: {"ba-ready"})
-    billing_error: BillingAccountCheckError | None = None
 
-    async def is_ready_billing_account(self, billing_account_id: str, access_token: str) -> bool:
-        if self.billing_error is not None:
-            raise self.billing_error
+    def is_ready_billing_account(self, billing_account_id: str, owner_account_id: str) -> bool:
         return billing_account_id in self.ready_billing_accounts
 
 

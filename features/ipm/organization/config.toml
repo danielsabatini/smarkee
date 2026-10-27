@@ -17,9 +17,6 @@ user = "ipm_organization_api_login"
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
-[tool.ipm.organization.api.peers]
-billing_accounts_url = "http://bsm-account-receiver.smarkee.internal:8000"
-
 [tool.ipm.organization.publisher.database]
 host = "database.smarkee.internal"
 name = "ssot"

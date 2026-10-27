@@ -1,7 +1,8 @@
 name: bsm-account
 
-# Componentes de bsm.account (decisões 0015, 0019 e 0063): migração, consumers, Receiver, Manager,
-# Publisher, Reconciler, Observer e Executor.
+# Componentes de bsm.account (decisões 0015, 0019, 0063 e 0098): migração, API e Publisher. A
+# Billing Account é dado do SSOT (nada externo a materializa hoje): não tem Controller nem plano
+# de dados (S6.1).
 # A plataforma (banco, messaging, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
 # e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait messaging database gateway identity identity-login`,
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
@@ -22,7 +23,7 @@ x-deploy: &component-deploy
       cpus: "${BSM_ACCOUNT_COMPONENT_CPUS:-0.5}"
       memory: ${BSM_ACCOUNT_COMPONENT_MEMORY:-256M}
 
-# Imagem única da feature (decisão 0063): contém o código dos seis papéis, e cada serviço escolhe o
+# Imagem única da feature (decisão 0063): contém o código dos dois papéis, e cada serviço escolhe o
 # seu pelo `command`. Cada contêiner recebe só as variáveis e os segredos do seu papel.
 x-image: &component-image
   build:
@@ -30,40 +31,10 @@ x-image: &component-image
   image: ${BSM_ACCOUNT_IMAGE:-smarkee-bsm-account:dev}
 
 services:
-  # Consumer durável de trabalho do Manager para `requested` do tipo (docs/messaging/NATS.md §7.6). O manifesto
-  # do Manager e o do Executor ficam em `consumers/`. Inexistente é criado; existente com configuração idêntica
-  # não muda; configuração diferente falha de forma explícita. Exige os Streams REQUESTED, OBSERVED
-  # e RESULT, criados pelo messaging da plataforma.
-  bsm-account-consumer:
-    build:
-      context: ../../../infrastructure/tools/nats-client
-    image: ${SMARKEE_MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}
-    container_name: bsm-account-consumer.smarkee.internal
-    environment:
-      NATS_URL: nats://messaging.smarkee.internal:4222
-      NATS_USER: ${SMARKEE_MESSAGING_USER:-smarkee}
-      NATS_PASSWORD: ${BSM_ACCOUNT_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
-    command:
-      - sh
-      - -c
-      - >-
-        nats consumer add REQUESTED --config /consumers/bsm-account-manager-requested.json &&
-        nats consumer add OBSERVED --config /consumers/bsm-account-manager-observed.json &&
-        nats consumer add RESULT --config /consumers/bsm-account-manager-result.json &&
-        nats consumer add UPDATED --config /consumers/bsm-account-manager-account-updated.json &&
-        for partition in 0 1 2 3; do
-          nats consumer add ACTION --config /consumers/bsm-account-executor-action-p$$partition.json || exit 1;
-        done
-    volumes:
-      - ./consumers:/consumers:ro
-    networks:
-      - internal
-    restart: "no"
-
   # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo
   # (features/bsm/account/migrations/*.sql, em ordem) como o dono `ssot`, no banco `ssot`.
-  # O código das migrações é do Manager (decisões 0015 e 0063); a execução é desta etapa de
-  # implantação, com o papel administrativo, e nunca com o papel de runtime do Manager.
+  # O código das migrações é da API (decisões 0015, 0063 e 0098); a execução é desta etapa de
+  # implantação, com o papel administrativo, e nunca com o papel de runtime da API.
   # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/bsm.sql.
   bsm-account-migrate:
     build:
@@ -89,33 +60,33 @@ services:
           - bsm-account-migrate.smarkee.internal
     restart: "no"
 
-  # Receiver (`bsm-account-receiver`): só o gateway a alcança; a porta 8000 não é publicada no host.
-  bsm-account-receiver:
+  # API (`bsm-account-api`, decisão 0098): autentica, autoriza e admite a escrita de forma síncrona
+  # (recurso e `desired` no outbox, numa transação). Papel de banco `bsm_account_api`. Só o gateway a
+  # alcança; a porta 8000 não é publicada no host.
+  bsm-account-api:
     <<: *component-image
-    command: [bsm-account-receiver]
-    container_name: bsm-account-receiver.smarkee.internal
+    command: [bsm-account-api]
+    container_name: bsm-account-api.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
-      # defaults do componente (BSM_ACCOUNT_RECEIVER_<SEÇÃO>_<CAMPO>).
-      BSM_ACCOUNT_RECEIVER_AUTH_AUDIENCE: ${BSM_ACCOUNT_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-bsm, org core)}
+      # defaults do componente (BSM_ACCOUNT_API_<SEÇÃO>_<CAMPO>).
+      BSM_ACCOUNT_API_AUTH_AUDIENCE: ${BSM_ACCOUNT_API_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-bsm, org core)}
     secrets:
-      - BSM_ACCOUNT_RECEIVER_DATABASE_PASSWORD
-      - BSM_ACCOUNT_RECEIVER_MESSAGING_PASSWORD
+      - BSM_ACCOUNT_API_DATABASE_PASSWORD
+      - BSM_ACCOUNT_API_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
       bsm-account-migrate:
         condition: service_completed_successfully
-      bsm-account-consumer:
-        condition: service_completed_successfully
     networks:
       internal:
         aliases:
-          - bsm-account-receiver.smarkee.internal
+          - bsm-account-api.smarkee.internal
     restart: unless-stopped
     healthcheck: &component-healthcheck
       test:
@@ -127,110 +98,6 @@ services:
       timeout: 5s
       retries: 6
       start_period: 10s
-
-  # Manager (`bsm-account-manager`): único escritor do SSOT do tipo. Papel de banco
-  # `bsm_account_manager`, que só insere no outbox (decisão 0019).
-  bsm-account-manager:
-    <<: *component-image
-    command: [bsm-account-manager]
-    container_name: bsm-account-manager.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - BSM_ACCOUNT_MANAGER_DATABASE_PASSWORD
-      - BSM_ACCOUNT_MANAGER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      bsm-account-migrate:
-        condition: service_completed_successfully
-      bsm-account-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - bsm-account-manager.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Reconciler (`bsm-account-reconciler`): decide a `action` a partir de `desired` e `observed`.
-  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/messaging/NATS.md §7.4).
-  bsm-account-reconciler:
-    <<: *component-image
-    command: [bsm-account-reconciler]
-    container_name: bsm-account-reconciler.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - BSM_ACCOUNT_RECONCILER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      bsm-account-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - bsm-account-reconciler.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Observer (`bsm-account-observer`): lê os arquivos de estado no volume compartilhado (somente
-  # leitura) e publica `observed`.
-  bsm-account-observer:
-    <<: *component-image
-    command: [bsm-account-observer]
-    container_name: bsm-account-observer.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - BSM_ACCOUNT_OBSERVER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-      - bsm-account-state:/var/tmp:ro
-    depends_on:
-      bsm-account-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - bsm-account-observer.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Executor (`bsm-account-executor`): único com escrita nos arquivos de estado do recurso (fase P0).
-  bsm-account-executor:
-    <<: *component-image
-    command: [bsm-account-executor]
-    container_name: bsm-account-executor.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - BSM_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-      - bsm-account-state:/var/tmp
-    depends_on:
-      bsm-account-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - bsm-account-executor.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
 
   # Publisher (`bsm-account-publisher`): publica o outbox do tipo (uma instância ativa por trava
   # consultiva). Papel de banco `bsm_account_publisher`, que só lê o outbox e marca `published_at`, e
@@ -271,11 +138,8 @@ services:
       - --config=/etc/otelcol-contrib/config.yaml
     volumes:
       - ./telemeter/config.yaml:/etc/otelcol-contrib/config.yaml:ro
-      # Saída do exporter file. A imagem não tem sistema de arquivos gravável: a pasta precisa existir no host e ser
-      # gravável pelo usuário 10001 (no Linux, `chmod o+rwx telemeter/logs telemeter/traces`; no Docker Desktop já é).
       - ./telemeter/logs:/telemetry/logs
       - ./telemeter/traces:/telemetry/traces
-    # O log do próprio coletor é de infra (o telemetry-agent o coleta pelas labels, só WARN ou acima).
     logging:
       driver: json-file
       options:
@@ -294,39 +158,20 @@ services:
         aliases:
           - bsm-account-telemeter.smarkee.internal
     restart: unless-stopped
-    # Sem healthcheck do Compose: a imagem não tem shell nem wget/curl. A extensão `health_check` responde em 13133.
     healthcheck:
       disable: true
 
-# Senhas montadas em /run/secrets/<VARIÁVEL> (arquivo somente leitura, lido pelo `SecretFilesSource`; decisão 0070).
-# A origem em dev é o .env; cada papel recebe só a sua. Em stg e prd a origem passa a ser o cofre de segredos.
 secrets:
-  BSM_ACCOUNT_RECEIVER_DATABASE_PASSWORD:
-    environment: BSM_ACCOUNT_RECEIVER_DATABASE_PASSWORD
-  BSM_ACCOUNT_RECEIVER_MESSAGING_PASSWORD:
-    environment: BSM_ACCOUNT_RECEIVER_MESSAGING_PASSWORD
-  BSM_ACCOUNT_MANAGER_DATABASE_PASSWORD:
-    environment: BSM_ACCOUNT_MANAGER_DATABASE_PASSWORD
-  BSM_ACCOUNT_MANAGER_MESSAGING_PASSWORD:
-    environment: BSM_ACCOUNT_MANAGER_MESSAGING_PASSWORD
-  BSM_ACCOUNT_RECONCILER_MESSAGING_PASSWORD:
-    environment: BSM_ACCOUNT_RECONCILER_MESSAGING_PASSWORD
-  BSM_ACCOUNT_OBSERVER_MESSAGING_PASSWORD:
-    environment: BSM_ACCOUNT_OBSERVER_MESSAGING_PASSWORD
-  BSM_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD:
-    environment: BSM_ACCOUNT_EXECUTOR_MESSAGING_PASSWORD
+  BSM_ACCOUNT_API_DATABASE_PASSWORD:
+    environment: BSM_ACCOUNT_API_DATABASE_PASSWORD
+  BSM_ACCOUNT_API_MESSAGING_PASSWORD:
+    environment: BSM_ACCOUNT_API_MESSAGING_PASSWORD
   BSM_ACCOUNT_PUBLISHER_DATABASE_PASSWORD:
     environment: BSM_ACCOUNT_PUBLISHER_DATABASE_PASSWORD
   BSM_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD:
     environment: BSM_ACCOUNT_PUBLISHER_MESSAGING_PASSWORD
 
-volumes:
-  # Volume local de arquivos de estado da Billing Account (fase P0), compartilhado entre Executor (rw) e Observer (ro).
-  bsm-account-state:
-    name: bsm-account-state
-
 networks:
-  # Rede da plataforma, criada por `infrastructure/dev`.
   internal:
     name: internal
     external: true

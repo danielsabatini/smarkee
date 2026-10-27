@@ -1,9 +1,10 @@
 """Comandos `sk bsm account`: criar, consultar, alterar, proteger e remover Billing Accounts.
 
 Usam o token da sessão (`sk auth login`), renovado quando está para vencer. A API é a mesma do
-`sk account create` (`[api] url`). Criar, alterar e remover são assíncronos: o comando mostra como
-acompanhar a Operation e, com `--wait`, espera a Billing Account convergir. O token precisa trazer
-as permissões `bsm.account.*`.
+`sk account create` (`[api] url`). Criar, alterar e remover são admitidos na hora pela API
+(decisão 0098); a Billing Account é dado do SSOT e nasce convergida. Com `--wait`, o comando
+espera `observedGeneration` alcançar a geração admitida. O token precisa trazer as permissões
+`bsm.account.*`.
 """
 
 import uuid
@@ -13,13 +14,13 @@ import typer
 from pydantic import ValidationError
 from rich.text import Text
 
-from sk import output, ui
+from sk import ui
 from sk.command_app import SkTyper
 from sk.commands.config import known_keys, store_value
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
     EXIT_USAGE_ERROR,
-    ResourceFlow,
+    SyncResourceFlow,
     TimeoutOption,
     already_done,
     bad_address,
@@ -29,13 +30,11 @@ from sk.commands.shared import (
     require,
     session_token,
 )
-from sk.features.api_contract import OperationStatus, RequestAccepted
 from sk.features.bsm.account import (
     BillingAccount,
     create_account,
     delete_account,
     get_account,
-    get_operation,
     list_accounts,
     set_account_protection,
     update_account,
@@ -46,64 +45,81 @@ from sk.features.bsm.account import (
 from sk.help import command, option
 from sk.http import ApiError
 from sk.identity.oidc import OidcError
-from sk.settings import ConfigurationError, SkSettings, config_file_path, read_config_document
+from sk.settings import (
+    ConfigurationError,
+    SkSettings,
+    config_file_path,
+    read_config_document,
+)
 
 ACTIVE_ACCOUNT_KEY = "bsm.accountId"
 
-BSM_HELP = command("Resources of the Billing Service Manager (BSM).")
-ACCOUNT_HELP = command(
-    "Create, inspect, update, protect and delete the requester's Billing Accounts."
-)
-
-NOT_FOUND = "Billing Account not found for your account."
-CONFLICT_ON_CHANGE = "The Billing Account changed since it was last read. Inspect it and try again."
-PROTECTED_HINT = (
-    "The Billing Account is protected against deletion. Run `sk bsm account unprotect` first."
-)
-REJECTION_HINTS = {
-    "validation": "The displayName is already in use for your account, or the request is invalid.",
-    "conflict": CONFLICT_ON_CHANGE,
-    "not_found": NOT_FOUND,
-    "protected": PROTECTED_HINT,
-}
-ERROR_CODE_HINTS = {
-    "DeletionProtected": PROTECTED_HINT,
-    "EmailNotVerified": (
-        "Your e-mail is not verified yet. Open the link in the activation e-mail and repeat."
-    ),
-    "QuotaExceeded": "You reached the Billing Account limit. Delete one or ask an operator.",
-}
-NO_PERMISSION_HINT = (
-    "Your account does not have permission for this operation. Ensure you have the required "
-    "bsm.account.* permission and renew the session with `sk auth refresh`."
-)
-
-PHASE_STYLES = {
-    "Ready": "green",
-    "Failed": "red",
-}  # as demais fases (em andamento) ficam em amarelo
-
 bsm_app = SkTyper(
-    help=BSM_HELP,
-    no_args_is_help=True,
-    # Ajuda colorida pelo Rich. Colchetes literais nos textos são escapados com "\\[".
+    help=command(
+        "Manage billing and payments in the Smarkee platform.",
+        examples=[
+            "sk bsm account list",
+            "sk bsm account create --display-name Acme --currency BRL --contact finops@acme.com",
+            "sk bsm account get",
+            "sk bsm account protect",
+            "sk bsm account delete",
+        ],
+    ),
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
 )
+
 account_app = SkTyper(
-    help=ACCOUNT_HELP,
-    no_args_is_help=True,
+    help=command(
+        "Manage Billing Accounts (credit balance, invoices, payment methods).",
+        examples=[
+            "sk bsm account list",
+            "sk bsm account create --display-name Acme --currency BRL --contact finops@acme.com",
+            "sk bsm account get",
+            "sk bsm account protect",
+            "sk bsm account delete",
+        ],
+    ),
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
 )
 bsm_app.add_typer(account_app, name="account")
+
+PHASE_STYLES = {
+    "Ready": "green",
+    "Provisioning": "cyan",
+    "Deleting": "magenta",
+    "Failed": "red",
+}
+CONFLICT_ON_CHANGE = (
+    "The Billing Account was changed by someone else since it was read. Read it again with "
+    "`sk bsm account get` and repeat the command."
+)
+NOT_FOUND = "Billing Account not found."
+ERROR_CODE_HINTS = {
+    "DisplayNameInUse": "A Billing Account with this display name already exists for your account.",
+    "EmailNotVerified": (
+        "Your e-mail has not been verified yet. Check your inbox and follow the confirmation link."
+    ),
+    "DeletionProtected": (
+        "The Billing Account is protected against deletion. Run `sk bsm account unprotect` first."
+    ),
+    "ResourcesAttached": (
+        "The Billing Account has active Organizations attached. Detach or delete them first."
+    ),
+    "QuotaExceeded": "Billing Account quota reached for your user.",
+}
+NO_PERMISSION_HINT = (
+    "Your authenticated user does not have permission for this Billing Account operation. Ask an "
+    "administrator for the corresponding bsm.account.* permission."
+)
 
 WaitOption = Annotated[
     bool,
     typer.Option(
         "--wait",
         help=option(
-            "Wait for the Billing Account to converge (phase Ready and Operation completed).",
+            "Wait for the Billing Account to converge (observed matches desired generation).",
             kind="Boolean",
             variable=None,
             file=None,
@@ -150,53 +166,48 @@ def _fail_api(error: ApiError, *, not_found: str = NOT_FOUND) -> NoReturn:
     )
 
 
-def _active_account() -> str:
-    """`resourceId` da Billing Account ativa (ambiente ou arquivo); vazio se nenhuma."""
+def _active_account() -> str | None:
     try:
-        return SkSettings().bsm.account_id
+        return SkSettings().bsm.account_id or None
     except (ValidationError, ConfigurationError) as error:
         ui.error("Invalid configuration", str(error), hint="Fix the indicated file and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 
 
 def _account_identifier(value: str | None) -> str:
-    """`resourceId` da Billing Account: `--resource-id` ou, na falta dele, a ativa."""
-    if value is None:
-        value = _active_account()
-        if not value:
-            ui.error(
-                "Missing Billing Account",
-                "No --resource-id was given and no Billing Account is active.",
-                hint=(
-                    "Repeat with --resource-id VALUE, or make one active with "
-                    f"`sk config set {ACTIVE_ACCOUNT_KEY} VALUE` "
-                    "(or set SK_BSM_ACCOUNT_ID)."
-                ),
-            )
-            raise typer.Exit(EXIT_USAGE_ERROR)
+    value = value if value is not None else _active_account()
+    if not value:
+        ui.error(
+            "Missing Billing Account",
+            "No --resource-id was given and no Billing Account is active.",
+            hint=(
+                "Repeat with --resource-id VALUE, or make one active with "
+                f"`sk config set {ACTIVE_ACCOUNT_KEY} VALUE`."
+            ),
+        )
+        raise typer.Exit(EXIT_USAGE_ERROR)
     return identifier(value, "--resource-id", what="resourceId")
 
 
 def _display_name(value: str | None) -> str:
-    """`--display-name` obrigatório e dentro do contrato, recusado antes da chamada de rede."""
+    required = require(value, "--display-name")
     try:
-        return validate_display_name(require(value, "--display-name"))
+        return validate_display_name(required)
     except ValueError as error:
         ui.error("Value not accepted", str(error), hint="Fix --display-name and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 
 
 def _currency(value: str | None) -> str:
-    """`--currency` obrigatório e dentro do contrato, recusado antes da chamada de rede."""
+    required = require(value, "--currency")
     try:
-        return validate_billing_currency(require(value, "--currency"))
+        return validate_billing_currency(required)
     except ValueError as error:
         ui.error("Value not accepted", str(error), hint="Fix --currency and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 
 
 def _contacts(values: list[str] | None) -> list[str]:
-    """`--contact` obrigatório e dentro do contrato, recusado antes da chamada de rede."""
     if not values:
         require(None, "--contact")
     try:
@@ -226,33 +237,14 @@ def _rows(account: BillingAccount) -> list[tuple[str, str]]:
     ]
 
 
-def _operation_rows(operation: OperationStatus) -> list[tuple[str, str]]:
-    rows = [
-        ("operationId", operation.operation_id),
-        ("operationStatus", operation.operation_status),
-    ]
-    if operation.reason is not None:
-        rows.append(("reason", operation.reason))
-    return rows
-
-
-def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> str:
-    """Comando `get` que acompanha o pedido. `--resource-id` só aparece quando a Billing Account
-    não é a ativa; `--operation-id` só no diagnóstico de um pedido que não concluiu."""
+def _get_command(resource_id: str) -> str:
     parts = ["sk bsm account get"]
-    if accepted.resource_id != _active_account():
-        parts.append(f"--resource-id {accepted.resource_id}")
-    if with_operation:
-        parts.append(f"--operation-id {accepted.operation_id}")
+    if resource_id != _active_account():
+        parts.append(f"--resource-id {resource_id}")
     return " ".join(parts)
 
 
 def _activate_if_none(resource_id: str) -> None:
-    """Grava a Billing Account recém-criada como a ativa (`[bsm] accountId`), se não há uma.
-
-    Uma Billing Account já ativa, vinda do ambiente ou do arquivo, nunca é trocada: trocar é do
-    `sk config set`. Falhar aqui não desfaz nada (a Billing Account já existe): vira aviso.
-    """
     switch_hint = f"`sk config set {ACTIVE_ACCOUNT_KEY} {resource_id}`"
     try:
         if SkSettings().bsm.account_id:
@@ -276,13 +268,11 @@ def _activate_if_none(resource_id: str) -> None:
     ui.note(f"Saved as the active Billing Account in {path}.")
 
 
-_flow = ResourceFlow(
+_flow = SyncResourceFlow(
     subject="Billing Account",
     get_command=_get_command,
     read_resource=get_account,
-    read_operation=get_operation,
     fail_api=_fail_api,
-    rejection_hints=REJECTION_HINTS,
     rows=_rows,
     removed_key="presence",
 )
@@ -292,7 +282,7 @@ _flow = ResourceFlow(
     "create",
     structured=True,
     help=command(
-        "Create a Billing Account. Follow it with `sk bsm account get`.",
+        "Create a Billing Account.",
         examples=[
             "sk bsm account create --display-name Acme --currency BRL \\\n"
             "      --contact finance@example.com --wait"
@@ -330,54 +320,41 @@ def create_command(
     wait: WaitOption = False,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
-    # Obrigatórias por validação do próprio comando (não pelo Typer), para não exibir "[required]".
     display_name = _display_name(display_name)
     currency = _currency(currency)
     contacts = _contacts(contact)
     url, insecure = load_api()
     token = session_token()
     try:
-        accepted = create_account(
+        account = create_account(
             url,
             token=token,
             display_name=display_name,
             billing_currency=currency,
             billing_contacts=contacts,
-            idempotency_key=str(uuid.uuid7()),
+            idempotency_key=str(uuid.uuid4()),
             allow_insecure_http=insecure,
         )
     except OidcError as error:
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    ui.panel(
-        "Creation requested",
-        [
-            ("displayName", display_name),
-            ("billingCurrency", currency),
-            ("billingContacts", ", ".join(contacts)),
-            ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
-        ],
-        data=accepted,
-        interim=wait,
-    )
-    account = _flow.finish(
+    _flow.requested_panel("Creation requested", account, wait=wait)
+    converged = _flow.finish(
         url,
         insecure,
-        accepted,
+        account,
         title="Billing Account created",
         removal=False,
         wait=wait,
         timeout=timeout,
-        matches=lambda r: r.display_name == display_name,
     )
-    if account is not None:
-        _activate_if_none(account.resource_id)
+    if converged is not None:
+        _activate_if_none(converged.resource_id)
     elif not wait:
         ui.note(
             "To make it the active Billing Account, run "
-            f"`sk config set {ACTIVE_ACCOUNT_KEY} {accepted.resource_id}`."
+            f"`sk config set {ACTIVE_ACCOUNT_KEY} {account.resource_id}`."
         )
 
 
@@ -445,36 +422,29 @@ def update_command(
                 current, f"Billing Account {resource_id} already has these values. Nothing to do."
             )
             return
-        accepted = update_account(
+        account = update_account(
             url,
             token=token,
             resource_id=resource_id,
             resource_version=current.resource_version,
             display_name=None if same_name else validated_name,
             billing_contacts=None if same_contacts else validated_contacts,
-            idempotency_key=str(uuid.uuid7()),
+            idempotency_key=str(uuid.uuid4()),
             allow_insecure_http=insecure,
         )
     except OidcError as error:
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    rows: list[tuple[str, str]] = []
-    if validated_name is not None and not same_name:
-        rows.append(("displayName", validated_name))
-    if validated_contacts is not None and not same_contacts:
-        rows.append(("billingContacts", ", ".join(validated_contacts)))
-    rows.extend([("resourceId", accepted.resource_id), ("operationId", accepted.operation_id)])
-    ui.panel("Update requested", rows, data=accepted, interim=wait)
+    _flow.requested_panel("Change requested", account, wait=wait)
     _flow.finish(
         url,
         insecure,
-        accepted,
+        account,
         title="Billing Account updated",
         removal=False,
         wait=wait,
         timeout=timeout,
-        matches=None if same_name else (lambda r: r.display_name == validated_name),
     )
 
 
@@ -487,40 +457,33 @@ def _set_protection(resource_id: str | None, *, protected: bool, wait: bool, tim
             url, token=token, resource_id=resource_id, allow_insecure_http=insecure
         )
         if current.deletion_protection == protected:
-            # Idempotente: pedir o estado que já vale não é erro.
             state = "protected" if protected else "unprotected"
             already_done(
                 current, f"Billing Account {resource_id} is already {state}. Nothing to do."
             )
             return
-        accepted = set_account_protection(
+        account = set_account_protection(
             url,
             token=token,
             resource_id=resource_id,
             resource_version=current.resource_version,
             protected=protected,
-            idempotency_key=str(uuid.uuid7()),
+            idempotency_key=str(uuid.uuid4()),
             allow_insecure_http=insecure,
         )
     except OidcError as error:
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    ui.panel(
-        "Protection change requested",
-        [
-            ("displayName", current.display_name),
-            ("protected", "yes" if protected else "no"),
-            ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
-        ],
-        data=accepted,
-        interim=wait,
+    _flow.requested_panel(
+        "Change requested",
+        account,
+        wait=wait,
     )
     _flow.finish(
         url,
         insecure,
-        accepted,
+        account,
         title="Billing Account protected" if protected else "Billing Account unprotected",
         removal=False,
         wait=wait,
@@ -571,37 +534,28 @@ def delete_command(
         current = get_account(
             url, token=token, resource_id=resource_id, allow_insecure_http=insecure
         )
-        accepted = delete_account(
+        account = delete_account(
             url,
             token=token,
             resource_id=resource_id,
             resource_version=current.resource_version,
-            idempotency_key=str(uuid.uuid7()),
+            idempotency_key=str(uuid.uuid4()),
             allow_insecure_http=insecure,
         )
     except OidcError as error:
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    ui.panel(
-        "Deletion requested",
-        [
-            ("displayName", current.display_name),
-            ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
-        ],
-        data=accepted,
-        interim=wait,
-    )
     if resource_id == _active_account():
         ui.warning(
             "This is the active Billing Account. Once it is gone, point to another with "
             f"`sk config set {ACTIVE_ACCOUNT_KEY} VALUE`."
         )
+    _flow.requested_panel("Deletion requested", account, wait=wait)
     _flow.finish(
         url,
         insecure,
-        accepted,
+        account,
         title="Billing Account deleted",
         removal=True,
         wait=wait,
@@ -612,28 +566,12 @@ def delete_command(
 @account_app.command(
     "get",
     structured=True,
-    help=command("Show the state of a Billing Account and, if given, of an Operation."),
+    help=command("Show the state of a Billing Account."),
 )
 def get_command(
     resource_id: ResourceIdOption = None,
-    operation_id: Annotated[
-        str | None,
-        typer.Option(
-            "--operation-id",
-            help=option(
-                "operationId of a request, to see why it was rejected or failed (returned by "
-                "`create`, `update` or `delete`).",
-                kind="String",
-                variable=None,
-                file=None,
-                default="no Operation lookup",
-            ),
-        ),
-    ] = None,
 ) -> None:
     resource_id = _account_identifier(resource_id)
-    if operation_id is not None:
-        operation_id = identifier(operation_id, "--operation-id", what="operationId")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -644,27 +582,7 @@ def get_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    operation: OperationStatus | None = None
-    if operation_id is not None:
-        try:
-            operation = get_operation(
-                url,
-                token=token,
-                resource_id=resource_id,
-                operation_id=operation_id,
-                allow_insecure_http=insecure,
-            )
-        except OidcError as error:
-            bad_address(error)
-        except ApiError as error:
-            _fail_api(error, not_found="Operation not found for this Billing Account.")
-    rows = _rows(account)
-    if operation is not None:
-        rows.extend(_operation_rows(operation))
-    document = output.to_data(account)
-    if operation is not None:
-        document["operation"] = output.to_data(operation)
-    ui.panel("Billing Account", rows, data=document)
+    ui.panel("Billing Account", _rows(account), data=account)
 
 
 @account_app.command(

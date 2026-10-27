@@ -53,13 +53,6 @@ class UserAccessSettings(Section):
     user_controller_account_id: str | None = None
 
 
-class PeersSettings(Section):
-    """APIs consultadas na rede interna (decisão 0082)."""
-
-    billing_accounts_url: str = "http://localhost:8000"
-    timeout_seconds: float = 5.0
-
-
 class OrganizationApiSettings(RoleSettings):
     model_config = role_config("api")
 
@@ -68,7 +61,6 @@ class OrganizationApiSettings(RoleSettings):
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
     user_access: UserAccessSettings = UserAccessSettings()
-    peers: PeersSettings = PeersSettings()
 
 
 def missing_required(settings: OrganizationApiSettings) -> list[str]:

@@ -248,10 +248,22 @@ def test_bsm_account_create_payload_conforms_to_schema(monkeypatch: pytest.Monke
 
     def fake_call_api(
         method: str, url: str, path: str, *, body: dict[str, Any] | None = None, **_: Any
-    ) -> tuple[int, dict[str, str]]:
+    ) -> tuple[int, dict[str, Any]]:
         if body is not None:
             captured.append(body)
-        return 202, {"resourceId": "bac-1", "operationId": "op-1"}
+        return 201, {
+            "resourceId": "bac-1",
+            "resourceVersion": "1",
+            "desiredGeneration": 1,
+            "observedGeneration": 1,
+            "phase": "Ready",
+            "desired": {
+                "lifecycle": "present",
+                "displayName": "Acme Corp",
+                "billingCurrency": "BRL",
+                "billingContacts": ["finance@acme.com"],
+            },
+        }
 
     monkeypatch.setattr("sk.features.bsm.account.call_api", fake_call_api)
     bsm_account.create_account(

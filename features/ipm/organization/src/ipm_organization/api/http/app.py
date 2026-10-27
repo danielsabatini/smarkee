@@ -35,7 +35,6 @@ from ipm_organization.api.domain.errors import (
 from ipm_organization.api.domain.principal import Principal
 from ipm_organization.api.domain.records import ResourceRecord
 from ipm_organization.api.domain.requests import checked_idempotency_key, request_digest
-from ipm_organization.api.domain.users import BillingAccountCheckError
 from ipm_organization.api.domain.views import organization_view
 from ipm_organization.api.http.admission import admit
 from ipm_organization.api.http.health_routes import register_health_routes
@@ -182,25 +181,11 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         if str(record.resource_version) != version:
             raise conflict()
 
-    async def require_billing_account(principal: Principal, billing_account_id: str) -> None:
+    def require_billing_account(principal: Principal, billing_account_id: str) -> None:
         """A Billing Account deve existir, pertencer ao solicitante e estar ativa (`Ready`)."""
-        try:
-            ready = await deps.billing_accounts.is_ready_billing_account(
-                billing_account_id, principal.access_token
-            )
-        except BillingAccountCheckError as error:
-            if error.retryable:
-                raise ApiError(
-                    HTTPStatus.SERVICE_UNAVAILABLE,
-                    "BillingAccountsUnavailable",
-                    "Não foi possível consultar a Billing Account agora. Tente de novo.",
-                    headers={"Retry-After": RETRY_AFTER_SECONDS},
-                ) from None
-            raise ApiError(
-                HTTPStatus.CONFLICT,
-                "ResourcesNotVerifiable",
-                "Não foi possível confirmar a Billing Account.",
-            ) from None
+        ready = deps.billing_accounts.is_ready_billing_account(
+            billing_account_id, principal.subject
+        )
         if not ready:
             raise ApiError(
                 HTTPStatus.CONFLICT,
@@ -254,7 +239,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         specification: dict[str, Any] = {"name": body.name, "platformAccess": "granted"}
         if body.billing_account_id is not None:
             if not principal.is_operator:
-                await require_billing_account(principal, body.billing_account_id)
+                require_billing_account(principal, body.billing_account_id)
             specification["billingAccountId"] = body.billing_account_id
         new_organization_id = deps.identifiers()
         admission = admission_for(
@@ -338,7 +323,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             specification["deletionProtection"] = body.deletion_protection
         if body.billing_account_id is not None:
             if not principal.is_operator:
-                await require_billing_account(principal, body.billing_account_id)
+                require_billing_account(principal, body.billing_account_id)
             specification["billingAccountId"] = body.billing_account_id
         reconciliation = body.reconciliation.value if body.reconciliation is not None else None
         if not specification and reconciliation is None:

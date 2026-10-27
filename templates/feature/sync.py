@@ -41,18 +41,17 @@ PROFILES: dict[str, tuple[str, ...]] = {
     # Publicação do `requested`, probes e os tipos do domínio do Receiver (erros, linhas das views
     # e pedidos), sem regra do tipo.
     "receiver-http": (
-        "bsm/account",
         "core/account",
     ),
     # Contexto de trace e OpenAPI do Receiver: todas as features com Receiver (a `ipm/serviceaccount`
     # tem `api`, decisão 0098).
     "receiver-base": (
-        "bsm/account",
         "core/account",
         "sum/service",
     ),
     # Processo `api` (decisão 0098): probes, OpenAPI e contexto de trace; as demais peças são do tipo.
     "api-http": (
+        "bsm/account",
         "ipm/group",
         "ipm/organization",
         "ipm/permission",
@@ -80,21 +79,18 @@ PROFILES: dict[str, tuple[str, ...]] = {
     # Envelope, publicação e persistência de `observed` e do resultado, com a convergência e os
     # erros do Manager, sem regra do tipo. O `sum/service` usa só este perfil (decisão 0080).
     "manager-handlers": (
-        "bsm/account",
         "core/account",
         "sum/service",
     ),
     # Observação e resultado no Manager (`observed`, `result`, convergência e prazo de observação): só
     # nas features com o loop de sete papéis; o Controller (decisão 0096) faz isso no próprio ciclo.
     "manager-observation": (
-        "bsm/account",
         "core/account",
         "sum/service",
     ),
     # Fontes de estado do Reconciler (`DESIRED`, `OBSERVED` e `RESULT`): só as features com o loop
     # de sete papéis (decisão 0096 aposenta o Reconciler nas demais).
     "reconciler-streams": (
-        "bsm/account",
         "core/account",
         "sum/service",
     ),
@@ -103,7 +99,6 @@ PROFILES: dict[str, tuple[str, ...]] = {
     # Motores sem regra do tipo: Observer e Executor (com a revalidação), com o teste do motor do
     # Observer (decisão 0075).
     "loop-engines": (
-        "bsm/account",
         "core/account",
     ),
 }
@@ -150,7 +145,11 @@ def expected_files() -> dict[Path, str]:
     expected: dict[Path, str] = {}
     for project, values in features():
         for root in sources(project):
-            for source in sorted(path for path in root.rglob("*") if path.is_file()):
+            for source in sorted(
+                path
+                for path in root.rglob("*")
+                if path.is_file() and "__pycache__" not in path.parts
+            ):
                 parts = (
                     values["@@PACKAGE@@"] if part == "PACKAGE" else part
                     for part in source.relative_to(root).parts

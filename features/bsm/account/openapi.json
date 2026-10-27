@@ -1,32 +1,6 @@
 {
   "components": {
     "schemas": {
-      "ApiAcceptedResponse": {
-        "additionalProperties": false,
-        "description": "Resposta das escritas assíncronas (POST, PATCH, DELETE): o pedido foi publicado, não aplicado (RESOURCE-CONTROL-LOOP.md, Interface HTTP).",
-        "properties": {
-          "operationId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Operationid",
-            "type": "string"
-          },
-          "resourceId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Resourceid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "resourceId",
-          "operationId"
-        ],
-        "title": "ApiAcceptedResponse",
-        "type": "object"
-      },
       "BillingAccount": {
         "additionalProperties": false,
         "description": "Visão consolidada da Billing Account (bsm.account) exposta pelo Receiver (GET). Não expõe o dono (ownerAccountId) nem campos internos do SSOT (failureCount, requestedBy).",
@@ -464,136 +438,6 @@
         "title": "Lifecycle",
         "type": "string"
       },
-      "Operation": {
-        "additionalProperties": false,
-        "description": "Acompanhamento de uma solicitação assíncrona, exposto por GET /v1/operations/{operationId} (SSOT.md, Operation).",
-        "properties": {
-          "completedAt": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completedat"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "title": "Createdat",
-            "type": "string"
-          },
-          "desiredGeneration": {
-            "anyOf": [
-              {
-                "maximum": 9007199254740991.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Desiredgeneration"
-          },
-          "module": {
-            "maxLength": 63,
-            "minLength": 1,
-            "pattern": "^[a-z][a-z0-9-]*$",
-            "title": "Module",
-            "type": "string"
-          },
-          "operationId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Operationid",
-            "type": "string"
-          },
-          "operationStatus": {
-            "$ref": "#/components/schemas/OperationStatus"
-          },
-          "operationStatusReason": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/OperationStatusReason"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "OperationStatusReason"
-          },
-          "operationType": {
-            "$ref": "#/components/schemas/OperationType"
-          },
-          "resourceId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Resourceid",
-            "type": "string"
-          },
-          "resourceType": {
-            "maxLength": 63,
-            "minLength": 1,
-            "pattern": "^[a-z][a-z0-9-]*$",
-            "title": "Resourcetype",
-            "type": "string"
-          },
-          "updatedAt": {
-            "format": "date-time",
-            "title": "Updatedat",
-            "type": "string"
-          }
-        },
-        "required": [
-          "operationId",
-          "operationType",
-          "module",
-          "resourceType",
-          "resourceId",
-          "operationStatus",
-          "createdAt",
-          "updatedAt"
-        ],
-        "title": "Operation",
-        "type": "object"
-      },
-      "OperationStatus": {
-        "enum": [
-          "accepted",
-          "in_progress",
-          "completed",
-          "failed",
-          "rejected",
-          "superseded"
-        ],
-        "title": "OperationStatus",
-        "type": "string"
-      },
-      "OperationStatusReason": {
-        "description": "Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).",
-        "enum": [
-          "conflict",
-          "validation",
-          "not_found",
-          "protected"
-        ],
-        "title": "OperationStatusReason",
-        "type": "string"
-      },
-      "OperationType": {
-        "enum": [
-          "create",
-          "update",
-          "delete"
-        ],
-        "title": "OperationType",
-        "type": "string"
-      },
       "Phase": {
         "description": "Fase consolidada do recurso (RESOURCE-CONTROL-LOOP.md, Lifecycle).",
         "enum": [
@@ -668,8 +512,9 @@
     }
   },
   "info": {
-    "title": "smarkee bsm account api",
-    "version": "0.1.0"
+    "description": "API HTTP de bsm.account (Billing Account no SSOT).",
+    "title": "bsm-account-api",
+    "version": "1.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -756,7 +601,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^[A-Za-z0-9_-]{1,512}$",
+                  "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
                   "type": "string"
                 },
                 {
@@ -796,7 +641,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "idempotency-key",
+            "name": "Idempotency-Key",
             "required": false,
             "schema": {
               "anyOf": [
@@ -822,11 +667,11 @@
           "required": true
         },
         "responses": {
-          "202": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                  "$ref": "#/components/schemas/BillingAccount"
                 }
               }
             },
@@ -864,14 +709,13 @@
             "name": "resourceVersion",
             "required": true,
             "schema": {
-              "pattern": "^[0-9]{1,18}$",
               "title": "Resourceversion",
               "type": "string"
             }
           },
           {
             "in": "header",
-            "name": "idempotency-key",
+            "name": "Idempotency-Key",
             "required": false,
             "schema": {
               "anyOf": [
@@ -891,7 +735,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                  "$ref": "#/components/schemas/BillingAccount"
                 }
               }
             },
@@ -961,7 +805,7 @@
           },
           {
             "in": "header",
-            "name": "idempotency-key",
+            "name": "Idempotency-Key",
             "required": false,
             "schema": {
               "anyOf": [
@@ -987,11 +831,11 @@
           "required": true
         },
         "responses": {
-          "202": {
+          "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                  "$ref": "#/components/schemas/BillingAccount"
                 }
               }
             },
@@ -1009,54 +853,6 @@
           }
         },
         "summary": "Update Account"
-      }
-    },
-    "/v1/bsm/accounts/{account_id}/operations/{operation_id}": {
-      "get": {
-        "operationId": "get_operation_v1_bsm_accounts__account_id__operations__operation_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "title": "Account Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "operation_id",
-            "required": true,
-            "schema": {
-              "title": "Operation Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Operation"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Operation"
       }
     }
   }

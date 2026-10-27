@@ -1,23 +1,15 @@
-"""Cliente do `bsm.account` na API da plataforma (`docs/loop/RESOURCE-CONTROL-LOOP.md`, §6.1 e §46).
+"""Cliente do `bsm.account` na API da plataforma (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6).
 
-Criar, alterar e remover são escritas assíncronas: a API responde `202` com o `operationId`, e o
-estado definitivo vem da Billing Account (`phase`) e da Operation (`operationStatus`). Os dados
-chegam pelo mesmo `call_api`, com o token da sessão. A leitura das respostas é estrita.
+Criar, alterar e remover são escritas síncronas na admissão (decisão 0098): a API devolve o recurso
+(`201`, `200` e `202` na remoção). A Billing Account é dado do SSOT e nasce `Ready` e convergida.
+Não há Operation. A leitura das respostas é estrita.
 """
 
 import re
 from dataclasses import dataclass
 from typing import Any, cast
 
-from sk.features.api_contract import (
-    OperationStatus,
-    RequestAccepted,
-    as_object,
-    as_text,
-    parse_accepted,
-    parse_operation,
-    validate_identifier,
-)
+from sk.features.api_contract import as_object, as_text, validate_identifier
 from sk.http import ApiUnavailableError, call_api
 
 ACCOUNTS_PATH = "/v1/bsm/accounts"
@@ -38,6 +30,8 @@ class BillingAccount:
 
     resource_id: str
     resource_version: str
+    desired_generation: int
+    observed_generation: int | None
     phase: str
     display_name: str
     billing_currency: str
@@ -47,6 +41,7 @@ class BillingAccount:
     """`True` impede a exclusão (decisão 0043); a API a devolve sempre, e ausente vale `True`."""
     presence: str | None
     """Presença lida do provedor (`present`, `absent`, `unknown`); `None` antes da observação."""
+    failure_reason: str | None = None
 
 
 def validate_display_name(value: str) -> str:
@@ -96,6 +91,28 @@ def validate_billing_contacts(values: list[str]) -> list[str]:
     return list(values)
 
 
+def _generation(body: dict[str, Any], key: str, *, required: bool) -> int | None:
+    value = body.get(key)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if required or value is not None:
+        raise ApiUnavailableError(f"API response without {key}: billing account")
+    return None
+
+
+def _failure_reason(body: dict[str, Any]) -> str | None:
+    conditions = body.get("conditions")
+    if not isinstance(conditions, list):
+        return None
+    for item in cast("list[object]", conditions):
+        if isinstance(item, dict):
+            condition = cast("dict[str, object]", item)
+            reason = condition.get("reason")
+            if condition.get("status") == "False" and isinstance(reason, str):
+                return reason
+    return None
+
+
 def _billing_account(document: object) -> BillingAccount:
     body = as_object(document, what="billing account")
     desired = as_object(body.get("desired"), what="billing account (desired)")
@@ -109,6 +126,8 @@ def _billing_account(document: object) -> BillingAccount:
     return BillingAccount(
         resource_id=as_text(body, "resourceId", what="billing account"),
         resource_version=as_text(body, "resourceVersion", what="billing account"),
+        desired_generation=cast("int", _generation(body, "desiredGeneration", required=True)),
+        observed_generation=_generation(body, "observedGeneration", required=False),
         phase=as_text(body, "phase", what="billing account"),
         display_name=as_text(desired, "displayName", what="billing account (desired)"),
         billing_currency=as_text(desired, "billingCurrency", what="billing account (desired)"),
@@ -116,6 +135,7 @@ def _billing_account(document: object) -> BillingAccount:
         lifecycle=as_text(desired, "lifecycle", what="billing account (desired)"),
         deletion_protection=desired.get("deletionProtection") is not False,
         presence=presence if isinstance(presence, str) else None,
+        failure_reason=_failure_reason(body),
     )
 
 
@@ -129,7 +149,7 @@ def create_account(
     deletion_protection: bool | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> BillingAccount:
     validate_display_name(display_name)
     validate_billing_currency(billing_currency)
     contacts = validate_billing_contacts(billing_contacts)
@@ -149,7 +169,7 @@ def create_account(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _billing_account(document)
 
 
 def update_account(
@@ -162,7 +182,7 @@ def update_account(
     billing_contacts: list[str] | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> BillingAccount:
     resource_id = validate_identifier(resource_id, what="resourceId")
     body: dict[str, Any] = {"resourceVersion": resource_version}
     if display_name is not None:
@@ -178,7 +198,7 @@ def update_account(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _billing_account(document)
 
 
 def set_account_protection(
@@ -190,7 +210,7 @@ def set_account_protection(
     protected: bool,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> BillingAccount:
     resource_id = validate_identifier(resource_id, what="resourceId")
     _, document = call_api(
         "PATCH",
@@ -201,7 +221,7 @@ def set_account_protection(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _billing_account(document)
 
 
 def delete_account(
@@ -212,7 +232,7 @@ def delete_account(
     resource_version: str,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> BillingAccount:
     resource_id = validate_identifier(resource_id, what="resourceId")
     _, document = call_api(
         "DELETE",
@@ -223,7 +243,7 @@ def delete_account(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _billing_account(document)
 
 
 def get_account(
@@ -240,12 +260,15 @@ def get_account(
     return _billing_account(document)
 
 
-def list_accounts(api_url: str, *, token: str, allow_insecure_http: bool) -> list[BillingAccount]:
-    """Todas as Billing Accounts visíveis ao solicitante, seguindo o cursor das páginas."""
-    found: list[BillingAccount] = []
+def list_accounts(
+    api_url: str, *, token: str, allow_insecure_http: bool
+) -> tuple[BillingAccount, ...]:
+    accounts: list[BillingAccount] = []
     cursor: str | None = None
     for _ in range(MAXIMUM_LIST_PAGES):
-        query = {"limit": str(LIST_PAGE_SIZE), **({"cursor": cursor} if cursor else {})}
+        query = {"limit": str(LIST_PAGE_SIZE)}
+        if cursor is not None:
+            query["cursor"] = cursor
         _, document = call_api(
             "GET",
             api_url,
@@ -254,33 +277,15 @@ def list_accounts(api_url: str, *, token: str, allow_insecure_http: bool) -> lis
             query=query,
             allow_insecure_http=allow_insecure_http,
         )
-        body = as_object(document, what="listing")
-        items = body.get("items")
-        if not isinstance(items, list):
-            raise ApiUnavailableError("API response without items")
-        found.extend(_billing_account(item) for item in cast("list[object]", items))
+        body = as_object(document, what="billing accounts list")
+        raw_items = body.get("items")
+        if not isinstance(raw_items, list):
+            raise ApiUnavailableError("API response without items in the billing accounts list")
+        accounts.extend(_billing_account(item) for item in cast("list[object]", raw_items))
         next_cursor = body.get("nextCursor")
-        if not isinstance(next_cursor, str):
-            return found
+        if not isinstance(next_cursor, str) or not next_cursor:
+            break
         cursor = next_cursor
-    raise ApiUnavailableError("API listing did not end")
-
-
-def get_operation(
-    api_url: str,
-    *,
-    token: str,
-    resource_id: str,
-    operation_id: str,
-    allow_insecure_http: bool,
-) -> OperationStatus:
-    resource_id = validate_identifier(resource_id, what="resourceId")
-    operation_id = validate_identifier(operation_id, what="operationId")
-    _, document = call_api(
-        "GET",
-        api_url,
-        f"{ACCOUNTS_PATH}/{resource_id}/operations/{operation_id}",
-        token=token,
-        allow_insecure_http=allow_insecure_http,
-    )
-    return parse_operation(document)
+    else:
+        raise ApiUnavailableError("listing did not end within the allowed number of pages")
+    return tuple(accounts)

@@ -36,11 +36,9 @@ class Dependents(Protocol):
 
 
 class BillingAccounts(Protocol):
-    """API de Billing Account (decisão 0082): confirma se a conta de cobrança está pronta."""
+    """Projeção local de Billing Accounts (0082 e 0100): confirma se a conta está pronta."""
 
-    async def is_ready_billing_account(
-        self, billing_account_id: str, access_token: str
-    ) -> bool: ...
+    def is_ready_billing_account(self, billing_account_id: str, owner_account_id: str) -> bool: ...
 
 
 class AdmissionTransaction(Protocol):
