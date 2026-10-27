@@ -1,4 +1,4 @@
-"""Loop completo de ipm.user (Receiver até Observer), com os componentes reais e o Zitadel de dev.
+"""Loop completo de ipm.user (Receiver até Controller), com os componentes reais e o Zitadel de dev.
 
 Os pedidos entram direto no NATS, como o Receiver os publicaria, numa Organization preparada pelo
 operador (`CONFORMANCE_ORGANIZATION_ID`). Cada usuário é removido pelo próprio loop ao final
@@ -11,7 +11,7 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from conftest import current_row, request, send
+from conftest import current_row, read_ssot, request, send
 from contracts import assert_valid
 from nats.js import JetStreamContext
 
@@ -22,9 +22,7 @@ def subject_of(kind: str, resource_id: str) -> tuple[str, str]:
     """Stream e Subject da última mensagem de cada tipo do recurso."""
     return {
         "desired": ("DESIRED", f"manager.desired.ipm.user.{resource_id}.changed"),
-        "observed": ("OBSERVED", f"observer.observed.ipm.user.{resource_id}.changed"),
         "updated": ("UPDATED", f"manager.updated.ipm.user.{resource_id}.changed"),
-        "failed": ("RESULT", f"executor.failed.ipm.user.{resource_id}.create"),
     }[kind]
 
 
@@ -57,6 +55,23 @@ async def wait_for(
             return message
         if asyncio.get_running_loop().time() > deadline:
             raise AssertionError(f"{kind}: condição não atendida: {message}")
+        await asyncio.sleep(0.5)
+
+
+async def observed_where(
+    resource_id: str,
+    predicate: Callable[[dict[str, Any]], bool],
+    *,
+    timeout: float = READY_SECONDS,
+) -> dict[str, Any]:
+    """Espera o estado observado do SSOT (gravado pelo Controller) atender à condição."""
+    deadline = asyncio.get_running_loop().time() + timeout
+    while True:
+        observed = await read_ssot(resource_id)
+        if observed is not None and predicate(observed):
+            return observed
+        if asyncio.get_running_loop().time() > deadline:
+            raise AssertionError(f"observed: condição não atendida: {observed}")
         await asyncio.sleep(0.5)
 
 
@@ -125,18 +140,16 @@ async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_t
     assert_valid("common/updated.v1.schema.json", updated["data"])
     desired = await last(jetstream, "desired", resource_id)
     assert_valid("ipm/user/desired.v1.schema.json", desired["data"])
-    observed = await wait_for(
-        jetstream, "observed", resource_id, lambda m: m.get("presence") == "present"
-    )
+    observed = await observed_where(resource_id, lambda m: m.get("presence") == "present")
     assert_valid("ipm/user/observed.v1.schema.json", observed["data"])
     assert desired["data"]["roles"] == ["ipm.userViewer"]
     assert desired["data"]["permissions"] == ["ipm.user.get", "ipm.user.list"]
     assert observed["data"]["permissions"] == ["ipm.user.get", "ipm.user.list"]
     assert observed["data"]["deletionProtection"] is False  # nasce desprotegido (decisão 0077)
     assert observed["data"]["userState"] == "initial"  # ativa pelo e-mail, sem senha
-    assert "email" not in observed["data"]  # o Observer não devolve dado pessoal
+    assert "email" not in observed["data"]  # o observado não traz dado pessoal
 
-    # 2. Roles: o Manager re-expande e o Executor deixa no Zitadel exatamente as do `desired`.
+    # 2. Roles: o Manager re-expande e o Controller deixa no Zitadel exatamente as do `desired`.
     version = await settled_version(resource_id)
     permissions = [
         "ipm.user.bind",
@@ -155,8 +168,8 @@ async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_t
         ),
     )
     await confirmed(jetstream, resource_id, 2)
-    observed = await wait_for(
-        jetstream, "observed", resource_id, lambda m: m["data"].get("permissions") == permissions
+    observed = await observed_where(
+        resource_id, lambda m: m["data"].get("permissions") == permissions
     )
 
     # 3. Proteção: gravada como metadado no usuário e observada de volta (decisão 0074).
@@ -172,9 +185,7 @@ async def test_the_whole_loop_creates_changes_permissions_protects_and_removes_t
         ),
     )
     await confirmed(jetstream, resource_id, 3)
-    await wait_for(
-        jetstream, "observed", resource_id, lambda m: m["data"].get("deletionProtection") is True
-    )
+    await observed_where(resource_id, lambda m: m["data"].get("deletionProtection") is True)
     # 4. A remoção (fixture `created`) tira a proteção e remove o usuário pelo loop.
 
 
@@ -203,7 +214,5 @@ async def test_a_role_permission_outside_the_grant_is_not_granted(
     assert_valid("ipm/user/desired.v1.schema.json", desired["data"])
     granted = ["ipm.organization.get", "ipm.organization.list", "ipm.organization.update"]
     assert desired["data"]["permissions"] == granted
-    observed = await wait_for(
-        jetstream, "observed", resource_id, lambda m: m.get("presence") == "present"
-    )
+    observed = await observed_where(resource_id, lambda m: m.get("presence") == "present")
     assert observed["data"]["permissions"] == granted

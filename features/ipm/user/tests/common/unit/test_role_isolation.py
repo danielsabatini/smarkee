@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 SOURCE_ROOT = Path(__file__).resolve().parents[3] / "src" / "ipm_user"
-ROLES = ("receiver", "manager", "publisher", "observer", "reconciler", "executor")
+ROLES = ("receiver", "manager", "publisher", "controller", "observer", "reconciler", "executor")
 
 
 def _imported_modules(path: Path) -> set[str]:

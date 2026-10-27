@@ -11,6 +11,8 @@ from typing import Any
 
 import pytest
 
+from ipm_user.controller import main as controller_main
+from ipm_user.controller.settings import UserControllerSettings
 from ipm_user.executor import main as executor_main
 from ipm_user.executor.settings import UserExecutorSettings
 from ipm_user.manager import main as manager_main
@@ -82,6 +84,7 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
         yield fake
 
     modules: tuple[ModuleType, ...] = (
+        controller_main,
         executor_main,
         manager_main,
         observer_main,
@@ -91,8 +94,9 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
     )
     for module in modules:
         monkeypatch.setattr(module, "role_runtime", fake_role_runtime)
-    for module in (manager_main, receiver_main):
+    for module in (controller_main, manager_main, receiver_main):
         monkeypatch.setattr(module, "open_pool", fake_open_pool)
+    monkeypatch.setenv("IPM_USER_CONTROLLER_IDENTITY_PROJECT_ID", "roles-ipm")
     return fake
 
 
@@ -141,4 +145,14 @@ async def test_the_receiver_serves_http_and_leaves_the_probes_to_the_app(
     assert await receiver_main.run(UserReceiverSettings()) == 0
     assert runtime.started == ["permissions", "roles", "groups", "http"]
     assert runtime.health_port is None
+    assert len(runtime.closers) == 2
+
+
+async def test_the_controller_starts_informer_workers_and_periodic(
+    runtime: FakeRuntime,
+) -> None:
+    assert await controller_main.run(UserControllerSettings()) == 0
+    assert "desired" in runtime.started
+    assert "worker-0" in runtime.started
+    assert "periodic" in runtime.started
     assert len(runtime.closers) == 2

@@ -62,3 +62,17 @@ issuer = "http://ipm-dev.smarkee.com.br:8080"
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
+[tool.ipm.user.controller.database]
+host = "database.smarkee.internal"
+name = "ssot"
+port = 5432
+user = "ipm_user_controller_login"
+
+[tool.ipm.user.controller.identity]
+base_url = "http://identity.smarkee.internal:8080"
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+
+[tool.ipm.user.controller.messaging]
+url = "nats://messaging.smarkee.internal:4222"
+user = "smarkee"

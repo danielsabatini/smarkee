@@ -90,8 +90,8 @@ async def send(jetstream: JetStreamContext, message: dict[str, Any]) -> None:
 async def created(jetstream: JetStreamContext) -> AsyncIterator[list[str]]:
     """Identificadores criados pelo teste.
 
-    Ao final, cada usuário é removido **pelo próprio loop** (pedido `delete`, Reconciler, Executor e
-    Observer), para não deixar usuários no Zitadel. O que sobrar no SSOT é limpo diretamente.
+    Ao final, cada usuário é removido **pelo próprio loop** (pedido `delete` e Controller), para
+    não deixar usuários no Zitadel. O que sobrar no SSOT é limpo diretamente.
     """
     resource_ids: list[str] = []
     yield resource_ids
@@ -122,6 +122,32 @@ async def current_row(resource_id: str) -> dict[str, Any] | None:
     if row is None:
         return None
     return {"resource_version": row[0], "lifecycle": row[1], "desired": row[2], "phase": row[3]}
+
+
+async def read_ssot(resource_id: str) -> dict[str, Any] | None:
+    """Estado observado e `presence` do recurso no SSOT (a decisão 0096 extinguiu `observed`).
+
+    `None` quando o registro não existe (removido) ou o SSOT de dev não está acessível.
+    """
+    try:
+        connection: psycopg.AsyncConnection[Any] = await psycopg.AsyncConnection.connect(
+            f"host={DATABASE_HOST} port={DATABASE_PORT} dbname=ssot"
+            f" user={MANAGER_LOGIN} password={MANAGER_LOGIN} connect_timeout=3",
+            autocommit=True,
+        )
+    except psycopg.OperationalError:
+        return None
+    try:
+        cursor = await connection.execute(
+            f"SELECT presence, observed FROM {TABLE} WHERE resource_id = %s",  # noqa: S608
+            (resource_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return {"presence": row[0], "data": row[1] or {}}
+    finally:
+        await connection.close()
 
 
 async def remove_through_the_loop(jetstream: JetStreamContext, resource_id: str) -> None:

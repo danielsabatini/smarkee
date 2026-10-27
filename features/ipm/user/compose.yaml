@@ -246,6 +246,44 @@ services:
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
+  # Controller (`ipm-user-controller`, decisão 0096): observa, decide, age e reobserva o usuário
+  # numa só transação, e substitui Observer, Reconciler e Executor. Única identidade do provedor
+  # (conta ipm-user-controller: ORG_USER_CREATOR e ORG_OWNER_VIEWER em cada organização de cliente e
+  # PROJECT_GRANT_OWNER no Grant de roles-ipm dela) e papel de banco próprio
+  # (`ipm_user_controller_login`, sem INSERT em `user`). Monta só a própria chave.
+  ipm-user-controller:
+    <<: *component-image
+    command: [ipm-user-controller]
+    container_name: ipm-user-controller.smarkee.internal
+    logging: *component-logging
+    deploy: *component-deploy
+    environment:
+      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
+      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
+      IPM_USER_CONTROLLER_IDENTITY_PROJECT_ID: ${IPM_USER_IDENTITY_PROJECT_ID:?Defina no .env (ID do projeto roles-ipm, org core)}
+    secrets:
+      - IPM_USER_CONTROLLER_DATABASE_PASSWORD
+      - IPM_USER_CONTROLLER_MESSAGING_PASSWORD
+    volumes:
+      - ./config.toml:/etc/smarkee/config.toml:ro
+      - type: volume
+        source: identity-bootstrap
+        target: /run/secrets/zitadel-key.json
+        read_only: true
+        volume:
+          subpath: service-account-ipm-user-controller.json
+    depends_on:
+      ipm-user-migrate:
+        condition: service_completed_successfully
+      ipm-user-consumer:
+        condition: service_completed_successfully
+    networks:
+      internal:
+        aliases:
+          - ipm-user-controller.smarkee.internal
+    restart: unless-stopped
+    healthcheck: *component-healthcheck
+
   # Publisher (`ipm-user-publisher`): publica o outbox do tipo (uma instância ativa por trava
   # consultiva). Papel de banco `ipm_user_publisher`, que só lê o outbox e marca `published_at`, e
   # identidade própria no NATS (decisão 0019).
@@ -329,6 +367,10 @@ secrets:
     environment: IPM_USER_OBSERVER_MESSAGING_PASSWORD
   IPM_USER_EXECUTOR_MESSAGING_PASSWORD:
     environment: IPM_USER_EXECUTOR_MESSAGING_PASSWORD
+  IPM_USER_CONTROLLER_DATABASE_PASSWORD:
+    environment: IPM_USER_CONTROLLER_DATABASE_PASSWORD
+  IPM_USER_CONTROLLER_MESSAGING_PASSWORD:
+    environment: IPM_USER_CONTROLLER_MESSAGING_PASSWORD
   IPM_USER_PUBLISHER_DATABASE_PASSWORD:
     environment: IPM_USER_PUBLISHER_DATABASE_PASSWORD
   IPM_USER_PUBLISHER_MESSAGING_PASSWORD:

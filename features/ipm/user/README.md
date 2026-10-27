@@ -16,6 +16,7 @@ Os seis componentes do loop e a CLI estão implementados e rodam no dev (Compose
 | Reconciler | `reconciler/` (`ipm-user-reconciler`) | Compara `permissions` e `deletionProtection` e decide `create`, `update` ou `delete` |
 | Observer | `observer/` (`ipm-user-observer`) | Lê o usuário, as autorizações em `roles-ipm` e o metadado no Zitadel (somente leitura) |
 | Executor | `executor/` (`ipm-user-executor`) | Escreve o usuário, a autorização e o metadado na organização do cliente |
+| Controller | `controller/` (`ipm-user-controller`) | Decisão 0096: observa, decide, age e reobserva numa só transação, e grava `updated` no outbox. Substitui Reconciler, Observer e Executor, que seguem no código até a remoção final |
 | Testes e2e | `tests/e2e/` | Black-box: contrato e loop completo numa Organization preparada pelo operador |
 
 A CLI é o comando `sk ipm user create|get|list|update|protect|unprotect|delete` (`clients/cli`), com a Organization de `--organization-id` ou a ativa.
@@ -37,6 +38,7 @@ Os seis papéis são **um projeto e uma imagem** (decisão 0063), cada um rodand
 | Publisher | `ipm-user-publisher` | `ipm_user_publisher` | — | `published_at` do outbox; NATS |
 | Reconciler | `ipm-user-reconciler` | — | — | `action` no NATS |
 | Observer | `ipm-user-observer` | — | `ipm-user-observer` (`ORG_OWNER_VIEWER` em cada organização de cliente) | `observed` no NATS |
+| Controller | `ipm-user-controller` | `ipm_user_controller` (lê e atualiza `user`; `INSERT` só no outbox) | `ipm-user-controller` (`ORG_USER_CREATOR` e `ORG_OWNER_VIEWER` na organização e `PROJECT_GRANT_OWNER` no Grant dela) | estado observado, fase, Operations e `updated` no SSOT; o usuário no Zitadel |
 | Executor | `ipm-user-executor` | — | `ipm-user-executor` (`ORG_USER_CREATOR` na organização e `PROJECT_GRANT_OWNER` no Grant dela) | `completed` e `failed`; o usuário no Zitadel |
 
 ## 3.1 Receiver (`ipm-user-receiver`)
