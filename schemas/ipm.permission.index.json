@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "IpmPermissionContracts",
-  "description": "Índice dos contratos usados pelos componentes de permission do módulo ipm: entrada do gerador de modelos (decisões 0012 e 0083). Não é um contrato. Todo contrato de common/ e de ipm/permission/ deve estar listado (verificado pelos testes de contrato).",
+  "description": "Índice dos contratos usados pelos componentes de permission do módulo ipm: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e de ipm/permission/ deve estar listado (verificado pelos testes de contrato).",
   "anyOf": [
     {
       "$ref": "common/message-envelope.v1.schema.json"
@@ -22,12 +22,6 @@
       "$ref": "common/updated.v1.schema.json"
     },
     {
-      "$ref": "common/operation.v1.schema.json"
-    },
-    {
-      "$ref": "common/api-accepted-response.v1.schema.json"
-    },
-    {
       "$ref": "common/api-error.v1.schema.json"
     },
     {
@@ -35,15 +29,6 @@
     },
     {
       "$ref": "ipm/permission/observed.v1.schema.json"
-    },
-    {
-      "$ref": "ipm/permission/requested-create.v1.schema.json"
-    },
-    {
-      "$ref": "ipm/permission/requested-update.v1.schema.json"
-    },
-    {
-      "$ref": "ipm/permission/requested-delete.v1.schema.json"
     },
     {
       "$ref": "ipm/permission/api-create-request.v1.schema.json"

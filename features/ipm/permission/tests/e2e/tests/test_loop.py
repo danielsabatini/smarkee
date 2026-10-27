@@ -1,226 +1,195 @@
-"""Loop completo de ipm.permission (Receiver até Observer), com os componentes reais e o Zitadel.
+"""Loop de ipm.permission (API até o Controller), com os componentes reais e o Zitadel de dev.
 
-Usa os componentes reais e o Zitadel de dev. Os pedidos entram direto no NATS, como o Receiver os
-publicaria; cada Permission é removida pelo próprio loop ao final (fixture `created`).
+Os pedidos entram pela API HTTP com o token de um operador (`CONFORMANCE_ACCESS_TOKEN`, que tem
+`ipm.permission.admin`): o recurso nasce `Pending`, o Publisher entrega o `desired` e o Controller
+cria, atualiza e remove a role no projeto `roles-<módulo>`. Cada Permission é removida pela
+própria API ao final (fixture `created`).
 """
 
 import asyncio
 import json
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
 from typing import Any
 
-import pytest
-from conftest import unprotect_through_the_loop
+import httpx
 from contracts import assert_valid
 from nats.js import JetStreamContext
 
-DIGEST = "0" * 64
+COLLECTION = "/v1/ipm/permissions"
 READY_SECONDS = 60.0
 
 
-def subject_of(kind: str, resource_id: str) -> tuple[str, str]:
-    """Stream e Subject da última mensagem de cada tipo do recurso."""
-    return {
-        "desired": ("DESIRED", f"manager.desired.ipm.permission.{resource_id}.changed"),
-        "observed": ("OBSERVED", f"observer.observed.ipm.permission.{resource_id}.changed"),
-        "updated": ("UPDATED", f"manager.updated.ipm.permission.{resource_id}.changed"),
-    }[kind]
-
-
-async def last(
-    jetstream: JetStreamContext, kind: str, resource_id: str, *, timeout: float = 15.0
+async def last_desired(
+    jetstream: JetStreamContext, resource_id: str, *, timeout: float = 15.0
 ) -> dict[str, Any]:
-    stream, subject = subject_of(kind, resource_id)
+    """Última mensagem `desired` do recurso (o Publisher a entrega a partir do outbox)."""
+    subject = f"manager.desired.ipm.permission.{resource_id}.changed"
     deadline = asyncio.get_running_loop().time() + timeout
     while True:
         try:
-            return json.loads((await jetstream.get_last_msg(stream, subject)).data or b"{}")
-        except Exception:
+            return json.loads((await jetstream.get_last_msg("DESIRED", subject)).data or b"{}")
+        except Exception:  # ainda não publicado: tenta de novo até o prazo
             if asyncio.get_running_loop().time() > deadline:
                 raise
             await asyncio.sleep(0.3)
 
 
-async def wait_for(
-    jetstream: JetStreamContext,
-    kind: str,
+async def resource_where(
+    api: httpx.AsyncClient,
+    headers: dict[str, str],
     resource_id: str,
     predicate: Callable[[dict[str, Any]], bool],
     *,
     timeout: float = READY_SECONDS,
 ) -> dict[str, Any]:
+    """Espera o recurso lido pela API atender à condição (o Controller o atualiza no SSOT)."""
     deadline = asyncio.get_running_loop().time() + timeout
     while True:
-        message = await last(jetstream, kind, resource_id, timeout=timeout)
-        if predicate(message):
-            return message
+        response = await api.get(f"{COLLECTION}/{resource_id}", headers=headers)
+        resource: dict[str, Any] = response.json()
+        if response.status_code == 200 and predicate(resource):
+            return resource
         if asyncio.get_running_loop().time() > deadline:
-            raise AssertionError(f"{kind}: condição não atendida: {message}")
+            raise AssertionError(f"resource: condição não atendida: {resource}")
         await asyncio.sleep(0.5)
 
 
-async def ready_after(
-    jetstream: JetStreamContext, resource_id: str, version: str
-) -> dict[str, Any]:
-    """Espera o `Ready` de uma versão posterior à do pedido e que a versão pare de mudar."""
-    current = await wait_for(
-        jetstream,
-        "updated",
-        resource_id,
-        lambda m: (
-            m["data"]["phase"] == "Ready" and int(m["data"]["resourceVersion"]) > int(version)
-        ),
+def converged(resource: dict[str, Any]) -> bool:
+    return (
+        resource.get("phase") == "Ready"
+        and resource.get("observedGeneration", 0) >= resource["desiredGeneration"]
     )
-    while True:
-        await asyncio.sleep(1.5)
-        latest = await last(jetstream, "updated", resource_id)
-        if latest["data"]["resourceVersion"] == current["data"]["resourceVersion"]:
-            return latest
-        current = latest
 
 
-def request(
-    resource_id: str, operation: str, data: dict[str, Any], requested_by: str = "loop-user"
-) -> dict[str, Any]:
-    now = datetime.now(UTC).isoformat()
-    return {
-        "messageId": str(uuid.uuid7()),
-        "schemaVersion": "1.0",
-        "messageType": "requested",
-        "emitter": "receiver",
-        "module": "ipm",
-        "resourceType": "permission",
-        "resourceId": resource_id,
-        "operation": operation,
-        "requestedBy": requested_by,
-        "correlationId": str(uuid.uuid7()),
-        "occurredAt": now,
-        "publishedAt": now,
-        "data": {"operationId": str(uuid.uuid7()), "requestDigest": DIGEST, **data},
-    }
-
-
-async def send(jetstream: JetStreamContext, message: dict[str, Any]) -> None:
-    subject = f"receiver.requested.ipm.permission.{message['resourceId']}.{message['operation']}"
-    await jetstream.publish(
-        subject, json.dumps(message).encode(), headers={"Nats-Msg-Id": message["messageId"]}
-    )
+def new_name() -> str:
+    return f"bsm.e2e.p{uuid.uuid4().hex[:7]}"
 
 
 async def create_ready(
-    jetstream: JetStreamContext,
+    api: httpx.AsyncClient,
+    headers: dict[str, str],
     created: list[str],
     name: str,
     description: str = "Loop test permission",
-) -> tuple[str, dict[str, Any]]:
-    resource_id = str(uuid.uuid7())
+) -> dict[str, Any]:
+    response = await api.post(
+        COLLECTION,
+        json={"name": name, "description": description, "grantable": True},
+        headers=headers,
+    )
+    assert response.status_code == 201, response.text
+    resource_id = str(response.json()["resourceId"])
     created.append(resource_id)
-    await send(
-        jetstream,
-        request(
-            resource_id,
-            "create",
-            {
-                "specification": {
-                    "name": name,
-                    "description": description,
-                    "grantable": True,
-                }
-            },
-        ),
-    )
-    updated = await wait_for(
-        jetstream, "updated", resource_id, lambda m: m["data"]["phase"] == "Ready"
-    )
-    return resource_id, updated
+    return await resource_where(api, headers, resource_id, converged)
 
 
-async def test_the_whole_loop_creates_updates_and_removes_the_permission(
-    jetstream: JetStreamContext, created: list[str]
+async def test_the_whole_loop_creates_updates_protects_and_removes_the_permission(
+    api: httpx.AsyncClient,
+    headers: dict[str, str],
+    jetstream: JetStreamContext,
+    created: list[str],
 ) -> None:
-    perm_name = f"bsm.e2e.p{uuid.uuid4().hex[:7]}"
+    name = new_name()
+    body = {"name": name, "description": "Permissao inicial", "grantable": True}
+    assert_valid("ipm/permission/api-create-request.v1.schema.json", body)
 
-    # 1. Criação: o loop converge até Ready, com a role criada no Zitadel (roles-bsm).
-    resource_id, updated = await create_ready(jetstream, created, perm_name, "Permissao inicial")
-    assert_valid("common/updated.v1.schema.json", updated["data"])
-    observed = await last(jetstream, "observed", resource_id)
-    assert observed["presence"] == "present"
-    assert_valid("ipm/permission/observed.v1.schema.json", observed["data"])
-    assert observed["data"] == {
-        "name": perm_name,
-        "description": "Permissao inicial",
-        "group": "bsm",
-    }
-    raw = await jetstream.get_last_msg(
-        "RESULT", f"executor.completed.ipm.permission.{resource_id}.create"
-    )
-    completed = json.loads(raw.data or b"{}")
-    assert_valid("common/message-envelope.v1.schema.json", completed)
-    assert completed["actionId"].startswith(f"{resource_id}.1.create.")
+    # 1. Criação: nasce `Pending`, o `desired` sai pelo outbox e o Controller cria a role.
+    response = await api.post(COLLECTION, json=body, headers=headers)
+    assert response.status_code == 201, response.text
+    resource_id = str(response.json()["resourceId"])
+    created.append(resource_id)
+    assert_valid("ipm/permission/resource.v1.schema.json", response.json())
+    assert response.json()["phase"] == "Pending"
+    desired = await last_desired(jetstream, resource_id)
+    assert_valid("common/message-envelope.v1.schema.json", desired)
+    assert desired["emitter"] == "api"
+    assert_valid("ipm/permission/desired.v1.schema.json", desired["data"])
+    resource = await resource_where(api, headers, resource_id, converged)
+    assert_valid("ipm/permission/resource.v1.schema.json", resource)
+    # A view traz `presence` e `observedAt` junto do `data`; o schema vale só para o `data`.
+    observed = dict(resource["observed"])
+    assert observed.pop("presence") == "present"
+    assert "observedAt" in observed
+    observed.pop("observedAt")
+    assert_valid("ipm/permission/observed.v1.schema.json", observed)
+    assert observed == {"name": name, "description": "Permissao inicial", "group": "bsm"}
 
-    # 2. Atualização: alterar a descrição.
-    new_description = "Permissao atualizada pelo teste"
-    await send(
-        jetstream,
-        request(
-            resource_id,
-            "update",
-            {
-                "resourceVersion": updated["data"]["resourceVersion"],
-                "specification": {"description": new_description},
-            },
-        ),
+    # 2. Atualização: nova descrição; a geração sobe e o Controller atualiza a role.
+    patched = await api.patch(
+        f"{COLLECTION}/{resource_id}",
+        json={"resourceVersion": resource["resourceVersion"], "description": "Permissao nova"},
+        headers=headers,
     )
-    await wait_for(
-        jetstream,
-        "observed",
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["desiredGeneration"] == 2
+    resource = await resource_where(
+        api,
+        headers,
         resource_id,
-        lambda m: m["data"].get("description") == new_description,
+        lambda r: converged(r) and r["observed"]["description"] == "Permissao nova",
     )
-    updated = await ready_after(jetstream, resource_id, updated["data"]["resourceVersion"])
 
-    # 3. Proteção contra exclusão: remoção rejeitada enquanto deletionProtection = true.
-    version = updated["data"]["resourceVersion"]
-    await send(jetstream, request(resource_id, "delete", {"resourceVersion": version}))
-    await asyncio.sleep(3.0)
-    assert not (await last(jetstream, "updated", resource_id))["data"].get("removed")
-
-    # 4. Desproteger e remover: Executor remove role no Zitadel, Observer confirma ausência.
-    version = await unprotect_through_the_loop(jetstream, resource_id, version)
-    await send(jetstream, request(resource_id, "delete", {"resourceVersion": version}))
-    removed = await wait_for(
-        jetstream, "updated", resource_id, lambda m: m["data"].get("removed") is True
+    # 3. Proteção contra exclusão: a remoção é recusada enquanto `deletionProtection` é true.
+    version = resource["resourceVersion"]
+    refused = await api.delete(
+        f"{COLLECTION}/{resource_id}", params={"resourceVersion": version}, headers=headers
     )
-    assert removed["data"]["removed"] is True
-    absent = await last(jetstream, "observed", resource_id)
-    assert (absent["presence"], absent["data"]) == ("absent", {})
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["errorCode"] == "DeletionProtected"
+
+    # 4. Desproteger e remover: o Controller remove a role e apaga o registro.
+    unprotected = await api.patch(
+        f"{COLLECTION}/{resource_id}",
+        json={"resourceVersion": version, "deletionProtection": False},
+        headers=headers,
+    )
+    assert unprotected.status_code == 200, unprotected.text
+    resource = await resource_where(api, headers, resource_id, converged)
+    deleted = await api.delete(
+        f"{COLLECTION}/{resource_id}",
+        params={"resourceVersion": resource["resourceVersion"]},
+        headers=headers,
+    )
+    assert deleted.status_code == 202, deleted.text
+    assert deleted.json()["phase"] == "Deleting"
+    deadline = asyncio.get_running_loop().time() + READY_SECONDS
+    while (await api.get(f"{COLLECTION}/{resource_id}", headers=headers)).status_code != 404:
+        assert asyncio.get_running_loop().time() < deadline, "o registro não foi removido"
+        await asyncio.sleep(0.5)
+    tombstone = await last_desired(jetstream, resource_id)
+    assert tombstone["data"]["lifecycle"] == "absent"
 
 
-async def test_a_name_already_used_never_reaches_the_provider(
-    jetstream: JetStreamContext, created: list[str]
+async def test_a_name_already_used_is_refused_with_conflict(
+    api: httpx.AsyncClient, headers: dict[str, str], created: list[str]
 ) -> None:
-    perm_name = f"bsm.e2e.p{uuid.uuid4().hex[:7]}"
-    first, _ = await create_ready(jetstream, created, perm_name)
-
-    second = str(uuid.uuid7())
-    created.append(second)
-    await send(
-        jetstream,
-        request(
-            second,
-            "create",
-            {
-                "specification": {
-                    "name": perm_name,
-                    "description": "Permissao duplicada",
-                    "grantable": True,
-                }
-            },
-        ),
+    name = new_name()
+    first = await api.post(
+        COLLECTION,
+        json={"name": name, "description": "Permissao unica", "grantable": True},
+        headers=headers,
     )
-    await asyncio.sleep(3.0)
-    with pytest.raises(Exception, match=r"no message found|not found"):
-        await jetstream.get_last_msg("DESIRED", subject_of("desired", second)[1])
-    assert first != second
+    assert first.status_code == 201, first.text
+    created.append(first.json()["resourceId"])
+
+    second = await api.post(
+        COLLECTION,
+        json={"name": name, "description": "Permissao duplicada", "grantable": True},
+        headers=headers,
+    )
+
+    assert second.status_code == 409, second.text
+    assert_valid("common/api-error.v1.schema.json", second.json())
+    assert second.json()["errorCode"] == "NameInUse"
+
+
+async def test_a_description_equal_to_the_name_is_refused(
+    api: httpx.AsyncClient, headers: dict[str, str]
+) -> None:
+    name = new_name()
+    response = await api.post(
+        COLLECTION, json={"name": name, "description": name, "grantable": True}, headers=headers
+    )
+    assert response.status_code == 400, response.text
+    assert response.json()["field"] == "description"

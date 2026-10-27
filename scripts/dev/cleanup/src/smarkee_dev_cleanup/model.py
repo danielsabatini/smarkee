@@ -129,17 +129,20 @@ BILLING_ACCOUNTS = Kind(
     "displayName",
     deletion_protected=True,
 )
-# Permissions atômicas (decisão 0084): existem só no SSOT, como role de projeto no Zitadel; não têm
-# plano de dados. Nascem protegidas contra exclusão.
+# Permissions atômicas (decisões 0084 e 0098): existem só no SSOT, como role de projeto no Zitadel;
+# não têm plano de dados. A API síncrona não tem `requested`: a limpeza apaga a linha direto com o
+# papel do Controller, e a role de projeto sai pela remoção pela API (e2e). Nascem protegidas.
 PERMISSIONS = Kind(
     "ipm",
     "permission",
     "ipm.permission",
-    ("ipm.permission_outbox", "ipm.permission_operation", "ipm.permission_action_result"),
-    "ipm_permission_manager_login",
+    ("ipm.permission_outbox", "ipm.permission_idempotency"),
+    "ipm_permission_api_login",
     "ipm_maintenance_login",
     "name",
     deletion_protected=True,
+    delete_role="ipm_permission_controller_login",
+    removable_through_requested=False,
 )
 # Roles compostas (decisões 0083 e 0098): só no SSOT. A API síncrona apaga a linha (tem DELETE) e
 # publica o tombstone; não há `requested`. Nascem protegidas contra exclusão.

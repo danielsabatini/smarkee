@@ -73,7 +73,7 @@ connectors:
         condition: attributes["apisix.service_name"] == "ipm-organization-api"
         pipelines: [traces/ipm_organization]
       - context: span
-        condition: attributes["apisix.service_name"] == "ipm-permission-receiver"
+        condition: attributes["apisix.service_name"] == "ipm-permission-api"
         pipelines: [traces/ipm_permission]
       - context: span
         condition: attributes["apisix.service_name"] == "ipm-role-api"

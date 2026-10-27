@@ -1,7 +1,8 @@
-"""Cliente do `ipm.permission` na API da plataforma (decisão 0083).
+"""Cliente do `ipm.permission` na API da plataforma (decisões 0083 e 0098).
 
-Permissões atômicas da plataforma no padrão `<módulo>.<tipo>.<ação>`.
-Criar, alterar e remover são escritas assíncronas do operador (`ipm.permission.admin`).
+Permissões atômicas da plataforma no padrão `<módulo>.<tipo>.<ação>`. Criar, alterar e remover são
+escritas síncronas do operador (`ipm.permission.admin`): a API responde `201`, `200` e `202` (na
+remoção) com o recurso, e a convergência se lê em `observedGeneration` e `phase`. Não há Operation.
 A leitura das respostas é estrita.
 """
 
@@ -9,15 +10,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, cast
 
-from sk.features.api_contract import (
-    OperationStatus,
-    RequestAccepted,
-    as_object,
-    as_text,
-    parse_accepted,
-    parse_operation,
-    validate_identifier,
-)
+from sk.features.api_contract import as_object, as_text, validate_identifier
 from sk.http import ApiUnavailableError, call_api
 
 PERMISSIONS_PATH = "/v1/ipm/permissions"
@@ -33,6 +26,8 @@ class Permission:
 
     resource_id: str
     resource_version: str
+    desired_generation: int
+    observed_generation: int | None
     phase: str
     lifecycle: str
     name: str
@@ -41,6 +36,8 @@ class Permission:
     deletion_protection: bool
     status: str | None = None
     """Status operacional do recurso ('active' ou 'inactive')."""
+    failure_reason: str | None = None
+    """Motivo da primeira condition `False`, quando houver (para explicar a fase `Failed`)."""
 
 
 def validate_permission_name(name: str) -> str:
@@ -63,6 +60,28 @@ def validate_description(description: str, *, name: str | None = None) -> str:
     return trimmed
 
 
+def _generation(body: dict[str, Any], key: str, *, required: bool) -> int | None:
+    value = body.get(key)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if required or value is not None:
+        raise ApiUnavailableError(f"API response without {key}: permission")
+    return None
+
+
+def _failure_reason(body: dict[str, Any]) -> str | None:
+    conditions = body.get("conditions")
+    if not isinstance(conditions, list):
+        return None
+    for item in cast("list[object]", conditions):
+        if isinstance(item, dict):
+            condition = cast("dict[str, object]", item)
+            reason = condition.get("reason")
+            if condition.get("status") == "False" and isinstance(reason, str):
+                return reason
+    return None
+
+
 def _permission(document: object) -> Permission:
     body = as_object(document, what="permission")
     desired = as_object(body.get("desired"), what="permission (desired)")
@@ -81,6 +100,8 @@ def _permission(document: object) -> Permission:
     return Permission(
         resource_id=as_text(body, "resourceId", what="permission"),
         resource_version=as_text(body, "resourceVersion", what="permission"),
+        desired_generation=cast("int", _generation(body, "desiredGeneration", required=True)),
+        observed_generation=_generation(body, "observedGeneration", required=False),
         phase=as_text(body, "phase", what="permission"),
         lifecycle=as_text(desired, "lifecycle", what="permission (desired)"),
         name=name,
@@ -90,6 +111,7 @@ def _permission(document: object) -> Permission:
         status=as_text(spec, "status", what="permission (specification)")
         if "status" in spec
         else None,
+        failure_reason=_failure_reason(body),
     )
 
 
@@ -102,8 +124,8 @@ def create_permission(
     grantable: bool = True,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
-    """Pede a criação de uma permissão atômica (requer ipm.permission.admin)."""
+) -> Permission:
+    """Cria uma permissão atômica (requer ipm.permission.admin); a API a admite na hora."""
     valid_name = validate_permission_name(name)
     valid_desc = validate_description(description, name=valid_name)
     _, document = call_api(
@@ -119,7 +141,7 @@ def create_permission(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _permission(document)
 
 
 def update_permission(
@@ -133,7 +155,7 @@ def update_permission(
     protected: bool | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Permission:
     """Altera descrição, grantable e/ou proteção contra exclusão."""
     resource_id = validate_identifier(resource_id, what="resourceId")
     body: dict[str, Any] = {"resourceVersion": resource_version}
@@ -152,7 +174,7 @@ def update_permission(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _permission(document)
 
 
 def set_permission_protection(
@@ -164,7 +186,7 @@ def set_permission_protection(
     protected: bool,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Permission:
     return update_permission(
         api_url,
         token=token,
@@ -184,7 +206,7 @@ def delete_permission(
     resource_version: str,
     idempotency_key: str,
     allow_insecure_http: bool,
-) -> RequestAccepted:
+) -> Permission:
     resource_id = validate_identifier(resource_id, what="resourceId")
     _, document = call_api(
         "DELETE",
@@ -195,7 +217,7 @@ def delete_permission(
         headers={"Idempotency-Key": idempotency_key},
         allow_insecure_http=allow_insecure_http,
     )
-    return parse_accepted(document)
+    return _permission(document)
 
 
 def get_permission(
@@ -238,23 +260,3 @@ def list_permissions(api_url: str, *, token: str, allow_insecure_http: bool) -> 
         if not isinstance(after, str) or not after:
             break
     return found
-
-
-def get_operation(
-    api_url: str,
-    *,
-    token: str,
-    resource_id: str,
-    operation_id: str,
-    allow_insecure_http: bool,
-) -> OperationStatus:
-    resource_id = validate_identifier(resource_id, what="resourceId")
-    operation_id = validate_identifier(operation_id, what="operationId")
-    _, document = call_api(
-        "GET",
-        api_url,
-        f"{PERMISSIONS_PATH}/{resource_id}/operations/{operation_id}",
-        token=token,
-        allow_insecure_http=allow_insecure_http,
-    )
-    return parse_operation(document)

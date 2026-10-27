@@ -43,20 +43,19 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "receiver-http": (
         "bsm/account",
         "core/account",
-        "ipm/permission",
     ),
     # Contexto de trace e OpenAPI do Receiver: todas as features com Receiver (a `ipm/serviceaccount`
     # tem `api`, decisão 0098).
     "receiver-base": (
         "bsm/account",
         "core/account",
-        "ipm/permission",
         "sum/service",
     ),
     # Processo `api` (decisão 0098): probes, OpenAPI e contexto de trace; as demais peças são do tipo.
     "api-http": (
         "ipm/group",
         "ipm/organization",
+        "ipm/permission",
         "ipm/role",
         "ipm/serviceaccount",
         "ipm/user",
@@ -66,7 +65,6 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "manager-handlers": (
         "bsm/account",
         "core/account",
-        "ipm/permission",
         "sum/service",
     ),
     # Observação e resultado no Manager (`observed`, `result`, convergência e prazo de observação): só
@@ -74,7 +72,6 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "manager-observation": (
         "bsm/account",
         "core/account",
-        "ipm/permission",
         "sum/service",
     ),
     # Fontes de estado do Reconciler (`DESIRED`, `OBSERVED` e `RESULT`): só as features com o loop
@@ -82,7 +79,6 @@ PROFILES: dict[str, tuple[str, ...]] = {
     "reconciler-streams": (
         "bsm/account",
         "core/account",
-        "ipm/permission",
         "sum/service",
     ),
     # Driver de metadado do provedor de identidade, escrita (Executor) e leitura (Observer).

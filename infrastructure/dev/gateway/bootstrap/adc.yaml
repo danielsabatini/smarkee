@@ -294,18 +294,18 @@ services:
                 WWW-Authenticate: Bearer realm="smarkee"
             body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
 
-  # Receiver de ipm.permission (decisão 0083): a API `/v1/ipm/permissions`.
-  - name: ipm-permission-receiver
+  # API de ipm.permission (decisões 0083 e 0098): a API `/v1/ipm/permissions`.
+  - name: ipm-permission-api
     upstream:
       scheme: http
       type: roundrobin
       pass_host: pass
       nodes:
-        - host: ipm-permission-receiver.smarkee.internal
+        - host: ipm-permission-api.smarkee.internal
           port: 8000
           weight: 100
     routes:
-      - name: ipm-permission-receiver
+      - name: ipm-permission-api
         hosts:
           - api-dev.smarkee.com.br
         uris:

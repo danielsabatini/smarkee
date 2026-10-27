@@ -1,28 +1,18 @@
 # Configuração de dev de ipm.permission (decisão 0067). Sem segredos: eles vêm do ambiente ou de /run/secrets.
 # Tabela por papel: [tool.ipm.permission.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
 
-[tool.ipm.permission.receiver.auth]
+[tool.ipm.permission.api.auth]
 host_header = "ipm-dev.smarkee.com.br:8080"
 issuer = "http://ipm-dev.smarkee.com.br:8080"
 jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
-[tool.ipm.permission.receiver.database]
+[tool.ipm.permission.api.database]
 host = "database.smarkee.internal"
 name = "ssot"
 port = 5432
-user = "ipm_permission_receiver_login"
+user = "ipm_permission_api_login"
 
-[tool.ipm.permission.receiver.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-
-[tool.ipm.permission.manager.database]
-host = "database.smarkee.internal"
-name = "ssot"
-port = 5432
-user = "ipm_permission_manager_login"
-
-[tool.ipm.permission.manager.messaging]
+[tool.ipm.permission.api.messaging]
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
@@ -36,25 +26,17 @@ user = "ipm_permission_publisher_login"
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
-[tool.ipm.permission.observer.identity]
+[tool.ipm.permission.controller.database]
+host = "database.smarkee.internal"
+name = "ssot"
+port = 5432
+user = "ipm_permission_controller_login"
+
+[tool.ipm.permission.controller.identity]
 base_url = "http://identity.smarkee.internal:8080"
 host_header = "ipm-dev.smarkee.com.br:8080"
 issuer = "http://ipm-dev.smarkee.com.br:8080"
 
-[tool.ipm.permission.observer.messaging]
+[tool.ipm.permission.controller.messaging]
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
-
-[tool.ipm.permission.reconciler.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-
-[tool.ipm.permission.executor.identity]
-base_url = "http://identity.smarkee.internal:8080"
-host_header = "ipm-dev.smarkee.com.br:8080"
-issuer = "http://ipm-dev.smarkee.com.br:8080"
-
-[tool.ipm.permission.executor.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-

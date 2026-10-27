@@ -1,9 +1,10 @@
-"""Comandos `sk ipm permission`: permissões atômicas da plataforma (decisão 0083).
+"""Comandos `sk ipm permission`: permissões atômicas da plataforma (decisões 0083 e 0098).
 
 Operadores com a permissão `ipm.permission.admin` criam, consultam, alteram, protegem e removem
 permissões atômicas reconciliadas no provedor de identidade. Usuários da plataforma consultam
-(`ipm.permission.list` e `ipm.permission.get`). Criar, alterar e remover são assíncronos: com
-`--wait`, o comando espera a permissão convergir.
+(`ipm.permission.list` e `ipm.permission.get`). A API admite a escrita na hora (decisão 0098) e o
+Controller a aplica no provedor; com `--wait`, o comando espera `observedGeneration` alcançar a
+geração admitida.
 """
 
 import uuid
@@ -12,12 +13,12 @@ from typing import Annotated, NoReturn
 import typer
 from rich.text import Text
 
-from sk import output, ui
+from sk import ui
 from sk.command_app import SkTyper
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
     EXIT_USAGE_ERROR,
-    ResourceFlow,
+    SyncResourceFlow,
     TimeoutOption,
     already_done,
     bad_address,
@@ -28,12 +29,10 @@ from sk.commands.shared import (
     session_token,
     usage_error,
 )
-from sk.features.api_contract import OperationStatus, RequestAccepted
 from sk.features.ipm.permission import (
     Permission,
     create_permission,
     delete_permission,
-    get_operation,
     get_permission,
     list_permissions,
     set_permission_protection,
@@ -54,15 +53,11 @@ CONFLICT_ON_CHANGE = "The permission changed since it was last read. Inspect it 
 PROTECTED_HINT = (
     "The permission is protected against deletion. Run `sk ipm permission unprotect` first."
 )
-REJECTION_HINTS = {
-    "validation": "The permission name or description is invalid, or the name is already in use.",
-    "conflict": CONFLICT_ON_CHANGE,
-    "not_found": NOT_FOUND,
-    "protected": PROTECTED_HINT,
-}
 ERROR_CODE_HINTS = {
     "DeletionProtected": PROTECTED_HINT,
-    "NameAlreadyInUse": "A permission with this name already exists in the platform.",
+    "NotPresent": "The permission is being deleted and cannot be changed.",
+    "IdempotencyKeyReused": "The idempotency key was already used for a different request.",
+    "NameInUse": "A permission with this name already exists in the platform.",
 }
 NO_PERMISSION_HINT = (
     "You do not have permission for this operation. Modifying permissions requires "
@@ -83,7 +78,7 @@ WaitOption = Annotated[
     typer.Option(
         "--wait",
         help=option(
-            "Wait for the permission to converge (phase Ready and Operation completed).",
+            "Wait for the permission to converge (its generation observed and phase Ready).",
             kind="Boolean",
             variable=None,
             file=None,
@@ -132,22 +127,16 @@ def _rows(permission: Permission) -> list[tuple[str, str]]:
     ]
 
 
-def _get_command(accepted: RequestAccepted, *, with_operation: bool = False) -> str:
-    parts = ["sk ipm permission get", f"--resource-id {accepted.resource_id}"]
-    if with_operation:
-        parts.append(f"--operation-id {accepted.operation_id}")
-    return " ".join(parts)
+def _get_command(resource_id: str) -> str:
+    return f"sk ipm permission get --resource-id {resource_id}"
 
 
-_flow = ResourceFlow(
+_flow = SyncResourceFlow(
     subject="permission",
     get_command=_get_command,
     read_resource=get_permission,
-    read_operation=get_operation,
     fail_api=_fail_api,
-    rejection_hints=REJECTION_HINTS,
     rows=_rows,
-    inspect_row=True,
 )
 
 
@@ -208,7 +197,7 @@ def create_command(
     url, insecure = load_api()
     token = session_token()
     try:
-        accepted = create_permission(
+        admitted = create_permission(
             url,
             token=token,
             name=valid_name,
@@ -221,11 +210,11 @@ def create_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Creation requested", accepted, wait=wait)
+    _flow.requested_panel("Creation requested", admitted, ("name", valid_name), wait=wait)
     _flow.finish(
         url,
         insecure,
-        accepted,
+        admitted,
         title="Permission created",
         removal=False,
         wait=wait,
@@ -283,7 +272,7 @@ def update_command(
         if same_desc and same_grantable:
             already_done(current, f"Permission {perm_id} already has it. Nothing to do.")
             return
-        accepted = update_permission(
+        admitted = update_permission(
             url,
             token=token,
             resource_id=perm_id,
@@ -297,11 +286,11 @@ def update_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.requested_panel("Change requested", admitted, wait=wait)
     _flow.finish(
         url,
         insecure,
-        accepted,
+        admitted,
         title="Permission updated",
         removal=False,
         wait=wait,
@@ -327,7 +316,7 @@ def protect_command(
         if current.deletion_protection:
             already_done(current, f"Permission {perm_id} already has it. Nothing to do.")
             return
-        accepted = set_permission_protection(
+        admitted = set_permission_protection(
             url,
             token=token,
             resource_id=perm_id,
@@ -340,11 +329,11 @@ def protect_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.requested_panel("Change requested", admitted, wait=wait)
     _flow.finish(
         url,
         insecure,
-        accepted,
+        admitted,
         title="Permission protected",
         removal=False,
         wait=wait,
@@ -372,7 +361,7 @@ def unprotect_command(
         if not current.deletion_protection:
             already_done(current, f"Permission {perm_id} already has it. Nothing to do.")
             return
-        accepted = set_permission_protection(
+        admitted = set_permission_protection(
             url,
             token=token,
             resource_id=perm_id,
@@ -385,11 +374,11 @@ def unprotect_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Change requested", accepted, wait=wait)
+    _flow.requested_panel("Change requested", admitted, wait=wait)
     _flow.finish(
         url,
         insecure,
-        accepted,
+        admitted,
         title="Permission unprotected",
         removal=False,
         wait=wait,
@@ -416,7 +405,7 @@ def delete_command(
         current = get_permission(
             url, token=token, resource_id=perm_id, allow_insecure_http=insecure
         )
-        accepted = delete_permission(
+        admitted = delete_permission(
             url,
             token=token,
             resource_id=perm_id,
@@ -428,11 +417,11 @@ def delete_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    _flow.accepted_panel("Deletion requested", accepted, wait=wait)
+    _flow.requested_panel("Deletion requested", admitted, ("name", current.name), wait=wait)
     _flow.finish(
         url,
         insecure,
-        accepted,
+        admitted,
         title="Permission deleted",
         removal=True,
         wait=wait,
@@ -441,51 +430,19 @@ def delete_command(
 
 
 @permission_app.command("get", structured=True, help=command("Inspect a platform permission."))
-def get_command(
-    resource_id: PermissionIdOption = None,
-    operation_id: Annotated[
-        str | None,
-        typer.Option(
-            "--operation-id",
-            help=option(
-                "operationId to inspect alongside the permission (returned by `create`).",
-                kind="String",
-                variable=None,
-                file=None,
-                default="none",
-            ),
-        ),
-    ] = None,
-) -> None:
+def get_command(resource_id: PermissionIdOption = None) -> None:
     perm_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
     token = session_token()
-    operation: OperationStatus | None = None
     try:
         permission = get_permission(
             url, token=token, resource_id=perm_id, allow_insecure_http=insecure
         )
-        if operation_id is not None:
-            operation = get_operation(
-                url,
-                token=token,
-                resource_id=perm_id,
-                operation_id=operation_id,
-                allow_insecure_http=insecure,
-            )
     except OidcError as error:
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    rows = _rows(permission)
-    if operation is not None:
-        rows.append(("operationStatus", operation.operation_status))
-        if operation.reason is not None:
-            rows.append(("reason", operation.reason))
-    document = output.to_data(permission)
-    if operation is not None:
-        document["operation"] = output.to_data(operation)
-    ui.panel("Permission", rows, data=document)
+    ui.panel("Permission", _rows(permission), data=permission)
 
 
 @permission_app.command("list", structured=True, help=command("List platform permissions."))

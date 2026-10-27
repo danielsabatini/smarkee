@@ -21,10 +21,8 @@ from sk.main import app
 runner = CliRunner()
 API = "https://api.teste"
 PID = "01a15e61-6d1e-7096-878a-d5f450b858f2"
-OPID = "b9c4c98c-7392-5016-a724-6e1cd0c1bed9"
 PATH = "/v1/ipm/permissions"
 PERM = f"{PATH}/{PID}"
-OPERATION = f"{PERM}/operations/{OPID}"
 
 
 class Response:
@@ -112,11 +110,14 @@ def permission_document(
     grantable: bool = True,
     protected: bool = False,
     version: str = "1",
+    generation: int = 1,
+    observed: int | None = 1,
 ) -> dict[str, Any]:
     return {
         "resourceId": PID,
         "resourceVersion": version,
-        "desiredGeneration": 1,
+        "desiredGeneration": generation,
+        **({"observedGeneration": observed} if observed is not None else {}),
         "phase": phase,
         "conditions": [],
         "desired": {
@@ -134,15 +135,8 @@ def permission_document(
     }
 
 
-def operation_document(status: str, reason: str | None = None) -> Response:
-    document: dict[str, Any] = {"operationId": OPID, "operationStatus": status}
-    if reason:
-        document["operationStatusReason"] = reason
-    return Response(200, document)
-
-
-def accepted() -> Response:
-    return Response(202, {"resourceId": PID, "operationId": OPID})
+def admitted(status: int = 200, **kwargs: Any) -> Response:
+    return Response(status, permission_document(**kwargs))
 
 
 def body_of(request: urllib.request.Request) -> Any:
@@ -150,7 +144,7 @@ def body_of(request: urllib.request.Request) -> Any:
 
 
 def test_create_permission(api: FakeApi) -> None:
-    api.routes[("POST", PATH)] = accepted()
+    api.routes[("POST", PATH)] = admitted(201, phase="Pending", observed=None)
     result = runner.invoke(
         app,
         [
@@ -173,7 +167,7 @@ def test_create_permission(api: FakeApi) -> None:
 
 def test_update_permission(api: FakeApi) -> None:
     api.routes[("GET", PERM)] = Response(200, permission_document(version="2"))
-    api.routes[("PATCH", PERM)] = accepted()
+    api.routes[("PATCH", PERM)] = admitted()
     result = runner.invoke(
         app,
         [
@@ -198,7 +192,7 @@ def test_protect_and_unprotect_permission(api: FakeApi) -> None:
         Response(200, permission_document(protected=False)),
         Response(200, permission_document(protected=True)),
     ]
-    api.routes[("PATCH", PERM)] = accepted()
+    api.routes[("PATCH", PERM)] = admitted()
     result = runner.invoke(app, ["ipm", "permission", "protect", "--resource-id", PID])
     assert result.exit_code == 0, result.stderr
     assert body_of(api.requests[-1]) == {
@@ -211,7 +205,7 @@ def test_protect_and_unprotect_permission(api: FakeApi) -> None:
 
 def test_delete_permission(api: FakeApi) -> None:
     api.routes[("GET", PERM)] = Response(200, permission_document(version="3"))
-    api.routes[("DELETE", PERM)] = accepted()
+    api.routes[("DELETE", PERM)] = admitted(202, phase="Deleting")
     result = runner.invoke(app, ["ipm", "permission", "delete", "--resource-id", PID])
     assert result.exit_code == 0, result.stderr
     assert "resourceVersion=3" in api.requests[-1].full_url
@@ -289,10 +283,9 @@ def test_json_nothing_to_do_on_unprotect_and_update(api: FakeApi) -> None:
 def test_json_delete_with_wait_prints_the_removed_state(api: FakeApi) -> None:
     api.routes[("GET", PERM)] = [
         Response(200, permission_document(protected=False)),  # leitura antes do pedido
-        http_error(404, "NotFound", "gone"),  # já removida
+        http_error(404, "NotFound", "gone"),  # o Controller apagou o registro
     ]
-    api.routes[("DELETE", PERM)] = accepted()
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+    api.routes[("DELETE", PERM)] = admitted(202, phase="Deleting")
     result = runner.invoke(
         app, [*JSON, "ipm", "permission", "delete", "--resource-id", PID, "--wait"]
     )
@@ -300,12 +293,72 @@ def test_json_delete_with_wait_prints_the_removed_state(api: FakeApi) -> None:
     assert _document(result.stdout) == {"resourceId": PID, "state": "removed"}
 
 
-@pytest.mark.usefixtures("default_output_mode")
-def test_json_get_with_operation_adds_the_operation(api: FakeApi) -> None:
-    api.routes[("GET", PERM)] = Response(200, permission_document())
-    api.routes[("GET", OPERATION)] = operation_document("completed")
+def test_create_with_wait_waits_for_the_observed_generation(api: FakeApi) -> None:
+    api.routes[("POST", PATH)] = admitted(201, phase="Pending", observed=None)
+    api.routes[("GET", PERM)] = [
+        Response(200, permission_document(phase="Pending", observed=None)),
+        Response(200, permission_document()),
+    ]
     result = runner.invoke(
-        app, [*JSON, "ipm", "permission", "get", "--resource-id", PID, "--operation-id", OPID]
+        app,
+        [
+            "ipm",
+            "permission",
+            "create",
+            "--name",
+            "bsm.account.get",
+            "--wait",
+            "--description",
+            "Consulta conta de cobrança",
+        ],
     )
-    assert result.exit_code == 0, result.stderr
-    assert _document(result.stdout)["operation"]["operationStatus"] == "completed"
+    assert result.exit_code == 0, result.stdout + result.stderr
+    assert [r.get_method() for r in api.requests] == ["POST", "GET", "GET"]
+
+
+def test_failed_phase_is_reported_with_the_reason(api: FakeApi) -> None:
+    failed = permission_document(phase="Failed")
+    failed["conditions"] = [{"type": "Ready", "status": "False", "reason": "ProviderRejected"}]
+    api.routes[("POST", PATH)] = admitted(201, phase="Pending", observed=None)
+    api.routes[("GET", PERM)] = Response(200, failed)
+    result = runner.invoke(
+        app,
+        [
+            "ipm",
+            "permission",
+            "create",
+            "--name",
+            "bsm.account.get",
+            "--wait",
+            "--description",
+            "Consulta conta de cobrança",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "ProviderRejected" in result.stdout + result.stderr
+
+
+def test_a_protected_permission_cannot_be_deleted(api: FakeApi) -> None:
+    api.routes[("GET", PERM)] = Response(200, permission_document(protected=True))
+    api.routes[("DELETE", PERM)] = http_error(409, "DeletionProtected", "protegida")
+    result = runner.invoke(app, ["ipm", "permission", "delete", "--resource-id", PID])
+    assert result.exit_code != 0
+    assert "unprotect" in result.stdout + result.stderr
+
+
+def test_a_name_in_use_is_explained(api: FakeApi) -> None:
+    api.routes[("POST", PATH)] = http_error(409, "NameInUse", "em uso")
+    result = runner.invoke(
+        app,
+        [
+            "ipm",
+            "permission",
+            "create",
+            "--name",
+            "bsm.account.get",
+            "--description",
+            "Consulta conta de cobrança",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "already exists" in result.stdout + result.stderr

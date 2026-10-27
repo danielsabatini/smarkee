@@ -49,7 +49,7 @@ PERMISSIONS = Kind(
     "permission",
     "ipm.permission",
     "ipm.permission_outbox",
-    "ipm_permission_manager_login",
+    "ipm_permission_api_login",
 )
 ROLES = Kind("ipm", "role", "ipm.role", "ipm.role_outbox", "ipm_role_api_login")
 GROUPS = Kind("ipm", "group", "ipm.group", "ipm.group_outbox", "ipm_group_api_login")

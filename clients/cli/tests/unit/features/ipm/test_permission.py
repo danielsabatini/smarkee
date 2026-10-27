@@ -34,6 +34,8 @@ def test_permission_document_parsing() -> None:
     raw: dict[str, Any] = {
         "resourceId": "p-1",
         "resourceVersion": "1",
+        "desiredGeneration": 2,
+        "observedGeneration": 2,
         "phase": "Ready",
         "desired": {
             "lifecycle": "present",
@@ -52,12 +54,15 @@ def test_permission_document_parsing() -> None:
     assert perm.grantable is True
     assert perm.deletion_protection is False
     assert perm.status == "active"
+    assert (perm.desired_generation, perm.observed_generation) == (2, 2)
+    assert perm.failure_reason is None
 
 
 def test_permission_missing_specification_fields() -> None:
     raw: dict[str, Any] = {
         "resourceId": "p-1",
         "resourceVersion": "1",
+        "desiredGeneration": 1,
         "phase": "Ready",
         "desired": {"lifecycle": "present", "specification": {}},
     }

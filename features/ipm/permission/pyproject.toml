@@ -1,7 +1,7 @@
 [project]
 name = "ipm-permission"
 version = "0.1.0"
-description = "Componente ipm.permission (decisão 0063): um projeto e uma imagem, com um entrypoint por papel (receiver, manager, publisher, observer, reconciler e executor)."
+description = "Componente ipm.permission (decisões 0063 e 0098): um projeto e uma imagem, com um entrypoint por papel (api, publisher e controller)."
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.143.0",
@@ -15,14 +15,11 @@ dependencies = [
     "uvicorn>=0.54.0",
 ]
 
-# Um entrypoint por papel: cada papel roda como processo e contêiner próprios (decisão 0063).
+# Um entrypoint por papel: cada papel roda como processo e contêiner próprios (decisões 0063 e 0098).
 [project.scripts]
-ipm-permission-receiver = "ipm_permission.receiver.main:main"
-ipm-permission-manager = "ipm_permission.manager.main:main"
+ipm-permission-api = "ipm_permission.api.main:main"
 ipm-permission-publisher = "ipm_permission.publisher.main:main"
-ipm-permission-observer = "ipm_permission.observer.main:main"
-ipm-permission-reconciler = "ipm_permission.reconciler.main:main"
-ipm-permission-executor = "ipm_permission.executor.main:main"
+ipm-permission-controller = "ipm_permission.controller.main:main"
 
 [build-system]
 requires = ["uv_build>=0.11.19,<0.12"]
@@ -50,14 +47,14 @@ select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
 [tool.pyright]
 pythonVersion = "3.14"
 typeCheckingMode = "strict"
-include = ["src", "tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/observer", "tests/reconciler", "tests/executor"]
+include = ["src", "tests/common", "tests/api", "tests/publisher", "tests/controller"]
 
 [tool.pytest.ini_options]
 # `tests/e2e` é um projeto à parte (black-box, decisão 0017) e não entra aqui.
-testpaths = ["tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/observer", "tests/reconciler", "tests/executor"]
+testpaths = ["tests/common", "tests/api", "tests/publisher", "tests/controller"]
 addopts = ["--import-mode=importlib"]
 # Cada papel com testes de integração tem o seu módulo de apoio (`support_<papel>`).
-pythonpath = ["tests/receiver/integration", "tests/manager/integration", "tests/publisher/integration"]
+pythonpath = ["tests/api/integration", "tests/publisher/integration", "tests/controller/integration"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 

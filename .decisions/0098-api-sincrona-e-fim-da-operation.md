@@ -1,7 +1,7 @@
 # 0098 — API v1 síncrona (`api`) e fim da Operation e do Stream `REQUESTED`
 
 - **Data:** 2026-10-27
-- **Status:** Aceita para `ipm/serviceaccount` (piloto); `ipm/user` e `ipm/organization` seguem o mesmo molde. Reavalia a submissão assíncrona universal (decisões 0024 e 0091, no que dizem respeito à Operation e ao `requested`). Conforme AGENTS.md §2.1 (#2 Simplicidade, #3 Robustez, #4 Resiliência), §2.2, §2.7 (Kubernetes: o API server admite e persiste de forma síncrona; controllers reconciliam depois) e §25.1.
+- **Status:** Aceita para `ipm/serviceaccount` (piloto); `ipm/user`, `ipm/organization`, `ipm/role`, `ipm/group` e `ipm/permission` seguem o mesmo molde (`role` e `group` só com `api` e `publisher`; `permission` com `api`, `publisher` e `controller`, por falar com o Zitadel). Reavalia a submissão assíncrona universal (decisões 0024 e 0091, no que dizem respeito à Operation e ao `requested`). Conforme AGENTS.md §2.1 (#2 Simplicidade, #3 Robustez, #4 Resiliência), §2.2, §2.7 (Kubernetes: o API server admite e persiste de forma síncrona; controllers reconciliam depois) e §25.1.
 
 ## Contexto
 

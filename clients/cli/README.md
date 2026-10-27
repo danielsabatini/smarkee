@@ -217,7 +217,7 @@ uv run sk ipm permission update --resource-id ID --description TEXTO [--grantabl
 uv run sk ipm user|group|role|permission get|list|protect|unprotect|delete ...
 ```
 
-Os quatro tipos seguem o mesmo ciclo das Organizations: `create`, `update`, `protect`, `unprotect` e `delete` são assíncronos (`202`, com `Idempotency-Key` por pedido), e `--wait` espera a Operation `completed` até `--timeout` (60 s por padrão). `delete` lê a `resourceVersion` antes de pedir, e um recurso protegido responde `409 DeletionProtected`: a saída manda rodar `unprotect` antes. `get` aceita `--operation-id`, para ver por que um pedido foi recusado ou falhou. A API vem do ambiente, do arquivo ou do padrão, como nos demais comandos.
+Os quatro tipos seguem o mesmo ciclo (decisão 0098): `create`, `update`, `protect`, `unprotect` e `delete` são admitidos na hora pela API (`201`, `200` e `202` na remoção, com o recurso e `Idempotency-Key` por pedido), e `--wait` espera `observedGeneration` alcançar a geração admitida e a fase `Ready` (na remoção, o recurso sumir), até `--timeout` (60 s por padrão). `delete` lê a `resourceVersion` antes de pedir, e um recurso protegido responde `409 DeletionProtected`: a saída manda rodar `unprotect` antes. A API vem do ambiente, do arquivo ou do padrão, como nos demais comandos.
 
 | Tipo | Escopo | Detalhes |
 |---|---|---|

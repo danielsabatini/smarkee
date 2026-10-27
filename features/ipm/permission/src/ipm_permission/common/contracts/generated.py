@@ -47,6 +47,13 @@ class MessageOperation(StrEnum):
     noop = "noop"
 
 
+class RequestDigest(RootModel[str]):
+    root: Annotated[str, Field(max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")]
+    """
+    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
+    """
+
+
 class Duration(RootModel[timedelta]):
     root: timedelta
     """
@@ -232,133 +239,6 @@ class UpdatedData(ContractModel):
     """
 
 
-class OperationType(StrEnum):
-    create = "create"
-    update = "update"
-    delete = "delete"
-
-
-class OperationStatus(StrEnum):
-    accepted = "accepted"
-    in_progress = "in_progress"
-    completed = "completed"
-    failed = "failed"
-    rejected = "rejected"
-    superseded = "superseded"
-
-
-class OperationStatusReason(StrEnum):
-    """
-    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
-    """
-
-    conflict = "conflict"
-    validation = "validation"
-    not_found = "not_found"
-    protected = "protected"
-
-
-class Operation(ContractModel):
-    """
-    Acompanhamento de uma solicitação assíncrona, exposto por GET /v1/operations/{operationId} (SSOT.md, Operation).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    operation_type: Annotated[OperationType, Field(alias="operationType", title="OperationType")]
-    module: Annotated[str, Field(max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")]
-    resource_type: Annotated[
-        str, Field(alias="resourceType", max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")
-    ]
-    resource_id: Annotated[
-        str,
-        Field(
-            alias="resourceId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-    desired_generation: Annotated[
-        int | None, Field(alias="desiredGeneration", ge=1, le=9007199254740991)
-    ] = None
-    """
-    Geração produzida pelo pedido; ausente quando rejeitado.
-    """
-    operation_status: Annotated[
-        OperationStatus, Field(alias="operationStatus", title="OperationStatus")
-    ]
-    operation_status_reason: Annotated[
-        OperationStatusReason | None,
-        Field(alias="operationStatusReason", title="OperationStatusReason"),
-    ] = None
-    """
-    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
-    """
-    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-    updated_at: Annotated[AwareDatetime, Field(alias="updatedAt")]
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-    completed_at: Annotated[AwareDatetime | None, Field(alias="completedAt")] = None
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-
-
-class ApiAcceptedResponse(ContractModel):
-    """
-    Resposta das escritas assíncronas (POST, PATCH, DELETE): o pedido foi publicado, não aplicado (RESOURCE-CONTROL-LOOP.md, Interface HTTP).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    resource_id: Annotated[
-        str,
-        Field(
-            alias="resourceId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-
-
 class ApiError(ContractModel):
     """
     Corpo das respostas de erro do Receiver. A mensagem identifica o campo e a regra violada e não repete valores confidential nem secretReference (SCHEMA.md, Limites e erros).
@@ -413,159 +293,6 @@ class PermissionObservedData(ContractModel):
     )
     """
     Módulo ao qual a permissão pertence (gravado como group da role no projeto roles-<módulo> do Zitadel).
-    """
-
-
-class PermissionCreateSpecification(ContractModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    name: Annotated[
-        str,
-        Field(
-            max_length=128,
-            min_length=5,
-            pattern="^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$",
-        ),
-    ]
-    """
-    Chave da permissão atômica no padrão <módulo>.<tipo>.<ação> (decisões 0028 e 0083), por exemplo ipm.user.create ou bsm.account.get. Imutável após a criação.
-    """
-    description: Annotated[
-        str, Field(max_length=256, min_length=1, pattern="^[^\\u0000-\\u001f\\u007f]+$")
-    ]
-    """
-    Descrição legível em pt-BR da ação autorizada pela permissão (gravada como displayName da role no projeto roles-<módulo> do Zitadel).
-    """
-    grantable: bool
-    """
-    Indica se a permissão pode ser delegada às organizações clientes via Project Grant e atribuída a usuários organizacionais (true) ou se é restrita à operação da plataforma na organização core (false).
-    """
-
-
-class PermissionRequestedCreateData(ContractModel):
-    """
-    data de requested com operation create da Permission (ipm.permission). Publicado somente pelo Receiver.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    specification: Annotated[
-        PermissionCreateSpecification, Field(title="PermissionCreateSpecification")
-    ]
-
-
-class PermissionUpdateSpecification(ContractModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    description: Annotated[
-        str | None, Field(max_length=256, min_length=1, pattern="^[^\\u0000-\\u001f\\u007f]+$")
-    ] = None
-    """
-    Descrição legível em pt-BR da ação autorizada pela permissão (gravada como displayName da role no projeto roles-<módulo> do Zitadel).
-    """
-    grantable: bool | None = None
-    """
-    Indica se a permissão pode ser delegada às organizações clientes via Project Grant e atribuída a usuários organizacionais (true) ou se é restrita à operação da plataforma na organização core (false).
-    """
-    deletion_protection: Annotated[bool | None, Field(alias="deletionProtection")] = None
-    """
-    Proteção contra exclusão, em desired. Todo recurso que pode ser apagado nasce com true; enquanto for true, o delete é recusado. Ausente vale como true. Desproteger é um update (decisão 0043).
-    """
-
-
-class PermissionRequestedUpdateData(ContractModel):
-    """
-    data de requested com operation update da Permission (ipm.permission). Traz a especificação alterada, a mudança do controle de reconciliação, ou ambas. Publicado somente pelo Receiver.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    resource_version: Annotated[
-        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
-    ]
-    """
-    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
-    """
-    specification: Annotated[
-        PermissionUpdateSpecification | None, Field(title="PermissionUpdateSpecification")
-    ] = None
-    reconciliation: Reconciliation | None = None
-    """
-    Muda só o controle de reconciliação; não incrementa desiredGeneration.
-    """
-
-
-class PermissionRequestedDeleteData(ContractModel):
-    """
-    data de requested com operation delete da Permission (ipm.permission): declara lifecycle absent. Publicado somente pelo Receiver.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    resource_version: Annotated[
-        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
-    ]
-    """
-    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
     """
 
 
@@ -731,6 +458,12 @@ class Permission(ContractModel):
     desired_generation: Annotated[int, Field(alias="desiredGeneration", ge=1, le=9007199254740991)]
     """
     Geração lógica do estado desejado (desiredGeneration, observedGeneration).
+    """
+    observed_generation: Annotated[
+        int | None, Field(alias="observedGeneration", ge=1, le=9007199254740991)
+    ] = None
+    """
+    Última geração do desired confirmada pela observação; ausente antes da primeira. A alteração terminou quando observedGeneration >= desiredGeneration e a phase é Ready ou Failed (decisão 0098).
     """
     phase: Phase
     conditions: Annotated[list[Condition], Field(max_length=32)]
@@ -948,14 +681,9 @@ class IpmPermissionContracts(
         | CompletedData
         | FailedData
         | UpdatedData
-        | Operation
-        | ApiAcceptedResponse
         | ApiError
         | PermissionDesiredData
         | PermissionObservedData
-        | PermissionRequestedCreateData
-        | PermissionRequestedUpdateData
-        | PermissionRequestedDeleteData
         | PermissionCreateRequest
         | PermissionUpdateRequest
         | Permission
@@ -969,14 +697,9 @@ class IpmPermissionContracts(
         | CompletedData
         | FailedData
         | UpdatedData
-        | Operation
-        | ApiAcceptedResponse
         | ApiError
         | PermissionDesiredData
         | PermissionObservedData
-        | PermissionRequestedCreateData
-        | PermissionRequestedUpdateData
-        | PermissionRequestedDeleteData
         | PermissionCreateRequest
         | PermissionUpdateRequest
         | Permission
@@ -984,5 +707,5 @@ class IpmPermissionContracts(
         Field(title="IpmPermissionContracts"),
     ]
     """
-    Índice dos contratos usados pelos componentes de permission do módulo ipm: entrada do gerador de modelos (decisões 0012 e 0083). Não é um contrato. Todo contrato de common/ e de ipm/permission/ deve estar listado (verificado pelos testes de contrato).
+    Índice dos contratos usados pelos componentes de permission do módulo ipm: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e de ipm/permission/ deve estar listado (verificado pelos testes de contrato).
     """

@@ -111,6 +111,7 @@ SERVICE_ACCOUNTS = {
     "ipm-organization-controller",
     "ipm-organization-executor",
     "ipm-organization-observer",
+    "ipm-permission-controller",
     "ipm-permission-executor",
     "ipm-permission-observer",
     "ipm-serviceaccount-controller",
@@ -458,14 +459,14 @@ def test_executor_and_observer_have_roles_only_in_register(
     }, "o Executor e o Observer não têm papel na organização core (decisão 0027)"
 
 
-def test_permission_observer_reads_the_operator_organization(
+def test_permission_controller_reads_the_operator_organization(
     zitadel: Zitadel, orgs: dict[str, str]
 ) -> None:
-    """O Observer de `ipm/permission` precisa de `ORG_OWNER_VIEWER` na `operator`: o Zitadel só
+    """O Controller de `ipm/permission` precisa de `ORG_OWNER_VIEWER` na `operator`: o Zitadel só
     devolve as roles de `roles-operator` a quem lê a organização dona do projeto. Só com
-    `PROJECT_OWNER_VIEWER` a lista vem vazia e toda `*.admin` é observada como ausente (0084)."""
+    `PROJECT_OWNER` a lista vem vazia e toda `*.admin` é observada como ausente (0084 e 0096)."""
     in_operator = organization_administrators(zitadel, orgs["operator"])
-    assert in_operator.get("ipm-permission-observer") == {"ORG_OWNER_VIEWER"}
+    assert in_operator.get("ipm-permission-controller") == {"ORG_OWNER_VIEWER"}
     assert "ipm-permission-executor" not in in_operator
 
 
@@ -622,11 +623,11 @@ EXPECTED_AUDIENCE = {
     "bsm.account": ("BSM_ACCOUNT_RECEIVER_AUTH_AUDIENCE", "roles-bsm"),
     "core.account": ("CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE", "roles-core"),
     "sum.service": ("SUM_SERVICE_RECEIVER_AUTH_AUDIENCE", "roles-sum"),
-    "ipm.organization": ("IPM_ORGANIZATION_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
-    "ipm.permission": ("IPM_PERMISSION_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
+    "ipm.organization": ("IPM_ORGANIZATION_API_AUTH_AUDIENCE", "roles-ipm"),
+    "ipm.permission": ("IPM_PERMISSION_API_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.role": ("IPM_ROLE_API_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.group": ("IPM_GROUP_API_AUTH_AUDIENCE", "roles-ipm"),
-    "ipm.user": ("IPM_USER_RECEIVER_AUTH_AUDIENCE", "roles-ipm"),
+    "ipm.user": ("IPM_USER_API_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.serviceaccount": ("IPM_SERVICEACCOUNT_API_AUTH_AUDIENCE", "roles-ipm"),
 }
 # Um projeto de roles só, o do próprio módulo (o Executor e o Observer do User, decisão 0077).

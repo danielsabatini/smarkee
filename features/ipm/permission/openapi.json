@@ -1,32 +1,6 @@
 {
   "components": {
     "schemas": {
-      "ApiAcceptedResponse": {
-        "additionalProperties": false,
-        "description": "Resposta das escritas assíncronas (POST, PATCH, DELETE): o pedido foi publicado, não aplicado (RESOURCE-CONTROL-LOOP.md, Interface HTTP).",
-        "properties": {
-          "operationId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Operationid",
-            "type": "string"
-          },
-          "resourceId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Resourceid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "resourceId",
-          "operationId"
-        ],
-        "title": "ApiAcceptedResponse",
-        "type": "object"
-      },
       "Condition": {
         "additionalProperties": false,
         "description": "Fato consolidado do recurso (RESOURCE-CONTROL-LOOP.md, Conditions). Mantida pelo Manager.",
@@ -119,136 +93,6 @@
         "title": "Lifecycle",
         "type": "string"
       },
-      "Operation": {
-        "additionalProperties": false,
-        "description": "Acompanhamento de uma solicitação assíncrona, exposto por GET /v1/operations/{operationId} (SSOT.md, Operation).",
-        "properties": {
-          "completedAt": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completedat"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "title": "Createdat",
-            "type": "string"
-          },
-          "desiredGeneration": {
-            "anyOf": [
-              {
-                "maximum": 9007199254740991.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Desiredgeneration"
-          },
-          "module": {
-            "maxLength": 63,
-            "minLength": 1,
-            "pattern": "^[a-z][a-z0-9-]*$",
-            "title": "Module",
-            "type": "string"
-          },
-          "operationId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Operationid",
-            "type": "string"
-          },
-          "operationStatus": {
-            "$ref": "#/components/schemas/OperationStatus"
-          },
-          "operationStatusReason": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/OperationStatusReason"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "OperationStatusReason"
-          },
-          "operationType": {
-            "$ref": "#/components/schemas/OperationType"
-          },
-          "resourceId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Resourceid",
-            "type": "string"
-          },
-          "resourceType": {
-            "maxLength": 63,
-            "minLength": 1,
-            "pattern": "^[a-z][a-z0-9-]*$",
-            "title": "Resourcetype",
-            "type": "string"
-          },
-          "updatedAt": {
-            "format": "date-time",
-            "title": "Updatedat",
-            "type": "string"
-          }
-        },
-        "required": [
-          "operationId",
-          "operationType",
-          "module",
-          "resourceType",
-          "resourceId",
-          "operationStatus",
-          "createdAt",
-          "updatedAt"
-        ],
-        "title": "Operation",
-        "type": "object"
-      },
-      "OperationStatus": {
-        "enum": [
-          "accepted",
-          "in_progress",
-          "completed",
-          "failed",
-          "rejected",
-          "superseded"
-        ],
-        "title": "OperationStatus",
-        "type": "string"
-      },
-      "OperationStatusReason": {
-        "description": "Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).",
-        "enum": [
-          "conflict",
-          "validation",
-          "not_found",
-          "protected"
-        ],
-        "title": "OperationStatusReason",
-        "type": "string"
-      },
-      "OperationType": {
-        "enum": [
-          "create",
-          "update",
-          "delete"
-        ],
-        "title": "OperationType",
-        "type": "string"
-      },
       "Permission": {
         "additionalProperties": false,
         "description": "Visão consolidada da Permission (ipm.permission) exposta pelo Receiver (GET). Não expõe campos internos do SSOT (failureCount, requestedBy).",
@@ -285,6 +129,19 @@
               }
             ],
             "title": "PermissionObservedView"
+          },
+          "observedGeneration": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observedgeneration"
           },
           "phase": {
             "$ref": "#/components/schemas/Phase"
@@ -789,11 +646,11 @@
           "required": true
         },
         "responses": {
-          "202": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                  "$ref": "#/components/schemas/Permission"
                 }
               }
             },
@@ -858,7 +715,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                  "$ref": "#/components/schemas/Permission"
                 }
               }
             },
@@ -954,11 +811,11 @@
           "required": true
         },
         "responses": {
-          "202": {
+          "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                  "$ref": "#/components/schemas/Permission"
                 }
               }
             },
@@ -976,54 +833,6 @@
           }
         },
         "summary": "Update Permission"
-      }
-    },
-    "/v1/ipm/permissions/{permission_id}/operations/{operation_id}": {
-      "get": {
-        "operationId": "get_operation_v1_ipm_permissions__permission_id__operations__operation_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "permission_id",
-            "required": true,
-            "schema": {
-              "title": "Permission Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "operation_id",
-            "required": true,
-            "schema": {
-              "title": "Operation Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Operation"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Operation"
       }
     }
   }
