@@ -186,3 +186,66 @@ def test_version_prints_the_package_version_and_exits_without_running_a_command(
         result = runner.invoke(app, arguments)
         assert result.exit_code == 0, arguments
         assert result.stdout.strip() == f"sk {version('sk')}", arguments
+
+
+def _example_lines(command: Any) -> list[str]:
+    """Linhas de exemplo do bloco `Examples:` da ajuda do comando."""
+    text = (command.help or "").replace("\\[", "[")
+    if "Examples:" not in text:
+        return []
+    block = text.split("Examples:", 1)[1].split("Resolution order", 1)[0]
+    lines: list[str] = []
+    pending = ""
+    for raw in block.splitlines():
+        line = raw.strip().strip("\b").strip()  # o `\b` é o marcador do Click, não texto
+        if not line:
+            continue
+        # Continuação com `\` no fim da linha, como no shell: o exemplo é uma linha só.
+        if line.endswith("\\"):
+            pending += line[:-1].strip() + " "
+            continue
+        lines.append(pending + line)
+        pending = ""
+    return lines
+
+
+def _resolve(tokens: list[str]) -> tuple[Any, set[str]]:
+    """Resolve `sk <opções globais> <grupo> <comando>`, devolvendo o comando e as opções válidas."""
+    root = typer.main.get_command(app)
+    global_options = {opt for param in root.params for opt in getattr(param, "opts", [])}
+    node: Any = root
+    options = set(global_options)
+    path: list[str] = []
+    for token in tokens:
+        if token.startswith("-"):
+            continue
+        if getattr(node, "commands", None) and token in node.commands:
+            node = node.commands[token]
+            path.append(token)
+    options = {opt for param in node.params for opt in getattr(param, "opts", [])}
+    return node, options | global_options
+
+
+def test_every_example_uses_commands_and_options_that_exist() -> None:
+    import shlex
+
+    seen = 0
+    for name, command in _commands():
+        for line in _example_lines(command):
+            seen += 1
+            pipe_free = line.split("| ")[-1]
+            tokens = shlex.split(pipe_free)
+            assert tokens[0] == "sk", f"{name}: {line}"
+            node, valid = _resolve(tokens[1:])
+            assert not getattr(node, "commands", None), f"{name}: incomplete command in {line}"
+            for token in tokens[1:]:
+                if token.startswith("-") and token != "-":
+                    assert token in valid, f"{name}: unknown option {token} in {line}"
+    assert seen >= 8  # os exemplos existem e foram lidos
+
+
+def test_examples_do_not_carry_secrets_or_real_ids() -> None:
+    for name, command in _commands():
+        for line in _example_lines(command):
+            assert "token" not in line.lower(), f"{name}: {line}"
+            assert not re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-", line), f"{name}: {line}"

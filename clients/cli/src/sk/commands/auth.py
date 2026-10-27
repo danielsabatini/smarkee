@@ -325,7 +325,8 @@ KeyFileOption = Annotated[
     "login",
     help=command(
         "Sign in to the platform. Interactive login opens the browser; "
-        "with --key-file, authenticates a service account."
+        "with --key-file, authenticates a service account.",
+        examples=["sk auth login", "sk auth login --key-file sa-ci-deploy.json"],
     ),
 )
 def login(key_file: KeyFileOption = None) -> None:

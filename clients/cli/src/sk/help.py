@@ -11,6 +11,8 @@ tem uma cor (tipo, fontes e situação). Os colchetes do formato são escapados 
 tratar como tags, e os colchetes dos próprios valores também.
 """
 
+from collections.abc import Sequence
+
 # Cores de cada segmento da opção, em nomes do Rich.
 COLOR_TYPE = "cyan"
 COLOR_SOURCES = "yellow"
@@ -32,9 +34,17 @@ def _segment(text: str, color: str) -> str:
     return f"[{color}]\\[{_escape(text)}][/]"
 
 
-def command(description: str, *, order: str = ORDER_WITH_FILE) -> str:
-    """Descrição de um comando: o que faz e a ordem de resolução dos valores."""
-    return _escape(f"{description}\n\nResolution order: {order}.")
+def command(description: str, *, order: str = ORDER_WITH_FILE, examples: Sequence[str] = ()) -> str:
+    """Descrição de um comando: o que faz, exemplos de uso e a ordem de resolução dos valores.
+
+    Cada exemplo é uma linha que começa por `sk `, com valores fictícios; um teste confere que os
+    comandos e as opções citados existem. O `\\b` é o marcador do Click para o Rich não juntar as
+    linhas do bloco em um só parágrafo.
+    """
+    block = ""
+    if examples:
+        block = "Examples:\n\b\n" + "\n".join(f"  {line}" for line in examples) + "\n\n"
+    return _escape(f"{description}\n\n{block}Resolution order: {order}.")
 
 
 def option(

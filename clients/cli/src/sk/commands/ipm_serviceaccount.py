@@ -269,7 +269,11 @@ _flow = ResourceFlow(
     "create",
     structured=True,
     help=command(
-        "Create a service account with client-generated RSA key. Key private material stays local."
+        "Create a service account with client-generated RSA key. Key private material stays local.",
+        examples=[
+            "sk ipm serviceaccount create --name ci-deploy --role ipm.userViewer --wait",
+            "cat ci.pub | sk ipm sa create --name ci-deploy --public-key-file -",
+        ],
     ),
 )
 def create_command(

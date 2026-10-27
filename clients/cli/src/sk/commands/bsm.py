@@ -291,7 +291,13 @@ _flow = ResourceFlow(
 @account_app.command(
     "create",
     structured=True,
-    help=command("Create a Billing Account. Follow it with `sk bsm account get`."),
+    help=command(
+        "Create a Billing Account. Follow it with `sk bsm account get`.",
+        examples=[
+            "sk bsm account create --display-name Acme --currency BRL \\\n"
+            "      --contact finance@example.com --wait"
+        ],
+    ),
 )
 def create_command(
     display_name: Annotated[

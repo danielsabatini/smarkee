@@ -249,7 +249,10 @@ def _finish_request(
 @service_app.command(
     "enable",
     structured=True,
-    help=command("Enable a service for the requester. Follow it with `sk sum service get`."),
+    help=command(
+        "Enable a service for the requester. Follow it with `sk sum service get`.",
+        examples=["sk sum service enable --service ipm --wait"],
+    ),
 )
 def enable_command(
     service: Annotated[

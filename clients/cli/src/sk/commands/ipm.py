@@ -276,7 +276,10 @@ _flow = ResourceFlow(
 @organization_app.command(
     "create",
     structured=True,
-    help=command("Create an Organization. Follow it with `sk ipm organization get`."),
+    help=command(
+        "Create an Organization. Follow it with `sk ipm organization get`.",
+        examples=["sk ipm organization create --name acme --wait"],
+    ),
 )
 def create_command(
     name: Annotated[

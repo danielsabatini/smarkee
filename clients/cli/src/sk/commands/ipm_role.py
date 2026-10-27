@@ -216,7 +216,15 @@ _flow = ResourceFlow(
 
 
 @role_app.command(
-    "create", structured=True, help=command("Create a custom role in the Organization.")
+    "create",
+    structured=True,
+    help=command(
+        "Create a custom role in the Organization.",
+        examples=[
+            "sk ipm role create --name acme.billing --description Billing \\\n"
+            "      --permission bsm.account.get --permission bsm.account.list --wait"
+        ],
+    ),
 )
 def create_command(
     organization_id: OrganizationOption = None,
@@ -493,7 +501,10 @@ def get_command(
 @role_app.command(
     "list",
     structured=True,
-    help=command("List predefined roles and the custom roles of an Organization."),
+    help=command(
+        "List predefined roles and the custom roles of an Organization.",
+        examples=["sk ipm role list", "sk --output json ipm role list"],
+    ),
 )
 def list_command(organization_id: OrganizationOption = None) -> None:
     org_id = (

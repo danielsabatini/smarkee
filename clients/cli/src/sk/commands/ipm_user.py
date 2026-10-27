@@ -249,7 +249,12 @@ _flow = ResourceFlow(
     structured=True,
     help=command(
         "Create a user in the Organization, without a password: the person opens the link in the "
-        "activation e-mail to set it, then runs `sk auth login`."
+        "activation e-mail to set it, then runs `sk auth login`.",
+        examples=[
+            "sk ipm user create --name Ana --surname Silva --email ana@example.com",
+            "sk ipm user create --name Ana --surname Silva --email ana@example.com \\\n"
+            "      --role ipm.userViewer --group ops --wait",
+        ],
     ),
 )
 def create_command(

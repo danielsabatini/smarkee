@@ -298,6 +298,8 @@ Agem sobre a conta da sessão (`sk auth login`); o `resourceId` é o `sub` do to
 
 Os comandos mostram sucesso em painel e erro com causa e dica de correção. Cores aparecem só em terminal interativo, e `NO_COLOR` é respeitado. A apresentação está em `src/sk/ui.py` (`.decisions/0021-apresentacao-da-cli-com-rich.md`). A saída de sucesso vai para a saída padrão, e a de erro para a saída de erro.
 
+A ajuda (`-h`) dos comandos mais usados traz um bloco `Examples:` entre a descrição e as opções, com valores fictícios.
+
 ### Para scripts: `--output json` e `--raw`
 
 Duas opções do grupo raiz, válidas para qualquer comando e **antes do subcomando** (depois dele o Typer recusa com código 2; decisão 0093):

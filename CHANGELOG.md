@@ -7,6 +7,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 ### Added
+- CLI `sk`: a ajuda (`-h`) de `auth login`, `ipm organization|user|serviceaccount|role create`, `ipm role list`, `bsm account create` e `sum service enable` ganha um bloco `Examples:` com valores fictícios.
 - CLI `sk`: opção global `-q`/`--quiet` (antes do subcomando) que esconde as notas de orientação e o progresso do `--wait`. Erros, avisos, resultados e `--output json` não são afetados, nem o código de saída.
 - CLI `sk`: `--wait` passa a mostrar o progresso na saída de erro, com o estado observado e o tempo decorrido. Em terminal é um indicador de uma linha, apagado ao terminar (inclusive com Ctrl-C); fora de terminal, uma linha só quando o estado muda. A saída padrão e o `--output json` não mudam.
 - CLI `sk`: `--public-key-file -` (em `ipm serviceaccount create` e `key add`) lê a chave pública da entrada padrão. Recusa terminal, entrada vazia e mais de 64 KiB, e nunca repete o conteúdo em mensagem de erro. `sk auth login --key-file -` é recusado com explicação, porque a sessão relê o arquivo de chave a cada renovação.

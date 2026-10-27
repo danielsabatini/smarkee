@@ -53,7 +53,7 @@ Para cada critério, cite a evidência (comando + código de saída, ou arquivo:
 ### C1. Gramática, descoberta e `--help` (decisões 0022 e 0035; clig.dev *Help*, *Subcommands*)
 - Hierarquia `sk <módulo> <tipo> <ação>` (ou `sk <grupo> <ação>` para `auth`, `config`, `account`); opções em `kebab-case`; mesmos verbos em todos os tipos.
 - Todo `list` mostra `name | resourceId | phase` (+ `description` quando houver).
-- Todo comando e opção passa por `sk/help.py` (`command()`/`option()`): `Resolution order: …` (exceto `config`) e `<descrição> [Tipo] [fontes] [required|optional]`.
+- Todo comando e opção passa por `sk/help.py` (`command()`/`option()`): `Resolution order: …` (exceto `config`) e `<descrição> [Tipo] [fontes] [required|optional]`. Comando de uso frequente ganha `examples=[...]` (valores fictícios, uma linha por exemplo; continuação com ` \\` no fim); o teste valida as opções citadas.
 - **Sem `[default: …]` duplicado**: o Typer acrescenta uma linha própria quando a opção tem `default` e não tem `show_default=False`. Verifique com `$SK --help` e `$SK sum service enable --help`, também com `COLUMNS=100`. O `test_help.py` não olha as opções da raiz (`--output`, `--raw`).
 - `pytest tests/unit/test_help.py` passa.
 - Descoberta (clig.dev): `-h`, `--version`, `sk help <cmd>`, exemplos na ajuda, link de suporte/doc, sugestão de nome (`Did you mean`). Veja o estado de cada um em `references/clig-conformance.md` e **reconfirme**.

@@ -29,7 +29,7 @@ Reexecute as verificações antes de repetir um estado: o código muda mais ráp
 | Ajuda concisa sem argumentos | Conforme (com ressalva) | `sk` e `sk ipm` mostram a ajuda; o código de saída é 2 (o clig.dev não fixa o código) |
 | `sk help <cmd>` (CLIs estilo git) | Lacuna | `sk help ipm` → código 2 |
 | Sugestão quando o usuário erra o nome | Conforme | `sk ipm rol list` → "Did you mean 'role'?" |
-| Exemplos na ajuda, antes das opções | **Lacuna** | `sk/help.py` não tem campo de exemplo; 0 ocorrências de "example" em `sk --help` |
+| Exemplos na ajuda, antes das opções | Parcial | `command(..., examples=[...])` imprime o bloco `Examples:` entre a descrição e a `Resolution order`; 8 comandos (`auth login`, `ipm organization|user|serviceaccount|role create`, `ipm role list`, `bsm account create`, `sum service enable`). `test_help.py` confere que comandos e opções citados existem. Os demais comandos ainda não têm |
 | Link para a doc web na ajuda | Conforme | rodapé de `sk --help` com `https://docs.smarkee.com.br` |
 | Link de suporte/feedback na ajuda | **Lacuna** | só há o endereço da documentação; falta um canal de suporte |
 | Comandos/opções mais comuns primeiro | Não verificado | a ordem dos grupos na raiz não foi avaliada contra o uso real |
