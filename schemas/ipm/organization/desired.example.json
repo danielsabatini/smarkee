@@ -19,7 +19,8 @@
     "userExecutorAccountId": "394397791373230101",
     "userObserverAccountId": "394397791373230102",
     "serviceaccountExecutorAccountId": "394397791373230103",
-    "serviceaccountObserverAccountId": "394397791373230104"
+    "serviceaccountObserverAccountId": "394397791373230104",
+    "serviceaccountControllerAccountId": "394397791373230105"
   },
   "ownerAccountId": "394397791373230085"
 }

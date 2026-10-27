@@ -118,6 +118,10 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
             f"IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_{account}_ACCOUNT_ID",
             f"machine-{account}",
         )
+    monkeypatch.setenv(
+        "IPM_ORGANIZATION_MANAGER_USER_ACCESS_SERVICEACCOUNT_CONTROLLER_ACCOUNT_ID",
+        "machine-CONTROLLER",
+    )
     return fake
 
 

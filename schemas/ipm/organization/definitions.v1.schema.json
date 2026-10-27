@@ -90,6 +90,12 @@
           "description": "Conta de serviço do Observer do ipm/serviceaccount (decisão 0094).",
           "x-writer": "server",
           "x-sensitivity": "internal"
+        },
+        "serviceaccountControllerAccountId": {
+          "$ref": "#/$defs/identityAccountId",
+          "description": "Conta de serviço do Controller do ipm/serviceaccount (decisão 0096): reúne os papéis do Executor e do Observer.",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
         }
       }
     },
