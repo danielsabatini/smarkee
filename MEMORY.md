@@ -1,7 +1,7 @@
 # Memória Operacional do Projeto (AI Context)
 
 Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado operacional atual** necessário para continuar o trabalho.
-- **Histórico detalhado de execução:** `.journal/2026-10-26.md`, `.journal/2026-10-25.md`, `.journal/2026-10-24.md` e `.journal/2026-10-19.md` (locais, não versionados — consultar sob demanda).
+- **Histórico detalhado de execução:** `.journal/2026-10-27.md`, `.journal/2026-10-26.md`, `.journal/2026-10-25.md`, `.journal/2026-10-24.md` e `.journal/2026-10-19.md` (locais, não versionados — consultar sob demanda).
 - **Regras, contratos e decisões:** `AGENTS.md`, `docs/` e `.decisions/`.
 
 ## Estado operacional atual
@@ -12,6 +12,7 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - **Ambiente local OpenCode:** `~/.config/opencode/opencode.json` carrega `AGENTS.md` e `MEMORY.md` globalmente; `.opencode/opencode.json` do projeto é local e ignorado pelo git.
 
 ## Próximos passos imediatos
+00. **Plano de evolução ipm/* e loop** (`~/.opencode/plan/ipm-resource-control-loop-evolution.md`; ordem `S0 → S2 → S1 → S3 → S4 → S5 → S6`): S0 e S2 entregues e em `origin/dev` (`8b0ad46d`). Decisão `0096`: `ipm/organization|serviceaccount|user` têm só receiver, manager, publisher e controller (mais `migrate`/`consumer`); sem `action_result`; Manager sem DELETE no recurso. Próxima: S1 (`desired` puro e permissões efetivas no status). Pendências da S2: contas Zitadel `*-executor/observer` (lacuna em `IMPLEMENTATION-STATUS.md`), `test_structure.py` da identidade, diagramas `docs/{flow,architecture,state,database}` das 3 features, `reconciliation` no openapi/schema.
 0. Os `list` da CLI `sk` mostram só `name | resourceId | phase | description` (padronizados; `--output json` mantém todos os campos). Commitado em `14ccbd9` (as opções `--output`/`--raw`, decisão `0093`, já estão em `origin/dev`, `0bdba35`). O scanner da CLI exige `-Dsonar.python.coverage.reportPaths=coverage.xml` (o `sonar-project.properties` não define); Quality Gate `smarkee-clients-cli` em OK.
 0a. A UX da CLI `sk` é auditada pela skill `cli-ux` (matriz `references/clig-conformance.md`, lacunas em aberto listadas lá); lotes A e B e as etapas 1 a 3 entregues e em `origin/dev` (até `1474acb2`): timeout `api.timeoutSeconds`, `config unset`, `--public-key-file -`, progresso do `--wait`, `-q/--quiet` (decisão `0095`) e exemplos na ajuda de 8 comandos. Em aberto: `sk help <cmd>` (só se o responsável quiser; o `-h` já cobre), exemplos nos demais comandos, canal de suporte e modo de diagnóstico (traceback) para erro inesperado.
 1. Higiene operacional: ruído de WARN `NotFound` em `ipm/user` e `trace_id` não propagado entre receivers (não pedidos); isolar testes de integração para não publicar no loop em execução; limpeza reconhecer usuário removido; supressão de logs repetitivos por recurso; trace novo por tentativa com link (quando houver spans).
