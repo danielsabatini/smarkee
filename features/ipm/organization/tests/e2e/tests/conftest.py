@@ -191,6 +191,50 @@ async def unprotect_through_the_loop(
     return resource_version
 
 
+async def read_ssot(resource_id: str) -> dict[str, Any] | None:
+    """Estado observado e `presence` do recurso no SSOT (a decisão 0096 extinguiu `observed`).
+
+    `None` quando o registro não existe (removido) ou o SSOT de dev não está acessível.
+    """
+    try:
+        connection: psycopg.AsyncConnection[Any] = await psycopg.AsyncConnection.connect(
+            f"host={DATABASE_HOST} port={DATABASE_PORT} dbname=ssot"
+            f" user={MANAGER_LOGIN} password={MANAGER_LOGIN} connect_timeout=3",
+            autocommit=True,
+        )
+    except psycopg.OperationalError:
+        return None
+    try:
+        cursor = await connection.execute(
+            f"SELECT presence, observed FROM {TABLE} WHERE resource_id = %s",  # noqa: S608
+            (resource_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return {"presence": row[0], "data": row[1] or {}}
+    finally:
+        await connection.close()
+
+
+async def operation_statuses(resource_id: str) -> list[str]:
+    """Estados das Operations do recurso, da mais antiga à mais nova."""
+    connection: psycopg.AsyncConnection[Any] = await psycopg.AsyncConnection.connect(
+        f"host={DATABASE_HOST} port={DATABASE_PORT} dbname=ssot"
+        f" user={MANAGER_LOGIN} password={MANAGER_LOGIN} connect_timeout=3",
+        autocommit=True,
+    )
+    try:
+        cursor = await connection.execute(
+            f"SELECT operation_status FROM {TABLE}_operation WHERE resource_id = %s"  # noqa: S608
+            " ORDER BY created_at",
+            (resource_id,),
+        )
+        return [str(row[0]) for row in await cursor.fetchall()]
+    finally:
+        await connection.close()
+
+
 async def _cleanup_database(resource_ids: list[str]) -> None:
     def dsn(login: str) -> str:
         return (

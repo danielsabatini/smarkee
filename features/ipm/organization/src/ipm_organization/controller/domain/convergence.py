@@ -1,10 +1,11 @@
-"""Decisões puras do Controller sobre convergência de observações (decisão 0096).
+"""Decisões puras do Controller sobre a observação e o resultado das ações (decisão 0096).
 
-Avalia presença e divergência, calculando as conditions (`Ready`, `Progressing`,
-`ObservationStale`) e a fase do recurso (`Active`, `Failed`, `Pending`).
+Mesma semântica que o Manager tinha (`docs/data/SSOT.md` §9 e §10): fase, conditions, prazo de
+progresso, `ObservationStale` e limite de falhas. Recebem o estado lido do SSOT e devolvem o que
+gravar; a gravação é do adaptador `store/`.
 """
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -14,7 +15,14 @@ from ipm_organization.common.contracts import generated
 
 READY = "Ready"
 PROGRESSING = "Progressing"
+"""Condition de progresso, como a do Deployment do Kubernetes: `True` enquanto a geração atual está
+sendo reconciliada dentro do prazo (`lastTransitionAt` marca o início da tentativa), `False` com
+`ProgressDeadlineExceeded` quando o prazo passou sem convergir (decisão 0078)."""
 OBSERVATION_STALE = "ObservationStale"
+"""Condition de observação inconclusiva (decisão 0090): `lastTransitionAt` marca o início da
+sequência de `unknown`; fica `False` (`ObservationUnknown`) dentro do prazo e `True` (`Timeout`)
+quando o recurso permanece `unknown` por mais que o prazo. Some quando volta uma observação
+conclusiva."""
 
 
 def _find(conditions: list[dict[str, Any]], condition_type: str) -> dict[str, Any] | None:
@@ -32,6 +40,10 @@ def set_condition(
     now: datetime,
     since: datetime | None = None,
 ) -> list[dict[str, Any]]:
+    """Grava a condition do tipo e mantém as demais.
+
+    `lastTransitionAt` é `since` quando informado; senão só muda quando o status muda.
+    """
     last_transition = since or now
     existing = _find(previous, condition_type)
     if since is None and existing is not None and existing.get("status") == status:
@@ -59,6 +71,7 @@ def ready_condition(
     generation: int,
     now: datetime,
 ) -> list[dict[str, Any]]:
+    """Condition `Ready`; `lastTransitionAt` só muda quando o status muda."""
     return set_condition(
         previous,
         condition_type=READY,
@@ -74,7 +87,10 @@ def ready_condition(
 class Progress:
     conditions: list[dict[str, Any]]
     exceeded: bool
+    """O prazo de progresso está esgotado para a geração atual."""
+
     newly_exceeded: bool
+    """Esgotou nesta observação (para o aviso sair uma vez só)."""
 
 
 def progress(
@@ -85,6 +101,12 @@ def progress(
     deadline_seconds: int | None,
     now: datetime,
 ) -> Progress:
+    """Condition `Progressing` da geração atual (decisão 0078).
+
+    A tentativa começa na primeira observação que não converge (ou numa geração nova) e termina
+    quando converge. Passado o prazo sem convergir, a condition fica `False` até convergir ou até
+    uma geração nova; quem limita as ações repetidas é o backoff do Reconciler.
+    """
     if deadline_seconds is None:
         return Progress(previous, exceeded=False, newly_exceeded=False)
     existing = _find(previous, PROGRESSING)
@@ -136,14 +158,222 @@ def progress(
     return Progress(conditions, exceeded=False, newly_exceeded=False)
 
 
+def observation_stale(
+    previous: list[dict[str, Any]],
+    *,
+    generation: int,
+    deadline_seconds: int | None,
+    now: datetime,
+) -> tuple[list[dict[str, Any]], bool, bool]:
+    """Condition `ObservationStale` depois de uma observação `unknown` (decisão 0090).
+
+    Devolve as conditions, se o prazo está esgotado e se esgotou agora (para o aviso sair uma vez
+    só). O relógio começa na primeira `unknown` da sequência e vale o `progressDeadline`.
+    """
+    if deadline_seconds is None:
+        return previous, False, False
+    existing = _find(previous, OBSERVATION_STALE)
+    if existing is not None and existing.get("status") == "True":
+        return previous, True, False
+    started = datetime.fromisoformat(existing["lastTransitionAt"]) if existing else now
+    if now - started > timedelta(seconds=deadline_seconds):
+        conditions = set_condition(
+            previous,
+            condition_type=OBSERVATION_STALE,
+            status="True",
+            reason="Timeout",
+            message=f"The resource stayed unknown for more than {deadline_seconds} s.",
+            generation=generation,
+            now=now,
+            since=now,
+        )
+        return conditions, True, True
+    conditions = set_condition(
+        previous,
+        condition_type=OBSERVATION_STALE,
+        status="False",
+        reason="ObservationUnknown",
+        message=None,
+        generation=generation,
+        now=now,
+        since=started,
+    )
+    return conditions, False, False
+
+
+def observation_resumed(
+    previous: list[dict[str, Any]], *, generation: int, now: datetime
+) -> list[dict[str, Any]]:
+    """Uma observação conclusiva encerra a sequência de `unknown`: a condition sai ou, se estava
+    `True`, passa a `False` (`ObservationResumed`) para registrar que o recurso voltou a ser
+    lido."""
+    existing = _find(previous, OBSERVATION_STALE)
+    if existing is None:
+        return previous
+    if existing.get("status") != "True":
+        return [c for c in previous if c.get("type") != OBSERVATION_STALE]
+    return set_condition(
+        previous,
+        condition_type=OBSERVATION_STALE,
+        status="False",
+        reason="ObservationResumed",
+        message=None,
+        generation=generation,
+        now=now,
+    )
+
+
 @dataclass(frozen=True, slots=True)
-class ConvergenceDecision:
+class ObservedDecision:
     phase: str
-    converged: bool
-    observed_generation: int | None
     conditions: list[dict[str, Any]]
-    progress_exceeded: bool = False
-    observation_stale_exceeded: bool = False
+    converged: bool
+    remove: bool
+    """Remoção convergida: o registro sai do SSOT (`SSOT.md` §9, 8)."""
+
+    progress_deadline_exceeded: bool = False
+    """O prazo de progresso esgotou nesta observação (decisão 0078)."""
+
+    observation_stale: bool = False
+    """O recurso passou do prazo em `unknown` nesta observação (decisão 0090)."""
+
+    exhausted: bool = False
+    """A geração com trabalho pendente esgotou o prazo (de progresso ou de observação): a
+    Operation vira `failed`, como no `failureLimit`. Sai sozinho da fase `Failed` ao convergir."""
+
+
+def decide_observed(
+    is_converged: Callable[[Mapping[str, Any], str, Mapping[str, Any] | None], bool],
+    *,
+    desired: Mapping[str, Any],
+    lifecycle: str,
+    generation: int,
+    observation_generation: int | None,
+    presence: str,
+    observed: Mapping[str, Any],
+    previous_phase: str,
+    previous_conditions: list[dict[str, Any]],
+    now: datetime,
+    progress_deadline_seconds: int | None = None,
+    removes_absent: bool = True,
+) -> ObservedDecision:
+    """Fase, conditions e convergência depois de uma observação.
+
+    `removes_absent` diz se o tipo apaga o registro quando a remoção converge (o padrão) ou o
+    mantém, como a ligação desfeita do `sum.service`, que segue existindo (decisão 0033). Quem
+    mantém o registro não passa por `Deleting`: enquanto não converge, fica em `Reconciling`.
+    """
+    if presence == "unknown":
+        # Inconclusiva: registra o resultado e não decide convergência. Além do prazo em `unknown`
+        # (decisão 0090), um recurso com trabalho pendente vai a `Failed`: sem isso uma exclusão
+        # que o Observer nunca consegue ler ficaria em `Deleting` para sempre.
+        conditions = previous_conditions or ready_condition(
+            [],
+            status="Unknown",
+            reason="ObservationUnknown",
+            message=None,
+            generation=generation,
+            now=now,
+        )
+        conditions, stale, newly_stale = observation_stale(
+            conditions, generation=generation, deadline_seconds=progress_deadline_seconds, now=now
+        )
+        pending = stale and previous_phase != "Ready"
+        return ObservedDecision(
+            "Failed" if pending else previous_phase,
+            conditions,
+            converged=False,
+            remove=False,
+            observation_stale=newly_stale,
+            exhausted=pending,
+        )
+    previous_conditions = observation_resumed(previous_conditions, generation=generation, now=now)
+
+    # Converge só com o conteúdo igual **e** com uma observação feita depois da geração vigente
+    # (o Observer informa a geração que conhecia antes de ler o provedor). Uma leitura anterior à
+    # geração não a confirma, mesmo com o conteúdo igual: é o caso de uma alteração só em campo da
+    # plataforma, que o provedor não tem (decisão 0072).
+    converged = observation_generation == generation and is_converged(desired, presence, observed)
+    if lifecycle == "absent" and converged and removes_absent:
+        return ObservedDecision(previous_phase, previous_conditions, converged=True, remove=True)
+    tracked = progress(
+        previous_conditions,
+        converged=converged,
+        generation=generation,
+        deadline_seconds=progress_deadline_seconds,
+        now=now,
+    )
+    if converged:
+        conditions = ready_condition(
+            tracked.conditions,
+            status="True",
+            reason="Reconciled",
+            message=None,
+            generation=generation,
+            now=now,
+        )
+        return ObservedDecision("Ready", conditions, converged=True, remove=False)
+    # Prazo de progresso esgotado é falha visível, como a de limite de falhas (decisão 0078).
+    phase = (
+        "Failed"
+        if previous_phase == "Failed" or tracked.exceeded
+        else ("Deleting" if lifecycle == "absent" and removes_absent else "Reconciling")
+    )
+    conditions = ready_condition(
+        tracked.conditions,
+        status="False",
+        reason="Failed" if phase == "Failed" else "Reconciling",
+        message=None,
+        generation=generation,
+        now=now,
+    )
+    return ObservedDecision(
+        phase,
+        conditions,
+        converged=False,
+        remove=False,
+        progress_deadline_exceeded=tracked.newly_exceeded,
+        exhausted=tracked.exceeded,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ResultDecision:
+    failure_count: int
+    phase: str
+    reconciliation: str
+    conditions: list[dict[str, Any]]
+    suspend: bool
+
+
+def decide_result(
+    *,
+    failed: bool,
+    failure_reason: str,
+    failure_limit: int,
+    generation: int,
+    failure_count: int,
+    phase: str,
+    reconciliation: str,
+    previous_conditions: list[dict[str, Any]],
+    now: datetime,
+) -> ResultDecision:
+    """Conta a falha e suspende a reconciliação ao atingir o limite (`SSOT.md` §10.3)."""
+    new_count = failure_count + (1 if failed else 0)
+    suspend = failed and new_count >= failure_limit and reconciliation != "suspended"
+    if phase == "Pending":
+        phase = "Reconciling"  # há uma ação em curso: a reconciliação começou
+    if suspend:
+        phase, reconciliation = "Failed", "suspended"
+    conditions = ready_condition(
+        previous_conditions,
+        status="False",
+        reason="FailureLimitReached" if suspend else ("ActionFailed" if failed else "Reconciling"),
+        message=failure_reason if failed else None,
+        generation=generation,
+        now=now,
+    )
+    return ResultDecision(new_count, phase, reconciliation, conditions, suspend)
 
 
 def check_is_converged(
@@ -162,64 +392,4 @@ def check_is_converged(
             not user_access.is_managed(desired)
             or user_access.converged(desired.get("userAccess") or {}, observed.get("userAccess"))
         )
-    )
-
-
-def decide_convergence(
-    *,
-    desired: Mapping[str, Any],
-    lifecycle: str,
-    generation: int,
-    presence: str,
-    observed: Mapping[str, Any] | None,
-    previous_phase: str,
-    previous_conditions: list[dict[str, Any]],
-    now: datetime,
-    progress_deadline_seconds: int = 300,
-) -> ConvergenceDecision:
-    converged = check_is_converged(desired, presence, observed)
-    prog = progress(
-        previous_conditions,
-        converged=converged,
-        generation=generation,
-        deadline_seconds=progress_deadline_seconds,
-        now=now,
-    )
-    conditions = prog.conditions
-
-    if converged:
-        ready_reason = "Converged"
-        phase = "Active" if lifecycle == "present" else "Pending"
-        conditions = ready_condition(
-            conditions,
-            status="True",
-            reason=ready_reason,
-            message=None,
-            generation=generation,
-            now=now,
-        )
-        return ConvergenceDecision(
-            phase=phase,
-            converged=True,
-            observed_generation=generation,
-            conditions=conditions,
-        )
-
-    # Não convergiu
-    reason = "ProgressDeadlineExceeded" if prog.exceeded else "Reconciling"
-    phase = "Failed" if prog.exceeded else "Pending"
-    conditions = ready_condition(
-        conditions,
-        status="False",
-        reason=reason,
-        message=None,
-        generation=generation,
-        now=now,
-    )
-    return ConvergenceDecision(
-        phase=phase,
-        converged=False,
-        observed_generation=None,
-        conditions=conditions,
-        progress_exceeded=prog.exceeded,
     )

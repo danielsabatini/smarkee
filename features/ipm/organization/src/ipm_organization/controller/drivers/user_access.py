@@ -1,8 +1,14 @@
-"""Driver de leitura e escrita do preparo da Organization para usuários (`userAccess`).
+"""Driver de leitura e escrita do preparo para usuários no Zitadel (API v2, v4.19.4; decisão 0081).
 
-Gerencia o Project Grant do projeto `roles-ipm` e as permissões de administradores
-das contas da plataforma na Organization (decisões 0081, 0094, 0096).
-Todas as chamadas operam com menor privilégio passando `org_id=organization_id`.
+O Project Grant do projeto de permissões do `ipm` para a organização e as permissões de
+administração das contas do `ipm/user` na organização e no Grant. Reaproveita os endpoints
+verificados do Executor e do Observer (decisão 0096). A conta de escrita (`IAM_ORG_MANAGER`, de
+instância, decisão 0060) já tem `project.grant.write` e `org.member.write`.
+
+Verificado contra o Zitadel de dev em 2026-10-21: criar de novo responde `409` (`already_exists`),
+`UpdateProjectGrant` com as mesmas permissões responde `200`, e remover a organização leva o Grant
+e as permissões junto. `UpdateProjectGrant` e `UpdateAdministrator` **substituem** o conjunto: quem
+chama envia o conjunto inteiro.
 """
 
 from collections.abc import Iterable
@@ -10,9 +16,8 @@ from typing import Any, cast
 
 from ipm_organization.controller.drivers.identity import IdentityConnection
 
-ORGANIZATION_TYPE = "ORGANIZATION_RESOURCE_TYPE_ORG"
-PROJECT_GRANT_TYPE = "ORGANIZATION_RESOURCE_TYPE_PROJECT_GRANT"
-ALREADY_EXISTS_ID = "EVENT-398fs"
+PROJECT_SERVICE = "/zitadel.project.v2.ProjectService"
+PERMISSION_SERVICE = "/zitadel.internal_permission.v2.InternalPermissionService"
 
 
 class UserAccessDriver:
@@ -21,145 +26,134 @@ class UserAccessDriver:
         self._project_id = project_id
 
     def organization_resource(self, organization_id: str) -> dict[str, Any]:
-        return {
-            "resourceType": ORGANIZATION_TYPE,
-            "org": {"orgId": organization_id},
-        }
+        return {"organizationId": organization_id}
 
     def grant_resource(self, organization_id: str) -> dict[str, Any]:
-        return {
-            "resourceType": PROJECT_GRANT_TYPE,
-            "projectGrant": {
-                "orgId": organization_id,
-                "projectId": self._project_id,
-            },
-        }
+        return {"projectGrant": {"projectId": self._project_id, "organizationId": organization_id}}
 
     async def grant_permissions(self, organization_id: str) -> list[str] | None:
-        """Permissões do Project Grant do projeto roles-ipm; None se o Grant não existe."""
+        """As permissões do Grant para a organização, ou `None` se o Grant não existe."""
         response = await self._connection.call(
             "POST",
-            "/v2/project_grants",
+            f"{PROJECT_SERVICE}/ListProjectGrants",
             {
-                "queries": [
-                    {"grantedOrgIdQuery": {"grantedOrgId": organization_id}},
-                    {"projectIdQuery": {"projectId": self._project_id}},
+                "filters": [
+                    {"inProjectIdsFilter": {"ids": [self._project_id]}},
+                    {"grantedOrganizationIdFilter": {"id": organization_id}},
                 ]
             },
-            org_id=organization_id,
         )
-        assert response is not None  # noqa: S101
-        grants = cast("list[dict[str, Any]]", self._connection.json(response).get("result") or [])
+        assert response is not None  # noqa: S101 (sem accept_not_found)
+        grants = cast(
+            "list[dict[str, Any]]", self._connection.json(response).get("projectGrants") or []
+        )
         for grant in grants:
             if (
-                grant.get("grantedOrgId") == organization_id
-                and grant.get("projectId") == self._project_id
+                grant.get("projectId") == self._project_id
+                and grant.get("grantedOrganizationId") == organization_id
             ):
-                roles = cast("list[object]", grant.get("roleKeys") or [])
+                roles = cast("list[object]", grant.get("grantedRoleKeys") or [])
                 return sorted(str(role) for role in roles)
         return None
 
     async def create_grant(self, organization_id: str, permissions: list[str]) -> bool:
-        """Cria o Project Grant. False se já existia (idempotência)."""
+        """Cria o Grant. `False` se ele já existe (repetição ou corrida)."""
         response = await self._connection.call(
             "POST",
-            f"/v2/projects/{self._project_id}/grants",
-            {"grantedOrgId": organization_id, "roleKeys": permissions},
+            f"{PROJECT_SERVICE}/CreateProjectGrant",
+            {
+                "projectId": self._project_id,
+                "grantedOrganizationId": organization_id,
+                "roleKeys": permissions,
+            },
             accept_conflict=True,
-            org_id=organization_id,
         )
         return response is not None
 
     async def update_grant(self, organization_id: str, permissions: list[str]) -> None:
+        """Deixa o Grant com exatamente `permissions` (uma retirada sai também dos usuários)."""
         await self._connection.call(
-            "PUT",
-            f"/v2/projects/{self._project_id}/grants/{organization_id}",
-            {"roleKeys": permissions},
-            org_id=organization_id,
+            "POST",
+            f"{PROJECT_SERVICE}/UpdateProjectGrant",
+            {
+                "projectId": self._project_id,
+                "grantedOrganizationId": organization_id,
+                "roleKeys": permissions,
+            },
         )
 
     async def administrator_permissions(
         self, account_id: str, resource: dict[str, Any]
     ) -> frozenset[str] | None:
-        """Permissões da conta no recurso; None se a conta não é administradora dele."""
+        """As permissões da conta no recurso, ou `None` se ela não é administradora dele."""
         response = await self._connection.call(
             "POST",
-            "/v2/administrators/search",
-            {"queries": [{"userIdQuery": {"userId": account_id}}]},
-            org_id=resource.get("org", {}).get("orgId")
-            or resource.get("projectGrant", {}).get("orgId"),
+            f"{PERMISSION_SERVICE}/ListAdministrators",
+            {
+                "filters": [
+                    {"resource": resource},
+                    {"inUserIdsFilter": {"ids": [account_id]}},
+                ]
+            },
         )
-        assert response is not None  # noqa: S101
-        admins = cast("list[dict[str, Any]]", self._connection.json(response).get("result") or [])
-        for admin in admins:
-            if admin.get("userId") == account_id and _matches_resource(
-                admin.get("resource"), resource
-            ):
-                roles = cast("list[object]", admin.get("roles") or [])
+        assert response is not None  # noqa: S101 (sem accept_not_found)
+        found = cast(
+            "list[dict[str, Any]]", self._connection.json(response).get("administrators") or []
+        )
+        for administrator in found:
+            user = cast("dict[str, Any]", administrator.get("user") or {})
+            if user.get("id") == account_id:
+                roles = cast("list[object]", administrator.get("roles") or [])
                 return frozenset(str(role) for role in roles)
         return None
-
-    async def list_administrators(self, organization_id: str) -> list[dict[str, Any]]:
-        """Lê todos os administradores da organização para observação."""
-        response = await self._connection.call(
-            "POST",
-            "/v2/administrators/search",
-            {"queries": []},
-            org_id=organization_id,
-        )
-        assert response is not None  # noqa: S101
-        admins = cast("list[dict[str, Any]]", self._connection.json(response).get("result") or [])
-        results: list[dict[str, Any]] = []
-        for admin in admins:
-            user_id = admin.get("userId")
-            roles = cast("list[object]", admin.get("roles") or [])
-            if user_id:
-                results.append(
-                    {
-                        "accountId": str(user_id),
-                        "permissions": sorted(str(r) for r in roles),
-                    }
-                )
-        return results
 
     async def create_administrator(
         self, account_id: str, resource: dict[str, Any], permissions: Iterable[str]
     ) -> bool:
+        """Dá as permissões à conta no recurso. `False` se ela já é administradora dele."""
         response = await self._connection.call(
             "POST",
-            "/v2/administrators",
-            {"userId": account_id, "roles": list(permissions), "resource": resource},
+            f"{PERMISSION_SERVICE}/CreateAdministrator",
+            {"userId": account_id, "resource": resource, "roles": list(permissions)},
             accept_conflict=True,
-            org_id=resource.get("org", {}).get("orgId")
-            or resource.get("projectGrant", {}).get("orgId"),
         )
         return response is not None
 
     async def update_administrator(
         self, account_id: str, resource: dict[str, Any], permissions: Iterable[str]
     ) -> None:
+        """Deixa a conta com exatamente `permissions` no recurso."""
         await self._connection.call(
-            "PUT",
-            f"/v2/administrators/{account_id}",
-            {"roles": list(permissions), "resource": resource},
-            org_id=resource.get("org", {}).get("orgId")
-            or resource.get("projectGrant", {}).get("orgId"),
+            "POST",
+            f"{PERMISSION_SERVICE}/UpdateAdministrator",
+            {"userId": account_id, "resource": resource, "roles": list(permissions)},
         )
 
-
-def _matches_resource(candidate: object, target: dict[str, Any]) -> bool:
-    if not isinstance(candidate, dict):
-        return False
-    cand_dict = cast("dict[str, Any]", candidate)
-    if cand_dict.get("resourceType") != target.get("resourceType"):
-        return False
-    if target["resourceType"] == ORGANIZATION_TYPE:
-        return cand_dict.get("org", {}).get("orgId") == target["org"]["orgId"]
-    if target["resourceType"] == PROJECT_GRANT_TYPE:
-        cand_pg = cand_dict.get("projectGrant", {})
-        target_pg = target["projectGrant"]
-        return (
-            cand_pg.get("orgId") == target_pg["orgId"]
-            and cand_pg.get("projectId") == target_pg["projectId"]
-        )
-    return False
+    async def list_administrators(
+        self, organization_id: str, *, with_grant: bool
+    ) -> list[dict[str, Any]]:
+        """Administradores na organização e, com `with_grant`, no Grant dela, por conta."""
+        resources = [self.organization_resource(organization_id)]
+        if with_grant:
+            resources.append(self.grant_resource(organization_id))
+        held: dict[str, set[str]] = {}
+        for resource in resources:
+            response = await self._connection.call(
+                "POST",
+                f"{PERMISSION_SERVICE}/ListAdministrators",
+                {"filters": [{"resource": resource}]},
+            )
+            assert response is not None  # noqa: S101 (sem accept_not_found)
+            found = cast(
+                "list[dict[str, Any]]",
+                self._connection.json(response).get("administrators") or [],
+            )
+            for administrator in found:
+                user = cast("dict[str, Any]", administrator.get("user") or {})
+                account_id = str(user.get("id", ""))
+                if account_id:
+                    roles = cast("list[object]", administrator.get("roles") or [])
+                    held.setdefault(account_id, set()).update(str(role) for role in roles)
+        return [
+            {"accountId": account, "permissions": sorted(held[account])} for account in sorted(held)
+        ]

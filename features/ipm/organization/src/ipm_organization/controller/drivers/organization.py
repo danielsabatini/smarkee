@@ -1,8 +1,7 @@
 """Driver de leitura e escrita da organização no Zitadel (v4.19.4).
 
 Operações atômicas e idempotentes usando o `resourceId` como ID no Zitadel.
-A criação (`create_organization`) é uma chamada de nível de instância (sem org_id).
-As demais operações utilizam o header `x-zitadel-orgid` (menor privilégio, decisão 0096).
+Os endpoints e os identificadores de erro são os verificados do Executor e do Observer.
 """
 
 from dataclasses import dataclass
@@ -32,7 +31,6 @@ class OrganizationDriver:
             "POST",
             f"{ORGANIZATION_SERVICE}/ListOrganizations",
             {"queries": [{"idQuery": {"id": organization_id}}]},
-            org_id=organization_id,
         )
         assert response is not None  # noqa: S101
         found = cast("list[dict[str, Any]]", self._connection.json(response).get("result") or [])
@@ -51,7 +49,6 @@ class OrganizationDriver:
             "/v2/organizations",
             {"name": name, "organizationId": organization_id},
             accept_conflict=True,
-            org_id=None,  # Chamada de instância explícita
         )
         return response is not None
 
@@ -61,7 +58,6 @@ class OrganizationDriver:
             f"/v2/organizations/{organization_id}",
             {"name": name},
             NOT_CHANGED_ID,
-            org_id=organization_id,
         )
 
     async def activate_organization(self, organization_id: str) -> None:
@@ -70,7 +66,6 @@ class OrganizationDriver:
             f"/v2/organizations/{organization_id}/activate",
             {},
             ALREADY_ACTIVE_ID,
-            org_id=organization_id,
         )
 
     async def deactivate_organization(self, organization_id: str) -> None:
@@ -79,7 +74,6 @@ class OrganizationDriver:
             f"/v2/organizations/{organization_id}/deactivate",
             {},
             ALREADY_INACTIVE_ID,
-            org_id=organization_id,
         )
 
     async def delete_organization(self, organization_id: str) -> None:
@@ -87,5 +81,4 @@ class OrganizationDriver:
             "DELETE",
             f"/v2/organizations/{organization_id}",
             accept_not_found=True,
-            org_id=organization_id,
         )

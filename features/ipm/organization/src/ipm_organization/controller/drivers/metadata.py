@@ -1,12 +1,16 @@
-"""Driver de leitura e escrita de metadados no Zitadel (`/v2/metadata`).
+"""Driver de leitura e escrita do metadado da organização no Zitadel (API v2, v4.19.4).
 
-Armazena atributos gerenciados como `deletionProtection` da Organization.
-Todas as operações operam com menor privilégio passando `org_id=owner_id`.
+Reaproveita os drivers verificados do Executor e do Observer (decisões 0074 e 0096).
+`SetOrganizationMetadata` sobrescreve só as chaves enviadas e repetir a gravação é sucesso
+(idempotente). O valor trafega em base64, como a API exige. Falha de leitura vira `ProviderError`,
+e a observação a trata como `unknown`.
 """
 
+import base64
+import binascii
 from typing import Any, cast
 
-from ipm_organization.controller.drivers.identity import IdentityConnection
+from ipm_organization.controller.drivers.identity import IdentityConnection, ProviderError
 
 
 class MetadataDriver:
@@ -14,26 +18,31 @@ class MetadataDriver:
         self._connection = connection
 
     async def get_value(self, owner_id: str, key: str) -> str | None:
+        """O valor de `key` na organização, ou `None` se a chave não existe."""
         response = await self._connection.call(
             "POST",
-            "/v2/metadata/search",
-            {"queries": [{"keyQuery": {"key": key}}]},
-            accept_not_found=True,
-            org_id=owner_id,
+            f"/v2/organizations/{owner_id}/metadata/search",
+            {"filters": [{"keyFilter": {"key": key}}]},
         )
-        if response is None:
-            return None
-        entries = cast("list[dict[str, Any]]", self._connection.json(response).get("result") or [])
+        assert response is not None  # noqa: S101 (a busca vazia é 200, nunca 404)
+        entries = cast(
+            "list[dict[str, Any]]", self._connection.json(response).get("metadata") or []
+        )
         for entry in entries:
             if entry.get("key") == key:
-                value = entry.get("value")
-                return None if value is None else str(value)
+                try:
+                    return base64.b64decode(str(entry.get("value", "")), validate=True).decode()
+                except binascii.Error, UnicodeDecodeError:
+                    raise ProviderError(
+                        "InvalidMetadata", detail="invalid metadata value"
+                    ) from None
         return None
 
     async def set_value(self, owner_id: str, key: str, value: str) -> None:
+        """Grava `key = value`, sem tocar nas outras chaves."""
+        encoded = base64.b64encode(value.encode("utf-8")).decode("ascii")
         await self._connection.call(
             "POST",
-            "/v2/metadata",
-            {"metadata": [{"key": key, "value": value}]},
-            org_id=owner_id,
+            f"/v2/organizations/{owner_id}/metadata",
+            {"metadata": [{"key": key, "value": encoded}]},
         )

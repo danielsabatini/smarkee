@@ -38,6 +38,9 @@ class LoopSettings(Section):
     workers: int = 2
     """Número de workers simultâneos de reconciliação."""
 
+    failure_limit: int = 5
+    """Falhas de ação até suspender a reconciliação (`SSOT.md` §10.3)."""
+
     progress_deadline_seconds: int = 300
     """Prazo de progresso para a geração convergir antes de marcar Failed."""
 

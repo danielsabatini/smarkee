@@ -1,9 +1,7 @@
 """Conexão autenticada com o Zitadel para o Controller (decisão 0096).
 
-Transporte autenticado com assertion JWT. Suporta header `x-zitadel-orgid` explícito
-para garantir o princípio do menor privilégio (AGENTS.md §4.2, decisão 0096):
-operações escopadas à organização utilizam `org_id`, reservando chamadas sem org_id
-exclusivamente para operações de instância (como AddOrganization).
+Transporte autenticado com assertion JWT, a chamada HTTP e a classificação dos erros, como no
+Executor e no Observer que o Controller substitui. Nenhum dado do pedido entra em mensagens de erro.
 """
 
 import time
@@ -61,7 +59,6 @@ class IdentityConnection:
         *,
         accept_not_found: bool = False,
         accept_conflict: bool = False,
-        org_id: str | None = None,
     ) -> httpx.Response | None:
         """Executa chamada ao Zitadel. None em 404/409 quando aceitos pelo chamador."""
         headers = {
@@ -69,9 +66,6 @@ class IdentityConnection:
             "Authorization": f"Bearer {await self._access_token()}",
             "Connect-Protocol-Version": "1",
         }
-        if org_id is not None:
-            headers["x-zitadel-orgid"] = org_id
-
         try:
             response = await self._client.request(
                 method, self._settings.base_url + path, headers=headers, json=body
@@ -100,12 +94,10 @@ class IdentityConnection:
         path: str,
         body: dict[str, Any],
         already_done_id: str,
-        *,
-        org_id: str | None = None,
     ) -> None:
         """Chamada cujo resultado já alcançado (código already_done_id) conta como sucesso."""
         try:
-            await self.call(method, path, body, org_id=org_id)
+            await self.call(method, path, body)
         except ProviderError as error:
             if error.reason == "Rejected" and already_done_id in str(error):
                 return
@@ -139,17 +131,16 @@ class IdentityConnection:
 
     @staticmethod
     def _is_not_found(response: httpx.Response) -> bool:
-        if response.status_code != HTTP_NOT_FOUND:
-            return False
         try:
-            body = response.json()
+            body = cast("object", response.json())
         except ValueError:
-            return True
+            return False
         if not isinstance(body, dict):
-            return True
+            return False
         document = cast("dict[str, Any]", body)
-        return document.get("code") == NOT_FOUND_CODE or "NotFound" in str(
-            document.get("message", "")
+        # REST gRPC-gateway devolve o código numérico (5); o Connect devolve o texto `not_found`.
+        return document.get("code") in (NOT_FOUND_CODE, "not_found") and bool(
+            document.get("details")
         )
 
     async def _access_token(self) -> str:

@@ -35,7 +35,9 @@ async def observe_organization(
     deletion_protection = deletion_protection_raw == "true"
 
     grant_perms = await user_access.grant_permissions(organization_id)
-    admins = await user_access.list_administrators(organization_id)
+    admins = await user_access.list_administrators(
+        organization_id, with_grant=grant_perms is not None
+    )
 
     user_access_data: dict[str, Any] = {"administrators": admins}
     if grant_perms is not None:

@@ -24,14 +24,20 @@ from ipm_organization.common.contracts.envelope import read_envelope
 from ipm_organization.common.ids import new_identifier, utc_now
 from ipm_organization.common.logging_config import bind_context, restore_context, save_context
 from ipm_organization.common.resource import MODULE, RESOURCE_TYPE
-from ipm_organization.controller.domain.convergence import decide_convergence
+from ipm_organization.controller.domain.convergence import (
+    ObservedDecision,
+    check_is_converged,
+    decide_observed,
+    decide_result,
+)
 from ipm_organization.controller.domain.decision import DesiredState, ObservedState, decide
 from ipm_organization.controller.drivers.identity import ProviderError
 from ipm_organization.controller.drivers.metadata import MetadataDriver
 from ipm_organization.controller.drivers.organization import OrganizationDriver
 from ipm_organization.controller.drivers.user_access import UserAccessDriver
 from ipm_organization.controller.engine.actions import ActionFailedError, execute
-from ipm_organization.controller.engine.observation import observe_organization
+from ipm_organization.controller.engine.messages import Messages, subject_of
+from ipm_organization.controller.engine.observation import ObservationResult, observe_organization
 from ipm_organization.controller.engine.workqueue import Workqueue
 from ipm_organization.controller.settings import OrganizationControllerSettings
 from ipm_organization.controller.store.ssot import ControllerSsotStore
@@ -133,7 +139,7 @@ class OrganizationController:
         async with self._pool.connection() as conn:
             cursor = conn.cursor(row_factory=dict_row)
             await cursor.execute(
-                "SELECT resource_id FROM ipm.organization WHERE lifecycle = 'present'"
+                "SELECT resource_id FROM ipm.organization WHERE reconciliation = 'active'"
             )
             rows = await cursor.fetchall()
             for row in rows:
@@ -156,8 +162,11 @@ class OrganizationController:
                 saved = save_context()
                 bind_context(resource_id=resource_id)
                 try:
-                    await self.reconcile(resource_id)
-                    self._workqueue.forget(resource_id)
+                    retry = await self.reconcile(resource_id)
+                    if retry:
+                        self._workqueue.add_rate_limited(resource_id)
+                    else:
+                        self._workqueue.forget(resource_id)
                 finally:
                     restore_context(saved)
             except ProviderError as err:
@@ -184,109 +193,240 @@ class OrganizationController:
 
     # ------------------------------------------------------------------ Reconciliação atômica
 
-    async def reconcile(self, resource_id: str) -> None:
-        """Executa o ciclo atômico de reconciliação de uma Organization."""
+    async def reconcile(self, resource_id: str) -> bool:
+        """Executa o ciclo atômico de reconciliação de uma Organization.
+
+        Devolve se o recurso deve voltar à fila (com backoff): houve falha de ação ou ele ainda
+        não convergiu e a reconciliação segue ativa. A observação, a ação, a reobservação, o
+        estado, as Operations e o `updated` saem na mesma transação, com a linha bloqueada.
+        """
         async with self._pool.connection() as conn:
             store = ControllerSsotStore(conn)
             async with store.transaction():
                 row = await store.lock_resource(resource_id)
-                if row is None:
-                    return
+                if row is None or row["reconciliation"] == "suspended":
+                    return False
+                return await self._reconcile_locked(store, resource_id, row)
 
-                desired: Mapping[str, Any] = row["desired"]
-                generation: int = row["desired_generation"]
-                lifecycle: str = row["lifecycle"]
-                reconciliation: str = row["reconciliation"]
+    async def _observe(self, resource_id: str) -> ObservationResult:
+        return await observe_organization(
+            resource_id,
+            organizations=self._drivers.organizations,
+            metadata=self._drivers.metadata,
+            user_access=self._drivers.user_access,
+        )
 
-                if reconciliation == "suspended":
-                    return
+    async def _act(
+        self, resource_id: str, desired: Mapping[str, Any], operation: str
+    ) -> ActionFailedError | None:
+        try:
+            await execute(
+                operation,
+                resource_id,
+                desired,
+                organizations=self._drivers.organizations,
+                metadata=self._drivers.metadata,
+                user_access=self._drivers.user_access,
+            )
+        except ActionFailedError as err:
+            return err
+        except ProviderError as err:
+            return ActionFailedError(err.reason, retryable=err.retryable, message=str(err))
+        return None
 
-                # 1. Observar
-                obs_res = await observe_organization(
+    async def _reconcile_locked(
+        self, store: ControllerSsotStore, resource_id: str, row: Mapping[str, Any]
+    ) -> bool:
+        desired: Mapping[str, Any] = row["desired"]
+        generation: int = row["desired_generation"]
+        lifecycle: str = row["lifecycle"]
+        now = self._clock()
+
+        observation = await self._observe(resource_id)
+        action = decide(
+            DesiredState(
+                lifecycle=lifecycle,
+                name=str(desired.get("name", "")),
+                platform_access=str(desired.get("platformAccess", "granted")),
+                deletion_protection=desired.get("deletionProtection", True) is not False,
+                user_access=desired.get("userAccess"),
+            ),
+            ObservedState(
+                presence=observation.presence,
+                name=observation.data.get("name"),
+                platform_access=observation.data.get("platformAccess"),
+                deletion_protection=observation.data.get("deletionProtection"),
+                user_access=observation.data.get("userAccess"),
+            ),
+        )
+        failure: ActionFailedError | None = None
+        if action is not None:
+            failure = await self._act(resource_id, desired, action.operation)
+            observation = await self._observe(resource_id)  # reobserva logo após a ação
+
+        # A observação é feita dentro do ciclo, depois da geração vigente: a confirma.
+        decision = decide_observed(
+            check_is_converged,
+            desired=desired,
+            lifecycle=lifecycle,
+            generation=generation,
+            observation_generation=generation,
+            presence=observation.presence,
+            observed=observation.data,
+            previous_phase=row["phase"],
+            previous_conditions=row["conditions"],
+            now=now,
+            progress_deadline_seconds=self._settings.loop.progress_deadline_seconds,
+        )
+        self._log_deadlines(resource_id, generation, decision)
+        messages = Messages(self._clock, self._identifiers)
+        requested_by, correlation_id = await store.current_cause(resource_id, generation)
+
+        if decision.remove:
+            await store.settle_operations(
+                resource_id, generation, status="completed", finished=True
+            )
+            await store.delete_resource(resource_id)
+            await self._add_updated(
+                store,
+                messages.updated(
                     resource_id,
-                    organizations=self._drivers.organizations,
-                    metadata=self._drivers.metadata,
-                    user_access=self._drivers.user_access,
+                    lifecycle="absent",
+                    phase="Deleting",
+                    resource_version=row["resource_version"] + 1,
+                    desired_generation=generation,
+                    observed_generation=generation,
+                    correlation_id=correlation_id,
+                    removed=True,
+                ),
+                resource_id,
+            )
+            return False
+
+        phase, conditions = decision.phase, decision.conditions
+        reconciliation, failure_count = row["reconciliation"], row["failure_count"]
+        suspended = False
+        if decision.converged:
+            failure_count = 0
+        elif failure is not None:
+            result = decide_result(
+                failed=True,
+                failure_reason=failure.reason,
+                failure_limit=self._settings.loop.failure_limit,
+                generation=generation,
+                failure_count=failure_count,
+                phase=phase,
+                reconciliation=reconciliation,
+                previous_conditions=conditions,
+                now=now,
+            )
+            failure_count, phase, reconciliation = (
+                result.failure_count,
+                result.phase,
+                result.reconciliation,
+            )
+            conditions, suspended = result.conditions, result.suspend
+            if suspended:
+                logger.warning(
+                    "failure limit reached, reconciliation suspended",
+                    extra={
+                        "smarkee.resource.id": resource_id,
+                        "smarkee.desired.generation": generation,
+                        "smarkee.reason": failure.reason,
+                    },
                 )
+        elif phase == "Pending":
+            phase = "Reconciling"  # há trabalho em curso: a reconciliação começou
 
-                # 2. Decidir
-                desired_state = DesiredState(
-                    lifecycle=lifecycle,
-                    name=str(desired.get("name", "")),
-                    platform_access=str(desired.get("platformAccess", "granted")),
-                    deletion_protection=desired.get("deletionProtection", True) is not False,
-                    user_access=desired.get("userAccess"),
-                )
-                observed_state = ObservedState(
-                    presence=obs_res.presence,
-                    name=obs_res.data.get("name"),
-                    platform_access=obs_res.data.get("platformAccess"),
-                    deletion_protection=obs_res.data.get("deletionProtection"),
-                    user_access=obs_res.data.get("userAccess"),
-                )
-
-                action = decide(desired_state, observed_state)
-                action_failure: ActionFailedError | None = None
-
-                # 3. Agir e reobservar se houver divergência
-                if action is not None:
-                    try:
-                        await execute(
-                            action.operation,
-                            resource_id,
-                            desired,
-                            organizations=self._drivers.organizations,
-                            metadata=self._drivers.metadata,
-                            user_access=self._drivers.user_access,
-                        )
-                    except ActionFailedError as err:
-                        action_failure = err
-                    except ProviderError as err:
-                        action_failure = ActionFailedError(
-                            err.reason, retryable=err.retryable, message=str(err)
-                        )
-
-                    # Reobserva imediatamente após a ação
-                    obs_res = await observe_organization(
-                        resource_id,
-                        organizations=self._drivers.organizations,
-                        metadata=self._drivers.metadata,
-                        user_access=self._drivers.user_access,
-                    )
-
-                # 4. Calcular convergência
-                conv = decide_convergence(
+        observed_generation = generation if decision.converged else row["observed_generation"]
+        changed = (
+            (phase, conditions, reconciliation, failure_count, observation.presence)
+            != (
+                row["phase"],
+                row["conditions"],
+                row["reconciliation"],
+                row["failure_count"],
+                row["presence"],
+            )
+            or observation.data != row["observed"]
+            or observed_generation != row["observed_generation"]
+        )
+        resource_version = await store.save_observation(
+            resource_id,
+            observed=observation.data,
+            presence=observation.presence,
+            observed_at=now,
+            conditions=conditions,
+            phase=phase,
+            observed_generation=generation if decision.converged else None,
+            failure_count=failure_count,
+            reconciliation=reconciliation,
+            changed=changed,
+        )
+        failed_operation = suspended or decision.exhausted
+        await store.settle_operations(
+            resource_id,
+            generation,
+            status="completed"
+            if decision.converged
+            else ("failed" if failed_operation else "in_progress"),
+            finished=decision.converged or failed_operation,
+        )
+        if suspended:
+            await self._add_to_outbox(
+                store,
+                messages.suspended_desired(
+                    resource_id,
                     desired=desired,
-                    lifecycle=lifecycle,
                     generation=generation,
-                    presence=obs_res.presence,
-                    observed=obs_res.data,
-                    previous_phase=row["phase"],
-                    previous_conditions=row["conditions"],
-                    now=self._clock(),
-                    progress_deadline_seconds=self._settings.loop.progress_deadline_seconds,
-                )
+                    requested_by=requested_by,
+                    correlation_id=correlation_id,
+                ),
+                resource_id,
+                "desired",
+            )
+        if changed:
+            await self._add_updated(
+                store,
+                messages.updated(
+                    resource_id,
+                    lifecycle=lifecycle,
+                    phase=phase,
+                    resource_version=resource_version,
+                    desired_generation=generation,
+                    observed_generation=observed_generation,
+                    correlation_id=correlation_id,
+                ),
+                resource_id,
+            )
+        return not decision.converged and not suspended
 
-                # 5. Persistir desfecho no SSOT
-                if conv.converged and lifecycle == "absent":
-                    await store.delete_resource(resource_id)
-                    await store.settle_operations(resource_id, generation, converged=True)
-                else:
-                    await store.save_observation(
-                        resource_id,
-                        observed=obs_res.data,
-                        presence=obs_res.presence,
-                        observed_at=self._clock(),
-                        conditions=conv.conditions,
-                        phase=conv.phase,
-                        observed_generation=conv.observed_generation,
-                    )
-                    if action_failure is not None:
-                        await store.record_failure(resource_id, count=row["failure_count"] + 1)
-                    elif conv.converged:
-                        await store.clear_failures(resource_id)
+    def _log_deadlines(self, resource_id: str, generation: int, decision: ObservedDecision) -> None:
+        extra = {
+            "smarkee.resource.id": resource_id,
+            "smarkee.desired.generation": generation,
+            "smarkee.progress.deadline_seconds": self._settings.loop.progress_deadline_seconds,
+        }
+        if decision.progress_deadline_exceeded:
+            logger.warning("progress deadline exceeded", extra=extra)
+        if decision.observation_stale:
+            logger.warning("observation stale", extra=extra)
 
-                    await store.settle_operations(resource_id, generation, converged=conv.converged)
+    async def _add_updated(
+        self, store: ControllerSsotStore, message: Mapping[str, Any], resource_id: str
+    ) -> None:
+        await self._add_to_outbox(store, message, resource_id, "updated")
+
+    async def _add_to_outbox(
+        self,
+        store: ControllerSsotStore,
+        message: Mapping[str, Any],
+        resource_id: str,
+        message_type: str,
+    ) -> None:
+        await store.add_to_outbox(
+            message, resource_id=resource_id, subject=subject_of(message_type, resource_id)
+        )
 
     def stop(self) -> None:
         self._stop.set()

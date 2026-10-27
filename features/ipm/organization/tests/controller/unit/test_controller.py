@@ -16,13 +16,18 @@ NOW = datetime(2026, 10, 26, 12, 0, 0, tzinfo=UTC)
 
 
 class FakeCursor:
-    def __init__(self, row: dict[str, Any] | None) -> None:
+    def __init__(self, row: dict[str, Any] | None, executed: list[tuple[Any, tuple[Any, ...]]]):
         self._row = row
+        self._executed = executed
+        self._last = ""
 
     async def execute(self, query: Any, params: tuple[Any, ...] = ()) -> None:
-        pass
+        self._last = str(query)
+        self._executed.append((query, params))
 
     async def fetchone(self) -> dict[str, Any] | None:
+        if "RETURNING resource_version" in self._last:
+            return {"resource_version": 2}
         return self._row
 
 
@@ -36,7 +41,7 @@ class FakeConn:
         yield
 
     def cursor(self, *_: Any, **__: Any) -> FakeCursor:
-        return FakeCursor(self._row)
+        return FakeCursor(self._row, self.executed)
 
     async def execute(self, query: Any, params: tuple[Any, ...] = ()) -> None:
         self.executed.append((query, params))
@@ -65,6 +70,9 @@ async def test_reconcile_creates_absent_organization_and_saves_observation() -> 
         "conditions": [],
         "desired": {"name": "acme", "platformAccess": "granted", "lifecycle": "present"},
         "observed": {},
+        "presence": None,
+        "requested_by": "user-1",
+        "correlation_id": "corr-1",
     }
     pool = FakePool(row)
 
@@ -91,4 +99,11 @@ async def test_reconcile_creates_absent_organization_and_saves_observation() -> 
     await controller.reconcile("org-1")
 
     organizations.create_organization.assert_awaited_once_with("org-1", name="acme")
-    assert len(pool.conn.executed) >= 1
+    statements = [(str(query), params) for query, params in pool.conn.executed]
+    # Estado gravado com fase aceita pelo CHECK do SSOT e geração confirmada.
+    update = next(p for q, p in statements if "UPDATE ipm.organization SET observed" in q)
+    assert "Ready" in update
+    # Operation concluída e `updated` no outbox, na mesma transação.
+    assert any("completed" in p for q, p in statements if "organization_operation" in q)
+    outbox = next(p for q, p in statements if "organization_outbox" in q)
+    assert outbox[2] == "manager.updated.ipm.organization.org-1.changed"

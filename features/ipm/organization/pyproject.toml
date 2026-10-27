@@ -58,7 +58,7 @@ include = ["src", "tests/common", "tests/receiver", "tests/manager", "tests/publ
 testpaths = ["tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/controller", "tests/observer", "tests/reconciler", "tests/executor"]
 addopts = ["--import-mode=importlib"]
 # Cada papel com testes de integração tem o seu módulo de apoio (`support_<papel>`).
-pythonpath = ["tests/receiver/integration", "tests/manager/integration", "tests/publisher/integration"]
+pythonpath = ["tests/receiver/integration", "tests/manager/integration", "tests/publisher/integration", "tests/controller/integration"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 

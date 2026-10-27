@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from conftest import unprotect_through_the_loop
+from conftest import operation_statuses, read_ssot, unprotect_through_the_loop
 from contracts import SCHEMAS_ROOT, assert_valid
 from nats.js import JetStreamContext
 
@@ -24,7 +24,6 @@ def subject_of(kind: str, resource_id: str) -> tuple[str, str]:
     """Stream e Subject da última mensagem de cada tipo do recurso."""
     return {
         "desired": ("DESIRED", f"manager.desired.ipm.organization.{resource_id}.changed"),
-        "observed": ("OBSERVED", f"observer.observed.ipm.organization.{resource_id}.changed"),
         "updated": ("UPDATED", f"manager.updated.ipm.organization.{resource_id}.changed"),
     }[kind]
 
@@ -58,6 +57,23 @@ async def wait_for(
             return message
         if asyncio.get_running_loop().time() > deadline:
             raise AssertionError(f"{kind}: condição não atendida: {message}")
+        await asyncio.sleep(0.5)
+
+
+async def observed_where(
+    resource_id: str,
+    predicate: Callable[[dict[str, Any]], bool],
+    *,
+    timeout: float = READY_SECONDS,
+) -> dict[str, Any]:
+    """Espera o estado observado do SSOT (gravado pelo Controller) atender à condição."""
+    deadline = asyncio.get_running_loop().time() + timeout
+    while True:
+        observed = await read_ssot(resource_id)
+        if observed is not None and predicate(observed):
+            return observed
+        if asyncio.get_running_loop().time() > deadline:
+            raise AssertionError(f"observed: condição não atendida: {observed}")
         await asyncio.sleep(0.5)
 
 
@@ -144,7 +160,7 @@ async def test_the_whole_loop_creates_updates_and_removes_the_organization(
     # 1. Criação: o loop converge sozinho até Ready, com a organização criada no Zitadel.
     resource_id, updated = await create_ready(jetstream, created, name)
     assert_valid("common/updated.v1.schema.json", updated["data"])
-    observed = await last(jetstream, "observed", resource_id)
+    observed = await observed_where(resource_id, lambda m: m["presence"] == "present")
     assert observed["presence"] == "present"
     assert_valid("ipm/organization/observed.v1.schema.json", observed["data"])
     user_access = observed["data"].pop("userAccess")
@@ -164,14 +180,9 @@ async def test_the_whole_loop_creates_updates_and_removes_the_organization(
         ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"],
         ["ORG_USER_CREATOR", "PROJECT_GRANT_OWNER"],
     ]
-    raw = await jetstream.get_last_msg(
-        "RESULT", f"executor.completed.ipm.organization.{resource_id}.create"
-    )
-    completed = json.loads(raw.data or b"{}")
-    assert_valid("common/message-envelope.v1.schema.json", completed)
-    assert completed["actionId"].startswith(f"{resource_id}.1.create.")
+    assert await operation_statuses(resource_id) == ["completed"]
 
-    # 2. Renomear: o Executor renomeia a organização e o Observer lê o nome novo.
+    # 2. Renomear: o Controller renomeia a organização e grava o nome novo no observado.
     renamed = name + "-b"
     await send(
         jetstream,
@@ -184,7 +195,7 @@ async def test_the_whole_loop_creates_updates_and_removes_the_organization(
             },
         ),
     )
-    await wait_for(jetstream, "observed", resource_id, lambda m: m["data"].get("name") == renamed)
+    await observed_where(resource_id, lambda m: m["data"].get("name") == renamed)
     updated = await ready_after(jetstream, resource_id, updated["data"]["resourceVersion"])
 
     # 3. `platformAccess` revoked desativa a organização; granted a ativa de novo.
@@ -201,32 +212,31 @@ async def test_the_whole_loop_creates_updates_and_removes_the_organization(
                 requested_by="operator",
             ),
         )
-        await wait_for(
-            jetstream,
-            "observed",
+        await observed_where(
             resource_id,
             lambda m, state=state: m["data"].get("organizationState") == state,
         )
         updated = await ready_after(jetstream, resource_id, updated["data"]["resourceVersion"])
 
-    # 4. Remoção: o Executor remove a organização, o Observer confirma a ausência e o Manager
-    # apaga o registro (`removed`).
+    # 4. Remoção: o Controller remove a organização, confirma a ausência e apaga o registro
+    # (`removed`).
     # Nasce protegida (decisão 0043): o `delete` é rejeitado e nada muda no provedor.
     version = updated["data"]["resourceVersion"]
     await send(jetstream, request(resource_id, "delete", {"resourceVersion": version}))
     await asyncio.sleep(3.0)
     assert not (await last(jetstream, "updated", resource_id))["data"].get("removed")
     version = await unprotect_through_the_loop(jetstream, resource_id, version)
-    # Desproteger percorre o loop: o Executor grava o metadado e o Observer o lê (decisão 0074).
-    unprotected = await last(jetstream, "observed", resource_id)
+    # Desproteger percorre o loop: o Controller grava o metadado e o lê de volta (decisão 0074).
+    unprotected = await observed_where(
+        resource_id, lambda m: m["data"].get("deletionProtection") is False
+    )
     assert unprotected["data"]["deletionProtection"] is False
     await send(jetstream, request(resource_id, "delete", {"resourceVersion": version}))
     removed = await wait_for(
         jetstream, "updated", resource_id, lambda m: m["data"].get("removed") is True
     )
     assert removed["data"]["removed"] is True
-    absent = await last(jetstream, "observed", resource_id)
-    assert (absent["presence"], absent["data"]) == ("absent", {})
+    assert await read_ssot(resource_id) is None  # o registro saiu do SSOT
 
 
 async def test_a_name_already_used_never_reaches_the_provider(
