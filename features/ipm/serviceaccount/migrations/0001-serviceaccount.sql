@@ -61,16 +61,6 @@ CREATE INDEX IF NOT EXISTS serviceaccount_operation_retention
   ON ipm.serviceaccount_operation (updated_at)
   WHERE operation_status IN ('completed', 'failed', 'rejected', 'superseded');
 
-CREATE TABLE IF NOT EXISTS ipm.serviceaccount_action_result (
-  action_id          text        PRIMARY KEY CHECK (length(action_id) BETWEEN 1 AND 512),
-  resource_id        text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
-  desired_generation bigint      NOT NULL CHECK (desired_generation >= 1),
-  action_outcome     text        NOT NULL CHECK (action_outcome IN ('completed', 'failed')),
-  recorded_at        timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS serviceaccount_action_result_recorded
-  ON ipm.serviceaccount_action_result (recorded_at);
-
 CREATE TABLE IF NOT EXISTS ipm.serviceaccount_outbox (
   sequence     bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   message_id   text        NOT NULL UNIQUE CHECK (length(message_id) BETWEEN 1 AND 128),
@@ -116,7 +106,6 @@ GRANT USAGE ON SCHEMA ipm
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON ipm.serviceaccount               TO ipm_serviceaccount_manager;
 GRANT SELECT, INSERT, UPDATE         ON ipm.serviceaccount_operation     TO ipm_serviceaccount_manager;
-GRANT SELECT, INSERT                 ON ipm.serviceaccount_action_result TO ipm_serviceaccount_manager;
 GRANT INSERT                         ON ipm.serviceaccount_outbox        TO ipm_serviceaccount_manager;
 
 GRANT SELECT ON ipm.serviceaccount_v1, ipm.serviceaccount_operation_v1 TO ipm_serviceaccount_receiver;
@@ -125,5 +114,5 @@ GRANT SELECT ON ipm.serviceaccount_outbox TO ipm_serviceaccount_publisher;
 GRANT UPDATE (published_at) ON ipm.serviceaccount_outbox TO ipm_serviceaccount_publisher;
 
 GRANT SELECT, DELETE
-  ON ipm.serviceaccount_outbox, ipm.serviceaccount_action_result, ipm.serviceaccount_operation
+  ON ipm.serviceaccount_outbox, ipm.serviceaccount_operation
   TO ipm_maintenance;

@@ -204,7 +204,7 @@ async def _cleanup_database(resource_ids: list[str]) -> None:
             f"DELETE FROM {TABLE} WHERE resource_id = ANY(%s)",  # noqa: S608 (tabela fixa)
             (resource_ids,),
         )
-        for suffix in ("outbox", "operation", "action_result"):
+        for suffix in ("outbox", "operation"):
             await maintenance.execute(
                 f"DELETE FROM {TABLE}_{suffix}"  # noqa: S608
                 " WHERE resource_id = ANY(%s)",

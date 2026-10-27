@@ -9,7 +9,6 @@ from psycopg import sql
 class Tables:
     resource: sql.Identifier
     operation: sql.Identifier
-    action_result: sql.Identifier
     outbox: sql.Identifier
 
 
@@ -17,7 +16,6 @@ _TABLES = {
     "serviceaccount": Tables(
         resource=sql.Identifier("ipm", "serviceaccount"),
         operation=sql.Identifier("ipm", "serviceaccount_operation"),
-        action_result=sql.Identifier("ipm", "serviceaccount_action_result"),
         outbox=sql.Identifier("ipm", "serviceaccount_outbox"),
     ),
 }

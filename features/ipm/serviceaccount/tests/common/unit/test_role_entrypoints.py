@@ -13,18 +13,12 @@ import pytest
 
 from ipm_serviceaccount.controller import main as controller_main
 from ipm_serviceaccount.controller.settings import ServiceAccountControllerSettings
-from ipm_serviceaccount.executor import main as executor_main
-from ipm_serviceaccount.executor.settings import ServiceaccountExecutorSettings
 from ipm_serviceaccount.manager import main as manager_main
 from ipm_serviceaccount.manager.settings import ServiceaccountManagerSettings
-from ipm_serviceaccount.observer import main as observer_main
-from ipm_serviceaccount.observer.settings import ServiceaccountObserverSettings
 from ipm_serviceaccount.publisher import main as publisher_main
 from ipm_serviceaccount.publisher.settings import IpmServiceaccountPublisherSettings
 from ipm_serviceaccount.receiver import main as receiver_main
 from ipm_serviceaccount.receiver.settings import ServiceaccountReceiverSettings
-from ipm_serviceaccount.reconciler import main as reconciler_main
-from ipm_serviceaccount.reconciler.settings import ServiceaccountReconcilerSettings
 
 
 class FakeHealth:
@@ -85,12 +79,9 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
 
     modules: tuple[ModuleType, ...] = (
         controller_main,
-        executor_main,
         manager_main,
-        observer_main,
         publisher_main,
         receiver_main,
-        reconciler_main,
     )
     for module in modules:
         monkeypatch.setattr(module, "role_runtime", fake_role_runtime)
@@ -102,32 +93,8 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
 
 async def test_the_manager_starts_one_task_per_consumer(runtime: FakeRuntime) -> None:
     assert await manager_main.run(ServiceaccountManagerSettings()) == 0
-    assert runtime.started == ["requested", "observed", "result", "permissions", "roles"]
+    assert runtime.started == ["requested", "permissions", "roles"]
     assert len(runtime.closers) == 1
-
-
-async def test_the_observer_starts_the_state_consumers_and_the_periodic_loop(
-    runtime: FakeRuntime,
-) -> None:
-    assert await observer_main.run(ServiceaccountObserverSettings()) == 0
-    assert runtime.started[-1] == "periodic"
-    assert len(runtime.started) == len(observer_main.STREAMS) + 1
-
-
-async def test_the_executor_starts_one_consumer_per_partition(
-    runtime: FakeRuntime, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("IPM_SERVICEACCOUNT_EXECUTOR_PARTITION_COUNT", "3")
-    assert await executor_main.run(ServiceaccountExecutorSettings()) == 0
-    assert runtime.started == ["action-p0", "action-p1", "action-p2"]
-
-
-async def test_the_reconciler_starts_the_state_consumers_and_the_periodic_loop(
-    runtime: FakeRuntime,
-) -> None:
-    assert await reconciler_main.run(ServiceaccountReconcilerSettings()) == 0
-    assert runtime.started[-1] == "periodic"
-    assert len(runtime.started) == len(reconciler_main.STREAMS) + 1
 
 
 async def test_the_publisher_is_ready_while_no_permanent_failure_blocks_it(

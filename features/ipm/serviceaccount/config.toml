@@ -40,28 +40,6 @@ user = "ipm_serviceaccount_publisher_login"
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
-[tool.ipm.serviceaccount.observer.identity]
-base_url = "http://identity.smarkee.internal:8080"
-host_header = "ipm-dev.smarkee.com.br:8080"
-issuer = "http://ipm-dev.smarkee.com.br:8080"
-
-[tool.ipm.serviceaccount.observer.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-
-[tool.ipm.serviceaccount.reconciler.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-
-[tool.ipm.serviceaccount.executor.identity]
-base_url = "http://identity.smarkee.internal:8080"
-host_header = "ipm-dev.smarkee.com.br:8080"
-issuer = "http://ipm-dev.smarkee.com.br:8080"
-
-[tool.ipm.serviceaccount.executor.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-
 
 [tool.ipm.serviceaccount.controller.database]
 host = "database.smarkee.internal"

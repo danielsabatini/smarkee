@@ -31,9 +31,9 @@ x-image: &component-image
 
 services:
   # Consumer durável de trabalho do Manager para `requested` do tipo (docs/messaging/NATS.md §7.6). O manifesto
-  # do Manager e o do Executor ficam em `consumers/`. Inexistente é criado; existente com configuração idêntica
-  # não muda; configuração diferente falha de forma explícita. Exige os Streams REQUESTED, OBSERVED
-  # e RESULT, criados pelo messaging da plataforma.
+  # do Manager fica em `consumers/`. Inexistente é criado; existente com configuração idêntica
+  # não muda; configuração diferente falha de forma explícita. Exige o Stream REQUESTED, criado pelo
+  # messaging da plataforma.
   ipm-serviceaccount-consumer:
     build:
       context: ../../../infrastructure/tools/nats-client
@@ -47,12 +47,7 @@ services:
       - sh
       - -c
       - >-
-        nats consumer add REQUESTED --config /consumers/ipm-serviceaccount-manager-requested.json &&
-        nats consumer add OBSERVED --config /consumers/ipm-serviceaccount-manager-observed.json &&
-        nats consumer add RESULT --config /consumers/ipm-serviceaccount-manager-result.json &&
-        for partition in 0 1 2 3; do
-          nats consumer add ACTION --config /consumers/ipm-serviceaccount-executor-action-p$$partition.json || exit 1;
-        done
+        nats consumer add REQUESTED --config /consumers/ipm-serviceaccount-manager-requested.json
     volumes:
       - ./consumers:/consumers:ro
     networks:
@@ -152,97 +147,6 @@ services:
       internal:
         aliases:
           - ipm-serviceaccount-manager.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Reconciler (`ipm-serviceaccount-reconciler`): decide a `action` a partir de `desired` e `observed`.
-  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/messaging/NATS.md §7.4).
-  ipm-serviceaccount-reconciler:
-    <<: *component-image
-    command: [ipm-serviceaccount-reconciler]
-    container_name: ipm-serviceaccount-reconciler.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - IPM_SERVICEACCOUNT_RECONCILER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      ipm-serviceaccount-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-serviceaccount-reconciler.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Observer (`ipm-serviceaccount-observer`): lê o Zitadel (conta somente leitura, ORG_OWNER_VIEWER em cada
-  # organização de cliente) e publica `observed`.
-  # Monta só a própria chave do volume da identidade (nunca a de bootstrap nem a do Executor).
-  ipm-serviceaccount-observer:
-    <<: *component-image
-    command: [ipm-serviceaccount-observer]
-    container_name: ipm-serviceaccount-observer.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      IPM_SERVICEACCOUNT_OBSERVER_IDENTITY_PROJECT_ID: ${IPM_SERVICEACCOUNT_IDENTITY_PROJECT_ID:?Defina no .env (ID do projeto roles-ipm, org core)}
-    secrets:
-      - IPM_SERVICEACCOUNT_OBSERVER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-      - type: volume
-        source: identity-bootstrap
-        target: /run/secrets/zitadel-key.json
-        read_only: true
-        volume:
-          subpath: service-account-ipm-serviceaccount-observer.json
-    depends_on:
-      ipm-serviceaccount-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-serviceaccount-observer.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Executor (`ipm-serviceaccount-executor`): única identidade com escrita da service account no Zitadel (conta
-  # ipm-serviceaccount-executor: ORG_USER_CREATOR em cada organização de cliente e PROJECT_GRANT_OWNER no
-  # Grant de roles-ipm dela, decisão 0094). Monta só a própria chave.
-  ipm-serviceaccount-executor:
-    <<: *component-image
-    command: [ipm-serviceaccount-executor]
-    container_name: ipm-serviceaccount-executor.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      IPM_SERVICEACCOUNT_EXECUTOR_IDENTITY_PROJECT_ID: ${IPM_SERVICEACCOUNT_IDENTITY_PROJECT_ID:?Defina no .env (ID do projeto roles-ipm, org core)}
-    secrets:
-      - IPM_SERVICEACCOUNT_EXECUTOR_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-      - type: volume
-        source: identity-bootstrap
-        target: /run/secrets/zitadel-key.json
-        read_only: true
-        volume:
-          subpath: service-account-ipm-serviceaccount-executor.json
-    depends_on:
-      ipm-serviceaccount-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - ipm-serviceaccount-executor.smarkee.internal
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
@@ -361,16 +265,10 @@ secrets:
     environment: IPM_SERVICEACCOUNT_MANAGER_DATABASE_PASSWORD
   IPM_SERVICEACCOUNT_MANAGER_MESSAGING_PASSWORD:
     environment: IPM_SERVICEACCOUNT_MANAGER_MESSAGING_PASSWORD
-  IPM_SERVICEACCOUNT_RECONCILER_MESSAGING_PASSWORD:
-    environment: IPM_SERVICEACCOUNT_RECONCILER_MESSAGING_PASSWORD
-  IPM_SERVICEACCOUNT_OBSERVER_MESSAGING_PASSWORD:
-    environment: IPM_SERVICEACCOUNT_OBSERVER_MESSAGING_PASSWORD
   IPM_SERVICEACCOUNT_CONTROLLER_DATABASE_PASSWORD:
     environment: IPM_SERVICEACCOUNT_CONTROLLER_DATABASE_PASSWORD
   IPM_SERVICEACCOUNT_CONTROLLER_MESSAGING_PASSWORD:
     environment: IPM_SERVICEACCOUNT_CONTROLLER_MESSAGING_PASSWORD
-  IPM_SERVICEACCOUNT_EXECUTOR_MESSAGING_PASSWORD:
-    environment: IPM_SERVICEACCOUNT_EXECUTOR_MESSAGING_PASSWORD
   IPM_SERVICEACCOUNT_PUBLISHER_DATABASE_PASSWORD:
     environment: IPM_SERVICEACCOUNT_PUBLISHER_DATABASE_PASSWORD
   IPM_SERVICEACCOUNT_PUBLISHER_MESSAGING_PASSWORD:
