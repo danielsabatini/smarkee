@@ -24,14 +24,14 @@ from ipm_organization.common.contracts.envelope import read_envelope
 from ipm_organization.common.ids import new_identifier, utc_now
 from ipm_organization.common.logging_config import bind_context, restore_context, save_context
 from ipm_organization.common.resource import MODULE, RESOURCE_TYPE
-from ipm_organization.controller.domain.actions import ActionFailedError, execute
 from ipm_organization.controller.domain.convergence import decide_convergence
 from ipm_organization.controller.domain.decision import DesiredState, ObservedState, decide
-from ipm_organization.controller.domain.observation import observe_organization
 from ipm_organization.controller.drivers.identity import ProviderError
 from ipm_organization.controller.drivers.metadata import MetadataDriver
 from ipm_organization.controller.drivers.organization import OrganizationDriver
 from ipm_organization.controller.drivers.user_access import UserAccessDriver
+from ipm_organization.controller.engine.actions import ActionFailedError, execute
+from ipm_organization.controller.engine.observation import observe_organization
 from ipm_organization.controller.engine.workqueue import Workqueue
 from ipm_organization.controller.settings import OrganizationControllerSettings
 from ipm_organization.controller.store.ssot import ControllerSsotStore
