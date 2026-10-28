@@ -103,12 +103,13 @@ ORGANIZATIONS = Kind(
     "ipm",
     "organization",
     "ipm.organization",
-    ("ipm.organization_outbox", "ipm.organization_operation"),
-    "ipm_organization_manager_login",
+    ("ipm.organization_outbox", "ipm.organization_idempotency"),
+    "ipm_organization_api_login",
     "ipm_maintenance_login",
     "name",
     deletion_protected=True,
     delete_role="ipm_organization_controller_login",
+    removable_through_requested=False,
 )
 
 # Usuários da Organization (decisão 0077): nascem desprotegidos, mas podem ter sido protegidos.
@@ -116,22 +117,24 @@ ORGANIZATION_USERS = Kind(
     "ipm",
     "user",
     "ipm.user",
-    ("ipm.user_outbox", "ipm.user_operation"),
-    "ipm_user_manager_login",
+    ("ipm.user_outbox", "ipm.user_idempotency"),
+    "ipm_user_api_login",
     "ipm_maintenance_login",
     "email",
     deletion_protected=True,
     delete_role="ipm_user_controller_login",
+    removable_through_requested=False,
 )
 BILLING_ACCOUNTS = Kind(
     "bsm",
     "account",
     "bsm.account",
-    ("bsm.account_outbox", "bsm.account_operation", "bsm.account_action_result"),
-    "bsm_account_manager_login",
+    ("bsm.account_outbox", "bsm.account_idempotency"),
+    "bsm_account_api_login",
     "bsm_maintenance_login",
     "displayName",
     deletion_protected=True,
+    removable_through_requested=False,
 )
 # Permissions atômicas (decisões 0084 e 0098): existem só no SSOT, como role de projeto no Zitadel;
 # não têm plano de dados. A API síncrona não tem `requested`: a limpeza apaga a linha direto com o

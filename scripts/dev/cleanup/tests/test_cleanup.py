@@ -1,6 +1,6 @@
 """Limpeza de dev: o que é de teste (e só isso), a ordem de remoção e a verificação final."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import pytest
 
@@ -289,9 +289,10 @@ async def test_a_clean_environment_exits_0() -> None:
 async def test_the_loop_is_tried_first_and_only_ready_resources_are_asked() -> None:
     world = World()
     world.bus.phases = {ORG_ID: "Ready", USER_ID: "Failed"}
+    kind_with_loop = replace(ORGANIZATIONS, removable_through_requested=True)
 
-    ready = await remove_through_the_loop(world.ports(), ORGANIZATIONS, ORG_ID, say_nothing)
-    failed = await remove_through_the_loop(world.ports(), ACCOUNTS, USER_ID, say_nothing)
+    ready = await remove_through_the_loop(world.ports(), kind_with_loop, ORG_ID, say_nothing)
+    failed = await remove_through_the_loop(world.ports(), kind_with_loop, USER_ID, say_nothing)
 
     assert ready is True and failed is False
     assert world.bus.requested == [ORG_ID]  # o que não está `Ready` não é pedido ao loop
@@ -301,16 +302,23 @@ async def test_a_resource_the_loop_does_not_remove_in_time_is_reported_as_not_re
     world = World()
     world.bus.phases = {ORG_ID: "Ready"}
     world.bus.removes_when_asked = False
+    kind_with_loop = replace(ORGANIZATIONS, removable_through_requested=True)
 
-    assert await remove_through_the_loop(world.ports(), ORGANIZATIONS, ORG_ID, say_nothing) is False
+    assert (
+        await remove_through_the_loop(world.ports(), kind_with_loop, ORG_ID, say_nothing) is False
+    )
 
 
-async def test_apply_removes_through_the_loop_then_directly_what_is_left_and_verifies() -> None:
+async def test_apply_removes_through_the_loop_then_directly_what_is_left_and_verifies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loop_org = replace(ORGANIZATIONS, removable_through_requested=True)
+    monkeypatch.setattr("smarkee_dev_cleanup.engine.ORGANIZATIONS", loop_org)
     world = World()
     world.identity.orgs = {ORG_ID: "acme-1"}
     world.identity.users = {USER_ID: "e2e-1@example.com"}
     world.ssot.tables = {
-        ORGANIZATIONS: [Row(ORG_ID, "acme-1")],
+        loop_org: [Row(ORG_ID, "acme-1")],
         ACCOUNTS: [Row(USER_ID, "e2e-1@example.com")],
         SERVICES: [Row("s1", USER_ID)],
     }
@@ -321,7 +329,7 @@ async def test_apply_removes_through_the_loop_then_directly_what_is_left_and_ver
         async def request_deletion(self, kind: Kind, resource_id: str, version: str) -> None:
             await super().request_deletion(kind, resource_id, version)
             world.identity.orgs.pop(resource_id, None)  # o Executor remove no Zitadel
-            world.ssot.tables[ORGANIZATIONS] = []  # e o Manager apaga a linha
+            world.ssot.tables[loop_org] = []  # e o Manager apaga a linha
 
     loop = LoopRemoves(phases=world.bus.phases)
     world.bus = loop
@@ -335,6 +343,28 @@ async def test_apply_removes_through_the_loop_then_directly_what_is_left_and_ver
     assert find(world.ports()).is_clean()
     assert loop.purged["ipm"] == {ORG_ID}
     assert loop.purged["core"] == {USER_ID} and loop.purged["sum"] == {"s1"}
+    assert world.mail.messages == 0
+
+
+async def test_apply_removes_directly_when_no_kind_uses_the_loop() -> None:
+    world = World()
+    world.identity.orgs = {ORG_ID: "acme-1"}
+    world.identity.users = {USER_ID: "e2e-1@example.com"}
+    world.ssot.tables = {
+        ORGANIZATIONS: [Row(ORG_ID, "acme-1")],
+        ACCOUNTS: [Row(USER_ID, "e2e-1@example.com")],
+        SERVICES: [Row("s1", USER_ID)],
+    }
+    world.mail.messages = 2
+    lines: list[str] = []
+
+    code = await clean(world.ports(), apply_changes=True, say=lines.append)
+
+    assert code == 0, lines
+    assert world.identity.deleted == [f"org:{ORG_ID}", f"user:{USER_ID}"]
+    assert find(world.ports()).is_clean()
+    assert world.bus.purged["ipm"] == {ORG_ID}
+    assert world.bus.purged["core"] == {USER_ID} and world.bus.purged["sum"] == {"s1"}
     assert world.mail.messages == 0
 
 
@@ -389,9 +419,13 @@ def test_findings_list_everything_it_would_remove() -> None:
     assert USER_ID in text and "3 mensagem" in text
 
 
-async def test_a_protected_resource_is_unprotected_before_the_loop_deletes_it() -> None:
+async def test_a_protected_resource_is_unprotected_before_the_loop_deletes_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loop_org = replace(ORGANIZATIONS, removable_through_requested=True)
+    monkeypatch.setattr("smarkee_dev_cleanup.engine.ORGANIZATIONS", loop_org)
     world = World()
-    world.ssot.tables[ORGANIZATIONS] = [Row(ORG_ID, "conf-1")]
+    world.ssot.tables[loop_org] = [Row(ORG_ID, "conf-1")]
     world.identity.orgs[ORG_ID] = "conf-1"
     world.bus.phases[ORG_ID] = "Ready"
     lines: list[str] = []
@@ -402,10 +436,14 @@ async def test_a_protected_resource_is_unprotected_before_the_loop_deletes_it() 
     assert world.bus.requested == [ORG_ID]
 
 
-async def test_without_unprotection_the_loop_is_skipped_and_the_direct_path_is_used() -> None:
+async def test_without_unprotection_the_loop_is_skipped_and_the_direct_path_is_used(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loop_org = replace(ORGANIZATIONS, removable_through_requested=True)
+    monkeypatch.setattr("smarkee_dev_cleanup.engine.ORGANIZATIONS", loop_org)
     world = World()
     world.ssot.never_unprotects = True
-    world.ssot.tables[ORGANIZATIONS] = [Row(ORG_ID, "conf-1")]
+    world.ssot.tables[loop_org] = [Row(ORG_ID, "conf-1")]
     world.identity.orgs[ORG_ID] = "conf-1"
     world.bus.phases[ORG_ID] = "Ready"
 

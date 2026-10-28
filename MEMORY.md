@@ -13,6 +13,7 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - **Banco `ssot`** (decisão `0087`) é o único banco de recursos; o banco `platform` foi extinto (decisão `0099`; dump prévio em `.workspace/platform-before-drop.dump`).
 - **Identidade (`infrastructure/dev/identity`):** chaves das service accounts do Zitadel persistem no volume Docker `identity-bootstrap`.
 - **Ambiente local OpenCode:** `~/.config/opencode/opencode.json` carrega `AGENTS.md` e `MEMORY.md` globalmente.
+- **Utilitário `scripts/dev/cleanup`:** 100% alinhado à arquitetura vigente pós-loop de 7 papéis (`ORGANIZATIONS`, `ORGANIZATION_USERS` e `BILLING_ACCOUNTS` atualizados para `*_api_login` e `*_idempotency`, sem dependência de papéis de manager ou tabelas de operation), suíte de testes 100% verde (99/99) e ambiente local dev completamente limpo e verificado.
 
 ## Próximos passos imediatos
 00. **Plano de evolução ipm/* e loop** (`~/.opencode/plan/ipm-resource-control-loop-evolution.md`; ordem `S0 → S2 → S1 → S3 → S4 → S5 → S6`):
