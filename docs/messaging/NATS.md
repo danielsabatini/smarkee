@@ -1,10 +1,8 @@
 # NATS
 
-> **Vigência (decisão [`0096`](../../.decisions/0096-unificacao-do-loop-de-reconciliacao-no-controller.md)):** `ipm/organization`, `ipm/serviceaccount` e `ipm/user` não têm mais Observer, Reconciler e Executor: um único processo `controller` observa, decide, age e reobserva numa transação, e os Streams `OBSERVED`, `ACTION` e `RESULT` e a tabela `<tipo>_action_result` não existem para eles. Esses tipos só consomem `REQUESTED` (Manager) e `DESIRED` (Controller); **`ipm/serviceaccount` não usa `REQUESTED`** (decisão 0098: a API admite a escrita de forma síncrona e grava o `desired` no outbox, `emitter: api`); os Streams continuam existindo porque os demais tipos ainda os usam. Este documento descreve o modelo com os três papéis, que segue valendo para os demais tipos até a etapa S6 do plano de evolução, que o reescreve.
-
 # 1. Introdução
 
-Este documento define a implementação de referência do modelo de mensageria em NATS e NATS JetStream. A semântica das mensagens é definida exclusivamente em `MESSAGING.md`.
+Este documento define a implementação de referência do modelo de mensageria em NATS e NATS JetStream (decisão 0101). A semântica das mensagens é definida exclusivamente em `MESSAGING.md`.
 
 NATS é uma tecnologia de transporte. Este documento descreve como o contrato semântico é materializado em Subjects, Streams, Consumers e demais recursos do NATS.
 
@@ -50,16 +48,14 @@ O emissor funcional (`api` ou `controller`) é declarado no envelope da mensagem
 
 ## 3.4 Destinatário não é codificado no Subject
 
-Não utilizar:
+Não utilizar prefixos ou tokens no Subject para representar destinatário:
 
 ```text
-manager.executor.desired...
-observer.manager.observed...
+api.controller.desired...
+controller.api.updated...
 ```
 
-para representar destinatário.
-
-O consumidor manifesta interesse por meio de subscription ou JetStream Consumer.
+O consumidor manifesta interesse exclusivamente por meio de subscription ou JetStream Consumer sobre os subjects canônicos.
 
 ## 3.5 `resourceId` no Subject
 
@@ -76,11 +72,11 @@ A regra semântica de identidade de recurso continua pertencendo a `MESSAGING.md
 Cada recurso possui um único Subject para o seu estado pretendido e um único Subject para o fato consolidado:
 
 ```text
-desired.ipm.organization.<id>
-updated.ipm.organization.<id>
+desired.<module>.<resourceType>.<resourceId>
+updated.<module>.<resourceType>.<resourceId>
 ```
 
-Assim, cada recurso possui **um único Subject** por tipo, e a retenção de uma mensagem por Subject guarda exatamente o último estado do recurso no Stream correspondente.
+Assim, cada recurso possui **um único Subject** por tipo de mensagem, e a retenção de uma mensagem por Subject guarda exatamente o último estado do recurso no Stream correspondente.
 
 # 4. Core NATS e JetStream
 
@@ -88,7 +84,7 @@ Core NATS entrega mensagens aos subscribers conectados e não fornece persistên
 
 ## 4.1 Uso recomendado
 
-Para mensagens de negócio relacionadas a `desired` e `observed` que tenham requisito de durabilidade, replay, retry ou tolerância a indisponibilidade do consumidor, utilizar JetStream.
+Para mensagens de negócio relacionadas a `desired` e `updated` que tenham requisito de durabilidade, replay, retry ou tolerância a indisponibilidade do consumidor, utilizar JetStream.
 
 Core NATS pode ser utilizado para interações que explicitamente sejam efêmeras, como sinais operacionais ou request/reply de baixo risco, desde que isso não viole o contrato de `MESSAGING.md`.
 
@@ -96,17 +92,25 @@ Core NATS pode ser utilizado para interações que explicitamente sejam efêmera
 
 ## 5.1 Subject canônico
 
+O formato canônico de 4 tokens (decisão 0101) é:
+
 ```text
 <messageType>.<module>.<resourceType>.<resourceId>
 ```
 
+Em que:
+- `messageType`: `desired` ou `updated`;
+- `module`: módulo do recurso (ex.: `ipm`, `core`, `bsm`, `sum`);
+- `resourceType`: tipo do recurso (ex.: `organization`, `account`, `service`, `user`);
+- `resourceId`: identificador do recurso (UUID v7 ou equivalente sem pontos).
+
 ## 5.2 Exemplos
 
 ```text
-desired.ipm.organization.<id>
-updated.ipm.organization.<id>
-desired.core.account.<id>
-updated.core.account.<id>
+desired.ipm.organization.0192d6e3-231a-7b3c-a579-a7e7810e95ab
+updated.ipm.organization.0192d6e3-231a-7b3c-a579-a7e7810e95ab
+desired.core.account.0192d6e3-552b-7c1d-842f-d8b3c10a4421
+updated.core.account.0192d6e3-552b-7c1d-842f-d8b3c10a4421
 ```
 
 ## 5.3 Wildcards
@@ -119,7 +123,6 @@ Exemplos:
 desired.>
 desired.ipm.>
 desired.ipm.organization.>
-
 updated.ipm.organization.>
 ```
 
@@ -134,269 +137,169 @@ em componentes de produção.
 
 ## 5.4 Identificadores
 
-Quando `resourceId` estiver no Subject:
+O identificador deve sempre ocupar um único token:
 
 ```text
 desired.ipm.organization.01a17641-4895-761f-888f-24ca35143f79
 ```
 
-não utilizar:
-
-```text
-observer.observed.ipm.organization.organization.01.changed
-```
-
-porque o segundo exemplo cria dois tokens adicionais.
+Não utilizar identificadores contendo pontos ou sufixos de operação no Subject.
 
 # 6. Streams JetStream
 
-Streams são o mecanismo de persistência e replay do JetStream. O desenho do Stream deve seguir o modelo de entrega desejado, e não apenas a conveniência de agrupar Subjects. JetStream suporta políticas de retenção `limits`, `interest` e `workqueue`, além de consumidores, replay e replicação.
+Streams são o mecanismo de persistência e replay do JetStream. O desenho do Stream segue a semântica das classes de mensagem (decisão 0101): `DESIRED` para estado pretendido, `UPDATED` para fatos consolidados e `AUDIT` para histórico auditável.
 
-## 6.1 Um Stream por `messageType`
+## 6.1 Consolidação dos Streams
 
-A regra é explícita: **cada `messageType` possui seu Stream**, com a retenção adequada à sua classe (ver `MESSAGING.md`, classes de mensagem). A única exceção é `completed` e `failed`, que compartilham o Stream `RESULT` por serem resultados da mesma operação, com os mesmos consumidores e a mesma retenção.
+A plataforma consolida o transporte em 3 Streams JetStream:
 
-Motivos:
+- `DESIRED`: persistência do estado pretendido por recurso;
+- `UPDATED`: fatos de alteração e convergência emitidos após consolidação;
+- `AUDIT`: trilha histórica imutável que agrega `DESIRED` e `UPDATED` via stream sources.
 
-- **segurança:** a autorização de JetStream é por Stream. A permissão de subscribe por Subject não restringe o que um consumidor JetStream lê, e o controle por filtro de consumidor só existe para consumidor com um único filtro. Um Stream por tipo isola quem acessa `action` de quem acessa `requested`;
-- **robustez:** limites e política de descarte são por Stream, de modo que um excesso de um tipo não bloqueia outro;
-- **resiliência:** a falha ou a limpeza de um Stream afeta um único tipo;
-- **simplicidade:** a regra "Stream = `messageType`" dispensa uma segunda taxonomia.
-
-Esta regra não contradiz a recomendação de evitar fragmentação (seção própria): ela se aplica a recursos e componentes, e não a tipos semânticos.
+Streams legados (`REQUESTED`, `OBSERVED`, `ACTION` e `RESULT`) pertenciam à divisão distribuída anterior em 7 papéis e foram eliminados nas decisões 0096, 0098 e 0101.
 
 ## 6.2 Mapeamento
 
 | Stream | Subjects | Retenção | Classe | Consumidores |
 |---|---|---|---|---|
-| `DESIRED` | `desired.>` | `LimitsPolicy`, `MaxMsgsPerSubject=1`, `allow_direct`, `max_age=0` (indefinido) | Estado | Controller, projeções da API |
-| `UPDATED` | `updated.>` | `LimitsPolicy`, `MaxMsgsPerSubject=1`, `allow_direct`, `max_age=24h` em dev | Fato | Console, observabilidade, audit |
-| `AUDIT` | `audit.>` | `LimitsPolicy`, `max_age=24h` em dev, replicação de fontes (`sources: [DESIRED, UPDATED]`), `deny_delete: true` | Histórico | Auditoria, conformidade |
-| `QUARANTINE` | definido pela política de quarentena | `LimitsPolicy` | Diagnóstico | Operação |
+| `DESIRED` | `desired.>` | `LimitsPolicy`, `max_msgs_per_subject=1`, `allow_direct=true`, `max_age=0` (indefinido) | Estado | Controller, projeções locais da API |
+| `UPDATED` | `updated.>` | `LimitsPolicy`, `max_msgs_per_subject=1`, `allow_direct=true`, `max_age=24h` em dev | Fato | Console, observabilidade, clientes externos |
+| `AUDIT` | `audit.>` | `LimitsPolicy`, `max_msgs_per_subject=-1` (histórico total), `deny_delete=true`, `max_age=24h` em dev | Histórico | Auditoria, conformidade |
+| `QUARANTINE` | definido por política de DLQ | `LimitsPolicy` | Diagnóstico | Operação / Engenharia |
 
-Os valores de limites (`MaxAge`, tamanho, réplicas) dependem do ambiente. Os streams legados `REQUESTED`, `OBSERVED`, `ACTION` e `RESULT` pertenciam ao loop de 7 papéis e foram descontinuados na evolução para o modelo reconciliado direto (Controller).
+Os limites de ambiente em dev são: `max_bytes: 1GB`, `max_msg_size: 512KB` e `duplicate_window: 120s`.
 
-## 6.3 `REQUESTED` e `ACTION`: trabalho
+## 6.3 `DESIRED`: estado pretendido
 
-São mensagens de trabalho com **um único consumidor lógico**. A mensagem deve ser processada uma vez por um grupo de instâncias e deixar de existir após o ACK.
+Mensagens de estado pretendido emitidas pela API (via transactional outbox e Publisher):
 
-- `WorkQueuePolicy`: a mensagem é removida após o ACK;
-- `DiscardNew`: com o Stream cheio, o publicador recebe erro, em vez de o Stream descartar trabalho antigo. O publicador deve tratar esse erro como contrapressão (o Receiver rejeita o pedido de forma retentável; o Reconciler tenta novamente na próxima reconciliação);
-- consumidores de um Stream `WorkQueue` não podem ter filtros de Subject sobrepostos. Cada Stream de trabalho possui um único consumidor durável por função;
-- um segundo leitor (auditoria, métricas) **não** deve consumir o Stream de trabalho. Esses leitores usam `AUDIT` (ver seção de Source, Mirror e Republish).
+- `LimitsPolicy` com `max_msgs_per_subject: 1`: o Stream retém o último estado pretendido de cada recurso;
+- `allow_direct: true` habilitado para leitura direta de alta performance por Subject ou chave de mensagem;
+- `max_age: 0` (retenção temporal indefinida): o último estado pretendido permanece preservado para reconciliação contínua e recuperação a frio após reinício;
+- Consumido pelo `Controller` para conduzir a convergência do recurso e pelas APIs de outros serviços que mantêm projeções locais em memória (decisão 0100).
 
-`ACTION` publica com o cabeçalho `Nats-Msg-Id` igual ao `actionId`. O broker descarta duplicatas dentro da janela de deduplicação (por padrão, 2 minutos). Isso é uma otimização: a deduplicação do Executor por `actionId` continua obrigatória.
+## 6.4 `UPDATED`: fatos consolidados
 
-**Contexto de trace:** quando a origem traz um `traceparent` W3C, todas as publicações dos componentes o repassam no cabeçalho `traceparent`, sem alteração, ao lado de `Nats-Msg-Id`. Ele não faz parte do envelope e não influencia a deduplicação (decisão 0055).
+Fatos emitidos após convergência ou alteração confirmada (gravados no outbox e publicados pelo Publisher):
 
-## 6.4 `DESIRED`: estado
+- `LimitsPolicy` com `max_msgs_per_subject: 1` e `allow_direct: true`;
+- Retenção temporal configurada por ambiente (24h em dev, durável em produção);
+- Consumido por clientes, Console e ferramentas de observabilidade para acompanhamento de mudanças de fase e geração.
 
-Mensagens de estado pretendido: a mais recente por recurso substitui as anteriores.
+## 6.5 `AUDIT`: trilha histórica imutável
 
-- `LimitsPolicy` com `MaxMsgsPerSubject=1`: o Stream retém o último estado de cada recurso, e **não** remove a mensagem após o ACK;
-- `allow_direct: true` habilitado para leitura direta de alta performance pelo `Nats-Msg-Id` ou Subject;
-- retenção temporal indefinida (`max_age: 0`), mantendo o último estado pretendido disponível para reconciliação contínua e recuperação a frio.
+Histórico completo de auditoria das mensagens que trafegam na plataforma:
 
-## 6.5 `UPDATED`: fatos
+- Configurado com replicação nativa de fontes (`sources: [{"name": "DESIRED"}, {"name": "UPDATED"}]`);
+- `deny_delete: true` impede expurgo ou alteração de mensagens individuais já gravadas;
+- `max_msgs_per_subject: -1` preserva todas as versões e transições cronológicas de cada recurso;
+- Não possui sobreposição de subjects de publicação direta com `DESIRED` ou `UPDATED`.
 
-Fatos imutáveis de convergência de recursos consolidados pelo Controller:
+## 6.6 Contexto de rastreabilidade (Tracing)
 
-- `LimitsPolicy` com `MaxMsgsPerSubject=1`, `allow_direct: true` e `max_age: 24h` (em dev);
-- consumidos por Console, observabilidade e sistemas de auditoria.
-
-## 6.6 `AUDIT`
-
-Auditoria histórica imutável das mensagens de estado e fatos da plataforma:
-
-- Configurado com replicação de Stream (`sources: [{"name": "DESIRED"}, {"name": "UPDATED"}]`);
-- `deny_delete: true` para proteção contra expurgo intencional ou acidental de mensagens individuais;
-- `max_msgs_per_subject: -1` preserva o histórico cronológico de todas as versões de cada recurso.
+Quando a requisição original possui contexto OpenTelemetry/W3C (`traceparent`), o Publisher repassa o cabeçalho `traceparent` no transporte NATS ao lado do `Nats-Msg-Id`. O rastreador extrai o contexto da mensagem, mantendo o span vinculado à operação original de forma distribuída (decisão 0055).
 
 ## 6.7 Evitar streams excessivamente fragmentados
 
-Não criar um Stream por recurso ou por componente sem necessidade operacional.
-
-A divisão por `messageType` (6 Streams operacionais) é deliberada. Qualquer divisão adicional deve considerar:
-
-- política de retenção;
-- modelo de consumo;
-- requisitos de durabilidade;
-- recuperação;
-- segurança;
-- volume;
-- ciclo de vida operacional.
+Não criar um Stream por recurso ou por componente. A divisão padronizada nos Streams `DESIRED`, `UPDATED` e `AUDIT` é suficiente para isolar o ciclo de vida, as políticas de retenção e as garantias de auditoria sem sobrecarga de grupos Raft ou descritores de arquivos no broker.
 
 # 7. Consumers
 
-Consumers mantêm o estado de entrega por leitor e controlam como mensagens persistidas são disponibilizadas. JetStream suporta pull consumers, replay, ACK, redelivery e escalabilidade entre várias instâncias de um mesmo consumer.
+Consumers mantêm o estado de entrega por leitor e controlam como mensagens persistidas são disponibilizadas. JetStream suporta pull consumers, replay, ACK, redelivery e escalabilidade entre instâncias.
 
-## 7.1 Serviço e consumer
+## 7.1 Papéis e consumers por serviço
 
-A plataforma é composta por muitos serviços pequenos. Cada papel é um serviço com contêiner próprio (decisões 0015 e 0063); o Publisher é o sexto papel (decisão 0019). Para cada módulo e tipo de recurso existe o mesmo conjunto de papéis, criados à medida que se tornam necessários:
+Cada módulo e tipo de recurso é estruturado em papéis bem delimitados (decisões 0096, 0098 e 0100):
 
-```text
-<módulo>-<tipo>-receiver
-<módulo>-<tipo>-manager
-<módulo>-<tipo>-publisher
-<módulo>-<tipo>-observer
-<módulo>-<tipo>-reconciler
-<módulo>-<tipo>-executor
-```
+- `<módulo>-<tipo>-api`: interface HTTP síncrona com os clientes. Não publica no broker diretamente: persiste o recurso e os eventos no transactional outbox no SSOT (`ssot`). Cria consumers de estado em memória no stream `DESIRED` apenas quando necessita de projeções locais de outros recursos sem acoplamento HTTP (decisão 0100);
+- `<módulo>-<tipo>-publisher`: processo em background responsável pela garantia de entrega do outbox para o broker NATS (streams `DESIRED` e `UPDATED`). Não consome streams do NATS;
+- `<módulo>-<tipo>-controller`: processo único e autônomo de reconciliação contínua para recursos que possuem provedor ou estado externo (decisão 0096). Consome `DESIRED` com consumer de estado em memória para alimentar seu cache e laço de controle.
 
-Um consumer pertence a **um único Stream**. Portanto, um serviço possui um consumer **por Stream que lê**. Cada consumer possui um **filtro único** no nível `<módulo>.<tipo>`, por exemplo `desired.ipm.organization.>`.
+## 7.2 Classes de consumer no modelo consolidado
 
-Os Streams são fixos (um por `messageType`); a criação de um novo módulo ou tipo de recurso acrescenta apenas consumers, e não Streams.
+Com a consolidação nos 3 streams permanentes (`DESIRED`, `UPDATED`, `AUDIT`), os consumers adotam a seguinte classificação:
 
-## 7.2 Classes de consumer
-
-| Classe | Quando | Modelo | Serviços |
+| Classe | Finalidade | Modelo | Serviços |
 |---|---|---|---|
-| Trabalho | `requested` e `action`: cada mensagem é processada uma vez | Durável pull, compartilhado pelas instâncias | Manager (`requested`), Executor (`action`) |
-| Persistência | `observed` e `result` consumidos para gravar no SSOT | Durável pull, compartilhado pelas instâncias | Manager (`observed`, `result`) |
-| Estado em memória | `desired`, `observed` e `result` consumidos para manter um cache | Um consumer **por instância** | Reconciler, Observer |
+| Estado em memória (`StateConsumer`) | Manter cache do estado mais recente por recurso para reconciliação ou projeção | Um consumer durável **por instância**, com limpeza por inatividade (`inactive_threshold`) | `controller` (em `DESIRED`) e `api` (projeções em `DESIRED`) |
+| Observabilidade e Fatos | Acompanhar conclusões de ciclos e mudanças de fase | Pull consumer durável compartilhado | Console, telemetria, clientes |
+| Auditoria | Trilha histórica imutável consolidada | Pull consumer durável | Auditoria e conformidade |
 
-## 7.3 Trabalho e persistência: durável compartilhado
+## 7.3 Estado em memória: `StateConsumer` por instância
 
-Todas as instâncias do serviço se ligam ao **mesmo consumer durável**. O servidor entrega cada mensagem a uma única instância, e a mensagem não confirmada dentro de `ack_wait` é entregue novamente.
+Tanto o `Controller` quanto as projeções locais das APIs mantêm em memória o último `desired` dos recursos relevantes. Um consumer durável estático compartilhado não serve a esse propósito porque particionaria o estado entre réplicas e não reentregaria o último estado completo de cada recurso após um reinício.
 
-Equivalências:
+Por isso, cada instância ativa instancia um `StateConsumer` na inicialização:
 
-| Mecanismo | Persistência | Redelivery | Observação |
-|---|---|---|---|
-| Queue group do Core NATS | Não | Não ("a message sent to a worker that crashes mid-processing is lost") | Não utilizar para mensagens de negócio |
-| Push consumer com `deliver_group` | Sim | Sim, com `AckExplicit` | Mesma semântica: uma mensagem, um membro |
-| Pull consumer compartilhado | Sim | Sim, com `AckExplicit` | **Adotado**: não exige configuração de grupo e deixa o backpressure e o lote sob controle do consumidor |
+- **Nome único:** `<módulo>-<tipo>-<papel>-desired-<sufixo>`, em que `<sufixo>` é único por execução da instância. Evita reutilização de posição de offset anterior e garante reconstrução completa do estado;
+- **Filtro canônico:** escopado no nível do recurso necessário (ex.: `desired.ipm.organization.>`);
+- **Política de entrega:** `DeliverLastPerSubject` (`DeliverPolicy.LAST_PER_SUBJECT`), que entrega o último estado de cada Subject existente no stream e, em seguida, as novas alterações;
+- **Confirmação explícita:** `AckExplicit`;
+- **Inatividade:** `inactive_threshold_seconds=300` (5 minutos), permitindo que o NATS remova automaticamente consumers órfãos deixados por processos reiniciados ou encerrados;
+- **Controle de entregas:** `max_deliver=20`, com backoff exponencial entre 5 s e 60 s em falhas (`nak`), culminando em descarte (`term()`) após 20 entregas.
 
-Regras:
+## 7.4 Controllers e reconciliação contínua
 
-- política de ACK explícita (`AckExplicit`), com `ack_wait`, `backoff` e `max_deliver` conforme a seção de Retry;
-- `max_ack_pending` é um limite **único**, dividido por todas as instâncias do pool;
-- ao reduzir o número de instâncias, drenar a subscription (*drain*) antes de encerrar;
-- o consumer de persistência exige que o SSOT seja idempotente: ele descarta estado mais antigo que o já gravado (`observedAt`, geração) e usa `resourceVersion` para atualizações concorrentes (`MESSAGING.md`).
+Para recursos com provedor externo (como `core/account`, `ipm/organization`, `ipm/permission`, `ipm/user`, `ipm/serviceaccount` e `sum/service`):
 
-## 7.4 Estado em memória: um consumer por instância
+- O `Controller` consome o stream `DESIRED` do seu tipo via `StateConsumer`;
+- As mensagens alimentam seu catálogo em memória (Informer);
+- Na recepção de um `desired` ou na reavaliação periódica, o Controller observa o provedor externo, compara o estado observado com o estado desejado, executa as mutações necessárias com idempotência e registra o estado atualizado no SSOT;
+- O fato resultante (`updated`) é inserido no outbox transacional e publicado no stream `UPDATED` pelo Publisher do serviço;
+- A operação de leitura pontual pelo Controller ou API pode utilizar *Direct Get* (`last_by_subj`) no stream `DESIRED` quando não houver necessidade de manter um laço de consumo contínuo.
 
-O Reconciler e o Observer mantêm em memória o último `desired`, `observed` e `result` de cada recurso. Um consumer compartilhado **não serve** a esse caso, por dois motivos:
+## 7.5 Consumers das features (exemplo `ipm.user` e `ipm.organization`)
 
-1. **Fração do estado.** Em um consumer compartilhado, cada mensagem vai para uma única instância. Nenhuma instância teria o estado completo, e o Reconciler precisa do `desired`, do `observed` e do `result` do mesmo recurso na mesma instância.
-2. **Posição durável.** Um consumer durável retoma da última mensagem confirmada. A política de entrega (`DeliverLastPerSubject`) vale apenas na criação do consumer. Após um restart, o processo perde o cache e o durável **não** reentrega o último estado de cada recurso.
-
-Por isso, cada **instância** cria o seu consumer ao iniciar:
-
-- nome `<módulo>-<tipo>-<papel>-<stream>-<instância>`, em que `<instância>` é único **por execução do processo** (por exemplo, um identificador gerado na partida), e não apenas por réplica. Se o nome se repetisse, o servidor reutilizaria o consumer existente com a posição antiga, e o estado não seria reconstruído;
-- filtro único no nível `<módulo>.<tipo>`;
-- `DeliverLastPerSubject`, que entrega a última mensagem de cada Subject e, em seguida, as alterações;
-- `AckExplicit`;
-- `inactive_threshold`, para que o servidor remova o consumer de uma instância que não retornou.
-
-Efeitos:
-
-- todas as instâncias possuem o estado completo, e o failover é imediato;
-- as instâncias podem tomar a mesma decisão. Isso é inofensivo: a `action` possui `actionId` determinístico, o publicador usa `Nats-Msg-Id` igual ao `actionId` e o Executor deduplica por `actionId` (`RESOURCE-CONTROL-LOOP.md`);
-- o custo é a duplicação do cache e da avaliação por instância. Para o Reconciler, o particionamento por `resourceId` fica reservado para quando houver carga medida que o justifique;
-- **o Observer é a exceção**: se todas as instâncias observassem todos os recursos, o provider receberia N vezes as leituras. A observação periódica é particionada por `resourceId`, e cada instância observa apenas a sua partição, usando o índice estável da réplica (`RESOURCE-CONTROL-LOOP.md`, *Coordenação da observação*). O consumer de estado continua por instância, para que o cache permaneça completo.
-
-## 7.5 Executor
-
-- **`action`:** consumer durável com `priority_policy=pinned_client` (instância ativa e instâncias em standby, com failover automático) e `max_ack_pending=1`. Em operação normal, apenas uma `action` é executada por vez no serviço, o que garante o *single-flight* por recurso. A vazão fica limitada; o particionamento por `resourceId` só deve ser considerado com carga medida. Pinned consumers exigem `AckExplicit`.
-- **Revalidação do `desired`:** *Direct Get* do último valor do Subject do recurso (`last_by_subj`), sem consumer e sem cache. Requer `allow_direct` em `DESIRED`.
-- **Desfecho do `actionId`:** antes de executar, *Direct Get* do último `completed` e do último `failed` publicados por ele para o recurso e a operação (Subjects `executor.completed.<módulo>.<tipo>.<resourceId>.<operação>` e `executor.failed...`), em `RESULT`. Se o desfecho do mesmo `actionId` já existe, o Executor não executa de novo e republica o resultado. Requer `allow_direct` em `RESULT`.
-
-Limitações a considerar:
-
-- sob falha, o servidor pode entregar a `action` a outra instância enquanto a anterior ainda executa a chamada ao provider. A garantia de *single-flight* não elimina a necessidade de idempotência do Executor (`actionId` e chave de correlação com o recurso externo);
-- o Direct Get pode ser atendido por uma réplica e refletir, por instantes, um estado anterior ao mais recente. A revalidação é um controle adicional; ela se soma, e não substitui, à conferência da geração (`desiredGeneration`) e à nova reconciliação periódica.
-
-A configuração exata de `pinned_client` (inclusive a versão mínima do servidor) e de Direct Get deve ser validada no ambiente.
-
-**Estado atual (dev).** Nenhuma feature tem mais consumers `executor-action-p<índice>`: o Controller (decisão 0096) consome o `DESIRED` com consumer próprio, e o `pinned_client` do Controller, quando houver mais de uma instância, segue pendente antes de stg e prd.
-
-**Partição no servidor (decisão 0018, aplicada ao `ACTION` em dev).** Para vazão sem perder o *single-flight* por recurso, o Stream `ACTION` declara `subject_transform` com `partition(N, <resourceId>)`: `reconciler.action.<módulo>.<tipo>.<resourceId>.<operação>` é armazenado como `reconciler.action.<módulo>.<tipo>.<partição>.<resourceId>.<operação>`. Cada partição tem um consumer durável (`<módulo>-<tipo>-executor-action-p<partição>`, `filter_subject` `reconciler.action.<módulo>.<tipo>.<partição>.>`, `max_ack_pending=1`): uma `action` por vez em cada recurso e até `N` recursos em paralelo. `N` é definido no bootstrap do Stream (`infrastructure/dev/messaging/bootstrap/action.json`, hoje 4), e o Executor roda um laço por partição (`CORE_ACCOUNT_EXECUTOR_PARTITION_COUNT`, o mesmo valor). Mudar `N` exige recriar o Stream e os consumers. Quem publica não muda: o Subject publicado continua o canônico. O `DESIRED` e o `OBSERVED` **não** são particionados: o Executor lê o `desired` por Direct Get no Subject canônico do recurso, e o Observer segue com a partição na aplicação (`hash(resourceId) mod count`) até haver carga medida.
-
-## 7.6 Consumers por serviço (exemplo `ipm.organization`)
-
-| Serviço | Consumer | Stream | Filtro | Classe |
+| Papel | Consumer | Stream | Filtro de Subject | Modelo |
 |---|---|---|---|---|
-| `ipm-organization-receiver` | — | — | — | Somente publica |
-| `ipm-organization-publisher` | — | — | — | Somente publica (emissor `manager`, a partir do outbox) |
-| `ipm-organization-manager` | `ipm-organization-manager-requested` | `REQUESTED` | `receiver.requested.ipm.organization.>` | Trabalho |
-| | `ipm-organization-manager-observed` | `OBSERVED` | `observer.observed.ipm.organization.>` | Persistência |
-| | `ipm-organization-manager-result` | `RESULT` | `executor.*.ipm.organization.>` | Persistência |
-| `ipm-organization-observer` | `ipm-organization-observer-desired-<instância>` | `DESIRED` | `desired.ipm.organization.>` | Estado |
-| | `ipm-organization-observer-result-<instância>` | `RESULT` | `executor.*.ipm.organization.>` | Estado |
-| `ipm-organization-reconciler` | `ipm-organization-reconciler-desired-<instância>` | `DESIRED` | `desired.ipm.organization.>` | Estado |
-| | `ipm-organization-reconciler-observed-<instância>` | `OBSERVED` | `observer.observed.ipm.organization.>` | Estado |
-| | `ipm-organization-reconciler-result-<instância>` | `RESULT` | `executor.*.ipm.organization.>` | Estado |
-| `ipm-organization-executor` | `ipm-organization-executor-action-p<partição>` | `ACTION` | `reconciler.action.ipm.organization.<partição>.>` | Trabalho (um consumer por partição; `pinned_client` e `max_ack_pending=1`) |
+| `ipm-user-api` | `ipm-user-api-desired-<id>` | `DESIRED` | `desired.ipm.organization.>` | Projeção em memória de Organization para autorização sem chamada HTTP |
+| `ipm-user-publisher` | — | — | — | Apenas publica (`desired.ipm.user.>`, `updated.ipm.user.>`) a partir do outbox |
+| `ipm-user-controller` | `ipm-user-controller-desired-<id>` | `DESIRED` | `desired.ipm.user.>` | Reconciliação com o provedor de identidade (Zitadel) |
 
-**Estado de implementação.** A tabela é o desenho de referência do loop de sete papéis (decisão 0015), que **nenhuma feature em dev usa mais**: `core.account`, `ipm.*`, `bsm.account` e `sum.service` migraram para `api` + `publisher` (+ `controller`), decisões 0096, 0098 e 0100. Nelas só o Controller e as projeções locais da API têm consumer, criado por eles na partida, no Stream `DESIRED` (`<módulo>-<tipo>-controller` e os consumers das projeções); não há consumers de trabalho em `REQUESTED`, `OBSERVED`, `RESULT` nem `ACTION`.
+Tipos sem provedor externo (ex.: `ipm/role`, `ipm/group`) utilizam apenas `api` e `publisher`, sem necessidade de processo `controller`.
 
-O filtro `executor.*.ipm.organization.>` usa um curinga no token de `messageType` para cobrir `completed` e `failed` com **um único filtro**, o que preserva a autorização por filtro.
+## 7.6 Regras de filtro
 
-Funções adicionais (billing, auditoria, monitoramento) criam seus próprios consumers, sem alterar o produtor.
+- Cada consumer possui **um único filtro** no nível `<módulo>.<tipo>`;
+- Evitar filtros amplos (`desired.>`) em componentes de negócio para assegurar autorização restrita (menor privilégio) por Subject.
 
-## 7.7 Regras de filtro
+## 7.7 Pull Consumer
 
-- cada consumer possui **um único filtro** no nível `<módulo>.<tipo>`;
-- em Streams `WorkQueue` (`REQUESTED`, `ACTION`), nenhum consumer pode possuir filtro mais largo que `<módulo>.<tipo>` (por exemplo, `receiver.requested.ipm.>`): ele se sobreporia aos consumers dos demais tipos, e o servidor rejeitaria a criação;
-- um segundo leitor de Stream de trabalho (auditoria, métricas) não é permitido; esses leitores usam `AUDIT`.
+Pull Consumer é o padrão arquitetural em JetStream:
 
-## 7.8 Pull Consumer
+- Backpressure sob controle total da aplicação receptora;
+- Tamanho de lote ajustável conforme capacidade de processamento;
+- Comportamento previsível sob sobrecarga temporária do broker.
 
-Pull Consumer é o padrão para os consumers de trabalho e persistência.
+# 8. Distribuição de trabalho e reconciliação
 
-Motivos:
+No modelo reconciliado adotado pela plataforma (decisões 0096 e 0101):
 
-- backpressure controlado pelo consumidor;
-- lote de mensagens controlado pelo consumidor;
-- escala horizontal simples;
-- comportamento operacional previsível.
+- A distribuição de trabalho para escrita inicial ocorre no nível da API síncrona (balanceada via gateway HTTP);
+- A reconciliação com sistemas externos é centralizada no `Controller`, que orquestra a convergência a partir do stream `DESIRED`;
+- Quando houver múltiplas instâncias de um mesmo `Controller` em produção (dev opera com uma instância por papel), a coordenação de execução ativa adota eleição de líder via lock no banco de dados ou particionamento determinístico por `resourceId`.
 
-## 7.9 Durable Consumers
+# 9. Fanout de estado
 
-Consumidores responsáveis por processamento de produção devem utilizar identidade durável e estável quando a continuidade do progresso for necessária. Isso se aplica às classes de trabalho e de persistência.
-
-O nome do consumer deve representar sua função. Os consumers de estado em memória são a exceção: seu nome inclui a instância (seção de estado em memória).
-
-# 8. Work Distribution
-
-Aplica-se às mensagens de trabalho (`requested` e `action`) e aos consumers de persistência:
-
-```mermaid
-graph TD
-    A[receiver.requested.ipm.organization.>] --> B[(REQUESTED)]
-    B --> C[ipm-organization-manager-requested]
-    C --> D[manager-1]
-    C --> E[manager-2]
-```
-
-As instâncias concorrem sobre o mesmo fluxo lógico de trabalho. A instância confirma a mensagem somente depois de executar o processamento definido pela aplicação.
-
-Para `action`, apenas uma `action` deve estar em execução por vez para o mesmo `resourceId` (*single-flight*, ver `RESOURCE-CONTROL-LOOP.md`). Isso é obtido pelos consumers do Executor, um por partição do `resourceId`, com `max_ack_pending=1` (e `pinned_client` em stg e prd; seção de Consumers), e **não** decorre da política `WorkQueue`. Como o servidor pode redistribuir uma `action` sob falha, a idempotência do Executor continua obrigatória.
-
-A confirmação de transporte não substitui a publicação de `completed`, `failed` ou `observed`.
-
-# 9. Fanout e estado
-
-Aplica-se às mensagens de estado (`desired`, `observed`) e aos fatos (`completed`, `failed`, `updated`):
+O stream `DESIRED` atua como barramento de fanout de estado confiável entre domínios da plataforma:
 
 ```text
-observer.observed.>
-          |
-          v
-      OBSERVED
-      /   |   \
-     /    |    \
-reconciler manager audit
+               +-------------------+
+               |  Stream DESIRED   |
+               +-------------------+
+                  /             \
+                 /               \
+                v                 v
+     +--------------------+     +------------------------+
+     | ipm-org-controller |     | ipm-user-api           |
+     | (reconciliação     |     | (projeção local de     |
+     |  da Organization)  |     |  organizações em cache)|
+     +--------------------+     +------------------------+
 ```
 
-Cada consumidor mantém seu próprio estado de leitura.
-
-Um consumidor lento não deve bloquear semanticamente os demais consumidores.
-
-Nas mensagens de estado, o ACK registra o progresso do consumidor, mas **não remove** a mensagem: o último estado do recurso permanece disponível para novos consumers.
-
-Os consumers que mantêm estado em memória não são compartilhados: cada instância possui o seu (seção de Consumers).
+- Cada consumidor mantém seu próprio ponteiro de leitura sem bloquear os demais;
+- O ACK confirma a leitura pela réplica receptora, enquanto o estado pretendido permanece preservado em `DESIRED` para qualquer novo consumidor que seja inicializado posteriormente.
 
 # 10. ACK e processamento
 
@@ -528,83 +431,51 @@ Replay não deve ser utilizado como mecanismo cotidiano de retry.
 
 # 15. Streams e retenção
 
-## 15.1 `WorkQueuePolicy`
+## 15.1 `LimitsPolicy` como padrão
 
-Adequado para `REQUESTED` e `ACTION`, quando a mensagem representa trabalho que deve ser processado por um único grupo de consumidores concorrentes.
+Todos os streams em operação utilizam `LimitsPolicy`. As mensagens permanecem disponíveis de forma independente para múltiplos leitores e projeções, sem que o consumo por um serviço remova a mensagem para os demais.
 
-A mensagem não deve desaparecer do fluxo antes que o processamento correspondente tenha sido reconhecido conforme a política do consumer. Os consumidores do Stream não podem ter filtros de Subject sobrepostos.
+Os limites operacionais são definidos por:
+- Quantidade de mensagens por Subject (`max_msgs_per_subject: 1` em `DESIRED` e `UPDATED`);
+- Retenção temporal (`max_age: 0` indefinido em `DESIRED`; configurado por ambiente em `UPDATED` e `AUDIT`);
+- Tamanho total do Stream (`max_bytes`) e tamanho máximo por mensagem (`max_msg_size`).
 
-## 15.2 `LimitsPolicy`
+A política `WorkQueuePolicy` não é utilizada na plataforma consolidada, pois o fluxo de trabalho é orientado à convergência contínua sobre o estado pretendido (`DESIRED`) e não a tarefas pontuais transitórias.
 
-Adequado para `DESIRED`, `OBSERVED`, `RESULT`, `UPDATED` e `AUDIT`, quando as mensagens devem permanecer disponíveis para consumidores independentes.
+## 15.2 `InterestPolicy`
 
-Os limites devem ser definidos por:
+Pode ser utilizada quando a retenção deve depender estritamente da existência de consumidores ativos. Esta política não é adotada nos streams da plataforma.
 
-- tempo;
-- tamanho;
-- quantidade;
-- impacto de armazenamento;
-- necessidade de replay.
+## 15.3 Remoção de recursos e tombstones
 
-Em `DESIRED` e `OBSERVED`, o limite principal é a quantidade por Subject (`MaxMsgsPerSubject=1`).
+Como `DESIRED` retém o último estado por recurso (`max_msgs_per_subject: 1`), o estado de um recurso removido permanece no Stream até ser expressamente expurgado.
 
-## 15.3 `InterestPolicy`
+**Nenhum serviço de runtime recebe permissão de purge de Stream.** A permissão de purge do NATS não consegue ser restringida por filtro de Subject; conceder purge a uma feature permitiria que ela apagasse o estado de outros módulos em `DESIRED`.
 
-Pode ser utilizada quando a retenção deve depender da existência de consumidores interessados.
+O ciclo ordenado de remoção é:
 
-Não utilizar automaticamente apenas porque está disponível. Validar primeiro a semântica desejada. Esta política não é adotada neste momento.
-
-## 15.4 Remoção de recursos
-
-Como `DESIRED` e `OBSERVED` retêm o último estado por recurso, o estado de um recurso removido permanece nos Streams até ser limpo.
-
-**Nenhum serviço de runtime recebe permissão de purge.** A API de purge de Stream recebe o filtro de Subject no corpo da requisição, e uma permissão por Subject não consegue restringi-lo. Conceder purge ao Manager de um tipo permitiria apagar o estado de **todos** os tipos em `DESIRED`.
-
-O procedimento é:
-
-1. o Manager publica o `desired` final (`lifecycle=absent`, com a geração final);
-2. após a convergência (observação `presence=absent`), o Manager remove o recurso do SSOT;
-3. a última mensagem do recurso permanece em `DESIRED` como **tombstone**. O Reconciler e o Observer ignoram recurso com `lifecycle=absent` já convergido;
-4. um job de infraestrutura, com **identidade administrativa própria** (não é um serviço de runtime), remove periodicamente os tombstones antigos;
-5. `OBSERVED` expira por `MaxAge`, pois o Observer reobserva periodicamente os recursos que existem em `DESIRED`.
-
-Custo: uma mensagem pequena por recurso removido até a próxima limpeza.
+1. A API processa a exclusão, marca o recurso com `lifecycle=absent` e gera a nova geração, gravando a alteração e o evento de outbox na mesma transação no SSOT;
+2. O Publisher publica a mensagem de `desired` com `lifecycle=absent`;
+3. O `Controller` processa o `lifecycle=absent`: remove o recurso no provedor externo (se a proteção contra exclusão permitir), atualiza o registro no SSOT e gera o evento `updated` final;
+4. A última mensagem permanece no stream `DESIRED` como **tombstone** com `lifecycle=absent`. O `Controller` e as projeções ignoram recursos já removidos;
+5. O utilitário `scripts/dev/cleanup` remove periodicamente os tombstones de recursos de teste em dev via `purge_stream(subject=...)` com credenciais administrativas. Em ambientes produtivos, um job de infraestrutura administrativa efetua a limpeza periódica de tombstones antigos.
 
 # 16. Replicação e durabilidade
 
-Streams críticos devem utilizar armazenamento persistente e número de réplicas compatível com o nível de disponibilidade definido para o ambiente.
-
-A escolha de réplica deve considerar:
-
-- quorum;
-- capacidade de armazenamento;
-- latência;
-- domínio de falha;
-- recuperação;
-- custo.
-
-Não assumir que replicação do Stream elimina a necessidade de backup.
+Streams críticos utilizam armazenamento persistente em disco (`storage: file`) e número de réplicas compatível com o ambiente (`num_replicas: 1` em dev; `num_replicas: 3` em stg e prd com quorum Raft).
 
 ## 16.1 Custo de Streams e Consumers
 
-- cada Stream consome cerca de dois descritores de arquivo;
-- Stream e consumer durável replicados (R3) possuem um grupo Raft cada, com tráfego de heartbeat em regime estacionário; consumers efêmeros não são baseados em Raft;
-- o armazenamento é por dado: um Stream R3 de 10 GiB conta 30 GiB. As mesmas mensagens ocupam o mesmo espaço em um Stream ou em seis;
-- os limites práticos aparecem na ordem de centenas de milhares de Streams e consumers somados. Não há valor oficial por consumer em bytes.
-
-Neste desenho, os Streams são fixos. Por tipo de recurso, o número de consumers é de aproximadamente 4 duráveis (Manager 3, Executor 1) mais 5 consumers de estado por instância (Reconciler 3, Observer 2). Com 20 tipos e 2 instâncias, são cerca de 80 duráveis e 200 consumers de estado, bem abaixo do limite prático.
-
-O risco real é criar Streams por recurso ou por tipo, o que multiplicaria os grupos Raft e os descritores a cada novo serviço.
-
-Os consumers duráveis devem ser gerados a partir de um manifesto por tipo de recurso, e deve existir um limite de consumers por conta como controle de abuso.
+- A consolidação em 3 Streams fixos (`DESIRED`, `UPDATED`, `AUDIT`) reduz drasticamente a sobrecarga de descritores de arquivos e tráfego de heartbeats de grupos Raft;
+- Em vez de múltiplos consumers duráveis e efêmeros por papel em 6 streams, cada feature com reconciliação possui apenas o consumer de estado do seu `Controller` e os eventuais consumers de projeção de APIs consumidoras;
+- O uso de `inactive_threshold` nos consumers de estado por instância garante que réplicas encerradas não deixem resíduos no broker.
 
 ## 16.2 Janela de recuperação
 
-A **janela de recuperação** é o maior intervalo de indisponibilidade de um consumidor (ou do próprio broker) que o sistema deve tolerar sem perder as mensagens de que ele precisa para voltar a convergir.
+A **janela de recuperação** é o maior intervalo de indisponibilidade de um consumidor (ou do próprio broker) que o sistema tolera sem perda de dados:
 
-Regra: a retenção de cada Stream deve ser **maior ou igual** à janela de recuperação dos seus consumidores. O valor é definido por ambiente e por domínio, e não é fixado neste documento.
-
-Aplica-se, em particular, a `RESULT` e `UPDATED` (retenção por tempo). Em `DESIRED` e `OBSERVED`, que guardam o último estado por recurso, a janela se traduz em `MaxAge` de `OBSERVED` maior que alguns períodos de observação (ver seção de Streams).
+- Em `DESIRED`, a retenção é temporalmente indefinida (`max_age: 0`), o que permite recuperação a frio a qualquer momento e reidratação de projeções sem dependência de janela temporal;
+- Em `UPDATED` e `AUDIT`, a janela é configurada por política de auditoria e métricas (24h em dev; durável com retenção estendida em stg/prd).
 
 # 17. Source, Mirror e Republish
 
@@ -643,19 +514,20 @@ Publicação e assinatura devem ser autorizadas separadamente.
 
 A matriz de permissões por componente é definida em `RESOURCE-CONTROL-SECURITY.md`. Este documento descreve como ela é materializada em NATS.
 
-NATS suporta ACLs de publicação e assinatura por Subject. Uma allow-list explícita restringe o acesso às subjects não autorizadas.
+NATS suporta ACLs de publicação e assinatura por Subject. Uma allow-list explícita restringe o acesso aos subjects não autorizados.
 
 Em JetStream há uma particularidade: a permissão de subscribe por Subject não restringe o que um consumidor JetStream lê do Stream. O acesso à API de consumers é autorizado por Stream (`$JS.API.CONSUMER.*.<stream>...`) e, para um consumer com um único filtro, por filtro. Por isso:
 
-- cada `messageType` possui seu Stream (seção de Streams);
+- cada classe de mensagem possui seu Stream (`DESIRED`, `UPDATED`, `AUDIT`);
 - a identidade de um serviço é `<módulo>-<tipo>-<papel>`, e suas permissões são sempre escopadas por `<módulo>.<tipo>` (por exemplo, `desired.ipm.organization.>`), nunca por `desired.>`;
-- consumers de trabalho e persistência são criados pela infraestrutura (seção de administração), e a identidade de runtime recebe apenas o acesso ao **seu** consumer (`$JS.API.CONSUMER.MSG.NEXT.<stream>.<consumer>` e os Subjects de ACK correspondentes);
-- consumers de estado em memória são criados pelo próprio serviço. Sua identidade pode criar **somente** consumers que casem com o seu padrão de nome e com o seu filtro único (`$JS.API.CONSUMER.CREATE.<stream>.<consumer>.<filtro>`), e não pode listar, alterar nem remover consumers de outros serviços;
-- o Executor lê o `desired` e o desfecho em `RESULT` por Direct Get, com permissões restritas ao Subject do seu tipo (`$JS.API.DIRECT.GET.DESIRED.desired.<módulo>.<tipo>.>` e `$JS.API.DIRECT.GET.RESULT.executor.*.<módulo>.<tipo>.>`);
+- o `Publisher` recebe apenas permissão de publicação nos subjects do seu módulo e tipo (`desired.<módulo>.<tipo>.>` e `updated.<módulo>.<tipo>.>`);
+- a `API` não recebe permissão de publicação direta no NATS (ela grava no outbox do SSOT);
+- o `Controller` recebe permissão de criação e consumo do seu consumer de estado em memória sobre `DESIRED` (`$JS.API.CONSUMER.CREATE.DESIRED.<consumer>.<filtro>` e `$JS.API.CONSUMER.MSG.NEXT.DESIRED.<consumer>`);
+- a `API` que mantém projeção local em memória de outro domínio recebe permissão estrita de criação e consumo do seu `StateConsumer` no subject correspondente (ex.: `$JS.API.CONSUMER.CREATE.DESIRED.<consumer>.desired.ipm.organization.>`);
 - nenhum serviço de runtime recebe permissão sobre `$JS.API.STREAM.*`, inclusive purge;
-- criação de Streams e de consumers duráveis e a limpeza de tombstones usam uma identidade administrativa separada.
+- a criação de Streams e a limpeza administrativa de tombstones usam uma identidade administrativa separada.
 
-Os Subjects exatos de autorização (criação de consumer com filtro, `MSG.NEXT`, ACK e Direct Get) devem ser validados no servidor utilizado, pois a documentação consultada não os detalha por completo.
+Os Subjects exatos de autorização devem ser validados no servidor utilizado conforme a infraestrutura do ambiente.
 
 ## 18.4 Princípio do menor privilégio
 
@@ -748,8 +620,7 @@ quorum status
 consumer state
 quantidade de consumers por Stream
 mensagens pendentes e sem ACK por consumer
-instância fixada (`pinned`) por consumer do Executor
-idade do último estado (`observedAt`) por tipo de recurso
+idade do último estado por tipo de recurso
 ```
 
 **Saúde dos componentes (decisão 0018).** Todo componente expõe `/health/live`, `/health/ready` e `/health/startup` na porta `8000`. A liveness só olha o sinal de vida do laço principal e **não** consulta o NATS nem o banco; a readiness inclui a conexão com o NATS e, no Publisher, a ausência de bloqueio por recusa permanente.
@@ -816,209 +687,177 @@ sem necessidade explícita.
 
 # 26. Exemplos de autorização
 
-Exemplos conceituais por serviço, para o tipo `ipm.organization`. A matriz oficial está em `RESOURCE-CONTROL-SECURITY.md`; os valores concretos de configuração do servidor pertencem à infraestrutura e devem ser validados no ambiente.
+Exemplos conceituais por serviço para o tipo `ipm.organization`. A matriz normativa detalhada está em `RESOURCE-CONTROL-SECURITY.md`; as configurações concretas do broker pertencem à infraestrutura.
 
-## 26.1 `ipm-organization-manager` e `ipm-organization-publisher`
+## 26.1 `ipm-organization-publisher`
 
-O Manager registra `desired` e `updated` no outbox do SSOT e não publica no transporte. Quem publica é o Publisher (`SSOT.md`, outbox; decisão 0019).
+O Publisher é o único componente da feature com permissão de publicação no broker NATS (decisão 0019):
 
 ```text
 ipm-organization-publisher
 publish:
   desired.ipm.organization.>
   updated.ipm.organization.>
-
-ipm-organization-manager
-publish: nenhum
-consumo (consumers criados pela infraestrutura):
-  REQUESTED → ipm-organization-manager-requested
-  OBSERVED  → ipm-organization-manager-observed
-  RESULT    → ipm-organization-manager-result
+subscribe: nenhum
 ```
 
-O Manager não recebe permissão de purge nem de administração de Streams.
+O Publisher lê do outbox transacional no banco `ssot` e publica exclusivamente nos subjects do seu módulo e tipo.
 
-## 26.2 `ipm-organization-observer`
+## 26.2 `ipm-organization-api`
+
+A API processa requisições síncronas de escrita e grava o recurso e o outbox no SSOT:
 
 ```text
-publish:
-  observer.observed.ipm.organization.>
-
-consumers de estado (criados pelo serviço, somente com este padrão):
-  DESIRED → ipm-organization-observer-desired-*   filtro desired.ipm.organization.>
-  RESULT  → ipm-organization-observer-result-*    filtro executor.*.ipm.organization.>
+ipm-organization-api
+publish: nenhum (grava no outbox)
+subscribe:
+  apenas se mantiver projeção local em memória de outro domínio (ex.: desired.ipm.organization.>)
 ```
 
-## 26.3 `ipm-organization-reconciler`
+## 26.3 `ipm-organization-controller`
+
+O Controller reconcilia o estado do recurso contra o sistema externo:
 
 ```text
-publish:
-  reconciler.action.ipm.organization.>
-
-consumers de estado (criados pelo serviço, somente com este padrão):
-  DESIRED  → ipm-organization-reconciler-desired-*
-  OBSERVED → ipm-organization-reconciler-observed-*
-  RESULT   → ipm-organization-reconciler-result-*
+ipm-organization-controller
+publish: nenhum (grava no outbox e no SSOT)
+consumo (consumer de estado criado pela instância):
+  DESIRED → ipm-organization-controller-desired-<instância>
+  filtro:   desired.ipm.organization.>
 ```
 
-## 26.4 `ipm-organization-executor`
-
-```text
-publish:
-  executor.completed.ipm.organization.>
-  executor.failed.ipm.organization.>
-
-consumo (consumer criado pela infraestrutura):
-  ACTION → ipm-organization-executor-action
-
-leitura direta:
-  DESIRED → último valor de desired.ipm.organization.>
-  RESULT  → último valor de executor.*.ipm.organization.>   (desfecho do actionId)
-```
-
-O Executor do tipo é a única identidade com acesso de consumo ao consumer de `ACTION` desse tipo.
-
-## 26.5 Identidade administrativa
+## 26.4 Identidade administrativa
 
 ```text
 administração:
-  criar Streams e consumers duráveis
-  remover tombstones de DESIRED (job periódico)
+  criar Streams (DESIRED, UPDATED, AUDIT)
+  gerenciar limites e retenção
+  expurgar tombstones de DESIRED (job periódico)
 ```
 
-Esta identidade não é utilizada por nenhum serviço de runtime.
+Esta identidade é restrita à automação de infraestrutura e não é utilizada por serviços de aplicação em runtime.
 
-## 26.6 Billing
+## 26.5 Observabilidade, auditoria e billing
+
+Componentes de visualização e métricas (Console, billing, auditoria) criam consumers duráveis independentes sobre os streams de fatos e histórico:
 
 ```text
-consumo (consumer próprio):
-  OBSERVED → billing-observed
+consumo:
+  UPDATED → billing-updated (filtro: updated.>)
+  AUDIT   → compliance-audit (filtro: audit.>)
 ```
-
-Billing não recebe permissões de publicação para Subjects de outros componentes apenas para consumir observações.
 
 # 27. Exemplo de arquitetura
 
-```mermaid
-graph TD
-    Receiver[receiver] -->|requested| REQ[(REQUESTED<br/>WorkQueue)]
-    REQ --> MGR[manager]
-    MGR -->|outbox| RLY[publisher]
-    RLY -->|desired, updated| DES[(DESIRED<br/>Limits, 1 por Subject)]
-    OBS[observer] -->|observed| OBSD[(OBSERVED<br/>Limits, 1 por Subject)]
-    DES --> REC[reconciler]
-    DES --> OBS
-    OBSD --> REC
-    OBSD --> MGR
-    REC -->|action| ACT[(ACTION<br/>WorkQueue)]
-    ACT --> EXE[executor]
-    DES -.->|revalidação, somente leitura| EXE
-    EXE -->|completed / failed| RES[(RESULT<br/>Limits + MaxAge)]
-    RES --> MGR
-    RES --> OBS
-    RES --> REC
-    RLY -->|updated| UPD[(UPDATED<br/>Limits + MaxAge)]
-    UPD --> CON[console / audit / metrics]
-```
-
-# 28. Fluxo de reconciliação
+A topologia consolidada da plataforma (decisões 0096, 0098, 0100 e 0101):
 
 ```mermaid
 graph TD
-    A[1. Receiver publica requested] --> B[(2. REQUESTED)]
-    B --> C[3. Manager persiste e publica desired]
-    C --> D[(4. DESIRED)]
-    D --> E[5. Observer observa o sistema externo]
-    E --> F[(6. OBSERVED)]
-    D --> G{7. Reconciler compara desired e observed}
-    F --> G
-    G -->|diferente| H[(8. ACTION)]
-    H --> I[9. Executor revalida e executa]
-    I -->|sucesso| J[(10. RESULT completed)]
-    I -->|falha transitória| K[retry/backoff]
-    J --> E
-    G -->|igual| L[noop / convergido]
+    CLI[Cliente / CLI] -->|HTTP síncrono| API[api]
+    API -->|recurso + outbox| DB[(SSOT<br/>PostgreSQL)]
+    RLY[publisher] -->|lê outbox| DB
+    RLY -->|desired| DES[(DESIRED<br/>Limits, 1 por Subject)]
+    RLY -->|updated| UPD[(UPDATED<br/>Limits, 1 por Subject)]
+    DES -->|stream source| AUD[(AUDIT<br/>Limits, histórico completo)]
+    UPD -->|stream source| AUD
+    DES -->|StateConsumer / Informer| CTL[controller]
+    CTL -->|observa e muta| EXT[Provedor Externo / IdP]
+    CTL -->|grava observação + outbox| DB
+    DES -->|StateConsumer / Projeção local| PROJ[api de outro módulo]
+    UPD --> CON[Console / Telemetria]
 ```
 
-O ciclo continua até que a observação demonstre convergência. `completed` não encerra o ciclo (ver `RESOURCE-CONTROL-LOOP.md`).
+# 28. Fluxo de reconciliação contínua
+
+Ciclo de vida de controle e convergência coordenado pelo Controller:
+
+```mermaid
+graph TD
+    A[1. API recebe requisição e grava outbox no SSOT] --> B[2. Publisher lê outbox e emite desired]
+    B --> C[(3. Stream DESIRED)]
+    C --> D[4. Controller recebe desired via StateConsumer]
+    D --> E[5. Controller observa estado no Provedor Externo]
+    E --> F{6. Estado desejado == observado?}
+    F -->|não| G[7. Controller executa mutação idempotente no Provedor]
+    G --> H[8. Controller persiste observação e outbox no SSOT]
+    F -->|sim| H
+    H --> I[9. Publisher emite updated no Stream UPDATED]
+    I --> J[(10. Stream UPDATED / AUDIT)]
+    D -.->|reavaliação periódica / drift detection| E
+```
 
 # 29. Anti-padrões
 
 ## 29.1 Proibido: destinatário como prefixo do Subject
 
-Não utilizar:
+Não utilizar rotas ponto-a-ponto no Subject (ex.: `api.controller.desired...`). O consumidor manifesta interesse exclusivamente via filtro de subscription ou consumer.
 
-```text
-manager.executor.desired...
-```
+## 29.2 Proibido: termos e tipos não canônicos
 
-para codificar uma rota ponto-a-ponto.
-
-## 29.2 Proibido: `task` e `reality` como tipos oficiais
-
-A semântica oficial é:
+A semântica de tipos de mensagem é estritamente:
 
 ```text
 desired
-observed
+updated
 ```
 
-## 29.3 Proibido: operação imperativa ou resultado no Subject de `desired` e `observed`
+Não utilizar nomenclaturas não padronizadas (`task`, `reality`, `action`, etc.).
 
-Evitar:
+## 29.3 Proibido: operação imperativa no Subject de `desired` e `updated`
+
+Não utilizar sufixos operacionais no Subject:
 
 ```text
 desired.ipm.organization.<id>.create
-observer.observed.ipm.organization.<id>.absent
+updated.ipm.organization.<id>.deleted
 ```
 
-Preferir:
+O Subject canônico possui exatamente 4 tokens:
 
 ```text
-desired.ipm.organization.<id>
-observer.observed.ipm.organization.<id>.changed
+<messageType>.<module>.<resourceType>.<resourceId>
 ```
 
-O tipo de mudança pertence ao contrato do recurso e à evolução de `desiredGeneration`. O resultado da observação (`present`, `absent`, `unknown`) pertence ao campo `presence` do envelope.
+A mutação ou ciclo de vida (`lifecycle`) é declarado no contrato do envelope e do payload da mensagem, e não nos tokens de endereçamento de rede.
 
 ## 29.4 Proibido: subscription `>` sem justificativa
 
-## 29.5 Proibido: secrets dentro do payload
+Subscriptions globais abertas violam o princípio do menor privilégio e impedem isolamento operacional.
+
+## 29.5 Proibido: secrets no payload
+
+Credenciais em texto claro nunca devem trafegar em mensagens de eventos ou estado.
 
 ## 29.6 Proibido: ACK antecipado
 
+Nunca confirmar a mensagem antes de processá-la e assegurar a persistência ou mutação correspondente.
+
 ## 29.7 Proibido: depender de exactly-once para correção
 
-## 29.8 Proibido: criar um Stream por recurso sem necessidade
+Toda operação de recepção, projeção e reconciliação deve ser idempotente.
 
-## 29.9 Proibido: misturar classes de retenção no mesmo Stream
+## 29.8 Proibido: criar um Stream por recurso
 
-Não reunir mensagens de trabalho, de estado e de fato em um mesmo Stream, nem conceder acesso a um Stream de trabalho (`REQUESTED`, `ACTION`) a quem não é seu consumidor.
+Streams são fixos e consolidados (`DESIRED`, `UPDATED`, `AUDIT`). Novos recursos e módulos acrescentam apenas Subjects e Consumers.
 
-## 29.10 Proibido: mais de um consumidor sobreposto em Stream `WorkQueue`
+## 29.9 Proibido: conceder purge ou administração de Stream a serviço de runtime
 
-## 29.11 Proibido: consumer compartilhado para estado em memória
+A permissão de purge do NATS não possui escopo por Subject. Conceder purge a um serviço permite a destruição inadvertida de dados de toda a plataforma.
 
-Um consumer durável compartilhado entrega a cada instância apenas uma fração das mensagens e não reentrega o último estado após um restart. Cache de estado exige um consumer por instância.
+## 29.10 Proibido: consumer compartilhado para estado em memória
 
-## 29.12 Proibido: conceder purge ou administração de Stream a serviço de runtime
+Consumidores que mantêm projeções em memória (Informer do Controller ou projeções da API) devem usar um `StateConsumer` exclusivo por instância, garantindo reconstrução total do catálogo local em caso de reinício.
 
-A permissão de purge não pode ser restringida por Subject. Remoção de tombstones é um job administrativo.
+## 29.11 Proibido: filtro de consumer mais largo que `<módulo>.<tipo>`
 
-## 29.13 Proibido: filtro de consumer mais largo que `<módulo>.<tipo>`
-
-Em Stream `WorkQueue`, sobrepõe consumers de outros tipos e é rejeitado pelo servidor. Em qualquer Stream, impede a autorização por filtro.
+Consumers de serviço devem restringir seu filtro ao seu domínio estrito (ex.: `desired.ipm.organization.>`).
 
 # 30. Nomenclatura recomendada
 
 ## 30.1 Streams
 
 ```text
-REQUESTED
 DESIRED
-OBSERVED
-ACTION
-RESULT
 UPDATED
 AUDIT
 QUARANTINE
@@ -1026,56 +865,49 @@ QUARANTINE
 
 ## 30.2 Consumers
 
-Nomes devem ser funcionais e usar apenas letras minúsculas, dígitos e hífen (sem `.`, `*`, `>` nem espaços).
-
-Formato:
+Nomes funcionais utilizando letras minúsculas, dígitos e hífen:
 
 ```text
-<módulo>-<tipo>-<papel>-<stream>[-<instância>]
+<módulo>-<tipo>-<papel>-desired-<instância>
 ```
 
 Exemplos:
 
 ```text
-ipm-organization-manager-requested
-ipm-organization-executor-action
-ipm-organization-reconciler-desired-<instância>
-billing-observed
-audit-observed
+ipm-organization-controller-desired-0192d6
+ipm-user-api-desired-0192e4
+billing-account-updated
 ```
-
-O sufixo `<instância>` existe apenas nos consumers de estado em memória e é único por execução do processo.
 
 ## 30.3 Subjects
 
 ```text
-desired.ipm.organization.<id>
-observer.observed.ipm.organization.<id>.changed
-executor.completed.ipm.organization.<id>.create
+desired.ipm.organization.01a17641-4895-761f-888f-24ca35143f79
+updated.ipm.organization.01a17641-4895-761f-888f-24ca35143f79
+desired.core.account.0192d6e3-552b-7c1d-842f-d8b3c10a4421
+updated.core.account.0192d6e3-552b-7c1d-842f-d8b3c10a4421
 ```
 
 # 31. Checklist operacional
 
-Antes de colocar um fluxo em produção, verificar:
+Antes de promover alterações de mensageria para homologação e produção, verificar:
 
-- [ ] Subject segue o formato definido em `MESSAGING.md`;
-- [ ] emissor é funcional e estável;
-- [ ] consumidor não está embutido no Subject;
-- [ ] `desired` e `observed` estão corretamente utilizados;
-- [ ] Stream pertence ao `messageType` da mensagem e possui a retenção da sua classe;
-- [ ] `desired` e `observed` usam a operação `changed` (um Subject por recurso);
-- [ ] Stream `WorkQueue` possui consumidores sem filtros sobrepostos e `DiscardNew`;
-- [ ] consumer de estado em memória é por instância, com `DeliverLastPerSubject`, nome único por execução e `inactive_threshold`;
-- [ ] consumer de trabalho ou persistência é durável e compartilhado pelas instâncias;
-- [ ] cada consumer possui um único filtro, no nível `<módulo>.<tipo>`;
-- [ ] o Executor usa um consumer por partição de `ACTION`, com `max_ack_pending=1` (e `pinned_client` em stg e prd), e lê o `desired` por Direct Get;
-- [ ] nenhum serviço de runtime possui permissão de purge ou de administração de Stream;
-- [ ] Pull Consumer é utilizado para work distribution;
-- [ ] ACK ocorre somente após processamento seguro;
-- [ ] retry possui backoff;
-- [ ] mensagens poison possuem quarentena;
-- [ ] replay foi considerado;
-- [ ] idempotência foi implementada;
+- [ ] Subject segue estritamente o formato canônico de 4 tokens (`<messageType>.<module>.<resourceType>.<resourceId>`);
+- [ ] `messageType` restrito a `desired` ou `updated`;
+- [ ] Emissor funcional é declarado no envelope (`emitter`), nunca no Subject;
+- [ ] Destinatário não faz parte do Subject;
+- [ ] Streams ativos são exclusivamente `DESIRED`, `UPDATED` e `AUDIT`;
+- [ ] `DESIRED` e `UPDATED` utilizam `LimitsPolicy` com `max_msgs_per_subject: 1` e `allow_direct: true`;
+- [ ] `AUDIT` agrega `DESIRED` e `UPDATED` via stream sources com `deny_delete: true` e `max_msgs_per_subject: -1`;
+- [ ] Consumers de estado em memória utilizam `DeliverLastPerSubject`, `inactive_threshold=300s`, `max_deliver=20` e identificador por instância;
+- [ ] Falhas no `StateConsumer` implementam backoff exponencial e descarte com `term()` na última entrega (`max_deliver`);
+- [ ] Clientes NATS configuram reconexão ilimitada (`max_reconnect_attempts: -1`) com callbacks de log estruturado;
+- [ ] Nenhum serviço de runtime possui permissão de purge ou administração de Streams;
+- [ ] Contexto de rastreabilidade (`traceparent`) é propagado nos cabeçalhos de mensagem;
+- [ ] Operações de processamento e reconciliação são rigorosamente idempotentes;
+- [ ] Remoção de recursos utiliza tombstones em `DESIRED` com `lifecycle=absent`;
+- [ ] TLS habilitado fora do ambiente de desenvolvimento;
+- [ ] Credenciais de acesso gerenciadas com menor privilégio e fora do controle de versão.
 - [ ] ordering necessário possui chave explícita;
 - [ ] TLS está habilitado fora do ambiente local;
 - [ ] autorização utiliza menor privilégio;
