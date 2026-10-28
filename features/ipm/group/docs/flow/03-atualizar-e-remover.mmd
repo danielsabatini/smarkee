@@ -1,41 +1,36 @@
 sequenceDiagram
-  participant U as Solicitante (sk)
-  participant R as Receiver
-  participant USRR as ipm.user Receiver
-  participant M as Manager
-  participant DB as SSOT (schema ipm)
-  participant P as Publisher
-  participant REC as Reconciler
-  participant OB as Observer
-  participant EX as Executor
-  participant ST as Banco platform (schema ipm)
-  U->>R: GET /v1/ipm/groups/{resourceId}
-  R-->>U: 200 com resourceVersion
-  U->>R: PATCH /v1/ipm/groups/{resourceId} {resourceVersion, description, roles}
-  R->>R: valida ipm.group.update e ipm.group.bind (se roles mudou)
-  R->>M: requested-update (REQUESTED)
-  R-->>U: 202 operationId
-  alt resourceVersion diferente da atual
-    M->>DB: Operation rejected (conflict), nada muda
-  else aceito
-    M->>DB: geração + 1, campos novos, outbox desired
-    P->>REC: desired (DESIRED)
-    REC->>EX: action update (campos diferem)
-    EX->>ST: transação: atualiza ipm.group e ipm.group_role
-    OB->>M: observed com os campos novos (fase Ready)
+  participant U as Usuário (sk)
+  participant API as API (ipm-group-api)
+  participant DB as SSOT (banco ssot)
+  participant P as Publisher (ipm-group-publisher)
+  participant NATS as NATS (Stream DESIRED)
+
+  Note over U,API: 1. Atualização com PATCH
+  U->>API: PATCH /v1/ipm/groups/{resourceId} (Header: If-Match ou corpo: resourceVersion)
+  API->>API: valida permissão ipm.group.update e catálogo de roles
+  alt resourceVersion divergente da versão atual
+    API-->>U: 409 Conflict (OptimisticLockFailed)
+  else membro alterando roles sem ipm.group.bind
+    API-->>U: 403 PermissionDenied (BindRoleRequired)
+  else sucesso na validação
+    API->>DB: Transação SQL: UPDATE ipm.group (generation++, version++), INSERT outbox
+    API-->>U: 200 OK (Resource atualizado, phase Ready)
+    P->>DB: lê outbox pendente
+    P->>NATS: publica manager.desired.ipm.group.<resourceId>.changed
+    P->>DB: UPDATE outbox SET published_at = now()
   end
-  Note over R,EX: DELETE exige deletionProtection = false e nenhum ipm.user associado ao grupo
-  U->>R: DELETE /v1/ipm/groups/{resourceId}?resourceVersion=N
-  R->>USRR: count_users_with_group(organizationId, name)
-  alt há usuários associados ao grupo
-    R-->>U: 409 ResourcesAttached
-  else sem usuários associados e desprotegido
-    R->>M: requested-delete (REQUESTED)
-    R-->>U: 202 operationId
-    M->>DB: lifecycle absent (Deleting), outbox desired
-    P->>REC: desired absent
-    REC->>EX: action delete
-    EX->>ST: DELETE em ipm.group (CASCADE em ipm.group_role)
-    OB->>M: observed absent
-    M->>DB: Operation completed, apaga a linha, outbox updated removed
+
+  Note over U,API: 2. Exclusão com DELETE
+  U->>API: DELETE /v1/ipm/groups/{resourceId}?resourceVersion=N
+  API->>API: valida permissão ipm.group.delete
+  alt deletionProtection == true
+    API-->>U: 409 Conflict (DeletionProtected)
+  else grupo em uso por usuários da organização (UserUsageProjection)
+    API-->>U: 409 Conflict (ResourcesAttached: usuários associados ao grupo)
+  else sucesso na validação
+    API->>DB: Transação SQL: DELETE FROM ipm.group, INSERT outbox (tombstone)
+    API-->>U: 202 Accepted (Resource removido)
+    P->>DB: lê outbox pendente
+    P->>NATS: publica manager.desired.ipm.group.<resourceId>.deleted
+    P->>DB: UPDATE outbox SET published_at = now()
   end

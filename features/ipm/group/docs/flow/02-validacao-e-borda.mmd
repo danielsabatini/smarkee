@@ -1,35 +1,30 @@
 sequenceDiagram
-  participant U as Solicitante
-  participant R as Receiver
-  participant PEER as Receivers (Organization / User)
-  participant DB as SSOT (views v1)
-  participant M as Manager
-  U->>R: POST /v1/ipm/groups
+  participant U as Solicitante (sk)
+  participant API as API (ipm-group-api)
+  participant DB as SSOT (banco ssot)
+
+  U->>API: POST /v1/ipm/groups
   alt sem token, token inválido ou audience errada
-    R-->>U: 401 Unauthorized
-  else corpo inválido (JSON quebrado, campo extra, name fora do padrão)
-    R-->>U: 400 ValidationFailed (sem repetir o valor enviado)
+    API-->>U: 401 Unauthorized
+  else corpo inválido (JSON quebrado, campo extra, nome inválido)
+    API-->>U: 400 ValidationFailed (sem ecoar valor confidencial)
+  else role desconhecida no catálogo de roles
+    API-->>U: 400 UnknownRole (informa as roles inválidas)
   else falta a permissão ipm.group.create (ou ipm.group.admin)
-    R-->>U: 403 Forbidden
-  else solicitante não é operador, dono nem membro da Organization
-    R->>PEER: consulta escopo na Organization
-    R-->>U: 404 NotFound
-  else roles fora do catálogo RolesCatalog
-    R-->>U: 400 ValidationFailed (field: roles)
-  else membro tentando atribuir roles sem ipm.group.bind
-    R-->>U: 403 Forbidden
-  else cota de grupos da Organization atingida
-    R->>DB: count_groups_in(organizationId)
-    R-->>U: 403 QuotaExceeded
-  else mesma Idempotency-Key com outro pedido
-    R-->>U: 422 IdempotencyKeyReused
-  else REQUESTED cheio ou NATS indisponível
-    R-->>U: 503 com Retry-After (repetível)
-  else pedido aceito
-    R->>M: requested-create (REQUESTED)
-    R-->>U: 202 resourceId e operationId
-    Note over M: A decisão final é do Manager e pode recusar
-    alt name já usado por outro Grupo presente na mesma Organization
-      M->>DB: Operation rejected (conflict), sem desired
-    end
+    API-->>U: 403 PermissionDenied
+  else solicitante não pertence à Organization
+    API-->>U: 403 Forbidden (OrganizationMismatch)
+  else membro atribuindo roles sem ipm.group.bind
+    API-->>U: 403 PermissionDenied (BindRoleRequired)
+  else e-mail do solicitante não verificado
+    API-->>U: 403 EmailNotVerified
+  else mesma Idempotency-Key com payload diferente
+    API-->>U: 422 IdempotencyConflict
+  else mesma Idempotency-Key com mesmo payload (replay)
+    API->>DB: SELECT em ipm.group_idempotency e ipm.group_v1
+    API-->>U: 201 Created (recurso já gravado, sem reprocessamento)
+  else nome já cadastrado na mesma organização
+    API-->>U: 409 Conflict (GroupNameAlreadyExists)
+  else cota de grupos da organização esgotada
+    API-->>U: 409 Conflict (QuotaExceeded)
   end

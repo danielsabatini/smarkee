@@ -1,25 +1,8 @@
 flowchart LR
-  U([Operador / Dono / Membro / sk]) -->|HTTP| GW[Gateway]
-  GW --> R[Receiver]
-  R -->|leitura: views v1| DB[(SSOT: schema ipm)]
-  R -->|consulta escopo| ORGR[ipm.organization Receiver]
-  R -->|membro e usuários no grupo| USRR[ipm.user Receiver]
-  R -->|requested| REQ[(REQUESTED)]
-  REQ --> M[Manager]
-  M -->|Group, Operation, outbox| DB
-  DB -->|outbox pendente| P[Publisher]
-  P -->|desired| DES[(DESIRED)]
-  DES --> REC[Reconciler]
-  DES --> OBS[Observer]
-  OBSV[(OBSERVED)] --> REC
-  OBS -->|observed| OBSV
-  REC -->|action| ACT[(ACTION, 4 partições)]
-  ACT --> EX[Executor]
-  EX -->|completed ou failed| RES[(RESULT)]
-  RES --> REC
-  RES --> OBS
-  OBSV -->|fase e Operation| M
-  RES -->|resultado por actionId| M
-  EX -->|escrita transacional| ST[(platform: schema ipm)]
-  OBS -->|somente SELECT| ST
-  DES -->|expansão de groups em roles| USR[ipm.user Manager / Reconciler]
+  U([Operador / Dono / Membro / sk]) -->|HTTP| GW[Gateway APISIX]
+  GW -->|HTTP| API[API: ipm-group-api]
+  API -->|SQL: transação síncrona\ngroup, outbox, idempotency| DB[(SSOT: banco ssot, schema ipm)]
+  NATS[(JetStream: Stream DESIRED)] -.->|"Informer: ipm.organization, ipm.role e ipm.user (projeções)"| API
+  DB -->|outbox pendente por sequence| PUB[Publisher: ipm-group-publisher]
+  PUB -->|manager.desired.ipm.group.>| NATS
+  NATS -->|desired.changed / desired.deleted| CONS[Consumidor:\nipm.user Controller]

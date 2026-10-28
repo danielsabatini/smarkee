@@ -1,222 +1,178 @@
-# ipm.group: fluxo de dados (do `POST` até o estado reconciliado)
+# ipm.group: fluxo de dados (do `POST` até o estado convergido)
 
-Documento de fluxo de dados da feature, no padrão da [decisão 0024](../../../../.decisions/0024-data-flow-por-feature.md) e de
-`features/ipm/role/docs/IPM-ROLE-DATA-FLOW.md`. Todos os passos estão implementados e rodam no dev (Compose),
-verificados pela suíte e2e (`tests/e2e`), inclusive com falha de componente. As decisões de desenho são a
-[0086](../../../../.decisions/0086-banco-platform-plano-de-dados-fora-do-ssot.md) e a
-[0088](../../../../.decisions/0088-ipm-group-grupos-de-usuarios-por-organizacao.md).
+Documento de fluxo de dados da feature `ipm.group`, no padrão da [decisão 0024](../../../../.decisions/0024-data-flow-por-feature.md) e das decisões de arquitetura:
+- [0088](../../../../.decisions/0088-ipm-group-grupos-de-usuarios-por-organizacao.md): agrupador de papéis compostos (`ipm.role`) escopado por Organization;
+- [0098](../../../../.decisions/0098-api-sincrona-e-fim-da-operation.md): API síncrona e extinção da Operation;
+- [0099](../../../../.decisions/0099-extincao-do-banco-platform.md): extinção do banco `platform` e concentração no SSOT;
+- [0100](../../../../.decisions/0100-desacoplamento-http-ipm-e-projecoes-desejado.md): desacoplamento total de chamadas HTTP mútuas entre features via Informers e projeções em memória no stream `DESIRED`.
 
-**Origem dos exemplos.** Os exemplos foram tirados de uma execução no dev e sanitizados: os valores (UUIDs, horários, operador)
-são fictícios.
+Todos os passos rodam no dev (Docker Compose) e são verificados pela suíte e2e (`tests/e2e`).
 
 **Comando.** `sk ipm group create|get|list|update|protect|unprotect|delete` (`clients/cli`) é o cliente deste fluxo.
 
 ## 0. Visão geral
 
-Criar um Grupo (`POST /v1/ipm/groups {"organizationId": "0199c8a0-...", "name": "auditors", "description": "Auditores da Organization.", "roles": ["ipm.userViewer"]}`)
-não grava nada no Zitadel: conforme a decisão 0088, **`ipm.group` existe no SSOT da Smarkee e no banco `platform`** como agrupador
-de Roles compostas (`ipm.role`) escopado por Organization. Quando atribuído a um usuário (`ipm.user`), o Manager e o Reconciler
-de `ipm/user` expandem os `groups` em Roles e permissões atômicas.
+O Grupo existe **exclusivamente no SSOT da Smarkee** (banco `ssot`, schema `ipm`). Por se tratar de um recurso do perfil **`internal-state`**, ele não possui representação direta em provedores externos (como o Zitadel) nem no extinto banco `platform`: nasce imediatamente com `phase: Ready`, `presence: present` e `observedGeneration = generation`.
 
-1. **Receiver** (`ipm-group-receiver`): autentica o JWT, exige a permissão da operação (`ipm.group.create|get|list|update|delete`
-   ou `ipm.group.admin`), verifica a relação do solicitante com a Organization (`OPERATOR`, `OWNER` via Receiver de
-   `ipm/organization` ou `MEMBER` via Receiver de `ipm/user`), valida as `roles` contra o catálogo dinâmico (`RolesCatalog`),
-   exige `ipm.group.bind` para atribuir ou alterar `roles` quando o solicitante é membro, verifica a cota de grupos por
-   Organization e, no `DELETE`, consulta o Receiver de `ipm/user` para bloquear a exclusão (`409 ResourcesAttached`) se houver
-   usuários associados ao grupo. Publica `requested` no NATS e responde `202 Accepted` com `resourceId` e `operationId`.
-2. **Manager** (`ipm-group-manager`): consome `REQUESTED`, valida `unique_value` (`(organizationId, name)` único entre grupos
-   ativos sob trava consultiva), `owner_quota` e catálogo de `roles`, grava `ipm.group`, `ipm.group_operation` e `ipm.group_outbox`
-   numa única transação no banco `ssot`.
-3. **Publisher** (`ipm-group-publisher`): drena `ipm.group_outbox` em ordem de `sequence` e publica `desired` e `updated` no
-   JetStream com `Nats-Msg-Id` determinístico.
-4. **Observer** (`ipm-group-observer`): lê o estado materializado do grupo no banco `platform` (`ipm.group` e `ipm.group_role`,
-   papel somente `SELECT`) e publica `observed` (`present`, `absent` ou `unknown`).
-5. **Reconciler** (`ipm-group-reconciler`): compara `desired` e `observed` (`name`, `description`, `roles`,
-   `deletionProtection`) e emite `action` (`create`, `update` ou `delete`) particionada por `resourceId`.
-6. **Executor** (`ipm-group-executor`): revalida a `action` contra o `desired` vigente, aplica a mutação transacional em
-   `ipm.group` e `ipm.group_role` no banco `platform` e publica `completed` ou `failed` em `RESULT`.
-7. **Manager** (retorno): consome `OBSERVED` e `RESULT`, promove a fase para `Ready` quando `observed` converge com `desired` na
-   geração atual e conclui a `Operation` (`completed`). Na remoção convergida (`absent`), apaga a linha do SSOT e publica
-   `updated` com `removed: true`.
+O pedido é admitido de forma síncrona pela API (`ipm-group-api`) em uma única transação no PostgreSQL. O Publisher (`ipm-group-publisher`) lê o outbox e publica o evento no stream `DESIRED` do NATS JetStream para que o Controller de `ipm.user` expanda os grupos em roles e permissões atômicas para os usuários membros.
 
-Arquitetura: [`architecture/01-componentes.svg`](architecture/01-componentes.svg). Modelo físico:
-[`database/01-er-fisico.svg`](database/01-er-fisico.svg). Fluxo de criação:
-[`flow/01-criar-group.svg`](flow/01-criar-group.svg).
+| # | De → Para | Meio | O que sai | O que é gravado |
+|---|---|---|---|---|
+| 1 | CLI → API | `POST /v1/ipm/groups` (via gateway) | `{organizationId, name, description, roles, ...}` | nada |
+| 2 | API → banco `ssot` | SQL, uma transação atômica | `201 Created` (`Resource` em `phase: Ready`) | `ipm.group`, `ipm.group_outbox`, `ipm.group_idempotency` |
+| 3 | Publisher → NATS | JetStream, Stream `DESIRED` | `desired` (`manager.desired.ipm.group.<id>.changed`) | `ipm.group_outbox.published_at` |
+| 4 | NATS → Consumidor | JetStream (Informer/Stream) | `desired` entregue a `ipm.user` | Atualização de caches e reconciliação de usuários |
 
-## 1. Borda e Receiver (`ipm-group-receiver`)
+Apenas a **API** escreve nas tabelas de recurso (`ipm.group`) e outbox (`ipm.group_outbox`). O **Publisher** apenas lê o outbox e marca `published_at`. Não há `Receiver`, `Manager`, `Reconciler`, `Observer`, `Executor`, `Operation` nem banco `platform`.
 
-### 1.1 Rotas e autorização (`receiver/http/app.py`)
+Diagramas de arquitetura e estados:
+- Componentes: [`architecture/01-componentes.svg`](architecture/01-componentes.svg)
+- Modelo de dados (ER): [`database/01-er-fisico.svg`](database/01-er-fisico.svg)
+- Fases do recurso: [`state/01-fase-do-recurso.svg`](state/01-fase-do-recurso.svg)
+- Fluxos de execução: criação [`flow/01-criar-group.svg`](flow/01-criar-group.svg), validação e borda [`flow/02-validacao-e-borda.svg`](flow/02-validacao-e-borda.svg), atualização e remoção [`flow/03-atualizar-e-remover.svg`](flow/03-atualizar-e-remover.svg), falhas e resiliência [`flow/04-falhas-na-api-e-mensageria.svg`](flow/04-falhas-na-api-e-mensageria.svg).
 
-| Método e rota | Permissão exigida | Escopo e regras adicionais |
-|---|---|---|
-| `POST /v1/ipm/groups` | `ipm.group.create` (ou `ipm.group.admin`) | `standing_in(organizationId)` deve ser `OPERATOR`, `OWNER` ou `MEMBER`; atribuir `roles` não vazias por `MEMBER` exige `ipm.group.bind`; respeita `group_quota` por Organization (exceto `OPERATOR`) |
-| `GET /v1/ipm/groups/{group_id}` | `ipm.group.get` (ou `ipm.group.admin`) | Visível apenas para `OPERATOR`, `OWNER` ou `MEMBER` da Organization do grupo (senão `404 NotFound`) |
-| `GET /v1/ipm/groups?organizationId=...` | `ipm.group.list` (ou `ipm.group.admin`) | Exige `organizationId`; paginação por `cursor` e `limit` sobre a view `ipm.group_v1` |
-| `PATCH /v1/ipm/groups/{group_id}` | `ipm.group.update` (ou `ipm.group.admin`) | Exige `resourceVersion` atual (`409 Conflict` se divergir); alterar `roles` por `MEMBER` exige `ipm.group.bind`; alterar `reconciliation` é restrito a `OPERATOR` |
-| `DELETE /v1/ipm/groups/{group_id}?resourceVersion=...` | `ipm.group.delete` (ou `ipm.group.admin`) | Exige `resourceVersion` atual; se `deletionProtection == true`, responde `409 DeletionProtected`; se houver usuários associados ao grupo na Organization (`count_users_with_group > 0`), responde `409 ResourcesAttached` |
-| `GET /v1/ipm/groups/{group_id}/operations/{operation_id}` | Mesma visibilidade do grupo | Lê a view `ipm.group_operation_v1` |
+### Identificadores que ligam tudo
 
-Diagramas de validação e atualização/remoção: [`flow/02-validacao-e-borda.svg`](flow/02-validacao-e-borda.svg) e
-[`flow/03-atualizar-e-remover.svg`](flow/03-atualizar-e-remover.svg).
+| Campo | Quem cria | Formato | Papel |
+|---|---|---|---|
+| `resourceId` | API | UUIDv7 minúsculo | Identidade primária do Grupo no SSOT. |
+| `organizationId` | Solicitante (imutável) | UUIDv7 minúsculo | Escopo organizacional ao qual o Grupo pertence. |
+| `name` | Solicitante | string até 64 chars | Nome do grupo (único dentro da mesma organização). |
+| `messageId` | API (na outbox) | UUIDv7 | É o `Nats-Msg-Id` (deduplicação) e a chave única do outbox. |
+| `correlationId` | API | UUIDv7 (propagado ou gerado) | Rastreia a requisição de ponta a ponta. |
+| `resourceVersion` | API | inteiro serializado como string | Concorrência otimista no `PATCH` e `DELETE`. |
+| `Idempotency-Key` | Cliente (opcional) | string até 128 chars | Garante idempotência na admissão da API. |
 
-### 1.2 Exemplo de `requested-create` publicado em `REQUESTED`
+---
 
-Subject: `receiver.requested.ipm.group.0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e.create`
+## 1. CLI → API: `POST /v1/ipm/groups`
 
-```json
-{
-  "messageId": "0199c8a4-7b20-7d11-8a10-112233445566",
-  "schemaVersion": "1.0",
-  "messageType": "requested",
-  "emitter": "receiver",
-  "module": "ipm",
-  "resourceType": "group",
-  "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
-  "operation": "create",
-  "requestedBy": "326481904123456789",
-  "correlationId": "0199c8a4-7b20-7d11-8a10-112233445566",
-  "causationId": "0199c8a4-7b20-7d11-8a10-112233445566",
-  "occurredAt": "2026-10-25T14:00:00Z",
-  "publishedAt": "2026-10-25T14:00:00Z",
-  "data": {
-    "operationId": "0199c8a4-7b20-7d11-8a10-112233445566",
-    "requestDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "organizationQuotaLimit": 50,
-    "specification": {
-      "organizationId": "0199c8a0-0000-7000-8000-0000000000aa",
-      "name": "auditors",
-      "description": "Auditores da Organization.",
-      "roles": ["ipm.userViewer"],
-      "deletionProtection": false
-    }
-  }
-}
+Exemplo de chamada via CLI:
+```bash
+sk ipm group create \
+  --org 0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e \
+  --name "auditors" \
+  --description "Auditores da organização." \
+  --roles "sum.serviceViewer,bsm.accountViewer"
 ```
 
-## 2. Manager (`ipm-group-manager`)
+A requisição chega ao gateway APISIX e é roteada para a API `ipm-group-api` na rota `POST /v1/ipm/groups`.
 
-### 2.1 Política (`manager/domain/group.py`)
+### 1.1 Autenticação, Escopo e Autorização na API
+1. **Autenticação:** validação do token JWT OIDC emitido pelo Zitadel (audience `roles-ipm`).
+2. **Escopo da Organization (sem chamadas HTTP entre features, decisão 0100):**
+   - O solicitante pode ser:
+     - **Operador global:** permissão `ipm.group.admin`;
+     - **Dono da Organization (`ownerAccountId`):** identificado pela projeção em memória do stream `DESIRED` de `ipm.organization`;
+     - **Membro da Organization:** identificado pelo claim `urn:zitadel:iam:org:project:<projectId>:roles` escopado ao domínio da Organization.
+3. **Autorização:**
+   - Exige `ipm.group.create` ou `ipm.group.admin`.
+   - Quando o solicitante for um membro comum atribuindo ou modificando `roles`, exige também a permissão `ipm.group.bind` (Ajuste de segurança S0).
+   - E-mail do solicitante deve estar verificado (`email_verified: true`).
 
-| Operação | Condição verificada na transação | Desfecho |
-|---|---|---|
-| `create` | `roles` contém item fora do `RolesCatalog` | recusa `validation` |
-| `create` | já existe Grupo presente na mesma `organizationId` com o mesmo `name` (trava consultiva `ipm.group.name:<organizationId>:<name>`) | recusa `conflict` |
-| `create` | total de grupos presentes na `organizationId` atingiu `organizationQuotaLimit` | recusa `quota_exceeded` |
-| `update` ou `delete` | Grupo inexistente ou já com `lifecycle = absent` | recusa `not_found` |
-| `update` ou `delete` | `resourceVersion` diferente da atual | recusa `conflict` |
-| `delete` | `deletionProtection` é `true` | recusa `protected` |
-| qualquer | válido | aceita: grava `desired` com nova geração (`roles` deduplicadas e ordenadas; `deletionProtection: false` por padrão no `create`) |
+### 1.2 Validações de Domínio e Admissão Síncrona
+A API valida em memória antes de tocar no banco:
+- Validação das roles solicitadas contra o catálogo de roles ativas (`CatalogConsumer` do stream `DESIRED` de `ipm.role`). Roles inexistentes retornam `400 ValidationFailed` com detalhe `UnknownRole`.
+- Cota de grupos por organização: máximo de 50 grupos por organização (`QuotaExceeded` -> `409 Conflict`).
+- Suporte a `Idempotency-Key`: repetição exata devolve `201 Created` do recurso já salvo; divergência de payload devolve `422 IdempotencyConflict`.
 
-### 2.2 Gravação (`manager/store/ssot.py`)
+### 1.3 Gravação Atômica no SSOT
+A admissão executa uma única transação SQL no banco `ssot`:
+1. Trava consultiva por `(organization_id, name)` para garantir unicidade estrita do nome na organização.
+2. `INSERT` na tabela `ipm.group`:
+   - `phase = 'Ready'`
+   - `presence = 'present'`
+   - `desired_generation = 1`
+   - `observed_generation = 1`
+   - `desired = observed = {"organizationId": ..., "name": ..., "roles": [...], ...}`
+   - `requested_by = <sub do solicitante>`
+   - `correlation_id = <correlationId>`
+3. `INSERT` na tabela `ipm.group_outbox`:
+   - evento `desired.changed` contendo o envelope estrito do grupo.
+4. `INSERT` na tabela `ipm.group_idempotency` (se `Idempotency-Key` foi enviada).
 
-- **Criar aceito:** `INSERT` em `ipm.group` (`desired_generation = 1`, `resource_version = 1`, `phase = Pending`).
-- **Atualizar aceito:** `UPDATE` em `ipm.group` (`desired_generation + 1`, `resource_version + 1`, `phase = Reconciling`).
-- **Remover aceito:** `lifecycle = absent`, `phase = Deleting`.
-- **Operation e Outbox:** `INSERT` em `ipm.group_operation` e, quando aceito, em `ipm.group_outbox`.
+A API responde imediatamente `201 Created` contendo o `Resource` completo já convergido.
 
-Diagrama de falhas no Manager e mensageria:
-[`flow/04-falhas-no-manager-e-mensageria.svg`](flow/04-falhas-no-manager-e-mensageria.svg).
+---
 
-## 3. Outbox → NATS (`ipm-group-publisher`)
+## 2. Publicação Assíncrona: `ipm-group-publisher`
 
-O Publisher lê `ipm.group_outbox` em ordem de `sequence`, valida o envelope, acrescenta `publishedAt` e `publishedBy` e publica em
-`manager.desired.ipm.group.<resourceId>.changed` e `manager.updated.ipm.group.<resourceId>.changed`. Além do Reconciler, Observer e
-Executor de `ipm.group`, o **Manager e o Reconciler de `ipm.user`** consomem `DESIRED` de `ipm.group` para atualizar o catálogo de
-grupos em memória e reconciliar os usuários membros quando as `roles` de um grupo mudam (decisão 0088).
+O processo `ipm-group-publisher` roda de forma contínua e assíncrona:
+1. Drena as linhas de `ipm.group_outbox` onde `published_at IS NULL` ordenadas por `sequence ASC`.
+2. Constrói a mensagem NATS com cabeçalho `Nats-Msg-Id = message_id`.
+3. Publica no subject `manager.desired.ipm.group.<resourceId>.changed` no JetStream (Stream `DESIRED`).
+4. Ao receber o `PubAck` do JetStream, atualiza `UPDATE ipm.group_outbox SET published_at = now() WHERE sequence = ...`.
 
+Envelope publicado:
 ```json
 {
+  "messageId": "0199c8b3-0a1b-7c2d-8e3f-4a5b6c7d8e99",
+  "schemaVersion": "1.0",
   "messageType": "desired",
-  "emitter": "manager",
+  "emitter": "publisher",
   "module": "ipm",
   "resourceType": "group",
-  "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d99",
   "operation": "changed",
   "desiredGeneration": 1,
+  "publishedAt": "2026-10-28T14:00:00.000Z",
   "publishedBy": "ipm-group-publisher",
   "data": {
-    "organizationId": "0199c8a0-0000-7000-8000-0000000000aa",
+    "organizationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
     "name": "auditors",
-    "description": "Auditores da Organization.",
-    "roles": ["ipm.userViewer"],
-    "deletionProtection": false,
+    "description": "Auditores da organização.",
+    "roles": ["sum.serviceViewer", "bsm.accountViewer"],
+    "deletionProtection": true,
     "lifecycle": "present",
     "reconciliation": "active"
   }
 }
 ```
 
-## 4. Observer (`ipm-group-observer`)
+---
 
-Lê `ipm.group` e `ipm.group_role` no banco `platform` usando o papel `ipm_group_observer_login` (somente `SELECT`) e publica em
-`observer.observed.ipm.group.<resourceId>.changed`:
+## 3. Consumo pelo Controller de `ipm.user`
 
-- `present`, com `name`, `description`, `roles` (ordenadas) e `deletionProtection`;
-- `absent`, quando o registro não existe em `ipm.group` no banco `platform`;
-- `unknown`, para qualquer erro de conexão ou consulta (nunca confundido com `absent`).
+O **Controller de `ipm.user`** consome os eventos do subject `manager.desired.ipm.group.>` no Stream `DESIRED`:
+- Mantém em cache local todos os grupos e suas respectivas roles.
+- Quando um usuário referencia um grupo em seu array `groups`, o Controller de usuário expande os grupos em roles e, recursivamente, as roles em permissões atômicas.
+- Qualquer alteração na composição de roles de um grupo dispara a fila de reconciliação dos usuários daquela organização no Zitadel, sem nenhuma chamada HTTP síncrona entre as APIs.
 
-## 5. Reconciler (`ipm-group-reconciler`)
+---
 
-Reconstrói o estado a partir de `DESIRED`, `OBSERVED` e `RESULT` (`DeliverLastPerSubject`) e compara `lifecycle`, `name`,
-`description`, `roles` e `deletionProtection`:
+## 4. Atualização e Exclusão
 
-- `observed` ausente com `lifecycle = present` → `create` (`Missing`);
-- qualquer campo divergente (`description`, `roles`, `deletionProtection`) → `update` (`Drift`);
-- `lifecycle = absent` com o Grupo presente → `delete` (`DeletionRequested`).
+### 4.1 Atualização (`PATCH /v1/ipm/groups/{resourceId}`)
+- Exige `ipm.group.update` ou `ipm.group.admin`.
+- Membros alterando `roles` necessitam de `ipm.group.bind`.
+- Concorrência otimista via `If-Match` ou `resourceVersion`.
+- Na transação da API:
+  - `desired_generation` é incrementado;
+  - `observed_generation` acompanha o novo valor;
+  - `resource_version` é incrementado;
+  - novo evento `desired.changed` é inserido no outbox.
+- Resposta síncrona `200 OK` com o recurso atualizado.
 
-A `action` sai em `reconciler.action.p<partição>.ipm.group.<resourceId>.<operação>` com `Nats-Msg-Id` igual ao `actionId`.
-Diagrama: [`flow/05-falhas-na-reconciliacao.svg`](flow/05-falhas-na-reconciliacao.svg).
+### 4.2 Exclusão (`DELETE /v1/ipm/groups/{resourceId}`)
+- Exige `ipm.group.delete` ou `ipm.group.admin`.
+- Se `deletionProtection` estiver ativa (`true`), recusa com `409 Conflict` (`DeletionProtected`).
+- **Verificação de dependentes ativos (Ajuste 1 e decisão 0100):** a API consulta o cache local `UserUsageProjection` (Informer de `ipm.user`). Se houver usuários pertencentes ao grupo, a exclusão é recusada sincronamente com `409 Conflict` (`ResourcesAttached`), informando a quantidade de usuários dependentes.
+- Quando elegível:
+  - Remove a linha física em `ipm.group`.
+  - Insere evento tombstone (`lifecycle: absent`) no `ipm.group_outbox`.
+- Resposta síncrona `202 Accepted` (ou `204 No Content`). O Publisher propaga o tombstone e o Controller de `ipm.user` limpa a referência em seu cache.
 
-## 6. Executor (`ipm-group-executor`)
+---
 
-Revalida cada `action` contra o `desired` vigente e aplica no banco `platform` (schema `ipm`), com o papel
-`ipm_group_executor_login`:
+## 5. Mapa de Acesso ao Banco de Dados
 
-- **`create` / `update`:** em uma única transação, faz upsert em `ipm.group` (`resource_id`, `organization_id`, `name`,
-  `description`, `deletion_protection`) e sincroniza `ipm.group_role`. Tentativa de alterar `name` ou `organizationId` é rejeitada
-  com `Rejected` permanente.
-- **`delete`:** remove a linha de `ipm.group` no banco `platform` (`ipm.group_role` é limpa por `ON DELETE CASCADE`; idempotente se
-  já ausente).
-- **Falha transitória de banco:** `ExternalError` com nova tentativa.
+Todas as operações ocorrem exclusivamente no banco `ssot` sob o schema `ipm`:
 
-O resultado sai em `executor.completed|failed.ipm.group.<resourceId>.<operação>`. Diagrama:
-[`flow/06-falhas-no-executor.svg`](flow/06-falhas-no-executor.svg).
-
-## 7. Manager aplica `observed` e resultados
-
-O Manager consome `OBSERVED` e `RESULT` (`ipm-group-manager-observed` e `-result`) e atualiza o SSOT:
-
-- **`observed`:** grava `observed` e calcula a fase (`Ready` quando `name`, `description`, `roles` e `deletionProtection`
-  convergem com o `desired` e `observed_generation == desired_generation`). Remoção convergida (`absent`) **apaga a linha** de
-  `ipm.group` no SSOT e publica `updated` com `removed: true`.
-- **Operation:** `Reconciling` marca operações aceitas como `in_progress`; `Ready` (ou remoção convergida) as conclui (`completed`).
-- **Resultado:** registrado uma vez por `actionId` em `ipm.group_action_result`. No limite de falhas (5), `reconciliation` passa a
-  `suspended` e a fase a `Failed`.
-
-## 8. Estados
-
-- **Fase** (`phase`): `Pending`, `Reconciling`, `Ready`, `Failed` e `Deleting`. Diagrama:
-  [`state/01-fase-do-recurso.svg`](state/01-fase-do-recurso.svg).
-- **Operation:** `accepted`, `in_progress`, `completed` e `rejected`. Diagrama:
-  [`state/02-operation.svg`](state/02-operation.svg).
-
-## 9. Mapa: quem grava o quê
-
-| Tabela, stream ou serviço | Escritor | Leitor |
+| Tabela / Objeto | Papel `ipm_group_api` | Papel `ipm_group_publisher` |
 |---|---|---|
-| `ssot`: `ipm.group` | Manager | Receiver (view `ipm.group_v1`) |
-| `ssot`: `ipm.group_operation` | Manager | Receiver (view `ipm.group_operation_v1`) |
-| `ssot`: `ipm.group_action_result` | Manager | Manager (dedupe por `actionId`) |
-| `ssot`: `ipm.group_outbox` | Manager (insere) | Publisher (lê e marca `published_at`) |
-| `REQUESTED` | Receiver | Manager |
-| `DESIRED` | Publisher | Reconciler, Observer, Executor, `ipm.user` (Manager e Reconciler) |
-| `OBSERVED` | Observer | Reconciler, Manager |
-| `ACTION` | Reconciler | Executor |
-| `RESULT` | Executor | Reconciler, Observer, Manager |
-| `platform`: `ipm.group` e `ipm.group_role` | Executor | Observer (somente `SELECT`) |
+| `ipm.group` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` | Nenhum acesso |
+| `ipm.group_v1` (view) | `SELECT` | Nenhum acesso |
+| `ipm.group_outbox` | `INSERT` | `SELECT`, `UPDATE (published_at)` |
+| `ipm.group_idempotency` | `SELECT`, `INSERT` | Nenhum acesso |
 
-## 10. Verificação (2026-10-25, dev)
-
-Com os seis componentes no Compose, a suíte unitária e de contrato (`285 passed`) e a suíte e2e (`tests/e2e`) validam a criação do
-Grupo até `Ready`, atualização de `description` e `roles`, bloqueio por `deletionProtection`, desproteção e remoção completa (com
-confirmação `absent` pelo Observer e remoção no SSOT pelo Manager), além da rejeição de nome duplicado na mesma Organization.
+O banco `platform` foi extinto (decisão 0099) e não é acessado por nenhum processo.

@@ -18,7 +18,7 @@ Documento de fluxo de dados da feature, no padrão da [decisão 0024](../../../.
 
 Só a **API** admite pedidos e escreve o `desired` no SSOT de `core.account`; só o **Controller** escreve o estado observado, a fase e as conditions (e remove a linha quando a remoção converge). O Publisher não grava nas tabelas de recurso (só marca `published_at` no outbox). O tipo não tem Operation nem o Stream `REQUESTED` (decisão 0098); `OBSERVED`, `ACTION` e `RESULT` também não existem para ele (decisão 0096).
 
-Diagramas em `flow/`, `architecture/`, `state/` e `database/` ainda mostram o modelo anterior (Receiver, Manager, Reconciler, Observer, Executor e Operation): **pendência declarada**. O texto deste documento é o vigente.
+Diagramas: componentes em [`architecture/01-componentes.svg`](architecture/01-componentes.svg), modelo de dados em [`database/01-er-fisico.svg`](database/01-er-fisico.svg), ciclo de vida do recurso em [`state/01-fase-do-recurso.svg`](state/01-fase-do-recurso.svg) e caminho perfeito em [`flow/01-caminho-perfeito.svg`](flow/01-caminho-perfeito.svg).
 
 ### Identificadores que ligam tudo
 

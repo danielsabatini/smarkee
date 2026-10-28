@@ -1,31 +1,19 @@
 sequenceDiagram
-  participant U as Solicitante (sk)
-  participant R as Receiver
-  participant M as Manager
-  participant DB as SSOT (schema ipm)
-  participant P as Publisher
-  participant REC as Reconciler
-  participant OB as Observer
-  participant EX as Executor
-  participant ST as Banco platform (schema ipm)
-  U->>R: POST /v1/ipm/groups {organizationId, name, description, roles}
-  R->>R: valida token, permissão ipm.group.create, escopo na Organization, bind e cota
-  R->>M: requested-create (REQUESTED)
-  R-->>U: 202 resourceId e operationId
-  M->>DB: Group present (Pending), Operation accepted, outbox desired
-  P->>DB: lê o outbox pendente, em ordem
-  P->>REC: desired (DESIRED)
-  P->>OB: desired (DESIRED)
-  OB->>ST: SELECT em ipm.group e ipm.group_role
-  OB->>REC: observed absent (OBSERVED)
-  OB->>M: observed absent (fase Reconciling, Operation in_progress)
-  REC->>EX: action create (ACTION)
-  EX->>EX: revalida a ação contra o desired vigente
-  EX->>ST: transação: upsert em ipm.group e ipm.group_role
-  EX->>REC: completed (RESULT)
-  EX->>OB: completed (RESULT)
-  OB->>ST: lê o grupo de novo
-  OB->>REC: observed present (OBSERVED)
-  OB->>M: observed present com causationId = actionId
-  M->>DB: fase Ready, observed_generation = 1, Operation completed
-  P->>U: updated Ready (UPDATED)
+  participant U as Usuário (sk)
+  participant API as API (ipm-group-api)
+  participant DB as SSOT (banco ssot)
+  participant P as Publisher (ipm-group-publisher)
+  participant NATS as NATS (Stream DESIRED)
+  participant CONS as Consumidor (ipm.user Controller)
+
+  U->>API: POST /v1/ipm/groups {organizationId, name, description, roles, deletionProtection}
+  API->>API: valida token JWT, e-mail verificado e escopo da Organization
+  API->>API: valida roles contra catálogo (CatalogConsumer de ipm.role)
+  API->>API: exige ipm.group.bind para membros que atribuem roles
+  API->>API: valida cota de grupos por organização (máx 50)
+  API->>DB: Transação SQL atômica: INSERT ipm.group (Ready), INSERT outbox, INSERT idempotency
+  API-->>U: 201 Created (Resource completo: phase Ready, observedGeneration 1)
+  P->>DB: lê outbox pendente por ordem de sequence
+  P->>NATS: publica manager.desired.ipm.group.<resourceId>.changed
+  P->>DB: UPDATE outbox SET published_at = now()
+  NATS->>CONS: entrega desired.changed para caches e expansão de roles em usuários

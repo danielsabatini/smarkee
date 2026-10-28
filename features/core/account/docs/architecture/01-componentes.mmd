@@ -1,58 +1,21 @@
 flowchart LR
-    classDef client fill:#e8f0fe,stroke:#4a6fd8,color:#102a63
-    classDef core fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
-    classDef planned fill:#fff8e1,stroke:#ef6c00,color:#5a2d00,stroke-dasharray:5 3
-    classDef nats fill:#f3e5f5,stroke:#7b1fa2,color:#3a0f4a
-    classDef ext fill:#fdecea,stroke:#c62828,color:#5c1111
-    classDef store fill:#e0f2f1,stroke:#00695c,color:#003d33
+    CLI["sk CLI / Web"]
+    GW["Gateway APISIX<br/>api-dev.smarkee.com.br"]
+    API["API: core-account-api<br/>auth, validação, admissão síncrona"]
+    DB[("SSOT: banco ssot<br/>schema core: account, outbox, idempotency")]
+    PUB["Publisher: core-account-publisher<br/>publica outbox pendente"]
+    NATS[("JetStream: Stream DESIRED")]
+    CTRL["Controller: core-account-controller<br/>informer, workqueue, decide, reconcile"]
+    ZIT["Zitadel<br/>org core, projeto smarkee"]
+    MAIL["SMTP<br/>Mailpit em dev"]
 
-    CLI["sk CLI<br/>sk register (sk account: a implementar)"]:::client
-    GW["Gateway APISIX<br/>api-dev.smarkee.com.br<br/>limite 10/min por IP"]:::client
-    Receiver["core-account-receiver<br/>auth, validação, 202"]:::client
-
-    subgraph BUS["NATS JetStream (um Stream por messageType)"]
-        direction TB
-        REQ["REQUESTED<br/>receiver.requested.core.account.id.create|delete"]:::nats
-        DES["DESIRED<br/>manager.desired.core.account.id.changed"]:::nats
-        OBSS["OBSERVED<br/>observer.observed.core.account.id.changed"]:::nats
-        ACT["ACTION (4 partições por resourceId)<br/>reconciler.action.core.account.id.create|update|delete"]:::nats
-        RES["RESULT<br/>executor.completed|failed.core.account.id.op"]:::nats
-        UPD["UPDATED<br/>manager.updated.core.account.id.changed"]:::nats
-    end
-
-    MGR["core-account-manager<br/>único escritor do SSOT"]:::core
-    PUB["core-account-publisher<br/>publica o outbox"]:::core
-    REC["core-account-reconciler<br/>decide a action"]:::core
-    OBSV["core-account-observer<br/>lê o Zitadel (leitura)"]:::core
-    EXE["core-account-executor<br/>escreve no Zitadel"]:::core
-    DB[("SSOT PostgreSQL<br/>schema core: account, operation,<br/>action_result, outbox")]:::store
-    ZIT["Zitadel<br/>org core, projeto smarkee"]:::ext
-    MAIL["SMTP<br/>Mailpit em dev"]:::ext
-    CON["Consumidores<br/>console, auditoria, métricas"]:::client
-
-    CLI -->|HTTP| GW --> Receiver
-    Receiver -->|publica| REQ
-    REQ --> MGR
-    MGR -->|transação| DB
-    DB -->|outbox| PUB
-    PUB -->|publica| DES
-    PUB -->|publica| UPD
-    DES --> OBSV
-    DES --> REC
-    OBSV -->|publica| OBSS
-    OBSS --> REC
-    OBSS --> MGR
-    REC -->|publica| ACT
-    ACT --> EXE
-    EXE -->|publica| RES
-    RES --> MGR
-    RES --> OBSV
-    RES --> REC
-    OBSV -.->|GET leitura| ZIT
-    EXE -.->|cria, autoriza, remove| ZIT
-    ZIT -.->|e-mails: verificar e-mail, redefinir senha| MAIL
-    Receiver -.->|JWKS e userinfo, só validação| ZIT
-    DES -.->|Direct Get do desired| EXE
-    RES -.->|Direct Get do desfecho do actionId| EXE
-    Receiver -.->|views account_v1, só leitura| DB
-    UPD --> CON
+    CLI -->|HTTP| GW --> API
+    API -->|SQL: transação síncrona| DB
+    DB -->|outbox pendente por sequence| PUB
+    PUB -->|manager.desired.core.account.>| NATS
+    NATS -->|desired.changed| CTRL
+    CTRL -->|1. lê intenção| DB
+    CTRL -->|2. observa estado| ZIT
+    CTRL -->|3. reconcilia usuário| ZIT
+    CTRL -->|4. envia ativação| MAIL
+    CTRL -->|5. atualiza fase e conditions| DB

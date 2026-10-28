@@ -23,7 +23,7 @@ A ativação (senha e e-mail) foi verificada em dev em 2026-10-12 (`docs/platfor
 
 ![Componentes](docs/architecture/01-componentes.svg)
 
-*Fonte: [`docs/architecture/01-componentes.mmd`](docs/architecture/01-componentes.mmd).* O diagrama ainda mostra o modelo anterior (Receiver, Manager, Reconciler, Observer e Executor); o texto deste README é o vigente (pendência declarada, §10). O fluxo de dados completo está em [`docs/CORE-ACCOUNT-DATA-FLOW.md`](docs/CORE-ACCOUNT-DATA-FLOW.md).
+*Fonte: [`docs/architecture/01-componentes.mmd`](docs/architecture/01-componentes.mmd).* O diagrama reflete o modelo vigente unificado (API, Publisher e Controller). O fluxo de dados completo está em [`docs/CORE-ACCOUNT-DATA-FLOW.md`](docs/CORE-ACCOUNT-DATA-FLOW.md).
 
 Os papéis são **um projeto e uma imagem** (decisão 0063), cada um rodando como processo e contêiner próprios, com o próprio papel de banco (`core_account_<papel>`, em `infrastructure/dev/database/bootstrap/core.sql`), a própria identidade no NATS e, quando usa o Zitadel, a própria conta de serviço. O que os une é a mensageria, o SSOT (cada papel com o seu privilégio) e os contratos neutros de `schemas/`.
 

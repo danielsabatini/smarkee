@@ -1,0 +1,36 @@
+sequenceDiagram
+  participant U as Usuário (sk)
+  participant API as API (bsm-account-api)
+  participant DB as SSOT (banco ssot)
+  participant P as Publisher (bsm-account-publisher)
+  participant NATS as NATS (Stream DESIRED)
+
+  Note over U,API: 1. Atualização com PATCH
+  U->>API: PATCH /v1/bsm/accounts/{resourceId} (Header: If-Match ou corpo: resourceVersion)
+  API->>API: valida permissão bsm.account.update e dono do recurso
+  alt tentativa de alterar billingCurrency (imutável)
+    API-->>U: 400 ValidationFailed (ImmutableField: billingCurrency)
+  else resourceVersion divergente da versão atual
+    API-->>U: 409 Conflict (OptimisticLockFailed)
+  else sucesso na validação
+    API->>DB: Transação SQL: UPDATE bsm.account (generation++, version++), INSERT outbox
+    API-->>U: 200 OK (Resource atualizado, phase Ready)
+    P->>DB: lê outbox pendente
+    P->>NATS: publica manager.desired.bsm.account.<resourceId>.changed
+    P->>DB: UPDATE outbox SET published_at = now()
+  end
+
+  Note over U,API: 2. Exclusão com DELETE
+  U->>API: DELETE /v1/bsm/accounts/{resourceId}?resourceVersion=N
+  API->>API: valida permissão bsm.account.delete e dono do recurso
+  alt deletionProtection == true
+    API-->>U: 409 Conflict (DeletionProtected)
+  else conta em uso por Organizations ativas (OrganizationUsageProjection)
+    API-->>U: 409 Conflict (ResourcesAttached: organizações vinculadas a esta conta)
+  else sucesso na validação
+    API->>DB: Transação SQL: DELETE FROM bsm.account, INSERT outbox (tombstone)
+    API-->>U: 202 Accepted (Resource removido)
+    P->>DB: lê outbox pendente
+    P->>NATS: publica manager.desired.bsm.account.<resourceId>.deleted
+    P->>DB: UPDATE outbox SET published_at = now()
+  end

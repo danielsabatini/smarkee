@@ -1,0 +1,18 @@
+sequenceDiagram
+  participant U as Usuário (sk)
+  participant API as API (bsm-account-api)
+  participant DB as SSOT (banco ssot)
+  participant P as Publisher (bsm-account-publisher)
+  participant NATS as NATS (Stream DESIRED)
+  participant CONS as Consumidores (ipm.organization, sum.service)
+
+  U->>API: POST /v1/bsm/accounts {displayName, billingCurrency, billingContacts, deletionProtection}
+  API->>API: valida token JWT, permissão bsm.account.create, e-mail verificado
+  API->>API: valida moeda (BRL, USD, EUR) e contatos (1-10 e-mails)
+  API->>API: valida cota de billing accounts por dono (máx 5)
+  API->>DB: Transação SQL atômica: INSERT bsm.account (Ready), INSERT outbox, INSERT idempotency
+  API-->>U: 201 Created (Resource completo: phase Ready, observedGeneration 1)
+  P->>DB: lê outbox pendente por ordem de sequence
+  P->>NATS: publica manager.desired.bsm.account.<resourceId>.changed
+  P->>DB: UPDATE outbox SET published_at = now()
+  NATS->>CONS: entrega desired.changed para projeções de faturamento em outras features

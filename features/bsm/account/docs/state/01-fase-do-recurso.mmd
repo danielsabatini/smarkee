@@ -1,0 +1,4 @@
+stateDiagram-v2
+    [*] --> Ready: POST /v1/bsm/accounts (201 Created síncrono)
+    Ready --> Ready: PATCH /v1/bsm/accounts/{id} (200 OK síncrono, generation++)
+    Ready --> [*]: DELETE /v1/bsm/accounts/{id} (202/204 síncrono + outbox tombstone)

@@ -1,0 +1,30 @@
+sequenceDiagram
+  participant U as Cliente (sk)
+  participant API as API (ipm-role-api)
+  participant DB as SSOT (banco ssot)
+  participant P as Publisher (ipm-role-publisher)
+  participant NATS as NATS (Stream DESIRED)
+
+  Note over U,DB: Falhas na admissão síncrona (API)
+  U->>API: POST /v1/ipm/roles
+  alt indisponibilidade transitória do banco (timeout, erro de conexão, lock)
+    API-->>U: 503 Service Unavailable (com Retry-After)
+  else violação de invariante ou falha de integridade
+    API-->>U: 500 Internal Server Error (RFC 9457 Problem Details)
+  end
+
+  Note over DB,NATS: Resiliência na publicação assíncrona (Publisher)
+  API->>DB: COMMIT com sucesso (role gravada + evento no outbox)
+  API-->>U: 201 Created (garantia de persistência no SSOT)
+  alt Publisher fora do ar ou reiniciando
+    Note over DB: Linhas permanecem em ipm.role_outbox com published_at = NULL
+    Note over DB,P: Ao retornar, Publisher lê pendentes ordenados por sequence
+  else NATS temporariamente indisponível
+    P->>NATS: tentativa de publicação do lote
+    NATS-->>P: erro / timeout
+    Note over P: Publisher entra em backoff exponencial e retenta sem descartar
+  else publicação confirmada pelo JetStream
+    P->>NATS: publica manager.desired.ipm.role.<resourceId>.<changed|deleted> (Nats-Msg-Id)
+    NATS-->>P: JetStream ACK (PubAck)
+    P->>DB: UPDATE ipm.role_outbox SET published_at = now() WHERE sequence = S
+  end

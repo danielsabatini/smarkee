@@ -1,27 +1,26 @@
 sequenceDiagram
-  participant U as Solicitante
-  participant R as Receiver
-  participant DB as SSOT (views v1)
-  participant M as Manager
-  U->>R: POST /v1/ipm/roles
+  participant U as Solicitante (sk)
+  participant API as API (ipm-role-api)
+  participant DB as SSOT (banco ssot)
+
+  U->>API: POST /v1/ipm/roles
   alt sem token, token inválido ou audience errada
-    R-->>U: 401 Unauthorized
-  else corpo inválido (JSON quebrado, campo extra, key ou permissions fora do padrão)
-    R-->>U: 400 ValidationFailed (sem repetir o valor enviado)
+    API-->>U: 401 Unauthorized
+  else corpo inválido (JSON quebrado, campo extra, key ou permissions fora do formato)
+    API-->>U: 400 ValidationFailed (sem ecoar valor confidencial)
+  else permissão desconhecida no catálogo de permissions
+    API-->>U: 400 UnknownPermission (informa as permissões inválidas)
   else falta a permissão ipm.role.create (ou ipm.role.admin)
-    R-->>U: 403 Forbidden
+    API-->>U: 403 PermissionDenied
   else e-mail do solicitante não verificado
-    R-->>U: 403 EmailNotVerified
-  else mesma Idempotency-Key com outro pedido
-    R-->>U: 422 IdempotencyKeyReused
-  else REQUESTED cheio ou NATS indisponível
-    R-->>U: 503 com Retry-After (repetível)
-  else pedido aceito
-    R->>M: requested-create (REQUESTED)
-    R-->>U: 202 resourceId e operationId
-    Note over M: A decisão final é do Manager e pode recusar
-    alt key já usada por outra Role presente (trava consultiva por key)
-      M->>DB: Operation rejected (validation), sem desired
-    end
+    API-->>U: 403 EmailNotVerified
+  else mesma Idempotency-Key com payload diferente
+    API-->>U: 422 IdempotencyConflict
+  else mesma Idempotency-Key com mesmo payload (replay)
+    API->>DB: SELECT em ipm.role_idempotency e ipm.role_v1
+    API-->>U: 201 Created (recurso já gravado, sem reprocessamento)
+  else key já cadastrada na mesma organização
+    API-->>U: 409 Conflict (RoleAlreadyExists)
+  else cota de 10 roles customizadas esgotada
+    API-->>U: 409 Conflict (QuotaExceeded)
   end
-  Note over U,R: Logo após o 202 a leitura pode dar 404 até o Manager gravar a Operation

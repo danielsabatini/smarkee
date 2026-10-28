@@ -15,8 +15,6 @@ Dois papéis implementados para execução no ambiente de dev (Compose), sobre a
 
 # 2. Contratos e Configuração
 
-Os contratos estão em `schemas/ipm/group/` com índice em `schemas/ipm.group.index.json`. A referência completa de configuração está em [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
-
-> **Diagramas e fluxo de dados pendentes (decisões 0098 e S4):** os SVGs e os `.mmd` de `docs/flow/`, `docs/architecture/`, `docs/state/` e `docs/database/`, e o `docs/IPM-GROUP-DATA-FLOW.md`, ainda mostram o modelo anterior com Receiver, Manager, Operation e plano de dados no banco `platform`. O texto deste README é o vigente.
+Os contratos estão em `schemas/ipm/group/` com índice em `schemas/ipm.group.index.json`. A referência completa de configuração está em [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md). O fluxo de dados completo e os diagramas de arquitetura, banco de dados e estados estão em [`docs/IPM-GROUP-DATA-FLOW.md`](docs/IPM-GROUP-DATA-FLOW.md).
 
 A CLI é o comando `sk ipm group create|get|list|update|delete` (`clients/cli`).

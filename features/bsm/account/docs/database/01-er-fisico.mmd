@@ -1,0 +1,42 @@
+erDiagram
+    ACCOUNT ||--o{ ACCOUNT_OUTBOX : "resource_id"
+    ACCOUNT ||--o{ ACCOUNT_IDEMPOTENCY : "resource_id"
+
+    ACCOUNT {
+        text resource_id PK "UUIDv7 da API"
+        text schema_version
+        text owner_account_id "sub do usuário dono"
+        text display_name "nome de exibição da conta"
+        text billing_currency "BRL, USD ou EUR (imutável)"
+        text lifecycle "present ou absent"
+        text reconciliation "active ou suspended"
+        jsonb desired "displayName, billingCurrency, billingContacts, deletionProtection"
+        bigint desired_generation
+        bigint resource_version
+        jsonb observed "cópia de desired no perfil internal-state"
+        text presence "present ou absent"
+        timestamptz observed_at
+        text phase "Ready"
+        jsonb conditions
+        int failure_count
+        bigint observed_generation "igual a desired_generation"
+        text requested_by "sub do solicitante"
+        text correlation_id "UUIDv7 de correlação"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    ACCOUNT_OUTBOX {
+        bigint sequence PK "ordem de publicação"
+        text message_id UK "Nats-Msg-Id determinístico"
+        text resource_id
+        text subject
+        jsonb payload "desired envelope (changed ou deleted)"
+        timestamptz published_at "nulo enquanto pendente"
+    }
+    ACCOUNT_IDEMPOTENCY {
+        text requested_by PK "sub do solicitante"
+        text idempotency_key PK "Idempotency-Key enviada pelo cliente"
+        text request_digest "SHA-256 do corpo"
+        text resource_id "UUIDv7 do recurso criado"
+        timestamptz created_at
+    }

@@ -1,0 +1,8 @@
+flowchart LR
+  U([Usuário / sk]) -->|HTTP| GW[Gateway APISIX]
+  GW -->|HTTP| API[API: bsm-account-api]
+  API -->|SQL: transação síncrona\naccount, outbox, idempotency| DB[(SSOT: banco ssot, schema bsm)]
+  NATS[(JetStream: Stream DESIRED)] -.->|"Informer: ipm.organization (projeção de uso)"| API
+  DB -->|outbox pendente por sequence| PUB[Publisher: bsm-account-publisher]
+  PUB -->|manager.desired.bsm.account.>| NATS
+  NATS -->|desired.changed / desired.deleted| CONS[Consumidores:\nipm.organization API\nsum.service API]
