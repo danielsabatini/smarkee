@@ -1,36 +1,24 @@
 sequenceDiagram
-  participant U as Usuário
-  participant R as Receiver
-  participant DB as SSOT (views v1)
-  participant M as Manager
-  U->>R: POST /v1/ipm/organizations
+  participant U as Solicitante (sk)
+  participant API as API (ipm-organization-api)
+  participant DB as SSOT (banco ssot)
+
+  U->>API: POST /v1/ipm/organizations
   alt sem token, token inválido ou audience errada
-    R-->>U: 401 Unauthorized
-  else corpo inválido (JSON quebrado, campo extra, name fora do padrão)
-    R-->>U: 400 ValidationFailed (sem repetir o valor enviado)
-  else falta a role ipm.organization.create
-    R-->>U: 403 Forbidden
+    API-->>U: 401 Unauthorized
+  else corpo inválido (nome fora do padrão)
+    API-->>U: 400 ValidationFailed (sem ecoar valor confidencial)
+  else falta a permissão ipm.organization.create (ou ipm.organization.admin)
+    API-->>U: 403 PermissionDenied
   else e-mail do solicitante não verificado
-    R-->>U: 403 EmailNotVerified
-  else cota por dono já usada (pré-checagem, e o operador não tem cota)
-    R->>DB: conta as Organizations do dono
-    R-->>U: 403 QuotaExceeded
-  else mesma Idempotency-Key com outro pedido
-    R-->>U: 422 IdempotencyKeyReused
-  else REQUESTED cheio ou NATS indisponível
-    R-->>U: 503 com Retry-After (repetível)
-  else pedido aceito
-    R->>M: requested-create (REQUESTED)
-    R-->>U: 202 resourceId e operationId
-    Note over M: A decisão final é do Manager e pode recusar
-    alt nome reservado (core, smarkee, register, platform, system, admin, zitadel)
-      M->>DB: Operation rejected (validation), sem desired
-    else nome já usado por outra Organization presente
-      M->>DB: Operation rejected (validation), sem desired
-    else corrida: a cota do dono foi atingida por outro pedido (trava consultiva por dono)
-      M->>DB: Operation rejected (validation), sem desired
-    end
+    API-->>U: 403 EmailNotVerified
+  else mesma Idempotency-Key com payload diferente
+    API-->>U: 422 IdempotencyConflict
+  else mesma Idempotency-Key com mesmo payload (replay)
+    API->>DB: SELECT em ipm.organization_idempotency e ipm.organization_v1
+    API-->>U: 201 Created (recurso já gravado, sem reprocessamento)
+  else nome já em uso globalmente
+    API-->>U: 409 Conflict (OrganizationAlreadyExists)
+  else cota de organizações do dono esgotada
+    API-->>U: 409 Conflict (QuotaExceeded)
   end
-  U->>R: GET ou PATCH ou DELETE de Organization de outro dono
-  R-->>U: 404 (não revela a existência)
-  Note over U,R: Logo após o 202 a leitura pode dar 404 até o Manager gravar a Operation

@@ -1,0 +1,38 @@
+sequenceDiagram
+  participant U as Usuário (sk)
+  participant API as API (ipm-serviceaccount-api)
+  participant DB as SSOT (banco ssot)
+  participant P as Publisher (ipm-serviceaccount-publisher)
+  participant NATS as NATS (Stream DESIRED)
+  participant CTRL as Controller (ipm-serviceaccount-controller)
+  participant ZIT as Zitadel (UserService / OrgService)
+
+  Note over U,API: 1. Rotação de chaves com PATCH
+  U->>API: PATCH /v1/ipm/serviceaccounts/{id} (novo conjunto de keys públicas)
+  API->>API: valida RSA >= 2048, expirações e permissão bind
+  alt resourceVersion divergente
+    API-->>U: 409 Conflict (OptimisticLockFailed)
+  else sucesso na validação
+    API->>DB: Transação SQL: UPDATE ipm.serviceaccount (phase Reconciling, gen++), INSERT outbox
+    API-->>U: 200 OK (Resource atualizado)
+    P->>DB: drena outbox
+    P->>NATS: publica manager.desired.ipm.serviceaccount.<id>.changed
+    NATS->>CTRL: entrega desired.changed
+    CTRL->>ZIT: AddMachineKey(nova chave pública) e RemoveMachineKey(chaves antigas expurgadas)
+    CTRL->>DB: UPDATE ipm.serviceaccount SET phase = Ready, observed_generation = generation
+  end
+
+  Note over U,API: 2. Exclusão com DELETE
+  U->>API: DELETE /v1/ipm/serviceaccounts/{id}?resourceVersion=N
+  API->>API: valida permissão ipm.serviceaccount.delete
+  alt deletionProtection == true (nasce protegida por padrão)
+    API-->>U: 409 Conflict (DeletionProtected)
+  else sucesso na validação
+    API->>DB: Transação SQL: UPDATE ipm.serviceaccount SET lifecycle = absent, phase = Deleting, INSERT outbox
+    API-->>U: 202 Accepted (Resource em Deleting)
+    P->>DB: drena outbox
+    P->>NATS: publica manager.desired.ipm.serviceaccount.<id>.deleted
+    NATS->>CTRL: entrega desired.deleted
+    CTRL->>ZIT: RemoveMachineUser(userId) na organização do cliente
+    CTRL->>DB: DELETE FROM ipm.serviceaccount WHERE resource_id = id
+  end

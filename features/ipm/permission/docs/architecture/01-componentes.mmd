@@ -1,22 +1,12 @@
 flowchart LR
-  U([Operador / sk]) -->|HTTP| GW[Gateway]
-  GW --> R[Receiver]
-  R -->|leitura: views v1| DB[(SSOT: schema ipm)]
-  R -->|requested| REQ[(REQUESTED)]
-  REQ --> M[Manager]
-  M -->|Permission, Operation, outbox| DB
-  DB -->|outbox pendente| P[Publisher]
-  P -->|desired| DES[(DESIRED)]
-  DES --> REC[Reconciler]
-  DES --> OBS[Observer]
-  OBSV[(OBSERVED)] --> REC
-  OBS -->|observed| OBSV
-  REC -->|action| ACT[(ACTION, 4 partições)]
-  ACT --> EX[Executor]
-  EX -->|completed ou failed| RES[(RESULT)]
-  RES --> REC
-  RES --> OBS
-  OBSV -->|fase e Operation| M
-  RES -->|resultado por actionId| M
-  EX -->|ProjectService: role em roles-<módulo>| Z[Zitadel]
-  OBS -->|PROJECT_OWNER_VIEWER: somente leitura| Z
+  U([Operador / sk]) -->|HTTP| GW[Gateway APISIX]
+  GW -->|HTTP| API[API: ipm-permission-api]
+  API -->|SQL: transação síncrona\npermission, outbox, idempotency| DB[(SSOT: banco ssot, schema ipm)]
+  DB -->|outbox pendente por sequence| PUB[Publisher: ipm-permission-publisher]
+  PUB -->|manager.desired.ipm.permission.>| NATS[(JetStream: Stream DESIRED)]
+  NATS -->|desired.changed / desired.deleted| CTRL[Controller: ipm-permission-controller]
+  CTRL -->|1. lê intenção vigente| DB
+  CTRL -->|2. observa role de projeto| ZIT["Zitadel: ProjectService\nroles-<módulo>"]
+  CTRL -->|3. reconcilia role no projeto| ZIT
+  CTRL -->|4. reobserva e atualiza status| DB
+  NATS -->|catálogo de permissões| CONS[Consumidores:\nipm.role API,\nipm.organization Controller]

@@ -1,0 +1,9 @@
+stateDiagram-v2
+    [*] --> Pending: POST /v1/ipm/serviceaccounts (201 Created na API)
+    Pending --> Reconciling: Controller inicia ciclo
+    Reconciling --> Ready: Usuário de máquina, chaves e userGrant no Zitadel (observedGeneration == generation)
+    Reconciling --> Failed: Falha não transitória no Zitadel ou limite de retentativas
+    Failed --> Reconciling: Re-enfileirado pelo Controller ou nova versão
+    Ready --> Reconciling: PATCH com alteração de dados ou rotação de chaves
+    Ready --> Deleting: DELETE aceito pela API (lifecycle absent)
+    Deleting --> [*]: Controller remove máquina no Zitadel e apaga linha do SSOT

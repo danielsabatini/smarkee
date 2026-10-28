@@ -1,0 +1,27 @@
+sequenceDiagram
+  participant U as Usuário (sk)
+  participant API as API (ipm-user-api)
+  participant DB as SSOT (banco ssot)
+  participant P as Publisher (ipm-user-publisher)
+  participant NATS as NATS (Stream DESIRED)
+
+  Note over U,DB: Falhas na admissão síncrona (API)
+  U->>API: POST /v1/ipm/users
+  alt indisponibilidade transitória do banco
+    API-->>U: 503 Service Unavailable (com Retry-After)
+  else erro interno
+    API-->>U: 500 Internal Server Error
+  end
+
+  Note over DB,NATS: Resiliência na publicação assíncrona (Publisher)
+  API->>DB: COMMIT com sucesso
+  API-->>U: 201 Created
+  alt NATS temporariamente indisponível
+    P->>NATS: tenta publicar lote
+    NATS-->>P: erro
+    Note over P: Publisher entra em backoff exponencial e retenta sem perda
+  else confirmação do JetStream
+    P->>NATS: publica manager.desired.ipm.user.<id>.changed
+    NATS-->>P: PubAck
+    P->>DB: UPDATE ipm.user_outbox SET published_at = now()
+  end

@@ -1,39 +1,40 @@
 sequenceDiagram
   participant U as Usuário (sk)
-  participant R as Receiver
-  participant M as Manager
-  participant DB as SSOT (schema ipm)
-  participant P as Publisher
-  participant REC as Reconciler
-  participant OB as Observer
-  participant EX as Executor
-  participant Z as Zitadel
-  U->>R: GET /v1/ipm/organizations/{resourceId}
-  R-->>U: 200 com resourceVersion
-  U->>R: PATCH /v1/ipm/organizations/{resourceId} {resourceVersion, name}
-  R->>R: valida a role ipm.organization.update e a posse (o dono só altera o name)
-  R->>M: requested-update (REQUESTED)
-  R-->>U: 202 operationId
-  alt resourceVersion diferente da atual
-    M->>DB: Operation rejected (conflict), nada muda
-  else nome reservado ou já usado
-    M->>DB: Operation rejected (validation), nada muda
-  else aceito
-    M->>DB: geração + 1, name novo, outbox desired
-    P->>REC: desired (DESIRED)
-    REC->>EX: action update (nome difere)
-    EX->>Z: UpdateOrganization (renomeia)
-    OB->>M: observed com o nome novo (fase Ready)
+  participant API as API (ipm-organization-api)
+  participant DB as SSOT (banco ssot)
+  participant P as Publisher (ipm-organization-publisher)
+  participant NATS as NATS (Stream DESIRED)
+  participant CTRL as Controller (ipm-organization-controller)
+  participant ZIT as Zitadel (OrgService)
+
+  Note over U,API: 1. Atualização com PATCH
+  U->>API: PATCH /v1/ipm/organizations/{id} (Header: If-Match ou corpo: resourceVersion)
+  API->>API: valida permissão ipm.organization.update e pertencimento
+  alt resourceVersion divergente
+    API-->>U: 409 Conflict (OptimisticLockFailed)
+  else sucesso na validação
+    API->>DB: Transação SQL: UPDATE ipm.organization (phase Reconciling, gen++), INSERT outbox
+    API-->>U: 200 OK (Resource atualizado)
+    P->>DB: drena outbox
+    P->>NATS: publica manager.desired.ipm.organization.<id>.changed
+    NATS->>CTRL: entrega desired.changed
+    CTRL->>ZIT: atualiza nome no Zitadel
+    CTRL->>DB: UPDATE ipm.organization SET phase = Ready, observed_generation = generation
   end
-  Note over R,EX: platformAccess e reconciliation só o operador altera: revoked desativa a organização, granted a ativa
-  U->>R: DELETE /v1/ipm/organizations/{resourceId}?resourceVersion=N
-  R->>M: requested-delete (REQUESTED)
-  R-->>U: 202 operationId
-  M->>DB: lifecycle absent, fase Deleting, outbox desired
-  P->>REC: desired absent (DESIRED)
-  REC->>EX: action delete (organização ainda presente)
-  EX->>Z: DeleteOrganization (ausente também é sucesso)
-  EX->>REC: completed (RESULT)
-  OB->>Z: ListOrganizations pelo resourceId
-  OB->>M: observed absent
-  M->>DB: apaga a linha, Operation completed e publica removed
+
+  Note over U,API: 2. Exclusão com DELETE
+  U->>API: DELETE /v1/ipm/organizations/{id}?resourceVersion=N
+  API->>API: valida permissão ipm.organization.delete
+  alt deletionProtection == true
+    API-->>U: 409 Conflict (DeletionProtected)
+  else organização possui usuários ou grupos ativos (UserUsageProjection)
+    API-->>U: 409 Conflict (ResourcesAttached: organização possui dependentes)
+  else sucesso na validação
+    API->>DB: Transação SQL: UPDATE ipm.organization SET lifecycle = absent, phase = Deleting, INSERT outbox
+    API-->>U: 202 Accepted (Resource em Deleting)
+    P->>DB: drena outbox
+    P->>NATS: publica manager.desired.ipm.organization.<id>.deleted
+    NATS->>CTRL: entrega desired.deleted
+    CTRL->>ZIT: RemoveOrganization(orgId)
+    CTRL->>DB: DELETE FROM ipm.organization WHERE resource_id = id
+  end

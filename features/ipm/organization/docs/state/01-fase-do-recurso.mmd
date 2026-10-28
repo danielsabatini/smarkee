@@ -1,29 +1,9 @@
 stateDiagram-v2
-    direction LR
-    [*] --> Pending: Organization gravada pelo Manager (geração 1)
-    Pending --> Reconciling: observed ausente ou divergente
-    Pending --> Ready: observed já converge
-    Reconciling --> Ready: observed converge com o desired
-    Ready --> Reconciling: pedido de update (nova geração) ou drift observado
-    Reconciling --> Failed: resultado failed da geração atual (limite de falhas)
-    Ready --> Failed: resultado failed da geração atual (limite de falhas)
-    Failed --> Reconciling: próxima observação ainda sem convergir
-    Failed --> Ready: próxima observação converge
-    Ready --> Deleting: delete (lifecycle absent, nova geração)
-    Reconciling --> Deleting: delete (lifecycle absent, nova geração)
-    Deleting --> [*]: observed absent: o Manager apaga a linha e publica removed
-
-    note right of Ready
-        completed NÃO é Ready.
-        Só a observação compatível converge:
-        name e platformAccess iguais aos do desired.
-    end note
-    note right of Failed
-        Reconciliation passa a suspended no limite de
-        falhas: o Reconciler para de decidir até um
-        operador voltar para active.
-    end note
-    note left of Pending
-        Observação unknown não muda a fase,
-        só atualiza presence e observed_at.
-    end note
+    [*] --> Pending: POST /v1/ipm/organizations (201 Created na API)
+    Pending --> Reconciling: Controller inicia ciclo
+    Reconciling --> Ready: Organização e userAccess criados no Zitadel (observedGeneration == generation)
+    Reconciling --> Failed: Falha não transitória no Zitadel ou limite de retentativas
+    Failed --> Reconciling: Re-enfileirado pelo Controller ou nova versão
+    Ready --> Reconciling: PATCH com alteração de dados
+    Ready --> Deleting: DELETE aceito pela API (lifecycle absent)
+    Deleting --> [*]: Controller remove organização no Zitadel e apaga linha do SSOT

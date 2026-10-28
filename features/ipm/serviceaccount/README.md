@@ -15,7 +15,13 @@ Etapa 1 da `0094` completa e migrada para a **API síncrona** (decisão `0098`):
 | Controller | `controller/` | Decisão 0096: consome `desired`, e numa só transação observa a máquina, as chaves, as autorizações e os metadados no Zitadel, decide `create`, `update` ou `delete`, age, reobserva e grava o estado e o `updated` no outbox. Leia o [README](src/ipm_serviceaccount/controller/README.md) |
 | Testes e2e | `tests/e2e/` | Black-box: loop completo, incluindo a rotação de chaves |
 
-# 2. Papéis e componentes
+# 2. Arquitetura
+
+![Componentes](docs/architecture/01-componentes.svg)
+
+Fonte: [`01-componentes.mmd`](docs/architecture/01-componentes.mmd). O diagrama reflete o modelo vigente unificado (API, Publisher e Controller). O fluxo de dados completo está em [`docs/IPM-SERVICEACCOUNT-DATA-FLOW.md`](docs/IPM-SERVICEACCOUNT-DATA-FLOW.md).
+
+# 3. Papéis e componentes
 
 Os papéis são **um projeto e uma imagem** (decisão 0063), cada um com processo e contêiner próprios, o próprio papel de banco (`ipm_serviceaccount_<papel>`, em `infrastructure/dev/database/bootstrap/ipm.sql`), a própria identidade no NATS e, quando usa o Zitadel, a própria conta de serviço. Além deles, `ipm-serviceaccount-migrate` (migrações) roda e sai.
 
@@ -25,11 +31,11 @@ Os papéis são **um projeto e uma imagem** (decisão 0063), cada um com process
 | Publisher | `ipm-serviceaccount-publisher` | `ipm_serviceaccount_publisher` | — | `published_at` do outbox; NATS |
 | Controller | `ipm-serviceaccount-controller` | `ipm_serviceaccount_controller` (lê e atualiza `serviceaccount`; `INSERT` só no outbox) | `ipm-serviceaccount-controller` (`ORG_USER_CREATOR` e `ORG_OWNER_VIEWER` em cada organização de cliente e `PROJECT_GRANT_OWNER` no Grant dela) | estado observado, fase e `updated` no SSOT (e o `desired` suspenso, ao suspender); a máquina no Zitadel |
 
-## 2.1 API
+## 3.1 API
 
 - Rotas sob `/v1/ipm/serviceaccounts`: `POST` cria (`201` + `Resource`), `GET ?organizationId=` lista, `GET /{resourceId}` lê, `PATCH /{resourceId}` altera (`200` + `Resource`) e `DELETE /{resourceId}?resourceVersion=` pede a remoção (`202`, `phase=Deleting`). Não há Operation: a convergência se lê no próprio recurso (`observedGeneration >= desiredGeneration` com `phase` `Ready` ou `Failed`; após o delete, `404`).
 - Valida o token (assinatura por JWKS, `iss`, `aud` = projeto `roles-ipm`, `exp`). Cada ação exige `ipm.serviceaccount.<create|get|list|update|delete>`; o operador tem `ipm.serviceaccount.admin`.
-- **Escopo por Organization (nesta ordem):** operador; registro próprio no SSOT (a máquina age na Organization dela); Receiver de User (`get_user_organization`, o usuário humano da Organization); Receiver da Organization (o dono). Fora do escopo, a resposta é `404`.
+- **Escopo por Organization (nesta ordem):** operador; registro próprio no SSOT (a máquina age na Organization dela); usuário humano da Organization (confirmado pelo cache local `MemberProjection`); dono da Organization (confirmado pelo cache local `OrganizationUsageProjection`). Não há chamadas HTTP mútuas entre features (decisão 0100). Fora do escopo, a resposta é `404`.
 - **Chaves públicas:** o pedido traz de 1 a 3 chaves (`publicKey` em PEM e `expiresAt`). A API exige RSA de 2048 bits ou mais, vencimento futuro de até 365 dias e rejeita duplicadas; calcula o `fingerprint` (SHA-256 do DER SPKI) e devolve o PEM canônico. Material de chave privada é recusado (`400`) e nunca é repetido na resposta. Ao alterar `keys`, quem não tem `ipm.serviceaccount.bind` não pode (MEMBER); reenviar uma chave já no `desired` a mantém com o vencimento original.
 - **Permissões:** só as do catálogo `grantablePermission`; sem `bind`, quem pede só atribui ou retira o que ele mesmo tem (decisão 0071).
 - **Cota:** 5 por Organization (`IPM_SERVICEACCOUNT_API_API_SERVICEACCOUNT_QUOTA`, provisória); o operador não tem cota.
@@ -39,7 +45,7 @@ Os papéis são **um projeto e uma imagem** (decisão 0063), cada um com process
 - Erros no formato `api-error`; a entrada inválida é `400` e nunca repete o valor enviado.
 - Ao remover, o `desired` perde `name` e `keys` (`lifecycle absent`, só com a Organization).
 
-## 2.3 Controller
+## 3.2 Controller
 
 Detalhes no [README do Controller](src/ipm_serviceaccount/controller/README.md) e na decisão `0096`.
 

@@ -1,37 +1,38 @@
 sequenceDiagram
   participant U as Operador (sk)
-  participant R as Receiver
-  participant M as Manager
-  participant DB as SSOT (schema ipm)
-  participant P as Publisher
-  participant REC as Reconciler
-  participant OB as Observer
-  participant EX as Executor
-  participant Z as Zitadel
-  U->>R: GET /v1/ipm/permissions/{resourceId}
-  R-->>U: 200 com resourceVersion
-  U->>R: PATCH /v1/ipm/permissions/{resourceId} {resourceVersion, displayName}
-  R->>R: valida a permissão ipm.permission.update
-  R->>M: requested-update (REQUESTED)
-  R-->>U: 202 operationId
-  alt resourceVersion diferente da atual
-    M->>DB: Operation rejected (conflict), nada muda
-  else aceito
-    M->>DB: geração + 1, displayName novo, outbox desired
-    P->>REC: desired (DESIRED)
-    REC->>EX: action update (displayName difere)
-    EX->>Z: UpdateProjectRole em roles-<módulo>
-    OB->>M: observed com o displayName novo (fase Ready)
+  participant API as API (ipm-permission-api)
+  participant DB as SSOT (banco ssot)
+  participant P as Publisher (ipm-permission-publisher)
+  participant NATS as NATS (Stream DESIRED)
+  participant CTRL as Controller (ipm-permission-controller)
+  participant ZIT as Zitadel (ProjectService)
+
+  Note over U,API: 1. Atualização com PATCH
+  U->>API: PATCH /v1/ipm/permissions/{id} (Header: If-Match ou corpo: resourceVersion)
+  API->>API: valida permissão ipm.permission.admin
+  alt resourceVersion divergente
+    API-->>U: 409 Conflict (OptimisticLockFailed)
+  else sucesso na validação
+    API->>DB: Transação SQL: UPDATE ipm.permission (phase Reconciling, gen++), INSERT outbox
+    API-->>U: 200 OK (Resource atualizado)
+    P->>DB: drena outbox
+    P->>NATS: publica manager.desired.ipm.permission.<id>.changed
+    NATS->>CTRL: entrega desired.changed
+    CTRL->>ZIT: UpdateProjectRole(...)
+    CTRL->>DB: UPDATE ipm.permission SET phase = Ready, observed_generation = generation
   end
-  Note over R,EX: deletionProtection precisa ser false antes do DELETE, senão responde 409 DeletionProtected
-  U->>R: DELETE /v1/ipm/permissions/{resourceId}?resourceVersion=N
-  R->>M: requested-delete (REQUESTED)
-  R-->>U: 202 operationId
-  M->>DB: lifecycle absent, fase Deleting, outbox desired
-  P->>REC: desired absent (DESIRED)
-  REC->>EX: action delete (role ainda presente no projeto)
-  EX->>Z: RemoveProjectRole (ausente também é sucesso)
-  EX->>REC: completed (RESULT)
-  OB->>Z: ListProjectRoles em roles-<módulo>
-  OB->>M: observed absent
-  M->>DB: apaga a linha, Operation completed e publica removed
+
+  Note over U,API: 2. Exclusão com DELETE
+  U->>API: DELETE /v1/ipm/permissions/{id}?resourceVersion=N
+  API->>API: valida permissão ipm.permission.admin
+  alt deletionProtection == true
+    API-->>U: 409 Conflict (DeletionProtected)
+  else sucesso na validação
+    API->>DB: Transação SQL: UPDATE ipm.permission SET lifecycle = absent, phase = Deleting, INSERT outbox
+    API-->>U: 202 Accepted (Resource em Deleting)
+    P->>DB: drena outbox
+    P->>NATS: publica manager.desired.ipm.permission.<id>.deleted
+    NATS->>CTRL: entrega desired.deleted
+    CTRL->>ZIT: RemoveProjectRole(key)
+    CTRL->>DB: DELETE FROM ipm.permission WHERE resource_id = id
+  end

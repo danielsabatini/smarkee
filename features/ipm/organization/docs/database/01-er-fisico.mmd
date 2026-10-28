@@ -1,49 +1,41 @@
 erDiagram
-    ORGANIZATION ||--o{ ORGANIZATION_OPERATION : "resource_id"
     ORGANIZATION ||--o{ ORGANIZATION_OUTBOX : "resource_id"
-    ORGANIZATION ||--o{ ORGANIZATION_ACTION_RESULT : "resource_id"
+    ORGANIZATION ||--o{ ORGANIZATION_IDEMPOTENCY : "resource_id"
 
     ORGANIZATION {
-        text resource_id PK "UUIDv7 do Receiver; é o ID da organização no Zitadel"
+        text resource_id PK "UUIDv7 da API (orgId no Zitadel)"
         text schema_version
+        text owner_account_id "sub da conta dona"
+        text name "nome da organização (único globalmente)"
         text lifecycle "present ou absent"
         text reconciliation "active ou suspended"
-        jsonb desired "intenção: name, platformAccess e ownerAccountId (sub do token)"
+        jsonb desired "name, billingAccountId, deletionProtection"
         bigint desired_generation
         bigint resource_version
-        jsonb observed "name, platformAccess e organizationState lidos do Zitadel"
-        text presence "present, absent ou unknown"
+        jsonb observed "estado observado no Zitadel"
+        text presence "present ou absent"
         timestamptz observed_at
         text phase "Pending, Reconciling, Ready, Failed, Deleting"
         jsonb conditions
         int failure_count
-        bigint observed_generation "última geração confirmada pela observação (decisão 0072)"
+        bigint observed_generation
+        text requested_by "sub do solicitante"
+        text correlation_id "UUIDv7 de correlação"
         timestamptz created_at
         timestamptz updated_at
     }
-    ORGANIZATION_OPERATION {
-        text operation_id PK
-        text resource_id
-        text operation_type "create, update ou delete"
-        bigint desired_generation "nulo quando rejected"
-        text requested_by
-        text request_digest
-        text operation_status "accepted, in_progress, completed, failed, rejected"
-        text operation_status_reason "só quando rejected: conflict, validation ou not_found"
-        timestamptz completed_at
-    }
     ORGANIZATION_OUTBOX {
         bigint sequence PK "ordem de publicação"
-        text message_id UK "Nats-Msg-Id"
+        text message_id UK "Nats-Msg-Id determinístico"
         text resource_id
         text subject
-        jsonb payload "desired ou updated, sem publishedAt e publishedBy"
+        jsonb payload "desired envelope (changed ou deleted)"
         timestamptz published_at "nulo enquanto pendente"
     }
-    ORGANIZATION_ACTION_RESULT {
-        text action_id PK "dedupe do resultado"
-        text resource_id
-        bigint desired_generation
-        text action_outcome "completed ou failed"
-        timestamptz recorded_at
+    ORGANIZATION_IDEMPOTENCY {
+        text requested_by PK
+        text idempotency_key PK
+        text request_digest "SHA-256 do corpo"
+        text resource_id "UUIDv7 do recurso"
+        timestamptz created_at
     }

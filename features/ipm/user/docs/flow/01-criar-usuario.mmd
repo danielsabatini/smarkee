@@ -1,36 +1,27 @@
 sequenceDiagram
-  participant U as Root ou usuário (sk)
-  participant R as Receiver
-  participant RO as Receiver da Organization
-  participant M as Manager
-  participant DB as SSOT (schema ipm)
-  participant P as Publisher
-  participant REC as Reconciler
-  participant OB as Observer
-  participant EX as Executor
-  participant Z as Zitadel
-  U->>R: POST /v1/ipm/users {organizationId, givenName, familyName, email, roles}
-  R->>R: valida o token e a role ipm.user.create
-  alt solicitante é usuário da Organization
-    R->>DB: lê o próprio registro (organizationId)
-  else solicitante é o root
-    R->>RO: GET a Organization com o token de quem pede
-    RO-->>R: 200 (é o dono)
-  end
-  R->>R: roles no catálogo do Grant, regra do bind e cota da Organization
-  R->>M: requested-create com organizationQuotaLimit (REQUESTED)
-  R-->>U: 202 resourceId e operationId
-  M->>DB: e-mail único na Organization e cota (travas consultivas), usuário Pending, Operation accepted, outbox desired
-  P->>REC: desired (DESIRED)
-  P->>OB: desired (DESIRED)
-  OB->>Z: GET /v2/users/{resourceId}
-  OB->>REC: observed absent (OBSERVED)
-  REC->>EX: action create (ACTION)
-  EX->>EX: revalida a ação contra o desired vigente
-  EX->>Z: cria o usuário humano na organização do cliente, sem senha
-  EX->>Z: autorização em roles-ipm no Project Grant da organização (o Grant é o teto)
-  EX->>Z: metadado deletionProtection = false
-  EX->>REC: completed (RESULT)
-  Z-->>U: e-mail de verificação, que define a senha
-  OB->>Z: lê o usuário, as autorizações e o metadado
-  OB->>M: observed present (roles, userState initial, fase Ready, Operation completed)
+  participant U as Usuário (sk)
+  participant API as API (ipm-user-api)
+  participant DB as SSOT (banco ssot)
+  participant P as Publisher (ipm-user-publisher)
+  participant NATS as NATS (Stream DESIRED)
+  participant CTRL as Controller (ipm-user-controller)
+  participant ZIT as Zitadel (UserService / OrgService)
+
+  U->>API: POST /v1/ipm/users {organizationId, email, givenName, familyName, roles, groups}
+  API->>API: valida token JWT, permissão ipm.user.create, bind e catálogo
+  API->>API: valida organização via projeção local (Informer de ipm.organization)
+  API->>DB: Transação SQL: INSERT ipm.user (Pending), INSERT outbox, INSERT idempotency
+  API-->>U: 201 Created (Resource: phase Pending, generation 1)
+  P->>DB: drena outbox pendente por ordem de sequence
+  P->>NATS: publica manager.desired.ipm.user.<id>.changed
+  P->>DB: UPDATE outbox SET published_at = now()
+  NATS->>CTRL: entrega desired.changed (Informer -> Workqueue)
+  CTRL->>DB: lê intenção vigente no SSOT
+  CTRL->>CTRL: resolve permissões efetivas a partir dos catálogos em memória (roles/groups)
+  CTRL->>ZIT: observa se o usuário já existe na organização
+  ZIT-->>CTRL: 404 Not Found (absent)
+  CTRL->>ZIT: cria usuário humano, adiciona membership e concede userGrant no Project Grant
+  ZIT-->>CTRL: 200 OK
+  CTRL->>ZIT: reobserva usuário e roles concedidas
+  ZIT-->>CTRL: 200 OK (present, ativo)
+  CTRL->>DB: UPDATE ipm.user SET phase = Ready, observed_generation = generation

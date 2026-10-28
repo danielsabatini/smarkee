@@ -1,31 +1,26 @@
 sequenceDiagram
   participant U as Usuário (sk)
-  participant R as Receiver
-  participant M as Manager
-  participant DB as SSOT (schema ipm)
-  participant P as Publisher
-  participant REC as Reconciler
-  participant OB as Observer
-  participant EX as Executor
-  participant Z as Zitadel
-  U->>R: POST /v1/ipm/organizations {name}
-  R->>R: valida o token, a role ipm.organization.create, o e-mail verificado e a cota
-  R->>M: requested-create (REQUESTED)
-  R-->>U: 202 resourceId e operationId
-  M->>DB: Organization present (Pending), Operation accepted, outbox desired
-  P->>DB: lê o outbox pendente, em ordem
-  P->>REC: desired (DESIRED)
-  P->>OB: desired (DESIRED)
-  OB->>Z: ListOrganizations pelo resourceId
-  OB->>REC: observed absent (OBSERVED)
-  OB->>M: observed absent (fase Reconciling, Operation in_progress)
-  REC->>EX: action create (ACTION)
-  EX->>EX: revalida a ação contra o desired vigente
-  EX->>Z: AddOrganization com o resourceId como ID
-  EX->>REC: completed (RESULT)
-  EX->>OB: completed (RESULT)
-  OB->>Z: lê a organização de novo
-  OB->>REC: observed present (name, granted, active)
-  OB->>M: observed present (fase Ready, Operation completed)
-  U->>R: GET /v1/ipm/organizations/{resourceId}
-  R-->>U: 200 phase Ready
+  participant API as API (ipm-organization-api)
+  participant DB as SSOT (banco ssot)
+  participant P as Publisher (ipm-organization-publisher)
+  participant NATS as NATS (Stream DESIRED)
+  participant CTRL as Controller (ipm-organization-controller)
+  participant ZIT as Zitadel (OrgService)
+
+  U->>API: POST /v1/ipm/organizations {name, billingAccountId, deletionProtection}
+  API->>API: valida token JWT, permissão ipm.organization.create, cota por dono
+  API->>API: valida billingAccountId via projeção local (BillingAccountProjection)
+  API->>DB: Transação SQL: INSERT ipm.organization (Pending), INSERT outbox, INSERT idempotency
+  API-->>U: 201 Created (Resource: phase Pending, generation 1)
+  P->>DB: drena outbox pendente por ordem de sequence
+  P->>NATS: publica manager.desired.ipm.organization.<id>.changed
+  P->>DB: UPDATE outbox SET published_at = now()
+  NATS->>CTRL: entrega desired.changed (Informer -> Workqueue)
+  CTRL->>DB: lê intenção vigente no SSOT
+  CTRL->>ZIT: observa se a organização já existe
+  ZIT-->>CTRL: 404 Not Found (absent)
+  CTRL->>ZIT: cria organização no Zitadel e configura userAccess
+  ZIT-->>CTRL: 200 OK
+  CTRL->>ZIT: reobserva organização
+  ZIT-->>CTRL: 200 OK (present, ativa)
+  CTRL->>DB: UPDATE ipm.organization SET phase = Ready, observed_generation = generation

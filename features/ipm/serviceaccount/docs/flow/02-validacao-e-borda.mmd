@@ -1,0 +1,26 @@
+sequenceDiagram
+  participant U as Solicitante (sk)
+  participant API as API (ipm-serviceaccount-api)
+  participant DB as SSOT (banco ssot)
+
+  U->>API: POST /v1/ipm/serviceaccounts
+  alt sem token, token inválido ou audience errada
+    API-->>U: 401 Unauthorized
+  else chave privada enviada no corpo
+    API-->>U: 400 ValidationFailed (material privado terminantemente rejeitado)
+  else chave pública inválida (tamanho RSA < 2048 ou expiração > 365 dias)
+    API-->>U: 400 ValidationFailed
+  else falta a permissão ipm.serviceaccount.create
+    API-->>U: 403 PermissionDenied
+  else sem permissão de bind para as roles solicitadas
+    API-->>U: 403 PermissionDenied (BindViolation)
+  else mesma Idempotency-Key com payload diferente
+    API-->>U: 422 IdempotencyConflict
+  else mesma Idempotency-Key com mesmo payload (replay)
+    API->>DB: SELECT em ipm.serviceaccount_idempotency e ipm.serviceaccount_v1
+    API-->>U: 201 Created (recurso já gravado, sem reprocessamento)
+  else nome já em uso na organização
+    API-->>U: 409 Conflict (ServiceAccountAlreadyExists)
+  else cota de service accounts da organização esgotada
+    API-->>U: 403 QuotaExceeded
+  end

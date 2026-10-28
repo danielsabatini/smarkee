@@ -1,0 +1,41 @@
+erDiagram
+    SERVICEACCOUNT ||--o{ SERVICEACCOUNT_OUTBOX : "resource_id"
+    SERVICEACCOUNT ||--o{ SERVICEACCOUNT_IDEMPOTENCY : "resource_id"
+
+    SERVICEACCOUNT {
+        text resource_id PK "UUIDv7 da API (userId no Zitadel)"
+        text schema_version
+        text organization_id "UUIDv7 da Organization"
+        text name "nome único por organização"
+        text lifecycle "present ou absent"
+        text reconciliation "active ou suspended"
+        jsonb desired "name, description, keys, roles, groups, deletionProtection"
+        bigint desired_generation
+        bigint resource_version
+        jsonb observed "estado observado no Zitadel"
+        text presence "present ou absent"
+        timestamptz observed_at
+        text phase "Pending, Reconciling, Ready, Failed, Deleting"
+        jsonb conditions
+        int failure_count
+        bigint observed_generation
+        text requested_by "sub do solicitante"
+        text correlation_id "UUIDv7 de correlação"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    SERVICEACCOUNT_OUTBOX {
+        bigint sequence PK "ordem de publicação"
+        text message_id UK "Nats-Msg-Id determinístico"
+        text resource_id
+        text subject
+        jsonb payload "desired envelope (changed ou deleted)"
+        timestamptz published_at "nulo enquanto pendente"
+    }
+    SERVICEACCOUNT_IDEMPOTENCY {
+        text requested_by PK
+        text idempotency_key PK
+        text request_digest "SHA-256 do corpo"
+        text resource_id "UUIDv7 do recurso"
+        timestamptz created_at
+    }

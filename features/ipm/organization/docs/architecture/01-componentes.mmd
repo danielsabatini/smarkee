@@ -1,22 +1,13 @@
 flowchart LR
-  U([Usuário / sk]) -->|HTTP| GW[Gateway]
-  GW --> R[Receiver]
-  R -->|leitura: views v1| DB[(SSOT: schema ipm)]
-  R -->|requested| REQ[(REQUESTED)]
-  REQ --> M[Manager]
-  M -->|Organization, Operation, outbox| DB
-  DB -->|outbox pendente| P[Publisher]
-  P -->|desired| DES[(DESIRED)]
-  DES --> REC[Reconciler]
-  DES --> OBS[Observer]
-  OBSV[(OBSERVED)] --> REC
-  OBS -->|observed| OBSV
-  REC -->|action| ACT[(ACTION, 4 partições)]
-  ACT --> EX[Executor]
-  EX -->|completed ou failed| RES[(RESULT)]
-  RES --> REC
-  RES --> OBS
-  OBSV -->|fase e Operation| M
-  RES -->|resultado por actionId| M
-  EX -->|IAM_ORG_MANAGER: só a organização| Z[Zitadel]
-  OBS -->|IAM_OWNER_VIEWER: somente leitura| Z
+  U([Dono / Membro / Operador / sk]) -->|HTTP| GW[Gateway APISIX]
+  GW -->|HTTP| API[API: ipm-organization-api]
+  API -->|SQL: transação síncrona\norganization, outbox, idempotency| DB[(SSOT: banco ssot, schema ipm)]
+  NATS[(JetStream: Stream DESIRED)] -.->|"Informer: ipm.user e ipm.group (projeções)"| API
+  DB -->|outbox pendente por sequence| PUB[Publisher: ipm-organization-publisher]
+  PUB -->|manager.desired.ipm.organization.>| NATS
+  NATS -->|desired.changed / desired.deleted| CTRL[Controller: ipm-organization-controller]
+  CTRL -->|1. lê intenção vigente| DB
+  CTRL -->|2. observa organização e userAccess| ZIT[Zitadel: OrgService]
+  CTRL -->|3. reconcilia organização| ZIT
+  CTRL -->|4. reobserva e atualiza status| DB
+  NATS -->|projeções de organização| CONS[Consumidores:\nipm.user, ipm.role, ipm.group,\nipm.serviceaccount, sum.service]

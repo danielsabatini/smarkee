@@ -1,0 +1,13 @@
+flowchart LR
+  U([Operador / Usuário / sk]) -->|HTTP| GW[Gateway APISIX]
+  GW -->|HTTP| API[API: ipm-serviceaccount-api]
+  API -->|SQL: transação síncrona\nserviceaccount, outbox, idempotency| DB[(SSOT: banco ssot, schema ipm)]
+  NATS[(JetStream: Stream DESIRED)] -.->|"Informer: ipm.organization e ipm.user (projeções)"| API
+  DB -->|outbox pendente por sequence| PUB[Publisher: ipm-serviceaccount-publisher]
+  PUB -->|manager.desired.ipm.serviceaccount.>| NATS
+  NATS -->|desired.changed / desired.deleted| CTRL[Controller: ipm-serviceaccount-controller]
+  NATS -.->|"Informer: ipm.permission, ipm.role, ipm.group (catálogos)"| CTRL
+  CTRL -->|1. lê intenção vigente| DB
+  CTRL -->|2. observa máquina, chaves e autorizações no Zitadel| ZIT[Zitadel: UserService e OrgService]
+  CTRL -->|3. reconcilia máquina, chaves públicas e userGrant| ZIT
+  CTRL -->|4. reobserva e atualiza status| DB

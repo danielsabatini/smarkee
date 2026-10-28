@@ -1,40 +1,24 @@
 sequenceDiagram
-  participant U as Usuário
-  participant R as Receiver
-  participant DB as SSOT (views v1)
-  participant RO as Receiver da Organization
-  participant M as Manager
-  U->>R: POST /v1/ipm/users
+  participant U as Solicitante (sk)
+  participant API as API (ipm-user-api)
+  participant DB as SSOT (banco ssot)
+
+  U->>API: POST /v1/ipm/users
   alt sem token, token inválido ou audience errada
-    R-->>U: 401 Unauthorized
-  else corpo inválido (campo extra, senha, e-mail ou role fora do padrão)
-    R-->>U: 400 ValidationFailed (sem repetir o valor enviado)
-  else falta a role ipm.user.create
-    R-->>U: 403 Forbidden
-  else não age na Organization (usuário de outra, ou não é o dono)
-    R->>DB: o próprio registro não é desta Organization
-    R->>RO: GET a Organization com o token de quem pede
-    RO-->>R: 404
-    R-->>U: 404 (não revela a Organization)
-  else Receiver da Organization indisponível
-    R-->>U: 503 OrganizationUnavailable com Retry-After
-  else role fora do catálogo do Grant
-    R-->>U: 400 (field roles)
-  else sem ipm.user.bind, role que o solicitante não tem
-    R-->>U: 403 Forbidden
-  else cota da Organization já usada (o operador não tem cota)
-    R->>DB: conta os usuários da Organization
-    R-->>U: 403 QuotaExceeded
-  else pedido aceito
-    R->>M: requested-create (REQUESTED)
-    R-->>U: 202 resourceId e operationId
-    Note over M: A decisão final é do Manager e pode recusar
-    alt e-mail já usado na Organization
-      M->>DB: Operation rejected (validation), sem desired
-    else role fora do módulo ipm
-      M->>DB: Operation rejected (validation), sem desired
-    else corrida: a cota foi atingida por outro pedido (trava consultiva por Organization)
-      M->>DB: Operation rejected (validation), sem desired
-    end
+    API-->>U: 401 Unauthorized
+  else corpo inválido (e-mail fora de padrão)
+    API-->>U: 400 ValidationFailed (sem ecoar valor confidencial)
+  else falta a permissão ipm.user.create
+    API-->>U: 403 PermissionDenied
+  else sem permissão de bind para as roles solicitadas
+    API-->>U: 403 PermissionDenied (BindViolation)
+  else mesma Idempotency-Key com payload diferente
+    API-->>U: 422 IdempotencyConflict
+  else mesma Idempotency-Key com mesmo payload (replay)
+    API->>DB: SELECT em ipm.user_idempotency e ipm.user_v1
+    API-->>U: 201 Created (recurso já gravado, sem reprocessamento)
+  else e-mail já em uso na organização
+    API-->>U: 409 Conflict (UserAlreadyExists)
+  else cota de usuários da organização esgotada
+    API-->>U: 403 QuotaExceeded
   end
-  Note over U,R: O Zitadel é a última barreira: uma role fora do Grant vira failed Rejected no Executor
