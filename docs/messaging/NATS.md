@@ -473,6 +473,10 @@ Exemplos:
 
 Essas falhas devem eventualmente ser direcionadas à quarentena, evitando loops infinitos.
 
+**Consumers de estado das features (`StateConsumer`).** O consumer de cada instância usa `max_deliver=20`. Uma falha de processamento volta à fila com `nak` e espera crescente de 5 s, 10 s, 20 s, 40 s e, daí em diante, 60 s (cerca de 15 minutos até o limite). Na última entrega, a mensagem recebe `term` e um log `ERROR` (`message discarded after the maximum number of deliveries`, com `smarkee.delivery.attempt`): ela continua no Stream e só deixa de ser entregue àquele consumer. Isso é seguro porque o estado se refaz pelo último `desired` do recurso e pela reavaliação periódica. Ainda **não** há Stream de quarentena (§12): o descarte é visível em log, mas a mensagem não é copiada para outro lugar.
+
+**Conexão.** O cliente reconecta sem limite (`max_reconnect_attempts=-1`). O padrão da biblioteca (60 tentativas de 2 s) fecha a conexão depois de cerca de 2 minutos e deixa o processo vivo, sem receber mensagens; o `restart: unless-stopped` do Compose não o reinicia, porque o processo não terminou.
+
 **Publicação do outbox (Publisher, decisões 0018 e 0019).** Uma recusa permanente do transporte (mensagem grande demais ou inválida) **não** é descartada nem pulada, porque isso quebraria a ordem por recurso: o Publisher preserva a ordem, registra `ERROR` com `sequence` e `message_id` e sai de `ready`, para o bloqueio aparecer no orquestrador. A saída é uma atuação humana explícita.
 
 # 12. Quarentena / DLQ

@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any, cast
 
 import nats.errors
@@ -88,12 +89,26 @@ class FakeMessage:
     data: bytes = b"{}"
     acked: bool = False
     naked_with_delay: float | None = None
+    terminated: bool = False
+    num_delivered: int = 1
+
+    @property
+    def metadata(self) -> Msg.Metadata:
+        return cast(
+            Msg.Metadata,
+            SimpleNamespace(
+                num_delivered=self.num_delivered, sequence=SimpleNamespace(stream=7, consumer=3)
+            ),
+        )
 
     async def ack(self) -> None:
         self.acked = True
 
     async def nak(self, delay: float | None = None) -> None:
         self.naked_with_delay = delay
+
+    async def term(self) -> None:
+        self.terminated = True
 
 
 def as_msg(message: FakeMessage) -> Msg:
@@ -371,6 +386,87 @@ async def test_a_processing_error_returns_the_message_to_the_queue_and_keeps_the
     assert len(failed) == 2
     assert failed[0].exc_info is not None
     assert failed[0].exc_info[0] is RuntimeError
+
+
+@pytest.mark.parametrize(
+    ("delivery", "expected"),
+    [(1, 5.0), (2, 10.0), (3, 20.0), (4, 40.0), (5, 60.0), (19, 60.0)],
+)
+def test_the_redelivery_delay_grows_up_to_a_limit(delivery: int, expected: float) -> None:
+    assert messaging.redelivery_delay(delivery) == expected
+
+
+async def test_a_message_that_keeps_failing_is_terminated_after_the_maximum_deliveries(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    stop = asyncio.Event()
+    poison = FakeMessage(None, b"venenosa", num_delivered=messaging.MAXIMUM_DELIVERIES)
+    retryable = FakeMessage(None, b"outra", num_delivered=messaging.MAXIMUM_DELIVERIES - 1)
+    jetstream = FakeStateStream(FakeSubscription(stop, [[poison, retryable]]))
+    consumer = StateConsumer(
+        cast(JetStreamContext, jetstream),
+        FailingSink(),
+        durable="ipm-group-x-desired-abc",
+        stream="DESIRED",
+        filter_subject="desired.ipm.group.>",
+        inactive_threshold_seconds=300,
+        traced=True,
+    )
+    with caplog.at_level(logging.ERROR, logger=messaging.logger.name):
+        await consumer.run(stop)
+
+    assert poison.terminated
+    assert not poison.acked
+    assert poison.naked_with_delay is None
+    assert not retryable.terminated  # ainda abaixo do limite: volta à fila
+    assert retryable.naked_with_delay == messaging.MAXIMUM_REDELIVERY_DELAY_SECONDS
+    assert any(r.getMessage().startswith("message discarded") for r in caplog.records)
+
+
+async def test_the_state_consumer_limits_the_deliveries_of_each_message() -> None:
+    stop = asyncio.Event()
+    jetstream = FakeStateStream(FakeSubscription(stop, []))
+    consumer = StateConsumer(
+        cast(JetStreamContext, jetstream),
+        FailingSink(),
+        durable="ipm-group-x-desired-abc",
+        stream="DESIRED",
+        filter_subject="desired.ipm.group.>",
+        inactive_threshold_seconds=300,
+        traced=True,
+    )
+    await consumer.run(stop)
+    config = cast(ConsumerConfig, jetstream.calls[0][1]["config"])
+    assert config.max_deliver == messaging.MAXIMUM_DELIVERIES
+
+
+async def test_connect_never_gives_up_reconnecting(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_connect(**options: Any) -> object:
+        captured.update(options)
+        return object()
+
+    monkeypatch.setattr(messaging.nats, "connect", fake_connect)
+    await messaging.connect(
+        MessagingSettings(url="nats://localhost:4222", user="u"), name="x-manager"
+    )
+    assert captured["max_reconnect_attempts"] == -1
+    assert captured["name"] == "x-manager"
+    for callback in ("error_cb", "disconnected_cb", "reconnected_cb"):
+        assert callable(captured[callback])
+
+
+async def test_the_connection_callbacks_only_log(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.INFO, logger=messaging.logger.name):
+        await messaging._log_connection_error(OSError("recusada"))  # pyright: ignore[reportPrivateUsage]
+        await messaging._log_disconnected()  # pyright: ignore[reportPrivateUsage]
+        await messaging._log_reconnected()  # pyright: ignore[reportPrivateUsage]
+    assert [r.getMessage() for r in caplog.records] == [
+        "messaging connection error",
+        "messaging connection lost; reconnecting",
+        "messaging connection restored",
+    ]
 
 
 async def test_connect_refuses_to_guess_the_address_when_the_url_was_not_informed() -> None:

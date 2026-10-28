@@ -202,6 +202,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - SSOT: tabela de inbox; a idempotência de entrada é garantida pelas regras semânticas (`docs/data/SSOT.md`, `docs/data/POSTGRESQL.md`).
 
 ### Fixed
+- Resiliência dos serviços (`api`, `publisher` e `controller` de todas as features): a conexão com o NATS passa a reconectar sem limite (antes desistia depois de cerca de 2 minutos e o processo ficava vivo e sem receber mensagens, sem que o Compose o reiniciasse); uma mensagem de estado que sempre falha deixa de ser reentregue para sempre, com espera crescente (5 s a 60 s) e descarte pelo consumer depois de 20 entregas, registrado em log `ERROR`; o pool do banco passa a testar a conexão antes de entregá-la, e não falha a primeira operação depois de um reinício do banco.
 - CLI `sk`: a ajuda de cada opção com padrão repetia o valor (`[default 60]` e `[default: 60]`); agora aparece uma só vez, em todos os comandos e nas opções globais `--output` e `--raw`.
 - CLI `sk`: o erro de configuração inválida aconselhava `sk init --force`, comando que não existe mais (decisão 0036); passa a orientar corrigir ou remover o arquivo.
 - CLI `sk`: `sk config list` e as demais operações de `sk config` passam a incluir a seção `operator` (`operator.projectId`), que já existia na configuração.

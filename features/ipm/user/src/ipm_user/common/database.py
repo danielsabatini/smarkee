@@ -34,6 +34,9 @@ async def open_pool(
         min_size=1,
         max_size=max_size,
         kwargs=kwargs,
+        # Conexão quebrada (reinício do banco, corte de rede) é descartada ao ser requisitada,
+        # em vez de falhar a primeira operação que a usar.
+        check=AsyncConnectionPool.check_connection,
         open=False,
     )
     await pool.open(wait=True, timeout=10.0)

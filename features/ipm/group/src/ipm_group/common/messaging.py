@@ -33,20 +33,60 @@ logger = logging.getLogger(__name__)
 PUBLISH_TIMEOUT_SECONDS = 5.0
 FETCH_ERROR_PAUSE_SECONDS = 1.0
 REDELIVERY_DELAY_SECONDS = 5.0
+MAXIMUM_REDELIVERY_DELAY_SECONDS = 60.0
+MAXIMUM_DELIVERIES = 20
+"""Entregas de uma mesma mensagem antes de o consumer deixar de entregá-la (quarentena).
+
+Com a espera crescente de `redelivery_delay`, 20 entregas cobrem cerca de 15 minutos de falha
+contínua. Uma mensagem que falha além disso não é mais reentregue: ela continua no Stream, o
+descarte é registrado em log e o estado se corrige na próxima mensagem do recurso ou na
+reavaliação periódica.
+"""
 
 # Recusas que repetir não resolve: a mensagem nunca será aceita como está.
 _PERMANENT_ERRORS = (nats.errors.MaxPayloadError, nats.js.errors.BadRequestError)
 
 
+async def _log_connection_error(error: Exception) -> None:
+    logger.warning("messaging connection error", exc_info=error)
+
+
+async def _log_disconnected() -> None:
+    logger.warning("messaging connection lost; reconnecting")
+
+
+async def _log_reconnected() -> None:
+    logger.info("messaging connection restored")
+
+
 async def connect(settings: MessagingSettings, *, name: str) -> MessagingClient:
-    """Conecta com a identidade do papel (`name`, por exemplo `ipm-group-manager`)."""
+    """Conecta com a identidade do papel (`name`, por exemplo `ipm-group-manager`).
+
+    A reconexão é ilimitada (`max_reconnect_attempts=-1`): o padrão da biblioteca desiste depois de
+    cerca de 2 minutos e deixa o processo vivo e surdo, sem que o Compose o reinicie. Com a
+    reconexão ilimitada, a indisponibilidade do broker, longa ou curta, se recupera sozinha; a
+    prontidão (`client.is_connected`) segue refletindo o estado real da conexão.
+    """
     if settings.url is None:
         raise ValueError("o endereço do NATS (messaging.url) não foi informado")
     password = settings.password.get_secret_value() if settings.password else None
     # `nats.connect` aceita opções livres; o pyright não as conhece.
     return await nats.connect(  # pyright: ignore[reportUnknownMemberType]
-        servers=[settings.url], user=settings.user, password=password, name=name
+        servers=[settings.url],
+        user=settings.user,
+        password=password,
+        name=name,
+        max_reconnect_attempts=-1,
+        error_cb=_log_connection_error,
+        disconnected_cb=_log_disconnected,
+        reconnected_cb=_log_reconnected,
     )
+
+
+def redelivery_delay(delivery: int) -> float:
+    """Espera antes da próxima entrega: 5 s, 10 s, 20 s, 40 s e, daí em diante, 60 s."""
+    delay = REDELIVERY_DELAY_SECONDS * 2 ** max(delivery - 1, 0)
+    return min(delay, MAXIMUM_REDELIVERY_DELAY_SECONDS)
 
 
 def stream_of(client: MessagingClient) -> JetStreamContext:
@@ -222,6 +262,7 @@ class StateConsumer:
                 ack_policy=AckPolicy.EXPLICIT,
                 filter_subject=self._filter,
                 inactive_threshold=self._inactive,
+                max_deliver=MAXIMUM_DELIVERIES,
             ),
         )
         await self._check_synced(subscription)
@@ -240,12 +281,29 @@ class StateConsumer:
         try:
             await self._sink.on_message(message.data)
         except Exception as error:  # um erro de processamento volta à fila; nunca derruba o laço
+            delivery = message.metadata.num_delivered
+            if delivery >= MAXIMUM_DELIVERIES:
+                # Quarentena: sem este limite, uma mensagem que nunca é aceita seria reentregue
+                # para sempre. Ela fica no Stream; só deixa de ser entregue a este consumer.
+                logger.error(
+                    "message discarded after the maximum number of deliveries",
+                    extra={
+                        "messaging.consumer.group.name": self._durable,
+                        "smarkee.delivery.attempt": delivery,
+                    },
+                    exc_info=error,
+                )
+                await message.term()
+                return
             logger.error(
                 "message processing failed; it will be redelivered",
-                extra={"messaging.consumer.group.name": self._durable},
+                extra={
+                    "messaging.consumer.group.name": self._durable,
+                    "smarkee.delivery.attempt": delivery,
+                },
                 exc_info=error,
             )
-            await message.nak(delay=REDELIVERY_DELAY_SECONDS)
+            await message.nak(delay=redelivery_delay(delivery))
             return
         await message.ack()
         if self._traced:

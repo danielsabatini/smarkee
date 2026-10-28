@@ -39,6 +39,9 @@ class FakePool:
 
     async def open(self, **options: Any) -> None: ...
 
+    @staticmethod
+    async def check_connection(connection: Any) -> None: ...
+
 
 @pytest.mark.parametrize(
     ("row_factory", "expected"),
@@ -51,3 +54,12 @@ async def test_the_pool_is_autocommit_and_takes_an_optional_row_factory(
     monkeypatch.setattr(database, "AsyncConnectionPool", FakePool)
     await database.open_pool(settings(), row_factory=row_factory)
     assert FakePool.created[0]["kwargs"] == expected
+
+
+async def test_the_pool_checks_a_connection_before_handing_it_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakePool.created.clear()
+    monkeypatch.setattr(database, "AsyncConnectionPool", FakePool)
+    await database.open_pool(settings())
+    assert FakePool.created[0]["check"] is FakePool.check_connection
