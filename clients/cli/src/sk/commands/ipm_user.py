@@ -348,7 +348,8 @@ def _change(
     structured=True,
     help=command(
         "Set the roles or groups of a user: the given --role/--group values replace current ones "
-        "(--no-roles / --no-groups removes them)."
+        "(--no-roles / --no-groups removes them).",
+        examples=["sk ipm user update --resource-id usr-123456 --role ipm.organizationAdmin"],
     ),
 )
 def update_command(
@@ -405,7 +406,14 @@ def update_command(
     )
 
 
-@user_app.command("protect", structured=True, help=command("Protect a user against deletion."))
+@user_app.command(
+    "protect",
+    structured=True,
+    help=command(
+        "Protect a user against deletion.",
+        examples=["sk ipm user protect --resource-id usr-123456"],
+    ),
+)
 def protect_command(
     resource_id: UserIdOption = None,
     wait: WaitOption = False,
@@ -425,7 +433,10 @@ def protect_command(
 @user_app.command(
     "unprotect",
     structured=True,
-    help=command("Allow a protected user to be deleted (new users are not protected)."),
+    help=command(
+        "Allow a protected user to be deleted (new users are not protected).",
+        examples=["sk ipm user unprotect --resource-id usr-123456"],
+    ),
 )
 def unprotect_command(
     resource_id: UserIdOption = None,
@@ -446,7 +457,10 @@ def unprotect_command(
 @user_app.command(
     "delete",
     structured=True,
-    help=command("Delete a user of the Organization, reading the current version before asking."),
+    help=command(
+        "Delete a user of the Organization, reading the current version before asking.",
+        examples=["sk ipm user delete --resource-id usr-123456 --wait"],
+    ),
 )
 def delete_command(
     resource_id: UserIdOption = None,
@@ -478,7 +492,17 @@ def delete_command(
     )
 
 
-@user_app.command("get", structured=True, help=command("Show the state of a user."))
+@user_app.command(
+    "get",
+    structured=True,
+    help=command(
+        "Show the state of a user.",
+        examples=[
+            "sk ipm user get --resource-id usr-123456",
+            "sk --output json ipm user get --resource-id usr-123456",
+        ],
+    ),
+)
 def get_command(
     resource_id: UserIdOption = None,
 ) -> None:
@@ -494,7 +518,14 @@ def get_command(
     ui.panel("User", _rows(user), data=user)
 
 
-@user_app.command("list", structured=True, help=command("List the users of an Organization."))
+@user_app.command(
+    "list",
+    structured=True,
+    help=command(
+        "List the users of an Organization.",
+        examples=["sk ipm user list", "sk --output json ipm user list"],
+    ),
+)
 def list_command(organization_id: OrganizationOption = None) -> None:
     organization = _organization(organization_id)
     url, insecure = load_api()

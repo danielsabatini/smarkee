@@ -339,7 +339,8 @@ def create_command(
     "update",
     structured=True,
     help=command(
-        "Rename an Organization or update its Billing Account, reading the current version first."
+        "Rename an Organization or update its Billing Account, reading the current version first.",
+        examples=["sk ipm organization update --resource-id org-123456 --name acme-corp"],
     ),
 )
 def update_command(
@@ -480,7 +481,10 @@ def _set_protection(resource_id: str | None, *, protected: bool, wait: bool, tim
 @organization_app.command(
     "protect",
     structured=True,
-    help=command("Protect an Organization against deletion (the default for new ones)."),
+    help=command(
+        "Protect an Organization against deletion (the default for new ones).",
+        examples=["sk ipm organization protect --resource-id org-123456"],
+    ),
 )
 def protect_command(
     resource_id: ResourceIdOption = None,
@@ -493,7 +497,10 @@ def protect_command(
 @organization_app.command(
     "unprotect",
     structured=True,
-    help=command("Allow an Organization to be deleted. Required before `delete`."),
+    help=command(
+        "Allow an Organization to be deleted. Required before `delete`.",
+        examples=["sk ipm organization unprotect --resource-id org-123456"],
+    ),
 )
 def unprotect_command(
     resource_id: ResourceIdOption = None,
@@ -506,7 +513,10 @@ def unprotect_command(
 @organization_app.command(
     "delete",
     structured=True,
-    help=command("Delete an Organization, reading the current version before asking."),
+    help=command(
+        "Delete an Organization, reading the current version before asking.",
+        examples=["sk ipm organization delete --resource-id org-123456 --wait"],
+    ),
 )
 def delete_command(
     resource_id: ResourceIdOption = None,
@@ -552,7 +562,13 @@ def delete_command(
 @organization_app.command(
     "get",
     structured=True,
-    help=command("Show the state of an Organization."),
+    help=command(
+        "Show the state of an Organization.",
+        examples=[
+            "sk ipm organization get --resource-id org-123456",
+            "sk --output json ipm organization get",
+        ],
+    ),
 )
 def get_command(
     resource_id: ResourceIdOption = None,
@@ -572,7 +588,12 @@ def get_command(
 
 
 @organization_app.command(
-    "list", structured=True, help=command("List the requester's Organizations.")
+    "list",
+    structured=True,
+    help=command(
+        "List the requester's Organizations.",
+        examples=["sk ipm organization list", "sk --output json ipm organization list"],
+    ),
 )
 def list_command() -> None:
     url, insecure = load_api()

@@ -194,7 +194,12 @@ _flow = SyncResourceFlow(
 @group_app.command(
     "create",
     structured=True,
-    help=command("Create a user group in the Organization with assigned composite roles."),
+    help=command(
+        "Create a user group in the Organization with assigned composite roles.",
+        examples=[
+            "sk ipm group create --name devops --description DevOps --role ipm.organizationViewer"
+        ],
+    ),
 )
 def create_command(
     name: Annotated[
@@ -305,7 +310,10 @@ def _change(
     "update",
     structured=True,
     help=command(
-        "Update description or roles of a group: --role replaces roles (--no-roles clears them)."
+        "Update description or roles of a group: --role replaces roles (--no-roles clears them).",
+        examples=[
+            "sk ipm group update --resource-id grp-123456 --role ipm.organizationAdmin"
+        ],
     ),
 )
 def update_command(
@@ -357,7 +365,14 @@ def update_command(
     )
 
 
-@group_app.command("protect", structured=True, help=command("Protect a group against deletion."))
+@group_app.command(
+    "protect",
+    structured=True,
+    help=command(
+        "Protect a group against deletion.",
+        examples=["sk ipm group protect --resource-id grp-123456"],
+    ),
+)
 def protect_command(
     resource_id: GroupIdOption = None,
     wait: WaitOption = False,
@@ -375,7 +390,12 @@ def protect_command(
 
 
 @group_app.command(
-    "unprotect", structured=True, help=command("Allow a protected group to be deleted.")
+    "unprotect",
+    structured=True,
+    help=command(
+        "Allow a protected group to be deleted.",
+        examples=["sk ipm group unprotect --resource-id grp-123456"],
+    ),
 )
 def unprotect_command(
     resource_id: GroupIdOption = None,
@@ -393,7 +413,14 @@ def unprotect_command(
     )
 
 
-@group_app.command("delete", structured=True, help=command("Delete a group of the Organization."))
+@group_app.command(
+    "delete",
+    structured=True,
+    help=command(
+        "Delete a group of the Organization.",
+        examples=["sk ipm group delete --resource-id grp-123456 --wait"],
+    ),
+)
 def delete_command(
     resource_id: GroupIdOption = None,
     wait: WaitOption = False,
@@ -422,7 +449,17 @@ def delete_command(
     )
 
 
-@group_app.command("get", structured=True, help=command("Show the state of a group."))
+@group_app.command(
+    "get",
+    structured=True,
+    help=command(
+        "Show the state of a group.",
+        examples=[
+            "sk ipm group get --resource-id grp-123456",
+            "sk --output json ipm group get --resource-id grp-123456",
+        ],
+    ),
+)
 def get_command(resource_id: GroupIdOption = None) -> None:
     group_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
@@ -436,7 +473,14 @@ def get_command(resource_id: GroupIdOption = None) -> None:
     ui.panel("Group", _rows(group), data=group)
 
 
-@group_app.command("list", structured=True, help=command("List all groups of an Organization."))
+@group_app.command(
+    "list",
+    structured=True,
+    help=command(
+        "List all groups of an Organization.",
+        examples=["sk ipm group list", "sk --output json ipm group list"],
+    ),
+)
 def list_command(organization_id: OrganizationOption = None) -> None:
     org_id = _organization(organization_id)
     url, insecure = load_api()

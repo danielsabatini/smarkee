@@ -496,7 +496,12 @@ def _change(
 @serviceaccount_app.command(
     "update",
     structured=True,
-    help=command("Update description or roles: --role replaces roles (--no-roles clears them)."),
+    help=command(
+        "Update description or roles: --role replaces roles (--no-roles clears them).",
+        examples=[
+            "sk ipm serviceaccount update --resource-id sa-123456 --description 'CI/CD pipeline'"
+        ],
+    ),
 )
 def update_command(
     resource_id: ServiceAccountIdOption = None,
@@ -549,7 +554,12 @@ def update_command(
 
 
 @serviceaccount_app.command(
-    "protect", structured=True, help=command("Protect a service account against deletion.")
+    "protect",
+    structured=True,
+    help=command(
+        "Protect a service account against deletion.",
+        examples=["sk ipm serviceaccount protect --resource-id sa-123456"],
+    ),
 )
 def protect_command(
     resource_id: ServiceAccountIdOption = None,
@@ -569,7 +579,12 @@ def protect_command(
 
 
 @serviceaccount_app.command(
-    "unprotect", structured=True, help=command("Allow a protected service account to be deleted.")
+    "unprotect",
+    structured=True,
+    help=command(
+        "Allow a protected service account to be deleted.",
+        examples=["sk ipm serviceaccount unprotect --resource-id sa-123456"],
+    ),
 )
 def unprotect_command(
     resource_id: ServiceAccountIdOption = None,
@@ -589,7 +604,12 @@ def unprotect_command(
 
 
 @serviceaccount_app.command(
-    "delete", structured=True, help=command("Delete a service account of the Organization.")
+    "delete",
+    structured=True,
+    help=command(
+        "Delete a service account of the Organization.",
+        examples=["sk ipm serviceaccount delete --resource-id sa-123456 --wait"],
+    ),
 )
 def delete_command(
     resource_id: ServiceAccountIdOption = None,
@@ -630,7 +650,13 @@ def delete_command(
 @serviceaccount_app.command(
     "get",
     structured=True,
-    help=command("Show the state of a service account."),
+    help=command(
+        "Show the state of a service account.",
+        examples=[
+            "sk ipm serviceaccount get --resource-id sa-123456",
+            "sk --output json ipm serviceaccount get --resource-id sa-123456",
+        ],
+    ),
 )
 def get_command(resource_id: ServiceAccountIdOption = None) -> None:
     sa_id = identifier(resource_id, "--resource-id", what="resourceId")
@@ -646,7 +672,12 @@ def get_command(resource_id: ServiceAccountIdOption = None) -> None:
 
 
 @serviceaccount_app.command(
-    "list", structured=True, help=command("List all service accounts of an Organization.")
+    "list",
+    structured=True,
+    help=command(
+        "List all service accounts of an Organization.",
+        examples=["sk ipm serviceaccount list", "sk --output json ipm serviceaccount list"],
+    ),
 )
 def list_command(organization_id: OrganizationOption = None) -> None:
     org_id = _organization(organization_id)

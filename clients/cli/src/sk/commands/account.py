@@ -98,7 +98,12 @@ def _rows(account: Account) -> list[tuple[str, str]]:
 
 
 @account_app.command(
-    "get", structured=True, help=command("Show the account of the current session.")
+    "get",
+    structured=True,
+    help=command(
+        "Show the account of the current session.",
+        examples=["sk account get", "sk --output json account get"],
+    ),
 )
 def get_command() -> None:
     url, insecure = load_api()
@@ -211,7 +216,12 @@ WaitOption = Annotated[
 
 
 @account_app.command(
-    "protect", structured=True, help=command("Protect your account against deletion (the default).")
+    "protect",
+    structured=True,
+    help=command(
+        "Protect your account against deletion (the default).",
+        examples=["sk account protect", "sk account protect --wait"],
+    ),
 )
 def protect_command(
     wait: WaitOption = False, timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS
@@ -222,7 +232,10 @@ def protect_command(
 @account_app.command(
     "unprotect",
     structured=True,
-    help=command("Allow your account to be deleted. Required before `delete`."),
+    help=command(
+        "Allow your account to be deleted. Required before `delete`.",
+        examples=["sk account unprotect", "sk account unprotect --wait"],
+    ),
 )
 def unprotect_command(
     wait: WaitOption = False, timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS
@@ -234,7 +247,8 @@ def unprotect_command(
     "delete",
     structured=True,
     help=command(
-        "Delete your own account. It is refused while Organizations or enabled services remain."
+        "Delete your own account. It is refused while Organizations or enabled services remain.",
+        examples=["sk account delete --yes", "sk account delete --yes --wait"],
     ),
 )
 def delete_command(

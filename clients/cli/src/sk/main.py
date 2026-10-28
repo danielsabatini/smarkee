@@ -1,5 +1,8 @@
 """Entrypoint do CLI `sk` da plataforma smarkee."""
 
+import os
+import sys
+import traceback
 from importlib.metadata import version as package_version
 from typing import Annotated
 
@@ -16,6 +19,7 @@ from sk.commands.sum import sum_app
 from sk.help import option
 
 DOCUMENTATION_URL = "https://docs.smarkee.com.br"
+SUPPORT_URL = "https://github.com/smarkee/smarkee/issues"
 
 app = SkTyper(
     name="sk",
@@ -123,13 +127,22 @@ def main() -> None:
     A captura fica aqui, e não nos comandos, para os testes com `CliRunner` continuarem vendo a
     exceção original. Só o **tipo** é mostrado: a mensagem pode trazer token ou resposta da API.
     `KeyboardInterrupt`, `SystemExit` e `typer.Exit` não são `Exception` e seguem seu curso.
+    Quando `SK_DEBUG=1` ou `SK_TRACEBACK=1` estiver ativo, o traceback é emitido no stderr para
+    diagnóstico técnico.
     """
     try:
         app()
     except Exception as error:
+        if os.environ.get("SK_DEBUG", "").lower() in {"1", "true", "yes"} or os.environ.get(
+            "SK_TRACEBACK", ""
+        ).lower() in {"1", "true", "yes"}:
+            traceback.print_exc(file=sys.stderr)
         ui.error(
             "Unexpected error",
             f"The command failed with {type(error).__name__}.",
-            hint=f"This is a bug in sk. Documentation: {DOCUMENTATION_URL}",
+            hint=(
+                f"This is a bug in sk. Please report it at {SUPPORT_URL}. "
+                f"Set SK_DEBUG=1 for diagnostic traceback. Documentation: {DOCUMENTATION_URL}"
+            ),
         )
         raise SystemExit(EXIT_FAILURE) from None

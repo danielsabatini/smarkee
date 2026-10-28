@@ -221,7 +221,10 @@ def enable_command(
 @service_app.command(
     "disable",
     structured=True,
-    help=command("Disable a requester's service, reading the current version before asking."),
+    help=command(
+        "Disable a requester's service, reading the current version before asking.",
+        examples=["sk sum service disable --resource-id srv-123456 --wait"],
+    ),
 )
 def disable_command(
     resource_id: Annotated[
@@ -271,7 +274,13 @@ def disable_command(
 @service_app.command(
     "get",
     structured=True,
-    help=command("Show the state of a service."),
+    help=command(
+        "Show the state of a service.",
+        examples=[
+            "sk sum service get --resource-id srv-123456",
+            "sk --output json sum service get --resource-id srv-123456",
+        ],
+    ),
 )
 def get_command(
     resource_id: Annotated[
@@ -300,7 +309,14 @@ def get_command(
     ui.panel("Service", _rows(link), data=link)
 
 
-@service_app.command("list", structured=True, help=command("List the requester's services."))
+@service_app.command(
+    "list",
+    structured=True,
+    help=command(
+        "List the requester's services.",
+        examples=["sk sum service list", "sk --output json sum service list"],
+    ),
+)
 def list_command() -> None:
     url, insecure = load_api()
     token = session_token()

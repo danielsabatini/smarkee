@@ -266,7 +266,12 @@ def remove_value(key: ConfigKey, document: dict[str, Any], *, path: Path) -> Non
 @config_app.command(
     "list",
     structured=True,
-    help="Show every key, its effective value and where the value comes from.",
+    help=(
+        "Show every key, its effective value and where the value comes from.\n\n"
+        "Examples:\n\b\n"
+        "  sk config list\n"
+        "  sk --output json config list"
+    ),
 )
 def list_command() -> None:
     path = config_file_path()
@@ -293,7 +298,12 @@ def list_command() -> None:
 
 @config_app.command(
     "get",
-    help="Show the effective value of a key, unformatted (useful in scripts).",
+    help=(
+        "Show the effective value of a key, unformatted (useful in scripts).\n\n"
+        "Examples:\n\b\n"
+        "  sk config get api.url\n"
+        "  sk config get auth.issuer"
+    ),
 )
 def get_command(
     name: Annotated[
@@ -309,7 +319,11 @@ def get_command(
 @config_app.command(
     "set",
     help=(
-        "Store the value of a key and rewrite the file. Comments written by hand are not preserved."
+        "Store the value of a key and rewrite the file. Comments written by hand "
+        "are not preserved.\n\n"
+        "Examples:\n\b\n"
+        "  sk config set api.timeoutSeconds 120\n"
+        "  sk config set api.url http://gateway.internal:8080"
     ),
 )
 def set_command(
@@ -352,7 +366,9 @@ def set_command(
     "unset",
     help=(
         "Remove a key from the file, so its value goes back to the default. Comments written by "
-        "hand are not preserved."
+        "hand are not preserved.\n\n"
+        "Examples:\n\b\n"
+        "  sk config unset api.timeoutSeconds"
     ),
 )
 def unset_command(

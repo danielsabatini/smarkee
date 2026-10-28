@@ -141,7 +141,14 @@ _flow = SyncResourceFlow(
 
 
 @permission_app.command(
-    "create", structured=True, help=command("Create an atomic platform permission.")
+    "create",
+    structured=True,
+    help=command(
+        "Create an atomic platform permission.",
+        examples=[
+            "sk ipm permission create --name sum.service.audit --description Audit --wait"
+        ],
+    ),
 )
 def create_command(
     name: Annotated[
@@ -225,7 +232,12 @@ def create_command(
 @permission_app.command(
     "update",
     structured=True,
-    help=command("Update the description or grantable status of a platform permission."),
+    help=command(
+        "Update the description or grantable status of a platform permission.",
+        examples=[
+            "sk ipm permission update --resource-id sum.service.audit --description Audit"
+        ],
+    ),
 )
 def update_command(
     resource_id: PermissionIdOption = None,
@@ -299,7 +311,12 @@ def update_command(
 
 
 @permission_app.command(
-    "protect", structured=True, help=command("Protect a permission against deletion.")
+    "protect",
+    structured=True,
+    help=command(
+        "Protect a permission against deletion.",
+        examples=["sk ipm permission protect --resource-id sum.service.audit"],
+    ),
 )
 def protect_command(
     resource_id: PermissionIdOption = None,
@@ -344,7 +361,10 @@ def protect_command(
 @permission_app.command(
     "unprotect",
     structured=True,
-    help=command("Allow a protected permission to be deleted."),
+    help=command(
+        "Allow a protected permission to be deleted.",
+        examples=["sk ipm permission unprotect --resource-id sum.service.audit"],
+    ),
 )
 def unprotect_command(
     resource_id: PermissionIdOption = None,
@@ -390,7 +410,8 @@ def unprotect_command(
     "delete",
     structured=True,
     help=command(
-        "Delete an atomic platform permission, reading the current version before asking."
+        "Delete an atomic platform permission, reading the current version before asking.",
+        examples=["sk ipm permission delete --resource-id sum.service.audit --wait"],
     ),
 )
 def delete_command(
@@ -429,7 +450,17 @@ def delete_command(
     )
 
 
-@permission_app.command("get", structured=True, help=command("Inspect a platform permission."))
+@permission_app.command(
+    "get",
+    structured=True,
+    help=command(
+        "Inspect a platform permission.",
+        examples=[
+            "sk ipm permission get --resource-id sum.service.audit",
+            "sk --output json ipm permission get --resource-id sum.service.audit",
+        ],
+    ),
+)
 def get_command(resource_id: PermissionIdOption = None) -> None:
     perm_id = identifier(resource_id, "--resource-id", what="resourceId")
     url, insecure = load_api()
@@ -445,7 +476,14 @@ def get_command(resource_id: PermissionIdOption = None) -> None:
     ui.panel("Permission", _rows(permission), data=permission)
 
 
-@permission_app.command("list", structured=True, help=command("List platform permissions."))
+@permission_app.command(
+    "list",
+    structured=True,
+    help=command(
+        "List platform permissions.",
+        examples=["sk ipm permission list", "sk --output json ipm permission list"],
+    ),
+)
 def list_command() -> None:
     url, insecure = load_api()
     token = session_token()

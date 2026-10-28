@@ -420,7 +420,10 @@ def run_whoami(allow_insecure_http: bool, credentials_path: Path) -> None:
 @auth_app.command(
     "whoami",
     structured=True,
-    help=command("Show the user of the current session and confirm it is still valid."),
+    help=command(
+        "Show the user of the current session and confirm it is still valid.",
+        examples=["sk auth whoami", "sk --output json auth whoami"],
+    ),
 )
 def whoami() -> None:
     settings = _load_or_exit({})
@@ -431,7 +434,8 @@ def whoami() -> None:
     "refresh",
     help=command(
         "Renew the session now, with the refresh token, so the token reflects the current "
-        "permissions (for example, after enabling or disabling a service)."
+        "permissions (for example, after enabling or disabling a service).",
+        examples=["sk auth refresh"],
     ),
 )
 def refresh() -> None:
