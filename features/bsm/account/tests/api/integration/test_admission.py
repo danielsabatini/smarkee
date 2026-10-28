@@ -51,7 +51,7 @@ async def outbox_of(resource_id: str) -> list[tuple[str, dict[str, Any]]]:
     try:
         cursor = await maintenance.execute(
             "SELECT subject, payload FROM bsm.account_outbox"
-            " WHERE resource_id = %s ORDER BY sequence_id ASC",
+            " WHERE resource_id = %s ORDER BY sequence ASC",
             (resource_id,),
         )
         rows = await cursor.fetchall()
@@ -75,7 +75,7 @@ async def test_create_records_account_and_outbox_atomically(
 
     outbox = await outbox_of(resource_id)
     assert len(outbox) == 1
-    assert outbox[0][0] == f"manager.desired.bsm.account.{resource_id}"
+    assert outbox[0][0] == f"manager.desired.bsm.account.{resource_id}.changed"
     assert outbox[0][1]["data"]["displayName"] == "Conta 1"
 
 
@@ -108,13 +108,23 @@ async def test_delete_removes_account_and_publishes_absent(
     resource_id = str(uuid.uuid7())
     cleanup.append(resource_id)
     await admit(store, admission("create", resource_id, specification=specification("Conta Del")))
+    # Desativa deletionProtection para poder remover
+    await admit(
+        store,
+        admission(
+            "update",
+            resource_id,
+            resource_version=1,
+            specification={"deletionProtection": False},
+        ),
+    )
 
     record = await admit(
         store,
         admission(
             "delete",
             resource_id,
-            resource_version=1,
+            resource_version=2,
         ),
     )
     assert record.phase == "Deleting"
@@ -126,8 +136,8 @@ async def test_delete_removes_account_and_publishes_absent(
     assert await cursor.fetchone() is None
 
     outbox = await outbox_of(resource_id)
-    assert len(outbox) == 2
-    assert outbox[1][1]["data"]["lifecycle"] == "absent"
+    assert len(outbox) == 3
+    assert outbox[2][1]["data"]["lifecycle"] == "absent"
 
 
 async def test_idempotency_returns_same_record_without_duplicating_outbox(

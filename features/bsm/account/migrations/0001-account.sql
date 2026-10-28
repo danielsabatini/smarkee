@@ -99,7 +99,8 @@ CREATE INDEX IF NOT EXISTS account_owner_display_name
 -- só na view da Operation, para o Receiver autorizar a leitura (docs/data/POSTGRESQL.md §6.5).
 CREATE OR REPLACE VIEW bsm.account_v1 AS
   SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
-         resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
+         resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at,
+         observed_generation
     FROM bsm.account;
 
 CREATE OR REPLACE VIEW bsm.account_operation_v1 AS

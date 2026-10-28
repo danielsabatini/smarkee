@@ -28,27 +28,26 @@ async def database_available() -> None:
 async def cleanup(database_available: None) -> AsyncIterator[Cleanup]:
     tracker = Cleanup()
     yield tracker
-    manager = await connect("bsm_account_manager_login")
+    api = await connect("bsm_account_api_login")
     maintenance = await connect("bsm_maintenance_login")
     try:
-        await manager.execute(
+        await api.execute(
             "DELETE FROM bsm.account WHERE resource_id = ANY(%s)", (tracker.resource_ids,)
         )
-        for suffix in ("outbox", "operation", "action_result"):
-            await maintenance.execute(
-                f"DELETE FROM bsm.account_{suffix} WHERE resource_id = ANY(%s)",  # noqa: S608 (tabelas fixas)
-                (tracker.resource_ids,),
-            )
+        await maintenance.execute(
+            "DELETE FROM bsm.account_outbox WHERE resource_id = ANY(%s)",
+            (tracker.resource_ids,),
+        )
     finally:
-        await manager.close()
+        await api.close()
         await maintenance.close()
 
 
 @pytest_asyncio.fixture
-async def account_manager(
+async def api_writer(
     database_available: None,
 ) -> AsyncIterator[psycopg.AsyncConnection[Any]]:
-    connection = await connect("bsm_account_manager_login")
+    connection = await connect("bsm_account_api_login")
     yield connection
     await connection.close()
 
