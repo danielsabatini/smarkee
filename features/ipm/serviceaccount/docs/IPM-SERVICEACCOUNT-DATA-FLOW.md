@@ -21,7 +21,7 @@ O pedido é admitido de forma síncrona pela API (`ipm-serviceaccount-api`), que
 |---|---|---|---|---|
 | 1 | CLI → API | `POST /v1/ipm/serviceaccounts` (via gateway) | `{organizationId, name, keys, roles, ...}` | nada |
 | 2 | API → banco `ssot` | SQL, uma transação atômica | `201 Created` (`Resource` em `phase: Pending`) | `ipm.serviceaccount`, `ipm.serviceaccount_outbox`, `ipm.serviceaccount_idempotency` |
-| 3 | Publisher → NATS | JetStream, Stream `DESIRED` | `desired` (`manager.desired.ipm.serviceaccount.<id>.changed`) | `ipm.serviceaccount_outbox.published_at` |
+| 3 | Publisher → NATS | JetStream, Stream `DESIRED` | `desired` (`desired.ipm.serviceaccount.<id>`) | `ipm.serviceaccount_outbox.published_at` |
 | 4 | Controller → Zitadel; Controller → SSOT | HTTP no Zitadel (UserService / OrgService); SQL transacional | Criação de Machine User, chaves e userGrant | `ipm.serviceaccount` (`phase: Ready`, `observedGeneration: 1`) |
 
 Diagramas de arquitetura e estados:
@@ -60,7 +60,7 @@ A API `ipm-serviceaccount-api`:
 
 ## 2. Publicação Assíncrona: `ipm-serviceaccount-publisher`
 
-Drena o outbox pendente em ordem de `sequence` e publica em `manager.desired.ipm.serviceaccount.<resourceId>.changed`.
+Drena o outbox pendente em ordem de `sequence` e publica em `desired.ipm.serviceaccount.<resourceId>`.
 
 ---
 

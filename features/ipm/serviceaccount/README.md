@@ -72,8 +72,8 @@ O contexto de trace, os probes e o OpenAPI da API vêm do template (decisão 007
 
 | Stream | Subject | Consumer | Quem lê |
 |---|---|---|---|
-| `DESIRED` | `manager.desired.ipm.serviceaccount.>` | `ipm-serviceaccount-controller-desired-<instância>` | Controller |
-| `DESIRED` (catálogos) | `manager.desired.ipm.permission.>` e `manager.desired.ipm.role.>` | `ipm-serviceaccount-controller-{permissions,roles}-<instância>` e, para o catálogo de acesso, a API | Controller e API |
+| `DESIRED` | `desired.ipm.serviceaccount.>` | `ipm-serviceaccount-controller-desired-<instância>` | Controller |
+| `DESIRED` (catálogos) | `desired.ipm.permission.>` e `desired.ipm.role.>` | `ipm-serviceaccount-controller-{permissions,roles}-<instância>` e, para o catálogo de acesso, a API | Controller e API |
 
 O tipo **não tem** o Stream `REQUESTED` (decisão 0098): a API grava o `desired` no outbox na própria admissão, com `emitter: api`. O `updated` do Controller continua com `emitter: manager`. `OBSERVED`, `ACTION` e `RESULT` **não existem** para este tipo (decisão 0096): o Controller observa, age e grava o resultado na mesma transação. O `updated` sai pelo outbox, publicado pelo Publisher em `UPDATED`. Os Streams e as regras de consumo estão em [`docs/messaging/NATS.md`](../../../docs/messaging/NATS.md).
 

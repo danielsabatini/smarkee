@@ -105,8 +105,8 @@ O tipo **não tem** o Stream `REQUESTED` (decisão 0098): a API grava o `desired
 
 | Stream | Subject | Consumer | Quem lê |
 |---|---|---|---|
-| `DESIRED` | `manager.desired.ipm.user.>` | `ipm-user-controller-desired-<instância>` | Controller |
-| `DESIRED` | `manager.desired.ipm.{permission,role,group}.>` | `ipm-user-controller-{permissions,roles,groups}-<instância>` e a API para o catálogo de acesso | Controller e API |
+| `DESIRED` | `desired.ipm.user.>` | `ipm-user-controller-desired-<instância>` | Controller |
+| `DESIRED` | `desired.ipm.{permission,role,group}.>` | `ipm-user-controller-{permissions,roles,groups}-<instância>` e a API para o catálogo de acesso | Controller e API |
 
 # 7. Contratos
 

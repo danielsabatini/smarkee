@@ -85,7 +85,7 @@ O `Resource` devolvido tem `resourceId`, `resourceVersion`, `desiredGeneration`,
 
 ## 3. Outbox → NATS
 
-O Publisher (`core-account-publisher`) lê o outbox em ordem e publica em `manager.desired.core.account.<resourceId>.changed`, com `Nats-Msg-Id` igual ao `messageId`, e marca `published_at` depois da confirmação. O `desired` publicado (a API é o `emitter`):
+O Publisher (`core-account-publisher`) lê o outbox em ordem e publica em `desired.core.account.<resourceId>`, com `Nats-Msg-Id` igual ao `messageId`, e marca `published_at` depois da confirmação. O `desired` publicado (a API é o `emitter`):
 
 ```json
 {
@@ -106,7 +106,7 @@ Decisão 0096, no padrão do Kubernetes Controller (Informer + Workqueue, AGENTS
 
 ### 4.1 Entrada: Informer, fila e reavaliação
 
-- O **Informer** consome `manager.desired.core.account.>` (consumer `core-account-controller-desired-<instância>`). A mensagem só avisa que o recurso mudou: o `resourceId` entra na **Workqueue**, e quem decide lê o `desired` no SSOT.
+- O **Informer** consome `desired.core.account.>` (consumer `core-account-controller-desired-<instância>`). A mensagem só avisa que o recurso mudou: o `resourceId` entra na **Workqueue**, e quem decide lê o `desired` no SSOT.
 - A **Workqueue** deduplica por `resourceId` e repete com *backoff* exponencial com *jitter* quando o provedor falha de forma transitória. Mensagens de outra partição (`hash mod count`) são ignoradas.
 - A **reavaliação periódica** (padrão 300 s, com *jitter*) enfileira as contas `active` da partição, para detectar *drift* feito fora do loop.
 

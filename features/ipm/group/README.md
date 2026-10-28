@@ -10,8 +10,8 @@ Dois papéis implementados para execução no ambiente de dev (Compose), sobre a
 
 | Papel | Projeto | Estado |
 |---|---|---|
-| API | `api/` (`ipm-group-api`) | API `/v1/ipm/groups`: `POST` 201, `PATCH` 200 e `DELETE` 202, todos com o `Resource`; sem Operation. Escopo por `organizationId` (operador, dono da Organization ou membro), exigência de `ipm.group.bind` para atribuir/alterar `roles` (dentro do catálogo de Roles), cota por Organization e `409 ResourcesAttached` ao excluir grupo com usuários associados. Admite a escrita numa transação (unicidade de `name` por Organization, cota, geração, recurso e `desired` no outbox; o `DELETE` remove a linha e publica o tombstone). Mantém o catálogo de Roles (`manager.desired.ipm.role.>`). Contrato em `openapi.json` |
-| Publisher | `publisher/` (`ipm-group-publisher`) | Publica o outbox no NATS (`manager.desired.ipm.group.>`), com trava de sessão, envelope estrito e `Nats-Msg-Id` |
+| API | `api/` (`ipm-group-api`) | API `/v1/ipm/groups`: `POST` 201, `PATCH` 200 e `DELETE` 202, todos com o `Resource`; sem Operation. Escopo por `organizationId` (operador, dono da Organization ou membro), exigência de `ipm.group.bind` para atribuir/alterar `roles` (dentro do catálogo de Roles), cota por Organization e `409 ResourcesAttached` ao excluir grupo com usuários associados. Admite a escrita numa transação (unicidade de `name` por Organization, cota, geração, recurso e `desired` no outbox; o `DELETE` remove a linha e publica o tombstone). Mantém o catálogo de Roles (`desired.ipm.role.>`). Contrato em `openapi.json` |
+| Publisher | `publisher/` (`ipm-group-publisher`) | Publica o outbox no NATS (`desired.ipm.group.>`), com trava de sessão, envelope estrito e `Nats-Msg-Id` |
 
 # 2. Contratos e Configuração
 

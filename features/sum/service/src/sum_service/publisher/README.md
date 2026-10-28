@@ -33,5 +33,5 @@ do outbox), `..._TEST_MAINTENANCE_URL` (limpeza) e `..._TEST_NATS_URL`, `..._TES
 
 ## Verificação
 
-A publicação no subject real `manager.desired.sum.service.<resourceId>.changed`, com o Publisher no Compose, é
+A publicação no subject real `desired.sum.service.<resourceId>`, com o Publisher no Compose, é
 exercida pela suíte e2e (`../../../tests/e2e`), inclusive com o Publisher parado durante um pedido.

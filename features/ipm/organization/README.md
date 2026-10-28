@@ -48,14 +48,14 @@ Os papéis são **um projeto e uma imagem** (decisão 0063), cada um rodando com
 
 ## 3.2 Publisher (`ipm-organization-publisher`)
 
-- Lê o outbox em ordem de `sequence`, valida o envelope de forma estrita, acrescenta `publishedAt` e `publishedBy` e publica em `manager.desired.ipm.organization.<resourceId>.changed` (e `updated`), com `Nats-Msg-Id` igual ao `messageId`. Marca `published_at` depois da confirmação.
+- Lê o outbox em ordem de `sequence`, valida o envelope de forma estrita, acrescenta `publishedAt` e `publishedBy` e publica em `desired.ipm.organization.<resourceId>` (e `updated`), com `Nats-Msg-Id` igual ao `messageId`. Marca `published_at` depois da confirmação.
 - Uma instância ativa por trava consultiva de sessão. Recusa permanente (ou envelope inválido) mantém a mensagem pendente, registra `ERROR` e tira o Publisher de `ready`, sem derrubar o processo (decisão 0018).
 
 ## 3.3 Controller (`ipm-organization-controller`)
 
 Decisão [`0096`](../../../.decisions/0096-unificacao-do-loop-de-reconciliacao-no-controller.md), no padrão do Kubernetes Controller (Informer + Workqueue, AGENTS.md §2.7). Um único processo observa, decide, age e reobserva a Organization, **numa só transação**, e grava o estado convergido e o `updated` no outbox (o Publisher o entrega). O ciclo completo está no [fluxo de dados](docs/IPM-ORGANIZATION-DATA-FLOW.md), seção 4.
 
-- **Entrada:** o Informer consome `manager.desired.ipm.organization.>` (Stream `DESIRED`, consumer por instância `ipm-organization-controller-desired-<instância>`) e enfileira o `resourceId` numa Workqueue com deduplicação e *backoff* exponencial com *jitter*; uma reavaliação periódica (padrão 300 s) enfileira todas as Organizations `active` da partição, para detectar *drift* feito fora do loop. Cada réplica cuida só da sua partição (`hash(resourceId) mod count`).
+- **Entrada:** o Informer consome `desired.ipm.organization.>` (Stream `DESIRED`, consumer por instância `ipm-organization-controller-desired-<instância>`) e enfileira o `resourceId` numa Workqueue com deduplicação e *backoff* exponencial com *jitter*; uma reavaliação periódica (padrão 300 s) enfileira todas as Organizations `active` da partição, para detectar *drift* feito fora do loop. Cada réplica cuida só da sua partição (`hash(resourceId) mod count`).
 - **Ciclo `reconcile(resourceId)`:** com a linha bloqueada (`FOR UPDATE`), lê a organização, os metadados e o preparo para os usuários no Zitadel, decide com a função pura `decide(desired, observed)` (`create`, `update` ou `delete`; `unknown` nunca autoriza ação), executa a ação idempotente, reobserva e grava `observed`, fase, conditions e `updated`. Os campos comparados são `lifecycle`, `name`, `platformAccess`, `deletionProtection` e `userAccess`.
 - **Escrita no Zitadel:** é a única identidade do tipo no provedor. Escreve a organização e o **preparo para os usuários** (decisão 0081): o Project Grant de `roles-ipm` com o catálogo `grantablePermission` do contrato, e as permissões das contas dos tipos `ipm/user` e `ipm/serviceaccount` (decisão 0094), só com o que falta e só com `platformAccess = granted`. Não cria usuários nem autoriza o dono. O ID da organização é o `resourceId`, então repetir a criação não duplica.
 - **Falhas:** erro transitório do provedor devolve a Organization à fila com *backoff*; a falha da ação conta no `failure_count` e, no limite (`loop.failure_limit`, padrão 5), a `reconciliation` vira `suspended` e um `desired` suspenso vai ao outbox. Não há registro por `actionId`: repetir o ciclo é seguro porque a decisão é recalculada do estado real e as ações são idempotentes.
@@ -121,7 +121,7 @@ Este tipo só usa o Stream `DESIRED` (decisões 0096 e 0098): os Streams `REQUES
 
 | Stream | Subject | Consumer | Quem lê |
 |---|---|---|---|
-| `DESIRED` | `manager.desired.ipm.organization.>` | `ipm-organization-controller-desired-<instância>` | Controller |
+| `DESIRED` | `desired.ipm.organization.>` | `ipm-organization-controller-desired-<instância>` | Controller |
 
 Os consumers do Controller não têm manifesto: cada instância cria os próprios consumers de estado, com nome único por execução, `DeliverLastPerSubject` e `inactive_threshold`, e reconstrói o estado da mensageria (`docs/messaging/NATS.md` §7.4).
 

@@ -20,7 +20,7 @@ O pedido é admitido de forma síncrona pela API (`ipm-group-api`) em uma única
 |---|---|---|---|---|
 | 1 | CLI → API | `POST /v1/ipm/groups` (via gateway) | `{organizationId, name, description, roles, ...}` | nada |
 | 2 | API → banco `ssot` | SQL, uma transação atômica | `201 Created` (`Resource` em `phase: Ready`) | `ipm.group`, `ipm.group_outbox`, `ipm.group_idempotency` |
-| 3 | Publisher → NATS | JetStream, Stream `DESIRED` | `desired` (`manager.desired.ipm.group.<id>.changed`) | `ipm.group_outbox.published_at` |
+| 3 | Publisher → NATS | JetStream, Stream `DESIRED` | `desired` (`desired.ipm.group.<id>`) | `ipm.group_outbox.published_at` |
 | 4 | NATS → Consumidor | JetStream (Informer/Stream) | `desired` entregue a `ipm.user` | Atualização de caches e reconciliação de usuários |
 
 Apenas a **API** escreve nas tabelas de recurso (`ipm.group`) e outbox (`ipm.group_outbox`). O **Publisher** apenas lê o outbox e marca `published_at`. Não há `Receiver`, `Manager`, `Reconciler`, `Observer`, `Executor`, `Operation` nem banco `platform`.
@@ -100,7 +100,7 @@ A API responde imediatamente `201 Created` contendo o `Resource` completo já co
 O processo `ipm-group-publisher` roda de forma contínua e assíncrona:
 1. Drena as linhas de `ipm.group_outbox` onde `published_at IS NULL` ordenadas por `sequence ASC`.
 2. Constrói a mensagem NATS com cabeçalho `Nats-Msg-Id = message_id`.
-3. Publica no subject `manager.desired.ipm.group.<resourceId>.changed` no JetStream (Stream `DESIRED`).
+3. Publica no subject `desired.ipm.group.<resourceId>` no JetStream (Stream `DESIRED`).
 4. Ao receber o `PubAck` do JetStream, atualiza `UPDATE ipm.group_outbox SET published_at = now() WHERE sequence = ...`.
 
 Envelope publicado:
@@ -109,7 +109,7 @@ Envelope publicado:
   "messageId": "0199c8b3-0a1b-7c2d-8e3f-4a5b6c7d8e99",
   "schemaVersion": "1.0",
   "messageType": "desired",
-  "emitter": "publisher",
+  "emitter": "api",
   "module": "ipm",
   "resourceType": "group",
   "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d99",
@@ -133,7 +133,7 @@ Envelope publicado:
 
 ## 3. Consumo pelo Controller de `ipm.user`
 
-O **Controller de `ipm.user`** consome os eventos do subject `manager.desired.ipm.group.>` no Stream `DESIRED`:
+O **Controller de `ipm.user`** consome os eventos do subject `desired.ipm.group.>` no Stream `DESIRED`:
 - Mantém em cache local todos os grupos e suas respectivas roles.
 - Quando um usuário referencia um grupo em seu array `groups`, o Controller de usuário expande os grupos em roles e, recursivamente, as roles em permissões atômicas.
 - Qualquer alteração na composição de roles de um grupo dispara a fila de reconciliação dos usuários daquela organização no Zitadel, sem nenhuma chamada HTTP síncrona entre as APIs.

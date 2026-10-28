@@ -10,8 +10,8 @@ Dois papéis implementados para execução no ambiente de dev (Compose), sobre a
 
 | Papel | Projeto | Estado |
 |---|---|---|
-| API | `api/` (`ipm-role-api`) | API `/v1/ipm/roles`: `POST` 201, `PATCH` 200 e `DELETE` 202, todos com o `Resource`; sem Operation. Leitura por `ipm.role.get`/`ipm.role.list`; escrita por operadores (`ipm.role.admin`), pelo root da Organization ou por membros com `ipm.role.create|update|delete|bind`, com teto de permissões delegáveis, cota de 10 `custom` por Organization e `409 ResourcesAttached` ao excluir role em uso (decisão `0092`). Admite a escrita numa transação (unicidade de `name`, cota, geração, recurso e `desired` no outbox; o `DELETE` remove a linha e publica o tombstone). Mantém o catálogo de Permissions (`manager.desired.ipm.permission.>`). Contrato em `openapi.json` |
-| Publisher | `publisher/` (`ipm-role-publisher`) | Publica o outbox no NATS (`manager.desired.ipm.role.>`), com trava de sessão, envelope estrito e `Nats-Msg-Id` |
+| API | `api/` (`ipm-role-api`) | API `/v1/ipm/roles`: `POST` 201, `PATCH` 200 e `DELETE` 202, todos com o `Resource`; sem Operation. Leitura por `ipm.role.get`/`ipm.role.list`; escrita por operadores (`ipm.role.admin`), pelo root da Organization ou por membros com `ipm.role.create|update|delete|bind`, com teto de permissões delegáveis, cota de 10 `custom` por Organization e `409 ResourcesAttached` ao excluir role em uso (decisão `0092`). Admite a escrita numa transação (unicidade de `name`, cota, geração, recurso e `desired` no outbox; o `DELETE` remove a linha e publica o tombstone). Mantém o catálogo de Permissions (`desired.ipm.permission.>`). Contrato em `openapi.json` |
+| Publisher | `publisher/` (`ipm-role-publisher`) | Publica o outbox no NATS (`desired.ipm.role.>`), com trava de sessão, envelope estrito e `Nats-Msg-Id` |
 
 A migração `0001-role.sql` semeia as 16 Roles pré-definidas (`roleType = predefined`, `resourceId` UUIDv7 fixo, já `Ready`; decisão `0089`). O serviço `ipm-role-migrate` roda e sai.
 

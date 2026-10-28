@@ -16,8 +16,8 @@ sequenceDiagram
     API->>DB: Transação SQL: UPDATE ipm.user (phase Reconciling, gen++), INSERT outbox
     API-->>U: 200 OK (Resource atualizado)
     P->>DB: drena outbox
-    P->>NATS: publica manager.desired.ipm.user.<id>.changed
-    NATS->>CTRL: entrega desired.changed
+    P->>NATS: publica desired.ipm.user.<id>
+    NATS->>CTRL: entrega desired
     CTRL->>CTRL: recalcula permissões efetivas a partir dos catálogos
     CTRL->>ZIT: atualiza userGrant no Project Grant da organização
     CTRL->>DB: UPDATE ipm.user SET phase = Ready, observed_generation = generation
@@ -32,8 +32,8 @@ sequenceDiagram
     API->>DB: Transação SQL: UPDATE ipm.user SET lifecycle = absent, phase = Deleting, INSERT outbox
     API-->>U: 202 Accepted (Resource em Deleting)
     P->>DB: drena outbox
-    P->>NATS: publica manager.desired.ipm.user.<id>.deleted
-    NATS->>CTRL: entrega desired.deleted
+    P->>NATS: publica desired.ipm.user.<id>
+    NATS->>CTRL: entrega desired
     CTRL->>ZIT: RemoveUser(userId) na organização do cliente
     CTRL->>DB: DELETE FROM ipm.user WHERE resource_id = id
   end

@@ -20,7 +20,7 @@ O pedido é admitido de forma síncrona pela API (`ipm-organization-api`), que g
 |---|---|---|---|---|
 | 1 | CLI → API | `POST /v1/ipm/organizations` (via gateway) | `{name, billingAccountId, ...}` | nada |
 | 2 | API → banco `ssot` | SQL, uma transação atômica | `201 Created` (`Resource` em `phase: Pending`) | `ipm.organization`, `ipm.organization_outbox`, `ipm.organization_idempotency` |
-| 3 | Publisher → NATS | JetStream, Stream `DESIRED` | `desired` (`manager.desired.ipm.organization.<id>.changed`) | `ipm.organization_outbox.published_at` |
+| 3 | Publisher → NATS | JetStream, Stream `DESIRED` | `desired` (`desired.ipm.organization.<id>`) | `ipm.organization_outbox.published_at` |
 | 4 | Controller → Zitadel; Controller → SSOT | HTTP no Zitadel (OrgService); SQL transacional | Criação da Org e userAccess | `ipm.organization` (`phase: Ready`, `observedGeneration: 1`) |
 
 Diagramas de arquitetura e estados:
@@ -56,7 +56,7 @@ A API `ipm-organization-api`:
 
 ## 2. Publicação Assíncrona: `ipm-organization-publisher`
 
-Drena o outbox pendente em ordem de `sequence` e publica em `manager.desired.ipm.organization.<resourceId>.changed`.
+Drena o outbox pendente em ordem de `sequence` e publica em `desired.ipm.organization.<resourceId>`.
 
 ---
 

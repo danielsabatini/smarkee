@@ -13,7 +13,7 @@ Os três papéis estão implementados para execução no ambiente de dev (Compos
 | Papel | Projeto | Estado |
 |---|---|---|
 | API | `api/` (`ipm-permission-api`) | API `/v1/ipm/permissions`: leitura por `ipm.permission.get`/`ipm.permission.list` e escrita restrita a operadores (`ipm.permission.admin`). Admite a escrita numa transação (unicidade de `name` entre as Permissions ativas, `description` diferente de `name`, geração, recurso e `desired` no outbox); `POST` 201, `PATCH` 200 e `DELETE` 202, com o `Resource`. Contrato em `openapi.json` |
-| Publisher | `publisher/` (`ipm-permission-publisher`) | Publica o outbox no NATS (`manager.desired.ipm.permission.>` e `manager.updated.ipm.permission.>`) |
+| Publisher | `publisher/` (`ipm-permission-publisher`) | Publica o outbox no NATS (`desired.ipm.permission.>` e `updated.ipm.permission.>`) |
 | Controller | `controller/` (`ipm-permission-controller`) | Decisão 0096: lê a role em `roles-<módulo>` (ou `roles-operator`), decide, cria, atualiza ou remove, reobserva e grava estado e `updated` numa só transação. Substitui Reconciler, Observer e Executor |
 | Testes e2e | `tests/e2e/` | Black-box: contrato, loop completo e caos (Publisher e Controller) |
 

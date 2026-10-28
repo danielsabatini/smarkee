@@ -1,7 +1,7 @@
 """Projeção local das Organizations: dono e ciclo de vida, a partir do `DESIRED` (decisão 0100).
 
 Substitui a consulta HTTP à API da Organization: o `StateConsumer` entrega o último `desired` de
-cada Organization (`manager.desired.ipm.organization.>`) e esta projeção guarda só o necessário para
+cada Organization (`desired.ipm.organization.>`) e esta projeção guarda só o necessário para
 decidir o acesso, sem I/O no pedido. A API só fica pronta depois do replay inicial; o pedido que
 chega logo após criar uma Organization pode, por milissegundos, ainda não a ver (consistência
 eventual), e então é tratado como "não encontrada".

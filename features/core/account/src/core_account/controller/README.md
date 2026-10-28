@@ -6,7 +6,7 @@ Observa, decide, age e reobserva o usuário da Account (usuário humano do Zitad
 
 ## Ciclo
 
-1. **Informer:** consome `manager.desired.core.account.>` (Stream `DESIRED`, consumer `core-account-controller-desired-<instância>`) e enfileira o `resourceId` na Workqueue, só se ele pertencer à partição da instância (`hash(resourceId) mod count == index`).
+1. **Informer:** consome `desired.core.account.>` (Stream `DESIRED`, consumer `core-account-controller-desired-<instância>`) e enfileira o `resourceId` na Workqueue, só se ele pertencer à partição da instância (`hash(resourceId) mod count == index`).
 2. **Reavaliação periódica:** enfileira todos os recursos `reconciliation = 'active'` da partição, com jitter, para detectar divergência externa.
 3. **Workqueue:** deduplica por `resourceId` e repete com backoff exponencial quando o provedor falha de forma transitória ou o recurso ainda não convergiu.
 4. **`reconcile(resourceId)`**, numa transação com a linha bloqueada (`FOR UPDATE`):

@@ -7,7 +7,7 @@ Observa, decide, age e reobserva as permissões do dono da ligação no Zitadel 
 ## Ciclo
 
 1. **Rollout do catálogo (na partida):** cada ligação cujo `desired` difere do que o catálogo atual produz ganha uma geração nova (`requested_by = system:catalog`) e um `desired` no outbox (decisão 0079). Repetir não grava nada.
-2. **Informer:** consome `manager.desired.sum.service.>` (Stream `DESIRED`, consumer `sum-service-controller-desired-<instância>`) e enfileira o `resourceId` na Workqueue, só se ele pertencer à partição da instância (`hash(resourceId) mod count == index`).
+2. **Informer:** consome `desired.sum.service.>` (Stream `DESIRED`, consumer `sum-service-controller-desired-<instância>`) e enfileira o `resourceId` na Workqueue, só se ele pertencer à partição da instância (`hash(resourceId) mod count == index`).
 3. **Reavaliação periódica:** enfileira todos os recursos `reconciliation = 'active'` da partição, com jitter, para detectar divergência externa.
 4. **Workqueue:** deduplica por `resourceId` e repete com backoff exponencial quando o provedor falha de forma transitória ou o recurso ainda não convergiu.
 5. **`reconcile(resourceId)`**, numa transação com a linha bloqueada (`FOR UPDATE`):
@@ -15,7 +15,7 @@ Observa, decide, age e reobserva as permissões do dono da ligação no Zitadel 
    - decide com a função pura `decide(desired, observed)` (`domain/decision.py`): `enable`, `disable` ou nada;
    - executa a ação idempotente nos drivers, se houver divergência, e **reobserva**;
    - calcula fase e conditions (`domain/convergence.py`), grava `observed`, `phase` e `conditions` e o `updated` no outbox; se atingiu o limite de falhas, suspende a reconciliação e grava um `desired` suspenso no outbox.
-6. **Conta removida (decisão 0044):** um segundo consumer lê `manager.updated.core.account.>` (Stream `UPDATED`) e, no `updated` com `removed`, apaga as ligações do dono (`DELETE FROM sum.service WHERE owner_account_id = …`). Repetir não tem efeito.
+6. **Conta removida (decisão 0044):** um segundo consumer lê `updated.core.account.>` (Stream `UPDATED`) e, no `updated` com `removed`, apaga as ligações do dono (`DELETE FROM sum.service WHERE owner_account_id = …`). Repetir não tem efeito.
 
 ## Regras do tipo
 

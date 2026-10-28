@@ -1,7 +1,7 @@
 """Projeções locais dos recursos de outros módulos ligados a cada dono (decisões 0040, 0082 e 0100).
 
 Substituem a consulta HTTP aos outros módulos. Para cada tipo, o `StateConsumer` entrega o último
-`desired` de cada recurso (`manager.desired.<módulo>.<tipo>.>`), e a projeção guarda a quem ele
+`desired` de cada recurso (`desired.<módulo>.<tipo>.>`), e a projeção guarda a quem ele
 pertence (`ownerAccountId`) enquanto estiver ativo (`lifecycle = present`). Desligar `ipm` confere
 as Organizations do dono, e ligar um serviço exige uma Billing Account do dono, ambos de forma
 síncrona e em memória.

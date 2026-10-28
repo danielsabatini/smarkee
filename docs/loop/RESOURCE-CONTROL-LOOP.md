@@ -482,7 +482,7 @@ Fluxo:
 ```mermaid
 flowchart TB
 
-    D[manager.desired]
+    D[desired]
     O[observer.observed]
 
     D --> R[Reconciler]
@@ -565,10 +565,10 @@ Há duas perguntas diferentes sobre uma mensagem `desired` ou `updated`, e cada 
 | **Quem decidiu** que essa mensagem deve existir (qual foi a mudança, qual a geração, qual o conteúdo)? | **Manager** | É o `emitter` (`manager`), o primeiro token do Subject |
 | **Quem entregou** a mensagem ao transporte? | **Publisher** | Está no campo `publishedBy` do envelope (`<módulo>-<tipo>-publisher`) e, de forma independente, na identidade de mensageria que publica (permissões e log do NATS) |
 
-O `emitter` identifica o autor da decisão, e não o processo que a transportou (`MESSAGING.md` §6.1). Por isso o Subject `manager.desired.<módulo>.<tipo>.<id>.changed` não muda se o Publisher for trocado por outro mecanismo de entrega: os consumidores dependem de **quem decidiu**, e não de **como a mensagem chegou**. Cada papel responde só pelo que lhe cabe:
+O `emitter` identifica o autor da decisão, e não o processo que a transportou (`MESSAGING.md` §6.1). Por isso o Subject `desired.<módulo>.<tipo>.<id>` não muda se o Publisher for trocado por outro mecanismo de entrega: os consumidores dependem do estado pretendido, e não de **como a mensagem chegou**. Cada papel responde só pelo que lhe cabe:
 
-- o **Manager** responde pela decisão e pela gravação: valida, aplica, grava e registra no outbox. Não tem credencial para publicar no NATS;
-- o **Publisher** responde pela entrega: ordem, confirmação, repetição e visibilidade do bloqueio. Não decide nem altera o conteúdo (apenas preenche `publishedAt` no instante da entrega) e só pode publicar os Subjects `manager.desired.<m>.<t>.>` e `manager.updated.<m>.<t>.>` do seu tipo. Ele preenche `publishedAt` e `publishedBy` no instante da entrega; `emitter` e o resto do conteúdo vêm do Manager e não são alterados.
+- o **Manager** (ou a **API**) responde pela decisão e pela gravação: valida, aplica, grava e registra no outbox. Não tem credencial para publicar no NATS;
+- o **Publisher** responde pela entrega: ordem, confirmação, repetição e visibilidade do bloqueio. Não decide nem altera o conteúdo (apenas preenche `publishedAt` no instante da entrega) e só pode publicar os Subjects `desired.<m>.<t>.>` e `updated.<m>.<t>.>` do seu tipo. Ele preenche `publishedAt` e `publishedBy` no instante da entrega; `emitter` e o resto do conteúdo vêm do outbox e não são alterados.
 
 O Publisher é um papel próprio da feature, com contêiner e *deployment* próprios (a imagem é a da feature, decisão 0063) e com papel de banco e identidade de mensageria próprios, para manter o menor privilégio:
 
@@ -635,7 +635,7 @@ sequenceDiagram
     Receiver->>NATS: receiver.requested.ipm.organization.<id>.create
     NATS->>Manager: requested
     Manager->>Manager: validate + persist
-    Manager->>NATS: manager.desired.ipm.organization.<id>.changed
+    Manager->>NATS: desired.ipm.organization.<id>
 ```
 
 O Receiver retorna rapidamente:
@@ -672,7 +672,7 @@ Exemplo:
 Publicação:
 
 ```text
-manager.desired.ipm.organization.organization-01.changed
+desired.ipm.organization.organization-01
 ```
 
 O Desired é uma declaração.
@@ -693,7 +693,7 @@ sequenceDiagram
     participant Observer
     participant Zitadel
 
-    NATS->>Observer: manager.desired...
+    NATS->>Observer: desired...
     Observer->>Zitadel: GET organization
     Zitadel-->>Observer: 404 Not Found
     Observer->>NATS: observer.observed...changed (presence=absent)
@@ -749,7 +749,7 @@ O Reconciler recebe os dois estados.
 ```mermaid
 flowchart TB
 
-    D["manager.desired<br/>lifecycle = present"]
+    D["desired<br/>lifecycle = present"]
     O["observer.observed<br/>lifecycle = absent"]
 
     D --> R["Reconciler"]
@@ -1166,7 +1166,7 @@ Exemplos:
 ```text
 receiver.requested.ipm.organization.<id>.create
 
-manager.desired.ipm.organization.<id>.changed
+desired.ipm.organization.<id>
 
 observer.observed.ipm.organization.<id>.changed
 
@@ -1174,7 +1174,7 @@ reconciler.action.ipm.organization.<id>.create
 
 executor.completed.ipm.organization.<id>.create
 
-manager.updated.ipm.organization.<id>.changed
+updated.ipm.organization.<id>
 ```
 
 O resultado da observação (`present`, `absent` ou `unknown`) é informado no campo `presence`, e não no endereço. Cada `messageType` é persistido em seu próprio Stream, com a retenção da sua classe de mensagem (trabalho, estado ou fato), conforme `NATS.md`.
@@ -1477,7 +1477,7 @@ Não altera o modelo interno.
 
 # 41. Console, projeções e auditoria
 
-O Manager não deve conhecer detalhes da interface. O Console, a auditoria, as métricas, os alertas e outros consumidores (billing, analytics) consomem `manager.updated` e os demais eventos e constroem suas próprias projeções, sem alterar o Manager.
+O Manager não deve conhecer detalhes da interface. O Console, a auditoria, as métricas, os alertas e outros consumidores (billing, analytics) consomem `updated` e os demais eventos e constroem suas próprias projeções, sem alterar o Manager.
 
 A auditoria não deve ser necessária para a operação normal do control loop: ela é um consumidor.
 

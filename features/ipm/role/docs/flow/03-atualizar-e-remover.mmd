@@ -16,7 +16,7 @@ sequenceDiagram
     API->>DB: Transação SQL: UPDATE ipm.role (generation++, version++), INSERT outbox
     API-->>U: 200 OK (Resource atualizado, phase Ready)
     P->>DB: lê outbox pendente
-    P->>NATS: publica manager.desired.ipm.role.<resourceId>.changed
+    P->>NATS: publica desired.ipm.role.<resourceId>
     P->>DB: UPDATE outbox SET published_at = now()
   end
 
@@ -33,6 +33,6 @@ sequenceDiagram
     API->>DB: Transação SQL: DELETE FROM ipm.role, INSERT outbox (tombstone)
     API-->>U: 202 Accepted (Resource removido)
     P->>DB: lê outbox pendente
-    P->>NATS: publica manager.desired.ipm.role.<resourceId>.deleted
+    P->>NATS: publica desired.ipm.role.<resourceId>
     P->>DB: UPDATE outbox SET published_at = now()
   end

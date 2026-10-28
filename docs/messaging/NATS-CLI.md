@@ -61,7 +61,7 @@ Em dev há **um único usuário** compartilhado por todos os serviços, com pode
 
 Outras regras:
 
-- Nunca publique em Subject de um Stream (`manager.desired.>`, `manager.updated.>` etc.) para "testar": a mensagem é gravada e consumida pelos serviços reais.
+- Nunca publique em Subject de um Stream (`desired.>`, `updated.>` etc.) para "testar": a mensagem é gravada e consumida pelos serviços reais.
 - Não cole a senha em comando, log, issue nem na saída que você compartilhar.
 - Alterar Streams e Consumers é declarativo (`infrastructure/dev/messaging/bootstrap/*.json`, [`NATS.md`](NATS.md) seção 25), e não por comando manual.
 
@@ -78,10 +78,10 @@ nats account info                     # uso do JetStream da conta
 Saída saudável de `check jetstream` (dev, 1 réplica):
 
 ```text
-OK JetStream | ... streams=6 consumers=51 replicas_ok=6 replicas_no_leader=0 replicas_missing_replicas=0 ...
+OK JetStream | ... streams=3 consumers=... replicas_ok=3 replicas_no_leader=0 replicas_missing_replicas=0 ...
 ```
 
-Esperado: `streams=6` (`REQUESTED`, `DESIRED`, `OBSERVED`, `ACTION`, `RESULT`, `UPDATED`) e `replicas_no_leader=0`. O número de Consumers varia com as instâncias em execução (ver 6.2).
+Esperado: `streams=3` (`DESIRED`, `UPDATED`, `AUDIT`) e `replicas_no_leader=0`. O número de Consumers varia com as instâncias em execução (ver 6.2).
 
 As verificações `server check` seguem o formato de plugin de monitoramento: a primeira palavra da saída é `OK`, `WARNING` ou `CRITICAL`.
 
@@ -123,8 +123,8 @@ Um Stream vazio **não é defeito** nas condições acima.
 ## 5.3 Subjects retidos
 
 ```bash
-nats stream subjects DESIRED                              # todos, com a contagem
-nats stream subjects DESIRED 'manager.desired.ipm.role.>' # filtrando
+nats stream subjects DESIRED                        # todos, com a contagem
+nats stream subjects DESIRED 'desired.ipm.role.>'  # filtrando
 ```
 
 Em `DESIRED` a contagem é sempre 1 por Subject (`MaxMsgsPerSubject=1`): cada linha é um recurso. Um `resourceId` que não aparece aqui nunca teve `desired` publicado, ou foi limpo.
@@ -224,13 +224,13 @@ Campos do envelope que mais ajudam a depurar (definidos em [`MESSAGING.md`](MESS
 
 ```bash
 # último estado de cada recurso de um módulo, só cabeçalhos
-nats sub --stream DESIRED --last-per-subject --headers-only 'manager.desired.ipm.>'
+nats sub --stream DESIRED --last-per-subject --headers-only 'desired.ipm.>'
 
 # tudo que o Stream retém (útil em UPDATED)
-nats sub --stream UPDATED --all 'manager.updated.>'
+nats sub --stream UPDATED --all 'updated.>'
 
 # só o corpo, pronto para o jq
-nats sub --stream DESIRED --last-per-subject --raw 'manager.desired.ipm.serviceaccount.>' 2>/dev/null \
+nats sub --stream DESIRED --last-per-subject --raw 'desired.ipm.serviceaccount.>' 2>/dev/null \
   | jq -c '{resourceId, desiredGeneration, publishedBy}'
 ```
 
@@ -269,7 +269,7 @@ Observações verificadas:
 
 `DESIRED` guarda só a mais recente por recurso, então **não há histórico ali**. O que existe:
 
-- `UPDATED` (fatos, retidos por 24 h): `nats sub --stream UPDATED --all --raw 'manager.updated.<módulo>.<tipo>.>'`.
+- `UPDATED` (fatos, retidos por 24 h): `nats sub --stream UPDATED --all --raw 'updated.<módulo>.<tipo>.>'`.
 - O banco (SSOT) e o outbox: ver [`POSTGRESQL.md`](../data/POSTGRESQL.md).
 
 ## 8.5 Rastrear uma operação pelo `correlationId`
@@ -325,7 +325,7 @@ Verificado: a mensagem chega ao assinante e nada é gravado.
 
 ## 8.9 O que **não** fazer para "testar" um Stream
 
-Publicar em `manager.desired.>`, `manager.updated.>`, `receiver.requested.>`, `reconciler.action.>`, `observer.observed.>` ou `executor.*.>`. A mensagem é persistida e consumida pelos serviços reais. Para validar publicação e deduplicação com `Nats-Msg-Id`, siga o procedimento D da skill `nats`, em Subject de teste dentro do escopo autorizado.
+Publicar em `desired.>`, `updated.>`, `audit.>` ou nos antigos subjects legados. A mensagem é persistida e consumida pelos serviços reais. Para validar publicação e deduplicação com `Nats-Msg-Id`, siga o procedimento D da skill `nats`, em Subject de teste dentro do escopo autorizado.
 
 # 9. Monitoramento HTTP (`:8222`)
 

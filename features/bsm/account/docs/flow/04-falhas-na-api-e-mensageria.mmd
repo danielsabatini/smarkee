@@ -24,7 +24,7 @@ sequenceDiagram
     NATS-->>P: erro / timeout
     Note over P: Publisher entra em backoff exponencial e retenta sem descartar
   else publicação confirmada pelo JetStream
-    P->>NATS: publica manager.desired.bsm.account.<resourceId>.<changed|deleted> (Nats-Msg-Id)
+    P->>NATS: publica desired.bsm.account.<resourceId> (Nats-Msg-Id)
     NATS-->>P: JetStream ACK (PubAck)
     P->>DB: UPDATE bsm.account_outbox SET published_at = now() WHERE sequence = S
   end

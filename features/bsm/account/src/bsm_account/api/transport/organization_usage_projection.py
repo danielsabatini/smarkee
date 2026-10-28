@@ -1,7 +1,7 @@
 """Projeção local de uso de Billing Accounts por Organizations (decisões 0082 e 0100).
 
 Substitui a consulta HTTP à API de Organization. O `StateConsumer` entrega o último `desired` de
-cada Organization (`manager.desired.ipm.organization.>`), e esta projeção guarda quais Organizations
+cada Organization (`desired.ipm.organization.>`), e esta projeção guarda quais Organizations
 estão vinculadas a cada Billing Account. No `DELETE`, a checagem de recursos vinculados
 (`ResourcesAttached`) é síncrona e em memória.
 """

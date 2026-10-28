@@ -1,7 +1,7 @@
 """Catálogo em memória de Roles compostas delegáveis (`ipm.role`, decisões 0083 e 0088).
 
 Puro: sem I/O. Nasce com a semente estática das Roles predefinidas da plataforma e é atualizado
-em tempo real pelos consumers de estado (`manager.desired.ipm.role.>`) sem exigir redeploy.
+em tempo real pelos consumers de estado (`desired.ipm.role.>`) sem exigir redeploy.
 """
 
 import contextlib

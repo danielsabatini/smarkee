@@ -2,8 +2,8 @@
 
 Puro: sem I/O. Nasce com a semente estática do contrato (`GrantablePermission` e as Roles
 predefinidas da decisão 0083) para que o Receiver e o Manager operem imediatamente na partida, e é
-atualizado em tempo real pelos consumers de estado (`manager.desired.ipm.permission.>` e
-`manager.desired.ipm.role.>`) sem exigir redeploy.
+atualizado em tempo real pelos consumers de estado (`desired.ipm.permission.>` e
+`desired.ipm.role.>`) sem exigir redeploy.
 """
 
 import contextlib

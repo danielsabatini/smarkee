@@ -89,9 +89,9 @@ O fluxo de dados completo, passo a passo, está em [`docs/SUM-SERVICE-DATA-FLOW.
 
 | Stream | Subject | Consumer | Quem lê |
 |---|---|---|---|
-| `DESIRED` | `manager.desired.sum.service.>` | `sum-service-controller-desired-<instância>` | Controller |
-| `DESIRED` | `manager.desired.ipm.organization.>` e `manager.desired.bsm.account.>` | `sum-service-api-<módulo>-<tipo>-<instância>` | API (projeções das pré-condições) |
-| `UPDATED` | `manager.updated.core.account.>` | `sum-service-controller-account-removed-<instância>` | Controller (conta removida) |
+| `DESIRED` | `desired.sum.service.>` | `sum-service-controller-desired-<instância>` | Controller |
+| `DESIRED` | `desired.ipm.organization.>` e `desired.bsm.account.>` | `sum-service-api-<módulo>-<tipo>-<instância>` | API (projeções das pré-condições) |
+| `UPDATED` | `updated.core.account.>` | `sum-service-controller-account-removed-<instância>` | Controller (conta removida) |
 | `DESIRED`, `UPDATED` | `manager.{desired,updated}.sum.service.>` | (publicados) | Publisher publica; consumidores externos leem |
 
 Os consumers são de estado: cada instância cria os próprios, com nome único por execução, `DeliverLastPerSubject` e `inactive_threshold`, e reconstrói o estado da mensageria (`docs/messaging/NATS.md`). Não há Stream `REQUESTED`, `OBSERVED`, `ACTION` nem `RESULT` para o tipo (decisões 0096 e 0098).

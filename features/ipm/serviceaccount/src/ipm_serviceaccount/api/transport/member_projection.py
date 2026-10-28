@@ -1,7 +1,7 @@
 """Projeção local do pertencimento: a Organization de cada usuário e service account (decisão 0100).
 
 Substitui a consulta HTTP às APIs de User e de ServiceAccount. O `StateConsumer` entrega o último
-`desired` de cada recurso (`manager.desired.ipm.user.>` e `manager.desired.ipm.serviceaccount.>`) e
+`desired` de cada recurso (`desired.ipm.user.>` e `desired.ipm.serviceaccount.>`) e
 esta projeção guarda só a Organization de quem está `present`; quem está sendo removido deixa de
 pertencer. Pedido que chegue milissegundos após a criação do membro pode ainda não o ver
 (consistência eventual) e então é tratado como "não é membro".

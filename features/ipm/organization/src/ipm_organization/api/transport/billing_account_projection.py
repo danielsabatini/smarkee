@@ -1,7 +1,7 @@
 """Projeção local de Billing Accounts: dono e presença, a partir do stream `DESIRED` (decisão 0100).
 
 Substitui a consulta HTTP ao BSM (`bsm/account`). O `StateConsumer` entrega o último `desired` de
-cada Billing Account (`manager.desired.bsm.account.>`) e esta projeção guarda em memória quais
+cada Billing Account (`desired.bsm.account.>`) e esta projeção guarda em memória quais
 contas estão `present` e a quem pertencem (`ownerAccountId`).
 """
 

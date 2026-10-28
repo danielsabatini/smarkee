@@ -243,7 +243,7 @@ A plataforma é composta por muitos serviços pequenos. Cada papel é um serviç
 <módulo>-<tipo>-executor
 ```
 
-Um consumer pertence a **um único Stream**. Portanto, um serviço possui um consumer **por Stream que lê**. Cada consumer possui um **filtro único** no nível `<módulo>.<tipo>`, por exemplo `manager.desired.ipm.organization.>`.
+Um consumer pertence a **um único Stream**. Portanto, um serviço possui um consumer **por Stream que lê**. Cada consumer possui um **filtro único** no nível `<módulo>.<tipo>`, por exemplo `desired.ipm.organization.>`.
 
 Os Streams são fixos (um por `messageType`); a criação de um novo módulo ou tipo de recurso acrescenta apenas consumers, e não Streams.
 
@@ -322,9 +322,9 @@ A configuração exata de `pinned_client` (inclusive a versão mínima do servid
 | `ipm-organization-manager` | `ipm-organization-manager-requested` | `REQUESTED` | `receiver.requested.ipm.organization.>` | Trabalho |
 | | `ipm-organization-manager-observed` | `OBSERVED` | `observer.observed.ipm.organization.>` | Persistência |
 | | `ipm-organization-manager-result` | `RESULT` | `executor.*.ipm.organization.>` | Persistência |
-| `ipm-organization-observer` | `ipm-organization-observer-desired-<instância>` | `DESIRED` | `manager.desired.ipm.organization.>` | Estado |
+| `ipm-organization-observer` | `ipm-organization-observer-desired-<instância>` | `DESIRED` | `desired.ipm.organization.>` | Estado |
 | | `ipm-organization-observer-result-<instância>` | `RESULT` | `executor.*.ipm.organization.>` | Estado |
-| `ipm-organization-reconciler` | `ipm-organization-reconciler-desired-<instância>` | `DESIRED` | `manager.desired.ipm.organization.>` | Estado |
+| `ipm-organization-reconciler` | `ipm-organization-reconciler-desired-<instância>` | `DESIRED` | `desired.ipm.organization.>` | Estado |
 | | `ipm-organization-reconciler-observed-<instância>` | `OBSERVED` | `observer.observed.ipm.organization.>` | Estado |
 | | `ipm-organization-reconciler-result-<instância>` | `RESULT` | `executor.*.ipm.organization.>` | Estado |
 | `ipm-organization-executor` | `ipm-organization-executor-action-p<partição>` | `ACTION` | `reconciler.action.ipm.organization.<partição>.>` | Trabalho (um consumer por partição; `pinned_client` e `max_ack_pending=1`) |
@@ -644,10 +644,10 @@ NATS suporta ACLs de publicação e assinatura por Subject. Uma allow-list expl�
 Em JetStream há uma particularidade: a permissão de subscribe por Subject não restringe o que um consumidor JetStream lê do Stream. O acesso à API de consumers é autorizado por Stream (`$JS.API.CONSUMER.*.<stream>...`) e, para um consumer com um único filtro, por filtro. Por isso:
 
 - cada `messageType` possui seu Stream (seção de Streams);
-- a identidade de um serviço é `<módulo>-<tipo>-<papel>`, e suas permissões são sempre escopadas por `<módulo>.<tipo>` (por exemplo, `manager.desired.ipm.organization.>`), nunca por `manager.desired.>`;
+- a identidade de um serviço é `<módulo>-<tipo>-<papel>`, e suas permissões são sempre escopadas por `<módulo>.<tipo>` (por exemplo, `desired.ipm.organization.>`), nunca por `desired.>`;
 - consumers de trabalho e persistência são criados pela infraestrutura (seção de administração), e a identidade de runtime recebe apenas o acesso ao **seu** consumer (`$JS.API.CONSUMER.MSG.NEXT.<stream>.<consumer>` e os Subjects de ACK correspondentes);
 - consumers de estado em memória são criados pelo próprio serviço. Sua identidade pode criar **somente** consumers que casem com o seu padrão de nome e com o seu filtro único (`$JS.API.CONSUMER.CREATE.<stream>.<consumer>.<filtro>`), e não pode listar, alterar nem remover consumers de outros serviços;
-- o Executor lê o `desired` e o desfecho em `RESULT` por Direct Get, com permissões restritas ao Subject do seu tipo (`$JS.API.DIRECT.GET.DESIRED.manager.desired.<módulo>.<tipo>.>` e `$JS.API.DIRECT.GET.RESULT.executor.*.<módulo>.<tipo>.>`);
+- o Executor lê o `desired` e o desfecho em `RESULT` por Direct Get, com permissões restritas ao Subject do seu tipo (`$JS.API.DIRECT.GET.DESIRED.desired.<módulo>.<tipo>.>` e `$JS.API.DIRECT.GET.RESULT.executor.*.<módulo>.<tipo>.>`);
 - nenhum serviço de runtime recebe permissão sobre `$JS.API.STREAM.*`, inclusive purge;
 - criação de Streams e de consumers duráveis e a limpeza de tombstones usam uma identidade administrativa separada.
 
@@ -821,8 +821,8 @@ O Manager registra `desired` e `updated` no outbox do SSOT e não publica no tra
 ```text
 ipm-organization-publisher
 publish:
-  manager.desired.ipm.organization.>
-  manager.updated.ipm.organization.>
+  desired.ipm.organization.>
+  updated.ipm.organization.>
 
 ipm-organization-manager
 publish: nenhum
@@ -841,7 +841,7 @@ publish:
   observer.observed.ipm.organization.>
 
 consumers de estado (criados pelo serviço, somente com este padrão):
-  DESIRED → ipm-organization-observer-desired-*   filtro manager.desired.ipm.organization.>
+  DESIRED → ipm-organization-observer-desired-*   filtro desired.ipm.organization.>
   RESULT  → ipm-organization-observer-result-*    filtro executor.*.ipm.organization.>
 ```
 
@@ -868,7 +868,7 @@ consumo (consumer criado pela infraestrutura):
   ACTION → ipm-organization-executor-action
 
 leitura direta:
-  DESIRED → último valor de manager.desired.ipm.organization.>
+  DESIRED → último valor de desired.ipm.organization.>
   RESULT  → último valor de executor.*.ipm.organization.>   (desfecho do actionId)
 ```
 
@@ -964,14 +964,14 @@ observed
 Evitar:
 
 ```text
-manager.desired.ipm.organization.<id>.create
+desired.ipm.organization.<id>.create
 observer.observed.ipm.organization.<id>.absent
 ```
 
 Preferir:
 
 ```text
-manager.desired.ipm.organization.<id>.changed
+desired.ipm.organization.<id>
 observer.observed.ipm.organization.<id>.changed
 ```
 
@@ -1045,7 +1045,7 @@ O sufixo `<instância>` existe apenas nos consumers de estado em memória e é �
 ## 30.3 Subjects
 
 ```text
-manager.desired.ipm.organization.<id>.changed
+desired.ipm.organization.<id>
 observer.observed.ipm.organization.<id>.changed
 executor.completed.ipm.organization.<id>.create
 ```

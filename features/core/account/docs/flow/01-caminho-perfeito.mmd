@@ -30,7 +30,7 @@ sequenceDiagram
 
     Note over DB,N: 2. Publicação assíncrona do outbox
     PUB->>DB: drena outbox pendente por ordem de sequence
-    PUB->>N: publica manager.desired.core.account.<id>.changed
+    PUB->>N: publica desired.core.account.<id>
     N-->>PUB: PubAck
     PUB->>DB: UPDATE core.account_outbox SET published_at = now()
 

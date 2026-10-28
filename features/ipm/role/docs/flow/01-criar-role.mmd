@@ -13,6 +13,6 @@ sequenceDiagram
   API->>DB: Transação SQL atômica: INSERT ipm.role (Ready), INSERT outbox, INSERT idempotency
   API-->>U: 201 Created (Resource completo: phase Ready, observedGeneration 1)
   P->>DB: lê outbox pendente por ordem de sequence
-  P->>NATS: publica manager.desired.ipm.role.<resourceId>.changed
+  P->>NATS: publica desired.ipm.role.<resourceId>
   P->>DB: UPDATE outbox SET published_at = now()
   NATS->>CONS: entrega desired.changed para caches e projeções locais

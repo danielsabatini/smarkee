@@ -16,8 +16,8 @@ sequenceDiagram
     API->>DB: Transação SQL: UPDATE ipm.organization (phase Reconciling, gen++), INSERT outbox
     API-->>U: 200 OK (Resource atualizado)
     P->>DB: drena outbox
-    P->>NATS: publica manager.desired.ipm.organization.<id>.changed
-    NATS->>CTRL: entrega desired.changed
+    P->>NATS: publica desired.ipm.organization.<id>
+    NATS->>CTRL: entrega desired
     CTRL->>ZIT: atualiza nome no Zitadel
     CTRL->>DB: UPDATE ipm.organization SET phase = Ready, observed_generation = generation
   end
@@ -33,8 +33,8 @@ sequenceDiagram
     API->>DB: Transação SQL: UPDATE ipm.organization SET lifecycle = absent, phase = Deleting, INSERT outbox
     API-->>U: 202 Accepted (Resource em Deleting)
     P->>DB: drena outbox
-    P->>NATS: publica manager.desired.ipm.organization.<id>.deleted
-    NATS->>CTRL: entrega desired.deleted
+    P->>NATS: publica desired.ipm.organization.<id>
+    NATS->>CTRL: entrega desired
     CTRL->>ZIT: RemoveOrganization(orgId)
     CTRL->>DB: DELETE FROM ipm.organization WHERE resource_id = id
   end

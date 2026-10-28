@@ -20,7 +20,7 @@ O pedido é admitido de forma síncrona pela API (`ipm-permission-api`), gravand
 |---|---|---|---|---|
 | 1 | CLI → API | `POST /v1/ipm/permissions` (via gateway) | `{key, displayName, ...}` | nada |
 | 2 | API → banco `ssot` | SQL, uma transação atômica | `201 Created` (`Resource` em `phase: Pending`) | `ipm.permission`, `ipm.permission_outbox`, `ipm.permission_idempotency` |
-| 3 | Publisher → NATS | JetStream, Stream `DESIRED` | `desired` (`manager.desired.ipm.permission.<id>.changed`) | `ipm.permission_outbox.published_at` |
+| 3 | Publisher → NATS | JetStream, Stream `DESIRED` | `desired` (`desired.ipm.permission.<id>`) | `ipm.permission_outbox.published_at` |
 | 4 | Controller → Zitadel; Controller → SSOT | HTTP no Zitadel (ProjectService); SQL transacional | Chamadas `Add/Update/RemoveProjectRole` | `ipm.permission` (`phase: Ready`, `observedGeneration: 1`) |
 
 Diagramas de arquitetura e estados:
@@ -54,7 +54,7 @@ A API `ipm-permission-api`:
 
 ## 2. Publicação Assíncrona: `ipm-permission-publisher`
 
-Drena o outbox pendente em ordem de `sequence` e publica em `manager.desired.ipm.permission.<resourceId>.changed` com `Nats-Msg-Id: <messageId>`.
+Drena o outbox pendente em ordem de `sequence` e publica em `desired.ipm.permission.<resourceId>` com `Nats-Msg-Id: <messageId>`.
 
 ---
 

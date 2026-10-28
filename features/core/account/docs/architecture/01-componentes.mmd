@@ -12,7 +12,7 @@ flowchart LR
     CLI -->|HTTP| GW --> API
     API -->|SQL: transação síncrona| DB
     DB -->|outbox pendente por sequence| PUB
-    PUB -->|manager.desired.core.account.>| NATS
+    PUB -->|desired.core.account.>| NATS
     NATS -->|desired.changed| CTRL
     CTRL -->|1. lê intenção| DB
     CTRL -->|2. observa estado| ZIT

@@ -169,13 +169,15 @@ class NatsBus:
         self._js = jetstream
 
     @staticmethod
-    def _subject(prefix: str, kind: Kind, resource_id: str, tail: str = "changed") -> str:
-        return f"{prefix}.{kind.module}.{kind.resource_type}.{resource_id}.{tail}"
+    def _subject(prefix: str, kind: Kind, resource_id: str, tail: str | None = None) -> str:
+        if tail:
+            return f"{prefix}.{kind.module}.{kind.resource_type}.{resource_id}.{tail}"
+        return f"{prefix}.{kind.module}.{kind.resource_type}.{resource_id}"
 
     async def _updated(self, kind: Kind, resource_id: str) -> dict[str, Any]:
         try:
             raw = await self._js.get_last_msg(
-                "UPDATED", self._subject("manager.updated", kind, resource_id)
+                "UPDATED", self._subject("updated", kind, resource_id)
             )
         except Exception:  # sem mensagem (ou já removida): não há o que ler
             return {}

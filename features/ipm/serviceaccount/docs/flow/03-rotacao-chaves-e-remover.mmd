@@ -16,8 +16,8 @@ sequenceDiagram
     API->>DB: Transação SQL: UPDATE ipm.serviceaccount (phase Reconciling, gen++), INSERT outbox
     API-->>U: 200 OK (Resource atualizado)
     P->>DB: drena outbox
-    P->>NATS: publica manager.desired.ipm.serviceaccount.<id>.changed
-    NATS->>CTRL: entrega desired.changed
+    P->>NATS: publica desired.ipm.serviceaccount.<id>
+    NATS->>CTRL: entrega desired
     CTRL->>ZIT: AddMachineKey(nova chave pública) e RemoveMachineKey(chaves antigas expurgadas)
     CTRL->>DB: UPDATE ipm.serviceaccount SET phase = Ready, observed_generation = generation
   end
@@ -31,8 +31,8 @@ sequenceDiagram
     API->>DB: Transação SQL: UPDATE ipm.serviceaccount SET lifecycle = absent, phase = Deleting, INSERT outbox
     API-->>U: 202 Accepted (Resource em Deleting)
     P->>DB: drena outbox
-    P->>NATS: publica manager.desired.ipm.serviceaccount.<id>.deleted
-    NATS->>CTRL: entrega desired.deleted
+    P->>NATS: publica desired.ipm.serviceaccount.<id>
+    NATS->>CTRL: entrega desired
     CTRL->>ZIT: RemoveMachineUser(userId) na organização do cliente
     CTRL->>DB: DELETE FROM ipm.serviceaccount WHERE resource_id = id
   end

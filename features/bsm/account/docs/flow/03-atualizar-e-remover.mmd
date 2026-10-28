@@ -16,7 +16,7 @@ sequenceDiagram
     API->>DB: Transação SQL: UPDATE bsm.account (generation++, version++), INSERT outbox
     API-->>U: 200 OK (Resource atualizado, phase Ready)
     P->>DB: lê outbox pendente
-    P->>NATS: publica manager.desired.bsm.account.<resourceId>.changed
+    P->>NATS: publica desired.bsm.account.<resourceId>
     P->>DB: UPDATE outbox SET published_at = now()
   end
 
@@ -31,6 +31,6 @@ sequenceDiagram
     API->>DB: Transação SQL: DELETE FROM bsm.account, INSERT outbox (tombstone)
     API-->>U: 202 Accepted (Resource removido)
     P->>DB: lê outbox pendente
-    P->>NATS: publica manager.desired.bsm.account.<resourceId>.deleted
+    P->>NATS: publica desired.bsm.account.<resourceId>
     P->>DB: UPDATE outbox SET published_at = now()
   end

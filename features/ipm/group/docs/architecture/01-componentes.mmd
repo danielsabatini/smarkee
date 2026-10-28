@@ -4,5 +4,5 @@ flowchart LR
   API -->|SQL: transação síncrona\ngroup, outbox, idempotency| DB[(SSOT: banco ssot, schema ipm)]
   NATS[(JetStream: Stream DESIRED)] -.->|"Informer: ipm.organization, ipm.role e ipm.user (projeções)"| API
   DB -->|outbox pendente por sequence| PUB[Publisher: ipm-group-publisher]
-  PUB -->|manager.desired.ipm.group.>| NATS
+  PUB -->|desired.ipm.group.>| NATS
   NATS -->|desired.changed / desired.deleted| CONS[Consumidor:\nipm.user Controller]

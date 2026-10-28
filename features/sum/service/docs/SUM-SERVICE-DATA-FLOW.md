@@ -59,7 +59,7 @@ O Publisher lê as linhas pendentes em ordem de `sequence`, em lotes de 100, e p
 
 ## 4. Controller: ciclo atômico por ligação
 
-O Controller consome `manager.desired.sum.service.>` (consumer por instância, `DeliverLastPerSubject`) e enfileira o `resourceId` numa fila com deduplicação e backoff; uma reavaliação periódica (com jitter) enfileira todas as ligações `active`. Para cada uma, numa transação com a linha bloqueada (`FOR UPDATE`):
+O Controller consome `desired.sum.service.>` (consumer por instância, `DeliverLastPerSubject`) e enfileira o `resourceId` numa fila com deduplicação e backoff; uma reavaliação periódica (com jitter) enfileira todas as ligações `active`. Para cada uma, numa transação com a linha bloqueada (`FOR UPDATE`):
 
 1. **Observa** o usuário dono (`GET /v2/users/{id}`: `404` é `absent` com `servicePermissions: []`; outra falha é `unknown`, que nunca autoriza ação) e as autorizações nos projetos de permissões, limitadas às `managedPermissions`.
 2. **Decide** (`domain/decision.py`): `enable` se falta uma `servicePermission` ou sobra uma gerenciada que já não é desejada; `disable` se a ligação está desfeita e o usuário ainda tem permissões gerenciadas; nada se convergiu.
@@ -74,7 +74,7 @@ Na partida, antes dos consumers, o Controller compara o `desired` de cada ligaç
 
 ### 4.2 Conta removida (decisão 0044)
 
-Um segundo consumer lê `manager.updated.core.account.>`. No `updated` com `removed`, apaga as ligações do dono (`DELETE FROM sum.service WHERE owner_account_id = …`). Repetir não tem efeito.
+Um segundo consumer lê `updated.core.account.>`. No `updated` com `removed`, apaga as ligações do dono (`DELETE FROM sum.service WHERE owner_account_id = …`). Repetir não tem efeito.
 
 ## 5. Estados
 

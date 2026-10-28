@@ -3,7 +3,7 @@ flowchart LR
   GW -->|HTTP| API[API: ipm-permission-api]
   API -->|SQL: transação síncrona\npermission, outbox, idempotency| DB[(SSOT: banco ssot, schema ipm)]
   DB -->|outbox pendente por sequence| PUB[Publisher: ipm-permission-publisher]
-  PUB -->|manager.desired.ipm.permission.>| NATS[(JetStream: Stream DESIRED)]
+  PUB -->|desired.ipm.permission.>| NATS[(JetStream: Stream DESIRED)]
   NATS -->|desired.changed / desired.deleted| CTRL[Controller: ipm-permission-controller]
   CTRL -->|1. lê intenção vigente| DB
   CTRL -->|2. observa role de projeto| ZIT["Zitadel: ProjectService\nroles-<módulo>"]

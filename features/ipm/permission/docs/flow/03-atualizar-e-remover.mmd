@@ -16,8 +16,8 @@ sequenceDiagram
     API->>DB: Transação SQL: UPDATE ipm.permission (phase Reconciling, gen++), INSERT outbox
     API-->>U: 200 OK (Resource atualizado)
     P->>DB: drena outbox
-    P->>NATS: publica manager.desired.ipm.permission.<id>.changed
-    NATS->>CTRL: entrega desired.changed
+    P->>NATS: publica desired.ipm.permission.<id>
+    NATS->>CTRL: entrega desired
     CTRL->>ZIT: UpdateProjectRole(...)
     CTRL->>DB: UPDATE ipm.permission SET phase = Ready, observed_generation = generation
   end
@@ -31,8 +31,8 @@ sequenceDiagram
     API->>DB: Transação SQL: UPDATE ipm.permission SET lifecycle = absent, phase = Deleting, INSERT outbox
     API-->>U: 202 Accepted (Resource em Deleting)
     P->>DB: drena outbox
-    P->>NATS: publica manager.desired.ipm.permission.<id>.deleted
-    NATS->>CTRL: entrega desired.deleted
+    P->>NATS: publica desired.ipm.permission.<id>
+    NATS->>CTRL: entrega desired
     CTRL->>ZIT: RemoveProjectRole(key)
     CTRL->>DB: DELETE FROM ipm.permission WHERE resource_id = id
   end

@@ -11,7 +11,7 @@ Dois papéis implementados para execução no ambiente de dev (Docker Compose), 
 | Papel | Projeto | Estado |
 |---|---|---|
 | API | `api/` (`bsm-account-api`) | API `/v1/bsm/accounts`: `POST` 201, `PATCH` 200 e `DELETE` 202, todos com o `Resource`; sem Operation. Autentica (Zitadel), confere permissões (`bsm.account.*`), e-mail verificado e cota de 5 contas ativas por dono (sem cota para operador `bsm.account.admin`). Valida moeda imutável e bloqueia exclusão com `409 ResourcesAttached` se houver organizações vinculadas (projeção em memória de `ipm.organization`). Grava atomicamente no SSOT e no outbox numa única transação. Contrato em `openapi.json` |
-| Publisher | `publisher/` (`bsm-account-publisher`) | Drena o outbox pendente em ordem de `sequence` e publica no JetStream (`manager.desired.bsm.account.>`), com trava de sessão, envelope estrito e `Nats-Msg-Id` determinístico |
+| Publisher | `publisher/` (`bsm-account-publisher`) | Drena o outbox pendente em ordem de `sequence` e publica no JetStream (`desired.bsm.account.>`), com trava de sessão, envelope estrito e `Nats-Msg-Id` determinístico |
 
 A migração inicial e estrutural roda com `bsm-account-migrate` e sai.
 
@@ -33,7 +33,7 @@ Os papéis são **um projeto e uma imagem** (decisão 0063), cada um rodando com
 - `Idempotency-Key` garante repetição segura na admissão síncrona.
 
 ## 2.2 Publisher (`bsm-account-publisher`)
-- Lê o outbox em ordem de `sequence`, valida o envelope de forma estrita, acrescenta `publishedAt` e `publishedBy` e publica em `manager.desired.bsm.account.<resourceId>.changed` (ou `.deleted`).
+- Lê o outbox em ordem de `sequence`, valida o envelope de forma estrita, acrescenta `publishedAt` e `publishedBy` e publica em `desired.bsm.account.<resourceId>`.
 - Marca `published_at` após a confirmação (`PubAck`) do JetStream.
 
 # 3. Mensageria
@@ -42,7 +42,7 @@ Apenas o Stream `DESIRED` é utilizado:
 
 | Stream | Subject | Publicador | Consumidores |
 |---|---|---|---|
-| `DESIRED` | `manager.desired.bsm.account.>` | `bsm-account-publisher` | `ipm.organization` (API), `sum.service` (API) |
+| `DESIRED` | `desired.bsm.account.>` | `bsm-account-publisher` | `ipm.organization` (API), `sum.service` (API) |
 
 Não há Streams `REQUESTED`, `OBSERVED`, `ACTION` nem `RESULT` (decisões 0096 e 0098).
 

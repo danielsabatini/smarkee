@@ -21,7 +21,7 @@ O pedido é admitido de forma síncrona pela API (`ipm-role-api`) em uma única 
 |---|---|---|---|---|
 | 1 | CLI → API | `POST /v1/ipm/roles` (via gateway) | `{key, displayName, permissions, ...}` | nada |
 | 2 | API → banco `ssot` | SQL, uma transação atômica | `201 Created` (`Resource` em `phase: Ready`) | `ipm.role`, `ipm.role_outbox`, `ipm.role_idempotency` |
-| 3 | Publisher → NATS | JetStream, Stream `DESIRED` | `desired` (`manager.desired.ipm.role.<id>.changed`) | `ipm.role_outbox.published_at` |
+| 3 | Publisher → NATS | JetStream, Stream `DESIRED` | `desired` (`desired.ipm.role.<id>`) | `ipm.role_outbox.published_at` |
 | 4 | NATS → Consumidores | JetStream (Informer/Stream) | `desired` entregue a `ipm.user` e `ipm.group` | Atualização de caches e projeções em memória |
 
 Apenas a **API** escreve nas tabelas de recurso (`ipm.role`) e outbox (`ipm.role_outbox`). O **Publisher** apenas lê o outbox e marca `published_at`. Não há `Receiver`, `Manager`, `Reconciler`, `Observer`, `Executor`, `Operation` nem banco `platform`.
@@ -96,7 +96,7 @@ A API responde imediatamente `201 Created` contendo o `Resource` completo já co
 O processo `ipm-role-publisher` roda de forma contínua e assíncrona:
 1. Drena as linhas de `ipm.role_outbox` onde `published_at IS NULL` ordenadas por `sequence ASC`.
 2. Constrói a mensagem NATS com cabeçalho `Nats-Msg-Id = message_id` (para deduplicação automática no broker).
-3. Publica no subject `manager.desired.ipm.role.<resourceId>.changed` no JetStream (Stream `DESIRED`).
+3. Publica no subject `desired.ipm.role.<resourceId>` no JetStream (Stream `DESIRED`).
 4. Ao receber o `PubAck` do JetStream, atualiza `UPDATE ipm.role_outbox SET published_at = now() WHERE sequence = ...`.
 
 Envelope publicado:

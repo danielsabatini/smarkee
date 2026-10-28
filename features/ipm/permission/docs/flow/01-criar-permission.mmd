@@ -12,7 +12,7 @@ sequenceDiagram
   API->>DB: Transação SQL: INSERT ipm.permission (Pending), INSERT outbox, INSERT idempotency
   API-->>U: 201 Created (Resource: phase Pending, generation 1)
   P->>DB: drena outbox pendente por ordem de sequence
-  P->>NATS: publica manager.desired.ipm.permission.<id>.changed
+  P->>NATS: publica desired.ipm.permission.<id>
   P->>DB: UPDATE outbox SET published_at = now()
   NATS->>CTRL: entrega desired.changed (Informer -> Workqueue)
   CTRL->>DB: lê intenção vigente no SSOT

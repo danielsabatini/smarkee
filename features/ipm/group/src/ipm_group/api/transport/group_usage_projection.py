@@ -1,7 +1,7 @@
 """Projeção local de uso de Grupos por usuários da Organization (decisão 0100).
 
 Substitui a consulta HTTP à API de User. O `StateConsumer` entrega o último `desired` de cada
-usuário (`manager.desired.ipm.user.>`), e esta projeção guarda quais grupos cada usuário possui
+usuário (`desired.ipm.user.>`), e esta projeção guarda quais grupos cada usuário possui
 na sua Organization. No `DELETE`, a contagem de dependentes é síncrona e em memória.
 """
 

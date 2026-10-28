@@ -1,7 +1,7 @@
 """Projeções locais dos recursos de outros módulos atrelados a cada conta (decisões 0040 e 0100).
 
 Substituem a consulta HTTP aos outros módulos na exclusão da conta. Para cada tipo, o
-`StateConsumer` entrega o último `desired` de cada recurso (`manager.desired.<módulo>.<tipo>.>`), e
+`StateConsumer` entrega o último `desired` de cada recurso (`desired.<módulo>.<tipo>.>`), e
 a projeção guarda a quem ele pertence (`ownerAccountId`) enquanto estiver ativo
 (`lifecycle = present`). O `DELETE` confere a projeção de forma síncrona e em memória.
 """

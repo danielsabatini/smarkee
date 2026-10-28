@@ -21,7 +21,7 @@ O pedido é admitido de forma síncrona pela API (`ipm-user-api`), que grava a i
 |---|---|---|---|---|
 | 1 | CLI → API | `POST /v1/ipm/users` (via gateway) | `{organizationId, email, roles, ...}` | nada |
 | 2 | API → banco `ssot` | SQL, uma transação atômica | `201 Created` (`Resource` em `phase: Pending`) | `ipm.user`, `ipm.user_outbox`, `ipm.user_idempotency` |
-| 3 | Publisher → NATS | JetStream, Stream `DESIRED` | `desired` (`manager.desired.ipm.user.<id>.changed`) | `ipm.user_outbox.published_at` |
+| 3 | Publisher → NATS | JetStream, Stream `DESIRED` | `desired` (`desired.ipm.user.<id>`) | `ipm.user_outbox.published_at` |
 | 4 | Controller → Zitadel; Controller → SSOT | HTTP no Zitadel (UserService / OrgService); SQL transacional | Criação de usuário e userGrant no Project Grant | `ipm.user` (`phase: Ready`, `observedGeneration: 1`) |
 
 Diagramas de arquitetura e estados:
@@ -60,7 +60,7 @@ A API `ipm-user-api`:
 
 ## 2. Publicação Assíncrona: `ipm-user-publisher`
 
-Drena o outbox pendente em ordem de `sequence` e publica em `manager.desired.ipm.user.<resourceId>.changed`.
+Drena o outbox pendente em ordem de `sequence` e publica em `desired.ipm.user.<resourceId>`.
 
 ---
 

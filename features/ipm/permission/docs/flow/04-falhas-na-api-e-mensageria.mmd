@@ -21,7 +21,7 @@ sequenceDiagram
     NATS-->>P: erro
     Note over P: Publisher entra em backoff exponencial e retenta sem perda
   else confirmação do JetStream
-    P->>NATS: publica manager.desired.ipm.permission.<id>.changed
+    P->>NATS: publica desired.ipm.permission.<id>
     NATS-->>P: PubAck
     P->>DB: UPDATE ipm.permission_outbox SET published_at = now()
   end

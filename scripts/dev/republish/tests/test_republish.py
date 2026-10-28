@@ -53,7 +53,7 @@ def test_build_plan_with_fake_ssot() -> None:
         reconciliation="active",
         desired={"email": "test@example.com"},
         message_id="msg-1",
-        subject="manager.desired.ipm.user.usr-123",
+        subject="desired.ipm.user.usr-123",
         envelope={"messageId": "msg-1"},
     )
     fake_ssot.fetch_records.side_effect = lambda kind, resource_id=None: (  # pyright: ignore[reportUnknownLambdaType]
@@ -79,7 +79,7 @@ async def test_execute_plan_outbox() -> None:
         reconciliation="active",
         desired={"name": "customRole"},
         message_id="msg-2",
-        subject="manager.desired.ipm.role.role-1",
+        subject="desired.ipm.role.role-1",
         envelope={"messageId": "msg-2"},
     )
     plan = {ROLES: [record, record]}
@@ -102,7 +102,7 @@ async def test_execute_plan_nats() -> None:
         reconciliation="active",
         desired={"name": "customRole"},
         message_id="msg-2",
-        subject="manager.desired.ipm.role.role-1",
+        subject="desired.ipm.role.role-1",
         envelope={"messageId": "msg-2"},
     )
     plan = {ROLES: [record]}

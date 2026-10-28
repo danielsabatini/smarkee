@@ -139,7 +139,7 @@ Sempre que o problema puder ser modelado como estado, representar o estado desej
 Preferir:
 
 ```text
-manager.desired.ipm.organization.<organizationId>.changed
+desired.ipm.organization.<organizationId>
 ```
 
 quando a mensagem representa o estado desejado para uma Organization.
@@ -429,13 +429,13 @@ O mapeamento das classes para retenção e Streams pertence à implementação d
 O endereço lógico oficial é:
 
 ```text
-<emitter>.<messageType>.<module>.<resourceType>.<resourceId>.<operation>
+<messageType>.<module>.<resourceType>.<resourceId>
 ```
 
 Exemplo:
 
 ```text
-manager.desired.ipm.organization.0199c8a4.changed
+desired.ipm.organization.0199c8a4
 ```
 
 A representação acima é uma convenção lógica legível.
@@ -578,7 +578,7 @@ A operação não representa necessariamente uma chamada direta a um sistema ext
 Exemplos:
 
 ```text
-manager.desired.ipm.organization.<id>.changed
+desired.ipm.organization.<id>
 ```
 
 ```text
@@ -590,7 +590,7 @@ reconciler.action.ipm.organization.<id>.create
 ```
 
 ```text
-manager.updated.ipm.organization.<id>.changed
+updated.ipm.organization.<id>
 ```
 
 A operação deve ser interpretada em conjunto com o `messageType`.
@@ -622,7 +622,7 @@ Para criação de uma Organization:
 ```text
 1. receiver.requested.ipm.organization.<id>.create
 
-2. manager.desired.ipm.organization.<id>.changed
+2. desired.ipm.organization.<id>
 
 3. observer.observed.ipm.organization.<id>.changed
 
@@ -632,7 +632,7 @@ Para criação de uma Organization:
 
 6. observer.observed.ipm.organization.<id>.changed
 
-7. manager.updated.ipm.organization.<id>.changed
+7. updated.ipm.organization.<id>
 ```
 
 Os passos 3 e 6 possuem o mesmo endereço. Eles se distinguem pelo campo `presence` (`absent` e `present`) e por `observedAt`.
@@ -662,7 +662,7 @@ O modelo não define um destinatário fixo dentro da identidade da mensagem.
 Exemplo:
 
 ```text
-manager.desired.ipm.organization.<id>.changed
+desired.ipm.organization.<id>
 ```
 
 Pode ser consumido por:
@@ -850,7 +850,7 @@ Exemplo:
 ```text
 receiver.requested
        │
-       ├── manager.desired
+       ├── desired
        │
        ├── observer.observed
        │
@@ -1396,7 +1396,7 @@ Exemplos:
 ```text
 executor.completed.ipm.organization.<id>.create
 executor.failed.ipm.organization.<id>.create
-manager.updated.ipm.organization.<id>.changed
+updated.ipm.organization.<id>
 ```
 
 ## 31.11 Usar o resultado da observação como operação
@@ -1458,7 +1458,7 @@ Envelope:
 Subject:
 
 ```text
-manager.desired.ipm.organization.0199c8a4.changed
+desired.ipm.organization.0199c8a4
 ```
 
 Envelope:
@@ -1468,7 +1468,7 @@ Envelope:
   "messageId": "0199c8c0-...",
   "schemaVersion": "1.0",
   "messageType": "desired",
-  "emitter": "manager",
+  "emitter": "api",
   "module": "ipm",
   "resourceType": "organization",
   "resourceId": "0199c8a4-...",
@@ -1629,7 +1629,7 @@ Envelope:
 Subject:
 
 ```text
-manager.updated.ipm.organization.0199c8a4.changed
+updated.ipm.organization.0199c8a4
 ```
 
 O Manager atualiza o SSOT e os consumidores podem construir suas próprias projeções.

@@ -129,8 +129,8 @@ O tipo **não tem** o Stream `REQUESTED` (decisão 0098): a API grava o `desired
 
 | Mensagem | Subject | Publica | Consome | Stream |
 |---|---|---|---|---|
-| `desired` | `manager.desired.core.account.<id>.changed` | Publisher (a API grava no outbox) | Controller | `DESIRED` |
-| `updated` | `manager.updated.core.account.<id>.changed` | Publisher (o Controller grava no outbox) | Console, auditoria, métricas | `UPDATED` |
+| `desired` | `desired.core.account.<id>` | Publisher (a API grava no outbox) | Controller | `DESIRED` |
+| `updated` | `updated.core.account.<id>` | Publisher (o Controller grava no outbox) | Console, auditoria, métricas | `UPDATED` |
 
 A API também lê, como projeções locais (decisão 0100), o `DESIRED` de `ipm.organization`, `bsm.account` e `sum.service`, para a exclusão segura. Consumers do Controller: `core-account-controller-desired-<instância>`.
 
