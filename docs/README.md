@@ -8,6 +8,7 @@
 | Quais são as regras de segurança do loop (identidades, ações destrutivas, observação)? | [`RESOURCE-CONTROL-SECURITY.md`](loop/RESOURCE-CONTROL-SECURITY.md) |
 | O que significa cada mensagem, e como é o envelope e o Subject? | [`MESSAGING.md`](messaging/MESSAGING.md) |
 | Como o NATS JetStream é usado (Streams, consumers, partição, retry)? | [`NATS.md`](messaging/NATS.md) |
+| Como inspeciono o NATS pela CLI (Streams, consumers, mensagens, atrasos) para depurar? | [`NATS-CLI.md`](messaging/NATS-CLI.md) |
 | Como os contratos (JSON Schema) são definidos e evoluem? | [`SCHEMA.md`](data/SCHEMA.md) |
 | **O que o banco guarda e com quais garantias** (modelo lógico, entidades e relacionamentos, unidade atômica, outbox)? | [`SSOT.md`](data/SSOT.md), seção 7 |
 | **Como o banco é estruturado no PostgreSQL** (tabelas, colunas, índices, views, privilégios, DDL)? | [`POSTGRESQL.md`](data/POSTGRESQL.md), seção 6 |
@@ -16,6 +17,7 @@
 | Como são os logs dos componentes (formato OpenTelemetry, campos, o que não registrar)? | [`OBSERVABILITY.md`](telemetry/OBSERVABILITY.md) |
 | Como a telemetria é coletada, roteada e gravada (agente, roteador, telemeters, filas, Kubernetes)? | [`OBSERVABILITY-ARCHITECTURE.md`](telemetry/OBSERVABILITY-ARCHITECTURE.md) |
 | Como apontar a CLI `sk` para dev ou stg, logar como usuário ou operador e resolver os erros comuns? | [`cli/CLI-DEV-STG.md`](cli/CLI-DEV-STG.md) |
+| Como fazer backup, verificar integridade, restaurar e resetar o ambiente de desenvolvimento de forma segura? | [`backup/dev/BACKUP.md`](backup/dev/BACKUP.md) |
 | Como começar uma feature nova (o que gerar, copiar e registrar)? | [`FEATURE-BOOTSTRAP.md`](platform/FEATURE-BOOTSTRAP.md) |
 | O que já está implementado e o que falta, item a item? | [`IMPLEMENTATION-STATUS.md`](platform/IMPLEMENTATION-STATUS.md) |
 | Por que foi decidido assim? | [`.decisions/`](../.decisions/) |
@@ -30,6 +32,7 @@
 | [`platform/`](platform/) | Criação de features e estado da implementação |
 | [`telemetry/`](telemetry/) | Logs, métricas e traces |
 | [`cli/`](cli/) | Uso da CLI `sk` |
+| [`backup/`](backup/dev/BACKUP.md) | Backup, restauração e reset seguro de ambientes |
 | [`console/`](console/), [`billing/`](billing/) | Console e faturamento |
 
 ## Diagramas

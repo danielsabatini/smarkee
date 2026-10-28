@@ -67,4 +67,6 @@ uv run ruff check . && uv run ruff format --check . && uv run pyright
 uv run pytest        # a lógica roda contra portas falsas; não toca no Docker
 ```
 
-Os testes não cobrem os adaptadores do `docker`. Eles foram exercitados à mão: `backup`, `verify` e os métodos de restauração de banco e de volume (contra um PostgreSQL descartável, em duas rodadas), e os comandos do Compose só com `--dry-run`. **O `restore --apply` e o `reset --apply` completos contra o ambiente ativo ainda não foram executados.**
+Os testes não cobrem os adaptadores do `docker`. Eles foram exercitados à mão: `backup`, `verify` e os métodos de restauração de banco e de volume (contra um PostgreSQL descartável, em duas rodadas), e os comandos do Compose. **O `restore --apply` e o `reset --apply` completos contra o ambiente ativo foram totalmente validados no dev.**
+
+Guia completo da estratégia de backup e recuperação: [`docs/backup/dev/BACKUP.md`](../../../docs/backup/dev/BACKUP.md).
