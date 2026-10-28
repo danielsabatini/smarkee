@@ -15,8 +15,8 @@ Adotamos a metodologia **Now, Next, Later** para o planejamento. Em vez de datas
 
 ### 🟢 Now (Em Andamento / Curto Prazo)
 O que está sendo trabalhado ativamente neste momento.
-- [ ] **`[In Progress]` Contratos e Mensageria:** Modelagem semântica da troca assíncrona de mensagens e dos schemas de contrato (`docs/messaging/MESSAGING.md`, `docs/messaging/NATS.md` e `docs/data/SCHEMA.md`), já exercitada pelo User.
-- [ ] **`[In Progress]` Resource Control Loop:** Modelo de reconciliação entre `desired` e `observed` e sua segurança (`docs/loop/RESOURCE-CONTROL-LOOP.md` e `docs/loop/RESOURCE-CONTROL-SECURITY.md`).
+- [x] **`[Done]` Contratos e Mensageria:** Modelagem semântica da troca assíncrona de mensagens e dos schemas de contrato (`docs/messaging/MESSAGING.md`, `docs/messaging/NATS.md` e `docs/data/SCHEMA.md`), com fluxo assíncrono consolidado no Stream canônico `DESIRED`.
+- [x] **`[Done]` Resource Control Loop:** Modelo de reconciliação entre `desired` e `observed` e sua segurança (`docs/loop/RESOURCE-CONTROL-LOOP.md` e `docs/loop/RESOURCE-CONTROL-SECURITY.md`), com unificação em processo `controller` para recursos externos, APIs síncronas com admissão no SSOT e eliminação do loop artificial para recursos internos (`internal-state`).
 - [x] **`[Done]` Primeira Fatia Vertical (`core`/`account`, `sum`/`service` e `ipm`/`organization` completos):** um projeto e uma imagem por feature, com um contêiner por papel (`api`, `publisher` e, quando há provedor externo, `controller`; decisões 0096, 0098 e 0100), com servidor de saúde e testes e2e black-box (incluindo falhas de componentes), validando os contratos especificados (`docs/loop/RESOURCE-CONTROL-LOOP.md`).
 - [x] **`[Done]` Usuários da Organization (`ipm`/`user`):** o dono da Organization cria usuários dentro dela, com roles da plataforma (decisões 0077, 0083 e 0085), API síncrona `/v1/ipm/users` e `sk ipm user`. Usuários recebem exclusivamente roles. Toda Organization já nasce preparada para usuários pelo loop (decisão 0081).
 - [x] **`[Done]` Grupos de Usuários da Organization (`ipm`/`group`):** agrupamentos lógicos de usuários por Organization (`ipm.group`) com atribuição em bloco de roles (decisões 0085 e 0098).
@@ -25,6 +25,7 @@ O que está sendo trabalhado ativamente neste momento.
 
 ### 🟡 Next (Próximos Passos / Médio Prazo)
 O que está planejado para ser puxado assim que o horizonte "Now" for esvaziado.
+- [ ] **`[In Progress]` Smarkee Console:** Atualização dos componentes, rotas e tipos do frontend (`clients/console/`) para consumir diretamente as APIs síncronas (`SyncResourceFlow`) e modelos vigentes.
 - [ ] **`[Planned]` Implantação em Kubernetes:** CI/CD e GitOps por componente, com versão e imagem independentes.
 - [ ] **`[Planned]` Encerramento limpo dos componentes:** o Manager do User espera o `drain()` do NATS até o tempo limite (cerca de 30 s) e registra `task stopped unexpectedly` mesmo quando o encerramento foi pedido. O Manager do SUM já usa `close()` e só registra o erro sem pedido de parada; aplicar o mesmo ao User, e revisar os demais componentes que copiaram o padrão.
 - [ ] **`[Planned]` Observabilidade Básica:** Métricas de aplicação e spans nos componentes (hoje há logs estruturados com `trace_id` ligado ao trace do gateway, spans do gateway, métricas de contêiner e probes de saúde).
