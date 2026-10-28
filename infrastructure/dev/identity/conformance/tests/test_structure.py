@@ -108,17 +108,9 @@ KEY_EXPIRATION_WARNING = timedelta(days=90)
 SERVICE_ACCOUNTS = {
     "core-account-controller",
     "ipm-organization-controller",
-    "ipm-organization-executor",
-    "ipm-organization-observer",
     "ipm-permission-controller",
-    "ipm-permission-executor",
-    "ipm-permission-observer",
     "ipm-serviceaccount-controller",
-    "ipm-serviceaccount-executor",
-    "ipm-serviceaccount-observer",
     "ipm-user-controller",
-    "ipm-user-executor",
-    "ipm-user-observer",
     "sum-service-controller",
 }
 # Projetos que o Controller do SUM administra (decisões 0033 e 0096): `ipm`.
@@ -526,8 +518,6 @@ def test_instance_administrators(zitadel: Zitadel) -> None:
     by_name = administrators(zitadel, {"instance": True})
     assert by_name.get("platform-bootstrap@smarkee.internal") == {"IAM_OWNER"}
     assert by_name.get("ipm-organization-controller") == {"IAM_ORG_MANAGER"}
-    assert by_name.get("ipm-organization-executor") == {"IAM_ORG_MANAGER"}
-    assert by_name.get("ipm-organization-observer") == {"IAM_OWNER_VIEWER"}
     # As contas do User e da ServiceAccount não têm papel de instância: só os da organização de
     # cliente (decisões 0077 e 0094).
     assert not {name for name in by_name if name.startswith(("ipm-user-", "ipm-serviceaccount-"))}
@@ -636,10 +626,6 @@ EXPECTED_PROJECT_ID = {
 # Organization (decisões 0081 e 0094).
 EXPECTED_ACCOUNT_IDS = {
     "ipm.organization": {
-        "IPM_ORGANIZATION_USER_EXECUTOR_ACCOUNT_ID": "ipm-user-executor",
-        "IPM_ORGANIZATION_USER_OBSERVER_ACCOUNT_ID": "ipm-user-observer",
-        "IPM_ORGANIZATION_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID": "ipm-serviceaccount-executor",
-        "IPM_ORGANIZATION_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID": "ipm-serviceaccount-observer",
         "IPM_ORGANIZATION_SERVICEACCOUNT_CONTROLLER_ACCOUNT_ID": "ipm-serviceaccount-controller",
         "IPM_ORGANIZATION_USER_CONTROLLER_ACCOUNT_ID": "ipm-user-controller",
     }
