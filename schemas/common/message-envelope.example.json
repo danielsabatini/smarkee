@@ -2,7 +2,7 @@
   "messageId": "0199c8b2-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
   "schemaVersion": "1.0",
   "messageType": "desired",
-  "emitter": "manager",
+  "emitter": "api",
   "module": "core",
   "resourceType": "organization",
   "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",

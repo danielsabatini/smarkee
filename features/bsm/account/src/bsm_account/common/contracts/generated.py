@@ -12,12 +12,7 @@ class MessageType(StrEnum):
     Tipo semântico da mensagem.
     """
 
-    requested = "requested"
     desired = "desired"
-    observed = "observed"
-    action = "action"
-    completed = "completed"
-    failed = "failed"
     updated = "updated"
 
 
@@ -27,11 +22,7 @@ class MessageEmitter(StrEnum):
     """
 
     api = "api"
-    receiver = "receiver"
-    manager = "manager"
-    observer = "observer"
-    reconciler = "reconciler"
-    executor = "executor"
+    controller = "controller"
 
 
 class MessageOperation(StrEnum):
@@ -758,6 +749,12 @@ class BillingAccount(ContractModel):
     desired_generation: Annotated[int, Field(alias="desiredGeneration", ge=1, le=9007199254740991)]
     """
     Geração lógica do estado desejado (desiredGeneration, observedGeneration).
+    """
+    observed_generation: Annotated[
+        int | None, Field(alias="observedGeneration", ge=1, le=9007199254740991)
+    ] = None
+    """
+    Última geração do desired confirmada pela observação; ausente antes da primeira. A alteração terminou quando observedGeneration >= desiredGeneration e a phase é Ready ou Failed (decisão 0098).
     """
     phase: Phase
     conditions: Annotated[list[Condition], Field(max_length=32)]

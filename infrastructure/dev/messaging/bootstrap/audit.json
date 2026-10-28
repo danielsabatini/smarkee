@@ -1,0 +1,28 @@
+{
+  "name": "AUDIT",
+  "description": "Histórico imutável de desired e updated por replicação de stream (docs/messaging/NATS.md, 6.6)",
+  "subjects": [
+    "audit.>"
+  ],
+  "retention": "limits",
+  "discard": "old",
+  "storage": "file",
+  "num_replicas": 1,
+  "max_msgs_per_subject": -1,
+  "max_msgs": -1,
+  "max_bytes": 1073741824,
+  "max_age": 86400000000000,
+  "max_msg_size": 524288,
+  "max_consumers": -1,
+  "duplicate_window": 120000000000,
+  "allow_direct": false,
+  "deny_delete": true,
+  "sources": [
+    {
+      "name": "DESIRED"
+    },
+    {
+      "name": "UPDATED"
+    }
+  ]
+}

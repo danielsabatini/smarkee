@@ -342,7 +342,7 @@ def test_the_message_context_comes_from_the_envelope() -> None:
 
 def test_a_message_without_a_requester_is_a_system_actor() -> None:
     bind_traceparent(None)
-    bind_message_context({"emitter": "manager", "resourceId": "res-1", "operation": "changed"})
+    bind_message_context({"emitter": "controller", "resourceId": "res-1", "operation": "changed"})
     try:
         attributes = attributes_of(format_line(record("event")))
     finally:

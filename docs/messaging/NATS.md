@@ -31,38 +31,22 @@ conforme definido em `MESSAGING.md`.
 
 ## 3.2 Subject como materialização do endereço lógico
 
-No NATS, o endereço lógico é materializado em um Subject hierárquico.
-
-Formato de referência:
+No NATS, o endereço lógico é materializado em um Subject hierárquico canônico de 4 tokens:
 
 ```text
-<emitter>.<messageType>.<module>.<resourceType>.<resourceId>.<operation>
+<messageType>.<module>.<resourceType>.<resourceId>
 ```
 
 Exemplos:
 
 ```text
-receiver.requested.ipm.organization.<id>.create
-manager.desired.ipm.organization.<id>.changed
-observer.observed.ipm.organization.<id>.changed
-reconciler.action.ipm.organization.<id>.create
-executor.completed.ipm.organization.<id>.create
-manager.updated.ipm.organization.<id>.changed
+desired.ipm.organization.<id>
+updated.ipm.organization.<id>
 ```
 
-## 3.3 Emissor primeiro
+## 3.3 Emissor no envelope, não no Subject
 
-O primeiro nível representa o emissor funcional:
-
-```text
-receiver
-manager
-observer
-reconciler
-executor
-```
-
-Emissores compostos de dois tokens, quando definidos em `MESSAGING.md` (por exemplo, `worker.platform`), exigem que filtros e autorizações considerem os dois tokens.
+O emissor funcional (`api` ou `controller`) é declarado no envelope da mensagem (`emitter`), e não faz parte dos tokens do Subject.
 
 ## 3.4 Destinatário não é codificado no Subject
 
@@ -87,18 +71,16 @@ O `resourceId` deve ser validado antes de compor o Subject, e um valor inválido
 
 A regra semântica de identidade de recurso continua pertencendo a `MESSAGING.md`; a restrição de caracteres é específica da implementação NATS.
 
-## 3.6 Um Subject por recurso nas mensagens de estado
+## 3.6 Um Subject por recurso nas mensagens de estado e fato
 
-`desired` e `observed` são mensagens de estado (ver `MESSAGING.md`, classes de mensagem). Por isso, utilizam sempre a operação `changed`:
+Cada recurso possui um único Subject para o seu estado pretendido e um único Subject para o fato consolidado:
 
 ```text
-manager.desired.ipm.organization.<id>.changed
-observer.observed.ipm.organization.<id>.changed
+desired.ipm.organization.<id>
+updated.ipm.organization.<id>
 ```
 
-Assim, cada recurso possui **um único Subject** por tipo de estado, e a retenção de uma mensagem por Subject (seção de retenção) guarda exatamente o último estado do recurso.
-
-Se a operação fizesse parte da identidade do Subject (`...create`, `...update`, `...present`, `...absent`), o stream reteria uma mensagem por operação, e uma observação antiga poderia permanecer ao lado de uma recente.
+Assim, cada recurso possui **um único Subject** por tipo, e a retenção de uma mensagem por Subject guarda exatamente o último estado do recurso no Stream correspondente.
 
 # 4. Core NATS e JetStream
 
@@ -115,19 +97,16 @@ Core NATS pode ser utilizado para interações que explicitamente sejam efêmera
 ## 5.1 Subject canônico
 
 ```text
-<emitter>.<messageType>.<module>.<resourceType>.<resourceId>.<operation>
+<messageType>.<module>.<resourceType>.<resourceId>
 ```
 
 ## 5.2 Exemplos
 
 ```text
-receiver.requested.ipm.organization.<id>.create
-manager.desired.ipm.organization.<id>.changed
-observer.observed.ipm.organization.<id>.changed
-reconciler.action.ipm.organization.<id>.create
-executor.completed.ipm.organization.<id>.create
-executor.failed.ipm.organization.<id>.create
-manager.updated.ipm.organization.<id>.changed
+desired.ipm.organization.<id>
+updated.ipm.organization.<id>
+desired.core.account.<id>
+updated.core.account.<id>
 ```
 
 ## 5.3 Wildcards
@@ -137,12 +116,11 @@ Wildcards devem ser restritos ao escopo necessário.
 Exemplos:
 
 ```text
-manager.desired.>
-manager.desired.ipm.>
-manager.desired.ipm.organization.>
+desired.>
+desired.ipm.>
+desired.ipm.organization.>
 
-observer.observed.ipm.organization.>
-reconciler.action.ipm.organization.>
+updated.ipm.organization.>
 ```
 
 Evitar subscriptions genéricas como:
@@ -159,7 +137,7 @@ em componentes de produção.
 Quando `resourceId` estiver no Subject:
 
 ```text
-observer.observed.ipm.organization.organization-01.changed
+desired.ipm.organization.01a17641-4895-761f-888f-24ca35143f79
 ```
 
 não utilizar:
@@ -191,19 +169,12 @@ Esta regra não contradiz a recomendação de evitar fragmentação (seção pr�
 
 | Stream | Subjects | Retenção | Classe | Consumidores |
 |---|---|---|---|---|
-| `REQUESTED` | `receiver.requested.>` | `WorkQueuePolicy`, `DiscardNew` | Trabalho | Manager |
-| `DESIRED` | `manager.desired.>` | `LimitsPolicy`, `MaxMsgsPerSubject=1`, `allow_direct` | Estado | Reconciler, Observer, Executor (leitura direta do último valor), outros |
-| `OBSERVED` | `observer.observed.>` | `LimitsPolicy`, `MaxMsgsPerSubject=1`, `MaxAge` | Estado | Reconciler, Manager, outros |
-| `ACTION` | `reconciler.action.>` | `WorkQueuePolicy`, `DiscardNew` | Trabalho | Executor |
-| `RESULT` | `executor.completed.>`, `executor.failed.>` | `LimitsPolicy`, `MaxAge`, `allow_direct` | Fato | Manager, Observer, Reconciler, auditoria |
-| `UPDATED` | `manager.updated.>` | `LimitsPolicy`, `MaxAge` | Fato | Console, auditoria, métricas |
-| `AUDIT` | `audit.>` | `LimitsPolicy`, retenção longa | Histórico | Auditoria |
+| `DESIRED` | `desired.>` | `LimitsPolicy`, `MaxMsgsPerSubject=1`, `allow_direct`, `max_age=0` (indefinido) | Estado | Controller, projeções da API |
+| `UPDATED` | `updated.>` | `LimitsPolicy`, `MaxMsgsPerSubject=1`, `allow_direct`, `max_age=24h` em dev | Fato | Console, observabilidade, audit |
+| `AUDIT` | `audit.>` | `LimitsPolicy`, `max_age=24h` em dev, replicação de fontes (`sources: [DESIRED, UPDATED]`), `deny_delete: true` | Histórico | Auditoria, conformidade |
 | `QUARANTINE` | definido pela política de quarentena | `LimitsPolicy` | Diagnóstico | Operação |
 
-Os valores de limites (`MaxAge`, tamanho, réplicas) dependem do ambiente. Duas restrições:
-
-- `RESULT` deve reter por mais tempo que o prazo de ação do domínio, que a janela de recuperação do Reconciler e que o prazo máximo de reentrega ou reemissão de uma `action`. O Executor consulta o `RESULT` para saber o desfecho de um `actionId` (seção de Consumers);
-- `OBSERVED` deve possuir `MaxAge` maior que alguns períodos de observação (o Observer observa periodicamente). Um recurso que deixa de ser observado expira, e o Reconciler não decide sem observação (ver `RESOURCE-CONTROL-LOOP.md`).
+Os valores de limites (`MaxAge`, tamanho, réplicas) dependem do ambiente. Os streams legados `REQUESTED`, `OBSERVED`, `ACTION` e `RESULT` pertenciam ao loop de 7 papéis e foram descontinuados na evolução para o modelo reconciliado direto (Controller).
 
 ## 6.3 `REQUESTED` e `ACTION`: trabalho
 
@@ -218,38 +189,28 @@ São mensagens de trabalho com **um único consumidor lógico**. A mensagem deve
 
 **Contexto de trace:** quando a origem traz um `traceparent` W3C, todas as publicações dos componentes o repassam no cabeçalho `traceparent`, sem alteração, ao lado de `Nats-Msg-Id`. Ele não faz parte do envelope e não influencia a deduplicação (decisão 0055).
 
-## 6.4 `DESIRED` e `OBSERVED`: estado
+## 6.4 `DESIRED`: estado
 
-São mensagens de estado: a mais recente por recurso substitui as anteriores.
+Mensagens de estado pretendido: a mais recente por recurso substitui as anteriores.
 
 - `LimitsPolicy` com `MaxMsgsPerSubject=1`: o Stream retém o último estado de cada recurso, e **não** remove a mensagem após o ACK;
-- vários consumidores independentes, cada um com seu progresso (Reconciler, Observer, Executor, Manager, outros);
-- cada instância que mantém estado em memória cria o seu próprio consumer a partir da última mensagem de cada Subject (`DeliverLastPerSubject`) e reconstrói o estado (ver seção de Consumers);
-- o histórico de gerações não fica nestes Streams. Quando necessário, vem de `AUDIT`.
+- `allow_direct: true` habilitado para leitura direta de alta performance pelo `Nats-Msg-Id` ou Subject;
+- retenção temporal indefinida (`max_age: 0`), mantendo o último estado pretendido disponível para reconciliação contínua e recuperação a frio.
 
-## 6.5 `RESULT` e `UPDATED`: fatos
+## 6.5 `UPDATED`: fatos
 
-São fatos imutáveis, consumidos por vários consumidores independentes.
+Fatos imutáveis de convergência de recursos consolidados pelo Controller:
 
-- `LimitsPolicy` com `MaxAge` (e limites de tamanho);
-- cada consumidor mantém seu progresso;
-- um consumidor lento não bloqueia os demais.
+- `LimitsPolicy` com `MaxMsgsPerSubject=1`, `allow_direct: true` e `max_age: 24h` (em dev);
+- consumidos por Console, observabilidade e sistemas de auditoria.
 
 ## 6.6 `AUDIT`
 
-Auditoria é opcional e não faz parte da semântica básica da mensagem.
+Auditoria histórica imutável das mensagens de estado e fatos da plataforma:
 
-Quando necessário, pode existir um Stream dedicado para retenção histórica, replay controlado e investigações.
-
-Exemplo:
-
-```text
-Stream: AUDIT
-Subjects:
-  audit.>
-```
-
-A forma de popular `AUDIT` deve ser escolhida explicitamente. Não assumir que `Source`, `Mirror` ou `RePublish` são semanticamente equivalentes. Em particular, a origem em Stream `WorkQueue` (`REQUESTED`, `ACTION`) deve ser validada antes de adotada, pois a restrição de consumidores sem sobreposição se aplica a quem lê o Stream.
+- Configurado com replicação de Stream (`sources: [{"name": "DESIRED"}, {"name": "UPDATED"}]`);
+- `deny_delete: true` para proteção contra expurgo intencional ou acidental de mensagens individuais;
+- `max_msgs_per_subject: -1` preserva o histórico cronológico de todas as versões de cada recurso.
 
 ## 6.7 Evitar streams excessivamente fragmentados
 

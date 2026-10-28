@@ -34,11 +34,11 @@ ORGANIZATIONS = Kind(
     "organization",
     "ipm.organization",
     "ipm.organization_outbox",
-    "ipm_organization_manager_login",
+    "ipm_organization_api_login",
 )
-USERS = Kind("ipm", "user", "ipm.user", "ipm.user_outbox", "ipm_user_manager_login")
+USERS = Kind("ipm", "user", "ipm.user", "ipm.user_outbox", "ipm_user_api_login")
 BILLING_ACCOUNTS = Kind(
-    "bsm", "account", "bsm.account", "bsm.account_outbox", "bsm_account_manager_login"
+    "bsm", "account", "bsm.account", "bsm.account_outbox", "bsm_account_api_login"
 )
 PERMISSIONS = Kind(
     "ipm",

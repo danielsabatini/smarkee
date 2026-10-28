@@ -8,11 +8,6 @@ import logging
 import sys
 
 import httpx
-from ipm_user.api.transport.member_projection import (
-    SERVICEACCOUNT_SUBJECT,
-    USER_SUBJECT,
-    MemberProjection,
-)
 
 from ipm_user.api.auth.tokens import TokenVerifier
 from ipm_user.api.http.app import Dependencies, create_app
@@ -20,6 +15,11 @@ from ipm_user.api.settings import UserApiSettings, missing_required
 from ipm_user.api.store.admission import SsotAdmissionStore
 from ipm_user.api.store.repository import SsotRepository
 from ipm_user.api.transport.catalog_consumer import CatalogWatcher
+from ipm_user.api.transport.member_projection import (
+    SERVICEACCOUNT_SUBJECT,
+    USER_SUBJECT,
+    MemberProjection,
+)
 from ipm_user.api.transport.organization_projection import (
     ORGANIZATION_SUBJECT,
     OrganizationProjection,
@@ -46,9 +46,9 @@ async def run(settings: UserApiSettings) -> int:
         instance = new_instance_name()
         catalog_consumers: dict[str, StateConsumer] = {}
         for suffix, subject in (
-            ("permissions", "manager.desired.ipm.permission.>"),
-            ("roles", "manager.desired.ipm.role.>"),
-            ("groups", "manager.desired.ipm.group.>"),
+            ("permissions", "desired.ipm.permission.>"),
+            ("roles", "desired.ipm.role.>"),
+            ("groups", "desired.ipm.group.>"),
         ):
             consumer = StateConsumer(
                 runtime.stream,

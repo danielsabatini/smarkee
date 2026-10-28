@@ -14,7 +14,7 @@ from ipm_organization.common.contracts.envelope import EnvelopeError, read_envel
 
 logger = logging.getLogger(__name__)
 
-BILLING_ACCOUNT_SUBJECT = "manager.desired.bsm.account.>"
+BILLING_ACCOUNT_SUBJECT = "desired.bsm.account.>"
 """Subject do `DESIRED` de que a projeção se alimenta."""
 
 _MODULE = "bsm"

@@ -144,7 +144,7 @@ async def test_enables_the_link_and_confirms_the_generation(
     assert stored["observed_generation"] == stored["desired_generation"]
     sent = (await outbox(outbox_reader, resource_id))[len(before) :]
     assert [item["subject"] for item in sent] == [
-        f"manager.updated.sum.service.{resource_id}.changed"
+        f"updated.sum.service.{resource_id}"
     ]
     data = sent[0]["payload"]["data"]
     assert (data["phase"], data["resourceVersion"]) == ("Ready", str(stored["resource_version"]))
@@ -261,7 +261,7 @@ async def test_an_unavailable_provider_counts_failures_and_suspends_at_the_limit
         "suspended",
     )
     sent = await outbox(outbox_reader, resource_id)
-    desired = [item["payload"] for item in sent if item["subject"].split(".")[1] == "desired"]
+    desired = [item["payload"] for item in sent if item["subject"].split(".")[0] == "desired"]
     assert len(desired) == 1  # só o da suspensão: a admissão aqui é direta
     assert desired[0]["data"]["reconciliation"] == "suspended"
     assert desired[0]["desiredGeneration"] == stored["desired_generation"]
@@ -280,7 +280,7 @@ async def test_the_removal_of_the_account_deletes_only_its_links(
     kept_id, _ = await created(cleanup, api, lifecycle="absent")
     message = (
         b'{"messageId":"0198a4a0-0000-7000-8000-000000000001","schemaVersion":"1.0",'
-        b'"messageType":"updated","emitter":"manager","module":"core","resourceType":"account",'
+        b'"messageType":"updated","emitter":"controller","module":"core","resourceType":"account",'
         b'"resourceId":"' + removed_owner.encode() + b'","operation":"changed",'
         b'"desiredGeneration":1,"requestedBy":"x","correlationId":"c","causationId":"c",'
         b'"occurredAt":"2026-10-28T12:00:00Z","publishedAt":"2026-10-28T12:00:01Z","data":{"removed":true}}'

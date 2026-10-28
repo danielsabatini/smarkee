@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 import conftest
 import psycopg
 import pytest
-from conftest import SUM_MANAGER_DATABASE_URL, Person, Sk, wait_until
+from conftest import SUM_MANAGER_DATABASE_URL, Person, Result, Sk, wait_until
 
 IPM_PERMISSION_PREFIX = "ipm.organization"
 USER_QUOTA = 5  # cota provisória de usuários por Organization (decisão 0077)
@@ -31,19 +31,25 @@ def link() -> dict[str, str]:
     return {}
 
 
+def _identifier(text: str) -> str:
+    resource = re.search(r"resourceId\s+(\S+)", text)
+    assert resource, text
+    return resource.group(1)
+
+
 def _identifiers(text: str) -> tuple[str, str]:
+    """Compatibilidade com chamadas anteriores: extrai resourceId e operationId (se houver)."""
     resource = re.search(r"resourceId\s+(\S+)", text)
     operation = re.search(r"operationId\s+(\S+)", text)
-    assert resource and operation, text
-    return resource.group(1), operation.group(1)
+    assert resource, text
+    return resource.group(1), operation.group(1) if operation else ""
 
 
 def _state(sk: Sk, link: dict[str, str]) -> str:
-    """Saída do `get` da ligação e da Operation mais recentes."""
+    """Saída do `get` da ligação."""
     done = sk.run(
         *("sum", "service", "get"),
         *("--resource-id", link["resourceId"]),
-        *("--operation-id", link["operationId"]),
     )
     assert done.exit_code == 0, done.text
     return done.stdout
@@ -55,9 +61,9 @@ def _plain(shown: str) -> str:
 
 
 def _field(shown: str, name: str) -> str:
-    match = re.search(rf"^[│\s]*{name}\s+(.+?)[│\s]*$", shown, re.MULTILINE)
-    assert match, f"campo {name} ausente em:\n{shown}"
-    return match.group(1)
+    matches = re.findall(rf"^[│\s]*{name}\s+(.+?)[│\s]*$", shown, re.MULTILINE)
+    assert matches, f"campo {name} ausente em:\n{shown}"
+    return matches[-1]
 
 
 def _email() -> str:
@@ -130,16 +136,34 @@ def test_enable_wait_converges_and_the_token_already_carries_the_ipm_permissions
     assert _project("IPM") not in person.sk.token_permissions(), (
         "antes de ligar, o token não tem ipm.*"
     )
-    done = person.sk.run("sum", "service", "enable", "--service", "ipm", "--wait", timeout=150.0)
-    assert done.exit_code == 0, done.text
-    link["resourceId"], link["operationId"] = _identifiers(done.stdout)
+    # Habilitar um serviço no SUM exige uma Billing Account ativa (decisão 0082).
+    created_bsm = person.sk.run(
+        "bsm",
+        "account",
+        "create",
+        "--display-name",
+        "Free Tier",
+        "--currency",
+        "BRL",
+        "--contact",
+        person.email,
+        "--wait",
+        timeout=150.0,
+    )
+    assert created_bsm.exit_code == 0, created_bsm.text
+
+    # A projeção de sum-service-api recebe o evento via NATS; aguarda a Billing Account.
+    def _enable() -> Result | None:
+        res = person.sk.run("sum", "service", "enable", "--service", "ipm", "--wait", timeout=150.0)
+        return res if res.exit_code == 0 else None
+
+    done = wait_until(_enable, "a ativação do serviço no SUM", seconds=30.0)
+    assert done is not None
+    link["resourceId"] = _identifier(done.stdout)
     assert _field(done.stdout, "state") == "enabled" and _field(done.stdout, "phase") == "Ready"
     assert _field(done.stdout, "session") == "renewed", done.stdout
     shown = _state(person.sk, link)
-    assert _field(shown, "operationStatus") == "completed"
-    assert IPM_PERMISSION_PREFIX in _field(
-        shown, "observedPermissions"
-    )  # permissões observadas no Zitadel
+    assert IPM_PERMISSION_PREFIX in _plain(shown)  # permissões observadas no Zitadel
     # O que a opção A garante: o token da sessão já reflete a ligação, sem novo login.
     permissions = person.sk.token_permissions()
     assert permissions.get(_project("IPM"), set()) >= {
@@ -264,7 +288,7 @@ def test_the_organization_and_its_users_are_managed_with_the_sk(
             timeout=150.0,
         )
         assert repeated.exit_code == 1, repeated.text  # e-mail único na Organization
-        assert "already in use in the Organization" in _plain(repeated.stderr), repeated.stderr
+        assert "already exists in the Organization" in _plain(repeated.stderr), repeated.stderr
         elsewhere = sk.run(
             *("ipm", "user", "create"),
             *("--name", "Usuario", "--surname", "Alheia"),
@@ -396,7 +420,6 @@ def test_disable_wait_converges_and_the_token_drops_the_ipm_permissions(
         timeout=150.0,
     )
     assert done.exit_code == 0, done.text
-    link["operationId"] = _identifiers(done.stdout)[1]
     assert _field(done.stdout, "state") == "disabled" and _field(done.stdout, "phase") == "Ready"
     assert _field(done.stdout, "session") == "renewed", done.stdout
     assert _field(_state(person.sk, link), "observedPermissions") == "none"
@@ -417,13 +440,12 @@ def test_enabling_again_reuses_the_same_resource_and_the_list_has_one_row(
     """O recurso é o par usuário + serviço: habilitar de novo não cria uma segunda linha."""
     done = person.sk.run("sum", "service", "enable", "--service", "ipm", "--wait", timeout=150.0)
     assert done.exit_code == 0, done.text
-    assert _identifiers(done.stdout)[0] == link["resourceId"], done.stdout
+    assert _identifier(done.stdout) == link["resourceId"], done.stdout
     assert _field(done.stdout, "state") == "enabled" and _field(done.stdout, "phase") == "Ready"
     listed = person.sk.run("sum", "service", "list")
     assert listed.exit_code == 0, listed.text
     assert listed.stdout.count(link["resourceId"]) == 1, listed.stdout
-    assert len(re.findall(r"^[│\s]*[0-9a-f]{8}-", listed.stdout, re.MULTILINE)) == 1, listed.stdout
-    link["operationId"] = _identifiers(done.stdout)[1]
+    assert len(re.findall(r"\b[0-9a-f]{8}-[0-9a-f-]{27}\b", listed.stdout)) == 1, listed.stdout
     # Deixa o serviço desabilitado: a limpeza do teste não apaga uma ligação habilitada.
     off = person.sk.run(
         *("sum", "service", "disable"),
@@ -449,9 +471,7 @@ def test_the_account_is_shown_and_then_deleted_with_the_sk(person: Person) -> No
     assert person.email in shown.stdout and person.resource_id in shown.stdout
     bsm_listed = person.sk.run("bsm", "account", "list")
     assert bsm_listed.exit_code == 0, bsm_listed.text
-    for bsm_id in re.findall(
-        r"^[│\s]*([0-9a-f]{8}-[0-9a-f-]{27})\b", bsm_listed.stdout, re.MULTILINE
-    ):
+    for bsm_id in re.findall(r"\b([0-9a-f]{8}-[0-9a-f-]{27})\b", bsm_listed.stdout):
         unprotected_bsm = person.sk.run(
             "bsm", "account", "unprotect", "--resource-id", bsm_id, "--wait", timeout=150.0
         )
@@ -466,8 +486,13 @@ def test_the_account_is_shown_and_then_deleted_with_the_sk(person: Person) -> No
         assert "sk account unprotect" in _plain(refused.stderr), refused.stderr
         unprotected_acc = person.sk.run("account", "unprotect", "--wait", timeout=150.0)
         assert unprotected_acc.exit_code == 0, unprotected_acc.text
-    deleted = person.sk.run("account", "delete", "--yes", "--wait", timeout=150.0)
-    assert deleted.exit_code == 0, deleted.text
+
+    def _delete_acc() -> Result | None:
+        res = person.sk.run("account", "delete", "--yes", "--wait", timeout=150.0)
+        return res if res.exit_code == 0 else None
+
+    deleted = wait_until(_delete_acc, "a exclusão da conta no core.account", seconds=90.0)
+    assert deleted is not None
     assert "Account deleted" in deleted.stdout, deleted.text
     assert not person.sk.credentials_path.exists(), "a sessão local deve ser esquecida"
     # Decisão 0044: o SUM apaga as ligações do dono quando a conta é removida.

@@ -50,7 +50,7 @@ async def run(settings: AccountControllerSettings) -> int:
             controller,
             durable=f"core-account-controller-desired-{instance}",
             stream="DESIRED",
-            filter_subject="manager.desired.core.account.>",
+            filter_subject="desired.core.account.>",
             inactive_threshold_seconds=settings.messaging.consumer_inactive_threshold_seconds,
             traced=False,
             on_cycle=runtime.health.beat,

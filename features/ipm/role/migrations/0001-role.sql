@@ -295,7 +295,7 @@ SELECT
   substr(md5('seed-desired-' || i.resource_id), 18, 3) || '-' ||
   substr(md5('seed-desired-' || i.resource_id), 21, 12),
   i.resource_id,
-  'manager.desired.ipm.role.' || i.resource_id || '.changed',
+  'desired.ipm.role.' || i.resource_id,
   jsonb_build_object(
     'messageId',
       substr(md5('seed-desired-' || i.resource_id), 1, 8) || '-' ||
@@ -305,7 +305,7 @@ SELECT
       substr(md5('seed-desired-' || i.resource_id), 21, 12),
     'schemaVersion', '1.0',
     'messageType', 'desired',
-    'emitter', 'manager',
+    'emitter', 'api',
     'module', 'ipm',
     'resourceType', 'role',
     'resourceId', i.resource_id,

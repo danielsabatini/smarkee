@@ -11,7 +11,7 @@ VALID = {
     "messageId": "0199c8b0-2d4e-7f10-8a3b-6c7d8e9f0a1b",
     "schemaVersion": "1.0",
     "messageType": "desired",
-    "emitter": "manager",
+    "emitter": "api",
     "module": "ipm",
     "resourceType": "permission",
     "resourceId": "0199c8b0-2d4e-7f10-8a3b-6c7d8e9f0a1c",
@@ -29,7 +29,7 @@ def test_the_publication_adds_the_publisher_identity_and_the_time() -> None:
     body = json.loads(publication_envelope(VALID, WHEN))
     assert body["publishedBy"] == PUBLISHED_BY
     assert body["publishedAt"].startswith("2026-10-15T14:00:01")
-    assert body["emitter"] == "manager"  # quem decidiu continua sendo o Manager
+    assert body["emitter"] == "api"
 
 
 @pytest.mark.parametrize("field", ["messageId", "module", "resourceId", "data"])

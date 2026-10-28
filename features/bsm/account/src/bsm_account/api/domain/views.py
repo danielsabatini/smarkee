@@ -15,6 +15,11 @@ def account_view(record: ResourceRecord) -> generated.BillingAccount:
         "resourceId": record.resource_id,
         "resourceVersion": str(record.resource_version),
         "desiredGeneration": record.desired_generation,
+        **(
+            {"observedGeneration": record.observed_generation}
+            if record.observed_generation is not None
+            else {}
+        ),
         "phase": record.phase,
         "conditions": record.conditions,
         "createdAt": record.created_at.isoformat(),

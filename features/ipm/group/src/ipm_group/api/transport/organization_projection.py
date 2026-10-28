@@ -17,7 +17,7 @@ from ipm_group.common.contracts.envelope import EnvelopeError, read_envelope
 
 logger = logging.getLogger(__name__)
 
-ORGANIZATION_SUBJECT = "manager.desired.ipm.organization.>"
+ORGANIZATION_SUBJECT = "desired.ipm.organization.>"
 """Subject do `DESIRED` de que a projeção se alimenta."""
 
 _PRESENT = "present"

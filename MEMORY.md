@@ -5,15 +5,21 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - **Regras, contratos e decisões:** `AGENTS.md`, `docs/` e `.decisions/`.
 
 ## Estado operacional atual
-- **Branch `dev`:** o plano `ipm/*` e desmonte do loop legado (decisões `0098`, `0099`, `0100` e etapa S6):
+- **Branch `dev`:** padronização de Subjects NATS (4 tokens), consolidação dos Streams JetStream e política de retenção no SSOT (decisão `0101`):
+  - Subjects NATS unificados em 4 tokens: `desired.<mod>.<type>.<id>` e `updated.<mod>.<type>.<id>`.
+  - Schema de envelope (`message-envelope.v1.schema.json`): `emitter` restrito a `["api", "controller"]`, `messageType` restrito a `["desired", "updated"]` e `operation` mantido como `"changed"`.
+  - Streams JetStream consolidados: `DESIRED` (`desired.>`, `allow_direct: true`), `UPDATED` (`updated.>`, `allow_direct: true`) e `AUDIT` (`audit.>`, `sources: [DESIRED, UPDATED]`, `deny_delete: true`). Streams legados `REQUESTED`, `OBSERVED`, `ACTION` e `RESULT` removidos do broker dev e de `compose.yaml`.
+  - Utilitário de retenção criado (`scripts/dev/retention`, `smarkee-dev-retention`): expurgo de `<tipo>_outbox` e `<tipo>_idempotency` via papéis `*_maintenance_login` (menor privilégio) com janela configurável (`--older-than`, padrão 24h) e modo simulação (`--apply`).
+  - Suíte de verificação local `./scripts/dev/check` 100% verde nos 15 componentes e jornada end-to-end (`tests/e2e`) 100% verde (12/12) contra o ambiente real.
+- **Plano `ipm/*` e desmonte do loop legado (decisões `0098`, `0099`, `0100` e etapa S6):**
   - `bsm/account` migrada (S6.1) para `internal-state` (`api` + `publisher`): zero chamadas HTTP mútuas com `ipm/organization` via projeções no stream `DESIRED` (`BillingAccountProjection` em `ipm/organization` e `OrganizationUsageProjection` em `bsm/account`), CLI `sk` adaptada para `SyncResourceFlow`.
   - `ipm/serviceaccount|user|organization|permission` têm `api`, `publisher`, `controller`; `ipm/role|group` e `bsm/account` têm só `api` e `publisher`; banco `platform` extinto (`0099`).
   - `core/account` (S6.2) e `sum/service` (S6.3) migradas para `api` + `publisher` + `controller`; template/`FEATURE-BOOTSTRAP`/agent `feature`/skills limpos do loop de 7 papéis.
-  - Ativação operacional no dev concluída: contêineres legados de 7 papéis removidos, novas imagens construídas, service accounts `core-account-controller` e `sum-service-controller` provisionadas no Zitadel com chaves no volume `identity-bootstrap`, rotas do gateway sincronizadas (ADC), suíte de conformidade de identidade 100% verde (21/21) e suítes e2e reais de `core/account` e `sum/service` validadas. Check local `./scripts/dev/check` 100% verde.
 - **Banco `ssot`** (decisão `0087`) é o único banco de recursos; o banco `platform` foi extinto (decisão `0099`; dump prévio em `.workspace/platform-before-drop.dump`).
 - **Identidade (`infrastructure/dev/identity`):** chaves das service accounts do Zitadel persistem no volume Docker `identity-bootstrap`.
 - **Ambiente local OpenCode:** `~/.config/opencode/opencode.json` carrega `AGENTS.md` e `MEMORY.md` globalmente.
-- **Utilitário `scripts/dev/cleanup`:** 100% alinhado à arquitetura vigente pós-loop de 7 papéis (`ORGANIZATIONS`, `ORGANIZATION_USERS` e `BILLING_ACCOUNTS` atualizados para `*_api_login` e `*_idempotency`, sem dependência de papéis de manager ou tabelas de operation), suíte de testes 100% verde (99/99) e ambiente local dev completamente limpo e verificado.
+- **Utilitário `scripts/dev/cleanup`:** 100% alinhado à arquitetura vigente pós-loop de 7 papéis e adaptado para os streams `DESIRED`/`UPDATED` e subjects de 4 tokens; suíte 100% verde (106/106).
+- **Jornada end-to-end (`tests/e2e`):** 100% verde (12/12) via CLI `sk` com Zitadel, SSOT, NATS e gateway reais, sem resíduos de teste remanescentes.
 
 ## Próximos passos imediatos
 00. **Plano de evolução ipm/* e loop** (`~/.opencode/plan/ipm-resource-control-loop-evolution.md`; ordem `S0 → S2 → S1 → S3 → S4 → S5 → S6`):

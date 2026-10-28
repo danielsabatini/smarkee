@@ -319,7 +319,7 @@ async def test_registration_is_anonymous_and_admits_the_account_synchronously(
     assert record.desired["deletionProtection"] is True
     assert harness.store.requesters[body.resource_id] == "anonymous"
     ((subject, payload),) = harness.store.outbox
-    assert subject == f"manager.desired.core.account.{body.resource_id}.changed"
+    assert subject == f"desired.core.account.{body.resource_id}"
     assert payload["emitter"] == "api" and payload["requestedBy"] == "anonymous"
 
 
@@ -411,7 +411,7 @@ async def test_account_may_change_its_own_deletion_protection(harness: Harness) 
         False,
     )
     ((subject, payload),) = harness.store.outbox
-    assert subject == "manager.desired.core.account.ana.changed"
+    assert subject == "desired.core.account.ana"
     assert payload["desiredGeneration"] == 2 and payload["requestedBy"] == "ana"
     assert payload["data"]["deletionProtection"] is False
 
@@ -459,7 +459,7 @@ async def test_delete_marks_the_account_absent_and_publishes_without_personal_da
     view = generated.Account.model_validate(response.json())
     assert (view.phase, view.desired.lifecycle.value) == ("Deleting", "absent")
     ((subject, payload),) = harness.store.outbox
-    assert subject == "manager.desired.core.account.ana.changed"
+    assert subject == "desired.core.account.ana"
     assert payload["data"]["lifecycle"] == "absent"
     assert "email" not in payload["data"]
 

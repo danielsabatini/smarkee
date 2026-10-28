@@ -433,11 +433,14 @@ O atraso do Publisher é observável: idade da mensagem pendente mais antiga (`n
 
 | Tabela | Regra |
 |---|---|
-| Outbox | Remover mensagens publicadas após o prazo de retenção (`DELETE` em lote por `published_at`) |
-| ActionResult | Remover registros com `recorded_at` mais antigo que a retenção dos resultados no transporte somada ao prazo máximo de reentrega (`DELETE` em lote) |
-| Operation | Remover operações encerradas (`completed`, `failed`, `rejected`) após o prazo de retenção, que é maior que o prazo máximo de reentrega do `requested`; o que deve durar mais pertence à auditoria |
+| `<tipo>_outbox` | Remover mensagens publicadas após a janela de retenção padrão de 24h (`DELETE` por `published_at IS NOT NULL AND published_at < cutoff`) |
+| `<tipo>_idempotency` | Remover registros de requisições já processadas após a janela de retenção de 24h (`DELETE` por `created_at < cutoff`) |
+| `<tipo>_action_result` (legado) | Remover registros com `recorded_at` mais antigo que a retenção dos resultados no transporte somada ao prazo máximo de reentrega |
+| `<tipo>_operation` (legado) | Remover operações encerradas (`completed`, `failed`, `rejected`) após o prazo de retenção |
 
-A remoção é feita por uma **identidade de manutenção** própria, com `DELETE` apenas nessas tabelas. Os serviços de runtime não removem outbox, resultados nem operações.
+A remoção é feita estritamente pela identidade de manutenção de cada módulo (`<módulo>_maintenance_login`), com `SELECT` e `DELETE` restritos a essas tabelas. Os serviços de runtime (`api`, `publisher`, `controller`) não removem outbox nem idempotency.
+
+O utilitário de execução em desenvolvimento é o `scripts/dev/retention`, que suporta execução em simulação (*dry-run*), expurgo efetivo (`--apply`), janelas configuráveis (`--older-than 24h`, `--older-than 0s` para expurgo imediato em testes locais) e filtros por módulo ou recurso.
 
 O particionamento por tempo é uma evolução possível, adotada apenas com volume medido: remover uma partição é muito mais barato que `DELETE` em massa. A restrição é que chaves únicas e primárias de uma tabela particionada devem incluir a chave de partição. Por isso só o **outbox** é candidato: `<tipo>_operation` e `<tipo>_action_result` dependem da unicidade global das suas chaves primárias para a idempotência e não são particionadas por tempo.
 

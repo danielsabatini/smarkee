@@ -167,7 +167,7 @@ async def test_creates_the_account_and_confirms_the_generation(
     assert stored["observed_generation"] == stored["desired_generation"]
     sent = (await outbox(outbox_reader, resource_id))[len(before) :]
     assert [item["subject"] for item in sent] == [
-        f"manager.updated.core.account.{resource_id}.changed"
+        f"updated.core.account.{resource_id}"
     ]
     data = sent[0]["payload"]["data"]
     assert (data["phase"], data["resourceVersion"]) == ("Ready", str(stored["resource_version"]))
@@ -251,7 +251,7 @@ async def test_an_unavailable_provider_counts_failures_and_suspends_at_the_limit
         "suspended",
     )
     sent = await outbox(outbox_reader, resource_id)
-    desired = [item["payload"] for item in sent if item["subject"].split(".")[1] == "desired"]
+    desired = [item["payload"] for item in sent if item["subject"].split(".")[0] == "desired"]
     assert len(desired) == 1  # só o da suspensão: a admissão aqui é direta
     assert desired[0]["data"]["reconciliation"] == "suspended"
     assert desired[0]["desiredGeneration"] == stored["desired_generation"]

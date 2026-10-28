@@ -58,7 +58,7 @@ async def run(settings: SumServiceControllerSettings) -> int:
             controller,
             durable=f"sum-service-controller-desired-{instance}",
             stream="DESIRED",
-            filter_subject="manager.desired.sum.service.>",
+            filter_subject="desired.sum.service.>",
             inactive_threshold_seconds=settings.messaging.consumer_inactive_threshold_seconds,
             traced=False,
             on_cycle=runtime.health.beat,

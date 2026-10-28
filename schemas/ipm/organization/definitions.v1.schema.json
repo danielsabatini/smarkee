@@ -56,9 +56,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "grantPermissions",
-        "userExecutorAccountId",
-        "userObserverAccountId"
+        "grantPermissions"
       ],
       "properties": {
         "grantPermissions": {

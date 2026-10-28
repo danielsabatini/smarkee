@@ -8,50 +8,70 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 # Billing Accounts de teste (`bsm.account`): o `displayName` começa por um dos prefixos dos testes
-# de conformidade, loop ou integração, ou é `Account ` ou `Renamed ` seguido de 10 hexadecimais.
+# de conformidade, loop ou integração, ou é `Account ` ou `Renamed ` seguido de 10 hexadecimais,
+# ou a conta inicial `Free Tier` gerada para contas de teste.
 TEST_BILLING_ACCOUNT_NAME = re.compile(
-    r"^(?:(?:Conf|Acme|Loop|Dup|Chaos|E2E|Probe|Ver|cons)[ -]|(?:Account|Renamed) [0-9a-f]{10}$)"
+    r"^(?:(?:Conf|Acme|Loop|Dup|Chaos|E2E|Probe|Ver|cons)[ -]|"
+    r"(?:Account|Renamed) [0-9a-f]{10}$|Free Tier$)"
 )
 # Organizations de teste: o nome começa por um destes prefixos, ou é `org-` ou `renamed-` mais 10
 # hexadecimais (os nomes dos testes de integração do Manager da Organization: o padrão e o do teste
-# de renomear), e o ID é um UUID (o `resourceId`). Esses dois prefixos sem os 10 hexadecimais não
-# são de teste.
+# de renomear), e o ID é um UUID (o `resourceId`) ou ID com prefixo de teste (`ctl-`, `test-`).
 TEST_ORGANIZATION_NAME = re.compile(
-    r"^(?:(?:conf|acme|loop|dup|chaos|e2e|probe|ver|cons)-|(?:org|renamed|race-name)-[0-9a-f]{10}$)"
+    r"^(?:(?:conf|acme|loop|dup|chaos|e2e|probe|ver|cons|test|ctl)-|"
+    r"(?:org|renamed|race-name)-[0-9a-f]{10}$)"
 )
 # Roles de teste (`ipm.role`): nomes dos testes e2e da feature (`test.role` ou `test.chaos` mais 6
-# hexadecimais). As Roles predefinidas da plataforma (`ipm.userAdmin`...) nunca casam.
-TEST_ROLE_NAME = re.compile(r"^test\.(?:role|chaos)[0-9a-f]{6}$")
+# hexadecimais, `bsm.e2eRole` ou `acme.`). As Roles predefinidas da plataforma nunca casam.
+TEST_ROLE_NAME = re.compile(
+    r"^(?:test\.(?:role|chaos)[0-9a-f]{6}|bsm\.e2eRole[0-9a-f]{6}|acme\..+)$"
+)
 # Grupos de teste (`ipm.group`): nomes dos testes e2e da feature (`test-group-`, `test-loop-` ou
 # `test-chaos-` seguido de 6 a 8 hexadecimais).
 TEST_GROUP_NAME = re.compile(r"^test-(?:group|loop|chaos)-[0-9a-f]{6,8}$")
 # Service accounts de teste (`ipm.serviceaccount`, decisão 0094): nomes dos testes da feature
-# (`sa`, `loop`, `conf`, `chaos` ou `cons` mais `-` e 6 a 10 hexadecimais). Nomes reais
-# (`ci-deploy`) nunca casam.
-TEST_SERVICEACCOUNT_NAME = re.compile(r"^(?:sa|loop|conf|chaos|cons)-[0-9a-f]{6,10}$")
+# (`sa`, `loop`, `conf`, `chaos`, `cons` ou `test` mais `-` e 6 a 10 hexadecimais,
+# ou `ci-live-test`). Nomes reais (`ci-deploy`) nunca casam.
+TEST_SERVICEACCOUNT_NAME = re.compile(
+    r"^(?:(?:sa|loop|conf|chaos|cons|test)-[0-9a-f]{6,10}|ci-live-test)$"
+)
 # Permissions de teste (`ipm.permission`): nomes dos testes e2e da feature (`bsm.e2e.p` mais 7
-# hexadecimais, `bsm.chaos.c` mais 5, ou o antigo `e2e.test.p` mais 6 ou 7). As permissions reais
-# da plataforma (`ipm.user.get`...) nunca casam.
+# hexadecimais, `bsm.chaos.c` mais 5, o antigo `e2e.test.p` mais 6 ou 7, ou `test.perm.`).
+# As permissions reais da plataforma (`ipm.user.get`...) nunca casam.
 TEST_PERMISSION_NAME = re.compile(
-    r"^(?:bsm\.e2e\.p[0-9a-f]{7}|bsm\.chaos\.c[0-9a-f]{5}|e2e\.test\.p[0-9a-f]{6,7})$"
+    r"^(?:bsm\.e2e\.p[0-9a-f]{7}|bsm\.chaos\.c[0-9a-f]{5}|e2e\.test\.p[0-9a-f]{6,7}|"
+    r"test\.perm\.[a-z0-9]+)$"
 )
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+TEST_ID_PREFIX = re.compile(r"^(?:ctl|test|loop|conf|chaos|cons)-[0-9a-f]{6,10}$")
+SYSTEM_ORGANIZATION_NAMES = frozenset({"smarkee", "core", "register", "operator"})
 # Usuários de teste: o e-mail é de `example.com` e começa por um destes rótulos, ou é `ana.` ou
 # `dup.` mais 10 hexadecimais (os e-mails dos testes de integração do Manager da Account). `ana@` e
 # `ana.<nome>@` sem os 10 hexadecimais não são de teste.
 TEST_USER_EMAIL = re.compile(
-    r"^(?:(?:e2e|loop|conf|chaos|cons|sa\.test)[.-][^@]*|(?:ana|dup)\.[0-9a-f]{10})@example\.com$"
+    r"^(?:(?:e2e|loop|conf|chaos|cons|sa\.test|repo|dup|u|race|ctl|shared|test)[.-][^@]*|"
+    r"(?:ana|dup)\.[0-9a-f]{10})@example\.com$"
 )
-MAIL_QUERIES = ("to:e2e-", "to:loop.", "to:conf.", "to:chaos.", "to:cons.", "to:sa.test.")
+MAIL_QUERIES = (
+    "to:e2e-",
+    "to:loop.",
+    "to:conf.",
+    "to:chaos.",
+    "to:cons.",
+    "to:sa.test.",
+    "to:repo-",
+    "to:dup-",
+    "to:u-",
+    "to:race-",
+    "to:ctl-",
+    "to:shared-",
+    "to:test-",
+)
 
-# Streams e prefixos de Subject por mensagem (`docs/messaging/NATS.md`); o `ACTION` é
-# particionado pelo servidor e não dá para filtrar por recurso, então não é limpo aqui.
+# Streams e prefixos de Subject por mensagem (`docs/messaging/NATS.md`, decisão 0101).
 STREAM_SUBJECTS = (
-    ("REQUESTED", "receiver.requested"),
-    ("DESIRED", "manager.desired"),
-    ("OBSERVED", "observer.observed"),
-    ("RESULT", "executor.*"),
-    ("UPDATED", "manager.updated"),
+    ("DESIRED", "desired"),
+    ("UPDATED", "updated"),
 )
 
 

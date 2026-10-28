@@ -14,10 +14,10 @@ from ipm_organization.common.contracts.envelope import EnvelopeError, read_envel
 
 logger = logging.getLogger(__name__)
 
-USER_SUBJECT = "manager.desired.ipm.user.>"
-SERVICEACCOUNT_SUBJECT = "manager.desired.ipm.serviceaccount.>"
-GROUP_SUBJECT = "manager.desired.ipm.group.>"
-ROLE_SUBJECT = "manager.desired.ipm.role.>"
+USER_SUBJECT = "desired.ipm.user.>"
+SERVICEACCOUNT_SUBJECT = "desired.ipm.serviceaccount.>"
+GROUP_SUBJECT = "desired.ipm.group.>"
+ROLE_SUBJECT = "desired.ipm.role.>"
 """Subjects do stream `DESIRED` de que a projeção se alimenta."""
 
 DEPENDENT_SUBJECTS = (USER_SUBJECT, SERVICEACCOUNT_SUBJECT, GROUP_SUBJECT, ROLE_SUBJECT)

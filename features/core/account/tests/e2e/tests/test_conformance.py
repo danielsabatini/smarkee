@@ -18,8 +18,8 @@ from conftest import read_ssot
 from contracts import assert_valid
 from nats.js import JetStreamContext
 
-DESIRED_SUBJECT = "manager.desired.core.account.{resource_id}.changed"
-UPDATED_SUBJECT = "manager.updated.core.account.{resource_id}.changed"
+DESIRED_SUBJECT = "desired.core.account.{resource_id}"
+UPDATED_SUBJECT = "updated.core.account.{resource_id}"
 MAILPIT_URL = os.environ.get("CONFORMANCE_MAILPIT_URL")
 READY_SECONDS = 60.0
 

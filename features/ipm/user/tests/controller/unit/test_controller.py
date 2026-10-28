@@ -126,7 +126,7 @@ async def test_reconcile_creates_absent_user_and_saves_observation() -> None:
     update = next(p for q, p in statements if "UPDATE ipm.user SET observed" in q)
     assert "Ready" in update
     outbox = next(p for q, p in statements if "user_outbox" in q)
-    assert outbox[2] == "manager.updated.ipm.user.user-1.changed"
+    assert outbox[2] == "updated.ipm.user.user-1"
 
 
 def _controller(row: dict[str, Any] | None = None) -> UserController:
@@ -144,7 +144,7 @@ def _desired_message(resource_type: str, resource_id: str, data: dict[str, Any])
             "messageId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
             "schemaVersion": "1.0",
             "messageType": "desired",
-            "emitter": "manager",
+            "emitter": "api",
             "operation": "changed",
             "module": "ipm",
             "resourceType": resource_type,

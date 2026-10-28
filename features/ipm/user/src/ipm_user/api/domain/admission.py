@@ -64,5 +64,4 @@ def desired_message(
 
 
 def desired_subject(resource_id: str) -> str:
-    # O subject mantém o emissor `manager` (dono do SSOT do tipo): ACL e Streams não mudam.
-    return f"manager.desired.{MODULE}.{RESOURCE_TYPE}.{resource_id}.changed"
+    return f"desired.{MODULE}.{RESOURCE_TYPE}.{resource_id}"

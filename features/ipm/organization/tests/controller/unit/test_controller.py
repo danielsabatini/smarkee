@@ -105,7 +105,7 @@ async def test_reconcile_creates_absent_organization_and_saves_observation() -> 
     assert "Ready" in update
     # `updated` no outbox, na mesma transação.
     outbox = next(p for q, p in statements if "organization_outbox" in q)
-    assert outbox[2] == "manager.updated.ipm.organization.org-1.changed"
+    assert outbox[2] == "updated.ipm.organization.org-1"
 
 
 @pytest.mark.asyncio

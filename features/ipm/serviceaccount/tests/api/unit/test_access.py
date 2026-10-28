@@ -68,7 +68,7 @@ async def test_outside_roles_catalog_and_dynamic_catalog_watcher() -> None:
         "messageId": "01950000-0000-7000-8000-000000000001",
         "schemaVersion": "1.0",
         "messageType": "desired",
-        "emitter": "manager",
+        "emitter": "api",
         "module": "ipm",
         "resourceType": "role",
         "resourceId": "role-ipm-auditor",

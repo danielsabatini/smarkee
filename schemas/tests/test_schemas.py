@@ -314,22 +314,16 @@ def test_envelope_requires_type_specific_fields() -> None:
 
     observed: dict[str, Any] = {
         **message,
-        "messageType": "observed",
-        "emitter": "observer",
+        "messageType": "updated",
+        "emitter": "controller",
         "data": {},
     }
-    assert not _is_valid(envelope_path, observed)
-    observed |= {"presence": "present", "observedAt": "2026-10-09T14:00:02Z"}
     assert _is_valid(envelope_path, observed)
 
 
 def test_update_request_requires_a_change() -> None:
     update_path = ORGANIZATION / "api-update-request.v1.schema.json"
     assert not _is_valid(update_path, {"resourceVersion": "3"})
-    requested_update = ORGANIZATION / "requested-update.v1.schema.json"
-    assert not _is_valid(
-        requested_update, {"operationId": "op-1", "requestDigest": "0" * 64, "resourceVersion": "3"}
-    )
 
 
 def test_rejected_operation_requires_reason_and_no_generation() -> None:
@@ -376,11 +370,6 @@ def test_account_update_changes_only_the_deletion_protection() -> None:
     assert _is_valid(api_path, {"resourceVersion": "3", "deletionProtection": False})
     assert not _is_valid(api_path, {"resourceVersion": "3"})
     assert not _is_valid(api_path, {"resourceVersion": "3", "deletionProtection": False, "x": 1})
-    requested = ACCOUNT / "requested-update.v1.schema.json"
-    base = {"operationId": "op-1", "requestDigest": "0" * 64, "resourceVersion": "3"}
-    assert _is_valid(requested, {**base, "specification": {"deletionProtection": True}})
-    assert not _is_valid(requested, {**base, "specification": {}})
-    assert not _is_valid(requested, {**base, "specification": {"email": "a@b.com"}})
 
 
 RESOURCE_TYPES = sorted(

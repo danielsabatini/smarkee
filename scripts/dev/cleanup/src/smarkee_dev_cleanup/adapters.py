@@ -1,5 +1,6 @@
 """Adaptadores reais do ambiente de dev: Zitadel, PostgreSQL, NATS e Mailpit."""
 
+import contextlib
 import json
 import time
 import uuid
@@ -238,21 +239,18 @@ class NatsBus:
             info = await self._js.stream_info(stream, subjects_filter=">")
             subjects: dict[str, int] = info.state.subjects or {}
             for subject in subjects:
-                # `<emissor>.<tipo da mensagem>.<módulo>.<tipo>.<resourceId>[.<operação>]`
+                # `<tipo da mensagem>.<módulo>.<tipo>.<resourceId>`
                 parts = subject.split(".")
-                kind = kinds.get((parts[2], parts[3])) if len(parts) >= 5 else None
-                if kind is not None and parts[4] not in live[kind]:
-                    found[kind].add(parts[4])
+                kind = kinds.get((parts[1], parts[2])) if len(parts) >= 4 else None
+                if kind is not None and parts[3] not in live[kind]:
+                    found[kind].add(parts[3])
         return found
 
     async def purge(self, kind: Kind, resource_ids: set[str]) -> None:
         for resource_id in sorted(resource_ids):
             for stream, prefix in STREAM_SUBJECTS:
-                base = f"{prefix}.{kind.module}.{kind.resource_type}.{resource_id}"
-                filters = [f"{base}.>"]
-                if stream == "RESULT":  # `failed` não tem o token da operação
-                    filters.append(base)
-                for subject in filters:
+                subject = f"{prefix}.{kind.module}.{kind.resource_type}.{resource_id}"
+                with contextlib.suppress(Exception):
                     await self._js.purge_stream(stream, subject=subject)
 
 

@@ -38,6 +38,19 @@
             ],
             "title": "BillingAccountObservedView"
           },
+          "observedGeneration": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observedgeneration"
+          },
           "phase": {
             "$ref": "#/components/schemas/Phase"
           },

@@ -72,10 +72,10 @@ async def created(jetstream: JetStreamContext) -> AsyncIterator[list[str]]:
 
 async def remove_through_the_loop(jetstream: JetStreamContext, resource_id: str) -> None:
     """Pede a remoção e espera o `updated` com `removed`. Sem `Ready` ou sem tempo, desiste."""
-    subject = f"manager.updated.ipm.organization.{resource_id}.changed"
+    subject = f"updated.ipm.organization.{resource_id}"
     try:  # a organização nunca chegou a ser aceita (por exemplo, nome duplicado): nada a remover
         await jetstream.get_last_msg(
-            "DESIRED", f"manager.desired.ipm.organization.{resource_id}.changed"
+            "DESIRED", f"desired.ipm.organization.{resource_id}"
         )
     except Exception:
         return

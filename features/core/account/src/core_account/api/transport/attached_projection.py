@@ -32,7 +32,7 @@ class AttachedKind:
     @property
     def subject(self) -> str:
         """Subject do `DESIRED` de que a projeção se alimenta."""
-        return f"manager.desired.{self.module}.{self.resource_type}.>"
+        return f"desired.{self.module}.{self.resource_type}.>"
 
 
 ORGANIZATIONS = AttachedKind("ipm", "organization", "Organization", "Organizations")

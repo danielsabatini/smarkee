@@ -38,12 +38,7 @@
       "description": "Tipo semântico da mensagem.",
       "type": "string",
       "enum": [
-        "requested",
         "desired",
-        "observed",
-        "action",
-        "completed",
-        "failed",
         "updated"
       ],
       "x-enumPolicy": "closed",
@@ -56,11 +51,7 @@
       "type": "string",
       "enum": [
         "api",
-        "receiver",
-        "manager",
-        "observer",
-        "reconciler",
-        "executor"
+        "controller"
       ],
       "x-enumPolicy": "closed",
       "x-writer": "server",

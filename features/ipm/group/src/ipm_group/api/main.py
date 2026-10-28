@@ -49,7 +49,7 @@ async def run(settings: GroupApiSettings) -> int:
             RoleCatalogWatcher(catalog),
             durable=f"ipm-group-api-roles-{instance}",
             stream="DESIRED",
-            filter_subject="manager.desired.ipm.role.>",
+            filter_subject="desired.ipm.role.>",
             inactive_threshold_seconds=300,
             traced=False,
             on_cycle=runtime.health.beat,

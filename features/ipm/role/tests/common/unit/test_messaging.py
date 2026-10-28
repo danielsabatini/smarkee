@@ -246,7 +246,7 @@ async def test_the_state_consumer_replays_the_last_message_per_subject_and_acks(
         sink,
         durable="ipm-role-x-desired-abc",
         stream="DESIRED",
-        filter_subject="manager.desired.ipm.role.>",
+        filter_subject="desired.ipm.role.>",
         inactive_threshold_seconds=300,
         traced=traced,
     )
@@ -255,7 +255,7 @@ async def test_the_state_consumer_replays_the_last_message_per_subject_and_acks(
 
     subject, options = jetstream.calls[0]
     config = cast(ConsumerConfig, options["config"])
-    assert subject == "manager.desired.ipm.role.>"
+    assert subject == "desired.ipm.role.>"
     assert (options["durable"], options["stream"]) == ("ipm-role-x-desired-abc", "DESIRED")
     assert config.deliver_policy is DeliverPolicy.LAST_PER_SUBJECT
     assert config.inactive_threshold == 300.0
@@ -357,7 +357,7 @@ async def test_a_processing_error_returns_the_message_to_the_queue_and_keeps_the
         FailingSink(),
         durable="ipm-role-x-desired-abc",
         stream="DESIRED",
-        filter_subject="manager.desired.ipm.role.>",
+        filter_subject="desired.ipm.role.>",
         inactive_threshold_seconds=300,
         traced=True,
     )

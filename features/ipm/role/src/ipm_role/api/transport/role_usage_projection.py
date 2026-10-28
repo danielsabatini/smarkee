@@ -14,9 +14,9 @@ from ipm_role.common.contracts.envelope import EnvelopeError, read_envelope
 
 logger = logging.getLogger(__name__)
 
-USER_SUBJECT = "manager.desired.ipm.user.>"
-SERVICEACCOUNT_SUBJECT = "manager.desired.ipm.serviceaccount.>"
-GROUP_SUBJECT = "manager.desired.ipm.group.>"
+USER_SUBJECT = "desired.ipm.user.>"
+SERVICEACCOUNT_SUBJECT = "desired.ipm.serviceaccount.>"
+GROUP_SUBJECT = "desired.ipm.group.>"
 """Subjects do `DESIRED` de que a projeção se alimenta."""
 
 _CONSUMER_TYPES = frozenset({"user", "serviceaccount", "group"})

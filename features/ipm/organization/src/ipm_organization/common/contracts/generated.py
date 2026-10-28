@@ -12,12 +12,7 @@ class MessageType(StrEnum):
     Tipo semântico da mensagem.
     """
 
-    requested = "requested"
     desired = "desired"
-    observed = "observed"
-    action = "action"
-    completed = "completed"
-    failed = "failed"
     updated = "updated"
 
 
@@ -27,11 +22,7 @@ class MessageEmitter(StrEnum):
     """
 
     api = "api"
-    receiver = "receiver"
-    manager = "manager"
-    observer = "observer"
-    reconciler = "reconciler"
-    executor = "executor"
+    controller = "controller"
 
 
 class MessageOperation(StrEnum):
@@ -306,20 +297,20 @@ class OrganizationUserAccess(ContractModel):
     Permissões do Project Grant: o teto do que os usuários da organização podem receber. É o catálogo de permissões grantable do módulo ipm (ipm.permission, decisões 0081 e 0083), sem repetição e em ordem alfabética.
     """
     user_executor_account_id: Annotated[
-        str,
+        str | None,
         Field(
             alias="userExecutorAccountId", max_length=128, min_length=1, pattern="^[A-Za-z0-9-]+$"
         ),
-    ]
+    ] = None
     """
     Conta de serviço do Executor do ipm/user.
     """
     user_observer_account_id: Annotated[
-        str,
+        str | None,
         Field(
             alias="userObserverAccountId", max_length=128, min_length=1, pattern="^[A-Za-z0-9-]+$"
         ),
-    ]
+    ] = None
     """
     Conta de serviço do Observer do ipm/user.
     """

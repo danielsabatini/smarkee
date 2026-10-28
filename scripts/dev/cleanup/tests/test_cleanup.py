@@ -167,6 +167,7 @@ def say_nothing(_: str) -> None:
 )
 def test_an_organization_with_a_test_name_and_a_uuid_is_test_data(name: str) -> None:
     assert is_test_organization(ORG_ID, name)
+    assert is_test_organization("ctl-e6440e866b", name)
 
 
 @pytest.mark.parametrize(
@@ -200,6 +201,12 @@ def test_real_or_system_organizations_are_never_test_data(organization_id: str, 
         "sa.test.ab12cd34@example.com",
         "ana.d8cf979f97@example.com",  # testes de integração do Manager da Account
         "dup.16a54b90a9@example.com",
+        "repo-5f1a7dcd71@example.com",
+        "dup-9289f0aa26@example.com",
+        "u-6106529432@example.com",
+        "race-2f202effaf@example.com",
+        "ctl-b2c09aa415@example.com",
+        "shared-9d0995791b@example.com",
     ],
 )
 def test_a_test_email_is_recognized(email: str) -> None:
@@ -258,6 +265,23 @@ def test_a_service_link_whose_owner_no_longer_exists_is_an_orphan() -> None:
     findings = find(world.ports())
 
     assert [r.resource_id for r in findings.service_rows] == ["s1"]
+
+
+def test_extended_test_patterns_are_recognized() -> None:
+    world = World()
+    world.ssot.tables = {
+        SERVICEACCOUNTS: [Row("sa-1", "ci-live-test"), Row("sa-2", "ci-deploy")],
+        BILLING_ACCOUNTS: [Row("ba-1", "Free Tier"), Row("ba-2", "Producao")],
+        PERMISSIONS: [Row("p-1", "test.perm.p12345"), Row("p-2", "ipm.user.get")],
+        ROLES: [Row("r-1", "bsm.e2eRole123456"), Row("r-2", "ipm.userAdmin")],
+    }
+
+    findings = find(world.ports())
+
+    assert [r.resource_id for r in findings.serviceaccount_rows] == ["sa-1"]
+    assert [r.resource_id for r in findings.billing_account_rows] == ["ba-1"]
+    assert [r.resource_id for r in findings.permission_rows] == ["p-1"]
+    assert [r.resource_id for r in findings.role_rows] == ["r-1"]
 
 
 def test_a_clean_environment_has_no_findings() -> None:

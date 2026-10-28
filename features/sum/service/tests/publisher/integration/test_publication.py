@@ -60,7 +60,7 @@ async def seed(cleanup: Cleanup, api_writer: Connection, count: int) -> list[str
             (
                 message_id,
                 resource_id,
-                f"manager.desired.sum.service.{resource_id}.changed",
+                f"desired.sum.service.{resource_id}",
                 Jsonb(payload),
             ),
         )
@@ -88,7 +88,7 @@ async def test_publishes_in_order_marks_published_and_stamps_the_publication_tim
     ours = [item for item in publisher.published if item[1]["resourceId"] in ids]
     assert [item[1]["resourceId"] for item in ours] == ids
     for subject, payload, message_id in ours:
-        assert subject == f"manager.desired.sum.service.{payload['resourceId']}.changed"
+        assert subject == f"desired.sum.service.{payload['resourceId']}"
         assert message_id == payload["messageId"]
         assert payload["publishedAt"] >= payload["occurredAt"]
     assert await pending_for(outbox_reader, ids) == []

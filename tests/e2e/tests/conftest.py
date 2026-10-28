@@ -232,10 +232,37 @@ def _remove(person: Person) -> None:
         return
     assert current.status_code == 200, f"não foi possível ler a pessoa de teste: {current.text}"
     version = str(current.json()["resourceVersion"])
-    if current.json()["desired"].get("deletionProtection", True):
-        sk.run("account", "unprotect", "--wait", timeout=150.0)
-        current = httpx.get(url, headers=headers, timeout=15.0)
-        version = str(current.json()["resourceVersion"])
+
+    # Se havia organizações no IPM criadas pelo teste, desprotege e remove.
+    ipm_orgs = httpx.get(f"{API_URL}/v1/ipm/organizations", headers=headers, timeout=15.0)
+    if ipm_orgs.status_code == 200:
+        for item in ipm_orgs.json().get("items", []):
+            org_id = str(item["resourceId"])
+            if item.get("desired", {}).get("deletionProtection", True):
+                sk.run(
+                    "ipm",
+                    "organization",
+                    "unprotect",
+                    "--resource-id",
+                    org_id,
+                    "--wait",
+                    timeout=150.0,
+                )
+            sk.run(
+                "ipm", "organization", "delete", "--resource-id", org_id, "--wait", timeout=150.0
+            )
+
+    # Se havia serviços habilitados no SUM, desabilita.
+    sum_list = httpx.get(f"{API_URL}/v1/sum/services", headers=headers, timeout=15.0)
+    if sum_list.status_code == 200:
+        for item in sum_list.json().get("items", []):
+            if item.get("lifecycle") == "present":
+                srv_id = str(item["resourceId"])
+                sk.run(
+                    "sum", "service", "disable", "--resource-id", srv_id, "--wait", timeout=150.0
+                )
+
+    # Se havia Billing Accounts no BSM, desprotege e remove.
     bsm_list = httpx.get(f"{API_URL}/v1/bsm/accounts", headers=headers, timeout=15.0)
     if bsm_list.status_code == 200:
         for item in bsm_list.json().get("items", []):
@@ -245,8 +272,33 @@ def _remove(person: Person) -> None:
                     "bsm", "account", "unprotect", "--resource-id", bsm_id, "--wait", timeout=150.0
                 )
             sk.run("bsm", "account", "delete", "--resource-id", bsm_id, "--wait", timeout=150.0)
-    deleted = httpx.delete(url, headers=headers, params={"resourceVersion": version}, timeout=15.0)
-    assert deleted.status_code == 202, deleted.text
+
+    if current.json()["desired"].get("deletionProtection", True):
+        sk.run("account", "unprotect", "--wait", timeout=150.0)
+        current = httpx.get(url, headers=headers, timeout=15.0)
+        if current.status_code == 404:
+            return
+        assert current.status_code == 200, f"não foi possível ler após desproteger: {current.text}"
+        version = str(current.json()["resourceVersion"])
+
+    def _delete_account() -> bool | None:
+        nonlocal version
+        deleted = httpx.delete(
+            url, headers=headers, params={"resourceVersion": version}, timeout=15.0
+        )
+        if deleted.status_code == 202:
+            return True
+        if deleted.status_code == 404:
+            return True
+        if deleted.status_code == 409:
+            # Pode ser ResourcesAttached aguardando propagação no NATS ou concorrência de versão
+            fresh = httpx.get(url, headers=headers, timeout=15.0)
+            if fresh.status_code == 200:
+                version = str(fresh.json()["resourceVersion"])
+            return None
+        raise AssertionError(f"exclusão da conta recusada: {deleted.status_code} {deleted.text}")
+
+    wait_until(_delete_account, "a aceitação da exclusão da pessoa de teste", seconds=30.0)
     wait_until(
         lambda: True if httpx.get(url, headers=headers, timeout=15.0).status_code == 404 else None,
         "a remoção da pessoa",

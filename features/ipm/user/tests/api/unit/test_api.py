@@ -402,7 +402,7 @@ async def test_root_creates_a_user_and_the_desired_goes_to_the_outbox(
     created = generated.User.model_validate(response.json())
     assert (created.phase.value, created.desired_generation) == ("Pending", 1)
     ((subject, payload, _),) = harness.admissions.outbox
-    assert subject == f"manager.desired.ipm.user.{created.resource_id}.changed"
+    assert subject == f"desired.ipm.user.{created.resource_id}"
     envelope = generated.MessageEnvelope.model_validate(payload)
     assert (envelope.emitter.value, envelope.message_type.value) == ("api", "desired")
     assert (envelope.requested_by, envelope.desired_generation) == ("root", 1)

@@ -66,9 +66,9 @@ async def run(settings: ServiceAccountControllerSettings) -> int:
                 on_cycle=runtime.health.beat,
             )
             for name, subject in (
-                ("desired", "manager.desired.ipm.serviceaccount.>"),
-                ("permissions", "manager.desired.ipm.permission.>"),
-                ("roles", "manager.desired.ipm.role.>"),
+                ("desired", "desired.ipm.serviceaccount.>"),
+                ("permissions", "desired.ipm.permission.>"),
+                ("roles", "desired.ipm.role.>"),
             )
         }
         for name, consumer in informers.items():

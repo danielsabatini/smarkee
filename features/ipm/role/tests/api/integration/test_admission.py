@@ -98,7 +98,7 @@ async def test_create_writes_the_resource_and_the_desired_in_the_same_transactio
     )
     assert (await cursor.fetchone() or ("",))[0] == REQUESTER
     ((subject, payload),) = await outbox_of(resource_id)
-    assert subject == f"manager.desired.ipm.role.{resource_id}.changed"
+    assert subject == f"desired.ipm.role.{resource_id}"
     assert (payload["emitter"], payload["messageType"], payload["desiredGeneration"]) == (
         "api",
         "desired",
@@ -206,5 +206,5 @@ async def test_delete_removes_the_row_and_publishes_the_tombstone(
     cursor = await api.execute("SELECT 1 FROM ipm.role WHERE resource_id = %s", (resource_id,))
     assert await cursor.fetchone() is None
     last_subject, last = (await outbox_of(resource_id))[-1]
-    assert last_subject == f"manager.desired.ipm.role.{resource_id}.changed"
+    assert last_subject == f"desired.ipm.role.{resource_id}"
     assert last["data"]["lifecycle"] == "absent"

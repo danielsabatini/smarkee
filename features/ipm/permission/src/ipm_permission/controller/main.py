@@ -43,7 +43,7 @@ async def run(settings: PermissionControllerSettings) -> int:
             controller,
             durable=f"ipm-permission-controller-desired-{instance}",
             stream="DESIRED",
-            filter_subject="manager.desired.ipm.permission.>",
+            filter_subject="desired.ipm.permission.>",
             inactive_threshold_seconds=settings.messaging.consumer_inactive_threshold_seconds,
             traced=False,
             on_cycle=runtime.health.beat,

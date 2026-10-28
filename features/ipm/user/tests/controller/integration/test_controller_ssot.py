@@ -176,7 +176,7 @@ async def test_creates_the_user_and_confirms_the_generation(
     assert (stored["phase"], stored["presence"], stored["failure_count"]) == ("Ready", "present", 0)
     assert stored["observed_generation"] == stored["desired_generation"]
     sent = (await outbox(outbox_reader, resource_id))[len(before) :]
-    assert [item["subject"] for item in sent] == [f"manager.updated.ipm.user.{resource_id}.changed"]
+    assert [item["subject"] for item in sent] == [f"updated.ipm.user.{resource_id}"]
     data = sent[0]["payload"]["data"]
     assert (data["phase"], data["resourceVersion"]) == ("Ready", str(stored["resource_version"]))
     assert data["observedGeneration"] == data["desiredGeneration"]
@@ -240,12 +240,12 @@ async def test_an_unavailable_provider_counts_failures_and_suspends_at_the_limit
         2,
         "suspended",
     )
-    subjects = [item["subject"].split(".")[1] for item in await outbox(outbox_reader, resource_id)]
+    subjects = [item["subject"].split(".")[0] for item in await outbox(outbox_reader, resource_id)]
     assert subjects.count("desired") == 1  # só o da suspensão: a admissão aqui é direta
     suspended = [
         item["payload"]
         for item in await outbox(outbox_reader, resource_id)
-        if item["subject"].split(".")[1] == "desired"
+        if item["subject"].split(".")[0] == "desired"
     ][-1]
     assert suspended["data"]["reconciliation"] == "suspended"
     assert suspended["desiredGeneration"] == stored["desired_generation"]

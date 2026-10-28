@@ -338,7 +338,7 @@ async def test_enabling_a_service_admits_the_link_synchronously(harness: Harness
     assert record.desired["servicePermissions"] == list(CATALOG["ipm"])
     assert harness.store.requesters[body.resource_id] == "ana"
     ((subject, payload),) = harness.store.outbox
-    assert subject == f"manager.desired.sum.service.{body.resource_id}.changed"
+    assert subject == f"desired.sum.service.{body.resource_id}"
     assert payload["emitter"] == "api" and payload["requestedBy"] == "ana"
     assert payload["desiredGeneration"] == 1
 
@@ -516,7 +516,7 @@ async def test_disabling_marks_the_link_absent_and_keeps_the_row(harness: Harnes
     record = harness.repository.resources["link-1"]  # a linha não é apagada (decisão 0033)
     assert (record.lifecycle, record.desired["servicePermissions"]) == ("absent", [])
     ((subject, payload),) = harness.store.outbox
-    assert subject == "manager.desired.sum.service.link-1.changed"
+    assert subject == "desired.sum.service.link-1"
     assert payload["data"]["lifecycle"] == "absent"
     assert payload["desiredGeneration"] == 2
 

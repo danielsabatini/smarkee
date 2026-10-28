@@ -83,7 +83,7 @@ async def run(settings: OrganizationControllerSettings) -> int:
             controller,
             durable=f"ipm-organization-controller-desired-{instance}",
             stream="DESIRED",
-            filter_subject="manager.desired.ipm.organization.>",
+            filter_subject="desired.ipm.organization.>",
             inactive_threshold_seconds=settings.messaging.consumer_inactive_threshold_seconds,
             traced=False,
             on_cycle=runtime.health.beat,

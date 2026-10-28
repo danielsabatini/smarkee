@@ -105,4 +105,4 @@ async def test_reconcile_creates_absent_permission_and_saves_observation() -> No
     assert "Ready" in update
     # `updated` no outbox, na mesma transação.
     outbox = next(p for q, p in statements if "permission_outbox" in q)
-    assert outbox[2] == "manager.updated.ipm.permission.perm-1.changed"
+    assert outbox[2] == "updated.ipm.permission.perm-1"

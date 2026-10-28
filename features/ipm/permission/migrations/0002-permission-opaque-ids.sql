@@ -64,12 +64,12 @@ INSERT INTO ipm.permission_outbox (message_id, resource_id, subject, payload)
 SELECT
   pg_temp.opaque_uuid('rename-desired-' || r.resource_id || '-' || r.desired_generation),
   r.resource_id,
-  'manager.desired.ipm.permission.' || r.resource_id || '.changed',
+  'desired.ipm.permission.' || r.resource_id,
   jsonb_build_object(
     'messageId', pg_temp.opaque_uuid('rename-desired-' || r.resource_id || '-' || r.desired_generation),
     'schemaVersion', '1.0',
     'messageType', 'desired',
-    'emitter', 'manager',
+    'emitter', 'api',
     'module', 'ipm',
     'resourceType', 'permission',
     'resourceId', r.resource_id,

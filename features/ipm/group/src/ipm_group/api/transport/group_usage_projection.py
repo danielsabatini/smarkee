@@ -14,7 +14,7 @@ from ipm_group.common.contracts.envelope import EnvelopeError, read_envelope
 
 logger = logging.getLogger(__name__)
 
-USER_SUBJECT = "manager.desired.ipm.user.>"
+USER_SUBJECT = "desired.ipm.user.>"
 """Subject do `DESIRED` de que a projeção se alimenta."""
 
 _PRESENT = "present"

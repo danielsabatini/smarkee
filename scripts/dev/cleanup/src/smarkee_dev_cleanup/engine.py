@@ -14,8 +14,10 @@ from smarkee_dev_cleanup.model import (
     ROLES,
     SERVICEACCOUNTS,
     SERVICES,
+    SYSTEM_ORGANIZATION_NAMES,
     TEST_BILLING_ACCOUNT_NAME,
     TEST_GROUP_NAME,
+    TEST_ID_PREFIX,
     TEST_ORGANIZATION_NAME,
     TEST_PERMISSION_NAME,
     TEST_ROLE_NAME,
@@ -31,7 +33,15 @@ from smarkee_dev_cleanup.model import (
 
 
 def is_test_organization(organization_id: str, name: str) -> bool:
-    return bool(UUID.match(organization_id) and TEST_ORGANIZATION_NAME.match(name))
+    if name in SYSTEM_ORGANIZATION_NAMES:
+        return False
+    if not TEST_ORGANIZATION_NAME.match(name):
+        return False
+    return bool(
+        UUID.match(organization_id)
+        or TEST_ID_PREFIX.match(organization_id)
+        or organization_id.startswith("ctl-")
+    )
 
 
 def is_test_user(email: str) -> bool:

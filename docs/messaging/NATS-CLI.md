@@ -191,10 +191,10 @@ Em `nats server check stream`, atenção: `--msgs-warn` e `--msgs-critical` são
 
 ## 7.1 A mensagem mais recente de um recurso
 
-O Subject de um recurso é `manager.desired.<módulo>.<tipo>.<resourceId>.changed` ([`NATS.md`](NATS.md) seção 3.6). Como `DESIRED` guarda o último estado, é aqui que se vê "o que a plataforma quer agora" para o recurso:
+O Subject de um recurso é `desired.<módulo>.<tipo>.<resourceId>` ([`NATS.md`](NATS.md) seção 3.6). Como `DESIRED` guarda o último estado, é aqui que se vê "o que a plataforma quer agora" para o recurso:
 
 ```bash
-nats stream get DESIRED --last-for 'manager.desired.ipm.serviceaccount.<resourceId>.changed'
+nats stream get DESIRED --last-for 'desired.ipm.serviceaccount.<resourceId>'
 ```
 
 A saída traz o Subject, a sequência, o horário, os cabeçalhos (`Nats-Msg-Id`) e o corpo JSON. Por sequência:

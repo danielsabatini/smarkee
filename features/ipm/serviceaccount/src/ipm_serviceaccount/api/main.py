@@ -46,8 +46,8 @@ async def run(settings: ServiceaccountApiSettings) -> int:
         instance = new_instance_name()
         catalog_consumers: dict[str, StateConsumer] = {}
         for suffix, subject in (
-            ("permissions", "manager.desired.ipm.permission.>"),
-            ("roles", "manager.desired.ipm.role.>"),
+            ("permissions", "desired.ipm.permission.>"),
+            ("roles", "desired.ipm.role.>"),
         ):
             consumer = StateConsumer(
                 runtime.stream,

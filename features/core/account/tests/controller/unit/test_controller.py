@@ -137,7 +137,7 @@ async def test_reconcile_creates_the_absent_account_and_saves_the_observation() 
     update = next(p for q, p in found if "UPDATE core.account SET observed" in q)
     assert "Ready" in update
     outbox = next(p for q, p in found if "core.account_outbox" in q)
-    assert outbox[2] == "manager.updated.core.account.acc-1.changed"
+    assert outbox[2] == "updated.core.account.acc-1"
     assert outbox[3].obj["correlationId"] == "corr-1"
 
 

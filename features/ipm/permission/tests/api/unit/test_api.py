@@ -245,7 +245,7 @@ async def test_create_permission_returns_201_and_publishes_desired(env: Environm
     assert payload["desired"]["deletionProtection"] is True
     assert len(env.admissions.outbox) == 1
     subject, message, _ = env.admissions.outbox[0]
-    assert subject == "manager.desired.ipm.permission.id-1.changed"
+    assert subject == "desired.ipm.permission.id-1"
     assert message["emitter"] == "api"
     assert message["desiredGeneration"] == 1
 

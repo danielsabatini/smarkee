@@ -53,7 +53,7 @@ async def run(settings: RoleApiSettings) -> int:
             PermissionCatalogWatcher(grantable),
             durable=f"ipm-role-api-permissions-{instance}",
             stream="DESIRED",
-            filter_subject="manager.desired.ipm.permission.>",
+            filter_subject="desired.ipm.permission.>",
             inactive_threshold_seconds=300,
             traced=False,
             on_cycle=runtime.health.beat,

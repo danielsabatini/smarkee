@@ -58,7 +58,7 @@ class PostgresSsot:
             gen = int(row[5]) if row[5] is not None else 1
 
             msg_id = deterministic_message_id(kind.module, kind.resource_type, r_id, gen)
-            subject = f"manager.desired.{kind.module}.{kind.resource_type}.{r_id}"
+            subject = f"desired.{kind.module}.{kind.resource_type}.{r_id}"
 
             payload_data = dict(desired)
             payload_data.setdefault("lifecycle", lifecycle)
@@ -68,11 +68,11 @@ class PostgresSsot:
                 "messageId": msg_id,
                 "schemaVersion": schema_ver,
                 "messageType": "desired",
-                "emitter": "manager",
+                "emitter": "api",
                 "module": kind.module,
                 "resourceType": kind.resource_type,
                 "resourceId": r_id,
-                "operation": "changed" if gen > 1 else "created",
+                "operation": "changed",
                 "desiredGeneration": gen,
                 "requestedBy": "system:republish",
                 "correlationId": deterministic_message_id(

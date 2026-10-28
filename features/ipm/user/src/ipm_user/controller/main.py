@@ -64,10 +64,10 @@ async def run(settings: UserControllerSettings) -> int:
                 on_cycle=runtime.health.beat,
             )
             for name, subject in (
-                ("desired", "manager.desired.ipm.user.>"),
-                ("permissions", "manager.desired.ipm.permission.>"),
-                ("roles", "manager.desired.ipm.role.>"),
-                ("groups", "manager.desired.ipm.group.>"),
+                ("desired", "desired.ipm.user.>"),
+                ("permissions", "desired.ipm.permission.>"),
+                ("roles", "desired.ipm.role.>"),
+                ("groups", "desired.ipm.group.>"),
             )
         }
         for name, consumer in informers.items():

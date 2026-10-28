@@ -24,7 +24,7 @@ async def last_desired(
     jetstream: JetStreamContext, resource_id: str, *, timeout: float = 15.0
 ) -> dict[str, Any]:
     """Última mensagem `desired` do recurso (o Publisher a entrega a partir do outbox)."""
-    subject = f"manager.desired.ipm.permission.{resource_id}.changed"
+    subject = f"desired.ipm.permission.{resource_id}"
     deadline = asyncio.get_running_loop().time() + timeout
     while True:
         try:

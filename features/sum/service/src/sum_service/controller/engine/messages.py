@@ -14,7 +14,7 @@ from sum_service.common.resource import MODULE, RESOURCE_TYPE, SCHEMA_VERSION
 
 
 def subject_of(message_type: str, resource_id: str) -> str:
-    return f"manager.{message_type}.{MODULE}.{RESOURCE_TYPE}.{resource_id}.changed"
+    return f"{message_type}.{MODULE}.{RESOURCE_TYPE}.{resource_id}"
 
 
 class Messages:
@@ -38,7 +38,7 @@ class Messages:
                 "messageId": self._identifiers(),
                 "schemaVersion": SCHEMA_VERSION,
                 "messageType": message_type,
-                "emitter": "manager",
+                "emitter": "controller",
                 "module": MODULE,
                 "resourceType": RESOURCE_TYPE,
                 "resourceId": resource_id,

@@ -16,7 +16,7 @@ from sum_service.controller.store.ssot import ControllerSsotStore
 
 logger = logging.getLogger(__name__)
 
-ACCOUNT_UPDATED_SUBJECT = "manager.updated.core.account.>"
+ACCOUNT_UPDATED_SUBJECT = "updated.core.account.>"
 
 
 def removed_account_id(data: bytes) -> str | None:

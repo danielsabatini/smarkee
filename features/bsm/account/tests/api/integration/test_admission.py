@@ -75,7 +75,7 @@ async def test_create_records_account_and_outbox_atomically(
 
     outbox = await outbox_of(resource_id)
     assert len(outbox) == 1
-    assert outbox[0][0] == f"manager.desired.bsm.account.{resource_id}.changed"
+    assert outbox[0][0] == f"desired.bsm.account.{resource_id}"
     assert outbox[0][1]["data"]["displayName"] == "Conta 1"
 
 

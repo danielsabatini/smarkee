@@ -362,7 +362,7 @@ async def test_create_admit_and_answers_201(harness: Harness) -> None:
     assert "ownerAccountId" not in response.text
 
     ((subject, payload, message_id),) = harness.store.outbox
-    assert subject == "manager.desired.bsm.account.ba-0001.changed"
+    assert subject == "desired.bsm.account.ba-0001"
     envelope = generated.MessageEnvelope.model_validate(payload)
     assert envelope.message_id == message_id
     assert (envelope.emitter.value, envelope.message_type.value) == ("api", "desired")
@@ -542,7 +542,7 @@ async def test_update_modifies_record_and_publishes_desired(harness: Harness) ->
     assert response.status_code == 200
     assert response.json()["desired"]["displayName"] == "Novo Nome"
     subject, payload, _ = harness.store.outbox[0]
-    assert subject == "manager.desired.bsm.account.ba-1.changed"
+    assert subject == "desired.bsm.account.ba-1"
     assert payload["data"]["displayName"] == "Novo Nome"
 
 
@@ -595,7 +595,7 @@ async def test_delete_requires_the_version_and_the_owner(harness: Harness) -> No
     ok = await harness.client.delete("/v1/bsm/accounts/ba-1?resourceVersion=3", headers=auth("ana"))
     assert ok.status_code == 202
     assert ok.json()["phase"] == "Deleting"
-    assert harness.store.outbox[0][0] == "manager.desired.bsm.account.ba-1.changed"
+    assert harness.store.outbox[0][0] == "desired.bsm.account.ba-1"
     assert harness.store.outbox[0][1]["data"]["lifecycle"] == "absent"
 
 

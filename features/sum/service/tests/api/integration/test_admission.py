@@ -112,7 +112,7 @@ async def test_enable_writes_the_link_and_the_desired_in_the_same_transaction(
     )
     assert await cursor.fetchone() == (owner, owner, "ipm")
     ((subject, payload),) = await outbox_of(record.resource_id)
-    assert subject == f"manager.desired.sum.service.{record.resource_id}.changed"
+    assert subject == f"desired.sum.service.{record.resource_id}"
     assert (payload["emitter"], payload["messageType"], payload["desiredGeneration"]) == (
         "api",
         "desired",

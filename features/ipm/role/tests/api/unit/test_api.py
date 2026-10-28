@@ -375,7 +375,7 @@ async def test_create_requires_the_create_permission_and_a_scope() -> None:
         assert body["observedGeneration"] == body["desiredGeneration"] == 1
         assert len(harness.admissions.outbox) == 1
         subject, message, _ = harness.admissions.outbox[0]
-        assert subject == f"manager.desired.ipm.role.{body['resourceId']}.changed"
+        assert subject == f"desired.ipm.role.{body['resourceId']}"
         assert message["emitter"] == "api"
         assert message["data"]["organizationId"] == "org-acme"
 

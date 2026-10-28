@@ -56,7 +56,7 @@ async def converges(jetstream: JetStreamContext, resource_id: str) -> None:
     await wait_for(
         jetstream,
         "UPDATED",
-        f"manager.updated.core.account.{resource_id}.changed",
+        f"updated.core.account.{resource_id}",
         lambda m: m["data"]["phase"] == "Ready",
         timeout=CONVERGENCE_TIMEOUT_SECONDS,
     )

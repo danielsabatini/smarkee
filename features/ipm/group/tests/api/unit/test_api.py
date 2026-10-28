@@ -467,7 +467,7 @@ async def test_delete_group_checks_protection_and_attached_users() -> None:
         assert deleted.json()["phase"] == "Deleting"
         assert group_id not in repo.groups
         subject, message, _ = adm.outbox[0]
-        assert subject == f"manager.desired.ipm.group.{group_id}.changed"
+        assert subject == f"desired.ipm.group.{group_id}"
         assert message["data"]["lifecycle"] == "absent"
         assert message["emitter"] == "api"
 

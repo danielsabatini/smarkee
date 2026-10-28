@@ -15,7 +15,7 @@ def message(resource_id: str, *, resource_type: str = "organization", **data: An
             "messageId": "01950000-0000-7000-8000-000000000001",
             "schemaVersion": "1.0",
             "messageType": "desired",
-            "emitter": "manager",
+            "emitter": "api",
             "module": "ipm",
             "resourceType": resource_type,
             "resourceId": resource_id,

@@ -9,7 +9,7 @@ import httpx
 from contracts import assert_valid
 from nats.js import JetStreamContext
 
-DESIRED_SUBJECT = "manager.desired.ipm.organization.{resource_id}.changed"
+DESIRED_SUBJECT = "desired.ipm.organization.{resource_id}"
 REQUESTED_SUBJECT = "receiver.requested.ipm.organization.{resource_id}.{operation}"
 DIGEST = "0" * 64
 

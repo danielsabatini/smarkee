@@ -96,7 +96,7 @@ async def test_create_writes_the_resource_and_the_desired_in_the_same_transactio
     )
     assert (await cursor.fetchone() or ("",))[0] == REQUESTER
     ((subject, payload),) = await outbox_of(resource_id)
-    assert subject == f"manager.desired.core.account.{resource_id}.changed"
+    assert subject == f"desired.core.account.{resource_id}"
     assert (payload["emitter"], payload["messageType"], payload["desiredGeneration"]) == (
         "api",
         "desired",

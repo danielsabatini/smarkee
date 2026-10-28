@@ -12,12 +12,7 @@ class MessageType(StrEnum):
     Tipo semântico da mensagem.
     """
 
-    requested = "requested"
     desired = "desired"
-    observed = "observed"
-    action = "action"
-    completed = "completed"
-    failed = "failed"
     updated = "updated"
 
 
@@ -27,11 +22,7 @@ class MessageEmitter(StrEnum):
     """
 
     api = "api"
-    receiver = "receiver"
-    manager = "manager"
-    observer = "observer"
-    reconciler = "reconciler"
-    executor = "executor"
+    controller = "controller"
 
 
 class MessageOperation(StrEnum):

@@ -23,8 +23,8 @@ READY_SECONDS = 60.0
 def subject_of(kind: str, resource_id: str) -> tuple[str, str]:
     """Stream e Subject da última mensagem de cada tipo do recurso."""
     return {
-        "desired": ("DESIRED", f"manager.desired.ipm.organization.{resource_id}.changed"),
-        "updated": ("UPDATED", f"manager.updated.ipm.organization.{resource_id}.changed"),
+        "desired": ("DESIRED", f"desired.ipm.organization.{resource_id}"),
+        "updated": ("UPDATED", f"updated.ipm.organization.{resource_id}"),
     }[kind]
 
 

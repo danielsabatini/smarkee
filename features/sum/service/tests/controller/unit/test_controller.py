@@ -121,7 +121,7 @@ async def test_reconcile_enables_the_link_and_saves_the_observation() -> None:
     update = next(p for q, p in found if "UPDATE sum.service SET observed" in q)
     assert "Ready" in update
     outbox = next(p for q, p in found if "sum.service_outbox" in q)
-    assert outbox[2] == "manager.updated.sum.service.link-1.changed"
+    assert outbox[2] == "updated.sum.service.link-1"
     assert outbox[3].obj["correlationId"] == "corr-1"
 
 

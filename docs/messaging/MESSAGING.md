@@ -77,7 +77,7 @@ O interesse do consumidor é expresso por subscription, consumer, grupo de consu
 Exemplo:
 
 ```text
-manager.desired.ipm.organization.<resourceId>.changed
+desired.ipm.organization.<resourceId>
 ```
 
 O subject não afirma que a mensagem é destinada exclusivamente a um determinado consumidor.
@@ -285,12 +285,12 @@ A validação interna da solicitação não precisa gerar uma mensagem `validate
 
 ## 5.2 `desired`
 
-Representa o estado desejado estabelecido pelo componente responsável pelo SSOT.
+Representa o estado desejado estabelecido pelo componente responsável pelo SSOT (API ou Controller).
 
 Exemplo:
 
 ```text
-manager.desired.ipm.organization.<organizationId>.changed
+desired.ipm.organization.<organizationId>
 ```
 
 Características:
@@ -299,8 +299,8 @@ Características:
 - versionado por `desiredGeneration`;
 - idempotente;
 - independente de uma sequência específica de comandos;
-- suficientemente completo para que o reconciler determine o delta necessário;
-- uma mensagem de estado: o `desired` mais recente do recurso (maior `desiredGeneration`) substitui os anteriores. A operação é sempre `changed`.
+- suficientemente completo para que o controller determine o delta necessário;
+- uma mensagem de estado: o `desired` mais recente do recurso (maior `desiredGeneration`) substitui os anteriores. O Subject de 4 tokens segue `<messageType>.<module>.<resourceType>.<resourceId>`.
 
 ## 5.3 `observed`
 
@@ -377,12 +377,12 @@ Representa uma alteração consolidada no recurso ou no seu estado persistido.
 Exemplo:
 
 ```text
-manager.updated.ipm.organization.<organizationId>.changed
+updated.ipm.organization.<organizationId>
 ```
 
 O `updated` é útil para consumidores interessados em projeções, auditoria, métricas ou notificações.
 
-O `data` do `updated` traz `desiredGeneration` e `observedGeneration` (decisão 0072, modelo do Kubernetes). Iguais, com `phase = Ready`: a última alteração terminou. `observedGeneration` menor: a alteração está em andamento. `observedGeneration` nunca é maior que `desiredGeneration`, e o par é gravado pelo Manager na mesma unidade atômica do estado (`RESOURCE-CONTROL-LOOP.md`, seção 36).
+O `data` do `updated` traz `desiredGeneration` e `observedGeneration` (decisão 0072, modelo do Kubernetes). Iguais, com `phase = Ready`: a última alteração terminou. `observedGeneration` menor: a alteração está em andamento. `observedGeneration` nunca é maior que `desiredGeneration`, e o par é gravado na mesma unidade atômica do estado.
 
 Não deve ser utilizado como substituto de `desired` ou `observed`.
 
