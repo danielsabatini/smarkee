@@ -28,9 +28,7 @@ class Kind:
 
 
 ACCOUNTS = Kind("core", "account", "core.account", "core.account_outbox", "core_account_api_login")
-SERVICES = Kind(
-    "sum", "service", "sum.service", "sum.service_outbox", "sum_service_manager_login"
-)
+SERVICES = Kind("sum", "service", "sum.service", "sum.service_outbox", "sum_service_api_login")
 ORGANIZATIONS = Kind(
     "ipm",
     "organization",

@@ -13,7 +13,7 @@ API_URL = os.environ.get("CONFORMANCE_API_URL", "http://localhost:8080")
 API_HOST = os.environ.get("CONFORMANCE_API_HOST", "api-dev.smarkee.com.br")
 ACCESS_TOKEN = os.environ.get("CONFORMANCE_ACCESS_TOKEN")
 # Conexões dos papéis de dev do SSOT. Sem elas, a limpeza no banco é pulada e o teste informa isso.
-MANAGER_DATABASE_URL = os.environ.get("CONFORMANCE_SUM_MANAGER_DATABASE_URL")
+CONTROLLER_DATABASE_URL = os.environ.get("CONFORMANCE_SUM_CONTROLLER_DATABASE_URL")
 MAINTENANCE_DATABASE_URL = os.environ.get("CONFORMANCE_SUM_MAINTENANCE_DATABASE_URL")
 
 
@@ -47,19 +47,19 @@ async def created_resource_ids() -> AsyncIterator[list[str]]:
 async def _cleanup_database(resource_ids: list[str]) -> None:
     """Remove as linhas de teste, mas só as de ligações já desligadas pela API (`absent`).
 
-    Apagar uma ligação ainda `present` deixaria o Zitadel e o Reconciler com uma ligação sem
-    linha no SSOT (um órfão que falha para sempre). Por isso ela é mantida e o teste falha.
+    Apagar uma ligação ainda `present` deixaria o Zitadel com permissões sem linha no SSOT (um
+    órfão que ninguém mais revoga). Por isso ela é mantida e o teste falha.
     """
-    if MANAGER_DATABASE_URL is None or MAINTENANCE_DATABASE_URL is None:
+    if CONTROLLER_DATABASE_URL is None or MAINTENANCE_DATABASE_URL is None:
         return  # sem os papéis de dev: a limpeza é opcional e as linhas ficam como estão
-    manager: psycopg.AsyncConnection[Any] = await psycopg.AsyncConnection.connect(
-        MANAGER_DATABASE_URL, autocommit=True
+    controller: psycopg.AsyncConnection[Any] = await psycopg.AsyncConnection.connect(
+        CONTROLLER_DATABASE_URL, autocommit=True
     )
     maintenance: psycopg.AsyncConnection[Any] = await psycopg.AsyncConnection.connect(
         MAINTENANCE_DATABASE_URL, autocommit=True
     )
     try:
-        cursor = await manager.execute(
+        cursor = await controller.execute(
             "SELECT resource_id FROM sum.service "
             "WHERE resource_id = ANY(%s) AND lifecycle = 'present'",
             (resource_ids,),
@@ -70,17 +70,13 @@ async def _cleanup_database(resource_ids: list[str]) -> None:
                 f"ligação(ões) ainda ligada(s) no fim do teste: {still_present}. "
                 "Desligue pela API antes de limpar; não apague a linha à mão."
             )
-        removable = list(resource_ids)
-        # A ligação (papel do Manager) é apagada por último: é a raiz das outras linhas.
-        for table in ("service_outbox", "service_operation", "service_action_result"):
-            await maintenance.execute(
-                f"DELETE FROM sum.{table} WHERE resource_id = ANY(%s)",  # noqa: S608 (tabela fixa)
-                (removable,),
-            )
-        await manager.execute(
+        await maintenance.execute(
+            "DELETE FROM sum.service_outbox WHERE resource_id = ANY(%s)", (resource_ids,)
+        )
+        await controller.execute(
             "DELETE FROM sum.service WHERE resource_id = ANY(%s) AND lifecycle = 'absent'",
-            (removable,),
+            (resource_ids,),
         )
     finally:
-        await manager.close()
+        await controller.close()
         await maintenance.close()

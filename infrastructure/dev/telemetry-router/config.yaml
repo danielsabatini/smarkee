@@ -61,7 +61,7 @@ connectors:
     error_mode: ignore
     table:
       - context: span
-        condition: attributes["apisix.service_name"] == "bsm-account-receiver"
+        condition: attributes["apisix.service_name"] == "bsm-account-api"
         pipelines: [traces/bsm_account]
       - context: span
         condition: attributes["apisix.service_name"] == "core-account-api"
@@ -85,7 +85,7 @@ connectors:
         condition: attributes["apisix.service_name"] == "ipm-serviceaccount-api"
         pipelines: [traces/ipm_serviceaccount]
       - context: span
-        condition: attributes["apisix.service_name"] == "sum-service-receiver"
+        condition: attributes["apisix.service_name"] == "sum-service-api"
         pipelines: [traces/sum_service]
 
 receivers:

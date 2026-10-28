@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ServiceDefinitions",
-  "description": "Campos de domínio do SUM reutilizados pelos contratos do recurso. O serviço é um nome do catálogo do Manager (decisão 0033), por isso o contrato valida o formato, não a lista.",
+  "description": "Campos de domínio do SUM reutilizados pelos contratos do recurso. O serviço é um nome do catálogo de serviços (decisão 0033), por isso o contrato valida o formato, não a lista.",
   "x-schemaVersion": "1.0",
   "$defs": {
     "service": {
-      "description": "Serviço da plataforma que o usuário liga, por exemplo ipm (a Organization). Nome curto, em minúsculas, sem o módulo. Só vale se estiver no catálogo do Manager.",
+      "description": "Serviço da plataforma que o usuário liga, por exemplo ipm (a Organization). Nome curto, em minúsculas, sem o módulo. Só vale se estiver no catálogo de serviços.",
       "type": "string",
       "minLength": 2,
       "maxLength": 32,

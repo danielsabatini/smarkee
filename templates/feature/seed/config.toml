@@ -1,31 +1,18 @@
 # Configuração de dev de @@DOTTED@@ (decisão 0067). Sem segredos: eles vêm do ambiente ou de /run/secrets.
 # Tabela por papel: [tool.@@DOTTED@@.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
 
-[tool.@@DOTTED@@.receiver.auth]
+[tool.@@DOTTED@@.api.auth]
 host_header = "ipm-dev.smarkee.com.br:8080"
 issuer = "http://ipm-dev.smarkee.com.br:8080"
 jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
 
-[tool.@@DOTTED@@.receiver.database]
+[tool.@@DOTTED@@.api.database]
 host = "database.smarkee.internal"
 name = "ssot"
 port = 5432
-user = "@@PACKAGE@@_receiver_login"
+user = "@@PACKAGE@@_api_login"
 
-[tool.@@DOTTED@@.receiver.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-
-[tool.@@DOTTED@@.receiver.peers]
-organizations_url = "http://ipm-organization-api.smarkee.internal:8000"
-
-[tool.@@DOTTED@@.manager.database]
-host = "database.smarkee.internal"
-name = "ssot"
-port = 5432
-user = "@@PACKAGE@@_manager_login"
-
-[tool.@@DOTTED@@.manager.messaging]
+[tool.@@DOTTED@@.api.messaging]
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
@@ -39,25 +26,17 @@ user = "@@PACKAGE@@_publisher_login"
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
 
-[tool.@@DOTTED@@.observer.identity]
+[tool.@@DOTTED@@.controller.database]
+host = "database.smarkee.internal"
+name = "ssot"
+port = 5432
+user = "@@PACKAGE@@_controller_login"
+
+[tool.@@DOTTED@@.controller.identity]
 base_url = "http://identity.smarkee.internal:8080"
 host_header = "ipm-dev.smarkee.com.br:8080"
 issuer = "http://ipm-dev.smarkee.com.br:8080"
 
-[tool.@@DOTTED@@.observer.messaging]
+[tool.@@DOTTED@@.controller.messaging]
 url = "nats://messaging.smarkee.internal:4222"
 user = "smarkee"
-
-[tool.@@DOTTED@@.reconciler.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-
-[tool.@@DOTTED@@.executor.identity]
-base_url = "http://identity.smarkee.internal:8080"
-host_header = "ipm-dev.smarkee.com.br:8080"
-issuer = "http://ipm-dev.smarkee.com.br:8080"
-
-[tool.@@DOTTED@@.executor.messaging]
-url = "nats://messaging.smarkee.internal:4222"
-user = "smarkee"
-

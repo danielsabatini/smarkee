@@ -87,7 +87,9 @@ CREATE INDEX IF NOT EXISTS service_outbox_published
   ON sum.service_outbox (published_at) WHERE published_at IS NOT NULL;
 
 -- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count.
-CREATE OR REPLACE VIEW sum.service_v1 AS
+-- DROP VIEW prévio permite reaplicar a migração mesmo após a 0009 adicionar observed_generation.
+DROP VIEW IF EXISTS sum.service_v1;
+CREATE VIEW sum.service_v1 AS
   SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
          resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
     FROM sum.service;
@@ -100,25 +102,16 @@ CREATE OR REPLACE VIEW sum.service_operation_v1 AS
     FROM sum.service_operation;
 
 -- Privilégios (docs/data/POSTGRESQL.md §14.2).
+-- Os papéis `..._manager` e `..._receiver` não existem mais (decisão 0098): os privilégios do
+-- `api` e do `controller` vêm da migração 0009.
 GRANT CONNECT ON DATABASE ssot
-  TO sum_service_manager, sum_service_receiver, sum_service_publisher, sum_service_maintenance;
+  TO sum_service_publisher, sum_service_maintenance;
 
 REVOKE ALL ON SCHEMA sum FROM PUBLIC;
 GRANT USAGE ON SCHEMA sum
-  TO sum_service_manager, sum_service_receiver, sum_service_publisher, sum_service_maintenance;
+  TO sum_service_publisher, sum_service_maintenance;
 
 REVOKE ALL ON sum.service, sum.service_operation, sum.service_action_result, sum.service_outbox FROM PUBLIC;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON sum.service              TO sum_service_manager;
-GRANT SELECT, INSERT, UPDATE         ON sum.service_operation    TO sum_service_manager;
-GRANT SELECT, INSERT                 ON sum.service_action_result TO sum_service_manager;
-GRANT INSERT                         ON sum.service_outbox       TO sum_service_manager;
-
-GRANT SELECT ON sum.service_v1, sum.service_operation_v1 TO sum_service_receiver;
-
 GRANT SELECT ON sum.service_outbox TO sum_service_publisher;
 GRANT UPDATE (published_at) ON sum.service_outbox TO sum_service_publisher;
-
-GRANT SELECT, DELETE
-  ON sum.service_outbox, sum.service_action_result, sum.service_operation
-  TO sum_service_maintenance;

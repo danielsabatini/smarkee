@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ServiceDesiredData",
-  "description": "data de desired do SUM: a ligação de um serviço para um usuário. Publicado somente pelo Manager, a partir do pedido aceito pelo Receiver e do catálogo de serviços (decisão 0033). Sem dados pessoais: o usuário é referenciado pelo ownerAccountId.",
+  "description": "data de desired do SUM: a ligação de um serviço para um usuário. Publicado somente pela API (e pelo Controller ao suspender a reconciliação), a partir do pedido admitido e do catálogo de serviços (decisões 0033 e 0098). Sem dados pessoais: o usuário é referenciado pelo ownerAccountId.",
   "x-schemaVersion": "1.0",
   "x-resourceParameters": {
     "observationInterval": "PT5M",
@@ -38,7 +38,7 @@
     },
     "ownerAccountId": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId",
-      "description": "ID do usuário dono da ligação: o `resourceId` da Account (decisão 0014). Atribuído pelo Receiver a partir do token do solicitante.",
+      "description": "ID do usuário dono da ligação: o `resourceId` da Account (decisão 0014). Atribuído pela API a partir do token do solicitante.",
       "x-writer": "server",
       "x-mutability": "immutable",
       "x-managed": true,
@@ -54,7 +54,7 @@
     },
     "servicePermissions": {
       "$ref": "definitions.v1.schema.json#/$defs/servicePermissions",
-      "description": "Permissões que o usuário deve ter para usar o serviço. Copiadas do catálogo do Manager na ligação; vazias quando lifecycle é absent.",
+      "description": "Permissões que o usuário deve ter para usar o serviço. Copiadas do catálogo de serviços na ligação; vazias quando lifecycle é absent.",
       "x-writer": "server",
       "x-mutability": "mutable",
       "x-managed": true,
@@ -62,7 +62,7 @@
     },
     "managedPermissions": {
       "$ref": "definitions.v1.schema.json#/$defs/servicePermissions",
-      "description": "Permissões do serviço que esta ligação controla: as do catálogo no momento em que o Manager gravou o desired, mais as que saíram do catálogo depois (decisão 0079). Com a ligação ativa, o usuário tem as de servicePermissions e nenhuma das demais; desligada, nenhuma. O Observer e o Executor leem as permissões daqui, sem catálogo próprio. Ausente só em desired gravado antes da decisão 0079.",
+      "description": "Permissões do serviço que esta ligação controla: as do catálogo no momento em que a API gravou o desired, mais as que saíram do catálogo depois (decisão 0079). Com a ligação ativa, o usuário tem as de servicePermissions e nenhuma das demais; desligada, nenhuma. O Observer e o Executor leem as permissões daqui, sem catálogo próprio. Ausente só em desired gravado antes da decisão 0079.",
       "x-writer": "server",
       "x-mutability": "mutable",
       "x-managed": false,

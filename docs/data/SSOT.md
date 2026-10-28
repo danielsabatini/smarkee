@@ -93,6 +93,8 @@ Não existe inbox: a idempotência de entrada é garantida pelas regras semânti
 
 ![Modelo lógico do SSOT](../diagrams/ssot-er-logico.svg)
 
+> **Estado atual:** nas features `api` + `publisher` + `controller` (decisões `0096`, `0098` e `0100`) não existem Operation nem resultado de ação: a API admite a escrita na requisição e o progresso se lê no próprio Resource (`observedGeneration`, `phase`, conditions). O restante desta seção descreve o desenho de referência do loop de sete papéis.
+
 *Fonte: [`diagrams/ssot-er-logico.mmd`](../diagrams/ssot-er-logico.mmd).* Para cada tipo de recurso existem **quatro conjuntos de registros**, todos com a mesma estrutura: o **Resource** (o estado consolidado, um registro por recurso), a **Operation** (um registro por pedido), o **ActionResult** (um por `actionId` já contabilizado) e o **Outbox** (uma mensagem por linha, à espera de publicação). Todos se relacionam pelo `resourceId`.
 
 **As relações são lógicas, e não chaves estrangeiras, de propósito:** a Operation sobrevive à remoção física do recurso até a sua retenção (ela é a resposta a "o que aconteceu com o meu pedido?"), e o ActionResult e o Outbox têm ciclos de vida próprios. A consistência entre eles vem da **unidade atômica de gravação** (seção 10): tudo o que uma mensagem altera é gravado em uma única transação.

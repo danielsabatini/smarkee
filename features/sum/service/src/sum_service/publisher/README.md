@@ -1,7 +1,7 @@
 # sum-service-publisher
 
-Publisher de `sum.service` (`sum-service-publisher`), um dos seis papéis da imagem única `sum-service` (decisões 0015 e 0063), com processo e contêiner próprios. Veja o [README da feature](../../../README.md). Lê o outbox
-gravado pelo Manager e publica no NATS (decisão 0033).
+Publisher de `sum.service` (`sum-service-publisher`), um dos três papéis da imagem única `sum-service` (decisões 0063 e 0098), ao lado da API e do Controller, com processo e contêiner próprios. Veja o [README da feature](../../../README.md). Lê o outbox
+gravado pela API (`desired`) e pelo Controller (`updated`) e publica no NATS (decisão 0033).
 
 ## Regras
 
@@ -27,7 +27,7 @@ uv run pytest                  # unitários e de integração (os de integraçã
 uv run ruff check . && uv run pyright
 ```
 
-Variáveis dos testes de integração: `SUM_SERVICE_PUBLISHER_TEST_URL`, `..._TEST_MANAGER_URL` (grava a linha
+Variáveis dos testes de integração: `SUM_SERVICE_PUBLISHER_TEST_URL`, `..._TEST_API_URL` (grava a linha
 do outbox), `..._TEST_MAINTENANCE_URL` (limpeza) e `..._TEST_NATS_URL`, `..._TEST_NATS_USER`,
 `..._TEST_MESSAGING_PASSWORD`. O teste de publicação usa um Stream temporário e não toca no `DESIRED`.
 

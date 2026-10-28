@@ -17,6 +17,10 @@ SCHEMAS_ROOT = PROJECT_ROOT.parents[2] / "schemas"
 GENERATED_MODULE = PROJECT_ROOT / "src" / "sum_service" / "common" / "contracts" / "generated.py"
 INDEX = SCHEMAS_ROOT / "sum.service.index.json"
 
+# Contratos comuns que esta feature não usa depois da API síncrona (decisão 0098): a Operation e a
+# resposta `202` com `operationId` ficam para as features que ainda têm Receiver e Manager.
+UNUSED_COMMON = {"operation", "api-accepted-response"}
+
 EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "common/message-envelope.example.json": generated.MessageEnvelope,
     "common/condition.example.json": generated.Condition,
@@ -24,13 +28,9 @@ EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "common/completed.example.json": generated.CompletedData,
     "common/failed.example.json": generated.FailedData,
     "common/updated.example.json": generated.UpdatedData,
-    "common/operation.example.json": generated.Operation,
-    "common/api-accepted-response.example.json": generated.ApiAcceptedResponse,
     "common/api-error.example.json": generated.ApiError,
     "sum/service/desired.example.json": generated.ServiceDesiredData,
     "sum/service/observed.example.json": generated.ServiceObservedData,
-    "sum/service/requested-create.example.json": generated.ServiceRequestedCreateData,
-    "sum/service/requested-delete.example.json": generated.ServiceRequestedDeleteData,
     "sum/service/api-create-request.example.json": generated.ServiceCreateRequest,
     "sum/service/api-list-response.example.json": generated.ServiceListResponse,
     "sum/service/resource.example.json": generated.ServiceResource,
@@ -65,7 +65,7 @@ def test_index_lists_every_contract() -> None:
         str(path.relative_to(SCHEMAS_ROOT))
         for directory in ("common", "sum/service")
         for path in (SCHEMAS_ROOT / directory).rglob("*.v*.schema.json")
-        if not path.name.startswith("definitions.")
+        if not path.name.startswith("definitions.") and path.name.split(".")[0] not in UNUSED_COMMON
     }
     assert listed == contracts
 
@@ -75,6 +75,7 @@ def test_every_example_has_a_model() -> None:
         str(path.relative_to(SCHEMAS_ROOT))
         for directory in ("common", "sum/service")
         for path in (SCHEMAS_ROOT / directory).rglob("*.example.json")
+        if path.name.split(".")[0] not in UNUSED_COMMON
     }
     assert examples == set(EXAMPLE_MODELS)
 

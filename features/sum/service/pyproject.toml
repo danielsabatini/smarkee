@@ -1,7 +1,7 @@
 [project]
 name = "sum-service"
 version = "0.1.0"
-description = "Componente sum.service (decisão 0063): um projeto e uma imagem, com um entrypoint por papel (receiver, manager, publisher, observer, reconciler e executor)."
+description = "Componente sum.service (decisão 0063): um projeto e uma imagem, com um entrypoint por papel (api, publisher e controller)."
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.143.0",
@@ -17,12 +17,9 @@ dependencies = [
 
 # Um entrypoint por papel: cada papel roda como processo e contêiner próprios (decisão 0063).
 [project.scripts]
-sum-service-receiver = "sum_service.receiver.main:main"
-sum-service-manager = "sum_service.manager.main:main"
+sum-service-api = "sum_service.api.main:main"
 sum-service-publisher = "sum_service.publisher.main:main"
-sum-service-observer = "sum_service.observer.main:main"
-sum-service-reconciler = "sum_service.reconciler.main:main"
-sum-service-executor = "sum_service.executor.main:main"
+sum-service-controller = "sum_service.controller.main:main"
 
 [build-system]
 requires = ["uv_build>=0.11.19,<0.12"]
@@ -50,14 +47,14 @@ select = ["E", "W", "F", "I", "N", "UP", "B", "S", "SIM", "RUF"]
 [tool.pyright]
 pythonVersion = "3.14"
 typeCheckingMode = "strict"
-include = ["src", "tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/observer", "tests/reconciler", "tests/executor"]
+include = ["src", "tests/common", "tests/api", "tests/publisher", "tests/controller"]
 
 [tool.pytest.ini_options]
 # `tests/e2e` é um projeto à parte (black-box, decisão 0017) e não entra aqui.
-testpaths = ["tests/common", "tests/receiver", "tests/manager", "tests/publisher", "tests/observer", "tests/reconciler", "tests/executor"]
+testpaths = ["tests/common", "tests/api", "tests/publisher", "tests/controller"]
 addopts = ["--import-mode=importlib"]
 # Cada papel com testes de integração tem o seu módulo de apoio (`support_<papel>`).
-pythonpath = ["tests/receiver/integration", "tests/manager/integration", "tests/publisher/integration"]
+pythonpath = ["tests/api/integration", "tests/publisher/integration", "tests/controller/integration"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 

@@ -22,12 +22,6 @@
       "$ref": "common/updated.v1.schema.json"
     },
     {
-      "$ref": "common/operation.v1.schema.json"
-    },
-    {
-      "$ref": "common/api-accepted-response.v1.schema.json"
-    },
-    {
       "$ref": "common/api-error.v1.schema.json"
     },
     {
@@ -44,12 +38,6 @@
     },
     {
       "$ref": "sum/service/resource.v1.schema.json"
-    },
-    {
-      "$ref": "sum/service/requested-create.v1.schema.json"
-    },
-    {
-      "$ref": "sum/service/requested-delete.v1.schema.json"
     }
   ]
 }

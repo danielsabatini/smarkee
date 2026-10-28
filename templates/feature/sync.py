@@ -38,14 +38,6 @@ NAME = re.compile(r"[a-z][a-z0-9]*")
 # Uma feature entra num perfil quando o seu código já é igual ao do modelo; as demais seguem com
 # os seus.
 PROFILES: dict[str, tuple[str, ...]] = {
-    # Perfis do loop de sete papéis sem nenhuma feature (a `core/account` migrou para `api`,
-    # decisão 0098): ficam vazios até a limpeza do template (etapa S6).
-    "receiver-http": (),
-    "identity-metadata": (),
-    "loop-engines": (),
-    # Contexto de trace e OpenAPI do Receiver: todas as features com Receiver (a `ipm/serviceaccount`
-    # tem `api`, decisão 0098).
-    "receiver-base": ("sum/service",),
     # Processo `api` (decisão 0098): probes, OpenAPI e contexto de trace; as demais peças são do tipo.
     "api-http": (
         "bsm/account",
@@ -56,6 +48,7 @@ PROFILES: dict[str, tuple[str, ...]] = {
         "ipm/role",
         "ipm/serviceaccount",
         "ipm/user",
+        "sum/service",
     ),
     # Projeção local das Organizations (dono e ciclo de vida) a partir do `DESIRED`: substitui a
     # consulta HTTP à API da Organization (decisão 0100).
@@ -74,15 +67,6 @@ PROFILES: dict[str, tuple[str, ...]] = {
         "ipm/serviceaccount",
         "ipm/user",
     ),
-    # Envelope, publicação e persistência de `observed` e do resultado, com a convergência e os
-    # erros do Manager, sem regra do tipo. O `sum/service` usa só este perfil (decisão 0080).
-    "manager-handlers": ("sum/service",),
-    # Observação e resultado no Manager (`observed`, `result`, convergência e prazo de observação): só
-    # nas features com o loop de sete papéis; o Controller (decisão 0096) faz isso no próprio ciclo.
-    "manager-observation": ("sum/service",),
-    # Fontes de estado do Reconciler (`DESIRED`, `OBSERVED` e `RESULT`): só as features com o loop
-    # de sete papéis (decisão 0096 aposenta o Reconciler nas demais).
-    "reconciler-streams": ("sum/service",),
 }
 
 

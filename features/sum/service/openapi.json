@@ -1,69 +1,6 @@
 {
   "components": {
     "schemas": {
-      "ApiAcceptedResponse": {
-        "additionalProperties": false,
-        "description": "Resposta das escritas assíncronas (POST, PATCH, DELETE): o pedido foi publicado, não aplicado (RESOURCE-CONTROL-LOOP.md, Interface HTTP).",
-        "properties": {
-          "operationId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Operationid",
-            "type": "string"
-          },
-          "resourceId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Resourceid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "resourceId",
-          "operationId"
-        ],
-        "title": "ApiAcceptedResponse",
-        "type": "object"
-      },
-      "ApiError": {
-        "additionalProperties": false,
-        "description": "Corpo das respostas de erro do Receiver. A mensagem identifica o campo e a regra violada e não repete valores confidential nem secretReference (SCHEMA.md, Limites e erros).",
-        "properties": {
-          "errorCode": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[A-Z][A-Za-z0-9]*$",
-            "title": "Errorcode",
-            "type": "string"
-          },
-          "field": {
-            "anyOf": [
-              {
-                "maxLength": 256,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Field"
-          },
-          "message": {
-            "maxLength": 4096,
-            "title": "Message",
-            "type": "string"
-          }
-        },
-        "required": [
-          "errorCode",
-          "message"
-        ],
-        "title": "ApiError",
-        "type": "object"
-      },
       "Condition": {
         "additionalProperties": false,
         "description": "Fato consolidado do recurso (RESOURCE-CONTROL-LOOP.md, Conditions). Mantida pelo Manager.",
@@ -134,6 +71,19 @@
         "title": "ConditionStatus",
         "type": "string"
       },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "Lifecycle": {
         "description": "Intenção de existência, em desired.",
         "enum": [
@@ -141,136 +91,6 @@
           "absent"
         ],
         "title": "Lifecycle",
-        "type": "string"
-      },
-      "Operation": {
-        "additionalProperties": false,
-        "description": "Acompanhamento de uma solicitação assíncrona, exposto por GET /v1/operations/{operationId} (SSOT.md, Operation).",
-        "properties": {
-          "completedAt": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completedat"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "title": "Createdat",
-            "type": "string"
-          },
-          "desiredGeneration": {
-            "anyOf": [
-              {
-                "maximum": 9007199254740991.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Desiredgeneration"
-          },
-          "module": {
-            "maxLength": 63,
-            "minLength": 1,
-            "pattern": "^[a-z][a-z0-9-]*$",
-            "title": "Module",
-            "type": "string"
-          },
-          "operationId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Operationid",
-            "type": "string"
-          },
-          "operationStatus": {
-            "$ref": "#/components/schemas/OperationStatus"
-          },
-          "operationStatusReason": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/OperationStatusReason"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "OperationStatusReason"
-          },
-          "operationType": {
-            "$ref": "#/components/schemas/OperationType"
-          },
-          "resourceId": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-            "title": "Resourceid",
-            "type": "string"
-          },
-          "resourceType": {
-            "maxLength": 63,
-            "minLength": 1,
-            "pattern": "^[a-z][a-z0-9-]*$",
-            "title": "Resourcetype",
-            "type": "string"
-          },
-          "updatedAt": {
-            "format": "date-time",
-            "title": "Updatedat",
-            "type": "string"
-          }
-        },
-        "required": [
-          "operationId",
-          "operationType",
-          "module",
-          "resourceType",
-          "resourceId",
-          "operationStatus",
-          "createdAt",
-          "updatedAt"
-        ],
-        "title": "Operation",
-        "type": "object"
-      },
-      "OperationStatus": {
-        "enum": [
-          "accepted",
-          "in_progress",
-          "completed",
-          "failed",
-          "rejected",
-          "superseded"
-        ],
-        "title": "OperationStatus",
-        "type": "string"
-      },
-      "OperationStatusReason": {
-        "description": "Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).",
-        "enum": [
-          "conflict",
-          "validation",
-          "not_found",
-          "protected"
-        ],
-        "title": "OperationStatusReason",
-        "type": "string"
-      },
-      "OperationType": {
-        "enum": [
-          "create",
-          "update",
-          "delete"
-        ],
-        "title": "OperationType",
         "type": "string"
       },
       "Phase": {
@@ -296,7 +116,7 @@
       },
       "ServiceCreateRequest": {
         "additionalProperties": false,
-        "description": "Corpo de POST /v1/sum/services. O solicitante é o dono da ligação (vem do token, nunca do corpo). O Receiver atribui resourceId, operationId e requestDigest. A ligação é do solicitante: o corpo não escolhe o usuário.",
+        "description": "Corpo de POST /v1/sum/services. O solicitante é o dono da ligação (vem do token, nunca do corpo). A API atribui o resourceId. A ligação é do solicitante: o corpo não escolhe o usuário.",
         "properties": {
           "service": {
             "maxLength": 32,
@@ -314,7 +134,7 @@
       },
       "ServiceDesiredData": {
         "additionalProperties": false,
-        "description": "data de desired do SUM: a ligação de um serviço para um usuário. Publicado somente pelo Manager, a partir do pedido aceito pelo Receiver e do catálogo de serviços (decisão 0033). Sem dados pessoais: o usuário é referenciado pelo ownerAccountId.",
+        "description": "data de desired do SUM: a ligação de um serviço para um usuário. Publicado somente pela API (e pelo Controller ao suspender a reconciliação), a partir do pedido admitido e do catálogo de serviços (decisões 0033 e 0098). Sem dados pessoais: o usuário é referenciado pelo ownerAccountId.",
         "properties": {
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle"
@@ -421,7 +241,7 @@
       },
       "ServiceResource": {
         "additionalProperties": false,
-        "description": "Visão consolidada da ligação de um serviço exposta pelo Receiver (GET /v1/sum/services/{resourceId}), legível pelo dono da ligação e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).",
+        "description": "Visão consolidada da ligação de um serviço exposta pela API (GET /v1/sum/services/{resourceId}), legível pelo dono da ligação e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).",
         "properties": {
           "conditions": {
             "items": {
@@ -454,6 +274,19 @@
                 "type": "null"
               }
             ]
+          },
+          "observedGeneration": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observedgeneration"
           },
           "phase": {
             "$ref": "#/components/schemas/Phase"
@@ -490,34 +323,80 @@
         ],
         "title": "ServiceResource",
         "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
       }
     }
   },
   "info": {
     "title": "smarkee sum service api",
-    "version": "1.0"
+    "version": "0.1.0"
   },
   "openapi": "3.1.0",
   "paths": {
     "/health/live": {
       "get": {
-        "operationId": "live_health_live_get",
+        "operationId": "health_live_health_live_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Live Health Live Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
           }
         },
-        "summary": "Live"
+        "summary": "Health Live"
       }
     },
     "/health/ready": {
       "get": {
-        "operationId": "ready_health_ready_get",
+        "operationId": "health_ready_health_ready_get",
         "responses": {
           "200": {
             "content": {
@@ -528,23 +407,29 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Ready"
+        "summary": "Health Ready"
       }
     },
     "/health/startup": {
       "get": {
-        "operationId": "startup_health_startup_get",
+        "operationId": "health_startup_health_startup_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Startup Health Startup Get",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
           }
         },
-        "summary": "Startup"
+        "summary": "Health Startup"
       }
     },
     "/v1/sum/services": {
@@ -563,22 +448,6 @@
               "title": "Limit",
               "type": "integer"
             }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
           }
         ],
         "responses": {
@@ -592,25 +461,15 @@
             },
             "description": "Successful Response"
           },
-          "400": {
+          "422": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             },
-            "description": "Entrada inválida (`ValidationFailed`)."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Token ausente ou inválido (`Unauthorized`)."
+            "description": "Validation Error"
           }
         },
         "summary": "List Services"
@@ -620,7 +479,7 @@
         "parameters": [
           {
             "in": "header",
-            "name": "Idempotency-Key",
+            "name": "idempotency-key",
             "required": false,
             "schema": {
               "anyOf": [
@@ -632,22 +491,6 @@
                 }
               ],
               "title": "Idempotency-Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           }
         ],
@@ -662,75 +505,25 @@
           "required": true
         },
         "responses": {
-          "202": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                  "$ref": "#/components/schemas/ServiceResource"
                 }
               }
             },
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Entrada inválida (`ValidationFailed`)."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Token ausente ou inválido (`Unauthorized`)."
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "O solicitante não tem a permissão da ação (`Forbidden`)."
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Conflito: serviço já habilitado, ou versão desatualizada (`Conflict`)."
-          },
           "422": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             },
-            "description": "A chave de idempotência já foi usada com outro pedido (`IdempotencyKeyReused`)."
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "O pedido não pôde ser registrado agora; repita depois do `Retry-After`."
+            "description": "Validation Error"
           }
         },
         "summary": "Create Service"
@@ -752,22 +545,16 @@
           {
             "in": "query",
             "name": "resourceVersion",
-            "required": false,
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Resourceversion"
+              "pattern": "^[0-9]{1,18}$",
+              "title": "Resourceversion",
+              "type": "string"
             }
           },
           {
             "in": "header",
-            "name": "Idempotency-Key",
+            "name": "idempotency-key",
             "required": false,
             "schema": {
               "anyOf": [
@@ -780,22 +567,6 @@
               ],
               "title": "Idempotency-Key"
             }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
           }
         ],
         "responses": {
@@ -803,87 +574,27 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiAcceptedResponse"
+                  "$ref": "#/components/schemas/ServiceResource"
                 }
               }
             },
             "description": "Successful Response"
           },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Entrada inválida (`ValidationFailed`)."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Token ausente ou inválido (`Unauthorized`)."
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "O solicitante não tem a permissão da ação (`Forbidden`)."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Recurso inexistente ou de outro dono (`NotFound`)."
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Conflito: serviço já habilitado, ou versão desatualizada (`Conflict`)."
-          },
           "422": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             },
-            "description": "A chave de idempotência já foi usada com outro pedido (`IdempotencyKeyReused`)."
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "O pedido não pôde ser registrado agora; repita depois do `Retry-After`."
+            "description": "Validation Error"
           }
         },
         "summary": "Delete Service"
       },
       "get": {
-        "operationId": "read_service_v1_sum_services__resource_id__get",
+        "operationId": "get_service_v1_sum_services__resource_id__get",
         "parameters": [
           {
             "in": "path",
@@ -892,22 +603,6 @@
             "schema": {
               "title": "Resource Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           }
         ],
@@ -922,132 +617,18 @@
             },
             "description": "Successful Response"
           },
-          "400": {
+          "422": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             },
-            "description": "Entrada inválida (`ValidationFailed`)."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Token ausente ou inválido (`Unauthorized`)."
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "O solicitante não tem a permissão da ação (`Forbidden`)."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Recurso inexistente ou de outro dono (`NotFound`)."
+            "description": "Validation Error"
           }
         },
-        "summary": "Read Service"
-      }
-    },
-    "/v1/sum/services/{resource_id}/operations/{operation_id}": {
-      "get": {
-        "operationId": "read_operation_v1_sum_services__resource_id__operations__operation_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "resource_id",
-            "required": true,
-            "schema": {
-              "title": "Resource Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "operation_id",
-            "required": true,
-            "schema": {
-              "title": "Operation Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Operation"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Entrada inválida (`ValidationFailed`)."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Token ausente ou inválido (`Unauthorized`)."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Recurso inexistente ou de outro dono (`NotFound`)."
-          }
-        },
-        "summary": "Read Operation"
+        "summary": "Get Service"
       }
     }
   }

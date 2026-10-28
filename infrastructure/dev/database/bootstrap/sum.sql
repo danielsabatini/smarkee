@@ -8,7 +8,9 @@ DECLARE
   function_role text;
 BEGIN
   FOREACH function_role IN ARRAY ARRAY[
-    'sum_service_manager', 'sum_service_receiver', 'sum_service_publisher', 'sum_service_maintenance'
+    -- API síncrona (decisão 0098) e Controller (decisão 0096): substituem Receiver, Manager,
+    -- Observer, Reconciler e Executor.
+    'sum_service_api', 'sum_service_controller', 'sum_service_publisher', 'sum_service_maintenance'
   ] LOOP
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = function_role) THEN
       EXECUTE format('CREATE ROLE %I NOLOGIN', function_role);

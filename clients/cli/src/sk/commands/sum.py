@@ -1,13 +1,13 @@
 """Comandos `sk sum service`: ligar, desligar e consultar os serviços do solicitante (decisão 0033).
 
 Usam o token da sessão (`sk auth login`), renovado quando está para vencer. A API é a mesma do
-`sk account create` (`[api] url`). Ligar e desligar são assíncronos: o comando garante o
-mostra como acompanhar a Operation. Com `--wait`, ele espera a ligação convergir e renova a sessão:
-o token só traz as permissões que existiam quando foi emitido, e as do serviço chegam depois do
-aceite.
+`sk account create` (`[api] url`). Ligar e desligar são escritas síncronas (decisão 0098): a API
+admite o pedido e devolve a ligação, e o Controller converge o Zitadel depois. Com `--wait`, o
+comando espera a ligação convergir (`observedGeneration` alcança `desiredGeneration`, fase `Ready`)
+e renova a sessão: o token só traz as permissões que existiam quando foi emitido, e as do serviço
+chegam depois do aceite.
 """
 
-import time
 import uuid
 from typing import Annotated, NoReturn
 
@@ -18,11 +18,10 @@ from sk import output, ui
 from sk.command_app import SkTyper
 from sk.commands.shared import (
     DEFAULT_WAIT_TIMEOUT_SECONDS,
-    EXIT_FAILURE,
     EXIT_USAGE_ERROR,
-    HTTP_NOT_FOUND,
-    WAIT_POLL_SECONDS,
+    SyncResourceFlow,
     TimeoutOption,
+    already_done,
     bad_address,
     fail_api,
     load_api,
@@ -31,18 +30,15 @@ from sk.commands.shared import (
     session_token,
 )
 from sk.features.sum.service import (
-    OperationStatus,
     ServiceLink,
-    ServiceRequestAccepted,
     disable_service,
     enable_service,
-    get_operation,
     get_service,
     list_services,
     validate_identifier,
 )
 from sk.help import command, option
-from sk.http import ApiError, ApiRejectedError
+from sk.http import ApiError
 from sk.identity.oidc import OidcError
 
 WaitOption = Annotated[
@@ -50,9 +46,8 @@ WaitOption = Annotated[
     typer.Option(
         "--wait",
         help=option(
-            "Wait for the service to converge (phase Ready and Operation completed) and renew "
-            "the session, "
-            "so the token reflects the new permissions.",
+            "Wait for the service to converge (generation observed and phase Ready) and renew "
+            "the session, so the token reflects the new permissions.",
             kind="Boolean",
             variable=None,
             file=None,
@@ -102,6 +97,12 @@ def _fail_api(
         not_found=not_found,
         conflict=conflict,
         by_error_code={
+            "AlreadyEnabled": "This service is already enabled. See it with `sk sum service list`.",
+            "ServiceNotAvailable": "This service is not available. Check the name in the catalog.",
+            "BillingAccountRequired": (
+                "Enabling a service requires a Billing Account. "
+                "Create one first (`sk bsm account create`) and repeat."
+            ),
             "ResourcesAttached": (
                 "The service still has Organizations. Delete them first "
                 "(`sk ipm organization delete`) and repeat."
@@ -128,120 +129,46 @@ def _phase_label(link: ServiceLink) -> str:
     return "disabled" if link.lifecycle == "absent" else "enabled"
 
 
-def _timed_out(
-    timeout: int, accepted: ServiceRequestAccepted, state: str = "is not visible yet"
-) -> NoReturn:
-    ui.error(
-        "Timed out",
-        f"{timeout} s passed and the service {state}.",
-        hint=f"The request is still in progress: `sk sum service get --resource-id "
-        f"{accepted.resource_id}`.",
-    )
-    raise typer.Exit(EXIT_FAILURE)
-
-
-def _wait_for_convergence(
-    url: str,
-    insecure: bool,
-    accepted: ServiceRequestAccepted,
-    *,
-    enabled: bool,
-    timeout: int,
-) -> ServiceLink:
-    """Espera a ligação em `Ready` e a Operation `completed`; se não der, sai dizendo por quê.
-
-    O token é pedido a cada leitura: o acesso dura 15 minutos, e uma espera longa (`--timeout`)
-    pode atravessar o vencimento (a sessão se renova pelo refresh token).
-    """
-    with ui.waiting(timeout) as progress:
-        progress.update("Operation submitted")
-        deadline = time.monotonic() + timeout
-        while True:
-            token = session_token()
-            try:
-                operation = get_operation(
-                    url,
-                    token=token,
-                    resource_id=accepted.resource_id,
-                    operation_id=accepted.operation_id,
-                    allow_insecure_http=insecure,
-                )
-                link = get_service(
-                    url, token=token, resource_id=accepted.resource_id, allow_insecure_http=insecure
-                )
-            except OidcError as error:
-                bad_address(error)
-            except ApiRejectedError as error:
-                if error.status != HTTP_NOT_FOUND:
-                    _fail_api(error)
-                # Logo depois do `202`, o Manager ainda pode não ter gravado a Operation e o recurso
-                # (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1.1): é espera, e não erro.
-                if time.monotonic() >= deadline:
-                    _timed_out(timeout, accepted)
-                time.sleep(WAIT_POLL_SECONDS)
-                continue
-            except ApiError as error:
-                _fail_api(error)
-            progress.update(f"phase {link.phase}, Operation {operation.operation_status}")
-            if operation.operation_status in ("rejected", "failed", "superseded"):
-                ui.error(
-                    "Request not completed",
-                    f"The Operation ended as {operation.operation_status}"
-                    + (f": {operation.reason}" if operation.reason else "."),
-                    hint="Inspect it with `sk sum service get`.",
-                )
-                raise typer.Exit(EXIT_FAILURE)
-            reached = (link.lifecycle != "absent") == enabled
-            if operation.operation_status == "completed" and link.phase == "Ready" and reached:
-                return link
-            if time.monotonic() >= deadline:
-                _timed_out(
-                    timeout,
-                    accepted,
-                    f"is in phase {link.phase} (Operation {operation.operation_status})",
-                )
-            time.sleep(WAIT_POLL_SECONDS)
-
-
-def _operation_rows(operation: OperationStatus) -> list[tuple[str, str]]:
-    rows = [
-        ("operationId", operation.operation_id),
-        ("operationStatus", operation.operation_status),
+def _rows(link: ServiceLink) -> list[tuple[str, str]]:
+    return [
+        ("resourceId", link.resource_id),
+        ("service", link.service),
+        ("state", _phase_label(link)),
+        ("phase", link.phase),
+        ("observedPermissions", ", ".join(link.observed_permissions) or "none"),
     ]
-    if operation.reason is not None:
-        rows.append(("reason", operation.reason))
-    return rows
+
+
+def _get_command(resource_id: str) -> str:
+    return f"sk sum service get --resource-id {resource_id}"
+
+
+_flow = SyncResourceFlow(
+    subject="service",
+    get_command=_get_command,
+    read_resource=get_service,
+    fail_api=_fail_api,
+    rows=_rows,
+)
 
 
 def _finish_request(
-    url: str,
-    insecure: bool,
-    accepted: ServiceRequestAccepted,
-    *,
-    enabled: bool,
-    wait: bool,
-    timeout: int,
+    url: str, insecure: bool, admitted: ServiceLink, *, enabled: bool, wait: bool, timeout: int
 ) -> None:
     """Fim de `enable` e `disable`: orienta o acompanhamento ou, com `--wait`, espera e renova."""
     if not wait:
         ui.note(
-            f"Follow it with `sk sum service get --resource-id {accepted.resource_id}`. "
-            "Once the phase "
+            f"Follow it with `{_get_command(admitted.resource_id)}`. Once the phase "
             "is Ready, run `sk auth refresh` so the token reflects the new permissions."
         )
         return
-    link = _wait_for_convergence(url, insecure, accepted, enabled=enabled, timeout=timeout)
+    link = _flow.wait_for_convergence(url, insecure, admitted, removal=False, timeout=timeout)
+    if link is None:  # sem remoção a espera sempre devolve o recurso; protege o tipo
+        return
     renewed = renew_after_convergence()
     ui.panel(
         "Service enabled" if enabled else "Service disabled",
-        [
-            ("resourceId", link.resource_id),
-            ("service", link.service),
-            ("state", _phase_label(link)),
-            ("phase", link.phase),
-            ("observedPermissions", ", ".join(link.observed_permissions) or "none"),
-            ("session", "renewed" if renewed else "not renewed"),
-        ],
+        [*_rows(link), ("session", "renewed" if renewed else "not renewed")],
         data={**output.to_data(link), "sessionRenewed": renewed},
     )
 
@@ -276,7 +203,7 @@ def enable_command(
     url, insecure = load_api()
     token = session_token()
     try:
-        accepted = enable_service(
+        admitted = enable_service(
             url,
             token=token,
             service=service,
@@ -286,20 +213,9 @@ def enable_command(
     except OidcError as error:
         bad_address(error)
     except ApiError as error:
-        _fail_api(
-            error, conflict="This service is already enabled. See it with `sk sum service list`."
-        )
-    ui.panel(
-        "Enablement requested",
-        [
-            ("service", service),
-            ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
-        ],
-        data=accepted,
-        interim=wait,
-    )
-    _finish_request(url, insecure, accepted, enabled=True, wait=wait, timeout=timeout)
+        _fail_api(error)
+    _flow.requested_panel("Enablement requested", admitted, ("service", service), wait=wait)
+    _finish_request(url, insecure, admitted, enabled=True, wait=wait, timeout=timeout)
 
 
 @service_app.command(
@@ -333,11 +249,9 @@ def disable_command(
         )
         if current.lifecycle == "absent":
             # Idempotente: desligar o que já está desligado não é erro.
-            ui.note(f"Service {resource_id} is already disabled. Nothing to do.")
-            if output.is_json():
-                output.emit(current)
+            already_done(current, f"Service {resource_id} is already disabled. Nothing to do.")
             return
-        accepted = disable_service(
+        admitted = disable_service(
             url,
             token=token,
             resource_id=resource_id,
@@ -348,23 +262,16 @@ def disable_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    ui.panel(
-        "Disablement requested",
-        [
-            ("service", current.service),
-            ("resourceId", accepted.resource_id),
-            ("operationId", accepted.operation_id),
-        ],
-        data=accepted,
-        interim=wait,
+    _flow.requested_panel(
+        "Disablement requested", admitted, ("service", current.service), wait=wait
     )
-    _finish_request(url, insecure, accepted, enabled=False, wait=wait, timeout=timeout)
+    _finish_request(url, insecure, admitted, enabled=False, wait=wait, timeout=timeout)
 
 
 @service_app.command(
     "get",
     structured=True,
-    help=command("Show the state of a service and, if given, of an Operation."),
+    help=command("Show the state of a service."),
 )
 def get_command(
     resource_id: Annotated[
@@ -380,23 +287,8 @@ def get_command(
             ),
         ),
     ] = None,
-    operation_id: Annotated[
-        str | None,
-        typer.Option(
-            "--operation-id",
-            help=option(
-                "operationId of a request (returned by `enable` or `disable`).",
-                kind="String",
-                variable=None,
-                file=None,
-                default="no Operation lookup",
-            ),
-        ),
-    ] = None,
 ) -> None:
     resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
-    if operation_id is not None:
-        operation_id = _identifier(operation_id, "--operation-id", what="operationId")
     url, insecure = load_api()
     token = session_token()
     try:
@@ -405,33 +297,7 @@ def get_command(
         bad_address(error)
     except ApiError as error:
         _fail_api(error)
-    operation: OperationStatus | None = None
-    if operation_id is not None:
-        try:
-            operation = get_operation(
-                url,
-                token=token,
-                resource_id=resource_id,
-                operation_id=operation_id,
-                allow_insecure_http=insecure,
-            )
-        except OidcError as error:
-            bad_address(error)
-        except ApiError as error:
-            _fail_api(error, not_found="Operation not found for this service.")
-    rows = [
-        ("resourceId", link.resource_id),
-        ("service", link.service),
-        ("state", _phase_label(link)),
-        ("phase", link.phase),
-        ("observedPermissions", ", ".join(link.observed_permissions) or "none"),
-    ]
-    if operation is not None:
-        rows.extend(_operation_rows(operation))
-    document = output.to_data(link)
-    if operation is not None:
-        document["operation"] = output.to_data(operation)
-    ui.panel("Service", rows, data=document)
+    ui.panel("Service", _rows(link), data=link)
 
 
 @service_app.command("list", structured=True, help=command("List the requester's services."))

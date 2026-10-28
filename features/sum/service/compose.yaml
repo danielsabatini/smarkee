@@ -1,10 +1,10 @@
 name: sum-service
 
-# Componentes de sum.service (decisões 0015, 0019, 0032 e 0033): migração, consumers, Receiver, Manager,
-# Publisher, Reconciler, Observer e Executor.
+# Componentes de sum.service (decisões 0015, 0019, 0032, 0033 e 0063): migração, API (decisão 0098),
+# Publisher e Controller (decisão 0096).
 # A plataforma (banco, messaging, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
-# e saudável antes: este arquivo só referencia a rede `internal` que ela cria.
-#
+# e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait messaging database gateway identity identity-login`,
+# naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
 
 # Driver de log legível pelo coletor (decisão 0045, docs/telemetry/OBSERVABILITY.md §7): o padrão `local` do
 # Docker não é lido pelo `file_log` do OpenTelemetry Collector. Com rotação.
@@ -22,7 +22,7 @@ x-deploy: &component-deploy
       cpus: "${SUM_SERVICE_COMPONENT_CPUS:-0.5}"
       memory: ${SUM_SERVICE_COMPONENT_MEMORY:-256M}
 
-# Imagem única da feature (decisão 0063): contém o código dos seis papéis, e cada serviço escolhe o
+# Imagem única da feature (decisão 0063): contém o código de todos os papéis, e cada serviço escolhe o
 # seu pelo `command`. Cada contêiner recebe só as variáveis e os segredos do seu papel.
 x-image: &component-image
   build:
@@ -30,40 +30,11 @@ x-image: &component-image
   image: ${SUM_SERVICE_IMAGE:-smarkee-sum-service:dev}
 
 services:
-  # Consumers duráveis de trabalho de sum.service (docs/messaging/NATS.md §7.6): `requested`, `observed`, resultados e a
-  # remoção da conta (`updated` de core.account) do Manager, e `action` do Executor. Os manifestos ficam em cada componente. O Reconciler e o Observer não
-  # têm manifesto: cada instância cria o próprio consumer de estado, com DeliverLastPerSubject (§7.4).
-  # Inexistente é criado; existente com configuração idêntica não muda; configuração diferente falha
-  # de forma explícita. Exige os Streams criados pelo messaging da plataforma.
-  sum-service-consumer:
-    build:
-      context: ../../../infrastructure/tools/nats-client
-    image: ${SMARKEE_MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}
-    container_name: sum-service-consumer.smarkee.internal
-    environment:
-      NATS_URL: nats://messaging.smarkee.internal:4222
-      NATS_USER: ${SMARKEE_MESSAGING_USER:-smarkee}
-      NATS_PASSWORD: ${SUM_SERVICE_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
-    command:
-      - sh
-      - -c
-      - >-
-        nats consumer add REQUESTED --config /consumers/sum-service-manager-requested.json &&
-        nats consumer add OBSERVED --config /consumers/sum-service-manager-observed.json &&
-        nats consumer add RESULT --config /consumers/sum-service-manager-completed.json &&
-        nats consumer add RESULT --config /consumers/sum-service-manager-failed.json &&
-        nats consumer add UPDATED --config /consumers/sum-service-manager-account-removed.json &&
-        for partition in 0 1 2 3; do
-          nats consumer add ACTION --config /consumers/sum-service-executor-action-p$$partition.json || exit 1;
-        done
-    volumes:
-      - ./consumers:/consumers:ro
-    networks:
-      - internal
-    restart: "no"
-
-  # Migrações do esquema `sum` (decisão 0033). Executadas como o dono `ssot`; os papéis de função são
-  # criados por infrastructure/dev/database/bootstrap/sum.sql, que roda na criação do banco.
+  # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo
+  # (features/sum/service/migrations/*.sql, em ordem) como o dono `ssot`, no banco `ssot`.
+  # O código das migrações é da API (decisões 0015, 0063 e 0098); a execução é desta etapa de
+  # implantação, com o papel administrativo, e nunca com o papel de runtime da API.
+  # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/sum.sql.
   sum-service-migrate:
     build:
       context: ../../../infrastructure/tools/psql-client
@@ -88,32 +59,34 @@ services:
           - sum-service-migrate.smarkee.internal
     restart: "no"
 
-  # Manager (`sum-service-manager`): único escritor do SSOT de sum.service. Consome `requested`, grava a
-  # ligação, a Operation e o outbox. O catálogo serviço → permissões é obrigatório (decisão 0033).
-  sum-service-manager:
+  # API (`sum-service-api`, decisão 0098): autentica, autoriza e admite a escrita de forma síncrona
+  # (recurso e `desired` no outbox, numa transação). Papel de banco `sum_service_api`. Só o gateway a
+  # alcança; a porta 8000 não é publicada no host.
+  sum-service-api:
     <<: *component-image
-    command: [sum-service-manager]
-    container_name: sum-service-manager.smarkee.internal
+    command: [sum-service-api]
+    container_name: sum-service-api.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS: ${SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS:?Defina no .env (JSON serviço → permissões, decisão 0033)}
+      # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
+      # defaults do componente (SUM_SERVICE_API_<SEÇÃO>_<CAMPO>).
+      SUM_SERVICE_API_CATALOG_PERMISSIONS: ${SUM_SERVICE_CATALOG_PERMISSIONS:?Defina no .env (JSON serviço → permissões, decisão 0033)}
+      SUM_SERVICE_API_AUTH_AUDIENCE: ${SUM_SERVICE_API_AUTH_AUDIENCE:?Defina no .env (ID do projeto de roles do SUM, `roles-sum`, org core)}
     secrets:
-      - SUM_SERVICE_MANAGER_DATABASE_PASSWORD
-      - SUM_SERVICE_MANAGER_MESSAGING_PASSWORD
+      - SUM_SERVICE_API_DATABASE_PASSWORD
+      - SUM_SERVICE_API_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
       sum-service-migrate:
         condition: service_completed_successfully
-      sum-service-consumer:
-        condition: service_completed_successfully
     networks:
       internal:
         aliases:
-          - sum-service-manager.smarkee.internal
+          - sum-service-api.smarkee.internal
     restart: unless-stopped
     healthcheck: &component-healthcheck
       test:
@@ -126,74 +99,26 @@ services:
       retries: 6
       start_period: 10s
 
-  # Receiver (`sum-service-receiver`): a API `/v1/sum/services`. Só o gateway a alcança; a porta 8000 não é
-  # publicada no host. Valida o token (audience = projeto `roles-sum`), confere a permissão da ação e publica
-  # `requested` (decisão 0033).
-  sum-service-receiver:
+  # Controller (`sum-service-controller`, decisão 0096): observa, decide, age e reobserva as
+  # permissões do dono da ligação numa só transação, e substitui Observer, Reconciler e Executor.
+  # Única identidade do provedor (conta sum-service-controller: ORG_OWNER_VIEWER na organização
+  # `register` e PROJECT_GRANT_OWNER nos projetos de roles que concede) e papel de banco próprio
+  # (`sum_service_controller_login`). O catálogo é obrigatório (decisão 0033). Monta só a própria chave.
+  sum-service-controller:
     <<: *component-image
-    command: [sum-service-receiver]
-    container_name: sum-service-receiver.smarkee.internal
+    command: [sum-service-controller]
+    container_name: sum-service-controller.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      SUM_SERVICE_RECEIVER_AUTH_AUDIENCE: ${SUM_SERVICE_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-sum)}
+      SUM_SERVICE_CONTROLLER_CATALOG_PERMISSIONS: ${SUM_SERVICE_CATALOG_PERMISSIONS:?Defina no .env (JSON serviço → permissões, decisão 0033)}
+      SUM_SERVICE_CONTROLLER_IDENTITY_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
+      SUM_SERVICE_CONTROLLER_IDENTITY_PROJECT_IDS: ${SUM_SERVICE_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles que o Controller concede)}
     secrets:
-      - SUM_SERVICE_RECEIVER_DATABASE_PASSWORD
-      - SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      sum-service-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - sum-service-receiver.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Reconciler (`sum-service-reconciler`): decide e publica as `action`. Sem chave de Zitadel: não escreve
-  # nem lê o provedor. Os consumers são criados pelo `sum-service-consumer`.
-  sum-service-reconciler:
-    <<: *component-image
-    command: [sum-service-reconciler]
-    container_name: sum-service-reconciler.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      sum-service-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - sum-service-reconciler.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Observer (`sum-service-observer`): lê o Zitadel só de leitura (conta `sum-service-observer`) e publica
-  # `observed`. Monta só a própria chave do volume da identidade.
-  sum-service-observer:
-    <<: *component-image
-    command: [sum-service-observer]
-    container_name: sum-service-observer.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      SUM_SERVICE_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
-      SUM_SERVICE_OBSERVER_IDENTITY_PROJECT_IDS: ${SUM_SERVICE_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
-    secrets:
-      - SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD
+      - SUM_SERVICE_CONTROLLER_DATABASE_PASSWORD
+      - SUM_SERVICE_CONTROLLER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
       - type: volume
@@ -201,53 +126,20 @@ services:
         target: /run/secrets/zitadel-key.json
         read_only: true
         volume:
-          subpath: service-account-sum-service-observer.json
+          subpath: service-account-sum-service-controller.json
     depends_on:
-      sum-service-consumer:
+      sum-service-migrate:
         condition: service_completed_successfully
     networks:
       internal:
         aliases:
-          - sum-service-observer.smarkee.internal
+          - sum-service-controller.smarkee.internal
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
-  # Executor (`sum-service-executor`): único componente que concede e revoga permissões de serviço no Zitadel. Conta
-  # `sum-service-executor`, com `PROJECT_GRANT_OWNER` só no Grant de `roles-ipm` (decisão 0032). Consome todas as
-  # partições do ACTION, um laço por partição, no mesmo processo (decisão 0018).
-  sum-service-executor:
-    <<: *component-image
-    command: [sum-service-executor]
-    container_name: sum-service-executor.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      SUM_SERVICE_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID: ${SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
-      SUM_SERVICE_EXECUTOR_IDENTITY_PROJECT_IDS: ${SUM_SERVICE_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de roles)}
-    secrets:
-      - SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-      - type: volume
-        source: identity-bootstrap
-        target: /run/secrets/zitadel-key.json
-        read_only: true
-        volume:
-          subpath: service-account-sum-service-executor.json
-    depends_on:
-      sum-service-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - sum-service-executor.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Publisher (`sum-service-publisher`): publica o outbox de sum.service (uma instância ativa por trava
-  # consultiva). Papel de banco `sum_service_publisher`, que só lê o outbox e marca `published_at`.
+  # Publisher (`sum-service-publisher`): publica o outbox do tipo (uma instância ativa por trava
+  # consultiva). Papel de banco `sum_service_publisher`, que só lê o outbox e marca `published_at`, e
+  # identidade própria no NATS (decisão 0019).
   sum-service-publisher:
     <<: *component-image
     command: [sum-service-publisher]
@@ -314,20 +206,14 @@ services:
 # Senhas montadas em /run/secrets/<VARIÁVEL> (arquivo somente leitura, lido pelo `SecretFilesSource`; decisão 0070).
 # A origem em dev é o .env; cada papel recebe só a sua. Em stg e prd a origem passa a ser o cofre de segredos.
 secrets:
-  SUM_SERVICE_MANAGER_DATABASE_PASSWORD:
-    environment: SUM_SERVICE_MANAGER_DATABASE_PASSWORD
-  SUM_SERVICE_MANAGER_MESSAGING_PASSWORD:
-    environment: SUM_SERVICE_MANAGER_MESSAGING_PASSWORD
-  SUM_SERVICE_RECEIVER_DATABASE_PASSWORD:
-    environment: SUM_SERVICE_RECEIVER_DATABASE_PASSWORD
-  SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD:
-    environment: SUM_SERVICE_RECEIVER_MESSAGING_PASSWORD
-  SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD:
-    environment: SUM_SERVICE_RECONCILER_MESSAGING_PASSWORD
-  SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD:
-    environment: SUM_SERVICE_OBSERVER_MESSAGING_PASSWORD
-  SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD:
-    environment: SUM_SERVICE_EXECUTOR_MESSAGING_PASSWORD
+  SUM_SERVICE_API_DATABASE_PASSWORD:
+    environment: SUM_SERVICE_API_DATABASE_PASSWORD
+  SUM_SERVICE_API_MESSAGING_PASSWORD:
+    environment: SUM_SERVICE_API_MESSAGING_PASSWORD
+  SUM_SERVICE_CONTROLLER_DATABASE_PASSWORD:
+    environment: SUM_SERVICE_CONTROLLER_DATABASE_PASSWORD
+  SUM_SERVICE_CONTROLLER_MESSAGING_PASSWORD:
+    environment: SUM_SERVICE_CONTROLLER_MESSAGING_PASSWORD
   SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD:
     environment: SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD
   SUM_SERVICE_PUBLISHER_MESSAGING_PASSWORD:

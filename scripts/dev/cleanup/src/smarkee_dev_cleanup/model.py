@@ -92,10 +92,12 @@ SERVICES = Kind(
     "sum",
     "service",
     "sum.service",
-    ("sum.service_outbox", "sum.service_operation", "sum.service_action_result"),
-    "sum_service_manager_login",
+    ("sum.service_outbox", "sum.service_idempotency"),
+    "sum_service_api_login",
     "sum_service_maintenance_login",
     "ownerAccountId",
+    delete_role="sum_service_controller_login",
+    removable_through_requested=False,
 )
 ORGANIZATIONS = Kind(
     "ipm",

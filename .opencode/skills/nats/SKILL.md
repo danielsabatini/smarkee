@@ -19,7 +19,7 @@ docs/messaging/NATS.md        → implementação em NATS
 esta skill          → procedimento
 ```
 
-Não redefina aqui Streams, retenção, Consumers, autorização ou nomenclatura: leia `docs/messaging/NATS.md`. Em conflito, os documentos prevalecem. Atenção ao Stream `ACTION`: ele é particionado por `subject_transform` (decisão 0018), então o Subject armazenado difere do publicado e os consumers do Executor são um por partição.
+Não redefina aqui Streams, retenção, Consumers, autorização ou nomenclatura: leia `docs/messaging/NATS.md`. Em conflito, os documentos prevalecem. Atenção: em dev nenhuma feature usa mais `REQUESTED`, `OBSERVED`, `RESULT` nem `ACTION` (decisões 0096, 0098 e 0100); só o Controller e as projeções locais da API têm consumers, no `DESIRED`. Se um dia o `ACTION` voltar a ser usado, ele é particionado por `subject_transform` (decisão 0018), então o Subject armazenado difere do publicado.
 
 Não use esta skill para decidir semântica de mensagem (use o agent `messaging`).
 

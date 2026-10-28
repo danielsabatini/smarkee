@@ -11,28 +11,35 @@ from typing import Any
 
 import pytest
 
-from sum_service.common.lifecycle import InvalidConfigurationError
-from sum_service.executor import main as executor_main
-from sum_service.manager import main as manager_main
-from sum_service.observer import main as observer_main
+from sum_service.api import main as api_main
+from sum_service.api.settings import SumServiceApiSettings
+from sum_service.controller import main as controller_main
+from sum_service.controller.settings import SumServiceControllerSettings
 from sum_service.publisher import main as publisher_main
-from sum_service.receiver import main as receiver_main
-from sum_service.reconciler import main as reconciler_main
-
-CATALOG = '{"ipm": ["ipm.organization.get"]}'
+from sum_service.publisher.settings import SumServicePublisherSettings
 
 
 class FakeHealth:
+    def __init__(self) -> None:
+        self.checks: dict[str, Any] = {}
+
     def beat(self) -> None:
         return
 
     def add_check(self, name: str, check: Any) -> None:
-        self.last_check = (name, check)
+        self.checks[name] = check
+
+
+class FakeClient:
+    is_connected = True
 
 
 class FakeRuntime:
+    """Registra o que o papel liga, sem executar nenhuma das tarefas."""
+
     def __init__(self) -> None:
         self.stream: Any = object()
+        self.client = FakeClient()
         self.stop = asyncio.Event()
         self.health = FakeHealth()
         self.started: list[str] = []
@@ -51,6 +58,18 @@ class FakeRuntime:
         return 0
 
 
+class FakePool:
+    async def close(self) -> None:
+        return
+
+
+async def fake_open_pool(*_: Any, **__: Any) -> FakePool:
+    return FakePool()
+
+
+CATALOG = '{"ipm": ["ipm.organization.get"]}'
+
+
 @pytest.fixture
 def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
     fake = FakeRuntime()
@@ -59,121 +78,57 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> FakeRuntime:
     async def fake_role_runtime(*_: Any, **__: Any) -> AsyncGenerator[FakeRuntime]:
         yield fake
 
-    for module in (
-        executor_main,
-        manager_main,
-        observer_main,
+    modules: tuple[ModuleType, ...] = (
+        api_main,
+        controller_main,
         publisher_main,
-        receiver_main,
-        reconciler_main,
-    ):
+    )
+    for module in modules:
         monkeypatch.setattr(module, "role_runtime", fake_role_runtime)
-    for role in ("MANAGER", "OBSERVER", "EXECUTOR", "RECONCILER", "PUBLISHER", "RECEIVER"):
-        monkeypatch.setenv(f"SUM_SERVICE_{role}_MESSAGING_PASSWORD", "x")
-    monkeypatch.setenv("SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS", CATALOG)
+    for module in (api_main, controller_main):
+        monkeypatch.setattr(module, "open_pool", fake_open_pool)
     return fake
 
 
-async def test_the_reconciler_starts_one_consumer_per_stream_and_the_periodic_loop(
+async def test_the_publisher_is_ready_while_no_permanent_failure_blocks_it(
     runtime: FakeRuntime,
 ) -> None:
-    settings = reconciler_main.SumServiceReconcilerSettings()
-    assert await reconciler_main.run(settings) == 0
-    assert "periodic" in runtime.started
-    assert len(runtime.started) == len(reconciler_main.STREAMS) + 1
-
-
-async def test_the_manager_starts_every_consumer(
-    runtime: FakeRuntime, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    class Pool:
-        async def close(self) -> None:
-            return
-
-    async def open_pool(*_: Any, **__: Any) -> Pool:
-        return Pool()
-
-    rolled_out: list[object] = []
-
-    async def roll_out_catalog(pool: object, catalog: object) -> int:
-        rolled_out.append(catalog)
-        return 0
-
-    monkeypatch.setattr(manager_main, "open_pool", open_pool)
-    monkeypatch.setattr(manager_main, "roll_out_catalog", roll_out_catalog)
-    monkeypatch.setenv("SUM_SERVICE_MANAGER_DATABASE_PASSWORD", "x")
-    settings = manager_main.SumServiceManagerSettings()
-    assert await manager_main.run(settings) == 0
-    assert runtime.started == ["requested", "observed", "completed", "failed", "account_removed"]
-    assert rolled_out == [{"ipm": ("ipm.organization.get",)}]  # antes dos consumers (decisão 0079)
-    assert len(runtime.closers) == 1
-
-
-async def test_the_observer_starts_the_state_consumers_and_the_periodic_loop(
-    runtime: FakeRuntime, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("SUM_SERVICE_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID", "1")
-    monkeypatch.setenv("SUM_SERVICE_OBSERVER_IDENTITY_PROJECT_IDS", '{"ipm": "2"}')
-    settings = observer_main.SumServiceObserverSettings()
-    assert await observer_main.run(settings) == 0
-    assert "periodic" in runtime.started
-    assert len(runtime.started) == len(observer_main.STREAMS) + 1
-
-
-async def test_the_executor_starts_one_consumer_per_partition(
-    runtime: FakeRuntime, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("SUM_SERVICE_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID", "1")
-    monkeypatch.setenv("SUM_SERVICE_EXECUTOR_IDENTITY_PROJECT_IDS", '{"ipm": "2"}')
-    monkeypatch.setenv("SUM_SERVICE_EXECUTOR_PARTITION_COUNT", "3")
-    settings = executor_main.SumServiceExecutorSettings()
-    assert await executor_main.run(settings) == 0
-    assert runtime.started == ["action-p0", "action-p1", "action-p2"]
-
-
-async def test_the_publisher_is_ready_unless_a_permanent_failure_blocks_it(
-    runtime: FakeRuntime, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("SUM_SERVICE_PUBLISHER_DATABASE_PASSWORD", "x")
-    settings = publisher_main.SumServicePublisherSettings()
-    assert await publisher_main.run(settings) == 0
+    assert await publisher_main.run(SumServicePublisherSettings()) == 0
     assert runtime.started == ["publisher"]
-    name, check = runtime.health.last_check  # type: ignore[attr-defined]
-    assert name == "publication"
-    assert check() is True
+    assert runtime.health.checks["publication"]() is True
 
 
-async def test_the_receiver_serves_http_and_leaves_the_probes_to_the_app(
+async def test_the_api_serves_http_and_leaves_the_probes_to_the_app(
     runtime: FakeRuntime, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    class Pool:
-        async def close(self) -> None:
-            return
-
-    async def open_pool(*_: Any, **__: Any) -> Pool:
-        return Pool()
-
-    monkeypatch.setattr(receiver_main, "open_pool", open_pool)
-    monkeypatch.setenv("SUM_SERVICE_RECEIVER_DATABASE_PASSWORD", "x")
-    monkeypatch.setenv("SUM_SERVICE_RECEIVER_AUTH_AUDIENCE", "project")
-    settings = receiver_main.SumServiceReceiverSettings()
-    assert await receiver_main.run(settings) == 0
-    assert runtime.started == ["http"]
+    monkeypatch.setenv("SUM_SERVICE_API_AUTH_AUDIENCE", "project")
+    monkeypatch.setenv("SUM_SERVICE_API_CATALOG_PERMISSIONS", CATALOG)
+    assert await api_main.run(SumServiceApiSettings()) == 0
+    assert runtime.started == [
+        "ipm-organization-projection",
+        "bsm-account-projection",
+        "http",
+    ]
     assert runtime.health_port is None
     assert len(runtime.closers) == 2
 
 
-def test_an_invalid_catalog_is_a_configuration_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS", "not json")
-    settings = manager_main.SumServiceManagerSettings()
-    with pytest.raises(InvalidConfigurationError):
-        manager_main.validate(settings)
+async def test_the_controller_rolls_out_the_catalog_before_the_consumers(
+    runtime: FakeRuntime, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rolled_out: list[object] = []
 
+    async def roll_out_catalog(pool: object, catalog: object) -> int:
+        rolled_out.append(catalog)
+        assert runtime.started == []  # antes dos consumers (decisão 0079)
+        return 0
 
-@pytest.mark.parametrize("module", [observer_main, executor_main])
-def test_only_the_manager_has_the_catalog(module: ModuleType) -> None:
-    """O catálogo tem uma fonte só (decisão 0079): o Observer e o Executor usam o `desired`."""
-    role = module.__name__.split(".")[-2].capitalize()
-    settings_type = getattr(module, f"SumService{role}Settings")
-    assert "catalog" not in settings_type.model_fields
-    assert not hasattr(module, "validate")
+    monkeypatch.setattr(controller_main, "roll_out_catalog", roll_out_catalog)
+    monkeypatch.setenv("SUM_SERVICE_CONTROLLER_CATALOG_PERMISSIONS", CATALOG)
+    assert await controller_main.run(SumServiceControllerSettings()) == 0
+    assert rolled_out == [{"ipm": ("ipm.organization.get",)}]
+    assert "desired" in runtime.started
+    assert "account-removed" in runtime.started
+    assert "worker-0" in runtime.started
+    assert "periodic" in runtime.started
+    assert len(runtime.closers) == 2

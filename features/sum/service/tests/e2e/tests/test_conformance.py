@@ -1,4 +1,9 @@
-"""Conformidade de sum.service: Receiver e SSOT pela rede, contra os schemas de `schemas/`."""
+"""Conformidade de sum.service pela rede: gateway, API síncrona e SSOT (decisão 0098).
+
+A API admite a escrita na requisição (`201` na ligação, `202` no desligamento, ambos com o
+recurso); o Controller converge o Zitadel depois. O teste acompanha a convergência lendo o recurso
+pela API, e valida exemplos e respostas contra os JSON Schemas de `schemas/`.
+"""
 
 import asyncio
 import json
@@ -15,10 +20,9 @@ SCHEMAS_DIRECTORY = "sum/service"
 # Cada exemplo valida contra o schema de mesmo nome (`.example.json` -> `.v1.schema.json`).
 EXAMPLES = (
     "api-create-request",
+    "api-list-response",
     "desired",
     "observed",
-    "requested-create",
-    "requested-delete",
     "resource",
 )
 SERVICE = "ipm"
@@ -36,7 +40,7 @@ def test_example_is_valid_against_its_schema(name: str) -> None:
     assert_valid(f"{SCHEMAS_DIRECTORY}/{name}.v1.schema.json", example)
 
 
-# ---------------------------------------------------------------------- Receiver (HTTP)
+# ---------------------------------------------------------------------- API (HTTP)
 
 
 async def test_missing_token_is_401_with_the_error_contract(api: httpx.AsyncClient) -> None:
@@ -63,32 +67,6 @@ async def test_create_without_service_is_400_with_the_error_contract(
 # ---------------------------------------------------------------------- loop completo
 
 
-async def wait_for_operation(
-    api: httpx.AsyncClient, headers: dict[str, str], resource_id: str, operation_id: str
-) -> dict[str, Any]:
-    """Acompanha a Operation até `completed`. Falha se ela falhar ou o prazo acabar.
-
-    A Operation existe desde o `202`; é por ela que o cliente sabe quando o pedido terminou.
-    """
-    deadline = asyncio.get_running_loop().time() + LOOP_TIMEOUT_SECONDS
-    path = f"/v1/sum/services/{resource_id}/operations/{operation_id}"
-    while True:
-        response = await api.get(path, headers=headers)
-        # `404` até o Manager gravar a Operation (`docs/loop/RESOURCE-CONTROL-LOOP.md`, §6.1.1).
-        if response.status_code == 404 and asyncio.get_running_loop().time() <= deadline:
-            await asyncio.sleep(POLL_INTERVAL_SECONDS)
-            continue
-        assert response.status_code == 200, response.text
-        operation = response.json()
-        assert_valid("common/operation.v1.schema.json", operation)
-        assert operation["operationStatus"] != "failed", operation
-        if operation["operationStatus"] == "completed":
-            return operation
-        if asyncio.get_running_loop().time() > deadline:
-            raise AssertionError(f"operação não concluída em {LOOP_TIMEOUT_SECONDS}s: {operation}")
-        await asyncio.sleep(POLL_INTERVAL_SECONDS)
-
-
 async def wait_for_resource(
     api: httpx.AsyncClient,
     headers: dict[str, str],
@@ -108,35 +86,47 @@ async def wait_for_resource(
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
 
 
+def is_enabled(resource: dict[str, Any]) -> bool:
+    """Ligação convergida: a observação confirma a geração e o `desired` é `present`."""
+    return (
+        resource["phase"] == "Ready"
+        and resource["desired"]["lifecycle"] == "present"
+        and resource.get("observedGeneration") == resource["desiredGeneration"]
+    )
+
+
+def is_disabled(resource: dict[str, Any]) -> bool:
+    return (
+        resource["phase"] == "Ready"
+        and resource["desired"]["lifecycle"] == "absent"
+        and resource.get("observedGeneration") == resource["desiredGeneration"]
+    )
+
+
 async def test_enable_then_disable_runs_the_whole_loop(
     api: httpx.AsyncClient,
     authorization: dict[str, str],
     created_resource_ids: list[str],
 ) -> None:
-    """Ligar e desligar `ipm` pela API: Manager, Publisher, Reconciler, Executor e Observer reais.
+    """Ligar e desligar `ipm` pela API, com API, Publisher e Controller reais.
 
-    Exige a stack do SUM no ar e um solicitante com `sum.ipm.enable`, `sum.ipm.disable` e
-    `sum.ipm.get` (ver README). Não deixa o serviço ligado ao final.
+    Exige a stack do SUM no ar e um solicitante com conta de cobrança (`BillingAccountRequired`) e
+    com `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get` (ver README). Não deixa o serviço ligado
+    ao final.
     """
-    # 1. Ligar: 202 com o contrato de aceite.
-    accepted = await api.post(
+    # 1. Ligar: 201 com o recurso (sem Operation).
+    created = await api.post(
         "/v1/sum/services",
         json={"service": SERVICE},
         headers={**authorization, "Idempotency-Key": str(uuid.uuid7())},
     )
-    assert accepted.status_code == 202, accepted.text
-    assert_valid("common/api-accepted-response.v1.schema.json", accepted.json())
-    resource_id = accepted.json()["resourceId"]
+    assert created.status_code == 201, created.text
+    assert_valid("sum/service/resource.v1.schema.json", created.json())
+    resource_id = created.json()["resourceId"]
     created_resource_ids.append(resource_id)
-    await wait_for_operation(api, authorization, resource_id, accepted.json()["operationId"])
 
-    # 2. O loop converge: fase Ready, com as roles do serviço observadas no Zitadel.
-    enabled = await wait_for_resource(
-        api,
-        authorization,
-        resource_id,
-        lambda r: r["phase"] == "Ready" and r["desired"]["lifecycle"] == "present",
-    )
+    # 2. O Controller converge: fase Ready, com as permissões do serviço observadas no Zitadel.
+    enabled = await wait_for_resource(api, authorization, resource_id, is_enabled)
     assert_valid("sum/service/resource.v1.schema.json", enabled)
     assert enabled["desired"]["service"] == SERVICE
     assert set(enabled["desired"]["servicePermissions"]) <= set(
@@ -149,41 +139,28 @@ async def test_enable_then_disable_runs_the_whole_loop(
     assert_valid("sum/service/api-list-response.v1.schema.json", listed.json())
     assert resource_id in [item["resourceId"] for item in listed.json()["items"]]
 
-    # 4. Ligar o mesmo serviço de novo é recusado: a unicidade do par ativo é do Manager/SSOT.
+    # 4. Ligar o mesmo serviço de novo é recusado: a unicidade do par ativo é do SSOT.
     duplicate = await api.post("/v1/sum/services", json={"service": SERVICE}, headers=authorization)
     assert duplicate.status_code == 409, duplicate.text
     assert_valid("common/api-error.v1.schema.json", duplicate.json())
+    assert duplicate.json()["errorCode"] == "AlreadyEnabled"
 
-    # 5. Desligar com a versão lida: 202, e o loop revoga as roles.
-    version = enabled["resourceVersion"]
+    # 5. Desligar com a versão lida: 202 com o recurso, e o Controller revoga as permissões.
     removed = await api.delete(
         f"/v1/sum/services/{resource_id}",
-        params={"resourceVersion": version},
+        params={"resourceVersion": enabled["resourceVersion"]},
         headers=authorization,
     )
     assert removed.status_code == 202, removed.text
-    assert_valid("common/api-accepted-response.v1.schema.json", removed.json())
-    await wait_for_operation(api, authorization, resource_id, removed.json()["operationId"])
-
-    disabled = await wait_for_resource(
-        api,
-        authorization,
-        resource_id,
-        lambda r: r["phase"] == "Ready" and r["desired"]["lifecycle"] == "absent",
-    )
+    assert_valid("sum/service/resource.v1.schema.json", removed.json())
+    disabled = await wait_for_resource(api, authorization, resource_id, is_disabled)
     assert disabled["observed"]["servicePermissions"] == []
 
     # 6. Ligar de novo reaproveita o mesmo recurso: o par tem uma linha só (decisão 0033).
     again = await api.post("/v1/sum/services", json={"service": SERVICE}, headers=authorization)
-    assert again.status_code == 202, again.text
+    assert again.status_code == 201, again.text
     assert again.json()["resourceId"] == resource_id
-    await wait_for_operation(api, authorization, resource_id, again.json()["operationId"])
-    reenabled = await wait_for_resource(
-        api,
-        authorization,
-        resource_id,
-        lambda r: r["phase"] == "Ready" and r["desired"]["lifecycle"] == "present",
-    )
+    reenabled = await wait_for_resource(api, authorization, resource_id, is_enabled)
     assert reenabled["desiredGeneration"] == disabled["desiredGeneration"] + 1
     listed_again = await api.get("/v1/sum/services", headers=authorization)
     assert [i["resourceId"] for i in listed_again.json()["items"]].count(resource_id) == 1
@@ -195,10 +172,4 @@ async def test_enable_then_disable_runs_the_whole_loop(
         headers=authorization,
     )
     assert final.status_code == 202, final.text
-    await wait_for_operation(api, authorization, resource_id, final.json()["operationId"])
-    await wait_for_resource(
-        api,
-        authorization,
-        resource_id,
-        lambda r: r["phase"] == "Ready" and r["desired"]["lifecycle"] == "absent",
-    )
+    await wait_for_resource(api, authorization, resource_id, is_disabled)

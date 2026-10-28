@@ -143,7 +143,7 @@ class DockerStack:
         if self._container not in running_containers():
             self._compose(INFRASTRUCTURE_DIRECTORY, "up", "-d", "--wait", "database")
             self._compose(INFRASTRUCTURE_DIRECTORY, "up", "--no-start", "identity")
-            self._compose("features/bsm/account", "up", "--no-start", "bsm-account-executor")
+            self._compose("features/bsm/account", "up", "--no-start", "bsm-account-api")
 
     def start_components(self) -> None:
         self._compose(INFRASTRUCTURE_DIRECTORY, "up", "-d", "--no-recreate")

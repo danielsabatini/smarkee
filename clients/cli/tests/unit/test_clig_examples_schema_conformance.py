@@ -284,10 +284,17 @@ def test_sum_service_enable_payload_conforms_to_schema(monkeypatch: pytest.Monke
 
     def fake_call_api(
         method: str, url: str, path: str, *, body: dict[str, Any] | None = None, **_: Any
-    ) -> tuple[int, dict[str, str]]:
+    ) -> tuple[int, dict[str, Any]]:
         if body is not None:
             captured.append(body)
-        return 202, {"resourceId": "srv-1", "operationId": "op-1"}
+        return 201, {
+            "resourceId": "srv-1",
+            "resourceVersion": "1",
+            "desiredGeneration": 1,
+            "phase": "Pending",
+            "desired": {"lifecycle": "present", "service": "ipm", "servicePermissions": []},
+            "observed": {"servicePermissions": []},
+        }
 
     monkeypatch.setattr("sk.features.sum.service.call_api", fake_call_api)
     sum_service.enable_service(

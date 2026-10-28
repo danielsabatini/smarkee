@@ -1,8 +1,8 @@
 """Regras das ligações de serviço do SUM, comuns aos papéis (decisão 0033).
 
-Usado pelo Manager (decide ligar e desligar), pelo Observer e pelo Executor (permissões de cada
-serviço). Puro: sem banco, rede ou relógio. O catálogo (serviço → permissões) vem da configuração e
-é validado aqui com os mesmos padrões dos contratos
+Usado pela API (decide ligar e desligar) e pelo Controller (permissões de cada serviço e rollout).
+Puro: sem banco, rede ou relógio. O catálogo (serviço → permissões) vem da configuração e é
+validado aqui com os mesmos padrões dos contratos
 (`schemas/sum/service/definitions.v1.schema.json`).
 """
 
@@ -35,7 +35,7 @@ class ServiceNotAvailableError(Exception):
 
 
 def parse_catalog(raw: str) -> Catalog:
-    """Lê o catálogo de `SUM_SERVICE_MANAGER_CATALOG_PERMISSIONS` (JSON).
+    """Lê o catálogo de `SUM_SERVICE_{API,CONTROLLER}_CATALOG_PERMISSIONS` (JSON).
 
     Erro explícito para cada problema, sem repetir valores além do necessário.
     """

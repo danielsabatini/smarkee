@@ -1,7 +1,7 @@
 name: @@KEBAB@@
 
-# Componentes de @@DOTTED@@ (decisões 0015, 0019 e 0063): migração, consumers, Receiver, Manager,
-# Publisher, Reconciler, Observer e Executor.
+# Componentes de @@DOTTED@@ (decisões 0015, 0019 e 0063): migração, API (decisão 0098),
+# Publisher e Controller (decisão 0096).
 # A plataforma (banco, messaging, identidade e gateway) é de `infrastructure/dev` e precisa estar no ar
 # e saudável antes (`docker compose up -d` e depois `docker compose up -d --wait messaging database gateway identity identity-login`,
 # naquele diretório): este arquivo só referencia a rede `internal` que ela cria.
@@ -22,7 +22,7 @@ x-deploy: &component-deploy
       cpus: "${@@UPPER@@_COMPONENT_CPUS:-0.5}"
       memory: ${@@UPPER@@_COMPONENT_MEMORY:-256M}
 
-# Imagem única da feature (decisão 0063): contém o código dos seis papéis, e cada serviço escolhe o
+# Imagem única da feature (decisão 0063): contém o código de todos os papéis, e cada serviço escolhe o
 # seu pelo `command`. Cada contêiner recebe só as variáveis e os segredos do seu papel.
 x-image: &component-image
   build:
@@ -30,39 +30,10 @@ x-image: &component-image
   image: ${@@UPPER@@_IMAGE:-smarkee-@@KEBAB@@:dev}
 
 services:
-  # Consumer durável de trabalho do Manager para `requested` do tipo (docs/messaging/NATS.md §7.6). O manifesto
-  # do Manager e o do Executor ficam em `consumers/`. Inexistente é criado; existente com configuração idêntica
-  # não muda; configuração diferente falha de forma explícita. Exige os Streams REQUESTED, OBSERVED
-  # e RESULT, criados pelo messaging da plataforma.
-  @@KEBAB@@-consumer:
-    build:
-      context: ../../../infrastructure/tools/nats-client
-    image: ${SMARKEE_MESSAGING_CLIENT_IMAGE:-smarkee-nats-client:dev}
-    container_name: @@KEBAB@@-consumer.smarkee.internal
-    environment:
-      NATS_URL: nats://messaging.smarkee.internal:4222
-      NATS_USER: ${SMARKEE_MESSAGING_USER:-smarkee}
-      NATS_PASSWORD: ${@@UPPER@@_MANAGER_MESSAGING_PASSWORD:?Defina no .env (a mesma SMARKEE_MESSAGING_PASSWORD de messaging/.env)}
-    command:
-      - sh
-      - -c
-      - >-
-        nats consumer add REQUESTED --config /consumers/@@KEBAB@@-manager-requested.json &&
-        nats consumer add OBSERVED --config /consumers/@@KEBAB@@-manager-observed.json &&
-        nats consumer add RESULT --config /consumers/@@KEBAB@@-manager-result.json &&
-        for partition in 0 1 2 3; do
-          nats consumer add ACTION --config /consumers/@@KEBAB@@-executor-action-p$$partition.json || exit 1;
-        done
-    volumes:
-      - ./consumers:/consumers:ro
-    networks:
-      - internal
-    restart: "no"
-
   # Contêiner de inicialização (equivalente ao initContainer): aplica as migrações do tipo
   # (features/@@MODULE@@/@@TYPE@@/migrations/*.sql, em ordem) como o dono `ssot`, no banco `ssot`.
-  # O código das migrações é do Manager (decisões 0015 e 0063); a execução é desta etapa de
-  # implantação, com o papel administrativo, e nunca com o papel de runtime do Manager.
+  # O código das migrações é da API (decisões 0015, 0063 e 0098); a execução é desta etapa de
+  # implantação, com o papel administrativo, e nunca com o papel de runtime da API.
   # As migrações são idempotentes e rodam a cada up. Os papéis vêm de database/bootstrap/@@MODULE@@.sql.
   @@KEBAB@@-migrate:
     build:
@@ -88,33 +59,33 @@ services:
           - @@KEBAB@@-migrate.smarkee.internal
     restart: "no"
 
-  # Receiver (`@@KEBAB@@-receiver`): só o gateway a alcança; a porta 8000 não é publicada no host.
-  @@KEBAB@@-receiver:
+  # API (`@@KEBAB@@-api`, decisão 0098): autentica, autoriza e admite a escrita de forma síncrona
+  # (recurso e `desired` no outbox, numa transação). Papel de banco `@@PACKAGE@@_api`. Só o gateway a
+  # alcança; a porta 8000 não é publicada no host.
+  @@KEBAB@@-api:
     <<: *component-image
-    command: [@@KEBAB@@-receiver]
-    container_name: @@KEBAB@@-receiver.smarkee.internal
+    command: [@@KEBAB@@-api]
+    container_name: @@KEBAB@@-api.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
-      # defaults do componente (@@UPPER@@_RECEIVER_<SEÇÃO>_<CAMPO>).
-      @@UPPER@@_RECEIVER_AUTH_AUDIENCE: ${@@UPPER@@_RECEIVER_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-@@MODULE@@, org core)}
+      # defaults do componente (@@UPPER@@_API_<SEÇÃO>_<CAMPO>).
+      @@UPPER@@_API_AUTH_AUDIENCE: ${@@UPPER@@_API_AUTH_AUDIENCE:?Defina no .env (ID do projeto de roles do módulo)}
     secrets:
-      - @@UPPER@@_RECEIVER_DATABASE_PASSWORD
-      - @@UPPER@@_RECEIVER_MESSAGING_PASSWORD
+      - @@UPPER@@_API_DATABASE_PASSWORD
+      - @@UPPER@@_API_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
     depends_on:
       @@KEBAB@@-migrate:
         condition: service_completed_successfully
-      @@KEBAB@@-consumer:
-        condition: service_completed_successfully
     networks:
       internal:
         aliases:
-          - @@KEBAB@@-receiver.smarkee.internal
+          - @@KEBAB@@-api.smarkee.internal
     restart: unless-stopped
     healthcheck: &component-healthcheck
       test:
@@ -127,121 +98,38 @@ services:
       retries: 6
       start_period: 10s
 
-  # Manager (`@@KEBAB@@-manager`): único escritor do SSOT do tipo. Papel de banco
-  # `@@PACKAGE@@_manager`, que só insere no outbox (decisão 0019).
-  @@KEBAB@@-manager:
+  # Controller (`@@KEBAB@@-controller`, decisão 0096): observa, decide, age e reobserva as
+  # permissões do dono da ligação numa só transação, e substitui Observer, Reconciler e Executor.
+  # Única identidade do provedor (conta @@KEBAB@@-controller: ORG_OWNER_VIEWER na organização
+  # `register` e PROJECT_GRANT_OWNER nos projetos de roles que concede) e papel de banco próprio
+  # (`@@PACKAGE@@_controller_login`). Monta só a própria chave.
+  @@KEBAB@@-controller:
     <<: *component-image
-    command: [@@KEBAB@@-manager]
-    container_name: @@KEBAB@@-manager.smarkee.internal
+    command: [@@KEBAB@@-controller]
+    container_name: @@KEBAB@@-controller.smarkee.internal
     logging: *component-logging
     deploy: *component-deploy
     environment:
       SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
       SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
     secrets:
-      - @@UPPER@@_MANAGER_DATABASE_PASSWORD
-      - @@UPPER@@_MANAGER_MESSAGING_PASSWORD
+      - @@UPPER@@_CONTROLLER_DATABASE_PASSWORD
+      - @@UPPER@@_CONTROLLER_MESSAGING_PASSWORD
     volumes:
       - ./config.toml:/etc/smarkee/config.toml:ro
+      - type: volume
+        source: identity-bootstrap
+        target: /run/secrets/zitadel-key.json
+        read_only: true
+        volume:
+          subpath: service-account-@@KEBAB@@-controller.json
     depends_on:
       @@KEBAB@@-migrate:
         condition: service_completed_successfully
-      @@KEBAB@@-consumer:
-        condition: service_completed_successfully
     networks:
       internal:
         aliases:
-          - @@KEBAB@@-manager.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Reconciler (`@@KEBAB@@-reconciler`): decide a `action` a partir de `desired` e `observed`.
-  # Não acessa o SSOT; cria os consumers de estado da própria instância (docs/messaging/NATS.md §7.4).
-  @@KEBAB@@-reconciler:
-    <<: *component-image
-    command: [@@KEBAB@@-reconciler]
-    container_name: @@KEBAB@@-reconciler.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-    secrets:
-      - @@UPPER@@_RECONCILER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-    depends_on:
-      @@KEBAB@@-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - @@KEBAB@@-reconciler.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Observer (`@@KEBAB@@-observer`): lê o Zitadel (conta somente leitura) e publica `observed`.
-  # Monta só a própria chave do volume da identidade (nunca a de bootstrap nem a do Executor).
-  @@KEBAB@@-observer:
-    <<: *component-image
-    command: [@@KEBAB@@-observer]
-    container_name: @@KEBAB@@-observer.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      @@UPPER@@_OBSERVER_IDENTITY_REGISTER_ORGANIZATION_ID: ${@@UPPER@@_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
-    secrets:
-      - @@UPPER@@_OBSERVER_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-      - type: volume
-        source: identity-bootstrap
-        target: /run/secrets/zitadel-key.json
-        read_only: true
-        volume:
-          subpath: service-account-@@KEBAB@@-observer.json
-    depends_on:
-      @@KEBAB@@-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - @@KEBAB@@-observer.smarkee.internal
-    restart: unless-stopped
-    healthcheck: *component-healthcheck
-
-  # Executor (`@@KEBAB@@-executor`): única identidade com escrita no Zitadel (conta
-  # @@KEBAB@@-executor, papel ORG_USER_MANAGER). Monta só a própria chave.
-  @@KEBAB@@-executor:
-    <<: *component-image
-    command: [@@KEBAB@@-executor]
-    container_name: @@KEBAB@@-executor.smarkee.internal
-    logging: *component-logging
-    deploy: *component-deploy
-    environment:
-      SMARKEE_ENVIRONMENT: ${SMARKEE_ENVIRONMENT:-dev}
-      SMARKEE_CONFIG_PATH: /etc/smarkee/config.toml
-      @@UPPER@@_EXECUTOR_IDENTITY_REGISTER_ORGANIZATION_ID: ${@@UPPER@@_IDENTITY_REGISTER_ORGANIZATION_ID:?Defina no .env (ID da organização register)}
-      @@UPPER@@_EXECUTOR_IDENTITY_PROJECT_IDS: ${@@UPPER@@_IDENTITY_PROJECT_IDS:?Defina no .env (JSON módulo → ID do projeto de permissões que o Executor concede)}
-    secrets:
-      - @@UPPER@@_EXECUTOR_MESSAGING_PASSWORD
-    volumes:
-      - ./config.toml:/etc/smarkee/config.toml:ro
-      - type: volume
-        source: identity-bootstrap
-        target: /run/secrets/zitadel-key.json
-        read_only: true
-        volume:
-          subpath: service-account-@@KEBAB@@-executor.json
-    depends_on:
-      @@KEBAB@@-consumer:
-        condition: service_completed_successfully
-    networks:
-      internal:
-        aliases:
-          - @@KEBAB@@-executor.smarkee.internal
+          - @@KEBAB@@-controller.smarkee.internal
     restart: unless-stopped
     healthcheck: *component-healthcheck
 
@@ -314,20 +202,14 @@ services:
 # Senhas montadas em /run/secrets/<VARIÁVEL> (arquivo somente leitura, lido pelo `SecretFilesSource`; decisão 0070).
 # A origem em dev é o .env; cada papel recebe só a sua. Em stg e prd a origem passa a ser o cofre de segredos.
 secrets:
-  @@UPPER@@_RECEIVER_DATABASE_PASSWORD:
-    environment: @@UPPER@@_RECEIVER_DATABASE_PASSWORD
-  @@UPPER@@_RECEIVER_MESSAGING_PASSWORD:
-    environment: @@UPPER@@_RECEIVER_MESSAGING_PASSWORD
-  @@UPPER@@_MANAGER_DATABASE_PASSWORD:
-    environment: @@UPPER@@_MANAGER_DATABASE_PASSWORD
-  @@UPPER@@_MANAGER_MESSAGING_PASSWORD:
-    environment: @@UPPER@@_MANAGER_MESSAGING_PASSWORD
-  @@UPPER@@_RECONCILER_MESSAGING_PASSWORD:
-    environment: @@UPPER@@_RECONCILER_MESSAGING_PASSWORD
-  @@UPPER@@_OBSERVER_MESSAGING_PASSWORD:
-    environment: @@UPPER@@_OBSERVER_MESSAGING_PASSWORD
-  @@UPPER@@_EXECUTOR_MESSAGING_PASSWORD:
-    environment: @@UPPER@@_EXECUTOR_MESSAGING_PASSWORD
+  @@UPPER@@_API_DATABASE_PASSWORD:
+    environment: @@UPPER@@_API_DATABASE_PASSWORD
+  @@UPPER@@_API_MESSAGING_PASSWORD:
+    environment: @@UPPER@@_API_MESSAGING_PASSWORD
+  @@UPPER@@_CONTROLLER_DATABASE_PASSWORD:
+    environment: @@UPPER@@_CONTROLLER_DATABASE_PASSWORD
+  @@UPPER@@_CONTROLLER_MESSAGING_PASSWORD:
+    environment: @@UPPER@@_CONTROLLER_MESSAGING_PASSWORD
   @@UPPER@@_PUBLISHER_DATABASE_PASSWORD:
     environment: @@UPPER@@_PUBLISHER_DATABASE_PASSWORD
   @@UPPER@@_PUBLISHER_MESSAGING_PASSWORD:

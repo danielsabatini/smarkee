@@ -40,7 +40,7 @@ Entradas: módulo, tipo e o contrato do recurso (`docs/data/SCHEMA.md`, parâmet
 
 1. Ler `docs/data/SSOT.md` (modelo, dicionário, invariantes) e `docs/data/POSTGRESQL.md` (mapeamento e DDL de referência).
 2. Confirmar que o contrato do recurso define limites, sensibilidade e os parâmetros do loop. Se não definir, parar e devolver ao agent `ssot`.
-3. **Gerar** as quatro tabelas (`<tipo>`, `<tipo>_operation`, `<tipo>_action_result`, `<tipo>_outbox`) e as duas views de leitura (`<tipo>_v<MAJOR>`, `<tipo>_operation_v<MAJOR>`) **a partir do modelo único** (DDL de referência de `docs/data/POSTGRESQL.md`), como migração do projeto do Manager do tipo (`.decisions/0015-componentes-por-papel-autocontidos.md`). Não escreva o DDL à mão por tipo fora desse modelo e não edite a tabela gerada (`AGENTS.md`, arquivos gerados). Se o modelo ainda não existir, proponha-o como artefato versionado e pare.
+3. **Gerar** (modelo de referência; as features `api` + `publisher` + `controller` das decisões 0096 e 0098 **não têm** `<tipo>_operation` nem `<tipo>_action_result`: têm a tabela do tipo, `<tipo>_outbox` e `<tipo>_idempotency`, com os papéis `{api,controller,publisher,maintenance}`) as quatro tabelas (`<tipo>`, `<tipo>_operation`, `<tipo>_action_result`, `<tipo>_outbox`) e as duas views de leitura (`<tipo>_v<MAJOR>`, `<tipo>_operation_v<MAJOR>`) **a partir do modelo único** (DDL de referência de `docs/data/POSTGRESQL.md`), como migração do projeto do Manager do tipo (`.decisions/0015-componentes-por-papel-autocontidos.md`). Não escreva o DDL à mão por tipo fora desse modelo e não edite a tabela gerada (`AGENTS.md`, arquivos gerados). Se o modelo ainda não existir, proponha-o como artefato versionado e pare.
 4. Gerar os papéis e os `GRANT` da matriz de `docs/data/POSTGRESQL.md` (por serviço) e conferir contra a matriz de identidades de `docs/loop/RESOURCE-CONTROL-SECURITY.md`.
 5. Executar o Procedimento C (validação em contêiner) com o DDL gerado.
 6. Entregar a migração para revisão. Não aplique.
@@ -85,7 +85,7 @@ Evite `SELECT *` e qualquer exibição do conteúdo de `desired` e `observed`.
 
 ## 7. Procedimento E: revisar segurança
 
-1. Conferir os papéis e os `GRANT` contra a matriz de `docs/data/POSTGRESQL.md` e de `docs/loop/RESOURCE-CONTROL-SECURITY.md`: um papel por serviço; Manager sem `DELETE` em outbox, resultados de ação e operation; Receiver só com leitura pelas views; Publisher do tipo (`<módulo>_<tipo>_publisher`) só com `SELECT` no outbox e `UPDATE (published_at)`; manutenção separada.
+1. Conferir os papéis e os `GRANT` contra a matriz de `docs/data/POSTGRESQL.md` e de `docs/loop/RESOURCE-CONTROL-SECURITY.md`: um papel por serviço; Manager (ou, nas features atuais, API e Controller) sem `DELETE` em outbox; só o Controller apaga a linha do recurso; Receiver só com leitura pelas views; Publisher do tipo (`<módulo>_<tipo>_publisher`) só com `SELECT` no outbox e `UPDATE (published_at)`; manutenção separada.
 2. Confirmar que `PUBLIC` não possui privilégios no banco, no schema `public`, no schema do módulo nem nas tabelas, e que os papéis de login de runtime têm os parâmetros de sessão.
 3. Confirmar que nenhum serviço de runtime é proprietário de objeto nem executa DDL.
 4. Confirmar TLS fora do ambiente local, proteção em repouso (validada no ambiente) e que log não registra parâmetros nem colunas `confidential`.

@@ -468,18 +468,18 @@ services:
                 WWW-Authenticate: Bearer realm="smarkee"
             body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
 
-  # Receiver de sum.service (decisão 0033): a API `/v1/sum/services`.
-  - name: sum-service-receiver
+  # API de sum.service (decisões 0033 e 0098): a API `/v1/sum/services`.
+  - name: sum-service-api
     upstream:
       scheme: http
       type: roundrobin
       pass_host: pass
       nodes:
-        - host: sum-service-receiver.smarkee.internal
+        - host: sum-service-api.smarkee.internal
           port: 8000
           weight: 100
     routes:
-      - name: sum-service-receiver
+      - name: sum-service-api
         hosts:
           - api-dev.smarkee.com.br
         uris:
@@ -531,18 +531,18 @@ services:
                 WWW-Authenticate: Bearer realm="smarkee"
             body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
 
-  # Receiver de bsm.account: a API `/v1/bsm/accounts`.
-  - name: bsm-account-receiver
+  # API de bsm.account (decisão 0098): a API `/v1/bsm/accounts`.
+  - name: bsm-account-api
     upstream:
       scheme: http
       type: roundrobin
       pass_host: pass
       nodes:
-        - host: bsm-account-receiver.smarkee.internal
+        - host: bsm-account-api.smarkee.internal
           port: 8000
           weight: 100
     routes:
-      - name: bsm-account-receiver
+      - name: bsm-account-api
         hosts:
           - api-dev.smarkee.com.br
         uris:

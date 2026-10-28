@@ -1,23 +1,21 @@
 # Memória Operacional do Projeto (AI Context)
 
 Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado operacional atual** necessário para continuar o trabalho.
-- **Histórico detalhado de execução:** `.journal/2026-10-27.md`, `.journal/2026-10-26.md`, `.journal/2026-10-25.md`, `.journal/2026-10-24.md` e `.journal/2026-10-19.md` (locais, não versionados — consultar sob demanda).
+- **Histórico detalhado de execução:** `.journal/2026-10-28.md`, `.journal/2026-10-27.md`, `.journal/2026-10-26.md`, `.journal/2026-10-25.md`, `.journal/2026-10-24.md` e `.journal/2026-10-19.md` (locais, não versionados — consultar sob demanda).
 - **Regras, contratos e decisões:** `AGENTS.md`, `docs/` e `.decisions/`.
 
 ## Estado operacional atual
 - **Branch `dev`:** o plano `ipm/*` e desmonte do loop legado (decisões `0098`, `0099`, `0100` e etapa S6):
   - `bsm/account` migrada (S6.1) para `internal-state` (`api` + `publisher`): zero chamadas HTTP mútuas com `ipm/organization` via projeções no stream `DESIRED` (`BillingAccountProjection` em `ipm/organization` e `OrganizationUsageProjection` em `bsm/account`), CLI `sk` adaptada para `SyncResourceFlow`.
   - `ipm/serviceaccount|user|organization|permission` têm `api`, `publisher`, `controller`; `ipm/role|group` e `bsm/account` têm só `api` e `publisher`; banco `platform` extinto (`0099`).
-  - `core/account` migrada (S6.2) para `api` + `publisher` + `controller` (código, docs e `check` verdes; **commit/push pendentes de autorização**; e2e não rodada contra a stack real).
-  - Próximo na S6: `sum/service`.
+  - `core/account` (S6.2) e `sum/service` (S6.3) migradas para `api` + `publisher` + `controller`; template/`FEATURE-BOOTSTRAP`/agent `feature`/skills limpos do loop de 7 papéis. S6 concluída no código e nas docs; `sum/service` **sem commit/push ainda** (check 100% verde); e2e de `core/account` e `sum/service` não rodadas contra a stack real.
 - **Banco `ssot`** (decisão `0087`) é o único banco de recursos; o banco `platform` foi extinto (decisão `0099`; dump prévio em `.workspace/platform-before-drop.dump`).
 - **Identidade (`infrastructure/dev/identity`):** chaves das service accounts do Zitadel persistem no volume Docker `identity-bootstrap`.
 - **Ambiente local OpenCode:** `~/.config/opencode/opencode.json` carrega `AGENTS.md` e `MEMORY.md` globalmente.
 
 ## Próximos passos imediatos
 00. **Plano de evolução ipm/* e loop** (`~/.opencode/plan/ipm-resource-control-loop-evolution.md`; ordem `S0 → S2 → S1 → S3 → S4 → S5 → S6`):
-  - **Próximo: S6** (`sum/service`, limpeza dos perfis legados do template/`FEATURE-BOOTSTRAP`/agent `feature`/skills e consolidação documental).
-  - Antes do e2e de `core/account` no dev: subir `core-account-{api,controller,publisher,telemeter}`, remover contêineres antigos, reiniciar gateway e `telemetry-router`, criar a conta Zitadel `core-account-controller` (lacuna em `IMPLEMENTATION-STATUS.md` §7.1).
+  - **Próximo:** commitar a S6.3 (sem `.opencode/agents/python.md` nem `.opencode/skills/cli-ux/`) e pedir autorização do push; depois o operacional no dev: subir `core-account-{api,controller,publisher,telemeter}` e `sum-service-{api,controller,publisher,telemeter}`, remover contêineres antigos, criar as contas Zitadel `core-account-controller` e `sum-service-controller` (lacunas em `IMPLEMENTATION-STATUS.md` §7.1), reiniciar gateway e `telemetry-router` e rodar as e2e.
   - Pendências menores: contas Zitadel `*-executor/observer` (lacuna declarada), diagramas `docs/{flow,architecture,state,database}` e `*-DATA-FLOW.md` de role/group (modelo antigo, declarado nos READMEs), Console desatualizado (fase própria).
 0. Os `list` da CLI `sk` mostram só `name | resourceId | phase | description` (padronizados; `--output json` mantém todos os campos). Commitado em `14ccbd9` (as opções `--output`/`--raw`, decisão `0093`, já estão em `origin/dev`, `0bdba35`). O scanner da CLI exige `-Dsonar.python.coverage.reportPaths=coverage.xml` (o `sonar-project.properties` não define); Quality Gate `smarkee-clients-cli` em OK.
 0a. A UX da CLI `sk` é auditada pela skill `cli-ux` (matriz `references/clig-conformance.md`, lacunas em aberto listadas lá); lotes A e B e as etapas 1 a 3 entregues e em `origin/dev` (até `1474acb2`): timeout `api.timeoutSeconds`, `config unset`, `--public-key-file -`, progresso do `--wait`, `-q/--quiet` (decisão `0095`) e exemplos na ajuda de 8 comandos. Em aberto: `sk help <cmd>` (só se o responsável quiser; o `-h` já cobre), exemplos nos demais comandos, canal de suporte e modo de diagnóstico (traceback) para erro inesperado.

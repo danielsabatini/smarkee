@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ServiceCreateRequest",
-  "description": "Corpo de POST /v1/sum/services. O solicitante é o dono da ligação (vem do token, nunca do corpo). O Receiver atribui resourceId, operationId e requestDigest. A ligação é do solicitante: o corpo não escolhe o usuário.",
+  "description": "Corpo de POST /v1/sum/services. O solicitante é o dono da ligação (vem do token, nunca do corpo). A API atribui o resourceId. A ligação é do solicitante: o corpo não escolhe o usuário.",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,

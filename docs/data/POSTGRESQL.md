@@ -40,7 +40,7 @@ Este documento não fixa uma versão. O DDL de referência foi exercitado em Pos
 | Proprietário | `ssot`: dono do banco e dos objetos, usado somente por migração e recuperação; não é superusuário |
 | Codificação e localidade | `UTF8`, com provedor de localidade `builtin` e `C.UTF-8` (PostgreSQL 17 ou superior): ordenação por ponto de código, igual em qualquer sistema operacional e biblioteca C, sem risco de índices invalidados por atualização da biblioteca |
 | Schema | Um schema por módulo (`<módulo>`) |
-| Tabelas | Quatro por tipo de recurso, todas com o mesmo formato: `<tipo>`, `<tipo>_operation`, `<tipo>_action_result`, `<tipo>_outbox` |
+| Tabelas | Quatro por tipo de recurso no desenho de referência do loop de sete papéis: `<tipo>`, `<tipo>_operation`, `<tipo>_action_result`, `<tipo>_outbox`. **Nas features atuais** (`api` + `publisher` + `controller`, decisões `0096`, `0098` e `0100`) não há `_operation` nem `_action_result`: o tipo tem `<tipo>`, `<tipo>_outbox` e `<tipo>_idempotency`, e os papéis são `<módulo>_<tipo>_{api,controller,publisher,maintenance}` |
 | Views | Duas por tipo de recurso, para a leitura do Receiver: `<tipo>_v<MAJOR>` e `<tipo>_operation_v<MAJOR>` |
 | Nomes | `snake_case`, minúsculas, sem hífen. Um tipo cujo nome é palavra reservada do PostgreSQL (por exemplo, `user`) mantém o nome do tipo, e a tabela do tipo é sempre citada (`core.account`); as demais tabelas e views (`user_operation`, `user_v1`) não precisam de aspas |
 | Papéis | Um por serviço, mapeando a identidade `<módulo>-<tipo>-<papel>` para `<módulo>_<tipo>_<papel>` (o Publisher tem o papel `<módulo>_<tipo>_publisher`) |

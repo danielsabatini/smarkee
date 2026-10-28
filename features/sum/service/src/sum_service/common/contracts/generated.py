@@ -47,6 +47,13 @@ class MessageOperation(StrEnum):
     noop = "noop"
 
 
+class RequestDigest(RootModel[str]):
+    root: Annotated[str, Field(max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")]
+    """
+    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
+    """
+
+
 class Duration(RootModel[timedelta]):
     root: timedelta
     """
@@ -239,133 +246,6 @@ class UpdatedData(ContractModel):
     """
 
 
-class OperationType(StrEnum):
-    create = "create"
-    update = "update"
-    delete = "delete"
-
-
-class OperationStatus(StrEnum):
-    accepted = "accepted"
-    in_progress = "in_progress"
-    completed = "completed"
-    failed = "failed"
-    rejected = "rejected"
-    superseded = "superseded"
-
-
-class OperationStatusReason(StrEnum):
-    """
-    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
-    """
-
-    conflict = "conflict"
-    validation = "validation"
-    not_found = "not_found"
-    protected = "protected"
-
-
-class Operation(ContractModel):
-    """
-    Acompanhamento de uma solicitação assíncrona, exposto por GET /v1/operations/{operationId} (SSOT.md, Operation).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    operation_type: Annotated[OperationType, Field(alias="operationType", title="OperationType")]
-    module: Annotated[str, Field(max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")]
-    resource_type: Annotated[
-        str, Field(alias="resourceType", max_length=63, min_length=1, pattern="^[a-z][a-z0-9-]*$")
-    ]
-    resource_id: Annotated[
-        str,
-        Field(
-            alias="resourceId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-    desired_generation: Annotated[
-        int | None, Field(alias="desiredGeneration", ge=1, le=9007199254740991)
-    ] = None
-    """
-    Geração produzida pelo pedido; ausente quando rejeitado.
-    """
-    operation_status: Annotated[
-        OperationStatus, Field(alias="operationStatus", title="OperationStatus")
-    ]
-    operation_status_reason: Annotated[
-        OperationStatusReason | None,
-        Field(alias="operationStatusReason", title="OperationStatusReason"),
-    ] = None
-    """
-    Motivo da rejeição; presente somente quando operationStatus é rejected. protected: o recurso tem a proteção contra exclusão ligada (decisão 0043).
-    """
-    created_at: Annotated[AwareDatetime, Field(alias="createdAt")]
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-    updated_at: Annotated[AwareDatetime, Field(alias="updatedAt")]
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-    completed_at: Annotated[AwareDatetime | None, Field(alias="completedAt")] = None
-    """
-    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
-    """
-
-
-class ApiAcceptedResponse(ContractModel):
-    """
-    Resposta das escritas assíncronas (POST, PATCH, DELETE): o pedido foi publicado, não aplicado (RESOURCE-CONTROL-LOOP.md, Interface HTTP).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    resource_id: Annotated[
-        str,
-        Field(
-            alias="resourceId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
-    """
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-
-
 class ApiError(ContractModel):
     """
     Corpo das respostas de erro do Receiver. A mensagem identifica o campo e a regra violada e não repete valores confidential nem secretReference (SCHEMA.md, Limites e erros).
@@ -422,7 +302,7 @@ class ServiceObservedData(ContractModel):
 
 class ServiceCreateRequest(ContractModel):
     """
-    Corpo de POST /v1/sum/services. O solicitante é o dono da ligação (vem do token, nunca do corpo). O Receiver atribui resourceId, operationId e requestDigest. A ligação é do solicitante: o corpo não escolhe o usuário.
+    Corpo de POST /v1/sum/services. O solicitante é o dono da ligação (vem do token, nunca do corpo). A API atribui o resourceId. A ligação é do solicitante: o corpo não escolhe o usuário.
     """
 
     model_config = ConfigDict(
@@ -430,92 +310,7 @@ class ServiceCreateRequest(ContractModel):
     )
     service: Annotated[str, Field(max_length=32, min_length=2, pattern="^[a-z][a-z0-9]*$")]
     """
-    Serviço da plataforma que o usuário liga, por exemplo ipm (a Organization). Nome curto, em minúsculas, sem o módulo. Só vale se estiver no catálogo do Manager.
-    """
-
-
-class ServiceCreateSpecification(ContractModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    service: Annotated[str, Field(max_length=32, min_length=2, pattern="^[a-z][a-z0-9]*$")]
-    """
-    Serviço da plataforma que o usuário liga, por exemplo ipm (a Organization). Nome curto, em minúsculas, sem o módulo. Só vale se estiver no catálogo do Manager.
-    """
-    owner_account_id: Annotated[
-        str,
-        Field(
-            alias="ownerAccountId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Dono da ligação: o `sub` do token do solicitante, atribuído pelo Receiver.
-    """
-
-
-class ServiceRequestedCreateData(ContractModel):
-    """
-    data de requested com operation create: pede a ligação de um serviço para o dono. Publicado somente pelo Receiver, a partir do token do solicitante (decisão 0033). O Manager decide se a ligação é aceita, pelo catálogo e pela unicidade do par dono + serviço.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    specification: Annotated[ServiceCreateSpecification, Field(title="ServiceCreateSpecification")]
-
-
-class ServiceRequestedDeleteData(ContractModel):
-    """
-    data de requested com operation delete: pede o desligamento de uma ligação (lifecycle absent). Publicado somente pelo Receiver. A ligação não é apagada: o Manager só muda o desired (decisão 0033).
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    operation_id: Annotated[
-        str,
-        Field(
-            alias="operationId",
-            max_length=128,
-            min_length=1,
-            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
-        ),
-    ]
-    """
-    Identificador opaco atribuído pelo sistema (messageId, operationId, correlationId, causationId). O UUIDv7 em minúsculas atende ao padrão.
-    """
-    request_digest: Annotated[
-        str, Field(alias="requestDigest", max_length=64, min_length=64, pattern="^[0-9a-f]{64}$")
-    ]
-    """
-    SHA-256, em hexadecimal minúsculo, da forma canônica do conteúdo pedido.
-    """
-    resource_version: Annotated[
-        str, Field(alias="resourceVersion", max_length=64, min_length=1, pattern="^[A-Za-z0-9-]+$")
-    ]
-    """
-    Versão persistida do recurso, para concorrência otimista. Valor opaco: não é sequência, instante nem geração.
+    Serviço da plataforma que o usuário liga, por exemplo ipm (a Organization). Nome curto, em minúsculas, sem o módulo. Só vale se estiver no catálogo de serviços.
     """
 
 
@@ -657,7 +452,7 @@ class MessageEnvelope(ContractModel):
 
 class ServiceDesiredData(ContractModel):
     """
-    data de desired do SUM: a ligação de um serviço para um usuário. Publicado somente pelo Manager, a partir do pedido aceito pelo Receiver e do catálogo de serviços (decisão 0033). Sem dados pessoais: o usuário é referenciado pelo ownerAccountId.
+    data de desired do SUM: a ligação de um serviço para um usuário. Publicado somente pela API (e pelo Controller ao suspender a reconciliação), a partir do pedido admitido e do catálogo de serviços (decisões 0033 e 0098). Sem dados pessoais: o usuário é referenciado pelo ownerAccountId.
     """
 
     model_config = ConfigDict(
@@ -678,7 +473,7 @@ class ServiceDesiredData(ContractModel):
         ),
     ]
     """
-    ID do usuário dono da ligação: o `resourceId` da Account (decisão 0014). Atribuído pelo Receiver a partir do token do solicitante.
+    ID do usuário dono da ligação: o `resourceId` da Account (decisão 0014). Atribuído pela API a partir do token do solicitante.
     """
     service: Annotated[str, Field(max_length=32, min_length=2, pattern="^[a-z][a-z0-9]*$")]
     """
@@ -688,19 +483,19 @@ class ServiceDesiredData(ContractModel):
         list[ServicePermission], Field(alias="servicePermissions", max_length=64)
     ]
     """
-    Permissões que o usuário deve ter para usar o serviço. Copiadas do catálogo do Manager na ligação; vazias quando lifecycle é absent.
+    Permissões que o usuário deve ter para usar o serviço. Copiadas do catálogo de serviços na ligação; vazias quando lifecycle é absent.
     """
     managed_permissions: Annotated[
         list[ServicePermission] | None, Field(alias="managedPermissions", max_length=64)
     ] = None
     """
-    Permissões do serviço que esta ligação controla: as do catálogo no momento em que o Manager gravou o desired, mais as que saíram do catálogo depois (decisão 0079). Com a ligação ativa, o usuário tem as de servicePermissions e nenhuma das demais; desligada, nenhuma. O Observer e o Executor leem as permissões daqui, sem catálogo próprio. Ausente só em desired gravado antes da decisão 0079.
+    Permissões do serviço que esta ligação controla: as do catálogo no momento em que a API gravou o desired, mais as que saíram do catálogo depois (decisão 0079). Com a ligação ativa, o usuário tem as de servicePermissions e nenhuma das demais; desligada, nenhuma. O Observer e o Executor leem as permissões daqui, sem catálogo próprio. Ausente só em desired gravado antes da decisão 0079.
     """
 
 
 class ServiceResource(ContractModel):
     """
-    Visão consolidada da ligação de um serviço exposta pelo Receiver (GET /v1/sum/services/{resourceId}), legível pelo dono da ligação e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).
+    Visão consolidada da ligação de um serviço exposta pela API (GET /v1/sum/services/{resourceId}), legível pelo dono da ligação e por operadores. Não expõe campos internos do SSOT (failureCount, requestedBy).
     """
 
     model_config = ConfigDict(
@@ -727,6 +522,12 @@ class ServiceResource(ContractModel):
     desired_generation: Annotated[int, Field(alias="desiredGeneration", ge=1, le=9007199254740991)]
     """
     Geração lógica do estado desejado (desiredGeneration, observedGeneration).
+    """
+    observed_generation: Annotated[
+        int | None, Field(alias="observedGeneration", ge=1, le=9007199254740991)
+    ] = None
+    """
+    Última geração do desired confirmada pela observação; ausente antes da primeira. A alteração terminou quando observedGeneration >= desiredGeneration e a phase é Ready ou Failed (decisão 0098).
     """
     phase: Phase
     conditions: Annotated[list[Condition], Field(max_length=32)]
@@ -761,16 +562,12 @@ class SumServiceContracts(
         | CompletedData
         | FailedData
         | UpdatedData
-        | Operation
-        | ApiAcceptedResponse
         | ApiError
         | ServiceDesiredData
         | ServiceObservedData
         | ServiceCreateRequest
         | ServiceListResponse
         | ServiceResource
-        | ServiceRequestedCreateData
-        | ServiceRequestedDeleteData
     ]
 ):
     root: Annotated[
@@ -780,16 +577,12 @@ class SumServiceContracts(
         | CompletedData
         | FailedData
         | UpdatedData
-        | Operation
-        | ApiAcceptedResponse
         | ApiError
         | ServiceDesiredData
         | ServiceObservedData
         | ServiceCreateRequest
         | ServiceListResponse
-        | ServiceResource
-        | ServiceRequestedCreateData
-        | ServiceRequestedDeleteData,
+        | ServiceResource,
         Field(title="SumServiceContracts"),
     ]
     """

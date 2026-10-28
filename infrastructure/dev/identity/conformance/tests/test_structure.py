@@ -119,11 +119,10 @@ SERVICE_ACCOUNTS = {
     "ipm-user-controller",
     "ipm-user-executor",
     "ipm-user-observer",
-    "sum-service-executor",
-    "sum-service-observer",
+    "sum-service-controller",
 }
-# Projetos que o Executor do SUM administra (decisão 0033): `ipm`.
-SUM_EXECUTOR_GRANT_PROJECTS = {"roles-ipm"}
+# Projetos que o Controller do SUM administra (decisões 0033 e 0096): `ipm`.
+SUM_CONTROLLER_GRANT_PROJECTS = {"roles-ipm"}
 
 pytestmark = pytest.mark.skipif(
     not KEY_FILE, reason="CONFORMANCE_IDENTITY_KEY_FILE não definida (chave do platform-bootstrap)"
@@ -430,9 +429,8 @@ def test_executor_and_observer_have_roles_only_in_register(
     in_register = organization_administrators(zitadel, orgs["register"])
     # `ORG_USER_CREATOR` cria e remove usuários, mas não concede roles (decisão 0032).
     assert in_register.get("core-account-controller") == {"ORG_USER_CREATOR", "ORG_OWNER_VIEWER"}
-    # O Observer do SUM só lê a register; o Executor do SUM não tem papel nela (só o Grant, abaixo).
-    assert in_register.get("sum-service-observer") == {"ORG_OWNER_VIEWER"}
-    assert "sum-service-executor" not in in_register
+    # O Controller do SUM só lê a register (só o Grant de `roles-ipm` concede, abaixo).
+    assert in_register.get("sum-service-controller") == {"ORG_OWNER_VIEWER"}
     # As contas da Organization têm só papel de instância (abaixo), nenhum na `register`; as do
     # User e da ServiceAccount só têm papéis nas organizações de cliente, dados pelo loop da
     # Organization (0081 e 0094).
@@ -483,18 +481,18 @@ def test_user_executor_grants_roles_only_in_its_modules(
         assert has_role == (name in USER_EXECUTOR_GRANT_PROJECTS), name
 
 
-def test_sum_executor_is_project_grant_owner_only_in_its_grants(
+def test_sum_controller_is_project_grant_owner_only_in_its_grants(
     zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
 ) -> None:
-    """O Executor do SUM só concede as roles dos módulos ligáveis (`ipm`, decisão 0032): é
+    """O Controller do SUM só concede as roles dos módulos ligáveis (`ipm`, decisão 0032): é
     `PROJECT_GRANT_OWNER` só no Grant de `roles-ipm` para a `register`."""
     for name, project_id in project_ids.items():
         owners = administrators(
             zitadel,
             {"projectGrant": {"projectId": project_id, "organizationId": orgs["register"]}},
         )
-        has_role = owners.get("sum-service-executor") == {"PROJECT_GRANT_OWNER"}
-        assert has_role == (name in SUM_EXECUTOR_GRANT_PROJECTS), name
+        has_role = owners.get("sum-service-controller") == {"PROJECT_GRANT_OWNER"}
+        assert has_role == (name in SUM_CONTROLLER_GRANT_PROJECTS), name
 
 
 def test_service_account_keys_exist_and_are_not_close_to_expiry(

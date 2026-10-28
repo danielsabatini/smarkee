@@ -152,23 +152,23 @@ O access token vale **15 minutos** (decisão 0033), para que uma revogação de 
 
 ```bash
 uv run sk sum service enable --service ipm [--wait] [--timeout SEGUNDOS]
-uv run sk sum service get --resource-id ID [--operation-id OPERACAO]
+uv run sk sum service get --resource-id ID
 uv run sk sum service disable --resource-id ID [--wait] [--timeout SEGUNDOS]
 uv run sk sum service list
 ```
 
-O endereço da API e a permissão de HTTP sem TLS **não têm opção de linha de comando** (decisão 0041): vêm de `SK_API_URL` e `SK_API_ALLOW_INSECURE_HTTP=true`, de `[api]` no arquivo ou do padrão de produção, como no `sk account create`. `resourceId` e `operationId` precisam seguir o padrão do contrato (letras minúsculas, números e hífen, até 128 caracteres): outro valor é recusado antes de qualquer chamada, porque entra no caminho da URL.
+O endereço da API e a permissão de HTTP sem TLS **não têm opção de linha de comando** (decisão 0041): vêm de `SK_API_URL` e `SK_API_ALLOW_INSECURE_HTTP=true`, de `[api]` no arquivo ou do padrão de produção, como no `sk account create`. O `resourceId` precisa seguir o padrão do contrato (letras minúsculas, números e hífen, até 128 caracteres): outro valor é recusado antes de qualquer chamada, porque entra no caminho da URL.
 
 | Comando | Requisição | Resultado |
 |---|---|---|
-| `enable --service NOME` | `POST /v1/sum/services`, com `Idempotency-Key` gerada por pedido | `202`: o `resourceId` e o `operationId`; com `--wait`, espera `Ready` e renova a sessão |
-| `disable --resource-id ID` | `GET` do serviço (para ler a `resourceVersion`), depois `DELETE`; se já está desabilitado, não faz nada | `202`: o `operationId` (ou "nada a fazer", saída `0`); com `--wait`, espera `Ready` e renova a sessão |
-| `get --resource-id ID` | `GET` do serviço (e da Operation, se `--operation-id`) | `state` (`enabled` / `disabled`), `phase` e `observedPermissions` |
+| `enable --service NOME` | `POST /v1/sum/services`, com `Idempotency-Key` gerada por pedido | `201`: o serviço admitido (`resourceId`, `phase`); com `--wait`, espera a geração ser observada e a fase `Ready`, e renova a sessão |
+| `disable --resource-id ID` | `GET` do serviço (para ler a `resourceVersion`), depois `DELETE`; se já está desabilitado, não faz nada | `202`: o serviço admitido (ou "nada a fazer", saída `0`); com `--wait`, espera a geração ser observada e a fase `Ready`, e renova a sessão |
+| `get --resource-id ID` | `GET` do serviço | `state` (`enabled` / `disabled`), `phase` e `observedPermissions` |
 | `list` | `GET /v1/sum/services` | Uma linha por serviço do solicitante (habilitado ou desabilitado) |
 
 Com `--wait` (em qualquer comando que o tenha), o progresso vai para a saída de erro: em terminal, um indicador numa linha com o estado e o tempo decorrido, apagado ao terminar; fora de terminal (pipe, CI), uma linha só quando o estado muda. A saída padrão e o `--output json` não são afetados.
 
-Habilitar e desabilitar são assíncronos: o comando confirma o aceite, e `get` mostra quando a fase chega a `Ready`. **O token só traz as permissões que existiam quando foi emitido**: as do serviço (`ipm.*`) chegam depois do aceite e saem ao desligar. Por isso `--wait` espera a convergência (`Ready` e Operation `completed`, até `--timeout`, 60 s por padrão) e **renova a sessão** pelo refresh token, e o token já reflete o novo estado. Sem `--wait`, rode `sk auth refresh` quando a fase for `Ready`. Se a renovação falhar (por exemplo, sem refresh token), o comando avisa e sai com `0`, porque o pedido já valeu. Os nomes dos campos e os valores de estado saem em inglês (`resourceId`, `state`, `phase`); as mensagens e a ajuda também são em inglês (ver *Idioma*, abaixo). Usa a API de `[api] url` e o token da sessão. Precisa de um solicitante com as permissões `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`.
+Habilitar e desabilitar são escritas síncronas, sem Operation (decisão 0098): a API admite o pedido e o Controller converge depois. O comando mostra o serviço admitido, e `get` mostra quando a fase chega a `Ready`. **O token só traz as permissões que existiam quando foi emitido**: as do serviço (`ipm.*`) chegam depois do aceite e saem ao desligar. Por isso `--wait` espera a convergência (`observedGeneration` alcança `desiredGeneration` e a fase é `Ready`, até `--timeout`, 60 s por padrão) e **renova a sessão** pelo refresh token, e o token já reflete o novo estado. Sem `--wait`, rode `sk auth refresh` quando a fase for `Ready`. Se a renovação falhar (por exemplo, sem refresh token), o comando avisa e sai com `0`, porque o pedido já valeu. Os nomes dos campos e os valores de estado saem em inglês (`resourceId`, `state`, `phase`); as mensagens e a ajuda também são em inglês (ver *Idioma*, abaixo). Usa a API de `[api] url` e o token da sessão. Precisa de um solicitante com as permissões `sum.ipm.enable`, `sum.ipm.disable` e `sum.ipm.get`.
 
 Códigos de saída: `0` sucesso; `1` sessão ausente, API recusou ou indisponível, ou `--wait` sem convergir (Operation recusada ou tempo esgotado); `2` opção obrigatória ausente, identificador fora do contrato, endereço sem HTTPS ou configuração inválida.
 
