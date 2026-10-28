@@ -92,6 +92,7 @@ CREATE INDEX IF NOT EXISTS group_organization_id
   WHERE lifecycle = 'present';
 
 -- Interface de leitura do Receiver (docs/data/POSTGRESQL.md §14.2): views sem colunas internas de auditoria.
+DROP VIEW IF EXISTS ipm.group_v1;
 CREATE OR REPLACE VIEW ipm.group_v1 AS
   SELECT
     resource_id,

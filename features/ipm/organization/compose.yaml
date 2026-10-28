@@ -74,10 +74,6 @@ services:
       # Segredos e identificadores de ambiente vêm do .env (veja .env.example); o resto usa os
       # defaults do componente (IPM_ORGANIZATION_API_<SEÇÃO>_<CAMPO>).
       IPM_ORGANIZATION_API_AUTH_AUDIENCE: ${IPM_ORGANIZATION_API_AUTH_AUDIENCE:?Defina no .env (ID do projeto roles-ipm, org core)}
-      IPM_ORGANIZATION_API_USER_ACCESS_USER_EXECUTOR_ACCOUNT_ID: ${IPM_ORGANIZATION_USER_EXECUTOR_ACCOUNT_ID:?Defina no .env (ID da conta ipm-user-executor, org core)}
-      IPM_ORGANIZATION_API_USER_ACCESS_USER_OBSERVER_ACCOUNT_ID: ${IPM_ORGANIZATION_USER_OBSERVER_ACCOUNT_ID:?Defina no .env (ID da conta ipm-user-observer, org core)}
-      IPM_ORGANIZATION_API_USER_ACCESS_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID: ${IPM_ORGANIZATION_SERVICEACCOUNT_EXECUTOR_ACCOUNT_ID:?Defina no .env (ID da conta ipm-serviceaccount-executor, org core)}
-      IPM_ORGANIZATION_API_USER_ACCESS_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID: ${IPM_ORGANIZATION_SERVICEACCOUNT_OBSERVER_ACCOUNT_ID:?Defina no .env (ID da conta ipm-serviceaccount-observer, org core)}
       IPM_ORGANIZATION_API_USER_ACCESS_SERVICEACCOUNT_CONTROLLER_ACCOUNT_ID: ${IPM_ORGANIZATION_SERVICEACCOUNT_CONTROLLER_ACCOUNT_ID:?Defina no .env (ID da conta ipm-serviceaccount-controller, org core)}
       IPM_ORGANIZATION_API_USER_ACCESS_USER_CONTROLLER_ACCOUNT_ID: ${IPM_ORGANIZATION_USER_CONTROLLER_ACCOUNT_ID:?Defina no .env (ID da conta ipm-user-controller, org core)}
     secrets:

@@ -12,6 +12,7 @@ from typing import Protocol
 # e não o PostgreSQL). Lista fixa; o nome entra em comandos SQL, então só passa o que casa com
 # `DATABASE_NAME`.
 DATABASES = ("identity", "ssot")
+ALLOWED_DATABASES = ("identity", "ssot", "platform")
 DATABASE_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 # Volumes com estado que não se reconstrói pelo git: chaves das service accounts e PAT do login
 # (`identity-bootstrap`) e estado externo das Billing Accounts na fase P0 (`bsm-account-state`).

@@ -74,6 +74,7 @@ CREATE INDEX IF NOT EXISTS organization_name
 
 -- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count. `requested_by` aparece
 -- só na view da Operation, para o Receiver autorizar a leitura (docs/data/POSTGRESQL.md §6.5).
+DROP VIEW IF EXISTS ipm.organization_v1;
 CREATE OR REPLACE VIEW ipm.organization_v1 AS
   SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
          resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at

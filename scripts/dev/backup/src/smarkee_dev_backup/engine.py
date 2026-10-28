@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from smarkee_dev_backup.model import (
+    ALLOWED_DATABASES,
     CHECKSUMS,
     DATABASES,
     ENV_FILES,
@@ -78,7 +79,7 @@ def read_manifest(path: Path) -> dict[str, Any]:
     manifest = cast("dict[str, Any]", json.loads((path / MANIFEST).read_text(encoding="utf-8")))
     if manifest.get("formatVersion") != FORMAT_VERSION:
         raise BackupError(f"formato de backup não suportado em {path.name}")
-    if not _valid_items(manifest.get("databases"), DATABASES):
+    if not _valid_items(manifest.get("databases"), ALLOWED_DATABASES):
         raise BackupError(f"bancos inválidos no manifesto de {path.name}")
     if not _valid_items(manifest.get("volumes"), VOLUMES):
         raise BackupError(f"volumes inválidos no manifesto de {path.name}")
