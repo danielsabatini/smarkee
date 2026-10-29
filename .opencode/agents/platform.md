@@ -280,9 +280,9 @@ O agent especialista deve permanecer responsável por seu próprio domínio.
 
 Os documentos do projeto atribuem à infraestrutura (e não aos serviços de runtime) as seguintes responsabilidades. Não as duplique aqui: consulte a fonte.
 
-* criar Streams e Consumers duráveis a partir de manifesto por tipo de recurso, e manter a identidade administrativa e a limpeza de tombstones: `docs/messaging/NATS.md`;
-* criar o banco `ssot` e o seu proprietário, executar as migrações do schema do SSOT (o código delas fica no projeto da feature, em `migrations/`, decisões 0015 e 0063), criar os papéis por serviço e os parâmetros de sessão dos papéis de login, e manter a retenção de outbox, resultados de ação e operações: `docs/data/POSTGRESQL.md`;
-* executar o procedimento de recuperação do SSOT após uma restauração, antes de liberar o Manager e o Publisher: `docs/data/SSOT.md` e `docs/data/POSTGRESQL.md`;
+* criar os Streams JetStream (`DESIRED`, `UPDATED`, `AUDIT`) e Consumers duráveis por tipo de recurso, e manter a identidade administrativa e permissões de subjects de 4 tokens: `docs/messaging/NATS.md`;
+* criar o banco `ssot` e o seu proprietário, executar as migrações do schema do SSOT (o código delas fica no projeto da feature, em `migrations/`, decisões 0015 e 0063), criar os papéis por serviço e os parâmetros de sessão dos papéis de login (`api`, `publisher`, `controller`), e manter a retenção de outbox e idempotência (24h) via papel de manutenção: `docs/data/POSTGRESQL.md`;
+* executar o procedimento de recuperação do SSOT após uma restauração, antes de liberar os serviços da feature: `docs/data/SSOT.md` e `docs/data/POSTGRESQL.md`;
 * fornecer credenciais por gestão de segredos e proteção em repouso: `docs/loop/RESOURCE-CONTROL-SECURITY.md` e `docs/data/POSTGRESQL.md`;
 * definir backup com recuperação a um ponto no tempo, teste de restauração e alta disponibilidade: `docs/data/POSTGRESQL.md` e `docs/messaging/NATS.md`;
 * fixar a versão de cada capacidade (NATS, PostgreSQL) por ambiente.
@@ -399,7 +399,7 @@ Como é recuperado?
 
 Somente depois determine sua implementação específica.
 
-Cada tipo de recurso é uma feature: um projeto e uma imagem com seis papéis (receiver, manager, publisher, observer, reconciler e executor), cada um em contêiner próprio escolhido pelo `command`, com a sua configuração, identidade e escala (decisões 0017, 0019 e 0063). O Docker Compose em dev espelha o Kubernetes de stg e prd. A infraestrutura deve tratar cada papel como unidade de execução, configuração, identidade e escala, e a feature como unidade de imagem e versão; não repita aqui as regras da decisão.
+Cada tipo de recurso é uma feature: um projeto e uma imagem com papéis desacoplados conforme a categoria (`internal-state`: `api` e `publisher`; `external-reconciled`: `api`, `publisher` e `controller`), cada um em contêiner próprio escolhido pelo `command`, com sua configuração, identidade e escala (decisões 0017, 0019, 0063, 0096, 0098 e 0100). O Docker Compose em dev espelha o Kubernetes de stg e prd. A infraestrutura deve tratar cada papel como unidade de execução, configuração, identidade e escala, e a feature como unidade de imagem e versão; não repita aqui as regras da decisão.
 
 ---
 
