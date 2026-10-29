@@ -40,7 +40,11 @@ Entradas: módulo, tipo e o contrato do recurso (`docs/data/SCHEMA.md`, parâmet
 
 1. Ler `docs/data/SSOT.md` (modelo, dicionário, invariantes) e `docs/data/POSTGRESQL.md` (mapeamento e DDL de referência).
 2. Confirmar que o contrato do recurso define limites, sensibilidade e os parâmetros do loop. Se não definir, parar e devolver ao agent `ssot`.
-3. **Gerar** (modelo de referência; as features `api` + `publisher` + `controller` das decisões 0096 e 0098 **não têm** `<tipo>_operation` nem `<tipo>_action_result`: têm a tabela do tipo, `<tipo>_outbox` e `<tipo>_idempotency`, com os papéis `{api,controller,publisher,maintenance}`) as quatro tabelas (`<tipo>`, `<tipo>_operation`, `<tipo>_action_result`, `<tipo>_outbox`) e as duas views de leitura (`<tipo>_v<MAJOR>`, `<tipo>_operation_v<MAJOR>`) **a partir do modelo único** (DDL de referência de `docs/data/POSTGRESQL.md`), como migração do projeto do Manager do tipo (`.decisions/0015-componentes-por-papel-autocontidos.md`). Não escreva o DDL à mão por tipo fora desse modelo e não edite a tabela gerada (`AGENTS.md`, arquivos gerados). Se o modelo ainda não existir, proponha-o como artefato versionado e pare.
+3. **Gerar as tabelas e views do tipo** a partir do DDL de referência de `docs/data/POSTGRESQL.md`:
+   - Três tabelas por tipo: `<tipo>`, `<tipo>_outbox` e `<tipo>_idempotency` (decisões `0096`, `0098` e `0101`);
+   - View de leitura versionada: `<tipo>_v<MAJOR>`;
+   - Papéis segregados por serviço: `{api, controller, publisher, maintenance}`.
+   Não escreva o DDL à mão por tipo fora do modelo oficial de `docs/data/POSTGRESQL.md`.
 4. Gerar os papéis e os `GRANT` da matriz de `docs/data/POSTGRESQL.md` (por serviço) e conferir contra a matriz de identidades de `docs/loop/RESOURCE-CONTROL-SECURITY.md`.
 5. Executar o Procedimento C (validação em contêiner) com o DDL gerado.
 6. Entregar a migração para revisão. Não aplique.
@@ -59,7 +63,7 @@ Entradas: módulo, tipo e o contrato do recurso (`docs/data/SCHEMA.md`, parâmet
 1. Verificar a imagem fixada: `docker image inspect <imagem>`. Se faltar, **pedir aprovação** para baixá-la.
 2. Subir um cluster descartável e isolado (`docker run --rm`), sem rede externa e sem volumes do host além do necessário para ler os scripts. Algumas imagens não trazem inicialização automática; nesse caso inicialize o cluster dentro do contêiner e use um diretório de socket gravável.
 3. Aplicar o DDL e os `GRANT` com `psql -X -v ON_ERROR_STOP=1 -f <arquivo>`.
-4. Executar os testes funcionais do que foi alterado. O conjunto de verificações de referência está em `docs/data/POSTGRESQL.md` (verificação do DDL): restrições, concorrência otimista e geração, monotonia de `observed_at`, serialização por `FOR UPDATE`, duplicata de `action_id` e de `operation_id`, privilégios por papel (incluindo as negações e a leitura do Receiver somente pelas views), parâmetros de sessão no papel de login, ordem do outbox com duas sessões, trava consultiva e consulta de posse.
+4. Executar os testes funcionais do que foi alterado. O conjunto de verificações de referência está em `docs/data/POSTGRESQL.md` (verificação do DDL): restrições, concorrência otimista e geração, monotonia de `observed_at`, serialização por `FOR UPDATE`, idempotência de requisição em `<tipo>_idempotency`, privilégios por papel (segregação estrita de API, Controller, Publisher e Manutenção), parâmetros de sessão no papel de login, ordem do outbox com duas sessões, trava consultiva e consulta de posse.
 5. Executar os **casos negativos** (devem falhar): identificador inválido, `jsonb` que não é objeto, fase inválida, escrita sem privilégio.
 6. Remover o contêiner e qualquer arquivo temporário (`--rm`; scripts em `.workspace/`).
 7. Reportar o que foi e o que **não** foi verificado (carga, failover, PITR, proteção em repouso, *pooling*).
@@ -85,7 +89,7 @@ Evite `SELECT *` e qualquer exibição do conteúdo de `desired` e `observed`.
 
 ## 7. Procedimento E: revisar segurança
 
-1. Conferir os papéis e os `GRANT` contra a matriz de `docs/data/POSTGRESQL.md` e de `docs/loop/RESOURCE-CONTROL-SECURITY.md`: um papel por serviço; Manager (ou, nas features atuais, API e Controller) sem `DELETE` em outbox; só o Controller apaga a linha do recurso; Receiver só com leitura pelas views; Publisher do tipo (`<módulo>_<tipo>_publisher`) só com `SELECT` no outbox e `UPDATE (published_at)`; manutenção separada.
+1. Conferir os papéis e os `GRANT` contra a matriz de `docs/data/POSTGRESQL.md` e de `docs/loop/RESOURCE-CONTROL-SECURITY.md`: um papel por serviço; API e Controller sem `DELETE` em outbox; exclusão da linha do recurso restrita ao Controller (em `external-reconciled`) ou à API (em `internal-state`); Publisher do tipo (`<módulo>_<tipo>_publisher`) só com `SELECT` e `DELETE` no outbox (após confirmação de entrega no NATS); papel de manutenção (`<módulo>_<tipo>_maintenance`) com `DELETE` restrito a registros de outbox e idempotency anteriores a 24 horas.
 2. Confirmar que `PUBLIC` não possui privilégios no banco, no schema `public`, no schema do módulo nem nas tabelas, e que os papéis de login de runtime têm os parâmetros de sessão.
 3. Confirmar que nenhum serviço de runtime é proprietário de objeto nem executa DDL.
 4. Confirmar TLS fora do ambiente local, proteção em repouso (validada no ambiente) e que log não registra parâmetros nem colunas `confidential`.
@@ -102,8 +106,8 @@ Evite `SELECT *` e qualquer exibição do conteúdo de `desired` e `observed`.
 | Espera por bloqueio | Bloqueios em espera (Procedimento D); documentos grandes | Toda atualização bloqueia a linha inteira |
 | Geração incrementando sem mudança de especificação | A comparação de `desired` na atualização | Mudar só `reconciliation` não incrementa a geração |
 | Falhas de serialização ou deadlock | Nível de isolamento e ordem de acesso | Read Committed é o padrão; a aplicação repete a unidade |
-| `lock_timeout` frequente | Bloqueios em espera (Procedimento D); transações longas do Manager | Toda unidade bloqueia a linha do recurso; transações devem ser curtas |
-| `conditions` sobrescritas entre `observed` e resultados | Se a unidade começa com `FOR UPDATE` na linha | Sem o bloqueio, duas instâncias calculam sobre o mesmo estado lido |
+| `lock_timeout` frequente | Bloqueios em espera (Procedimento D); transações longas da API ou do Controller | Toda mutação bloqueia a linha do recurso; transações devem ser curtas |
+| `conditions` sobrescritas | Se o ciclo começa com `FOR UPDATE` na linha do recurso | Sem o bloqueio, leituras concorrentes sobrescrevem condições |
 | Trava consultiva não obtida | *Pooling* de conexões | A trava é de sessão e não funciona com *pooling* de transação |
 
 ## 9. Critérios de conclusão
