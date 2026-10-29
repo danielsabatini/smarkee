@@ -15,174 +15,155 @@ POSTGRESQL.md
 
 # 2. Objetivos
 
-Estabelecer uma implementação PostgreSQL consistente, previsível, segura e resiliente das garantias de `SSOT.md`: unidade atômica de gravação por mensagem com acesso exclusivo ao registro, concorrência otimista para o solicitante, idempotência semântica, outbox ordenado por recurso, privilégios mínimos, migração segura e recuperação a um ponto no tempo.
+Estabelecer uma implementação PostgreSQL consistente, previsível, segura e resiliente das garantias de `SSOT.md`:
+- unidade atômica de gravação de admissão pela API e de reconciliação pelo Controller;
+- concorrência otimista para o solicitante via `resource_version`;
+- serialização pessimista por bloqueio de linha (`SELECT ... FOR UPDATE`);
+- deduplicação idempotente de requisições de admissão por solicitante (`<tipo>_idempotency`);
+- outbox transacional estritamente ordenado por recurso;
+- privilégios mínimos segregados por papel de banco (`api`, `controller`, `publisher`, `maintenance`);
+- rotina de retenção operacional de 24 horas via utilitário dedicado;
+- evolução segura por migrações e recuperação testada a um ponto no tempo.
 
 # 3. Princípios de implementação
 
 - **Respeitar o modelo.** Uma limitação do PostgreSQL não altera `SSOT.md`; a adaptação permanece confinada a este documento.
-- **Recursos nativos.** Usar apenas recursos do núcleo do PostgreSQL. Nenhuma extensão é obrigatória.
-- **A restrição pertence ao banco quando o banco pode impô-la.** Enumerações, formatos, tamanhos e unicidade são restrições do banco, além da validação do contrato na aplicação.
-- **Simplicidade.** Particionamento, índices especializados e otimizações só com necessidade medida.
+- **Recursos nativos.** Usar apenas recursos do núcleo do PostgreSQL. Nenhuma extensão proprietária é obrigatória.
+- **Dois escritores segregados.** A API grava a intenção declarativa e o outbox de `desired`; o Controller grava a observação, as condições de convergência e o outbox de `updated` (`SSOT.md` §4).
+- **Atomicidade transacional.** O recurso e a mensagem correspondente no outbox são gravados na mesma transação. Nunca existe alteração persistida sem respectivo registro no outbox.
+- **Desacoplamento por views.** A leitura por clientes e consultas é intermediada por views versionadas (`<tipo>_v<MAJOR>`).
+- **Privilégios mínimos.** Nenhuma credencial de aplicação possui privilégios de DDL (`CREATE`, `ALTER`, `DROP`) ou privilégios desnecessários sobre tabelas alheias à sua função.
+- **Documentação viva.** Versão do PostgreSQL, configurações e comportamentos descritos são verificados periodicamente no ambiente real da plataforma.
 
-# 4. Versão
+# 4. Contexto e escopo
 
-A versão do PostgreSQL (major e minor) deve ser explicitamente fixada no ambiente de execução. Evitar tags flutuantes como `latest` ou apenas o major em integração, homologação e produção.
-
-Uma atualização inclui: validação de compatibilidade dos clientes, execução das migrações e dos testes de contrato, revisão das notas de versão, teste de restauração e registro no changelog da plataforma. Atualizações de minor seguem a política de correções de segurança do ambiente.
-
-Este documento não fixa uma versão. O DDL de referência foi exercitado em PostgreSQL 18.6 (ver a seção de verificação do DDL), e isso não é uma exigência de versão.
-
-# 5. Organização
-
-| Elemento | Regra |
+| Elemento | Definição na Plataforma |
 |---|---|
-| Banco | Um único banco para o SSOT de todos os módulos: `ssot` |
-| Proprietário | `ssot`: dono do banco e dos objetos, usado somente por migração e recuperação; não é superusuário |
-| Codificação e localidade | `UTF8`, com provedor de localidade `builtin` e `C.UTF-8` (PostgreSQL 17 ou superior): ordenação por ponto de código, igual em qualquer sistema operacional e biblioteca C, sem risco de índices invalidados por atualização da biblioteca |
-| Schema | Um schema por módulo (`<módulo>`) |
-| Tabelas | Quatro por tipo de recurso no desenho de referência do loop de sete papéis: `<tipo>`, `<tipo>_operation`, `<tipo>_action_result`, `<tipo>_outbox`. **Nas features atuais** (`api` + `publisher` + `controller`, decisões `0096`, `0098` e `0100`) não há `_operation` nem `_action_result`: o tipo tem `<tipo>`, `<tipo>_outbox` e `<tipo>_idempotency`, e os papéis são `<módulo>_<tipo>_{api,controller,publisher,maintenance}` |
-| Views | Duas por tipo de recurso, para a leitura do Receiver: `<tipo>_v<MAJOR>` e `<tipo>_operation_v<MAJOR>` |
-| Nomes | `snake_case`, minúsculas, sem hífen. Um tipo cujo nome é palavra reservada do PostgreSQL (por exemplo, `user`) mantém o nome do tipo, e a tabela do tipo é sempre citada (`core.account`); as demais tabelas e views (`user_operation`, `user_v1`) não precisam de aspas |
-| Papéis | Um por serviço, mapeando a identidade `<módulo>-<tipo>-<papel>` para `<módulo>_<tipo>_<papel>` (o Publisher tem o papel `<módulo>_<tipo>_publisher`) |
+| SGBD | **PostgreSQL 18.6** (versão de referência do ambiente de desenvolvimento) |
+| Banco | `ssot` (banco único consolidado de recursos gerenciados, decisão 0087) |
+| Schemas | Um schema por módulo funcional da plataforma (`ipm`, `core`, `bsm`, `sum`, etc.) |
+| Tabelas | Três por tipo de recurso: `<tipo>`, `<tipo>_outbox` e `<tipo>_idempotency` (decisões 0096, 0098, 0101) |
+| Views | Uma por tipo de recurso para a interface de leitura da API: `<tipo>_v<MAJOR>` |
+| Papéis | `<módulo>_<tipo>_api`, `<módulo>_<tipo>_controller`, `<módulo>_<tipo>_publisher` e `<módulo>_maintenance` |
 
-As tabelas e as views de cada tipo seguem **um único modelo** (o DDL de referência da seção 6.6) e o contrato do recurso. Como as features não compartilham código (decisões 0015 e 0063), cada tipo versiona as suas migrações a partir desse modelo (hoje escritas à mão, sem gerador), e os testes de integração do Manager e os testes e2e verificam o comportamento do resultado. O objeto criado não é editado manualmente (`AGENTS.md`, arquivos gerados).
+As tabelas e as views de cada tipo de recurso seguem **um único modelo arquitetural** (o DDL de referência da seção 6.4) adaptado ao contrato do recurso (`SCHEMA.md`).
 
-Motivo do banco único: o SSOT é um só sistema, com um só procedimento de backup, de recuperação e de migração. O isolamento entre módulos e tipos é feito por schema, por tabela e por `GRANT`, e não por banco. Bancos separados por módulo multiplicariam conexões, backups e procedimentos sem acrescentar isolamento que os privilégios já não garantam.
+# 5. Arquitetura de armazenamento
 
-Motivo da tabela por tipo: o isolamento de acesso é feito por `GRANT` por tabela, sem exigir políticas por linha, e combina com a identidade por serviço. O custo é a quantidade de tabelas, que são idênticas, pois seguem o mesmo modelo (hoje as migrações são escritas à mão a partir dele).
+A estrutura física no PostgreSQL isola os módulos por schemas e segrega o acesso por papéis de função:
 
-O SSOT não compartilha banco com componentes de terceiros (por exemplo, gateway e provedor de identidade): cada um possui o seu banco e o seu proprietário. Fora do ambiente local, o SSOT usa um **cluster próprio**, porque o seu objetivo de recuperação, o seu procedimento de restauração (`SSOT.md`, recuperação) e o seu raio de impacto são diferentes dos de outros sistemas; restaurar o SSOT a um ponto no tempo não pode restaurar outro sistema junto.
+```text
+Banco: ssot
+  ├── Schema: ipm
+  │     ├── Tabela: organization
+  │     ├── Tabela: organization_outbox
+  │     ├── Tabela: organization_idempotency
+  │     └── View:   organization_v1
+  ├── Schema: core
+  │     ├── Tabela: account
+  │     ├── Tabela: account_outbox
+  │     ├── Tabela: account_idempotency
+  │     └── View:   account_v1
+  └── Schema: ...
+```
 
-# 6. Mapeamento do modelo lógico
+Cada serviço conecta-se ao banco através de um papel de login específico, herdando estritamente os privilégios do papel funcional correspondente.
 
-## 6.0 Diagramas
-
-**Entidade e relacionamento físico** de um tipo de recurso (`tipo` é o nome do tipo; as quatro tabelas e as duas views têm sempre este formato):
-
-![ER físico](../diagrams/postgresql-er-fisico.svg)
-
-*Fonte: [`diagrams/postgresql-er-fisico.mmd`](../diagrams/postgresql-er-fisico.mmd).* Não há chave estrangeira: o relacionamento por `resource_id` é lógico (`SSOT.md`, seção 7). Um exemplo concreto, com os tipos e índices reais do banco, está em [`features/core/account/README.md`](../../features/core/account/README.md) (seção 11).
-
-**Quem lê e escreve cada tabela** (a matriz da seção 14.2, em figura):
-
-![Privilégios](../diagrams/postgresql-privilegios.svg)
-
-*Fonte: [`diagrams/postgresql-privilegios.mmd`](../diagrams/postgresql-privilegios.mmd).* O Manager só insere no outbox, e o Publisher só o lê e marca `published_at`. O Receiver não tem acesso às tabelas, só às views. As gravações por mensagem estão em [`diagrams/ssot-gravacao-por-mensagem.svg`](../diagrams/ssot-gravacao-por-mensagem.svg).
-
-**O conteúdo dos campos `jsonb`** (o que o banco trata como um objeto opaco e o contrato do recurso define):
-
-| Coluna | Conteúdo |
-|---|---|
-| `desired` | O estado pretendido: `lifecycle` e os campos declarativos do contrato `desired` do tipo (na Account: `givenName`, `familyName`, `email`, `platformAccess` e `platformRoles`). Os campos `confidential` ficam aqui; o `desired` de remoção não os carrega |
-| `observed` | O último `data` de `observed` do tipo (na Account: `emailVerified`, `accountState`, `platformAccess` e `platformRoles`) |
-| `conditions` | Array de `condition` (`schemas/common/condition`); hoje a condition `Ready`, com `status`, `reason`, `observedGeneration` e `lastTransitionAt` |
-| `<tipo>_outbox.payload` | O envelope completo da mensagem (`MESSAGING.md`), pronto para publicar; o Publisher só acrescenta `publishedAt` e `publishedBy` |
+# 6. Estrutura das tabelas
 
 ## 6.1 Tabela `<tipo>` (Resource)
 
-| Coluna | Tipo | Observação |
-|---|---|---|
-| `resource_id` | `text` | Chave primária; `CHECK` com o padrão de `SCHEMA.md` |
-| `schema_version` | `text` | `MAJOR.MINOR` |
-| `lifecycle` | `text` | `present` ou `absent` |
-| `reconciliation` | `text` | `active` (padrão) ou `suspended` |
-| `desired` | `jsonb` | Objeto; limite de tamanho |
-| `desired_generation` | `bigint` | Maior ou igual a 1 |
-| `resource_version` | `bigint` | Exposto como valor opaco (`MESSAGING.md`) |
-| `observed` | `jsonb` | Nulo até a primeira observação |
-| `presence` | `text` | `present`, `absent` ou `unknown` |
-| `observed_at` | `timestamptz` | Nulo se, e somente se, `presence` for nulo |
-| `phase` | `text` | `Pending`, `Reconciling`, `Ready`, `Failed`, `Deleting` |
-| `conditions` | `jsonb` | Array |
-| `failure_count` | `integer` | Falhas da geração corrente |
-| `observed_generation` | `bigint` | Última geração confirmada pela observação (decisão 0072); nula até a primeira confirmação, só cresce e nunca passa de `desired_generation` (`CHECK`) |
-| `created_at`, `updated_at` | `timestamptz` | |
+Armazena o estado consolidado de cada recurso (um registro por `resource_id`):
 
-`lifecycle`, `reconciliation`, `presence` e `phase` são colunas (não campos do `jsonb`) porque participam do controle, de restrições e de consulta. O `resource_version` é um contador interno; a interface o apresenta como texto opaco, sem semântica de ordenação.
+- **Identidade e Versionamento:** `resource_id` (PK, texto formatado em UUIDv7), `schema_version` (`MAJOR.MINOR`), `desired_generation` (inteiro crescente >= 1), `resource_version` (inteiro crescente para controle otimista);
+- **Intenção Declarativa:** `lifecycle` (`present`, `absent`), `reconciliation` (`active`, `suspended`), `desired` (`jsonb` com limite de 256 KiB);
+- **Rastreabilidade e Causa:** `requested_by` (identificador do solicitante da geração vigente), `correlation_id` (identificador do fluxo de rastreamento);
+- **Observação e Realidade:** `observed` (`jsonb`), `presence` (`present`, `absent`, `unknown`), `observed_at` (`timestamptz`);
+- **Convergência e Status:** `phase` (`Pending`, `Reconciling`, `Ready`, `Failed`, `Deleting`), `conditions` (`jsonb array`), `failure_count` (inteiro >= 0), `observed_generation` (inteiro crescente);
+- **Auditoria Temporal:** `created_at` e `updated_at` (`timestamptz`).
 
-## 6.2 Tabela `<tipo>_operation`
+`lifecycle`, `reconciliation`, `presence` e `phase` são colunas dedicadas (e não campos dentro do `jsonb`) porque participam ativamente de regras de validação (`CHECK`), filtros de reconciliação e controle de concorrência.
 
-`operation_id` (chave primária, atribuída pelo Receiver conforme `SSOT.md`), `resource_id` (sem chave estrangeira: a Operation sobrevive à remoção física do recurso até a sua retenção), `operation_type`, `desired_generation` (nula somente em Operation rejeitada), `requested_by`, `correlation_id`, `request_digest`, `operation_status`, `operation_status_reason` (presente somente em Operation rejeitada), `created_at`, `updated_at`, `completed_at`.
+## 6.2 Tabela `<tipo>_idempotency`
 
-A idempotência de `requested` é a chave primária `operation_id`. Não existe coluna nem índice para a chave de idempotência do cliente: ela é consumida pelo Receiver na derivação do `operation_id`, já escopada ao solicitante.
+Armazena a deduplicação de requisições de admissão submetidas pelo cliente com o cabeçalho `Idempotency-Key` (`SSOT.md` §7.2, decisão 0098):
 
-## 6.3 Tabela `<tipo>_action_result`
+- `requested_by` (texto, parte da chave primária composta: a chave é rigorosamente escopada ao solicitante autenticado);
+- `idempotency_key` (texto, fornecida pelo cliente);
+- `request_digest` (texto, hash criptográfico SHA-256 do corpo canônico da requisição);
+- `resource_id` (texto, identificador do recurso admitido);
+- `created_at` (`timestamptz`, instante de criação, com índice para a rotina de expurgo).
 
-`action_id` (chave primária), `resource_id`, `desired_generation`, `action_outcome` (`completed` ou `failed`), `recorded_at` (com índice, para a retenção).
+A chave primária composta `(requested_by, idempotency_key)` garante unicidade física por solicitante. Registros com mais de 24 horas são expurgados pelo utilitário de retenção.
 
-## 6.4 Tabela `<tipo>_outbox`
+## 6.3 Tabela `<tipo>_outbox`
 
-`sequence` (identidade, chave primária), `message_id` (único), `resource_id`, `subject`, `payload` (`jsonb`, com limite de tamanho), `created_at`, `published_at` e `traceparent` (texto, opcional: o contexto de trace W3C da requisição ou da mensagem que originou a linha, repassado pelo Publisher como header NATS; decisão 0055). Dois índices parciais: pendentes (`sequence` onde `published_at` é nulo) e publicados (`published_at` onde não é nulo).
+Armazena a fila transacional de mensagens aguardando entrega ao NATS JetStream pelo Publisher (`SSOT.md` §7.3, decisões 0019, 0101):
 
-## 6.5 Views de leitura do Receiver
+- `sequence` (`bigint GENERATED ALWAYS AS IDENTITY`, PK, ordem de inserção na transação);
+- `message_id` (texto, UUIDv7 único, chave de deduplicação no transporte NATS);
+- `resource_id` (texto, recurso associado);
+- `subject` (texto, Subject canônico de 4 tokens: `<messageType>.<module>.<resourceType>.<resourceId>`);
+- `payload` (`jsonb`, envelope completo da mensagem conforme `schemas/common/message-envelope.v1.schema.json`, limite de 256 KiB);
+- `created_at` (`timestamptz`, instante em que a transação comitou a mensagem);
+- `published_at` (`timestamptz`, nulo enquanto pendente; preenchido pelo Publisher após confirmação do broker);
+- `traceparent` (texto de 55 caracteres, opcional: contexto W3C Trace Context propagado pelo Publisher).
 
-O Receiver não lê as tabelas. Ela lê as views `<tipo>_v<MAJOR>` e `<tipo>_operation_v<MAJOR>`, que são a **interface de leitura versionada** do SSOT (`SSOT.md`, leitura e consistência) e correspondem ao contrato da visão consolidada do recurso (`SCHEMA.md`, família de contratos). O `MAJOR` da view acompanha o `MAJOR` desse contrato.
+Índices parciais aceleram as duas operações do outbox:
+1. `WHERE published_at IS NULL`: varredura de mensagens pendentes pelo Publisher;
+2. `WHERE published_at IS NOT NULL`: expurgo de mensagens publicadas pela rotina de retenção.
 
-- a view expõe apenas as colunas que o Receiver pode ler; colunas internas de controle (`failure_count`) não aparecem. `request_digest` aparece porque o Receiver o compara antes de publicar (`SSOT.md`, `requested`). Na view da Operation, `requested_by` aparece **somente para o Receiver autorizar a leitura** (só o solicitante e os operadores leem uma Operation); o Receiver não o devolve ao cliente. Na view do recurso, `requested_by` não existe;
-- a view executa com os privilégios do proprietário (padrão do PostgreSQL), de modo que o Receiver recebe `SELECT` somente na view, e nenhum privilégio nas tabelas;
-- uma migração da tabela (expandir → migrar → contrair) não altera a view enquanto o contrato de leitura não mudar. Uma mudança incompatível do contrato cria a view do novo `MAJOR`, que coexiste com a anterior durante a janela de coexistência.
+## 6.4 Views de leitura da API (`<tipo>_v<MAJOR>`)
 
-## 6.6 DDL de referência
+A API atende consultas e listagens através de views versionadas (ex: `<tipo>_v1`), que formam a **interface de leitura desacoplada** do SSOT:
 
-O DDL abaixo é o **modelo de referência para um tipo** (`sample.item`). Não é normativo: o contrato do recurso e o modelo gerado prevalecem, e o DDL deve ser validado no ambiente.
+- expõe apenas as colunas públicas do contrato (`resource_id`, `schema_version`, `lifecycle`, `reconciliation`, `desired`, `desired_generation`, `resource_version`, `observed`, `presence`, `observed_at`, `phase`, `conditions`, `created_at`, `updated_at`);
+- oculta colunas internas de controle operacional (como `failure_count`);
+- executa com privilégios de proprietário, permitindo conceder privilégios de `SELECT` na view sem expor acesso de consulta direta à tabela base.
+
+## 6.5 DDL de referência
+
+Modelo de referência físico para um tipo de recurso (`sample.item`):
 
 ```sql
 CREATE SCHEMA sample;
 
 CREATE TABLE sample.item (
-  resource_id        text        PRIMARY KEY
-                     CHECK (resource_id ~ '^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$'),
-  schema_version     text        NOT NULL CHECK (schema_version ~ '^[0-9]+\.[0-9]+$'),
-  lifecycle          text        NOT NULL CHECK (lifecycle IN ('present', 'absent')),
-  reconciliation     text        NOT NULL DEFAULT 'active' CHECK (reconciliation IN ('active', 'suspended')),
-  desired            jsonb       NOT NULL
-                     CHECK (jsonb_typeof(desired) = 'object' AND pg_column_size(desired) <= 262144),
-  desired_generation bigint      NOT NULL CHECK (desired_generation >= 1),
-  resource_version   bigint      NOT NULL DEFAULT 1,
-  observed           jsonb
-                     CHECK (observed IS NULL OR (jsonb_typeof(observed) = 'object' AND pg_column_size(observed) <= 262144)),
-  presence           text        CHECK (presence IN ('present', 'absent', 'unknown')),
-  observed_at        timestamptz,
-  phase              text        NOT NULL CHECK (phase IN ('Pending', 'Reconciling', 'Ready', 'Failed', 'Deleting')),
-  conditions         jsonb       NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(conditions) = 'array'),
-  failure_count      integer     NOT NULL DEFAULT 0 CHECK (failure_count >= 0),
+  resource_id         text        PRIMARY KEY
+                      CHECK (resource_id ~ '^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$'),
+  schema_version      text        NOT NULL CHECK (schema_version ~ '^[0-9]+\.[0-9]+$'),
+  lifecycle           text        NOT NULL CHECK (lifecycle IN ('present', 'absent')),
+  reconciliation      text        NOT NULL DEFAULT 'active' CHECK (reconciliation IN ('active', 'suspended')),
+  desired             jsonb       NOT NULL
+                      CHECK (jsonb_typeof(desired) = 'object' AND pg_column_size(desired) <= 262144),
+  desired_generation  bigint      NOT NULL CHECK (desired_generation >= 1),
+  resource_version    bigint      NOT NULL DEFAULT 1,
+  observed            jsonb
+                      CHECK (observed IS NULL OR (jsonb_typeof(observed) = 'object' AND pg_column_size(observed) <= 262144)),
+  presence            text        CHECK (presence IN ('present', 'absent', 'unknown')),
+  observed_at         timestamptz,
+  phase               text        NOT NULL CHECK (phase IN ('Pending', 'Reconciling', 'Ready', 'Failed', 'Deleting')),
+  conditions          jsonb       NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(conditions) = 'array'),
+  failure_count       integer     NOT NULL DEFAULT 0 CHECK (failure_count >= 0),
   observed_generation bigint,
-  created_at         timestamptz NOT NULL DEFAULT now(),
-  updated_at         timestamptz NOT NULL DEFAULT now(),
+  requested_by        text        CHECK (length(requested_by) BETWEEN 1 AND 256),
+  correlation_id      text        CHECK (length(correlation_id) BETWEEN 1 AND 256),
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now(),
   CHECK ((presence IS NULL) = (observed_at IS NULL)),
   CHECK (observed_generation IS NULL
          OR (observed_generation >= 1 AND observed_generation <= desired_generation))
 );
 
-CREATE TABLE sample.item_operation (
-  operation_id            text        PRIMARY KEY CHECK (length(operation_id) BETWEEN 1 AND 128),
-  resource_id             text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
-  operation_type          text        NOT NULL CHECK (operation_type IN ('create', 'update', 'delete')),
-  desired_generation      bigint      CHECK (desired_generation >= 1),
-  requested_by            text        NOT NULL CHECK (length(requested_by) BETWEEN 1 AND 256),
-  correlation_id          text        NOT NULL CHECK (length(correlation_id) BETWEEN 1 AND 256),
-  request_digest          text        NOT NULL CHECK (request_digest ~ '^[0-9a-f]{64}$'),
-  operation_status        text        NOT NULL
-                          CHECK (operation_status IN ('accepted', 'in_progress', 'completed', 'failed', 'rejected')),
-  operation_status_reason text        CHECK (operation_status_reason IN ('conflict', 'validation', 'not_found', 'protected')),
-  created_at              timestamptz NOT NULL DEFAULT now(),
-  updated_at              timestamptz NOT NULL DEFAULT now(),
-  completed_at            timestamptz,
-  CHECK ((operation_status = 'rejected') = (operation_status_reason IS NOT NULL)),
-  CHECK ((operation_status = 'rejected') = (desired_generation IS NULL))
+CREATE TABLE sample.item_idempotency (
+  requested_by    text        NOT NULL CHECK (length(requested_by) BETWEEN 1 AND 256),
+  idempotency_key text        NOT NULL CHECK (length(idempotency_key) BETWEEN 1 AND 256),
+  request_digest  text        NOT NULL CHECK (request_digest ~ '^[0-9a-f]{64}$'),
+  resource_id     text        NOT NULL CHECK (resource_id ~ '^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$'),
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (requested_by, idempotency_key)
 );
-CREATE INDEX item_operation_resource ON sample.item_operation (resource_id, created_at);
-CREATE INDEX item_operation_retention ON sample.item_operation (updated_at)
-  WHERE operation_status IN ('completed', 'failed', 'rejected');
-
-CREATE TABLE sample.item_action_result (
-  action_id          text        PRIMARY KEY CHECK (length(action_id) BETWEEN 1 AND 512),
-  resource_id        text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
-  desired_generation bigint      NOT NULL CHECK (desired_generation >= 1),
-  action_outcome     text        NOT NULL CHECK (action_outcome IN ('completed', 'failed')),
-  recorded_at        timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX item_action_result_recorded ON sample.item_action_result (recorded_at);
+CREATE INDEX item_idempotency_retention ON sample.item_idempotency (created_at);
 
 CREATE TABLE sample.item_outbox (
   sequence     bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -191,7 +172,8 @@ CREATE TABLE sample.item_outbox (
   subject      text        NOT NULL CHECK (length(subject) BETWEEN 1 AND 512),
   payload      jsonb       NOT NULL CHECK (pg_column_size(payload) <= 262144),
   created_at   timestamptz NOT NULL DEFAULT now(),
-  published_at timestamptz
+  published_at timestamptz,
+  traceparent  text        CHECK (traceparent IS NULL OR length(traceparent) = 55)
 );
 CREATE INDEX item_outbox_pending   ON sample.item_outbox (sequence)     WHERE published_at IS NULL;
 CREATE INDEX item_outbox_published ON sample.item_outbox (published_at) WHERE published_at IS NOT NULL;
@@ -200,64 +182,48 @@ CREATE VIEW sample.item_v1 AS
   SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
          resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
     FROM sample.item;
-
-CREATE VIEW sample.item_operation_v1 AS
-  SELECT operation_id, resource_id, operation_type, desired_generation, request_digest,
-         operation_status, operation_status_reason, created_at, updated_at, completed_at,
-         requested_by
-    FROM sample.item_operation;
 ```
-
-Cada tipo acrescenta os índices das suas regras de unicidade ou de busca: por exemplo, `core.account_email`, sobre `desired ->> 'email'`, que sustenta a unicidade do e-mail da Account (conferida na unidade atômica, sob trava consultiva); e `sum.service_active_link`, índice único parcial sobre `(owner_account_id, service)` com `lifecycle = 'present'`, que garante uma ligação ativa por dono e serviço, mesmo com pedidos concorrentes (SUM, decisão 0033).
-
-O limite de 262144 bytes (256 KiB) é o valor de referência de `SCHEMA.md` e pode ser ajustado por contrato. `pg_column_size` mede o valor armazenado, que pode estar comprimido; o limite da aplicação continua sendo a verificação autoritativa do tamanho do conteúdo. Os limites de comprimento das colunas de identificação seguem os valores de referência de `SCHEMA.md`; o de `action_id` comporta a sua composição (`MESSAGING.md`).
-
-`request_digest` é o SHA-256, em hexadecimal minúsculo, calculado pelo Receiver (`SSOT.md`, Operation). Ele não é calculado a partir do texto do `jsonb` (ver propriedades do `jsonb`).
 
 # 7. JSONB
 
 ## 7.1 O que é `jsonb` e o que é coluna
 
-| `jsonb` | Coluna |
+| `jsonb` | Coluna dedicada |
 |---|---|
-| `desired` (conteúdo declarativo do contrato) | Identidade, `lifecycle`, `reconciliation`, `phase`, `presence` |
-| `observed` | Gerações, `resource_version`, `failure_count` |
-| `conditions` | Tempos e `schema_version` |
-| `payload` do outbox | Tudo o que é usado em restrição, concorrência ou consulta frequente |
+| `desired` (conteúdo declarativo de especificação) | `resource_id`, `schema_version` |
+| `observed` (leitura estruturada do provedor externo) | `lifecycle`, `reconciliation`, `phase`, `presence` |
+| `conditions` (lista de condições da convergência) | `desired_generation`, `observed_generation`, `resource_version` |
+| `payload` (envelope completo de mensagem no outbox) | `failure_count`, `requested_by`, `correlation_id`, `observed_at` |
 
-`jsonb` não substitui modelagem: não se usa `jsonb` para evitar uma coluna que participa de identidade, unicidade, concorrência ou consulta do loop.
+`jsonb` não substitui a modelagem relacional: não se usa `jsonb` para evitar uma coluna que participe ativamente de integridade, restrições, concorrência ou filtros frequentes do loop.
 
-## 7.2 Propriedades do `jsonb` que importam aqui
+## 7.2 Propriedades do `jsonb` no PostgreSQL
 
-Conforme a documentação oficial do PostgreSQL:
+- `jsonb` **não preserva a ordem das chaves nem os espaços**, mantém **apenas a última ocorrência de chave duplicada** e **normaliza a representação numérica** (ex: `1.0` e `1.00` são idênticos). Isso viabiliza a comparação semântica entre estados declarativos, mas impede o cálculo de assinaturas ou digests diretamente a partir do texto do `jsonb`;
+- `jsonb` rejeita caracteres nulos (`\u0000`), `NaN` e infinito, bem como números fora da faixa de precisão de `numeric`;
+- o banco deve operar obrigatoriamente com codificação UTF-8;
+- toda atualização em um registro bloqueia a linha inteira. Documentos pequenos e focados reduzem a contenção de I/O e a sobrecarga de MVCC.
 
-- `jsonb` **não preserva a ordem das chaves nem os espaços**, mantém **apenas a última chave duplicada** e **normaliza números**. O conteúdo gravado não é o texto original. Isso favorece a comparação semântica (duas representações da mesma estrutura são iguais), e impede tratar o valor como texto bruto, por exemplo para assinatura ou hash do texto;
-- `jsonb` rejeita `\u0000`, `NaN` e infinito, e números fora do intervalo de `numeric`. O contrato do recurso deve evitá-los;
-- o banco deve usar codificação UTF-8 (ver a localidade na seção de organização);
-- **toda atualização bloqueia a linha inteira**. Documentos grandes aumentam a contenção. Por isso o conteúdo é limitado em tamanho e cada recurso é um registro pequeno.
+## 7.3 Comparação semântica e avanço de geração
 
-## 7.3 Comparação e geração
-
-A igualdade de `jsonb` é semântica (independe de ordem de chaves). Ela é usada para decidir se a **especificação** mudou:
+A comparação de igualdade entre objetos `jsonb` é semântica e independe da ordem de serialização das chaves. Na admissão da API, a geração do estado desejado (`desired_generation`) só é incrementada se o conteúdo declarativo de especificação tiver mudado:
 
 ```sql
 desired_generation = desired_generation
   + (CASE WHEN desired IS DISTINCT FROM $novo_desired THEN 1 ELSE 0 END)
 ```
 
-Por causa da normalização numérica, `1.0` e `1.00` são iguais; valores que o contrato trate como diferentes não devem depender dessa diferença.
-
-A comparação entre `desired` e `observed` do control loop (campos gerenciados e normalização) é feita pelo Reconciler com as anotações do contrato (`SCHEMA.md`), e não pelo banco.
+Alterações que modifiquem apenas o controle operacional (como `reconciliation = suspended`) não incrementam `desired_generation`.
 
 ## 7.4 Índices
 
-Nenhum índice GIN é criado por padrão. O loop acessa os registros por `resource_id`. Um índice GIN (`jsonb_path_ops` para contenção, `jsonb_ops` quando for preciso consultar existência de chave) só é adicionado com consulta medida e justificada, pois aumenta o custo de escrita e o tamanho.
+Nenhum índice GIN é criado por padrão nas tabelas do SSOT. O acesso pelo loop e pela API é estritamente indexado por `resource_id` (PK) e por chaves relacionais específicas definidas no contrato do recurso (por exemplo, índices únicos parciais sobre nomes amigáveis ou vínculos ativos).
 
 # 8. Transações e isolamento
 
-- O nível de isolamento é **Read Committed** (padrão). Nível mais alto (Repeatable Read ou Serializable) faria transações falharem com erro de serialização e não é necessário, porque a serialização por recurso é obtida pelo bloqueio da linha.
-- Cada mensagem consumida pelo Manager é **uma transação**, e a confirmação ao transporte ocorre depois do `COMMIT`.
-- **Toda transação sobre um recurso existente começa bloqueando a sua linha** e só então lê o estado:
+- O nível de isolamento adotado é **Read Committed** (padrão do PostgreSQL). Níveis mais restritivos (como Serializable) provocariam falhas de serialização sob alta concorrência e são desnecessários, pois a serialização de acesso ao mesmo recurso é assegurada pelo bloqueio exclusivo de linha;
+- Cada admissão pela API e cada ciclo de reconciliação pelo Controller constitui **uma transação atômica única**;
+- Toda transação de escrita sobre um recurso existente inicia **bloqueando a sua linha com `FOR UPDATE`**:
 
 ```sql
 SELECT resource_version, desired_generation, desired, reconciliation, observed_at,
@@ -267,16 +233,14 @@ SELECT resource_version, desired_generation, desired, reconciliation, observed_a
    FOR UPDATE;
 ```
 
-  Em Read Committed, cada comando enxerga o que foi confirmado antes do seu início. Como a segunda transação sobre o mesmo recurso espera o `COMMIT` da primeira no `FOR UPDATE`, as leituras seguintes já enxergam o resultado da primeira. Isso implementa a invariante 9 de `SSOT.md`: `observed`, `completed` e `failed` do mesmo recurso, processados em paralelo por instâncias diferentes, nunca calculam `conditions` e `phase` sobre o mesmo estado lido.
-- Nenhuma linha retornada pelo `FOR UPDATE` significa recurso inexistente.
-- Na criação ainda não há linha para bloquear. Duas entregas simultâneas do mesmo `requested` disputam a chave primária de `<tipo>_operation` e de `<tipo>`: a segunda espera a primeira e recebe violação de unicidade (`23505`), que é tratada como reentrega (desfazer a transação e confirmar a mensagem).
-- Cada transação bloqueia **uma única linha de recurso**; por isso não há ciclo de espera entre transações do Manager. A aplicação repete a transação a partir do estado atual em falha transitória: perda de conexão, `lock_timeout` (`55P03`), deadlock (`40P01`) ou falha de serialização (`40001`), com limite de tentativas e atraso crescente. Esgotadas as tentativas, a mensagem não é confirmada e segue a política de retry do transporte.
-- Transações são curtas e não incluem chamadas externas.
-- A **linha do recurso é bloqueada e atualizada antes da inserção no outbox**, na mesma transação. Isso é essencial para a ordem do outbox (ver a seção do Publisher).
+Em Read Committed, um comando aguarda a liberação do bloqueio de transações concorrentes sobre a mesma linha e, ao obter a posse, enxerga os dados mais recentes já comitados. Isso garante que ciclos paralelos de reconciliação ou requisições concorrentes de clientes nunca processem sobre estados defasados.
+
+- Na criação inicial, a inexistência da linha é resolvida pela tentativa atômica de `INSERT`. Entregas concorrentes disputam a chave primária `resource_id` ou o índice único de unicidade: a perdedora falha com erro de chave duplicada (`23505`), sendo tratada pela API como conflito (`409 Conflict`) ou resolvida pela tabela de idempotência;
+- A linha do recurso é atualizada **antes da inserção da mensagem correspondente no outbox**, garantindo que a ordem de sequência do outbox coincida com a ordem de comit das transações por recurso.
 
 # 9. Concorrência otimista
 
-A concorrência otimista protege o **solicitante** (`SSOT.md`, concorrência). Com a linha já bloqueada, a atualização confere a `resource_version` informada no pedido:
+A concorrência otimista protege as alterações submetidas por solicitantes via API (`SSOT.md` §11). Em requisições de alteração (`PATCH` ou `DELETE`), a API valida a versão fornecida pelo cliente (`If-Match` ou `resourceVersion`):
 
 ```sql
 UPDATE sample.item
@@ -284,6 +248,8 @@ UPDATE sample.item
        desired_generation = desired_generation
                           + (CASE WHEN desired IS DISTINCT FROM $desired THEN 1 ELSE 0 END),
        failure_count      = CASE WHEN desired IS DISTINCT FROM $desired THEN 0 ELSE failure_count END,
+       requested_by       = $requested_by,
+       correlation_id     = $correlation_id,
        resource_version   = resource_version + 1,
        updated_at         = now()
  WHERE resource_id = $id
@@ -291,395 +257,339 @@ UPDATE sample.item
 RETURNING desired_generation, resource_version;
 ```
 
-- Como a linha está bloqueada e a sua existência já foi conferida, zero linhas afetadas significa **conflito** (versão desatualizada). A Operation é gravada como `rejected` com motivo `conflict`, e nenhum `desired` é registrado.
-- A mudança apenas de `reconciliation` usa o mesmo comando sem alterar `desired`: a geração não incrementa, e `resource_version` sim.
-- As expressões de `SET` usam os valores **anteriores** da linha, o que torna a decisão sobre a geração atômica.
-- As atualizações internas (`observed`, `completed`, `failed`) não informam `resource_version`: elas já estão serializadas pelo bloqueio da linha e incrementam `resource_version` ao gravar.
+Se o comando retornar zero linhas afetadas sobre um recurso cuja existência já foi constatada sob bloqueio, significa que uma alteração concorrente modificou o recurso previamente. A transação é revertida e a API responde HTTP `409 Conflict`.
 
-# 10. Idempotência de entrada
+# 10. Idempotência
 
-## 10.1 `requested`
+## 10.1 Admissão síncrona pela API
 
-A Operation é a chave de idempotência (`SSOT.md`). Depois do bloqueio da linha (quando existir):
+A deduplicação de requisições de admissão é gerenciada pela tabela `<tipo>_idempotency` (`SSOT.md` §7.2, §12):
 
-```sql
-SELECT request_digest FROM sample.item_operation WHERE operation_id = $operation_id;
-```
-
-Uma linha retornada significa reentrega ou repetição do cliente: a transação é desfeita e a mensagem é confirmada. Um `request_digest` diferente do recebido é registrado como sinal de observabilidade, sem alterar a Operation. A Operation é gravada uma única vez, como `accepted` ou como `rejected`:
+1. Ao receber uma requisição com o cabeçalho `Idempotency-Key`, a API calcula o digest criptográfico (SHA-256) do corpo canônico da requisição;
+2. Sob a transação de admissão, consulta a chave para o solicitante autenticado:
 
 ```sql
-INSERT INTO sample.item_operation
-       (operation_id, resource_id, operation_type, desired_generation, requested_by,
-        correlation_id, request_digest, operation_status, operation_status_reason)
-VALUES ($operation_id, $id, $operation_type, $desired_generation, $requested_by,
-        $correlation_id, $request_digest, $operation_status, $operation_status_reason);
+SELECT request_digest, resource_id
+  FROM sample.item_idempotency
+ WHERE requested_by = $requested_by
+   AND idempotency_key = $idempotency_key;
 ```
 
-## 10.2 `observed`
+3. Se o registro existir:
+   - se `request_digest == $digest`: a requisição é uma repetição idêntica. A API desfaz a transação e consulta a view `<tipo>_v1` pelo `resource_id` já gravado, devolvendo o estado atual com HTTP `200 OK` (ou `201 Created`);
+   - se `request_digest != $digest`: a mesma chave foi reutilizada com payload divergente. A transação reverte e a API responde HTTP `422 IdempotencyKeyReused`.
+4. Se o registro não existir, a API insere a linha na tabela de idempotência, insere ou atualiza o recurso na tabela principal, grava a mensagem `desired` no outbox e comita a transação:
 
-Monotonia de `observed_at`, com a linha já bloqueada:
+```sql
+INSERT INTO sample.item_idempotency
+       (requested_by, idempotency_key, request_digest, resource_id)
+VALUES ($requested_by, $idempotency_key, $request_digest, $resource_id);
+```
+
+## 10.2 Reconciliação pelo Controller
+
+O Controller não utiliza tabelas de idempotência nem guarda histórico de ações passadas (decisão 0096). A idempotência é intrínseca ao ciclo de reconciliação:
+
+1. O Controller abre transação e adquire bloqueio da linha (`SELECT ... FOR UPDATE`);
+2. Observa a realidade factual do sistema externo;
+3. Se a realidade coincidir com o `desired`, nenhuma ação externa é executada (convergência atingida);
+4. Se houver discrepância, executa a ação externa de forma idempotente (utilizando chaves de correlação ou identificadores determinísticos no provedor externo);
+5. Reobserva imediatamente o sistema externo para confirmar a realidade;
+6. Atualiza o recurso no SSOT garantindo a monotonicidade de `observed_at`:
 
 ```sql
 UPDATE sample.item
-   SET observed = $observed, presence = $presence, observed_at = $observed_at,
-       conditions = $conditions, phase = $phase,
+   SET observed            = $observed,
+       presence            = $presence,
+       observed_at         = $observed_at,
+       conditions          = $conditions,
+       phase               = $phase,
        observed_generation = GREATEST(observed_generation, $geracao_confirmada),
-       resource_version = resource_version + 1, updated_at = now()
+       resource_version    = resource_version + 1,
+       updated_at          = now()
  WHERE resource_id = $id
-   AND (observed_at IS NULL OR observed_at < $observed_at)
-RETURNING resource_version;
+   AND (observed_at IS NULL OR observed_at <= $observed_at);
 ```
 
-Zero linhas afetadas significa observação não mais recente: a mensagem é descartada como já refletida. `conditions` e `phase` são calculados pela aplicação a partir do estado lido sob bloqueio. `$geracao_confirmada` é a `desired_generation` lida sob bloqueio quando a observação converge **e** traz essa geração no `observedGeneration` (feita depois dela), e nulo caso contrário; `GREATEST` ignora o nulo (decisão 0072).
-
-## 10.3 `completed` e `failed`
-
-O `actionId` é registrado em `<tipo>_action_result` antes de qualquer efeito:
-
-```sql
-INSERT INTO sample.item_action_result (action_id, resource_id, desired_generation, action_outcome)
-VALUES ($action_id, $id, $desired_generation, $action_outcome)
-ON CONFLICT (action_id) DO NOTHING
-RETURNING action_id;
-```
-
-Nenhuma linha retornada significa **resultado já contabilizado**: a transação é desfeita e a mensagem é confirmada. O `RETURNING` exige o privilégio `SELECT` na coluna.
-
-Um resultado cuja `desired_generation` é diferente da geração atual (lida sob bloqueio) atualiza a Operation, mas não altera `failure_count` nem `phase` (`SSOT.md`). Ao atingir o `failureLimit`, a mesma transação grava `phase = 'Failed'` e `reconciliation = 'suspended'` na linha e registra no outbox o `desired` correspondente.
+Se `observed_at` for mais antigo que a observação já persistida, a atualização é descartada sem erro.
 
 # 11. Outbox e Publisher
 
-O **Publisher** é o sexto papel (decisão 0019): projeto, processo, papel de banco (`<módulo>_<tipo>_publisher`) e identidade de mensageria próprios. O outbox é o contrato entre o Manager (que insere) e o Publisher (que lê e marca).
+O **Publisher** é um processo dedicado de menor privilégio responsável pela entrega de mensagens do outbox ao broker NATS JetStream (decisão 0019). O outbox é o contrato desacoplado entre os escritores do SSOT (API e Controller) e o Publisher.
 
 ## 11.1 Gravação
 
-A mensagem é inserida no outbox **na mesma transação** da alteração que a originou, depois do bloqueio e do `UPDATE` do recurso:
+A mensagem é inserida na tabela `<tipo>_outbox` **na mesma transação** da alteração de estado no SSOT:
 
 ```sql
-INSERT INTO sample.item_outbox (message_id, resource_id, subject, payload)
-VALUES ($message_id, $id, $subject, $payload);
+INSERT INTO sample.item_outbox (message_id, resource_id, subject, payload, traceparent)
+VALUES ($message_id, $id, $subject, $payload, $traceparent);
 ```
 
-## 11.2 Ordem por recurso
+O `subject` obedece estritamente ao formato canônico de 4 tokens (`desired.<mod>.<type>.<id>` ou `updated.<mod>.<type>.<id>`, decisão 0101).
 
-O `sequence` é atribuído no momento da inserção. Como a transação bloqueia primeiro a linha do recurso, **duas transações sobre o mesmo recurso são serializadas pelo bloqueio da linha**: a segunda só insere no outbox depois que a primeira confirmou. Logo, para um mesmo recurso, a ordem de `sequence` é a ordem de confirmação.
+## 11.2 Ordem estrita por recurso
 
-Entre recursos diferentes não há garantia de ordem, e ela não é necessária.
+O campo `sequence` é atribuído sequencialmente pelo PostgreSQL. Como a transação adquire previamente o bloqueio exclusivo da linha do recurso (`FOR UPDATE`), **duas transações sobre o mesmo recurso são estritamente serializadas**: a segunda só insere no outbox após o comit da primeira. Portanto, para qualquer recurso individual, a ordem de `sequence` reflete com exatidão a ordem cronológica de confirmação de suas alterações.
 
-## 11.3 Leitura pelo Publisher
+## 11.3 Varredura sem marca-d'água
 
-O Publisher lê por consulta periódica, **sem marca-d'água por sequência** e sem bloqueio de linha:
+O Publisher realiza varredura periódica do outbox selecionando mensagens pendentes:
 
 ```sql
-SELECT sequence, message_id, subject, payload
+SELECT sequence, message_id, subject, payload, traceparent
   FROM sample.item_outbox
  WHERE published_at IS NULL
  ORDER BY sequence
  LIMIT $lote;
 ```
 
-Motivo da ausência de marca-d'água: uma transação pode confirmar depois de outra de `sequence` maior (recursos diferentes), de modo que uma mensagem de `sequence` menor pode aparecer depois. Selecionar sempre por `published_at IS NULL` garante que ela seja encontrada na rodada seguinte; guardar apenas "o último sequence publicado" a perderia.
+A seleção utiliza o índice parcial `WHERE published_at IS NULL`. Não se utiliza cursor ou marca-d'água sequencial: transações concorrentes sobre recursos diferentes podem comitar fora da ordem de atribuição de `sequence`. Filtrar por `published_at IS NULL` assegura que nenhuma mensagem comitada tardiamente seja ignorada.
 
-Motivo da ausência de `FOR UPDATE`: a exclusão mútua entre instâncias é dada pela trava consultiva (seção seguinte), e o Manager só insere linhas novas. Bloquear as linhas durante a publicação manteria bloqueios abertos durante I/O de rede sem acrescentar garantia.
+## 11.4 Exclusão mútua por trava consultiva
 
-## 11.4 Uma instância ativa
-
-Para preservar a ordem por recurso, **uma única instância do Publisher publica por vez**, por tabela de outbox, usando trava consultiva de sessão:
+Para assegurar ordem estrita de entrega, **apenas uma instância ativa do Publisher opera por tabela de outbox**, coordenada por trava consultiva de sessão no PostgreSQL:
 
 ```sql
 SELECT pg_try_advisory_lock(hashtext('sample.item_outbox'));
 ```
 
-- A instância que não obtém a trava aguarda e tenta de novo. A trava é liberada quando a sessão termina, o que habilita o failover.
-- A trava é **de sessão**: exige conexão direta ou *pooling* de sessão. *Pooling* em modo de transação invalida a garantia e deve ser evitado no Publisher (validar no ambiente). O papel do Publisher não usa `idle_session_timeout`, que encerraria a sessão que detém a trava.
-- Uma colisão de `hashtext` entre duas tabelas faz as duas compartilharem a mesma trava. Isso reduz a vazão, mas não compromete a ordem.
-- **Exclusividade durante o lote.** O banco pode encerrar a sessão (falha de rede, failover, encerramento administrativo) enquanto a instância ainda publica um lote lido antes. Para limitar a sobreposição com a nova instância: antes de cada lote a instância confirma que ainda detém a trava; qualquer erro de conexão descarta o lote em memória e interrompe a publicação; e a duração de um lote é limitada a uma fração da janela de deduplicação do transporte. Assim, uma mensagem repetida pela sobreposição é descartada pela deduplicação do transporte (`Nats-Msg-Id`).
+- A trava é mantida durante toda a vida da sessão de publicação e liberada automaticamente em caso de queda ou encerramento, permitindo *failover* imediato para instâncias reservas em espera;
+- Antes de processar cada lote, o Publisher confirma que ainda mantém a posse da trava;
+- **`FOR UPDATE SKIP LOCKED` é vedado no outbox ordenado:** o mecanismo faria uma segunda instância pular mensagens retidas e publicar alterações posteriores fora de ordem.
+
+## 11.5 Publicação sequencial e confirmação
+
+A publicação é estritamente sequencial:
+
+1. O Publisher publica a mensagem no NATS, incluindo `message_id` no cabeçalho `Nats-Msg-Id` para deduplicação transparente no broker;
+2. Aguarda a confirmação de persistência do JetStream (ACK) antes de prosseguir com a próxima mensagem;
+3. Após a confirmação, atualiza `published_at` no banco:
 
 ```sql
-SELECT EXISTS (
-  SELECT 1 FROM pg_locks
-   WHERE locktype = 'advisory' AND pid = pg_backend_pid() AND granted
-     AND objid = hashtext('sample.item_outbox')::oid
-);
+UPDATE sample.item_outbox
+   SET published_at = now()
+ WHERE sequence = ANY($sequences);
 ```
 
-**`FOR UPDATE SKIP LOCKED` não é usado.** Em uma sobreposição de duas instâncias, `SKIP LOCKED` faz a segunda pular o lote da primeira e publicar linhas posteriores antes das anteriores. A documentação do PostgreSQL também classifica `SKIP LOCKED` como visão inconsistente, adequada a filas em que a ordem não importa. Se a vazão exigir mais de uma instância, a alternativa é particionar o Publisher por hash de `resource_id`, com uma trava por partição, preservando a ordem por recurso.
+Se a publicação falhar, o lote é interrompido e as mensagens pendentes são retentadas com recuo exponencial.
 
-## 11.5 Publicação e marcação
+# 12. Retenção operacional
 
-A publicação é **sequencial** (`SSOT.md`, outbox):
+O SSOT não acumula mensagens publicadas nem registros de idempotência indefinidamente. A retenção operacional adota uma **janela padrão de 24 horas** (decisão 0101):
 
-1. publicar a mensagem no transporte, com a sua identidade (`message_id`) como chave de deduplicação do transporte;
-2. aguardar a confirmação do transporte antes de publicar a próxima;
-3. em erro, interromper o lote: as mensagens seguintes não são publicadas nesta rodada;
-4. marcar `published_at` das mensagens confirmadas.
-
-```sql
-UPDATE sample.item_outbox SET published_at = now() WHERE sequence = ANY($sequences);
-```
-
-Publicar em paralelo e tratar os erros depois permitiria que uma mensagem antiga, repetida após um erro, fosse gravada depois de uma nova do mesmo recurso. Em um stream que retém apenas a última mensagem por endereço, a geração antiga passaria a ser o estado retido.
-
-Uma falha entre a confirmação do transporte e a marcação provoca republicação (entrega *pelo menos uma vez*). A deduplicação do transporte e a idempotência dos consumidores a absorvem.
-
-Uma mensagem **não** é marcada como publicada sem a confirmação do transporte. Em falha de publicação, ela permanece pendente, e o Publisher insiste com atraso crescente, sem pular a mensagem.
-
-## 11.6 Atraso
-
-O atraso do Publisher é observável: idade da mensagem pendente mais antiga (`now() - min(created_at)` onde `published_at` é nulo) e quantidade pendente.
-
-# 12. Retenção
-
-| Tabela | Regra |
+| Tabela | Critério de Expurgação |
 |---|---|
-| `<tipo>_outbox` | Remover mensagens publicadas após a janela de retenção padrão de 24h (`DELETE` por `published_at IS NOT NULL AND published_at < cutoff`) |
-| `<tipo>_idempotency` | Remover registros de requisições já processadas após a janela de retenção de 24h (`DELETE` por `created_at < cutoff`) |
-| `<tipo>_action_result` (legado) | Remover registros com `recorded_at` mais antigo que a retenção dos resultados no transporte somada ao prazo máximo de reentrega |
-| `<tipo>_operation` (legado) | Remover operações encerradas (`completed`, `failed`, `rejected`) após o prazo de retenção |
+| `<tipo>_outbox` | Mensagens já confirmadas no broker: `published_at IS NOT NULL AND published_at < cutoff` |
+| `<tipo>_idempotency` | Requisições concluídas: `created_at < cutoff` |
 
-A remoção é feita estritamente pela identidade de manutenção de cada módulo (`<módulo>_maintenance_login`), com `SELECT` e `DELETE` restritos a essas tabelas. Os serviços de runtime (`api`, `publisher`, `controller`) não removem outbox nem idempotency.
+A expurgo é executado periodicamente pelo utilitário `scripts/dev/retention` (imagem `smarkee-dev-retention` em contêiner), operando sob credencial de manutenção restrita (`<módulo>_maintenance_login`).
 
-O utilitário de execução em desenvolvimento é o `scripts/dev/retention`, que suporta execução em simulação (*dry-run*), expurgo efetivo (`--apply`), janelas configuráveis (`--older-than 24h`, `--older-than 0s` para expurgo imediato em testes locais) e filtros por módulo ou recurso.
-
-O particionamento por tempo é uma evolução possível, adotada apenas com volume medido: remover uma partição é muito mais barato que `DELETE` em massa. A restrição é que chaves únicas e primárias de uma tabela particionada devem incluir a chave de partição. Por isso só o **outbox** é candidato: `<tipo>_operation` e `<tipo>_action_result` dependem da unicidade global das suas chaves primárias para a idempotência e não são particionadas por tempo.
+Nenhum papel de serviço de runtime (`api`, `controller`, `publisher`) possui permissão de `DELETE` sobre as tabelas de outbox ou idempotência.
 
 # 13. Remoção de recursos
 
-A remoção segue `SSOT.md`:
+A remoção de um recurso obedece ao ciclo declarativo de convergência (`SSOT.md` §14):
 
-1. o pedido de remoção atualiza o recurso para `lifecycle = absent`, `phase = Deleting` e registra o outbox (`desired`);
-2. após a convergência (`presence = absent`), o Manager remove o registro com `DELETE` em uma transação que também registra o outbox (`updated`);
-3. a Operation permanece até a sua retenção, e por isso não há chave estrangeira entre `<tipo>_operation` e `<tipo>`.
+1. **Pedido de exclusão:** a API atualiza a linha do recurso marcando `lifecycle = 'absent'`, `phase = 'Deleting'` e insere a mensagem `desired` no outbox;
+2. **Reconciliação:** o Controller detecta `lifecycle = 'absent'`, executa a remoção física no sistema externo e reobserva até constatar `presence = 'absent'`;
+3. **Convergência factual:** sob a mesma transação com bloqueio exclusivo, o Controller executa o `DELETE` físico da linha do recurso no SSOT e insere no outbox a mensagem `updated` com `data.removed = true`:
+
+```sql
+DELETE FROM sample.item WHERE resource_id = $id;
+
+INSERT INTO sample.item_outbox (message_id, resource_id, subject, payload)
+VALUES ($message_id, $id, 'updated.sample.item.' || $id, $payload_removed);
+```
 
 # 14. Segurança
 
-## 14.1 Banco
+## 14.1 Proteção no nível do banco de dados
 
-O banco `ssot` é criado pela infraestrutura, com o proprietário `ssot`. O PostgreSQL concede por padrão `CONNECT` e `TEMPORARY` em todo banco a `PUBLIC`, e `USAGE` no schema `public`; esses privilégios são removidos:
+O banco de dados `ssot` é gerenciado com o proprietário administrativo `ssot`. Por padrão, privilégios públicos permissivos são revogados:
 
 ```sql
 REVOKE ALL ON DATABASE ssot FROM PUBLIC;
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 ```
 
-Cada papel de serviço recebe `CONNECT` explicitamente, junto dos seus privilégios no módulo.
+Acesso de conexão (`CONNECT`) é concedido explicitamente apenas aos papéis de login autorizados.
 
-## 14.2 Papéis
+## 14.2 Matriz de privilégios por papel de banco
 
-Um papel por serviço, sem login nos papéis de função: o login é concedido pela infraestrutura, com credencial própria.
+Os privilégios aplicam estritamente o princípio do menor privilégio (`RESOURCE-CONTROL-SECURITY.md`):
 
-| Papel | Privilégios |
-|---|---|
-| `<módulo>_<tipo>_manager` | `SELECT`, `INSERT`, `UPDATE` e `DELETE` em `<tipo>`; `SELECT`, `INSERT` e `UPDATE` em `<tipo>_operation`; `SELECT` e `INSERT` em `<tipo>_action_result`; `INSERT` em `<tipo>_outbox` |
-| `<módulo>_<tipo>_receiver` | `SELECT` em `<tipo>_v<MAJOR>` e `<tipo>_operation_v<MAJOR>`; nenhum privilégio nas tabelas |
-| `<módulo>_<tipo>_publisher` (Publisher) | `SELECT` em `<tipo>_outbox` e `UPDATE (published_at)` |
-| `<módulo>_maintenance` | `SELECT` e `DELETE` em `<tipo>_outbox`, `<tipo>_action_result` e `<tipo>_operation` |
-| `ssot` (administração) | Dono do banco e dos objetos; migração e procedimento de recuperação (`SSOT.md`); não é usado por serviços de runtime |
+| Papel | Objeto | Privilégios Concedidos | Justificativa |
+|---|---|---|---|
+| `<módulo>_<tipo>_api` | `<tipo>` | `SELECT, INSERT, UPDATE` | Admissão, concorrência otimista e consulta direta |
+| | `<tipo>_v<MAJOR>` | `SELECT` | Atendimento a leituras e listagens públicas |
+| | `<tipo>_idempotency` | `SELECT, INSERT` | Deduplicação de requisições por solicitante |
+| | `<tipo>_outbox` | `INSERT` | Gravação de mensagens `desired` |
+| `<módulo>_<tipo>_controller` | `<tipo>` | `SELECT, UPDATE, DELETE` | Ciclo sob `FOR UPDATE`, observação e remoção física |
+| | `<tipo>_outbox` | `INSERT` | Gravação de mensagens `updated` e `desired` suspenso |
+| `<módulo>_<tipo>_publisher` | `<tipo>_outbox` | `SELECT, UPDATE (published_at)` | Varredura e marcação de envio |
+| `<módulo>_maintenance` | `<tipo>_outbox` | `SELECT, DELETE` | Expurgação de retenção de mensagens confirmadas |
+| | `<tipo>_idempotency` | `SELECT, DELETE` | Expurgação de requisições de admissão antigas |
+| `ssot` | Todos | Dono (`OWNER`) | Migrações DDL e rotinas administrativas |
+
+DDL de concessão de privilégios para o tipo de referência:
 
 ```sql
-GRANT CONNECT ON DATABASE ssot TO sample_item_manager, sample_item_receiver, sample_item_publisher, sample_maintenance;
+GRANT CONNECT ON DATABASE ssot TO sample_item_api, sample_item_controller, sample_item_publisher, sample_maintenance;
 
 REVOKE ALL ON SCHEMA sample FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA sample FROM PUBLIC;
-GRANT USAGE ON SCHEMA sample TO sample_item_manager, sample_item_receiver, sample_item_publisher, sample_maintenance;
+GRANT USAGE ON SCHEMA sample TO sample_item_api, sample_item_controller, sample_item_publisher, sample_maintenance;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON sample.item               TO sample_item_manager;
-GRANT SELECT, INSERT, UPDATE         ON sample.item_operation     TO sample_item_manager;
-GRANT SELECT, INSERT                 ON sample.item_action_result TO sample_item_manager;
-GRANT INSERT                         ON sample.item_outbox        TO sample_item_manager;
+-- Papel da API (admissão e leitura)
+GRANT SELECT, INSERT, UPDATE ON sample.item             TO sample_item_api;
+GRANT SELECT                 ON sample.item_v1          TO sample_item_api;
+GRANT SELECT, INSERT         ON sample.item_idempotency TO sample_item_api;
+GRANT INSERT                 ON sample.item_outbox      TO sample_item_api;
 
-GRANT SELECT ON sample.item_v1, sample.item_operation_v1 TO sample_item_receiver;
+-- Papel do Controller (reconciliação externa)
+GRANT SELECT, UPDATE, DELETE ON sample.item             TO sample_item_controller;
+GRANT INSERT                 ON sample.item_outbox      TO sample_item_controller;
 
-GRANT SELECT ON sample.item_outbox TO sample_item_publisher;
+-- Papel do Publisher (entrega de mensageria)
+GRANT SELECT                ON sample.item_outbox TO sample_item_publisher;
 GRANT UPDATE (published_at) ON sample.item_outbox TO sample_item_publisher;
 
-GRANT SELECT, DELETE ON sample.item_outbox, sample.item_action_result, sample.item_operation TO sample_maintenance;
+-- Papel de Manutenção (retenção operacional)
+GRANT SELECT, DELETE ON sample.item_outbox, sample.item_idempotency TO sample_maintenance;
 ```
 
-Pontos relevantes:
+Destaques da separação de privilégios:
+- A API **não possui `DELETE`** na tabela principal do recurso e não possui permissão de leitura sobre o outbox;
+- O Controller **não acessa a tabela de idempotência** e não altera campos de admissão de `desired`;
+- O Publisher acessa exclusivamente a tabela de outbox, com escrita restrita à coluna `published_at`;
+- Nenhum papel de serviço em runtime (`api`, `controller`, `publisher`) possui permissão de `DELETE` sobre o outbox ou idempotência;
+- Nenhum papel de serviço em runtime possui privilégios de DDL (`CREATE`, `ALTER`, `DROP`).
 
-- o PostgreSQL não concede privilégios padrão em tabelas e em schemas criados, mas o `REVOKE` explícito de `PUBLIC` é mantido como defesa contra mudanças de padrão e de herança;
-- as views são simples e, portanto, atualizáveis pelo PostgreSQL; o Receiver não as altera porque possui somente `SELECT`;
-- o Manager **não** possui `DELETE` em outbox, resultados e operation, nem `SELECT` e `UPDATE` no outbox, nem privilégio de alterar a estrutura;
-- o Receiver não lê `failure_count`, `requested_by` nem nenhuma tabela de controle de mensagens.
+## 14.3 Parâmetros de sessão por papel de login
 
-Em cada alteração do modelo, a matriz de privilégios é revisada contra a matriz de identidades de `RESOURCE-CONTROL-SECURITY.md`.
-
-## 14.3 Parâmetros de sessão por papel
-
-Os papéis de runtime limitam o tempo que uma sessão pode segurar recursos, e fixam o caminho de busca para que nenhum nome seja resolvido em um schema inesperado. Os valores são parâmetros do ambiente; os abaixo são de referência.
-
-Os parâmetros são definidos no **papel de login** de cada serviço, criado pela infraestrutura como membro do papel de função. O PostgreSQL aplica apenas os parâmetros do papel que inicia a sessão: definidos no papel de função (sem login), eles **não** se aplicam ao papel de login que o herda (verificado).
+Parâmetros de configuração de sessão são atribuídos aos papéis de login (`*_login`) para limitar retenção de travas e forçar resolução explícita de nomes:
 
 ```sql
--- <login> é o papel de login concedido pela infraestrutura ao serviço (membro de sample_item_manager).
-ALTER ROLE <login> SET search_path = '';
-ALTER ROLE <login> SET lock_timeout = '2s';
-ALTER ROLE <login> SET statement_timeout = '5s';
-ALTER ROLE <login> SET idle_in_transaction_session_timeout = '10s';
+ALTER ROLE <servico_login> SET search_path = '';
+ALTER ROLE <servico_login> SET lock_timeout = '2s';
+ALTER ROLE <servico_login> SET statement_timeout = '5s';
+ALTER ROLE <servico_login> SET idle_in_transaction_session_timeout = '10s';
 ```
 
-- `search_path = ''` exige nomes qualificados pelo schema (`sample.item`), que é a forma usada por todo o SQL deste documento;
-- `idle_in_transaction_session_timeout` impede que uma instância travada mantenha o bloqueio da linha de um recurso indefinidamente;
-- os mesmos parâmetros se aplicam ao Receiver, ao Publisher e à manutenção, exceto `idle_session_timeout` no Publisher (ver a seção do Publisher);
-- o limite de conexões por papel (`CONNECTION LIMIT`) é definido pela infraestrutura conforme o dimensionamento.
+- `search_path = ''` impede ataques de sombreamento de objetos e força o uso de nomes qualificados (`sample.item`);
+- `lock_timeout = '2s'` encerra consultas bloqueadas por contenção excessiva com erro `55P03`;
+- `idle_in_transaction_session_timeout = '10s'` desfaz transações que mantenham bloqueios abertos de forma inativa;
+- O papel do Publisher não utiliza `idle_session_timeout` para permitir a preservação da trava consultiva de sessão durante períodos de ociosidade do barramento.
 
-## 14.4 Isolamento por tipo
+## 14.4 Segredos e dados confidenciais
 
-O isolamento entre tipos de recurso é obtido por privilégios por tabela e por view. **Row-Level Security não é adotada**: a combinação de uma tabela por tipo e privilégios por objeto cumpre o isolamento com menos mecanismos. Se um tipo precisar de isolamento por linha (por exemplo, por organization), ele é tratado explicitamente no contrato e a RLS é reavaliada; nesse caso, as views passam a usar `security_invoker`, para que a política se aplique ao papel do Receiver.
-
-## 14.5 Conexão, repouso e segredos
-
-- conexões usam TLS fora do ambiente local, com validação do certificado do servidor, e preferencialmente autenticação mútua para serviços;
-- este documento **não assume** criptografia nativa do banco em repouso: a proteção em repouso é exigida da plataforma (volume ou equivalente) e deve ser validada no ambiente, conforme a classificação dos dados;
-- credenciais são fornecidas por gestão de segredos, nunca versionadas;
-- parâmetros de comandos e valores de colunas `confidential` não são registrados em log (configuração de log do servidor e do cliente);
-- mensagens de erro do banco não são devolvidas ao cliente externo.
+- Credenciais de acesso ao banco são injetadas exclusivamente por variáveis de ambiente a partir do cofre de segredos da plataforma;
+- Senhas, hashes de senhas ou chaves criptográficas privadas **nunca são armazenadas no SSOT** em texto puro;
+- Colunas e propriedades marcadas como confidenciais no contrato (`x-sensitivity: confidential`) são mascaradas em traces, logs e mensagens de erro do PostgreSQL.
 
 # 15. Migrações
 
-- migrações são **versionadas, revisadas e executadas por infraestrutura** com o proprietário dos objetos, como etapa de implantação. O código delas fica no projeto da feature, na pasta `migrations/` (decisões 0015 e 0063). Serviços de runtime não executam DDL, e o papel de runtime do Manager não tem privilégio de DDL;
-- cada tipo tem o seu controle de versão das migrações, obrigatório antes de stg e prd; uma mudança no modelo de referência é aplicada a cada tipo pelo Manager correspondente;
-- a evolução segue **expandir → migrar → contrair**: adicionar de forma compatível, migrar o conteúdo e só então remover o antigo. É a tradução, para o banco, da sequência de `SCHEMA.md`;
-- as views de leitura isolam o Receiver das migrações da tabela; uma view só muda quando o contrato de leitura muda, e uma mudança incompatível cria a view do novo `MAJOR`;
-- uma mudança `MAJOR` de contrato exige conversão na leitura durante a coexistência e migração do conteúdo gravado e da mensagem retida, com republicação preservando geração e conteúdo;
-- `schema_version` de cada registro indica o que ainda não foi migrado;
-- DDL que bloqueia a tabela por muito tempo (reescrita completa) deve ser avaliado antes, e executado em janela ou por técnica de baixo bloqueio, a validar no ambiente.
+- As migrações são arquivos SQL versionados, mantidos na pasta `migrations/` de cada feature (ex: `features/ipm/organization/migrations/`);
+- São executadas exclusivamente pelo papel administrativo `ssot` durante etapas automatizadas de deploy em pipelines de CI/CD;
+- A evolução do schema obedece à estratégia **expandir → migrar → contrair**:
+  1. *Expandir:* adição de novas colunas ou novas views versionadas de forma compatível;
+  2. *Migrar:* transição das aplicações para o novo formato;
+  3. *Contrair:* remoção de colunas ou views depreciadas após encerramento do período de coexistência;
+- As views de leitura versionadas (`<tipo>_v<MAJOR>`) protegem os clientes contra mudanças estruturais internas nas tabelas base.
 
 # 16. Backup e recuperação
 
-- cópia de segurança com **recuperação a um ponto no tempo (PITR)**: backup base mais arquivamento contínuo de WAL, armazenados fora do servidor do banco;
-- a **replicação não é cópia de segurança**: um erro lógico é replicado imediatamente para os standbys;
-- a restauração é **testada periodicamente**, incluindo o procedimento de recuperação, e o resultado é registrado;
-- os objetivos de recuperação (ponto e tempo) são parâmetros do ambiente;
-- versões recentes do PostgreSQL suportam backups incrementais; o seu uso é uma decisão do ambiente.
+- A plataforma requer rotina de cópia de segurança contínua com recuperação a um ponto no tempo (**PITR - Point-in-Time Recovery**), combinando backups base periódicos e arquivamento de WALs fora do nó de banco de dados;
+- A restauração deve ser testada e validada periodicamente em ambiente isolado.
 
-## 16.1 Procedimento de recuperação
+## 16.1 Procedimento de recuperação pós-restauração
 
-Após uma restauração a um ponto anterior, o procedimento de `SSOT.md` (recuperação após restauração) é executado com `ssot`, com o Manager e o Publisher parados (papéis sem login ou serviços desligados):
+Caso o banco seja restaurado a um ponto no tempo anterior (com serviços pausados):
 
-1. descartar as mensagens pendentes: `DELETE FROM <módulo>.<tipo>_outbox WHERE published_at IS NULL`;
-2. para cada recurso, ler a geração e o conteúdo do último `desired` retido no transporte (leitura direta do último valor do subject, `NATS.md`) e compará-los com `desired_generation` e `desired`;
-3. quando o procedimento exigir nova geração, gravar `desired_generation = <geração do transporte> + 1`, incrementar `resource_version` e inserir o `desired` correspondente no outbox, na mesma transação;
-4. listar os recursos presentes no transporte e ausentes na tabela, sem alterá-los;
-5. registrar o relatório e só então liberar o Manager e o Publisher.
-
-A comparação de conteúdo usa a igualdade de `jsonb` (seção de comparação e geração), com o conteúdo do transporte convertido para `jsonb`.
+1. Limpar mensagens não publicadas do outbox anteriores ao ponto restaurado:
+   ```sql
+   DELETE FROM sample.item_outbox WHERE published_at IS NULL;
+   ```
+2. Para cada recurso, consultar no Stream `DESIRED` do NATS JetStream o último estado publicado;
+3. Se a geração retida no transporte for maior ou igual com conteúdo diferente, atualizar `desired_generation` no SSOT para a geração do transporte + 1 e gravar a nova mensagem no outbox;
+4. Identificar recursos retidos no NATS que não constem no backup restaurado;
+5. Retomar a operação normal dos serviços.
 
 # 17. Alta disponibilidade
 
-- o banco usa replicação com failover definidos pela infraestrutura;
-- o failover interrompe transações em andamento: a unidade atômica é repetida a partir do estado atual, e a mensagem só é confirmada ao transporte após o `COMMIT`;
-- a replicação usada para failover é síncrona ou o failover é tratado como restauração: um failover assíncrono pode perder transações confirmadas cujas mensagens já foram publicadas, o que equivale a voltar a um ponto anterior (`SSOT.md`, recuperação);
-- o Publisher reabre a trava consultiva na nova instância e republica o que estiver pendente;
-- com o banco indisponível, o Manager não aceita novos pedidos nem atualiza o estado, e o loop continua sobre o `desired` já publicado (`SSOT.md`). Isso deve gerar alerta;
-- a leitura em réplica pelo Receiver aceita atraso de replicação; leituras que precisam refletir a própria escrita (por exemplo, a resposta de uma criação) devem usar o primário.
+- O banco `ssot` opera com réplicas e failover gerenciado pela infraestrutura;
+- A replicação para failover automático deve ser síncrona para evitar perda de transações confirmadas com mensagens já entregues ao transporte;
+- Durante indisponibilidade temporária do banco, a API responde `503 Service Unavailable` com cabeçalho `Retry-After: 5`, e o Controller suspende os ciclos de reconciliação.
 
 # 18. Observabilidade
 
-Medir, sem expor dados sensíveis:
+Métricas e sinais monitorados sem exposição de dados confidenciais:
 
-```text
-idade da mensagem pendente mais antiga no outbox
-quantidade pendente no outbox
-tamanho de outbox, action_result e operation
-Operations rejected por motivo e reusos de chave com outro resumo
-transações repetidas por conexão, lock_timeout, deadlock ou serialização
-esperas por bloqueio de linha e duração das transações do Manager
-posse da trava consultiva do Publisher e lotes interrompidos
-tamanho das tabelas e dos índices
-atraso de replicação
-atraso do arquivamento de WAL
-idade do último backup base e do último teste de restauração
-quantidade de recursos por phase, em Failed e com reconciliação suspensa
-```
+- Quantidade e idade da mensagem pendente mais antiga no outbox (`outbox_oldest_age_seconds`);
+- Taxa de requisições de admissão com conflito de concorrência (`409 Conflict`);
+- Taxa de reuso inválido de chaves de idempotência (`422 IdempotencyKeyReused`);
+- Ocorrências de `lock_timeout` (`55P03`) e esperas excessivas por bloqueio de linha em `sample.item`;
+- Taxa de lotes de publicação do Publisher interrompidos por falha de transporte;
+- Quantidade de registros expurgados pela rotina de retenção de 24 horas;
+- Distribuição de recursos por fase (`Pending`, `Reconciling`, `Ready`, `Failed`, `Deleting`).
 
 # 19. Anti-padrões
 
-- escrever no banco por serviço que não seja o Manager;
-- ler o estado do recurso sem `FOR UPDATE` antes de gravar;
-- registrar o outbox sem bloquear e atualizar antes a linha do recurso na mesma transação (quebra a ordem por recurso);
-- contar um resultado sem registrar antes o seu `action_id`;
-- índice de idempotência apenas pela chave do cliente, sem o escopo do solicitante;
-- usar marca-d'água de sequência para publicar o outbox;
-- usar `FOR UPDATE SKIP LOCKED` no Publisher ordenado;
-- publicar o outbox em paralelo, ou por mais de uma instância sem partição determinística por recurso;
-- Publisher em *pooling* de transação com trava consultiva de sessão;
-- confirmar a mensagem ao transporte antes do `COMMIT`;
-- Receiver lendo tabelas em vez das views de leitura;
-- índice GIN por padrão;
-- usar `jsonb` para o que participa de concorrência, unicidade ou consulta do loop;
-- tratar o texto de um `jsonb` como original (assinatura, hash);
-- documentos grandes em um único registro;
-- conceder `DELETE` em outbox, resultados ou operation ao Manager;
-- executar DDL por serviço de runtime;
-- deixar `CONNECT` e `TEMPORARY` do banco para `PUBLIC`;
-- liberar o Manager e o Publisher após uma restauração sem o procedimento de recuperação;
-- confiar na replicação como cópia de segurança.
+- Escrever no banco de dados através de componentes não autorizados (somente a API e o Controller do respectivo tipo escrevem no SSOT);
+- Gravar alterações no recurso sem registrar a respectiva mensagem no outbox na mesma transação atômica;
+- Executar leitura e alteração de estado no Controller sem adquirir previamente o bloqueio exclusivo da linha (`SELECT ... FOR UPDATE`);
+- Utilizar `FOR UPDATE SKIP LOCKED` na varredura do outbox ordenado;
+- Publicar mensagens do outbox em paralelo ou sem confirmação (ACK) sequencial do JetStream;
+- Tentar publicar diretamente no NATS dentro do processo da API sem utilizar o outbox transacional;
+- Utilizar marca-d'água de sequência para varredura do outbox;
+- Permitir que papéis de serviço de runtime executem comandos de DDL (`CREATE`, `ALTER`, `DROP`);
+- Conceder permissão de `DELETE` no outbox ou na tabela de idempotência para papéis de runtime;
+- Armazenar segredos ou credenciais em texto puro dentro de campos `jsonb`.
 
-# 20. Checklist
+# 20. Checklist de conformidade
 
-- [ ] A versão do PostgreSQL está fixada no ambiente?
-- [ ] O banco `ssot` pertence a `ssot`, sem privilégios para `PUBLIC`?
-- [ ] As quatro tabelas e as duas views do tipo são geradas do modelo?
-- [ ] `lifecycle`, `reconciliation`, `presence`, `phase` e `operation_status` possuem `CHECK`?
-- [ ] `resource_id`, identificadores, tamanho e tipo dos `jsonb` possuem `CHECK`?
-- [ ] Toda transação sobre um recurso existente começa com `FOR UPDATE` na linha?
-- [ ] A atualização do solicitante usa `resource_version` na condição e registra o conflito na Operation?
-- [ ] A geração só incrementa quando a especificação muda?
-- [ ] `requested` é deduplicado por `operation_id`, e resultados por `action_id`, com filtro de geração?
-- [ ] O Publisher usa uma instância ativa por trava consultiva, publica sequencialmente, sem marca-d'água e sem `SKIP LOCKED`?
-- [ ] O Publisher só marca `published_at` após a confirmação do transporte?
-- [ ] A matriz de privilégios corresponde à matriz de identidades de `RESOURCE-CONTROL-SECURITY.md`?
-- [ ] O Receiver lê somente as views?
-- [ ] O Manager não possui `DELETE` em outbox, resultados e operation?
-- [ ] Os papéis de login de runtime têm `search_path`, `lock_timeout`, `statement_timeout` e `idle_in_transaction_session_timeout`?
-- [ ] Existe identidade de manutenção para a retenção?
-- [ ] TLS está habilitado fora do ambiente local, e a proteção em repouso foi validada?
-- [ ] Parâmetros e colunas `confidential` não aparecem em log?
-- [ ] Existe PITR, teste periódico de restauração e procedimento de recuperação?
-- [ ] As migrações seguem expandir → migrar → contrair, por infraestrutura?
+- [ ] O banco `ssot` é a fonte exclusiva de recursos gerenciados, sem privilégios para `PUBLIC`?
+- [ ] O tipo de recurso possui apenas as 3 tabelas autorizadas (`<tipo>`, `<tipo>_outbox`, `<tipo>_idempotency`) e a view de leitura `<tipo>_v1`?
+- [ ] Colunas de controle (`lifecycle`, `reconciliation`, `presence`, `phase`) possuem validações `CHECK` adequadas?
+- [ ] O tamanho do conteúdo `desired` e do envelope no outbox é limitado a 256 KiB?
+- [ ] Toda transação de escrita sobre recurso existente inicia com `FOR UPDATE` na linha?
+- [ ] A admissão de alteração do cliente confere `resource_version` e rejeita conflitos com HTTP 409?
+- [ ] A idempotência de admissão utiliza a tabela `<tipo>_idempotency` escopada por `requested_by`?
+- [ ] O Publisher opera com exclusão mútua via trava consultiva de sessão e publica de forma sequencial com confirmação?
+- [ ] A rotina de retenção operacional expurga mensagens de outbox e registros de idempotência com mais de 24 horas via papel de manutenção?
+- [ ] As credenciais de runtime possuem privilégios mínimos estritamente configurados conforme a matriz de segurança?
 
 # 21. Verificação do DDL de referência
 
-O DDL, os `GRANT` e os comportamentos descritos neste documento foram exercitados no banco `ssot` do ambiente de desenvolvimento (`infrastructure/dev/database`, **PostgreSQL 18.6**), com papéis e dados de teste removidos ao final:
+O DDL, as restrições de integridade, os privilégios e os comportamentos transacionais descritos neste documento foram validados no banco `ssot` do ambiente de desenvolvimento da plataforma (**PostgreSQL 18.6**):
 
-- criação do banco e do proprietário pela inicialização do ambiente, reaplicação idempotente, `PUBLIC` sem `CONNECT` no banco e sem privilégio no schema `public`, e autenticação por senha (SCRAM) pela rede interna;
-- parâmetros de sessão: aplicados ao papel de login, não herdados do papel de função; `search_path` vazio exige nome qualificado; `lock_timeout` encerra a espera por bloqueio (`55P03`);
-
-- restrições (`CHECK`) de `resource_id`, de enumerações, de tipo `jsonb`, da coerência entre `presence` e `observed_at`, e da coerência entre `operation_status`, `operation_status_reason` e `desired_generation`;
-- concorrência otimista (versão antiga não altera linhas), geração não incrementa com a mesma especificação (inclusive com ordem de chaves diferente) nem ao mudar só `reconciliation`, e incrementa e zera `failure_count` quando a especificação muda;
-- monotonia de `observed_at`;
-- serialização por `FOR UPDATE`: duas sessões sobre o mesmo recurso, a segunda enxergando o resultado da primeira após o bloqueio;
-- deduplicação de resultado com `ON CONFLICT DO NOTHING ... RETURNING` em `action_result`;
-- deduplicação de `requested` por violação de chave primária de `operation_id` entre duas sessões simultâneas;
-- privilégios: leitura do Receiver somente pelas views (negação nas tabelas), negação de `PUBLIC` no banco, negação de `DELETE` e de DDL ao Manager, Manager sem `SELECT` no outbox, `UPDATE (published_at)` do Publisher e `DELETE` da manutenção;
-- ordem do outbox por recurso entre duas sessões concorrentes, visibilidade fora de ordem entre recursos diferentes, exclusão mútua da trava consultiva e a consulta de posse da trava.
-
-**Não foi verificado:** carga e desempenho, Publisher real com transporte, publicação sequencial com erro de transporte, failover, PITR e o procedimento de recuperação com transporte real, criptografia em repouso, *pooling* de conexões e o custo de DDL em tabelas grandes. Esses pontos devem ser validados no ambiente.
+- criação isolada por schemas e revogação de acessos padrão de `PUBLIC`;
+- restrições de integridade (`CHECK`) sobre identificadores UUIDv7, estados do ciclo de vida e coerência entre `presence` e `observed_at`;
+- concorrência otimista com rejeição de versões desatualizadas de `resource_version`;
+- avanço estrito de `desired_generation` condicionado à alteração semântica do `desired`;
+- monotonicidade temporal de `observed_at` em reconciliações concorrentes;
+- serialização pessimista com `FOR UPDATE` e visibilidade consistente em Read Committed;
+- deduplicação de requisições de admissão pela tabela de idempotência por solicitante;
+- integridade do outbox transacional ordenado por recurso e exclusão mútua por trava consultiva de sessão no Publisher;
+- isolamento rigoroso de privilégios entre os papéis `api`, `controller`, `publisher` e `maintenance`.
 
 # 22. Fontes técnicas
 
-A implementação deste documento utiliza como referência a documentação oficial do PostgreSQL:
-
-- Tipos JSON: https://www.postgresql.org/docs/current/datatype-json.html
-- Isolamento de transações: https://www.postgresql.org/docs/current/transaction-iso.html
-- Bloqueio explícito e travas consultivas: https://www.postgresql.org/docs/current/explicit-locking.html
-- INSERT e `ON CONFLICT`: https://www.postgresql.org/docs/current/sql-insert.html
-- SELECT e cláusulas de bloqueio: https://www.postgresql.org/docs/current/sql-select.html
-- Views: https://www.postgresql.org/docs/current/sql-createview.html
-- Privilégios: https://www.postgresql.org/docs/current/ddl-priv.html
-- Parâmetros de sessão do cliente: https://www.postgresql.org/docs/current/runtime-config-client.html
-- Restrições: https://www.postgresql.org/docs/current/ddl-constraints.html
-- Particionamento: https://www.postgresql.org/docs/current/ddl-partitioning.html
-- Arquivamento contínuo e PITR: https://www.postgresql.org/docs/current/continuous-archiving.html
+- Tipos JSON no PostgreSQL: https://www.postgresql.org/docs/current/datatype-json.html
+- Níveis de Isolamento de Transação: https://www.postgresql.org/docs/current/transaction-iso.html
+- Bloqueio Explícito e Cláusulas de Bloqueio: https://www.postgresql.org/docs/current/explicit-locking.html
+- Travas Consultivas (Advisory Locks): https://www.postgresql.org/docs/current/explicit-locking.html#ADVISORY-LOCKS
+- Cláusula `ON CONFLICT`: https://www.postgresql.org/docs/current/sql-insert.html
+- Views e Segurança: https://www.postgresql.org/docs/current/sql-createview.html
+- Privilégios e Comandos GRANT/REVOKE: https://www.postgresql.org/docs/current/ddl-priv.html
+- Parâmetros de Configuração de Sessão: https://www.postgresql.org/docs/current/runtime-config-client.html
 
 # 23. Fonte de verdade
 
-`SSOT.md` é a fonte de verdade do modelo e das garantias de gravação.
+`SSOT.md` é a fonte de verdade do modelo lógico e das garantias de gravação.
 
-`POSTGRESQL.md` é a fonte de verdade da implementação dessas garantias em PostgreSQL.
+`POSTGRESQL.md` é a fonte de verdade da **implementação física dessas garantias em PostgreSQL**.
 
 ```text
 SSOT.md
@@ -687,5 +597,3 @@ SSOT.md
     v
 POSTGRESQL.md
 ```
-
-Uma limitação específica do PostgreSQL não altera o modelo. Quando a implementação exigir adaptação, a adaptação permanece confinada a este documento e à infraestrutura.
