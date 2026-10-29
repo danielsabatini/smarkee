@@ -19,7 +19,7 @@ docs/messaging/NATS.md        → implementação em NATS
 esta skill          → procedimento
 ```
 
-Não redefina aqui Streams, retenção, Consumers, autorização ou nomenclatura: leia `docs/messaging/NATS.md`. Em conflito, os documentos prevalecem. Atenção: em dev nenhuma feature usa mais `REQUESTED`, `OBSERVED`, `RESULT` nem `ACTION` (decisões 0096, 0098 e 0100); só o Controller e as projeções locais da API têm consumers, no `DESIRED`. Se um dia o `ACTION` voltar a ser usado, ele é particionado por `subject_transform` (decisão 0018), então o Subject armazenado difere do publicado.
+Não redefina aqui Streams, retenção, Consumers, autorização ou nomenclatura: leia `docs/messaging/NATS.md`. Em conflito, os documentos prevalecem. Os streams foram consolidados em `DESIRED`, `UPDATED` e `AUDIT`, com subjects de exatamente 4 tokens (`<messageType>.<module>.<resourceType>.<resourceId>`), conforme decisão `0101`. Os streams legados (`REQUESTED`, `OBSERVED`, `ACTION`, `RESULT`) foram extintos. Apenas o Controller e as projeções locais da API consomem de `DESIRED`.
 
 Não use esta skill para decidir semântica de mensagem (use o agent `messaging`).
 
@@ -39,9 +39,9 @@ Não use esta skill para decidir semântica de mensagem (use o agent `messaging`
 Entradas: o recurso (`<módulo>.<tipo>`) e o `messageType`.
 
 1. Ler `docs/messaging/MESSAGING.md` e `docs/messaging/NATS.md` (Subjects, Streams, Consumers).
-2. Classificar a mensagem: **trabalho**, **estado** ou **fato** (`docs/messaging/MESSAGING.md`).
+2. Classificar a mensagem: `desired` (intenção admitida no stream `DESIRED`) ou `updated` (fato/convergência no stream `UPDATED`), conforme `docs/messaging/MESSAGING.md` e decisão `0101`.
 3. Derivar, a partir de `docs/messaging/NATS.md`, e registrar em uma tabela:
-   - Subject (gramática oficial);
+   - Subject (exatamente 4 tokens: `<messageType>.<module>.<resourceType>.<resourceId>`);
    - Stream do `messageType` e sua retenção;
    - Consumers por serviço, com classe, filtro único `<módulo>.<tipo>` e nome;
    - política de ACK, retry, `max_deliver`, backoff e quarentena;
