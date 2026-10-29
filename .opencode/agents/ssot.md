@@ -28,7 +28,7 @@ Em conformidade com o `AGENTS.md` (seção 24.1), este arquivo define apenas a a
 * padrão de reconciliação, papéis e persistência no SSOT: `docs/loop/RESOURCE-CONTROL-LOOP.md`;
 * semântica de `desired` e `observed` nas mensagens: `docs/messaging/MESSAGING.md`;
 * contratos formais e ciclo de vida do schema até o SSOT: `docs/data/SCHEMA.md`;
-* segurança do control loop (identidades, proteção da `action`, credenciais): `docs/loop/RESOURCE-CONTROL-SECURITY.md`;
+* segurança do control loop (identidades, segregação de papéis de API, Controller e Publisher, credenciais): `docs/loop/RESOURCE-CONTROL-SECURITY.md`;
 * modelo e garantias de gravação do SSOT (modelo lógico, atomicidade, concorrência, idempotência, outbox, segurança, recuperação): `docs/data/SSOT.md`;
 * implementação do SSOT em PostgreSQL com `jsonb` (tabelas, privilégios, Publisher, migrações, backup): `docs/data/POSTGRESQL.md`.
 
@@ -294,8 +294,8 @@ As definições de `desiredGeneration`, `observedGeneration` e `resourceVersion`
 Pontos de atenção na revisão:
 
 * `desiredGeneration` só muda quando a **especificação** muda;
-* a convergência exige conteúdo igual entre `desired` e `observed` **e** uma observação feita depois da geração (o `observedGeneration` do envelope `observed`); o Manager grava a geração confirmada e a publica no `updated` (decisão 0072, `docs/loop/RESOURCE-CONTROL-LOOP.md` §36);
-* toda alteração do `desired`, inclusive de campo da plataforma, percorre o loop: não existe Operation que conclua sem a observação da geração (decisão 0072);
+* a convergência exige conteúdo igual entre `desired` e `observed` **e** uma observação realizada com geração correspondente ou posterior; o Controller grava o estado no SSOT e gera o envelope `updated` na outbox (`docs/loop/RESOURCE-CONTROL-LOOP.md` e `docs/data/SSOT.md`);
+* em recursos `external-reconciled`, toda alteração do `desired` percorre o loop: a convergência só é declarada quando o estado externo reflete a intenção da geração correspondente;
 * `resourceVersion` serve ao controle de concorrência e não representa geração;
 * `conditions` seguem o contrato comum e o dicionário de `docs/data/SSOT.md`, e a saúde operacional é representada por elas e por `phase`.
 
@@ -640,7 +640,7 @@ DDL é o artefato final de implementação, nunca o ponto de partida.
 
 # Revisão contra o SSOT.md
 
-Ao revisar ou propor um modelo, confira-o contra o checklist e as invariantes de `docs/data/SSOT.md` (Manager como único escritor, unidade atômica por mensagem com outbox, idempotência semântica, concorrência otimista, ordem por recurso, privilégios mínimos, recuperação). Quando o modelo for materializado em PostgreSQL, use a skill `postgresql` e `docs/data/POSTGRESQL.md`.
+Ao revisar ou propor um modelo, confira-o contra o checklist e as invariantes de `docs/data/SSOT.md` (dois escritores segregados — API e Controller —, Publisher como consumidor da outbox, unidade atômica por transação com outbox, idempotência semântica e física, concorrência via `FOR UPDATE` e `resource_version`, ordem por recurso, privilégios mínimos por papel e retenção de 24h de outbox/idempotency). Quando o modelo for materializado em PostgreSQL, use a skill `postgresql` e `docs/data/POSTGRESQL.md`.
 
 Se o modelo contradisser `docs/data/SSOT.md`, o documento prevalece e a divergência deve ser explicitada, e não resolvida em silêncio.
 
