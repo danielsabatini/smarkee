@@ -84,7 +84,7 @@ pnpm test:unit
 
 Confirme que a suíte valida:
 1. **Unidade e Componentes:** estado reativo, filtros, seletores, adaptadores e validadores de identificador (`OPAQUE_IDENTIFIER_PATTERN`).
-2. **Contratos (`schemas/`):** os payloads gerados pelo `MockDataAdapter` (`AccountResource`, `OrganizationResource`, `OrganizationUserResource`, `ServiceLinkResource`, `Operation`) são validados contra os arquivos JSON Schema reais em `../../schemas/` usando `ajv`.
+2. **Contratos (`schemas/`):** os payloads gerados pelo `MockDataAdapter` (`AccountResource`, `OrganizationResource`, `OrganizationUserResource`, `ServiceLinkResource`) são validados contra os arquivos JSON Schema reais em `../../schemas/` usando `ajv`.
 3. **Cobertura:** reporte o percentual obtido e compare com a meta (>80% em código novo).
 
 ---
