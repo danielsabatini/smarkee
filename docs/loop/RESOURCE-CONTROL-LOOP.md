@@ -252,7 +252,11 @@ Como a observação é feita **dentro** do ciclo, ela nunca envelhece nem chega 
 
 # 5. Arquitetura de referência
 
-A arquitetura do perfil `external-reconciled` é:
+A plataforma adota dois perfis arquiteturais de controle de recursos:
+
+## 5.1 Perfil external-reconciled (reconciliação com sistema externo)
+
+Utilizado quando o estado do recurso depende de um provedor ou sistema externo (ex.: Zitadel, nuvem, gateway). A API admite o `desired` e o Controller executa o loop de convergência e observação no provedor externo:
 
 ```mermaid
 flowchart TB
@@ -261,7 +265,7 @@ flowchart TB
     API[API<br/>admissão síncrona]
 
     subgraph SSOTbox[SSOT - PostgreSQL]
-        Resource[(Resource + outbox)]
+        Resource[(Resource + outbox + idempotency)]
     end
 
     Publisher[Publisher]
@@ -296,7 +300,36 @@ flowchart TB
     Updated --> Audit
 ```
 
-No perfil `internal-state`, o diagrama termina em `API → SSOT → Publisher → DESIRED`: não há Controller, `UPDATED` nem sistema externo.
+## 5.2 Perfil internal-state (estado interno ao SSOT)
+
+Utilizado quando o SSOT é a autoridade absoluta do recurso (ex.: `ipm/role`, `ipm/group`, `bsm/account`). Não há sistema externo nem Controller: a API valida e grava o recurso no SSOT imediatamente como `Ready` numa única transação atômica, inserindo o evento de mutação no outbox. O Publisher entrega o `desired` ao NATS para consumo por projeções desacopladas de outras features:
+
+```mermaid
+flowchart TB
+
+    Client[CLI / Client]
+    API[API<br/>admissão síncrona]
+
+    subgraph SSOTbox[SSOT - PostgreSQL]
+        Resource[(Resource + outbox + idempotency)]
+    end
+
+    Publisher[Publisher]
+
+    subgraph Messaging[NATS / Messaging]
+        Desired[DESIRED<br/>desired.m.t.id]
+        Audit[AUDIT]
+    end
+
+    Consumers[Consumidores / Projeções Locais<br/>outras features via stream DESIRED]
+
+    Client -->|HTTP| API
+    API -->|recurso Ready + desired no outbox| Resource
+    Resource --> Publisher
+    Publisher --> Desired
+    Desired --> Audit
+    Desired -.->|subscrição desacoplada| Consumers
+```
 
 **Nota sobre os diagramas.** Neste documento, "a API publica `desired`" e "o Controller publica `updated`" significam que o **emissor** da mensagem é `api` ou `controller`, respectivamente. Na implementação, cada um grava a mensagem no outbox, na mesma transação do SSOT, e quem a publica no transporte é o Publisher (seção 6.6).
 
