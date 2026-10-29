@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: @@KEBAB@@-telemeter
+  namespace: @@MODULE@@
+  labels:
+    app.kubernetes.io/name: @@KEBAB@@-telemeter
+    app.kubernetes.io/part-of: @@KEBAB@@
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: opentelemetry-collector
+    app.kubernetes.io/instance: @@MODULE@@.@@KEBAB@@-telemeter
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+---
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: @@KEBAB@@-telemeter
+  namespace: @@MODULE@@
+  labels:
+    app.kubernetes.io/name: @@KEBAB@@-telemeter
+    app.kubernetes.io/part-of: @@KEBAB@@
+spec:
+  mode: statefulset
+  replicas: 1
+  image: otel/opentelemetry-collector-contrib:0.164.0
+  securityContext:
+    runAsUser: 0
+    runAsGroup: 0
+  volumes:
+    - name: telemetry-out
+      hostPath:
+        path: /var/lib/smarkee/telemetry/features/@@MODULE@@/@@TYPE@@
+        type: DirectoryOrCreate
+  volumeMounts:
+    - name: telemetry-out
+      mountPath: /telemetry
+  config:
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 128
+        spike_limit_mib: 32
+      batch:
+        timeout: 1s
+        send_batch_size: 100
+        send_batch_max_size: 200
+    exporters:
+      file/logs_app:
+        path: /telemetry/logs/logs.jsonl
+        create_directory: true
+        rotation:
+          max_megabytes: 10
+          max_days: 1
+          max_backups: 3
+      file/traces:
+        path: /telemetry/traces/traces.jsonl
+        create_directory: true
+        rotation:
+          max_megabytes: 10
+          max_days: 1
+          max_backups: 3
+    service:
+      extensions: [health_check]
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [file/logs_app]
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [file/traces]

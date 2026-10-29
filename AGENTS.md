@@ -565,6 +565,9 @@ Arquivos, módulos, pacotes, classes, funções e variáveis do código próprio
 | Banco de dados relacional | `database` |
 | Provedor de identidade (IdP) | `identity` |
 | E-mail | `mail` |
+| Gateway de API | `gateway` |
+| Observabilidade e telemetria | `telemetry` |
+| Cofre de segredos, criptografia e PKI | `vault` (`svm`, `ekm`, `clm`) |
 
 Regras:
 

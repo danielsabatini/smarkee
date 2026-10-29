@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: @@KEBAB@@-controller
+  namespace: @@MODULE@@
+  labels:
+    app.kubernetes.io/name: @@KEBAB@@-controller
+    app.kubernetes.io/part-of: @@KEBAB@@
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: @@KEBAB@@-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: @@KEBAB@@-controller
+        app.kubernetes.io/part-of: @@KEBAB@@
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: controller
+          image: localhost:5001/smarkee-@@KEBAB@@:dev
+          imagePullPolicy: IfNotPresent
+          command: ["@@KEBAB@@-controller"]
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: SMARKEE_ENVIRONMENT
+              value: dev
+            - name: SMARKEE_CONFIG_PATH
+              value: /etc/smarkee/config.toml
+          volumeMounts:
+            - name: config
+              mountPath: /etc/smarkee/config.toml
+              subPath: config.toml
+              readOnly: true
+            - name: secrets
+              mountPath: /run/secrets
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 192Mi
+      volumes:
+        - name: config
+          configMap:
+            name: @@KEBAB@@-config
+        - name: secrets
+          secret:
+            secretName: @@KEBAB@@-controller-secrets

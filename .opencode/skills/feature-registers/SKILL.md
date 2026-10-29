@@ -34,10 +34,11 @@ Confira cada linha. Se a feature `core/account` já aparece num arquivo, a featu
 
 | Registro | Arquivo | Quando |
 |---|---|---|
-| Papéis de banco do módulo | `infrastructure/dev/database/bootstrap/<módulo>.sql` | módulo novo: arquivo novo; tipo novo: acrescenta o papel do tipo |
-| Rota da API | `infrastructure/dev/gateway/bootstrap/adc.yaml` | sempre, uma por tipo |
-| Audience da rota | `infrastructure/dev/gateway/.env.example` e `compose.yaml` do gateway | sempre: `SMARKEE_GATEWAY_AUTH_AUDIENCE_<MÓDULO>_<TIPO>` |
-| Telemetria | `infrastructure/dev/telemetry-router/config.yaml` e `tests/telemetry/tests/test_telemetry.py` | sempre: log, trace e exportador `<módulo>-<tipo>-telemeter` no roteador; `FEATURE_TELEMETRY_DIRS`, `FEATURE_ROUTES` e `outbox_collections` na suíte |
+| Papéis de banco do módulo | `infrastructure/dev/database/bootstrap/<módulo>.sql` e `infrastructure/k8s/platform/database/base/bootstrap-configmap.yaml` | módulo novo: arquivo novo; tipo novo: acrescenta o papel do tipo |
+| Rota da API | `infrastructure/k8s/platform/gateway/base/configmap.yaml` (e `infrastructure/dev/gateway/bootstrap/adc.yaml`) | sempre, uma por tipo |
+| Audience da rota | `infrastructure/k8s/platform/gateway/base/{external-secret.yaml,deployment.yaml}` e `scripts/dev/vault-bootstrap` (além de `infrastructure/dev/gateway/.env.example` e `compose.yaml`) | sempre: `SMARKEE_GATEWAY_AUTH_AUDIENCE_<MÓDULO>_<TIPO>` |
+| GitOps (ArgoCD) e Vault (`svm`) | `infrastructure/k8s/argocd/features/<módulo>-<tipo>.yaml`, `infrastructure/k8s/argocd/features/kustomization.yaml` e `scripts/dev/vault-bootstrap` | sempre: `Application` do ArgoCD (Wave 4) e segredo `/svm/data/features/<módulo>/<tipo>` |
+| Telemetria | `infrastructure/k8s/platform/telemetry/base/telemetry-router.yaml`, `infrastructure/dev/telemetry-router/config.yaml` e `tests/telemetry/tests/test_telemetry.py` | sempre: log, trace e exportador `<módulo>-<tipo>-telemeter` no roteador; `FEATURE_TELEMETRY_DIRS`, `FEATURE_ROUTES` e `outbox_collections` na suíte |
 | Conformidade de identidade | `infrastructure/dev/identity/conformance/tests/test_structure.py` | sempre: `ENV_FILES` e `EXPECTED_AUDIENCE`; com Controller com identidade, `EXPECTED_REGISTER` e `EXPECTED_PROJECT_IDS` |
 | Projeto de roles e contas de serviço | provedor de identidade (Zitadel) | módulo novo: projeto novo; conta do Controller (`<módulo>-<tipo>-controller`) |
 | Backup | `scripts/dev/backup/src/smarkee_dev_backup/model.py` | sempre: `ENV_FILES` e `FEATURE_DIRECTORIES` (e `VOLUMES` se a feature usar volume de estado) |

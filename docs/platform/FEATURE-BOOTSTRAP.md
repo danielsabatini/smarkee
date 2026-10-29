@@ -34,8 +34,8 @@ Todo recurso que pode ser apagado de verdade **nasce protegido** (`deletionProte
    python templates/feature/sync.py --new <módulo> <tipo>
    ```
 
-   Cria a pasta e grava duas coisas: a **semente** (`templates/feature/seed/`: `pyproject.toml`, `compose.yaml`, `config.toml` e `.env.example`, que a feature passa a ter como dela e ajusta) e as **cópias** do template (`files/` e os perfis). Recusa nome inválido e feature que já existe.
-2. Ajuste o que a semente não sabe: em `pyproject.toml`, as dependências do recurso (por exemplo `pydantic[email]` se o schema tiver `format: email`); em `compose.yaml` e `.env.example`, o `controller` (remova-o de `compose.yaml`, `.env.example` e `config.toml` se o recurso é `internal-state`), as variáveis do catálogo e das projeções que o recurso usa e a audience do projeto de roles.
+   Cria a pasta e grava duas coisas: a **semente** (`templates/feature/seed/`: `pyproject.toml`, `compose.yaml`, `config.toml`, `.env.example` e `k8s/{base,overlays/dev}`, que a feature passa a ter como dela e ajusta) e as **cópias** do template (`files/` e os perfis). Recusa nome inválido e feature que já existe.
+2. Ajuste o que a semente não sabe: em `pyproject.toml`, as dependências do recurso (por exemplo `pydantic[email]` se o schema tiver `format: email`); em `k8s/` (e `compose.yaml` / `.env.example`), o `controller` (remova `k8s/base/controller.yaml` e a referência em `k8s/base/kustomization.yaml`, bem como de `compose.yaml`, `.env.example` e `config.toml`, se o recurso é `internal-state`), as variáveis do catálogo e das projeções que o recurso usa e a audience do projeto de roles.
 3. Gere o que depende do contrato, depois do índice do passo 2:
 
    ```bash
@@ -81,13 +81,14 @@ Os Streams (`DESIRED` e `UPDATED`, entre outros) são da plataforma e já existe
 ## 7. Identidade e acesso
 
 - Um projeto de roles por módulo no provedor de identidade e a conta de serviço do Controller (`<módulo>-<tipo>-controller`, quando o recurso usa o Zitadel; [`.decisions/0032`](../../.decisions/0032-projetos-de-roles-por-modulo-e-papel-sem-grant.md), [`0028`](../../.decisions/0028-padrao-de-nomes-das-roles.md)). Módulo novo exige o projeto novo; tipo novo de módulo existente reutiliza o do módulo.
-- Rota da API em `infrastructure/dev/gateway/bootstrap/adc.yaml`: **uma por tipo** (decisões `0015`, `0030`, `0052`), com a variável `SMARKEE_GATEWAY_AUTH_AUDIENCE_<MÓDULO>_<TIPO>` em `infrastructure/dev/gateway/.env.example` e no `compose.yaml` do gateway.
+- Rota da API em `infrastructure/k8s/platform/gateway/base/configmap.yaml` (e `infrastructure/dev/gateway/bootstrap/adc.yaml`): **uma por tipo** (decisões `0015`, `0030`, `0052`, `0102`), com a variável `SMARKEE_GATEWAY_AUTH_AUDIENCE_<MÓDULO>_<TIPO>` em `infrastructure/k8s/platform/gateway/base/external-secret.yaml`, `infrastructure/k8s/platform/gateway/base/deployment.yaml` e `scripts/dev/vault-bootstrap` (`svm/data/platform/gateway`).
 
-## 8. Execução em dev
+## 8. Execução em dev (Kubernetes + GitOps)
 
-1. `compose.yaml` e `.env.example` da feature vêm da semente (passo 3), com a imagem `smarkee-<módulo>-<tipo>`, os contêineres dos papéis, `migrate` e `telemeter`; ajuste ao recurso. Reinicie o gateway depois de recriar contêineres (cache de DNS do APISIX).
-2. Telemetria: acrescente as entradas da feature ao `infrastructure/dev/telemetry-router/config.yaml` (log por `smarkee.module` e `smarkee.resource.type`; trace por `apisix.service_name == "<módulo>-<tipo>-api"`; exportador para `<módulo>-<tipo>-telemeter`) e à suíte `tests/telemetry/tests/test_telemetry.py` (`FEATURE_TELEMETRY_DIRS`, `FEATURE_ROUTES` e `outbox_collections`). O `telemeter/config.yaml` da feature vem do template. Arquitetura em [`OBSERVABILITY-ARCHITECTURE.md`](../telemetry/OBSERVABILITY-ARCHITECTURE.md); logs em [`OBSERVABILITY.md`](../telemetry/OBSERVABILITY.md).
-3. Suba com `docker compose up -d` na pasta da feature, depois da plataforma (`infrastructure/dev`).
+1. `k8s/{base,overlays/dev}`, `compose.yaml` e `.env.example` da feature vêm da semente (passo 3), com a imagem `localhost:5001/smarkee-<módulo>-<tipo>:dev`, os `Deployment`s dos papéis (`api`, `publisher`, `controller`), o `Job` `migrate`, o `OpenTelemetryCollector` `telemeter` e o `ExternalSecret` que lê `/svm/data/features/<módulo>/<tipo>` no `vault` (decisão `0102`); ajuste ao recurso e registre os segredos da feature em `scripts/dev/vault-bootstrap`.
+2. ArgoCD: crie `infrastructure/k8s/argocd/features/<módulo>-<tipo>.yaml` e acrescente-o a `infrastructure/k8s/argocd/features/kustomization.yaml` (Wave 4).
+3. Telemetria: acrescente as entradas da feature ao `infrastructure/k8s/platform/telemetry/base/telemetry-router.yaml` (e `infrastructure/dev/telemetry-router/config.yaml`: log por `smarkee.module` e `smarkee.resource.type`; trace por `apisix.service_name == "<módulo>-<tipo>-api"`; exportador para `<módulo>-<tipo>-telemeter-collector.<módulo>.svc.cluster.local:4317`) e à suíte `tests/telemetry/tests/test_telemetry.py` (`FEATURE_TELEMETRY_DIRS`, `FEATURE_ROUTES` e `outbox_collections`). O `telemeter/config.yaml` e `k8s/base/telemeter.yaml` da feature vêm do template/semente. Arquitetura em [`OBSERVABILITY-ARCHITECTURE.md`](../telemetry/OBSERVABILITY-ARCHITECTURE.md); logs em [`OBSERVABILITY.md`](../telemetry/OBSERVABILITY.md).
+4. Construa e publique a imagem com `./scripts/dev/build-push <módulo>/<tipo>` e sincronize no cluster (`./scripts/dev/cluster-up`).
 
 ## 9. Cliente e ferramentas
 

@@ -64,7 +64,7 @@ Cada passo termina verificado antes do seguinte. O conteúdo de cada passo está
 Regras que valem em todos os passos (fontes no `feature.md` e no `AGENTS.md`):
 
 * o que o `sync.py` grava não é copiado nem editado à mão: altere o modelo e sincronize (§22);
-* a semente (`pyproject.toml`, `compose.yaml`, `config.toml`, `.env.example`) é da feature depois de criada;
+* a semente (`pyproject.toml`, `k8s/{base,overlays/dev}`, `compose.yaml`, `config.toml`, `.env.example`) é da feature depois de criada;
 * a feature nova declara em `PROFILES` os perfis que usa logo depois do `--new` e escreve o contrato de cada um (roteiro, passo 3); uma feature existente só entra num perfil quando o código dela já é igual ao do modelo;
 * temporários ficam em `.workspace/` (§23); sem commit, push ou operação destrutiva sem pedido (§20).
 

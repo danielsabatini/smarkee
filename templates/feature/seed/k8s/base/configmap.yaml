@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: @@KEBAB@@-config
+  namespace: @@MODULE@@
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/part-of: @@KEBAB@@
+data:
+  config.toml: |
+    # Configuração de dev de @@DOTTED@@ (decisão 0067). Sem segredos: eles vêm do ambiente ou de /run/secrets.
+    # Tabela por papel: [tool.@@DOTTED@@.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
+
+    [tool.@@DOTTED@@.api.auth]
+    host_header = "ipm-dev.smarkee.com.br:8080"
+    issuer = "http://ipm-dev.smarkee.com.br:8080"
+    jwks_url = "http://gateway.gateway.svc.cluster.local:8000/oauth/v2/keys"
+
+    [tool.@@DOTTED@@.api.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "@@PACKAGE@@_api_login"
+
+    [tool.@@DOTTED@@.api.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+
+    [tool.@@DOTTED@@.publisher.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "@@PACKAGE@@_publisher_login"
+
+    [tool.@@DOTTED@@.publisher.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+
+    [tool.@@DOTTED@@.controller.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "@@PACKAGE@@_controller_login"
+
+    [tool.@@DOTTED@@.controller.identity]
+    base_url = "http://identity.identity.svc.cluster.local:8080"
+    host_header = "ipm-dev.smarkee.com.br:8080"
+    issuer = "http://ipm-dev.smarkee.com.br:8080"
+
+    [tool.@@DOTTED@@.controller.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: @@KEBAB@@-migrations
+  namespace: @@MODULE@@
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/part-of: @@KEBAB@@
+data: {}

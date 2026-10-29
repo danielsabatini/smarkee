@@ -280,12 +280,13 @@ O agent especialista deve permanecer responsável por seu próprio domínio.
 
 Os documentos do projeto atribuem à infraestrutura (e não aos serviços de runtime) as seguintes responsabilidades. Não as duplique aqui: consulte a fonte.
 
-* criar os Streams JetStream (`DESIRED`, `UPDATED`, `AUDIT`) e Consumers duráveis por tipo de recurso, e manter a identidade administrativa e permissões de subjects de 4 tokens: `docs/messaging/NATS.md`;
-* criar o banco `ssot` e o seu proprietário, executar as migrações do schema do SSOT (o código delas fica no projeto da feature, em `migrations/`, decisões 0015 e 0063), criar os papéis por serviço e os parâmetros de sessão dos papéis de login (`api`, `publisher`, `controller`), e manter a retenção de outbox e idempotência (24h) via papel de manutenção: `docs/data/POSTGRESQL.md`;
+* criar os Streams JetStream (`DESIRED`, `UPDATED`, `AUDIT`) via CRDs `Stream` do NACK e Consumers duráveis por tipo de recurso, e manter a identidade administrativa e permissões de subjects de 4 tokens: `docs/messaging/NATS.md` e decisão `0102`;
+* criar o cluster PostgreSQL via `CloudNativePG`, o banco `ssot` e o seu proprietário, executar as migrações do schema do SSOT via `Job` `*-migrate` (o código delas fica no projeto da feature, em `migrations/`, decisões 0015, 0063 e 0102), criar os papéis por serviço e os parâmetros de sessão dos papéis de login (`api`, `publisher`, `controller`), e manter a retenção de outbox e idempotência (24h) via papel de manutenção: `docs/data/POSTGRESQL.md`;
 * executar o procedimento de recuperação do SSOT após uma restauração, antes de liberar os serviços da feature: `docs/data/SSOT.md` e `docs/data/POSTGRESQL.md`;
-* fornecer credenciais por gestão de segredos e proteção em repouso: `docs/loop/RESOURCE-CONTROL-SECURITY.md` e `docs/data/POSTGRESQL.md`;
+* fornecer gestão de segredos, chaves criptográficas e PKI via `vault` (OpenBao standalone expondo os serviços `svm.vault.svc.cluster.local`, `ekm.vault.svc.cluster.local` e `clm.vault.svc.cluster.local` mapeados a `/svm`, `/ekm` e `/clm`, autenticado no `identity` via OIDC/JWT com namespaces espelhados `identity_org_id`), `External Secrets Operator`, `cert-manager` e `trust-manager`: `docs/loop/RESOURCE-CONTROL-SECURITY.md`, `docs/data/POSTGRESQL.md` e decisão `0102`;
+* gerenciar a infraestrutura de telemetria (`telemetry-agent` DaemonSet, `telemetry-router`, `telemetry-sink` e `<módulo>-<tipo>-telemeter`) via `OpenTelemetry Operator`: `docs/telemetry/OBSERVABILITY-ARCHITECTURE.md` e decisão `0102`;
 * definir backup com recuperação a um ponto no tempo, teste de restauração e alta disponibilidade: `docs/data/POSTGRESQL.md` e `docs/messaging/NATS.md`;
-* fixar a versão de cada capacidade (NATS, PostgreSQL) por ambiente.
+* fixar a versão de cada capacidade e operador por ambiente e reconciliar declarativamente via `ArgoCD` e `Kustomize` (`base/` + `overlays/{dev,stg,prd}`): `docs/platform/IMPLEMENTATION-STATUS.md` e decisão `0102`.
 
 ---
 

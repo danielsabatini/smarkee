@@ -285,18 +285,18 @@ def render_guide(feature_dir: Path) -> str:
         "| `SMARKEE_ENVIRONMENT` | `dev` | Ambiente informado à telemetria (`dev`, `stg`, "
         "`prd`). |\n",
         "## 2. Como o dev entrega cada fonte\n",
-        "| Fonte | No `compose.yaml` |",
+        "| Fonte | Nos manifestos (`k8s/`) |",
         "|---|---|",
-        f"| Linha de comando | O `command` é só o nome do papel (`[{kebab}-receiver]`), sem "
+        f"| Linha de comando | O `command` é só o nome do papel (`[{kebab}-api]`), sem "
         "argumentos. |",
-        "| Ambiente | `environment:` repassa do `.env` só o que não é senha (por exemplo, "
+        "| Ambiente | `env:` define só o que não é senha (por exemplo, "
         "audiência e IDs do Zitadel). |",
         "| `config.toml` | Montado em `/etc/smarkee/config.toml` (`SMARKEE_CONFIG_PATH`). "
-        "Endereços usam os nomes da rede Docker (`database.smarkee.internal`, "
-        "`messaging.smarkee.internal`). |",
-        "| Arquivo de segredo | Bloco `secrets:` com `environment: <VARIÁVEL>`: cada papel monta "
+        "Endereços usam o DNS do Kubernetes (`database-rw.database.svc.cluster.local`, "
+        "`messaging.messaging.svc.cluster.local`). |",
+        "| Arquivo de segredo | `ExternalSecret` sincronizado do OpenBao (`/svm`) e montado em `/run/secrets`: cada papel monta "
         "só as suas senhas. |\n",
-        "Fora do Docker, os nomes `*.smarkee.internal` não resolvem: use as portas publicadas em "
+        "Fora do cluster Kubernetes, os nomes `*.svc.cluster.local` não resolvem: use as portas publicadas em "
         "`127.0.0.1` (Postgres `5432`, NATS `4222`) por flag ou variável.\n",
     ]
     return "\n".join([*head, *body]).rstrip("\n") + "\n"
