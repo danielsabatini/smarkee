@@ -32,7 +32,7 @@ Fontes da verdade relacionadas (não duplicadas aqui):
 - Especificação do Console, layout, rotas e escopo: [`docs/console/CONSOLE.md`](../../docs/console/CONSOLE.md) e referência visual `images/console-main-layout.png`.
 - Ordem `API → CLI → Console` e proteção do Zitadel: [`.decisions/0013`](../../.decisions/0013-api-cli-console-e-zitadel-como-backend-protegido.md).
 - Pasta `clients/` e projeto `clients` no Zitadel: [`.decisions/0034`](../../.decisions/0034-projeto-clients-e-a-aplicacao-cli.md).
-- Loop de controle (`desired` / `observed`), `Operation` (`202 Accepted`) e `conditions` (`Ready`, `Progressing`): [`docs/loop/RESOURCE-CONTROL-LOOP.md`](../../docs/loop/RESOURCE-CONTROL-LOOP.md) e [`.decisions/0078`](../../.decisions/0078-progresso-acao-sem-efeito-e-configuracao-visivel.md).
+- Loop de controle (`desired` / `observed`), API síncrona (decisão `0098`) e `conditions` (`Ready`, `Progressing`): [`docs/loop/RESOURCE-CONTROL-LOOP.md`](../../docs/loop/RESOURCE-CONTROL-LOOP.md) e [`.decisions/0078`](../../.decisions/0078-progresso-acao-sem-efeito-e-configuracao-visivel.md).
 - Contratos JSON Schema da plataforma: [`docs/data/SCHEMA.md`](../../docs/data/SCHEMA.md) e `schemas/`.
 - Análise de código e Quality Gate: agent [`sonarqube`](./sonarqube.md).
 
@@ -95,7 +95,7 @@ O código em `clients/console/src/lib/` mantém separação estrita de responsab
 Componentes (.svelte)
     ↓ consomem apenas estado tipado e callbacks
 Estado de Contexto (state/*.svelte.ts)
-    ↓ orquestra carregamento, seleção de Organization e OperationWatcher
+    ↓ orquestra carregamento, seleção de Organization e polling/watch de recursos
 Porta de Serviço (services/adapter.ts)
     ↓ contrato abstrato (ConsoleDataAdapter)
 Adaptadores (MockDataAdapter / HttpDataAdapter)
@@ -107,10 +107,10 @@ Invariantes de contrato e segurança:
 
 1. **Fidelidade aos Schemas (`schemas/`):** os tipos em `src/lib/types/` espelham os campos e enums reais de `schemas/common/` e `schemas/<módulo>/<tipo>/`. Os dados do `MockDataAdapter` são provados por teste de contrato (`ajv`) contra os arquivos `.schema.json` reais do repositório.
 2. **Nomenclatura do Domínio:** utilize exclusivamente `Organization` (`ipm.organization`), `Account` (`core.account`), `User` (`ipm.user`) e `Service` (`sum.service`). O termo legado `Tenant` é proibido.
-3. **Defesa contra Path Traversal:** todo identificador (`resourceId`, `operationId`, `organizationId`) usado para montar caminhos de URL deve ser validado contra `^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$` antes da requisição.
-4. **Semântica Assíncrona (`202 Accepted`):**
-   - `202 Accepted` indica aceite do pedido (`RequestAccepted`), nunca conclusão.
-   - O progresso é representado exclusivamente por `Operation.operationStatus` (`accepted`, `in_progress`, `completed`, `failed`, `rejected` + `operationStatusReason`) e `Resource.phase` (`Pending`, `Reconciling`, `Ready`, `Degraded`, `Failed`) + `conditions`.
+3. **Defesa contra Path Traversal:** todo identificador (`resourceId`, `organizationId`) usado para montar caminhos de URL deve ser validado contra `^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$` antes da requisição.
+4. **Semântica Síncrona da API e Reconciliação (decisão `0098`):**
+   - A API responde sincronicamente com o recurso (`201 Created` ou `200 OK`), contendo `phase` e `conditions`. Não existe mais `Operation`, `operationId` ou `202 Accepted`.
+   - O progresso da reconciliação de recursos externos é representado exclusivamente por `Resource.phase` (`Pending`, `Reconciling`, `Ready`, `Degraded`, `Failed`) e `conditions` (`Ready`, `Progressing`).
    - É proibido inventar percentuais numéricos de progresso estimados no cliente.
 5. **Transparência sobre Módulos Futuros:** módulos ou recursos ainda não implementados no backend (`AEM`, `ODM`, Agentes, Runners, Ferramentas) exibem obrigatoriamente identificação visual explícita (`Preview` / `Demonstrativo`).
 6. **Segurança e Sigilo:**
