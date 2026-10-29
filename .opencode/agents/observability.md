@@ -47,7 +47,7 @@ Ao revisar código ou arquitetura de telemetria, verifique:
 
 1. **Estrutura (Logs):** A linha segue o formato OTLP, em JSON puro? O `message` (body) é uma constante de evento (ex: `recurso_atualizado_provider`) e nunca carrega valor variável interpolado?
 2. **Métricas:** As métricas de domínio adotam o prefixo `smarkee_` (ex: `smarkee_ssot_*`, `smarkee_messaging_*`, `smarkee_control_loop_*`) e as labels corretas (`module`, `resource_type`)?
-3. **Tracing:** O `traceparent` propaga ponta a ponta (gateway -> Receiver -> NATS -> outbox -> demais papéis, `docs/telemetry/OBSERVABILITY.md` §12)? A borda descarta o do cliente (§11)? Os logs trazem `trace_id`? 
+3. **Tracing:** O `traceparent` propaga ponta a ponta (gateway -> API -> SSOT/outbox -> Publisher -> NATS -> Controller, `docs/telemetry/OBSERVABILITY.md` §12)? A borda descarta o do cliente (§11)? Os logs trazem `trace_id`? 
 4. **Contexto de negócio (apps):** Os logs de app trazem ator (`user.id` opaco e `smarkee.actor.type`), recurso, ação, dono e organização, na forma de `docs/telemetry/OBSERVABILITY.md` §13? Id de ator, recurso ou organização fora de métrica (só tipo do ator e baixa cardinalidade)? A infra segue sem dono?
 5. **Sigilo de Dados (Mandatório):** Algum campo classificado como `confidential` ou `secretReference` foi registrado no log ou atributo do span? Há credenciais ou strings de conexões sensíveis? Houve *dump* via `DEBUG`? Exceções do provedor externo estão vazando em texto bruto em vez de mensagens de erro neutras?
 6. **Semântica:** O nome do atributo existe nas Semantic Conventions vigentes? Se for customizado do domínio, usa o namespace correto?
@@ -60,7 +60,7 @@ Os nomes e estágios da *semconv* mudam frequentemente. Antes de sugerir um nome
 
 # 4. Integração com outros agents
 
-- **Messaging:** Para validar se os logs carregam corretamente os campos de correlação (`correlation_id`, `causation_id`, `action_id`).
+- **Messaging:** Para validar se os logs carregam corretamente os campos de correlação (`correlation_id`, `causation_id`, `message_id`).
 - **Platform:** Quando interagir com o stack local de instrumentação (Grafana Alloy, Loki, Mimir, Tempo) ou APISIX Gateway.
 - **Python:** Para orientar como adotar o SDK do OpenTelemetry, injeção de Trace Context, criação de Metrics Meters e formatação.
 - **SSOT / PostgreSQL:** Para assegurar que o loop esteja exportando as métricas referentes a `outbox`, tempo de `lock` e latência de convergência.
