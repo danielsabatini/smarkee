@@ -26,9 +26,9 @@ Este agent não executa comandos, altera arquivos ou administra brokers. Sua fun
 
 Mensageria é um mecanismo de comunicação entre componentes desacoplados. O contrato deve representar claramente o significado da mensagem e não depender de detalhes acidentais do broker.
 
-A arquitetura adota `desired` e `observed` como os principais tipos semânticos para sistemas declarativos e de reconciliação.
+A arquitetura adota `desired` (intenção admitida) e `updated` (fato/convergência observada) como os tipos semânticos de transporte para sistemas declarativos e de reconciliação.
 
-O primeiro nível do endereçamento lógico identifica o emissor. O destinatário é determinado pelo mecanismo de consumo e não faz parte da identidade semântica da mensagem.
+O endereçamento físico em NATS padroniza subjects em exatamente 4 tokens (`<messageType>.<module>.<resourceType>.<resourceId>`). O emissor é registrado exclusivamente no envelope (`emitter`), e o destinatário é determinado pelas subscrições aos streams (`DESIRED`, `UPDATED`), não fazendo parte da identidade do subject.
 
 # 2. Objetivo
 
@@ -86,56 +86,54 @@ Quando uma proposta depende de uma capacidade específica do broker, classificá
 
 Não utilizar esses termos para definir o significado do recurso sem antes estabelecer o contrato semântico.
 
-## 4.2 Emissor explícito
+## 4.2 Emissor explícito no envelope (não no subject)
 
-O endereço lógico começa pelo emissor, que é uma identidade funcional estável:
+O endereçamento físico em NATS padroniza subjects em estritamente 4 tokens:
 
 ```text
-receiver
-manager
-observer
-reconciler
-executor
+<messageType>.<module>.<resourceType>.<resourceId>
 ```
 
-Cada `messageType` possui um emissor típico (ver a matriz em `docs/messaging/MESSAGING.md`). Emissores de dois tokens (por exemplo, `worker.platform`) só são válidos quando `docs/messaging/MESSAGING.md` os definir, e exigem que filtros e autorizações considerem os dois tokens.
+O emissor funcional **nunca compõe o subject**. Ele é declarado obrigatoriamente no campo `emitter` do envelope de mensagem:
+
+```text
+api
+controller
+```
+
+* `api`: emissão síncrona na admissão de `desired` ou atualização direta de recurso `internal-state`;
+* `controller`: emissão pós-reconciliação atômica no SSOT (`updated` com o estado observado e condições convergidas).
 
 ## 4.3 Destinatário não é identidade da mensagem
 
-Não modelar o endereço semântico como uma conversa fixa:
+Não modelar o endereço semântico como uma conversa ponto a ponto entre papéis ou componentes.
 
-```text
-manager.executor...
-executor.manager...
-```
+Uma mesma mensagem pode possuir múltiplos consumidores desacoplados inscritos nos streams (`DESIRED`, `UPDATED`).
 
-Uma mesma mensagem pode possuir vários consumidores interessados.
+O produtor declara o fato ou estado emitido na outbox. O JetStream roteia por subject para o stream correspondente, e os consumers realizam a entrega aos componentes inscritos.
 
-O produtor declara o significado da mensagem. O transporte e a configuração de consumo determinam quem recebe.
+## 4.4 `desired` e `updated` (com `observed` no payload)
 
-## 4.4 `desired` e `observed`
+`desired` representa a intenção declarativa admitida.
 
-`desired` representa intenção declarativa.
+`updated` representa o fato observável de convergência/transição gerado após o ciclo de reconciliação ou admissão direta.
 
-`observed` representa uma observação factual.
+Dentro do payload de `updated`, o bloco `observed` reflete a realidade conhecida do recurso externo inspecionado pelo Controller.
 
 Não usar `task` e `reality` como substitutos semânticos desses conceitos.
 
-`task` pode existir como conceito interno de execução, mas não deve substituir `desired` no contrato de mensageria.
+## 4.5 Tipos de mensagem e Streams JetStream
 
-`reality` não deve substituir `observed`, pois o objetivo é representar uma observação verificável, não uma afirmação abstrata de verdade absoluta.
+Apenas dois `messageType` são trafegados no broker NATS:
 
-## 4.5 Classes de mensagem
+| Tipo | Stream JetStream | Subject Wildcard | Característica |
+|---|---|---|---|
+| `desired` | `DESIRED` | `desired.>` | Intenção/estado admitido pela API; operação sempre `changed`; deduplicação por `Nats-Msg-Id` |
+| `updated` | `UPDATED` | `updated.>` | Fato imutável emitido após reconciliação do Controller ou mutação da API; operação sempre `changed` |
 
-Os sete `messageType` pertencem a três classes, que determinam entrega e retenção (`docs/messaging/MESSAGING.md`):
+Ambos os streams alimentam automaticamente o stream espelho `AUDIT` (`audit.>`, `sources: [DESIRED, UPDATED]`) com retenção imutável (`deny_delete: true`).
 
-| Classe | Tipos | Característica |
-|---|---|---|
-| Trabalho | `requested`, `action` | Processada uma vez por um grupo de instâncias |
-| Estado | `desired`, `observed` | A mais recente por recurso substitui as anteriores; operação sempre `changed`; um endereço por recurso |
-| Fato | `completed`, `failed`, `updated` | Registro imutável, vários consumidores independentes |
-
-O resultado da observação (`present`, `absent`, `unknown`) é o campo `presence` do envelope, e não parte do endereço. Uma decisão de reconciliação possui `actionId` determinístico, e o solicitante é o campo `requestedBy`.
+A operação no envelope é invariavelmente `"changed"`. Subdivisões de criação, alteração ou exclusão são expressas pelo ciclo de vida e pela presença/ausência do recurso no payload.
 
 # 5. Fonte de verdade da semântica
 
@@ -150,27 +148,18 @@ Ao atuar como subagente, **você deve consultar, ler e aplicar as regras descrit
 
 # 6. Revisão de novos Subjects/Topics
 
-Antes de aprovar um novo endereço, verificar:
+Antes de aprovar um novo endereço ou fluxo de mensagens, verificar:
 
-1. Quem é o emissor?
-2. Qual é o `messageType`?
-3. Qual é o `module`?
-4. Qual é o `resourceType`?
-5. `resourceId` realmente precisa participar do routing?
-6. O destinatário está sendo indevidamente codificado?
-7. Existe uma `orderingKey` necessária?
-8. A mensagem precisa ser Work Distribution ou Fanout?
-9. Qual é a identidade lógica da mensagem?
-10. Retry produzirá o mesmo `messageId`?
-11. O consumidor é idempotente?
-12. Qual é a janela de recuperação?
-13. Qual é a retenção necessária?
-14. Replay é suportado?
-15. Existem implicações de segurança?
-16. A mensagem é de trabalho, de estado ou de fato? A retenção e o consumo são coerentes com a classe?
-17. Se for `desired` ou `observed`, a operação é `changed` e existe um único endereço por recurso?
-18. O resultado da observação está em `presence`, e não no endereço?
-19. Se for `action`, o `actionId` é determinístico e inclui a observação que motivou a decisão?
+1. O subject obedece estritamente ao formato de 4 tokens: `<messageType>.<module>.<resourceType>.<resourceId>`?
+2. `messageType` é estritamente `desired` ou `updated`?
+3. O emissor está devidamente registrado no envelope (`emitter: ["api", "controller"]`) e nunca no subject?
+4. O stream correspondente é `DESIRED` ou `UPDATED`?
+5. O header `Nats-Msg-Id` propaga o `messageId` para deduplicação no broker?
+6. O envelope obedece a `message-envelope.v1.schema.json` e o payload ao schema do recurso (`docs/data/SCHEMA.md`)?
+7. O consumidor processa mensagens de forma idempotente e segura diante de retentativas?
+8. Há ordenação estrita garantida por recurso?
+9. A operação no envelope é invariavelmente `"changed"`?
+10. A retenção no JetStream é compatível com os limites do broker declarados em `docs/messaging/NATS.md`?
 
 # 7. Revisão de novos campos
 
@@ -201,7 +190,11 @@ task.create
 reality.reported
 ```
 
-como substitutos genéricos de `desired` e `observed`.
+como substitutos genéricos de `desired` e `updated`.
+
+Não codificar o emissor nos tokens do subject (ex: `api.desired...` ou `controller.updated...`).
+
+Não utilizar `messageType` legados no transporte NATS (`requested`, `observed`, `action`, `completed`, `failed`).
 
 Não codificar destinatário de forma obrigatória no endereço.
 
@@ -209,23 +202,17 @@ Não usar nomes humanos como única identidade de recursos quando houver identif
 
 Não gerar um novo `messageId` a cada retry.
 
-Não assumir exactly-once delivery como propriedade da aplicação.
+Não omitir o header `Nats-Msg-Id` ao publicar mensagens no JetStream.
+
+Não assumir exactly-once delivery como propriedade da aplicação sem idempotência explícita.
 
 Não assumir ordering global sem requisito explícito.
 
-Não usar ACK como prova de convergência.
+Não usar ACK como prova de convergência externa.
 
-Não escolher retenção sem avaliar a janela de recuperação (definida em `docs/messaging/NATS.md`).
+Não usar verbo de ação (`create`, `update`, `delete`) no subject: o subject usa 4 tokens e a operação no envelope é sempre `"changed"`.
 
-Não criar uma dimensão de routing para cada atributo disponível no payload.
-
-Não usar verbo de ação (`create`, `update`, `delete`) no endereço de `desired`: ele é estado e usa `changed`.
-
-Não usar o resultado da observação (`present`, `absent`) como operação de `observed`: ele pertence a `presence`.
-
-Não tratar falha de leitura como `absent`: ela é `unknown`.
-
-Não aceitar de cliente externo campos atribuídos pelo servidor (`requestedBy`, `desiredGeneration`, `actionId`).
+Não aceitar de cliente externo campos atribuídos pela plataforma (`desiredGeneration`, `observedGeneration`, `messageId`, `emitter`).
 
 # 9. Integração com outros agents
 
