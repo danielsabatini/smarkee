@@ -30,69 +30,70 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 # 2. `RESOURCE-CONTROL-LOOP.md`: checklist de implementação (seção 55), por papel (`core.account`)
 
-## 2.1 Modelo do recurso
+## 2.1 Resource
 
 | Item | Situação | Evidência |
 |---|---|---|
-| `resourceId` estável, `desired`, `observed`, `desiredGeneration`, lifecycle, conditions | Atende | `schemas/core/account/`, migração `core.account` |
-| `observedGeneration` | Atende | Coluna `observed_generation` (migração `0008`), preenchida pelo Manager só com uma observação feita depois da geração (o Observer envia o `observedGeneration` no envelope); publicada no `updated` com `desiredGeneration` e na `condition` (decisão 0072). Ainda não exposta na view do Receiver |
+| `resourceId` estável, `desired`, `observed`, `desiredGeneration`, lifecycle, conditions | Atende | `schemas/core/account/`, migração `0001-account.sql` e `0011-account-api.sql` |
+| `observedGeneration` | Atende | Coluna `observed_generation` (migração `0008`), preenchida pelo Controller só com uma observação feita depois da geração; publicada no `updated` com `desiredGeneration` e na condition `Ready` (decisões 0072 e 0096) |
+| Perfil (`internal-state` ou `external-reconciled`) definido e justificado | Atende | `external-reconciled`: reconciliação de contas contra o provedor de identidade Zitadel |
 
-## 2.2 Manager
-
-| Item | Situação | Evidência |
-|---|---|---|
-| Dono do SSOT e do lifecycle; publica `desired`; processa `observed`; não executa provider | Atende | `features/core/account/src/core_account/manager/handlers/` |
-| Outbox na mesma transação | Atende | `store/ssot.py`, `handlers/publishing.py`; testes de integração |
-| Conta falhas por geração, marca `Failed` e suspende no `desired` | Atende | `domain/convergence.py` (`decide_result`), limite 5 |
-| Registra `ObservationStale` | Pendente | A condition não é registrada |
-
-## 2.3 Observer
+## 2.2 API
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Somente leitura, observa a realidade, publica `observed` com `observedAt` | Atende | conta `core-account-controller` (`ORG_OWNER_VIEWER`) |
-| Periódico, distingue `present`, `absent`, `unknown` | Atende | 5 min com jitter; `absent` só com 404 inequívoco |
-| Observa só a sua partição | Atende | `hash(resourceId) mod count` (em dev, `0/1`) |
-| Observa após `completed` e `failed`, com `causationId` | Atende | `engine/observer.py` |
+| Admite escrita síncrona, gravando recurso e `desired` (outbox) na mesma transação | Atende | `features/core/account/src/core_account/api/store/ssot.py` |
+| Responde `201`/`200`/`202` com o `Resource`, sem Operation | Atende | endpoints da API HTTP (`api/http/`), decisão 0098 |
+| Verifica `resourceVersion` sob `FOR UPDATE` e responde `409` quando diverge | Atende | `store/ssot.py` |
+| Guarda `Idempotency-Key` com `requestDigest` na mesma transação e responde `422` ao reuso divergente | Atende | tabela `core.account_idempotency` e `api/domain/requests.py` |
+| Verifica unicidade, cota e vínculos na mesma transação, sob trava consultiva por chave | Atende | travas consultivas por chave e índice único sobre e-mail desejado |
+| Grava `requested_by` e `correlation_id` no recurso | Atende | colunas `requested_by` e `correlation_id` (migração `0011-account-api.sql`) |
+| Responde `503` com `Retry-After` quando o banco está indisponível | Atende | middleware de resiliência e tratamento de conexão do banco |
+| Não executa provider diretamente e não chama API de outro tipo (projeções locais do `DESIRED`) | Atende | zero chamadas mútuas HTTP; projeções assíncronas via NATS JetStream (decisão 0100) |
+| Só fica pronta (`/health/ready`) após sincronizar projeções de que depende | Atende | verificação de sincronismo de projeções no probe de prontidão |
+| Autenticação e autorização próprias | Atende | validação de JWKS e RBAC em `api/auth/` |
 
-## 2.4 Reconciler
-
-| Item | Situação | Evidência |
-|---|---|---|
-| Consome `desired` e `observed`, compara, reavalia periodicamente | Atende | `domain/decision.py`, `engine/reconciler.py` |
-| Decide só com estados conclusivos e válidos; não reemite `action` pendente | Atende | validade 10 min (5 min para `delete`), prazo 2 min |
-| Respeita `desired` suspenso, aplica backoff, aguarda a observação causada | Atende | backoff 5 s a 300 s |
-| `actionId` inclui a observação | Atende | `<id>.<geração>.<operação>.<messageId do observed>` |
-| Não executa a ação | Atende | não tem credencial do provedor |
-
-## 2.5 Executor
+## 2.3 Controller
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Privilégios mínimos | Atende | `ORG_USER_CREATOR` na `register` (sem conceder roles) e `PROJECT_GRANT_OWNER` só nos Grants de `core` e `sum`; as roles saem do Project Grant de cada módulo (sem as `*.admin`); monta só a própria chave |
-| Revalida a `action` e consulta o desfecho do `actionId` | Atende | `domain/revalidation.py`, `engine/executor.py` (Direct Get) |
-| Chave de correlação com o recurso externo | Atende | `userId = resourceId` |
-| *Single-flight* por recurso | Atende | uma partição por `resourceId`, `max_ack_pending=1` (decisão 0018) |
-| Limita taxa e concorrência contra o provider | Parcial | concorrência limitada a 4 partições; sem limite de taxa explícito (429 do Zitadel vira falha retentável) |
-| Idempotência, publica `completed`/`failed`, não decide o estado desejado | Atende | `actions/user_actions.py` |
+| Consome `DESIRED` (Informer) e enfileira na Workqueue com backoff com jitter | Atende | `controller/engine/informer.py` e `workqueue.py` |
+| Reconcilia em ciclo atômico sob `FOR UPDATE` com estado, `updated` e conditions na mesma transação | Atende | `controller/store/ssot.py` |
+| `decide(desired, observed)` é pura e devolve `None` com `observed` `unknown` | Atende | `controller/domain/decision.py` |
+| Observação somente leitura, distinguindo `present`, `absent` e `unknown` | Atende | `controller/adapters/zitadel/reader.py`, conta `core-account-controller` (`ORG_OWNER_VIEWER`) |
+| Reobserva depois de agir e só confirma a geração com reobservação convergida | Atende | ciclo do Controller (`observe` pós-ação antes de consolidar `Ready`) |
+| Ação é idempotente e tem chave de correlação com o recurso externo | Atende | `userId = resourceId` no Zitadel |
+| Limita taxa e concorrência contra o provider | Parcial | concorrência limitada por partição e semáforo; sem limitação explícita de taxa (429 do Zitadel é retentado) |
+| Conta falhas por geração, marca `Failed` e suspende reconciliação ao atingir `failureLimit` (5) | Atende | `failure_count >= 5` grava `Failed`, `reconciliation = suspended` e `desired` suspenso no outbox |
+| Mantém `Progressing` e `ObservationStale` e leva o recurso a `Failed` ao esgotar o prazo | Parcial | `Progressing` implementado; `ObservationStale` pendente |
+| Condition `DriftLoop` para detecção de flapping em curto intervalo | Pendente | reservada na especificação do loop; lacuna declarada na seção 7.1 |
+| Reavalia periodicamente, com jitter, os recursos `active` da sua partição | Atende | reavaliação periódica a cada 5 min com jitter |
+| Reconcilia apenas recursos da sua partição | Atende | partição determinística `hash(resourceId) mod count` |
+| Bloqueia remoção enquanto houver dependentes ativos (`DeletionBlockedByDependents`) | Atende | verificação de recursos dependentes antes da exclusão |
+| Apaga registro e publica `updated` com `removed=true` só depois da ausência confirmada | Atende | `DELETE` físico sob `presence = absent` |
+| Comparação entre `desired` e `observed` definida para o recurso | Atende | `controller/domain/drift.py` |
+| Não decide o estado desejado | Atende | o Controller só age sobre o `desired` admitido pela API |
 
-## 2.6 Componentes por papel (seção 48)
+## 2.4 Componentes por papel
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Cada papel roda como processo e contêiner próprios; a feature é um projeto e uma imagem (decisão 0063), sem um papel importar outro | Atende: um projeto e uma imagem por feature; desde as decisões 0096 e 0098, `core-account`, `ipm-organization`, `ipm-user`, `ipm-serviceaccount` e `sum-service` com três (api, publisher e controller), e `tests/common/unit/test_role_isolation.py` | `features/core/account/`, `features/ipm/organization/` e `features/sum/service/` |
-| Receiver com autenticação e autorização próprias | Atende | `receiver/auth/tokens.py` (JWKS) e `receiver/domain/principal.py`, em `features/core/account/src/core_account/` |
-| Manager dono das migrações, executadas como etapa de implantação | Atende | `features/core/account/migrations/`, serviço `core-account-migrate` |
-| Publisher como papel próprio, com papel de banco e identidade próprios | Atende | `features/core/account/src/core_account/publisher/`, papel de banco `core_account_publisher` |
-| Contratos verificados por testes e2e black-box | Atende | `features/core/account/tests/e2e` |
-| Estrutura interna da decisão 0017 | Atende | teste `test_domain_isolation.py` em cada papel (`tests/<papel>/unit/` em `core.account`) |
+| Cada papel roda como processo e contêiner próprios; a feature é um projeto e uma imagem, sem um papel importar outro | Atende | `features/core/account/` (três papéis: `api`, `publisher`, `controller`), `test_role_isolation.py` |
+| Esquema do tipo (migrações com outbox e idempotência) é da feature, executado como etapa de implantação | Atende | `features/core/account/migrations/`, serviço `core-account-migrate` |
+| Publisher é papel próprio, com papel de banco e identidade de mensageria próprios | Atende | `core_account/publisher/`, papel de banco `core_account_publisher` |
+| Retenção do outbox e da idempotência (`scripts/dev/retention`) | Atende | utilitário `scripts/dev/retention` com modo `--apply`, janela de 24h e credencial de manutenção |
+| Contratos verificados por testes e2e black-box | Atende | `features/core/account/tests/e2e` e jornada completa `tests/e2e` |
+| Estrutura interna com `domain/` puro que não importa adaptadores | Atende | teste `test_domain_isolation.py` em cada papel |
 
-## 2.7 Mensagens
+## 2.5 Mensagens
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Subject na gramática oficial, `messageType`, `operation`, `messageId` | Atende | validados pelo envelope e pelos testes e2e |
-| `correlationId`, `causationId`, reentrega, ordering | Atende | propagados em todas as mensagens; ordem por `resourceId` (Subject, partição) e `sequence` do outbox |
+| Subject na gramática oficial de 4 tokens (`<messageType>.<module>.<resourceType>.<resourceId>`) | Atende | `desired.core.account.<id>` e `updated.core.account.<id>` (decisão 0101) |
+| `messageType` é `desired` ou `updated`, e o `emitter` no envelope é `api` ou `controller` | Atende | envelope validado por schema e testes |
+| `operation` é sempre `changed` | Atende | envelope fixado em `changed` para mensagens de estado e fatos |
+| `messageId` único, `correlationId` preservado | Atende | UUIDv7 atribuído e propagado em todo o ciclo |
+| Reentrega e ordering garantidos por `resourceId` | Atende | `sequence` no outbox e deduplicação JetStream via `Nats-Msg-Id` |
 
 # 3. `NATS.md`: checklist operacional (seção 31)
 
@@ -124,16 +125,16 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 |---|---|---|
 | Versão fixada | Atende | `postgres:18.6-alpine` |
 | Banco `ssot` do proprietário `ssot`, sem privilégios de `PUBLIC` | Atende | `database/bootstrap/ssot.sql` |
-| Tabelas e views geradas do modelo | Parcial | seguem o modelo, mas as migrações são escritas à mão |
-| `CHECK` em `lifecycle`, `reconciliation`, `presence`, `phase`, `operation_status`, identificadores e `jsonb` | Atende | `core.account` (todas as colunas de controle e de identificação) |
-| `FOR UPDATE` na linha; `resource_version` na condição; conflito na Operation | Atende | `store/ssot.py` |
-| Geração só incrementa quando a especificação muda | Atende | `change_desired` |
-| Deduplicação por `operation_id` e `action_id`, com filtro de geração | Atende | `handlers/requested.py`, `handlers/result.py` |
-| Publisher: uma instância ativa, sequencial, sem marca-d'água e sem `SKIP LOCKED`; marca só após confirmação | Atende | `publisher/.../outbox/publication.py` |
-| Matriz de privilégios igual à de segurança | Atende | `features/core/account/README.md` §8.1 |
-| Receiver só lê as views; Manager sem `DELETE` em outbox, resultados e operation | Atende | migração `0001-account.sql` |
+| Três tabelas (`<tipo>`, `<tipo>_outbox`, `<tipo>_idempotency`) e view `<tipo>_v1` por recurso | Atende | migrações `0001-account.sql` e `0011-account-api.sql` |
+| `CHECK` em `lifecycle`, `reconciliation`, `presence`, `phase`, identificadores e `jsonb` | Atende | `core.account` (todas as colunas de controle e de identificação) |
+| `FOR UPDATE` na linha; `resource_version` na condição da API com `409 Conflict` | Atende | `store/ssot.py` |
+| Geração só incrementa quando a especificação muda | Atende | `desired_generation` incrementado apenas sob alteração de `desired` |
+| Deduplicação da admissão por `idempotency_key` e `request_digest` escopada ao solicitante | Atende | tabela `core.account_idempotency` e `api/domain/requests.py` |
+| Publisher: uma instância ativa via trava consultiva, sequencial, sem marca-d'água e sem `SKIP LOCKED`; marca só após confirmação | Atende | `publisher/.../outbox/publication.py` |
+| Matriz de privilégios igual à de segurança | Atende | papéis `core_account_{api,controller,publisher,maintenance}` configurados |
+| API lê somente views; Controller apaga recurso só após ausência confirmada; nenhum papel de runtime tem `DELETE` no outbox ou idempotência | Atende | migração `0011-account-api.sql` e `database/bootstrap/core.sql` |
 | Papéis de login com `search_path`, `lock_timeout`, `statement_timeout`, `idle_in_transaction_session_timeout` | Atende | `database/bootstrap/core.sql` |
-| Identidade de manutenção para a retenção | Parcial | o papel `core_maintenance` existe; não há tarefa de retenção |
+| Identidade de manutenção e rotina de retenção operacional de 24h | Atende | utilitário `scripts/dev/retention`, imagem `smarkee-dev-retention` e papéis `*_maintenance_login` (decisão 0101) |
 | TLS e proteção em repouso | Alvo | |
 | Parâmetros e colunas `confidential` fora dos logs | Parcial | verificado por revisão (o log não registra mensagens de exceção nem valores); sem teste automatizado de varredura |
 | PITR, teste de restauração e recuperação | Pendente | |
@@ -143,17 +144,17 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 
 | Item | Situação | Evidência |
 |---|---|---|
-| Manager único escritor; unidade atômica por mensagem; acesso exclusivo ao registro; ACK após a gravação | Atende | `handlers/`, `transport/consumers.py` |
-| Rejeições na Operation, com motivo | Atende | `validation`, `conflict`, `not_found`, `protected` (só nos tipos com proteção contra exclusão, decisão 0043) |
-| Outbox na mesma unidade; ordem por recurso preservada | Atende | Manager e Publisher |
-| Idempotência semântica de `requested`, `observed` e `completed`/`failed` | Atende | testes de integração do Manager |
+| Dois escritores segregados (API e Controller); unidade atômica com outbox; acesso exclusivo por `FOR UPDATE` | Atende | `api/store/ssot.py` e `controller/store/ssot.py` |
+| Rejeições de admissão tratadas síncronas na API (`409`, `422`, `404`) | Atende | respostas HTTP da API na requisição |
+| Outbox na mesma unidade; ordem por recurso preservada | Atende | API, Controller e Publisher |
+| Idempotência semântica de admissão (tabela de idempotência) e do ciclo de convergência | Atende | `core.account_idempotency` e reobservação factual no Controller |
 | `desiredGeneration` e `resourceVersion` | Atende | |
 | Dicionário de dados com sensibilidade e escritor | Atende | `SSOT.md` §8 e `x-sensitivity`/`x-writer` nos schemas |
 | Privilégios mínimos por tipo | Atende | |
 | Estrutura gerada de um modelo | Parcial | ver a seção 4 |
 | Backup com recuperação a um ponto no tempo e teste de restauração | Pendente | |
-| Sinais de observabilidade | Parcial | o atraso do outbox e a idade da observação são consultáveis por SQL e mensagens; não há métricas exportadas |
-| Mensagens publicadas removidas após a retenção | Pendente | não há tarefa de retenção |
+| Sinais de observabilidade | Parcial | o atraso do outbox é consultável por SQL; sem métricas exportadas |
+| Mensagens publicadas e idempotência removidas após retenção de 24h | Atende | utilitário `scripts/dev/retention` com modo `--apply` e janela configurável (decisão 0101) |
 
 # 6. `RESOURCE-CONTROL-SECURITY.md`: checklist (seção 15)
 
@@ -162,13 +163,16 @@ Legenda: **Atende** (implementado e verificado); **Parcial** (implementado em pa
 | Identidade própria por serviço | Parcial | nomes `core-account-<papel>`, papéis de banco e contas do Zitadel próprios; no NATS, usuário único em dev |
 | Permissões de publicação e consumo pela matriz, escopadas por `<módulo>.<tipo>` | Alvo | |
 | Sem purge nem administração de Stream para serviços; limpeza de tombstones por identidade administrativa | Alvo / Pendente | |
-| `resourceId` validado antes de compor o Subject | Atende | padrão do contrato e `CHECK`; o Receiver gera UUIDv7 |
-| Executor revalida e consulta o desfecho do `actionId` | Atende | |
-| Observação periódica particionada; distingue `present`, `absent` e `unknown`; destrutiva exige observação recente | Atende | |
-| Limite de remoções por janela | Pendente | |
-| Observer só leitura; Executor com escrita de escopo mínimo | Atende | |
-| Nenhum segredo em mensagens, logs ou erros | Atende | senha nunca trafega; chaves por arquivo montado |
-| Ator acompanha a operação | Atende | `requestedBy` em `desired`, `action` e resultados |
+| `resourceId` validado antes de compor o Subject | Atende | padrão do contrato e `CHECK`; API valida UUIDv7 |
+| API sem credenciais do provedor externo nem conexão direta de publicação no NATS | Atende | a API só grava no SSOT |
+| Publisher publica exclusivamente nos Subjects de 4 tokens do seu `<módulo>.<tipo>` | Atende | `desired.core.account.<id>` e `updated.core.account.<id>` |
+| Controller possui credencial própria e isolada de menor privilégio para o provedor externo | Atende | conta de serviço Zitadel dedicada do Controller |
+| Controller executa ciclo sob bloqueio de linha (`FOR UPDATE`) no SSOT | Atende | `controller/store/ssot.py` |
+| Falhas de leitura do provedor externo são categorizadas estritamente como `unknown` e nunca como `absent` | Atende | `presence = unknown` em caso de erro/timeout/5xx |
+| Remoção física no SSOT só ocorre após confirmação inequívoca de ausência no sistema externo | Atende | `DELETE` físico sob `presence = absent` comprovado |
+| Limite de falhas consecutivas suspende reconciliação (`failureLimit = 5`) | Atende | `reconciliation = suspended` e `desired` suspenso no outbox |
+| Nenhum segredo em mensagens, logs ou erros | Atende | credenciais nunca trafegam em mensagens |
+| Ator acompanha a operação (`requestedBy`) | Atende | `requestedBy` em `desired` e `updated` |
 | Isolamento por organization | Parcial | definido para a Organization (decisão 0010); a Account não tem organização |
 | Eventos de segurança observáveis | Parcial | só em logs estruturados |
 
@@ -217,6 +221,7 @@ Lacuna declarada: o que dev não tem, por que é aceitável em dev e a condiçã
 | Sem Stream de quarentena: a mensagem de estado que falha 20 vezes (`max_deliver`) recebe `TERM` e um log `ERROR`, e continua no Stream, mas não é copiada para outro lugar nem gera alerta | Resiliência, código | o estado se corrige na próxima mensagem do recurso ou na reavaliação periódica do Controller | alerta sobre o log `message discarded after the maximum number of deliveries` e decisão sobre a cópia para um Stream de quarentena (`NATS.md` §12) |
 | A queda do NATS e a do banco **não têm teste automatizado**. O comportamento foi provado só à mão em 2026-10-28 (broker parado por 150 s, reconexão e `max_deliver` com um NATS descartável); a reconexão do pool após reinício do banco só tem teste unitário | Robustez, código | a correção é de código e vale em todo ambiente; a lacuna é de verificação | teste de integração que derruba o NATS e o banco e confirma a recuperação, rodado no CI |
 | Projeto de roles `roles-bsm` ainda não provisionado na instância Zitadel de dev | Segurança, infraestrutura | o provisionamento do Zitadel de dev é manual; a audience `SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_ACCOUNT` e `BSM_ACCOUNT_RECEIVER_AUTH_AUDIENCE` são obrigatórias ao subir a feature | provisionar `roles-bsm` e incluir `bsm` no catálogo do SUM / IaC antes do stg |
+| Condition `DriftLoop` não implementada no Controller (detecção de flapping / reconciliação cíclica em curto intervalo): a proteção ativa é o backoff exponencial e o `failure_limit` (5 falhas consecutivas) | Robustez, código | em dev o volume é baixo e a suspensão por `failure_limit` já interrompe laços infinitos | implementação da condition `DriftLoop` e testes de detecção de flapping antes de stg |
 
 **Violações do piso em aberto** (segurança de código e configuração: não são lacunas declaráveis, §2.5 item 1): nenhuma.
 
