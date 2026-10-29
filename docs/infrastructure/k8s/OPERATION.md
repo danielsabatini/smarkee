@@ -217,7 +217,7 @@ O nó do cluster kind possui mapeamento direto de portas em `127.0.0.1` (`extraP
 | Serviço | URL no Host / Porta | Namespace | Serviço K8s / NodePort | Finalidade | Credenciais em Dev |
 |---|---|---|---|---|---|
 | **Gateway de API** | `http://127.0.0.1:8080` | `gateway` | `gateway` (`30080`) | Ponto de entrada de APIs HTTP da plataforma | Bearer Token JWT (Zitadel) |
-| **Gateway Admin** | `http://127.0.0.1:9180` | `gateway` | `gateway-admin` (`30180`) | Admin API do Apache APISIX (restrito ao host) | `X-API-KEY: edd1c9f034335f136f87ad84b625c8f1` |
+| **Gateway Admin & UI** | `http://127.0.0.1:9180` (UI em `/ui/`) | `gateway` | `gateway-admin` (`30180`) | Admin API e Interface Web embutida do Apache APISIX Dashboard | Chave em `gateway-secret` (`APISIX_ADMIN_KEY`) |
 | **PostgreSQL SSOT** | `127.0.0.1:5432` | `database` | `database-external` (`30432`) | Banco de dados relacional principal | Usuário: `postgres` / Sem senha ou senha em `database-app` |
 | **NATS Core** | `nats://127.0.0.1:4222` | `messaging` | `messaging-external` (`30422`) | Mensageria e JetStream CLI / SDKs | Usuário: `smarkee` / Senha no Vault (`/svm/core/messaging`) |
 | **NATS Monitoring** | `http://127.0.0.1:8222` | `messaging` | `messaging-monitoring` (`30822`) | Métricas HTTP e inspeção interna do servidor NATS | Sem autenticação |
@@ -280,6 +280,17 @@ psql -h 127.0.0.1 -p 5432 -U postgres -d ssot
 PASS=$(kubectl -n ipm get secret ipm-organization-api-db -o jsonpath='{.data.password}' | base64 -d)
 PGPASSWORD="${PASS}" psql -h 127.0.0.1 -p 5432 -U ipm_organization_api_login -d ssot
 ```
+
+#### 4. Interface Web e Admin API do Apache APISIX:
+Acesse no navegador: **`http://127.0.0.1:9180/ui/`**
+
+Para autenticar na interface gráfica ou na Admin API via terminal, obtenha a chave ativa gerada no Vault:
+```bash
+APISIX_KEY=$(kubectl -n gateway get secret gateway-secret -o jsonpath='{.data.APISIX_ADMIN_KEY}' | base64 -d)
+echo "Chave do APISIX: ${APISIX_KEY}"
+```
+- **No navegador:** cole a chave no campo de autenticação/API Key solicitado pelo dashboard.
+- **No terminal:** utilize o header `-H "X-API-KEY: ${APISIX_KEY}"` contra `http://127.0.0.1:9180/apisix/admin/routes`.
 
 ---
 

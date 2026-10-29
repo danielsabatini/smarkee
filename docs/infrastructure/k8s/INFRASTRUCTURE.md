@@ -776,7 +776,7 @@ sequenceDiagram
 | Serviço (`Service`) | Tipo | Porta Interna | Porta no Host (`dev`) | Finalidade |
 |---|---|---|---|---|
 | `gateway.gateway.svc.cluster.local` | `ClusterIP` | `8000`, `8080`, `9180` | — | `8000` e `8080` (HTTP Proxy para tráfego externo e interno), `9180` (Admin API) |
-| `gateway-external` | `NodePort` | `8000` (`30080`), `9180` (`30180`) | `127.0.0.1:8080`, `127.0.0.1:9180` | Entrada HTTP única da plataforma (`:8080`) e Admin API local (`:9180`) |
+| `gateway-external` | `NodePort` | `8000` (`30080`), `9180` (`30180`) | `127.0.0.1:8080`, `127.0.0.1:9180` | Entrada HTTP única da plataforma (`:8080`), Admin API e Dashboard Web em `/ui/` (`:9180`) |
 | `gateway-etcd.gateway.svc.cluster.local` | `ClusterIP` | `2379` | — | Armazenamento de configuração do APISIX |
 
 ### 10.3 Interligações
@@ -796,9 +796,11 @@ sequenceDiagram
   - Acessa todas as APIs de produto em `http://api-dev.smarkee.com.br:8080/v1/<módulo>/<coleção>` (ou `http://127.0.0.1:8080` com header `Host: api-dev.smarkee.com.br`) enviando `Authorization: Bearer <token>`.
   - Acessa os endpoints OIDC em `http://auth-dev.smarkee.com.br:8080`.
 - **Operador (`dev`):**
+  - **Interface Web do Dashboard do APISIX:**
+    Acesse no navegador: **`http://127.0.0.1:9180/ui/`** (autentique com a chave abaixo).
   - **Inspeção de rotas ativas na Admin API (`127.0.0.1:9180`):**
     ```bash
-    ADMIN_KEY="$(kubectl -n gateway get secret gateway-secret -o jsonpath='{.data.SMARKEE_GATEWAY_ADMIN_KEY}' | base64 -d)"
+    ADMIN_KEY="$(kubectl -n gateway get secret gateway-secret -o jsonpath='{.data.APISIX_ADMIN_KEY}' | base64 -d)"
     curl -s -H "X-API-KEY: ${ADMIN_KEY}" http://127.0.0.1:9180/apisix/admin/routes | jq '.list[].value | {name, uri, hosts}'
     ```
 
