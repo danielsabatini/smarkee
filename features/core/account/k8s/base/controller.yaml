@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-account-controller
+  namespace: core
+  labels:
+    app.kubernetes.io/name: core-account-controller
+    app.kubernetes.io/part-of: core-account
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: core-account-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: core-account-controller
+        app.kubernetes.io/part-of: core-account
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: controller
+          image: localhost:5001/smarkee-core-account:dev
+          imagePullPolicy: IfNotPresent
+          command: ["core-account-controller"]
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: SMARKEE_ENVIRONMENT
+              value: 'dev'
+            - name: SMARKEE_CONFIG_PATH
+              value: '/etc/smarkee/config.toml'
+            - name: CORE_ACCOUNT_CONTROLLER_IDENTITY_REGISTER_ORGANIZATION_ID
+              value: '395132726044262411'
+            - name: CORE_ACCOUNT_CONTROLLER_IDENTITY_PROJECT_IDS
+              value: '{"bsm":"396296690602082330","core":"394490764261851138","sum":"395263163731279883"}'
+          volumeMounts:
+            - name: config
+              mountPath: /etc/smarkee/config.toml
+              subPath: config.toml
+              readOnly: true
+            - name: secrets
+              mountPath: /run/secrets
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 192Mi
+      volumes:
+        - name: config
+          configMap:
+            name: core-account-config
+        - name: secrets
+          secret:
+            secretName: core-account-controller-secrets

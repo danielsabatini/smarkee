@@ -233,6 +233,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         Resposta uniforme: o mesmo `202` com um `resourceId` novo exista ou não o e-mail. Se ele já
         está em uso, nada é gravado.
         """
+        bind_context(requested_by=ANONYMOUS)
         origin = client_origin(request)
         if not deps.limiter.allow(origin):
             raise ApiError(

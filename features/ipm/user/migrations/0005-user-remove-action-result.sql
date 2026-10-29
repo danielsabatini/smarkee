@@ -6,5 +6,11 @@
 
 DROP TABLE IF EXISTS ipm.user_action_result;
 
-REVOKE DELETE ON ipm.user FROM ipm_user_manager;
-REVOKE UPDATE ON ipm.user_operation FROM ipm_user_manager;
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ipm_user_manager') THEN
+    REVOKE DELETE ON ipm.user FROM ipm_user_manager;
+    REVOKE UPDATE ON ipm.user_operation FROM ipm_user_manager;
+  END IF;
+END
+$$;

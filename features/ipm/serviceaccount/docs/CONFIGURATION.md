@@ -35,14 +35,14 @@ Pontos que costumam surpreender:
 
 ## 2. Como o dev entrega cada fonte
 
-| Fonte | No `compose.yaml` |
+| Fonte | Nos manifestos (`k8s/`) |
 |---|---|
-| Linha de comando | O `command` é só o nome do papel (`[ipm-serviceaccount-receiver]`), sem argumentos. |
-| Ambiente | `environment:` repassa do `.env` só o que não é senha (por exemplo, audiência e IDs do Zitadel). |
-| `config.toml` | Montado em `/etc/smarkee/config.toml` (`SMARKEE_CONFIG_PATH`). Endereços usam os nomes da rede Docker (`database.smarkee.internal`, `messaging.smarkee.internal`). |
-| Arquivo de segredo | Bloco `secrets:` com `environment: <VARIÁVEL>`: cada papel monta só as suas senhas. |
+| Linha de comando | O `command` é só o nome do papel (`[ipm-serviceaccount-api]`), sem argumentos. |
+| Ambiente | `env:` define só o que não é senha (por exemplo, audiência e IDs do Zitadel). |
+| `config.toml` | Montado em `/etc/smarkee/config.toml` (`SMARKEE_CONFIG_PATH`). Endereços usam o DNS do Kubernetes (`database-rw.database.svc.cluster.local`, `messaging.messaging.svc.cluster.local`). |
+| Arquivo de segredo | `ExternalSecret` sincronizado do OpenBao (`/svm`) e montado em `/run/secrets`: cada papel monta só as suas senhas. |
 
-Fora do Docker, os nomes `*.smarkee.internal` não resolvem: use as portas publicadas em `127.0.0.1` (Postgres `5432`, NATS `4222`) por flag ou variável.
+Fora do cluster Kubernetes, os nomes `*.svc.cluster.local` não resolvem: use as portas publicadas em `127.0.0.1` (Postgres `5432`, NATS `4222`) por flag ou variável.
 
 ## 3. `ipm-serviceaccount-api`
 
@@ -91,16 +91,16 @@ Entrypoint da API de Service Account (`ipm-serviceaccount-api`, decisões 0015 e
 [tool.ipm.serviceaccount.api.auth]
 host_header = "ipm-dev.smarkee.com.br:8080"
 issuer = "http://ipm-dev.smarkee.com.br:8080"
-jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
+jwks_url = "http://gateway.gateway.svc.cluster.local:8000/oauth/v2/keys"
 
 [tool.ipm.serviceaccount.api.database]
-host = "database.smarkee.internal"
+host = "database-rw.database.svc.cluster.local"
 name = "ssot"
 port = 5432
 user = "ipm_serviceaccount_api_login"
 
 [tool.ipm.serviceaccount.api.messaging]
-url = "nats://messaging.smarkee.internal:4222"
+url = "nats://messaging.messaging.svc.cluster.local:4222"
 user = "smarkee"
 ```
 
@@ -158,13 +158,13 @@ Entrypoint do Publisher de `ipm.serviceaccount` (decisões 0015 e 0033).
 
 ```toml
 [tool.ipm.serviceaccount.publisher.database]
-host = "database.smarkee.internal"
+host = "database-rw.database.svc.cluster.local"
 name = "ssot"
 port = 5432
 user = "ipm_serviceaccount_publisher_login"
 
 [tool.ipm.serviceaccount.publisher.messaging]
-url = "nats://messaging.smarkee.internal:4222"
+url = "nats://messaging.messaging.svc.cluster.local:4222"
 user = "smarkee"
 ```
 

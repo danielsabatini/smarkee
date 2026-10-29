@@ -111,19 +111,14 @@ CREATE OR REPLACE VIEW bsm.account_operation_v1 AS
 
 -- Privilégios (docs/data/POSTGRESQL.md §14.2).
 GRANT CONNECT ON DATABASE ssot
-  TO bsm_account_manager, bsm_account_receiver, bsm_account_publisher, bsm_maintenance;
+  TO bsm_account_publisher, bsm_maintenance;
 
 REVOKE ALL ON SCHEMA bsm FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA bsm FROM PUBLIC;
 GRANT USAGE ON SCHEMA bsm
-  TO bsm_account_manager, bsm_account_receiver, bsm_account_publisher, bsm_maintenance;
+  TO bsm_account_publisher, bsm_maintenance;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON bsm.account               TO bsm_account_manager;
-GRANT SELECT, INSERT, UPDATE         ON bsm.account_operation     TO bsm_account_manager;
-GRANT SELECT, INSERT                 ON bsm.account_action_result TO bsm_account_manager;
-GRANT INSERT                         ON bsm.account_outbox        TO bsm_account_manager;
 
-GRANT SELECT ON bsm.account_v1, bsm.account_operation_v1 TO bsm_account_receiver;
 
 GRANT SELECT ON bsm.account_outbox TO bsm_account_publisher;
 GRANT UPDATE (published_at) ON bsm.account_outbox TO bsm_account_publisher;

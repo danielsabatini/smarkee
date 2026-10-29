@@ -98,18 +98,14 @@ CREATE OR REPLACE VIEW ipm.user_operation_v1 AS
 
 -- Privilégios (docs/data/POSTGRESQL.md §14.2).
 GRANT CONNECT ON DATABASE ssot
-  TO ipm_user_manager, ipm_user_receiver, ipm_user_publisher, ipm_maintenance;
+  TO ipm_user_publisher, ipm_maintenance;
 
 REVOKE ALL ON SCHEMA ipm FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA ipm FROM PUBLIC;
 GRANT USAGE ON SCHEMA ipm
-  TO ipm_user_manager, ipm_user_receiver, ipm_user_publisher, ipm_maintenance;
+  TO ipm_user_publisher, ipm_maintenance;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON ipm.user               TO ipm_user_manager;
-GRANT SELECT, INSERT, UPDATE         ON ipm.user_operation     TO ipm_user_manager;
-GRANT INSERT                         ON ipm.user_outbox        TO ipm_user_manager;
 
-GRANT SELECT ON ipm.user_v1, ipm.user_operation_v1 TO ipm_user_receiver;
 
 GRANT SELECT ON ipm.user_outbox TO ipm_user_publisher;
 GRANT UPDATE (published_at) ON ipm.user_outbox TO ipm_user_publisher;

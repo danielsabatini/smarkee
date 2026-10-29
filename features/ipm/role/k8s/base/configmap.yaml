@@ -1,0 +1,610 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ipm-role-config
+  namespace: ipm
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/part-of: ipm-role
+data:
+  config.toml: |
+    # Configuração de dev de ipm.role (decisões 0067 e 0083). Sem segredos: eles vêm do ambiente ou de /run/secrets.
+    # Tabela por papel: [tool.ipm.role.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
+
+    [tool.ipm.role.api.auth]
+    host_header = "ipm-dev.smarkee.com.br:8080"
+    issuer = "http://ipm-dev.smarkee.com.br:8080"
+    jwks_url = "http://gateway.gateway.svc.cluster.local:8000/oauth/v2/keys"
+
+    [tool.ipm.role.api.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "ipm_role_api_login"
+
+    [tool.ipm.role.api.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+
+    [tool.ipm.role.publisher.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "ipm_role_publisher_login"
+
+    [tool.ipm.role.publisher.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ipm-role-migrations
+  namespace: ipm
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/part-of: ipm-role
+data:
+  0001-role.sql: |
+    -- Migração 0001 de ipm.role: Role composta no SSOT da Smarkee (docs/data/POSTGRESQL.md §6 e §14.2; decisão 0083).
+    -- Projeto: ipm-role-manager (decisões 0015 e 0083), dono do esquema do tipo.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
+    -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/ipm.sql.
+    -- Roles compostas (<módulo>.<tipo><Admin|Viewer>) vivem exclusivamente no SSOT da Smarkee e não
+    -- criam objetos no Zitadel.
+    -- Idempotente: pode ser reaplicada sem erro.
+
+    CREATE SCHEMA IF NOT EXISTS ipm;
+
+    CREATE TABLE IF NOT EXISTS ipm.role (
+      resource_id         text        PRIMARY KEY
+                          CHECK (resource_id ~ '^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$'),
+      schema_version      text        NOT NULL CHECK (schema_version ~ '^[0-9]+\.[0-9]+$'),
+      lifecycle           text        NOT NULL CHECK (lifecycle IN ('present', 'absent')),
+      reconciliation      text        NOT NULL DEFAULT 'active' CHECK (reconciliation IN ('active', 'suspended')),
+      desired             jsonb       NOT NULL
+                          CHECK (jsonb_typeof(desired) = 'object' AND pg_column_size(desired) <= 262144),
+      desired_generation  bigint      NOT NULL CHECK (desired_generation >= 1),
+      resource_version    bigint      NOT NULL DEFAULT 1,
+      observed            jsonb
+                          CHECK (observed IS NULL OR (jsonb_typeof(observed) = 'object' AND pg_column_size(observed) <= 262144)),
+      presence            text        CHECK (presence IN ('present', 'absent', 'unknown')),
+      observed_at         timestamptz,
+      phase               text        NOT NULL CHECK (phase IN ('Pending', 'Reconciling', 'Ready', 'Failed', 'Deleting')),
+      conditions          jsonb       NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(conditions) = 'array'),
+      failure_count       integer     NOT NULL DEFAULT 0 CHECK (failure_count >= 0),
+      observed_generation bigint,
+      created_at          timestamptz NOT NULL DEFAULT now(),
+      updated_at          timestamptz NOT NULL DEFAULT now(),
+      CHECK ((presence IS NULL) = (observed_at IS NULL)),
+      CONSTRAINT role_observed_generation_check
+        CHECK (observed_generation IS NULL
+               OR (observed_generation >= 1 AND observed_generation <= desired_generation))
+    );
+
+    CREATE TABLE IF NOT EXISTS ipm.role_operation (
+      operation_id            text        PRIMARY KEY CHECK (length(operation_id) BETWEEN 1 AND 128),
+      resource_id             text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      operation_type          text        NOT NULL CHECK (operation_type IN ('create', 'update', 'delete')),
+      desired_generation      bigint      CHECK (desired_generation >= 1),
+      requested_by            text        NOT NULL CHECK (length(requested_by) BETWEEN 1 AND 256),
+      correlation_id          text        NOT NULL CHECK (length(correlation_id) BETWEEN 1 AND 256),
+      request_digest          text        NOT NULL CHECK (request_digest ~ '^[0-9a-f]{64}$'),
+      operation_status        text        NOT NULL
+                              CHECK (operation_status IN ('accepted', 'in_progress', 'completed', 'failed', 'rejected')),
+      operation_status_reason text        CHECK (operation_status_reason IN ('conflict', 'validation', 'not_found', 'protected')),
+      created_at              timestamptz NOT NULL DEFAULT now(),
+      updated_at              timestamptz NOT NULL DEFAULT now(),
+      completed_at            timestamptz,
+      CHECK ((operation_status = 'rejected') = (operation_status_reason IS NOT NULL)),
+      CHECK ((operation_status = 'rejected') = (desired_generation IS NULL))
+    );
+    CREATE INDEX IF NOT EXISTS role_operation_resource
+      ON ipm.role_operation (resource_id, created_at);
+    CREATE INDEX IF NOT EXISTS role_operation_retention
+      ON ipm.role_operation (updated_at)
+      WHERE operation_status IN ('completed', 'failed', 'rejected');
+
+    CREATE TABLE IF NOT EXISTS ipm.role_action_result (
+      action_id          text        PRIMARY KEY CHECK (length(action_id) BETWEEN 1 AND 512),
+      resource_id        text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      desired_generation bigint      NOT NULL CHECK (desired_generation >= 1),
+      action_outcome     text        NOT NULL CHECK (action_outcome IN ('completed', 'failed')),
+      recorded_at        timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS role_action_result_recorded
+      ON ipm.role_action_result (recorded_at);
+
+    CREATE TABLE IF NOT EXISTS ipm.role_outbox (
+      sequence     bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      message_id   text        NOT NULL UNIQUE CHECK (length(message_id) BETWEEN 1 AND 128),
+      resource_id  text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      subject      text        NOT NULL CHECK (length(subject) BETWEEN 1 AND 512),
+      payload      jsonb       NOT NULL CHECK (pg_column_size(payload) <= 262144),
+      traceparent  text        CHECK (traceparent ~ '^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$'),
+      created_at   timestamptz NOT NULL DEFAULT now(),
+      published_at timestamptz
+    );
+    CREATE INDEX IF NOT EXISTS role_outbox_pending
+      ON ipm.role_outbox (sequence) WHERE published_at IS NULL;
+    CREATE INDEX IF NOT EXISTS role_outbox_published
+      ON ipm.role_outbox (published_at) WHERE published_at IS NOT NULL;
+
+    -- Índice de unicidade de `name` entre Roles ativas (`lifecycle = 'present'`), conferido na unidade
+    -- atômica do pedido (docs/data/SSOT.md §10.1; decisão 0083).
+    -- Desde a decisão 0092 a unicidade é por Organization; a 0004 remove o índice antigo (só por `name`).
+    CREATE UNIQUE INDEX IF NOT EXISTS role_active_organization_name
+      ON ipm.role ((desired ->> 'organizationId'), (desired ->> 'name'))
+      WHERE lifecycle = 'present';
+
+    -- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count. `requested_by` aparece
+    -- só na view da Operation, para o Receiver autorizar a leitura (docs/data/POSTGRESQL.md §6.5).
+    DROP VIEW IF EXISTS ipm.role_v1;
+    CREATE OR REPLACE VIEW ipm.role_v1 AS
+      SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
+             resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
+        FROM ipm.role;
+
+    CREATE OR REPLACE VIEW ipm.role_operation_v1 AS
+      SELECT operation_id, resource_id, operation_type, desired_generation, request_digest,
+             operation_status, operation_status_reason, created_at, updated_at, completed_at,
+             requested_by
+        FROM ipm.role_operation;
+
+    -- Roles pré-definidas da plataforma (padrão Google Cloud IAM sem prefixo `roles/`:
+    -- `<módulo>.<tipo><Admin|Viewer>`, decisão 0083). Protegidas contra exclusão por padrão.
+    WITH predefined(resource_id, role_name, description, permissions) AS (
+      VALUES
+        (
+          '01a1763d-eb52-748b-84c3-10fa2192a062',
+          'core.accountViewer',
+          'Leitura de conta pessoal em core.account.',
+          '["core.account.get"]'::jsonb
+        ),
+        (
+          '01a1763d-eb54-762f-813e-15a4667086f1',
+          'core.accountAdmin',
+          'Administração da própria conta em core.account.',
+          '["core.account.delete", "core.account.get"]'::jsonb
+        ),
+        (
+          '01a1763d-eb57-7009-9196-741d0a8702ab',
+          'sum.serviceViewer',
+          'Leitura de serviços habilitados em sum.service.',
+          '["sum.ipm.get"]'::jsonb
+        ),
+        (
+          '01a1763d-eb59-715e-bfd5-129f757b2768',
+          'sum.serviceAdmin',
+          'Administração de serviços habilitados em sum.service.',
+          '["sum.ipm.disable", "sum.ipm.enable", "sum.ipm.get"]'::jsonb
+        ),
+        (
+          '01a1763d-eb5c-75f1-b729-da3469748023',
+          'ipm.organizationViewer',
+          'Leitura de Organizations em ipm.organization.',
+          '["ipm.organization.get", "ipm.organization.list"]'::jsonb
+        ),
+        (
+          '01a1763d-eb5e-76c7-9ee2-ff8583f80d5f',
+          'ipm.organizationAdmin',
+          'Administração de Organizations em ipm.organization.',
+          '["ipm.organization.create", "ipm.organization.delete", "ipm.organization.get", "ipm.organization.list", "ipm.organization.update"]'::jsonb
+        ),
+        (
+          '01a1763d-eb61-7251-90a6-ba7f921db3f1',
+          'ipm.userViewer',
+          'Leitura de usuários organizacionais em ipm.user.',
+          '["ipm.user.get", "ipm.user.list"]'::jsonb
+        ),
+        (
+          '01a1763d-eb63-7386-90c5-388bcb125747',
+          'ipm.userAdmin',
+          'Administração completa e delegação de permissões de usuários em ipm.user.',
+          '["ipm.user.bind", "ipm.user.create", "ipm.user.delete", "ipm.user.get", "ipm.user.list", "ipm.user.update"]'::jsonb
+        ),
+        (
+          '01a1763d-eb66-72a8-b4e3-b67bddd33abb',
+          'ipm.permissionViewer',
+          'Leitura do catálogo de permissões atômicas em ipm.permission.',
+          '["ipm.permission.get", "ipm.permission.list"]'::jsonb
+        ),
+        (
+          '01a1763d-eb68-74e5-a6ad-678e9ae3beed',
+          'ipm.permissionAdmin',
+          'Administração do catálogo de permissões atômicas em ipm.permission.',
+          '["ipm.permission.admin", "ipm.permission.get", "ipm.permission.list"]'::jsonb
+        ),
+        (
+          '01a1763d-eb6b-7741-9f74-08d54a0347d0',
+          'ipm.roleViewer',
+          'Leitura do catálogo de Roles compostas em ipm.role.',
+          '["ipm.role.get", "ipm.role.list"]'::jsonb
+        ),
+        (
+          '01a1763d-eb6d-73a1-bdc9-a3f97c7560aa',
+          'ipm.roleAdmin',
+          'Administração do catálogo de Roles compostas em ipm.role.',
+          '["ipm.role.admin", "ipm.role.get", "ipm.role.list"]'::jsonb
+        ),
+        (
+          '01a1763d-eb70-73f1-84a5-b0ffa6a01b3a',
+          'bsm.accountViewer',
+          'Leitura de Billing Accounts em bsm.account.',
+          '["bsm.account.get", "bsm.account.list"]'::jsonb
+        ),
+        (
+          '01a1763d-eb72-714d-b94d-651adccd509f',
+          'bsm.accountAdmin',
+          'Administração de Billing Accounts em bsm.account.',
+          '["bsm.account.create", "bsm.account.delete", "bsm.account.get", "bsm.account.list", "bsm.account.update"]'::jsonb
+        ),
+        (
+          '01a17641-48a6-7106-88be-dc31ff14f340',
+          'ipm.groupViewer',
+          'Leitura de grupos de usuários em ipm.group.',
+          '["ipm.group.get", "ipm.group.list"]'::jsonb
+        ),
+        (
+          '01a17641-48a9-7074-a84a-6ae0dc0651c4',
+          'ipm.groupAdmin',
+          'Administração de grupos de usuários em ipm.group.',
+          '["ipm.group.bind", "ipm.group.create", "ipm.group.delete", "ipm.group.get", "ipm.group.list", "ipm.group.update"]'::jsonb
+        ),
+        (
+          '01a179e8-9237-7c08-bb22-72457e162873',
+          'ipm.serviceaccountViewer',
+          'Leitura de service accounts em ipm.serviceaccount.',
+          '["ipm.serviceaccount.get", "ipm.serviceaccount.list"]'::jsonb
+        ),
+        (
+          '01a179e8-923a-7a7e-a13b-c12f9a41caeb',
+          'ipm.serviceaccountAdmin',
+          'Administração de service accounts em ipm.serviceaccount.',
+          '["ipm.serviceaccount.bind", "ipm.serviceaccount.create", "ipm.serviceaccount.delete", "ipm.serviceaccount.get", "ipm.serviceaccount.list", "ipm.serviceaccount.update"]'::jsonb
+        )
+    ),
+    inserted AS (
+      INSERT INTO ipm.role (
+        resource_id,
+        schema_version,
+        lifecycle,
+        reconciliation,
+        desired,
+        desired_generation,
+        resource_version,
+        observed,
+        presence,
+        observed_at,
+        phase,
+        conditions,
+        observed_generation
+      )
+      SELECT
+        p.resource_id,
+        '1.0',
+        'present',
+        'active',
+        jsonb_build_object(
+          'lifecycle', 'present',
+          'name', p.role_name,
+          'roleType', 'predefined',
+          'description', p.description,
+          'permissions', p.permissions,
+          'deletionProtection', true
+        ),
+        1,
+        1,
+        jsonb_build_object(
+          'name', p.role_name,
+          'description', p.description,
+          'permissions', p.permissions,
+          'deletionProtection', true
+        ),
+        'present',
+        now(),
+        'Ready',
+        jsonb_build_array(
+          jsonb_build_object(
+            'type', 'Ready',
+            'status', 'True',
+            'reason', 'Converged',
+            'message', 'O estado observado corresponde ao estado desejado.',
+            'observedGeneration', 1,
+            'lastTransitionAt', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+          ),
+          jsonb_build_object(
+            'type', 'Progressing',
+            'status', 'False',
+            'reason', 'Converged',
+            'message', 'Nenhuma reconciliação em andamento.',
+            'observedGeneration', 1,
+            'lastTransitionAt', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+          ),
+          jsonb_build_object(
+            'type', 'Degraded',
+            'status', 'False',
+            'reason', 'Healthy',
+            'message', 'Sem falhas na geração atual.',
+            'observedGeneration', 1,
+            'lastTransitionAt', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+          )
+        ),
+        1
+      FROM predefined p
+      ON CONFLICT DO NOTHING
+      RETURNING resource_id, desired
+    )
+    INSERT INTO ipm.role_outbox (message_id, resource_id, subject, payload)
+    SELECT
+      substr(md5('seed-desired-' || i.resource_id), 1, 8) || '-' ||
+      substr(md5('seed-desired-' || i.resource_id), 9, 4) || '-7' ||
+      substr(md5('seed-desired-' || i.resource_id), 14, 3) || '-8' ||
+      substr(md5('seed-desired-' || i.resource_id), 18, 3) || '-' ||
+      substr(md5('seed-desired-' || i.resource_id), 21, 12),
+      i.resource_id,
+      'desired.ipm.role.' || i.resource_id,
+      jsonb_build_object(
+        'messageId',
+          substr(md5('seed-desired-' || i.resource_id), 1, 8) || '-' ||
+          substr(md5('seed-desired-' || i.resource_id), 9, 4) || '-7' ||
+          substr(md5('seed-desired-' || i.resource_id), 14, 3) || '-8' ||
+          substr(md5('seed-desired-' || i.resource_id), 18, 3) || '-' ||
+          substr(md5('seed-desired-' || i.resource_id), 21, 12),
+        'schemaVersion', '1.0',
+        'messageType', 'desired',
+        'emitter', 'api',
+        'module', 'ipm',
+        'resourceType', 'role',
+        'resourceId', i.resource_id,
+        'operation', 'changed',
+        'desiredGeneration', 1,
+        'requestedBy', 'system',
+        'correlationId',
+          substr(md5('seed-correlation-' || i.resource_id), 1, 8) || '-' ||
+          substr(md5('seed-correlation-' || i.resource_id), 9, 4) || '-7' ||
+          substr(md5('seed-correlation-' || i.resource_id), 14, 3) || '-8' ||
+          substr(md5('seed-correlation-' || i.resource_id), 18, 3) || '-' ||
+          substr(md5('seed-correlation-' || i.resource_id), 21, 12),
+        'causationId',
+          substr(md5('seed-causation-' || i.resource_id), 1, 8) || '-' ||
+          substr(md5('seed-causation-' || i.resource_id), 9, 4) || '-7' ||
+          substr(md5('seed-causation-' || i.resource_id), 14, 3) || '-8' ||
+          substr(md5('seed-causation-' || i.resource_id), 18, 3) || '-' ||
+          substr(md5('seed-causation-' || i.resource_id), 21, 12),
+        'occurredAt', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+        'data', jsonb_build_object(
+          'lifecycle', 'present',
+          'reconciliation', 'active',
+          'name', i.desired -> 'name',
+          'roleType', i.desired -> 'roleType',
+          'description', i.desired -> 'description',
+          'permissions', i.desired -> 'permissions',
+          'deletionProtection', true
+        )
+      )
+    FROM inserted i
+    ON CONFLICT (message_id) DO NOTHING;
+
+    -- Privilégios (docs/data/POSTGRESQL.md §14.2).
+    GRANT CONNECT ON DATABASE ssot
+      TO ipm_role_publisher, ipm_maintenance;
+
+    REVOKE ALL ON SCHEMA ipm FROM PUBLIC;
+    REVOKE ALL ON ALL TABLES IN SCHEMA ipm FROM PUBLIC;
+    GRANT USAGE ON SCHEMA ipm
+      TO ipm_role_publisher, ipm_maintenance;
+
+
+
+    GRANT SELECT ON ipm.role_outbox TO ipm_role_publisher;
+    GRANT UPDATE (published_at) ON ipm.role_outbox TO ipm_role_publisher;
+
+    GRANT SELECT, DELETE
+      ON ipm.role_outbox, ipm.role_action_result, ipm.role_operation
+      TO ipm_maintenance;
+  0002-role-opaque-ids.sql: |
+    -- Migração 0002 de ipm.role: identidade opaca (UUIDv7) das sementes do catálogo e `roleType` (decisão 0089).
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`. Idempotente: em volume novo a 0001 já
+    -- semeia os UUIDv7 e esta migração não altera nada; em ambiente existente, troca os identificadores legados
+    -- (`role-<módulo>-<tipo>-<papel>`) pelos UUIDv7 nas tabelas do tipo.
+
+    BEGIN;
+    CREATE TEMP TABLE legacy_role_id (old_id text PRIMARY KEY, new_id text NOT NULL) ON COMMIT DROP;
+    INSERT INTO legacy_role_id (old_id, new_id) VALUES
+        ('role-core-account-viewer', '01a1763d-eb52-748b-84c3-10fa2192a062'),
+        ('role-core-account-admin', '01a1763d-eb54-762f-813e-15a4667086f1'),
+        ('role-sum-service-viewer', '01a1763d-eb57-7009-9196-741d0a8702ab'),
+        ('role-sum-service-admin', '01a1763d-eb59-715e-bfd5-129f757b2768'),
+        ('role-ipm-organization-viewer', '01a1763d-eb5c-75f1-b729-da3469748023'),
+        ('role-ipm-organization-admin', '01a1763d-eb5e-76c7-9ee2-ff8583f80d5f'),
+        ('role-ipm-user-viewer', '01a1763d-eb61-7251-90a6-ba7f921db3f1'),
+        ('role-ipm-user-admin', '01a1763d-eb63-7386-90c5-388bcb125747'),
+        ('role-ipm-permission-viewer', '01a1763d-eb66-72a8-b4e3-b67bddd33abb'),
+        ('role-ipm-permission-admin', '01a1763d-eb68-74e5-a6ad-678e9ae3beed'),
+        ('role-ipm-role-viewer', '01a1763d-eb6b-7741-9f74-08d54a0347d0'),
+        ('role-ipm-role-admin', '01a1763d-eb6d-73a1-bdc9-a3f97c7560aa'),
+        ('role-bsm-account-viewer', '01a1763d-eb70-73f1-84a5-b0ffa6a01b3a'),
+        ('role-bsm-account-admin', '01a1763d-eb72-714d-b94d-651adccd509f'),
+        ('role-ipm-group-viewer', '01a17641-48a6-7106-88be-dc31ff14f340'),
+        ('role-ipm-group-admin', '01a17641-48a9-7074-a84a-6ae0dc0651c4');
+
+    UPDATE ipm.role x SET resource_id = m.new_id FROM legacy_role_id m WHERE x.resource_id = m.old_id;
+    UPDATE ipm.role_operation x SET resource_id = m.new_id FROM legacy_role_id m WHERE x.resource_id = m.old_id;
+    UPDATE ipm.role_action_result x SET resource_id = m.new_id FROM legacy_role_id m WHERE x.resource_id = m.old_id;
+    -- Outbox: as linhas já publicadas ficam como histórico; as ainda não publicadas com o ID antigo são
+    -- descartadas. Cada recurso renomeado ganha uma mensagem `desired` nova (ID determinístico), para o loop
+    -- passar a conhecê-lo pela nova identidade.
+    DELETE FROM ipm.role_outbox x
+     USING legacy_role_id m
+     WHERE x.resource_id = m.old_id AND x.published_at IS NULL;
+
+    CREATE FUNCTION pg_temp.opaque_uuid(seed text) RETURNS text LANGUAGE sql IMMUTABLE AS $$
+      SELECT substr(md5(seed), 1, 8) || '-' || substr(md5(seed), 9, 4) || '-7' ||
+             substr(md5(seed), 14, 3) || '-8' || substr(md5(seed), 18, 3) || '-' || substr(md5(seed), 21, 12)
+    $$;
+
+    INSERT INTO ipm.role_outbox (message_id, resource_id, subject, payload)
+    SELECT
+      pg_temp.opaque_uuid('rename-desired-' || r.resource_id || '-' || r.desired_generation),
+      r.resource_id,
+      'desired.ipm.role.' || r.resource_id,
+      jsonb_build_object(
+        'messageId', pg_temp.opaque_uuid('rename-desired-' || r.resource_id || '-' || r.desired_generation),
+        'schemaVersion', '1.0',
+        'messageType', 'desired',
+        'emitter', 'api',
+        'module', 'ipm',
+        'resourceType', 'role',
+        'resourceId', r.resource_id,
+        'operation', 'changed',
+        'desiredGeneration', r.desired_generation,
+        'requestedBy', 'system',
+        'correlationId', pg_temp.opaque_uuid('rename-correlation-' || r.resource_id),
+        'causationId', pg_temp.opaque_uuid('rename-causation-' || r.resource_id),
+        'occurredAt', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+        'data', jsonb_build_object('reconciliation', r.reconciliation) || r.desired
+      )
+    FROM ipm.role r
+    JOIN legacy_role_id m ON m.new_id = r.resource_id
+    ON CONFLICT (message_id) DO NOTHING;
+
+    -- Classificação: as Roles do catálogo da plataforma são `predefined`; as demais, criadas por pedido, `custom`.
+    UPDATE ipm.role SET desired = desired || '{"roleType": "predefined"}'::jsonb
+     WHERE resource_id IN (SELECT new_id FROM legacy_role_id) AND NOT desired ? 'roleType';
+    UPDATE ipm.role SET desired = desired || '{"roleType": "custom"}'::jsonb
+     WHERE NOT desired ? 'roleType';
+    COMMIT;
+  0003-role-operation-superseded.sql: |
+    -- Migração de ipm.role: novo estado de Operation `superseded` (decisão 0091).
+    -- Aditiva: a Operation de uma geração substituída por outra antes de convergir deixa de ser `failed`.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`. Idempotente.
+
+    ALTER TABLE ipm.role_operation
+      DROP CONSTRAINT IF EXISTS role_operation_operation_status_check;
+    ALTER TABLE ipm.role_operation
+      ADD CONSTRAINT role_operation_operation_status_check
+      CHECK (operation_status IN ('accepted', 'in_progress', 'completed', 'failed', 'rejected', 'superseded'));
+
+    DROP INDEX IF EXISTS ipm.role_operation_retention;
+    CREATE INDEX role_operation_retention
+      ON ipm.role_operation (updated_at)
+      WHERE operation_status IN ('completed', 'failed', 'rejected', 'superseded');
+  0004-role-organization.sql: |
+    -- Migração de ipm.role: Roles `custom` por Organization (decisão 0092).
+    -- Toda Role passa a ter `organizationId` no `desired`; as predefinidas da plataforma pertencem à
+    -- Organization de sistema `core`. A unicidade de `name` passa a ser por Organization (a recusa de
+    -- nome igual ao de uma predefinida é feita pelo Manager, na mesma unidade atômica do pedido).
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`. Idempotente.
+    -- Não republica `desired`: a ausência de `organizationId` já vale `core` nos consumidores, e a
+    -- mensagem seguinte de cada Role (qualquer alteração) já leva o campo.
+
+    BEGIN;
+
+    -- Uma `custom` sem Organization não tem dono possível: a migração falha em vez de adivinhar.
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM ipm.role
+         WHERE desired ->> 'organizationId' IS NULL
+           AND COALESCE(desired ->> 'roleType', 'custom') <> 'predefined'
+      ) THEN
+        RAISE EXCEPTION 'ipm.role: existe Role custom sem organizationId; defina a Organization antes de migrar';
+      END IF;
+    END
+    $$;
+
+    UPDATE ipm.role
+       SET desired = jsonb_set(desired, '{organizationId}', '"core"'::jsonb)
+     WHERE desired ->> 'organizationId' IS NULL;
+
+    DROP INDEX IF EXISTS ipm.role_active_name;
+    CREATE UNIQUE INDEX IF NOT EXISTS role_active_organization_name
+      ON ipm.role ((desired ->> 'organizationId'), (desired ->> 'name'))
+      WHERE lifecycle = 'present';
+
+    COMMIT;
+  0005-role-api.sql: |
+    -- ipm.role: API síncrona (decisão 0098) e fim do plano de dados `platform` (S4).
+    -- A admissão passa a ser feita na requisição pelo papel `ipm_role_api`, que substitui
+    -- `..._manager` e `..._receiver`. Fim da Operation (tabela, view e privilégios) e do resultado de
+    -- ação (o tipo não tem Executor); a causa da geração (`requested_by` e `correlation_id`) passa a
+    -- ser do próprio recurso; a idempotência do cliente ganha tabela própria.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`, depois de `ipm.sql` (que cria o
+    -- papel `ipm_role_api`). Idempotente: pode ser reaplicada sem erro.
+
+    ALTER TABLE ipm.role
+      ADD COLUMN IF NOT EXISTS requested_by   text CHECK (length(requested_by) BETWEEN 1 AND 256),
+      ADD COLUMN IF NOT EXISTS correlation_id text CHECK (length(correlation_id) BETWEEN 1 AND 256);
+
+    -- Recursos anteriores guardam a causa na última Operation da geração vigente.
+    DO $$
+    BEGIN
+      IF to_regclass('ipm.role_operation') IS NOT NULL THEN
+        UPDATE ipm.role AS resource
+           SET requested_by = operation.requested_by, correlation_id = operation.correlation_id
+          FROM (SELECT DISTINCT ON (resource_id) resource_id, requested_by, correlation_id
+                  FROM ipm.role_operation
+                 ORDER BY resource_id, created_at DESC) AS operation
+         WHERE operation.resource_id = resource.resource_id AND resource.requested_by IS NULL;
+      END IF;
+    END
+    $$;
+
+    -- A Role é só dado do SSOT: sem Observer, toda Role existente já está convergida. As linhas
+    -- anteriores (inclusive as predefinidas) passam a `Ready` com `observed_generation = generation`.
+    UPDATE ipm.role
+       SET phase = 'Ready', observed_generation = desired_generation
+     WHERE phase <> 'Ready' OR observed_generation IS DISTINCT FROM desired_generation;
+
+    -- Idempotência (`Idempotency-Key`): gravada na transação da admissão, só quando a escrita é aplicada.
+    CREATE TABLE IF NOT EXISTS ipm.role_idempotency (
+      requested_by    text        NOT NULL CHECK (length(requested_by) BETWEEN 1 AND 256),
+      idempotency_key text        NOT NULL CHECK (idempotency_key ~ '^[A-Za-z0-9._:-]{1,128}$'),
+      request_digest  text        NOT NULL CHECK (request_digest ~ '^[0-9a-f]{64}$'),
+      resource_id     text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      created_at      timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (requested_by, idempotency_key)
+    );
+    CREATE INDEX IF NOT EXISTS role_idempotency_retention
+      ON ipm.role_idempotency (created_at);
+
+    -- A view ganha `observed_generation` (no fim, como exige CREATE OR REPLACE VIEW).
+    CREATE OR REPLACE VIEW ipm.role_v1 AS
+      SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
+             resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at,
+             observed_generation
+        FROM ipm.role;
+
+    DROP VIEW IF EXISTS ipm.role_operation_v1;
+    DROP TABLE IF EXISTS ipm.role_operation;
+    DROP TABLE IF EXISTS ipm.role_action_result;
+
+    -- Privilégios: o `api` lê (view), escreve o recurso (com DELETE: a exclusão remove a linha e o
+    -- tombstone vai no outbox), o outbox e a idempotência. Os papéis antigos perdem tudo do tipo.
+    GRANT CONNECT ON DATABASE ssot TO ipm_role_api;
+    GRANT USAGE ON SCHEMA ipm TO ipm_role_api;
+
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ipm.role             TO ipm_role_api;
+    GRANT SELECT                         ON ipm.role_v1          TO ipm_role_api;
+    GRANT INSERT                         ON ipm.role_outbox      TO ipm_role_api;
+    GRANT SELECT, INSERT                 ON ipm.role_idempotency TO ipm_role_api;
+
+    GRANT SELECT, DELETE ON ipm.role_idempotency TO ipm_maintenance;
+
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ipm_role_manager') THEN
+        REVOKE ALL ON ipm.role, ipm.role_v1, ipm.role_outbox FROM ipm_role_manager;
+        REVOKE ALL ON SCHEMA ipm FROM ipm_role_manager;
+        REVOKE CONNECT ON DATABASE ssot FROM ipm_role_manager;
+      END IF;
+      IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ipm_role_receiver') THEN
+        REVOKE ALL ON ipm.role_v1 FROM ipm_role_receiver;
+        REVOKE ALL ON SCHEMA ipm FROM ipm_role_receiver;
+        REVOKE CONNECT ON DATABASE ssot FROM ipm_role_receiver;
+      END IF;
+    END
+    $$;

@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sum-service-api
+  namespace: sum
+  labels:
+    app.kubernetes.io/name: sum-service-api
+    app.kubernetes.io/part-of: sum-service
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: sum-service-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sum-service-api
+  namespace: sum
+  labels:
+    app.kubernetes.io/name: sum-service-api
+    app.kubernetes.io/part-of: sum-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sum-service-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sum-service-api
+        app.kubernetes.io/part-of: sum-service
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: api
+          image: localhost:5001/smarkee-sum-service:dev
+          imagePullPolicy: IfNotPresent
+          command: ["sum-service-api"]
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: SMARKEE_ENVIRONMENT
+              value: 'dev'
+            - name: SMARKEE_CONFIG_PATH
+              value: '/etc/smarkee/config.toml'
+            - name: SUM_SERVICE_API_CATALOG_PERMISSIONS
+              value: '{"ipm":["ipm.group.bind","ipm.group.create","ipm.group.delete","ipm.group.get","ipm.group.list","ipm.group.update","ipm.organization.create","ipm.organization.delete","ipm.organization.get","ipm.organization.list","ipm.organization.update","ipm.role.bind","ipm.role.create","ipm.role.delete","ipm.role.get","ipm.role.list","ipm.role.update","ipm.serviceaccount.bind","ipm.serviceaccount.create","ipm.serviceaccount.delete","ipm.serviceaccount.get","ipm.serviceaccount.list","ipm.serviceaccount.update","ipm.user.bind","ipm.user.create","ipm.user.delete","ipm.user.get","ipm.user.list","ipm.user.update"]}'
+            - name: SUM_SERVICE_API_AUTH_AUDIENCE
+              value: '395263163731279883'
+          volumeMounts:
+            - name: config
+              mountPath: /etc/smarkee/config.toml
+              subPath: config.toml
+              readOnly: true
+            - name: secrets
+              mountPath: /run/secrets
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 192Mi
+      volumes:
+        - name: config
+          configMap:
+            name: sum-service-config
+        - name: secrets
+          secret:
+            secretName: sum-service-api-secrets

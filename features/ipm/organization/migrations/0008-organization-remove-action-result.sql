@@ -6,5 +6,11 @@
 
 DROP TABLE IF EXISTS ipm.organization_action_result;
 
-REVOKE DELETE ON ipm.organization FROM ipm_organization_manager;
-REVOKE UPDATE ON ipm.organization_operation FROM ipm_organization_manager;
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ipm_organization_manager') THEN
+    REVOKE DELETE ON ipm.organization FROM ipm_organization_manager;
+    REVOKE UPDATE ON ipm.organization_operation FROM ipm_organization_manager;
+  END IF;
+END
+$$;

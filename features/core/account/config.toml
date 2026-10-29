@@ -4,39 +4,39 @@
 [tool.core.account.api.auth]
 host_header = "ipm-dev.smarkee.com.br:8080"
 issuer = "http://ipm-dev.smarkee.com.br:8080"
-jwks_url = "http://gateway.smarkee.internal:8000/oauth/v2/keys"
+jwks_url = "http://gateway.gateway.svc.cluster.local:8000/oauth/v2/keys"
 
 [tool.core.account.api.database]
-host = "database.smarkee.internal"
+host = "database-rw.database.svc.cluster.local"
 name = "ssot"
 port = 5432
 user = "core_account_api_login"
 
 [tool.core.account.api.messaging]
-url = "nats://messaging.smarkee.internal:4222"
+url = "nats://messaging.messaging.svc.cluster.local:4222"
 user = "smarkee"
 
 [tool.core.account.publisher.database]
-host = "database.smarkee.internal"
+host = "database-rw.database.svc.cluster.local"
 name = "ssot"
 port = 5432
 user = "core_account_publisher_login"
 
 [tool.core.account.publisher.messaging]
-url = "nats://messaging.smarkee.internal:4222"
+url = "nats://messaging.messaging.svc.cluster.local:4222"
 user = "smarkee"
 
 [tool.core.account.controller.database]
-host = "database.smarkee.internal"
+host = "database-rw.database.svc.cluster.local"
 name = "ssot"
 port = 5432
 user = "core_account_controller_login"
 
 [tool.core.account.controller.identity]
-base_url = "http://identity.smarkee.internal:8080"
+base_url = "http://identity.identity.svc.cluster.local:8080"
 host_header = "ipm-dev.smarkee.com.br:8080"
 issuer = "http://ipm-dev.smarkee.com.br:8080"
 
 [tool.core.account.controller.messaging]
-url = "nats://messaging.smarkee.internal:4222"
+url = "nats://messaging.messaging.svc.cluster.local:4222"
 user = "smarkee"

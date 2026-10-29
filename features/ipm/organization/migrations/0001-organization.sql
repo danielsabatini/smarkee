@@ -88,18 +88,14 @@ CREATE OR REPLACE VIEW ipm.organization_operation_v1 AS
 
 -- Privilégios (docs/data/POSTGRESQL.md §14.2).
 GRANT CONNECT ON DATABASE ssot
-  TO ipm_organization_manager, ipm_organization_receiver, ipm_organization_publisher, ipm_maintenance;
+  TO ipm_organization_publisher, ipm_maintenance;
 
 REVOKE ALL ON SCHEMA ipm FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA ipm FROM PUBLIC;
 GRANT USAGE ON SCHEMA ipm
-  TO ipm_organization_manager, ipm_organization_receiver, ipm_organization_publisher, ipm_maintenance;
+  TO ipm_organization_publisher, ipm_maintenance;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON ipm.organization               TO ipm_organization_manager;
-GRANT SELECT, INSERT, UPDATE         ON ipm.organization_operation     TO ipm_organization_manager;
-GRANT INSERT                         ON ipm.organization_outbox        TO ipm_organization_manager;
 
-GRANT SELECT ON ipm.organization_v1, ipm.organization_operation_v1 TO ipm_organization_receiver;
 
 GRANT SELECT ON ipm.organization_outbox TO ipm_organization_publisher;
 GRANT UPDATE (published_at) ON ipm.organization_outbox TO ipm_organization_publisher;

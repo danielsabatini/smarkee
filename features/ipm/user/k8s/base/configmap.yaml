@@ -1,0 +1,331 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ipm-user-config
+  namespace: ipm
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/part-of: ipm-user
+data:
+  config.toml: |
+    # Configuração de dev de ipm.user (decisão 0067). Sem segredos: eles vêm do ambiente ou de /run/secrets.
+    # Tabela por papel: [tool.ipm.user.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
+
+    [tool.ipm.user.api.auth]
+    host_header = "ipm-dev.smarkee.com.br:8080"
+    issuer = "http://ipm-dev.smarkee.com.br:8080"
+    jwks_url = "http://gateway.gateway.svc.cluster.local:8000/oauth/v2/keys"
+
+    [tool.ipm.user.api.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "ipm_user_api_login"
+
+    [tool.ipm.user.api.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+
+    [tool.ipm.user.publisher.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "ipm_user_publisher_login"
+
+    [tool.ipm.user.publisher.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+
+    [tool.ipm.user.controller.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "ipm_user_controller_login"
+
+    [tool.ipm.user.controller.identity]
+    base_url = "http://identity.identity.svc.cluster.local:8080"
+    host_header = "ipm-dev.smarkee.com.br:8080"
+    issuer = "http://ipm-dev.smarkee.com.br:8080"
+
+    [tool.ipm.user.controller.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ipm-user-migrations
+  namespace: ipm
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/part-of: ipm-user
+data:
+  0001-user.sql: |
+    -- Migração 0001 de ipm.user: usuário da Organization no SSOT (docs/data/POSTGRESQL.md §6 e §14.2,
+    -- decisão 0077).
+    -- Projeto: ipm-user-manager (decisão 0015), dono do esquema do tipo.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
+    -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/ipm.sql.
+    -- Nasce com o estado atual das migrações do modelo (ipm/organization 0001 a 0004): o motivo de
+    -- rejeição `protected` (decisão 0043), o `traceparent` do outbox (decisão 0055) e a
+    -- `observed_generation` (decisão 0072).
+    -- Idempotente: pode ser reaplicada sem erro.
+
+    CREATE SCHEMA IF NOT EXISTS ipm;
+
+    CREATE TABLE IF NOT EXISTS ipm.user (
+      resource_id        text        PRIMARY KEY
+                         CHECK (resource_id ~ '^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$'),
+      schema_version     text        NOT NULL CHECK (schema_version ~ '^[0-9]+\.[0-9]+$'),
+      lifecycle          text        NOT NULL CHECK (lifecycle IN ('present', 'absent')),
+      reconciliation     text        NOT NULL DEFAULT 'active' CHECK (reconciliation IN ('active', 'suspended')),
+      desired            jsonb       NOT NULL
+                         CHECK (jsonb_typeof(desired) = 'object' AND pg_column_size(desired) <= 262144),
+      desired_generation bigint      NOT NULL CHECK (desired_generation >= 1),
+      resource_version   bigint      NOT NULL DEFAULT 1,
+      observed           jsonb
+                         CHECK (observed IS NULL OR (jsonb_typeof(observed) = 'object' AND pg_column_size(observed) <= 262144)),
+      presence           text        CHECK (presence IN ('present', 'absent', 'unknown')),
+      observed_at        timestamptz,
+      phase              text        NOT NULL CHECK (phase IN ('Pending', 'Reconciling', 'Ready', 'Failed', 'Deleting')),
+      conditions         jsonb       NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(conditions) = 'array'),
+      failure_count      integer     NOT NULL DEFAULT 0 CHECK (failure_count >= 0),
+      -- Última geração confirmada por uma observação feita depois dela, como o
+      -- `status.observedGeneration` do Kubernetes (decisão 0072).
+      observed_generation bigint,
+      created_at         timestamptz NOT NULL DEFAULT now(),
+      updated_at         timestamptz NOT NULL DEFAULT now(),
+      CHECK ((presence IS NULL) = (observed_at IS NULL)),
+      CONSTRAINT user_observed_generation_check
+        CHECK (observed_generation IS NULL
+               OR (observed_generation >= 1 AND observed_generation <= desired_generation))
+    );
+
+    CREATE TABLE IF NOT EXISTS ipm.user_operation (
+      operation_id            text        PRIMARY KEY CHECK (length(operation_id) BETWEEN 1 AND 128),
+      resource_id             text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      operation_type          text        NOT NULL CHECK (operation_type IN ('create', 'update', 'delete')),
+      desired_generation      bigint      CHECK (desired_generation >= 1),
+      requested_by            text        NOT NULL CHECK (length(requested_by) BETWEEN 1 AND 256),
+      correlation_id          text        NOT NULL CHECK (length(correlation_id) BETWEEN 1 AND 256),
+      request_digest          text        NOT NULL CHECK (request_digest ~ '^[0-9a-f]{64}$'),
+      operation_status        text        NOT NULL
+                              CHECK (operation_status IN ('accepted', 'in_progress', 'completed', 'failed', 'rejected')),
+      operation_status_reason text        CHECK (operation_status_reason IN ('conflict', 'validation', 'not_found', 'protected')),
+      created_at              timestamptz NOT NULL DEFAULT now(),
+      updated_at              timestamptz NOT NULL DEFAULT now(),
+      completed_at            timestamptz,
+      CHECK ((operation_status = 'rejected') = (operation_status_reason IS NOT NULL)),
+      CHECK ((operation_status = 'rejected') = (desired_generation IS NULL))
+    );
+    CREATE INDEX IF NOT EXISTS user_operation_resource
+      ON ipm.user_operation (resource_id, created_at);
+    CREATE INDEX IF NOT EXISTS user_operation_retention
+      ON ipm.user_operation (updated_at)
+      WHERE operation_status IN ('completed', 'failed', 'rejected');
+
+    CREATE TABLE IF NOT EXISTS ipm.user_outbox (
+      sequence     bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      message_id   text        NOT NULL UNIQUE CHECK (length(message_id) BETWEEN 1 AND 128),
+      resource_id  text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      subject      text        NOT NULL CHECK (length(subject) BETWEEN 1 AND 512),
+      payload      jsonb       NOT NULL CHECK (pg_column_size(payload) <= 262144),
+      -- `traceparent` W3C da origem da linha, repassado pelo Publisher como header (decisão 0055).
+      traceparent  text        CHECK (traceparent ~ '^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$'),
+      created_at   timestamptz NOT NULL DEFAULT now(),
+      published_at timestamptz
+    );
+    CREATE INDEX IF NOT EXISTS user_outbox_pending
+      ON ipm.user_outbox (sequence) WHERE published_at IS NULL;
+    CREATE INDEX IF NOT EXISTS user_outbox_published
+      ON ipm.user_outbox (published_at) WHERE published_at IS NOT NULL;
+
+    -- Índice de busca do Manager e do Receiver: a Organization (cota por Organization, lista e e-mail
+    -- único nela, decisão 0077), conferida na unidade atômica do pedido (docs/data/SSOT.md §10.1).
+    CREATE INDEX IF NOT EXISTS user_organization
+      ON ipm.user ((desired ->> 'organizationId'), (desired ->> 'email'));
+
+    -- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count.
+    -- DROP VIEW prévio permite reaplicar a migração mesmo após 0007 adicionar observed_generation.
+    DROP VIEW IF EXISTS ipm.user_v1;
+    CREATE VIEW ipm.user_v1 AS
+      SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
+             resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
+        FROM ipm.user;
+
+    CREATE OR REPLACE VIEW ipm.user_operation_v1 AS
+      SELECT operation_id, resource_id, operation_type, desired_generation, request_digest,
+             operation_status, operation_status_reason, created_at, updated_at, completed_at,
+             requested_by
+        FROM ipm.user_operation;
+
+    -- Privilégios (docs/data/POSTGRESQL.md §14.2).
+    GRANT CONNECT ON DATABASE ssot
+      TO ipm_user_publisher, ipm_maintenance;
+
+    REVOKE ALL ON SCHEMA ipm FROM PUBLIC;
+    REVOKE ALL ON ALL TABLES IN SCHEMA ipm FROM PUBLIC;
+    GRANT USAGE ON SCHEMA ipm
+      TO ipm_user_publisher, ipm_maintenance;
+
+
+
+    GRANT SELECT ON ipm.user_outbox TO ipm_user_publisher;
+    GRANT UPDATE (published_at) ON ipm.user_outbox TO ipm_user_publisher;
+
+    GRANT SELECT, DELETE
+      ON ipm.user_outbox, ipm.user_operation
+      TO ipm_maintenance;
+  0002-user-permissions.sql: |
+    -- Migração 0002 de ipm.user: renomeia `roles` para `permissions` em `desired` e `observed`
+    -- (docs/identity/PERMISSION.md).
+    -- Idempotente: só altera linhas que ainda possuem `roles` e não possuem `permissions`.
+
+    UPDATE ipm.user
+       SET desired = (desired - 'roles') || jsonb_build_object('permissions', desired->'roles'),
+           resource_version = resource_version + 1,
+           desired_generation = desired_generation + 1,
+           updated_at = now()
+     WHERE desired ? 'roles'
+       AND NOT (desired ? 'permissions');
+
+    UPDATE ipm.user
+       SET observed = (observed - 'roles') || jsonb_build_object('permissions', observed->'roles'),
+           updated_at = now()
+     WHERE observed IS NOT NULL
+       AND observed ? 'roles'
+       AND NOT (observed ? 'permissions');
+  0003-user-operation-superseded.sql: |
+    -- Migração de ipm.user: novo estado de Operation `superseded` (decisão 0091).
+    -- Aditiva: a Operation de uma geração substituída por outra antes de convergir deixa de ser `failed`.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`. Idempotente.
+
+    ALTER TABLE ipm.user_operation
+      DROP CONSTRAINT IF EXISTS user_operation_operation_status_check;
+    ALTER TABLE ipm.user_operation
+      ADD CONSTRAINT user_operation_operation_status_check
+      CHECK (operation_status IN ('accepted', 'in_progress', 'completed', 'failed', 'rejected', 'superseded'));
+
+    DROP INDEX IF EXISTS ipm.user_operation_retention;
+    CREATE INDEX user_operation_retention
+      ON ipm.user_operation (updated_at)
+      WHERE operation_status IN ('completed', 'failed', 'rejected', 'superseded');
+  0004-user-controller.sql: |
+    -- Migração de ipm.user: privilégios do Controller (decisão 0096).
+    -- O Controller substitui Observer, Reconciler e Executor: lê o recurso sob lock, grava o estado
+    -- observado, a fase, as conditions e as Operations, apaga o registro quando a remoção converge e
+    -- grava `desired` suspenso e `updated` no outbox na mesma transação. Não cria nem altera o `desired`.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`. Idempotente.
+    -- O papel é criado por infrastructure/dev/database/bootstrap/ipm.sql.
+
+    GRANT CONNECT ON DATABASE ssot TO ipm_user_controller;
+    GRANT USAGE ON SCHEMA ipm TO ipm_user_controller;
+
+    GRANT SELECT, UPDATE, DELETE ON ipm.user           TO ipm_user_controller;
+    GRANT SELECT, UPDATE         ON ipm.user_operation TO ipm_user_controller;
+    GRANT INSERT                 ON ipm.user_outbox    TO ipm_user_controller;
+  0005-user-remove-action-result.sql: |
+    -- Migração de ipm.user: fim de `user_action_result` e privilégios mínimos do Manager (decisão 0096).
+    -- O Controller concentra observação, ação e resultado num ciclo atômico; a idempotência da ação
+    -- não precisa mais do registro por `actionId`, e o Manager deixa de aplicar `observed` e resultados:
+    -- só admite pedidos (insere, altera o `desired` e insere Operations e outbox).
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`. Idempotente.
+
+    DROP TABLE IF EXISTS ipm.user_action_result;
+
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ipm_user_manager') THEN
+        REVOKE DELETE ON ipm.user FROM ipm_user_manager;
+        REVOKE UPDATE ON ipm.user_operation FROM ipm_user_manager;
+      END IF;
+    END
+    $$;
+  0006-user-desired-without-permissions.sql: |
+    -- Migração 0006 de ipm.user: o `desired` guarda só a intenção (decisão 0097).
+    -- `permissions` (e o antigo `directPermissions`) saem do `desired`: as permissões efetivas são
+    -- calculadas pelo Controller a partir do catálogo e ficam em `observed.effectivePermissions`.
+    -- O `observed` antigo não tem `effectivePermissions`; o Controller o preenche na próxima
+    -- reconciliação. O `desired_generation` e as Operations não mudam.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`. Idempotente.
+
+    UPDATE ipm.user
+       SET desired = desired - 'permissions' - 'directPermissions'
+     WHERE desired ? 'permissions' OR desired ? 'directPermissions';
+  0007-user-api.sql: |
+    -- ipm.user: API síncrona (decisão 0098). A admissão passa a ser feita na requisição pelo
+    -- papel `ipm_user_api`, que substitui `..._manager` e `..._receiver`.
+    -- Fim da Operation (tabela, view e privilégios); a causa da geração (`requested_by` e
+    -- `correlation_id`) passa a ser do próprio recurso; a idempotência do cliente ganha tabela própria.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`, depois de `ipm.sql` (que cria o
+    -- papel `ipm_user_api`). Idempotente: pode ser reaplicada sem erro.
+
+    ALTER TABLE ipm.user
+      ADD COLUMN IF NOT EXISTS requested_by   text CHECK (length(requested_by) BETWEEN 1 AND 256),
+      ADD COLUMN IF NOT EXISTS correlation_id text CHECK (length(correlation_id) BETWEEN 1 AND 256);
+
+    -- Recursos anteriores guardam a causa na última Operation da geração vigente.
+    DO $$
+    BEGIN
+      IF to_regclass('ipm.user_operation') IS NOT NULL THEN
+        UPDATE ipm.user AS resource
+           SET requested_by = operation.requested_by, correlation_id = operation.correlation_id
+          FROM (SELECT DISTINCT ON (resource_id) resource_id, requested_by, correlation_id
+                  FROM ipm.user_operation
+                 ORDER BY resource_id, created_at DESC) AS operation
+         WHERE operation.resource_id = resource.resource_id AND resource.requested_by IS NULL;
+      END IF;
+    END
+    $$;
+
+    -- Idempotência (`Idempotency-Key`): gravada na transação da admissão, só quando a escrita é aplicada.
+    CREATE TABLE IF NOT EXISTS ipm.user_idempotency (
+      requested_by    text        NOT NULL CHECK (length(requested_by) BETWEEN 1 AND 256),
+      idempotency_key text        NOT NULL CHECK (idempotency_key ~ '^[A-Za-z0-9._:-]{1,128}$'),
+      request_digest  text        NOT NULL CHECK (request_digest ~ '^[0-9a-f]{64}$'),
+      resource_id     text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      created_at      timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (requested_by, idempotency_key)
+    );
+    CREATE INDEX IF NOT EXISTS user_idempotency_retention
+      ON ipm.user_idempotency (created_at);
+
+    -- A view ganha `observed_generation` (no fim, como exige CREATE OR REPLACE VIEW).
+    CREATE OR REPLACE VIEW ipm.user_v1 AS
+      SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
+             resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at,
+             observed_generation
+        FROM ipm.user;
+
+    DROP VIEW IF EXISTS ipm.user_operation_v1;
+    DROP TABLE IF EXISTS ipm.user_operation;
+
+    -- Privilégios: o `api` lê (view), escreve o recurso (sem DELETE, decisão 0096), o outbox e a
+    -- idempotência. Os papéis antigos perdem tudo do tipo.
+    GRANT CONNECT ON DATABASE ssot TO ipm_user_api;
+    GRANT USAGE ON SCHEMA ipm TO ipm_user_api;
+
+    GRANT SELECT, INSERT, UPDATE ON ipm.user             TO ipm_user_api;
+    GRANT SELECT                 ON ipm.user_v1          TO ipm_user_api;
+    GRANT INSERT                 ON ipm.user_outbox      TO ipm_user_api;
+    GRANT SELECT, INSERT         ON ipm.user_idempotency TO ipm_user_api;
+
+    GRANT SELECT, DELETE ON ipm.user_idempotency TO ipm_maintenance;
+
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ipm_user_manager') THEN
+        REVOKE ALL ON ipm.user, ipm.user_v1, ipm.user_outbox
+          FROM ipm_user_manager;
+        REVOKE ALL ON SCHEMA ipm FROM ipm_user_manager;
+        REVOKE CONNECT ON DATABASE ssot FROM ipm_user_manager;
+      END IF;
+      IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ipm_user_receiver') THEN
+        REVOKE ALL ON ipm.user_v1 FROM ipm_user_receiver;
+        REVOKE ALL ON SCHEMA ipm FROM ipm_user_receiver;
+        REVOKE CONNECT ON DATABASE ssot FROM ipm_user_receiver;
+      END IF;
+    END
+    $$;

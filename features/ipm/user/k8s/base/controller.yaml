@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ipm-user-controller
+  namespace: ipm
+  labels:
+    app.kubernetes.io/name: ipm-user-controller
+    app.kubernetes.io/part-of: ipm-user
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ipm-user-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ipm-user-controller
+        app.kubernetes.io/part-of: ipm-user
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: controller
+          image: localhost:5001/smarkee-ipm-user:dev
+          imagePullPolicy: IfNotPresent
+          command: ["ipm-user-controller"]
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: SMARKEE_ENVIRONMENT
+              value: 'dev'
+            - name: SMARKEE_CONFIG_PATH
+              value: '/etc/smarkee/config.toml'
+            - name: IPM_USER_CONTROLLER_IDENTITY_PROJECT_ID
+              value: '395263163630616587'
+          volumeMounts:
+            - name: config
+              mountPath: /etc/smarkee/config.toml
+              subPath: config.toml
+              readOnly: true
+            - name: secrets
+              mountPath: /run/secrets
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 192Mi
+      volumes:
+        - name: config
+          configMap:
+            name: ipm-user-config
+        - name: secrets
+          secret:
+            secretName: ipm-user-controller-secrets

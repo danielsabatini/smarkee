@@ -166,9 +166,7 @@ async def test_creates_the_account_and_confirms_the_generation(
     assert (stored["phase"], stored["presence"], stored["failure_count"]) == ("Ready", "present", 0)
     assert stored["observed_generation"] == stored["desired_generation"]
     sent = (await outbox(outbox_reader, resource_id))[len(before) :]
-    assert [item["subject"] for item in sent] == [
-        f"updated.core.account.{resource_id}"
-    ]
+    assert [item["subject"] for item in sent] == [f"updated.core.account.{resource_id}"]
     data = sent[0]["payload"]["data"]
     assert (data["phase"], data["resourceVersion"]) == ("Ready", str(stored["resource_version"]))
     assert data["observedGeneration"] == data["desiredGeneration"]

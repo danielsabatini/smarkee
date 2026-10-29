@@ -1,7 +1,7 @@
 """Falhas de componentes durante o loop (resiliência; opt-in).
 
-Derrubam contêineres reais com o `docker` e por isso só rodam com `E2E_CHAOS=1`. Cada teste
-restaura o componente ao final, mesmo em caso de falha.
+Derrubam Deployments reais no Kubernetes com `kubectl` e por isso só rodam com `E2E_CHAOS=1`. Cada
+teste restaura o componente ao final, mesmo em caso de falha.
 """
 
 import os
@@ -15,24 +15,57 @@ import pytest
 from test_loop import COLLECTION, READY_SECONDS, converged, resource_where
 
 pytestmark = pytest.mark.skipif(
-    os.environ.get("E2E_CHAOS") != "1", reason="defina E2E_CHAOS=1 para derrubar contêineres"
+    os.environ.get("E2E_CHAOS") != "1", reason="defina E2E_CHAOS=1 para derrubar componentes"
 )
 
 CONVERGENCE_TIMEOUT_SECONDS = READY_SECONDS + 30.0
 
 
-def docker(*arguments: str) -> None:
-    subprocess.run(["docker", *arguments], check=True, capture_output=True, timeout=60)  # noqa: S603, S607
+def kubectl(*arguments: str) -> None:
+    subprocess.run(["kubectl", *arguments], check=True, capture_output=True, timeout=60)  # noqa: S603, S607
 
 
 @contextmanager
 def component_down(component: str) -> Generator[None]:
-    container = f"ipm-permission-{component}.smarkee.internal"
-    docker("stop", container)
+    deployment = f"ipm-permission-{component}"
+    for app in ("smarkee-features-root", "feature-ipm-permission"):
+        kubectl(
+            "-n",
+            "gitops-operator",
+            "patch",
+            "application",
+            app,
+            "--type=merge",
+            "-p",
+            '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":false}}}}',
+        )
     try:
+        kubectl("-n", "ipm", "scale", f"deployment/{deployment}", "--replicas=0")
+        kubectl(
+            "-n",
+            "ipm",
+            "wait",
+            "--for=delete",
+            "pod",
+            "-l",
+            f"app.kubernetes.io/name={deployment}",
+            "--timeout=60s",
+        )
         yield
     finally:
-        docker("start", container)
+        kubectl("-n", "ipm", "scale", f"deployment/{deployment}", "--replicas=1")
+        for app in ("feature-ipm-permission", "smarkee-features-root"):
+            kubectl(
+                "-n",
+                "argocd",
+                "patch",
+                "application",
+                app,
+                "--type=merge",
+                "-p",
+                '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}',
+            )
+        kubectl("-n", "ipm", "rollout", "status", f"deployment/{deployment}", "--timeout=60s")
 
 
 async def create_requested(

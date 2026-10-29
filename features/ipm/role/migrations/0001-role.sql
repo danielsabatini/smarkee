@@ -340,19 +340,14 @@ ON CONFLICT (message_id) DO NOTHING;
 
 -- Privilégios (docs/data/POSTGRESQL.md §14.2).
 GRANT CONNECT ON DATABASE ssot
-  TO ipm_role_manager, ipm_role_receiver, ipm_role_publisher, ipm_maintenance;
+  TO ipm_role_publisher, ipm_maintenance;
 
 REVOKE ALL ON SCHEMA ipm FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA ipm FROM PUBLIC;
 GRANT USAGE ON SCHEMA ipm
-  TO ipm_role_manager, ipm_role_receiver, ipm_role_publisher, ipm_maintenance;
+  TO ipm_role_publisher, ipm_maintenance;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON ipm.role               TO ipm_role_manager;
-GRANT SELECT, INSERT, UPDATE         ON ipm.role_operation     TO ipm_role_manager;
-GRANT SELECT, INSERT                 ON ipm.role_action_result TO ipm_role_manager;
-GRANT INSERT                         ON ipm.role_outbox        TO ipm_role_manager;
 
-GRANT SELECT ON ipm.role_v1, ipm.role_operation_v1 TO ipm_role_receiver;
 
 GRANT SELECT ON ipm.role_outbox TO ipm_role_publisher;
 GRANT UPDATE (published_at) ON ipm.role_outbox TO ipm_role_publisher;

@@ -1,0 +1,370 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sum-service-config
+  namespace: sum
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/part-of: sum-service
+data:
+  config.toml: |
+    # Configuração de dev de sum.service (decisão 0067). Sem segredos: eles vêm do ambiente ou de /run/secrets.
+    # Tabela por papel: [tool.sum.service.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
+
+    [tool.sum.service.api.auth]
+    host_header = "ipm-dev.smarkee.com.br:8080"
+    issuer = "http://ipm-dev.smarkee.com.br:8080"
+    jwks_url = "http://gateway.gateway.svc.cluster.local:8000/oauth/v2/keys"
+
+    [tool.sum.service.api.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "sum_service_api_login"
+
+    [tool.sum.service.api.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+
+    [tool.sum.service.publisher.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "sum_service_publisher_login"
+
+    [tool.sum.service.publisher.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+
+    [tool.sum.service.controller.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "sum_service_controller_login"
+
+    [tool.sum.service.controller.identity]
+    base_url = "http://identity.identity.svc.cluster.local:8080"
+    host_header = "ipm-dev.smarkee.com.br:8080"
+    issuer = "http://ipm-dev.smarkee.com.br:8080"
+
+    [tool.sum.service.controller.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sum-service-migrations
+  namespace: sum
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/part-of: sum-service
+data:
+  0001-service.sql: |
+    -- Migração 0001 de sum."service": ligação de um serviço por usuário no SSOT (decisão 0033).
+    -- Projeto: sum-service-manager (decisão 0015), dono do esquema do tipo.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
+    -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/sum.sql.
+    -- Idempotente: pode ser reaplicada sem erro.
+
+    CREATE SCHEMA IF NOT EXISTS sum;
+
+    -- Uma linha por ligação. A ligação ativa é única por usuário e serviço: o índice parcial impede
+    -- duas ligações `present` para o mesmo par, mesmo com dois pedidos concorrentes (decisão 0033).
+    -- As ligações desfeitas (`absent`) continuam existindo, e a nova ligação cria outra linha.
+    CREATE TABLE IF NOT EXISTS sum.service (
+      resource_id        text        PRIMARY KEY
+                         CHECK (resource_id ~ '^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$'),
+      schema_version     text        NOT NULL CHECK (schema_version ~ '^[0-9]+\.[0-9]+$'),
+      owner_account_id      text        NOT NULL
+                         CHECK (owner_account_id ~ '^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$'),
+      service            text        NOT NULL CHECK (service ~ '^[a-z][a-z0-9]*$' AND length(service) BETWEEN 2 AND 32),
+      lifecycle          text        NOT NULL CHECK (lifecycle IN ('present', 'absent')),
+      reconciliation     text        NOT NULL DEFAULT 'active' CHECK (reconciliation IN ('active', 'suspended')),
+      desired            jsonb       NOT NULL
+                         CHECK (jsonb_typeof(desired) = 'object' AND pg_column_size(desired) <= 262144),
+      desired_generation bigint      NOT NULL CHECK (desired_generation >= 1),
+      resource_version   bigint      NOT NULL DEFAULT 1,
+      observed           jsonb
+                         CHECK (observed IS NULL OR (jsonb_typeof(observed) = 'object' AND pg_column_size(observed) <= 262144)),
+      presence           text        CHECK (presence IN ('present', 'absent', 'unknown')),
+      observed_at        timestamptz,
+      phase              text        NOT NULL CHECK (phase IN ('Pending', 'Reconciling', 'Ready', 'Failed', 'Deleting')),
+      conditions         jsonb       NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(conditions) = 'array'),
+      failure_count      integer     NOT NULL DEFAULT 0 CHECK (failure_count >= 0),
+      created_at         timestamptz NOT NULL DEFAULT now(),
+      updated_at         timestamptz NOT NULL DEFAULT now(),
+      CHECK ((presence IS NULL) = (observed_at IS NULL)),
+      CHECK (lifecycle = 'present' OR jsonb_array_length(desired -> 'servicePermissions') = 0)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS service_active_link
+      ON sum.service (owner_account_id, service)
+      WHERE lifecycle = 'present';
+
+    CREATE TABLE IF NOT EXISTS sum.service_operation (
+      operation_id            text        PRIMARY KEY CHECK (length(operation_id) BETWEEN 1 AND 128),
+      resource_id             text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      operation_type          text        NOT NULL CHECK (operation_type IN ('create', 'delete')),
+      desired_generation      bigint      CHECK (desired_generation >= 1),
+      requested_by            text        NOT NULL CHECK (length(requested_by) BETWEEN 1 AND 256),
+      correlation_id          text        NOT NULL CHECK (length(correlation_id) BETWEEN 1 AND 256),
+      request_digest          text        NOT NULL CHECK (request_digest ~ '^[0-9a-f]{64}$'),
+      operation_status        text        NOT NULL
+                              CHECK (operation_status IN ('accepted', 'in_progress', 'completed', 'failed', 'rejected')),
+      operation_status_reason text        CHECK (operation_status_reason IN ('conflict', 'validation', 'not_found', 'already_exists', 'service_unavailable')),
+      created_at              timestamptz NOT NULL DEFAULT now(),
+      updated_at              timestamptz NOT NULL DEFAULT now(),
+      completed_at            timestamptz,
+      CHECK ((operation_status = 'rejected') = (operation_status_reason IS NOT NULL)),
+      CHECK ((operation_status = 'rejected') = (desired_generation IS NULL))
+    );
+    CREATE INDEX IF NOT EXISTS service_operation_resource
+      ON sum.service_operation (resource_id, created_at);
+    CREATE INDEX IF NOT EXISTS service_operation_retention
+      ON sum.service_operation (updated_at)
+      WHERE operation_status IN ('completed', 'failed', 'rejected');
+
+    CREATE TABLE IF NOT EXISTS sum.service_action_result (
+      action_id          text        PRIMARY KEY CHECK (length(action_id) BETWEEN 1 AND 512),
+      resource_id        text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      desired_generation bigint      NOT NULL CHECK (desired_generation >= 1),
+      action_outcome     text        NOT NULL CHECK (action_outcome IN ('completed', 'failed')),
+      recorded_at        timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS service_action_result_recorded
+      ON sum.service_action_result (recorded_at);
+
+    CREATE TABLE IF NOT EXISTS sum.service_outbox (
+      sequence     bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      message_id   text        NOT NULL UNIQUE CHECK (length(message_id) BETWEEN 1 AND 128),
+      resource_id  text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      subject      text        NOT NULL CHECK (length(subject) BETWEEN 1 AND 512),
+      payload      jsonb       NOT NULL CHECK (pg_column_size(payload) <= 262144),
+      created_at   timestamptz NOT NULL DEFAULT now(),
+      published_at timestamptz
+    );
+    CREATE INDEX IF NOT EXISTS service_outbox_pending
+      ON sum.service_outbox (sequence) WHERE published_at IS NULL;
+    CREATE INDEX IF NOT EXISTS service_outbox_published
+      ON sum.service_outbox (published_at) WHERE published_at IS NOT NULL;
+
+    -- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count.
+    -- DROP VIEW prévio permite reaplicar a migração mesmo após a 0009 adicionar observed_generation.
+    DROP VIEW IF EXISTS sum.service_v1;
+    CREATE VIEW sum.service_v1 AS
+      SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
+             resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
+        FROM sum.service;
+
+    -- `requested_by` aparece só na view da Operation, para o Receiver autorizar a leitura.
+    CREATE OR REPLACE VIEW sum.service_operation_v1 AS
+      SELECT operation_id, resource_id, operation_type, desired_generation, request_digest,
+             operation_status, operation_status_reason, created_at, updated_at, completed_at,
+             requested_by
+        FROM sum.service_operation;
+
+    -- Privilégios (docs/data/POSTGRESQL.md §14.2).
+    -- Os papéis `..._manager` e `..._receiver` não existem mais (decisão 0098): os privilégios do
+    -- `api` e do `controller` vêm da migração 0009.
+    GRANT CONNECT ON DATABASE ssot
+      TO sum_service_publisher, sum_service_maintenance;
+
+    REVOKE ALL ON SCHEMA sum FROM PUBLIC;
+    GRANT USAGE ON SCHEMA sum
+      TO sum_service_publisher, sum_service_maintenance;
+
+    REVOKE ALL ON sum.service, sum.service_operation, sum.service_action_result, sum.service_outbox FROM PUBLIC;
+
+    GRANT SELECT ON sum.service_outbox TO sum_service_publisher;
+    GRANT UPDATE (published_at) ON sum.service_outbox TO sum_service_publisher;
+  0002-service-rejected-create-without-resource.sql: |
+    -- Migração 0002 de sum."service": uma recusa de criação não tem recurso, então `resource_id` da
+    -- Operation passa a aceitar nulo (decisão 0033). Só afrouxa a restrição: as linhas existentes não mudam.
+    -- Idempotente: soltar uma restrição que já não existe não falha.
+
+    ALTER TABLE sum.service_operation ALTER COLUMN resource_id DROP NOT NULL;
+  0003-service-operation-resource-required.sql: |
+    -- Migração 0003 de sum."service": a Operation sempre tem o `resourceId`. O Receiver atribui o id ao
+    -- recurso novo antes de publicar o pedido, e a recusa de criação grava esse mesmo id: o cliente já o
+    -- recebeu no `202` e precisa dele para consultar a Operation (`docs/loop/RESOURCE-CONTROL-LOOP.md`, §6.1.1).
+    -- Desfaz a relaxação da 0002, que partia da premissa errada. Não há linhas com `resource_id` nulo
+    -- (a 0002 nunca gravou nulo em produção; o dev foi limpo antes desta migração).
+    -- Idempotente: definir NOT NULL numa coluna que já é NOT NULL não falha.
+
+    ALTER TABLE sum.service_operation ALTER COLUMN resource_id SET NOT NULL;
+  0004-service-outbox-traceparent.sql: |
+    -- Migração 0004 de sum.service: contexto de trace no outbox (decisão 0055).
+    -- Aditiva e idempotente. O `traceparent` W3C (versão 00) da requisição ou da mensagem que originou a
+    -- linha fica ao lado da mensagem, e não dentro do envelope: o Publisher o repassa como header NATS.
+    -- Nulo quando a origem não trouxe contexto (por exemplo, o ciclo de observação).
+
+    ALTER TABLE sum.service_outbox
+      ADD COLUMN IF NOT EXISTS traceparent text
+      CHECK (traceparent ~ '^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$');
+  0005-service-operation-update.sql: |
+    -- Migração 0005 de sum."service": a Operation `update`, do rollout do catálogo (decisão 0079).
+    -- Quando o catálogo de um serviço muda, o Manager grava uma geração nova nas ligações afetadas, com
+    -- uma Operation `update` do sistema, e o loop aplica a mudança (como o rollout do Kubernetes).
+    -- Aditiva e idempotente: só acrescenta um valor permitido.
+
+    ALTER TABLE sum.service_operation
+      DROP CONSTRAINT IF EXISTS service_operation_operation_type_check;
+    ALTER TABLE sum.service_operation
+      ADD CONSTRAINT service_operation_operation_type_check
+      CHECK (operation_type IN ('create', 'update', 'delete'));
+  0006-service-observed-generation.sql: |
+    -- Migração 0006 de sum."service": geração confirmada pela observação (decisões 0072 e 0080).
+    -- Aditiva e idempotente (expandir, `docs/data/POSTGRESQL.md` §15). `observed_generation` é a última
+    -- geração cuja convergência o Manager confirmou com uma observação feita depois dela, como o
+    -- `status.observedGeneration` do Kubernetes: nula até a primeira confirmação, só cresce e nunca
+    -- passa de `desired_generation`.
+
+    ALTER TABLE sum.service
+      ADD COLUMN IF NOT EXISTS observed_generation bigint;
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conname = 'service_observed_generation_check'
+           AND conrelid = 'sum.service'::regclass
+      ) THEN
+        ALTER TABLE sum.service
+          ADD CONSTRAINT service_observed_generation_check
+          CHECK (observed_generation IS NULL
+                 OR (observed_generation >= 1 AND observed_generation <= desired_generation));
+      END IF;
+    END
+    $$;
+
+    -- Registros existentes: a fase `Ready` só era gravada com a geração vigente convergida.
+    UPDATE sum.service
+       SET observed_generation = desired_generation
+     WHERE observed_generation IS NULL AND phase = 'Ready';
+  0007-service-permissions.sql: |
+    -- Migração 0007 de sum."service": renomeia `serviceRoles`/`managedRoles` para `servicePermissions`/`managedPermissions` (decisão 0083).
+    -- Idempotente: pode ser reaplicada sem erro.
+
+    ALTER TABLE sum.service
+      DROP CONSTRAINT IF EXISTS service_check1;
+
+    UPDATE sum.service
+       SET desired = jsonb_set(desired - 'serviceRoles', '{servicePermissions}', desired -> 'serviceRoles')
+     WHERE desired ? 'serviceRoles'
+       AND NOT (desired ? 'servicePermissions');
+
+    UPDATE sum.service
+       SET desired = jsonb_set(desired - 'managedRoles', '{managedPermissions}', desired -> 'managedRoles')
+     WHERE desired ? 'managedRoles'
+       AND NOT (desired ? 'managedPermissions');
+
+    UPDATE sum.service
+       SET observed = jsonb_set(observed - 'serviceRoles', '{servicePermissions}', observed -> 'serviceRoles')
+     WHERE observed IS NOT NULL
+       AND observed ? 'serviceRoles'
+       AND NOT (observed ? 'servicePermissions');
+
+    ALTER TABLE sum.service
+      ADD CONSTRAINT service_check1
+      CHECK (lifecycle = 'present' OR jsonb_array_length(desired -> 'servicePermissions') = 0);
+  0008-service-operation-superseded.sql: |
+    -- Migração de sum.service: novo estado de Operation `superseded` (decisão 0091).
+    -- Aditiva: a Operation de uma geração substituída por outra antes de convergir deixa de ser `failed`.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`. Idempotente.
+
+    ALTER TABLE sum.service_operation
+      DROP CONSTRAINT IF EXISTS service_operation_operation_status_check;
+    ALTER TABLE sum.service_operation
+      ADD CONSTRAINT service_operation_operation_status_check
+      CHECK (operation_status IN ('accepted', 'in_progress', 'completed', 'failed', 'rejected', 'superseded'));
+
+    DROP INDEX IF EXISTS sum.service_operation_retention;
+    CREATE INDEX service_operation_retention
+      ON sum.service_operation (updated_at)
+      WHERE operation_status IN ('completed', 'failed', 'rejected', 'superseded');
+  0009-service-api.sql: |
+    -- sum.service: API síncrona e Controller (decisões 0096 e 0098). A admissão passa a ser feita na
+    -- requisição pelo papel `sum_service_api`, que substitui `..._manager` e `..._receiver`; a
+    -- reconciliação passa ao papel `sum_service_controller`, que substitui Observer, Reconciler e
+    -- Executor.
+    -- Fim da Operation (tabela, view e privilégios) e do `service_action_result`; a causa da geração
+    -- (`requested_by` e `correlation_id`) passa a ser do próprio recurso; a idempotência do cliente
+    -- ganha tabela própria.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`, depois de `sum.sql` (que cria
+    -- os papéis `sum_service_api` e `sum_service_controller`). Idempotente: pode ser reaplicada.
+
+    ALTER TABLE sum.service
+      ADD COLUMN IF NOT EXISTS requested_by   text CHECK (length(requested_by) BETWEEN 1 AND 256),
+      ADD COLUMN IF NOT EXISTS correlation_id text CHECK (length(correlation_id) BETWEEN 1 AND 256);
+
+    -- Recursos anteriores guardam a causa na última Operation da geração vigente.
+    DO $$
+    BEGIN
+      IF to_regclass('sum.service_operation') IS NOT NULL THEN
+        UPDATE sum.service AS resource
+           SET requested_by = operation.requested_by, correlation_id = operation.correlation_id
+          FROM (SELECT DISTINCT ON (resource_id) resource_id, requested_by, correlation_id
+                  FROM sum.service_operation
+                 ORDER BY resource_id, created_at DESC) AS operation
+         WHERE operation.resource_id = resource.resource_id AND resource.requested_by IS NULL;
+      END IF;
+    END
+    $$;
+
+    -- Idempotência (`Idempotency-Key`): gravada na transação da admissão, só quando a escrita é aplicada.
+    CREATE TABLE IF NOT EXISTS sum.service_idempotency (
+      requested_by    text        NOT NULL CHECK (length(requested_by) BETWEEN 1 AND 256),
+      idempotency_key text        NOT NULL CHECK (idempotency_key ~ '^[A-Za-z0-9._:-]{1,128}$'),
+      request_digest  text        NOT NULL CHECK (request_digest ~ '^[0-9a-f]{64}$'),
+      resource_id     text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      created_at      timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (requested_by, idempotency_key)
+    );
+    CREATE INDEX IF NOT EXISTS service_idempotency_retention
+      ON sum.service_idempotency (created_at);
+
+    -- A view ganha `observed_generation` (no fim, como exige CREATE OR REPLACE VIEW).
+    CREATE OR REPLACE VIEW sum.service_v1 AS
+      SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
+             resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at,
+             observed_generation
+        FROM sum.service;
+
+    DROP VIEW IF EXISTS sum.service_operation_v1;
+    DROP TABLE IF EXISTS sum.service_operation;
+    DROP TABLE IF EXISTS sum.service_action_result;
+
+    -- Privilégios: o `api` lê (view), escreve o recurso (sem DELETE), o outbox e a idempotência. O
+    -- `controller` lê e atualiza o recurso, grava no outbox e remove as ligações de uma conta removida
+    -- (decisão 0044); o desligamento é `lifecycle = 'absent'` e não apaga a ligação (decisão 0033).
+    GRANT CONNECT ON DATABASE ssot TO sum_service_api, sum_service_controller;
+    GRANT USAGE ON SCHEMA sum TO sum_service_api, sum_service_controller;
+
+    GRANT SELECT, INSERT, UPDATE ON sum.service             TO sum_service_api;
+    GRANT SELECT                 ON sum.service_v1          TO sum_service_api;
+    GRANT INSERT                 ON sum.service_outbox      TO sum_service_api;
+    GRANT SELECT, INSERT         ON sum.service_idempotency TO sum_service_api;
+
+    GRANT SELECT, UPDATE, DELETE ON sum.service        TO sum_service_controller;
+    GRANT INSERT                 ON sum.service_outbox TO sum_service_controller;
+
+    GRANT SELECT, DELETE ON sum.service_idempotency TO sum_service_maintenance;
+
+    -- Os papéis antigos perdem tudo do tipo.
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'sum_service_manager') THEN
+        REVOKE ALL ON sum.service, sum.service_v1, sum.service_outbox FROM sum_service_manager;
+        REVOKE ALL ON SCHEMA sum FROM sum_service_manager;
+        REVOKE CONNECT ON DATABASE ssot FROM sum_service_manager;
+      END IF;
+      IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'sum_service_receiver') THEN
+        REVOKE ALL ON sum.service_v1 FROM sum_service_receiver;
+        REVOKE ALL ON SCHEMA sum FROM sum_service_receiver;
+        REVOKE CONNECT ON DATABASE ssot FROM sum_service_receiver;
+      END IF;
+    END
+    $$;

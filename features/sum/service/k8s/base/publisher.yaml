@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sum-service-publisher
+  namespace: sum
+  labels:
+    app.kubernetes.io/name: sum-service-publisher
+    app.kubernetes.io/part-of: sum-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sum-service-publisher
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sum-service-publisher
+        app.kubernetes.io/part-of: sum-service
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: publisher
+          image: localhost:5001/smarkee-sum-service:dev
+          imagePullPolicy: IfNotPresent
+          command: ["sum-service-publisher"]
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: SMARKEE_ENVIRONMENT
+              value: 'dev'
+            - name: SMARKEE_CONFIG_PATH
+              value: '/etc/smarkee/config.toml'
+          volumeMounts:
+            - name: config
+              mountPath: /etc/smarkee/config.toml
+              subPath: config.toml
+              readOnly: true
+            - name: secrets
+              mountPath: /run/secrets
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 192Mi
+      volumes:
+        - name: config
+          configMap:
+            name: sum-service-config
+        - name: secrets
+          secret:
+            secretName: sum-service-publisher-secrets

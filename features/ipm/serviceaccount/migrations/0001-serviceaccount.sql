@@ -98,18 +98,14 @@ CREATE OR REPLACE VIEW ipm.serviceaccount_operation_v1 AS
 
 -- Privilégios (docs/data/POSTGRESQL.md §14.2).
 GRANT CONNECT ON DATABASE ssot
-  TO ipm_serviceaccount_manager, ipm_serviceaccount_receiver, ipm_serviceaccount_publisher, ipm_maintenance;
+  TO ipm_serviceaccount_publisher, ipm_maintenance;
 
 REVOKE ALL ON SCHEMA ipm FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA ipm FROM PUBLIC;
 GRANT USAGE ON SCHEMA ipm
-  TO ipm_serviceaccount_manager, ipm_serviceaccount_receiver, ipm_serviceaccount_publisher, ipm_maintenance;
+  TO ipm_serviceaccount_publisher, ipm_maintenance;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON ipm.serviceaccount               TO ipm_serviceaccount_manager;
-GRANT SELECT, INSERT, UPDATE         ON ipm.serviceaccount_operation     TO ipm_serviceaccount_manager;
-GRANT INSERT                         ON ipm.serviceaccount_outbox        TO ipm_serviceaccount_manager;
 
-GRANT SELECT ON ipm.serviceaccount_v1, ipm.serviceaccount_operation_v1 TO ipm_serviceaccount_receiver;
 
 GRANT SELECT ON ipm.serviceaccount_outbox TO ipm_serviceaccount_publisher;
 GRANT UPDATE (published_at) ON ipm.serviceaccount_outbox TO ipm_serviceaccount_publisher;

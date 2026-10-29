@@ -1,0 +1,419 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: core-account-config
+  namespace: core
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/part-of: core-account
+data:
+  config.toml: |
+    # Configuração de dev de core.account (decisão 0067). Sem segredos: eles vêm do ambiente ou de /run/secrets.
+    # Tabela por papel: [tool.core.account.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
+
+    [tool.core.account.api.auth]
+    host_header = "ipm-dev.smarkee.com.br:8080"
+    issuer = "http://ipm-dev.smarkee.com.br:8080"
+    jwks_url = "http://gateway.gateway.svc.cluster.local:8000/oauth/v2/keys"
+
+    [tool.core.account.api.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "core_account_api_login"
+
+    [tool.core.account.api.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+
+    [tool.core.account.publisher.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "core_account_publisher_login"
+
+    [tool.core.account.publisher.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+
+    [tool.core.account.controller.database]
+    host = "database-rw.database.svc.cluster.local"
+    name = "ssot"
+    port = 5432
+    user = "core_account_controller_login"
+
+    [tool.core.account.controller.identity]
+    base_url = "http://identity.identity.svc.cluster.local:8080"
+    host_header = "ipm-dev.smarkee.com.br:8080"
+    issuer = "http://ipm-dev.smarkee.com.br:8080"
+
+    [tool.core.account.controller.messaging]
+    url = "nats://messaging.messaging.svc.cluster.local:4222"
+    user = "smarkee"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: core-account-migrations
+  namespace: core
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/part-of: core-account
+data:
+  0001-account.sql: |
+    -- Migração 0001 de core.account: Account no SSOT (docs/data/POSTGRESQL.md §6 e §14.2; decisão 0014).
+    -- Projeto: core-account-manager (decisão 0015), dono do esquema do tipo.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`; serviços de runtime não
+    -- executam DDL. Os papéis de função são criados por infrastructure/dev/database/bootstrap/core.sql.
+    -- (O tipo se chamava `user`, palavra reservada do PostgreSQL; `account` não precisa de aspas.)
+    -- Idempotente: pode ser reaplicada sem erro.
+
+    CREATE SCHEMA IF NOT EXISTS core;
+
+    CREATE TABLE IF NOT EXISTS core.account (
+      resource_id        text        PRIMARY KEY
+                         CHECK (resource_id ~ '^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$'),
+      schema_version     text        NOT NULL CHECK (schema_version ~ '^[0-9]+\.[0-9]+$'),
+      lifecycle          text        NOT NULL CHECK (lifecycle IN ('present', 'absent')),
+      reconciliation     text        NOT NULL DEFAULT 'active' CHECK (reconciliation IN ('active', 'suspended')),
+      desired            jsonb       NOT NULL
+                         CHECK (jsonb_typeof(desired) = 'object' AND pg_column_size(desired) <= 262144),
+      desired_generation bigint      NOT NULL CHECK (desired_generation >= 1),
+      resource_version   bigint      NOT NULL DEFAULT 1,
+      observed           jsonb
+                         CHECK (observed IS NULL OR (jsonb_typeof(observed) = 'object' AND pg_column_size(observed) <= 262144)),
+      presence           text        CHECK (presence IN ('present', 'absent', 'unknown')),
+      observed_at        timestamptz,
+      phase              text        NOT NULL CHECK (phase IN ('Pending', 'Reconciling', 'Ready', 'Failed', 'Deleting')),
+      conditions         jsonb       NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(conditions) = 'array'),
+      failure_count      integer     NOT NULL DEFAULT 0 CHECK (failure_count >= 0),
+      created_at         timestamptz NOT NULL DEFAULT now(),
+      updated_at         timestamptz NOT NULL DEFAULT now(),
+      CHECK ((presence IS NULL) = (observed_at IS NULL))
+    );
+
+    CREATE TABLE IF NOT EXISTS core.account_operation (
+      operation_id            text        PRIMARY KEY CHECK (length(operation_id) BETWEEN 1 AND 128),
+      resource_id             text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      operation_type          text        NOT NULL CHECK (operation_type IN ('create', 'update', 'delete')),
+      desired_generation      bigint      CHECK (desired_generation >= 1),
+      requested_by            text        NOT NULL CHECK (length(requested_by) BETWEEN 1 AND 256),
+      correlation_id          text        NOT NULL CHECK (length(correlation_id) BETWEEN 1 AND 256),
+      request_digest          text        NOT NULL CHECK (request_digest ~ '^[0-9a-f]{64}$'),
+      operation_status        text        NOT NULL
+                              CHECK (operation_status IN ('accepted', 'in_progress', 'completed', 'failed', 'rejected')),
+      operation_status_reason text        CHECK (operation_status_reason IN ('conflict', 'validation', 'not_found')),
+      created_at              timestamptz NOT NULL DEFAULT now(),
+      updated_at              timestamptz NOT NULL DEFAULT now(),
+      completed_at            timestamptz,
+      CHECK ((operation_status = 'rejected') = (operation_status_reason IS NOT NULL)),
+      CHECK ((operation_status = 'rejected') = (desired_generation IS NULL))
+    );
+    CREATE INDEX IF NOT EXISTS account_operation_resource
+      ON core.account_operation (resource_id, created_at);
+    CREATE INDEX IF NOT EXISTS account_operation_retention
+      ON core.account_operation (updated_at)
+      WHERE operation_status IN ('completed', 'failed', 'rejected');
+
+    CREATE TABLE IF NOT EXISTS core.account_action_result (
+      action_id          text        PRIMARY KEY CHECK (length(action_id) BETWEEN 1 AND 512),
+      resource_id        text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      desired_generation bigint      NOT NULL CHECK (desired_generation >= 1),
+      action_outcome     text        NOT NULL CHECK (action_outcome IN ('completed', 'failed')),
+      recorded_at        timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS account_action_result_recorded
+      ON core.account_action_result (recorded_at);
+
+    CREATE TABLE IF NOT EXISTS core.account_outbox (
+      sequence     bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      message_id   text        NOT NULL UNIQUE CHECK (length(message_id) BETWEEN 1 AND 128),
+      resource_id  text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      subject      text        NOT NULL CHECK (length(subject) BETWEEN 1 AND 512),
+      payload      jsonb       NOT NULL CHECK (pg_column_size(payload) <= 262144),
+      created_at   timestamptz NOT NULL DEFAULT now(),
+      published_at timestamptz
+    );
+    CREATE INDEX IF NOT EXISTS account_outbox_pending
+      ON core.account_outbox (sequence) WHERE published_at IS NULL;
+    CREATE INDEX IF NOT EXISTS account_outbox_published
+      ON core.account_outbox (published_at) WHERE published_at IS NOT NULL;
+
+    -- Índice de busca do Manager: a unicidade do e-mail é conferida na unidade atômica do pedido
+    -- (docs/data/SSOT.md §10.1).
+    CREATE INDEX IF NOT EXISTS account_email
+      ON core.account ((desired ->> 'email'));
+
+    -- Interface de leitura versionada do Receiver (decisão 0004): sem failure_count. `requested_by` aparece
+    -- só na view da Operation, para o Receiver autorizar a leitura (docs/data/POSTGRESQL.md §6.5).
+    -- DROP VIEW prévio permite reaplicar a migração mesmo após a 0011 adicionar observed_generation.
+    DROP VIEW IF EXISTS core.account_v1;
+    CREATE VIEW core.account_v1 AS
+      SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
+             resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at
+        FROM core.account;
+
+    CREATE OR REPLACE VIEW core.account_operation_v1 AS
+      SELECT operation_id, resource_id, operation_type, desired_generation, request_digest,
+             operation_status, operation_status_reason, created_at, updated_at, completed_at,
+             requested_by
+        FROM core.account_operation;
+
+    -- Privilégios (docs/data/POSTGRESQL.md §14.2).
+    -- Os papéis `..._manager` e `..._receiver` não existem mais (decisão 0098): os privilégios do
+    -- `api` e do `controller` vêm da migração 0011.
+    GRANT CONNECT ON DATABASE ssot
+      TO core_account_publisher, core_maintenance;
+
+    REVOKE ALL ON SCHEMA core FROM PUBLIC;
+    GRANT USAGE ON SCHEMA core
+      TO core_account_publisher, core_maintenance;
+
+    REVOKE ALL ON core.account, core.account_operation, core.account_action_result, core.account_outbox FROM PUBLIC;
+
+    GRANT SELECT ON core.account_outbox TO core_account_publisher;
+    GRANT UPDATE (published_at) ON core.account_outbox TO core_account_publisher;
+
+    GRANT SELECT, DELETE
+      ON core.account_outbox, core.account_action_result, core.account_operation
+      TO core_maintenance;
+  0002-account-platform-roles.sql: |
+    -- Migração 0002 de core.account: `desired.platformRoles` (decisão 0025).
+    -- Projeto: core-account-manager. Executada pela infraestrutura como o dono `ssot`.
+    -- Preenche, nas linhas criadas antes da decisão 0025, o conjunto de roles que o usuário
+    -- cadastrado já recebia (`platformAccess = granted`); `revoked` fica com a lista vazia.
+    -- Só o jsonb muda: sem coluna nova, sem nova geração. Idempotente: não altera linha que já tem o campo.
+
+    UPDATE core.account
+       SET desired = desired || jsonb_build_object(
+             'platformRoles',
+             CASE desired ->> 'platformAccess'
+               WHEN 'granted' THEN '["organization.create", "organization.delete", "organization.get", "organization.list", "organization.update", "account.delete", "account.get"]'::jsonb
+               ELSE '[]'::jsonb
+             END)
+     WHERE NOT desired ? 'platformRoles'
+       AND NOT desired ? 'platformPermissions';
+  0003-account-platform-roles-names.sql: |
+    -- Migração 0003 de core.account: nomes das roles em `desired.platformRoles` (decisão 0028).
+    -- Projeto: core-account-manager. Executada pela infraestrutura como o dono `ssot`.
+    -- Troca `organization.*` por `ipm.organization.*` e `account.*` por `core.account.*`. Só o jsonb muda: sem
+    -- nova geração. Idempotente: os nomes novos não casam com os antigos, então a reaplicação não altera nada.
+
+    UPDATE core.account
+       SET desired = jsonb_set(
+             desired,
+             '{platformRoles}',
+             (SELECT COALESCE(jsonb_agg(renamed ORDER BY renamed), '[]'::jsonb)
+                FROM (SELECT CASE
+                               WHEN role ~ '^organization\.' THEN 'ipm.' || role
+                               WHEN role ~ '^account\.'         THEN 'core.' || role
+                               ELSE role
+                             END AS renamed
+                        FROM jsonb_array_elements_text(desired -> 'platformRoles') AS role) AS roles))
+     WHERE desired ? 'platformRoles'
+       AND EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(desired -> 'platformRoles') AS role
+              WHERE role ~ '^(organization|account)\.');
+  0004-account-platform-roles-core-only.sql: |
+    -- Migração 0004 de core.account: o cadastro passa a conceder só roles do módulo `core` (decisão 0032).
+    -- Projeto: core-account-manager. Executada pela infraestrutura como o dono `ssot`.
+    -- Remove de `desired.platformRoles` as roles que não são de `core` (as de `ipm.organization.*`
+    -- deixaram de ser concedidas no cadastro e saíram do projeto `roles-core`). Só o jsonb muda: sem nova
+    -- geração. Idempotente: depois da primeira execução nenhuma linha tem role fora de `core`.
+    -- Atenção: o `desired` já publicado no NATS não é reemitido; usuários existentes antes desta
+    -- migração devem ser recriados (não há usuários de produção).
+
+    UPDATE core.account
+       SET desired = jsonb_set(
+             desired,
+             '{platformRoles}',
+             (SELECT COALESCE(jsonb_agg(role ORDER BY role), '[]'::jsonb)
+                FROM jsonb_array_elements_text(desired -> 'platformRoles') AS role
+               WHERE role ~ '^core\.'))
+     WHERE desired ? 'platformRoles'
+       AND EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(desired -> 'platformRoles') AS role
+              WHERE role !~ '^core\.');
+  0005-account-platform-roles-sum.sql: |
+    -- Migração 0005 de core.account: o cadastro passa a conceder as roles base do SUM (decisão 0033).
+    -- Projeto: core-account-manager. Executada pela infraestrutura como o dono `ssot`.
+    -- Acrescenta a `desired.platformRoles` de quem tem acesso concedido (`platformAccess = granted`) as
+    -- roles que permitem pedir a ligação de um serviço: `sum.ipm.disable`, `sum.ipm.enable` e
+    -- `sum.ipm.get`. Só o jsonb muda: sem nova geração. Idempotente: a união não repete role.
+    -- Atenção: o `desired` já publicado no NATS não é reemitido; usuários existentes antes desta
+    -- migração devem ser recriados (não há usuários de produção).
+
+    UPDATE core.account
+       SET desired = jsonb_set(
+             desired,
+             '{platformRoles}',
+             (SELECT jsonb_agg(role ORDER BY role)
+                FROM (SELECT jsonb_array_elements_text(desired -> 'platformRoles') AS role
+                      UNION
+                      SELECT unnest(ARRAY['sum.ipm.disable', 'sum.ipm.enable', 'sum.ipm.get'])) AS roles))
+     WHERE desired ->> 'platformAccess' = 'granted'
+       AND desired ? 'platformRoles'
+       AND NOT (desired -> 'platformRoles' ?& ARRAY['sum.ipm.disable', 'sum.ipm.enable', 'sum.ipm.get']);
+  0006-account-rejection-protected.sql: |
+    -- Migração 0006 de core.account: novo motivo de rejeição `protected` (decisão 0043).
+    -- Aditiva: a Operation rejeitada pela proteção contra exclusão guarda `protected` como motivo.
+    -- Idempotente: pode ser reaplicada sem erro.
+
+    ALTER TABLE core.account_operation
+      DROP CONSTRAINT IF EXISTS account_operation_operation_status_reason_check;
+    ALTER TABLE core.account_operation
+      ADD CONSTRAINT account_operation_operation_status_reason_check
+      CHECK (operation_status_reason IN ('conflict', 'validation', 'not_found', 'protected'));
+  0007-account-outbox-traceparent.sql: |
+    -- Migração 0007 de core.account: contexto de trace no outbox (decisão 0055).
+    -- Aditiva e idempotente. O `traceparent` W3C (versão 00) da requisição ou da mensagem que originou a
+    -- linha fica ao lado da mensagem, e não dentro do envelope: o Publisher o repassa como header NATS.
+    -- Nulo quando a origem não trouxe contexto (por exemplo, o ciclo de observação).
+
+    ALTER TABLE core.account_outbox
+      ADD COLUMN IF NOT EXISTS traceparent text
+      CHECK (traceparent ~ '^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$');
+  0008-account-observed-generation.sql: |
+    -- Migração 0008 de core.account: geração confirmada pela observação (decisão 0072).
+    -- Aditiva e idempotente (expandir, `docs/data/POSTGRESQL.md` §15). `observed_generation` é a última
+    -- geração cuja convergência o Manager confirmou com uma observação feita depois dela, como o
+    -- `status.observedGeneration` do Kubernetes: nula até a primeira confirmação, só cresce e nunca
+    -- passa de `desired_generation`.
+
+    ALTER TABLE core.account
+      ADD COLUMN IF NOT EXISTS observed_generation bigint;
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conname = 'account_observed_generation_check'
+           AND conrelid = 'core.account'::regclass
+      ) THEN
+        ALTER TABLE core.account
+          ADD CONSTRAINT account_observed_generation_check
+          CHECK (observed_generation IS NULL
+                 OR (observed_generation >= 1 AND observed_generation <= desired_generation));
+      END IF;
+    END
+    $$;
+
+    -- Registros existentes: a fase `Ready` só era gravada com a geração vigente convergida.
+    UPDATE core.account
+       SET observed_generation = desired_generation
+     WHERE observed_generation IS NULL AND phase = 'Ready';
+  0009-account-platform-permissions.sql: |
+    -- Migração 0009 de core.account: renomeia `platformRoles` para `platformPermissions` em `desired` e
+    -- `observed` (docs/identity/PERMISSION.md).
+    -- Projeto: core-account-manager. Executada pela infraestrutura como o dono `ssot`.
+    -- Só o jsonb muda: sem coluna nova, sem nova geração. Idempotente: não altera linhas já migradas.
+
+    UPDATE core.account
+       SET desired = (desired - 'platformRoles') || jsonb_build_object('platformPermissions', desired -> 'platformRoles')
+     WHERE desired ? 'platformRoles';
+
+    UPDATE core.account
+       SET observed = (observed - 'platformRoles') || jsonb_build_object('platformPermissions', observed -> 'platformRoles')
+     WHERE observed IS NOT NULL
+       AND observed ? 'platformRoles';
+  0010-account-operation-superseded.sql: |
+    -- Migração de core.account: novo estado de Operation `superseded` (decisão 0091).
+    -- Aditiva: a Operation de uma geração substituída por outra antes de convergir deixa de ser `failed`.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`. Idempotente.
+
+    ALTER TABLE core.account_operation
+      DROP CONSTRAINT IF EXISTS account_operation_operation_status_check;
+    ALTER TABLE core.account_operation
+      ADD CONSTRAINT account_operation_operation_status_check
+      CHECK (operation_status IN ('accepted', 'in_progress', 'completed', 'failed', 'rejected', 'superseded'));
+
+    DROP INDEX IF EXISTS core.account_operation_retention;
+    CREATE INDEX account_operation_retention
+      ON core.account_operation (updated_at)
+      WHERE operation_status IN ('completed', 'failed', 'rejected', 'superseded');
+  0011-account-api.sql: |
+    -- core.account: API síncrona e Controller (decisões 0096 e 0098). A admissão passa a ser feita na
+    -- requisição pelo papel `core_account_api`, que substitui `..._manager` e `..._receiver`; a
+    -- reconciliação passa ao papel `core_account_controller`, que substitui Observer, Reconciler e
+    -- Executor.
+    -- Fim da Operation (tabela, view e privilégios) e do `account_action_result`; a causa da geração
+    -- (`requested_by` e `correlation_id`) passa a ser do próprio recurso; a idempotência do cliente
+    -- ganha tabela própria.
+    -- Executada pela infraestrutura como o dono `ssot`, no banco `ssot`, depois de `core.sql` (que cria
+    -- os papéis `core_account_api` e `core_account_controller`). Idempotente: pode ser reaplicada.
+
+    ALTER TABLE core.account
+      ADD COLUMN IF NOT EXISTS requested_by   text CHECK (length(requested_by) BETWEEN 1 AND 256),
+      ADD COLUMN IF NOT EXISTS correlation_id text CHECK (length(correlation_id) BETWEEN 1 AND 256);
+
+    -- Recursos anteriores guardam a causa na última Operation da geração vigente.
+    DO $$
+    BEGIN
+      IF to_regclass('core.account_operation') IS NOT NULL THEN
+        UPDATE core.account AS resource
+           SET requested_by = operation.requested_by, correlation_id = operation.correlation_id
+          FROM (SELECT DISTINCT ON (resource_id) resource_id, requested_by, correlation_id
+                  FROM core.account_operation
+                 ORDER BY resource_id, created_at DESC) AS operation
+         WHERE operation.resource_id = resource.resource_id AND resource.requested_by IS NULL;
+      END IF;
+    END
+    $$;
+
+    -- Idempotência (`Idempotency-Key`): gravada na transação da admissão, só quando a escrita é aplicada.
+    -- O auto-cadastro anônimo não usa chave.
+    CREATE TABLE IF NOT EXISTS core.account_idempotency (
+      requested_by    text        NOT NULL CHECK (length(requested_by) BETWEEN 1 AND 256),
+      idempotency_key text        NOT NULL CHECK (idempotency_key ~ '^[A-Za-z0-9._:-]{1,128}$'),
+      request_digest  text        NOT NULL CHECK (request_digest ~ '^[0-9a-f]{64}$'),
+      resource_id     text        NOT NULL CHECK (length(resource_id) BETWEEN 1 AND 128),
+      created_at      timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (requested_by, idempotency_key)
+    );
+    CREATE INDEX IF NOT EXISTS account_idempotency_retention
+      ON core.account_idempotency (created_at);
+
+    -- A view ganha `observed_generation` (no fim, como exige CREATE OR REPLACE VIEW).
+    CREATE OR REPLACE VIEW core.account_v1 AS
+      SELECT resource_id, schema_version, lifecycle, reconciliation, desired, desired_generation,
+             resource_version, observed, presence, observed_at, phase, conditions, created_at, updated_at,
+             observed_generation
+        FROM core.account;
+
+    DROP VIEW IF EXISTS core.account_operation_v1;
+    DROP TABLE IF EXISTS core.account_operation;
+    DROP TABLE IF EXISTS core.account_action_result;
+
+    -- Privilégios: o `api` lê (view), escreve o recurso (sem DELETE: quem remove é o Controller, ao
+    -- convergir), o outbox e a idempotência. O `controller` lê e atualiza o recurso, remove-o ao
+    -- convergir a exclusão e grava no outbox; não cria nem altera o `desired` de um pedido.
+    GRANT CONNECT ON DATABASE ssot TO core_account_api, core_account_controller;
+    GRANT USAGE ON SCHEMA core TO core_account_api, core_account_controller;
+
+    GRANT SELECT, INSERT, UPDATE ON core.account             TO core_account_api;
+    GRANT SELECT                 ON core.account_v1          TO core_account_api;
+    GRANT INSERT                 ON core.account_outbox      TO core_account_api;
+    GRANT SELECT, INSERT         ON core.account_idempotency TO core_account_api;
+
+    GRANT SELECT, UPDATE, DELETE ON core.account        TO core_account_controller;
+    GRANT INSERT                 ON core.account_outbox TO core_account_controller;
+
+    GRANT SELECT, DELETE ON core.account_idempotency TO core_maintenance;
+
+    -- Os papéis antigos perdem tudo do tipo.
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'core_account_manager') THEN
+        REVOKE ALL ON core.account, core.account_v1, core.account_outbox FROM core_account_manager;
+        REVOKE ALL ON SCHEMA core FROM core_account_manager;
+        REVOKE CONNECT ON DATABASE ssot FROM core_account_manager;
+      END IF;
+      IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'core_account_receiver') THEN
+        REVOKE ALL ON core.account_v1 FROM core_account_receiver;
+        REVOKE ALL ON SCHEMA core FROM core_account_receiver;
+        REVOKE CONNECT ON DATABASE ssot FROM core_account_receiver;
+      END IF;
+    END
+    $$;

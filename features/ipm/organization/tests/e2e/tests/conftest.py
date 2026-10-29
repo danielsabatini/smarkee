@@ -74,9 +74,7 @@ async def remove_through_the_loop(jetstream: JetStreamContext, resource_id: str)
     """Pede a remoção e espera o `updated` com `removed`. Sem `Ready` ou sem tempo, desiste."""
     subject = f"updated.ipm.organization.{resource_id}"
     try:  # a organização nunca chegou a ser aceita (por exemplo, nome duplicado): nada a remover
-        await jetstream.get_last_msg(
-            "DESIRED", f"desired.ipm.organization.{resource_id}"
-        )
+        await jetstream.get_last_msg("DESIRED", f"desired.ipm.organization.{resource_id}")
     except Exception:
         return
     # Espera o loop convergir (Ready) antes de pedir a remoção; sem isso, o Controller poderia

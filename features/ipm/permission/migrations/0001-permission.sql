@@ -285,19 +285,14 @@ ON CONFLICT (message_id) DO NOTHING;
 
 -- Privilégios (docs/data/POSTGRESQL.md §14.2).
 GRANT CONNECT ON DATABASE ssot
-  TO ipm_permission_manager, ipm_permission_receiver, ipm_permission_publisher, ipm_maintenance;
+  TO ipm_permission_publisher, ipm_maintenance;
 
 REVOKE ALL ON SCHEMA ipm FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA ipm FROM PUBLIC;
 GRANT USAGE ON SCHEMA ipm
-  TO ipm_permission_manager, ipm_permission_receiver, ipm_permission_publisher, ipm_maintenance;
+  TO ipm_permission_publisher, ipm_maintenance;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON ipm.permission               TO ipm_permission_manager;
-GRANT SELECT, INSERT, UPDATE         ON ipm.permission_operation     TO ipm_permission_manager;
-GRANT SELECT, INSERT                 ON ipm.permission_action_result TO ipm_permission_manager;
-GRANT INSERT                         ON ipm.permission_outbox        TO ipm_permission_manager;
 
-GRANT SELECT ON ipm.permission_v1, ipm.permission_operation_v1 TO ipm_permission_receiver;
 
 GRANT SELECT ON ipm.permission_outbox TO ipm_permission_publisher;
 GRANT UPDATE (published_at) ON ipm.permission_outbox TO ipm_permission_publisher;

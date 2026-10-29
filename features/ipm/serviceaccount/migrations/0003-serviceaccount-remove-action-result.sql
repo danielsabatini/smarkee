@@ -6,5 +6,11 @@
 
 DROP TABLE IF EXISTS ipm.serviceaccount_action_result;
 
-REVOKE DELETE ON ipm.serviceaccount FROM ipm_serviceaccount_manager;
-REVOKE UPDATE ON ipm.serviceaccount_operation FROM ipm_serviceaccount_manager;
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ipm_serviceaccount_manager') THEN
+    REVOKE DELETE ON ipm.serviceaccount FROM ipm_serviceaccount_manager;
+    REVOKE UPDATE ON ipm.serviceaccount_operation FROM ipm_serviceaccount_manager;
+  END IF;
+END
+$$;
