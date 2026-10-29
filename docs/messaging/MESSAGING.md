@@ -6,7 +6,7 @@ Este documento define o modelo semântico oficial para comunicação assíncrona
 
 O modelo é independente do mecanismo de transporte e deve permanecer válido mesmo quando a tecnologia de mensageria for substituída.
 
-A implementação de referência em NATS e NATS JetStream é definida separadamente em `NATS.md`.
+A implementação de referência em NATS e NATS JetStream é definida separadamente em `NATS.md` (decisão 0101).
 
 Este documento é a fonte de verdade para:
 
@@ -29,9 +29,8 @@ O objetivo é estabelecer um modelo consistente, explícito, idempotente e evolu
 
 O modelo deve:
 
-- representar estado desejado (`desired`) e estado observado (`observed`);
-- representar solicitações, ações e resultados quando semanticamente necessário;
-- permitir endereçamento lógico por emissor, módulo, recurso e operação;
+- representar estado desejado (`desired`) e fatos consolidados (`updated`);
+- permitir endereçamento lógico por tipo de mensagem, módulo e recurso;
 - permitir múltiplos consumidores independentes;
 - suportar diferentes padrões de entrega;
 - permitir implementação em diferentes mecanismos de mensageria;
@@ -59,22 +58,22 @@ NATS Stream
 
 Esses conceitos pertencem à implementação do transporte.
 
-## 3.2 Emissor explícito
+## 3.2 Emissor explícito no envelope
 
-A identidade semântica de uma mensagem começa pelo emissor.
+A identidade semântica de uma mensagem declara quem a produziu (`emitter` no envelope).
 
-O destinatário não faz parte da identidade semântica da mensagem.
+O destinatário não faz parte do endereço nem da identidade da mensagem.
 
 A distinção é deliberada:
 
 ```text
-emitter   = quem produziu a mensagem
-consumer  = quem possui interesse na mensagem
+emitter   = quem decidiu e produziu a mensagem (declarado no envelope)
+consumer  = quem possui interesse na mensagem (manifestado por subscription)
 ```
 
 O interesse do consumidor é expresso por subscription, consumer, grupo de consumidores, filtro, binding ou mecanismo equivalente do transporte.
 
-Exemplo:
+Exemplo de endereço (Subject):
 
 ```text
 desired.ipm.organization.<resourceId>
@@ -86,51 +85,28 @@ O subject não afirma que a mensagem é destinada exclusivamente a um determinad
 
 Cada mensagem deve declarar claramente **o que ela representa**.
 
-O modelo utiliza um vocabulário controlado de `messageType`:
+O modelo utiliza duas classes fundamentais de mensagens no transporte assíncrono (decisão 0101):
 
 ```text
-requested
 desired
-observed
-action
-completed
 updated
-failed
 ```
 
-O `messageType` não identifica a operação.
+- `desired`: o estado pretendido pelo sistema, admitido e persistido pela API (ou suspenso pelo Controller);
+- `updated`: o fato consolidado de convergência, alteração ou remoção confirmado pelo Controller.
 
-A operação é representada separadamente pelo último token do endereço:
+A observação da realidade e a execução de ações não são mensagens no barramento: ocorrem em um ciclo atômico local do Controller sob bloqueio do SSOT (`RESOURCE-CONTROL-LOOP.md` §3.3; decisão 0096).
 
-```text
-<messageType> ... <operation>
-```
+## 3.4 `desired` e fatos consolidados
 
-Exemplo:
+O modelo possui dois momentos semânticos fundamentais:
 
-```text
-reconciler.action.ipm.organization.<id>.create
-```
+- `desired`: intenção pretendida pela plataforma;
+- `updated`: confirmação de que o recurso foi convergido, alterado ou removido pelo controlador.
 
-onde:
+`desired` não é um comando imperativo. Ele expressa o que deve existir.
 
-```text
-action = tipo da mensagem
-create = operação associada
-```
-
-## 3.4 `desired` e `observed`
-
-O modelo possui dois tipos semânticos fundamentais:
-
-- `desired`: estado pretendido pelo sistema;
-- `observed`: estado efetivamente observado.
-
-`desired` não é um comando imperativo.
-
-`observed` não é uma confirmação de transporte nem simplesmente um log de execução.
-
-`observed` representa uma evidência factual sobre a realidade de um recurso.
+`updated` não é uma simples confirmação de transporte: é o registro factual de que a reconciliação convergiu ou progrediu, contendo `desiredGeneration` e `observedGeneration`.
 
 ## 3.5 Declarativo sobre imperativo
 
@@ -144,7 +120,7 @@ desired.ipm.organization.<organizationId>
 
 quando a mensagem representa o estado desejado para uma Organization.
 
-A operação concreta necessária para alcançar esse estado é responsabilidade do reconciler e do executor.
+A operação concreta necessária para alcançar esse estado é responsabilidade do Controller no seu ciclo de reconciliação.
 
 Não transformar o endereço de mensageria em uma API RPC imperativa.
 
@@ -164,7 +140,6 @@ desiredGeneration
 observedGeneration
 occurredAt
 publishedAt
-observedAt
 correlationId
 causationId
 ```
@@ -210,8 +185,7 @@ O modelo assume que podem ocorrer:
 - reinício do produtor;
 - reinício do consumidor;
 - perda de conectividade;
-- mensagens fora da ordem global;
-- falha depois da interação com o sistema externo e antes da publicação de `observed`.
+- mensagens fora da ordem global.
 
 A aplicação deve permanecer correta sob essas condições.
 
@@ -219,75 +193,48 @@ A aplicação deve permanecer correta sob essas condições.
 
 O ciclo declarativo é:
 
-```mermaid
-graph TD
-    A[Desired] --> B[Observation]
-    B --> C[Observed]
-    C --> D[Reconciliation]
-    D --> E[Action]
-    E --> F[External System]
-    F --> B
+```mermaid\ngraph LR
+    A[API: Admissão Síncrona] -->|grava no SSOT e outbox| B[(SSOT)]
+    B -->|Publisher entrega| C[Stream DESIRED]
+    C -->|Informer| D[Controller]
+    D <-->|observa, decide, age, reobserva| E[External System]
+    D -->|grava convergência e outbox| B
+    B -->|Publisher entrega| F[Stream UPDATED]
 ```
 
-A mensageria transporta representações dos diferentes fatos e estados desse ciclo.
-
-O fluxo típico é:
+A mensageria transporta as intenções e os fatos consolidados desse ciclo:
 
 ```text
-Requested
+Cliente
+    ↓ HTTP (síncrono: 201/200/202 com o Resource)
+API
+    ↓ (uma transação: recurso + desired no outbox)
+Publisher
     ↓
-Manager
+DESIRED (NATS)
     ↓
-Desired
+Controller (Informer / Workqueue)
+    ↓ (ciclo atômico: observa, decide, age, reobserva sob FOR UPDATE)
+SSOT (observed, phase, conditions, observedGeneration) + outbox (updated)
     ↓
-Observer
+Publisher
     ↓
-Observed
-    ↓
-Reconciler
-    ↓
-Action
-    ↓
-Executor
-    ↓
-External System
-    ↓
-Observed
-    ↓
-Manager
-    ↓
-Updated
+UPDATED (NATS)
 ```
 
 A aceitação da publicação não significa que o recurso convergiu.
 
-A convergência depende de uma observação compatível com o estado desejado e processada pelo componente responsável.
+A convergência depende da reobservação no sistema externo compatível com o estado desejado, consolidada pelo Controller no SSOT e anunciada no `updated`.
 
 # 5. Tipos de mensagem
 
-## 5.1 `requested`
+O barramento assíncrono transporta estritamente duas mensagens oficiais (decisão 0101): `desired` e `updated`.
 
-Representa uma solicitação recebida para iniciar uma operação sobre um recurso.
+## 5.1 `desired`
 
-Exemplo:
+Representa o estado desejado estabelecido no SSOT pela API na admissão (ou atualizado pelo Controller para suspender a reconciliação).
 
-```text
-receiver.requested.ipm.organization.<organizationId>.create
-```
-
-Semântica:
-
-> O Receiver recebeu e aceitou uma solicitação para criação do recurso.
-
-`requested` normalmente representa a entrada de um fluxo assíncrono.
-
-A validação interna da solicitação não precisa gerar uma mensagem `validated`.
-
-## 5.2 `desired`
-
-Representa o estado desejado estabelecido pelo componente responsável pelo SSOT (API ou Controller).
-
-Exemplo:
+Exemplo de Subject:
 
 ```text
 desired.ipm.organization.<organizationId>
@@ -299,134 +246,53 @@ Características:
 - versionado por `desiredGeneration`;
 - idempotente;
 - independente de uma sequência específica de comandos;
-- suficientemente completo para que o controller determine o delta necessário;
-- uma mensagem de estado: o `desired` mais recente do recurso (maior `desiredGeneration`) substitui os anteriores. O Subject de 4 tokens segue `<messageType>.<module>.<resourceType>.<resourceId>`.
+- suficientemente completo para que o Controller e as projeções determinem o delta necessário;
+- uma mensagem de **estado**: o `desired` mais recente do recurso (maior `desiredGeneration`) substitui os anteriores. O Subject segue o padrão de 4 tokens `<messageType>.<module>.<resourceType>.<resourceId>`;
+- no envelope, a operação associada é sempre `changed`.
 
-## 5.3 `observed`
+## 5.2 `updated`
 
-Representa uma observação factual sobre a realidade.
+Representa uma alteração consolidada no recurso ou no seu estado persistido, emitida pelo Controller ao concluir um ciclo de reconciliação (ou pela API em recursos de perfil `internal-state`).
 
-Exemplo:
-
-```text
-observer.observed.ipm.organization.<organizationId>.changed
-```
-
-O resultado da observação não faz parte do endereço. Ele é informado no campo `presence` do envelope:
-
-| `presence` | Significado |
-|---|---|
-| `present` | O recurso foi lido e existe. |
-| `absent` | O provider confirmou, de forma inequívoca, que o recurso não existe. |
-| `unknown` | A leitura falhou ou foi inconclusiva. |
-
-Características:
-
-- factual;
-- identifica quando a observação ocorreu (`observedAt`, obrigatório);
-- uma mensagem de estado: a observação mais recente do recurso substitui as anteriores. A operação é sempre `changed`;
-- identifica, em `observedGeneration`, a geração desejada que o Observer conhecia antes de ler o provedor; só uma observação posterior à geração a confirma (decisão 0072);
-- deve ser segura para replay;
-- pode ser consumida por vários componentes.
-
-## 5.4 `action`
-
-Representa uma decisão de reconciliação que deve ser executada.
-
-Exemplo:
-
-```text
-reconciler.action.ipm.organization.<organizationId>.create
-```
-
-`action` é diferente de `desired`.
-
-```text
-desired = o estado que queremos
-action  = o que o reconciler decidiu fazer para chegar ao estado desejado
-```
-
-O `action` é uma mensagem operacional derivada do processo de reconciliação.
-
-Toda `action` possui um `actionId` determinístico, derivado de `resourceId`, `desiredGeneration`, `operation` e da observação que motivou a decisão (o `messageId` do `observed` utilizado). A mesma decisão sobre o mesmo estado e a mesma observação produz o mesmo `actionId`, o que permite deduplicar reentregas e reemissões. Uma nova observação produz um novo `actionId`, para que a correção de um drift não seja descartada como duplicata.
-
-O Reconciler decide.
-
-O Executor executa.
-
-## 5.5 `completed`
-
-Representa a conclusão da execução de uma operação.
-
-Exemplo:
-
-```text
-executor.completed.ipm.organization.<organizationId>.create
-```
-
-`completed` não significa necessariamente convergência do recurso.
-
-Ele significa que a operação executada foi concluída conforme o contrato do Executor.
-
-A convergência deve continuar sendo determinada por `observed`.
-
-## 5.6 `updated`
-
-Representa uma alteração consolidada no recurso ou no seu estado persistido.
-
-Exemplo:
+Exemplo de Subject:
 
 ```text
 updated.ipm.organization.<organizationId>
 ```
 
-O `updated` é útil para consumidores interessados em projeções, auditoria, métricas ou notificações.
+Características:
 
-O `data` do `updated` traz `desiredGeneration` e `observedGeneration` (decisão 0072, modelo do Kubernetes). Iguais, com `phase = Ready`: a última alteração terminou. `observedGeneration` menor: a alteração está em andamento. `observedGeneration` nunca é maior que `desiredGeneration`, e o par é gravado na mesma unidade atômica do estado.
+- factual e consolidado;
+- útil para consumidores interessados em projeções, console, auditoria e métricas;
+- o `data` do `updated` traz `desiredGeneration` e `observedGeneration` (decisão 0072, modelo do Kubernetes). Iguais, com `phase = Ready`: a geração convergiu. `observedGeneration` menor: a alteração está em andamento. `observedGeneration` nunca é maior que `desiredGeneration`;
+- quando o recurso é excluído após a confirmação da ausência no sistema externo, o `updated` anuncia o fato com `removed = true`;
+- no envelope, a operação associada é sempre `changed`.
 
-Não deve ser utilizado como substituto de `desired` ou `observed`.
+## 5.3 O que aconteceu com os tipos de mensagens legados
 
-## 5.7 `failed`
+Na arquitetura anterior (loop de 7 papéis, descontinuada pelas decisões 0096, 0098 e 0101), mensagens intermediárias trafegavam no broker:
 
-Representa falha na execução ou processamento associado à operação.
+| Tipo legado | Destino na arquitetura atual | Motivo da mudança |
+|---|---|---|
+| `requested` | Substituído pela **admissão síncrona da API** (`RESOURCE-CONTROL-LOOP.md` §6.1). A API valida, grava o recurso e o `desired` no outbox e responde imediatamente `201`/`200`/`202` com o `Resource`. | Elimina a fila de entrada assíncrona e a entidade `Operation` (decisão 0098). |
+| `observed` | A observação é realizada **diretamente pelo Controller** contra o provedor externo e persistida no SSOT em `observed` (com `presence` e `observedAt`). | Elimina leituras obsoletas e corridas entre Observer e Reconciler (decisão 0096). |
+| `action`, `completed`, `failed` | A decisão (`decide`) e a ação executada são **etapas locais e atômicas** do ciclo do Controller. | Ação e observação ocorrem no mesmo ciclo sob bloqueio da linha no SSOT, eliminando comandos operacionais e `actionId` no transporte. |
 
-Exemplo:
+## 5.4 Classes de mensagem
 
-```text
-executor.failed.ipm.organization.<organizationId>.create
-```
+As duas mensagens do transporte pertencem a classes bem definidas:
 
-O último token continua representando a operação:
-
-```text
-create
-```
-
-O resultado é:
-
-```text
-failed
-```
-
-`failed` e `completed` representam resultados distintos da mesma operação.
-
-## 5.8 Classes de mensagem
-
-Os tipos de mensagem pertencem a três classes, que determinam o modelo de entrega e de retenção esperado:
-
-| Classe | Tipos | Característica | Entrega |
+| Classe | Tipo | Característica | Padrão de Entrega e Retenção |
 |---|---|---|---|
-| Trabalho | `requested`, `action` | Deve ser processada uma vez por um grupo de instâncias e deixa de existir após o processamento | Work Distribution |
-| Estado | `desired`, `observed` | A mais recente por recurso substitui as anteriores e deve estar disponível para novos consumidores e após restart | Fanout, com retenção do último estado por recurso |
-| Fato | `completed`, `failed`, `updated` | Registro imutável de algo que ocorreu, consumido por vários consumidores independentes | Fanout, com retenção por tempo |
+| **Estado** | `desired` | A mais recente por recurso substitui as anteriores e deve estar disponível para o Informer e após restart. | Fanout, com retenção do último estado por recurso (`max_msgs_per_subject: 1` no Stream `DESIRED`). |
+| **Fato** | `updated` | Registro imutável de convergência ou remoção, consumido por vários consumidores independentes. | Fanout, com retenção temporal (`max_msgs_per_subject: 1` no Stream `UPDATED`). |
+| **Auditoria** | agregada (`audit.>`) | Histórico cumulativo e imutável de todas as mensagens `desired` e `updated`. | Stream `AUDIT` alimentado por Stream Sources de `DESIRED` e `UPDATED`, com `deny_delete: true`. |
 
-Mensagens de estado utilizam sempre a operação `changed`, de modo que cada recurso possua um único endereço por tipo de estado. A mensagem de estado mais recente é identificada por geração (`desiredGeneration`) ou por `observedAt`, nunca apenas por `publishedAt`.
-
-O mapeamento das classes para retenção e Streams pertence à implementação do transporte (`NATS.md`).
+Mensagens utilizam sempre a operação `changed` no envelope, de modo que cada recurso possua um único Subject por tipo de mensagem (`NATS.md`).
 
 # 6. Endereçamento lógico
 
-O endereço lógico oficial é:
+O endereço lógico canônico no transporte (Subject) é estritamente estruturado em **4 tokens** (decisão 0101):
 
 ```text
 <messageType>.<module>.<resourceType>.<resourceId>
@@ -451,49 +317,28 @@ Um transporte pode representá-la como:
 
 ## 6.1 `emitter`
 
-Identifica o componente lógico que produziu a mensagem.
+Identifica o componente funcional que autorizou e produziu a decisão da mensagem. Ele é declarado **exclusivamente no envelope** (`schemas/common/message-envelope.v1.schema.json`) e não faz parte dos tokens do Subject.
 
-Exemplos:
+Valores permitidos no envelope:
 
 ```text
-receiver
 api
-manager
-observer
-reconciler
-executor
-worker.platform
-worker.storage
-worker.identity
-worker.vault
-worker.agent
-worker.runner
-worker.tools
+controller
 ```
 
-O emissor deve representar uma identidade funcional estável. Ela não é o processo: as mensagens `desired` e `updated` são originadas pelo Manager (que decide e registra no outbox) e entregues ao transporte pelo Publisher (`SSOT.md`), mas o emissor é sempre `manager`: o `emitter` identifica **quem decidiu**, e não quem entregou. **Exceção (decisão `0098`):** nos tipos com API síncrona, o `desired` é decidido na admissão pela `api` (`emitter: api`); o `updated` do Controller continua `manager`. Quem entregou aparece na identidade de mensageria que publica, nas permissões e nos logs do transporte (`RESOURCE-CONTROL-LOOP.md`, seção 6.6.2).
+- **`api`:** produz o `desired` durante a admissão síncrona de uma escrita do cliente;
+- **`controller`:** produz o `updated` ao concluir o ciclo de reconciliação, ou um `desired` suspenso (`reconciliation = suspended`) ao atingir o limite de falhas.
 
-A identificação da instância concreta do processo pertence aos metadados de observabilidade.
+O emissor representa a **autoridade que decidiu**, e não o processo que a transportou. A entrega física do outbox ao broker é realizada pelo **Publisher** (`RESOURCE-CONTROL-LOOP.md` §6.6), que é identificado no campo `publishedBy` do envelope e na identidade de conexão NATS.
 
 ## 6.2 `messageType`
 
-Identifica o significado da mensagem.
-
-Valores oficiais iniciais:
+Identifica o significado semântico da mensagem. No transporte:
 
 ```text
-requested
 desired
-observed
-action
-completed
 updated
-failed
 ```
-
-O conjunto deve permanecer pequeno.
-
-Não criar um novo `messageType` apenas para representar cada operação.
 
 ## 6.3 `module`
 
@@ -504,20 +349,14 @@ Exemplos:
 ```text
 core
 ipm
+bsm
+sum
 agent
 runner
 tool
 ```
 
-`core` é o módulo dos recursos da própria plataforma que existem antes de qualquer Organization, como a Account. `ipm` é o módulo de identidade e contém a Organization (decisão 0016). Os demais módulos são funcionais.
-
-O módulo permite separar domínios independentes sem introduzir detalhes específicos do transporte.
-
-Exemplo:
-
-```text
-receiver.requested.ipm.organization.<id>.create
-```
+`core` é o módulo dos recursos da própria plataforma que existem antes de qualquer Organization, como a Account. `ipm` é o módulo de identidade e contém a Organization, Service Account, User, Permission, Role e Group (decisão 0016). `bsm` contém cobrança e faturamento, e `sum` gerencia o uso e catálogo de serviços.
 
 ## 6.4 `resourceType`
 
@@ -527,137 +366,70 @@ Exemplos:
 
 ```text
 organization
+account
+serviceaccount
+user
+permission
+role
+group
+service
 agent
 runner
-tool
-node
-vpc
-subnet
-volume
-vm
 ```
 
-O `resourceType` deve utilizar a terminologia oficial do domínio.
+O `resourceType` deve utilizar a terminologia oficial do domínio em singular ou conforme o contrato do recurso.
 
 ## 6.5 `resourceId`
 
-Identifica o recurso.
+Identifica o recurso de forma inequívoca e estável.
 
 Regras:
 
-- deve ser estável durante o ciclo de vida do recurso;
+- deve ser estável durante todo o ciclo de vida do recurso;
 - deve ser opaco;
-- não deve carregar significado de negócio;
+- não deve carregar significado de negócio mutável;
 - não deve ser confundido com `messageId`;
 - não deve ser substituído pelo nome amigável do recurso;
-- não deve depender da instância do consumidor.
+- não deve conter caracteres que interfiram no transporte (como `.` no NATS).
 
-UUIDv7 é o padrão adotado para `resourceId` quando aplicável.
+UUIDv7 é o padrão adotado para `resourceId`.
 
 ## 6.6 `operation`
 
-Identifica a operação semântica relacionada à mensagem.
-
-Valores iniciais:
+No envelope da mensagem, o campo `operation` representa a operação associada. Para mensagens de estado e fatos consolidados no transporte (`desired` e `updated`), a operação é **sempre fixada como `changed`**:
 
 ```text
-create
-update
-delete
 changed
-reconcile
-noop
 ```
 
-A lista deve ser controlada pelo domínio.
-
-A operação não representa necessariamente uma chamada direta a um sistema externo.
-
-`desired` e `observed` são mensagens de estado e utilizam sempre `changed`. O resultado da observação (`present`, `absent`, `unknown`) pertence ao campo `presence`, e não à operação.
-
-Exemplos:
-
-```text
-desired.ipm.organization.<id>
-```
-
-```text
-observer.observed.ipm.organization.<id>.changed
-```
-
-```text
-reconciler.action.ipm.organization.<id>.create
-```
-
-```text
-updated.ipm.organization.<id>
-```
-
-A operação deve ser interpretada em conjunto com o `messageType`.
-
-Assim:
-
-```text
-observed + changed, com presence = absent
-```
-
-significa:
-
-> o recurso foi observado como ausente.
-
-Enquanto:
-
-```text
-action + create
-```
-
-significa:
-
-> o reconciler determinou a execução de uma criação.
+A decisão sobre se a realidade exige criação, atualização ou exclusão decorre da comparação de estado (`desired` vs `observed`) realizada internamente pelo Controller, e não de um verbo imperativo de transporte.
 
 # 7. Exemplo do fluxo completo
 
-Para criação de uma Organization:
+Fluxo canônico para o ciclo de vida de uma Organization (`ipm/organization`):
 
 ```text
-1. receiver.requested.ipm.organization.<id>.create
-
-2. desired.ipm.organization.<id>
-
-3. observer.observed.ipm.organization.<id>.changed
-
-4. reconciler.action.ipm.organization.<id>.create
-
-5. executor.completed.ipm.organization.<id>.create
-
-6. observer.observed.ipm.organization.<id>.changed
-
-7. updated.ipm.organization.<id>
+1. Cliente envia POST /v1/ipm/organizations
+2. API valida síncrona, persiste o recurso no SSOT (phase: Pending) e grava no outbox:
+   Subject: desired.ipm.organization.<id> (emitter: api, desiredGeneration: 1)
+   API responde síncrono 201 Created com o Resource.
+3. Publisher entrega a linha do outbox ao NATS (Stream DESIRED) e marca published_at.
+4. Controller consome desired via Informer, enfileira na Workqueue e inicia o ciclo:
+   - Bloqueia a linha no SSOT (FOR UPDATE).
+   - Observa o Zitadel (GET organization): ausente (presence: absent).
+   - decide(desired, observed) -> create (reason: resource_absent).
+   - Age no Zitadel (POST organization): sucesso.
+   - Reobserva no Zitadel (GET organization): presente (presence: present).
+   - Convergência confirmada: grava phase: Ready, observedGeneration: 1 no SSOT.
+   - Grava outbox do updated na mesma transação:
+     Subject: updated.ipm.organization.<id> (emitter: controller)
+5. Publisher entrega o updated ao NATS (Stream UPDATED).
+6. Console, auditoria e projeções consomem updated.
 ```
-
-Os passos 3 e 6 possuem o mesmo endereço. Eles se distinguem pelo campo `presence` (`absent` e `present`) e por `observedAt`.
-
-Em caso de falha:
-
-```text
-executor.failed.ipm.organization.<id>.create
-```
-
-O fluxo não deve interpretar `completed` como convergência automática.
-
-A convergência continua sendo determinada por:
-
-```text
-Desired
-    =
-Observed
-```
-
-de acordo com as regras específicas do recurso.
 
 # 8. Destinatários e consumidores
 
-O modelo não define um destinatário fixo dentro da identidade da mensagem.
+O modelo não define destinatários no Subject nem no envelope.
 
 Exemplo:
 
@@ -665,70 +437,83 @@ Exemplo:
 desired.ipm.organization.<id>
 ```
 
-Pode ser consumido por:
+Pode ser consumido simultaneamente e de forma independente por:
 
 ```text
-observer
-audit
-console
-metrics
-reconciler
+controller (Informer do tipo ipm/organization)
+projeções locais de outros tipos (ex: ipm/user, bsm/account)
+auditoria (Stream AUDIT)
 ```
 
-conforme o contrato e o interesse de cada consumidor.
-
-O produtor não deve precisar conhecer todos os consumidores.
-
-Novos consumidores podem ser adicionados sem alterar o produtor.
-
-A autorização deve, entretanto, restringir quem pode publicar e consumir cada classe de mensagem.
+O produtor (`api` ou `controller`) não conhece os consumidores. Novos consumidores podem ser adicionados sem alterar o produtor nem os contratos de emissão.
 
 # 9. Envelope da mensagem
 
-Toda mensagem persistente deve possuir um envelope explícito.
+Toda mensagem persistente possui um envelope explícito definido pelo contrato canônico (`schemas/common/message-envelope.v1.schema.json`).
 
-Estrutura mínima:
+Estrutura de `desired`:
 
 ```json
 {
-  "messageId": "01J...",
+  "messageId": "0199c8c0-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
   "schemaVersion": "1.0",
   "messageType": "desired",
-  "emitter": "manager",
+  "emitter": "api",
   "module": "ipm",
   "resourceType": "organization",
-  "resourceId": "01J...",
+  "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
   "operation": "changed",
   "desiredGeneration": 1,
-  "requestedBy": "01J...",
-  "correlationId": "01J...",
-  "causationId": "01J...",
-  "occurredAt": "2026-10-04T00:00:00Z",
-  "publishedAt": "2026-10-04T00:00:01Z",
-  "data": {}
+  "requestedBy": "0199c8a0-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "correlationId": "0199c8b2-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "causationId": null,
+  "occurredAt": "2026-10-28T12:00:00Z",
+  "publishedAt": "2026-10-28T12:00:01Z",
+  "publishedBy": "ipm-organization-publisher",
+  "data": {
+    "lifecycle": "present",
+    "reconciliation": "active",
+    "resourceName": "acme",
+    "displayName": "ACME Corp"
+  }
 }
 ```
 
-Para `observed`:
+Estrutura de `updated`:
 
 ```json
 {
-  "messageId": "01J...",
+  "messageId": "0199c920-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
   "schemaVersion": "1.0",
-  "messageType": "observed",
-  "emitter": "observer",
+  "messageType": "updated",
+  "emitter": "controller",
   "module": "ipm",
   "resourceType": "organization",
-  "resourceId": "01J...",
+  "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
   "operation": "changed",
-  "presence": "present",
+  "desiredGeneration": 1,
   "observedGeneration": 1,
-  "correlationId": "01J...",
-  "causationId": "01J...",
-  "occurredAt": "2026-10-04T00:00:10Z",
-  "publishedAt": "2026-10-04T00:00:11Z",
-  "observedAt": "2026-10-04T00:00:10Z",
-  "data": {}
+  "requestedBy": "0199c8a0-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "correlationId": "0199c8b2-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "causationId": "0199c8c0-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "occurredAt": "2026-10-28T12:00:05Z",
+  "publishedAt": "2026-10-28T12:00:06Z",
+  "publishedBy": "ipm-organization-publisher",
+  "data": {
+    "phase": "Ready",
+    "presence": "present",
+    "resourceName": "acme",
+    "displayName": "ACME Corp",
+    "conditions": [
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "Reconciled",
+        "observedGeneration": 1,
+        "lastTransitionAt": "2026-10-28T12:00:05Z"
+      }
+    ]
+  }
 }
 ```
 
@@ -736,33 +521,29 @@ Para `observed`:
 
 | Campo | Obrigatório | Aplicação | Definição |
 |---|---:|---|---|
-| `messageId` | Sim | Todos | Identidade única da mensagem |
-| `schemaVersion` | Sim | Todos | Versão do contrato da mensagem |
-| `messageType` | Sim | Todos | Tipo semântico da mensagem |
-| `emitter` | Sim | Todos | Emissor lógico |
-| `module` | Sim | Todos | Módulo funcional |
-| `resourceType` | Sim | Recursos | Tipo de recurso |
-| `resourceId` | Sim | Mensagens específicas de recurso | Identidade do recurso |
-| `operation` | Sim | Todos | Operação ou resultado semântico associado |
-| `desiredGeneration` | Condicional | `desired`, `action`, `completed`, `failed` | Geração do estado desejado |
-| `observedGeneration` | Condicional | `observed` | Geração desejada que o Observer conhecia **antes** de ler o provedor. O Manager só confirma uma geração com uma observação que a traga (decisão 0072) |
-| `presence` | Sim | `observed` | Resultado da observação: `present`, `absent` ou `unknown` |
-| `actionId` | Condicional | `action`, `completed`, `failed` | Identidade determinística da decisão de reconciliação |
-| `requestedBy` | Condicional | Fluxo originado por uma solicitação | Identificador opaco do solicitante autenticado, ou `anonymous` nas escritas anônimas permitidas |
-| `correlationId` | Recomendado | Fluxos correlacionados | Identificador do fluxo lógico |
-| `causationId` | Recomendado | Mensagens causadas por outra | `messageId` da causa |
-| `occurredAt` | Sim | Todos | Momento em que o fato ocorreu |
-| `publishedAt` | Sim | Todos | Momento em que foi publicada |
-| `publishedBy` | Condicional | `desired` e `updated` | Identidade de mensageria que **entregou** a mensagem ao transporte (o Publisher), quando diferente do emissor. O `emitter` continua sendo o autor da decisão (`RESOURCE-CONTROL-LOOP.md`, seção 6.6.2) |
-| `observedAt` | Sim | `observed` | Momento da observação |
-| `data` | Sim | Todos | Conteúdo específico do recurso |
+| `messageId` | Sim | Todos | Identidade única da mensagem (UUIDv7); chave de deduplicação no transporte |
+| `schemaVersion` | Sim | Todos | Versão do contrato da mensagem (`1.0`) |
+| `messageType` | Sim | Todos | Tipo semântico da mensagem (`desired` ou `updated`) |
+| `emitter` | Sim | Todos | Emissor lógico decisor (`api` ou `controller`) |
+| `module` | Sim | Todos | Módulo funcional (ex: `ipm`, `core`, `bsm`, `sum`) |
+| `resourceType` | Sim | Todos | Tipo de recurso gerenciado |
+| `resourceId` | Sim | Todos | Identificador estável do recurso |
+| `operation` | Sim | Todos | Operação semântica associada (fixado como `changed`) |
+| `desiredGeneration` | Sim | `desired` e `updated` | Geração lógica do estado desejado |
+| `observedGeneration` | Condicional | `updated` | Última geração cuja convergência foi confirmada pelo Controller |
+| `requestedBy` | Condicional | `desired` e `updated` | Identificador do solicitante original autenticado, ou `anonymous` nas escritas anônimas |
+| `correlationId` | Recomendado | Todos | Identificador de rastreamento do fluxo lógico de ponta a ponta |
+| `causationId` | Condicional | Mensagens derivadas | `messageId` da mensagem que originou a atual |
+| `occurredAt` | Sim | Todos | Momento em que a alteração ou ciclo ocorreu no emissor |
+| `publishedAt` | Sim | Todos | Momento em que a mensagem foi entregue ao broker pelo Publisher |
+| `publishedBy` | Sim | `desired` e `updated` | Identidade de mensageria do Publisher que entregou a mensagem |
+| `data` | Sim | Todos | Conteúdo específico e estruturado do recurso |
 
 ## 10.1 Regras dos campos de decisão e rastreabilidade
 
-- **`presence`:** `unknown` indica leitura falha ou inconclusiva (timeout, 5xx, 401/403, limite de taxa) e nunca deve ser tratado como `absent`. Somente a confirmação inequívoca do provider é `absent`.
-- **`actionId`:** derivado de `resourceId`, `desiredGeneration`, `operation` e do `messageId` do `observed` que motivou a decisão. O formato é definido pelo contrato do recurso. É a chave de deduplicação da `action` e acompanha `completed` e `failed`.
-- **`causationId` em `observed`:** uma observação feita em consequência de `completed` ou `failed` tem como `causationId` o `messageId` desse resultado. O Reconciler usa essa relação para saber que a leitura é posterior à execução, sem depender de relógios sincronizados entre serviços.
-- **`requestedBy`:** identifica quem pediu a alteração, e não quem a executou (o executor é identificado por `emitter`). É definido pelo Receiver a partir do solicitante autenticado e propagado sem alteração. Não contém credenciais. Nas escritas anônimas que o contrato do recurso permite (`RESOURCE-CONTROL-LOOP.md`, seção 6.1.2), o valor é o literal `anonymous`, que não identifica a pessoa.
+- **`requestedBy`:** identifica quem pediu a alteração, e não quem a executou. É definido pela API a partir do solicitante autenticado e propagado no `desired` e no `updated`. Não contém senhas nem credenciais. Nas escritas anônimas (`RESOURCE-CONTROL-LOOP.md` §6.1.2), o valor é o literal `anonymous`.
+- **`publishedBy`:** identifica a identidade de mensageria que retirou a mensagem do outbox e a entregou ao broker (ex: `ipm-organization-publisher`). Permite distinguir quem decidiu (`emitter: api` ou `controller`) de quem transportou (`RESOURCE-CONTROL-LOOP.md` §6.6.2).
+- **Sem `actionId` no transporte:** como as ações contra o sistema externo ocorrem em ciclo local do Controller (decisão 0096), não há mais identificadores de ações no envelope nem mensagens operacionais de transporte.
 
 # 11. `schemaVersion`
 
@@ -776,53 +557,38 @@ Não representa:
 - versão do broker;
 - `resourceVersion`.
 
-Mudanças incompatíveis exigem estratégia explícita de versionamento.
+Mudanças incompatíveis exigem estratégia explícita de versionamento e schema novo.
 
 # 12. `desiredGeneration`
 
 Representa a geração lógica do estado desejado.
 
-Uma alteração material em `desired` incrementa a geração.
-
-Exemplo:
+Uma alteração material admitida em `desired` incrementa a geração:
 
 ```text
-desiredGeneration = 10
+desiredGeneration = 1
         ↓
-desiredGeneration = 11
+desiredGeneration = 2
         ↓
-desiredGeneration = 12
+desiredGeneration = 3
 ```
 
-A geração é propriedade do recurso/SSOT, não do transporte.
+A geração é propriedade do recurso no SSOT, não do transporte.
 
 # 13. `observedGeneration`
 
-Representa a geração desejada à qual a observação está relacionada.
+Representa a última geração cuja convergência foi formalmente confirmada pelo Controller após reobservar o sistema externo.
 
-Não deve ser preenchido artificialmente.
+Regras:
 
-Exemplo:
-
-```text
-desiredGeneration  = 12
-observedGeneration = 11
-```
-
-indica que a observação ainda está relacionada a uma geração anterior.
-
-Uma observação compatível com a geração atual pode indicar:
-
-```text
-desiredGeneration  = 12
-observedGeneration = 12
-```
-
-Isso, isoladamente, não garante convergência. As condições e demais regras do recurso também precisam ser consideradas.
+- `observedGeneration` só é avançado quando a reobservação factual comprovar que a realidade do sistema externo coincide plenamente com o `desired` daquela geração (`RESOURCE-CONTROL-LOOP.md` §36);
+- `observedGeneration` nunca ultrapassa `desiredGeneration`;
+- `observedGeneration == desiredGeneration` com `phase = Ready` significa que a alteração foi concluída com sucesso;
+- em recursos de perfil `internal-state`, a admissão da API já grava `observedGeneration = desiredGeneration`.
 
 # 14. `resourceVersion`
 
-Quando o domínio utilizar controle otimista de concorrência, `resourceVersion` pode ser incluído no recurso ou no envelope conforme o contrato.
+Quando o domínio utilizar controle otimista de concorrência, `resourceVersion` é manipulado no banco e nas interfaces HTTP (`RESOURCE-CONTROL-LOOP.md` §6.1.1).
 
 `resourceVersion` é uma string opaca.
 
@@ -833,36 +599,28 @@ Não deve ser interpretado como:
 - geração;
 - ordenação global.
 
-Não substitui:
-
-```text
-desiredGeneration
-observedGeneration
-messageId
-```
+Não substitui `desiredGeneration`, `observedGeneration` nem `messageId`.
 
 # 15. `correlationId`
 
-Relaciona mensagens pertencentes ao mesmo fluxo lógico.
+Relaciona mensagens e ações pertencentes ao mesmo fluxo lógico.
 
 Exemplo:
 
 ```text
-receiver.requested
+HTTP Request (API)
+       │ (gera correlationId)
+       ├── SSOT Resource (persiste correlation_id)
        │
-       ├── desired
+       ├── desired (no outbox, com o mesmo correlationId)
        │
-       ├── observer.observed
-       │
-       ├── reconciler.action
-       │
-       └── executor.completed
+       └── updated (emitido pelo Controller, preservando o correlationId)
 ```
 
-Todas podem compartilhar:
+Todas compartilham:
 
 ```text
-correlationId = flow-001
+correlationId = 0199c8b2-7b1e-7c3a-9f2d-5e8a1b2c3d4e
 ```
 
 `correlationId` não substitui `messageId`.
@@ -874,47 +632,31 @@ Identifica a mensagem que causou diretamente a produção da mensagem atual.
 Exemplo:
 
 ```text
-Message A
+desired (messageId: msg-001)
     ↓
-Message B
-    ↓
-Message C
+updated (causationId: msg-001, messageId: msg-002)
 ```
 
-Então:
-
-```text
-B.causationId = A.messageId
-C.causationId = B.messageId
-```
-
-Isso permite reconstruir causalidade sem transformar a mensageria em um log de execução obrigatório.
+Isso permite reconstruir a causalidade dos fatos sem transformar a mensageria em log imperativo.
 
 # 17. Conteúdo de `data`
 
-`data` pertence ao contrato do recurso.
+`data` pertence ao contrato específico do recurso e é validado pelo respectivo schema.
 
-O envelope não deve duplicar campos do domínio sem necessidade.
-
-O contrato do recurso deve definir:
+O contrato do recurso define:
 
 - propriedades válidas;
 - tipos;
 - obrigatoriedade;
 - mutabilidade;
-- semântica;
-- limites;
-- regras de compatibilidade.
+- semântica e campos confidenciais;
+- regras de normalização e comparação.
 
-JSON não deve ser tratado como ausência de schema.
-
-Um payload flexível continua precisando de contrato explícito.
+O payload não transporta segredos em texto puro (`RESOURCE-CONTROL-SECURITY.md`).
 
 # 18. Presença e ausência de recursos
 
-Sistemas declarativos devem representar a ausência desejada sem transformar `delete` em um comando obrigatório do transporte.
-
-Exemplo:
+Sistemas declarativos representam a intenção de ausência de forma declarativa:
 
 ```json
 {
@@ -930,32 +672,11 @@ Exemplo:
 }
 ```
 
-O reconciler decide quais ações concretas são necessárias.
-
-Da mesma forma, uma observação pode representar a ausência:
-
-```text
-observer.observed.ipm.organization.<id>.changed
-presence = absent
-```
-
-A diferença é:
-
-```text
-desired + lifecycle = absent
-```
-
-representa intenção.
-
-```text
-observed + presence = absent
-```
-
-representa realidade observada.
+O Controller observa a intenção (`lifecycle = absent`), executa a exclusão no sistema externo, reobserva até constatar `presence = absent` e, ao convergir, remove o registro do SSOT e emite o `updated` com `removed = true`.
 
 # 19. Organization e contexto
 
-A Organization é a unidade de isolamento da plataforma (`SCHEMA.md`, *Organization e identificadores derivados*). A Organization a que um recurso pertence faz parte do contexto semântico do recurso, no campo `organizationId`, ou do contrato específico do domínio.
+A Organization é a unidade primária de isolamento da plataforma (`SCHEMA.md`). A Organization a que um recurso pertence faz parte do seu payload em `data.organizationId`.
 
 Exemplo:
 
@@ -963,194 +684,104 @@ Exemplo:
 {
   "data": {
     "organizationId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
-    "projectId": "project-01"
+    "resourceName": "backend-runner"
   }
 }
 ```
 
-Não inserir a Organization arbitrariamente no endereço de roteamento.
-
-Quando o transporte possuir mecanismos de autorização por Organization ou namespace, eles podem ser utilizados sem alterar a semântica da mensagem.
+Não inserir o ID da Organization no Subject NATS. O roteamento no transporte é padronizado em 4 tokens (`<messageType>.<module>.<resourceType>.<resourceId>`).
 
 # 20. Padrões de entrega
 
-A semântica da mensagem e o modelo de entrega são dimensões independentes.
+No modelo consolidado, a mensageria utiliza o padrão **Fanout** com persistência JetStream (`NATS.md`):
 
-## 20.1 Work Distribution
+```mermaid\ngraph TD
+    Desired[Stream DESIRED] --> Informer[Controller Informer]
+    Desired --> Projections[Projeções Locais da API]
+    Desired --> Audit[Stream AUDIT]
 
-Uma mensagem deve ser processada por uma única instância lógica dentro de um grupo de consumidores concorrentes.
-
-Aplica-se às mensagens de trabalho (`requested`, `action`).
-
-Uso típico:
-
-```text
-requested → Manager
-action    → Executor
+    Updated[Stream UPDATED] --> Console[Console]
+    Updated --> Metrics[Métricas / Observabilidade]
+    Updated --> Audit
 ```
 
-Escalar significa adicionar instâncias ao mesmo grupo lógico.
-
-## 20.2 Fanout
-
-A mesma mensagem deve estar disponível para consumidores independentes.
-
-Aplica-se às mensagens de estado e de fato (`desired`, `observed`, `completed`, `failed`, `updated`).
-
-Uso típico:
-
-```mermaid
-graph TD
-    Observed[observed] --> Manager[manager]
-    Observed --> Audit[audit]
-    Observed --> Console[console]
-    Observed --> Metrics[metrics]
-```
-
-Cada consumidor mantém sua própria progressão.
-
-## 20.3 Request/Reply
-
-Pode ser utilizado quando a interação realmente exige solicitação e resposta.
-
-Não utilizar request/reply para substituir um fluxo que semanticamente é declarativo e assíncrono.
+- **`DESIRED` (`desired.>`):** retém a última mensagem por recurso (`max_msgs_per_subject: 1`), com entrega direta (`allow_direct: true`). Novos consumidores (e o Informer após reinício) recebem imediatamente o estado vigente;
+- **`UPDATED` (`updated.>`):** retém os fatos consolidados de convergência (`max_msgs_per_subject: 1`), alimentando o Console e serviços de observabilidade;
+- **`AUDIT` (`audit.>`):** consome de `DESIRED` e `UPDATED` via stream sources, acumulando histórico imutável com `deny_delete: true`.
 
 # 21. Idempotência e deduplicação
 
-A aplicação deve permanecer correta quando uma mensagem for entregue novamente.
+A aplicação deve permanecer correta sob entregas duplicadas ou reprocessamento:
 
-A deduplicação pode utilizar:
-
-- `messageId`;
-- `resourceId + desiredGeneration`;
-- `resourceId + observedGeneration`;
-- `actionId`;
-- chave natural do domínio;
-- constraint transacional;
-- combinação desses mecanismos.
-
-A estratégia deve ser definida pela semântica da operação.
-
-Não depender exclusivamente da deduplicação do broker.
+1. **No Transporte (NATS JetStream):** deduplicação transparente baseada no cabeçalho `Nats-Msg-Id` igual ao `messageId` do envelope;
+2. **No Controller (Informer e Workqueue):** a Workqueue deduplica chaves de recursos pendentes; ciclos subsequentes leem a linha no SSOT sob `FOR UPDATE` e reobservam a realidade factual do sistema externo;
+3. **No Banco de Dados (SSOT):** padrão Transactional Outbox com controle otimista de versão (`resourceVersion`) e travas consultivas por recurso.
 
 # 22. Ordenação
 
-A ordenação deve ser utilizada somente quando houver requisito de negócio ou consistência.
+A unidade de ordenação é estritamente o recurso (`resourceId`). Não existe pressuposto de ordenação global entre recursos distintos.
 
-Quando necessária, a unidade de ordenação deve ser explícita:
+Para o mesmo recurso:
 
-```text
-resourceId
-aggregateId
-orderingKey
-```
-
-Não assumir ordenação global entre produtores independentes.
-
-O consumidor deve ser capaz de identificar uma mensagem antiga por:
-
-- geração;
-- versão;
-- sequência específica do domínio;
-- outro mecanismo explícito.
-
-Nunca utilizar apenas `publishedAt` como mecanismo de ordering lógico.
-
-Nas mensagens de estado, a mais recente é identificada por `desiredGeneration` (`desired`) ou por `observedAt` (`observed`). Uma mensagem de estado mais antiga que a já conhecida é ignorada.
-
-Quando duas mensagens de `desired` possuem a mesma geração (por exemplo, quando muda apenas o controle de reconciliação), vale a que foi entregue por último no mesmo endereço, pois o Manager é o único publicador de `desired` do recurso.
+- a mensagem mais recente de `desired` é identificada por `desiredGeneration`;
+- a confirmação de convergência no `updated` é identificada por `observedGeneration`;
+- o Publisher garante entrega em ordem sequencial a partir do outbox do SSOT.
 
 # 23. Retry, quarentena e replay
 
-Falhas transitórias devem permitir retry com backoff.
+Falhas de transporte e processamento obedecem a regras explícitas:
 
-Falhas permanentes ou mensagens poison devem poder ser encaminhadas para quarentena.
-
-```mermaid
-graph TD
-    A[Delivery] -->|failure| B[Retry]
-    B -->|success| C[Processing]
-    B -->|failure limit| D[Quarantine]
-```
-
-Uma mensagem em quarentena deve preservar, quando possível:
-
-- `messageId`;
-- endereço lógico original;
-- payload original;
-- número de tentativas;
-- motivo da quarentena;
-- timestamps;
-- identidade do consumidor;
-- identificação da falha.
-
-Replay deve ser explícito, controlado e auditável.
+- falhas transitórias de conexão são tratadas por retry automático com backoff exponencial;
+- falhas de reconciliação no Controller incrementam `failure_count` até o `failure_limit` (padrão 5 tentativas), momento em que a reconciliação é suspensa no SSOT e anunciada no `desired` (`reconciliation = suspended`);
+- mensagens malformadas que violem schemas estruturais são rejeitadas e isoladas em quarentena sem bloquear o stream (`NATS.md`).
 
 # 24. Falha após a escrita externa
 
-Um caso crítico ocorre quando o Executor altera o sistema externo e falha antes de publicar `completed` ou antes de uma nova observação.
+Um dos cenários críticos de controle ocorre quando o Controller executa uma escrita com sucesso no sistema externo (ex: cria a organização no Zitadel), mas cai antes de comitar a transação no SSOT:
 
-Exemplo:
+```mermaid\nsequenceDiagram
+    participant C as Controller
+    participant X as Zitadel (Externo)
+    participant S as SSOT
 
-```mermaid
-sequenceDiagram
-    participant R as Reconciler
-    participant E as Executor
-    participant X as External System
-    R->>E: action.create
-    E->>X: create
-    X-->>E: success
-    Note over E: processo falha antes do próximo evento
+    C->>X: POST organization
+    X-->>C: 201 Created
+    Note over C: Falha de energia ou reinício antes do COMMIT
+
+    Note over C: Novo ciclo (Informer reentrega ou reavaliação periódica)
+    C->>S: BEGIN; FOR UPDATE
+    C->>X: GET organization (observa)
+    X-->>C: 200 OK (presente)
+    C->>C: decide -> convergido (nenhuma ação necessária)
+    C->>S: grava Ready, observedGeneration e updated no outbox; COMMIT
 ```
 
-O `desired` original deve continuar podendo ser processado.
+Como o Controller sempre **observa a realidade antes de decidir**, o ciclo seguinte constata que o recurso já existe, evita uma escrita duplicada e converge com sucesso. Não é necessário mecanismo de two-phase commit distribuído.
 
-O Observer deve consultar o sistema externo.
+# 25. Transação entre mensageria e banco (Transactional Outbox)
 
-Se identificar que o recurso existe, deve publicar:
+Não há transação distribuída entre banco e mensageria.
+
+A consistência é garantida pelo padrão **Transactional Outbox**:
 
 ```text
-observer.observed.ipm.organization.<id>.changed
-presence = present
+API ou Controller (uma transação local):
+    BEGIN
+        atualiza linha do recurso no SSOT
+        insere linha correspondente no <tipo>_outbox
+    COMMIT
 ```
 
-Isso permite recuperar o estado sem depender da confirmação perdida.
-
-Por esse motivo, a execução e a reconciliação devem ser idempotentes.
-
-# 25. Transação entre mensageria e banco
-
-Não assumir transação ACID distribuída entre banco de dados e broker.
-
-Quando houver necessidade de garantir publicação após uma alteração persistida, utilizar:
-
-- Outbox;
-- Inbox;
-- ou mecanismo equivalente.
-
-No caso do Manager:
+Fora da transação, o processo **Publisher** do componente:
 
 ```text
-persist Resource
-persist Outbox
-        ↓
-transaction commit
-        ↓
-publish Desired
+Publisher:
+    lê linhas pendentes no outbox em ordem
+    publica no NATS com confirmação (JetStream ACK)
+    marca published_at na linha do outbox
 ```
 
-A implementação deve evitar o estado:
-
-```text
-database = committed
-broker    = not published
-```
-
-sem mecanismo de recuperação.
-
-A adoção de Outbox deve considerar simplicidade e necessidade real, mas o risco de split-brain entre persistência e publicação deve ser tratado explicitamente.
-
-As garantias de gravação do Manager (unidade atômica por mensagem, outbox ordenado por recurso e idempotência de entrada) estão definidas em `SSOT.md`.
+Isso garante que um estado nunca seja anunciado no broker sem estar persistido no SSOT, e que nenhuma alteração persistida deixe de ser entregue.
 
 # 26. Evolução de contratos
 
@@ -1158,578 +789,339 @@ Mudanças de contrato devem preservar consumidores existentes quando compatível
 
 Regras:
 
-- adicionar campos opcionais é preferível a alterar o significado de campos existentes;
+- adicionar campos opcionais no payload `data` é preferível a alterar campos existentes;
 - nunca reutilizar um campo para outro significado;
-- mudanças incompatíveis devem possuir estratégia explícita de versionamento;
-- consumidores devem ignorar extensões quando o formato permitir;
-- produtores não devem depender de consumidores conhecerem campos futuros;
-- `messageType` e `operation` devem possuir vocabulário controlado.
-
-Não utilizar `operation` para introduzir uma nova categoria semântica de mensagem.
+- mudanças incompatíveis exigem estratégia explícita de versionamento em `schemaVersion`;
+- consumidores devem ignorar extensões desconhecidas quando o formato permitir;
+- `messageType` é um conjunto estritamente controlado (`desired`, `updated`);
+- `operation` no envelope é sempre fixado como `changed`.
 
 # 27. Segurança
 
-Mensagens devem conter apenas os dados necessários para processamento.
+Mensagens devem conter apenas os dados estritamente necessários para a reconciliação e consumo.
 
 Não transportar:
 
-- senhas;
-- tokens secretos;
-- chaves privadas;
-- credenciais reutilizáveis;
-- secrets sem necessidade explícita.
+- senhas ou hashes de senhas;
+- tokens de acesso ou refresh tokens;
+- chaves privadas ou certificados;
+- credenciais de contas de serviço.
 
-Segredos devem ser referenciados por identificadores seguros ou recuperados de um sistema especializado de secrets management.
+Segredos trafegam exclusivamente por referência segura (`RESOURCE-CONTROL-SECURITY.md`).
 
-`requestedBy` é um identificador opaco do solicitante, e não uma credencial.
-
-Autenticação, autorização, criptografia em trânsito e, quando aplicável, criptografia em repouso são responsabilidades complementares do transporte e da plataforma.
+A credencial de escrita contra o sistema externo pertence exclusivamente ao Controller. A API não possui credencial do provedor externo, e o Publisher possui apenas permissão de publicação nos subjects do seu respectivo tipo no NATS.
 
 # 28. Observabilidade
 
-A publicação e o consumo devem ser observáveis sem alterar a semântica da mensagem.
+A publicação e o consumo são observáveis por métricas e logs estruturados OpenTelemetry.
 
 Métricas mínimas recomendadas:
 
 ```text
-messages_published
-messages_consumed
-messages_failed
-messages_retried
-messages_quarantined
-processing_duration
-publish_duration
+messages_published_total
+messages_consumed_total
+messages_failed_total
+outbox_pending_count
+outbox_oldest_age_seconds
+processing_duration_seconds
+publish_duration_seconds
 consumer_lag
 redelivery_count
 ```
 
-Logs e traces devem correlacionar:
+Logs e traces correlacionam os seguintes atributos semânticos:
 
 ```text
 messageId
 correlationId
 causationId
-actionId
 emitter
 module
-resourceId
 resourceType
+resourceId
 messageType
 operation
+desiredGeneration
+observedGeneration
 ```
-
-A identidade da instância do processo pode ser registrada separadamente.
 
 # 29. Naming
 
-Os nomes devem ser:
+Os nomes e tokens devem ser:
 
 - explícitos;
 - estáveis;
 - semanticamente precisos;
-- independentes de implementação;
-- livres de abreviações desnecessárias.
+- livres de abreviações desnecessárias;
+- estritamente em minúsculas (lowercase).
 
-Preferir:
+Exemplo correto:
 
 ```text
-worker.platform
-worker.storage
-worker.runner
+desired.ipm.organization.0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e
 ```
 
-a:
+Não utilizar:
 
 ```text
-w1
-worker-a
-processor
-handler
-service
-```
-
-A identidade funcional do emissor não deve ser substituída pela identidade efêmera da instância.
-
-Todos os tokens do subject devem utilizar lowercase.
-
-Exemplo:
-
-```text
-receiver.requested.ipm.organization.0199c8a4.create
-```
-
-e não:
-
-```text
-Receiver.Requested.Core.Organization.0199c8a4.Create
+Desired.IPM.Organization.0199c8a4...
 ```
 
 # 30. Restrições do transporte
 
-O modelo semântico deve ser independente do broker.
+O modelo semântico deve ser independente de broker, mas deve respeitar as restrições físicas de transporte:
 
-Entretanto, cada transporte pode impor restrições ao seu mapeamento.
-
-Na implementação NATS, por exemplo, `.` é utilizado para separar tokens de Subject.
-
-Portanto, um `resourceId` utilizado diretamente no Subject NATS não deve conter `.`.
-
-Essa é uma restrição da implementação NATS e não uma propriedade semântica do `resourceId`.
-
-Quando um identificador não puder respeitar as restrições do transporte, deve existir uma representação de transporte explicitamente definida.
+- **Separador de tokens:** no NATS, o ponto (`.`) é o separador canônico de tokens. Portanto, o `resourceId` não deve conter pontos (`.`);
+- **Tamanho máximo de mensagem:** o payload `data` é limitado a 256 KiB; mensagens completas no envelope são limitadas a 512 KiB no NATS JetStream (`NATS.md`);
+- **Wildcards:** tokens coringa (`*` e `>`) são reservados para assinaturas de consumidores e nunca devem ser utilizados como identificadores de recursos.
 
 # 31. Anti-padrões
 
-## 31.1 Tratar `desired` como comando
+## 31.1 Tratar `desired` como comando imperativo
+
+Evitar pensar em `desired` como uma ordem de criação ou deleção. `desired` representa o estado final que a plataforma deve alcançar.
+
+## 31.2 Tratar ACK de transporte como convergência
+
+Receber confirmação de publicação (ACK do NATS) indica apenas que o broker gravou a mensagem no Stream. A convergência real do recurso só é atestada quando o Controller confirma o estado no `updated`.
+
+## 31.3 Colocar destinatário no Subject
 
 Evitar:
 
 ```text
-desired = execute create
+controller.desired.ipm.organization.<id>
 ```
 
-`desired` representa estado pretendido.
+O Subject canônico expressa o fato (`desired.ipm.organization.<id>`), e os interessados manifestam intenção via subscription.
 
-## 31.2 Tratar ACK como convergência
+## 31.4 Colocar o emissor no Subject
 
-```text
-ACK transport
-    !=
-resource converged
-```
+Evitar Subjects de 5 ou 6 tokens contendo o prefixo do emissor. O emissor (`api` ou `controller`) pertence ao campo `emitter` do envelope.
 
-## 31.3 Usar `validated` como mensagem sem necessidade
+## 31.5 Depender de ordenação global
 
-Validação interna não precisa gerar:
+Não assumir que mensagens de recursos diferentes estejam ordenadas globalmente. A ordenação é estritamente garantida por `resourceId`.
 
-```text
-receiver.validated...
-```
+## 31.6 Colocar segredos no payload
 
-quando nenhum consumidor possuir interesse nesse fato.
+Nunca transportar credenciais ou segredos em texto puro no envelope ou em `data`.
 
-A validação pode ser simplesmente uma etapa interna do componente.
+## 31.7 Criar um novo `messageType` para cada operação
 
-## 31.4 Usar `write` como operação genérica
-
-Evitar:
-
-```text
-receiver.requested.ipm.organization.<id>.write
-```
-
-Preferir:
-
-```text
-receiver.requested.ipm.organization.<id>.create
-```
-
-ou:
-
-```text
-receiver.requested.ipm.organization.<id>.update
-```
-
-A operação deve ser semanticamente precisa.
-
-## 31.5 Colocar destinatário no subject
-
-Evitar:
-
-```text
-manager-to-executor.action.ipm.organization.<id>.create
-```
-
-Preferir:
-
-```text
-reconciler.action.ipm.organization.<id>.create
-```
-
-O consumidor é determinado pela subscription.
-
-## 31.6 Depender de ordenação global
-
-A arquitetura não deve pressupor que mensagens de diferentes recursos ou emissores estejam globalmente ordenadas.
-
-## 31.7 Usar `messageId` como `resourceId`
-
-São identidades diferentes.
-
-## 31.8 Colocar detalhes do broker no contrato de domínio
-
-Exemplos:
-
-```text
-jetstreamConsumerName
-kafkaPartition
-rabbitRoutingKey
-natsStreamName
-```
-
-não pertencem ao contrato semântico genérico.
-
-## 31.9 Colocar segredos no payload
-
-Segredos devem permanecer em sistemas especializados.
-
-## 31.10 Criar um novo `messageType` para cada operação
-
-Evitar:
-
-```text
-organization-created
-organization-updated
-organization-deleted
-organization-reconciled
-organization-create-failed
-```
-
-quando o mesmo significado puder ser representado por:
-
-```text
-<messageType> + <operation>
-```
-
-Exemplos:
-
-```text
-executor.completed.ipm.organization.<id>.create
-executor.failed.ipm.organization.<id>.create
-updated.ipm.organization.<id>
-```
-
-## 31.11 Usar o resultado da observação como operação
-
-Evitar:
-
-```text
-observer.observed.ipm.organization.<id>.changed
-observer.observed.ipm.organization.<id>.changed
-```
-
-Preferir:
-
-```text
-observer.observed.ipm.organization.<id>.changed
-```
-
-com `presence` no envelope. Dois endereços para o mesmo recurso impedem que o transporte retenha apenas o último estado.
-
-## 31.12 Tratar falha de leitura como ausência
-
-Um timeout, um 5xx ou um 401/403 do provider resulta em `presence = unknown`, e não em `absent`.
+Evitar criar tipos como `organization-created` ou `organization-deleted`. O estado pretendido é sempre `desired`, e a confirmação é sempre `updated`.
 
 # 32. Exemplos completos
 
-## 32.1 Receiver solicita criação de Organization
+## 32.1 API estabelece Desired na admissão
 
 Subject:
 
 ```text
-receiver.requested.ipm.organization.0199c8a4.create
+desired.ipm.organization.0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e
 ```
 
 Envelope:
 
 ```json
 {
-  "messageId": "0199c8b1-...",
-  "schemaVersion": "1.0",
-  "messageType": "requested",
-  "emitter": "receiver",
-  "module": "ipm",
-  "resourceType": "organization",
-  "resourceId": "0199c8a4-...",
-  "operation": "create",
-  "requestedBy": "0199c8a0-...",
-  "correlationId": "0199c8b2-...",
-  "occurredAt": "2026-10-04T00:00:00Z",
-  "publishedAt": "2026-10-04T00:00:00Z",
-  "data": {
-    "resourceName": "acme",
-    "displayName": "ACME"
-  }
-}
-```
-
-## 32.2 Manager estabelece Desired
-
-Subject:
-
-```text
-desired.ipm.organization.0199c8a4
-```
-
-Envelope:
-
-```json
-{
-  "messageId": "0199c8c0-...",
+  "messageId": "0199c8c0-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
   "schemaVersion": "1.0",
   "messageType": "desired",
   "emitter": "api",
   "module": "ipm",
   "resourceType": "organization",
-  "resourceId": "0199c8a4-...",
+  "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
   "operation": "changed",
   "desiredGeneration": 1,
-  "requestedBy": "0199c8a0-...",
-  "correlationId": "0199c8b2-...",
-  "causationId": "0199c8b1-...",
-  "occurredAt": "2026-10-04T00:00:01Z",
-  "publishedAt": "2026-10-04T00:00:01Z",
+  "requestedBy": "0199c8a0-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "correlationId": "0199c8b2-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "occurredAt": "2026-10-28T12:00:00Z",
+  "publishedAt": "2026-10-28T12:00:01Z",
+  "publishedBy": "ipm-organization-publisher",
   "data": {
     "lifecycle": "present",
     "reconciliation": "active",
     "resourceName": "acme",
-    "displayName": "ACME"
+    "displayName": "ACME Corp"
   }
 }
 ```
 
-## 32.3 Observer identifica ausência
+## 32.2 Controller publica alteração consolidada (Updated)
 
 Subject:
 
 ```text
-observer.observed.ipm.organization.0199c8a4.changed
+updated.ipm.organization.0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e
 ```
 
 Envelope:
 
 ```json
 {
-  "messageId": "0199c8d0-...",
+  "messageId": "0199c920-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
   "schemaVersion": "1.0",
-  "messageType": "observed",
-  "emitter": "observer",
+  "messageType": "updated",
+  "emitter": "controller",
   "module": "ipm",
   "resourceType": "organization",
-  "resourceId": "0199c8a4-...",
+  "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
   "operation": "changed",
-  "presence": "absent",
+  "desiredGeneration": 1,
   "observedGeneration": 1,
-  "correlationId": "0199c8b2-...",
-  "causationId": "0199c8c0-...",
-  "occurredAt": "2026-10-04T00:00:02Z",
-  "publishedAt": "2026-10-04T00:00:02Z",
-  "observedAt": "2026-10-04T00:00:02Z",
+  "requestedBy": "0199c8a0-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "correlationId": "0199c8b2-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "causationId": "0199c8c0-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "occurredAt": "2026-10-28T12:00:05Z",
+  "publishedAt": "2026-10-28T12:00:06Z",
+  "publishedBy": "ipm-organization-publisher",
   "data": {
-    "provider": "zitadel"
+    "phase": "Ready",
+    "presence": "present",
+    "resourceName": "acme",
+    "displayName": "ACME Corp",
+    "conditions": [
+      {
+        "type": "Ready",
+        "status": "True",
+        "reason": "Reconciled",
+        "observedGeneration": 1,
+        "lastTransitionAt": "2026-10-28T12:00:05Z"
+      }
+    ]
   }
 }
 ```
 
-## 32.4 Reconciler determina criação
+## 32.3 Controller suspende reconciliação por limite de falhas
+
+Quando a reconciliação falha repetidamente (`failure_count >= failure_limit`), o Controller marca o recurso como `Failed`, suspende a reconciliação e publica um `desired` atualizado:
 
 Subject:
 
 ```text
-reconciler.action.ipm.organization.0199c8a4.create
+desired.ipm.organization.0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e
 ```
 
 Envelope:
 
 ```json
 {
-  "messageId": "0199c8e0-...",
+  "messageId": "0199c980-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
   "schemaVersion": "1.0",
-  "messageType": "action",
-  "emitter": "reconciler",
+  "messageType": "desired",
+  "emitter": "controller",
   "module": "ipm",
   "resourceType": "organization",
-  "resourceId": "0199c8a4-...",
-  "operation": "create",
-  "actionId": "0199c8a4.1.create.0199c8d0",
-  "desiredGeneration": 1,
-  "requestedBy": "0199c8a0-...",
-  "correlationId": "0199c8b2-...",
-  "causationId": "0199c8d0-...",
-  "occurredAt": "2026-10-04T00:00:03Z",
-  "publishedAt": "2026-10-04T00:00:03Z",
-  "data": {
-    "reason": "organizationNotFound"
-  }
-}
-```
-
-## 32.5 Executor conclui criação
-
-Subject:
-
-```text
-executor.completed.ipm.organization.0199c8a4.create
-```
-
-Envelope:
-
-```json
-{
-  "messageId": "0199c8f0-...",
-  "schemaVersion": "1.0",
-  "messageType": "completed",
-  "emitter": "executor",
-  "module": "ipm",
-  "resourceType": "organization",
-  "resourceId": "0199c8a4-...",
-  "operation": "create",
-  "actionId": "0199c8a4.1.create.0199c8d0",
-  "desiredGeneration": 1,
-  "requestedBy": "0199c8a0-...",
-  "correlationId": "0199c8b2-...",
-  "causationId": "0199c8e0-...",
-  "occurredAt": "2026-10-04T00:00:05Z",
-  "publishedAt": "2026-10-04T00:00:05Z",
-  "data": {
-    "provider": "zitadel",
-    "providerResourceType": "organization",
-    "providerResourceId": "zitadel-org-abc"
-  }
-}
-```
-
-## 32.6 Observer confirma existência
-
-Subject:
-
-```text
-observer.observed.ipm.organization.0199c8a4.changed
-```
-
-Envelope:
-
-```json
-{
-  "messageId": "0199c900-...",
-  "schemaVersion": "1.0",
-  "messageType": "observed",
-  "emitter": "observer",
-  "module": "ipm",
-  "resourceType": "organization",
-  "resourceId": "0199c8a4-...",
+  "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
   "operation": "changed",
-  "presence": "present",
-  "observedGeneration": 1,
-  "correlationId": "0199c8b2-...",
-  "causationId": "0199c8f0-...",
-  "occurredAt": "2026-10-04T00:00:06Z",
-  "publishedAt": "2026-10-04T00:00:06Z",
-  "observedAt": "2026-10-04T00:00:06Z",
+  "desiredGeneration": 1,
+  "requestedBy": "0199c8a0-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "correlationId": "0199c8b2-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "occurredAt": "2026-10-28T12:05:00Z",
+  "publishedAt": "2026-10-28T12:05:01Z",
+  "publishedBy": "ipm-organization-publisher",
   "data": {
-    "provider": "zitadel",
-    "providerResourceType": "organization",
-    "providerResourceId": "zitadel-org-abc"
+    "lifecycle": "present",
+    "reconciliation": "suspended",
+    "resourceName": "acme",
+    "displayName": "ACME Corp"
   }
 }
 ```
 
-## 32.7 Manager publica alteração consolidada
+## 32.4 Controller confirma remoção convergida
+
+Quando um recurso com `lifecycle = absent` é fisicamente excluído no sistema externo, o Controller apaga o registro do SSOT e publica o `updated` de desfecho:
 
 Subject:
 
 ```text
-updated.ipm.organization.0199c8a4
+updated.ipm.organization.0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e
 ```
 
-O Manager atualiza o SSOT e os consumidores podem construir suas próprias projeções.
+Envelope:
+
+```json
+{
+  "messageId": "0199c990-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "schemaVersion": "1.0",
+  "messageType": "updated",
+  "emitter": "controller",
+  "module": "ipm",
+  "resourceType": "organization",
+  "resourceId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "operation": "changed",
+  "desiredGeneration": 2,
+  "observedGeneration": 2,
+  "requestedBy": "0199c8a0-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "correlationId": "0199c8b2-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "occurredAt": "2026-10-28T12:10:00Z",
+  "publishedAt": "2026-10-28T12:10:01Z",
+  "publishedBy": "ipm-organization-publisher",
+  "data": {
+    "phase": "Deleting",
+    "presence": "absent",
+    "removed": true
+  }
+}
+```
 
 # 33. Matriz semântica
 
-| `messageType` | Significado | Emissor típico | Operação típica |
-|---|---|---|---|
-| `requested` | Solicitação aceita | Receiver | `create`, `update`, `delete` |
-| `desired` | Estado pretendido | Manager | `changed` |
-| `observed` | Estado observado | Observer | `changed` |
-| `action` | Decisão de reconciliação | Reconciler | `create`, `update`, `delete`, `noop` |
-| `completed` | Operação concluída | Executor | `create`, `update`, `delete` |
-| `updated` | Recurso alterado | Manager | `changed` |
-| `failed` | Operação/processamento falhou | Executor / componente | operação relacionada |
+| `messageType` | Significado | Emissor típico (`emitter`) | Operação típica (`operation`) | Stream NATS JetStream |
+|---|---|---|---|---|
+| **`desired`** | Estado pretendido (intenção declarativa) | `api` (admissão) ou `controller` (suspensão) | `changed` | `DESIRED` |
+| **`updated`** | Fato consolidado (convergência, transição ou remoção) | `controller` (ou `api` em `internal-state`) | `changed` | `UPDATED` |
 
-A tabela representa o vocabulário inicial da plataforma.
+# 34. Matriz `desired` × `updated`
 
-Novos tipos devem ser introduzidos somente quando representarem uma distinção semântica real.
-
-# 34. Matriz `desired` × `observed`
-
-| Dimensão | `desired` | `observed` |
+| Dimensão | `desired` | `updated` |
 |---|---|---|
-| Significado | Estado pretendido | Estado observado |
-| Natureza | Declarativa | Factual |
-| Classe | Estado | Estado |
-| Operação | `changed` | `changed` |
-| Substituição | O `desired` de maior geração substitui o anterior | A observação mais recente (`observedAt`) substitui a anterior |
-| Origem típica | Manager | Observer |
-| Pode ser republicada | Sim | Sim |
-| Deve ser idempotente | Sim | Sim |
-| Conclui operação | Não | Não diretamente |
-| Pode fornecer evidência de convergência | Sim, como alvo | Sim |
-| Geração típica | `desiredGeneration` | `observedGeneration` |
-| Consumidores típicos | Reconciler / Workers | Manager / Reconciler / Consumers |
+| **Significado** | Estado pretendido pela plataforma | Estado consolidado e confirmado |
+| **Natureza** | Declarativa (intenção) | Factual (realidade observada e convergida) |
+| **Classe de Mensagem** | Estado | Fato |
+| **Operação no Envelope** | `changed` | `changed` |
+| **Substituição de Mensagem** | O `desired` de maior geração substitui o anterior | O `updated` mais recente reflete o estado atual |
+| **Emissor (`emitter`)** | `api` (admissão) ou `controller` (ao suspender) | `controller` |
+| **Geração Relevante** | `desiredGeneration` | `desiredGeneration` e `observedGeneration` |
+| **Consumidores Típicos** | Controller (Informer), Projeções de outros módulos | Console, Observabilidade, Auditoria, Métricas |
+| **Stream JetStream** | `DESIRED` (`desired.>`) | `UPDATED` (`updated.>`) |
 
 # 35. Responsabilidades por camada
 
-| Camada | Responsabilidade |
-|---|---|
-| `MESSAGING.md` | Semântica e contrato lógico |
-| Contrato do recurso | Modelo de `data` e regras do domínio |
-| Aplicação | Publicação, consumo, reconciliação e idempotência |
-| Manager | SSOT, lifecycle e estabelecimento de `desired` |
-| Observer | Observação da realidade |
-| Reconciler | Comparação entre `desired` e `observed` e decisão da ação |
-| Executor | Execução de ações contra sistemas externos |
-| Transporte | Entrega, persistência, retry e distribuição |
-| `NATS.md` | Implementação do modelo em NATS |
-| Infraestrutura | Topologia, certificados, storage e deployment |
+| Camada | Papel | Responsabilidade |
+|---|---|---|
+| **API** | `api` | Admissão HTTP síncrona, validação, persistência inicial no SSOT e inserção do `desired` no outbox (`emitter: api`). |
+| **Publisher** | `publisher` | Varredura do outbox transacional, publicação assíncrona com confirmação no NATS e atualização de `published_at` (`publishedBy`). |
+| **Controller** | `controller` | Informer sobre `DESIRED`, Workqueue, ciclo atômico de reconciliação (observa, decide, age, reobserva), persistência da convergência e inserção do `updated` no outbox (`emitter: controller`). |
+| **Transporte** | NATS / JetStream | Persistência nos streams `DESIRED`, `UPDATED` e `AUDIT`, deduplicação por `messageId`, entrega direta e distribuição de eventos. |
 
 # 36. Critérios de conformidade
 
 Uma implementação está conforme quando:
 
-- diferencia explicitamente `desired` de `observed`;
-- identifica o emissor de forma estável;
-- utiliza `messageType` controlado;
-- separa `messageType` de `operation`;
-- utiliza a operação `changed` em `desired` e `observed`, e informa o resultado da observação em `presence`;
-- trata `presence = unknown` como inconclusivo, nunca como ausência;
-- identifica o solicitante (`requestedBy`) e a decisão (`actionId`) quando aplicável;
-- utiliza o formato lógico de subject definido neste documento;
-- não exige destinatário no contrato semântico;
+- utiliza estritamente o formato de Subject em 4 tokens: `<messageType>.<module>.<resourceType>.<resourceId>`;
+- restringe `messageType` a `desired` ou `updated`;
+- declara o emissor exclusivamente no envelope (`emitter: api` ou `controller`);
+- utiliza sempre a operação `changed` no envelope;
+- identifica a entrega pelo Publisher em `publishedBy`;
+- não embute destinatário no Subject nem no envelope;
 - separa `messageId` de `resourceId`;
-- utiliza gerações quando o domínio exige versionamento declarativo;
-- suporta reentrega sem corrupção;
-- não depende de ordering global;
-- não trata ACK de transporte como convergência;
-- mantém contratos versionáveis;
-- não transporta segredos sem necessidade;
-- permite mapear a semântica para mais de um mecanismo de mensageria.
+- garante que `resourceId` não contenha pontos (`.`);
+- utiliza `desiredGeneration` e `observedGeneration` de acordo com a semântica de convergência declarativa;
+- utiliza outbox transacional para evitar escrita dupla entre banco e mensageria;
+- suporta reentrega de mensagens sem efeitos cumulativos indesejados.
 
 # 37. Fonte de verdade
 
 Este documento é a fonte de verdade para a **semântica de mensageria** da plataforma.
 
-A gramática oficial de endereçamento é:
+A gramática oficial de endereçamento NATS (decisão 0101) é:
 
 ```text
-<emitter>.<messageType>.<module>.<resourceType>.<resourceId>.<operation>
+<messageType>.<module>.<resourceType>.<resourceId>
 ```
 
-O vocabulário inicial de `messageType` é:
-
-```text
-requested
-desired
-observed
-action
-completed
-updated
-failed
-```
-
-O vocabulário de `operation` é controlado pelo domínio e deve permanecer semanticamente preciso.
-
-Decisões específicas do NATS são definidas em `NATS.md`.
-
-Quando houver conflito entre a semântica definida aqui e uma limitação ou convenção específica do transporte, o transporte deve ser adaptado ou a decisão arquitetural deve ser registrada explicitamente.
-
-O broker não redefine o significado do domínio.
+A implementação concreta em NATS e JetStream é definida em `NATS.md`.
