@@ -1,0 +1,134 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jetstream-controller
+  namespace: messaging-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jetstream-controller-cluster-role
+rules:
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: ["jetstream.nats.io"]
+    resources:
+      - streams
+      - streams/status
+      - objectstores
+      - objectstores/status
+      - keyvalues
+      - keyvalues/status
+      - consumers
+      - consumers/status
+      - streamtemplates
+      - streamtemplates/status
+      - accounts
+      - accounts/status
+    verbs: ["create", "get", "list", "watch", "patch", "update", "delete"]
+  - apiGroups: ["jetstream.nats.io"]
+    resources:
+      - streams/finalizers
+      - keyvalues/finalizers
+      - objectstores/finalizers
+      - consumers/finalizers
+      - accounts/finalizers
+    verbs: ["update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jetstream-controller-cluster-role-binding
+subjects:
+  - kind: ServiceAccount
+    name: jetstream-controller
+    namespace: messaging-operator
+roleRef:
+  kind: ClusterRole
+  name: jetstream-controller-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nack-jetstream-controller
+  namespace: messaging-operator
+  labels:
+    app.kubernetes.io/name: nack-jetstream-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nack-jetstream-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nack-jetstream-controller
+    spec:
+      serviceAccountName: jetstream-controller
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: jsc
+          image: natsio/jetstream-controller:0.25.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -control-loop
+            - -s=nats://$(NATS_USER):$(NATS_PASSWORD)@messaging.messaging.svc.cluster.local:4222
+            - -health-probe-bind-address=:8081
+            - -cache-dir=/tmp
+          env:
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: messaging-secret
+                  key: NATS_USER
+                  optional: true
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: messaging-secret
+                  key: NATS_PASSWORD
+                  optional: true
+          workingDir: /tmp
+          ports:
+            - name: health
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: tmp
+          emptyDir: {}

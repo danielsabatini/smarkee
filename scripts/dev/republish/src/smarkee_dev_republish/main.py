@@ -12,7 +12,9 @@ Segurança:
 
 import argparse
 import asyncio
+import base64
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -23,7 +25,7 @@ REPOSITORY = Path(__file__).resolve().parents[4]
 
 
 def nats_password() -> str:
-    """Recupera a senha do NATS de dev a partir do .env da infraestrutura."""
+    """Recupera a senha do NATS de dev a partir do ambiente, .env ou Kubernetes Secret."""
     password = os.environ.get("REPUBLISH_NATS_PASSWORD") or os.environ.get(
         "SMARKEE_MESSAGING_PASSWORD"
     )
@@ -34,6 +36,27 @@ def nats_password() -> str:
         for line in env.read_text(encoding="utf-8").splitlines():
             if line.startswith("SMARKEE_MESSAGING_PASSWORD="):
                 return line.partition("=")[2].strip()
+    try:
+        res = subprocess.run(
+            [  # noqa: S607
+                "kubectl",
+                "-n",
+                "messaging",
+                "get",
+                "secret",
+                "messaging-secret",
+                "-o",
+                "jsonpath={.data.NATS_PASSWORD}",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+        if res.stdout.strip():
+            return base64.b64decode(res.stdout.strip()).decode("utf-8").strip()
+    except OSError, subprocess.SubprocessError:
+        pass
     return ""
 
 

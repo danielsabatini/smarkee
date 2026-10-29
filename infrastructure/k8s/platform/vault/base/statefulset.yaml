@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-config
+  namespace: vault
+  labels:
+    app.kubernetes.io/part-of: vault
+data:
+  vault.hcl: |
+    ui = true
+    disable_mlock = true
+
+    storage "raft" {
+      path    = "/openbao/data"
+      node_id = "vault-0"
+    }
+
+    listener "tcp" {
+      address     = "[::]:8200"
+      cluster_address = "[::]:8201"
+      tls_disable = 1
+    }
+
+    api_addr     = "http://svm.vault.svc.cluster.local:8200"
+    cluster_addr = "http://vault-0.vault-internal.vault.svc.cluster.local:8201"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vault
+  namespace: vault
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/part-of: vault
+spec:
+  serviceName: vault-internal
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+      app.kubernetes.io/part-of: vault
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vault
+        app.kubernetes.io/part-of: vault
+    spec:
+      serviceAccountName: vault
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: vault
+          image: openbao/openbao:2.7.2
+          imagePullPolicy: IfNotPresent
+          args:
+            - server
+            - -config=/openbao/config/vault.hcl
+          env:
+            - name: SKIP_SETCAP
+              value: "true"
+            - name: BAO_ADDR
+              value: "http://127.0.0.1:8200"
+          ports:
+            - name: http
+              containerPort: 8200
+              protocol: TCP
+            - name: cluster
+              containerPort: 8201
+              protocol: TCP
+          # /v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204:
+          # liveness aceita que o servidor esteja uninitialized/sealed enquanto o bootstrap nao roda;
+          # readiness tambem aceita 204 para que o Service DNS encaminhe ao Pod durante o unseal inicial.
+          livenessProbe:
+            httpGet:
+              path: "/v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204"
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: "/v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204"
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /openbao/config
+              readOnly: true
+            - name: data
+              mountPath: /openbao/data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+      volumes:
+        - name: config
+          configMap:
+            name: vault-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

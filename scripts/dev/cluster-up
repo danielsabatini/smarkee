@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+# Provisiona de forma idempotente o cluster Kubernetes local (`kind`) da Smarkee,
+# o container registry local (`localhost:5001`), os namespaces da plataforma e os
+# operadores oficiais (ArgoCD, CloudNativePG, NACK, OpenTelemetry Operator,
+# cert-manager, trust-manager e External Secrets Operator) — Etapa K1 (decisão 0102).
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CLUSTER_NAME="${SMARKEE_KIND_CLUSTER_NAME:-smarkee}"
+REGISTRY_NAME="${SMARKEE_KIND_REGISTRY_NAME:-smarkee-registry}"
+REGISTRY_PORT="${SMARKEE_KIND_REGISTRY_PORT:-5001}"
+REGISTRY_IMAGE="${SMARKEE_KIND_REGISTRY_IMAGE:-registry:3.1.2}"
+KIND_NODE_IMAGE="${SMARKEE_KIND_NODE_IMAGE:-}"
+
+log() {
+  printf "\033[1;34m[cluster-up]\033[0m %s\n" "$*"
+}
+
+# 1. Garantir diretórios de saída de telemetria no host antes do extraMounts do kind
+log "Ensuring host telemetry directories exist..."
+mkdir -p \
+  "${REPO_ROOT}/infrastructure/dev/telemetry-sink/logs/app" \
+  "${REPO_ROOT}/infrastructure/dev/telemetry-sink/logs/infra" \
+  "${REPO_ROOT}/infrastructure/dev/telemetry-sink/metrics/app" \
+  "${REPO_ROOT}/infrastructure/dev/telemetry-sink/metrics/infra" \
+  "${REPO_ROOT}/infrastructure/dev/telemetry-sink/traces"
+
+for feature_dir in \
+  core/account \
+  bsm/account \
+  sum/service \
+  ipm/organization \
+  ipm/user \
+  ipm/serviceaccount \
+  ipm/permission \
+  ipm/role \
+  ipm/group; do
+  mkdir -p \
+    "${REPO_ROOT}/features/${feature_dir}/telemeter/logs" \
+    "${REPO_ROOT}/features/${feature_dir}/telemeter/metrics" \
+    "${REPO_ROOT}/features/${feature_dir}/telemeter/traces"
+done
+
+# 2. Parar contêineres legados do Docker Compose (*.smarkee.internal) que ocupam portas 5432, 4222, 8080, 8025, 9180
+LEGACY_CONTAINERS="$(docker ps -q --filter "name=smarkee.internal" || true)"
+if [[ -n "${LEGACY_CONTAINERS}" ]]; then
+  log "Stopping legacy Docker Compose containers (*.smarkee.internal) holding host ports..."
+  # shellcheck disable=SC2086
+  docker stop ${LEGACY_CONTAINERS} >/dev/null
+fi
+
+# 3. Provisionar Container Registry local (localhost:5001)
+if [[ "$(docker inspect -f '{{.State.Running}}|{{.Config.Image}}' "${REGISTRY_NAME}" 2>/dev/null || true)" != "true|${REGISTRY_IMAGE}" ]]; then
+  log "Starting local container registry '${REGISTRY_NAME}' (${REGISTRY_IMAGE}) on 127.0.0.1:${REGISTRY_PORT}..."
+  docker rm -f "${REGISTRY_NAME}" >/dev/null 2>&1 || true
+  docker run -d \
+    --restart=always \
+    -p "127.0.0.1:${REGISTRY_PORT}:5000" \
+    --network bridge \
+    --name "${REGISTRY_NAME}" \
+    "${REGISTRY_IMAGE}" >/dev/null
+else
+  log "Local container registry '${REGISTRY_NAME}' (${REGISTRY_IMAGE}) is already running on 127.0.0.1:${REGISTRY_PORT}."
+fi
+
+# 4. Criar cluster kind se ainda não existir
+mkdir -p "${REPO_ROOT}/.workspace"
+RENDERED_CLUSTER_CFG="${REPO_ROOT}/.workspace/kind-cluster.yaml"
+sed "s|__REPO_ROOT__|${REPO_ROOT}|g" "${REPO_ROOT}/infrastructure/k8s/kind/cluster.yaml" > "${RENDERED_CLUSTER_CFG}"
+
+if ! kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}"; then
+  log "Creating kind cluster '${CLUSTER_NAME}'..."
+  if [[ -n "${KIND_NODE_IMAGE}" ]]; then
+    kind create cluster --name "${CLUSTER_NAME}" --config "${RENDERED_CLUSTER_CFG}" --image "${KIND_NODE_IMAGE}"
+  else
+    kind create cluster --name "${CLUSTER_NAME}" --config "${RENDERED_CLUSTER_CFG}"
+  fi
+else
+  log "Kind cluster '${CLUSTER_NAME}' already exists."
+fi
+
+kubectl config use-context "kind-${CLUSTER_NAME}" >/dev/null
+
+# 5. Conectar o registry à rede `kind` e configurar o containerd nos nós
+if [[ "$(docker inspect -f '{{json .NetworkSettings.Networks.kind}}' "${REGISTRY_NAME}")" == "null" ]]; then
+  log "Connecting '${REGISTRY_NAME}' to Docker network 'kind'..."
+  docker network connect "kind" "${REGISTRY_NAME}"
+fi
+
+REGISTRY_DIR="/etc/containerd/certs.d/localhost:${REGISTRY_PORT}"
+for node in $(kind get nodes --name "${CLUSTER_NAME}"); do
+  docker exec "${node}" mkdir -p "${REGISTRY_DIR}"
+  cat <<EOF | docker exec -i "${node}" cp /dev/stdin "${REGISTRY_DIR}/hosts.toml"
+[host."http://${REGISTRY_NAME}:5000"]
+EOF
+done
+
+cat <<EOF | kubectl apply -f - >/dev/null
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-registry-hosting
+  namespace: kube-public
+data:
+  localRegistryHosting.v1: |
+    host: "localhost:${REGISTRY_PORT}"
+    help: "https://kind.sigs.k8s.io/docs/user/local-registry/"
+EOF
+
+# 5.1 Configurar CoreDNS para resolver ipm-dev.smarkee.com.br e api-dev.smarkee.com.br internamente para o gateway
+cat <<'EOF' | kubectl apply -f - >/dev/null
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  Corefile: |
+    .:53 {
+        errors
+        health {
+           lameduck 5s
+        }
+        ready
+        rewrite stop {
+           name exact ipm-dev.smarkee.com.br gateway.gateway.svc.cluster.local
+           answer auto
+        }
+        rewrite stop {
+           name exact api-dev.smarkee.com.br gateway.gateway.svc.cluster.local
+           answer auto
+        }
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+           pods insecure
+           fallthrough in-addr.arpa ip6.arpa
+           ttl 30
+        }
+        prometheus :9153
+        forward . /etc/resolv.conf {
+           max_concurrent 1000
+        }
+        cache 30 {
+           disable success cluster.local
+           disable denial cluster.local
+        }
+        loop
+        reload
+        loadbalance
+    }
+EOF
+
+# 6. Aplicar Namespaces da Plataforma e dos Operadores
+log "Applying Kubernetes namespaces..."
+kubectl apply -k "${REPO_ROOT}/infrastructure/k8s/operators/namespaces"
+
+# 7. Instalar cert-manager e aguardar webhook antes de instalar dependentes (trust-manager e opentelemetry-operator)
+log "Installing cert-manager (cert-manager-operator)..."
+kubectl apply --server-side --force-conflicts -k "${REPO_ROOT}/infrastructure/k8s/operators/cert-manager"
+
+log "Waiting for cert-manager deployments to become Ready..."
+kubectl rollout status deployment/cert-manager -n cert-manager-operator --timeout=180s
+kubectl rollout status deployment/cert-manager-cainjector -n cert-manager-operator --timeout=180s
+kubectl rollout status deployment/cert-manager-webhook -n cert-manager-operator --timeout=180s
+
+# 8. Instalar trust-manager, CloudNativePG, External Secrets Operator, OpenTelemetry Operator, NACK e ArgoCD
+log "Installing trust-manager (cert-manager-operator)..."
+kubectl apply --server-side --force-conflicts -k "${REPO_ROOT}/infrastructure/k8s/operators/trust-manager"
+
+log "Installing CloudNativePG (database-operator)..."
+kubectl apply --server-side --force-conflicts -k "${REPO_ROOT}/infrastructure/k8s/operators/cnpg"
+
+log "Installing External Secrets Operator (external-secrets-operator)..."
+kubectl apply --server-side --force-conflicts -k "${REPO_ROOT}/infrastructure/k8s/operators/external-secrets"
+
+log "Installing OpenTelemetry Operator (telemetry-operator)..."
+kubectl apply --server-side --force-conflicts -k "${REPO_ROOT}/infrastructure/k8s/operators/opentelemetry-operator"
+
+log "Installing NACK JetStream Controller (messaging-operator)..."
+kubectl apply --server-side --force-conflicts -k "${REPO_ROOT}/infrastructure/k8s/operators/nack"
+
+log "Installing ArgoCD (gitops-operator)..."
+kubectl apply --server-side --force-conflicts -k "${REPO_ROOT}/infrastructure/k8s/operators/argocd"
+
+# 9. Aguardar prontidão dos operadores
+log "Waiting for all operators to become Ready..."
+kubectl rollout status deployment/trust-manager -n cert-manager-operator --timeout=180s
+kubectl rollout status deployment/cnpg-controller-manager -n database-operator --timeout=180s
+kubectl rollout status deployment/external-secrets -n external-secrets-operator --timeout=180s
+kubectl rollout status deployment/external-secrets-cert-controller -n external-secrets-operator --timeout=180s
+kubectl rollout status deployment/external-secrets-webhook -n external-secrets-operator --timeout=180s
+kubectl rollout status deployment/opentelemetry-operator-controller-manager -n telemetry-operator --timeout=180s
+kubectl rollout status deployment/nack-jetstream-controller -n messaging-operator --timeout=180s
+kubectl rollout status deployment/argocd-server -n gitops-operator --timeout=240s
+kubectl rollout status deployment/argocd-repo-server -n gitops-operator --timeout=240s
+kubectl rollout status deployment/argocd-applicationset-controller -n gitops-operator --timeout=240s
+kubectl rollout status statefulset/argocd-application-controller -n gitops-operator --timeout=240s
+kubectl rollout status deployment/git-server -n gitops-operator --timeout=180s
+
+# 9.1 Sincronizar manifestos do host para o `/workspace/smarkee` do nó kind (para o git-server)
+log "Syncing K8s manifests to kind node /workspace/smarkee..."
+(cd "${REPO_ROOT}" && tar cf - infrastructure/k8s features/*/*/k8s | docker exec -i "${CLUSTER_NAME}-control-plane" tar xf - -C /workspace/smarkee 2>/dev/null || true)
+
+# 10. Provisionar e inicializar o serviço `vault` (/svm, /ekm, /clm — Wave 0)
+if [[ -x "${REPO_ROOT}/scripts/dev/vault-bootstrap" ]]; then
+  "${REPO_ROOT}/scripts/dev/vault-bootstrap"
+fi
+
+# 11. Aplicar a Application root do ArgoCD (App-of-Apps GitOps)
+if [[ -f "${REPO_ROOT}/infrastructure/k8s/argocd/root-app.yaml" ]]; then
+  log "Applying ArgoCD App-of-Apps root (smarkee-root)..."
+  kubectl apply -f "${REPO_ROOT}/infrastructure/k8s/argocd/root-app.yaml"
+fi
+
+log "Cluster '${CLUSTER_NAME}', local registry 'localhost:${REGISTRY_PORT}' and all operators are Ready!"

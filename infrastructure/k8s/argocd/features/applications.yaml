@@ -1,0 +1,188 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: feature-core-account
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: features/core/account/k8s/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: core
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: feature-bsm-account
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: features/bsm/account/k8s/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: bsm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: feature-sum-service
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: features/sum/service/k8s/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sum
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: feature-ipm-organization
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: features/ipm/organization/k8s/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ipm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: feature-ipm-user
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: features/ipm/user/k8s/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ipm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: feature-ipm-serviceaccount
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: features/ipm/serviceaccount/k8s/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ipm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: feature-ipm-permission
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: features/ipm/permission/k8s/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ipm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: feature-ipm-role
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: features/ipm/role/k8s/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ipm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: feature-ipm-group
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: features/ipm/group/k8s/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ipm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

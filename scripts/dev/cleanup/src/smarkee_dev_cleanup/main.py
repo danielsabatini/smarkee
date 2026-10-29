@@ -19,6 +19,7 @@ Segurança:
 
 import argparse
 import asyncio
+import base64
 import json
 import os
 import subprocess
@@ -37,10 +38,27 @@ REPOSITORY = Path(__file__).resolve().parents[5]
 
 
 def read_key() -> dict[str, str]:
-    """Chave do `platform-bootstrap`: do arquivo em `CLEANUP_ZITADEL_KEY_FILE`, ou do volume."""
+    """Chave do `platform-bootstrap`: de `CLEANUP_ZITADEL_KEY_FILE`, do Secret K8s ou do volume."""
     path = os.environ.get("CLEANUP_ZITADEL_KEY_FILE")
     if path:
         return cast("dict[str, str]", json.loads(Path(path).read_text(encoding="utf-8")))
+    k8s_secret = subprocess.run(
+        [
+            "kubectl",
+            "-n",
+            "identity",
+            "get",
+            "secret",
+            "identity-secret",
+            "-o",
+            r"jsonpath={.data.platform-bootstrap\.json}",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if k8s_secret.returncode == 0 and k8s_secret.stdout:
+        decoded = base64.b64decode(k8s_secret.stdout).decode("utf-8")
+        return cast("dict[str, str]", json.loads(decoded))
     done = subprocess.run(
         [
             "docker",
@@ -62,13 +80,30 @@ def nats_password() -> str:
     password = os.environ.get("CLEANUP_NATS_PASSWORD")
     if password:
         return password
+    k8s_secret = subprocess.run(
+        [
+            "kubectl",
+            "-n",
+            "messaging",
+            "get",
+            "secret",
+            "messaging-secret",
+            "-o",
+            "jsonpath={.data.NATS_PASSWORD}",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if k8s_secret.returncode == 0 and k8s_secret.stdout:
+        return base64.b64decode(k8s_secret.stdout).decode("utf-8").strip()
     env = REPOSITORY / "infrastructure" / "dev" / "messaging" / ".env"
-    for line in env.read_text(encoding="utf-8").splitlines():
-        if line.startswith("SMARKEE_MESSAGING_PASSWORD="):
-            return line.partition("=")[2].strip()
+    if env.is_file():
+        for line in env.read_text(encoding="utf-8").splitlines():
+            if line.startswith("SMARKEE_MESSAGING_PASSWORD="):
+                return line.partition("=")[2].strip()
     raise SystemExit(
-        "defina CLEANUP_NATS_PASSWORD ou o SMARKEE_MESSAGING_PASSWORD "
-        "de infrastructure/dev/messaging/.env"
+        "defina CLEANUP_NATS_PASSWORD ou garanta que o Secret "
+        "messaging/messaging-secret exista no K8s"
     )
 
 

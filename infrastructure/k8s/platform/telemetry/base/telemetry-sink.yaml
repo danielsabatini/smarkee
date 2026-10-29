@@ -1,0 +1,139 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemetry-sink
+  namespace: telemetry
+  labels:
+    app.kubernetes.io/name: telemetry-sink
+    app.kubernetes.io/part-of: telemetry
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: opentelemetry-collector
+    app.kubernetes.io/instance: telemetry.telemetry-sink
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+---
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: telemetry-sink
+  namespace: telemetry
+  labels:
+    app.kubernetes.io/name: telemetry-sink
+    app.kubernetes.io/part-of: telemetry
+spec:
+  mode: statefulset
+  replicas: 1
+  image: otel/opentelemetry-collector-contrib:0.164.0
+  securityContext:
+    runAsUser: 0
+    runAsGroup: 0
+  volumes:
+    - name: telemetry-out
+      hostPath:
+        path: /var/lib/smarkee/telemetry/telemetry-sink
+        type: DirectoryOrCreate
+  volumeMounts:
+    - name: telemetry-out
+      mountPath: /telemetry
+  config:
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 256
+        spike_limit_mib: 64
+      batch:
+        timeout: 1s
+        send_batch_size: 100
+        send_batch_max_size: 200
+      filter/metrics_infra:
+        error_mode: ignore
+        metrics:
+          metric:
+            - not IsMatch(metric.name, "^(container|system|process|k8s|postgresql)\\.") and not (resource.attributes["service.name"] == "identity" or resource.attributes["service.name"] == "messaging" or resource.attributes["service.name"] == "database" or resource.attributes["service.name"] == "gateway")
+      filter/metrics_app:
+        error_mode: ignore
+        metrics:
+          metric:
+            - IsMatch(metric.name, "^(container|system|process|k8s|postgresql)\\.") or resource.attributes["service.name"] == "identity" or resource.attributes["service.name"] == "messaging" or resource.attributes["service.name"] == "database" or resource.attributes["service.name"] == "gateway"
+      filter/logs_infra:
+        error_mode: ignore
+        logs:
+          log_record:
+            - resource.attributes["smarkee.component.role"] != nil
+      filter/logs_app:
+        error_mode: ignore
+        logs:
+          log_record:
+            - resource.attributes["smarkee.component.role"] == nil
+    exporters:
+      file/logs_app:
+        path: /telemetry/logs/app/logs.jsonl
+        create_directory: true
+        rotation:
+          max_megabytes: 10
+          max_days: 1
+          max_backups: 3
+      file/logs_infra:
+        path: /telemetry/logs/infra/logs.jsonl
+        create_directory: true
+        rotation:
+          max_megabytes: 10
+          max_days: 1
+          max_backups: 3
+      file/metrics_app:
+        path: /telemetry/metrics/app/metrics.jsonl
+        create_directory: true
+        rotation:
+          max_megabytes: 10
+          max_days: 1
+          max_backups: 3
+      file/metrics_infra:
+        path: /telemetry/metrics/infra/metrics.jsonl
+        create_directory: true
+        rotation:
+          max_megabytes: 10
+          max_days: 1
+          max_backups: 3
+      file/traces:
+        path: /telemetry/traces/traces.jsonl
+        create_directory: true
+        rotation:
+          max_megabytes: 10
+          max_days: 1
+          max_backups: 3
+    service:
+      extensions: [health_check]
+      pipelines:
+        metrics/infra:
+          receivers: [otlp]
+          processors: [memory_limiter, filter/metrics_infra, batch]
+          exporters: [file/metrics_infra]
+        metrics/app:
+          receivers: [otlp]
+          processors: [memory_limiter, filter/metrics_app, batch]
+          exporters: [file/metrics_app]
+        logs/infra:
+          receivers: [otlp]
+          processors: [memory_limiter, filter/logs_infra, batch]
+          exporters: [file/logs_infra]
+        logs/app:
+          receivers: [otlp]
+          processors: [memory_limiter, filter/logs_app, batch]
+          exporters: [file/logs_app]
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [file/traces]

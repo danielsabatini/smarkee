@@ -1,0 +1,744 @@
+# Estado desejado do gateway (formato do ADC), aplicado pelo `gateway-sync` a cada `up`.
+# É a fonte da verdade dos serviços e das rotas dentro deles: o que não estiver aqui é removido do gateway.
+# Rotas soltas (sem serviço), que é como o console as cria, não são tocadas pelo ADC.
+#
+# Roteamento por host: o Zitadel atende somente ipm-dev.smarkee.com.br, e nenhum serviço ocupa
+# o caminho `/` de forma genérica. Novas APIs recebem host próprio (por exemplo, api.localhost).
+services:
+  # API e console do Zitadel. O Host original precisa ser preservado (`pass_host: pass`) porque
+  # o Zitadel resolve a instância pelo domínio externo (ipm-dev.smarkee.com.br).
+  - name: identity
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: identity.identity.svc.cluster.local
+          port: 8080
+          weight: 100
+    plugins:
+      # O Zitadel usa o cabeçalho próprio para montar o issuer e as URLs públicas, com o Host
+      # original (inclusive a porta). O valor enviado pelo cliente é substituído para não ser forjado.
+      # No serviço, vale para todas as rotas dele.
+      proxy-rewrite:
+        headers:
+          set:
+            x-zitadel-public-host: $http_host
+    # Rotas nomeadas por função, para que http.route (spans) diga o que foi acessado em vez de `/*`. A de baixo
+    # (`identity`, `/*`) é a retaguarda: pega o que não tem rota própria, para nada deixar de funcionar. As APIs
+    # de gestão do Zitadel (/management, /admin, /v2...) os componentes chamam direto, pela rede interna, e não
+    # passam por aqui.
+    routes:
+      - name: identity-oidc
+        hosts:
+          - ipm-dev.smarkee.com.br
+        uris:
+          - /.well-known/*
+          - /oauth/v2/*
+          - /oidc/v1/*
+        priority: 10
+      - name: identity-login-v1
+        hosts:
+          - ipm-dev.smarkee.com.br
+        uris:
+          - /ui/login
+          - /ui/login/*
+        priority: 10
+      - name: identity-console
+        hosts:
+          - ipm-dev.smarkee.com.br
+        uris:
+          - /ui/console
+          - /ui/console/*
+        priority: 10
+      - name: identity
+        hosts:
+          - ipm-dev.smarkee.com.br
+        uris:
+          - /*
+
+  # Interface de login v2 do Zitadel (a rota de prioridade maior prevalece sobre `/*`).
+  - name: identity-login
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: identity-login.identity.svc.cluster.local
+          port: 3000
+          weight: 100
+    routes:
+      - name: identity-login
+        hosts:
+          - ipm-dev.smarkee.com.br
+        uris:
+          - /ui/v2/login*
+        priority: 10
+        plugins:
+          # Em desenvolvimento (HTTP), remove o atributo Secure dos cookies emitidos pelo
+          # Next.js (hardcoded no build de produção da imagem). Navegadores rejeitam cookies
+          # com Secure em origens HTTP que não sejam localhost (como ipm-dev.smarkee.com.br).
+          serverless-post-function:
+            phase: header_filter
+            functions:
+              - |
+                return function(conf, ctx)
+                  local cookies = ngx.header["Set-Cookie"]
+                  if cookies then
+                    if type(cookies) == "string" then
+                      ngx.header["Set-Cookie"] = ngx.re.gsub(cookies, ";\\s*[Ss]ecure", "", "jo")
+                    elseif type(cookies) == "table" then
+                      local new_cookies = {}
+                      for i, c in ipairs(cookies) do
+                        new_cookies[i] = ngx.re.gsub(c, ";\\s*[Ss]ecure", "", "jo")
+                      end
+                      ngx.header["Set-Cookie"] = new_cookies
+                    end
+                  end
+                end
+
+  # APIs da plataforma. Host próprio (api-dev.smarkee.com.br; em dev, aponte 127.0.0.1 em
+  # /etc/hosts). Só `/v1/...` é público: `/health/*` (e `/healthz`, na Organization) fica na rede interna.
+  # Cada Receiver só é alcançado por este gateway, que acrescenta o endereço do cliente a
+  # `X-Forwarded-For` (o Receiver usa o último valor para o limite de taxa das escritas anônimas).
+  # Autenticação (decisão 0052): as rotas de API validam o token com o plugin openid-connect (assinatura pelo JWKS do
+  # Zitadel, emissor, audiência do módulo, expiração e os campos sub, exp, iss e aud). A única rota anônima é o
+  # cadastro (`core-account-register`, POST /v1/core/accounts); as rotas do Zitadel são públicas.
+  # Uma rota por tipo de recurso (decisão 0015). Cada rota casa o caminho exato e os subcaminhos
+  # (`/v1/<módulo>/<tipos>` e `/v1/<módulo>/<tipos>/*`), nunca um prefixo parecido (decisão 0030).
+  - name: ipm-organization-api
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: ipm-organization-api.ipm.svc.cluster.local
+          port: 8000
+          weight: 100
+    routes:
+      - name: ipm-organization-api
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/ipm/organizations
+          - /v1/ipm/organizations/*
+        plugins:
+          # Autentica o token na porta de entrada (decisão 0052). Os Receivers repetem a validação e decidem as roles.
+          openid-connect:
+            client_id: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION}
+                    - type: array
+                      contains:
+                        const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION}
+          # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
+          # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                # Sem error_description: ele repetiria ao cliente o valor que ele mandou e falhas internas (por exemplo,
+                # o corpo de um 503 do Zitadel). O motivo fica no log do gateway.
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
+
+  # API de ipm.user (decisões 0077 e 0098): a API `/v1/ipm/users`.
+  - name: ipm-user-api
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: ipm-user-api.ipm.svc.cluster.local
+          port: 8000
+          weight: 100
+    routes:
+      - name: ipm-user-api
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/ipm/users
+          - /v1/ipm/users/*
+        plugins:
+          # Autentica o token na porta de entrada (decisão 0052). Os Receivers repetem a validação e decidem as roles.
+          openid-connect:
+            client_id: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_USER}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_USER}
+                    - type: array
+                      contains:
+                        const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_USER}
+          # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
+          # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                # Sem error_description: ele repetiria ao cliente o valor que ele mandou e falhas internas (por exemplo,
+                # o corpo de um 503 do Zitadel). O motivo fica no log do gateway.
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
+
+  # Receiver de ipm.serviceaccount (decisão 0094): a API `/v1/ipm/serviceaccounts`.
+  - name: ipm-serviceaccount-api
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: ipm-serviceaccount-api.ipm.svc.cluster.local
+          port: 8000
+          weight: 100
+    routes:
+      - name: ipm-serviceaccount-api
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/ipm/serviceaccounts
+          - /v1/ipm/serviceaccounts/*
+        plugins:
+          # Autentica o token na porta de entrada (decisão 0052). Os Receivers repetem a validação e decidem as roles.
+          openid-connect:
+            client_id: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_SERVICEACCOUNT}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_SERVICEACCOUNT}
+                    - type: array
+                      contains:
+                        const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_SERVICEACCOUNT}
+          # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
+          # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                # Sem error_description: ele repetiria ao cliente o valor que ele mandou e falhas internas (por exemplo,
+                # o corpo de um 503 do Zitadel). O motivo fica no log do gateway.
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
+
+  # API de ipm.permission (decisões 0083 e 0098): a API `/v1/ipm/permissions`.
+  - name: ipm-permission-api
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: ipm-permission-api.ipm.svc.cluster.local
+          port: 8000
+          weight: 100
+    routes:
+      - name: ipm-permission-api
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/ipm/permissions
+          - /v1/ipm/permissions/*
+        plugins:
+          openid-connect:
+            client_id: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_PERMISSION}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_PERMISSION}
+                    - type: array
+                      contains:
+                        const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_PERMISSION}
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
+
+  # API de ipm.role (decisões 0083 e 0098): a API `/v1/ipm/roles`.
+  - name: ipm-role-api
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: ipm-role-api.ipm.svc.cluster.local
+          port: 8000
+          weight: 100
+    routes:
+      - name: ipm-role-api
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/ipm/roles
+          - /v1/ipm/roles/*
+        plugins:
+          openid-connect:
+            client_id: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ROLE}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ROLE}
+                    - type: array
+                      contains:
+                        const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ROLE}
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
+
+  # API de ipm.group (decisões 0085, 0088 e 0098): a API `/v1/ipm/groups`.
+  - name: ipm-group-api
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: ipm-group-api.ipm.svc.cluster.local
+          port: 8000
+          weight: 100
+    routes:
+      - name: ipm-group-api
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/ipm/groups
+          - /v1/ipm/groups/*
+        plugins:
+          openid-connect:
+            client_id: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_GROUP}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_GROUP}
+                    - type: array
+                      contains:
+                        const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_GROUP}
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
+
+  # API de sum.service (decisões 0033 e 0098): a API `/v1/sum/services`.
+  - name: sum-service-api
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: sum-service-api.sum.svc.cluster.local
+          port: 8000
+          weight: 100
+    routes:
+      - name: sum-service-api
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/sum/services
+          - /v1/sum/services/*
+        plugins:
+          # Autentica o token na porta de entrada (decisão 0052). Os Receivers repetem a validação e decidem as roles.
+          openid-connect:
+            client_id: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_SUM_SERVICE}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_SUM_SERVICE}
+                    - type: array
+                      contains:
+                        const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_SUM_SERVICE}
+          # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
+          # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                # Sem error_description: ele repetiria ao cliente o valor que ele mandou e falhas internas (por exemplo,
+                # o corpo de um 503 do Zitadel). O motivo fica no log do gateway.
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
+
+  # API de bsm.account (decisão 0098): a API `/v1/bsm/accounts`.
+  - name: bsm-account-api
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: bsm-account-api.bsm.svc.cluster.local
+          port: 8000
+          weight: 100
+    routes:
+      - name: bsm-account-api
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/bsm/accounts
+          - /v1/bsm/accounts/*
+        plugins:
+          # Autentica o token na porta de entrada (decisão 0052). Os Receivers repetem a validação e decidem as roles.
+          openid-connect:
+            client_id: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_ACCOUNT}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_ACCOUNT}
+                    - type: array
+                      contains:
+                        const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_ACCOUNT}
+          # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
+          # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                # Sem error_description: ele repetiria ao cliente o valor que ele mandou e falhas internas (por exemplo,
+                # o corpo de um 503 do Zitadel). O motivo fica no log do gateway.
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
+
+  - name: core-account-api
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: core-account-api.core.svc.cluster.local
+          port: 8000
+          weight: 100
+    routes:
+      - name: core-account-api
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/core/accounts
+          - /v1/core/accounts/*
+        plugins:
+          # Autentica o token na porta de entrada (decisão 0052). Os Receivers repetem a validação e decidem as roles.
+          openid-connect:
+            client_id: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT}
+                    - type: array
+                      contains:
+                        const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT}
+          # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
+          # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                # Sem error_description: ele repetiria ao cliente o valor que ele mandou e falhas internas (por exemplo,
+                # o corpo de um 503 do Zitadel). O motivo fica no log do gateway.
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
+      # Auto-cadastro (escrita anônima): limite de taxa por IP já no gateway, o primeiro nível
+      # de proteção (docs/loop/RESOURCE-CONTROL-SECURITY.md §12). O Receiver aplica o segundo.
+      # O IP vem do plugin global `real-ip` (decisão 0054): em dev é o do par TCP; em stg e prd, atrás de
+      # um balanceador, é o do cliente, desde que `SMARKEE_GATEWAY_TRUSTED_PROXIES` seja o do balanceador.
+      - name: core-account-register
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/core/accounts
+        methods:
+          - POST
+        priority: 10
+        plugins:
+          limit-count:
+            count: 10
+            time_window: 60
+            key_type: var
+            key: remote_addr
+            rejected_code: 429
+          # O limit-count não envia `Retry-After` (só `X-RateLimit-Reset`), mas o contrato do
+          # cadastro prevê `429` com `Retry-After`. O valor é a janela inteira (`time_window`).
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 429
+            headers:
+              set:
+                Retry-After: "60"
+
+# Traces (decisão 0050): o plugin `opentelemetry` exporta OTLP/HTTP para o otel-gateway, que ajusta os spans
+# à semconv (`otel-gateway-semconv.yaml`). Vale para todas as rotas, inclusive as sem rota (404).
+global_rules:
+  # IP real do cliente (decisão 0054). Atrás de um balanceador, o par TCP é o balanceador, e o cliente vem no
+  # X-Forwarded-For. O gateway só confia nesse cabeçalho se o par estiver em `trusted_addresses`
+  # (SMARKEE_GATEWAY_TRUSTED_PROXIES: um IP ou um CIDR; um CIDR cobre os balanceadores de uma sub-rede). O padrão é o loopback, que na prática não
+  # confia em ninguém: em dev o par é o NAT do Docker, e confiar nele deixaria qualquer um forjar o cabeçalho e
+  # burlar o limite de taxa do cadastro (que usa o IP). Com a confiança ligada, `remote_addr` passa a ser o cliente
+  # real (limite de taxa, `client.address`) e `realip_remote_addr` continua sendo o par (`network.peer.address`).
+  real-ip:
+    source: http_x_forwarded_for
+    recursive: true
+    trusted_addresses:
+      - ${SMARKEE_GATEWAY_TRUSTED_PROXIES}
+
+  # Borda pública: o gateway inicia um trace novo e não continua o que o cliente enviar (o cliente escolheria o
+  # trace_id e a flag de amostragem). Roda antes do opentelemetry (prioridade 12009), que lê esses cabeçalhos. O
+  # gateway injeta no upstream o traceparent do próprio span. Decisão 0054.
+  proxy-rewrite:
+    _meta:
+      priority: 20000
+    headers:
+      remove:
+        - traceparent
+        - tracestate
+
+  opentelemetry:
+    # Segue a decisão de amostragem do chamador (traceparent); sem chamador, amostra tudo. O otel-gateway
+    # faz a amostragem final (tail sampling). Para stg e prd, troque o `root` por `trace_id_ratio`.
+    sampler:
+      name: parent_base
+      options:
+        root:
+          name: always_on
+    # O plugin nomeia o atributo pelo nome da variável do nginx; o otel-gateway os renomeia para a semconv
+    # (server.address, server.port, client.address, network.peer.*, network.protocol.version, url.query).
+    additional_attributes:
+      - http_host
+      - remote_addr
+      - remote_port
+      - realip_remote_addr
+      - realip_remote_port
+      - server_protocol
+      - args
+
+plugin_metadata:
+  opentelemetry:
+    # Resource do gateway (docs/telemetry/OBSERVABILITY.md §4). `service.instance.id` e `host.name` vêm do otel-gateway.
+    resource:
+      service.name: gateway
+      service.namespace: smarkee
+      # Acompanha a versão do APISIX (SMARKEE_GATEWAY_IMAGE_VERSION).
+      service.version: 3.19.0
+      deployment.environment.name: development
+    collector:
+      address: ${SMARKEE_GATEWAY_TELEMETRY_ADDRESS}
+      request_timeout: 3

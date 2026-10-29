@@ -1,0 +1,457 @@
+#!/usr/bin/env bash
+# Inicializa, destrava (unseal) e configura de forma idempotente o serviço `vault`
+# (OpenBao 2.7.2) em desenvolvimento (Etapa K2, decisão 0102):
+#   1. Aplica os manifestos Kustomize (`infrastructure/k8s/platform/vault/overlays/dev`).
+#   2. Executa `operator init` (1 share / 1 threshold em dev) se ainda não inicializado,
+#      salvando as chaves apenas em `.workspace/vault-init.json` (fora do git, permissão 600).
+#   3. Executa `operator unseal` se o cofre estiver selado.
+#   4. Provisiona os namespaces internos `core` e `operator` com `custom_metadata` (`identity_org_name` e `identity_org_id`).
+#   5. Habilita no namespace `core`:
+#      - `/svm` (`kv-v2` — Secret Vault Manager)
+#      - `/ekm` (`transit` — Encryption Key Manager) + chave `database-backup`
+#      - `/clm/root` e `/clm/int` (`pki` — Certificate Lifecycle Manager) + role `smarkee-internal`
+#      - `auth/kubernetes` + políticas de menor privilégio `clm-issuer`, `svm-reader` e `ekm-crypto`
+#   6. Carrega em `core/svm/...` todos os segredos de dev da plataforma e das 9 features
+#      (incluindo as chaves JSON das service accounts do volume `identity-bootstrap`).
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+INIT_FILE="${REPO_ROOT}/.workspace/vault-init.json"
+VAULT_NS="vault"
+VAULT_POD="vault-0"
+
+log() {
+  printf "\033[1;34m[vault-bootstrap]\033[0m %s\n" "$*"
+}
+
+mkdir -p "${REPO_ROOT}/.workspace"
+
+# 1. Aplicar manifestos do vault
+log "Applying vault manifests (overlays/dev)..."
+kubectl apply -k "${REPO_ROOT}/infrastructure/k8s/platform/vault/overlays/dev"
+
+log "Waiting for Pod ${VAULT_POD} in namespace ${VAULT_NS} to be Ready..."
+kubectl rollout status statefulset/vault -n "${VAULT_NS}" --timeout=180s
+
+# Helper para executar `bao` dentro do Pod vault-0
+bao_exec() {
+  kubectl exec -i -n "${VAULT_NS}" "${VAULT_POD}" -- env "$@"
+}
+
+# 2. Verificar inicialização do OpenBao
+STATUS_JSON="$(bao_exec BAO_ADDR=http://127.0.0.1:8200 bao status -format=json 2>/dev/null || true)"
+INITIALIZED="$(printf "%s" "${STATUS_JSON}" | python3 -c 'import json,sys; d=json.loads(sys.stdin.read() or "{}"); print(str(d.get("initialized", False)).lower())')"
+
+if [[ "${INITIALIZED}" != "true" ]]; then
+  log "Initializing OpenBao (key-shares=1, key-threshold=1 for dev)..."
+  bao_exec BAO_ADDR=http://127.0.0.1:8200 bao operator init -key-shares=1 -key-threshold=1 -format=json > "${INIT_FILE}"
+  chmod 600 "${INIT_FILE}"
+  log "Saved init credentials to ${INIT_FILE} (mode 0600, gitignored)."
+elif [[ ! -f "${INIT_FILE}" ]]; then
+  echo "ERROR: OpenBao is already initialized, but ${INIT_FILE} does not exist." >&2
+  exit 1
+fi
+
+UNSEAL_KEY="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["unseal_keys_b64"][0])' "${INIT_FILE}")"
+ROOT_TOKEN="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["root_token"])' "${INIT_FILE}")"
+
+# 3. Unseal se necessário
+STATUS_JSON="$(bao_exec BAO_ADDR=http://127.0.0.1:8200 bao status -format=json 2>/dev/null || true)"
+SEALED="$(printf "%s" "${STATUS_JSON}" | python3 -c 'import json,sys; d=json.loads(sys.stdin.read() or "{}"); print(str(d.get("sealed", True)).lower())')"
+
+if [[ "${SEALED}" == "true" ]]; then
+  log "Unsealing OpenBao..."
+  bao_exec BAO_ADDR=http://127.0.0.1:8200 bao operator unseal "${UNSEAL_KEY}" >/dev/null
+fi
+
+bao_root() {
+  bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" "$@"
+}
+
+bao_core() {
+  bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="core" "$@"
+}
+
+bao_operator() {
+  bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="operator" "$@"
+}
+
+# 4. Criar/atualizar namespaces internos `core` e `operator` com custom_metadata
+ensure_bao_namespace() {
+  local ns_name="$1"
+  local org_id="${2:-pending}"
+  if ! bao_root bao namespace lookup "${ns_name}" >/dev/null 2>&1; then
+    log "Creating OpenBao namespace '${ns_name}/'..."
+    bao_root bao namespace create \
+      -custom-metadata="identity_org_name=${ns_name}" \
+      -custom-metadata="identity_org_id=${org_id}" \
+      "${ns_name}" >/dev/null
+  else
+    log "OpenBao namespace '${ns_name}/' already exists; ensuring custom_metadata..."
+    bao_root bao namespace patch \
+      -custom-metadata="identity_org_name=${ns_name}" \
+      -custom-metadata="identity_org_id=${org_id}" \
+      "${ns_name}" >/dev/null
+  fi
+}
+
+CORE_ORG_ID="${SMARKEE_IDENTITY_CORE_ORG_ID:-pending}"
+OPERATOR_ORG_ID="${SMARKEE_IDENTITY_OPERATOR_ORG_ID:-pending}"
+if [[ "${CORE_ORG_ID}" == "pending" ]] && kubectl get pod database-1 -n database >/dev/null 2>&1; then
+  DB_CORE_ORG_ID="$(kubectl exec -n database database-1 -c postgres -- psql -U postgres -d identity -tAc "SELECT id FROM projections.orgs1 WHERE name='core' LIMIT 1" 2>/dev/null | tr -d '[:space:]' || true)"
+  if [[ -n "${DB_CORE_ORG_ID}" ]]; then
+    CORE_ORG_ID="${DB_CORE_ORG_ID}"
+  fi
+fi
+if [[ "${OPERATOR_ORG_ID}" == "pending" ]] && kubectl get pod database-1 -n database >/dev/null 2>&1; then
+  DB_OPERATOR_ORG_ID="$(kubectl exec -n database database-1 -c postgres -- psql -U postgres -d identity -tAc "SELECT id FROM projections.orgs1 WHERE name='operator' LIMIT 1" 2>/dev/null | tr -d '[:space:]' || true)"
+  if [[ -n "${DB_OPERATOR_ORG_ID}" ]]; then
+    OPERATOR_ORG_ID="${DB_OPERATOR_ORG_ID}"
+  fi
+fi
+ensure_bao_namespace "core" "${CORE_ORG_ID}"
+ensure_bao_namespace "operator" "${OPERATOR_ORG_ID}"
+
+# 5. Habilitar mounts `/svm` (kv-v2), `/ekm` (transit) e `/clm` (pki) em `core` e `operator`
+ensure_mounts_in_ns() {
+  local ns="$1"
+  log "Ensuring /svm, /ekm and /clm mounts in namespace '${ns}/'..."
+  local mounts_json
+  mounts_json="$(bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" bao secrets list -format=json)"
+
+  if ! printf "%s" "${mounts_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if "svm/" in d else 1)'; then
+    bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" \
+      bao secrets enable -path=svm -version=2 kv >/dev/null
+  fi
+
+  if ! printf "%s" "${mounts_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if "ekm/" in d else 1)'; then
+    bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" \
+      bao secrets enable -path=ekm transit >/dev/null
+  fi
+}
+
+ensure_mounts_in_ns "core"
+ensure_mounts_in_ns "operator"
+
+# 6. Configurar `/ekm` no namespace `core` (chave de criptografia de backup do SSOT)
+log "Configuring transit key 'database-backup' in 'core/ekm'..."
+bao_core bao write -f ekm/keys/database-backup >/dev/null
+
+# 7. Configurar PKI (`/clm/root` e `/clm/int`) no namespace `core`
+log "Configuring PKI Root & Intermediate CAs in 'core/clm'..."
+CORE_MOUNTS="$(bao_core bao secrets list -format=json)"
+
+if ! printf "%s" "${CORE_MOUNTS}" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if "clm/root/" in d else 1)'; then
+  bao_core bao secrets enable -path=clm/root pki >/dev/null
+  bao_core bao secrets tune -max-lease-ttl=87600h clm/root >/dev/null
+fi
+
+if ! bao_core bao read -field=certificate clm/root/cert/ca >/dev/null 2>&1; then
+  log "Generating Root CA in 'core/clm/root'..."
+  bao_core bao write clm/root/root/generate/internal \
+    common_name="Smarkee Platform Root CA" \
+    issuer_name="smarkee-root" \
+    ttl=87600h >/dev/null
+  bao_core bao write clm/root/config/urls \
+    issuing_certificates="http://clm.vault.svc.cluster.local:8200/v1/core/clm/root/ca" \
+    crl_distribution_points="http://clm.vault.svc.cluster.local:8200/v1/core/clm/root/crl" >/dev/null
+fi
+
+if ! printf "%s" "${CORE_MOUNTS}" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if "clm/int/" in d else 1)'; then
+  bao_core bao secrets enable -path=clm/int pki >/dev/null
+  bao_core bao secrets tune -max-lease-ttl=43800h clm/int >/dev/null
+fi
+
+if ! bao_core bao read -field=certificate clm/int/cert/ca >/dev/null 2>&1; then
+  log "Generating and signing Intermediate CA in 'core/clm/int'..."
+  CSR="$(bao_core bao write -field=csr clm/int/intermediate/generate/internal \
+    common_name="Smarkee Platform Intermediate CA" \
+    issuer_name="smarkee-int")"
+  SIGNED_CERT="$(bao_core bao write -field=certificate clm/root/root/sign-intermediate \
+    issuer_ref="smarkee-root" \
+    csr="${CSR}" \
+    format=pem_bundle \
+    ttl=43800h)"
+  bao_core bao write clm/int/intermediate/set-signed certificate="${SIGNED_CERT}" >/dev/null
+  bao_core bao write clm/int/config/urls \
+    issuing_certificates="http://clm.vault.svc.cluster.local:8200/v1/core/clm/int/ca" \
+    crl_distribution_points="http://clm.vault.svc.cluster.local:8200/v1/core/clm/int/crl" >/dev/null
+fi
+
+log "Configuring PKI role 'smarkee-internal' in 'core/clm/int'..."
+bao_core bao write clm/int/roles/smarkee-internal \
+  allow_any_name=true \
+  allow_subdomains=true \
+  allow_bare_domains=true \
+  allow_localhost=true \
+  allow_ip_sans=true \
+  enforce_hostnames=false \
+  server_flag=true \
+  client_flag=true \
+  max_ttl=2160h \
+  ttl=720h >/dev/null
+
+# Publicar o certificado da Root CA no Secret `smarkee-root-ca` (namespace `cert-manager-operator`) para o trust-manager Bundle
+ROOT_CA_PEM="$(bao_core bao read -field=certificate clm/root/cert/ca)"
+kubectl create secret generic smarkee-root-ca \
+  -n cert-manager-operator \
+  --from-literal=ca.crt="${ROOT_CA_PEM}" \
+  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+# 8. Configurar políticas de menor privilégio e auth/kubernetes no namespace `core`
+log "Writing least-privilege policies ('clm-issuer', 'svm-reader', 'ekm-crypto') in 'core/'..."
+
+bao_core bao policy write clm-issuer - <<'EOF' >/dev/null
+path "clm/int/sign/smarkee-internal" {
+  capabilities = ["create", "update"]
+}
+path "clm/int/issue/smarkee-internal" {
+  capabilities = ["create", "update"]
+}
+path "clm/int/cert/ca" {
+  capabilities = ["read"]
+}
+path "clm/root/cert/ca" {
+  capabilities = ["read"]
+}
+EOF
+
+bao_core bao policy write svm-reader - <<'EOF' >/dev/null
+path "svm/data/*" {
+  capabilities = ["read"]
+}
+path "svm/metadata/*" {
+  capabilities = ["read", "list"]
+}
+EOF
+
+bao_core bao policy write ekm-crypto - <<'EOF' >/dev/null
+path "ekm/encrypt/database-backup" {
+  capabilities = ["update"]
+}
+path "ekm/decrypt/database-backup" {
+  capabilities = ["update"]
+}
+path "ekm/keys/database-backup" {
+  capabilities = ["read"]
+}
+EOF
+
+log "Configuring auth/kubernetes in 'core/'..."
+CORE_AUTH="$(bao_core bao auth list -format=json)"
+if ! printf "%s" "${CORE_AUTH}" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if "kubernetes/" in d else 1)'; then
+  bao_core bao auth enable kubernetes >/dev/null
+fi
+
+kubectl exec -i -n "${VAULT_NS}" "${VAULT_POD}" -- sh -c '
+  export BAO_ADDR="http://127.0.0.1:8200"
+  export BAO_TOKEN="'"${ROOT_TOKEN}"'"
+  export BAO_NAMESPACE="core"
+  bao write auth/kubernetes/config \
+    kubernetes_host="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}" \
+    kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+    token_reviewer_jwt=@/var/run/secrets/kubernetes.io/serviceaccount/token >/dev/null
+'
+
+bao_core bao write auth/kubernetes/role/cert-manager-issuer \
+  bound_service_account_names=cert-manager \
+  bound_service_account_namespaces=cert-manager-operator \
+  policies=clm-issuer \
+  ttl=1h >/dev/null
+
+bao_core bao write auth/kubernetes/role/external-secrets-reader \
+  bound_service_account_names=external-secrets \
+  bound_service_account_namespaces=external-secrets-operator \
+  policies=svm-reader \
+  ttl=1h >/dev/null
+
+# 8.1 Configurar auth/jwt e auth/oidc vinculados ao identity (Zitadel) em `core` e `operator`
+IDENTITY_ISSUER="${SMARKEE_IDENTITY_ISSUER:-http://ipm-dev.smarkee.com.br:8080}"
+configure_identity_auth_in_ns() {
+  local ns="$1"
+  local org_id="$2"
+  local auth_json
+  auth_json="$(bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" bao auth list -format=json)"
+
+  if ! printf "%s" "${auth_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if "jwt/" in d else 1)'; then
+    bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" \
+      bao auth enable -path=jwt jwt >/dev/null
+  fi
+
+  if ! printf "%s" "${auth_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if "oidc/" in d else 1)'; then
+    bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" \
+      bao auth enable -path=oidc oidc >/dev/null
+  fi
+
+  if bao_exec wget -qO- "${IDENTITY_ISSUER}/.well-known/openid-configuration" >/dev/null 2>&1; then
+    log "Configuring auth/jwt and auth/oidc in '${ns}/' against '${IDENTITY_ISSUER}'..."
+    bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" \
+      bao write auth/jwt/config \
+        oidc_discovery_url="${IDENTITY_ISSUER}" \
+        bound_issuer="${IDENTITY_ISSUER}" >/dev/null
+
+    bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" \
+      bao write auth/oidc/config \
+        oidc_discovery_url="${IDENTITY_ISSUER}" \
+        bound_issuer="${IDENTITY_ISSUER}" >/dev/null
+
+    if [[ -n "${org_id}" && "${org_id}" != "pending" ]]; then
+      bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" \
+        bao write auth/jwt/role/identity-org-member - <<EOF >/dev/null
+{
+  "role_type": "jwt",
+  "user_claim": "sub",
+  "bound_claims": {
+    "urn:zitadel:iam:user:resourceowner:id": "${org_id}"
+  },
+  "token_policies": ["default"],
+  "token_ttl": "1h"
+}
+EOF
+    fi
+  else
+    log "Identity OIDC discovery ('${IDENTITY_ISSUER}') not yet reachable from vault; skipping auth/jwt & auth/oidc config until gateway+identity are up."
+  fi
+}
+
+configure_identity_auth_in_ns "core" "${CORE_ORG_ID}"
+configure_identity_auth_in_ns "operator" "${OPERATOR_ORG_ID}"
+
+# 9. Carregar segredos da plataforma e das features em `core/svm/...`
+log "Seeding platform and feature secrets into 'core/svm/...'..."
+
+read_env_val() {
+  local file="$1"
+  local key="$2"
+  local default_val="${3:-}"
+  if [[ -f "${file}" ]]; then
+    local val
+    val="$(grep -E "^${key}=" "${file}" | tail -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)"
+    if [[ -n "${val}" ]]; then
+      printf "%s" "${val}"
+      return 0
+    fi
+  fi
+  printf "%s" "${default_val}"
+}
+
+NATS_USER="$(read_env_val "${REPO_ROOT}/infrastructure/dev/messaging/.env" "SMARKEE_MESSAGING_USER" "smarkee")"
+NATS_PASSWORD="$(read_env_val "${REPO_ROOT}/infrastructure/dev/messaging/.env" "SMARKEE_MESSAGING_PASSWORD" "smarkee-dev-messaging")"
+GATEWAY_ENV="${REPO_ROOT}/infrastructure/dev/gateway/.env"
+GATEWAY_ADMIN_KEY="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_ADMIN_KEY" "edd1c9f034335f136f87ad84b625c8f1")"
+GATEWAY_AUD_CORE_ACCOUNT="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT" "nao-configurada")"
+GATEWAY_AUD_IPM_GROUP="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_GROUP" "nao-configurada")"
+GATEWAY_AUD_IPM_ORGANIZATION="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION" "nao-configurada")"
+GATEWAY_AUD_IPM_PERMISSION="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_PERMISSION" "nao-configurada")"
+GATEWAY_AUD_IPM_ROLE="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ROLE" "nao-configurada")"
+GATEWAY_AUD_IPM_USER="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_USER" "nao-configurada")"
+GATEWAY_AUD_IPM_SERVICEACCOUNT="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_SERVICEACCOUNT" "nao-configurada")"
+GATEWAY_AUD_SUM_SERVICE="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_SUM_SERVICE" "nao-configurada")"
+GATEWAY_AUD_BSM_ACCOUNT="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_ACCOUNT" "nao-configurada")"
+IDENTITY_MASTERKEY="$(read_env_val "${REPO_ROOT}/infrastructure/dev/identity/.env" "SMARKEE_IDENTITY_MASTERKEY" "0123456789abcdef0123456789abcdef")"
+IDENTITY_ADMIN_PASSWORD="$(read_env_val "${REPO_ROOT}/infrastructure/dev/identity/.env" "SMARKEE_IDENTITY_ADMIN_PASSWORD" "Smarkee@Dev2026!")"
+IDENTITY_SESSION_SECRET="$(read_env_val "${REPO_ROOT}/infrastructure/dev/identity/.env" "SMARKEE_IDENTITY_SESSION_COOKIE_SECRET" "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")"
+
+# Segredos de infraestrutura
+bao_core bao kv put svm/messaging \
+  user="${NATS_USER}" \
+  password="${NATS_PASSWORD}" >/dev/null
+
+bao_core bao kv put svm/gateway \
+  admin_key="${GATEWAY_ADMIN_KEY}" \
+  audience_core_account="${GATEWAY_AUD_CORE_ACCOUNT}" \
+  audience_ipm_group="${GATEWAY_AUD_IPM_GROUP}" \
+  audience_ipm_organization="${GATEWAY_AUD_IPM_ORGANIZATION}" \
+  audience_ipm_permission="${GATEWAY_AUD_IPM_PERMISSION}" \
+  audience_ipm_role="${GATEWAY_AUD_IPM_ROLE}" \
+  audience_ipm_user="${GATEWAY_AUD_IPM_USER}" \
+  audience_ipm_serviceaccount="${GATEWAY_AUD_IPM_SERVICEACCOUNT}" \
+  audience_sum_service="${GATEWAY_AUD_SUM_SERVICE}" \
+  audience_bsm_account="${GATEWAY_AUD_BSM_ACCOUNT}" >/dev/null
+
+bao_core bao kv put svm/database/admin \
+  postgres_password="postgres" \
+  ssot_password="ssot" \
+  identity_password="identity" \
+  telemetry_password="telemetry_login" \
+  core_maintenance_password="core_maintenance_login" \
+  bsm_maintenance_password="bsm_maintenance_login" \
+  sum_service_maintenance_password="sum_service_maintenance_login" \
+  ipm_maintenance_password="ipm_maintenance_login" >/dev/null
+
+LOGIN_PAT=""
+if docker volume inspect identity-bootstrap >/dev/null 2>&1; then
+  LOGIN_PAT="$(docker run --rm -v identity-bootstrap:/keys:ro alpine sh -c 'cat /keys/login-client.pat 2>/dev/null || true')"
+fi
+
+bao_core bao kv put svm/identity/config \
+  masterkey="${IDENTITY_MASTERKEY}" \
+  admin_password="${IDENTITY_ADMIN_PASSWORD}" \
+  session_cookie_secret="${IDENTITY_SESSION_SECRET}" \
+  database_password="identity" \
+  login_client_pat="${LOGIN_PAT}" >/dev/null
+
+# Chaves JSON das service accounts do volume identity-bootstrap
+if docker volume inspect identity-bootstrap >/dev/null 2>&1; then
+  for sa_name in \
+    core-account-controller \
+    ipm-organization-controller \
+    ipm-permission-controller \
+    ipm-serviceaccount-controller \
+    ipm-user-controller \
+    sum-service-controller \
+    platform-bootstrap; do
+    SA_JSON="$(docker run --rm -v identity-bootstrap:/keys:ro alpine sh -c "cat /keys/service-account-${sa_name}.json 2>/dev/null || true")"
+    if [[ -n "${SA_JSON}" ]]; then
+      printf "%s" "${SA_JSON}" | bao_core bao kv put "svm/identity/service-accounts/${sa_name}" key_json=- >/dev/null
+    fi
+  done
+fi
+
+# Segredos por feature em core/svm/<module>/<type>
+seed_feature_secret() {
+  local mod="$1"
+  local typ="$2"
+  local has_controller="$3"
+  local db_prefix="${mod}_${typ}"
+  local sa_name="${mod}-${typ}-controller"
+  local sa_json=""
+
+  if [[ "${has_controller}" == "true" ]] && docker volume inspect identity-bootstrap >/dev/null 2>&1; then
+    sa_json="$(docker run --rm -v identity-bootstrap:/keys:ro alpine sh -c "cat /keys/service-account-${sa_name}.json 2>/dev/null || true")"
+  fi
+
+  if [[ "${has_controller}" == "true" ]]; then
+    printf "%s" "${sa_json}" | bao_core bao kv put "svm/${mod}/${typ}" \
+      api_database_password="${db_prefix}_api_login" \
+      publisher_database_password="${db_prefix}_publisher_login" \
+      controller_database_password="${db_prefix}_controller_login" \
+      api_messaging_password="${NATS_PASSWORD}" \
+      publisher_messaging_password="${NATS_PASSWORD}" \
+      controller_messaging_password="${NATS_PASSWORD}" \
+      controller_service_account_json=- >/dev/null
+  else
+    bao_core bao kv put "svm/${mod}/${typ}" \
+      api_database_password="${db_prefix}_api_login" \
+      publisher_database_password="${db_prefix}_publisher_login" \
+      api_messaging_password="${NATS_PASSWORD}" \
+      publisher_messaging_password="${NATS_PASSWORD}" >/dev/null
+  fi
+}
+
+seed_feature_secret "core" "account" "true"
+seed_feature_secret "bsm" "account" "false"
+seed_feature_secret "sum" "service" "true"
+seed_feature_secret "ipm" "organization" "true"
+seed_feature_secret "ipm" "user" "true"
+seed_feature_secret "ipm" "serviceaccount" "true"
+seed_feature_secret "ipm" "permission" "true"
+seed_feature_secret "ipm" "role" "false"
+seed_feature_secret "ipm" "group" "false"
+
+# Forçar reconciliação imediata do ClusterIssuer e ClusterSecretStore
+kubectl annotate clusterissuer smarkee-internal-ca vault.smarkee.io/reconciled-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --overwrite >/dev/null
+kubectl annotate clustersecretstore smarkee-core-svm vault.smarkee.io/reconciled-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --overwrite >/dev/null
+
+log "Vault (/svm, /ekm, /clm) in namespace 'core' is initialized, unsealed and seeded!"

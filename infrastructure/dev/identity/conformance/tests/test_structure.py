@@ -740,3 +740,57 @@ def test_the_ids_in_the_env_files_match_the_instance(
                 )
 
     assert not drifts, "configuração desatualizada:\n" + "\n".join(drifts)
+
+
+VAULT_URL = os.environ.get("CONFORMANCE_VAULT_URL", "http://localhost:8200")
+VAULT_INIT_FILE = REPOSITORY / ".workspace" / "vault-init.json"
+
+
+def _vault_token() -> str | None:
+    token = os.environ.get("CONFORMANCE_VAULT_TOKEN")
+    if token:
+        return token
+    if VAULT_INIT_FILE.exists():
+        data = json.loads(VAULT_INIT_FILE.read_text(encoding="utf-8"))
+        return str(data.get("root_token") or "") or None
+    return None
+
+
+def test_vault_namespaces_and_oidc_jwt_auth_match_identity_organizations(
+    orgs: dict[str, str],
+) -> None:
+    """Os namespaces `core/` e `operator/` do `vault` (OpenBao, decisão 0102) espelham as
+    organizações do `identity` (Zitadel) com `identity_org_id` e `identity_org_name` (papel,
+    nunca nome do produto, AGENTS.md §15.1) e autenticam tokens via `auth/jwt` e `auth/oidc`."""
+    token = _vault_token()
+    if not token:
+        pytest.skip("CONFORMANCE_VAULT_TOKEN / .workspace/vault-init.json ausente")
+
+    with httpx.Client(base_url=VAULT_URL, headers={"X-Vault-Token": token}, timeout=10.0) as client:
+        for ns_name in ("core", "operator"):
+            ns_resp = client.get(f"/v1/sys/namespaces/{ns_name}")
+            ns_resp.raise_for_status()
+            metadata: dict[str, str] = ns_resp.json()["data"].get("custom_metadata") or {}
+            assert metadata.get("identity_org_name") == ns_name, metadata
+            assert metadata.get("identity_org_id") == orgs[ns_name], metadata
+            assert not [k for k in metadata if "zitadel" in k.lower()], metadata
+
+            ns_headers = {"X-Vault-Namespace": ns_name}
+            mounts_resp = client.get("/v1/sys/mounts", headers=ns_headers)
+            mounts_resp.raise_for_status()
+            mounts = set(mounts_resp.json()["data"].keys())
+            assert {"svm/", "ekm/"} <= mounts, f"mounts ausentes em {ns_name}: {mounts}"
+            if ns_name == "core":
+                assert {"clm/root/", "clm/int/"} <= mounts, f"PKI ausente em core: {mounts}"
+
+            for auth_mount in ("jwt", "oidc"):
+                cfg_resp = client.get(f"/v1/auth/{auth_mount}/config", headers=ns_headers)
+                cfg_resp.raise_for_status()
+                cfg = cfg_resp.json()["data"]
+                assert cfg.get("oidc_discovery_url") == ISSUER, (ns_name, auth_mount, cfg)
+                assert cfg.get("bound_issuer") == ISSUER, (ns_name, auth_mount, cfg)
+
+            role_resp = client.get("/v1/auth/jwt/role/identity-org-member", headers=ns_headers)
+            role_resp.raise_for_status()
+            bound_claims = role_resp.json()["data"].get("bound_claims") or {}
+            assert bound_claims.get("urn:zitadel:iam:user:resourceowner:id") == orgs[ns_name]

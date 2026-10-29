@@ -1,8 +1,8 @@
 """Apaga os sinais de telemetria gravados em disco pelos telemeters de dev.
 
-Os telemeters (`platform-telemeter` e o de cada feature) gravam logs, métricas e traces em arquivos
-`*.jsonl` (decisões 0053 e 0062) só para gerar dados de análise. Este comando zera essas pastas
-para uma nova rodada de testes começar sem o histórico anterior.
+Os telemeters (`telemetry-sink` e o de cada feature) gravam logs, métricas e traces em arquivos
+`*.jsonl` (decisões 0053, 0062 e 0102) só para gerar dados de análise. Este comando zera essas
+pastas para uma nova rodada de testes começar sem o histórico anterior.
 
 Sem `--apply`, só lista. Com `--apply`, remove os arquivos rotacionados e **trunca** o arquivo
 ativo de cada pasta: o coletor mantém o arquivo aberto, e apagá-lo faria os próximos sinais irem
@@ -14,7 +14,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-PLATFORM_TELEMETER = Path("infrastructure/dev/platform-telemeter")
+TELEMETRY_SINK = Path("infrastructure/dev/telemetry-sink")
 SIGNAL_FOLDERS = (
     "logs/app",
     "logs/infra",
@@ -22,7 +22,7 @@ SIGNAL_FOLDERS = (
     "metrics/infra",
     "traces",
 )
-"""Pastas do `platform-telemeter` (logs/{app,infra}, metrics/{app,infra} e traces)."""
+"""Pastas do `telemetry-sink` (logs/{app,infra}, metrics/{app,infra} e traces)."""
 FEATURE_TELEMETER_FOLDERS = ("logs", "traces")
 """Pastas do telemeter de cada feature (`features/<módulo>/<tipo>/telemeter`)."""
 ACTIVE_FILE_NAMES = frozenset({"logs.jsonl", "metrics.jsonl", "traces.jsonl"})
@@ -43,7 +43,7 @@ def repository_root() -> Path:
 
 
 def signal_folders(root: Path) -> list[Path]:
-    folders = [root / PLATFORM_TELEMETER / folder for folder in SIGNAL_FOLDERS]
+    folders = [root / TELEMETRY_SINK / folder for folder in SIGNAL_FOLDERS]
     for telemeter in sorted(root.glob("features/*/*/telemeter")):
         folders.extend(telemeter / folder for folder in FEATURE_TELEMETER_FOLDERS)
     return folders
@@ -83,9 +83,9 @@ def _megabytes(size_bytes: int) -> str:
 
 def run(root: Path, *, apply: bool) -> int:
     """Lista e, com `apply`, zera os sinais. Devolve 1 se ainda houver sinal no fim, senão 0."""
-    if not (root / PLATFORM_TELEMETER).is_dir():
+    if not (root / TELEMETRY_SINK).is_dir():
         print(
-            f"error: {root / PLATFORM_TELEMETER} not found; is this the repository?",
+            f"error: {root / TELEMETRY_SINK} not found; is this the repository?",
             file=sys.stderr,
         )
         return 2

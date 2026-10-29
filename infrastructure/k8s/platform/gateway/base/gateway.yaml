@@ -1,0 +1,311 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gateway-secret
+  namespace: gateway
+  labels:
+    app.kubernetes.io/part-of: gateway
+spec:
+  refreshInterval: 5m
+  secretStoreRef:
+    name: smarkee-core-svm
+    kind: ClusterSecretStore
+  target:
+    name: gateway-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: APISIX_ADMIN_KEY
+      remoteRef:
+        key: gateway
+        property: admin_key
+    - secretKey: ADC_TOKEN
+      remoteRef:
+        key: gateway
+        property: admin_key
+    - secretKey: SMARKEE_GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT
+      remoteRef:
+        key: gateway
+        property: audience_core_account
+    - secretKey: SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_GROUP
+      remoteRef:
+        key: gateway
+        property: audience_ipm_group
+    - secretKey: SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION
+      remoteRef:
+        key: gateway
+        property: audience_ipm_organization
+    - secretKey: SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_PERMISSION
+      remoteRef:
+        key: gateway
+        property: audience_ipm_permission
+    - secretKey: SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ROLE
+      remoteRef:
+        key: gateway
+        property: audience_ipm_role
+    - secretKey: SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_USER
+      remoteRef:
+        key: gateway
+        property: audience_ipm_user
+    - secretKey: SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_SERVICEACCOUNT
+      remoteRef:
+        key: gateway
+        property: audience_ipm_serviceaccount
+    - secretKey: SMARKEE_GATEWAY_AUTH_AUDIENCE_SUM_SERVICE
+      remoteRef:
+        key: gateway
+        property: audience_sum_service
+    - secretKey: SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_ACCOUNT
+      remoteRef:
+        key: gateway
+        property: audience_bsm_account
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-etcd
+  namespace: gateway
+  labels:
+    app.kubernetes.io/name: gateway-etcd
+    app.kubernetes.io/part-of: gateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: gateway-etcd
+  ports:
+    - name: client
+      port: 2379
+      targetPort: 2379
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gateway-etcd
+  namespace: gateway
+  labels:
+    app.kubernetes.io/name: gateway-etcd
+    app.kubernetes.io/part-of: gateway
+spec:
+  serviceName: gateway-etcd
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway-etcd
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gateway-etcd
+        app.kubernetes.io/part-of: gateway
+    spec:
+      containers:
+        - name: etcd
+          image: quay.io/coreos/etcd:v3.7.2
+          command:
+            - etcd
+            - --name=gateway-etcd
+            - --data-dir=/etcd-data
+            - --listen-client-urls=http://0.0.0.0:2379
+            - --advertise-client-urls=http://gateway-etcd.gateway.svc.cluster.local:2379
+          ports:
+            - name: client
+              containerPort: 2379
+          readinessProbe:
+            exec:
+              command:
+                - etcdctl
+                - --endpoints=http://127.0.0.1:2379
+                - endpoint
+                - health
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - etcdctl
+                - --endpoints=http://127.0.0.1:2379
+                - endpoint
+                - health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /etcd-data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: gateway
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: gateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: gateway
+  ports:
+    - name: proxy-http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+    - name: proxy-issuer
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    - name: admin
+      port: 9180
+      targetPort: 9180
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: gateway
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gateway
+        app.kubernetes.io/part-of: gateway
+    spec:
+      hostAliases:
+        - ip: "127.0.0.1"
+          hostnames:
+            - ipm-dev.smarkee.com.br
+      containers:
+        - name: gateway
+          image: apache/apisix:3.19.0-debian
+          env:
+            - name: APISIX_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gateway-secret
+                  key: APISIX_ADMIN_KEY
+          ports:
+            - name: proxy-http
+              containerPort: 8000
+            - name: proxy-issuer
+              containerPort: 8080
+            - name: admin
+              containerPort: 9180
+          volumeMounts:
+            - name: config
+              mountPath: /usr/local/apisix/conf/config.yaml
+              subPath: config.yaml
+              readOnly: true
+          readinessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - >-
+                  exec 3<>/dev/tcp/127.0.0.1/9180 &&
+                  printf 'GET /apisix/admin/routes HTTP/1.0\r\nX-API-KEY: %s\r\n\r\n' "$APISIX_ADMIN_KEY" >&3 &&
+                  head -n 1 <&3 | grep -q ' 200 '
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - >-
+                  exec 3<>/dev/tcp/127.0.0.1/9180 &&
+                  printf 'GET /apisix/admin/routes HTTP/1.0\r\nX-API-KEY: %s\r\n\r\n' "$APISIX_ADMIN_KEY" >&3 &&
+                  head -n 1 <&3 | grep -q ' 200 '
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 384Mi
+      volumes:
+        - name: config
+          configMap:
+            name: gateway-config
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gateway-sync
+  namespace: gateway
+  labels:
+    app.kubernetes.io/name: gateway-sync
+    app.kubernetes.io/part-of: gateway
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gateway-sync
+        app.kubernetes.io/part-of: gateway
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-gateway
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z gateway.gateway.svc.cluster.local 9180; do
+                echo "Waiting for gateway Admin API on 9180..."
+                sleep 2
+              done
+      containers:
+        - name: adc
+          image: api7/adc:0.31.0
+          args:
+            - sync
+            - -f
+            - /bootstrap/adc.yaml
+          envFrom:
+            - secretRef:
+                name: gateway-secret
+          env:
+            - name: ADC_BACKEND
+              value: apisix
+            - name: ADC_SERVER
+              value: http://gateway.gateway.svc.cluster.local:9180
+            - name: SMARKEE_GATEWAY_TRUSTED_PROXIES
+              value: "127.0.0.1"
+            - name: SMARKEE_GATEWAY_TELEMETRY_ADDRESS
+              value: "telemetry-router.telemetry.svc.cluster.local:4318"
+          volumeMounts:
+            - name: bootstrap
+              mountPath: /bootstrap
+              readOnly: true
+      volumes:
+        - name: bootstrap
+          configMap:
+            name: gateway-bootstrap

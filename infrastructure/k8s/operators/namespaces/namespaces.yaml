@@ -1,0 +1,141 @@
+# Namespaces da plataforma Smarkee no cluster Kubernetes (decisão 0102):
+#   - 1 por papel de infraestrutura: database, messaging, identity, gateway, mail, telemetry, vault
+#   - 1 por módulo de produto: core, ipm, sum, bsm (e futuros svm, ekm, clm)
+#   - 1 por operador do cluster (padronização <papel>-operator, AGENTS.md §15.1):
+#     database-operator, telemetry-operator, external-secrets-operator,
+#     cert-manager-operator, gitops-operator, messaging-operator
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: database
+  labels:
+    smarkee.io/layer: infra
+    smarkee.io/role: database
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: messaging
+  labels:
+    smarkee.io/layer: infra
+    smarkee.io/role: messaging
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: identity
+  labels:
+    smarkee.io/layer: infra
+    smarkee.io/role: identity
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gateway
+  labels:
+    smarkee.io/layer: infra
+    smarkee.io/role: gateway
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mail
+  labels:
+    smarkee.io/layer: infra
+    smarkee.io/role: mail
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: telemetry
+  labels:
+    smarkee.io/layer: infra
+    smarkee.io/role: telemetry
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vault
+  labels:
+    smarkee.io/layer: infra
+    smarkee.io/role: vault
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: core
+  labels:
+    smarkee.io/layer: app
+    smarkee.io/module: core
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ipm
+  labels:
+    smarkee.io/layer: app
+    smarkee.io/module: ipm
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sum
+  labels:
+    smarkee.io/layer: app
+    smarkee.io/module: sum
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bsm
+  labels:
+    smarkee.io/layer: app
+    smarkee.io/module: bsm
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitops-operator
+  labels:
+    smarkee.io/layer: operator
+    smarkee.io/role: gitops
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: database-operator
+  labels:
+    smarkee.io/layer: operator
+    smarkee.io/role: database
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: telemetry-operator
+  labels:
+    smarkee.io/layer: operator
+    smarkee.io/role: telemetry
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager-operator
+  labels:
+    smarkee.io/layer: operator
+    smarkee.io/role: cert-manager
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets-operator
+  labels:
+    smarkee.io/layer: operator
+    smarkee.io/role: external-secrets
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: messaging-operator
+  labels:
+    smarkee.io/layer: operator
+    smarkee.io/role: messaging

@@ -2,7 +2,7 @@
 
 Apaga os sinais de telemetria que os telemeters de dev gravaram em disco. É uma **ferramenta de operação**, e não um componente da plataforma nem um teste.
 
-Os telemeters (`platform-telemeter` e o de cada feature, decisões 0053 e 0062) gravam logs, métricas e traces em arquivos `*.jsonl` só para gerar dados de análise. Antes de uma nova rodada de testes, este comando zera essas pastas para a análise não misturar sinais de rodadas diferentes.
+Os telemeters (`telemetry-sink` e o de cada feature, decisões 0053 e 0062) gravam logs, métricas e traces em arquivos `*.jsonl` só para gerar dados de análise. Antes de uma nova rodada de testes, este comando zera essas pastas para a análise não misturar sinais de rodadas diferentes.
 
 ```bash
 cd scripts/dev/telemetry-reset && uv sync
@@ -16,7 +16,7 @@ Só `*.jsonl` (e nunca links simbólicos) nas pastas de sinais:
 
 | Origem | Pastas |
 |---|---|
-| `platform-telemeter` | `infrastructure/dev/platform-telemeter/{logs/app,logs/infra,metrics/app,metrics/infra,traces}` |
+| `telemetry-sink` | `infrastructure/dev/telemetry-sink/{logs/app,logs/infra,metrics/app,metrics/infra,traces}` |
 | Telemeter de cada feature | `features/<módulo>/<tipo>/telemeter/{logs,traces}` |
 
 O `.gitkeep`, a configuração dos telemeters e o resto do repositório não são tocados. Pasta de feature nova é encontrada sozinha (`features/*/*/telemeter`).
@@ -34,7 +34,7 @@ O `.gitkeep`, a configuração dos telemeters e o resto do repositório não sã
 ## Segurança
 
 - Sem `--apply`, nada é alterado.
-- Só enxerga pastas sob a raiz do repositório, descoberta pela localização do próprio script, e recusa rodar se `infrastructure/dev/platform-telemeter` não existir.
+- Só enxerga pastas sob a raiz do repositório, descoberta pela localização do próprio script, e recusa rodar se `infrastructure/dev/telemetry-sink` não existir.
 
 ## Desenvolvimento
 

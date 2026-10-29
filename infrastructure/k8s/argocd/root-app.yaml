@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: smarkee-platform-root
+  namespace: gitops-operator
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: infrastructure/k8s/argocd/platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitops-operator
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: smarkee-features-root
+  namespace: gitops-operator
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: infrastructure/k8s/argocd/features
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitops-operator
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

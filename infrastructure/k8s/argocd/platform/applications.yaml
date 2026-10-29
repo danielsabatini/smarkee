@@ -1,0 +1,146 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-vault
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: infrastructure/k8s/platform/vault/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vault
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-database
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: infrastructure/k8s/platform/database/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: database
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-messaging
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: infrastructure/k8s/platform/messaging/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: messaging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-mail
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: infrastructure/k8s/platform/mail/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mail
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-telemetry
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: infrastructure/k8s/platform/telemetry/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: telemetry
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-identity
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: infrastructure/k8s/platform/identity/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: identity
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-gateway
+  namespace: gitops-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: default
+  source:
+    repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
+    targetRevision: dev
+    path: infrastructure/k8s/platform/gateway/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gateway
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

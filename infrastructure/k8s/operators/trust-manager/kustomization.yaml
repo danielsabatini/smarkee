@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cert-manager-operator
+
+# trust-manager v0.26.0 (renderizado do chart oficial oci://quay.io/jetstack/charts/trust-manager:v0.26.0, decisão 0102).
+resources:
+  - trust-manager.yaml

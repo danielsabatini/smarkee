@@ -9,10 +9,10 @@ from smarkee_dev_telemetry_reset.main import find_signal_files, run
 
 def make_tree(root: Path) -> dict[str, Path]:
     files = {
-        "platform_active": root / "infrastructure/dev/platform-telemeter/logs/infra/logs.jsonl",
+        "platform_active": root / "infrastructure/dev/telemetry-sink/logs/infra/logs.jsonl",
         "platform_rotated": root
-        / "infrastructure/dev/platform-telemeter/logs/infra/logs-2026-10-19T18-01-23-size.jsonl",
-        "platform_traces": root / "infrastructure/dev/platform-telemeter/traces/traces.jsonl",
+        / "infrastructure/dev/telemetry-sink/logs/infra/logs-2026-10-19T18-01-23-size.jsonl",
+        "platform_traces": root / "infrastructure/dev/telemetry-sink/traces/traces.jsonl",
         "feature_logs": root / "features/ipm/organization/telemeter/logs/logs.jsonl",
         "feature_traces": root / "features/ipm/organization/telemeter/traces/traces.jsonl",
     }
@@ -25,7 +25,7 @@ def make_tree(root: Path) -> dict[str, Path]:
 def keep_files(root: Path) -> list[Path]:
     """Arquivos que nunca podem ser tocados: `.gitkeep`, configuração e dados de outras pastas."""
     keep = [
-        root / "infrastructure/dev/platform-telemeter/logs/infra/.gitkeep",
+        root / "infrastructure/dev/telemetry-sink/logs/infra/.gitkeep",
         root / "features/ipm/organization/telemeter/config.yaml",
         root / "infrastructure/dev/telemetry-router/data/queue.db",
         root / "features/ipm/organization/telemeter/logs/notes.txt",
@@ -77,7 +77,7 @@ def test_symbolic_links_are_never_followed(tmp_path: Path) -> None:
     make_tree(tmp_path)
     outside = tmp_path / "outside.jsonl"
     outside.write_text("important", encoding="utf-8")
-    link = tmp_path / "infrastructure/dev/platform-telemeter/logs/app/logs.jsonl"
+    link = tmp_path / "infrastructure/dev/telemetry-sink/logs/app/logs.jsonl"
     link.parent.mkdir(parents=True, exist_ok=True)
     link.symlink_to(outside)
 

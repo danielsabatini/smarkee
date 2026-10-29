@@ -1,0 +1,447 @@
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: telemetry-agent
+  namespace: telemetry
+  labels:
+    app.kubernetes.io/name: telemetry-agent
+    app.kubernetes.io/part-of: telemetry
+spec:
+  mode: daemonset
+  serviceAccount: telemetry-agent
+  image: otel/opentelemetry-collector-contrib:0.164.0
+  securityContext:
+    runAsUser: 0
+    runAsGroup: 0
+  env:
+    - name: K8S_NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: "deployment.environment.name=development"
+    - name: SMARKEE_DATABASE_TELEMETRY_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: telemetry-database-secret
+          key: SMARKEE_DATABASE_TELEMETRY_PASSWORD
+  volumes:
+    - name: varlogpods
+      hostPath:
+        path: /var/log/pods
+    - name: storage
+      emptyDir: {}
+  volumeMounts:
+    - name: varlogpods
+      mountPath: /var/log/pods
+      readOnly: true
+    - name: storage
+      mountPath: /var/lib/otelcol/file_storage
+  config:
+    extensions:
+      file_storage:
+        directory: /var/lib/otelcol/file_storage
+        create_directory: true
+    receivers:
+      kubeletstats:
+        collection_interval: 30s
+        auth_type: "serviceAccount"
+        endpoint: "https://${env:K8S_NODE_NAME}:10250"
+        insecure_skip_verify: true
+        metric_groups:
+          - pod
+          - container
+      postgresql:
+        endpoint: database.database.svc.cluster.local:5432
+        transport: tcp
+        username: telemetry_login
+        password: ${env:SMARKEE_DATABASE_TELEMETRY_PASSWORD:-telemetry_login}
+        connect_database: ssot
+        databases: [ssot, identity]
+        exclude_databases: [postgres]
+        collection_interval: 30s
+        tls:
+          insecure: true
+        connection_pool:
+          max_idle: 2
+          max_open: 4
+          max_idle_time: 5m
+        resource_attributes:
+          service.name:
+            enabled: true
+          service.namespace:
+            enabled: true
+          db.system.version:
+            enabled: true
+        metrics:
+          postgresql.backends: { enabled: true }
+          postgresql.connection.max: { enabled: true }
+          postgresql.commits: { enabled: true }
+          postgresql.rollbacks: { enabled: true }
+          postgresql.deadlocks: { enabled: true }
+          postgresql.db_size: { enabled: true }
+          postgresql.rows: { enabled: true }
+          postgresql.bgwriter.buffers.allocated: { enabled: false }
+          postgresql.bgwriter.buffers.writes: { enabled: false }
+          postgresql.bgwriter.checkpoint.count: { enabled: false }
+          postgresql.bgwriter.duration: { enabled: false }
+          postgresql.bgwriter.maxwritten: { enabled: false }
+          postgresql.blocks_read: { enabled: false }
+          postgresql.database.count: { enabled: false }
+          postgresql.index.scans: { enabled: false }
+          postgresql.index.size: { enabled: false }
+          postgresql.operations: { enabled: false }
+          postgresql.replication.data_delay: { enabled: false }
+          postgresql.table.count: { enabled: false }
+          postgresql.table.size: { enabled: false }
+          postgresql.table.vacuum.count: { enabled: false }
+          postgresql.wal.age: { enabled: false }
+          postgresql.wal.lag: { enabled: false }
+          postgresql.wal.delay: { enabled: false }
+      sql_query/outbox:
+        driver: postgres
+        host: database.database.svc.cluster.local
+        port: 5432
+        database: ssot
+        username: telemetry_login
+        password: ${env:SMARKEE_DATABASE_TELEMETRY_PASSWORD:-telemetry_login}
+        additional_params:
+          sslmode: disable
+        collection_interval: 30s
+        timeout: 5s
+        max_open_conn: 1
+        queries:
+          - sql: 'SELECT "db.namespace", "db.collection.name", unpublished_messages, oldest_unpublished_age FROM telemetry.outbox_stats()'
+            metrics:
+              - metric_name: smarkee.db.outbox.unpublished_messages
+                value_column: unpublished_messages
+                value_type: int
+                data_type: gauge
+                unit: "{message}"
+                description: "Unpublished messages waiting in the transactional outbox."
+                attribute_columns: ["db.namespace", "db.collection.name"]
+                static_attributes:
+                  db.system.name: postgresql
+              - metric_name: smarkee.db.outbox.oldest_unpublished_age
+                value_column: oldest_unpublished_age
+                value_type: double
+                data_type: gauge
+                unit: s
+                description: "Age in seconds of the oldest unpublished message in the transactional outbox."
+                attribute_columns: ["db.namespace", "db.collection.name"]
+                static_attributes:
+                  db.system.name: postgresql
+      prometheus/infra:
+        config:
+          scrape_configs:
+            - job_name: identity
+              scrape_interval: 30s
+              metrics_path: /debug/metrics
+              static_configs:
+                - targets: [identity.identity.svc.cluster.local:8080]
+              metric_relabel_configs:
+                - source_labels: [__name__]
+                  regex: "(rpc_server_call_duration_seconds.*|rpc_server_duration_milliseconds.*|http_server_request_duration_seconds.*|http_server_return_code_counter_total|zitadel_database_pool_acquired_conns|zitadel_database_pool_idle_conns|zitadel_database_pool_max_conns|zitadel_database_pool_acquire_duration_milliseconds_total|projection_events_processed_total)"
+                  action: keep
+            - job_name: messaging
+              scrape_interval: 30s
+              metrics_path: /metrics
+              static_configs:
+                - targets: [messaging.messaging.svc.cluster.local:7777]
+              metric_relabel_configs:
+                - source_labels: [__name__]
+                  regex: "nats_(consumer_num_pending|consumer_num_ack_pending|consumer_num_redelivered|stream_total_messages|stream_total_bytes|varz_slow_consumers|varz_connections)"
+                  action: keep
+      file_log/containers:
+        include:
+          - /var/log/pods/core_*/*/*.log
+          - /var/log/pods/ipm_*/*/*.log
+          - /var/log/pods/sum_*/*/*.log
+          - /var/log/pods/bsm_*/*/*.log
+          - /var/log/pods/database_*/*/*.log
+          - /var/log/pods/messaging_*/*/*.log
+          - /var/log/pods/identity_*/*/*.log
+          - /var/log/pods/gateway_*/*/*.log
+          - /var/log/pods/mail_*/*/*.log
+          - /var/log/pods/vault_*/*/*.log
+        start_at: end
+        include_file_path: true
+        include_file_name: false
+        storage: file_storage
+        operators:
+          - type: container
+            format: containerd
+            add_metadata_from_filepath: true
+          - type: json_parser
+            if: body matches '^\\{'
+            parse_from: body
+            on_error: send_quiet
+            parse_ints: true
+            timestamp:
+              parse_from: attributes.timestamp
+              layout_type: strptime
+              layout: '%Y-%m-%dT%H:%M:%S.%fZ'
+            severity:
+              parse_from: attributes.severity_text
+            scope_name:
+              parse_from: attributes.scope.name
+          - type: move
+            if: attributes.body != nil
+            from: attributes.body
+            to: body
+          - type: move
+            if: 'attributes.resource != nil and attributes.resource["service.name"] != nil'
+            from: attributes.resource["service.name"]
+            to: resource["service.name"]
+          - type: move
+            if: 'attributes.resource != nil and attributes.resource["service.namespace"] != nil'
+            from: attributes.resource["service.namespace"]
+            to: resource["service.namespace"]
+          - type: move
+            if: 'attributes.resource != nil and attributes.resource["service.version"] != nil'
+            from: attributes.resource["service.version"]
+            to: resource["service.version"]
+          - type: move
+            if: 'attributes.resource != nil and attributes.resource["service.instance.id"] != nil'
+            from: attributes.resource["service.instance.id"]
+            to: resource["service.instance.id"]
+          - type: move
+            if: 'attributes.resource != nil and attributes.resource["deployment.environment.name"] != nil'
+            from: attributes.resource["deployment.environment.name"]
+            to: resource["deployment.environment.name"]
+          - type: move
+            if: 'attributes.resource != nil and attributes.resource["smarkee.module"] != nil'
+            from: attributes.resource["smarkee.module"]
+            to: resource["smarkee.module"]
+          - type: move
+            if: 'attributes.resource != nil and attributes.resource["smarkee.resource.type"] != nil'
+            from: attributes.resource["smarkee.resource.type"]
+            to: resource["smarkee.resource.type"]
+          - type: move
+            if: 'attributes.resource != nil and attributes.resource["smarkee.component.role"] != nil'
+            from: attributes.resource["smarkee.component.role"]
+            to: resource["smarkee.component.role"]
+          # Infra pods (database, messaging, identity, gateway, mail, vault) sem JSON de componente (0045)
+          - type: copy
+            if: 'resource["smarkee.component.role"] == nil and resource["service.name"] == nil and resource["k8s.namespace.name"] != nil'
+            from: resource["k8s.namespace.name"]
+            to: resource["service.name"]
+          - type: add
+            if: 'resource["service.name"] != nil and resource["service.namespace"] == nil'
+            field: resource["service.namespace"]
+            value: smarkee
+          - type: regex_parser
+            if: 'resource["smarkee.component.role"] == nil and resource["service.name"] != nil and body matches "(\\blevel=|\"level\":\\s*\")[A-Za-z]+"'
+            parse_from: body
+            regex: '(?:\blevel=|"level":\s*")(?P<level>[A-Za-z]+)'
+            severity: &infra_severity
+              parse_from: attributes.level
+              overwrite_text: true
+              mapping:
+                fatal: [fatal, ftl, panic, emerg, alert, crit, critical, dpanic]
+                error: [error, err, eror]
+                warn: [warn, warning, wrn]
+                info: [info, inf, log, notice]
+                debug: [debug, dbg, trace, trc, debug1, debug2, debug3, debug4, debug5]
+          - type: regex_parser
+            if: 'resource["smarkee.component.role"] == nil and resource["service.name"] != nil and body matches "\\[(INF|WRN|ERR|DBG|TRC|FTL)\\]"'
+            parse_from: body
+            regex: '\[(?P<level>INF|WRN|ERR|DBG|TRC|FTL)\]'
+            severity: *infra_severity
+          - type: regex_parser
+            if: 'resource["smarkee.component.role"] == nil and resource["service.name"] != nil and body matches "\\s(LOG|WARNING|ERROR|FATAL|PANIC|NOTICE|INFO|DEBUG[1-5]?):\\s"'
+            parse_from: body
+            regex: '\s(?P<level>LOG|WARNING|ERROR|FATAL|PANIC|NOTICE|INFO|DEBUG[1-5]?):\s'
+            severity: *infra_severity
+          - type: regex_parser
+            if: 'resource["smarkee.component.role"] == nil and resource["service.name"] != nil and body matches "\\[(emerg|alert|crit|error|warn|notice|info|debug)\\]"'
+            parse_from: body
+            regex: '\[(?P<level>emerg|alert|crit|error|warn|notice|info|debug)\]'
+            severity: *infra_severity
+          - type: remove
+            if: attributes.level != nil
+            field: attributes.level
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 256
+        spike_limit_mib: 64
+      resource_detection:
+        detectors: [env]
+        override: false
+      filter/dev_containers:
+        error_mode: ignore
+        metrics:
+          metric:
+            - IsMatch(metric.name, "^(up|scrape_.*|target_info|otel_scope_info)$")
+            - IsMatch(metric.name, "^k8s\\.") and (resource.attributes["k8s.namespace.name"] == nil or not IsMatch(resource.attributes["k8s.namespace.name"], "^(core|ipm|sum|bsm|database|messaging|identity|gateway|mail|vault|telemetry)$"))
+          datapoint:
+            - metric.name == "postgresql.rows" and (resource.attributes["postgresql.database.name"] == "identity" or (datapoint.attributes["db.namespace"] != nil and IsMatch(datapoint.attributes["db.namespace"], "^identity(\\|.*)?$")))
+      transform/infra_metrics:
+        error_mode: ignore
+        metric_statements:
+          - context: resource
+            conditions:
+              - resource.attributes["k8s.namespace.name"] != nil
+            statements:
+              - set(resource.attributes["service.namespace"], "smarkee")
+          - context: metric
+            conditions:
+              - IsMatch(metric.name, "^(postgresql\\.|smarkee\\.db\\.)")
+            statements:
+              - set(resource.attributes["service.namespace"], "smarkee")
+              - set(resource.attributes["service.name"], "database")
+              - set(resource.attributes["server.address"], "database.database.svc.cluster.local") where resource.attributes["server.address"] == nil
+              - set(resource.attributes["server.port"], 5432) where resource.attributes["server.port"] == nil
+              - set(resource.attributes["service.instance.id"], "database.database.svc.cluster.local:5432") where resource.attributes["service.instance.id"] == nil
+          - context: datapoint
+            conditions:
+              - metric.name == "postgresql.rows" and resource.attributes["postgresql.database.name"] != nil and resource.attributes["postgresql.table.name"] != nil
+            statements:
+              - set(datapoint.attributes["db.namespace"], Concat([resource.attributes["postgresql.database.name"], "|", resource.attributes["postgresql.table.name"]], "")) where datapoint.attributes["db.namespace"] == nil
+          - context: resource
+            conditions:
+              - resource.attributes["service.name"] == "identity"
+            statements:
+              - set(resource.attributes["service.namespace"], "smarkee")
+              - set(resource.attributes["server.address"], "identity.identity.svc.cluster.local")
+              - set(resource.attributes["server.port"], 8080)
+              - delete_matching_keys(resource.attributes, "^(net\\.host\\..*|server\\.socket\\..*|url\\.scheme)$")
+          - context: resource
+            conditions:
+              - resource.attributes["service.name"] == "messaging"
+            statements:
+              - set(resource.attributes["service.namespace"], "smarkee")
+              - set(resource.attributes["server.address"], "messaging.messaging.svc.cluster.local")
+              - set(resource.attributes["server.port"], 8222)
+              - set(resource.attributes["service.instance.id"], "messaging.messaging.svc.cluster.local:8222")
+              - delete_matching_keys(resource.attributes, "^(net\\.host\\..*|server\\.socket\\..*|url\\.scheme)$")
+          - context: datapoint
+            conditions:
+              - resource.attributes["service.name"] == "identity"
+            statements:
+              - set(datapoint.attributes["rpc.method"], datapoint.attributes["rpc_method"]) where datapoint.attributes["rpc_method"] != nil
+              - set(datapoint.attributes["rpc.service"], datapoint.attributes["rpc_service"]) where datapoint.attributes["rpc_service"] != nil
+              - set(datapoint.attributes["rpc.response.status_code"], datapoint.attributes["rpc_response_status_code"]) where datapoint.attributes["rpc_response_status_code"] != nil
+              - set(datapoint.attributes["rpc.grpc.status_code"], Int(datapoint.attributes["rpc_grpc_status_code"])) where datapoint.attributes["rpc_grpc_status_code"] != nil
+              - set(datapoint.attributes["rpc.system.name"], datapoint.attributes["rpc_system_name"]) where datapoint.attributes["rpc_system_name"] != nil
+              - set(datapoint.attributes["rpc.system.name"], datapoint.attributes["rpc_system"]) where datapoint.attributes["rpc_system"] != nil
+              - set(datapoint.attributes["http.request.method"], datapoint.attributes["method"]) where datapoint.attributes["method"] != nil
+              - set(datapoint.attributes["http.route"], datapoint.attributes["uri"]) where datapoint.attributes["uri"] != nil
+              - set(datapoint.attributes["http.response.status_code"], Int(datapoint.attributes["return_code"])) where datapoint.attributes["return_code"] != nil
+              - set(datapoint.attributes["db.client.connection.pool.name"], "zitadel") where IsMatch(metric.name, "^zitadel_database_pool_")
+              - set(datapoint.attributes["db.client.connection.state"], "used") where metric.name == "zitadel_database_pool_acquired_conns"
+              - set(datapoint.attributes["db.client.connection.state"], "idle") where metric.name == "zitadel_database_pool_idle_conns"
+              - set(datapoint.attributes["smarkee.identity.projection.name"], datapoint.attributes["projection"]) where datapoint.attributes["projection"] != nil
+              - set(datapoint.attributes["smarkee.outcome"], "succeeded") where datapoint.attributes["success"] == "true"
+              - set(datapoint.attributes["smarkee.outcome"], "failed") where datapoint.attributes["success"] == "false"
+              - delete_matching_keys(datapoint.attributes, "^(rpc_method|rpc_service|rpc_response_status_code|rpc_grpc_status_code|rpc_system_name|rpc_system|method|uri|return_code|projection|success)$")
+          - context: metric
+            conditions:
+              - resource.attributes["service.name"] == "identity"
+            statements:
+              - set(metric.unit, "s") where metric.name == "rpc_server_call_duration_seconds" or metric.name == "http_server_request_duration_seconds"
+              - set(metric.name, "rpc.server.call.duration") where metric.name == "rpc_server_call_duration_seconds"
+              - set(metric.unit, "ms") where metric.name == "rpc_server_duration_milliseconds"
+              - set(metric.name, "rpc.server.duration") where metric.name == "rpc_server_duration_milliseconds"
+              - set(metric.name, "http.server.request.duration") where metric.name == "http_server_request_duration_seconds"
+              - set(metric.unit, "{request}") where metric.name == "http_server_return_code_counter_total"
+              - set(metric.name, "smarkee.identity.http.requests") where metric.name == "http_server_return_code_counter_total"
+              - set(metric.unit, "{connection}") where IsMatch(metric.name, "^zitadel_database_pool_(acquired|idle|max)_conns$")
+              - set(metric.name, "db.client.connection.count") where metric.name == "zitadel_database_pool_acquired_conns" or metric.name == "zitadel_database_pool_idle_conns"
+              - set(metric.name, "db.client.connection.max") where metric.name == "zitadel_database_pool_max_conns"
+              - set(metric.unit, "ms") where metric.name == "zitadel_database_pool_acquire_duration_milliseconds_total"
+              - set(metric.name, "db.client.connection.wait_time") where metric.name == "zitadel_database_pool_acquire_duration_milliseconds_total"
+              - set(metric.unit, "{event}") where metric.name == "projection_events_processed_total"
+              - set(metric.name, "smarkee.identity.projection.events") where metric.name == "projection_events_processed_total"
+          - context: datapoint
+            conditions:
+              - resource.attributes["service.name"] == "messaging"
+            statements:
+              - set(datapoint.attributes["messaging.system"], "nats")
+              - set(datapoint.attributes["messaging.destination.name"], datapoint.attributes["stream_name"]) where datapoint.attributes["stream_name"] != nil
+              - set(datapoint.attributes["messaging.consumer.group.name"], datapoint.attributes["consumer_name"]) where datapoint.attributes["consumer_name"] != nil
+              - delete_matching_keys(datapoint.attributes, "^(account|account_id|account_name|cluster|consumer_desc|consumer_leader|consumer_name|domain|is_consumer_leader|is_meta_leader|is_stream_leader|meta_leader|server_id|server_name|stream_leader|stream_name|stream_raft_group)$")
+          - context: metric
+            conditions:
+              - resource.attributes["service.name"] == "messaging"
+            statements:
+              - set(metric.unit, "{message}") where IsMatch(metric.name, "^nats_(consumer_num_pending|consumer_num_ack_pending|consumer_num_redelivered|stream_total_messages)$")
+              - set(metric.unit, "By") where metric.name == "nats_stream_total_bytes"
+              - set(metric.unit, "{consumer}") where metric.name == "nats_varz_slow_consumers"
+              - set(metric.unit, "{connection}") where metric.name == "nats_varz_connections"
+              - set(metric.name, "smarkee.messaging.consumer.pending_messages") where metric.name == "nats_consumer_num_pending"
+              - set(metric.name, "smarkee.messaging.consumer.ack_pending_messages") where metric.name == "nats_consumer_num_ack_pending"
+              - set(metric.name, "smarkee.messaging.consumer.redelivered_messages") where metric.name == "nats_consumer_num_redelivered"
+              - set(metric.name, "smarkee.messaging.stream.messages") where metric.name == "nats_stream_total_messages"
+              - set(metric.name, "smarkee.messaging.stream.size") where metric.name == "nats_stream_total_bytes"
+              - set(metric.name, "smarkee.messaging.server.slow_consumers") where metric.name == "nats_varz_slow_consumers"
+              - set(metric.name, "smarkee.messaging.server.connections") where metric.name == "nats_varz_connections"
+      transform/smarkee_components:
+        error_mode: ignore
+        log_statements:
+          - context: log
+            conditions:
+              - resource.attributes["smarkee.component.role"] != nil
+            statements:
+              - set(instrumentation_scope.version, "")
+              - set(log.event_name, log.attributes["event_name"]) where log.attributes["event_name"] != nil
+              - set(log.trace_id.string, log.attributes["trace_id"]) where log.attributes["trace_id"] != nil
+              - set(log.span_id.string, log.attributes["span_id"]) where log.attributes["span_id"] != nil
+              - set(log.flags, Int(log.attributes["trace_flags"])) where log.attributes["trace_flags"] != nil
+              - merge_maps(log.attributes, log.attributes["attributes"], "upsert") where log.attributes["attributes"] != nil
+              - delete_matching_keys(log.attributes, "^(timestamp|severity_number|severity_text|event_name|scope|resource|attributes|trace_id|span_id|trace_flags)$")
+      filter/health_checks:
+        error_mode: ignore
+        logs:
+          log_record:
+            - IsMatch(log.body, "\"(GET|HEAD) /(health/(live|ready|startup)|healthz|readyz|livez)[ ?\"]")
+            - IsMatch(log.body, "^127\\.0\\.0\\.1 - - \\[[^\\]]+\\] - \"GET /apisix/admin/routes HTTP/1\\.0\"")
+      filter/platform_only:
+        error_mode: ignore
+        logs:
+          log_record:
+            - resource.attributes["service.namespace"] != "smarkee"
+            - resource.attributes["service.name"] == "telemetry-agent"
+      filter/infra_lean:
+        error_mode: ignore
+        logs:
+          log_record:
+            - resource.attributes["smarkee.component.role"] == nil and log.severity_number < SEVERITY_NUMBER_WARN
+            - resource.attributes["smarkee.component.role"] == nil and IsMatch(log.body, "^\\S+ - \\S+ \\[[0-9]{2}/[A-Za-z]{3}/[0-9]{4}:")
+            - resource.attributes["smarkee.component.role"] == nil and IsMatch(log.body, "msg=\"missing translation\"")
+      transform/redact_infra:
+        error_mode: ignore
+        log_statements:
+          - context: log
+            conditions:
+              - resource.attributes["smarkee.component.role"] == nil
+            statements:
+              - replace_pattern(log.body, "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}", "<redacted-email>")
+      batch: {}
+    exporters:
+      otlp_grpc/telemetry_gateway:
+        endpoint: telemetry-router.telemetry.svc.cluster.local:4317
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+          block_on_overflow: false
+          storage: file_storage
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 10m
+    service:
+      extensions: [file_storage]
+      pipelines:
+        metrics:
+          receivers: [kubeletstats, postgresql, sql_query/outbox, prometheus/infra]
+          processors: [memory_limiter, filter/dev_containers, transform/infra_metrics, resource_detection, batch]
+          exporters: [otlp_grpc/telemetry_gateway]
+        logs:
+          receivers: [file_log/containers]
+          processors: [memory_limiter, filter/health_checks, filter/platform_only, filter/infra_lean, transform/redact_infra, transform/smarkee_components, resource_detection, batch]
+          exporters: [otlp_grpc/telemetry_gateway]

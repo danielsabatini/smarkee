@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-bootstrap-sql
+  namespace: database
+  labels:
+    app.kubernetes.io/part-of: database
+data:
+  # 01: Executado pelo CNPG em `postInitSQLRefs` (conectado no banco `postgres` como superuser).
+  # Cria os papéis de função e login de todos os módulos (`core`, `bsm`, `sum`, `ipm`),
+  # o papel `telemetry` (`pg_read_all_stats`), o papel `identity` e o banco `identity`.
+  01-roles.sql: |
+    DO $$
+    DECLARE
+      function_role text;
+    BEGIN
+      FOREACH function_role IN ARRAY ARRAY[
+        -- core
+        'core_account_api', 'core_account_controller', 'core_account_publisher', 'core_maintenance',
+        -- bsm
+        'bsm_account_api', 'bsm_account_publisher', 'bsm_maintenance',
+        -- sum
+        'sum_service_api', 'sum_service_controller', 'sum_service_publisher', 'sum_service_maintenance',
+        -- ipm
+        'ipm_group_api', 'ipm_group_publisher',
+        'ipm_organization_api', 'ipm_organization_controller', 'ipm_organization_publisher',
+        'ipm_permission_api', 'ipm_permission_controller', 'ipm_permission_publisher',
+        'ipm_role_api', 'ipm_role_publisher',
+        'ipm_serviceaccount_api', 'ipm_serviceaccount_controller', 'ipm_serviceaccount_publisher',
+        'ipm_user_api', 'ipm_user_controller', 'ipm_user_publisher',
+        'ipm_maintenance'
+      ] LOOP
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = function_role) THEN
+          EXECUTE format('CREATE ROLE %I NOLOGIN', function_role);
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = function_role || '_login') THEN
+          EXECUTE format('CREATE ROLE %I LOGIN', function_role || '_login');
+        END IF;
+        EXECUTE format('ALTER ROLE %I PASSWORD %L', function_role || '_login', function_role || '_login');
+        EXECUTE format('GRANT %I TO %I', function_role, function_role || '_login');
+        EXECUTE format('ALTER ROLE %I SET search_path = %L', function_role || '_login', '');
+        EXECUTE format('ALTER ROLE %I SET lock_timeout = %L', function_role || '_login', '2s');
+        EXECUTE format('ALTER ROLE %I SET statement_timeout = %L', function_role || '_login', '5s');
+        EXECUTE format('ALTER ROLE %I SET idle_in_transaction_session_timeout = %L', function_role || '_login', '10s');
+      END LOOP;
+    END
+    $$;
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'identity') THEN
+        CREATE ROLE identity LOGIN;
+      END IF;
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'telemetry') THEN
+        CREATE ROLE telemetry NOLOGIN;
+      END IF;
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'telemetry_login') THEN
+        CREATE ROLE telemetry_login LOGIN;
+      END IF;
+    END
+    $$;
+
+    ALTER ROLE identity PASSWORD 'identity';
+    ALTER ROLE telemetry_login PASSWORD 'telemetry_login';
+    GRANT telemetry TO telemetry_login;
+    GRANT pg_read_all_stats TO telemetry;
+
+    ALTER ROLE telemetry_login SET search_path = 'pg_catalog';
+    ALTER ROLE telemetry_login SET lock_timeout = '2s';
+    ALTER ROLE telemetry_login SET statement_timeout = '5s';
+    ALTER ROLE telemetry_login SET idle_in_transaction_session_timeout = '10s';
+
+  # 02: Executado pelo CNPG em `postInitApplicationSQLRefs` (conectado no banco `ssot` como superuser).
+  # Revoga PUBLIC no banco `ssot` e no schema `public` e cria o schema e a função `telemetry.outbox_stats()` (`SECURITY DEFINER`).
+  02-ssot-init.sql: |
+    REVOKE ALL ON DATABASE ssot FROM PUBLIC;
+    GRANT CONNECT ON DATABASE ssot TO telemetry;
+    REVOKE ALL ON SCHEMA public FROM PUBLIC;
+
+    CREATE SCHEMA IF NOT EXISTS telemetry AUTHORIZATION ssot;
+    REVOKE ALL ON SCHEMA telemetry FROM PUBLIC;
+    GRANT USAGE ON SCHEMA telemetry TO telemetry;
+
+    CREATE OR REPLACE FUNCTION telemetry.outbox_stats()
+    RETURNS TABLE (
+      "db.namespace" text,
+      "db.collection.name" text,
+      unpublished_messages bigint,
+      oldest_unpublished_age double precision
+    )
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = pg_catalog, pg_temp
+    AS $function$
+    DECLARE
+      rec record;
+    BEGIN
+      FOR rec IN
+        SELECT n.nspname AS schema_name, c.relname AS table_name
+          FROM pg_catalog.pg_class c
+          JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+         WHERE c.relkind = 'r'
+           AND c.relname LIKE '%\_outbox' ESCAPE '\'
+           AND pg_catalog.pg_get_userbyid(c.relowner) = 'ssot'
+         ORDER BY n.nspname, c.relname
+      LOOP
+        RETURN QUERY EXECUTE pg_catalog.format(
+          'SELECT %L::text, %L::text, count(*)::bigint, '
+          'COALESCE(EXTRACT(EPOCH FROM (pg_catalog.now() - pg_catalog.min(created_at)))::double precision, 0.0) '
+          'FROM %I.%I WHERE published_at IS NULL',
+          'ssot|' || rec.schema_name,
+          rec.table_name,
+          rec.schema_name,
+          rec.table_name
+        );
+      END LOOP;
+    END;
+    $function$;
+
+    ALTER FUNCTION telemetry.outbox_stats() OWNER TO ssot;
+    REVOKE ALL ON FUNCTION telemetry.outbox_stats() FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION telemetry.outbox_stats() TO telemetry;

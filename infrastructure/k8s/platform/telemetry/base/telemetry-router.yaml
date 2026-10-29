@@ -1,0 +1,402 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemetry-router
+  namespace: telemetry
+  labels:
+    app.kubernetes.io/name: telemetry-router
+    app.kubernetes.io/part-of: telemetry
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/component: opentelemetry-collector
+    app.kubernetes.io/instance: telemetry.telemetry-router
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+---
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: telemetry-router
+  namespace: telemetry
+  labels:
+    app.kubernetes.io/name: telemetry-router
+    app.kubernetes.io/part-of: telemetry
+spec:
+  mode: statefulset
+  replicas: 1
+  image: otel/opentelemetry-collector-contrib:0.164.0
+  volumes:
+    - name: storage
+      emptyDir: {}
+  volumeMounts:
+    - name: storage
+      mountPath: /var/lib/otelcol/file_storage
+  config:
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      file_storage:
+        directory: /var/lib/otelcol/file_storage
+        create_directory: true
+    connectors:
+      routing/logs:
+        default_pipelines: [logs/platform]
+        error_mode: ignore
+        table:
+          - context: resource
+            condition: attributes["smarkee.module"] == "bsm" and attributes["smarkee.resource.type"] == "account"
+            pipelines: [logs/bsm_account]
+          - context: resource
+            condition: attributes["smarkee.module"] == "core" and attributes["smarkee.resource.type"] == "account"
+            pipelines: [logs/core_account]
+          - context: resource
+            condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "group"
+            pipelines: [logs/ipm_group]
+          - context: resource
+            condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "organization"
+            pipelines: [logs/ipm_organization]
+          - context: resource
+            condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "permission"
+            pipelines: [logs/ipm_permission]
+          - context: resource
+            condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "role"
+            pipelines: [logs/ipm_role]
+          - context: resource
+            condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "user"
+            pipelines: [logs/ipm_user]
+          - context: resource
+            condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "serviceaccount"
+            pipelines: [logs/ipm_serviceaccount]
+          - context: resource
+            condition: attributes["smarkee.module"] == "sum" and attributes["smarkee.resource.type"] == "service"
+            pipelines: [logs/sum_service]
+      routing/traces:
+        default_pipelines: [traces/platform]
+        error_mode: ignore
+        table:
+          - context: span
+            condition: attributes["apisix.service_name"] == "bsm-account-api"
+            pipelines: [traces/bsm_account]
+          - context: span
+            condition: attributes["apisix.service_name"] == "core-account-api"
+            pipelines: [traces/core_account]
+          - context: span
+            condition: attributes["apisix.service_name"] == "ipm-group-api"
+            pipelines: [traces/ipm_group]
+          - context: span
+            condition: attributes["apisix.service_name"] == "ipm-organization-api"
+            pipelines: [traces/ipm_organization]
+          - context: span
+            condition: attributes["apisix.service_name"] == "ipm-permission-api"
+            pipelines: [traces/ipm_permission]
+          - context: span
+            condition: attributes["apisix.service_name"] == "ipm-role-api"
+            pipelines: [traces/ipm_role]
+          - context: span
+            condition: attributes["apisix.service_name"] == "ipm-user-receiver" or attributes["apisix.service_name"] == "ipm-user-api"
+            pipelines: [traces/ipm_user]
+          - context: span
+            condition: attributes["apisix.service_name"] == "ipm-serviceaccount-api"
+            pipelines: [traces/ipm_serviceaccount]
+          - context: span
+            condition: attributes["apisix.service_name"] == "sum-service-api"
+            pipelines: [traces/sum_service]
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 256
+        spike_limit_mib: 64
+      batch:
+        timeout: 1s
+        send_batch_size: 100
+        send_batch_max_size: 200
+      transform/gateway-semconv:
+        error_mode: ignore
+        trace_statements:
+          - context: resource
+            conditions:
+              - resource.attributes["telemetry.sdk.name"] == "opentelemetry-lua" and resource.attributes["service.name"] == "gateway" and resource.attributes["service.namespace"] == "smarkee"
+            statements:
+              - set(resource.attributes["service.instance.id"], resource.attributes["hostname"]) where resource.attributes["hostname"] != nil and resource.attributes["service.instance.id"] == nil
+              - set(resource.attributes["host.name"], resource.attributes["hostname"]) where resource.attributes["hostname"] != nil
+              - delete_key(resource.attributes, "hostname")
+          - context: scope
+            conditions:
+              - resource.attributes["telemetry.sdk.name"] == "opentelemetry-lua" and resource.attributes["service.name"] == "gateway" and resource.attributes["service.namespace"] == "smarkee"
+            statements:
+              - set(scope.version, resource.attributes["service.version"]) where scope.version == "" and resource.attributes["service.version"] != nil
+          - context: span
+            conditions:
+              - resource.attributes["telemetry.sdk.name"] == "opentelemetry-lua" and resource.attributes["service.name"] == "gateway" and resource.attributes["service.namespace"] == "smarkee"
+            statements:
+              - set(span.attributes["http.request.method_original"], span.attributes["http.request.method"]) where span.attributes["http.request.method"] != nil and not IsMatch(span.attributes["http.request.method"], "^(CONNECT|DELETE|GET|HEAD|OPTIONS|PATCH|POST|PUT|TRACE|QUERY)$")
+              - set(span.attributes["http.request.method"], "_OTHER") where span.attributes["http.request.method_original"] != nil
+              - set(span.name, Concat(["HTTP", span.attributes["http.route"]], " ")) where span.attributes["http.request.method"] == "_OTHER" and span.attributes["http.route"] != nil
+              - set(span.name, "HTTP") where span.attributes["http.request.method"] == "_OTHER" and span.attributes["http.route"] == nil
+              - set(span.cache["host"], ExtractPatterns(span.attributes["http_host"], "^(?:\\[(?P<h6>[^\\]]+)\\]|(?P<h>[^:\\[\\]]+))(?::(?P<p>[0-9]+))?$")) where span.attributes["http_host"] != nil
+              - set(span.attributes["server.address"], span.cache["host"]["h"]) where span.cache["host"]["h"] != nil and span.cache["host"]["h"] != ""
+              - set(span.attributes["server.address"], span.cache["host"]["h6"]) where span.cache["host"]["h6"] != nil and span.cache["host"]["h6"] != ""
+              - set(span.attributes["server.port"], Int(span.cache["host"]["p"])) where span.cache["host"]["p"] != nil and span.cache["host"]["p"] != ""
+              - set(span.attributes["client.address"], span.attributes["remote_addr"]) where span.attributes["remote_addr"] != nil
+              - set(span.attributes["network.peer.address"], span.attributes["realip_remote_addr"]) where span.attributes["realip_remote_addr"] != nil
+              - set(span.attributes["network.peer.port"], Int(span.attributes["realip_remote_port"])) where span.attributes["realip_remote_port"] != nil
+              - set(span.cache["proto"], ExtractPatterns(span.attributes["server_protocol"], "^HTTP/(?P<v>[0-9]+(?:\\.[0-9]+)?)$")) where span.attributes["server_protocol"] != nil
+              - set(span.attributes["network.protocol.version"], span.cache["proto"]["v"]) where span.cache["proto"]["v"] != nil and span.cache["proto"]["v"] != ""
+              - set(span.attributes["network.protocol.version"], "2") where span.attributes["network.protocol.version"] == "2.0"
+              - set(span.attributes["network.protocol.version"], "3") where span.attributes["network.protocol.version"] == "3.0"
+              - set(span.attributes["url.query"], span.attributes["args"]) where span.attributes["args"] != nil and span.attributes["args"] != ""
+              - replace_pattern(span.attributes["url.query"], "=[^&]*", "=REDACTED") where span.attributes["url.query"] != nil
+              - set(span.attributes["error.type"], Format("%d", [span.attributes["http.response.status_code"]])) where span.attributes["http.response.status_code"] != nil and span.attributes["http.response.status_code"] >= 500
+              - set(span.status.message, "") where span.status.code == STATUS_CODE_ERROR and span.attributes["http.response.status_code"] != nil
+              - delete_matching_keys(span.attributes, "^(http\\.method|http\\.scheme|http\\.target|http\\.user_agent|http\\.status_code|net\\.host\\.name|http_host|remote_addr|remote_port|realip_remote_addr|realip_remote_port|server_protocol|args)$")
+    exporters:
+      otlp_grpc/platform:
+        endpoint: telemetry-sink.telemetry.svc.cluster.local:4317
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+          block_on_overflow: false
+          storage: file_storage
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 10m
+      otlp_grpc/bsm_account:
+        endpoint: bsm-account-telemeter.bsm.svc.cluster.local:4317
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+          block_on_overflow: false
+          storage: file_storage
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 10m
+      otlp_grpc/core_account:
+        endpoint: core-account-telemeter.core.svc.cluster.local:4317
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+          block_on_overflow: false
+          storage: file_storage
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 10m
+      otlp_grpc/ipm_group:
+        endpoint: ipm-group-telemeter.ipm.svc.cluster.local:4317
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+          block_on_overflow: false
+          storage: file_storage
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 10m
+      otlp_grpc/ipm_organization:
+        endpoint: ipm-organization-telemeter.ipm.svc.cluster.local:4317
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+          block_on_overflow: false
+          storage: file_storage
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 10m
+      otlp_grpc/ipm_permission:
+        endpoint: ipm-permission-telemeter.ipm.svc.cluster.local:4317
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+          block_on_overflow: false
+          storage: file_storage
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 10m
+      otlp_grpc/ipm_role:
+        endpoint: ipm-role-telemeter.ipm.svc.cluster.local:4317
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+          block_on_overflow: false
+          storage: file_storage
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 10m
+      otlp_grpc/ipm_user:
+        endpoint: ipm-user-telemeter.ipm.svc.cluster.local:4317
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+          block_on_overflow: false
+          storage: file_storage
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 10m
+      otlp_grpc/ipm_serviceaccount:
+        endpoint: ipm-serviceaccount-telemeter.ipm.svc.cluster.local:4317
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+          block_on_overflow: false
+          storage: file_storage
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 10m
+      otlp_grpc/sum_service:
+        endpoint: sum-service-telemeter.sum.svc.cluster.local:4317
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+          block_on_overflow: false
+          storage: file_storage
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 10m
+    service:
+      extensions: [health_check, file_storage]
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp_grpc/platform]
+        logs/in:
+          receivers: [otlp]
+          processors: [memory_limiter]
+          exporters: [routing/logs]
+        logs/platform:
+          receivers: [routing/logs]
+          processors: [batch]
+          exporters: [otlp_grpc/platform]
+        logs/bsm_account:
+          receivers: [routing/logs]
+          processors: [batch]
+          exporters: [otlp_grpc/bsm_account]
+        logs/core_account:
+          receivers: [routing/logs]
+          processors: [batch]
+          exporters: [otlp_grpc/core_account]
+        logs/ipm_group:
+          receivers: [routing/logs]
+          processors: [batch]
+          exporters: [otlp_grpc/ipm_group]
+        logs/ipm_organization:
+          receivers: [routing/logs]
+          processors: [batch]
+          exporters: [otlp_grpc/ipm_organization]
+        logs/ipm_permission:
+          receivers: [routing/logs]
+          processors: [batch]
+          exporters: [otlp_grpc/ipm_permission]
+        logs/ipm_role:
+          receivers: [routing/logs]
+          processors: [batch]
+          exporters: [otlp_grpc/ipm_role]
+        logs/ipm_user:
+          receivers: [routing/logs]
+          processors: [batch]
+          exporters: [otlp_grpc/ipm_user]
+        logs/ipm_serviceaccount:
+          receivers: [routing/logs]
+          processors: [batch]
+          exporters: [otlp_grpc/ipm_serviceaccount]
+        logs/sum_service:
+          receivers: [routing/logs]
+          processors: [batch]
+          exporters: [otlp_grpc/sum_service]
+        traces/in:
+          receivers: [otlp]
+          processors: [memory_limiter, transform/gateway-semconv]
+          exporters: [routing/traces]
+        traces/platform:
+          receivers: [routing/traces]
+          processors: [batch]
+          exporters: [otlp_grpc/platform]
+        traces/bsm_account:
+          receivers: [routing/traces]
+          processors: [batch]
+          exporters: [otlp_grpc/bsm_account]
+        traces/core_account:
+          receivers: [routing/traces]
+          processors: [batch]
+          exporters: [otlp_grpc/core_account]
+        traces/ipm_group:
+          receivers: [routing/traces]
+          processors: [batch]
+          exporters: [otlp_grpc/ipm_group]
+        traces/ipm_organization:
+          receivers: [routing/traces]
+          processors: [batch]
+          exporters: [otlp_grpc/ipm_organization]
+        traces/ipm_permission:
+          receivers: [routing/traces]
+          processors: [batch]
+          exporters: [otlp_grpc/ipm_permission]
+        traces/ipm_role:
+          receivers: [routing/traces]
+          processors: [batch]
+          exporters: [otlp_grpc/ipm_role]
+        traces/ipm_user:
+          receivers: [routing/traces]
+          processors: [batch]
+          exporters: [otlp_grpc/ipm_user]
+        traces/ipm_serviceaccount:
+          receivers: [routing/traces]
+          processors: [batch]
+          exporters: [otlp_grpc/ipm_serviceaccount]
+        traces/sum_service:
+          receivers: [routing/traces]
+          processors: [batch]
+          exporters: [otlp_grpc/sum_service]

@@ -1,0 +1,149 @@
+# Configuração do Apache APISIX (modo tradicional, com etcd) em Kubernetes.
+# Segredos vêm do ambiente (sintaxe ${{VAR}}).
+apisix:
+  # Proxy HTTP dentro do cluster. A 8000 é a das APIs/Receivers (buscam o JWKS do Zitadel em
+  # gateway.gateway.svc.cluster.local:8000). A 8080 existe para o próprio gateway e o vault buscarem
+  # o discovery e o JWKS do Zitadel pelo endereço público (o issuer tem a porta 8080).
+  node_listen:
+    - 8000
+    - 8080
+  enable_server_tokens: false
+
+deployment:
+  role: traditional
+  role_traditional:
+    config_provider: etcd
+  admin:
+    admin_key_required: true
+    admin_key:
+      - name: admin
+        key: ${{APISIX_ADMIN_KEY}}
+        role: admin
+    enable_admin_ui: true
+    enable_admin_cors: false
+    allow_admin:
+      - 0.0.0.0/0
+    admin_listen:
+      ip: 0.0.0.0
+      port: 9180
+  etcd:
+    host:
+      - "http://gateway-etcd.gateway.svc.cluster.local:2379"
+    prefix: /apisix
+    timeout: 30
+
+nginx_config:
+  worker_processes: 2
+  error_log_level: warn
+
+plugins:
+  - real-ip
+  - ai
+  - client-control
+  - proxy-buffering
+  - proxy-control
+  - request-id
+  - zipkin
+  - ext-plugin-pre-req
+  - fault-injection
+  - mocking
+  - serverless-pre-function
+  - cors
+  - ip-restriction
+  - ua-restriction
+  - referer-restriction
+  - csrf
+  - uri-blocker
+  - request-validation
+  - chaitin-waf
+  - multi-auth
+  - openid-connect
+  - saml-auth
+  - cas-auth
+  - authz-casbin
+  - authz-casdoor
+  - wolf-rbac
+  - ldap-auth-advanced
+  - ldap-auth
+  - hmac-auth
+  - basic-auth
+  - jwt-auth
+  - jwe-decrypt
+  - key-auth
+  - dingtalk-auth
+  - feishu-auth
+  - acl
+  - consumer-restriction
+  - attach-consumer-label
+  - forward-auth
+  - opa
+  - authz-keycloak
+  - data-mask
+  - proxy-cache
+  - body-transformer
+  - ai-prompt-template
+  - ai-prompt-decorator
+  - ai-prompt-guard
+  - ai-rag
+  - ai-rate-limiting
+  - ai-proxy-multi
+  - ai-proxy
+  - ai-cache
+  - ai-aws-content-moderation
+  - ai-aliyun-content-moderation
+  - ai-lakera-guard
+  - proxy-mirror
+  - graphql-proxy-cache
+  - proxy-rewrite
+  - workflow
+  - api-breaker
+  - graphql-limit-count
+  - limit-conn
+  - limit-count
+  - limit-req
+  - gzip
+  - traffic-label
+  - traffic-split
+  - redirect
+  - response-rewrite
+  - openapi-to-mcp
+  - oas-validator
+  - mcp-bridge
+  - degraphql
+  - kafka-proxy
+  - websocket-proxy
+  - grpc-transcode
+  - grpc-web
+  - http-dubbo
+  - public-api
+  - prometheus
+  - datadog
+  - lago
+  - loki-logger
+  - elasticsearch-logger
+  - echo
+  - loggly
+  - http-logger
+  - splunk-hec-logging
+  - skywalking-logger
+  - google-cloud-logging
+  - sls-logger
+  - tcp-logger
+  - kafka-logger
+  - rocketmq-logger
+  - syslog
+  - udp-logger
+  - file-logger
+  - clickhouse-logger
+  - tencent-cloud-cls
+  - inspect
+  - example-plugin
+  - aws-lambda
+  - azure-functions
+  - openwhisk
+  - openfunction
+  - serverless-post-function
+  - ext-plugin-post-req
+  - ext-plugin-post-resp
+  - ai-request-rewrite
+  - opentelemetry

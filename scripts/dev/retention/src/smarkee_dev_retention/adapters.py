@@ -28,7 +28,7 @@ class RetentionDatabase:
     @classmethod
     def from_env(cls) -> RetentionDatabase:
         """Instancia o adaptador a partir de variáveis de ambiente."""
-        host = os.getenv("SMARKEE_DATABASE_HOST", "database.smarkee.internal")
+        host = os.getenv("SMARKEE_DATABASE_HOST", "127.0.0.1")
         port = int(os.getenv("SMARKEE_DATABASE_PORT", "5432"))
         dbname = os.getenv("SMARKEE_DATABASE_NAME", "ssot")
         # Em dev, o padrão das senhas dos papéis de manutenção é igual ao próprio nome do papel

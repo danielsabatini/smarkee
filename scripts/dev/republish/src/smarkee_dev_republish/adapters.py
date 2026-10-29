@@ -15,7 +15,7 @@ from smarkee_dev_republish.model import DesiredRecord, Kind, deterministic_messa
 class PostgresSsot:
     """Acesso ao banco SSOT em dev."""
 
-    def __init__(self, host: str = "localhost", port: int = 5432, dbname: str = "ssot") -> None:
+    def __init__(self, host: str = "127.0.0.1", port: int = 5432, dbname: str = "ssot") -> None:
         self._host = host
         self._port = port
         self._dbname = dbname
@@ -75,9 +75,7 @@ class PostgresSsot:
                 "operation": "changed",
                 "desiredGeneration": gen,
                 "requestedBy": "system:republish",
-                "correlationId": deterministic_message_id(
-                    kind.module, kind.resource_type, r_id, 0
-                ),
+                "correlationId": deterministic_message_id(kind.module, kind.resource_type, r_id, 0),
                 "causationId": msg_id,
                 "occurredAt": now,
                 "publishedAt": now,

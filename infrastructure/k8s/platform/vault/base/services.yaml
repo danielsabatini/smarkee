@@ -1,0 +1,80 @@
+# Três Services DNS estáveis desde o dev (decisão 0102 e AGENTS.md §2.6):
+#   - svm.vault.svc.cluster.local:8200 (Secret Vault Manager — mount /svm, engine kv-v2)
+#   - ekm.vault.svc.cluster.local:8200 (Encryption Key Manager — mount /ekm, engine transit)
+#   - clm.vault.svc.cluster.local:8200 (Certificate Lifecycle Manager — mount /clm, engine pki)
+# Em `overlays/dev`, os 3 Services selecionam o mesmo StatefulSet `vault` (`smarkee.io/vault-cluster: shared`).
+# Em `overlays/stg` e `overlays/prd`, cada Service recebe patch no selector para o seu cluster isolado (`svm`, `ekm`, `clm`).
+apiVersion: v1
+kind: Service
+metadata:
+  name: svm
+  namespace: vault
+  labels:
+    app.kubernetes.io/name: svm
+    app.kubernetes.io/part-of: vault
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/part-of: vault
+  ports:
+    - name: http
+      port: 8200
+      targetPort: 8200
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ekm
+  namespace: vault
+  labels:
+    app.kubernetes.io/name: ekm
+    app.kubernetes.io/part-of: vault
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/part-of: vault
+  ports:
+    - name: http
+      port: 8200
+      targetPort: 8200
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clm
+  namespace: vault
+  labels:
+    app.kubernetes.io/name: clm
+    app.kubernetes.io/part-of: vault
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/part-of: vault
+  ports:
+    - name: http
+      port: 8200
+      targetPort: 8200
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-internal
+  namespace: vault
+  labels:
+    app.kubernetes.io/name: vault-internal
+    app.kubernetes.io/part-of: vault
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/part-of: vault
+  ports:
+    - name: http
+      port: 8200
+      targetPort: 8200
+    - name: cluster
+      port: 8201
+      targetPort: 8201

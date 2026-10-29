@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: external-secrets-operator
+
+# External Secrets Operator v2.13.0 (renderizado do chart oficial external-secrets 2.14.0 para o namespace external-secrets-operator, decisão 0102).
+resources:
+  - external-secrets.yaml
+
+

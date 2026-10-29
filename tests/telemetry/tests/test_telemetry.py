@@ -1,8 +1,9 @@
-"""Conformidade da telemetria de dev (decisões 0045, 0050, 0054, 0055, 0059 e 0062).
+"""Conformidade da telemetria de dev (decisões 0045, 0050, 0054, 0055, 0059, 0062 e 0102).
 
-Caixa-preta: faz um cadastro pelo gateway de borda e lê os arquivos que os telemeters gravam (o da
-plataforma e o de cada feature; o `telemetry-router` só roteia). Exige a plataforma de dev no ar.
-O cadastro cria um usuário `conf.*@example.com`, que o `smarkee-dev-cleanup` remove.
+Caixa-preta: faz um cadastro pelo gateway de borda e lê os arquivos que os telemeters gravam (o
+`telemetry-sink` da plataforma e o de cada feature; o `telemetry-router` só roteia). Exige a
+plataforma de dev no ar. O cadastro cria um usuário `conf.*@example.com`, que o
+`smarkee-dev-cleanup` remove.
 """
 
 import json
@@ -20,10 +21,10 @@ import httpx
 import pytest
 
 REPOSITORY = Path(__file__).resolve().parents[3]
-# Saída do platform-telemeter da plataforma (infra e o app sem telemeter próprio).
+# Saída do telemetry-sink da plataforma (infra e o app sem telemeter próprio).
 TELEMETRY_DIR = Path(
     os.environ.get(
-        "CONFORMANCE_TELEMETRY_DIR", REPOSITORY / "infrastructure" / "dev" / "platform-telemeter"
+        "CONFORMANCE_TELEMETRY_DIR", REPOSITORY / "infrastructure" / "dev" / "telemetry-sink"
     )
 )
 # Pastas de saída dos telemeters das features (decisão 0062): os logs de app de cada uma
@@ -60,7 +61,7 @@ FEATURE_TRACES = [directory / "traces" for directory in FEATURE_TELEMETRY_DIRS]
 API_URL = os.environ.get("CONFORMANCE_API_URL", "http://localhost:8080")
 API_HOST = os.environ.get("CONFORMANCE_API_HOST", "api-dev.smarkee.com.br")
 WAIT_SECONDS = 90.0
-ROLES_OF_THE_LOOP = {"receiver", "manager", "publisher", "reconciler", "executor"}
+ROLES_OF_THE_LOOP = {"api", "publisher"}
 ACCEPTED = 202
 TOO_MANY_REQUESTS = 429
 FORGED_TRACE_ID = "a" * 32
@@ -77,9 +78,10 @@ def attributes_of(items: list[dict[str, Any]]) -> dict[str, Any]:
 def read_lines(*directories: Path) -> Iterator[dict[str, Any]]:
     for directory in directories:
         for path in sorted(directory.glob("*.jsonl")):
-            for line in path.read_text(encoding="utf-8").splitlines():
-                if line.strip():
-                    yield cast("dict[str, Any]", json.loads(line))
+            for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+                cleaned = line.lstrip("\x00").strip()
+                if cleaned:
+                    yield cast("dict[str, Any]", json.loads(cleaned))
 
 
 def logs(*directories: Path) -> list[Record]:
@@ -205,14 +207,14 @@ def trace_id_of_request(resource_id: str) -> str:
     def probe() -> str | None:
         for record in app_logs():
             if (
-                record["body"] == "request published"
+                record["body"] == "write admitted"
                 and record["attributes"].get("smarkee.resource.id") == resource_id
                 and record["trace_id"]
             ):
                 return cast("str", record["trace_id"])
         return None
 
-    return wait_for(f"log 'request published' do recurso {resource_id}", probe)
+    return wait_for(f"log 'write admitted' do recurso {resource_id}", probe)
 
 
 def gateway_spans_of(trace_id: str) -> list[Record]:
@@ -254,7 +256,7 @@ def test_the_trace_of_the_gateway_reaches_every_role_of_the_loop(
     assert gateway_spans[0]["parent_span_id"] == "", "o gateway inicia o trace: sem span pai"
 
 
-CONTEXT_EVENTS = ("request published", "requested handled", "action published", "action handled")
+CONTEXT_EVENTS = ("write admitted", "outbox message published")
 OPAQUE_IDENTIFIER = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 
@@ -273,7 +275,8 @@ def test_an_anonymous_registration_carries_its_business_context_in_every_hop(
         assert attributes.get("smarkee.actor.type") == "anonymous", where
         assert "user.id" not in attributes, f"{where}: anônimo não tem id de ator"
         assert attributes.get("smarkee.resource.id") == resource_id, where
-        assert attributes.get("smarkee.operation.name") == "create", where
+        expected_op = "create" if record["role"] == "api" else "changed"
+        assert attributes.get("smarkee.operation.name") == expected_op, where
 
 
 def test_app_logs_hold_no_email_and_every_actor_id_is_opaque(
@@ -301,9 +304,8 @@ def test_core_account_app_logs_go_to_its_own_telemeter_and_not_to_the_shared_fil
         return found if {r["role"] for r in found} >= ROLES_OF_THE_LOOP else None
 
     wait_for("logs de core/account na pasta do telemeter da feature", in_the_feature)
-    # Um trace atravessa features (o Manager do sum também trata o fato da conta): o log de cada uma
-    # vai ao gateway do seu dono. Aqui só importa que nenhum log de core-account caiu no arquivo
-    # compartilhado.
+    # O log de cada feature vai ao telemeter do seu dono; nenhum log de core-account pode cair no
+    # arquivo compartilhado do telemetry-sink.
     shared = logs(PLATFORM_APP_LOGS)
     leaked = [
         r
@@ -324,14 +326,14 @@ def test_core_account_spans_go_to_its_own_telemeter_and_not_to_the_platform_one(
 
     wait_for("span de core/account na pasta do telemeter da feature", in_the_feature)
     leaked = [s for s in spans(PLATFORM_TRACES) if s["trace_id"] == trace_id]
-    assert leaked == [], "span de core-account no `platform-telemeter`"
+    assert leaked == [], "span de core-account no `telemetry-sink`"
 
 
-def emit_probe_log(module: str, kind: str) -> str:
-    """Sobe um contêiner sintético que emite um log de app no formato do contrato (0045) da feature.
+def emit_probe_log(module: str, kind: str) -> tuple[str, str]:
+    """Sobe um Pod sintético que emite um log de app no formato do contrato (0045) da feature.
 
-    Determinístico: um log de app só existe quando a feature está ativa, e o Observer de uma
-    feature sem recursos fica calado. Devolve o marcador que o corpo do log carrega."""
+    Determinístico: um log de app só existe quando a feature está ativa. Devolve
+    `(pod_name, marker)` que o corpo do log carrega."""
     marker = uuid.uuid4().hex[:10]
     name = f"probe-route-{marker}"
     record = {
@@ -346,22 +348,21 @@ def emit_probe_log(module: str, kind: str) -> str:
             "service.instance.id": "probe-1",
             "smarkee.module": module,
             "smarkee.resource.type": kind,
-            "smarkee.component.role": "manager",
+            "smarkee.component.role": "api",
         },
     }
-    script = f"sleep 4; echo '{json.dumps(record)}'; sleep 20"
+    script = f"sleep 2; echo '{json.dumps(record)}'; sleep 10"
     try:
         subprocess.run(
             [
-                "docker",
+                "kubectl",
+                "-n",
+                module,
                 "run",
-                "-d",
-                "--rm",
-                "--name",
                 name,
-                "--log-driver",
-                "json-file",
-                "alpine",
+                "--image=alpine:3.21",
+                "--restart=Never",
+                "--",
                 "sh",
                 "-c",
                 script,
@@ -370,8 +371,8 @@ def emit_probe_log(module: str, kind: str) -> str:
             capture_output=True,
         )
     except OSError, subprocess.CalledProcessError:
-        pytest.skip("docker indisponível")
-    return marker
+        pytest.skip("kubectl indisponível")
+    return name, marker
 
 
 def feature_prefix(telemeter: Path) -> str:
@@ -398,26 +399,45 @@ def test_each_feature_telemeter_gets_only_its_own_app_logs_and_spans(
     telemeter: Path, started_ns: int
 ) -> None:
     prefix = feature_prefix(telemeter)
+    module = telemeter.parent.parent.name
+    kind = telemeter.parent.name
     httpx.get(f"{API_URL}{FEATURE_ROUTES[prefix]}", headers={"Host": API_HOST}, timeout=10.0)
-    route = f"{prefix}-receiver"
+    route = f"{prefix}-api"
 
-    marker = emit_probe_log(telemeter.parent.parent.name, telemeter.parent.name)
+    pod_name, marker = emit_probe_log(module, kind)
+    try:
 
-    def logs_arrived() -> bool | None:
-        return any(marker in r["body"] for r in logs(telemeter / "logs")) or None
+        def logs_arrived() -> bool | None:
+            return any(marker in r["body"] for r in logs(telemeter / "logs")) or None
 
-    def span_arrived() -> bool | None:
-        found = spans(telemeter / "traces")
-        return (
-            any(
-                s["start_ns"] >= started_ns and s["attributes"].get("apisix.service_name") == route
-                for s in found
+        def span_arrived() -> bool | None:
+            found = spans(telemeter / "traces")
+            return (
+                any(
+                    s["start_ns"] >= started_ns
+                    and s["attributes"].get("apisix.service_name") == route
+                    for s in found
+                )
+                or None
             )
-            or None
-        )
 
-    wait_for(f"log sintético de {prefix} no telemeter da feature", logs_arrived)
-    wait_for(f"span da rota {route} no telemeter da feature", span_arrived)
+        wait_for(f"log sintético de {prefix} no telemeter da feature", logs_arrived)
+        wait_for(f"span da rota {route} no telemeter da feature", span_arrived)
+    finally:
+        subprocess.run(
+            [
+                "kubectl",
+                "-n",
+                module,
+                "delete",
+                "pod",
+                pod_name,
+                "--ignore-not-found",
+                "--wait=false",
+            ],
+            check=False,
+            capture_output=True,
+        )
 
     own_logs = logs(telemeter / "logs")
     assert [r["service"] for r in own_logs if not str(r["service"]).startswith(prefix)] == []
@@ -429,7 +449,7 @@ def test_each_feature_telemeter_gets_only_its_own_app_logs_and_spans(
         for s in spans(PLATFORM_TRACES)
         if s["start_ns"] >= started_ns and s["attributes"].get("apisix.service_name") == route
     ]
-    assert leaked_logs == [] and leaked_spans == [], f"sinal de {prefix} no platform-telemeter"
+    assert leaked_logs == [] and leaked_spans == [], f"sinal de {prefix} no telemetry-sink"
 
 
 def test_the_feature_telemeter_configs_are_identical() -> None:
@@ -479,35 +499,29 @@ def test_infra_logs_hold_no_email_or_verification_code(
 
 
 def test_the_agent_redacts_an_email_and_drops_the_zitadel_translation_warning() -> None:
-    """Prova determinística, sem depender do Zitadel: um contêiner sintético de infra."""
+    """Prova determinística, sem depender do Zitadel: um Pod sintético de infra."""
     name = f"probe-redact-{uuid.uuid4().hex[:6]}"
     marker = uuid.uuid4().hex[:8]
     script = (
-        "sleep 4; "
+        "sleep 2; "
         f'echo "time=\\"2026-10-18T21:00:00Z\\" level=warning msg=\\"probe {marker}\\" '
         f'who=probe.one@example.com"; '
         f'echo "time=\\"2026-10-18T21:00:01Z\\" level=warning msg=\\"missing translation\\" '
         f'args=\\"map[Code:ZZZ999 LastEmail:probe.two@example.com] {marker}\\""; '
         f'echo "STATEMENT: orphan-sql-line {marker}"; '
-        "sleep 20"
+        "sleep 10"
     )
     try:
         subprocess.run(
             [
-                "docker",
+                "kubectl",
+                "-n",
+                "mail",
                 "run",
-                "-d",
-                "--name",
                 name,
-                "--log-driver",
-                "json-file",
-                "--log-opt",
-                "labels=com.docker.compose.service,smarkee.layer",
-                "--label",
-                "smarkee.layer=infra",
-                "--label",
-                f"com.docker.compose.service={name}",
-                "alpine",
+                "--image=alpine:3.21",
+                "--restart=Never",
+                "--",
                 "sh",
                 "-c",
                 script,
@@ -516,17 +530,23 @@ def test_the_agent_redacts_an_email_and_drops_the_zitadel_translation_warning() 
             capture_output=True,
         )
     except OSError, subprocess.CalledProcessError:
-        pytest.skip("docker indisponível")
+        pytest.skip("kubectl indisponível")
 
     try:
 
         def probe() -> list[str] | None:
-            bodies = [r["body"] for r in infra_logs() if r["service"] == name]
+            bodies = [
+                r["body"] for r in infra_logs() if r["service"] == "mail" and marker in r["body"]
+            ]
             return bodies if any(f"probe {marker}" in b for b in bodies) else None
 
-        bodies = wait_for("registro do contêiner sintético em logs/infra", probe)
+        bodies = wait_for("registro do Pod sintético em logs/infra", probe)
     finally:
-        subprocess.run(["docker", "rm", "-f", name], check=False, capture_output=True)
+        subprocess.run(
+            ["kubectl", "-n", "mail", "delete", "pod", name, "--ignore-not-found", "--wait=false"],
+            check=False,
+            capture_output=True,
+        )
 
     joined = "\n".join(bodies)
     assert "<redacted-email>" in joined

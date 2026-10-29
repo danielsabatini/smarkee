@@ -1,0 +1,92 @@
+# Configuração declarativa do cluster Kubernetes local (`kind`) da Smarkee (decisão 0102).
+# Inclui:
+#   - Containerd configurado para confiar no registry local (`localhost:5001`) sem exigir kind load.
+#   - Port mappings em 127.0.0.1 para os serviços acessados a partir do host em desenvolvimento.
+#   - ExtraMounts para que os diretórios de saída (.jsonl) do telemetry-sink e dos <feature>-telemeter
+#     permaneçam visíveis no host para `tests/telemetry` e `scripts/dev/telemetry-reset`.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: smarkee
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry]
+      config_path = "/etc/containerd/certs.d"
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      # Gateway APISIX (HTTP) e Zitadel / APIs
+      - containerPort: 30080
+        hostPort: 8080
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      # Gateway APISIX Admin API (somente localhost em dev)
+      - containerPort: 30180
+        hostPort: 9180
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      # PostgreSQL SSOT (CloudNativePG)
+      - containerPort: 30432
+        hostPort: 5432
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      # NATS JetStream (client e monitoring)
+      - containerPort: 30422
+        hostPort: 4222
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      - containerPort: 30822
+        hostPort: 8222
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      # Mailpit UI
+      - containerPort: 30025
+        hostPort: 8025
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      # OpenBao / Vault (svm / ekm / clm em dev)
+      - containerPort: 30200
+        hostPort: 8200
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      # ArgoCD UI / CLI
+      - containerPort: 30443
+        hostPort: 8443
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+    extraMounts:
+      # Repositório completo montado no nó para o git-server do ArgoCD em dev
+      - hostPath: __REPO_ROOT__
+        containerPath: /workspace/smarkee
+        readOnly: true
+      # Diretório de saída do telemetry-sink (logs/{app,infra}, metrics/{app,infra}, traces/)
+      - hostPath: __REPO_ROOT__/infrastructure/dev/telemetry-sink/logs
+        containerPath: /var/lib/smarkee/telemetry/telemetry-sink/logs
+      - hostPath: __REPO_ROOT__/infrastructure/dev/telemetry-sink/metrics
+        containerPath: /var/lib/smarkee/telemetry/telemetry-sink/metrics
+      - hostPath: __REPO_ROOT__/infrastructure/dev/telemetry-sink/traces
+        containerPath: /var/lib/smarkee/telemetry/telemetry-sink/traces
+      # Diretórios de saída dos telemeters das 9 features
+      - hostPath: __REPO_ROOT__/features/core/account/telemeter
+        containerPath: /var/lib/smarkee/telemetry/features/core/account
+      - hostPath: __REPO_ROOT__/features/bsm/account/telemeter
+        containerPath: /var/lib/smarkee/telemetry/features/bsm/account
+      - hostPath: __REPO_ROOT__/features/sum/service/telemeter
+        containerPath: /var/lib/smarkee/telemetry/features/sum/service
+      - hostPath: __REPO_ROOT__/features/ipm/organization/telemeter
+        containerPath: /var/lib/smarkee/telemetry/features/ipm/organization
+      - hostPath: __REPO_ROOT__/features/ipm/user/telemeter
+        containerPath: /var/lib/smarkee/telemetry/features/ipm/user
+      - hostPath: __REPO_ROOT__/features/ipm/serviceaccount/telemeter
+        containerPath: /var/lib/smarkee/telemetry/features/ipm/serviceaccount
+      - hostPath: __REPO_ROOT__/features/ipm/permission/telemeter
+        containerPath: /var/lib/smarkee/telemetry/features/ipm/permission
+      - hostPath: __REPO_ROOT__/features/ipm/role/telemeter
+        containerPath: /var/lib/smarkee/telemetry/features/ipm/role
+      - hostPath: __REPO_ROOT__/features/ipm/group/telemeter
+        containerPath: /var/lib/smarkee/telemetry/features/ipm/group

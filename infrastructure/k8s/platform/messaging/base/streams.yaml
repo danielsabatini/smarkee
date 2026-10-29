@@ -1,0 +1,78 @@
+# Streams JetStream reconciliados declarativamente pelo NACK (decisões 0101 e 0102, docs/messaging/NATS.md).
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: desired
+  namespace: messaging
+  labels:
+    app.kubernetes.io/part-of: messaging
+spec:
+  name: DESIRED
+  description: "Estado: ultimo desired por recurso (docs/messaging/NATS.md, 6.4)"
+  subjects:
+    - "desired.>"
+  retention: limits
+  discard: old
+  storage: file
+  replicas: 1
+  maxMsgsPerSubject: 1
+  maxMsgs: -1
+  maxBytes: 1073741824
+  maxMsgSize: 524288
+  maxConsumers: -1
+  duplicateWindow: "2m0s"
+  allowDirect: true
+---
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: updated
+  namespace: messaging
+  labels:
+    app.kubernetes.io/part-of: messaging
+spec:
+  name: UPDATED
+  description: "Fato: alteracoes consolidadas pelo Controller (docs/messaging/NATS.md, 6.5)"
+  subjects:
+    - "updated.>"
+  retention: limits
+  discard: old
+  storage: file
+  replicas: 1
+  maxMsgsPerSubject: 1
+  maxMsgs: -1
+  maxBytes: 1073741824
+  maxAge: "24h0m0s"
+  maxMsgSize: 524288
+  maxConsumers: -1
+  duplicateWindow: "2m0s"
+  allowDirect: true
+---
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: audit
+  namespace: messaging
+  labels:
+    app.kubernetes.io/part-of: messaging
+spec:
+  name: AUDIT
+  description: "Historico imutavel de desired e updated por replicacao de stream (docs/messaging/NATS.md, 6.6)"
+  subjects:
+    - "audit.>"
+  retention: limits
+  discard: old
+  storage: file
+  replicas: 1
+  maxMsgsPerSubject: -1
+  maxMsgs: -1
+  maxBytes: 1073741824
+  maxAge: "24h0m0s"
+  maxMsgSize: 524288
+  maxConsumers: -1
+  duplicateWindow: "2m0s"
+  allowDirect: false
+  denyDelete: true
+  sources:
+    - name: DESIRED
+    - name: UPDATED

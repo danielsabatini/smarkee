@@ -1,0 +1,294 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: identity
+  namespace: identity
+  labels:
+    app.kubernetes.io/name: identity
+    app.kubernetes.io/part-of: identity
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: identity
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: identity-login
+  namespace: identity
+  labels:
+    app.kubernetes.io/name: identity-login
+    app.kubernetes.io/part-of: identity
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: identity-login
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity
+  namespace: identity
+  labels:
+    app.kubernetes.io/name: identity
+    app.kubernetes.io/part-of: identity
+    smarkee.io/layer: infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: identity
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: identity
+        app.kubernetes.io/part-of: identity
+        smarkee.io/layer: infra
+    spec:
+      initContainers:
+        - name: identity-init
+          image: ghcr.io/zitadel/zitadel:v4.20.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "init"
+            - "zitadel"
+          env:
+            - name: ZITADEL_DATABASE_POSTGRES_HOST
+              value: "database.database.svc.cluster.local"
+            - name: ZITADEL_DATABASE_POSTGRES_PORT
+              value: "5432"
+            - name: ZITADEL_DATABASE_POSTGRES_DATABASE
+              value: "identity"
+            - name: ZITADEL_DATABASE_POSTGRES_USER_USERNAME
+              value: "identity"
+            - name: ZITADEL_DATABASE_POSTGRES_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secret
+                  key: database_password
+            - name: ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE
+              value: "disable"
+      containers:
+        - name: identity
+          image: ghcr.io/zitadel/zitadel:v4.20.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "start-from-setup"
+            - "--masterkeyFromEnv"
+            - "--tlsMode"
+            - "disabled"
+            - "--config"
+            - "/zitadel/config/role-permissions.yaml"
+          env:
+            - name: ZITADEL_DATABASE_POSTGRES_HOST
+              value: "database.database.svc.cluster.local"
+            - name: ZITADEL_DATABASE_POSTGRES_PORT
+              value: "5432"
+            - name: ZITADEL_DATABASE_POSTGRES_DATABASE
+              value: "identity"
+            - name: ZITADEL_DATABASE_POSTGRES_USER_USERNAME
+              value: "identity"
+            - name: ZITADEL_DATABASE_POSTGRES_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secret
+                  key: database_password
+            - name: ZITADEL_DATABASE_POSTGRES_USER_SSL_MODE
+              value: "disable"
+            - name: ZITADEL_MASTERKEY
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secret
+                  key: masterkey
+            - name: ZITADEL_EXTERNALDOMAIN
+              value: "ipm-dev.smarkee.com.br"
+            - name: ZITADEL_EXTERNALPORT
+              value: "8080"
+            - name: ZITADEL_EXTERNALSECURE
+              value: "false"
+            - name: ZITADEL_TLS_ENABLED
+              value: "false"
+            - name: ZITADEL_FIRSTINSTANCE_INSTANCENAME
+              value: "IPM"
+            - name: ZITADEL_FIRSTINSTANCE_ORG_NAME
+              value: "smarkee.internal"
+            - name: ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME
+              value: "admin"
+            - name: ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secret
+                  key: admin_password
+            - name: ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS
+              value: "admin@smarkee.internal"
+            - name: ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED
+              value: "true"
+            - name: ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_SMTP_HOST
+              value: "mail.mail.svc.cluster.local:1025"
+            - name: ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_TLS
+              value: "false"
+            - name: ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROM
+              value: "ipm-dev@smarkee.internal"
+            - name: ZITADEL_DEFAULTINSTANCE_SMTPCONFIGURATION_FROMNAME
+              value: "IPM-DEV"
+            - name: ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH
+              value: "/zitadel/bootstrap/login-client.pat"
+            - name: ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME
+              value: "login-client"
+            - name: ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME
+              value: "Login Client"
+            - name: ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE
+              value: "2030-01-01T00:00:00Z"
+            - name: ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME
+              value: "platform-bootstrap@smarkee.internal"
+            - name: ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME
+              value: "Platform Bootstrap"
+            - name: ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINEKEY_TYPE
+              value: "1"
+            - name: ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINEKEY_EXPIRATIONDATE
+              value: "2030-01-01T00:00:00Z"
+            - name: ZITADEL_FIRSTINSTANCE_MACHINEKEYPATH
+              value: "/zitadel/bootstrap/service-account-platform-bootstrap.json"
+            - name: ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED
+              value: "false"
+            - name: ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI
+              value: "http://ipm-dev.smarkee.com.br:8080/ui/v2/login/"
+            - name: ZITADEL_OIDC_DEFAULTLOGINURLV2
+              value: "http://ipm-dev.smarkee.com.br:8080/ui/v2/login/login?authRequest="
+            - name: ZITADEL_OIDC_DEFAULTLOGOUTURLV2
+              value: "http://ipm-dev.smarkee.com.br:8080/ui/v2/login/logout?post_logout_redirect="
+            - name: ZITADEL_SAML_DEFAULTLOGINURLV2
+              value: "http://ipm-dev.smarkee.com.br:8080/ui/v2/login/login?samlRequest="
+            - name: ZITADEL_DEFAULTINSTANCE_OIDCSETTINGS_ACCESSTOKENLIFETIME
+              value: "15m"
+            - name: ZITADEL_DEFAULTINSTANCE_LABELPOLICY_DISABLEWATERMARK
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            exec:
+              command:
+                - /app/zitadel
+                - ready
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - /app/zitadel
+                - ready
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 6
+          volumeMounts:
+            - name: role-permissions
+              mountPath: /zitadel/config
+              readOnly: true
+            - name: bootstrap
+              mountPath: /zitadel/bootstrap
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+      volumes:
+        - name: role-permissions
+          configMap:
+            name: identity-role-permissions
+        - name: bootstrap
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-login
+  namespace: identity
+  labels:
+    app.kubernetes.io/name: identity-login
+    app.kubernetes.io/part-of: identity
+    smarkee.io/layer: infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: identity-login
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: identity-login
+        app.kubernetes.io/part-of: identity
+        smarkee.io/layer: infra
+    spec:
+      containers:
+        - name: identity-login
+          image: ghcr.io/zitadel/zitadel-login:v4.20.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ZITADEL_API_URL
+              value: "http://identity.identity.svc.cluster.local:8080"
+            - name: NEXT_PUBLIC_BASE_PATH
+              value: "/ui/v2/login"
+            - name: ZITADEL_SERVICE_USER_TOKEN_FILE
+              value: "/zitadel/bootstrap/login-client.pat"
+            - name: ZITADEL_SESSION_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: identity-secret
+                  key: session_cookie_secret
+            - name: CUSTOM_REQUEST_HEADERS
+              value: "Host:ipm-dev.smarkee.com.br,X-Forwarded-Proto:http"
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "node /app/healthcheck.mjs http://localhost:3000/ui/v2/login/healthy"
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "node /app/healthcheck.mjs http://localhost:3000/ui/v2/login/healthy"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 10
+          volumeMounts:
+            - name: pat
+              mountPath: /zitadel/bootstrap/login-client.pat
+              subPath: login-client.pat
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: pat
+          secret:
+            secretName: identity-secret

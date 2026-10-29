@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Utilitário de desenvolvimento rápido para Kubernetes (`kind`):
+# reconstrói a imagem da feature, publica no registry local (`localhost:5001`),
+# faz pull no containerd do nó `smarkee-control-plane` e reinicia os Deployments
+# da feature no namespace correspondente (decisão 0102).
+#
+# Uso:
+#   ./scripts/dev/k8s-dev core/account           # reconstrói e reinicia core/account
+#   ./scripts/dev/k8s-dev ipm/organization api   # reconstrói e reinicia apenas o papel api
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ $# -lt 1 ]]; then
+  echo "Uso: $0 <módulo>/<tipo> [papel]" >&2
+  exit 1
+fi
+
+FEATURE="$1"
+ROLE_FILTER="${2:-}"
+MOD="${FEATURE%/*}"
+TYP="${FEATURE#*/}"
+PREFIX="${MOD}-${TYP}"
+
+"${SCRIPT_DIR}/build-push" "${FEATURE}"
+
+if [[ -n "${ROLE_FILTER}" ]]; then
+  kubectl -n "${MOD}" rollout restart "deployment/${PREFIX}-${ROLE_FILTER}"
+  kubectl -n "${MOD}" rollout status "deployment/${PREFIX}-${ROLE_FILTER}" --timeout=90s
+else
+  for deploy in $(kubectl -n "${MOD}" get deployment -l "app.kubernetes.io/part-of=${PREFIX}" -o name); do
+    kubectl -n "${MOD}" rollout restart "${deploy}"
+  done
+  for deploy in $(kubectl -n "${MOD}" get deployment -l "app.kubernetes.io/part-of=${PREFIX}" -o name); do
+    kubectl -n "${MOD}" rollout status "${deploy}" --timeout=90s
+  done
+fi

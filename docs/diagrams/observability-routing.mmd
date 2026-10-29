@@ -6,24 +6,24 @@ flowchart LR
 
     subgraph LOGS["Logs"]
         direction LR
-        L0["log"]:::sig --> L1{"Resource: module e type<br/>= core/account, ipm/organization<br/>ou sum/service?"}:::dec
-        L1 -- "sim" --> LC["telemeter da feature<br/>(core-account, ipm-organization<br/>ou sum-service)"]:::dst
-        L1 -- "não" --> LP["platform-telemeter"]:::dst
+        L0["log"]:::sig --> L1{"Resource: module e type<br/>= uma das 9 features?"}:::dec
+        L1 -- "sim" --> LC["&lt;módulo&gt;-&lt;tipo&gt;-telemeter<br/>(core, bsm, sum, ipm)"]:::dst
+        L1 -- "não" --> LP["telemetry-sink"]:::dst
     end
 
     subgraph SPANS["Spans do APISIX"]
         direction LR
-        S0["span"]:::sig --> S1{"apisix.service_name =<br/>&lt;módulo&gt;-&lt;tipo&gt;-receiver?"}:::dec
-        S1 -- "sim" --> SC["telemeter da feature"]:::dst
-        S1 -- "não" --> SP["platform-telemeter"]:::dst
+        S0["span"]:::sig --> S1{"apisix.service_name =<br/>&lt;módulo&gt;-&lt;tipo&gt;-api?"}:::dec
+        S1 -- "sim" --> SC["&lt;módulo&gt;-&lt;tipo&gt;-telemeter"]:::dst
+        S1 -- "não" --> SP["telemetry-sink"]:::dst
     end
 
     subgraph METRICS["Métricas"]
         direction LR
-        M0["métrica"]:::sig --> MP["platform-telemeter"]:::dst
+        M0["métrica"]:::sig --> MP["telemetry-sink"]:::dst
     end
 
-    NOTE["O platform-telemeter separa e grava:<br/>logs/app (log com smarkee.component.role)<br/>logs/infra (log sem role)<br/>metrics/infra (container.* system.* process.* k8s.*)<br/>metrics/app (as demais)<br/>traces/"]:::note
+    NOTE["O telemetry-sink separa e grava:<br/>logs/app (log com smarkee.component.role)<br/>logs/infra (log sem role)<br/>metrics/infra (container.* system.* process.* k8s.* postgresql.*)<br/>metrics/app (as demais)<br/>traces/"]:::note
     LP --> NOTE
     SP --> NOTE
     MP --> NOTE

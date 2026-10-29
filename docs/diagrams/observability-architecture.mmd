@@ -5,36 +5,36 @@ flowchart LR
     classDef write fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
     classDef out fill:#e0f2f1,stroke:#00695c,color:#003d33
 
-    subgraph FONTES["Fontes (dev: Docker · stg e prd: Kubernetes)"]
-        APPS["Componentes das features<br/>(stdout, JSON do contrato 0045)"]:::src
-        INFRA["Infra: banco, messaging, Zitadel,<br/>gateway, mail, coletores"]:::src
-        APISIX["APISIX<br/>(plugin opentelemetry: spans)"]:::src
+    subgraph FONTES["Fontes (Kubernetes: dev, stg e prd · decisão 0102)"]
+        APPS["Pods das 9 features<br/>(stdout CRI containerd, JSON do contrato 0045)"]:::src
+        INFRA["Infra: database, messaging, identity,<br/>gateway, mail, telemetry, vault"]:::src
+        APISIX["gateway (APISIX)<br/>(plugin opentelemetry: spans)"]:::src
     end
 
-    AGENT["telemetry-agent<br/><b>LÊ</b><br/>único por nó · privilegiado (declarado)"]:::read
-    ROUTER["telemetry-router<br/><b>ROTEIA</b><br/>não grava em backend<br/>ajusta os spans à semconv"]:::route
+    AGENT["telemetry-agent (DaemonSet)<br/><b>LÊ</b><br/>/var/log/pods + kubeletstats"]:::read
+    ROUTER["telemetry-router (StatefulSet)<br/><b>ROTEIA</b><br/>não grava em backend<br/>ajusta os spans à semconv"]:::route
 
-    subgraph TELEMETERS["Telemeters: processam e GRAVAM"]
+    subgraph TELEMETERS["Telemeters (StatefulSets): processam e GRAVAM"]
         CORE["core-account-telemeter<br/>logs e spans de core/account"]:::write
-        IPM["ipm-organization-telemeter<br/>logs e spans de ipm/organization"]:::write
-        SUM["sum-service-telemeter<br/>logs e spans de sum/service"]:::write
-        PLAT["platform-telemeter<br/>infra · app sem telemeter próprio"]:::write
+        IPM["ipm-*-telemeter (6×)<br/>logs e spans de ipm/*"]:::write
+        SUM["sum-service-telemeter &amp; bsm-account-telemeter<br/>logs e spans de sum/service e bsm/account"]:::write
+        SINK["telemetry-sink<br/>infra · app sem telemeter próprio"]:::write
     end
 
     OUTCORE[("features/core/account/telemeter/<br/>logs/ · traces/")]:::out
-    OUTIPM[("features/ipm/organization/telemeter/<br/>logs/ · traces/")]:::out
-    OUTSUM[("features/sum/service/telemeter/<br/>logs/ · traces/")]:::out
-    OUTPLAT[("platform-telemeter/<br/>logs/{app,infra} · metrics/{app,infra} · traces/")]:::out
+    OUTIPM[("features/ipm/*/telemeter/<br/>logs/ · traces/")]:::out
+    OUTSUM[("features/{sum/service,bsm/account}/telemeter/<br/>logs/ · traces/")]:::out
+    OUTSINK[("infrastructure/dev/telemetry-sink/<br/>logs/{app,infra} · metrics/{app,infra} · traces/")]:::out
 
-    APPS -- "arquivos de log do contêiner" --> AGENT
-    INFRA -- "logs · métricas de contêiner" --> AGENT
+    APPS -- "/var/log/pods/*/*/*.log" --> AGENT
+    INFRA -- "logs WARN+ · kubeletstats · métricas" --> AGENT
     AGENT -- "OTLP gRPC · fila em disco" --> ROUTER
     APISIX -- "OTLP HTTP" --> ROUTER
     ROUTER -- "logs: módulo e tipo<br/>spans: apisix.service_name" --> CORE
     ROUTER -- "idem" --> IPM
     ROUTER -- "idem" --> SUM
-    ROUTER -- "todo o resto · métricas" --> PLAT
+    ROUTER -- "todo o resto · métricas" --> SINK
     CORE --> OUTCORE
     IPM --> OUTIPM
     SUM --> OUTSUM
-    PLAT --> OUTPLAT
+    SINK --> OUTSINK
