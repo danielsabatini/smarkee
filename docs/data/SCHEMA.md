@@ -136,14 +136,10 @@ Os contratos são classificados semanticamente, não tecnologicamente. Para sist
 | Contrato | Localização | Conteúdo |
 |---|---|---|
 | Envelope | `common/` | Campos do envelope definidos em `MESSAGING.md` |
-| `requested` | Domínio do recurso | Intenção do cliente |
 | `desired` | Domínio do recurso | Estado pretendido e controle de reconciliação |
-| `observed` | Domínio do recurso | Estado lido do sistema externo |
-| `action` | `common/` | Decisão de reconciliação (motivo) |
-| `completed` e `failed` | `common/` | Resultado da operação, referência externa e causa da falha |
-| `updated` | `common/` | Resumo da alteração consolidada |
-| Resource (visão consolidada) | Domínio do recurso | `phase`, `conditions`, `desired` e `observed` expostos pelo Receiver |
-| API do Receiver (request e response) | Domínio do recurso (arquivos `api-*`) | Contrato de borda das chamadas síncronas (a API HTTP que o Receiver expõe). O pedido de criação ou alteração é mapeado para `requested`, e a resposta expõe a visão consolidada |
+| `updated` | `common/` | Resumo da alteração consolidada e confirmação de convergência |
+| Resource (visão consolidada) | Domínio do recurso | `phase`, `conditions`, `desired` e `observed` expostos pela API |
+| API (request e response) | Domínio do recurso (arquivos `api-*`) | Contrato de borda das chamadas síncronas HTTP expostas pela API |
 | Condition | `common/` | Fato consolidado do recurso |
 
 A existência de um contrato não implica que ele deva ser usado: cada recurso define os que precisa. Esta lista é a família esperada e deve ser formalizada em `schemas/` quando os recursos forem modelados.
@@ -157,7 +153,7 @@ Os contratos `desired` de recursos declarativos possuem estes campos de controle
 | Campo | Valores | Significado |
 |---|---|---|
 | `lifecycle` | `present`, `absent` | Intenção de existência. A remoção é declarada, e não um comando |
-| `reconciliation` | `active`, `suspended` | Quando `suspended`, o Reconciler não decide. Padrão: `active` |
+| `reconciliation` | `active`, `suspended` | Quando `suspended`, o Controller não atua. Padrão: `active` |
 
 Exemplo conceitual do conteúdo (`data`):
 
@@ -173,11 +169,11 @@ Exemplo conceitual do conteúdo (`data`):
 
 `desiredGeneration` e `resourceVersion` são campos do envelope e do recurso, definidos em `MESSAGING.md`.
 
-`desiredGeneration` só muda quando muda a **especificação** (`lifecycle` ou os campos de configuração). Alterar apenas `reconciliation` não a incrementa, pois isso reiniciaria a contagem de falhas por geração. O Manager é o único publicador de `desired` de um recurso; quando duas mensagens possuem a mesma geração, a mais recente é a que foi entregue por último no mesmo endereço.
+`desiredGeneration` só muda quando muda a **especificação** (`lifecycle` ou os campos de configuração). Alterar apenas `reconciliation` não a incrementa, pois isso reiniciaria a contagem de falhas por geração. A API admite a escrita e grava o `desired` no outbox do SSOT; quando duas mensagens possuem a mesma geração, a mais recente é a que foi entregue por último no mesmo endereço.
 
 ## 7.2 `observed`
 
-Representa o estado efetivamente observado de um recurso externo ou operacional. O resultado da observação (`presence`: `present`, `absent` ou `unknown`) e o momento (`observedAt`) são campos do envelope.
+Representa o estado efetivamente observado de um recurso externo ou operacional pelo Controller. O resultado da observação (`presence`: `present`, `absent` ou `unknown`) e o momento (`observedAt`) são registrados no SSOT e refletidos no `updated`.
 
 Exemplo conceitual do conteúdo (`data`):
 
@@ -199,21 +195,21 @@ Conceitos diferentes usam campos diferentes e valores diferentes:
 | Conceito | Campo | Valores |
 |---|---|---|
 | Intenção de existência | `lifecycle` (em `desired`) | `present`, `absent` |
-| Resultado da observação | `presence` (no envelope de `observed`) | `present`, `absent`, `unknown` |
+| Resultado da observação | `presence` (no SSOT e em `updated`) | `present`, `absent`, `unknown` |
 | Fase consolidada do recurso | `phase` (na visão consolidada) | Definida pelo padrão do control loop (`RESOURCE-CONTROL-LOOP.md`) |
 
 Não reutilizar um desses campos para outro significado.
 
-## 7.4 `requested`
+## 7.4 Idempotência da admissão
 
-Os contratos `requested` possuem estes campos de controle, atribuídos pelo Receiver (`writer = server`) e usados pelo Manager para a idempotência do pedido (`SSOT.md`, Operation):
+A admissão na API suporta deduplicação por requisição via cabeçalho `Idempotency-Key` (`SSOT.md` §7.2, §12):
 
 | Campo | Significado |
 |---|---|
-| `operationId` | Identidade da Operation. Derivado de forma determinística da chave de idempotência do cliente, no escopo do solicitante e do tipo de recurso, ou aleatório quando o cliente não informa a chave |
-| `requestDigest` | Resumo criptográfico da forma canônica do conteúdo pedido; detecta o reuso da mesma chave com outro conteúdo |
+| `idempotencyKey` | Chave informada pelo cliente para deduplicação da requisição |
+| `requestDigest` | Resumo criptográfico (SHA-256) da forma canônica do corpo da requisição; detecta o reuso da mesma chave com outro conteúdo |
 
-A chave de idempotência do cliente é consumida pelo Receiver e não é transportada.
+A chave é escopada estritamente ao solicitante autenticado (`requested_by`) na tabela `<tipo>_idempotency` do SSOT. Reutilizar a chave com o mesmo hash devolve o recurso atual; com hash divergente, a API rejeita com `422 IdempotencyKeyReused`.
 
 # 8. Identidade e Nomenclatura
 
@@ -291,7 +287,7 @@ O `resourceId` da Organization é a **única identidade** dela em todos os siste
 
 | Sistema | Uso do `resourceId` da Organization |
 |---|---|
-| Plataforma (SSOT, mensagens, Receiver) | `resourceId` da Organization e `organizationId` dos recursos que pertencem a ela |
+| Plataforma (SSOT, mensagens, API) | `resourceId` da Organization e `organizationId` dos recursos que pertencem a ela |
 | Identidade (Zitadel) | ID da organização, informado na criação (`organization_id`) |
 | Secrets (OpenBao) | Nome do namespace da Organization |
 | Kubernetes | Nome do namespace da Organization |
@@ -300,12 +296,12 @@ Como o ID externo é atribuído pela plataforma, e não gerado pelo sistema exte
 
 Regras:
 
-- o `resourceId` é atribuído pelo Receiver (UUIDv7, `MESSAGING.md`) **antes** de a Organization existir em qualquer sistema externo, e cada Executor o informa ao criar o recurso correspondente;
+- o `resourceId` é atribuído pela API (UUIDv7, `MESSAGING.md`) **antes** de a Organization existir em qualquer sistema externo, e o Controller o informa ao criar o recurso correspondente;
 - recursos que pertencem a uma Organization carregam o campo `organizationId`, com o mesmo valor, e o reutilizam quando precisarem de um escopo no sistema externo;
 - o nome legível (`resourceName`) pode mudar e nunca é usado como nome derivado;
 - o valor precisa ser válido em todos os sistemas que o usam. O padrão de `resourceId` aceita até 128 caracteres, mas o namespace do Kubernetes é um rótulo DNS (RFC 1123): no máximo 63 caracteres, minúsculas, dígitos e hífen, começando e terminando com letra ou dígito. O ID da organização no Zitadel aceita até 200 caracteres. O UUIDv7 em minúsculas (36 caracteres) atende a todos. As restrições de nome de namespace do OpenBao ainda não foram verificadas.
 
-**Dono.** Toda Organization tem um dono: `ownerAccountId`, o `resourceId` da Account autenticado que a criou. É atribuído pelo Receiver a partir do `sub` do token (`writer = server`) e é imutável. A Organization não carrega dados pessoais do dono.
+**Dono.** Toda Organization tem um dono: `ownerAccountId`, o `resourceId` da Account autenticado que a criou. É atribuído pela API a partir do `sub` do token (`writer = server`) e é imutável. A Organization não carrega dados pessoais do dono.
 
 **Account.** O `resourceId` da Account é o ID do usuário no Zitadel, informado na criação, pela mesma regra da Organization. A Account vive na organização `register` do Zitadel (decisões 0014 e 0027).
 
@@ -337,11 +333,9 @@ O contrato de um recurso declarativo define os parâmetros de domínio usados pe
 
 | Parâmetro | Usado por | Significado |
 |---|---|---|
-| `observationInterval` | Observer | Período da observação periódica |
-| `observationValidity` | Reconciler | Idade máxima de um `observed` para decidir (mais estrita para ações destrutivas) |
-| `actionDeadline` | Reconciler | Prazo após o qual uma `action` pendente pode ser reemitida |
-| `failureLimit` | Manager | Quantidade de falhas por geração antes de marcar o recurso como `Failed` |
-| `progressDeadline` | Manager | Prazo para a geração atual convergir; passado sem convergir, o recurso fica `Failed` com a condition `Progressing=False` (`ProgressDeadlineExceeded`), como no Deployment do Kubernetes (decisão 0078) |
+| `observationInterval` | Controller | Período de reavaliação periódica do recurso |
+| `failureLimit` | Controller | Quantidade de falhas de ação consecutivas da geração vigente antes de marcar o recurso como `Failed` e suspender a reconciliação (`reconciliation = suspended`) |
+| `progressDeadline` | Controller | Prazo para a geração atual convergir; passado sem convergir, o recurso fica `Failed` com a condition `Progressing=False` (`ProgressDeadlineExceeded`), como no Deployment do Kubernetes (decisão 0078) |
 
 Durações usam o formato padronizado de duração (ISO 8601). Os parâmetros são obrigatórios em todo recurso declarativo e não possuem valor padrão: um recurso sem eles não pode ser reconciliado de forma segura.
 
@@ -360,7 +354,7 @@ Exemplo, alinhado a `MESSAGING.md`, com nomes neutros:
   "messageId": "01J...",
   "schemaVersion": "1.0",
   "messageType": "desired",
-  "emitter": "manager",
+  "emitter": "api",
   "module": "sample",
   "resourceType": "item",
   "resourceId": "01J...",
@@ -368,14 +362,15 @@ Exemplo, alinhado a `MESSAGING.md`, com nomes neutros:
   "desiredGeneration": 1,
   "requestedBy": "01J...",
   "correlationId": "01J...",
-  "causationId": "01J...",
+  "causationId": null,
   "occurredAt": "2026-10-04T14:00:00Z",
   "publishedAt": "2026-10-04T14:00:01Z",
+  "publishedBy": "sample-item-publisher",
   "data": {}
 }
 ```
 
-Campos de decisão e rastreabilidade do envelope (`presence`, `actionId`, `requestedBy`) têm a semântica definida em `MESSAGING.md`. No contrato do envelope, `messageId`, `resourceId` (na criação), `requestedBy`, `desiredGeneration`, `actionId` e os campos de data e hora (`occurredAt`, `publishedAt`, `observedAt`) possuem `writer = server`: cada um é atribuído pelo componente responsável, e nunca aceito de um cliente externo.
+Campos de decisão e rastreabilidade do envelope (`presence`, `requestedBy`, `desiredGeneration`) têm a semântica definida em `MESSAGING.md`. No contrato do envelope, `messageId`, `resourceId` (na criação), `requestedBy`, `desiredGeneration` e os campos de data e hora (`occurredAt`, `publishedAt`, `observedAt`) possuem `writer = server`: cada um é atribuído pelo componente responsável, e nunca aceito de um cliente externo.
 
 ## 10.2 Payload
 
@@ -581,7 +576,7 @@ A classificação é obrigatória e não possui valor padrão: um contrato com c
 
 ## 20.3 Campos atribuídos pelo servidor
 
-Campos com `writer = server` são atribuídos por um componente do sistema: `requestedBy`, `operationId` e `requestDigest` pelo Receiver, `desiredGeneration` pelo Manager, `actionId` pelo Reconciler. Um valor enviado por cliente externo para um campo desse tipo é **rejeitado** no Receiver, e não sobrescrito silenciosamente. Isso impede a falsificação de identidade, de geração e de decisão.
+Campos com `writer = server` são atribuídos por um componente do sistema: `requestedBy` e `desiredGeneration` pela API (na admissão), `observedGeneration` e `presence` pelo Controller. Um valor enviado por cliente externo para um campo desse tipo é **rejeitado** na API, e não sobrescrito silenciosamente. Isso impede a falsificação de identidade, de geração e de estado.
 
 Entre componentes internos, quem pode emitir cada campo é controlado pela autorização do emissor (`RESOURCE-CONTROL-SECURITY.md`).
 
@@ -644,7 +639,7 @@ A pipeline detecta pelo menos:
 
 # 22. Artefatos Derivados
 
-Modelos de código, validadores, documentação da API (OpenAPI) de cada Receiver e migrations derivados de um schema são **arquivos gerados**. Seguem o `AGENTS.md`:
+Modelos de código, validadores, documentação da API (OpenAPI) de cada feature e migrations derivados de um schema são **arquivos gerados**. Seguem o `AGENTS.md`:
 
 1. a fonte é o schema;
 2. altera-se o schema, e não o artefato;
@@ -690,14 +685,11 @@ O control loop depende destes contratos:
 
 Cada camada do sistema valida e produz o contrato que lhe cabe. O contrato **não é um único objeto que atravessa tudo sem mudar**: cada etapa tem seu contrato, e as transformações entre eles são explícitas.
 
-1. **Cliente / interface:** submete a intenção conforme o contrato `requested`.
-2. **Receiver:** autentica, valida estritamente o pedido, atribui os campos `writer = server` e publica `requested`.
-3. **Mensageria:** transporta o envelope com o contrato do `messageType`, sem alterar a semântica.
-4. **Manager:** valida regras de negócio, produz `desired` e consolida a visão do recurso (`phase`, `conditions`).
-5. **Observer:** produz `observed` a partir da leitura do sistema externo.
-6. **Reconciler:** produz `action`.
-7. **Executor:** valida os campos que usará e produz `completed` ou `failed`.
-8. **Persistência (SSOT):** guarda a representação mapeada do contrato.
+1. **Cliente / interface:** submete a intenção à API HTTP.
+2. **API:** autentica, valida estritamente o pedido, atribui os campos `writer = server`, grava no SSOT e insere no outbox (`emitter: api`).
+3. **Publisher:** entrega a mensagem do outbox ao NATS JetStream sem alterar o payload.
+4. **Controller:** consome via Informer (`DESIRED`), observa o sistema externo, compara, age, reobserva e grava `updated` no outbox (`emitter: controller`).
+5. **Persistência (SSOT):** guarda a representação mapeada do contrato.
 
 A sequência recomendada para modelar um recurso declarativo é:
 
