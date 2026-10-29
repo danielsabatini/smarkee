@@ -1,18 +1,20 @@
 # Resource Control Security
 
-> **Vigência (decisão [`0096`](../../.decisions/0096-unificacao-do-loop-de-reconciliacao-no-controller.md)):** `ipm/organization`, `ipm/serviceaccount` e `ipm/user` não têm mais Observer, Reconciler e Executor: um único processo `controller` observa, decide, age e reobserva numa transação, e os Streams `OBSERVED`, `ACTION` e `RESULT` e a tabela `<tipo>_action_result` não existem para eles. A identidade de provedor desses tipos é a conta do Controller (`ipm-<tipo>-controller`), com o menor privilégio dela; o Manager deixa de ter `DELETE` no recurso e `UPDATE` nas Operations. Este documento descreve o modelo com os três papéis, que segue valendo para os demais tipos até a etapa S6 do plano de evolução, que o reescreve.
-
 > **Escopo:** requisitos de segurança do padrão Resource Control Loop.
 >
 > **Papel:** Fonte de Verdade da segurança específica do control loop.
 >
-> **Responsabilidade:** Definir ameaças, fronteiras de confiança, identidades, autorização, proteção da `action`, confiabilidade da observação, credenciais, rastreabilidade e limites de abuso dos componentes do loop, de forma independente de linguagem, broker e provider.
+> **Responsabilidade:** Definir ameaças, fronteiras de confiança, identidades de serviço, autorização de mensageria, segurança na reconciliação do Controller, confiabilidade da observação, credenciais de provedores externos, rastreabilidade e limites de abuso dos componentes do loop, de forma independente de linguagem, broker e provedor.
 
 # 1. Introdução
 
-O Resource Control Loop (`RESOURCE-CONTROL-LOOP.md`) separa quem decide (Reconciler) de quem executa (Executor) e de quem observa (Observer). Essa separação só protege o sistema se cada fronteira for imposta, e não apenas desenhada.
+O Resource Control Loop (`RESOURCE-CONTROL-LOOP.md`) organiza o ciclo de vida dos recursos da plataforma em dois padrões consolidados (decisões 0096, 0098, 0100 e 0101):
+- **`internal-state`:** recursos gerenciados exclusivamente no estado interno da plataforma (`api` + `publisher`);
+- **`external-reconciled`:** recursos cujo estado declarativo é reconciliado contra provedores externos (`api` + `publisher` + `controller`).
 
-Este documento define como impor essas fronteiras.
+Essa arquitetura substitui o loop legado de sete papéis e estabelece fronteiras de segurança bem delimitadas entre admissão do cliente, persistência no SSOT, entrega assíncrona e convergência com provedores externos.
+
+Este documento define como impor essas fronteiras com menor privilégio e segurança por padrão.
 
 Ele não substitui, e não duplica, as regras de:
 
@@ -23,11 +25,14 @@ RESOURCE-CONTROL-LOOP.md
 RESOURCE-CONTROL-SECURITY.md
 → como o padrão se protege
 
+SSOT.md e POSTGRESQL.md
+→ isolamento, controle de concorrência e privilégios no banco de dados
+
 NATS.md
-→ TLS, mTLS, ACLs, segredos e administração do broker
+→ TLS, mTLS, ACLs de Subjects, segredos e administração do broker
 
 MESSAGING.md
-→ segredos em mensagens e semântica das mensagens
+→ segredos em mensagens, campos do envelope e semântica das mensagens
 
 SCHEMA.md
 → classificação e tratamento de dados sensíveis nos contratos
@@ -35,22 +40,24 @@ SCHEMA.md
 
 # 2. Objetivo
 
-- impedir que uma mensagem forjada ou indevida cause escrita no sistema externo;
-- impedir que uma observação falsa ou inconclusiva cause ação destrutiva;
-- limitar o dano de um componente comprometido;
-- permitir saber **quem** solicitou cada alteração;
-- limitar o abuso e o impacto de erros em massa.
+- impedir que requisições ou mensagens forjadas causem escritas indevidas em sistemas externos;
+- impedir que observações falsas ou inconclusivas causem ações destrutivas contra recursos reais;
+- restringir o acesso a credenciais de provedores externos estritamente ao Controller de cada recurso;
+- garantir que nenhuma escrita ocorra sem identificação clara de quem a solicitou (`requestedBy`);
+- isolar módulos, tipos de recurso e organizações para impedir acesso lateral;
+- limitar o impacto de falhas transitórias, loops de erro e abusos em massa.
 
 # 3. Princípios
 
-Seguem os princípios do `AGENTS.md` (seção 4): menor privilégio, segurança por padrão e segredos fora do código e das mensagens.
+Seguem os princípios do `AGENTS.md` (§4): menor privilégio, segurança por padrão e segredos fora do código e das mensagens.
 
 Específicos deste padrão:
 
-- **A `action` é o comando mais privilegiado do loop.** Quem a publica ou a consome precisa ser controlado.
-- **O Executor é o último ponto de controle.** Ele não confia cegamente em quem lhe enviou a `action`.
-- **Observação é evidência, não verdade.** Observação inconclusiva não autoriza decisão.
-- **Negar por padrão.** Toda permissão no barramento é explícita.
+- **O Controller é o guardião da credencial de escrita externa.** Somente o Controller do tipo possui credenciais para alterar recursos no provedor externo correspondente.
+- **A API não acessa o provedor externo nem o barramento NATS.** A API realiza apenas admissão síncrona no SSOT e insere mensagens no outbox transacional.
+- **O Publisher não conhece regras de negócio.** Ele possui permissão estrita para ler mensagens pendentes no outbox e publicá-las nos Subjects do respectivo recurso.
+- **Observação é evidência factual, nunca suposição.** Leitura com erro, timeout ou resposta inconclusiva é tratada como `presence = unknown` e nunca autoriza ação destrutiva.
+- **Negar por padrão.** Toda permissão de rede, banco, mensageria e provedor externo é explícita e mínima.
 
 # 4. Modelo de ameaças
 
@@ -58,252 +65,221 @@ Específicos deste padrão:
 
 | Ativo | Por que importa |
 |---|---|
-| Credencial de escrita do provider | Permite criar, alterar e remover recursos reais. |
-| `action` | Instrui o Executor a usar a credencial de escrita. |
-| `desired` | Define a intenção; sua adulteração redefine o que o sistema faz. |
-| `observed` | Alimenta a decisão do Reconciler. |
-| SSOT | Registro de intenção e de estado consolidado. |
+| **Credencial de escrita do provedor** | Permite criar, alterar e remover recursos reais na infraestrutura externa (ex: organizações e contas no Zitadel). |
+| **Estado Desejado (`desired`)** | Define a intenção do usuário; sua adulteração redefine o que a plataforma converge. |
+| **Estado Observado e Confirmado (`updated`)** | Confirmação da convergência; consumida pelo Console, auditoria e projeções de outros módulos. |
+| **SSOT** | Registro durável da verdade da plataforma, protegido contra escrita não autorizada. |
+| **Broker NATS (JetStream)** | Transporte de intenções e fatos; protegido contra publicações forjadas e consumo indevido. |
 
-## 4.2 Ameaças principais
+## 4.2 Ameaças principais e controles
 
 | Ameaça | Cenário | Controle |
 |---|---|---|
-| Falsificação de emissor | Componente comprometido publica `action` como se fosse o Reconciler | Seções 5 e 6 |
-| Injeção de subject | `resourceId` com tokens extras ou wildcards redireciona mensagens | Seção 6 |
-| `action` indevida ou obsoleta | `action` forjada, reentregue ou baseada em geração antiga leva o Executor a escrever | Seção 7 |
-| Observação falsa ou inconclusiva | Erro 403/5xx interpretado como `absent` causa recriação ou remoção | Seção 8 |
-| Vazamento de credencial | Credencial de escrita disponível a componente que só lê | Seção 9 |
-| Remoção em massa do estado | Serviço de runtime com permissão de purge apaga o estado de todos os tipos em `DESIRED` | Seção 6.3 |
-| Repúdio | Não é possível saber quem pediu uma remoção | Seção 10 |
-| Vazamento entre organizations | Mensagens ou recursos de uma organization visíveis a outra | Seção 11 |
-| Abuso e exaustão | Pedidos em massa, remoções em massa ou loop de correção | Seção 12 |
-| Cadastro anônimo abusivo | Criação em massa de contas, e-mail bombing ou descoberta de e-mails já cadastrados pelo endpoint de cadastro | Seções 10 e 12 |
+| **Publicação forjada no barramento** | Serviço comprometido tenta publicar `desired` ou `updated` de outro módulo/tipo. | Autorização estrita por Subject no NATS (`NATS.md`): o Publisher de um tipo só publica nos Subjects do seu tipo. |
+| **Injeção de Subject** | `resourceId` contendo pontos (`.`) ou wildcards (`*`, `>`) desvia o roteamento no broker. | Validação estrita de formato de `resourceId` na API e no schema (`MESSAGING.md` §30). |
+| **Ação destrutiva por erro temporário** | Provedor externo retorna 5xx ou 403 e o sistema presume que o recurso não existe, recriando-o ou apagando dados. | Tratamento canônico de `presence`: falha de leitura é obrigatoriamente `unknown`. Ação destrutiva exige confirmação inequívoca de ausência (`SSOT.md` §9). |
+| **Vazamento de credencial do provedor** | Credencial de administração do sistema externo acessível a componentes de consulta ou API. | Credencial de escrita isolada exclusivamente no processo do Controller. A API e o Publisher não têm acesso a segredos do provedor externo. |
+| **Escalação de privilégios no banco** | Serviço de aplicação executando DDL ou apagando histórico do outbox. | Papéis de banco segregados (`POSTGRESQL.md` §14.2): `api` e `controller` não possuem `DELETE` no outbox/idempotência nem privilégios de DDL. |
+| **Repúdio de ações** | Não ser possível identificar quem originou uma criação ou remoção. | `requestedBy` obrigatório atribuído pela API no envelope e na linha do recurso, propagado até o `updated` e gravado no Stream `AUDIT`. |
+| **Vazamento entre Organizations** | Usuário ou componente de uma Organization acessa ou altera dados de outra. | Isolamento por `organizationId` no contrato, com autorização na API e escopo estrito nas chamadas do Controller. |
+| **Exaustão por Loop Infinito (`DriftLoop`)** | Divergência irreconciliável faz o Controller bombardear o provedor externo com chamadas repetidas. | Limite de falhas consecutivas (`failureLimit`, padrão 5 tentativas): suspende a reconciliação (`reconciliation = suspended`) e marca o recurso como `Failed`. |
 
 # 5. Fronteiras de confiança e identidades
 
-Cada **serviço** possui identidade própria no barramento e no provider. A identidade é `<módulo>-<tipo>-<papel>` (por exemplo, `ipm-organization-executor`), e não apenas o papel: o Executor de `organization` e o de `user` são identidades distintas, com permissões distintas. Serviços que compartilham identidade não possuem fronteira de segurança entre si.
+Cada **serviço** possui identidade própria e bem delimitada na rede, no barramento, no banco e no provedor externo.
+
+A nomenclatura padronizada de identidade é `<módulo>-<tipo>-<papel>` (por exemplo: `ipm-organization-api`, `ipm-organization-publisher`, `ipm-organization-controller`).
+
+Serviços que compartilham identidade não possuem fronteira de segurança entre si. Portanto, a separação é física:
 
 ```mermaid
 flowchart LR
-
-    Client[Cliente] -->|autenticado| Receiver
-    Receiver --> Bus[(Mensageria)]
-    Publisher["Publisher"] --> Bus
-    Observer --> Bus
-    Reconciler --> Bus
-    Executor --> Bus
-
-    Manager --> SSOT[(SSOT)]
-    SSOT -->|outbox| Publisher
-    Observer -->|leitura| External[Sistema externo]
-    Executor -->|escrita| External
+    Client[Cliente / CLI / Console] -->|mTLS / JWT| Gateway[Gateway]
+    Gateway -->|HTTP autenticado| API["API (<módulo>-<tipo>-api)"]
+    API -->|SSOT: admissão, outbox, idempotência| SSOT[(Banco SSOT)]
+    
+    SSOT -->|leitura do outbox| Publisher["Publisher (<módulo>-<tipo>-publisher)"]
+    Publisher -->|publica desired e updated| NATS[(NATS JetStream)]
+    
+    NATS -->|Informer DESIRED| Controller["Controller (<módulo>-<tipo>-controller)"]
+    Controller -->|SSOT: FOR UPDATE, observed, phase, conditions| SSOT
+    Controller <-->|leitura e escrita com credencial isolada| External[Provedor Externo / Zitadel]
 ```
 
-Fronteiras:
+## 5.1 Fronteiras e papéis
 
-- cliente → Receiver: autenticação e autorização do solicitante;
-- componentes → mensageria: autenticação e autorização por subject;
-- Manager → SSOT: único componente do loop com escrita no SSOT. Cada serviço acessa o SSOT com papel próprio e privilégios mínimos por tipo de recurso (`SSOT.md` e `POSTGRESQL.md`);
-- Publisher → SSOT: leitura do outbox do tipo e marcação da publicação; → mensageria: publica no emissor `manager`;
-- Observer → provider: somente leitura;
-- Executor → provider: única identidade com escrita;
-- serviço → serviço de outro tipo: nenhuma permissão. Cada serviço atua somente sobre o seu `<módulo>.<tipo>`.
+1. **Cliente → Gateway → API:**
+   - O Gateway valida a assinatura, expiração e emissores do token JWT (`0052`);
+   - A API valida a autorização RBAC do solicitante para a organização e operação pretendidas;
+   - A API atribui a identidade autenticada ao campo `requestedBy` do envelope e da linha do recurso.
+2. **API → SSOT:**
+   - Papel de banco: `<módulo>_<tipo>_api`;
+   - Permissão para inserir/atualizar o recurso, registrar idempotência e inserir no outbox;
+   - Sem privilégio de apagar registros nem acessar tabelas de outros recursos.
+3. **Publisher → SSOT e NATS:**
+   - Papel de banco: `<módulo>_<tipo>_publisher` (apenas `SELECT` e `UPDATE (published_at)` no `<tipo>_outbox`);
+   - No NATS: permissão estrita de publicação nos Subjects `<messageType>.<módulo>.<tipo>.*`;
+   - Sem acesso ao provedor externo e sem execução de regras de negócio.
+4. **NATS → Controller:**
+   - Consome via Informer no Stream `DESIRED` do seu tipo de recurso;
+   - No SSOT: papel de banco `<módulo>_<tipo>_controller` com bloqueio exclusivo (`FOR UPDATE`), gravação de `observed`, `conditions`, `phase` e inserção de `updated` no outbox;
+   - É o único processo com permissão de `DELETE` físico na linha do recurso, executado estritamente após a confirmação factual da exclusão no sistema externo.
+5. **Controller → Provedor Externo:**
+   - Possui credencial de menor privilégio dedicada para ler e escrever no sistema externo correspondente;
+   - Nenhuma outra identidade de aplicação tem acesso a essa credencial.
 
-# 6. Autorização no barramento
+# 6. Autorização no barramento (NATS JetStream)
 
-Publicação e assinatura são autorizadas separadamente (`NATS.md`).
+A autorização de mensageria utiliza Subjects hierárquicos padronizados em 4 tokens (decisão 0101):
 
-## 6.1 Matriz de permissões
+```text
+<messageType>.<module>.<resourceType>.<resourceId>
+```
 
-O emissor é o primeiro token do subject. Cada identidade só publica no próprio emissor, **escopada ao seu `<módulo>.<tipo>`**. Na tabela, `<m>.<t>` é o módulo e o tipo do serviço (por exemplo, `ipm.organization`).
+A identidade de mensageria do Publisher que entregou a mensagem é declarada no campo `publishedBy` do envelope (`schemas/common/message-envelope.v1.schema.json`).
 
-| Serviço | Publica | Consome |
+## 6.1 Matriz de permissões por serviço
+
+Na tabela, `<m>.<t>` representa o módulo e o tipo do recurso (ex: `ipm.organization`):
+
+| Serviço | Publica no NATS | Consome do NATS |
 |---|---|---|
-| `<m>-<t>-receiver` | `receiver.requested.<m>.<t>.>` | — |
-| `<m>-<t>-manager` | — (registra `desired` e `updated` no outbox do SSOT) | `REQUESTED`, `OBSERVED` e `RESULT` do tipo, por consumers criados pela infraestrutura |
-| `<m>-<t>-publisher` (Publisher) | `desired.<m>.<t>.>`, `updated.<m>.<t>.>` (a partir do outbox do tipo) | — |
-| `<m>-<t>-observer` | `observer.observed.<m>.<t>.>` | `DESIRED` e `RESULT` do tipo, por consumers de estado criados pelo próprio serviço |
-| `<m>-<t>-reconciler` | `reconciler.action.<m>.<t>.>` | `DESIRED`, `OBSERVED` e `RESULT` do tipo, por consumers de estado criados pelo próprio serviço |
-| `<m>-<t>-executor` | `executor.completed.<m>.<t>.>`, `executor.failed.<m>.<t>.>` | `ACTION` do tipo, por consumer criado pela infraestrutura; leitura direta do último `desired` e do último resultado (`RESULT`) do tipo |
+| `<m>-<t>-api` | — *(não publica direto; insere no outbox)* | — |
+| `<m>-<t>-publisher` | `desired.<m>.<t>.>`, `updated.<m>.<t>.>` | — |
+| `<m>-<t>-controller` | — *(não publica direto; insere no outbox)* | `desired.<m>.<t>.>` (Stream `DESIRED`, via Informer / Workqueue) |
+| Projeções locais (outros módulos) | — | `desired.<origem>.>` ou `updated.<origem>.>` (Streams autorizados) |
+| Console e Auditoria | — | `updated.>`, `audit.>` |
 
-O Subject começa com o `messageType` (`desired`, `updated`, decisão 0101); a **identidade que publica** (quem entregou: `<m>-<t>-publisher`) está no campo `publishedBy` do envelope, na autorização do servidor e nos logs do transporte. As duas informações não se confundem: a API não tem permissão de publicação no broker, e o Publisher só publica os Subjects `desired` e `updated` do seu tipo (`RESOURCE-CONTROL-LOOP.md`, seção 6.6.2).
+Consequências de segurança:
+- Nenhum serviço de runtime possui `publish: >` ou `subscribe: >`;
+- O Publisher só consegue publicar no prefixo do seu próprio `<módulo>.<tipo>`;
+- A API não possui conexão de publicação aberta com o NATS, impedindo desvios do outbox transacional;
+- O Controller consome apenas o estado pretendido (`desired`) do tipo que ele gerencia;
+- Consumers de persistência e Streams são criados exclusivamente pela infraestrutura.
 
-A configuração concreta (consumers, filtros e Subjects de autorização do servidor) pertence a `NATS.md` e deve ser validada no ambiente.
+## 6.2 Validação de identificadores (`resourceId`)
 
-Consequências:
+O `resourceId` faz parte dos tokens do Subject NATS. Portanto:
+- É obrigatoriamente validado na entrada da API para coincidir com a expressão regular de UUIDv7 ou identificador opaco autorizado;
+- Não pode conter caracteres delimitadores de token (`.`) nem curingas (`*`, `>`), impedindo injeção de roteamento no broker (`MESSAGING.md` §30).
 
-- somente o Reconciler do tipo publica `action`, e somente o Executor do tipo a consome;
-- apenas o Manager do tipo origina `desired` (registrado no outbox) e apenas o Publisher o publica, no emissor `manager`;
-- apenas o Observer do tipo publica `observed`;
-- nenhum serviço lê nem publica mensagens de outro `<módulo>.<tipo>`;
-- nenhuma identidade de aplicação possui `publish: >` ou `subscribe: >`;
-- consumers de trabalho e de persistência são criados pela infraestrutura, e o serviço recebe acesso somente ao seu;
-- consumers de estado em memória são criados pelo próprio serviço, que só pode criar consumers com o seu padrão de nome e o seu filtro único, e não pode listar, alterar nem remover consumers de outros serviços;
-- consumidores adicionais (auditoria, console, métricas) assinam somente o que precisam e não publicam no loop.
+## 6.3 Identidade administrativa e isolamento de Streams
 
-## 6.2 Validação de `resourceId`
+- Nenhum serviço de aplicação possui permissão de `purge`, criação ou remoção de Streams;
+- A criação de Streams e a limpeza de mensagens tombstone são atribuídas a credenciais de infraestrutura/deploy;
+- O Stream `AUDIT` é alimentado diretamente por Stream Sources no JetStream e possui `deny_delete: true`, garantindo imutabilidade do histórico.
 
-O `resourceId` compõe o subject. Ele deve ser validado na entrada (Receiver e Manager) para conter apenas caracteres que não criem tokens extras nem wildcards, conforme `NATS.md` (Identificadores). Um `resourceId` inválido é rejeitado, e não normalizado silenciosamente.
+# 7. Segurança no ciclo do Controller
 
-## 6.3 Identidade administrativa e remoção de estado
+No modelo unificado (`RESOURCE-CONTROL-LOOP.md` §3.3), a decisão e a ação externa ocorrem em um **ciclo local e atômico** dentro do Controller, sob bloqueio exclusivo de linha no SSOT (`SELECT ... FOR UPDATE`):
 
-Nenhum serviço de runtime possui permissão de purge nem de administração de Streams. A API de purge recebe o filtro de Subject no corpo da requisição, e uma permissão por Subject não consegue restringi-lo: dar purge ao Manager de um tipo permitiria apagar o estado de todos os tipos.
+1. **Leitura com Bloqueio Exclusivo:** O Controller adquire a trava da linha antes de qualquer deliberação, impedindo corridas entre workers concorrentes;
+2. **Conferência de Reconciliação Suspensa:** Se `reconciliation == suspended`, o Controller aborta imediatamente o ciclo, sem emitir chamadas ao provedor externo;
+3. **Observação Factual:** Lê a realidade factual no sistema externo. Nunca assume estado a partir de cache defasado;
+4. **Decisão Determinística:** Compara `desired` e `observed`. Se a realidade já coincide com a intenção, nenhuma ação de escrita é disparada (convergência idempotente);
+5. **Ação com Menor Privilégio:** Se houver divergência, executa a menor alteração necessária no provedor externo com sua credencial própria;
+6. **Reobservação Imediata:** Confirma se a alteração foi efetivamente refletida pelo provedor externo antes de atestar a convergência no SSOT;
+7. **Consolidação Atômica:** Grava duravelmente o novo estado no SSOT e insere o `updated` no outbox na mesma transação.
 
-Existe uma **identidade administrativa separada**, usada somente por infraestrutura:
-
-- criação de Streams e de consumers duráveis;
-- limpeza periódica de tombstones em `DESIRED` (job agendado).
-
-Ao remover um recurso, o Manager publica o `desired` final (`lifecycle=absent`) e, após a convergência, remove o recurso do SSOT. A mensagem permanece como tombstone até a limpeza (`NATS.md`).
-
-O **Publisher** é o sexto papel (decisão 0019), com projeto, papel de banco e identidade de mensageria próprios: lê as mensagens pendentes do outbox do tipo, marca a publicação e publica no emissor `manager`. Além dele, existe a identidade de **manutenção**, de infraestrutura (remove registros expirados de outbox, de resultados de ação e de operações). Nenhum dos dois executa regra de negócio, e seus privilégios estão em `POSTGRESQL.md`.
-
-A identidade administrativa não é utilizada por serviços do loop, suas credenciais são fornecidas por secrets management e o seu uso deve ser auditado.
-
-# 7. Proteção da `action`
-
-## 7.1 Revalidação no Executor
-
-Antes de escrever no sistema externo, o Executor verifica:
-
-1. a `action` foi publicada por uma identidade autorizada (garantido pela autorização do barramento);
-2. a `operation` pertence ao conjunto permitido para o recurso;
-3. a `desiredGeneration` da `action` não é obsoleta em relação ao `desired` vigente;
-4. a operação é coerente com o `desired` vigente (por exemplo, `delete` somente se o `desired` declara a ausência do recurso).
-
-O Executor lê o último `desired` do recurso por leitura direta do último valor do subject (somente leitura, restrita ao `<módulo>.<tipo>` do serviço). Ele não acessa o SSOT.
-
-A leitura direta pode ser atendida por uma réplica e refletir, por instantes, um estado anterior ao mais recente. A revalidação é um controle adicional: ela se soma à conferência da geração e à reconciliação periódica, e não as substitui.
-
-Uma `action` que não passa na revalidação **não é executada**: o Executor publica `failed` com a causa e não repete a execução.
-
-## 7.2 Deduplicação
-
-Antes de escrever, o Executor consulta o desfecho já registrado para o `actionId` (`RESOURCE-CONTROL-LOOP.md`, *Desfecho e deduplicação no Executor*). Reentrega ou reemissão da mesma `action` já concluída não produz uma segunda escrita.
-
-O `actionId` inclui a observação que motivou a decisão. Por isso, uma `action` repetida por um atacante com o mesmo `actionId` é descartada, e uma nova decisão legítima (nova observação) não é bloqueada por uma execução antiga.
-
-## 7.3 Assinatura da `action`
-
-A assinatura criptográfica da `action` (para proteger contra um barramento comprometido) **não é exigida neste momento**. A autorização por subject mais a revalidação no Executor tratam o risco principal com menor complexidade.
-
-Se o requisito mudar (por exemplo, barramento compartilhado com terceiros), a decisão deve ser registrada em `.decisions/`.
+Como a ação e a reobservação ocorrem sob posse da linha no SSOT, elimina-se o risco de ordens de ação forjadas, reentradas operacionais e corridas de estado.
 
 # 8. Confiabilidade da observação
 
-`observed` é a entrada de decisões que podem destruir recursos. Por isso:
+O estado observado (`observed`) orienta as decisões de convergência do Controller. Erros na observação podem levar à exclusão indevida ou corrupção de recursos reais. Por isso:
 
-- a leitura do provider distingue `present`, `absent` e `unknown` (`RESOURCE-CONTROL-LOOP.md`, *Observação inconclusiva*);
-- erro de leitura, falha de autorização ou limite de taxa é `unknown`, nunca `absent`;
-- `absent` exige confirmação inequívoca do provider para o recurso exato;
-- toda observação carrega `observedAt`;
-- ação destrutiva (`delete`) exige observação conclusiva e dentro de um limite de validade estrito;
-- o Executor, ao revalidar, não depende apenas do `observed` recebido: a coerência com o `desired` é verificada na seção 7.
+- A leitura do provedor externo deve categorizar a resposta estritamente em:
+  - `presence = present`: recurso lido e verificado com sucesso;
+  - `presence = absent`: comprovação inequívoca (ex: HTTP 404 inequívoco do recurso exato) de que o recurso não existe;
+  - `presence = unknown`: falha de rede, timeout, resposta 5xx, erro de autenticação ou resposta parcial.
+- **`unknown` nunca é interpretado como `absent`:** sob `unknown`, o Controller registra a condição `Ready=False` com motivo `ObservationFailed` e retenta no próximo ciclo, sem disparar ações de criação ou deleção;
+- Ação de exclusão física no SSOT (`DELETE`) **exige categoricamente** `presence = absent` comprovado após a emissão de pedido com `lifecycle = absent`;
+- Toda observação grava o timestamp `observed_at`, e o banco de dados impõe monotonicidade temporal na atualização.
 
-## 8.1 Limite de remoções
+# 9. Credenciais de provedores externos
 
-O sistema deve limitar a quantidade de operações destrutivas por janela de tempo (por componente e por organization). Ao atingir o limite, as demais permanecem pendentes e geram alerta, em vez de serem executadas.
+A concessão de credenciais para sistemas externos (ex: APIs de nuvem, provedores de identidade) obedece à separação estrita de funções:
 
-Isso reduz o impacto de um `desired` ou de um `observed` incorretos aplicado em massa.
+| Componente | Credencial do Provedor Externo | Escopo Autorizado |
+|---|---|---|
+| **API** | Nenhuma | Acesso restrito ao banco de dados SSOT |
+| **Publisher** | Nenhuma | Acesso restrito ao outbox do SSOT e publicação NATS |
+| **Controller** | Credencial dedicada do tipo de recurso | Menor escopo possível no provedor (leitura e escrita restritas ao tipo e organização) |
+| **Manutenção** | Nenhuma | Acesso restrito de expurgo no banco |
 
-# 9. Credenciais do provider
-
-| Componente | Credencial do provider |
-|---|---|
-| Receiver | Nenhuma |
-| Manager | Nenhuma |
-| Publisher | Nenhuma |
-| Observer | Somente leitura |
-| Reconciler | Nenhuma |
-| Executor | Escrita, com escopo mínimo |
-
-Regras:
-
-- credenciais são fornecidas por mecanismo seguro de secrets management e nunca versionadas, registradas em log ou incluídas em mensagens;
-- o escopo da credencial do Executor se limita aos recursos e às operações necessários;
-- a credencial é rotacionável sem alteração de código;
-- **cada Executor tem a sua própria credencial no provider**, com o menor escopo que o provider permitir (por exemplo, um papel de organização, e não de instância). A conta administrativa de bootstrap do provider é usada só pela infraestrutura e **nenhum serviço de runtime a usa**;
-- `desired`, `action` e demais mensagens transportam **referências** a segredos, nunca o segredo (`MESSAGING.md` e `SCHEMA.md`);
-- logs e mensagens de erro não expõem credenciais nem dados sensíveis do provider;
-- as credenciais de acesso ao SSOT são por serviço, fornecidas por gestão de segredos, e nenhum serviço de runtime possui privilégio de alterar a estrutura do SSOT (`SSOT.md`).
+Regras obrigatórias:
+- **Sem compartilhamento de credenciais:** O Controller de `ipm/organization` e o Controller de `ipm/user` possuem contas de serviço separadas e tokens distintos;
+- **Segredos fora de mensagens:** As mensagens `desired` e `updated` nunca transportam senhas, tokens ou chaves em texto puro. Dados confidenciais trafegam estritamente por referências seguras (`SCHEMA.md`);
+- **Contas de bootstrap restritas:** A conta administrativa de inicialização da infraestrutura não é utilizada por serviços de aplicação em runtime;
+- **Logs limpos:** Parâmetros confidenciais e credenciais são redigidos e omitidos de logs estruturados e spans de telemetria.
 
 # 10. Identidade do solicitante e auditoria
 
-Toda alteração deve ser atribuível a um solicitante.
+Toda alteração de estado na plataforma deve ser atribuível a um solicitante autenticado:
 
-- o Receiver autentica o solicitante e registra sua identidade (ator) no contexto da requisição. O gateway já rejeita na porta de entrada o que não traz um token válido para o módulo (assinatura, emissor, audiência e expiração; decisão `0052`), mas **não é a única fronteira**: o Receiver repete a validação, atribui o ator e decide as roles;
-- o ator é registrado no campo `requestedBy` e acompanha a operação em `requested`, `desired`, `action`, `completed` e `failed`, junto de `correlationId` e `causationId` (`MESSAGING.md`);
-- o ator descreve **quem pediu**, e não quem executou: a identidade do componente executor já é conhecida pelo emissor;
-- o campo é definido em `MESSAGING.md` (envelope) e possui `writer = server` (`SCHEMA.md`): o Receiver o atribui a partir do solicitante autenticado e rejeita o valor enviado por um cliente;
-- **escritas anônimas** são exceção declarada no contrato do recurso (`RESOURCE-CONTROL-LOOP.md`, seção 6.1.2): o ator é `anonymous`, e a atribuição individual é substituída pela origem da requisição, registrada no Receiver e no gateway, sem entrar nas mensagens.
+- **Atribuição pela API:** Ao admitir uma escrita, a API obtém a identidade verificada do solicitante a partir do token de autenticação e a grava no campo `requested_by` do recurso e em `requestedBy` no envelope da mensagem no outbox;
+- **`writer = server`:** O campo `requestedBy` possui anotação `x-writer: server` no schema (`SCHEMA.md`). O cliente não pode forjar seu valor: a API rejeita qualquer valor enviado pelo cliente no corpo da requisição;
+- **Propagação contínua:** O Controller preserva o `requestedBy` e o `correlationId` ao consolidar o ciclo de reconciliação e emitir o `updated`;
+- **Escritas anônimas:** São admitidas estritamente como exceção declarada no contrato de recursos públicos (`RESOURCE-CONTROL-LOOP.md` §6.1.2, como o cadastro inicial). Nesses casos, o valor do solicitante é fixado como o literal `anonymous`, e o endereço de origem é auditado na camada de borda (Gateway e API);
+- **Trilha de auditoria:** O Stream `AUDIT` no JetStream consome todas as mensagens `desired` e `updated`, formando um registro cumulativo e imutável de quem solicitou e de quando cada estado foi atingido.
 
-Auditoria:
+# 11. Isolamento entre Organizations
 
-- o fluxo `AUDIT` (`NATS.md`) é consumidor, e o loop não depende dele para operar;
-- mesmo assim, o ator é obrigatório no loop: ele não é opcional como a retenção de auditoria;
-- o registro de auditoria não deve ser alterável pelos componentes do loop.
+A `Organization` é a unidade primária de isolamento multi-tenant da plataforma (`SCHEMA.md`):
 
-# 11. Isolamento entre organizations
+- **Contexto semântico:** O identificador da organização pertence ao contrato de dados (`data.organizationId`), não aos tokens de roteamento do Subject NATS;
+- **Autorização na Admissão:** O Gateway e a API validam a associação do usuário à organização do recurso antes de admitir qualquer leitura ou escrita;
+- **Escopo no Provedor Externo:** O Controller atua no provedor externo limitando as operações exclusivamente ao contexto da organização informada no `desired` vigente;
+- **Views e Listagens:** As consultas da API filtram os recursos estritamente pela organização autorizada para a sessão.
 
-A Organization é a unidade de isolamento. Ela pertence ao contexto semântico do recurso (`organizationId`), não ao subject (`MESSAGING.md`, *Organization e contexto*).
+# 12. Prevenção de abuso e limites operacionais
 
-- o Receiver autoriza o solicitante para a organization do recurso antes de publicar `requested`;
-- o Manager valida que a organization do pedido corresponde à do recurso;
-- o Executor opera somente com o escopo da organization presente no `desired` vigente;
-- quando o transporte oferecer autorização por organization ou namespace, ela pode ser usada sem alterar a semântica das mensagens;
-- consultas via Receiver retornam apenas recursos da organization autorizada.
+Para mitigar negação de serviço, exaustão de capacidade e custos descontrolados em provedores externos:
 
-# 12. Abuso e limites
-
-- o Receiver aplica limite de taxa por solicitante e por organization;
-- o endpoint anônimo tem limite de taxa por origem no gateway e no Receiver, resposta uniforme (sem revelar se o dado já existe) e nenhuma consulta da Operation por anônimo. Cadastro em massa é detectado e gera alerta;
-- a criação de recursos que consomem capacidade da plataforma tem **cota por dono**, aplicada pelo Manager na mesma unidade atômica do pedido (por exemplo, Organizations por usuário);
-- o Executor limita concorrência e taxa de chamadas ao provider (`RESOURCE-CONTROL-LOOP.md`, *Proteções de carga e estabilidade*);
-- flapping (`DriftLoop`) e remoções em massa geram alerta;
-- limites devem ser configuráveis e possuir valores padrão conservadores.
+- **Limite de Taxa (Rate Limiting):** A API e o Gateway aplicam limites de requisições por solicitante, por IP de origem e por organização;
+- **Cotas por Dono:** A admissão de novos recursos que consomem capacidade da plataforma aplica limites máximos por proprietário (ex: cota de organizações por conta) verificados atomicamente sob trava consultiva no banco;
+- **Limite de Falhas Consecutivas (`failureLimit`):** O Controller contabiliza falhas consecutivas de ação (`failureCount`). Ao atingir o limite (padrão de 5 tentativas):
+  1. A reconciliação do recurso é suspensa (`reconciliation = suspended`);
+  2. O recurso passa para a fase `Failed`, com a condition `Ready=False` detalhando a causa;
+  3. Uma mensagem `desired` com a suspensão é gravada no outbox para anunciar a parada no barramento.
+  Isso interrompe imediatamente laços infinitos de erro contra o provedor externo e impede bloqueios de IP ou exaustão de cotas de terceiros;
+- **Respostas Uniformes em Endpoints Públicos:** Em endpoints anônimos, a API fornece respostas temporais e mensagens uniformes para prevenir enumeração de recursos e contas existentes.
 
 # 13. Observabilidade de segurança
 
-Devem ser observáveis, sem expor dados sensíveis:
+Eventos e anomalias de segurança devem ser monitorados continuamente, sem expor dados confidenciais:
 
-- `action` rejeitada na revalidação, com a causa;
-- tentativa de publicação ou assinatura negada;
-- `observed` com `unknown` e sua duração;
-- remoções limitadas por janela;
-- uso da credencial de escrita (quem, qual recurso, qual operação);
-- falhas de autenticação no Receiver.
+- Tentativas de publicação ou subscrição negadas no NATS JetStream (ACL rejects);
+- Falhas de autenticação ou tokens inválidos barrados no Gateway e na API;
+- Requisições de alteração rejeitadas por concorrência desatualizada (`409 Conflict`) ou violação de cota;
+- Reuso inválido de chave de idempotência com digest divergente (`422 IdempotencyKeyReused`);
+- Ocorrências de `presence = unknown` durante a reconciliação do Controller e sua duração;
+- Recursos que atingiram o limite de falhas e tiveram a reconciliação suspensa (`phase = Failed`);
+- Utilização de credenciais de escrita do Controller no provedor externo (registrando recurso e operação nos spans de telemetria).
 
-O formato dos logs, o que eles registram e o que nunca registram (mensagem de exceção, campos `confidential`) estão em `OBSERVABILITY.md`.
+# 14. Anti-padrões de segurança
 
-# 14. Anti-padrões
+- Compartilhar credenciais do provedor externo entre a API e o Controller;
+- Permitir que a API publique diretamente no barramento NATS sem passar pelo outbox transacional;
+- Tratar erro de leitura, timeout ou resposta 403 do provedor como `presence = absent`;
+- Conceder permissão curinga (`publish: >` ou `subscribe: >`) a serviços de aplicação;
+- Permitir que papéis de serviço de runtime executem comandos DDL (`CREATE`, `ALTER`, `DROP`);
+- Conceder permissões de `DELETE` em tabelas de outbox ou idempotência para serviços de aplicação;
+- Transportar senhas, segredos ou tokens de acesso em texto puro no payload das mensagens ou em colunas `jsonb`;
+- Permitir que o cliente informe seu próprio `requestedBy` na requisição;
+- Executar remoção física de uma linha no SSOT antes da confirmação factual de ausência no sistema externo.
 
-- compartilhar uma única identidade entre componentes do loop;
-- conceder `publish: >` ou `subscribe: >` a um componente de aplicação;
-- Executor que executa toda `action` recebida sem revalidar;
-- tratar erro de leitura como `absent`;
-- credencial de escrita no Observer, no Reconciler, no Manager ou no Receiver;
-- segredo no `desired`, na `action` ou em logs;
-- operação sem ator identificável;
-- exceder o limite de remoções "porque é urgente" sem decisão explícita.
+# 15. Checklist de segurança por tipo de recurso
 
-# 15. Checklist de segurança por recurso
-
-- [ ] Cada serviço do loop possui identidade própria (`<módulo>-<tipo>-<papel>`)?
-- [ ] As permissões de publicação e consumo seguem a matriz da seção 6 e são escopadas por `<módulo>.<tipo>`?
-- [ ] Nenhum serviço de runtime possui permissão de purge ou de administração de Stream?
-- [ ] A limpeza de tombstones é feita por identidade administrativa separada?
-- [ ] O `resourceId` é validado antes de compor o subject?
-- [ ] O Executor revalida `operation`, geração e coerência com o `desired`?
-- [ ] O Executor consulta o desfecho do `actionId` antes de escrever?
-- [ ] A observação periódica é particionada, de modo que o provider não receba leituras duplicadas?
-- [ ] A observação distingue `present`, `absent` e `unknown`?
-- [ ] Ação destrutiva exige observação conclusiva e recente?
-- [ ] Existe limite de remoções por janela?
-- [ ] Observer possui credencial somente leitura e Executor a de escrita com escopo mínimo?
-- [ ] Nenhum segredo trafega em mensagens, logs ou erros?
-- [ ] O ator acompanha a operação de ponta a ponta?
-- [ ] O isolamento por organization está definido?
-- [ ] Os eventos de segurança da seção 13 são observáveis?
+- [ ] A API atende com menor privilégio e não possui credenciais do provedor externo nem conexão direta de publicação no NATS?
+- [ ] O Publisher publica exclusivamente nos Subjects de 4 tokens do seu `<módulo>.<tipo>`?
+- [ ] O Controller possui credencial própria e isolada de menor privilégio para o provedor externo?
+- [ ] O Controller executa o ciclo sob bloqueio de linha (`FOR UPDATE`) no SSOT?
+- [ ] Falhas de leitura do provedor externo são categorizadas estritamente como `unknown` e nunca como `absent`?
+- [ ] A remoção física no SSOT só ocorre após a comprovação inequívoca de `presence = absent`?
+- [ ] O limite de falhas consecutivas (`failureLimit`) suspende a reconciliação em caso de erro repetido?
+- [ ] A identidade do solicitante (`requestedBy`) é atribuída pela API a partir do token verificado e propagada em todo o ciclo?
+- [ ] Segredos trafegam exclusivamente por referências seguras, sem credenciais em texto puro no `jsonb` ou nos logs?
+- [ ] As tabelas e schemas do banco possuem isolamento de papéis conforme a matriz do `POSTGRESQL.md`?
 
 # 16. Fonte de verdade
 
@@ -317,6 +293,6 @@ RESOURCE-CONTROL-SECURITY.md
 implementação
 ```
 
-`RESOURCE-CONTROL-LOOP.md` define o padrão. `NATS.md` define a configuração de segurança do broker. `MESSAGING.md` e `SCHEMA.md` definem o conteúdo e o contrato das mensagens.
+`RESOURCE-CONTROL-LOOP.md` define o padrão e o fluxo de convergência. `NATS.md` define a configuração física do broker. `SSOT.md` e `POSTGRESQL.md` definem a durabilidade e o isolamento de privilégios no banco de dados.
 
-Em caso de conflito, prevalece a regra mais restritiva.
+Em caso de divergência ou ambiguidade, prevalece sempre a diretriz mais restritiva de segurança (`AGENTS.md` §4).
