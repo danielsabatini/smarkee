@@ -1,0 +1,35 @@
+flowchart LR
+    classDef op fill:#ede7f6,stroke:#5e35b1,color:#1a0933
+    classDef nats fill:#e3f2fd,stroke:#1565c0,color:#0d2b4d
+    classDef stream fill:#fff8e1,stroke:#ef6c00,color:#5a2d00
+    classDef app fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
+    classDef tel fill:#ffebee,stroke:#c62828,color:#4a1010
+
+    NACK["NACK JetStream Controller (ns: messaging-operator)<br/>Reconcilia CRDs Stream: desired, updated, audit"]:::op
+
+    subgraph NS_MSG["Namespace: messaging · Pod messaging-0"]
+        NATS_SRV["Container: nats (nats:2.15.2-alpine)<br/>Client :4222 · Monitoring :8222<br/>NodePort 30422 / 30822 → 127.0.0.1"]:::nats
+        RELOADER["Sidecar: reloader (0.22.2)<br/>Monitora nats.conf + auth.conf (ESO)"]:::nats
+        EXPORTER["Sidecar: exporter (0.20.3)<br/>Lê :8222/{varz,jsz} → Prometheus :7777"]:::nats
+
+        subgraph JS["Streams JetStream (decisão 0101 · 4 tokens)"]
+            S_DES["Stream: DESIRED<br/>Subjects: desired.&gt;<br/>desired.&lt;mod&gt;.&lt;type&gt;.&lt;id&gt;<br/>max_msgs_per_subject: 1 · allow_direct: true"]:::stream
+            S_UPD["Stream: UPDATED<br/>Subjects: updated.&gt;<br/>updated.&lt;mod&gt;.&lt;type&gt;.&lt;id&gt;<br/>max_msgs_per_subject: 1 · allow_direct: true"]:::stream
+            S_AUD["Stream: AUDIT<br/>Subjects: audit.&gt;<br/>sources: [DESIRED, UPDATED]<br/>deny_delete: true · deny_purge: true"]:::stream
+        end
+    end
+
+    PUB["&lt;mod&gt;-&lt;type&gt;-publisher (9 features)<br/>Publica do outbox com Nats-Msg-Id"]:::app
+    CTRL["&lt;mod&gt;-&lt;type&gt;-controller (6 features)<br/>StateConsumer (DeliverLastPerSubject)"]:::app
+    TAGENT["telemetry-agent (ns: telemetry)<br/>Scrape :7777/metrics"]:::tel
+
+    NACK -- ":4222 ($SYS/smarkee)" --> NATS_SRV
+    RELOADER -. "SIGHUP reload" .-> NATS_SRV
+    NATS_SRV -- ":8222" --> EXPORTER
+    EXPORTER -- ":7777" --> TAGENT
+
+    PUB -- "desired.&lt;mod&gt;.&lt;type&gt;.&lt;id&gt;" --> S_DES
+    PUB -- "updated.&lt;mod&gt;.&lt;type&gt;.&lt;id&gt;" --> S_UPD
+    S_DES -- "DeliverLastPerSubject" --> CTRL
+    S_DES -. "Stream Source" .-> S_AUD
+    S_UPD -. "Stream Source" .-> S_AUD

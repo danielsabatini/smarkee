@@ -1,0 +1,39 @@
+flowchart TB
+    classDef gw fill:#fff8e1,stroke:#ef6c00,color:#5a2d00
+    classDef int fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
+    classDef ext fill:#e3f2fd,stroke:#1565c0,color:#0d2b4d
+    classDef infra fill:#ede7f6,stroke:#5e35b1,color:#1a0933
+
+    GW["gateway (APISIX :8000)<br/>api-dev.smarkee.com.br/v1/*"]:::gw
+    DB[("database: ssot (:5432)<br/>Tabelas: &lt;tipo&gt; · &lt;tipo&gt;_outbox · &lt;tipo&gt;_idempotency")]:::infra
+    NATS[("messaging: NATS JetStream (:4222)<br/>Streams: DESIRED · UPDATED · AUDIT")]:::infra
+    IDP["identity: Zitadel (:8080)<br/>Provedor externo reconciliado"]:::infra
+
+    subgraph MODEL_INT["Modelo internal-state (bsm/account · ipm/role · ipm/group)"]
+        INT_MIG["Job: &lt;mod&gt;-&lt;type&gt;-migrate<br/>Executa migrations/*.sql"]:::int
+        INT_API["Deployment: &lt;mod&gt;-&lt;type&gt;-api (:8000)<br/>Transação atômica:<br/>grava desired = observed, phase = Ready<br/>+ idempotency + outbox (desired + updated)"]:::int
+        INT_PUB["Deployment: &lt;mod&gt;-&lt;type&gt;-publisher (:8000)<br/>pg_try_advisory_lock<br/>Publica desired.&lt;mod&gt;.&lt;type&gt;.&lt;id&gt; e updated.&lt;mod&gt;.&lt;type&gt;.&lt;id&gt;"]:::int
+    end
+
+    subgraph MODEL_EXT["Modelo external-reconciled (core/account · sum/service · ipm/{organization,user,serviceaccount,permission})"]
+        EXT_MIG["Job: &lt;mod&gt;-&lt;type&gt;-migrate<br/>Executa migrations/*.sql"]:::ext
+        EXT_API["Deployment: &lt;mod&gt;-&lt;type&gt;-api (:8000)<br/>Transação atômica:<br/>grava desired (phase = Pending/Updating/Deleting)<br/>+ idempotency + outbox (desired)"]:::ext
+        EXT_PUB["Deployment: &lt;mod&gt;-&lt;type&gt;-publisher (:8000)<br/>pg_try_advisory_lock<br/>Publica desired.&lt;mod&gt;.&lt;type&gt;.&lt;id&gt; e updated.&lt;mod&gt;.&lt;type&gt;.&lt;id&gt;"]:::ext
+        EXT_CTRL["Deployment: &lt;mod&gt;-&lt;type&gt;-controller (:8000)<br/>Informer (StateConsumer DESIRED) + Workqueue<br/>Observa e executa no Zitadel / APIs<br/>Grava observed + status (Ready/Failed) + outbox (updated)"]:::ext
+    end
+
+    GW -- "HTTP :8000" --> INT_API
+    GW -- "HTTP :8000" --> EXT_API
+
+    INT_MIG --> DB
+    INT_API -- "TX SQL" --> DB
+    DB -- "outbox poll" --> INT_PUB
+    INT_PUB -- "Publish" --> NATS
+
+    EXT_MIG --> DB
+    EXT_API -- "TX SQL (desired)" --> DB
+    DB -- "outbox poll" --> EXT_PUB
+    EXT_PUB -- "Publish" --> NATS
+    NATS -- "DeliverLastPerSubject (DESIRED)" --> EXT_CTRL
+    EXT_CTRL -- "Reconcile" --> IDP
+    EXT_CTRL -- "TX SQL (observed + outbox updated)" --> DB

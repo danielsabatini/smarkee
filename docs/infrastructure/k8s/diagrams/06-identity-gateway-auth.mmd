@@ -1,0 +1,41 @@
+flowchart LR
+    classDef client fill:#eceff1,stroke:#455a64,color:#1c2a30
+    classDef gw fill:#fff8e1,stroke:#ef6c00,color:#5a2d00
+    classDef idp fill:#e3f2fd,stroke:#1565c0,color:#0d2b4d
+    classDef mail fill:#ede7f6,stroke:#5e35b1,color:#1a0933
+    classDef app fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
+
+    CLI["Cliente / CLI sk / Browser<br/>127.0.0.1:8080"]:::client
+
+    subgraph NS_GW["Namespace: gateway"]
+        APISIX["gateway (Apache APISIX 3.19.0 :8000 / :9180)<br/>Plugins globais:<br/>1. proxy-rewrite (strip traceparent externo)<br/>2. opentelemetry (inicia trace W3C)<br/>3. opaque-token-introspect (RFC 7662 → JWT interno)<br/>4. limit-req / limit-count / client-control"]:::gw
+        ETCD["gateway-etcd-0 (:2379)"]:::gw
+        ADC["gateway-sync (ADC 0.26.1)<br/>Sincroniza adc.yaml → :9180"]:::gw
+    end
+
+    subgraph NS_IDP["Namespace: identity (Zitadel v4.20.0)"]
+        ZIT["Deployment: identity (:8080)<br/>OIDC · JWKS (/oauth/v2/keys)<br/>Introspect (/oauth/v2/introspect)<br/>Management / Admin APIs v1/v2"]:::idp
+        LOGIN["Deployment: identity-login (:3000)<br/>UI de Login v2 (/ui/v2/login/*)"]:::idp
+    end
+
+    subgraph NS_MAIL["Namespace: mail"]
+        MAILPIT["StatefulSet: mail-0 (Mailpit)<br/>SMTP :1025 · HTTP UI/API :8025"]:::mail
+    end
+
+    subgraph NS_APP["Namespaces: core · bsm · sum · ipm"]
+        API["&lt;mod&gt;-&lt;type&gt;-api (:8000)<br/>Valida JWT (JWKS) ou X-Smarkee-Internal-Token"]:::app
+        CTRL["&lt;mod&gt;-&lt;type&gt;-controller<br/>Reconcilia usuários, orgs, SAs e grants no Zitadel"]:::app
+    end
+
+    CLI -- "Host: auth-dev.smarkee.com.br:8080<br/>Host: api-dev.smarkee.com.br:8080" --> APISIX
+    ADC -- "HTTP :9180" --> APISIX
+    APISIX <--> ETCD
+
+    APISIX -- "/ui/v2/login/*" --> LOGIN
+    LOGIN <--> ZIT
+    APISIX -- "OIDC + Introspect (:8080)" --> ZIT
+    ZIT -- "SMTP :1025 (códigos/ativação)" --> MAILPIT
+
+    APISIX -- "/v1/{core,bsm,sum,ipm}/* (:8000)" --> API
+    API -- "GET /oauth/v2/keys (:8080)" --> ZIT
+    CTRL -- "REST/gRPC Management API (:8080)" --> ZIT

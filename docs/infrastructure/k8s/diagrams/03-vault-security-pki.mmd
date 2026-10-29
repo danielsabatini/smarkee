@@ -1,0 +1,45 @@
+flowchart TB
+    classDef vault fill:#ffebee,stroke:#c62828,color:#4a1010
+    classDef svc fill:#fff8e1,stroke:#ef6c00,color:#5a2d00
+    classDef op fill:#ede7f6,stroke:#5e35b1,color:#1a0933
+    classDef idp fill:#e3f2fd,stroke:#1565c0,color:#0d2b4d
+    classDef target fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
+
+    subgraph NS_VAULT["Namespace: vault · OpenBao 2.7.2 (vault-0)"]
+        SVC_SVM["Service: svm.vault.svc.cluster.local:8200<br/>Secret Vault Manager"]:::svc
+        SVC_EKM["Service: ekm.vault.svc.cluster.local:8200<br/>Encryption Key Manager"]:::svc
+        SVC_CLM["Service: clm.vault.svc.cluster.local:8200<br/>Certificate Lifecycle Manager"]:::svc
+
+        subgraph V_NS["Namespaces OpenBao (1:1 com Zitadel Organizations · identity_org_id)"]
+            NS_CORE["Namespace: core/<br/>identity_org_id: 395132726044262411<br/>Mounts: /svm (kv-v2) · /ekm (transit) · /clm (pki)"]:::vault
+            NS_OPER["Namespace: operator/<br/>identity_org_id: 395132729248710667<br/>Mounts: /svm (kv-v2) · /ekm (transit) · /clm (pki)"]:::vault
+            NS_TENANT["Namespace: &lt;organizationId&gt;/<br/>identity_org_id: &lt;orgId&gt;<br/>Mounts: /svm · /ekm · /clm"]:::vault
+        end
+
+        AUTH_K8S["auth/kubernetes<br/>roles: svm-reader · ekm-crypto · clm-issuer"]:::vault
+        AUTH_JWT["auth/jwt &amp; auth/oidc<br/>role: identity-org-member<br/>claim: urn:zitadel:iam:org:id"]:::vault
+    end
+
+    IDP["identity (Zitadel v4)<br/>via gateway (auth-dev.smarkee.com.br:8080)<br/>/oauth/v2/keys (JWKS)"]:::idp
+
+    ESO["External Secrets Operator<br/>ClusterSecretStore: smarkee-core-svm"]:::op
+    CM["cert-manager<br/>ClusterIssuer: smarkee-internal-ca"]:::op
+    TM["trust-manager<br/>Bundle: smarkee-internal-ca-bundle"]:::op
+
+    SECRETS["Kubernetes Secrets (/run/secrets/*)<br/>database · messaging · identity · gateway · 9 features"]:::target
+    CERTS["TLS Secrets (kubernetes.io/tls)<br/>&amp; ConfigMap: smarkee-ca-bundle (ca.crt)"]:::target
+    CRYPTO["Criptografia Transit (/v1/core/ekm)<br/>key: bsm-account-credentials"]:::target
+
+    SVC_SVM --> NS_CORE
+    SVC_EKM --> NS_CORE
+    SVC_CLM --> NS_CORE
+
+    ESO -- "SA token → auth/kubernetes (svm-reader)" --> SVC_SVM
+    ESO -- "ExternalSecret sync" --> SECRETS
+
+    CM -- "SA token → auth/kubernetes (clm-issuer)" --> SVC_CLM
+    CM -- "Assina X.509" --> CERTS
+    TM -- "Propaga CA raiz" --> CERTS
+
+    SVC_EKM --> CRYPTO
+    AUTH_JWT <-->|"Valida JWT / OIDC"| IDP

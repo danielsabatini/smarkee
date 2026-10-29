@@ -1,0 +1,34 @@
+flowchart LR
+    classDef src fill:#eceff1,stroke:#455a64,color:#1c2a30
+    classDef read fill:#ffebee,stroke:#c62828,color:#4a1010
+    classDef route fill:#fff8e1,stroke:#ef6c00,color:#5a2d00
+    classDef write fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
+    classDef out fill:#e0f2f1,stroke:#00695c,color:#003d33
+
+    subgraph SOURCES["Fontes no Cluster Kubernetes (kind: smarkee)"]
+        APP_PODS["Pods das 9 Features (core, bsm, sum, ipm)<br/>stdout JSON (contrato 0045)<br/>/var/log/pods/*/*/*.log (CRI containerd)"]:::src
+        INFRA_PODS["Pods de Infraestrutura<br/>(database, messaging, identity, gateway, mail, telemetry, vault)<br/>Logs WARN+ &amp; Kubelet :10250 (kubeletstats)<br/>PostgreSQL :5432 · Zitadel :8080 · NATS :7777"]:::src
+        GW_SPANS["gateway (Apache APISIX)<br/>Plugin opentelemetry (Spans de servidor)"]:::src
+    end
+
+    subgraph NS_TEL["Namespace: telemetry (OpenTelemetry Operator v0.162.0)"]
+        AGENT["OpenTelemetryCollector: telemetry-agent<br/><b>mode: daemonset · LÊ</b><br/>filelog/app · filelog/infra (redação)<br/>kubeletstats · postgresql · sql_query/outbox · prometheus/infra<br/>sending_queue: file_storage"]:::read
+        ROUTER["OpenTelemetryCollector: telemetry-router<br/><b>mode: statefulset · ROTEIA (:4317 / :4318)</b><br/>transform/gateway_semconv (url.query REDACTED)<br/>routing/logs (smarkee.module + smarkee.resource.type)<br/>routing/traces (apisix.service_name)"]:::route
+        SINK["OpenTelemetryCollector: telemetry-sink<br/><b>mode: statefulset · GRAVA (:4317)</b><br/>Recebe toda a infra e fallback de app"]:::write
+    end
+
+    subgraph NS_FEAT["Namespaces: core · bsm · sum · ipm"]
+        FTEL["9× OpenTelemetryCollector: &lt;mod&gt;-&lt;type&gt;-telemeter<br/><b>mode: statefulset · GRAVA (:4317)</b><br/>core-account · bsm-account · sum-service<br/>ipm-{organization,user,serviceaccount,permission,role,group}"]:::write
+    end
+
+    OUT_SINK[("Host (extraMounts):<br/>infrastructure/dev/telemetry-sink/<br/>logs/{app,infra}/ · metrics/{app,infra}/ · traces/")]:::out
+    OUT_FEAT[("Host (extraMounts):<br/>features/&lt;mod&gt;/&lt;type&gt;/telemeter/<br/>logs/logs.jsonl · traces/traces.jsonl")]:::out
+
+    APP_PODS --> AGENT
+    INFRA_PODS --> AGENT
+    AGENT -- "OTLP/gRPC :4317" --> ROUTER
+    GW_SPANS -- "OTLP/HTTP :4318" --> ROUTER
+    ROUTER -- "OTLP/gRPC :4317 (sinais da feature)" --> FTEL
+    ROUTER -- "OTLP/gRPC :4317 (infra + default)" --> SINK
+    SINK --> OUT_SINK
+    FTEL --> OUT_FEAT

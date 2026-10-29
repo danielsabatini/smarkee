@@ -1,0 +1,50 @@
+flowchart TB
+    classDef host fill:#eceff1,stroke:#455a64,color:#1c2a30
+    classDef op fill:#ede7f6,stroke:#5e35b1,color:#1a0933
+    classDef infra fill:#e3f2fd,stroke:#1565c0,color:#0d2b4d
+    classDef app fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
+    classDef reg fill:#fff8e1,stroke:#ef6c00,color:#5a2d00
+
+    subgraph HOST["Host macOS (127.0.0.1) · Docker Desktop"]
+        USER["Usuário / CLI sk<br/>http://127.0.0.1:8080"]:::host
+        OPER["Operador / scripts/dev/*<br/>:5432 · :4222 · :8222 · :8025 · :8200 · :8443 · :9180"]:::host
+        REG["smarkee-registry (registry:3.1.2)<br/>127.0.0.1:5001 ↔ smarkee-registry:5000"]:::reg
+        MOUNTS[("Host Mounts (extraMounts)<br/>/workspace/smarkee (RO)<br/>infrastructure/dev/telemetry-sink/<br/>features/*/*/telemeter/")]:::host
+    end
+
+    subgraph KIND["Cluster Kubernetes kind: smarkee (smarkee-control-plane · v1.37.0)"]
+        subgraph LAYER_OP["Camada de Operadores (smarkee.io/layer=operator)"]
+            NS_ARGO["ns: gitops-operator<br/>ArgoCD v3.5.6 + git-server (:9418)<br/>NodePort 30443 → :8443"]:::op
+            NS_CM["ns: cert-manager-operator<br/>cert-manager v1.21.3<br/>trust-manager v0.26.0"]:::op
+            NS_ESO["ns: external-secrets-operator<br/>External Secrets Operator v2.13.0"]:::op
+            NS_CNPG["ns: database-operator<br/>CloudNativePG v1.30.1"]:::op
+            NS_NACK["ns: messaging-operator<br/>NACK JetStream Controller v0.25.0"]:::op
+            NS_OTEL["ns: telemetry-operator<br/>OpenTelemetry Operator v0.162.0"]:::op
+        end
+
+        subgraph LAYER_INFRA["Camada de Infraestrutura da Plataforma (smarkee.io/layer=infra)"]
+            NS_VAULT["ns: vault<br/>vault-0 (OpenBao 2.7.2)<br/>Services: svm · ekm · clm (:8200)<br/>NodePort 30200 → :8200"]:::infra
+            NS_DB["ns: database<br/>database-1 (PostgreSQL 18.6)<br/>Services: database · database-{rw,ro,r} (:5432)<br/>NodePort 30432 → :5432"]:::infra
+            NS_MSG["ns: messaging<br/>messaging-0 (NATS 2.15.2 + reloader + exporter)<br/>Streams: DESIRED · UPDATED · AUDIT<br/>NodePort 30422 → :4222 | 30822 → :8222"]:::infra
+            NS_MAIL["ns: mail<br/>mail-0 (Mailpit v1.29.6)<br/>Service: mail (:1025 SMTP / :8025 HTTP)<br/>NodePort 30025 → :8025"]:::infra
+            NS_IDP["ns: identity<br/>identity + identity-login (Zitadel v4.20.0)<br/>Services: identity (:8080) · identity-login (:3000)"]:::infra
+            NS_GW["ns: gateway<br/>gateway (APISIX 3.19.0) + gateway-etcd + gateway-sync<br/>NodePort 30080 → :8080 | 30180 → :9180"]:::infra
+            NS_TEL["ns: telemetry<br/>telemetry-agent (DaemonSet)<br/>telemetry-router (:4317/:4318)<br/>telemetry-sink (:4317)"]:::infra
+        end
+
+        subgraph LAYER_APP["Camada de Produto / Features (smarkee.io/layer=app)"]
+            NS_CORE["ns: core<br/>core/account (external-reconciled)<br/>api · publisher · controller · migrate · telemeter"]:::app
+            NS_BSM["ns: bsm<br/>bsm/account (internal-state)<br/>api · publisher · migrate · telemeter"]:::app
+            NS_SUM["ns: sum<br/>sum/service (external-reconciled)<br/>api · publisher · controller · migrate · telemeter"]:::app
+            NS_IPM["ns: ipm<br/>organization · user · serviceaccount · permission (external-reconciled)<br/>role · group (internal-state)"]:::app
+        end
+    end
+
+    USER -- "HTTP :8080" --> NS_GW
+    OPER -- "NodePorts 127.0.0.1" --> KIND
+    REG -- "Pull OCI images" --> KIND
+    MOUNTS <--> NS_ARGO
+    MOUNTS <--> NS_TEL
+    MOUNTS <--> LAYER_APP
+    LAYER_OP --> LAYER_INFRA
+    LAYER_INFRA <--> LAYER_APP

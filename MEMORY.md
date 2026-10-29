@@ -5,21 +5,26 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - **Regras, contratos e decisões:** `AGENTS.md`, `docs/` e `.decisions/`.
 
 ## Estado operacional atual
+- **Cluster Kubernetes de desenvolvimento (`kind` + `ArgoCD` + `Kustomize` + `vault`, decisão `0102` — Etapas K1 a K5 100% concluídas):**
+  - Cluster `kind` `smarkee` (`v1.37.0`) com container registry local `smarkee-registry` (`localhost:5001`, CNCF Distribution `registry:3.1.2`), 17 namespaces e DNS padrão `<service>.<namespace>.svc.cluster.local`.
+  - Operadores oficiais em execução nos namespaces padronizados (`<papel>-operator`, `AGENTS.md` §15.1): `ArgoCD` (`gitops-operator`), `CloudNativePG` (`database-operator`, `v1.30.1`), `NACK` (`messaging-operator`, `v0.25.0`), `OpenTelemetry Operator` (`telemetry-operator`, `v0.162.0` com collector `0.164.0`), `cert-manager` e `trust-manager` (`cert-manager-operator`, `v1.21.3` e `v0.26.0`), e `External Secrets Operator` (`external-secrets-operator`, `v2.13.0`).
+  - Serviço `vault` (`openbao/openbao:2.7.2` no namespace `vault`, credenciais de unseal em `.workspace/vault-init.json`) expondo os 3 Kubernetes Services (`svm.vault.svc.cluster.local`, `ekm.vault.svc.cluster.local`, `clm.vault.svc.cluster.local`) mapeados aos mounts `/svm` (`kv-v2`), `/ekm` (`transit`) e `/clm` (`pki`), com namespaces `core/` e `operator/` espelhados nas organizações do Zitadel (`identity_org_id`, OIDC/JWT auth).
+  - Serviços de plataforma (`database`, `messaging`, `mail`, `telemetry`, `identity`, `gateway`) e todas as 9 features (`core/account`, `bsm/account`, `sum/service`, `ipm/{organization,user,serviceaccount,permission,role,group}`) gerenciados via GitOps pelo ArgoCD (`smarkee-root`, 18 `Application`s `Synced` e `Healthy`).
+  - Telemetria central renomeada para `telemetry-sink` (`infrastructure/dev/telemetry-sink`), `telemetry-agent` em modo `DaemonSet` (lendo `/var/log/pods` e `kubeletstats`, sem `docker.sock`).
+  - Verificações 100% verdes: `./scripts/dev/check` (15 componentes), `tests/e2e` (`12 passed`), `tests/telemetry` (`20 passed`) e `infrastructure/dev/identity/conformance` (`22 passed`).
+  - Documentação da plataforma Kubernetes dividida em escopos estritos: arquitetura e topologia em `docs/infrastructure/k8s/INFRASTRUCTURE.md` e manual de operação diária, dev loops, utilitários e troubleshooting em `docs/infrastructure/k8s/OPERATION.md`.
 - **Branch `dev`:** padronização de Subjects NATS (4 tokens), consolidação dos Streams JetStream e política de retenção no SSOT (decisão `0101`):
   - Subjects NATS unificados em 4 tokens: `desired.<mod>.<type>.<id>` e `updated.<mod>.<type>.<id>`.
   - Schema de envelope (`message-envelope.v1.schema.json`): `emitter` restrito a `["api", "controller"]`, `messageType` restrito a `["desired", "updated"]` e `operation` mantido como `"changed"`.
-  - Streams JetStream consolidados: `DESIRED` (`desired.>`, `allow_direct: true`), `UPDATED` (`updated.>`, `allow_direct: true`) e `AUDIT` (`audit.>`, `sources: [DESIRED, UPDATED]`, `deny_delete: true`). Streams legados `REQUESTED`, `OBSERVED`, `ACTION` e `RESULT` removidos do broker dev e de `compose.yaml`.
-  - Utilitário de retenção criado (`scripts/dev/retention`, `smarkee-dev-retention`): expurgo de `<tipo>_outbox` e `<tipo>_idempotency` via papéis `*_maintenance_login` (menor privilégio) com janela configurável (`--older-than`, padrão 24h) e modo simulação (`--apply`).
-  - Suíte de verificação local `./scripts/dev/check` 100% verde nos 15 componentes e jornada end-to-end (`tests/e2e`) 100% verde (12/12) contra o ambiente real.
+  - Streams JetStream consolidados via CRDs `Stream` do NACK: `DESIRED` (`desired.>`, `allow_direct: true`), `UPDATED` (`updated.>`, `allow_direct: true`) e `AUDIT` (`audit.>`, `sources: [DESIRED, UPDATED]`, `deny_delete: true`).
+  - Utilitário de retenção (`scripts/dev/retention`, `smarkee-dev-retention`): expurgo de `<tipo>_outbox` e `<tipo>_idempotency` via papéis `*_maintenance_login` (menor privilégio) com janela configurável (`--older-than`, padrão 24h) e modo simulação (`--apply`).
 - **Plano `ipm/*` e desmonte do loop legado (decisões `0098`, `0099`, `0100` e etapa S6):**
-  - `bsm/account` migrada (S6.1) para `internal-state` (`api` + `publisher`): zero chamadas HTTP mútuas com `ipm/organization` via projeções no stream `DESIRED` (`BillingAccountProjection` em `ipm/organization` e `OrganizationUsageProjection` em `bsm/account`), CLI `sk` adaptada para `SyncResourceFlow`.
-  - `ipm/serviceaccount|user|organization|permission` têm `api`, `publisher`, `controller`; `ipm/role|group` e `bsm/account` têm só `api` e `publisher`; banco `platform` extinto (`0099`).
-  - `core/account` (S6.2) e `sum/service` (S6.3) migradas para `api` + `publisher` + `controller`; template/`FEATURE-BOOTSTRAP`/agent `feature`/skills limpos do loop de 7 papéis.
-- **Banco `ssot`** (decisão `0087`) é o único banco de recursos; o banco `platform` foi extinto (decisão `0099`; dump prévio em `.workspace/platform-before-drop.dump`).
-- **Identidade (`infrastructure/dev/identity`):** chaves das service accounts do Zitadel persistem no volume Docker `identity-bootstrap`.
-- **Ambiente local OpenCode:** `~/.config/opencode/opencode.json` carrega `AGENTS.md` e `MEMORY.md` globalmente.
-- **Utilitário `scripts/dev/cleanup`:** 100% alinhado à arquitetura vigente pós-loop de 7 papéis e adaptado para os streams `DESIRED`/`UPDATED` e subjects de 4 tokens; suíte 100% verde (106/106).
-- **Jornada end-to-end (`tests/e2e`):** 100% verde (12/12) via CLI `sk` com Zitadel, SSOT, NATS e gateway reais, sem resíduos de teste remanescentes.
+  - `bsm/account`, `ipm/role` e `ipm/group` são `internal-state` (`api` + `publisher`); `core/account`, `sum/service` e `ipm/{organization,user,serviceaccount,permission}` são `external-reconciled` (`api` + `publisher` + `controller`).
+  - Banco `ssot` (decisão `0087`) é o único banco de recursos; o banco `platform` foi extinto (decisão `0099`).
+- **Utilitários de dev (`scripts/dev/`):**
+  - `./scripts/dev/cluster-up`: provisiona idempotentemente `kind`, `smarkee-registry`, CoreDNS, namespaces, operadores, `vault-bootstrap` e `smarkee-root` no ArgoCD.
+  - `./scripts/dev/build-push`: constrói imagens das features, envia para `localhost:5001` e atualiza no `containerd` do nó `kind` (`crictl pull`).
+  - `scripts/dev/cleanup`, `scripts/dev/retention` e `scripts/dev/telemetry-reset`: 100% adaptados ao cluster Kubernetes e `telemetry-sink`.
 
 ## Próximos passos imediatos
 00. **Plano de evolução ipm/* e loop** (`~/.opencode/plan/ipm-resource-control-loop-evolution.md`; ordem `S0 → S2 → S1 → S3 → S4 → S5 → S6`):

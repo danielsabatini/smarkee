@@ -1,0 +1,46 @@
+flowchart TB
+    classDef cnpg fill:#ede7f6,stroke:#5e35b1,color:#1a0933
+    classDef db fill:#e3f2fd,stroke:#1565c0,color:#0d2b4d
+    classDef role fill:#fff8e1,stroke:#ef6c00,color:#5a2d00
+    classDef app fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
+
+    CNPG["CloudNativePG Operator (ns: database-operator)<br/>Reconcilia CRD Cluster: database"]:::cnpg
+    SYNC["Job: database-role-passwords-sync<br/>Sincroniza senhas do Secret (ESO ← vault /svm)"]:::cnpg
+
+    subgraph NS_DB["Namespace: database · Pod database-1 (PostgreSQL 18.6)"]
+        SVC_DB["Services:<br/>database.database.svc.cluster.local:5432<br/>database-rw · database-ro · database-r<br/>database-nodeport (127.0.0.1:5432)"]:::db
+
+        subgraph DB_IDENTITY["Database: identity (owner: identity)"]
+            ZIT_TABLES["Schemas do Zitadel v4<br/>eventstore · projections · system"]:::db
+        end
+
+        subgraph DB_SSOT["Database: ssot (owner: ssot_owner · decisão 0087)"]
+            SCHEMAS["Schemas de Negócio:<br/>core · bsm · sum · ipm<br/>Tabelas: &lt;tipo&gt; · &lt;tipo&gt;_outbox · &lt;tipo&gt;_idempotency"]:::db
+            SCH_TEL["Schema: telemetry<br/>Função: telemetry.outbox_stats() (SECURITY DEFINER)"]:::db
+        end
+
+        subgraph ROLES["Segregação de Papéis SQL (Menor Privilégio)"]
+            R_OWNER["&lt;mod&gt;_&lt;type&gt;_owner (NOLOGIN)<br/>Dono de tabelas/índices (usado via *-migrate)"]:::role
+            R_API["&lt;mod&gt;_&lt;type&gt;_api_login<br/>SELECT/INSERT/UPDATE recurso e idempotency<br/>INSERT outbox"]:::role
+            R_PUB["&lt;mod&gt;_&lt;type&gt;_publisher_login<br/>SELECT/UPDATE outbox + pg_try_advisory_lock"]:::role
+            R_CTRL["&lt;mod&gt;_&lt;type&gt;_controller_login<br/>SELECT/UPDATE/DELETE recurso + INSERT outbox"]:::role
+            R_MAINT["&lt;mod&gt;_maintenance_login<br/>DELETE expirados em outbox e idempotency (>24h)"]:::role
+            R_TEL["telemetry_login<br/>pg_read_all_stats + EXECUTE outbox_stats()"]:::role
+        end
+    end
+
+    IDP["identity (Zitadel)"]:::app
+    FEAT_API["&lt;mod&gt;-&lt;type&gt;-api"]:::app
+    FEAT_PUB["&lt;mod&gt;-&lt;type&gt;-publisher"]:::app
+    FEAT_CTRL["&lt;mod&gt;-&lt;type&gt;-controller"]:::app
+    MAINT["scripts/dev/retention"]:::app
+    TAGENT["telemetry-agent"]:::app
+
+    CNPG --> NS_DB
+    SYNC --> ROLES
+    IDP --> DB_IDENTITY
+    FEAT_API --> R_API --> SCHEMAS
+    FEAT_PUB --> R_PUB --> SCHEMAS
+    FEAT_CTRL --> R_CTRL --> SCHEMAS
+    MAINT --> R_MAINT --> SCHEMAS
+    TAGENT --> R_TEL --> SCH_TEL
