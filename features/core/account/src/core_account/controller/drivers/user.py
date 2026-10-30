@@ -64,5 +64,17 @@ class UserDriver:
             raise
         return True
 
+    async def resend_activation(self, user_id: str) -> bool:
+        """Reenvia o e-mail de ativação/verificação para o usuário (API v2)."""
+        try:
+            path = f"/v2/users/{user_id}/email/resend"
+            await self._connection.call("POST", path, {"sendCode": {}})
+        except ProviderError as error:
+            if error.reason in ("NotFound", "Rejected"):
+                return False
+            raise
+        return True
+
     async def delete_user(self, user_id: str) -> None:
         await self._connection.call("DELETE", f"/v2/users/{user_id}", accept_not_found=True)
+

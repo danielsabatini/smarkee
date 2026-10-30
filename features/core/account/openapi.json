@@ -281,18 +281,80 @@
         "additionalProperties": false,
         "description": "Resposta de POST /v1/core/accounts (auto-cadastro, escrita anônima): o pedido foi aceito, não aplicado. Uniforme: é a mesma exista ou não o e-mail, e por isso não traz o recurso nem o estado (RESOURCE-CONTROL-LOOP.md §6.1.2). O resourceId só identifica o cadastro para quem o fez; o e-mail de ativação é o canal de confirmação.",
         "properties": {
+          "registrationTicket": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registrationticket"
+          },
           "resourceId": {
             "maxLength": 128,
             "minLength": 1,
             "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
             "title": "Resourceid",
             "type": "string"
+          },
+          "ticketExpiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ticketexpiresat"
           }
         },
         "required": [
           "resourceId"
         ],
         "title": "AccountRegistrationResponse",
+        "type": "object"
+      },
+      "AccountRegistrationStatus": {
+        "additionalProperties": false,
+        "description": "Status do processo de ativação da conta obtido através de um ticket temporário de rastreamento (UUIDv7). Seguro contra enumeração de e-mails e vazamento de dados pessoais.",
+        "properties": {
+          "activated": {
+            "title": "Activated",
+            "type": "boolean"
+          },
+          "emailDispatched": {
+            "title": "Emaildispatched",
+            "type": "boolean"
+          },
+          "emailMasked": {
+            "maxLength": 320,
+            "title": "Emailmasked",
+            "type": "string"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/Phase"
+          },
+          "ticketExpiresAt": {
+            "format": "date-time",
+            "title": "Ticketexpiresat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phase",
+          "emailMasked",
+          "emailDispatched",
+          "activated",
+          "ticketExpiresAt"
+        ],
+        "title": "AccountRegistrationStatus",
         "type": "object"
       },
       "AccountState": {
@@ -613,6 +675,79 @@
           }
         },
         "summary": "Register Account"
+      }
+    },
+    "/v1/core/accounts/registration-status/{ticket}": {
+      "get": {
+        "description": "Consulta anônima do status de ativação através do ticket temporário.",
+        "operationId": "registration_status_v1_core_accounts_registration_status__ticket__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticket",
+            "required": true,
+            "schema": {
+              "title": "Ticket",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountRegistrationStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Registration Status"
+      }
+    },
+    "/v1/core/accounts/registration-status/{ticket}/resend": {
+      "post": {
+        "description": "Solicita reenvio do e-mail de ativação via ticket temporário.",
+        "operationId": "resend_registration_v1_core_accounts_registration_status__ticket__resend_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticket",
+            "required": true,
+            "schema": {
+              "title": "Ticket",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resend Registration"
       }
     },
     "/v1/core/accounts/{account_id}": {

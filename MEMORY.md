@@ -24,6 +24,12 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
   - Schema de envelope (`message-envelope.v1.schema.json`): `emitter` restrito a `["api", "controller"]`, `messageType` restrito a `["desired", "updated"]` e `operation` mantido como `"changed"`.
   - Streams JetStream consolidados via CRDs `Stream` do NACK: `DESIRED` (`desired.>`, `allow_direct: true`), `UPDATED` (`updated.>`, `allow_direct: true`) e `AUDIT` (`audit.>`, `sources: [DESIRED, UPDATED]`, `deny_delete: true`).
   - Utilitário de retenção (`scripts/dev/retention`, `smarkee-dev-retention`): expurgo de `<tipo>_outbox` e `<tipo>_idempotency` via papéis `*_maintenance_login` (menor privilégio) com janela configurável (`--older-than`, padrão 24h) e modo simulação (`--apply`).
+- **Onboarding seguro de contas e CLI `--wait` (`core.account` + `clients/cli`):**
+  - Admissão anônima emite ticket de rastreamento temporário em UUIDv7 com TTL de 30 min (tabela `core.account_registration_ticket`, migração `0012`).
+  - Idempotência estrita: re-cadastro de e-mail não ativado atualiza `resendRequestedAt` e reemite ticket; re-cadastro de e-mail ativo responde uniformemente sem vazar existência nem emitir ticket ativo, prevenindo enumeração.
+  - Endpoints anônimos no gateway APISIX: `GET /v1/core/accounts/registration-status/{ticket}` (status mascarado) e `POST /v1/core/accounts/registration-status/{ticket}/resend` (reenvio de ativação via API v2 Zitadel com rate limit de 60s via `lastResendAt`).
+  - CLI `sk account create` opera com `--wait` por padrão convergindo até `Ready` e despacho do e-mail, suportando `--no-wait` que exibe o ticket; novo comando `sk account status --ticket <ticket>` suportando `--wait` e `--resend`.
+  - Verificação de CI local (`./scripts/dev/check`) 100% verde em todos os 15 componentes.
 - **Plano `ipm/*` e desmonte do loop legado (decisões `0098`, `0099`, `0100` e etapa S6):**
   - `bsm/account`, `ipm/role` e `ipm/group` são `internal-state` (`api` + `publisher`); `core/account`, `sum/service` e `ipm/{organization,user,serviceaccount,permission}` são `external-reconciled` (`api` + `publisher` + `controller`).
   - Banco `ssot` (decisão `0087`) é o único banco de recursos; o banco `platform` foi extinto (decisão `0099`).

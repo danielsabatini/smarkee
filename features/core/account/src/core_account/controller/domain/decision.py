@@ -17,6 +17,7 @@ class DesiredState:
     platform_permissions: frozenset[str]
     deletion_protection: bool = True
     """Proteção contra exclusão desejada; sem o campo, vale protegido (decisão 0043)."""
+    resend_requested_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +27,9 @@ class ObservedState:
     platform_permissions: frozenset[str] = frozenset()
     deletion_protection: bool | None = None
     """Proteção lida do metadado do provedor; `None` quando ele não existe (decisão 0074)."""
+    email_verified: bool = False
+    last_resend_at: str | None = None
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +63,14 @@ def decide(desired: DesiredState, observed: ObservedState) -> Decision | None:
                 not desired.platform_permissions <= observed.platform_permissions,
             ),
             ("deletionProtection", observed.deletion_protection != desired.deletion_protection),
+            (
+                "resendRequestedAt",
+                bool(
+                    desired.resend_requested_at
+                    and not observed.email_verified
+                    and observed.last_resend_at != desired.resend_requested_at
+                ),
+            ),
         )
         if differs
     )

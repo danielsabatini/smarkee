@@ -6,21 +6,29 @@ orquestração; a política é de `domain/` e a gravação é de `store/` (via `
 """
 
 import logging
+from collections.abc import Callable
+from dataclasses import replace
+from datetime import datetime, timedelta
 from http import HTTPStatus
-from typing import Any
+from typing import Any, cast
 
 from core_account.api.domain.account import (
+    REGISTRATION_TICKET_TTL_SECONDS,
+    RESEND_MIN_INTERVAL_SECONDS,
     deletion_protected,
     desired_for_create,
     desired_for_delete,
     desired_for_update,
+    mask_email,
     message_data,
     unique_value,
 )
 from core_account.api.domain.admission import Admission, desired_message, desired_subject
 from core_account.api.domain.errors import ApiError, conflict, not_found
 from core_account.api.domain.records import ResourceRecord
-from core_account.api.http.ports import AdmissionStore, AdmissionTransaction
+from core_account.api.http.ports import AdmissionStore, AdmissionTransaction, Repository
+from core_account.common.contracts import generated
+from core_account.common.ids import new_identifier
 from core_account.common.resource import SCHEMA_VERSION
 
 logger = logging.getLogger(__name__)
@@ -28,21 +36,212 @@ logger = logging.getLogger(__name__)
 NAME_IN_USE = "NameInUse"
 
 
-async def register(store: AdmissionStore, admission: Admission) -> None:
-    """Auto-cadastro anônimo: admite a conta, ou **não grava nada** se o e-mail já está em uso.
+async def register(
+    store: AdmissionStore,
+    admission: Admission,
+    *,
+    identifiers: Callable[[], str],
+    clock: Callable[[], datetime],
+) -> dict[str, Any]:
+    """Auto-cadastro anônimo com emissão de ticket temporário de rastreamento (UUIDv7).
 
-    O chamador responde igual nos dois casos, para não revelar quais e-mails têm conta
-    (`docs/loop/RESOURCE-CONTROL-LOOP.md` §6.1.2). A transação da recusa é revertida inteira.
+    Idempotente: se a conta ainda não foi ativada, reemite o ticket e aciona o reenvio de
+    ativação no Controller. Se a conta já existe e está ativada, retorna status uniforme
+    sem vazar detalhes nem permitir enumeração.
     """
-    try:
-        await admit(store, admission)
-    except ApiError as error:
-        if error.error_code != NAME_IN_USE:
-            raise
-        logger.info(
-            "registration ignored",
-            extra={"smarkee.outcome": "ignored", "error.type": NAME_IN_USE},
+    now = clock()
+    expires_at = now + timedelta(seconds=REGISTRATION_TICKET_TTL_SECONDS)
+    ticket = identifiers()
+    email = str(admission.specification["email"]) if admission.specification else ""
+
+    async with store.transaction() as transaction:
+        existing = await transaction.find_account_by_email(email)
+        if existing is None:
+            resource_id = await _create(transaction, admission)
+            await transaction.create_registration_ticket(ticket, resource_id, email, expires_at)
+            logger.info(
+                "registration admitted",
+                extra={
+                    "smarkee.resource.id": resource_id,
+                    "smarkee.operation.name": "create",
+                    "smarkee.outcome": "accepted",
+                },
+            )
+            return {
+                "resourceId": resource_id,
+                "registrationTicket": ticket,
+                "ticketExpiresAt": expires_at,
+            }
+
+        is_activated = bool(
+            existing.observed
+            and (
+                existing.observed.get("emailVerified") is True
+                or existing.observed.get("accountState") == "active"
+            )
         )
+        if is_activated:
+            logger.info(
+                "registration ignored for already active account",
+                extra={"smarkee.outcome": "ignored", "error.type": NAME_IN_USE},
+            )
+            # Ticket e ID dummy para resposta uniforme sem vazar a conta existente
+            return {
+                "resourceId": admission.resource_id,
+                "registrationTicket": ticket,
+                "ticketExpiresAt": expires_at,
+            }
+
+        resource_id = existing.resource_id
+        await transaction.create_registration_ticket(ticket, resource_id, email, expires_at)
+
+        current = existing.desired
+        desired = dict(current)
+        desired["resendRequestedAt"] = now.isoformat()
+
+        generation = await transaction.change_desired(
+            resource_id,
+            desired=desired,
+            reconciliation="active",
+            phase="Reconciling",
+            expected_resource_version=existing.resource_version,
+            requested_by=admission.requested_by,
+            correlation_id=admission.correlation_id,
+        )
+        if generation is not None:
+            await _publish(
+                transaction,
+                replace(admission, resource_id=resource_id, operation="update"),
+                desired,
+                reconciliation="active",
+                generation=generation,
+            )
+        logger.info(
+            "registration re-admitted with resend",
+            extra={
+                "smarkee.resource.id": resource_id,
+                "smarkee.operation.name": "resend",
+                "smarkee.outcome": "accepted",
+            },
+        )
+        return {
+            "resourceId": resource_id,
+            "registrationTicket": ticket,
+            "ticketExpiresAt": expires_at,
+        }
+
+
+async def get_registration_status(
+    repository: Repository,
+    ticket: str,
+    *,
+    clock: Callable[[], datetime],
+) -> generated.AccountRegistrationStatus:
+    """Consulta de status por ticket de rastreamento efêmero."""
+    ticket_record = await repository.get_registration_ticket(ticket)
+    now = clock()
+    if ticket_record is None or ticket_record.expires_at < now:
+        raise ApiError(
+            HTTPStatus.NOT_FOUND,
+            "TicketNotFound",
+            "Ticket de cadastro não encontrado ou expirado.",
+            field="ticket",
+        )
+    account = await repository.get_account(ticket_record.resource_id)
+    if account is None:
+        raise ApiError(
+            HTTPStatus.NOT_FOUND,
+            "TicketNotFound",
+            "Ticket de cadastro não encontrado ou expirado.",
+            field="ticket",
+        )
+    email_dispatched = bool(account.presence == "present")
+    activated = bool(account.observed and account.observed.get("emailVerified") is True)
+    return generated.AccountRegistrationStatus.model_validate(
+        {
+            "phase": account.phase,
+            "emailMasked": mask_email(ticket_record.email),
+            "emailDispatched": email_dispatched,
+            "activated": activated,
+            "ticketExpiresAt": ticket_record.expires_at,
+        }
+    )
+
+
+async def resend_registration_activation(
+    store: AdmissionStore,
+    ticket: str,
+    *,
+    clock: Callable[[], datetime],
+) -> None:
+    """Solicita novo envio de e-mail de ativação via ticket válido e não expirado."""
+    now = clock()
+    async with store.transaction() as transaction:
+        ticket_record = await transaction.get_registration_ticket(ticket)
+        if ticket_record is None or ticket_record.expires_at < now:
+            raise ApiError(
+                HTTPStatus.NOT_FOUND,
+                "TicketNotFound",
+                "Ticket de cadastro não encontrado ou expirado.",
+                field="ticket",
+            )
+        if ticket_record.last_resend_at is not None:
+            elapsed = (now - ticket_record.last_resend_at).total_seconds()
+            if elapsed < RESEND_MIN_INTERVAL_SECONDS:
+                retry_after = int(RESEND_MIN_INTERVAL_SECONDS - elapsed) + 1
+                raise ApiError(
+                    HTTPStatus.TOO_MANY_REQUESTS,
+                    "RateLimited",
+                    "Aguarde antes de solicitar um novo reenvio de ativação.",
+                    headers={"Retry-After": str(retry_after)},
+                )
+        row = await transaction.lock_resource(ticket_record.resource_id)
+        if row is None:
+            raise ApiError(
+                HTTPStatus.NOT_FOUND,
+                "TicketNotFound",
+                "Ticket de cadastro não encontrado ou expirado.",
+                field="ticket",
+            )
+        raw_observed = row.get("observed")
+        observed: dict[str, Any] = (
+            cast(dict[str, Any], raw_observed) if isinstance(raw_observed, dict) else {}
+        )
+        if observed.get("emailVerified") is True:
+            return
+
+        current: dict[str, Any] = row["desired"]
+        desired = dict(current)
+        desired["resendRequestedAt"] = now.isoformat()
+        generation = await transaction.change_desired(
+            ticket_record.resource_id,
+            desired=desired,
+            reconciliation="active",
+            phase="Reconciling",
+            expected_resource_version=int(row["resource_version"]),
+            requested_by="registration-ticket",
+            correlation_id=ticket,
+        )
+        if generation is not None:
+            admission = Admission(
+                operation="update",
+                resource_id=ticket_record.resource_id,
+                requested_by="registration-ticket",
+                correlation_id=ticket,
+                request_digest=ticket,
+                now=now,
+                message_id=new_identifier(),
+                specification=desired,
+            )
+            await _publish(
+                transaction,
+                admission,
+                desired,
+                reconciliation="active",
+                generation=generation,
+            )
+        await transaction.update_ticket_resend(ticket, now)
+
 
 
 async def admit(store: AdmissionStore, admission: Admission) -> ResourceRecord:

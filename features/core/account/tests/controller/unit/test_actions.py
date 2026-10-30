@@ -52,6 +52,11 @@ class FakeWriter:
         self.calls.append(("delete_user", user_id))
         self.users.pop(user_id, None)
 
+    async def resend_activation(self, user_id: str) -> bool:
+        self.calls.append(("resend_activation", user_id))
+        return True
+
+
     async def grants(self, user_id: str) -> list[Grant]:
         self._maybe_fail("grants")
         return list(self.grants_by_user.get(user_id, []))
@@ -92,9 +97,9 @@ class FakeMetadata:
         self.values[(owner_id, key)] = value
 
 
-def user(email: str) -> IdentityUser:
+def user(email: str, *, email_verified: bool = True) -> IdentityUser:
     return IdentityUser(
-        email=email, state="USER_STATE_ACTIVE", email_verified=True, password_set=True
+        email=email, state="USER_STATE_ACTIVE", email_verified=email_verified, password_set=True
     )
 
 
@@ -212,6 +217,17 @@ async def test_delete_is_idempotent() -> None:
     await execute("delete", "u-1", {"lifecycle": "absent"}, **both(writer))
     await execute("delete", "u-1", {"lifecycle": "absent"}, **both(writer))
     assert names(writer) == ["delete_user", "delete_user"]
+
+
+async def test_update_resends_activation_if_requested_and_not_verified() -> None:
+    writer = FakeWriter(users={"u-1": user("a@x.com", email_verified=False)})
+    metadata = FakeMetadata()
+    desired = {**DESIRED, "resendRequestedAt": "2026-10-30T15:00:00Z"}
+    await execute("update", "u-1", desired, **both(writer, metadata=metadata))
+    assert ("resend_activation", "u-1") in writer.calls
+    assert metadata.values.get(("u-1", "lastResendAt")) == "2026-10-30T15:00:00Z"
+
+
 
 
 async def test_an_unknown_operation_is_rejected() -> None:

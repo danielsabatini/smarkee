@@ -7,6 +7,13 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 ### Added
+- Onboarding seguro de contas com ticket de rastreamento e idempotência com reenvio (`core.account`, migração `0012`):
+  - Emissão de ticket temporário de rastreamento em UUIDv7 com expiração em 30 minutos na admissão anônima (`POST /v1/core/accounts`).
+  - Rotas públicas de consulta de status (`GET /v1/core/accounts/registration-status/{ticket}`) e reenvio de ativação (`POST /v1/core/accounts/registration-status/{ticket}/resend`) no gateway APISIX com rate limiting por IP (30 req/min).
+  - Idempotência estrita: re-cadastro de e-mail pendente de ativação atualiza `resendRequestedAt` e reemite ticket; re-cadastro de e-mail já ativado responde uniformemente sem expor estado nem emitir ticket ativo, prevenindo enumeração de contas e vazamento de dados pessoais (PII com e-mail mascarado).
+  - Reconciliação no Controller via API v2 do Zitadel (`POST /v2/users/{id}/email/resend`), rastreada via metadado `lastResendAt` com rate limit mínimo de 60 segundos entre reenvios.
+  - CLI `sk account status`: novo subcomando para consulta de progresso do cadastro via `--ticket` (mostrando fase, e-mail mascarado, despacho do e-mail, ativação e validade do ticket), com suporte a `--resend` e `--wait`.
+  - CLI `sk account create`: adota `--wait` por padrão acompanhando a convergência até `Ready` e despacho do e-mail de ativação, com suporte a `--no-wait` para retorno imediato exibindo o ticket de rastreamento.
 - Autenticação OIDC e RBAC dinâmico Zitadel ↔ OpenBao (decisões 0103 e 0104): autenticação de operadores humanos no OpenBao (`vault`, Web UI e CLI) via OIDC federado com o Zitadel, mapeamento dinâmico 1:1 de permissões através de 24 External Identity Groups vinculados ao claim `roles` (emitido pela Action `flatRoles` do Zitadel) e permissões de plano de controle `vault.platform.{create,delete,get,list,update,operate}` com roles compostas `vault.platformAdmin` e `vault.platformViewer`.
 - CLI `sk`: a ajuda (`-h`) de `auth login`, `ipm organization|user|serviceaccount|role create`, `ipm role list`, `bsm account create` e `sum service enable` ganha um bloco `Examples:` com valores fictícios.
 - CLI `sk`: opção global `-q`/`--quiet` (antes do subcomando) que esconde as notas de orientação e o progresso do `--wait`. Erros, avisos, resultados e `--output json` não são afetados, nem o código de saída.

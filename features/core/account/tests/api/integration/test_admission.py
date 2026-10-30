@@ -18,6 +18,7 @@ from core_account.api.domain.errors import ApiError
 from core_account.api.http.admission import admit, register
 from core_account.api.store.admission import SsotAdmissionStore
 from core_account.common.database import open_pool
+from core_account.common.ids import new_identifier, utc_now
 from core_account.common.settings import DatabaseSettings
 
 Connection = psycopg.AsyncConnection[Any]
@@ -130,8 +131,18 @@ async def test_registration_with_a_used_email_writes_nothing_and_does_not_fail(
     email = f"test-shared-{unique_suffix()}@example.com"
     first, second = str(uuid.uuid7()), str(uuid.uuid7())
     cleanup.extend([first, second])
-    await register(store, admission("create", first, specification=specification(email)))
-    await register(store, admission("create", second, specification=specification(email)))
+    await register(
+        store,
+        admission("create", first, specification=specification(email)),
+        identifiers=new_identifier,
+        clock=utc_now,
+    )
+    await register(
+        store,
+        admission("create", second, specification=specification(email)),
+        identifiers=new_identifier,
+        clock=utc_now,
+    )
 
     cursor = await api.execute(
         "SELECT resource_id FROM core.account WHERE resource_id = ANY(%s)", ([first, second],)

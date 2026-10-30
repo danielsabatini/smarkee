@@ -20,4 +20,6 @@ def test_every_route_is_under_the_account_resource() -> None:
     assert {path for path in paths if not path.startswith("/health/")} == {
         "/v1/core/accounts",
         "/v1/core/accounts/{account_id}",
+        "/v1/core/accounts/registration-status/{ticket}",
+        "/v1/core/accounts/registration-status/{ticket}/resend",
     }

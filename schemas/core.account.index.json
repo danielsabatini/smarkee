@@ -40,6 +40,9 @@
       "$ref": "core/account/api-registration-response.v1.schema.json"
     },
     {
+      "$ref": "core/account/api-registration-status.v1.schema.json"
+    },
+    {
       "$ref": "core/account/resource.v1.schema.json"
     }
   ]

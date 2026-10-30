@@ -9,7 +9,7 @@ from typing import Any
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
-from core_account.api.domain.records import ResourceRecord
+from core_account.api.domain.records import RegistrationTicketRecord, ResourceRecord
 
 RESOURCE_COLUMNS = (
     "resource_id, resource_version, desired_generation, observed_generation, lifecycle,"
@@ -33,3 +33,15 @@ class SsotRepository:
             )
             row = await cursor.fetchone()
         return None if row is None else ResourceRecord(**row)
+
+    async def get_registration_ticket(self, ticket: str) -> RegistrationTicketRecord | None:
+        async with self._pool.connection() as connection:
+            cursor = connection.cursor(row_factory=dict_row)
+            await cursor.execute(
+                "SELECT ticket, resource_id, email, created_at, expires_at, last_resend_at "
+                "FROM core.account_registration_ticket WHERE ticket = %s",
+                (ticket,),
+            )
+            row = await cursor.fetchone()
+        return None if row is None else RegistrationTicketRecord(**row)
+

@@ -42,7 +42,12 @@ from core_account.api.domain.ratelimit import SlidingWindowLimiter
 from core_account.api.domain.records import ResourceRecord
 from core_account.api.domain.requests import checked_idempotency_key, request_digest
 from core_account.api.domain.views import account_view
-from core_account.api.http.admission import admit, register
+from core_account.api.http.admission import (
+    admit,
+    get_registration_status,
+    register,
+    resend_registration_activation,
+)
 from core_account.api.http.health_routes import register_health_routes
 from core_account.api.http.ports import AdmissionStore, Attachments, Repository
 from core_account.api.http.trace_context import TraceContextMiddleware
@@ -250,7 +255,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
             "platformPermissions": sorted(set(deps.settings.platform.permissions)),
         }
         resource_id = deps.identifiers()
-        await register(
+        result = await register(
             deps.admissions,
             admission_for(
                 ANONYMOUS,
@@ -260,8 +265,47 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
                 {"operation": "create", "specification": specification},
                 specification=specification,
             ),
+            identifiers=deps.identifiers,
+            clock=deps.clock,
         )
-        return generated.AccountRegistrationResponse.model_validate({"resourceId": resource_id})
+        return generated.AccountRegistrationResponse.model_validate(result)
+
+    @app.get(
+        "/v1/core/accounts/registration-status/{ticket}",
+        response_model=generated.AccountRegistrationStatus,
+        response_model_exclude_none=True,
+    )
+    async def registration_status(
+        request: Request, ticket: str
+    ) -> generated.AccountRegistrationStatus:
+        """Consulta anônima do status de ativação através do ticket temporário."""
+        bind_context(requested_by=ANONYMOUS)
+        origin = client_origin(request)
+        if not deps.limiter.allow(origin):
+            raise ApiError(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                "RateLimited",
+                "Muitas tentativas. Tente novamente mais tarde.",
+                headers={"Retry-After": str(deps.limiter.retry_after_seconds(origin))},
+            )
+        return await get_registration_status(deps.repository, ticket, clock=deps.clock)
+
+    @app.post(
+        "/v1/core/accounts/registration-status/{ticket}/resend",
+        status_code=204,
+    )
+    async def resend_registration(request: Request, ticket: str) -> None:
+        """Solicita reenvio do e-mail de ativação via ticket temporário."""
+        bind_context(requested_by=ANONYMOUS)
+        origin = client_origin(request)
+        if not deps.limiter.allow(origin):
+            raise ApiError(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                "RateLimited",
+                "Muitas tentativas. Tente novamente mais tarde.",
+                headers={"Retry-After": str(deps.limiter.retry_after_seconds(origin))},
+            )
+        await resend_registration_activation(deps.admissions, ticket, clock=deps.clock)
 
     @app.get(
         "/v1/core/accounts/{account_id}",

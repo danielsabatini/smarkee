@@ -6,6 +6,7 @@ CLI diz o que remover antes. A conta nasce protegida contra exclusão (decisão 
 `sk account unprotect` precede o `delete`.
 """
 
+import time
 import uuid
 from typing import Annotated, NoReturn
 
@@ -32,6 +33,8 @@ from sk.features.core.account import (
     Account,
     delete_account,
     get_account,
+    get_registration_status,
+    resend_registration,
     set_account_protection,
     submit_registration,
     token_subject,
@@ -330,8 +333,7 @@ def delete_command(
     structured=True,
     help=command(
         "Register a new account to get started on the platform. "
-        "Afterwards, open the link in the e-mail sent to it to confirm the address and set the "
-        "password."
+        "By default, waits for provisioning to complete and the activation e-mail to be dispatched."
     ),
 )
 def create_account(
@@ -350,6 +352,20 @@ def create_account(
             ),
         ),
     ] = None,
+    wait: Annotated[
+        bool,
+        typer.Option(
+            "--wait/--no-wait",
+            help=option(
+                "Wait for registration provisioning to complete (default on).",
+                kind="Boolean",
+                variable=None,
+                file=None,
+                default="on",
+            ),
+        ),
+    ] = True,
+    timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     # Obrigatórias por validação do próprio comando (não pelo Typer), para não exibir "[required]".
     name = require(name, "--name")
@@ -378,11 +394,11 @@ def create_account(
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     except ApiRejectedError as error:
         if error.status == 429:
-            wait = error.retry_after_seconds
+            wait_sec = error.retry_after_seconds
             ui.error(
                 "Too many requests",
                 "Registration has a request limit per origin.",
-                hint=f"Wait {wait} seconds and repeat." if wait else "Try again later.",
+                hint=f"Wait {wait_sec} seconds and repeat." if wait_sec else "Try again later.",
             )
             raise typer.Exit(EXIT_FAILURE) from error
         if error.field:
@@ -405,17 +421,234 @@ def create_account(
         ui.error("Registration failed", str(error))
         raise typer.Exit(EXIT_FAILURE) from error
 
+    ticket = accepted.registration_ticket
+
+    if not wait or not ticket:
+        ui.panel(
+            "Registration requested",
+            [
+                ("name", f"{name.strip()} {surname.strip()}"),
+                ("email", email.strip()),
+                ("resourceId", accepted.resource_id),
+                *(
+                    [("registrationTicket", ticket)]
+                    if ticket
+                    else []
+                ),
+                *(
+                    [("ticketExpiresAt", accepted.ticket_expires_at)]
+                    if accepted.ticket_expires_at
+                    else []
+                ),
+            ],
+            data=accepted,
+        )
+        if ticket:
+            ui.note(
+                f"Registration ticket: {ticket} (valid for 30 minutes)\n"
+                f"Use `sk account status --ticket {ticket} --wait` to follow up."
+            )
+        ui.note(
+            "Next steps: open the link in the e-mail the provider sent to confirm the address "
+            "and set the password. Then run `sk auth login`."
+        )
+        return
+
+    deadline = time.monotonic() + timeout
+    with ui.waiting(timeout) as progress:
+        progress.update("request accepted")
+        while True:
+            try:
+                status = get_registration_status(
+                    url, ticket=ticket, allow_insecure_http=insecure
+                )
+            except ApiError as err:
+                ui.error("Status check failed", str(err))
+                raise typer.Exit(EXIT_FAILURE) from err
+
+            progress.update(f"provisioning ({status.phase.lower()})")
+            if status.phase == "Ready" or status.email_dispatched:
+                break
+            if status.phase == "Failed":
+                ui.error("Provisioning failed", "Account provisioning failed on the platform.")
+                raise typer.Exit(EXIT_FAILURE)
+
+            if time.monotonic() >= deadline:
+                ui.error(
+                    "Timed out",
+                    f"{timeout} s passed waiting for account activation e-mail.",
+                    hint=f"Follow up with: `sk account status --ticket {ticket} --wait`.",
+                )
+                raise typer.Exit(EXIT_FAILURE)
+            time.sleep(1)
+
     ui.panel(
-        "Registration requested",
+        "Account registration accepted",
         [
             ("name", f"{name.strip()} {surname.strip()}"),
             ("email", email.strip()),
             ("resourceId", accepted.resource_id),
+            ("phase", status.phase),
+            ("emailDispatched", "yes" if status.email_dispatched else "no"),
         ],
-        data=accepted,
+        data={
+            "resourceId": accepted.resource_id,
+            "name": f"{name.strip()} {surname.strip()}",
+            "email": email.strip(),
+            "phase": status.phase,
+            "emailDispatched": status.email_dispatched,
+            "registrationTicket": ticket,
+        },
     )
     ui.note(
-        "Next steps: open the link in the e-mail the provider sent to confirm the address and set "
-        "the password. "
-        "Then run `sk auth login`."
+        f"Provisioning completed and activation e-mail sent to {email.strip()}.\n\n"
+        "Next steps:\n"
+        "  1. Open your inbox and click the link to set your password.\n"
+        "  2. Log in with: `sk auth login`."
     )
+
+
+@account_app.command(
+    "status",
+    structured=True,
+    help=command(
+        "Check the activation status of a registration using its tracking ticket.",
+        examples=[
+            "sk account status --ticket tkt-123456",
+            "sk account status --ticket tkt-123456 --wait",
+            "sk account status --ticket tkt-123456 --resend",
+        ],
+    ),
+)
+def status_command(
+    ticket: Annotated[
+        str | None,
+        typer.Option(
+            "--ticket",
+            "-t",
+            help=option(
+                "Registration tracking ticket (UUIDv7).",
+                kind="String",
+                variable=None,
+                file=None,
+                default="none",
+            ),
+        ),
+    ] = None,
+    wait: WaitOption = False,
+    resend: Annotated[
+        bool,
+        typer.Option(
+            "--resend",
+            help=option(
+                "Request resending the activation e-mail.",
+                kind="Boolean",
+                variable=None,
+                file=None,
+                default="off",
+            ),
+        ),
+    ] = False,
+    timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
+) -> None:
+    ticket = require(ticket, "--ticket")
+    url, insecure = load_api()
+
+    if resend:
+        try:
+            resend_registration(url, ticket=ticket, allow_insecure_http=insecure)
+        except ApiRejectedError as error:
+            if error.status == 429:
+                wait_sec = error.retry_after_seconds
+                ui.error(
+                    "Too many requests",
+                    "Resending the activation email has a rate limit.",
+                    hint=f"Wait {wait_sec} seconds and repeat." if wait_sec else "Try again later.",
+                )
+                raise typer.Exit(EXIT_FAILURE) from error
+            if error.status == 404:
+                ui.error("Ticket not found", "The registration ticket is invalid or has expired.")
+                raise typer.Exit(EXIT_FAILURE) from error
+            ui.error("Resend request refused", str(error))
+            raise typer.Exit(EXIT_FAILURE) from error
+        except ApiError as error:
+            ui.error("Resend failed", str(error))
+            raise typer.Exit(EXIT_FAILURE) from error
+
+        if not wait:
+            ui.panel(
+                "Activation email resent",
+                [("ticket", ticket)],
+                data={"ticket": ticket, "status": "resent"},
+            )
+            ui.note("A new activation link has been dispatched to your e-mail address.")
+            return
+
+    if wait:
+        deadline = time.monotonic() + timeout
+        with ui.waiting(timeout) as progress:
+            progress.update("checking status")
+            while True:
+                try:
+                    status = get_registration_status(
+                        url, ticket=ticket, allow_insecure_http=insecure
+                    )
+                except ApiRejectedError as error:
+                    if error.status == 404:
+                        ui.error(
+                            "Ticket not found", "The registration ticket is invalid or has expired."
+                        )
+                        raise typer.Exit(EXIT_FAILURE) from error
+                    ui.error("Status check refused", str(error))
+                    raise typer.Exit(EXIT_FAILURE) from error
+                except ApiError as error:
+                    ui.error("Status check failed", str(error))
+                    raise typer.Exit(EXIT_FAILURE) from error
+
+                progress.update(f"provisioning ({status.phase.lower()})")
+                is_terminal = (
+                    status.email_dispatched
+                    or status.activated
+                    or status.phase in ("Ready", "Failed")
+                )
+                if is_terminal:
+                    break
+                if time.monotonic() >= deadline:
+                    ui.error("Timed out", f"{timeout} s passed waiting for registration status.")
+                    raise typer.Exit(EXIT_FAILURE)
+                time.sleep(1)
+    else:
+        try:
+            status = get_registration_status(
+                url, ticket=ticket, allow_insecure_http=insecure
+            )
+        except ApiRejectedError as error:
+            if error.status == 404:
+                ui.error("Ticket not found", "The registration ticket is invalid or has expired.")
+                raise typer.Exit(EXIT_FAILURE) from error
+            ui.error("Status check refused", str(error))
+            raise typer.Exit(EXIT_FAILURE) from error
+        except ApiError as error:
+            ui.error("Status check failed", str(error))
+            raise typer.Exit(EXIT_FAILURE) from error
+
+    ui.panel(
+        "Registration status",
+        [
+            ("ticket", ticket),
+            ("phase", status.phase),
+            ("email", status.email_masked),
+            ("emailDispatched", "yes" if status.email_dispatched else "no"),
+            ("activated", "yes" if status.activated else "no"),
+            ("expiresAt", status.ticket_expires_at),
+        ],
+        data=status,
+    )
+    if status.activated:
+        ui.note("Account is active! You can log in with: `sk auth login`.")
+    else:
+        ui.note(
+            "Next steps: open the activation link in your inbox to set your password, "
+            f"or run `sk account status --ticket {ticket} --resend`."
+        )
+

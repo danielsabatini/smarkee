@@ -23,3 +23,16 @@ class ResourceRecord:
     observed_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class RegistrationTicketRecord:
+    """Ticket temporário de rastreamento do cadastro (UUIDv7)."""
+
+    ticket: str
+    resource_id: str
+    email: str
+    created_at: datetime
+    expires_at: datetime
+    last_resend_at: datetime | None = None
+

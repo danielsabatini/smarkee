@@ -2,15 +2,18 @@
 
 from collections.abc import Mapping
 from contextlib import AbstractAsyncContextManager
+from datetime import datetime
 from typing import Any, Protocol
 
 from core_account.api.domain.account import UniqueValue
 from core_account.api.domain.attachments import Attachment
-from core_account.api.domain.records import ResourceRecord
+from core_account.api.domain.records import RegistrationTicketRecord, ResourceRecord
 
 
 class Repository(Protocol):
     async def get_account(self, resource_id: str) -> ResourceRecord | None: ...
+
+    async def get_registration_ticket(self, ticket: str) -> RegistrationTicketRecord | None: ...
 
 
 class Attachments(Protocol):
@@ -61,6 +64,17 @@ class AdmissionTransaction(Protocol):
     ) -> None: ...
 
     async def fetch_record(self, resource_id: str) -> ResourceRecord | None: ...
+
+    async def find_account_by_email(self, email: str) -> ResourceRecord | None: ...
+
+    async def create_registration_ticket(
+        self, ticket: str, resource_id: str, email: str, expires_at: datetime
+    ) -> None: ...
+
+    async def get_registration_ticket(self, ticket: str) -> RegistrationTicketRecord | None: ...
+
+    async def update_ticket_resend(self, ticket: str, resend_at: datetime) -> None: ...
+
 
 
 class AdmissionStore(Protocol):

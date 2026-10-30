@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from sk import output
 from sk.defaults import PRD_API_URL
-from sk.features.core.account import RegistrationAccepted
+from sk.features.core.account import RegistrationAccepted, RegistrationStatus
 from sk.http import ApiRejectedError, ApiUnavailableError
 from sk.main import app
 
@@ -182,10 +182,56 @@ def test_json_prints_the_acceptance_and_sends_the_next_steps_to_stderr(
     output.configure(raw=False)
     monkeypatch.setattr(
         "sk.commands.account.submit_registration",
-        fake_submit([], RegistrationAccepted("r-1")),
+        fake_submit([], RegistrationAccepted("r-1", "t-1", "2026-10-30T15:30:00Z")),
     )
-    result = runner.invoke(app, ["--output", "json", *REGISTER])
+    result = runner.invoke(app, ["--output", "json", *REGISTER, "--no-wait"])
     output.configure(raw=False)
     assert result.exit_code == 0, result.stderr
-    assert json.loads(result.stdout) == {"resourceId": "r-1"}
+    assert json.loads(result.stdout) == {
+        "resourceId": "r-1",
+        "registrationTicket": "t-1",
+        "ticketExpiresAt": "2026-10-30T15:30:00Z",
+    }
     assert "Next steps" in result.stderr and "Next steps" not in result.stdout
+
+
+def test_create_account_with_wait_default_converges_to_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "sk.commands.account.submit_registration",
+        fake_submit(calls, RegistrationAccepted("r-1", "ticket-123", "2026-10-30T15:30:00Z")),
+    )
+    def fake_status(
+        url: str, *, ticket: str, allow_insecure_http: bool
+    ) -> RegistrationStatus:
+        return RegistrationStatus(
+            phase="Ready",
+            email_masked="x***m@y.com",
+            email_dispatched=True,
+            activated=False,
+            ticket_expires_at="2026-10-30T15:30:00Z",
+        )
+
+    monkeypatch.setattr("sk.commands.account.get_registration_status", fake_status)
+    result = runner.invoke(app, REGISTER)
+    assert result.exit_code == 0, result.stderr
+    assert "Account registration accepted" in result.stdout
+    assert "Provisioning completed and activation e-mail sent" in result.stdout
+
+
+def test_create_account_no_wait_prints_ticket(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "sk.commands.account.submit_registration",
+        fake_submit(calls, RegistrationAccepted("r-1", "ticket-456", "2026-10-30T15:30:00Z")),
+    )
+    result = runner.invoke(app, [*REGISTER, "--no-wait"])
+    assert result.exit_code == 0, result.stderr
+    assert "Registration requested" in result.stdout
+    assert "Registration ticket: ticket-456" in result.stdout
+
+

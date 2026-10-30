@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AccountRegistrationStatus",
+  "description": "Status do processo de ativação da conta obtido através de um ticket temporário de rastreamento (UUIDv7). Seguro contra enumeração de e-mails e vazamento de dados pessoais.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["phase", "emailMasked", "emailDispatched", "activated", "ticketExpiresAt"],
+  "properties": {
+    "phase": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/phase",
+      "description": "Fase da conta no Resource Control Loop (Pending, Reconciling, Ready, Failed)."
+    },
+    "emailMasked": {
+      "type": "string",
+      "description": "E-mail cadastrado mascarado para conferência do solicitante (ex: a***a@empresa.com).",
+      "maxLength": 320
+    },
+    "emailDispatched": {
+      "type": "boolean",
+      "description": "Indica se o e-mail de ativação já foi emitido pelo provedor de identidade."
+    },
+    "activated": {
+      "type": "boolean",
+      "description": "Indica se o usuário já completou a ativação (definição de senha e verificação de e-mail)."
+    },
+    "ticketExpiresAt": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+      "description": "Instante em que o ticket temporário expira."
+    }
+  }
+}

@@ -262,12 +262,15 @@ class AccountController:
                 platform_access=str(desired.get("platformAccess", "")),
                 platform_permissions=_strings(desired.get("platformPermissions")),
                 deletion_protection=deletion_protected(desired),
+                resend_requested_at=desired.get("resendRequestedAt"),
             ),
             ObservedState(
                 presence=observation.presence,
                 platform_access=observation.data.get("platformAccess"),
                 platform_permissions=_strings(observation.data.get("platformPermissions")),
                 deletion_protection=observation.data.get("deletionProtection"),
+                email_verified=bool(observation.data.get("emailVerified")),
+                last_resend_at=observation.data.get("lastResendAt"),
             ),
         )
         failure: ActionFailedError | None = None

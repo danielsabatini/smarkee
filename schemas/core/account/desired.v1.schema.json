@@ -77,6 +77,14 @@
       "x-mutability": "immutable",
       "x-managed": false,
       "x-sensitivity": "confidential"
+    },
+    "resendRequestedAt": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+      "description": "Instante em que o reenvio do e-mail de ativação foi solicitado.",
+      "x-writer": "server",
+      "x-mutability": "mutable",
+      "x-managed": true,
+      "x-sensitivity": "internal"
     }
   },
   "if": {

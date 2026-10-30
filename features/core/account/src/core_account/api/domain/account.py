@@ -69,6 +69,23 @@ def desired_for_delete(current: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+REGISTRATION_TICKET_TTL_SECONDS = 1800
+RESEND_MIN_INTERVAL_SECONDS = 60
+
+
+def mask_email(email: str) -> str:
+    """Mascara o e-mail para conferência sem expor o endereço completo (ex: a***a@empresa.com)."""
+    clean = email.strip()
+    if "@" not in clean:
+        return f"{clean[:1]}***" if clean else "***"
+    local_part, domain = clean.split("@", 1)
+    if len(local_part) <= 1:
+        masked_local = f"{local_part}***"
+    else:
+        masked_local = f"{local_part[0]}***{local_part[-1]}"
+    return f"{masked_local}@{domain}"
+
+
 def unique_value(desired: Mapping[str, Any]) -> UniqueValue | None:
     """O e-mail normalizado é o nome de login: único entre as contas ativas."""
     if desired["lifecycle"] != "present":

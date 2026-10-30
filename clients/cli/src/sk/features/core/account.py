@@ -23,9 +23,23 @@ MAXIMUM_EMAIL_LENGTH = 254
 
 @dataclass(frozen=True, slots=True)
 class RegistrationAccepted:
-    """Resposta `202`: só a identidade do cadastro (uniforme, exista ou não o e-mail; 0098)."""
+    """Resposta `202`: identidade do cadastro e ticket temporário de rastreamento."""
 
     resource_id: str
+    registration_ticket: str | None = None
+    ticket_expires_at: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RegistrationStatus:
+    """Status do cadastro consultado via ticket temporário de rastreamento."""
+
+    phase: str
+    email_masked: str
+    email_dispatched: bool
+    activated: bool
+    ticket_expires_at: str
+
 
 
 def validate_registration(given_name: str, family_name: str, email: str) -> None:
@@ -79,7 +93,62 @@ def submit_registration(
     resource_id = document.get("resourceId")
     if not isinstance(resource_id, str):
         raise ApiUnavailableError("the API response does not carry resourceId")
-    return RegistrationAccepted(resource_id=resource_id)
+    registration_ticket = document.get("registrationTicket")
+    ticket_expires_at = document.get("ticketExpiresAt")
+    return RegistrationAccepted(
+        resource_id=resource_id,
+        registration_ticket=str(registration_ticket) if registration_ticket else None,
+        ticket_expires_at=str(ticket_expires_at) if ticket_expires_at else None,
+    )
+
+
+def get_registration_status(
+    api_url: str,
+    *,
+    ticket: str,
+    allow_insecure_http: bool,
+    opener: Opener | None = None,
+) -> RegistrationStatus:
+    """Consulta o status de cadastro por ticket temporário (UUIDv7)."""
+    ensure_secure_url(api_url, allow_insecure_http=allow_insecure_http)
+    url = f"{api_url.rstrip('/')}/v1/core/accounts/registration-status/{ticket}"
+    request = urllib.request.Request(  # noqa: S310 (esquema validado por ensure_secure_url)
+        url,
+        method="GET",
+        headers={"Accept": "application/json"},
+    )
+    status, payload = send(request, opener=opener)
+    if status != 200 or not isinstance(payload, dict):
+        raise ApiUnavailableError(f"unexpected API response (HTTP {status})")
+    document = cast(dict[str, object], payload)
+    return RegistrationStatus(
+        phase=str(document.get("phase", "")),
+        email_masked=str(document.get("emailMasked", "")),
+        email_dispatched=bool(document.get("emailDispatched")),
+        activated=bool(document.get("activated")),
+        ticket_expires_at=str(document.get("ticketExpiresAt", "")),
+    )
+
+
+def resend_registration(
+    api_url: str,
+    *,
+    ticket: str,
+    allow_insecure_http: bool,
+    opener: Opener | None = None,
+) -> None:
+    """Solicita reenvio do e-mail de ativação via ticket temporário (UUIDv7)."""
+    ensure_secure_url(api_url, allow_insecure_http=allow_insecure_http)
+    url = f"{api_url.rstrip('/')}/v1/core/accounts/registration-status/{ticket}/resend"
+    request = urllib.request.Request(  # noqa: S310 (esquema validado por ensure_secure_url)
+        url,
+        method="POST",
+        headers={"Accept": "application/json"},
+    )
+    status, _ = send(request, opener=opener)
+    if status != 204:
+        raise ApiUnavailableError(f"unexpected API response (HTTP {status})")
+
 
 
 @dataclass(frozen=True, slots=True)

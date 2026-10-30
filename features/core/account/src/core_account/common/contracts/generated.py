@@ -341,6 +341,52 @@ class AccountRegistrationResponse(ContractModel):
     """
     Identidade estável e opaca do recurso (SCHEMA.md, Identificador do recurso).
     """
+    registration_ticket: Annotated[
+        str | None,
+        Field(
+            alias="registrationTicket",
+            max_length=128,
+            min_length=1,
+            pattern="^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+        ),
+    ] = None
+    """
+    Ticket temporário (UUIDv7) para acompanhar a ativação da conta sem autenticação.
+    """
+    ticket_expires_at: Annotated[AwareDatetime | None, Field(alias="ticketExpiresAt")] = None
+    """
+    Instante de expiração do ticket temporário de rastreamento.
+    """
+
+
+class AccountRegistrationStatus(ContractModel):
+    """
+    Status do processo de ativação da conta obtido através de um ticket temporário de rastreamento (UUIDv7). Seguro contra enumeração de e-mails e vazamento de dados pessoais.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    phase: Phase
+    """
+    Fase da conta no Resource Control Loop (Pending, Reconciling, Ready, Failed).
+    """
+    email_masked: Annotated[str, Field(alias="emailMasked", max_length=320)]
+    """
+    E-mail cadastrado mascarado para conferência do solicitante (ex: a***a@empresa.com).
+    """
+    email_dispatched: Annotated[bool, Field(alias="emailDispatched")]
+    """
+    Indica se o e-mail de ativação já foi emitido pelo provedor de identidade.
+    """
+    activated: bool
+    """
+    Indica se o usuário já completou a ativação (definição de senha e verificação de e-mail).
+    """
+    ticket_expires_at: Annotated[AwareDatetime, Field(alias="ticketExpiresAt")]
+    """
+    Instante em que o ticket temporário expira.
+    """
 
 
 class MessageEnvelope(ContractModel):
@@ -660,6 +706,10 @@ class AccountDesiredData(ContractModel):
     """
     E-mail do usuário; é também o nome de login. Imutável: a troca de e-mail é feita pelo fluxo do provedor de identidade.
     """
+    resend_requested_at: Annotated[AwareDatetime | None, Field(alias="resendRequestedAt")] = None
+    """
+    Instante em que o reenvio do e-mail de ativação foi solicitado.
+    """
 
 
 class CoreAccountContracts(
@@ -676,6 +726,7 @@ class CoreAccountContracts(
         | AccountCreateRequest
         | AccountUpdateRequest
         | AccountRegistrationResponse
+        | AccountRegistrationStatus
         | Account
     ]
 ):
@@ -692,6 +743,7 @@ class CoreAccountContracts(
         | AccountCreateRequest
         | AccountUpdateRequest
         | AccountRegistrationResponse
+        | AccountRegistrationStatus
         | Account,
         Field(title="CoreAccountContracts"),
     ]

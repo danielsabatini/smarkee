@@ -14,7 +14,7 @@ from core_account.api.domain.attachments import Attachment
 from core_account.api.domain.errors import unauthorized
 from core_account.api.domain.principal import Principal
 from core_account.api.domain.ratelimit import SlidingWindowLimiter
-from core_account.api.domain.records import ResourceRecord
+from core_account.api.domain.records import RegistrationTicketRecord, ResourceRecord
 from core_account.api.http.app import Dependencies, create_app
 from core_account.api.settings import AccountApiSettings
 from core_account.common.contracts import generated
@@ -46,9 +46,13 @@ class FakeAuthenticator:
 class FakeRepository:
     def __init__(self) -> None:
         self.resources: dict[str, ResourceRecord] = {}
+        self.tickets: dict[str, RegistrationTicketRecord] = {}
 
     async def get_account(self, resource_id: str) -> ResourceRecord | None:
         return self.resources.get(resource_id)
+
+    async def get_registration_ticket(self, ticket: str) -> RegistrationTicketRecord | None:
+        return self.tickets.get(ticket)
 
 
 class FakeAttachments:
@@ -160,6 +164,36 @@ class FakeAdmissionTransaction:
     async def fetch_record(self, resource_id: str) -> ResourceRecord | None:
         return self._resources.get(resource_id)
 
+    async def find_account_by_email(self, email: str) -> ResourceRecord | None:
+        return next(
+            (
+                r
+                for r in self._resources.values()
+                if r.lifecycle == "present" and r.desired.get("email") == email
+            ),
+            None,
+        )
+
+    async def create_registration_ticket(
+        self, ticket: str, resource_id: str, email: str, expires_at: datetime
+    ) -> None:
+        self._store.repository.tickets[ticket] = RegistrationTicketRecord(
+            ticket=ticket,
+            resource_id=resource_id,
+            email=email,
+            created_at=NOW,
+            expires_at=expires_at,
+        )
+
+    async def get_registration_ticket(self, ticket: str) -> RegistrationTicketRecord | None:
+        return self._store.repository.tickets.get(ticket)
+
+    async def update_ticket_resend(self, ticket: str, resend_at: datetime) -> None:
+        rec = self._store.repository.tickets.get(ticket)
+        if rec:
+            self._store.repository.tickets[ticket] = replace(rec, last_resend_at=resend_at)
+
+
 
 class FakeAdmissionStore:
     """Aplica tudo ou nada: uma falha dentro da transação desfaz o que ela gravou."""
@@ -174,6 +208,7 @@ class FakeAdmissionStore:
     async def transaction(self) -> AsyncGenerator[FakeAdmissionTransaction]:
         snapshot = (
             dict(self.repository.resources),
+            dict(self.repository.tickets),
             dict(self.idempotency),
             list(self.outbox),
             dict(self.requesters),
@@ -181,13 +216,15 @@ class FakeAdmissionStore:
         try:
             yield FakeAdmissionTransaction(self)
         except BaseException:
-            self.repository.resources, self.idempotency, self.outbox, self.requesters = (
-                snapshot[0],
-                snapshot[1],
-                snapshot[2],
-                snapshot[3],
-            )
+            (
+                self.repository.resources,
+                self.repository.tickets,
+                self.idempotency,
+                self.outbox,
+                self.requesters,
+            ) = snapshot
             raise
+
 
 
 def account_record(
@@ -312,7 +349,9 @@ async def test_registration_is_anonymous_and_admits_the_account_synchronously(
 
     assert response.status_code == 202
     body = generated.AccountRegistrationResponse.model_validate(response.json())
-    assert set(response.json()) == {"resourceId"}
+    assert body.registration_ticket is not None
+    assert body.ticket_expires_at is not None
+    assert set(response.json()) == {"resourceId", "registrationTicket", "ticketExpiresAt"}
     record = harness.repository.resources[body.resource_id]
     assert record.desired["email"] == "ana@example.com"  # normalizado
     assert record.desired["platformAccess"] == "granted"
@@ -323,17 +362,79 @@ async def test_registration_is_anonymous_and_admits_the_account_synchronously(
     assert payload["emitter"] == "api" and payload["requestedBy"] == "anonymous"
 
 
-async def test_registration_with_a_used_email_answers_the_same_and_writes_nothing(
+async def test_registration_with_a_used_email_when_already_active_writes_nothing(
+    harness: Harness,
+) -> None:
+    # Primeira conta já ativada no provedor
+    first = await harness.client.post("/v1/core/accounts", json=REGISTRATION)
+    first_id = first.json()["resourceId"]
+    harness.repository.resources[first_id] = replace(
+        harness.repository.resources[first_id],
+        presence="present",
+        observed={"emailVerified": True, "accountState": "active"},
+    )
+    harness.store.outbox.clear()
+
+    again = await harness.client.post("/v1/core/accounts", json=REGISTRATION)
+
+    assert again.status_code == 202
+    assert set(again.json()) == {"resourceId", "registrationTicket", "ticketExpiresAt"}
+    assert again.json()["resourceId"] != first_id
+    assert list(harness.repository.resources) == [first_id]
+    assert len(harness.store.outbox) == 0
+
+
+async def test_registration_with_a_used_email_when_not_active_resends_activation(
     harness: Harness,
 ) -> None:
     first = await harness.client.post("/v1/core/accounts", json=REGISTRATION)
+    first_id = first.json()["resourceId"]
+    harness.store.outbox.clear()
+
     again = await harness.client.post("/v1/core/accounts", json=REGISTRATION)
 
-    assert (first.status_code, again.status_code) == (202, 202)
-    assert set(first.json()) == set(again.json()) == {"resourceId"}
-    assert first.json()["resourceId"] != again.json()["resourceId"]
-    assert list(harness.repository.resources) == [first.json()["resourceId"]]
+    assert again.status_code == 202
+    assert again.json()["resourceId"] == first_id
+    assert again.json()["registrationTicket"] is not None
+    # Novo desired foi publicado com resendRequestedAt
     assert len(harness.store.outbox) == 1
+    record = harness.repository.resources[first_id]
+    assert "resendRequestedAt" in record.desired
+
+
+async def test_registration_status_endpoint(harness: Harness) -> None:
+    reg = await harness.client.post("/v1/core/accounts", json=REGISTRATION)
+    ticket = reg.json()["registrationTicket"]
+
+    status_resp = await harness.client.get(f"/v1/core/accounts/registration-status/{ticket}")
+    assert status_resp.status_code == 200
+    status_data = status_resp.json()
+    assert status_data["phase"] == "Pending"
+    assert status_data["emailMasked"] == "a***a@example.com"
+    assert status_data["emailDispatched"] is False
+    assert status_data["activated"] is False
+
+    # 404 para ticket inexistente
+    not_found_resp = await harness.client.get(
+        "/v1/core/accounts/registration-status/0192d4f8-7b4a-7123-89ab-cdef01234567"
+    )
+    assert not_found_resp.status_code == 404
+
+
+async def test_registration_resend_endpoint_and_rate_limit(harness: Harness) -> None:
+    reg = await harness.client.post("/v1/core/accounts", json=REGISTRATION)
+    ticket = reg.json()["registrationTicket"]
+
+    # Primeiro reenvio: 204
+    resend1 = await harness.client.post(f"/v1/core/accounts/registration-status/{ticket}/resend")
+    assert resend1.status_code == 204
+
+    # Segundo reenvio imediato: 429 RateLimited
+    resend2 = await harness.client.post(f"/v1/core/accounts/registration-status/{ticket}/resend")
+    assert resend2.status_code == 429
+    assert resend2.json()["errorCode"] == "RateLimited"
+    assert "Retry-After" in resend2.headers
+
 
 
 @pytest.mark.parametrize(

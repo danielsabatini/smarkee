@@ -8,6 +8,7 @@ outbox gravado na mesma transação.
 
 from collections.abc import AsyncGenerator, Mapping
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Any
 
 from psycopg import AsyncConnection, OperationalError
@@ -17,7 +18,7 @@ from psycopg_pool import AsyncConnectionPool, PoolTimeout
 
 from core_account.api.domain.account import UniqueValue
 from core_account.api.domain.errors import unavailable
-from core_account.api.domain.records import ResourceRecord
+from core_account.api.domain.records import RegistrationTicketRecord, ResourceRecord
 from core_account.api.store.repository import RESOURCE_COLUMNS
 from core_account.common.logging_config import current_traceparent
 
@@ -156,6 +157,42 @@ class SsotAdmissionTransaction:
         )
         row = await cursor.fetchone()
         return None if row is None else ResourceRecord(**row)
+
+    async def find_account_by_email(self, email: str) -> ResourceRecord | None:
+        cursor = self._connection.cursor(row_factory=dict_row)
+        query = (
+            f"SELECT {RESOURCE_COLUMNS} FROM core.account "  # noqa: S608 (constante do módulo)
+            "WHERE lifecycle = 'present' AND desired->>'email' = %s"
+        )
+        await cursor.execute(query, (email,))
+        row = await cursor.fetchone()
+        return None if row is None else ResourceRecord(**row)
+
+    async def create_registration_ticket(
+        self, ticket: str, resource_id: str, email: str, expires_at: datetime
+    ) -> None:
+        await self._connection.execute(
+            "INSERT INTO core.account_registration_ticket (ticket, resource_id, email, expires_at) "
+            "VALUES (%s, %s, %s, %s)",
+            (ticket, resource_id, email, expires_at),
+        )
+
+    async def get_registration_ticket(self, ticket: str) -> RegistrationTicketRecord | None:
+        cursor = self._connection.cursor(row_factory=dict_row)
+        await cursor.execute(
+            "SELECT ticket, resource_id, email, created_at, expires_at, last_resend_at "
+            "FROM core.account_registration_ticket WHERE ticket = %s FOR UPDATE",
+            (ticket,),
+        )
+        row = await cursor.fetchone()
+        return None if row is None else RegistrationTicketRecord(**row)
+
+    async def update_ticket_resend(self, ticket: str, resend_at: datetime) -> None:
+        await self._connection.execute(
+            "UPDATE core.account_registration_ticket SET last_resend_at = %s WHERE ticket = %s",
+            (resend_at, ticket),
+        )
+
 
 
 class SsotAdmissionStore:

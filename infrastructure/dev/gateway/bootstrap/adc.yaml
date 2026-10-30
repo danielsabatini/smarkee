@@ -684,6 +684,30 @@ services:
             headers:
               set:
                 Retry-After: "60"
+      - name: core-account-registration-status
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/core/accounts/registration-status/*
+        methods:
+          - GET
+          - POST
+        priority: 10
+        plugins:
+          limit-count:
+            count: 30
+            time_window: 60
+            key_type: var
+            key: remote_addr
+            rejected_code: 429
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 429
+            headers:
+              set:
+                Retry-After: "60"
 
 # Traces (decisão 0050): o plugin `opentelemetry` exporta OTLP/HTTP para o otel-gateway, que ajusta os spans
 # à semconv (`otel-gateway-semconv.yaml`). Vale para todas as rotas, inclusive as sem rota (404).

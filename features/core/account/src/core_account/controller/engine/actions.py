@@ -12,7 +12,10 @@ from typing import Any, cast
 from core_account.controller.drivers.authorization import AuthorizationDriver
 from core_account.controller.drivers.metadata import MetadataDriver
 from core_account.controller.drivers.user import UserDriver
-from core_account.controller.engine.observation import DELETION_PROTECTION_KEY
+from core_account.controller.engine.observation import (
+    DELETION_PROTECTION_KEY,
+    LAST_RESEND_KEY,
+)
 
 
 class ActionFailedError(Exception):
@@ -34,10 +37,10 @@ async def execute(
 ) -> None:
     match operation:
         case "create":
-            await _create(user_id, desired, users, authorizations)
+            await _create(user_id, desired, users, authorizations, metadata)
             await _ensure_deletion_protection(user_id, desired, metadata)
         case "update":
-            await _update(user_id, desired, users, authorizations)
+            await _update(user_id, desired, users, authorizations, metadata)
             await _ensure_deletion_protection(user_id, desired, metadata)
         case "delete":
             await users.delete_user(user_id)  # ausente é sucesso idempotente
@@ -60,6 +63,7 @@ async def _create(
     desired: Mapping[str, Any],
     users: UserDriver,
     authorizations: AuthorizationDriver,
+    metadata: MetadataDriver,
 ) -> None:
     permissions = _platform_permissions(desired)
     given_name, family_name, email = (
@@ -86,6 +90,9 @@ async def _create(
             raise ActionFailedError(
                 "Rejected", retryable=False, message="account id in use by another account"
             )
+        if not existing.email_verified and desired.get("resendRequestedAt"):
+            await users.resend_activation(user_id)
+            await metadata.set_value(user_id, LAST_RESEND_KEY, str(desired["resendRequestedAt"]))
     await _ensure_grant(user_id, authorizations, permissions)
 
 
@@ -94,14 +101,22 @@ async def _update(
     desired: Mapping[str, Any],
     users: UserDriver,
     authorizations: AuthorizationDriver,
+    metadata: MetadataDriver,
 ) -> None:
-    if await users.get_user(user_id) is None:
+    user = await users.get_user(user_id)
+    if user is None:
         raise ActionFailedError("Rejected", retryable=False, message="account does not exist")
     if desired.get("platformAccess") == "revoked":
         for grant in await authorizations.grants(user_id):
             await authorizations.remove_grant(grant.grant_id)
-        return
-    await _ensure_grant(user_id, authorizations, _platform_permissions(desired))
+    else:
+        await _ensure_grant(user_id, authorizations, _platform_permissions(desired))
+
+    resend_requested = desired.get("resendRequestedAt")
+    if resend_requested and not user.email_verified:
+        await users.resend_activation(user_id)
+        await metadata.set_value(user_id, LAST_RESEND_KEY, str(resend_requested))
+
 
 
 async def _ensure_grant(

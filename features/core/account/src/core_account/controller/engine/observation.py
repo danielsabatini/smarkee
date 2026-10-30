@@ -21,6 +21,7 @@ _STATE = {
     "USER_STATE_LOCKED": "locked",
 }
 DELETION_PROTECTION_KEY = "deletionProtection"
+LAST_RESEND_KEY = "lastResendAt"
 _PROTECTION = {"true": True, "false": False}
 
 
@@ -53,6 +54,7 @@ async def observe_account(
             return ObservationResult("absent", {})
         grants = await authorizations.grants(user_id)
         protection = await metadata.get_value(user_id, DELETION_PROTECTION_KEY)
+        last_resend = await metadata.get_value(user_id, LAST_RESEND_KEY)
     except ProviderError:
         return ObservationResult("unknown", {})
     permissions = sorted({permission for grant in grants for permission in grant.permissions})
@@ -63,6 +65,7 @@ async def observe_account(
             "accountState": account_state(user),
             "platformAccess": "granted" if permissions else "revoked",
             "platformPermissions": permissions,
+            **({"lastResendAt": last_resend} if last_resend else {}),
             **deletion_protection(protection),
         },
     )
