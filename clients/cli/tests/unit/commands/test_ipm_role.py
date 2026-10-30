@@ -165,6 +165,7 @@ def test_create_role(api: FakeApi) -> None:
             "bsm.account.get",
             "--permission",
             "bsm.account.create",
+            "--no-wait",
         ],
     )
     assert result.exit_code == 0, result.stdout + result.stderr
@@ -189,6 +190,7 @@ def test_update_role(api: FakeApi) -> None:
             RID,
             "--description",
             "Nova descrição da role",
+            "--no-wait",
         ],
     )
     assert result.exit_code == 0, result.stderr
@@ -204,7 +206,7 @@ def test_protect_and_unprotect_role(api: FakeApi) -> None:
         Response(200, role_document(protected=True)),
     ]
     api.routes[("PATCH", ROLE)] = admitted(200, version="2")
-    result = runner.invoke(app, ["ipm", "role", "protect", "--resource-id", RID])
+    result = runner.invoke(app, ["ipm", "role", "protect", "--resource-id", RID, "--no-wait"])
     assert result.exit_code == 0, result.stderr
     assert body_of(api.requests[-1]) == {
         "resourceVersion": "1",
@@ -217,7 +219,7 @@ def test_protect_and_unprotect_role(api: FakeApi) -> None:
 def test_delete_role(api: FakeApi) -> None:
     api.routes[("GET", ROLE)] = Response(200, role_document(version="3"))
     api.routes[("DELETE", ROLE)] = admitted(202, phase="Deleting")
-    result = runner.invoke(app, ["ipm", "role", "delete", "--resource-id", RID])
+    result = runner.invoke(app, ["ipm", "role", "delete", "--resource-id", RID, "--no-wait"])
     assert result.exit_code == 0, result.stderr
     assert "resourceVersion=3" in api.requests[-1].full_url
 
@@ -312,7 +314,7 @@ def test_json_list_prints_an_array_and_an_empty_one_without_note(api: FakeApi) -
 def test_json_delete_without_wait_prints_the_admitted_role(api: FakeApi) -> None:
     api.routes[("GET", ROLE)] = Response(200, role_document(version="3"))
     api.routes[("DELETE", ROLE)] = admitted(202, phase="Deleting")
-    result = runner.invoke(app, [*JSON, "ipm", "role", "delete", "--resource-id", RID])
+    result = runner.invoke(app, [*JSON, "ipm", "role", "delete", "--resource-id", RID, "--no-wait"])
     assert result.exit_code == 0, result.stderr
     document = _document(result.stdout)
     assert (document["resourceId"], document["phase"]) == (RID, "Deleting")

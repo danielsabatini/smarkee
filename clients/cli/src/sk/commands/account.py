@@ -206,13 +206,13 @@ def _set_protection(*, protected: bool, wait: bool, timeout: int) -> None:
 WaitOption = Annotated[
     bool,
     typer.Option(
-        "--wait",
+        "--wait/--no-wait",
         help=option(
-            "Wait for the change to complete.",
+            "Wait for the change to complete (default on).",
             kind="Boolean",
             variable=None,
             file=None,
-            default="off",
+            default="on",
         ),
     ),
 ]
@@ -223,11 +223,11 @@ WaitOption = Annotated[
     structured=True,
     help=command(
         "Protect your account against deletion (the default).",
-        examples=["sk account protect", "sk account protect --wait"],
+        examples=["sk account protect", "sk account protect --no-wait"],
     ),
 )
 def protect_command(
-    wait: WaitOption = False, timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS
+    wait: WaitOption = True, timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS
 ) -> None:
     _set_protection(protected=True, wait=wait, timeout=timeout)
 
@@ -237,11 +237,11 @@ def protect_command(
     structured=True,
     help=command(
         "Allow your account to be deleted. Required before `delete`.",
-        examples=["sk account unprotect", "sk account unprotect --wait"],
+        examples=["sk account unprotect", "sk account unprotect --no-wait"],
     ),
 )
 def unprotect_command(
-    wait: WaitOption = False, timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS
+    wait: WaitOption = True, timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS
 ) -> None:
     _set_protection(protected=False, wait=wait, timeout=timeout)
 
@@ -251,7 +251,7 @@ def unprotect_command(
     structured=True,
     help=command(
         "Delete your own account. It is refused while Organizations or enabled services remain.",
-        examples=["sk account delete --yes", "sk account delete --yes --wait"],
+        examples=["sk account delete --yes", "sk account delete --yes --no-wait"],
     ),
 )
 def delete_command(
@@ -268,19 +268,7 @@ def delete_command(
             ),
         ),
     ] = False,
-    wait: Annotated[
-        bool,
-        typer.Option(
-            "--wait",
-            help=option(
-                "Wait for the deletion to finish and forget the local session.",
-                kind="Boolean",
-                variable=None,
-                file=None,
-                default="off",
-            ),
-        ),
-    ] = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     if not yes:

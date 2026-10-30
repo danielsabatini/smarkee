@@ -159,6 +159,7 @@ def test_create_group(api: FakeApi) -> None:
             "Time de DevOps",
             "--role",
             "ipm.userViewer",
+            "--no-wait",
         ],
     )
     assert result.exit_code == 0
@@ -186,7 +187,7 @@ def test_list_groups(api: FakeApi) -> None:
 def test_delete_group(api: FakeApi) -> None:
     api.routes[("GET", GROUP)] = Response(200, group_document(version="3"))
     api.routes[("DELETE", GROUP)] = admitted(202, phase="Deleting")
-    result = runner.invoke(app, ["ipm", "group", "delete", "--resource-id", RID])
+    result = runner.invoke(app, ["ipm", "group", "delete", "--resource-id", RID, "--no-wait"])
     assert result.exit_code == 0
     assert "Deletion requested" in result.output
 
@@ -206,6 +207,7 @@ def test_update_group(api: FakeApi) -> None:
             "Nova descrição",
             "--role",
             "ipm.groupViewer",
+            "--no-wait",
         ],
     )
     assert result.exit_code == 0
@@ -251,7 +253,9 @@ def test_json_delete_prints_the_admitted_group_and_nothing_to_do_prints_the_grou
 ) -> None:
     api.routes[("GET", GROUP)] = Response(200, group_document(version="3"))
     api.routes[("DELETE", GROUP)] = admitted(202, phase="Deleting")
-    deleted = runner.invoke(app, [*JSON, "ipm", "group", "delete", "--resource-id", RID])
+    deleted = runner.invoke(
+        app, [*JSON, "ipm", "group", "delete", "--resource-id", RID, "--no-wait"]
+    )
     assert deleted.exit_code == 0, deleted.stderr
     document = _document(deleted.stdout)
     assert (document["resourceId"], document["phase"]) == (RID, "Deleting")

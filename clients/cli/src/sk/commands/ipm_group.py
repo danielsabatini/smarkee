@@ -73,13 +73,13 @@ group_app = SkTyper(
 WaitOption = Annotated[
     bool,
     typer.Option(
-        "--wait",
+        "--wait/--no-wait",
         help=option(
-            "Wait for the group to converge (its generation observed and phase Ready).",
+            "Wait for the group to converge (its generation observed and phase Ready, default on).",
             kind="Boolean",
             variable=None,
             file=None,
-            default="off",
+            default="on",
         ),
     ),
 ]
@@ -230,7 +230,7 @@ def create_command(
     ] = None,
     organization_id: OrganizationOption = None,
     role: RoleOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     name_str = require(name, "--name")
@@ -345,7 +345,7 @@ def update_command(
             ),
         ),
     ] = False,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     has_role_change = role is not None or no_roles
@@ -375,7 +375,7 @@ def update_command(
 )
 def protect_command(
     resource_id: GroupIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     _change(
@@ -399,7 +399,7 @@ def protect_command(
 )
 def unprotect_command(
     resource_id: GroupIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     _change(
@@ -423,7 +423,7 @@ def unprotect_command(
 )
 def delete_command(
     resource_id: GroupIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     group_id = identifier(resource_id, "--resource-id", what="resourceId")

@@ -150,7 +150,7 @@ def test_create_sends_the_name_with_the_session_token_and_an_idempotency_key(api
         201, organization_document(phase="Pending", observed_generation=None)
     )
 
-    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme"])
+    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--no-wait"])
 
     assert result.exit_code == 0, result.stdout
     request = api.requests[-1]
@@ -333,7 +333,7 @@ def test_update_reads_the_current_version_before_renaming(api: FakeApi) -> None:
     )
 
     result = runner.invoke(
-        app, ["ipm", "organization", "update", "--resource-id", RID, "--name", "novo"]
+        app, ["ipm", "organization", "update", "--resource-id", RID, "--name", "novo", "--no-wait"]
     )
 
     assert result.exit_code == 0, result.stdout + result.stderr
@@ -404,7 +404,9 @@ def test_unprotect_sends_the_flag_with_the_current_version(api: FakeApi) -> None
         200, organization_document(version="10", protected=False, desired_generation=2)
     )
 
-    result = runner.invoke(app, ["ipm", "organization", "unprotect", "--resource-id", RID])
+    result = runner.invoke(
+        app, ["ipm", "organization", "unprotect", "--resource-id", RID, "--no-wait"]
+    )
 
     assert result.exit_code == 0, result.stdout + result.stderr
     patch = next(request for request in api.requests if request.get_method() == "PATCH")
@@ -505,7 +507,9 @@ def test_delete_reads_the_current_version_and_sends_it(api: FakeApi) -> None:
         202, organization_document(version="10", phase="Deleting")
     )
 
-    result = runner.invoke(app, ["ipm", "organization", "delete", "--resource-id", RID])
+    result = runner.invoke(
+        app, ["ipm", "organization", "delete", "--resource-id", RID, "--no-wait"]
+    )
 
     assert result.exit_code == 0, result.stdout + result.stderr
     delete = next(request for request in api.requests if request.get_method() == "DELETE")
@@ -639,7 +643,7 @@ def test_create_without_wait_does_not_save_and_points_to_config_set(
     )
     before = config_path(tmp_path).read_text(encoding="utf-8")
 
-    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme"])
+    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--no-wait"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
     assert f"sk config set ipm.organizationId {RID}" in " ".join(result.stdout.split())
@@ -687,13 +691,13 @@ def test_create_hint_has_no_operation_id_and_drops_resource_id_for_the_active_or
         201, organization_document(phase="Pending", observed_generation=None)
     )
 
-    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme"])
+    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--no-wait"])
     text = " ".join(result.stdout.split())
     assert f"Follow it with `sk ipm organization get --resource-id {RID}`." in text
     assert "--operation-id" not in text
 
     set_active(tmp_path, RID)
-    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme"])
+    result = runner.invoke(app, ["ipm", "organization", "create", "--name", "acme", "--no-wait"])
     assert "Follow it with `sk ipm organization get`." in " ".join(result.stdout.split())
 
 
@@ -702,7 +706,7 @@ def test_deleting_the_active_organization_warns_how_to_switch(api: FakeApi, tmp_
     api.routes[("GET", ORGANIZATION)] = Response(200, organization_document(protected=False))
     api.routes[("DELETE", ORGANIZATION)] = Response(202, organization_document(phase="Deleting"))
 
-    result = runner.invoke(app, ["ipm", "organization", "delete"])
+    result = runner.invoke(app, ["ipm", "organization", "delete", "--no-wait"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
     assert "This is the active Organization" in " ".join(result.stderr.split())
@@ -744,7 +748,9 @@ def test_json_create_without_wait_prints_only_the_admission(api: FakeApi) -> Non
     api.routes[("POST", PATH)] = Response(
         201, organization_document(phase="Pending", observed_generation=None)
     )
-    result = runner.invoke(app, [*JSON, "ipm", "organization", "create", "--name", "acme"])
+    result = runner.invoke(
+        app, [*JSON, "ipm", "organization", "create", "--name", "acme", "--no-wait"]
+    )
     assert result.exit_code == 0, result.stderr
     assert _document(result.stdout)["resourceId"] == RID
     assert "Follow it with" in result.stderr

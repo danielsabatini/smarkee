@@ -111,13 +111,13 @@ ipm_app.add_typer(role_app, name="role")
 WaitOption = Annotated[
     bool,
     typer.Option(
-        "--wait",
+        "--wait/--no-wait",
         help=option(
-            "Wait for the Organization to converge (phase Ready).",
+            "Wait for the Organization to converge (phase Ready, default on).",
             kind="Boolean",
             variable=None,
             file=None,
-            default="off",
+            default="on",
         ),
     ),
 ]
@@ -286,7 +286,7 @@ def create_command(
             ),
         ),
     ] = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     # Obrigatória por validação do próprio comando (não pelo Typer), para não exibir "[required]".
@@ -371,7 +371,7 @@ def update_command(
             ),
         ),
     ] = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     resource_id = _organization_identifier(resource_id)
@@ -488,7 +488,7 @@ def _set_protection(resource_id: str | None, *, protected: bool, wait: bool, tim
 )
 def protect_command(
     resource_id: ResourceIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     _set_protection(resource_id, protected=True, wait=wait, timeout=timeout)
@@ -504,7 +504,7 @@ def protect_command(
 )
 def unprotect_command(
     resource_id: ResourceIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     _set_protection(resource_id, protected=False, wait=wait, timeout=timeout)
@@ -520,7 +520,7 @@ def unprotect_command(
 )
 def delete_command(
     resource_id: ResourceIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     resource_id = _organization_identifier(resource_id)

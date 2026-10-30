@@ -45,6 +45,20 @@ TimeoutOption = Annotated[
     ),
 ]
 
+WaitOption = Annotated[
+    bool,
+    typer.Option(
+        "--wait/--no-wait",
+        help=option(
+            "Wait for the operation to converge (default on).",
+            kind="Boolean",
+            variable=None,
+            file=None,
+            default="on",
+        ),
+    ),
+]
+
 
 def require(value: str | None, option_name: str) -> str:
     """Opção obrigatória, validada pelo próprio comando (e não pelo Typer, que mostraria

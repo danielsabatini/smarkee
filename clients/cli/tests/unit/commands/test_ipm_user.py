@@ -170,7 +170,9 @@ def test_create_uses_the_active_organization_and_sends_sorted_roles(api: FakeApi
         201, user_document(phase="Pending", observed_generation=None)
     )
 
-    result = runner.invoke(app, create("--role", "ipm.userViewer", "--role", "ipm.userAdmin"))
+    result = runner.invoke(
+        app, create("--role", "ipm.userViewer", "--role", "ipm.userAdmin", "--no-wait")
+    )
 
     assert result.exit_code == 0, result.stdout + result.stderr
     request = api.requests[-1]
@@ -192,7 +194,7 @@ def test_create_takes_the_organization_option_over_the_active_one(api: FakeApi) 
     api.routes[("POST", PATH)] = Response(
         201, user_document(phase="Pending", observed_generation=None)
     )
-    result = runner.invoke(app, create("--organization-id", other))
+    result = runner.invoke(app, create("--organization-id", other, "--no-wait"))
     assert result.exit_code == 0, result.stderr
     assert body_of(api.requests[-1])["organizationId"] == other
 
@@ -270,6 +272,7 @@ def test_update_replaces_the_roles_reading_the_current_version(api: FakeApi) -> 
             "ipm.userViewer",
             "--group",
             "devops",
+            "--no-wait",
         ],
     )
     assert result.exit_code == 0, result.stderr
@@ -350,7 +353,7 @@ def test_protect_and_unprotect_change_only_the_protection(api: FakeApi) -> None:
     api.routes[("PATCH", USER)] = Response(
         200, user_document(phase="Reconciling", desired_generation=2, version="4")
     )
-    result = runner.invoke(app, ["ipm", "user", "protect", "--resource-id", UID])
+    result = runner.invoke(app, ["ipm", "user", "protect", "--resource-id", UID, "--no-wait"])
     assert result.exit_code == 0, result.stderr
     assert body_of(api.requests[-1]) == {"resourceVersion": "3", "deletionProtection": True}
     again = runner.invoke(app, ["ipm", "user", "unprotect", "--resource-id", UID])
@@ -360,7 +363,7 @@ def test_protect_and_unprotect_change_only_the_protection(api: FakeApi) -> None:
 def test_delete_reads_the_version_and_explains_the_protection(api: FakeApi) -> None:
     api.routes[("GET", USER)] = Response(200, user_document(version="4"))
     api.routes[("DELETE", USER)] = Response(202, user_document(phase="Deleting"))
-    result = runner.invoke(app, ["ipm", "user", "delete", "--resource-id", UID])
+    result = runner.invoke(app, ["ipm", "user", "delete", "--resource-id", UID, "--no-wait"])
     assert result.exit_code == 0, result.stderr
     assert "resourceVersion=4" in api.requests[-1].full_url
     api.routes[("DELETE", USER)] = http_error(409, "DeletionProtected", "x")

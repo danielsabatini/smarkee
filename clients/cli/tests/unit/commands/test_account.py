@@ -196,7 +196,7 @@ def test_delete_reads_the_version_and_sends_it_with_an_idempotency_key(api: Fake
     api.routes[("GET", USER)] = Response(200, user_document(version="9"))
     api.routes[("DELETE", USER)] = converging(protected=False, phase="Deleting")
 
-    result = runner.invoke(app, ["account", "delete", "--yes"])
+    result = runner.invoke(app, ["account", "delete", "--yes", "--no-wait"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
     delete = next(request for request in api.requests if request.get_method() == "DELETE")
@@ -287,7 +287,7 @@ def test_unprotect_sends_the_flag_with_the_current_version(api: FakeApi) -> None
     api.routes[("GET", USER)] = Response(200, user_document(version="5"))
     api.routes[("PATCH", USER)] = converging(protected=False)
 
-    result = runner.invoke(app, ["account", "unprotect"])
+    result = runner.invoke(app, ["account", "unprotect", "--no-wait"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
     patch = next(request for request in api.requests if request.get_method() == "PATCH")

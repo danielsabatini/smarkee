@@ -212,7 +212,11 @@ def _example_lines(command: Any) -> list[str]:
 def _resolve(tokens: list[str]) -> tuple[Any, set[str]]:
     """Resolve `sk <opções globais> <grupo> <comando>`, devolvendo o comando e as opções válidas."""
     root = typer.main.get_command(app)
-    global_options = {opt for param in root.params for opt in getattr(param, "opts", [])}
+    global_options = {
+        opt
+        for param in root.params
+        for opt in [*getattr(param, "opts", []), *getattr(param, "secondary_opts", [])]
+    }
     node: Any = root
     options = set(global_options)
     path: list[str] = []
@@ -222,7 +226,11 @@ def _resolve(tokens: list[str]) -> tuple[Any, set[str]]:
         if getattr(node, "commands", None) and token in node.commands:
             node = node.commands[token]
             path.append(token)
-    options = {opt for param in node.params for opt in getattr(param, "opts", [])}
+    options = {
+        opt
+        for param in node.params
+        for opt in [*getattr(param, "opts", []), *getattr(param, "secondary_opts", [])]
+    }
     return node, options | global_options
 
 

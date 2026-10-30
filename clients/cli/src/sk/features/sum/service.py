@@ -16,9 +16,26 @@ from sk.features.api_contract import (
 )
 from sk.http import ApiUnavailableError, call_api
 
-__all__ = ["OPAQUE_IDENTIFIER_PATTERN", "ServiceLink", "validate_identifier"]
+__all__ = [
+    "OPAQUE_IDENTIFIER_PATTERN",
+    "AvailableService",
+    "ServiceLink",
+    "list_available_services",
+    "validate_identifier",
+]
 
 SERVICES_PATH = "/v1/sum/services"
+AVAILABLE_SERVICES_PATH = "/v1/sum/services/available"
+
+
+@dataclass(frozen=True, slots=True)
+class AvailableService:
+    """Um serviço disponível no catálogo da plataforma."""
+
+    name: str
+    title: str
+    description: str | None
+    state: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,3 +161,30 @@ def get_service(
         allow_insecure_http=allow_insecure_http,
     )
     return _link(document)
+
+
+def _available_service(document: object) -> AvailableService:
+    body = as_object(document, what="available service")
+    desc = body.get("description")
+    return AvailableService(
+        name=as_text(body, "name", what="available service"),
+        title=as_text(body, "title", what="available service"),
+        description=str(desc) if isinstance(desc, str) and desc else None,
+        state=as_text(body, "state", what="available service"),
+    )
+
+
+def list_available_services(
+    api_url: str, *, token: str, allow_insecure_http: bool
+) -> list[AvailableService]:
+    _, document = call_api(
+        "GET",
+        api_url,
+        AVAILABLE_SERVICES_PATH,
+        token=token,
+        allow_insecure_http=allow_insecure_http,
+    )
+    items = as_object(document, what="listing").get("items")
+    if not isinstance(items, list):
+        raise ApiUnavailableError("API response without items")
+    return [_available_service(item) for item in cast("list[object]", items)]

@@ -128,7 +128,7 @@ def test_enable_sends_the_service_with_the_session_token_and_an_idempotency_key(
     api: FakeApi,
 ) -> None:
     api.routes[("POST", "/v1/sum/services")] = Response(201, link_document("present", "Pending"))
-    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm"])
+    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm", "--no-wait"])
     assert result.exit_code == 0, result.stdout
     request = api.requests[-1]
     assert request.get_header("Authorization") == "Bearer access-1"
@@ -149,7 +149,7 @@ def test_disable_reads_the_version_before_deleting(api: FakeApi) -> None:
     api.routes[("DELETE", f"/v1/sum/services/{RID}")] = Response(
         202, link_document("absent", "Reconciling", desired_generation=3, observed_generation=2)
     )
-    result = runner.invoke(app, ["sum", "service", "disable", "--resource-id", RID])
+    result = runner.invoke(app, ["sum", "service", "disable", "--resource-id", RID, "--no-wait"])
     assert result.exit_code == 0, result.stdout
     delete = api.requests[-1]
     assert delete.full_url.endswith(f"/v1/sum/services/{RID}?resourceVersion=3")
@@ -189,7 +189,39 @@ def test_an_empty_list_says_so(api: FakeApi) -> None:
     api.routes[("GET", "/v1/sum/services")] = Response(200, {"items": []})
     result = runner.invoke(app, ["sum", "service", "list"])
     assert result.exit_code == 0
-    assert "No services" in result.stdout
+    assert "No services enabled." in result.stdout
+    assert "sk sum service list --available" in result.stdout
+
+
+def test_list_available_services_displays_table(api: FakeApi) -> None:
+    api.routes[("GET", "/v1/sum/services/available")] = Response(
+        200,
+        {
+            "items": [
+                {
+                    "name": "ipm",
+                    "title": "Identity Provider Manager",
+                    "description": (
+                        "Manage organizations, identities, groups, "
+                        "permissions and service accounts."
+                    ),
+                    "state": "available",
+                }
+            ]
+        },
+    )
+    result = runner.invoke(app, ["sum", "service", "list", "--available"], env={"COLUMNS": "200"})
+    assert result.exit_code == 0, result.stdout
+    assert "Identity Provider Manager" in result.stdout
+    assert "available" in result.stdout
+    assert "ipm" in result.stdout
+
+
+def test_list_available_services_empty(api: FakeApi) -> None:
+    api.routes[("GET", "/v1/sum/services/available")] = Response(200, {"items": []})
+    result = runner.invoke(app, ["sum", "service", "list", "--available"])
+    assert result.exit_code == 0, result.stdout
+    assert "No available services." in result.stdout
 
 
 def test_a_refused_request_shows_only_the_cli_message_in_english(api: FakeApi) -> None:
@@ -453,7 +485,7 @@ def test_enable_without_wait_does_not_poll_nor_renew_and_points_to_refresh(
     api: FakeApi, renewals: list[bool]
 ) -> None:
     route_admitted(api, "POST")
-    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm"])
+    result = runner.invoke(app, ["sum", "service", "enable", "--service", "ipm", "--no-wait"])
     assert result.exit_code == 0, result.stderr
     assert "sk auth refresh" in result.stdout
     assert [request.get_method() for request in api.requests] == ["POST"]
@@ -597,7 +629,9 @@ def test_json_get_and_list_print_native_types(api: FakeApi) -> None:
 @pytest.mark.usefixtures("default_output_mode")
 def test_json_enable_without_wait_prints_the_admitted_link(api: FakeApi) -> None:
     route_admitted(api, "POST")
-    result = runner.invoke(app, [*JSON, "sum", "service", "enable", "--service", "ipm"])
+    result = runner.invoke(
+        app, [*JSON, "sum", "service", "enable", "--service", "ipm", "--no-wait"]
+    )
     assert result.exit_code == 0, result.stderr
     document = _document(result.stdout)
     assert document["resourceId"] == RID and document["desiredGeneration"] == 2

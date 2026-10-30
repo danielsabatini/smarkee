@@ -170,6 +170,7 @@ def test_create_serviceaccount_generates_key_and_requests_creation(
             ORG,
             "--key-file",
             str(key_file),
+            "--no-wait",
         ],
     )
     assert result.exit_code == 0, result.stderr
@@ -197,7 +198,9 @@ def test_protect_and_unprotect_serviceaccount(api: FakeApi) -> None:
     api.routes[("PATCH", SERVICEACCOUNT)] = Response(
         200, sa_document(phase="Reconciling", desired_generation=2, version="2")
     )
-    result = runner.invoke(app, ["ipm", "serviceaccount", "unprotect", "--resource-id", RID])
+    result = runner.invoke(
+        app, ["ipm", "serviceaccount", "unprotect", "--resource-id", RID, "--no-wait"]
+    )
     assert result.exit_code == 0, result.stderr
     assert "Update requested" in result.stdout
 
@@ -205,7 +208,9 @@ def test_protect_and_unprotect_serviceaccount(api: FakeApi) -> None:
 def test_delete_serviceaccount(api: FakeApi) -> None:
     api.routes[("GET", SERVICEACCOUNT)] = Response(200, sa_document(protected=False))
     api.routes[("DELETE", SERVICEACCOUNT)] = Response(202, sa_document(phase="Deleting"))
-    result = runner.invoke(app, ["ipm", "serviceaccount", "delete", "--resource-id", RID])
+    result = runner.invoke(
+        app, ["ipm", "serviceaccount", "delete", "--resource-id", RID, "--no-wait"]
+    )
     assert result.exit_code == 0, result.stderr
     assert "Deletion requested" in result.stdout
 
@@ -275,6 +280,7 @@ def test_key_add_sends_only_publickey_and_expiresat(api: FakeApi, tmp_path: Path
             RID,
             "--key-file",
             str(tmp_path / "k.json"),
+            "--no-wait",
         ],
     )
     assert result.exit_code == 0, result.stderr
@@ -310,7 +316,7 @@ def test_create_reads_the_public_key_from_stdin(
         app,
         [
             *["ipm", "serviceaccount", "create", "--name", "ci", "--organization-id", ORG],
-            *["--public-key-file", "-"],
+            *["--public-key-file", "-", "--no-wait"],
         ],
         input=keypair.public_pem,
     )

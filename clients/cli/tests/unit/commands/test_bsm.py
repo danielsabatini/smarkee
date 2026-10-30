@@ -173,6 +173,7 @@ def test_create_sends_fields_with_session_token_and_idempotency_key(api: FakeApi
             "BRL",
             "--contact",
             "finops@acme.com",
+            "--no-wait",
         ],
     )
 
@@ -539,7 +540,7 @@ def test_json_create_without_wait_prints_only_the_acceptance(api: FakeApi) -> No
         [
             *JSON,
             *["bsm", "account", "create", "--display-name", "Acme", "--currency", "BRL"],
-            *["--contact", "finops@acme.com"],
+            *["--contact", "finops@acme.com", "--no-wait"],
         ],
     )
     assert result.exit_code == 0, result.stderr

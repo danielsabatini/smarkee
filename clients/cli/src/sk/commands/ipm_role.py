@@ -84,13 +84,13 @@ role_app = SkTyper(
 WaitOption = Annotated[
     bool,
     typer.Option(
-        "--wait",
+        "--wait/--no-wait",
         help=option(
-            "Wait for the role to converge (its generation observed and phase Ready).",
+            "Wait for the role to converge (its generation observed and phase Ready, default on).",
             kind="Boolean",
             variable=None,
             file=None,
-            default="off",
+            default="on",
         ),
     ),
 ]
@@ -241,7 +241,7 @@ def create_command(
         ),
     ] = None,
     permission: PermissionOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     org_id = _organization(organization_id)
@@ -300,7 +300,7 @@ def update_command(
         ),
     ] = None,
     permission: PermissionOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     role_id = identifier(resource_id, "--resource-id", what="resourceId")
@@ -338,7 +338,7 @@ def update_command(
 @role_app.command("protect", structured=True, help=command("Protect a role against deletion."))
 def protect_command(
     resource_id: RoleIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     role_id = identifier(resource_id, "--resource-id", what="resourceId")
@@ -375,7 +375,7 @@ def protect_command(
 )
 def unprotect_command(
     resource_id: RoleIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     role_id = identifier(resource_id, "--resource-id", what="resourceId")
@@ -412,7 +412,7 @@ def unprotect_command(
 )
 def delete_command(
     resource_id: RoleIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     role_id = identifier(resource_id, "--resource-id", what="resourceId")

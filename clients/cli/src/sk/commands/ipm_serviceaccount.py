@@ -110,13 +110,14 @@ serviceaccount_app.add_typer(key_app, name="key")
 WaitOption = Annotated[
     bool,
     typer.Option(
-        "--wait",
+        "--wait/--no-wait",
         help=option(
-            "Wait for the service account to converge (its generation observed and phase Ready).",
+            "Wait for the service account to converge (its generation observed and phase Ready, "
+            "default on).",
             kind="Boolean",
             variable=None,
             file=None,
-            default="off",
+            default="on",
         ),
     ),
 ]
@@ -349,7 +350,7 @@ def create_command(
             ),
         ),
     ] = True,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     raw_name = require(name, "--name")
@@ -532,7 +533,7 @@ def update_command(
             ),
         ),
     ] = False,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     has_role_change = role is not None or no_roles
@@ -563,7 +564,7 @@ def update_command(
 )
 def protect_command(
     resource_id: ServiceAccountIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     _change(
@@ -588,7 +589,7 @@ def protect_command(
 )
 def unprotect_command(
     resource_id: ServiceAccountIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     _change(
@@ -613,7 +614,7 @@ def unprotect_command(
 )
 def delete_command(
     resource_id: ServiceAccountIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     sa_id = identifier(resource_id, "--resource-id", what="resourceId")
@@ -865,7 +866,7 @@ def key_add_command(
             ),
         ),
     ] = DEFAULT_EXPIRES_IN_DAYS,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     sa_id = identifier(resource_id, "--resource-id", what="resourceId")
@@ -986,7 +987,7 @@ def key_remove_command(
             ),
         ),
     ] = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     sa_id = identifier(resource_id, "--resource-id", what="resourceId")

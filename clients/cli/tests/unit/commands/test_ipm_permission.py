@@ -155,6 +155,7 @@ def test_create_permission(api: FakeApi) -> None:
             "bsm.account.get",
             "--description",
             "Consulta conta de cobrança",
+            "--no-wait",
         ],
     )
     assert result.exit_code == 0, result.stdout + result.stderr
@@ -178,6 +179,7 @@ def test_update_permission(api: FakeApi) -> None:
             PID,
             "--description",
             "Nova descrição em pt-BR",
+            "--no-wait",
         ],
     )
     assert result.exit_code == 0, result.stderr
@@ -193,7 +195,7 @@ def test_protect_and_unprotect_permission(api: FakeApi) -> None:
         Response(200, permission_document(protected=True)),
     ]
     api.routes[("PATCH", PERM)] = admitted()
-    result = runner.invoke(app, ["ipm", "permission", "protect", "--resource-id", PID])
+    result = runner.invoke(app, ["ipm", "permission", "protect", "--resource-id", PID, "--no-wait"])
     assert result.exit_code == 0, result.stderr
     assert body_of(api.requests[-1]) == {
         "resourceVersion": "1",
@@ -206,7 +208,7 @@ def test_protect_and_unprotect_permission(api: FakeApi) -> None:
 def test_delete_permission(api: FakeApi) -> None:
     api.routes[("GET", PERM)] = Response(200, permission_document(version="3"))
     api.routes[("DELETE", PERM)] = admitted(202, phase="Deleting")
-    result = runner.invoke(app, ["ipm", "permission", "delete", "--resource-id", PID])
+    result = runner.invoke(app, ["ipm", "permission", "delete", "--resource-id", PID, "--no-wait"])
     assert result.exit_code == 0, result.stderr
     assert "resourceVersion=3" in api.requests[-1].full_url
 

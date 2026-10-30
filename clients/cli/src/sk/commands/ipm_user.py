@@ -85,13 +85,13 @@ user_app = SkTyper(
 WaitOption = Annotated[
     bool,
     typer.Option(
-        "--wait",
+        "--wait/--no-wait",
         help=option(
-            "Wait for the user to converge (its generation observed and phase Ready).",
+            "Wait for the user to converge (its generation observed and phase Ready, default on).",
             kind="Boolean",
             variable=None,
             file=None,
-            default="off",
+            default="on",
         ),
     ),
 ]
@@ -260,7 +260,7 @@ def create_command(
     role: RoleOption = None,
     group: GroupOption = None,
     organization_id: OrganizationOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     # Obrigatórias por validação do próprio comando (não pelo Typer), para não exibir "[required]".
@@ -382,7 +382,7 @@ def update_command(
             ),
         ),
     ] = False,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     has_role_change = role is not None or no_roles
@@ -416,7 +416,7 @@ def update_command(
 )
 def protect_command(
     resource_id: UserIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     _change(
@@ -440,7 +440,7 @@ def protect_command(
 )
 def unprotect_command(
     resource_id: UserIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     _change(
@@ -464,7 +464,7 @@ def unprotect_command(
 )
 def delete_command(
     resource_id: UserIdOption = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     user_id = identifier(resource_id, "--resource-id", what="resourceId")

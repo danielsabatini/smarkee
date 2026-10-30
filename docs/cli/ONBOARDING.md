@@ -3,6 +3,8 @@
 Este documento apresenta o roteiro completo de ponta a ponta para validar todas as capacidades da plataforma Smarkee através da CLI `sk`. O roteiro está organizado **por feature** do ecossistema, cobrindo o ciclo de vida completo de cada recurso desde o provisionamento até o desmonte ordenado.
 
 > **Padrão de Execução:** Todos os comandos usam o formato a partir da raiz do repositório (`uv run --project clients/cli sk <comando>`). Se estiver dentro do diretório `clients/cli`, utilize `uv run sk <comando>`.
+>
+> **Convergência Síncrona por Padrão (`--wait` vs `--no-wait`):** Todos os comandos de mutação da CLI (criação, atualização, alteração de proteção, ativação/desativação e exclusão) operam por padrão com `--wait` ativo, aguardando a convergência do recurso (geração observada e fase `Ready` ou exclusão concluída). Para despachar a mutação assincronamente e liberar o terminal de imediato, utilize a opção `--no-wait`.
 
 ---
 
@@ -158,21 +160,51 @@ uv run --project clients/cli sk config get bsm.accountId
 
 ## 4. Feature `sum.service` — Serviços de Plataforma (Service Usage Manager)
 
-O módulo `sum.service` gerencia a habilitação de serviços da plataforma para o solicitante (por exemplo, `ipm`).
+O módulo `sum.service` gerencia o catálogo e a habilitação de serviços da plataforma para o solicitante (por exemplo, `ipm`).
 
-O subcomando `sk sum service list` lista as **ligações de serviços já ativadas na sua conta**. Como nenhum serviço foi ativado ainda, a listagem inicial retorna `No services.`:
+A listagem segue o padrão do Google Cloud CLI (`gcloud services list`):
+- `sk sum service list --available`: lista todos os serviços disponíveis no catálogo com status (`available` ou `enabled`).
+- `sk sum service list` (ou `--enabled`): lista exclusivamente os serviços já ativados para a sua conta.
+
+### 4.1 Descobrir Serviços no Catálogo (`--available`)
+
+Antes de habilitar qualquer módulo, consulte quais serviços estão disponíveis na plataforma:
 
 ```bash
-# Consultar serviços ativados para a sua conta (inicialmente vazio)
+uv run --project clients/cli sk sum service list --available
+```
+
+**Saída esperada:**
+```text
+╭─ Available Services ─────────────────────────────────────────────────────────────╮
+│ name  title                      state      description                          │
+│ ipm   Identity Provider Manager  available  Manage organizations, identities,    │
+│                                             groups, permissions and service      │
+│                                             accounts.                            │
+╰──────────────────────────────────────────────────────────────────────────────────╯
+```
+
+Se consultar apenas os serviços já habilitados antes da ativação:
+
+```bash
 uv run --project clients/cli sk sum service list
 ```
 
-Para começar a gerenciar identidades e organizações, habilite o serviço **`ipm`** (Identity Provider Manager) para a sua conta:
+A listagem indica que ainda não há serviços ativados e sugere a consulta ao catálogo:
+```text
+No services enabled. Run `sk sum service list --available` to see available services.
+```
+
+### 4.2 Habilitar um Serviço da Plataforma (`sk sum service enable`)
+
+Para começar a gerenciar identidades e organizações, habilite o serviço **`ipm`** (Identity Provider Manager) para a sua conta. Por padrão, a CLI opera com `--wait` ativo, aguardando a convergência na malha e renovando automaticamente o token da sessão OIDC com as novas permissões:
 
 ```bash
-# Habilitar o serviço IPM aguardando convergência (Ready) e renovação automática de token
-uv run --project clients/cli sk sum service enable --service ipm --wait
+# Habilitar o serviço IPM (aguarda Ready e renova a sessão por padrão)
+uv run --project clients/cli sk sum service enable --service ipm
 ```
+
+*(Para retorno assíncrono imediato sem aguardar, use `sk sum service enable --service ipm --no-wait`).*
 
 **Saída esperada:**
 ```text
@@ -188,10 +220,12 @@ waiting: provisioning (ready) (1 s of 60 s)
 ╰──────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-Com o serviço ativado, a listagem exibirá a ligação pronta para uso:
+### 4.3 Inspecionar Serviços Ativados
+
+Com o serviço ativado, a listagem regular exibirá o serviço habilitado:
 
 ```bash
-# Listar novamente os serviços habilitados para a sua conta
+# Listar os serviços habilitados para a sua conta (ou use a flag explícita --enabled)
 uv run --project clients/cli sk sum service list
 
 # Conferir detalhes específicos do serviço IPM habilitado

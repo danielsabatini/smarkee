@@ -220,12 +220,15 @@ def waiting(timeout: int) -> Generator[WaitProgress]:
         _erase_indicator()
 
 
-def empty(text: str) -> None:
-    """Resultado de uma listagem sem registros: a nota `text`, ou `[]` em `--output json`."""
+def empty(text: str, *, hint: str | None = None) -> None:
+    """Resultado de uma listagem sem registros: a nota `text` (com dica opcional),
+    ou `[]` em `--output json`.
+    """
     if output.is_json():
         output.emit([])
         return
-    note(text)
+    message = text if not hint else f"{text}\n→ {hint}"
+    note(message)
 
 
 def error(title: str, detail: str, *, hint: str | None = None) -> None:

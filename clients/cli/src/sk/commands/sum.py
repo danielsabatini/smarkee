@@ -34,6 +34,7 @@ from sk.features.sum.service import (
     disable_service,
     enable_service,
     get_service,
+    list_available_services,
     list_services,
     validate_identifier,
 )
@@ -44,14 +45,14 @@ from sk.identity.oidc import OidcError
 WaitOption = Annotated[
     bool,
     typer.Option(
-        "--wait",
+        "--wait/--no-wait",
         help=option(
             "Wait for the service to converge (generation observed and phase Ready) and renew "
-            "the session, so the token reflects the new permissions.",
+            "the session, so the token reflects the new permissions (default on).",
             kind="Boolean",
             variable=None,
             file=None,
-            default="off",
+            default="on",
         ),
     ),
 ]
@@ -195,7 +196,7 @@ def enable_command(
             ),
         ),
     ] = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     # Obrigatória por validação do próprio comando (não pelo Typer), para não exibir "[required]".
@@ -240,7 +241,7 @@ def disable_command(
             ),
         ),
     ] = None,
-    wait: WaitOption = False,
+    wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     resource_id = _identifier(resource_id, "--resource-id", what="resourceId")
@@ -309,17 +310,82 @@ def get_command(
     ui.panel("Service", _rows(link), data=link)
 
 
+STATE_STYLES = {
+    "enabled": "green",
+    "available": "cyan",
+}
+
+
+def _styled_state(state: str) -> Text:
+    return Text(state, style=STATE_STYLES.get(state, "white"))
+
+
 @service_app.command(
     "list",
     structured=True,
     help=command(
-        "List the requester's services.",
-        examples=["sk sum service list", "sk --output json sum service list"],
+        "List the requester's services or available services in the catalog.",
+        examples=[
+            "sk sum service list",
+            "sk sum service list --available",
+            "sk --output json sum service list --available",
+        ],
     ),
 )
-def list_command() -> None:
+def list_command(
+    available: Annotated[
+        bool,
+        typer.Option(
+            "--available",
+            "-a",
+            help=option(
+                "List all available services in the platform catalog.",
+                kind="Boolean",
+                variable=None,
+                file=None,
+                default="off",
+            ),
+        ),
+    ] = False,
+    enabled: Annotated[
+        bool,
+        typer.Option(
+            "--enabled",
+            help=option(
+                "List only enabled services for the requester (default).",
+                kind="Boolean",
+                variable=None,
+                file=None,
+                default="on",
+            ),
+        ),
+    ] = False,
+) -> None:
+    del enabled  # o modo enabled é o padrão quando --available não for passado
     url, insecure = load_api()
     token = session_token()
+    if available:
+        try:
+            catalog = list_available_services(url, token=token, allow_insecure_http=insecure)
+        except OidcError as error:
+            bad_address(error)
+        except ApiError as error:
+            _fail_api(error)
+        if not catalog:
+            ui.empty("No available services.")
+            return
+        ui.table(
+            "Available Services",
+            ["name", "title", "state", "description"],
+            [
+                [svc.name, svc.title, _styled_state(svc.state), svc.description or ""]
+                for svc in catalog
+            ],
+            wrap=["description"],
+            data=catalog,
+        )
+        return
+
     try:
         links = list_services(url, token=token, allow_insecure_http=insecure)
     except OidcError as error:
@@ -327,7 +393,10 @@ def list_command() -> None:
     except ApiError as error:
         _fail_api(error)
     if not links:
-        ui.empty("No services.")
+        ui.empty(
+            "No services enabled.",
+            hint="Run `sk sum service list --available` to see services available to enable.",
+        )
         return
     ui.table(
         "Services",

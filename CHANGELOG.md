@@ -7,6 +7,13 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 ### Added
+- Catálogo de serviços disponíveis em `sum.service` e listagem padrão GCP na CLI `sk`:
+  - Endpoint `GET /v1/sum/services/available` em `sum.service` e contrato JSON Schema `api-available-services.v1.schema.json` expondo metadados (`name`, `title`, `description`) e status (`available` ou `enabled`).
+  - CLI `sk sum service list --available`: lista todos os serviços disponíveis no catálogo da plataforma no estilo GCP (`gcloud services list --available`), com tabela estilizada, quebra de linha inteligente e suporte a `--output json` e `--raw`.
+  - CLI `sk sum service list` (ou `--enabled`): lista exclusivamente os serviços ativados na conta do solicitante, exibindo hint para consulta ao catálogo quando vazia.
+- Padronização de `--wait/--no-wait` por padrão na CLI `sk`:
+  - Flag booleana `--wait/--no-wait` com default ativado (`on`) em todos os comandos de mutação (`account`, `bsm account`, `sum service`, `ipm organization`, `ipm user`, `ipm group`, `ipm role`, `ipm permission`, `ipm serviceaccount`).
+  - O operador não precisa mais especificar `--wait` manualmente para acompanhar a convergência até `Ready` ou remoção; para despachar assincronamente e liberar o terminal de imediato, utiliza-se `--no-wait`.
 - Onboarding seguro de contas com ticket de rastreamento e idempotência com reenvio (`core.account`, migração `0012`):
   - Emissão de ticket temporário de rastreamento em UUIDv7 com expiração em 30 minutos na admissão anônima (`POST /v1/core/accounts`).
   - Rotas públicas de consulta de status (`GET /v1/core/accounts/registration-status/{ticket}`) e reenvio de ativação (`POST /v1/core/accounts/registration-status/{ticket}/resend`) no gateway APISIX com rate limiting por IP (30 req/min).
