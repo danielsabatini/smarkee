@@ -371,7 +371,7 @@ class AccountRegistrationStatus(ContractModel):
     """
     Fase da conta no Resource Control Loop (Pending, Reconciling, Ready, Failed).
     """
-    email_masked: Annotated[str, Field(alias="emailMasked", max_length=320)]
+    email_masked: Annotated[str, Field(alias="emailMasked", max_length=320, min_length=3)]
     """
     E-mail cadastrado mascarado para conferência do solicitante (ex: a***a@empresa.com).
     """

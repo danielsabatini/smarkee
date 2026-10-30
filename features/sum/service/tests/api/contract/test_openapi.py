@@ -19,5 +19,6 @@ def test_every_route_is_under_the_service_resource() -> None:
     paths = json.loads(OPENAPI_FILE.read_text("utf-8"))["paths"]
     assert {path for path in paths if not path.startswith("/health/")} == {
         "/v1/sum/services",
+        "/v1/sum/services/available",
         "/v1/sum/services/{resource_id}",
     }

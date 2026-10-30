@@ -335,6 +335,7 @@
           },
           "emailMasked": {
             "maxLength": 320,
+            "minLength": 3,
             "title": "Emailmasked",
             "type": "string"
           },

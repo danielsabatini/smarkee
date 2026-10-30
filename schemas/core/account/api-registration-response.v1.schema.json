@@ -21,7 +21,8 @@
     "ticketExpiresAt": {
       "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
       "description": "Instante de expiração do ticket temporário de rastreamento.",
-      "x-writer": "server"
+      "x-writer": "server",
+      "x-sensitivity": "internal"
     }
   }
 }

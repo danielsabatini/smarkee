@@ -40,7 +40,8 @@
       "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
       "description": "Instante em que o reenvio do e-mail de ativação foi executado pela última vez no provedor de identidade.",
       "x-writer": "server",
-      "x-sensitivity": "internal"
+      "x-sensitivity": "internal",
+      "x-resourceView": "omitted"
     }
   }
 }

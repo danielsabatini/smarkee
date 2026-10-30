@@ -33,6 +33,7 @@ EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "sum/service/observed.example.json": generated.ServiceObservedData,
     "sum/service/api-create-request.example.json": generated.ServiceCreateRequest,
     "sum/service/api-list-response.example.json": generated.ServiceListResponse,
+    "sum/service/api-available-services.example.json": generated.AvailableServicesResponse,
     "sum/service/resource.example.json": generated.ServiceResource,
 }
 

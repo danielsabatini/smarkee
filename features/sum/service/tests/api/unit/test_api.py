@@ -501,6 +501,25 @@ async def test_the_list_hides_the_links_of_services_without_the_get_permission(
     assert response.json() == {"items": []}
 
 
+async def test_list_available_services_returns_catalog_with_state(harness: Harness) -> None:
+    # Sem link habilitado
+    response = await harness.client.get("/v1/sum/services/available", headers=auth("ana"))
+    assert response.status_code == 200
+    catalog = generated.AvailableServicesResponse.model_validate(response.json())
+    assert len(catalog.items) >= 1
+    ipm_item = next(item for item in catalog.items if item.name == "ipm")
+    assert ipm_item.title == "Identity Provider Manager"
+    assert ipm_item.state == "available"
+
+    # Com link habilitado
+    harness.repository.resources["link-1"] = ipm_link("link-1", "ana")
+    response_enabled = await harness.client.get("/v1/sum/services/available", headers=auth("ana"))
+    assert response_enabled.status_code == 200
+    catalog_enabled = generated.AvailableServicesResponse.model_validate(response_enabled.json())
+    ipm_enabled = next(item for item in catalog_enabled.items if item.name == "ipm")
+    assert ipm_enabled.state == "enabled"
+
+
 # ---------------------------------------------------------------------- desligar
 
 

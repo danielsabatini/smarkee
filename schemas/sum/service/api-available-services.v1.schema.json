@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AvailableServicesResponse",
+  "description": "Corpo de GET /v1/sum/services/available: lista os serviços disponíveis no catálogo da plataforma.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "items"
+  ],
+  "properties": {
+    "items": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "title",
+          "state"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "definitions.v1.schema.json#/$defs/service",
+            "x-writer": "server",
+            "x-sensitivity": "internal"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 128,
+            "description": "Título legível do serviço.",
+            "x-writer": "server",
+            "x-sensitivity": "internal"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "Descrição funcional do serviço.",
+            "x-writer": "server",
+            "x-sensitivity": "internal"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "enabled"
+            ],
+            "x-enumPolicy": "closed",
+            "description": "Estado do serviço para o solicitante.",
+            "x-writer": "server",
+            "x-sensitivity": "internal"
+          }
+        }
+      },
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

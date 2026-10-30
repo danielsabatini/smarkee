@@ -1,0 +1,7 @@
+{
+  "phase": "Ready",
+  "emailMasked": "a***a@empresa.com",
+  "emailDispatched": true,
+  "activated": false,
+  "ticketExpiresAt": "2026-10-30T14:30:00Z"
+}

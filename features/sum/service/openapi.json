@@ -1,6 +1,25 @@
 {
   "components": {
     "schemas": {
+      "AvailableServicesResponse": {
+        "additionalProperties": false,
+        "description": "Corpo de GET /v1/sum/services/available: lista os serviços disponíveis no catálogo da plataforma.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            },
+            "maxItems": 200,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AvailableServicesResponse",
+        "type": "object"
+      },
       "Condition": {
         "additionalProperties": false,
         "description": "Fato consolidado do recurso (RESOURCE-CONTROL-LOOP.md, Conditions). Mantida pelo Manager.",
@@ -82,6 +101,46 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Item": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "maxLength": 32,
+            "minLength": 2,
+            "pattern": "^[a-z][a-z0-9]*$",
+            "title": "Name",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/State"
+          },
+          "title": {
+            "maxLength": 128,
+            "minLength": 2,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "state"
+        ],
+        "title": "Item",
         "type": "object"
       },
       "Lifecycle": {
@@ -324,6 +383,15 @@
         "title": "ServiceResource",
         "type": "object"
       },
+      "State": {
+        "description": "Estado do serviço para o solicitante.",
+        "enum": [
+          "available",
+          "enabled"
+        ],
+        "title": "State",
+        "type": "string"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -527,6 +595,25 @@
           }
         },
         "summary": "Create Service"
+      }
+    },
+    "/v1/sum/services/available": {
+      "get": {
+        "description": "Lista os serviços disponíveis no catálogo da plataforma para serem habilitados.",
+        "operationId": "list_available_services_v1_sum_services_available_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableServicesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Available Services"
       }
     },
     "/v1/sum/services/{resource_id}": {

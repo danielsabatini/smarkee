@@ -1,0 +1,10 @@
+{
+  "items": [
+    {
+      "name": "ipm",
+      "title": "Identity Provider Manager",
+      "description": "Manage organizations, identities, groups, permissions and service accounts.",
+      "state": "available"
+    }
+  ]
+}

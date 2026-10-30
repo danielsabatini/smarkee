@@ -305,6 +305,48 @@ class ServiceCreateRequest(ContractModel):
     """
 
 
+class State(StrEnum):
+    """
+    Estado do serviço para o solicitante.
+    """
+
+    available = "available"
+    enabled = "enabled"
+
+
+class Item(ContractModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    name: Annotated[str, Field(max_length=32, min_length=2, pattern="^[a-z][a-z0-9]*$")]
+    """
+    Serviço da plataforma que o usuário liga, por exemplo ipm (a Organization). Nome curto, em minúsculas, sem o módulo. Só vale se estiver no catálogo de serviços.
+    """
+    title: Annotated[str, Field(max_length=128, min_length=2)]
+    """
+    Título legível do serviço.
+    """
+    description: Annotated[str | None, Field(max_length=512)] = None
+    """
+    Descrição funcional do serviço.
+    """
+    state: State
+    """
+    Estado do serviço para o solicitante.
+    """
+
+
+class AvailableServicesResponse(ContractModel):
+    """
+    Corpo de GET /v1/sum/services/available: lista os serviços disponíveis no catálogo da plataforma.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    items: Annotated[list[Item], Field(max_length=200)]
+
+
 class MessageEnvelope(ContractModel):
     """
     Metadados de transporte e rastreamento de toda mensagem (MESSAGING.md, Campos do envelope). O conteúdo de data é validado pelo contrato do messageType e do tipo de recurso. O tamanho de data é limitado a 256 KiB.
@@ -558,6 +600,7 @@ class SumServiceContracts(
         | ServiceObservedData
         | ServiceCreateRequest
         | ServiceListResponse
+        | AvailableServicesResponse
         | ServiceResource
     ]
 ):
@@ -573,6 +616,7 @@ class SumServiceContracts(
         | ServiceObservedData
         | ServiceCreateRequest
         | ServiceListResponse
+        | AvailableServicesResponse
         | ServiceResource,
         Field(title="SumServiceContracts"),
     ]

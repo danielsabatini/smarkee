@@ -62,6 +62,15 @@ logger = logging.getLogger(__name__)
 
 MAX_LIST_LIMIT = 200
 
+SERVICE_METADATA: dict[str, dict[str, str]] = {
+    "ipm": {
+        "title": "Identity Provider Manager",
+        "description": (
+            "Manage organizations, identities, groups, permissions and service accounts."
+        ),
+    }
+}
+
 
 class Authenticator(Protocol):
     async def verify(self, token: str) -> Principal: ...
@@ -273,6 +282,31 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         return generated.ServiceListResponse.model_validate(
             {"items": [service_view(record) for record in visible[:limit]]}
         )
+
+    @app.get(
+        "/v1/sum/services/available",
+        response_model=generated.AvailableServicesResponse,
+        response_model_exclude_none=True,
+    )
+    async def list_available_services(
+        principal: Authenticated,
+    ) -> generated.AvailableServicesResponse:
+        """Lista os serviços disponíveis no catálogo da plataforma para serem habilitados."""
+        enabled_services = {
+            str(record.desired["service"])
+            for record in await deps.repository.services_of(principal.subject)
+            if record.desired.get("lifecycle") == "present"
+        }
+        items = [
+            {
+                "name": name,
+                "title": SERVICE_METADATA.get(name, {}).get("title", name.upper()),
+                "description": SERVICE_METADATA.get(name, {}).get("description"),
+                "state": "enabled" if name in enabled_services else "available",
+            }
+            for name in sorted(deps.catalog.keys())
+        ]
+        return generated.AvailableServicesResponse.model_validate({"items": items})
 
     @app.get(
         "/v1/sum/services/{resource_id}",
