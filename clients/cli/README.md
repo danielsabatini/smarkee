@@ -8,6 +8,8 @@ uv run sk --help      # ou -h; o rodapé aponta a documentação (https://docs.s
 uv run sk --version
 ```
 
+> **Primeiro acesso?** Consulte o guia passo a passo em [`docs/cli/ONBOARDING.md`](../../docs/cli/ONBOARDING.md) para cadastrar sua conta, ativar o acesso e efetuar o primeiro login.
+
 ## Configuração
 
 Cada valor é resolvido nesta ordem, do mais forte para o mais fraco: **variável de ambiente → arquivo de configuração → padrão de produção** (decisões 0008 e 0041). O que é do ambiente (provedor, client ID, endereço da API, projetos de roles e HTTP sem TLS) **não tem opção de linha de comando**: em produção a CLI usa o padrão embutido, e em dev e stg o ambiente se escolhe por variáveis (`.env` e `source`).

@@ -1,6 +1,6 @@
 # Usar a CLI `sk` em dev e stg
 
-Guia de quem desenvolve ou opera a plataforma e precisa apontar a CLI para um ambiente que **não** é produção. Em produção não há nada a configurar: os valores da plataforma são o padrão da CLI (decisão [`0036`](../../.decisions/0036-padroes-de-producao-da-cli-e-fim-do-sk-init.md)). O uso dos comandos está em [`clients/cli/README.md`](../../clients/cli/README.md).
+Guia de quem desenvolve ou opera a plataforma e precisa apontar a CLI para um ambiente que **não** é produção. Em produção não há nada a configurar: os valores da plataforma são o padrão da CLI (decisão [`0036`](../../.decisions/0036-padroes-de-producao-da-cli-e-fim-do-sk-init.md)). O fluxo completo de onboarding e primeiro acesso está em [`docs/cli/ONBOARDING.md`](ONBOARDING.md), e o uso geral dos comandos está em [`clients/cli/README.md`](../../clients/cli/README.md).
 
 > **Sobre o nome:** o projeto chama a homologação de `stg` (`AGENTS.md` §2.5). Este guia usa `stg`.
 
