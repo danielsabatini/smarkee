@@ -1,7 +1,7 @@
 # Memória Operacional do Projeto (AI Context)
 
 Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado operacional atual** necessário para continuar o trabalho.
-- **Histórico detalhado de execução:** `.journal/2026-10-29.md`, `.journal/2026-10-28.md`, `.journal/2026-10-27.md`, `.journal/2026-10-26.md`, `.journal/2026-10-25.md`, `.journal/2026-10-24.md` e `.journal/2026-10-19.md` (locais, não versionados — consultar sob demanda).
+- **Histórico detalhado de execução:** `.journal/2026-10-30.md`, `.journal/2026-10-29.md`, `.journal/2026-10-28.md`, `.journal/2026-10-27.md`, `.journal/2026-10-26.md`, `.journal/2026-10-25.md`, `.journal/2026-10-24.md` e `.journal/2026-10-19.md` (locais, não versionados — consultar sob demanda).
 - **Regras, contratos e decisões:** `AGENTS.md`, `docs/` e `.decisions/`.
 
 ## Estado operacional atual
@@ -51,7 +51,7 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - `ObservationStale` (decisão `0090`): um recurso `unknown` vai a `Failed` só na próxima observação após o prazo (até ~300 s + jitter); em `stg`/`prd` repetir `ORG_OWNER_VIEWER` na `operator` para o Observer de `ipm/permission`, os Grants/autorizações `ipm.group.*` e `ipm.role.*`, as migrações `*-operation-superseded` e `ipm/role` `0004-role-organization`, e `update grantable=true` de `ipm.role.get|list`.
 - Em `stg`/`prd`, para `ipm/serviceaccount`: contas `ipm-serviceaccount-executor/observer`, papéis, Grants, autorizações, migrações, `update grantable=true` e rota do gateway (decisão `0094`). O `--key-file` de `sk auth login` não é chave de config.
 - Em ambiente existente, aplicar como `postgres` `ipm.sql` e `telemetry.sql` (o `initdb.d` só roda em volume novo).
-- O `scripts/dev/cleanup` cobre Roles (`test.role*`/`test.chaos*`) e Grupos (`test-group-*`/`test-loop-*`/`test-chaos-*`) de teste no SSOT.
+- O `scripts/dev/cleanup` cobre universalmente recursos `test-*` (`test-<contexto>-<hash>@example.com`, `test-org-*`, `test-bsm-*`, `test.role.*`, `test-group-*`) e retroativamente os prefixos legados.
 - Recriar um Receiver exige reiniciar o gateway (cache de DNS); recriar um telemeter exige reiniciar o `telemetry-router`.
 - `docker compose up --build` numa feature falha ao reconstruir `*-migrate` (`apk` sem rede); usar `docker compose build <feature>-observer` e `up -d --no-build <papéis>`.
 - Resíduo de testes: `scripts/dev/cleanup`; sinais em disco: `scripts/dev/telemetry-reset --apply`.

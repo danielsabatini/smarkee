@@ -13,7 +13,7 @@ Connection = psycopg.AsyncConnection[Any]
 async def test_account_is_read_through_the_view(
     api: Connection, cleanup: list[str], repository: SsotRepository
 ) -> None:
-    resource_id = await seed_account(api, email=f"repo.{unique_suffix()}@example.com")
+    resource_id = await seed_account(api, email=f"test-repo-{unique_suffix()}@example.com")
     cleanup.append(resource_id)
     record = await repository.get_account(resource_id)
 

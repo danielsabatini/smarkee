@@ -186,7 +186,7 @@ def _require_environment() -> None:
 def person(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Person]:
     """Registra e ativa a conta (e-mail e senha pelos links), e remove a pessoa ao final."""
     _require_environment()
-    email = f"e2e-{secrets.token_hex(4)}@example.com"
+    email = f"test-e2e-{secrets.token_hex(4)}@example.com"
     password = "Aa1!" + secrets.token_urlsafe(14)
     registered = httpx.post(
         f"{API_URL}/v1/core/accounts",

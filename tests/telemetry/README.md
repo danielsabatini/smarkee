@@ -3,7 +3,7 @@
 Esta suíte é um **teste**, não um componente. Caixa-preta: faz um cadastro pelo gateway de borda e lê os arquivos que os
 telemeters gravam: o `telemetry-sink` da plataforma (`infrastructure/dev/telemetry-sink`) e o de cada
 feature (`features/<módulo>/<tipo>/telemeter`, para `bsm/account`, `core/account`, `ipm/group`, `ipm/organization`, `ipm/permission`, `ipm/role`, `ipm/serviceaccount`, `ipm/user` e `sum/service`). O `telemetry-router` só roteia e não grava. Exige a plataforma de dev no ar no cluster Kubernetes e
-o `kubectl` disponível para os testes de sonda. O cadastro cria um usuário `conf.telemetry-*@example.com`, que o `smarkee-dev-cleanup` remove.
+o `kubectl` disponível para os testes de sonda. O cadastro cria um usuário `test-telemetry-*@example.com`, que o `smarkee-dev-cleanup` remove.
 
 | O que confere | Decisão |
 |---|---|

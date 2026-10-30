@@ -11,7 +11,8 @@ from typing import Protocol
 # de conformidade, loop ou integração, ou é `Account ` ou `Renamed ` seguido de 10 hexadecimais,
 # ou a conta inicial `Free Tier` gerada para contas de teste.
 TEST_BILLING_ACCOUNT_NAME = re.compile(
-    r"^(?:(?:Conf|Acme|Loop|Dup|Chaos|E2E|Probe|Ver|cons)[ -]|"
+    r"^(?:(?:Test|Conf|Acme|Loop|Dup|Chaos|E2E|Probe|Ver|cons)[ -]|"
+    r"test-|"
     r"(?:Account|Renamed) [0-9a-f]{10}$|Free Tier$)"
 )
 # Organizations de teste: o nome começa por um destes prefixos, ou é `org-` ou `renamed-` mais 10
@@ -49,10 +50,12 @@ SYSTEM_ORGANIZATION_NAMES = frozenset({"smarkee", "core", "register", "operator"
 # `dup.` mais 10 hexadecimais (os e-mails dos testes de integração do Manager da Account). `ana@` e
 # `ana.<nome>@` sem os 10 hexadecimais não são de teste.
 TEST_USER_EMAIL = re.compile(
-    r"^(?:(?:e2e|loop|conf|chaos|cons|sa\.test|repo|dup|u|race|ctl|shared|test)[.-][^@]*|"
+    r"^(?:(?:test|account|e2e|loop|conf|chaos|cons|sa\.test|repo|dup|u|race|ctl|shared)[.-][^@]*|"
     r"(?:ana|dup)\.[0-9a-f]{10})@example\.com$"
 )
 MAIL_QUERIES = (
+    "to:test-",
+    "to:account-",
     "to:e2e-",
     "to:loop.",
     "to:conf.",
@@ -65,7 +68,6 @@ MAIL_QUERIES = (
     "to:race-",
     "to:ctl-",
     "to:shared-",
-    "to:test-",
 )
 
 # Streams e prefixos de Subject por mensagem (`docs/messaging/NATS.md`, decisão 0101).

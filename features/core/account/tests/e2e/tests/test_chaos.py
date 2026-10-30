@@ -76,7 +76,7 @@ async def register_and_expect_ready(
     body = {
         "givenName": "Caos",
         "familyName": label,
-        "email": f"chaos.{label}.{uuid.uuid4().hex[:8]}@example.com",
+        "email": f"test-chaos-{label}-{uuid.uuid4().hex[:8]}@example.com",
     }
     response = await api.post("/v1/core/accounts", json=body)
     assert response.status_code == 202

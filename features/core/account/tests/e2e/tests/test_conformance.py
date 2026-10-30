@@ -78,11 +78,11 @@ async def wait_ready(jetstream: JetStreamContext, resource_id: str) -> dict[str,
     )
 
 
-def registration_body(prefix: str = "conf") -> dict[str, str]:
+def registration_body(prefix: str = "test-conf") -> dict[str, str]:
     return {
         "givenName": "Ana",
         "familyName": "Souza",
-        "email": f"{prefix}.{uuid.uuid4().hex[:10]}@example.com",
+        "email": f"{prefix}-{uuid.uuid4().hex[:10]}@example.com",
     }
 
 
@@ -191,7 +191,7 @@ async def test_the_whole_loop_converges_the_account_at_the_identity_provider(
     created: list[str],
 ) -> None:
     """API, Publisher, Controller e o Zitadel reais."""
-    body = registration_body("loop")
+    body = registration_body("test-loop")
 
     response = await api.post("/v1/core/accounts", json=body)
     assert response.status_code == 202
@@ -234,7 +234,7 @@ async def test_the_operator_cannot_delete_another_account_but_can_unprotect_it(
     headers: dict[str, str],
     created: list[str],
 ) -> None:
-    response = await api.post("/v1/core/accounts", json=registration_body("loop"))
+    response = await api.post("/v1/core/accounts", json=registration_body("test-loop"))
     resource_id = response.json()["resourceId"]
     created.append(resource_id)
     await wait_ready(jetstream, resource_id)

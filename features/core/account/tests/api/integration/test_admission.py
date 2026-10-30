@@ -43,7 +43,7 @@ def specification(email: str | None = None) -> dict[str, Any]:
     return {
         "givenName": "Ana",
         "familyName": "Silva",
-        "email": email or f"account-{unique_suffix()}@example.com",
+        "email": email or f"test-account-{unique_suffix()}@example.com",
         "platformAccess": "granted",
         "platformPermissions": ["core.account.get"],
     }
@@ -112,7 +112,7 @@ async def test_create_writes_the_resource_and_the_desired_in_the_same_transactio
 async def test_duplicate_email_is_refused_atomically(
     api: Connection, cleanup: list[str], store: SsotAdmissionStore
 ) -> None:
-    email = f"shared-{unique_suffix()}@example.com"
+    email = f"test-shared-{unique_suffix()}@example.com"
     first, second = str(uuid.uuid7()), str(uuid.uuid7())
     cleanup.extend([first, second])
     await admit(store, admission("create", first, specification=specification(email)))
@@ -127,7 +127,7 @@ async def test_duplicate_email_is_refused_atomically(
 async def test_registration_with_a_used_email_writes_nothing_and_does_not_fail(
     api: Connection, cleanup: list[str], store: SsotAdmissionStore
 ) -> None:
-    email = f"shared-{unique_suffix()}@example.com"
+    email = f"test-shared-{unique_suffix()}@example.com"
     first, second = str(uuid.uuid7()), str(uuid.uuid7())
     cleanup.extend([first, second])
     await register(store, admission("create", first, specification=specification(email)))

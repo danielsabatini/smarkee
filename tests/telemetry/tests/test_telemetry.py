@@ -2,7 +2,7 @@
 
 Caixa-preta: faz um cadastro pelo gateway de borda e lê os arquivos que os telemeters gravam (o
 `telemetry-sink` da plataforma e o de cada feature; o `telemetry-router` só roteia). Exige a
-plataforma de dev no ar. O cadastro cria um usuário `conf.*@example.com`, que o
+plataforma de dev no ar. O cadastro cria um usuário `test-telemetry-*@example.com`, que o
 `smarkee-dev-cleanup` remove.
 """
 
@@ -186,7 +186,7 @@ def register(headers: dict[str, str]) -> str:
     body = {
         "givenName": "Conformidade",
         "familyName": "Telemetria",
-        "email": f"conf.telemetry-{uuid.uuid4().hex[:10]}@example.com",
+        "email": f"test-telemetry-{uuid.uuid4().hex[:10]}@example.com",
     }
     for _ in range(3):
         response = httpx.post(

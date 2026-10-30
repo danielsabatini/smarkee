@@ -59,10 +59,10 @@ async def seed_user(api: psycopg.AsyncConnection[Any], resource_id: str) -> None
     """Grava o recurso como a admissão da API o grava (decisão 0098), sem passar pelo loop."""
     desired = {
         "lifecycle": "present",
-        "organizationId": "org-ctl",
+        "organizationId": "test-org-ctl",
         "givenName": "Bia",
         "familyName": "Lima",
-        "email": f"ctl-{unique_suffix()}@example.com",
+        "email": f"test-ctl-{unique_suffix()}@example.com",
         "roles": ["ipm.userViewer"],
         "groups": [],
         "deletionProtection": False,

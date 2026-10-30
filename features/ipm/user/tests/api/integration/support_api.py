@@ -35,7 +35,7 @@ async def seed_user(
         "organizationId": organization,
         "givenName": "Bia",
         "familyName": "Lima",
-        "email": f"repo-{unique_suffix()}@example.com",
+        "email": f"test-repo-{unique_suffix()}@example.com",
         "roles": ["ipm.userViewer"],
         "groups": [],
         "deletionProtection": False,

@@ -44,7 +44,7 @@ def specification(organization: str, email: str | None = None) -> dict[str, Any]
         "organizationId": organization,
         "givenName": "Ana",
         "familyName": "Silva",
-        "email": email or f"user-{unique_suffix()}@example.com",
+        "email": email or f"test-user-{unique_suffix()}@example.com",
         "roles": [],
         "groups": [],
         "deletionProtection": False,
@@ -118,7 +118,7 @@ async def test_duplicate_email_and_quota_are_refused_atomically(
     api: Connection, cleanup: list[str], store: SsotAdmissionStore
 ) -> None:
     organization = "org-" + unique_suffix()
-    email = f"shared-{unique_suffix()}@example.com"
+    email = f"test-shared-{unique_suffix()}@example.com"
     first, second = str(uuid.uuid7()), str(uuid.uuid7())
     cleanup.extend([first, second])
     await admit(store, admission("create", first, specification=specification(organization, email)))

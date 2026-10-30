@@ -207,6 +207,10 @@ def test_real_or_system_organizations_are_never_test_data(organization_id: str, 
         "race-2f202effaf@example.com",
         "ctl-b2c09aa415@example.com",
         "shared-9d0995791b@example.com",
+        "account-5e22072600@example.com",
+        "test-account-5e220726@example.com",
+        "test-telemetry-f38dd709@example.com",
+        "test-user-9c03fdd7@example.com",
     ],
 )
 def test_a_test_email_is_recognized(email: str) -> None:

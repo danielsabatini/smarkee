@@ -147,7 +147,7 @@ def specification(organization_id: str, roles: list[str]) -> dict[str, Any]:
         "organizationId": organization_id,
         "givenName": "Loop",
         "familyName": "User",
-        "email": f"loop-{uuid.uuid4().hex[:10]}@example.com",
+        "email": f"test-loop-{uuid.uuid4().hex[:10]}@example.com",
         "roles": roles,
         "deletionProtection": False,
     }

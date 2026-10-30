@@ -67,7 +67,7 @@ def _field(shown: str, name: str) -> str:
 
 
 def _email() -> str:
-    return f"e2e-user-{uuid.uuid4().hex[:10]}@example.com"
+    return f"test-user-{uuid.uuid4().hex[:10]}@example.com"
 
 
 def _create_user(
@@ -318,7 +318,7 @@ def test_the_organization_and_its_users_are_managed_with_the_sk(
         over = sk.run(
             *("ipm", "user", "create"),
             *("--name", "Usuario", "--surname", "Excedente"),
-            *("--email", f"e2e-user-{uuid.uuid4().hex[:10]}@example.com"),
+            *("--email", f"test-user-{uuid.uuid4().hex[:10]}@example.com"),
             *("--organization-id", created_id),
         )
         assert over.exit_code == 1, over.text

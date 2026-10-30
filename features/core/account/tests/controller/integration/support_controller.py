@@ -63,7 +63,7 @@ async def seed_account(api: psycopg.AsyncConnection[Any], resource_id: str) -> N
         "platformPermissions": ["core.account.delete", "core.account.get"],
         "givenName": "Ana",
         "familyName": "Souza",
-        "email": f"ctl-{unique_suffix()}@example.com",
+        "email": f"test-ctl-{unique_suffix()}@example.com",
         "deletionProtection": False,
     }
     await api.execute(
