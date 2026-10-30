@@ -27,13 +27,23 @@ def _common(record: ResourceRecord) -> dict[str, Any]:
     }
 
 
+OBSERVED_FIELDS = (
+    "emailVerified",
+    "accountState",
+    "platformAccess",
+    "platformPermissions",
+    "deletionProtection",
+)
+
+
 def _observed(record: ResourceRecord) -> dict[str, Any] | None:
     if record.presence is None or record.observed_at is None:
         return None
+    data = record.observed or {}
     return {
         "presence": record.presence,
         "observedAt": record.observed_at.isoformat(),
-        **(record.observed or {}),
+        **{field: data[field] for field in OBSERVED_FIELDS if field in data},
     }
 
 

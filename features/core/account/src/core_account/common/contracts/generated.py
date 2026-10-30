@@ -552,6 +552,10 @@ class AccountObservedData(ContractModel):
     """
     Proteção contra exclusão lida do metadado `deletionProtection` do provedor de identidade (decisão 0074). Ausente quando o metadado não existe ou tem valor que não é true nem false: o Reconciler trata como divergência e o Executor o regrava.
     """
+    last_resend_at: Annotated[AwareDatetime | None, Field(alias="lastResendAt")] = None
+    """
+    Instante em que o reenvio do e-mail de ativação foi executado pela última vez no provedor de identidade.
+    """
 
 
 class AccountDesiredView(ContractModel):

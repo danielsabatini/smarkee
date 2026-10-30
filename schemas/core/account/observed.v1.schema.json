@@ -35,6 +35,12 @@
       "description": "Proteção contra exclusão lida do metadado `deletionProtection` do provedor de identidade (decisão 0074). Ausente quando o metadado não existe ou tem valor que não é true nem false: o Reconciler trata como divergência e o Executor o regrava.",
       "x-writer": "server",
       "x-sensitivity": "internal"
+    },
+    "lastResendAt": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+      "description": "Instante em que o reenvio do e-mail de ativação foi executado pela última vez no provedor de identidade.",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
     }
   }
 }
