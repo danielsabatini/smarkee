@@ -111,7 +111,31 @@ uv run --project clients/cli sk account get
 
 ## 3. Feature `bsm.account` — Unidade de Cobrança (Billing Service Manager)
 
-O módulo `bsm.account` gerencia as unidades de faturamento. Ao convergir para `Ready`, uma Billing Account inicial gratuita (`"Free Tier"`) é provisionada automaticamente para a conta.
+O módulo `bsm.account` gerencia as unidades de faturamento e limites de cobrança. Conforme a arquitetura de recursos internos (`internal-state`, decisões `0098` e `0100`), a criação de uma Billing Account é realizada explicitamente via CLI:
+
+```bash
+# Criar uma Billing Account inicial
+uv run --project clients/cli sk bsm account create \
+  --display-name "Free Tier" \
+  --currency BRL \
+  --contact ana.souza@empresa.com \
+  --wait
+```
+
+**Saída esperada:**
+```text
+waiting: request accepted (0 s of 60 s)
+waiting: provisioning (ready) (0 s of 60 s)
+╭─ ✓ Billing Account created ──────────────────────────────────────────────────────╮
+│ displayName      Free Tier                                                       │
+│ currency         BRL                                                             │
+│ resourceId       01a18cc9-7970-7483-903c-2bc214939e89                            │
+│ phase            Ready                                                           │
+│ protected        yes                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────╯
+```
+
+Em seguida, liste as contas, inspecione seus detalhes e fixe-a como padrão na configuração local da CLI:
 
 ```bash
 # Listar as contas de cobrança disponíveis
