@@ -158,16 +158,43 @@ uv run --project clients/cli sk config get bsm.accountId
 
 ## 4. Feature `sum.service` — Serviços de Plataforma (Service Usage Manager)
 
-O módulo `sum.service` gerencia a habilitação de serviços da plataforma para o solicitante.
+O módulo `sum.service` gerencia a habilitação de serviços da plataforma para o solicitante (por exemplo, `ipm`).
+
+O subcomando `sk sum service list` lista as **ligações de serviços já ativadas na sua conta**. Como nenhum serviço foi ativado ainda, a listagem inicial retorna `No services.`:
 
 ```bash
-# Listar o catálogo de serviços
+# Consultar serviços ativados para a sua conta (inicialmente vazio)
+uv run --project clients/cli sk sum service list
+```
+
+Para começar a gerenciar identidades e organizações, habilite o serviço **`ipm`** (Identity Provider Manager) para a sua conta:
+
+```bash
+# Habilitar o serviço IPM aguardando convergência (Ready) e renovação automática de token
+uv run --project clients/cli sk sum service enable --service ipm --wait
+```
+
+**Saída esperada:**
+```text
+waiting: request accepted (0 s of 60 s)
+waiting: provisioning (ready) (1 s of 60 s)
+╭─ ✓ Service enabled ──────────────────────────────────────────────────────────────╮
+│ resourceId           01a18d20-4e56-7483-903c-2bc214939e89                        │
+│ service              ipm                                                         │
+│ state                enabled                                                     │
+│ phase                Ready                                                       │
+│ observedPermissions  ipm.organization.create, ipm.organization.list, ...        │
+│ session              renewed                                                     │
+╰──────────────────────────────────────────────────────────────────────────────────╯
+```
+
+Com o serviço ativado, a listagem exibirá a ligação pronta para uso:
+
+```bash
+# Listar novamente os serviços habilitados para a sua conta
 uv run --project clients/cli sk sum service list
 
-# Habilitar o serviço IPM (Identity Provider Manager) aguardando convergência
-uv run --project clients/cli sk sum service enable --service ipm --wait
-
-# Conferir o estado observado do serviço habilitado
+# Conferir detalhes específicos do serviço IPM habilitado
 uv run --project clients/cli sk sum service get --service ipm
 ```
 
