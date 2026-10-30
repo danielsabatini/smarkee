@@ -89,7 +89,7 @@ class TokenVerifier:
             ):
                 for permission in cast("dict[object, object]", claim_value):
                     name = str(permission)
-                    if name.endswith(".admin"):
+                    if name.endswith(".operate") or name.endswith(".admin"):
                         found.add(name)
         return frozenset(found)
 

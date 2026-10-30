@@ -85,18 +85,18 @@
       "ipm.permission.list"
     ],
     "ipm.permissionAdmin": [
-      "ipm.permission.admin",
       "ipm.permission.get",
-      "ipm.permission.list"
+      "ipm.permission.list",
+      "ipm.permission.operate"
     ],
     "ipm.roleViewer": [
       "ipm.role.get",
       "ipm.role.list"
     ],
     "ipm.roleAdmin": [
-      "ipm.role.admin",
       "ipm.role.get",
-      "ipm.role.list"
+      "ipm.role.list",
+      "ipm.role.operate"
     ],
     "ipm.groupViewer": [
       "ipm.group.get",

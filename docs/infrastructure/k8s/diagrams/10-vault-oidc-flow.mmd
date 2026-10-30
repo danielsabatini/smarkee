@@ -1,0 +1,32 @@
+---
+title: Fluxo Sequencial de Autenticação OIDC Zitadel ↔ OpenBao
+---
+sequenceDiagram
+    autonumber
+    actor Operador as 👤 Operador Humano (Browser)
+    participant UI as 🖥️ OpenBao UI (localhost:8200)
+    participant Bao as 🛡️ OpenBao Server (vault-0)
+    participant Zitadel as 🆔 Zitadel (ipm-dev:8080)
+
+    Operador->>UI: Seleciona método OIDC e clica Sign In
+    UI->>Bao: POST /v1/auth/oidc/oidc/auth_url (role=vault.platformAdmin)
+    Note over Bao: Monta URL com escopos obrigatórios:<br/>• openid + profile + email<br/>• urn:zitadel:iam:user:resourceowner<br/>• urn:zitadel:iam:org:projects:roles
+    Bao-->>UI: Retorna auth_url com state e code_challenge (PKCE)
+    UI->>Operador: Redireciona para Zitadel (/oauth/v2/authorize)
+
+    Operador->>Zitadel: Autentica com admin / Smarkee@Dev2026!
+    Note over Zitadel: Valida credenciais e gera Authorization Code<br/>associado aos escopos solicitados
+    Zitadel-->>Operador: HTTP 302 Redirect para callback do OpenBao<br/>http://localhost:8200/ui/vault/auth/oidc/oidc/callback?code=...
+    Operador->>UI: Entrega code e state
+    UI->>Bao: POST /v1/auth/oidc/oidc/callback (code, state)
+
+    Note over Bao,Zitadel: Backchannel Seguro (Cluster Kubernetes)
+    Bao->>Zitadel: POST /oauth/v2/token (code + PKCE verifier + client_secret)
+    Note over Zitadel: Action flatRoles projeta roles dos grants na claim roles: [...]
+    Zitadel-->>Bao: Retorna id_token e access_token (com claim roles: [...])
+
+    Note over Bao: Validação rigorosa das claims do ID Token:<br/>1. aud == 397304717799129136 (Client ID do Vault)<br/>2. preferred_username == admin (Entity Alias)<br/>3. urn:zitadel:iam:user:resourceowner:id == 396620647502970889 (Org operator)
+
+    Note over Bao: Mapeamento dinâmico via External Identity Groups (groups_claim="roles"):<br/>• OIDC Accessor resolve cada role para seu External Identity Group homônimo<br/>• Associa dinamicamente as políticas atômicas permitidas (vault.platform.*, svm.secret.*, ekm.key.*, clm.certificate.*)
+    Bao-->>UI: Retorna client_token do Vault (TTL: 1h)
+    UI-->>Operador: Login concluído! Painel do OpenBao liberado

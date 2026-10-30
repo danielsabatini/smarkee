@@ -11,7 +11,8 @@ ROLE_DELETE = "ipm.role.delete"
 ROLE_BIND = "ipm.role.bind"
 """Definir ou alterar as permissões de uma Role (semântica do RBAC do Kubernetes)."""
 
-ROLE_ADMIN = "ipm.role.admin"
+ROLE_ADMIN = "ipm.role.admin"  # retrocompatibilidade transitória
+ROLE_OPERATE = "ipm.role.operate"
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,8 +25,8 @@ class Principal:
 
     @property
     def is_operator(self) -> bool:
-        """Operadores (`ipm.role.admin`) gerenciam qualquer Role em qualquer Organization."""
-        return ROLE_ADMIN in self.permissions
+        """Operadores (`ipm.role.operate`) gerenciam qualquer Role em qualquer Organization."""
+        return ROLE_OPERATE in self.permissions or ROLE_ADMIN in self.permissions
 
     def has_permission(self, permission: str) -> bool:
         return permission in self.permissions or self.is_operator

@@ -8,7 +8,8 @@ GROUP_CREATE = "ipm.group.create"
 GROUP_UPDATE = "ipm.group.update"
 GROUP_DELETE = "ipm.group.delete"
 GROUP_BIND = "ipm.group.bind"
-GROUP_ADMIN = "ipm.group.admin"
+GROUP_ADMIN = "ipm.group.admin"  # retrocompatibilidade transitória
+GROUP_OPERATE = "ipm.group.operate"
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,8 +22,8 @@ class Principal:
 
     @property
     def is_operator(self) -> bool:
-        """Operadores (`ipm.group.admin`) gerenciam qualquer Grupo em qualquer Organization."""
-        return GROUP_ADMIN in self.permissions
+        """Operadores (`ipm.group.operate`) gerenciam qualquer Grupo em qualquer Organization."""
+        return GROUP_OPERATE in self.permissions or GROUP_ADMIN in self.permissions
 
     def has_permission(self, permission: str) -> bool:
         return permission in self.permissions or self.is_operator

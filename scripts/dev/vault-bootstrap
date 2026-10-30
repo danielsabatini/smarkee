@@ -238,6 +238,70 @@ path "ekm/keys/database-backup" {
 }
 EOF
 
+write_vault_rbac_policies() {
+  local ns="$1"
+  local desc="root"
+  if [[ -n "${ns}" ]]; then
+    desc="${ns}/"
+  fi
+  log "Writing RBAC atomic policies (vault.platform.*, svm.secret.*, ekm.key.*, clm.certificate.*) in '${desc}'..."
+
+  write_policy() {
+    local pol_name="$1"
+    local pol_hcl="$2"
+    if [[ -n "${ns}" ]]; then
+      printf "%s\n" "${pol_hcl}" | bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" bao policy write "${pol_name}" - >/dev/null
+    else
+      printf "%s\n" "${pol_hcl}" | bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" bao policy write "${pol_name}" - >/dev/null
+    fi
+  }
+
+  # Expurgar políticas legadas (*.admin e operator-admin obsoletas pela decisão 0104)
+  for pol in operator-admin svm.secret.admin ekm.key.admin clm.certificate.admin; do
+    if [[ -n "${ns}" ]]; then
+      bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" bao policy delete "${pol}" >/dev/null 2>&1 || true
+    else
+      bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" bao policy delete "${pol}" >/dev/null 2>&1 || true
+    fi
+  done
+
+  # vault.platform (plano de controle do cofre: sys/*, auth/*, identity/*)
+  write_policy "vault.platform.create" 'path "sys/*" { capabilities = ["create"] } path "auth/*" { capabilities = ["create"] } path "identity/*" { capabilities = ["create"] }'
+  write_policy "vault.platform.delete" 'path "sys/*" { capabilities = ["delete"] } path "auth/*" { capabilities = ["delete"] } path "identity/*" { capabilities = ["delete"] }'
+  write_policy "vault.platform.get" 'path "sys/*" { capabilities = ["read"] } path "auth/*" { capabilities = ["read"] } path "identity/*" { capabilities = ["read"] }'
+  write_policy "vault.platform.list" 'path "sys/*" { capabilities = ["list"] } path "auth/*" { capabilities = ["list"] } path "identity/*" { capabilities = ["list"] }'
+  write_policy "vault.platform.update" 'path "sys/*" { capabilities = ["update", "sudo"] } path "auth/*" { capabilities = ["update"] } path "identity/*" { capabilities = ["update"] }'
+  write_policy "vault.platform.operate" 'path "*" { capabilities = ["create", "read", "update", "delete", "list", "sudo"] }'
+
+  # svm.secret (segredos KV-v2)
+  write_policy "svm.secret.create" 'path "svm/data/*" { capabilities = ["create"] }'
+  write_policy "svm.secret.delete" 'path "svm/data/*" { capabilities = ["delete"] } path "svm/metadata/*" { capabilities = ["delete"] }'
+  write_policy "svm.secret.get" 'path "svm/data/*" { capabilities = ["read"] }'
+  write_policy "svm.secret.list" 'path "svm/metadata" { capabilities = ["list"] } path "svm/metadata/*" { capabilities = ["list"] }'
+  write_policy "svm.secret.update" 'path "svm/data/*" { capabilities = ["update"] }'
+  write_policy "svm.secret.operate" 'path "svm/*" { capabilities = ["create", "read", "update", "delete", "list", "sudo"] }'
+
+  # ekm.key (chaves de criptografia Transit)
+  write_policy "ekm.key.create" 'path "ekm/keys/*" { capabilities = ["create"] }'
+  write_policy "ekm.key.delete" 'path "ekm/keys/*" { capabilities = ["delete"] }'
+  write_policy "ekm.key.get" 'path "ekm/keys/*" { capabilities = ["read"] }'
+  write_policy "ekm.key.list" 'path "ekm/keys" { capabilities = ["list"] }'
+  write_policy "ekm.key.update" 'path "ekm/keys/*" { capabilities = ["update"] }'
+  write_policy "ekm.key.operate" 'path "ekm/*" { capabilities = ["create", "read", "update", "delete", "list", "sudo"] }'
+
+  # clm.certificate (certificados digitais PKI)
+  write_policy "clm.certificate.create" 'path "clm/int/issue/*" { capabilities = ["create", "update"] } path "clm/int/sign/*" { capabilities = ["create", "update"] }'
+  write_policy "clm.certificate.delete" 'path "clm/int/cert/*" { capabilities = ["delete"] }'
+  write_policy "clm.certificate.get" 'path "clm/int/cert/*" { capabilities = ["read"] } path "clm/root/cert/*" { capabilities = ["read"] }'
+  write_policy "clm.certificate.list" 'path "clm/int/certs" { capabilities = ["list"] }'
+  write_policy "clm.certificate.update" 'path "clm/int/revoke" { capabilities = ["update"] }'
+  write_policy "clm.certificate.operate" 'path "clm/*" { capabilities = ["create", "read", "update", "delete", "list", "sudo"] }'
+}
+
+write_vault_rbac_policies "core"
+write_vault_rbac_policies "operator"
+write_vault_rbac_policies ""
+
 log "Configuring auth/kubernetes in 'core/'..."
 CORE_AUTH="$(bao_core bao auth list -format=json)"
 if ! printf "%s" "${CORE_AUTH}" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if "kubernetes/" in d else 1)'; then
@@ -266,39 +330,126 @@ bao_core bao write auth/kubernetes/role/external-secrets-reader \
   policies=svm-reader \
   ttl=1h >/dev/null
 
-# 8.1 Configurar auth/jwt e auth/oidc vinculados ao identity (Zitadel) em `core` e `operator`
+# 8.1 Configurar auth/jwt e auth/oidc vinculados ao identity (Zitadel) em `core`, `operator` e root
 IDENTITY_ISSUER="${SMARKEE_IDENTITY_ISSUER:-http://ipm-dev.smarkee.com.br:8080}"
+VAULT_OIDC_CLIENT_ID="${SMARKEE_VAULT_OIDC_CLIENT_ID:-397304717799129136}"
+VAULT_OIDC_CLIENT_SECRET="${SMARKEE_VAULT_OIDC_CLIENT_SECRET:-OiOQfSswl5BLnOAhDqu5Cs974HNr05OutXVjAkyMLQQznopKmBKNl49jWdbJ79ZF}"
+if [[ -f "${REPO_ROOT}/.workspace/vault-oidc-app.json" ]]; then
+  VAULT_OIDC_CLIENT_ID="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("clientId", ""))' "${REPO_ROOT}/.workspace/vault-oidc-app.json")"
+  VAULT_OIDC_CLIENT_SECRET="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("clientSecret", ""))' "${REPO_ROOT}/.workspace/vault-oidc-app.json")"
+fi
+
 configure_identity_auth_in_ns() {
   local ns="$1"
   local org_id="$2"
+  local desc="root"
+  if [[ -n "${ns}" ]]; then
+    desc="${ns}/"
+  fi
+
+  bao_ns() {
+    if [[ -n "${ns}" ]]; then
+      bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" "$@"
+    else
+      bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" "$@"
+    fi
+  }
+
   local auth_json
-  auth_json="$(bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" bao auth list -format=json)"
+  auth_json="$(bao_ns bao auth list -format=json)"
 
   if ! printf "%s" "${auth_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if "jwt/" in d else 1)'; then
-    bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" \
-      bao auth enable -path=jwt jwt >/dev/null
+    bao_ns bao auth enable -path=jwt jwt >/dev/null
   fi
 
   if ! printf "%s" "${auth_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if "oidc/" in d else 1)'; then
-    bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" \
-      bao auth enable -path=oidc oidc >/dev/null
+    bao_ns bao auth enable -path=oidc oidc >/dev/null
   fi
 
   if bao_exec wget -qO- "${IDENTITY_ISSUER}/.well-known/openid-configuration" >/dev/null 2>&1; then
-    log "Configuring auth/jwt and auth/oidc in '${ns}/' against '${IDENTITY_ISSUER}'..."
-    bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" \
-      bao write auth/jwt/config \
-        oidc_discovery_url="${IDENTITY_ISSUER}" \
-        bound_issuer="${IDENTITY_ISSUER}" >/dev/null
+    log "Configuring auth/jwt and auth/oidc in '${desc}' against '${IDENTITY_ISSUER}'..."
+    bao_ns bao write auth/jwt/config \
+      oidc_discovery_url="${IDENTITY_ISSUER}" \
+      bound_issuer="${IDENTITY_ISSUER}" >/dev/null
 
-    bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" \
-      bao write auth/oidc/config \
-        oidc_discovery_url="${IDENTITY_ISSUER}" \
-        bound_issuer="${IDENTITY_ISSUER}" >/dev/null
+    bao_ns bao write auth/oidc/config \
+      oidc_discovery_url="${IDENTITY_ISSUER}" \
+      bound_issuer="${IDENTITY_ISSUER}" \
+      oidc_client_id="${VAULT_OIDC_CLIENT_ID}" \
+      oidc_client_secret="${VAULT_OIDC_CLIENT_SECRET}" \
+      default_role="vault.platformAdmin" >/dev/null
+
+    # Expurgar role OIDC legada operator-admin (decisão 0104)
+    bao_ns bao delete auth/oidc/role/operator-admin >/dev/null 2>&1 || true
+
+    # Obter os project IDs para as roles necessárias para o Vault (roles-operator, roles-svm, roles-ekm, roles-clm)
+    # Zitadel filtra ctx.v1.user.grants a menos que os scopes de audience dos projetos sejam solicitados
+    local project_scopes=(
+      "\"openid\""
+      "\"profile\""
+      "\"email\""
+      "\"urn:zitadel:iam:user:resourceowner\""
+      "\"urn:zitadel:iam:org:projects:roles\""
+    )
+    local pids=""
+    if kubectl get pod database-1 -n database >/dev/null 2>&1; then
+      pids="$(kubectl exec -n database database-1 -c postgres -- psql -U postgres -d identity -tAc "SELECT DISTINCT id FROM projections.projects4 WHERE name IN ('roles-operator', 'roles-svm', 'roles-ekm', 'roles-clm')" 2>/dev/null || true)"
+    fi
+    if [[ -z "${pids}" ]]; then
+      pids="396620715182260233 397303706183270448 397303706216824880 397303706233602096"
+    fi
+    for pid in ${pids}; do
+      project_scopes+=("\"urn:zitadel:iam:org:project:id:${pid}:aud\"")
+    done
+    local scopes_formatted
+    scopes_formatted="$(IFS=,; echo "${project_scopes[*]}")"
+
+    # Role do operador humano no OIDC: vault.platformAdmin (administração completa via External Identity Groups)
+    bao_ns bao write auth/oidc/role/vault.platformAdmin - <<EOF >/dev/null
+{
+  "bound_audiences": ["${VAULT_OIDC_CLIENT_ID}"],
+  "allowed_redirect_uris": [
+    "http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback",
+    "http://localhost:8200/ui/vault/auth/oidc/oidc/callback",
+    "http://127.0.0.1:8250/oidc/callback"
+  ],
+  "user_claim": "preferred_username",
+  "groups_claim": "roles",
+  "oidc_scopes": [
+    ${scopes_formatted}
+  ],
+  "token_policies": ["default"],
+  "token_ttl": "1h",
+  "bound_claims": {
+    "urn:zitadel:iam:user:resourceowner:id": "${OPERATOR_ORG_ID}"
+  }
+}
+EOF
+
+    # Role de auditoria/leitura no OIDC: vault.platformViewer (somente-leitura via External Identity Groups)
+    bao_ns bao write auth/oidc/role/vault.platformViewer - <<EOF >/dev/null
+{
+  "bound_audiences": ["${VAULT_OIDC_CLIENT_ID}"],
+  "allowed_redirect_uris": [
+    "http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback",
+    "http://localhost:8200/ui/vault/auth/oidc/oidc/callback",
+    "http://127.0.0.1:8250/oidc/callback"
+  ],
+  "user_claim": "preferred_username",
+  "groups_claim": "roles",
+  "oidc_scopes": [
+    ${scopes_formatted}
+  ],
+  "token_policies": ["default"],
+  "token_ttl": "1h",
+  "bound_claims": {
+    "urn:zitadel:iam:user:resourceowner:id": "${OPERATOR_ORG_ID}"
+  }
+}
+EOF
 
     if [[ -n "${org_id}" && "${org_id}" != "pending" ]]; then
-      bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" \
-        bao write auth/jwt/role/identity-org-member - <<EOF >/dev/null
+      bao_ns bao write auth/jwt/role/identity-org-member - <<EOF >/dev/null
 {
   "role_type": "jwt",
   "user_claim": "sub",
@@ -317,6 +468,245 @@ EOF
 
 configure_identity_auth_in_ns "core" "${CORE_ORG_ID}"
 configure_identity_auth_in_ns "operator" "${OPERATOR_ORG_ID}"
+configure_identity_auth_in_ns "" "${OPERATOR_ORG_ID}"
+
+# 8.2 Garantir 24 External Identity Groups e Group Aliases dinâmicos vinculados a `groups_claim="roles"`
+ensure_vault_identity_groups() {
+  local ns="$1"
+  local desc="root"
+  if [[ -n "${ns}" ]]; then
+    desc="${ns}/"
+  fi
+
+  bao_ns() {
+    if [[ -n "${ns}" ]]; then
+      bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" BAO_NAMESPACE="${ns}" "$@"
+    else
+      bao_exec BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN="${ROOT_TOKEN}" "$@"
+    fi
+  }
+
+  local auth_json
+  auth_json="$(bao_ns bao auth list -format=json 2>/dev/null || true)"
+  local oidc_accessor
+  oidc_accessor="$(printf "%s" "${auth_json}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("oidc/", {}).get("accessor", ""))' 2>/dev/null || true)"
+
+  if [[ -z "${oidc_accessor}" ]]; then
+    log "OIDC auth not enabled in '${desc}'; skipping external identity groups."
+    return 0
+  fi
+
+  log "Ensuring 24 External Identity Groups and Group Aliases in '${desc}' (accessor: ${oidc_accessor})..."
+
+  local permissions=(
+    "vault.platform.create" "vault.platform.delete" "vault.platform.get" "vault.platform.list" "vault.platform.update" "vault.platform.operate"
+    "svm.secret.create" "svm.secret.delete" "svm.secret.get" "svm.secret.list" "svm.secret.update" "svm.secret.operate"
+    "ekm.key.create" "ekm.key.delete" "ekm.key.get" "ekm.key.list" "ekm.key.update" "ekm.key.operate"
+    "clm.certificate.create" "clm.certificate.delete" "clm.certificate.get" "clm.certificate.list" "clm.certificate.update" "clm.certificate.operate"
+  )
+
+  for perm in "${permissions[@]}"; do
+    local group_json
+    group_json="$(bao_ns bao read -format=json "identity/group/name/${perm}" 2>/dev/null || true)"
+    local gid=""
+    local has_alias="false"
+
+    if [[ -n "${group_json}" ]]; then
+      gid="$(printf "%s" "${group_json}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("data", {}).get("id", ""))' 2>/dev/null || true)"
+      has_alias="$(printf "%s" "${group_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin).get("data", {}).get("alias", {}); print("true" if d.get("mount_accessor") == sys.argv[1] else "false")' "${oidc_accessor}" 2>/dev/null || true)"
+      bao_ns bao write "identity/group/name/${perm}" policies="${perm}" type="external" >/dev/null
+    fi
+
+    if [[ -z "${gid}" ]]; then
+      local created_json
+      created_json="$(bao_ns bao write -format=json identity/group name="${perm}" type="external" policies="${perm}")"
+      gid="$(printf "%s" "${created_json}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("data", {}).get("id", ""))')"
+    fi
+
+    if [[ "${has_alias}" != "true" && -n "${gid}" ]]; then
+      bao_ns bao write identity/group-alias name="${perm}" canonical_id="${gid}" mount_accessor="${oidc_accessor}" >/dev/null
+    fi
+  done
+}
+
+ensure_vault_identity_groups "operator"
+ensure_vault_identity_groups "core"
+ensure_vault_identity_groups ""
+
+# 8.3 Garantir Action `flatRoles` e triggers (4 e 5 no flow 2) no Zitadel para emissão de `roles: [...]`
+ensure_zitadel_flat_roles_action() {
+  local org_id="$1"
+  if [[ -z "${org_id}" || "${org_id}" == "pending" ]]; then
+    return 0
+  fi
+
+  local sa_file="${REPO_ROOT}/.workspace/service-account-platform-bootstrap.json"
+  if [[ ! -f "${sa_file}" ]]; then
+    sa_file="${REPO_ROOT}/.workspace/conformance-key.json"
+  fi
+  if [[ ! -f "${sa_file}" ]] && docker volume inspect identity-bootstrap >/dev/null 2>&1; then
+    docker run --rm -v identity-bootstrap:/keys:ro alpine sh -c "cat /keys/service-account-platform-bootstrap.json 2>/dev/null || true" > "${REPO_ROOT}/.workspace/service-account-platform-bootstrap.json"
+    sa_file="${REPO_ROOT}/.workspace/service-account-platform-bootstrap.json"
+  fi
+
+  if [[ ! -f "${sa_file}" ]]; then
+    log "service-account-platform-bootstrap.json not found; skipping Zitadel flatRoles action configuration."
+    return 0
+  fi
+
+  log "Ensuring Zitadel 'flatRoles' action and triggers (Complement Token flow=2, triggers=4,5) in org '${org_id}'..."
+
+  SA_KEY_FILE="${sa_file}" IDENTITY_ISSUER="${IDENTITY_ISSUER}" ACTION_ORG_ID="${org_id}" uv run --project "${REPO_ROOT}/infrastructure/dev/identity/conformance" python - <<'EOF'
+import json, time, sys, os, urllib.request, urllib.error, jwt
+
+with open(os.environ["SA_KEY_FILE"], "r", encoding="utf-8") as f:
+    key_data = json.load(f)
+issuer = os.environ.get("IDENTITY_ISSUER", "http://ipm-dev.smarkee.com.br:8080")
+org_id = os.environ.get("ACTION_ORG_ID", "")
+
+now = int(time.time())
+assertion = jwt.encode(
+    {
+        "iss": key_data["userId"],
+        "sub": key_data["userId"],
+        "aud": issuer,
+        "iat": now,
+        "exp": now + 300,
+    },
+    key_data["key"],
+    algorithm="RS256",
+    headers={"kid": key_data["keyId"]},
+)
+
+token_req = urllib.request.Request(
+    f"{issuer}/oauth/v2/token",
+    data=f"grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&scope=openid+urn%3Azitadel%3Aiam%3Aorg%3Aproject%3Aid%3Azitadel%3Aaud&assertion={assertion}".encode("utf-8"),
+    headers={"Host": "ipm-dev.smarkee.com.br:8080", "Content-Type": "application/x-www-form-urlencoded"}
+)
+
+try:
+    with urllib.request.urlopen(token_req) as resp:
+        token = json.loads(resp.read().decode("utf-8"))["access_token"]
+except Exception as e:
+    print(f"Failed to acquire Zitadel token for action setup: {e}", file=sys.stderr)
+    sys.exit(0)
+
+headers = {
+    "Host": "ipm-dev.smarkee.com.br:8080",
+    "Authorization": f"Bearer {token}",
+    "x-zitadel-orgid": org_id,
+    "Content-Type": "application/json"
+}
+
+script = """let logger = require("zitadel/log");
+
+function flatRoles(ctx, api) {
+  try {
+    var rolesList = [];
+    if (ctx && ctx.v1 && ctx.v1.user && ctx.v1.user.grants && ctx.v1.user.grants.grants) {
+      ctx.v1.user.grants.grants.forEach(function(claim) {
+        if (claim && claim.roles && claim.roles.length) {
+          claim.roles.forEach(function(role) {
+            if (rolesList.indexOf(role) === -1) {
+              rolesList.push(role);
+            }
+          });
+        }
+      });
+    }
+    if (rolesList.length === 0 && ctx && ctx.v1 && ctx.v1.claims) {
+      Object.keys(ctx.v1.claims).forEach(function(k) {
+        if (k.indexOf(":roles") !== -1) {
+          var val = ctx.v1.claims[k];
+          if (typeof val === 'object' && val !== null) {
+            Object.keys(val).forEach(function(r) {
+              if (rolesList.indexOf(r) === -1) {
+                rolesList.push(r);
+              }
+            });
+          }
+        }
+      });
+    }
+    if (rolesList.length > 0) {
+      api.v1.claims.setClaim('roles', rolesList);
+    }
+  } catch (e) {
+    if (logger && logger.error) {
+      logger.error("flatRoles error: " + e);
+    }
+  }
+}"""
+
+search_req = urllib.request.Request(
+    f"{issuer}/management/v1/actions/_search",
+    data=b"{}",
+    headers=headers
+)
+with urllib.request.urlopen(search_req) as resp:
+    actions = json.loads(resp.read().decode("utf-8")).get("result", [])
+
+action_id = None
+for a in actions:
+    if a.get("name") == "flatRoles":
+        action_id = a.get("id")
+        break
+
+payload = json.dumps({
+    "id": action_id or "",
+    "name": "flatRoles",
+    "script": script,
+    "timeout": "10s",
+    "allowedToFail": True
+}).encode("utf-8")
+
+if action_id:
+    up_req = urllib.request.Request(
+        f"{issuer}/management/v1/actions/{action_id}",
+        data=payload,
+        headers=headers,
+        method="PUT"
+    )
+    try:
+        with urllib.request.urlopen(up_req) as resp:
+            pass
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8")
+        if not any(code in err_body for code in ("ACTION-dg4t2", "COMMAND-Nfh52", "Sem alterações", "Nenhuma alteração")):
+            print(f"Error in action update ({action_id}): {e.code} {err_body}", file=sys.stderr)
+            raise
+else:
+    cr_req = urllib.request.Request(
+        f"{issuer}/management/v1/actions",
+        data=payload,
+        headers=headers,
+        method="POST"
+    )
+    with urllib.request.urlopen(cr_req) as resp:
+        action_id = json.loads(resp.read().decode("utf-8"))["id"]
+
+trig_payload = json.dumps({"actionIds": [action_id]}).encode("utf-8")
+for trig_type in (4, 5):
+    trig_req = urllib.request.Request(
+        f"{issuer}/management/v1/flows/2/trigger/{trig_type}",
+        data=trig_payload,
+        headers=headers,
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(trig_req) as resp:
+            pass
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8")
+        if "COMMAND-Nfh52" not in err_body and "Sem alterações" not in err_body:
+            print(f"Error in trigger {trig_type} setup: {e.code} {err_body}", file=sys.stderr)
+            raise
+EOF
+}
+
+if bao_exec wget -qO- "${IDENTITY_ISSUER}/.well-known/openid-configuration" >/dev/null 2>&1; then
+  ensure_zitadel_flat_roles_action "${OPERATOR_ORG_ID}"
+fi
 
 # 9. Carregar segredos da plataforma e das features em `core/svm/...`
 log "Seeding platform and feature secrets into 'core/svm/...'..."

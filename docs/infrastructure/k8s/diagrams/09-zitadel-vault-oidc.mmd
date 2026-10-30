@@ -1,0 +1,62 @@
+---
+title: Integração de Identidade e Autenticação Zitadel ↔ OpenBao (OIDC / RBAC)
+config:
+  layout: elk
+---
+flowchart TB
+    classDef zitadel fill:#dae8fc,stroke:#6c8ebf,color:#0d2b4d
+    classDef openbao fill:#f8cecc,stroke:#b85450,color:#4a1010
+    classDef shared fill:#e1d5e7,stroke:#9673a6,color:#38006b
+    classDef flow fill:#d5e8d4,stroke:#82b366,color:#1b3d1f
+
+    subgraph ZITADEL["identity (Zitadel v4) — Single Source of Truth de Identidade e RBAC"]
+        subgraph ORGS["Organizações"]
+            ORG_OP["Org: operator (396620647502970889)<br/>• Usuário: admin@operator.smarkee.internal<br/>• Projeto clients (App Web OIDC: vault)"]:::zitadel
+            ORG_CORE["Org: core (394490764228296706)<br/>• Service Accounts das features<br/>• Projetos de Roles de Plataforma"]:::zitadel
+        end
+
+        subgraph ROLES_PROJ["Projetos de Roles (em core)"]
+            P_SVM["Projeto roles-svm<br/>• svm.secret.create/get/list/delete/update/operate"]:::zitadel
+            P_EKM["Projeto roles-ekm<br/>• ekm.key.create/get/list/delete/update/operate"]:::zitadel
+            P_CLM["Projeto roles-clm<br/>• clm.certificate.create/get/list/delete/update/operate"]:::zitadel
+            P_OPER["Projeto roles-operator (em operator)<br/>• vault.platform.* e permissões *.operate"]:::zitadel
+        end
+
+        ACTION_FLAT["Action Zitadel: flatRoles (Complement Token Flow 2, Triggers 4 e 5)<br/>• Projeta roles de todos os projetos na claim roles: [...]"]:::shared
+
+        GRANTS["Project Grants<br/>(roles-svm, roles-ekm, roles-clm delegadas à org operator)"]:::shared
+        ORG_CORE --> ROLES_PROJ
+        ROLES_PROJ --> GRANTS
+        GRANTS --> ORG_OP
+        ORG_OP --> ACTION_FLAT
+    end
+
+    subgraph OPENBAO["vault (OpenBao 2.7.2) — Execução de Políticas e Criptografia"]
+        subgraph BAO_NAMESPACES["Namespaces OpenBao (1:1 com Zitadel Orgs)"]
+            NS_OP["Namespace: operator/<br/>identity_org_id: 396620647502970889"]:::openbao
+            NS_CORE["Namespace: core/<br/>identity_org_id: 394490764228296706"]:::openbao
+        end
+
+        subgraph POLICIES["Políticas HCL Homônimas e Atômicas"]
+            POL_VAULT["vault.platform.*: /sys/*, /auth/* e /identity/*"]:::openbao
+            POL_SVM["svm.secret.*: /svm/data/* e /svm/metadata/*"]:::openbao
+            POL_EKM["ekm.key.*: /ekm/keys/*"]:::openbao
+            POL_CLM["clm.certificate.*: /clm/int/* e /clm/root/*"]:::openbao
+        end
+
+        subgraph IDENTITY_GROUPS["External Identity Groups (24 Grupos Atômicos)"]
+            EXT_GROUPS["Grupos de Identidade Externa + Group Aliases vinculados a auth/oidc<br/>• Mapeamento dinâmico via claim roles"]:::openbao
+        end
+
+        subgraph AUTH_OIDC["Mecanismo auth/oidc (roles: vault.platformAdmin / vault.platformViewer)"]
+            OIDC_CFG["Config OIDC & Escopos Requeridos:<br/>• openid<br/>• profile (preferred_username)<br/>• email<br/>• urn:zitadel:iam:user:resourceowner<br/>• urn:zitadel:iam:org:project:roles<br/>• urn:zitadel:iam:org:projects:roles<br/>• groups_claim = roles"]:::flow
+            BOUNDS["Validação de Vínculos (Bound Claims):<br/>• bound_audiences = [Client ID vault]<br/>• bound_claims = {resourceowner:id: operator_org_id}"]:::flow
+        end
+    end
+
+    ORG_OP -. "Espelhamento 1:1" .-> NS_OP
+    ORG_CORE -. "Espelhamento 1:1" .-> NS_CORE
+    ACTION_FLAT -. "Emite claim roles [...]" .-> OIDC_CFG
+    OIDC_CFG --> BOUNDS
+    BOUNDS -. "Identifica membros" .-> IDENTITY_GROUPS
+    IDENTITY_GROUPS --> POLICIES

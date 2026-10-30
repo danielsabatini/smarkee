@@ -1,7 +1,7 @@
 # 0083 — `ipm.permission`, `ipm.role` e evolução de catálogos sem trava de redeploy
 
 - **Data:** 2026-10-24
-- **Status:** Aceita. Evolui e revisa as decisões `0077` (regra de `ipm.user.bind`), `0079` (catálogo do SUM) e `0081` (catálogo do Grant da Organization como enum estático em schema). Complementada pela decisão `0084` (organização `operator` e projeto `roles-operator`).
+- **Status:** Aceita. Evolui e revisa as decisões `0077` (regra de `ipm.user.bind`), `0079` (catálogo do SUM) e `0081` (catálogo do Grant da Organization como enum estático em schema). Complementada pelas decisões `0084` (organização `operator` e projeto `roles-operator`) e `0104` (permissão `.operate` e separação semântica estrita entre Permissão e Role).
 - **Origem:** Reavaliação arquitetural (§25.1 do `AGENTS.md`) solicitada pelo responsável do projeto para:
   1. Eliminar a trava operacional que exigia alterar código/schema e refazer *deploy* da aplicação para cadastrar uma nova permissão;
   2. Separar claramente o que é **permissão atômica** (`ipm/permission`), o que é **papel/conjunto de permissões** (`ipm/role`, no padrão predefinido do Google Cloud IAM `<módulo>.<tipo><Admin|Viewer>`) e como o **`ipm/user`** consome ambos mantendo no Zitadel exclusivamente permissões atômicas;

@@ -7,7 +7,8 @@ ORGANIZATION_GET = "ipm.organization.get"
 ORGANIZATION_LIST = "ipm.organization.list"
 ORGANIZATION_UPDATE = "ipm.organization.update"
 ORGANIZATION_DELETE = "ipm.organization.delete"
-ORGANIZATION_ADMIN = "ipm.organization.admin"
+ORGANIZATION_OPERATE = "ipm.organization.operate"
+ORGANIZATION_ADMIN = "ipm.organization.admin"  # retrocompatibilidade transitória
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,7 +22,7 @@ class Principal:
     @property
     def is_operator(self) -> bool:
         """Operadores agem em qualquer Organization e não têm cota (decisão 0010)."""
-        return ORGANIZATION_ADMIN in self.permissions
+        return ORGANIZATION_OPERATE in self.permissions or ORGANIZATION_ADMIN in self.permissions
 
     def has_permission(self, permission: str) -> bool:
         return permission in self.permissions

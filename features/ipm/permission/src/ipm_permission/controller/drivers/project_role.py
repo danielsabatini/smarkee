@@ -3,9 +3,9 @@
 Opera sobre `zitadel.project.v2.ProjectService` (`ListProjects`, `ListProjectRoles`,
 `AddProjectRole`, `UpdateProjectRole` e `RemoveProjectRole`) com a conta
 `ipm-permission-controller`.
-Cada Permission (`<módulo>.<tipo>.<ação>`) é uma role de `roles-<módulo>`; a `admin` fica em
-`roles-operator`. Qualquer falha de leitura vira `ProviderError`, que a observação trata como
-`unknown`, nunca como `absent`.
+Cada Permission (`<módulo>.<tipo>.<ação>`) é uma role de `roles-<módulo>`; a `operate`
+(e `vault.*`) fica em `roles-operator`. Qualquer falha de leitura vira `ProviderError`, que a
+observação trata como `unknown`, nunca como `absent`.
 """
 
 from dataclasses import dataclass
@@ -29,12 +29,15 @@ class IdentityProjectRole:
 def role_target(permission_name: str) -> tuple[str, str]:
     """`(módulo do projeto, módulo da Permission)` da chave `<módulo>.<tipo>.<ação>`.
 
-    A ação `admin` vive em `roles-operator`; as demais, em `roles-<módulo>`.
+    A ação `operate` (assim como qualquer permissão do módulo `vault`) vive em `roles-operator`;
+    as demais, em `roles-<módulo>`.
     """
     parts = permission_name.split(".")
     if len(parts) != 3 or not all(parts):
         raise ProviderError("Rejected", retryable=False, detail="invalid permission name")
-    target = OPERATOR_PROJECT_MODULE if parts[2] == "admin" else parts[0]
+    target = (
+        OPERATOR_PROJECT_MODULE if (parts[2] == "operate" or parts[0] == "vault") else parts[0]
+    )
     return target, parts[0]
 
 

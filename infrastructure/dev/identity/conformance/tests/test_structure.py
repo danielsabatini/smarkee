@@ -79,19 +79,51 @@ ACTION_ROLES_BY_PROJECT = {
         "sum.ipm.enable",
         "sum.ipm.get",
     },
+    "roles-svm": {
+        "svm.secret.create",
+        "svm.secret.delete",
+        "svm.secret.get",
+        "svm.secret.list",
+        "svm.secret.update",
+    },
+    "roles-ekm": {
+        "ekm.key.create",
+        "ekm.key.delete",
+        "ekm.key.get",
+        "ekm.key.list",
+        "ekm.key.update",
+    },
+    "roles-clm": {
+        "clm.certificate.create",
+        "clm.certificate.delete",
+        "clm.certificate.get",
+        "clm.certificate.list",
+        "clm.certificate.update",
+    },
 }
 ADMIN_ROLES_BY_PROJECT = {
-    "roles-bsm": {"bsm.account.admin"},
-    "roles-core": {"core.account.admin"},
+    "roles-bsm": {"bsm.account.operate"},
+    "roles-core": {"core.account.operate"},
     "roles-ipm": {
-        "ipm.organization.admin",
-        "ipm.permission.admin",
-        "ipm.role.admin",
-        "ipm.group.admin",
-        "ipm.serviceaccount.admin",
-        "ipm.user.admin",
+        "ipm.organization.operate",
+        "ipm.permission.operate",
+        "ipm.role.operate",
+        "ipm.group.operate",
+        "ipm.serviceaccount.operate",
+        "ipm.user.operate",
     },
     "roles-sum": set[str](),
+    "roles-svm": {"svm.secret.operate"},
+    "roles-ekm": {"ekm.key.operate"},
+    "roles-clm": {"clm.certificate.operate"},
+    "roles-operator": {
+        "vault.platform.create",
+        "vault.platform.delete",
+        "vault.platform.get",
+        "vault.platform.list",
+        "vault.platform.update",
+        "vault.platform.operate",
+    },
 }
 ACTION_ROLES = set[str]().union(*ACTION_ROLES_BY_PROJECT.values())
 ADMIN_ROLES = set[str]().union(*ADMIN_ROLES_BY_PROJECT.values())
@@ -166,8 +198,9 @@ class Zitadel:
         response.raise_for_status()
         return response.json()
 
-    def get(self, path: str) -> dict[str, Any]:
-        response = self._client.get(path)
+    def get(self, path: str, org: str | None = None) -> dict[str, Any]:
+        headers = {"x-zitadel-orgid": org} if org else {}
+        response = self._client.get(path, headers=headers)
         response.raise_for_status()
         return cast("dict[str, Any]", response.json())
 
@@ -274,22 +307,23 @@ def test_one_roles_project_per_module_and_operator_asserts_and_checks_roles(
 def test_the_clients_project_has_no_roles_and_does_not_require_one_to_sign_in(
     zitadel: Zitadel, orgs: dict[str, str]
 ) -> None:
-    """A aplicação do `sk` mora num projeto sem roles (decisão 0034).
+    """As aplicações moram em projetos sem roles (decisões 0034 e 0103): `core/clients` e `operator/clients`.
 
-    Com ela dentro de um projeto de roles, o Zitadel só põe no token as roles desse projeto, e o
+    Com elas dentro de um projeto de roles, o Zitadel só põe no token as roles desse projeto, e o
     token não valeria nos Receivers dos outros módulos. Sem roles no projeto, a verificação de
     role na autenticação (`authorizationRequired`) precisa estar desligada: ninguém teria role nele.
     """
-    projects = projects_owned_by(zitadel, orgs["core"])
-    assert "clients" in projects, "o projeto `clients` da core (decisão 0034)"
-    project = projects["clients"]
-    assert not project.get("authorizationRequired")  # a API v2 omite o valor falso
-    roles = zitadel.connect(
-        PROJECT_SERVICE, "ListProjectRoles", {"projectId": project["projectId"]}
-    )
-    assert roles.get("projectRoles", []) == []
-    grants = zitadel.connect(PROJECT_SERVICE, "ListProjectGrants").get("projectGrants", [])
-    assert not [g for g in grants if g["projectId"] == project["projectId"]]
+    for org_name in ("core", "operator"):
+        projects = projects_owned_by(zitadel, orgs[org_name])
+        assert "clients" in projects, f"o projeto `clients` da {org_name} (decisões 0034 e 0103)"
+        project = projects["clients"]
+        assert not project.get("authorizationRequired")  # a API v2 omite o valor falso
+        roles = zitadel.connect(
+            PROJECT_SERVICE, "ListProjectRoles", {"projectId": project["projectId"]}
+        )
+        assert roles.get("projectRoles", []) == []
+        grants = zitadel.connect(PROJECT_SERVICE, "ListProjectGrants").get("projectGrants", [])
+        assert not [g for g in grants if g["projectId"] == project["projectId"]]
 
 
 def test_roles_follow_the_naming_standard_and_group_by_module(
@@ -314,7 +348,7 @@ def test_roles_follow_the_naming_standard_and_group_by_module(
         PROJECT_SERVICE, "ListProjectRoles", {"projectId": operator_project_id}
     )["projectRoles"]
     assert {r["key"] for r in op_roles} == ADMIN_ROLES
-    assert all(r["key"].endswith(".admin") for r in op_roles)
+    assert all(r["key"].endswith(".operate") or r["key"].startswith("vault.platform.") for r in op_roles)
     assert all(r.get("group") == r["key"].split(".")[0] for r in op_roles)
     repeated_op = sorted(r["key"] for r in op_roles if r.get("displayName", r["key"]) == r["key"])
     assert not repeated_op, f"roles-operator sem nome de exibição próprio: {repeated_op}"
@@ -340,6 +374,29 @@ def test_cli_application_is_a_public_native_client_with_jwt(
         "OIDC_GRANT_TYPE_REFRESH_TOKEN",
     }
     assert config["redirectUris"] == ["http://127.0.0.1/callback"]
+
+
+def test_vault_application_is_a_web_client_with_jwt(
+    zitadel: Zitadel, orgs: dict[str, str]
+) -> None:
+    """Aplicação OIDC do OpenBao (`vault`) na organização `operator` (decisão 0103)."""
+    clients = projects_owned_by(zitadel, orgs["operator"])["clients"]
+    found = zitadel.connect(
+        APPLICATION_SERVICE,
+        "ListApplications",
+        {"filters": [{"projectIdFilter": {"projectId": clients["projectId"]}}]},
+    )["applications"]
+    config = {a["name"]: a for a in found}["vault"]["oidcConfiguration"]
+    assert config.get("applicationType", "OIDC_APP_TYPE_WEB") == "OIDC_APP_TYPE_WEB"
+    assert config["accessTokenType"] == "OIDC_TOKEN_TYPE_JWT"
+    assert config["accessTokenRoleAssertion"] is True and config["idTokenRoleAssertion"] is True
+    assert config["responseTypes"] == ["OIDC_RESPONSE_TYPE_CODE"]
+    assert set(config["grantTypes"]) == {"OIDC_GRANT_TYPE_AUTHORIZATION_CODE"}
+    assert set(config["redirectUris"]) == {
+        "http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback",
+        "http://localhost:8200/ui/vault/auth/oidc/oidc/callback",
+        "http://127.0.0.1:8250/oidc/callback",
+    }
 
 
 def test_no_roles_project_holds_an_application(
@@ -571,14 +628,14 @@ def test_only_operators_are_authorized_in_operator_and_none_in_core(
 def test_default_operator_holds_every_role_of_each_project_with_an_admin_role(
     zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str], operator_project_id: str
 ) -> None:
-    """O operador padrão (`admin@operator...`) tem todas as `*.admin` em `roles-operator` e as
+    """O operador padrão (`admin@operator...`) tem todas as `*.operate` em `roles-operator` e as
     roles de ação de cada projeto que administra."""
     operators = operator_authorizations(zitadel, orgs, project_ids, operator_project_id)
     default = next(
         (r for n, r in operators.items() if n == "admin" or n.startswith("admin@operator")), None
     )
     assert default is not None, "falta a autorização do operador padrão (admin na org operator)"
-    administered = {name for name, admin in ADMIN_ROLES_BY_PROJECT.items() if admin}
+    administered = {name for name, admin in ADMIN_ROLES_BY_PROJECT.items() if admin and name != "roles-operator"}
     assert set(default) == administered | {"roles-operator"}
     assert default["roles-operator"] == ADMIN_ROLES
     for name in administered:
@@ -794,3 +851,96 @@ def test_vault_namespaces_and_oidc_jwt_auth_match_identity_organizations(
             role_resp.raise_for_status()
             bound_claims = role_resp.json()["data"].get("bound_claims") or {}
             assert bound_claims.get("urn:zitadel:iam:user:resourceowner:id") == orgs[ns_name]
+
+
+VAULT_EXTERNAL_GROUPS = {
+    # vault.platform
+    "vault.platform.create",
+    "vault.platform.delete",
+    "vault.platform.get",
+    "vault.platform.list",
+    "vault.platform.update",
+    "vault.platform.operate",
+    # svm.secret
+    "svm.secret.create",
+    "svm.secret.delete",
+    "svm.secret.get",
+    "svm.secret.list",
+    "svm.secret.update",
+    "svm.secret.operate",
+    # ekm.key
+    "ekm.key.create",
+    "ekm.key.delete",
+    "ekm.key.get",
+    "ekm.key.list",
+    "ekm.key.update",
+    "ekm.key.operate",
+    # clm.certificate
+    "clm.certificate.create",
+    "clm.certificate.delete",
+    "clm.certificate.get",
+    "clm.certificate.list",
+    "clm.certificate.update",
+    "clm.certificate.operate",
+}
+
+
+def test_zitadel_flat_roles_action_and_triggers_in_operator_organization(
+    zitadel: Zitadel, orgs: dict[str, str]
+) -> None:
+    """Action `flatRoles` e triggers 4 (PreUserinfo) e 5 (PreAccessToken) no flow 2 (decisão 0104)."""
+    actions = zitadel.search("/management/v1/actions/_search", {}, org=orgs["operator"])
+    flat_roles = next((a for a in actions if a.get("name") == "flatRoles"), None)
+    assert flat_roles is not None, "Action 'flatRoles' ausente na organização operator"
+    assert flat_roles.get("state") == "ACTION_STATE_ACTIVE", flat_roles
+    assert flat_roles.get("allowedToFail") is True, flat_roles
+    assert "api.v1.claims.setClaim('roles'" in flat_roles.get("script", ""), flat_roles
+
+    flow = zitadel.get("/management/v1/flows/2", org=orgs["operator"]).get("flow") or {}
+    triggers = {
+        ta["triggerType"]["id"]: [a["id"] for a in ta.get("actions", [])]
+        for ta in flow.get("triggerActions", [])
+    }
+    assert flat_roles["id"] in triggers.get("4", []), "Action flatRoles ausente no trigger PreUserinfo (4)"
+    assert flat_roles["id"] in triggers.get("5", []), "Action flatRoles ausente no trigger PreAccessToken (5)"
+
+
+def test_vault_oidc_roles_and_external_identity_groups() -> None:
+    """Validação dos 24 External Identity Groups e OIDC Roles com groups_claim='roles' (decisão 0104)."""
+    token = _vault_token()
+    if not token:
+        pytest.skip("CONFORMANCE_VAULT_TOKEN / .workspace/vault-init.json ausente")
+
+    with httpx.Client(base_url=VAULT_URL, headers={"X-Vault-Token": token}, timeout=10.0) as client:
+        # Testa nos namespaces core, operator e root ("")
+        for ns_name in ("operator", "core", ""):
+            ns_headers = {"X-Vault-Namespace": ns_name} if ns_name else {}
+
+            # 1. Accessor do auth/oidc
+            auth_resp = client.get("/v1/sys/auth", headers=ns_headers)
+            auth_resp.raise_for_status()
+            oidc_auth = auth_resp.json()["data"].get("oidc/")
+            assert oidc_auth is not None, f"auth mount 'oidc/' ausente no namespace '{ns_name}'"
+            accessor = oidc_auth["accessor"]
+
+            # 2. Roles OIDC (vault.platformAdmin e vault.platformViewer)
+            for role_name in ("vault.platformAdmin", "vault.platformViewer"):
+                role_resp = client.get(f"/v1/auth/oidc/role/{role_name}", headers=ns_headers)
+                role_resp.raise_for_status()
+                role_data = role_resp.json()["data"]
+                assert role_data.get("groups_claim") == "roles", (ns_name, role_name, role_data)
+                assert role_data.get("token_policies") == ["default"], (ns_name, role_name, role_data)
+                assert role_data.get("user_claim") == "preferred_username", (ns_name, role_name, role_data)
+
+            # 3. 24 External Identity Groups e seus aliases
+            for group_name in VAULT_EXTERNAL_GROUPS:
+                grp_resp = client.get(f"/v1/identity/group/name/{group_name}", headers=ns_headers)
+                grp_resp.raise_for_status()
+                grp_data = grp_resp.json()["data"]
+                assert grp_data.get("type") == "external", (ns_name, group_name, grp_data)
+                assert grp_data.get("policies") == [group_name], (ns_name, group_name, grp_data)
+                alias = grp_data.get("alias")
+                assert alias is not None, f"alias ausente para {group_name} no namespace '{ns_name}'"
+                assert alias.get("name") == group_name, (ns_name, group_name, alias)
+                assert alias.get("mount_accessor") == accessor, (ns_name, group_name, alias)
+

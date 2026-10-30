@@ -111,11 +111,11 @@ WITH predefined(resource_id, permission_name, module_group, description, grantab
     ('01a1763d-eb0a-73e6-ae87-09479da576ee',    'bsm.account.get',    'bsm', 'Ler Billing Accounts', false),
     ('01a1763d-eb0c-71d0-82c7-3010ed561cc5',   'bsm.account.list',   'bsm', 'Listar Billing Accounts', false),
     ('01a1763d-eb0f-75ea-8b0f-8bf1afb324fa', 'bsm.account.update', 'bsm', 'Alterar Billing Accounts', false),
-    ('01a1763d-eb11-715e-96bb-90b4ab137e28',  'bsm.account.admin',  'bsm', 'Operador: qualquer Billing Account', false),
+    ('01a1763d-eb11-715e-96bb-90b4ab137e28',  'bsm.account.operate',  'bsm', 'Operador: qualquer Billing Account', false),
     -- core.account (roles-core): nível de conta pessoal (register)
     ('01a1763d-eb14-74eb-86dd-6f7f4b480783', 'core.account.delete', 'core', 'Remover a própria conta', false),
     ('01a1763d-eb16-748d-bafc-dd2976ec27a4',    'core.account.get',    'core', 'Ler a própria conta', false),
-    ('01a1763d-eb19-737d-9a93-d95b72ff01c0',  'core.account.admin',  'core', 'Operador: qualquer conta', false),
+    ('01a1763d-eb19-737d-9a93-d95b72ff01c0',  'core.account.operate',  'core', 'Operador: qualquer conta', false),
     -- sum.ipm (roles-sum): nível de conta pessoal (register)
     ('01a1763d-eb1c-70bf-bf6c-8e2bb3bed9ec', 'sum.ipm.disable', 'sum', 'Desabilitar o módulo IPM da conta', false),
     ('01a1763d-eb1e-7411-939c-a0f773e2f875',  'sum.ipm.enable',  'sum', 'Habilitar o módulo IPM da conta', false),
@@ -126,19 +126,19 @@ WITH predefined(resource_id, permission_name, module_group, description, grantab
     ('01a1763d-eb28-773d-804c-1779722fbb95',    'ipm.organization.get',    'ipm', 'Ler Organizations', true),
     ('01a1763d-eb2a-716f-9417-5dc1e3d3264f',   'ipm.organization.list',   'ipm', 'Listar Organizations', true),
     ('01a1763d-eb2d-726e-b505-3592ecdff4d6', 'ipm.organization.update', 'ipm', 'Alterar Organizations', true),
-    ('01a1763d-eb2f-73e4-8e15-29bb53ca2855',  'ipm.organization.admin',  'ipm', 'Operador: qualquer Organization', false),
-    -- ipm.user (roles-ipm): delegáveis à Organization (exceto admin)
+    ('01a1763d-eb2f-73e4-8e15-29bb53ca2855',  'ipm.organization.operate',  'ipm', 'Operador: qualquer Organization', false),
+    -- ipm.user (roles-ipm): delegáveis à Organization (exceto operate)
     ('01a1763d-eb32-73e1-b31b-44a5a2a7669a',   'ipm.user.bind',   'ipm', 'Atribuir e alterar permissões de usuários da Organization', true),
     ('01a1763d-eb34-7534-8d01-569b74847fcc', 'ipm.user.create', 'ipm', 'Criar usuários da Organization', true),
     ('01a1763d-eb37-721a-8ac9-9aaa0550c7ea', 'ipm.user.delete', 'ipm', 'Remover usuários da Organization', true),
     ('01a1763d-eb39-7341-8c3b-43b5c7f9ade5',    'ipm.user.get',    'ipm', 'Ler usuários da Organization', true),
     ('01a1763d-eb3c-747c-86fe-8f34692042e2',   'ipm.user.list',   'ipm', 'Listar usuários da Organization', true),
     ('01a1763d-eb3e-72dd-b96c-015c189af10b', 'ipm.user.update', 'ipm', 'Alterar usuários da Organization', true),
-    ('01a1763d-eb40-71a5-ab70-96207a5b4d2d',  'ipm.user.admin',  'ipm', 'Operador: qualquer usuário da Organization', false),
+    ('01a1763d-eb40-71a5-ab70-96207a5b4d2d',  'ipm.user.operate',  'ipm', 'Operador: qualquer usuário da Organization', false),
     -- ipm.permission (roles-ipm): catálogo global da plataforma
     ('01a1763d-eb43-703d-a168-aa3ade79c4f8',   'ipm.permission.get',   'ipm', 'Ler permissões do catálogo da plataforma', false),
     ('01a1763d-eb45-7247-ab1a-90fdc45b217d',  'ipm.permission.list',  'ipm', 'Listar permissões do catálogo da plataforma', false),
-    ('01a1763d-eb48-728c-ade2-0dbe753f70de', 'ipm.permission.admin', 'ipm', 'Operador: gerenciar o catálogo de permissões', false),
+    ('01a1763d-eb48-728c-ade2-0dbe753f70de', 'ipm.permission.operate', 'ipm', 'Operador: gerenciar o catálogo de permissões', false),
     -- ipm.role (roles-ipm): predefinidas da plataforma e custom da Organization (decisão 0092)
     ('01a1763d-eb4a-7168-981a-0862f72aeeca',   'ipm.role.get',   'ipm', 'Ler Roles compostas da plataforma e da Organization', true),
     ('01a1763d-eb4d-750a-b163-4e082cff09ee',  'ipm.role.list',  'ipm', 'Listar Roles compostas da plataforma e da Organization', true),
@@ -146,23 +146,51 @@ WITH predefined(resource_id, permission_name, module_group, description, grantab
     ('01a1786d-a73c-7407-9e1a-50d78bdba2a5', 'ipm.role.update', 'ipm', 'Alterar Roles custom da Organization', true),
     ('01a1786d-a740-7674-91a7-6deb899bffd3', 'ipm.role.delete', 'ipm', 'Excluir Roles custom da Organization', true),
     ('01a1786d-a743-766f-862d-8b431ae57347', 'ipm.role.bind', 'ipm', 'Definir e alterar as permissões de Roles custom da Organization', true),
-    ('01a1763d-eb4f-71f6-ad10-991a7f90c40a', 'ipm.role.admin', 'ipm', 'Operador: gerenciar o catálogo de Roles compostas', false),
-    -- ipm.group (roles-ipm): delegáveis à Organization (exceto admin)
+    ('01a1763d-eb4f-71f6-ad10-991a7f90c40a', 'ipm.role.operate', 'ipm', 'Operador: gerenciar o catálogo de Roles compostas', false),
+    -- ipm.group (roles-ipm): delegáveis à Organization (exceto operate)
     ('01a17641-4895-761f-888f-24ca35143f79', 'ipm.group.create', 'ipm', 'Criar grupos de usuários da Organization', true),
     ('01a17641-4897-73c9-adf3-a0ddcf0e27d3', 'ipm.group.delete', 'ipm', 'Excluir grupos de usuários da Organization', true),
     ('01a17641-489a-7615-848c-3263328fedc0', 'ipm.group.get', 'ipm', 'Ler grupos de usuários da Organization', true),
     ('01a17641-489c-75c9-81c4-34e1ce2459a7', 'ipm.group.list', 'ipm', 'Listar grupos de usuários da Organization', true),
     ('01a17641-489f-72ea-9647-b39cb4237b52', 'ipm.group.update', 'ipm', 'Alterar grupos de usuários da Organization', true),
     ('01a17641-48a1-77c5-9e35-69e7e1b1706f', 'ipm.group.bind', 'ipm', 'Atribuir e alterar roles de grupos de usuários da Organization', true),
-    ('01a17641-48a4-7790-9a6c-25f5aaea438c', 'ipm.group.admin', 'ipm', 'Operador: gerenciar qualquer grupo', false),
-    -- ipm.serviceaccount (roles-ipm): delegáveis à Organization (exceto admin), decisão 0094
+    ('01a17641-48a4-7790-9a6c-25f5aaea438c', 'ipm.group.operate', 'ipm', 'Operador: gerenciar qualquer grupo', false),
+    -- ipm.serviceaccount (roles-ipm): delegáveis à Organization (exceto operate), decisão 0094
     ('01a179e8-9222-762f-859b-b71c8ea23477', 'ipm.serviceaccount.create', 'ipm', 'Criar service accounts da Organization', true),
     ('01a179e8-9225-7f05-9cb3-a887a2614955', 'ipm.serviceaccount.delete', 'ipm', 'Excluir service accounts da Organization', true),
     ('01a179e8-9228-7ffb-b962-6041f9f195b6', 'ipm.serviceaccount.get', 'ipm', 'Ler service accounts da Organization', true),
     ('01a179e8-922b-7c5e-b950-cae0d554ae40', 'ipm.serviceaccount.list', 'ipm', 'Listar service accounts da Organization', true),
     ('01a179e8-922e-7575-98cc-e70de27d328c', 'ipm.serviceaccount.update', 'ipm', 'Alterar service accounts da Organization', true),
     ('01a179e8-9231-77ac-8d48-8958a211148a', 'ipm.serviceaccount.bind', 'ipm', 'Atribuir e alterar roles e chaves de service accounts da Organization', true),
-    ('01a179e8-9234-78e2-a930-b7b782effe5c', 'ipm.serviceaccount.admin', 'ipm', 'Operador: gerenciar qualquer service account', false)
+    ('01a179e8-9234-78e2-a930-b7b782effe5c', 'ipm.serviceaccount.operate', 'ipm', 'Operador: gerenciar qualquer service account', false),
+    -- svm.secret (roles-svm): segredos no cofre (SVM) (decisões 0102, 0103 e 0104)
+    ('01a1896f-895e-73b9-befc-5b531ddf380d', 'svm.secret.create', 'svm', 'Criar segredos no cofre (SVM)', true),
+    ('01a1896f-895e-73b9-befc-5b544c6c3d75', 'svm.secret.delete', 'svm', 'Excluir segredos no cofre (SVM)', true),
+    ('01a1896f-895e-73b9-befc-5b554ed83cc9', 'svm.secret.get',    'svm', 'Ler segredos no cofre (SVM)', true),
+    ('01a1896f-895e-73b9-befc-5b567ac51c65', 'svm.secret.list',   'svm', 'Listar segredos no cofre (SVM)', true),
+    ('01a1896f-895e-73b9-befc-5b5744cbc600', 'svm.secret.update', 'svm', 'Alterar segredos no cofre (SVM)', true),
+    ('01a1896f-895e-73b9-befc-5b5817dfc809', 'svm.secret.operate', 'svm', 'Operador: gerenciar qualquer segredo no cofre (SVM)', false),
+    -- ekm.key (roles-ekm): chaves de criptografia (EKM)
+    ('01a1896f-895e-73b9-befc-5b5964ccd672', 'ekm.key.create', 'ekm', 'Criar chaves de criptografia (EKM)', true),
+    ('01a1896f-895e-73b9-befc-5b5a7720b1d1', 'ekm.key.delete', 'ekm', 'Excluir chaves de criptografia (EKM)', true),
+    ('01a1896f-895e-73b9-befc-5b5b20912f6e', 'ekm.key.get',    'ekm', 'Ler chaves de criptografia (EKM)', true),
+    ('01a1896f-895e-73b9-befc-5b5c041dc08a', 'ekm.key.list',   'ekm', 'Listar chaves de criptografia (EKM)', true),
+    ('01a1896f-895e-73b9-befc-5b5d255cc8f6', 'ekm.key.update', 'ekm', 'Alterar ou rotacionar chaves de criptografia (EKM)', true),
+    ('01a1896f-895e-73b9-befc-5b5e367256f5', 'ekm.key.operate', 'ekm', 'Operador: gerenciar qualquer chave de criptografia (EKM)', false),
+    -- clm.certificate (roles-clm): certificados digitais (CLM)
+    ('01a1896f-895e-73b9-befc-5b5ffae0a805', 'clm.certificate.create', 'clm', 'Emitir certificados digitais (CLM)', true),
+    ('01a1896f-895e-73b9-befc-5b600bcb7716', 'clm.certificate.delete', 'clm', 'Revogar certificados digitais (CLM)', true),
+    ('01a1896f-895e-73b9-befc-5b61d6ab2425', 'clm.certificate.get',    'clm', 'Ler certificados digitais (CLM)', true),
+    ('01a1896f-895e-73b9-befc-5b620195dfc4', 'clm.certificate.list',   'clm', 'Listar certificados digitais (CLM)', true),
+    ('01a1896f-895e-73b9-befc-5b63b8fdf540', 'clm.certificate.update', 'clm', 'Renovar ou alterar certificados digitais (CLM)', true),
+    ('01a1896f-895e-73b9-befc-5b64b01f3754', 'clm.certificate.operate', 'clm', 'Operador: gerenciar qualquer certificado digital (CLM)', false),
+    -- vault.platform (roles-operator): plano de controle do cofre (Vault) (decisão 0104)
+    ('01a189a0-1111-7000-8000-000000000001', 'vault.platform.create',  'vault', 'Criar recursos no plano de controle do cofre (Vault)', false),
+    ('01a189a0-1111-7000-8000-000000000002', 'vault.platform.delete',  'vault', 'Excluir recursos no plano de controle do cofre (Vault)', false),
+    ('01a189a0-1111-7000-8000-000000000003', 'vault.platform.get',     'vault', 'Ler recursos no plano de controle do cofre (Vault)', false),
+    ('01a189a0-1111-7000-8000-000000000004', 'vault.platform.list',    'vault', 'Listar recursos no plano de controle do cofre (Vault)', false),
+    ('01a189a0-1111-7000-8000-000000000005', 'vault.platform.update',  'vault', 'Alterar recursos no plano de controle do cofre (Vault)', false),
+    ('01a189a0-1111-7000-8000-000000000006', 'vault.platform.operate', 'vault', 'Operador: gerenciar o plano de controle do cofre (Vault)', false)
 ),
 inserted AS (
   INSERT INTO ipm.permission (

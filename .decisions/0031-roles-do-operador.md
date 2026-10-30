@@ -1,7 +1,7 @@
 # 0031 — Roles do operador: escopo `*.admin` mais roles de ação explícitas
 
 - **Data:** 2026-10-15
-- **Status:** Aceita. Corrige a premissa da decisão 0027 de que, na `core`, bastavam as roles `*.admin` ao operador. Evoluída pela decisão `0084` (organização `operator` e projeto `roles-operator`).
+- **Status:** Aceita. Corrige a premissa da decisão 0027 de que, na `core`, bastavam as roles `*.admin` ao operador. Evoluída pela decisão `0084` (organização `operator` e projeto `roles-operator`) e pela decisão `0104` (adoção do verbo `.operate` em substituição a `.admin` para permissões atômicas de operador).
 
 ## Contexto
 

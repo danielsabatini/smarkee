@@ -1,7 +1,7 @@
 # 0084 — Organização `operator` e projeto `roles-operator` no Zitadel
 
 - **Data:** 2026-10-25
-- **Status:** Aceita. Evolui e revisa as decisões `0031` (roles do operador), `0032` (projetos de roles por módulo) e `0083` (`ipm.permission`).
+- **Status:** Aceita. Evolui e revisa as decisões `0031` (roles do operador), `0032` (projetos de roles por módulo) e `0083` (`ipm.permission`). Complementada pela decisão `0104` (substituição de `*.admin` por `*.operate` em `roles-operator`).
 - **Origem:** Reavaliação arquitetural (§25.1 do `AGENTS.md`) solicitada pelo responsável do projeto para isolar fisicamente os operadores da plataforma e as permissões de operação (`*.admin`) em uma organização e projeto dedicados (`operator` e `roles-operator`), deixando a organização `core` exclusivamente com os projetos de permissões de ação dos módulos e as service accounts de infraestrutura.
 
 ## Contexto

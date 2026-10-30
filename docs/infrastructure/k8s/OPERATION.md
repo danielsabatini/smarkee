@@ -221,7 +221,7 @@ O nó do cluster kind possui mapeamento direto de portas em `127.0.0.1` (`extraP
 | **PostgreSQL SSOT** | `127.0.0.1:5432` | `database` | `database-external` (`30432`) | Banco de dados relacional principal | Usuário: `postgres` / Sem senha ou senha em `database-app` |
 | **NATS Core** | `nats://127.0.0.1:4222` | `messaging` | `messaging-external` (`30422`) | Mensageria e JetStream CLI / SDKs | Usuário: `smarkee` / Senha no Vault (`/svm/core/messaging`) |
 | **NATS Monitoring** | `http://127.0.0.1:8222` | `messaging` | `messaging-monitoring` (`30822`) | Métricas HTTP e inspeção interna do servidor NATS | Sem autenticação |
-| **OpenBao / Vault** | `http://127.0.0.1:8200` | `vault` | `vault-external` (`30200`) | API e UI do cofre de segredos (`/svm`, `/ekm`, `/clm`) | Root Token em `.workspace/vault-init.json` |
+| **OpenBao / Vault** | `http://127.0.0.1:8200` | `vault` | `vault-nodeport` (`30200`) | API e UI do cofre de segredos (`/svm`, `/ekm`, `/clm`) | **OIDC Federado:** Login via Zitadel (`admin` / `Smarkee@Dev2026!`). Root Token apenas em `.workspace/vault-init.json` (break-glass) |
 | **Mailpit Web UI** | `http://127.0.0.1:8025` | `mail` | `mail-external` (`30025`) | Caixa de entrada de e-mails capturados em `dev` | Sem autenticação |
 | **ArgoCD Server** | `https://127.0.0.1:8443` | `gitops-operator` | `argocd-server` (`30443`) | Interface Web e API do ArgoCD GitOps | Usuário: `admin` / Senha em `argocd-initial-admin-secret` |
 | **OCI Registry** | `http://localhost:5001` | *(Docker Host)* | Contêiner `smarkee-registry` | Container registry OCI local para imagens de dev | Sem autenticação |
@@ -251,16 +251,25 @@ kubectl -n telemetry port-forward svc/telemetry-sink 4317:4317
 
 ### 4.3 Credenciais e Autenticação em Desenvolvimento
 
-#### 1. Token Root do Vault (`OpenBao`):
-Para interagir com o CLI local `bao` ou `vault` apontando para o cluster:
-```bash
-export VAULT_ADDR="http://127.0.0.1:8200"
-export VAULT_TOKEN="$(jq -r .root_token .workspace/vault-init.json)"
+#### 1. Autenticação no OpenBao (Vault) via Zitadel OIDC (Decisões 0103 e 0104):
+Conforme as decisões `0103` e `0104`, o uso operacional de `root_token` foi eliminado. Operadores humanos autenticam via OIDC federado com o Zitadel:
 
-# Teste:
-bao token lookup
-bao secrets list -detailed
-```
+- **Interface Web:** Acesse `http://127.0.0.1:8200/ui/`, selecione o método `OIDC` e autentique com o usuário operador (`admin` / `Smarkee@Dev2026!`). O role padrão assumido é `vault.platformAdmin`.
+- **CLI Local `bao` / `vault`:**
+  ```bash
+  export BAO_ADDR="http://127.0.0.1:8200"
+  bao login -method=oidc role=vault.platformAdmin
+  ```
+  (ou `role=vault.platformViewer` para auditoria e inspeção restrita à leitura).
+  O navegador abrirá na tela de login do Zitadel e retornará com token nominal associado às políticas atômicas CRUD correspondentes (`vault.platform.*`, `svm.secret.*`, `ekm.key.*` e `clm.certificate.*`).
+
+- **Recuperação de Desastre (Break-glass / Bootstrap):**
+  Apenas quando o Zitadel ou a federação OIDC estiver indisponível, utilize o token raiz temporariamente:
+  ```bash
+  export BAO_ADDR="http://127.0.0.1:8200"
+  export BAO_TOKEN="$(jq -r .root_token .workspace/vault-init.json)"
+  bao token lookup
+  ```
 
 #### 2. Senha Inicial de Administrador do ArgoCD:
 Para obter a senha do usuário `admin` do ArgoCD:

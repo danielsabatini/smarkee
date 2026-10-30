@@ -403,27 +403,27 @@ sequenceDiagram
 - **Entrada:**
   - `External Secrets Operator` → `http://svm.vault.svc.cluster.local:8200` (autenticação `auth/kubernetes`, role `svm-reader` no namespace `core`).
   - `cert-manager` → `http://clm.vault.svc.cluster.local:8200` (autenticação `auth/kubernetes`, role `clm-issuer` no namespace `core`).
-  - Workloads / Controllers → `http://ekm.vault.svc.cluster.local:8200` (autenticação `auth/kubernetes`, role `ekm-crypto`, ou JWT do Zitadel).
+  - Workloads / Controllers → `http://ekm.vault.svc.cluster.local:8200` (autenticação `auth/kubernetes`, role `ekm-crypto`, ou `auth/jwt` do Zitadel).
+  - Operadores humanos → `http://127.0.0.1:8200/ui/` (Web UI) e CLI (`bao login -method=oidc`) via OIDC federado com o Zitadel (decisão `0103`).
 - **Saída:**
-  - Conecta a `http://gateway.gateway.svc.cluster.local:8000` (via `auth-dev.smarkee.com.br` resolvido pelo CoreDNS) para validar tokens OIDC/JWT emitidos pelo `identity` (`jwks_url: http://auth-dev.smarkee.com.br:8080/oauth/v2/keys`).
+  - Conecta a `http://gateway.gateway.svc.cluster.local:8000` (via `ipm-dev.smarkee.com.br` resolvido pelo CoreDNS) para descoberta OIDC (`/.well-known/openid-configuration`) e validação de chaves públicas (`jwks_url: http://ipm-dev.smarkee.com.br:8080/oauth/v2/keys`).
 
-### 5.4 Quem Acessa e Como Acessa
-- **Serviços da Plataforma e Features:**
-  - Não leem segredos estáticos diretamente da API HTTP no boot; o `External Secrets Operator` materializa os segredos do `/svm` como Kubernetes `Secret`s montados em `/run/secrets/*` nos pods (ou variáveis de ambiente nos serviços legados).
-  - Para operações criptográficas (`/ekm`) e PKI (`/clm`), autenticam via `ServiceAccount` Kubernetes (`/v1/core/auth/kubernetes/login`) ou via JWT do Zitadel (`/v1/auth/jwt/login`, role `identity-org-member`, que valida a claim `urn:zitadel:iam:org:id` contra o `identity_org_id` da política templated).
-- **Usuário / Operador da Organização (via OIDC / JWT do Zitadel):**
-  - Na UI Web (`http://127.0.0.1:8200/ui/`) ou via API REST, pode autenticar com o método `oidc` ou `jwt` usando um token emitido pelo Zitadel (`auth-dev.smarkee.com.br`), recebendo acesso estritamente ao namespace cujo `identity_org_id` coincide com sua organização no Zitadel.
-- **Operador de Infraestrutura (`dev`):**
-  - Credenciais de inicialização/unseal de `dev` ficam salvas localmente (fora do Git) em `.workspace/vault-init.json` (`root_token` e `unseal_key_b64`).
-  - Exemplo de consulta via CLI ou `curl` no host:
+### 5.4 Quem Acessa e Como Acessa (Decisões 0103 e 0104)
+- **Operador Humano da Plataforma (via OIDC federado Zitadel ↔ OpenBao):**
+  - **Interface Web:** Acessa `http://127.0.0.1:8200/ui/`, seleciona o método `OIDC` e autentica-se com credenciais Zitadel (ex.: `admin` / `Smarkee@Dev2026!`). Por padrão, assume a role `vault.platformAdmin`.
+  - **CLI do OpenBao:** Autentica-se localmente sem tokens estáticos:
     ```bash
-    VAULT_TOKEN="$(jq -r .root_token .workspace/vault-init.json)"
-    # Listar namespaces OpenBao e metadados identity_org_id
-    curl -s -H "X-Vault-Token: ${VAULT_TOKEN}" "http://127.0.0.1:8200/v1/sys/namespaces?list=true" | jq .
-    # Ler um segredo no mount /svm do namespace core
-    curl -s -H "X-Vault-Token: ${VAULT_TOKEN}" -H "X-Vault-Namespace: core" \
-      "http://127.0.0.1:8200/v1/svm/data/platform/messaging" | jq .
+    bao login -address=http://127.0.0.1:8200 -method=oidc role=vault.platformAdmin
     ```
+    (ou `role=vault.platformViewer` para sessão com privilégios de auditoria e leitura restrita).
+  - **Isolamento e RBAC:** O backend OIDC valida a claim `urn:zitadel:iam:user:resourceowner:id` contra o ID da organização `operator`. As políticas atômicas autorizadas (`vault.platform.*`, `svm.secret.*`, `ekm.key.*` e `clm.certificate.*`) são vinculadas dinamicamente via External Identity Groups com `groups_claim="roles"`, alimentados pela Action `flatRoles` (Complement Token Flow) do Zitadel, garantindo que o Zitadel seja o Single Source of Truth sem hardcode de políticas estáticas no OpenBao. O `root_token` fica restrito a recuperação de desastre (*break-glass*), eliminado da rotina operacional diária.
+- **Serviços da Plataforma e Features (Máquinas):**
+  - **Bootstrap Estático:** O `External Secrets Operator` materializa segredos do `/svm` como Kubernetes `Secret`s montados em `/run/secrets/*` nos pods via `auth/kubernetes`.
+  - **Operações Dinâmicas:** Componentes e controladores autenticam via `auth/jwt` com chave privada RSA do Zitadel (`zitadel-key.json`), recebendo políticas homônimas às suas roles RBAC (`svm.secret.*`, `ekm.key.*`, `clm.certificate.*`).
+- **Clientes e Tenants Comerciais:**
+  - **Sem Acesso Direto:** Clientes nunca acessam a porta `8200` do OpenBao. Toda operação é mediada pelas APIs da Smarkee (`/v1/svm`, `/v1/ekm`, `/v1/clm`) e CLI `sk`, que atuam no namespace isolado `<organizationId>/` correspondente.
+- **Operador de Infraestrutura (Break-glass / Bootstrap em `dev`):**
+  - Credenciais de inicialização e unseal ficam guardadas localmente em `.workspace/vault-init.json` (permissão `0600`, fora do git) e nunca são utilizadas em procedimentos cotidianos.
 
 ---
 
