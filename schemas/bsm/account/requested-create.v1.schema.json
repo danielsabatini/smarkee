@@ -26,6 +26,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "type",
+        "customerAccountId",
         "displayName",
         "billingCurrency",
         "billingContacts"
@@ -33,6 +35,16 @@
       "x-writer": "client",
       "x-sensitivity": "internal",
       "properties": {
+        "type": {
+          "$ref": "definitions.v1.schema.json#/$defs/billingAccountType",
+          "x-writer": "client",
+          "x-sensitivity": "public"
+        },
+        "customerAccountId": {
+          "$ref": "definitions.v1.schema.json#/$defs/customerAccountId",
+          "x-writer": "client",
+          "x-sensitivity": "internal"
+        },
         "displayName": {
           "$ref": "definitions.v1.schema.json#/$defs/displayName",
           "x-writer": "client",

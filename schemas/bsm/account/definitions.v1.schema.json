@@ -4,6 +4,19 @@
   "description": "Campos de domínio da Billing Account (bsm.account) reutilizados pelos contratos do recurso (desired, observed, requested e a API do Receiver). Os e-mails de contato são confidential e nunca vão para log, erro nem métrica (SCHEMA.md, Classificação).",
   "x-schemaVersion": "1.0",
   "$defs": {
+    "billingAccountType": {
+      "description": "Tipo da conta de faturamento (BillingAccountType no FOCUS 1.4). Imutável após a criação: free (cota máxima de 1 por conta) ou paid (cota máxima de 5 por conta, exige forma de pagamento ativa).",
+      "type": "string",
+      "enum": [
+        "free",
+        "paid"
+      ],
+      "x-enumPolicy": "closed"
+    },
+    "customerAccountId": {
+      "description": "Identificador da Customer Account (cam.account) à qual esta Billing Account pertence.",
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/actorId"
+    },
     "displayName": {
       "description": "Nome de exibição da conta de faturamento (BillingAccountName no FOCUS 1.4).",
       "type": "string",

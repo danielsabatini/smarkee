@@ -39,7 +39,16 @@ class ApiSettings(Section):
     host: str = "0.0.0.0"  # noqa: S104
     port: int = 8000
     account_quota: int | None = None
-    """Cota opcional de Billing Accounts por solicitante."""
+    """Cota opcional de Billing Accounts `free` por solicitante (default: 1)."""
+
+    free_account_quota: int = 1
+    """Cota de Billing Accounts `free` ativas por Customer Account."""
+
+    paid_account_quota: int = 5
+    """Cota de Billing Accounts `paid` ativas por Customer Account."""
+
+    payment_methods_file: str | None = None
+    """Caminho do arquivo JSON local de formas de pagamento para validação de contas `paid`."""
 
 
 class AccountApiSettings(RoleSettings):

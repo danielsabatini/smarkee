@@ -89,7 +89,7 @@
       },
       "BillingAccountCreateRequest": {
         "additionalProperties": false,
-        "description": "Corpo de POST /v1/bsm/accounts. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, e o Manager atribui ownerAccountId = solicitante autenticado e deletionProtection = true.",
+        "description": "Corpo de POST /v1/bsm/accounts. A API valida que customerAccountId pertence ao solicitante autenticado (salvo operador) e, para type=paid, exige forma de pagamento ativa; atribui resourceId, ownerAccountId = customerAccountId e deletionProtection = true.",
         "properties": {
           "billingContacts": {
             "items": {
@@ -103,15 +103,27 @@
           "billingCurrency": {
             "$ref": "#/components/schemas/BillingCurrency"
           },
+          "customerAccountId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._:@-]+$",
+            "title": "Customeraccountid",
+            "type": "string"
+          },
           "displayName": {
             "maxLength": 128,
             "minLength": 1,
             "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
             "title": "Displayname",
             "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/BillingAccountType"
           }
         },
         "required": [
+          "type",
+          "customerAccountId",
           "displayName",
           "billingCurrency",
           "billingContacts"
@@ -133,6 +145,13 @@
           },
           "billingCurrency": {
             "$ref": "#/components/schemas/BillingCurrency"
+          },
+          "customerAccountId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._:@-]+$",
+            "title": "Customeraccountid",
+            "type": "string"
           },
           "deletionProtection": {
             "anyOf": [
@@ -157,11 +176,16 @@
           },
           "reconciliation": {
             "$ref": "#/components/schemas/Reconciliation"
+          },
+          "type": {
+            "$ref": "#/components/schemas/BillingAccountType"
           }
         },
         "required": [
           "lifecycle",
           "reconciliation",
+          "type",
+          "customerAccountId",
           "displayName",
           "billingCurrency",
           "billingContacts"
@@ -232,6 +256,20 @@
               }
             ]
           },
+          "customerAccountId": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9._:@-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customeraccountid"
+          },
           "deletionProtection": {
             "anyOf": [
               {
@@ -264,6 +302,16 @@
           },
           "presence": {
             "$ref": "#/components/schemas/Presence"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BillingAccountType"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -272,6 +320,15 @@
         ],
         "title": "BillingAccountObservedView",
         "type": "object"
+      },
+      "BillingAccountType": {
+        "description": "Tipo da conta de faturamento (BillingAccountType no FOCUS 1.4). Imutável após a criação: free (cota máxima de 1 por conta) ou paid (cota máxima de 5 por conta, exige forma de pagamento ativa).",
+        "enum": [
+          "free",
+          "paid"
+        ],
+        "title": "BillingAccountType",
+        "type": "string"
       },
       "BillingAccountUpdateRequest": {
         "additionalProperties": false,

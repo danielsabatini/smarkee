@@ -16,6 +16,8 @@
   "required": [
     "lifecycle",
     "reconciliation",
+    "type",
+    "customerAccountId",
     "displayName",
     "billingCurrency",
     "billingContacts",
@@ -34,6 +36,20 @@
       "x-writer": "server",
       "x-mutability": "mutable",
       "x-managed": false,
+      "x-sensitivity": "internal"
+    },
+    "type": {
+      "$ref": "definitions.v1.schema.json#/$defs/billingAccountType",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": true,
+      "x-sensitivity": "public"
+    },
+    "customerAccountId": {
+      "$ref": "definitions.v1.schema.json#/$defs/customerAccountId",
+      "x-writer": "client",
+      "x-mutability": "immutable",
+      "x-managed": true,
       "x-sensitivity": "internal"
     },
     "displayName": {

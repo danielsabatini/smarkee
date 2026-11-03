@@ -32,9 +32,7 @@ async def test_list_filters_by_owner_and_paginates_by_resource_id(
     owner = "list-" + unique_suffix()
     ids: list[str] = []
     for _ in range(3):
-        resource_id = await seed_account(
-            api_conn, owner=owner, display_name="L " + unique_suffix()
-        )
+        resource_id = await seed_account(api_conn, owner=owner, display_name="L " + unique_suffix())
         ids.append(resource_id)
     other = await seed_account(
         api_conn, owner="other-" + unique_suffix(), display_name="O " + unique_suffix()

@@ -18,6 +18,8 @@
       "desired": {
         "lifecycle": "present",
         "reconciliation": "active",
+        "type": "free",
+        "customerAccountId": "394397791373230085",
         "displayName": "Acme FinOps",
         "billingCurrency": "BRL",
         "billingContacts": [
@@ -28,6 +30,8 @@
       "observed": {
         "presence": "present",
         "observedAt": "2026-10-09T14:00:04Z",
+        "type": "free",
+        "customerAccountId": "394397791373230085",
         "displayName": "Acme FinOps",
         "billingCurrency": "BRL",
         "billingContacts": [

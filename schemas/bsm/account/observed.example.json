@@ -1,4 +1,6 @@
 {
+  "type": "free",
+  "customerAccountId": "394397791373230085",
   "displayName": "Acme FinOps",
   "billingCurrency": "BRL",
   "billingContacts": [

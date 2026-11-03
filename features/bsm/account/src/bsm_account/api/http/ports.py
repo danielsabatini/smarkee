@@ -27,6 +27,12 @@ class EmailVerifier(Protocol):
     async def is_verified(self, principal: Principal) -> bool: ...
 
 
+class PaymentMethodVerifier(Protocol):
+    """Confere se uma Customer Account tem forma de pagamento ativa para Billing Account `paid`."""
+
+    def has_active_payment_method(self, customer_account_id: str) -> bool: ...
+
+
 class AdmissionTransaction(Protocol):
     """Gravações da admissão dentro de uma única transação do SSOT (decisão 0098)."""
 

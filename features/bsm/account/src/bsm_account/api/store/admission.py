@@ -78,10 +78,18 @@ class SsotAdmissionTransaction:
         await self._connection.execute(
             "SELECT pg_advisory_xact_lock(hashtext(%s))", (quota.lock_key,)
         )
-        cursor = await self._connection.execute(
-            "SELECT count(*) FROM bsm.account WHERE lifecycle = 'present' AND desired ->> %s = %s",
-            (quota.field, quota.owner),
-        )
+        if quota.account_type is not None:
+            cursor = await self._connection.execute(
+                "SELECT count(*) FROM bsm.account WHERE lifecycle = 'present'"
+                " AND desired ->> %s = %s AND coalesce(desired ->> 'type', 'free') = %s",
+                (quota.field, quota.owner, quota.account_type),
+            )
+        else:
+            cursor = await self._connection.execute(
+                "SELECT count(*) FROM bsm.account"
+                " WHERE lifecycle = 'present' AND desired ->> %s = %s",
+                (quota.field, quota.owner),
+            )
         row = await cursor.fetchone()
         return 0 if row is None else int(row[0])
 

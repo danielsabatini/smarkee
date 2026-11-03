@@ -11,6 +11,10 @@ from bsm_account.common.contracts import generated
 
 
 def account_view(record: ResourceRecord) -> generated.BillingAccount:
+    account_type = str(record.desired.get("type") or "free")
+    customer_account_id = str(
+        record.desired.get("customerAccountId") or record.desired["ownerAccountId"]
+    )
     payload: dict[str, Any] = {
         "resourceId": record.resource_id,
         "resourceVersion": str(record.resource_version),
@@ -27,6 +31,8 @@ def account_view(record: ResourceRecord) -> generated.BillingAccount:
         "desired": {
             "lifecycle": record.lifecycle,
             "reconciliation": record.reconciliation,
+            "type": account_type,
+            "customerAccountId": customer_account_id,
             "displayName": record.desired["displayName"],
             "billingCurrency": record.desired["billingCurrency"],
             "billingContacts": record.desired["billingContacts"],
@@ -38,6 +44,12 @@ def account_view(record: ResourceRecord) -> generated.BillingAccount:
         payload["observed"] = {
             "presence": record.presence,
             "observedAt": record.observed_at.isoformat(),
+            "type": str(observed.get("type") or account_type),
+            "customerAccountId": str(
+                observed.get("customerAccountId")
+                or observed.get("ownerAccountId")
+                or customer_account_id
+            ),
             "displayName": observed.get("displayName", record.desired["displayName"]),
             "billingCurrency": observed.get("billingCurrency", record.desired["billingCurrency"]),
             "billingContacts": observed.get("billingContacts", record.desired["billingContacts"]),

@@ -114,7 +114,7 @@ class TokenVerifier:
             )
             response.raise_for_status()
             document = response.json()
-        except (httpx.HTTPError, ValueError):
+        except httpx.HTTPError, ValueError:
             return
         keys: dict[str, Any] = {}
         for entry in document.get("keys", []):
@@ -157,7 +157,7 @@ class EmailVerification:
             )
             response.raise_for_status()
             verified = response.json().get("email_verified") is True
-        except (httpx.HTTPError, ValueError):
+        except httpx.HTTPError, ValueError:
             return False
         if verified:
             self._verified_until[cache_key] = now + self._settings.userinfo_cache_seconds

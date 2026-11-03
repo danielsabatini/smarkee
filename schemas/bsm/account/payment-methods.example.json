@@ -1,0 +1,11 @@
+{
+  "accounts": [
+    {
+      "customerAccountId": "394397791373230085",
+      "status": "active",
+      "methodType": "credit_card",
+      "providerReference": "pm-acme-01",
+      "updatedAt": "2026-10-09T14:00:00Z"
+    }
+  ]
+}

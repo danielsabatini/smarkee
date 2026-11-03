@@ -41,7 +41,10 @@ def test_the_owner_account_id_is_not_shown_and_observed_is_filtered() -> None:
     )
     view = account_view(record).model_dump(mode="json", by_alias=True, exclude_none=True)
     assert "ownerAccountId" not in view["desired"]
+    assert view["desired"]["customerAccountId"] == "owner-1"
+    assert view["desired"]["type"] == "free"
     assert "extraInternalField" not in view["desired"]
     assert "extraInternalField" not in view["observed"]
     assert view["observed"]["billingCurrency"] == "BRL"
-    assert "owner-1" not in str(view)
+    assert view["observed"]["customerAccountId"] == "owner-1"
+    assert view["observed"]["type"] == "free"

@@ -7,6 +7,16 @@
   "additionalProperties": false,
   "required": [],
   "properties": {
+    "type": {
+      "$ref": "definitions.v1.schema.json#/$defs/billingAccountType",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "customerAccountId": {
+      "$ref": "definitions.v1.schema.json#/$defs/customerAccountId",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
     "displayName": {
       "$ref": "definitions.v1.schema.json#/$defs/displayName",
       "x-writer": "server",

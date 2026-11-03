@@ -59,6 +59,8 @@
       "required": [
         "lifecycle",
         "reconciliation",
+        "type",
+        "customerAccountId",
         "displayName",
         "billingCurrency",
         "billingContacts"
@@ -73,6 +75,16 @@
         },
         "reconciliation": {
           "$ref": "../../common/definitions.v1.schema.json#/$defs/reconciliation",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "type": {
+          "$ref": "definitions.v1.schema.json#/$defs/billingAccountType",
+          "x-writer": "server",
+          "x-sensitivity": "public"
+        },
+        "customerAccountId": {
+          "$ref": "definitions.v1.schema.json#/$defs/customerAccountId",
           "x-writer": "server",
           "x-sensitivity": "internal"
         },
@@ -117,6 +129,16 @@
         },
         "observedAt": {
           "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+          "x-writer": "server",
+          "x-sensitivity": "internal"
+        },
+        "type": {
+          "$ref": "definitions.v1.schema.json#/$defs/billingAccountType",
+          "x-writer": "server",
+          "x-sensitivity": "public"
+        },
+        "customerAccountId": {
+          "$ref": "definitions.v1.schema.json#/$defs/customerAccountId",
           "x-writer": "server",
           "x-sensitivity": "internal"
         },

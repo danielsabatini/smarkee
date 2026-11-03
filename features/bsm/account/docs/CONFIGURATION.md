@@ -85,7 +85,10 @@ Entrypoint da API de Billing Account (`bsm-account-api`, decisões 0015, 0082, 0
 | `auth.userinfo_cache_seconds` | `BSM_ACCOUNT_API_AUTH_USERINFO_CACHE_SECONDS` | `--auth.userinfo_cache_seconds` | `int` | `300` |  |
 | `api.host` | `BSM_ACCOUNT_API_API_HOST` | `--api.host` | `str` | `'0.0.0.0'` |  |
 | `api.port` | `BSM_ACCOUNT_API_API_PORT` | `--api.port` | `int` | `8000` |  |
-| `api.account_quota` | `BSM_ACCOUNT_API_API_ACCOUNT_QUOTA` | `--api.account_quota` | `int \| None` | — | Cota opcional de Billing Accounts por solicitante. |
+| `api.account_quota` | `BSM_ACCOUNT_API_API_ACCOUNT_QUOTA` | `--api.account_quota` | `int \| None` | — | Cota opcional de Billing Accounts `free` por solicitante (default: 1). |
+| `api.free_account_quota` | `BSM_ACCOUNT_API_API_FREE_ACCOUNT_QUOTA` | `--api.free_account_quota` | `int` | `1` | Cota de Billing Accounts `free` ativas por Customer Account. |
+| `api.paid_account_quota` | `BSM_ACCOUNT_API_API_PAID_ACCOUNT_QUOTA` | `--api.paid_account_quota` | `int` | `5` | Cota de Billing Accounts `paid` ativas por Customer Account. |
+| `api.payment_methods_file` | `BSM_ACCOUNT_API_API_PAYMENT_METHODS_FILE` | `--api.payment_methods_file` | `str \| None` | — | Caminho do arquivo JSON local de formas de pagamento para validação de contas `paid`. |
 
 **Definido no `config.toml` de dev:**
 

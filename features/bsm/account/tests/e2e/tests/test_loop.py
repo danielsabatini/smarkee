@@ -48,6 +48,8 @@ async def desired_where(
 
 def specification(name: str | None = None) -> dict[str, Any]:
     return {
+        "type": "free",
+        "customerAccountId": "394397791373230085",
         "displayName": name or f"Test Account {uuid.uuid4().hex[:6]}",
         "billingCurrency": "BRL",
         "billingContacts": ["finops@acme.example"],

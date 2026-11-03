@@ -50,22 +50,25 @@ Diagramas de arquitetura e estados:
 Exemplo de chamada via CLI:
 ```bash
 sk bsm account create \
-  --name "Faturamento Principal" \
+  --type free \
+  --customer-account "394397791373230085" \
+  --display-name "Faturamento Principal" \
   --currency BRL \
-  --contacts "financeiro@exemplo.com.br,contas@exemplo.com.br"
+  --billing-contacts "financeiro@exemplo.com.br,contas@exemplo.com.br"
 ```
 
 A requisição chega ao gateway APISIX e é roteada para a API `bsm-account-api` na rota `POST /v1/bsm/accounts`.
 
 ### 1.1 Autenticação e Autorização na API
 1. **Autenticação:** validação do token JWT OIDC emitido pelo Zitadel (audience `roles-bsm`).
-2. **Autorização:** exige a role `bsm.account.create` (ou `bsm.account.admin`) e e-mail do solicitante verificado (`email_verified: true`). O dono da conta (`ownerAccountId`) é extraído estritamente do `sub` do token JWT.
+2. **Autorização:** exige a permissão `bsm.account.create` (concedida ao habilitar `bsm` no SUM, ou `bsm.account.operate` para operador), e-mail do solicitante verificado (`email_verified: true`) e que `customerAccountId` seja igual ao `sub` do token JWT (salvo operador).
 
 ### 1.2 Validações de Domínio e Admissão Síncrona
 A API valida em memória antes de tocar no banco:
+- Tipo de cobrança (`type`): `free` ou `paid` (`BillingAccountType` no FOCUS 1.4), imutável após a criação. Para `type=paid`, confere no registro local em disco (`payment-methods.v1.schema.json`) se a Customer Account possui forma de pagamento `active` (`409 PaymentMethodRequired`).
 - Moeda de cobrança (`billingCurrency`): deve ser uma das moedas aceitas (`BRL`, `USD`, `EUR`). É estritamente imutável após a criação.
 - Contatos de cobrança (`billingContacts`): lista com 1 a 10 e-mails válidos e únicos.
-- Cota de Billing Accounts ativas por dono: máximo de 5 contas ativas por dono (o operador com `bsm.account.admin` não possui limite de cota). Se excedida, retorna `409 Conflict` (`QuotaExceeded`).
+- Cota de Billing Accounts ativas por dono e tipo: máximo de 1 conta `free` ativa e até 5 contas `paid` ativas por Customer Account (o operador com `bsm.account.operate` não possui limite de cota). Se excedida, retorna `403 Forbidden` (`QuotaExceeded`).
 - Suporte a `Idempotency-Key`: repetição exata devolve `201 Created` do recurso já salvo; divergência de payload devolve `422 IdempotencyConflict`.
 
 ### 1.3 Gravação Atômica no SSOT

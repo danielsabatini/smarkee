@@ -9,7 +9,7 @@ a linha.
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from http import HTTPStatus
 from typing import Annotated, Any, Protocol
 
@@ -37,10 +37,12 @@ from bsm_account.api.http.ports import (
     AdmissionStore,
     EmailVerifier,
     Organizations,
+    PaymentMethodVerifier,
     Repository,
 )
 from bsm_account.api.http.trace_context import TraceContextMiddleware
 from bsm_account.api.settings import AccountApiSettings
+from bsm_account.api.store.payment_methods import FilePaymentMethodVerifier
 from bsm_account.common.contracts import generated
 from bsm_account.common.ids import new_identifier, utc_now
 from bsm_account.common.logging_config import bind_context
@@ -64,6 +66,9 @@ class Dependencies:
     repository: Repository
     store: AdmissionStore
     organizations: Organizations
+    payment_methods: PaymentMethodVerifier = field(
+        default_factory=lambda: FilePaymentMethodVerifier(None)
+    )
     identifiers: Callable[[], str] = new_identifier
     is_synced: Callable[[], bool] = lambda: True
 
@@ -198,17 +203,44 @@ def create_app(deps: Dependencies) -> FastAPI:
         idempotency_key: IdempotencyKey = None,
     ) -> generated.BillingAccount:
         _require(principal, permissions.ACCOUNT_CREATE)
+        account_type = body.type.value
+        customer_account_id = body.customer_account_id
         quota_limit: int | None = None
         if not principal.is_operator:
+            if customer_account_id != principal.subject:
+                raise forbidden(
+                    "O solicitante só pode criar Billing Accounts "
+                    "para a sua própria Customer Account."
+                )
             if not await deps.email_verifier.is_verified(principal):
                 raise ApiError(
                     HTTPStatus.FORBIDDEN,
                     "EmailNotVerified",
                     "O e-mail do solicitante não foi verificado.",
                 )
-            quota_limit = deps.settings.api.account_quota
+            if account_type == "paid":
+                quota_limit = deps.settings.api.paid_account_quota
+            else:
+                quota_limit = (
+                    deps.settings.api.account_quota
+                    if deps.settings.api.account_quota is not None
+                    else deps.settings.api.free_account_quota
+                )
+
+        if account_type == "paid" and not deps.payment_methods.has_active_payment_method(
+            customer_account_id
+        ):
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "PaymentMethodRequired",
+                "A Customer Account não possui forma de pagamento ativa "
+                "para criar uma Billing Account do tipo paid.",
+                field="type",
+            )
 
         specification = {
+            "type": account_type,
+            "customerAccountId": customer_account_id,
             "displayName": body.display_name,
             "billingCurrency": body.billing_currency.value,
             "billingContacts": _contacts(body.billing_contacts),
@@ -324,11 +356,13 @@ def create_app(deps: Dependencies) -> FastAPI:
             )
 
         key = checked_idempotency_key(idempotency_key)
-        digest = request_digest({
-            "operation": "delete",
-            "resourceId": account_id,
-            "resourceVersion": resource_version,
-        })
+        digest = request_digest(
+            {
+                "operation": "delete",
+                "resourceId": account_id,
+                "resourceVersion": resource_version,
+            }
+        )
         admission = Admission(
             operation="delete",
             resource_id=account_id,

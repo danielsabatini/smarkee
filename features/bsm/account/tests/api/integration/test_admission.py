@@ -22,6 +22,8 @@ REQUESTER = "test-" + unique_suffix()
 
 def specification(name: str = "Conta Teste") -> dict[str, Any]:
     return {
+        "type": "free",
+        "customerAccountId": REQUESTER,
         "displayName": name,
         "billingCurrency": "BRL",
         "billingContacts": ["finops@acme.com.br"],

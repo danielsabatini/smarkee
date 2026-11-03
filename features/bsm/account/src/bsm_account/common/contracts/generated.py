@@ -374,6 +374,15 @@ class ApiError(ContractModel):
     """
 
 
+class BillingAccountType(StrEnum):
+    """
+    Tipo da conta de faturamento (BillingAccountType no FOCUS 1.4). Imutável após a criação: free (cota máxima de 1 por conta) ou paid (cota máxima de 5 por conta, exige forma de pagamento ativa).
+    """
+
+    free = "free"
+    paid = "paid"
+
+
 class BillingCurrency(StrEnum):
     """
     Moeda ISO 4217 na qual a conta é faturada (BillingCurrency no FOCUS 1.4). Imutável após a criação.
@@ -399,6 +408,16 @@ class BillingAccountObservedData(ContractModel):
     model_config = ConfigDict(
         extra="forbid",
     )
+    type: BillingAccountType | None = None
+    customer_account_id: Annotated[
+        str | None,
+        Field(
+            alias="customerAccountId", max_length=256, min_length=1, pattern="^[A-Za-z0-9._:@-]+$"
+        ),
+    ] = None
+    """
+    Identificador da Customer Account (cam.account) à qual esta Billing Account pertence.
+    """
     display_name: Annotated[
         str | None,
         Field(
@@ -428,6 +447,16 @@ class BillingAccountCreateSpecification(ContractModel):
     model_config = ConfigDict(
         extra="forbid",
     )
+    type: BillingAccountType
+    customer_account_id: Annotated[
+        str,
+        Field(
+            alias="customerAccountId", max_length=256, min_length=1, pattern="^[A-Za-z0-9._:@-]+$"
+        ),
+    ]
+    """
+    Identificador da Customer Account (cam.account) à qual esta Billing Account pertence.
+    """
     display_name: Annotated[
         str,
         Field(
@@ -585,12 +614,22 @@ class BillingAccountRequestedDeleteData(ContractModel):
 
 class BillingAccountCreateRequest(ContractModel):
     """
-    Corpo de POST /v1/bsm/accounts. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, e o Manager atribui ownerAccountId = solicitante autenticado e deletionProtection = true.
+    Corpo de POST /v1/bsm/accounts. A API valida que customerAccountId pertence ao solicitante autenticado (salvo operador) e, para type=paid, exige forma de pagamento ativa; atribui resourceId, ownerAccountId = customerAccountId e deletionProtection = true.
     """
 
     model_config = ConfigDict(
         extra="forbid",
     )
+    type: BillingAccountType
+    customer_account_id: Annotated[
+        str,
+        Field(
+            alias="customerAccountId", max_length=256, min_length=1, pattern="^[A-Za-z0-9._:@-]+$"
+        ),
+    ]
+    """
+    Identificador da Customer Account (cam.account) à qual esta Billing Account pertence.
+    """
     display_name: Annotated[
         str,
         Field(
@@ -657,6 +696,16 @@ class BillingAccountDesiredView(ContractModel):
     )
     lifecycle: Lifecycle
     reconciliation: Reconciliation
+    type: BillingAccountType
+    customer_account_id: Annotated[
+        str,
+        Field(
+            alias="customerAccountId", max_length=256, min_length=1, pattern="^[A-Za-z0-9._:@-]+$"
+        ),
+    ]
+    """
+    Identificador da Customer Account (cam.account) à qual esta Billing Account pertence.
+    """
     display_name: Annotated[
         str,
         Field(
@@ -694,6 +743,16 @@ class BillingAccountObservedView(ContractModel):
     observed_at: Annotated[AwareDatetime, Field(alias="observedAt")]
     """
     Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
+    """
+    type: BillingAccountType | None = None
+    customer_account_id: Annotated[
+        str | None,
+        Field(
+            alias="customerAccountId", max_length=256, min_length=1, pattern="^[A-Za-z0-9._:@-]+$"
+        ),
+    ] = None
+    """
+    Identificador da Customer Account (cam.account) à qual esta Billing Account pertence.
     """
     display_name: Annotated[
         str | None,
@@ -791,6 +850,58 @@ class BillingAccountList(ContractModel):
     """
     Cursor opaco da próxima página.
     """
+
+
+class Status(StrEnum):
+    active = "active"
+    inactive = "inactive"
+
+
+class MethodType(StrEnum):
+    credit_card = "credit_card"
+    invoice = "invoice"
+    pix = "pix"
+
+
+class CustomerPaymentMethodRecord(ContractModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    customer_account_id: Annotated[
+        str,
+        Field(
+            alias="customerAccountId", max_length=256, min_length=1, pattern="^[A-Za-z0-9._:@-]+$"
+        ),
+    ]
+    """
+    Identificador da Customer Account (cam.account) à qual esta Billing Account pertence.
+    """
+    status: Status
+    method_type: Annotated[MethodType, Field(alias="methodType")]
+    provider_reference: Annotated[
+        str | None,
+        Field(
+            alias="providerReference", max_length=128, min_length=1, pattern="^[A-Za-z0-9._:-]+$"
+        ),
+    ] = None
+    """
+    Referência opaca da forma de pagamento no provedor externo.
+    """
+    updated_at: Annotated[AwareDatetime | None, Field(alias="updatedAt")] = None
+    """
+    Instante com fuso explícito (RFC 3339), por exemplo 2026-10-04T14:00:00Z.
+    """
+
+
+class BillingAccountPaymentMethods(ContractModel):
+    """
+    Registro local em disco das formas de pagamento por Customer Account (cam.account), consultado por bsm-account-api na criação de Billing Accounts do tipo paid. Não armazena PAN, CVV nem segredos de cartão.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    accounts: Annotated[list[CustomerPaymentMethodRecord], Field(max_length=1000)]
 
 
 class MessageEnvelope(ContractModel):
@@ -939,6 +1050,16 @@ class BillingAccountDesiredData(ContractModel):
     )
     lifecycle: Lifecycle
     reconciliation: Reconciliation
+    type: BillingAccountType
+    customer_account_id: Annotated[
+        str,
+        Field(
+            alias="customerAccountId", max_length=256, min_length=1, pattern="^[A-Za-z0-9._:@-]+$"
+        ),
+    ]
+    """
+    Identificador da Customer Account (cam.account) à qual esta Billing Account pertence.
+    """
     display_name: Annotated[
         str,
         Field(
@@ -996,6 +1117,7 @@ class BsmAccountContracts(
         | BillingAccountUpdateRequest
         | BillingAccount
         | BillingAccountList
+        | BillingAccountPaymentMethods
     ]
 ):
     root: Annotated[
@@ -1016,7 +1138,8 @@ class BsmAccountContracts(
         | BillingAccountCreateRequest
         | BillingAccountUpdateRequest
         | BillingAccount
-        | BillingAccountList,
+        | BillingAccountList
+        | BillingAccountPaymentMethods,
         Field(title="BsmAccountContracts"),
     ]
     """

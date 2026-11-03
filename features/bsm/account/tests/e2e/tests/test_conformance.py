@@ -20,6 +20,8 @@ async def test_unknown_body_field_is_400(api: httpx.AsyncClient, headers: dict[s
     response = await api.post(
         "/v1/bsm/accounts",
         json={
+            "type": "free",
+            "customerAccountId": "394397791373230085",
             "displayName": "Conta Valida",
             "billingCurrency": "BRL",
             "billingContacts": ["finops@acme.example"],

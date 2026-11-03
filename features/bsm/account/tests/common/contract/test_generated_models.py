@@ -36,6 +36,7 @@ EXAMPLE_MODELS: dict[str, type[BaseModel]] = {
     "bsm/account/api-update-request.example.json": generated.BillingAccountUpdateRequest,
     "bsm/account/resource.example.json": generated.BillingAccount,
     "bsm/account/resource-list.example.json": generated.BillingAccountList,
+    "bsm/account/payment-methods.example.json": generated.BillingAccountPaymentMethods,
 }
 
 

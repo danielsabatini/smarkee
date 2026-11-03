@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BillingAccountPaymentMethods",
+  "description": "Registro local em disco das formas de pagamento por Customer Account (cam.account), consultado por bsm-account-api na criação de Billing Accounts do tipo paid. Não armazena PAN, CVV nem segredos de cartão.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "accounts"
+  ],
+  "properties": {
+    "accounts": {
+      "type": "array",
+      "maxItems": 1000,
+      "x-writer": "server",
+      "x-sensitivity": "internal",
+      "items": {
+        "title": "CustomerPaymentMethodRecord",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "customerAccountId",
+          "status",
+          "methodType"
+        ],
+        "properties": {
+          "customerAccountId": {
+            "$ref": "definitions.v1.schema.json#/$defs/customerAccountId",
+            "x-writer": "server",
+            "x-sensitivity": "internal"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "x-enumPolicy": "closed",
+            "x-writer": "server",
+            "x-sensitivity": "internal"
+          },
+          "methodType": {
+            "type": "string",
+            "enum": [
+              "credit_card",
+              "invoice",
+              "pix"
+            ],
+            "x-enumPolicy": "closed",
+            "x-writer": "server",
+            "x-sensitivity": "internal"
+          },
+          "providerReference": {
+            "description": "Referência opaca da forma de pagamento no provedor externo.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "x-writer": "server",
+            "x-sensitivity": "internal"
+          },
+          "updatedAt": {
+            "$ref": "../../common/definitions.v1.schema.json#/$defs/timestamp",
+            "x-writer": "server",
+            "x-sensitivity": "internal"
+          }
+        }
+      }
+    }
+  }
+}

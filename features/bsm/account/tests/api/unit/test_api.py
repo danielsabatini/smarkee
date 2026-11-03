@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -15,6 +16,7 @@ from bsm_account.api.domain.principal import Principal
 from bsm_account.api.domain.records import ResourceRecord
 from bsm_account.api.http.app import Dependencies, create_app
 from bsm_account.api.settings import AccountApiSettings
+from bsm_account.api.store.payment_methods import FilePaymentMethodVerifier
 from bsm_account.common.contracts import generated
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
@@ -114,7 +116,12 @@ class FakeAdmissionTransaction:
         return sum(
             1
             for r in self._resources.values()
-            if r.desired.get(quota.field) == quota.owner and r.lifecycle == "present"
+            if r.desired.get(quota.field) == quota.owner
+            and r.lifecycle == "present"
+            and (
+                quota.account_type is None
+                or (r.desired.get("type") or "free") == quota.account_type
+            )
         )
 
     async def insert_resource(
@@ -207,6 +214,7 @@ def account_record(
     resource_id: str,
     owner: str,
     *,
+    account_type: str = "free",
     display_name: str = "Produção Brasil",
     currency: str = "BRL",
     contacts: list[str] | None = None,
@@ -216,6 +224,8 @@ def account_record(
     contact_list = contacts if contacts is not None else ["finops@acme.example"]
     desired: dict[str, Any] = {
         "lifecycle": "present",
+        "type": account_type,
+        "customerAccountId": owner,
         "displayName": display_name,
         "billingCurrency": currency,
         "billingContacts": contact_list,
@@ -235,6 +245,8 @@ def account_record(
         desired=desired,
         presence="present",
         observed={
+            "type": account_type,
+            "customerAccountId": owner,
             "displayName": display_name,
             "billingCurrency": currency,
             "billingContacts": contact_list,
@@ -253,10 +265,11 @@ class Harness:
     emails: FakeEmailVerifier
     organizations: FakeOrganizations
     settings: AccountApiSettings
+    payment_methods_file: Path
 
 
 @pytest.fixture
-def harness() -> Harness:
+def harness(tmp_path: Path) -> Harness:
     seq = 0
 
     def next_id() -> str:
@@ -269,6 +282,7 @@ def harness() -> Harness:
     store = FakeAdmissionStore(repository)
     emails = FakeEmailVerifier()
     organizations = FakeOrganizations()
+    payment_methods_file = tmp_path / "payment-methods.json"
     deps = Dependencies(
         settings=settings,
         authenticator=FakeAuthenticator(),
@@ -276,12 +290,21 @@ def harness() -> Harness:
         repository=repository,
         store=store,
         organizations=organizations,
+        payment_methods=FilePaymentMethodVerifier(payment_methods_file),
         identifiers=next_id,
     )
     client = httpx.AsyncClient(
         transport=httpx.ASGITransport(app=create_app(deps)), base_url="http://api"
     )
-    return Harness(client, repository, store, emails, organizations, settings)
+    return Harness(
+        client,
+        repository,
+        store,
+        emails,
+        organizations,
+        settings,
+        payment_methods_file,
+    )
 
 
 def auth(subject: str) -> dict[str, str]:
@@ -289,6 +312,8 @@ def auth(subject: str) -> dict[str, str]:
 
 
 CREATE_PAYLOAD: dict[str, Any] = {
+    "type": "free",
+    "customerAccountId": "ana",
     "displayName": "Produção Brasil",
     "billingCurrency": "BRL",
     "billingContacts": ["finops@acme.example"],
@@ -391,14 +416,14 @@ async def test_duplicate_display_name_by_same_owner_is_409(harness: Harness) -> 
     first = await harness.client.post("/v1/bsm/accounts", json=CREATE_PAYLOAD, headers=auth("ana"))
     assert first.status_code == 201
 
-    second = await harness.client.post(
-        "/v1/bsm/accounts", json=CREATE_PAYLOAD, headers=auth("ana")
-    )
+    second = await harness.client.post("/v1/bsm/accounts", json=CREATE_PAYLOAD, headers=auth("ana"))
     assert (second.status_code, second.json()["errorCode"]) == (409, "DisplayNameInUse")
 
     # Outro usuário pode ter o mesmo nome
     other = await harness.client.post(
-        "/v1/bsm/accounts", json=CREATE_PAYLOAD, headers=auth("bia")
+        "/v1/bsm/accounts",
+        json={**CREATE_PAYLOAD, "customerAccountId": "bia"},
+        headers=auth("bia"),
     )
     assert other.status_code == 201
 
@@ -413,9 +438,61 @@ async def test_quota_limit_is_enforced_for_non_operators(harness: Harness) -> No
     assert (second.status_code, second.json()["errorCode"]) == (403, "QuotaExceeded")
 
 
+async def test_customer_account_id_mismatch_is_forbidden_for_non_operators(
+    harness: Harness,
+) -> None:
+    response = await harness.client.post(
+        "/v1/bsm/accounts",
+        json={**CREATE_PAYLOAD, "customerAccountId": "bia"},
+        headers=auth("ana"),
+    )
+    assert (response.status_code, response.json()["errorCode"]) == (403, "Forbidden")
+    assert harness.store.outbox == []
+
+
+async def test_paid_account_requires_active_payment_method_and_has_quota_of_five(
+    harness: Harness,
+) -> None:
+    paid_payload = {**CREATE_PAYLOAD, "type": "paid", "displayName": "Paid 1"}
+    without_pm = await harness.client.post(
+        "/v1/bsm/accounts", json=paid_payload, headers=auth("ana")
+    )
+    assert (without_pm.status_code, without_pm.json()["errorCode"]) == (
+        409,
+        "PaymentMethodRequired",
+    )
+
+    harness.payment_methods_file.write_text(
+        '{"accounts": [{"customerAccountId": "ana", '
+        '"status": "active", "methodType": "credit_card"}]}',
+        encoding="utf-8",
+    )
+    # Pode ter 1 free + até 5 paid
+    free_res = await harness.client.post(
+        "/v1/bsm/accounts", json=CREATE_PAYLOAD, headers=auth("ana")
+    )
+    assert free_res.status_code == 201
+
+    for idx in range(5):
+        res = await harness.client.post(
+            "/v1/bsm/accounts",
+            json={**CREATE_PAYLOAD, "type": "paid", "displayName": f"Paid {idx}"},
+            headers=auth("ana"),
+        )
+        assert res.status_code == 201, res.text
+
+    sixth = await harness.client.post(
+        "/v1/bsm/accounts",
+        json={**CREATE_PAYLOAD, "type": "paid", "displayName": "Paid 6"},
+        headers=auth("ana"),
+    )
+    assert (sixth.status_code, sixth.json()["errorCode"]) == (403, "QuotaExceeded")
+
+
 @pytest.mark.parametrize(
     ("body", "field_name"),
     [
+        ({**CREATE_PAYLOAD, "type": "enterprise"}, "type"),
         ({**CREATE_PAYLOAD, "displayName": ""}, "displayName"),
         ({**CREATE_PAYLOAD, "billingCurrency": "JPY"}, "billingCurrency"),
         ({**CREATE_PAYLOAD, "billingContacts": []}, "billingContacts"),
@@ -428,7 +505,7 @@ async def test_quota_limit_is_enforced_for_non_operators(harness: Harness) -> No
         ),
         ({**CREATE_PAYLOAD, "resourceId": "x"}, "resourceId"),
         ({**CREATE_PAYLOAD, "ownerAccountId": "x"}, "ownerAccountId"),
-        ({}, "displayName"),
+        ({}, "type"),
     ],
 )
 async def test_invalid_body_is_400_and_does_not_echo_values(

@@ -29,13 +29,16 @@ class UniqueValue:
 
 @dataclass(frozen=True, slots=True)
 class OwnerQuota:
-    """Cota de Billing Accounts por solicitante, conferida na transação da admissão."""
+    """Cota de Billing Accounts por solicitante e tipo, conferida na transação da admissão."""
 
     field: str
     owner: str
     limit: int
     lock_key: str
     """Chave que serializa as transações do mesmo dono."""
+
+    account_type: str | None = None
+    """Tipo da Billing Account (`free` | `paid`) filtrado na contagem, quando aplicável."""
 
 
 def validate_contacts(contacts: list[str]) -> list[str]:
@@ -49,13 +52,16 @@ def validate_contacts(contacts: list[str]) -> list[str]:
 
 
 def desired_for_create(specification: Mapping[str, Any], requested_by: str) -> dict[str, Any]:
+    customer_account_id = str(specification.get("customerAccountId") or requested_by)
     return {
         "lifecycle": "present",
+        "type": str(specification.get("type") or "free"),
+        "customerAccountId": customer_account_id,
         "displayName": specification["displayName"],
         "billingCurrency": specification["billingCurrency"],
         "billingContacts": validate_contacts(list(specification["billingContacts"])),
         "deletionProtection": True,  # todo recurso apagável nasce protegido (decisão 0043)
-        "ownerAccountId": requested_by,
+        "ownerAccountId": customer_account_id,
     }
 
 
@@ -90,15 +96,17 @@ def unique_value(desired: Mapping[str, Any]) -> UniqueValue | None:
 
 
 def owner_quota(desired: Mapping[str, Any], limit: int | None) -> OwnerQuota | None:
-    """Cota de Billing Accounts por solicitante, só no create e só com limite."""
+    """Cota de Billing Accounts por solicitante e tipo, só no create e só com limite."""
     if limit is None:
         return None
     owner = str(desired["ownerAccountId"])
+    account_type = str(desired.get("type") or "free")
     return OwnerQuota(
         field="ownerAccountId",
         owner=owner,
         limit=limit,
-        lock_key=f"bsm.account.owner:{owner}",
+        lock_key=f"bsm.account.owner:{owner}:{account_type}",
+        account_type=account_type,
     )
 
 

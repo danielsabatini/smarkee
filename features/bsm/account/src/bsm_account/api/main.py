@@ -6,6 +6,7 @@ consulta ficam em `http/`, `domain/` e `store/`.
 
 import logging
 import sys
+from pathlib import Path
 
 import httpx
 
@@ -13,6 +14,7 @@ from bsm_account.api.auth.tokens import EmailVerification, TokenVerifier
 from bsm_account.api.http.app import Dependencies, create_app
 from bsm_account.api.settings import AccountApiSettings, missing_required
 from bsm_account.api.store.admission import SsotAdmissionStore
+from bsm_account.api.store.payment_methods import FilePaymentMethodVerifier
 from bsm_account.api.store.repository import SsotRepository
 from bsm_account.api.transport.organization_usage_projection import (
     ORGANIZATION_SUBJECT,
@@ -53,6 +55,9 @@ async def run(settings: AccountApiSettings) -> int:
         def is_synced() -> bool:
             return organization_consumer.is_synced
 
+        payment_methods_path = (
+            Path(settings.api.payment_methods_file) if settings.api.payment_methods_file else None
+        )
         app = create_app(
             Dependencies(
                 settings=settings,
@@ -61,6 +66,7 @@ async def run(settings: AccountApiSettings) -> int:
                 repository=SsotRepository(pool),
                 store=SsotAdmissionStore(pool),
                 organizations=organizations,
+                payment_methods=FilePaymentMethodVerifier(payment_methods_path),
                 is_synced=is_synced,
             )
         )

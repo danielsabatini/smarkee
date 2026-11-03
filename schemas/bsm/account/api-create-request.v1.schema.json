@@ -1,16 +1,28 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "BillingAccountCreateRequest",
-  "description": "Corpo de POST /v1/bsm/accounts. O Receiver atribui resourceId, operationId, requestDigest e requestedBy, e o Manager atribui ownerAccountId = solicitante autenticado e deletionProtection = true.",
+  "description": "Corpo de POST /v1/bsm/accounts. A API valida que customerAccountId pertence ao solicitante autenticado (salvo operador) e, para type=paid, exige forma de pagamento ativa; atribui resourceId, ownerAccountId = customerAccountId e deletionProtection = true.",
   "x-schemaVersion": "1.0",
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "type",
+    "customerAccountId",
     "displayName",
     "billingCurrency",
     "billingContacts"
   ],
   "properties": {
+    "type": {
+      "$ref": "definitions.v1.schema.json#/$defs/billingAccountType",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "customerAccountId": {
+      "$ref": "definitions.v1.schema.json#/$defs/customerAccountId",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
     "displayName": {
       "$ref": "definitions.v1.schema.json#/$defs/displayName",
       "x-writer": "client",
