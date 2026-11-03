@@ -10,9 +10,9 @@ import typer
 
 from sk import output, ui
 from sk.command_app import SkTyper
-from sk.commands.account import account_app
 from sk.commands.auth import auth_app
 from sk.commands.bsm import bsm_app
+from sk.commands.cam import cam_app
 from sk.commands.config import config_app
 from sk.commands.ipm import ipm_app
 from sk.commands.sum import sum_app
@@ -112,10 +112,10 @@ def root(
 
 app.add_typer(auth_app, name="auth")
 app.add_typer(config_app, name="config")
+app.add_typer(cam_app, name="cam")
 app.add_typer(ipm_app, name="ipm")
 app.add_typer(bsm_app, name="bsm")
 app.add_typer(sum_app, name="sum")
-app.add_typer(account_app, name="account")
 
 
 EXIT_FAILURE = 1

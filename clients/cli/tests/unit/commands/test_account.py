@@ -1,4 +1,4 @@
-"""`sk account get|delete`: a conta da sessão e a exclusão segura (decisão 0040)."""
+"""`sk cam account get|delete`: a conta da sessão e a exclusão segura (decisão 0040)."""
 
 from __future__ import annotations
 
@@ -16,14 +16,14 @@ import pytest
 from typer.testing import CliRunner
 
 from sk import output
-from sk.features.core.account import token_subject
+from sk.features.cam.account import token_subject
 from sk.identity.credentials import StoredCredentials, default_credentials_path, save_credentials
 from sk.main import app
 
 runner = CliRunner()
 API = "https://api.teste"
 ME = "01a14168-b59d-7475-8db7-c5cf57fa100b"
-USER = f"/v1/core/accounts/{ME}"
+USER = f"/v1/cam/accounts/{ME}"
 
 
 def jwt_for(subject: str) -> str:
@@ -167,7 +167,7 @@ def test_an_unreadable_token_or_subject_is_refused(token: str) -> None:
 def test_get_shows_the_account_of_the_session(api: FakeApi) -> None:
     api.routes[("GET", USER)] = Response(200, user_document())
 
-    result = runner.invoke(app, ["account", "get"])
+    result = runner.invoke(app, ["cam", "account", "get"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
     for text in ("Ana Souza", "ana@example.com", "Ready", "granted", ME):
@@ -177,7 +177,7 @@ def test_get_shows_the_account_of_the_session(api: FakeApi) -> None:
 def test_get_without_a_session_asks_for_login(api: FakeApi) -> None:
     default_credentials_path().unlink()
 
-    result = runner.invoke(app, ["account", "get"])
+    result = runner.invoke(app, ["cam", "account", "get"])
 
     assert result.exit_code == 1
     assert "sk auth login" in result.stderr
@@ -185,7 +185,7 @@ def test_get_without_a_session_asks_for_login(api: FakeApi) -> None:
 
 
 def test_delete_requires_the_confirmation_before_any_call(api: FakeApi) -> None:
-    result = runner.invoke(app, ["account", "delete"])
+    result = runner.invoke(app, ["cam", "account", "delete"])
 
     assert result.exit_code == 2
     assert "--yes" in result.stderr
@@ -196,7 +196,7 @@ def test_delete_reads_the_version_and_sends_it_with_an_idempotency_key(api: Fake
     api.routes[("GET", USER)] = Response(200, user_document(version="9"))
     api.routes[("DELETE", USER)] = converging(protected=False, phase="Deleting")
 
-    result = runner.invoke(app, ["account", "delete", "--yes", "--no-wait"])
+    result = runner.invoke(app, ["cam", "account", "delete", "--yes", "--no-wait"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
     delete = next(request for request in api.requests if request.get_method() == "DELETE")
@@ -213,7 +213,7 @@ def test_delete_is_refused_while_resources_are_attached_and_says_what_to_remove(
         409, "ResourcesAttached", "A conta tem recursos atrelados: 1 Organization. Remova-os."
     )
 
-    result = runner.invoke(app, ["account", "delete", "--yes"], env={"COLUMNS": "200"})
+    result = runner.invoke(app, ["cam", "account", "delete", "--yes"], env={"COLUMNS": "200"})
 
     assert result.exit_code == 1
     assert "sk ipm" in result.stderr and "organization delete" in result.stderr
@@ -227,7 +227,7 @@ def test_delete_when_a_module_cannot_be_verified_points_to_renewing_the_session(
     api.routes[("GET", USER)] = Response(200, user_document())
     api.routes[("DELETE", USER)] = http_error(409, "ResourcesNotVerifiable", "sem permissão")
 
-    result = runner.invoke(app, ["account", "delete", "--yes"])
+    result = runner.invoke(app, ["cam", "account", "delete", "--yes"])
 
     assert result.exit_code == 1
     assert "sk auth refresh" in " ".join(result.stderr.split())
@@ -243,7 +243,7 @@ def test_delete_wait_ends_when_the_account_is_gone_and_forgets_the_session(
     ]
     api.routes[("DELETE", USER)] = converging(protected=False, phase="Deleting")
 
-    result = runner.invoke(app, ["account", "delete", "--yes", "--wait"])
+    result = runner.invoke(app, ["cam", "account", "delete", "--yes", "--wait"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
     assert "Account deleted" in result.stdout
@@ -259,7 +259,7 @@ def test_delete_wait_also_ends_when_the_token_stops_being_accepted(api: FakeApi)
     ]
     api.routes[("DELETE", USER)] = converging(protected=False, phase="Deleting")
 
-    result = runner.invoke(app, ["account", "delete", "--yes", "--wait"])
+    result = runner.invoke(app, ["cam", "account", "delete", "--yes", "--wait"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
     assert not default_credentials_path().exists()
@@ -276,7 +276,7 @@ def test_delete_wait_times_out_without_forgetting_the_session(
     clock = iter(range(0, 1000, 20))
     monkeypatch.setattr("sk.commands.shared.time.monotonic", lambda: next(clock))
 
-    result = runner.invoke(app, ["account", "delete", "--yes", "--wait", "--timeout", "30"])
+    result = runner.invoke(app, ["cam", "account", "delete", "--yes", "--wait", "--timeout", "30"])
 
     assert result.exit_code == 1
     assert "Timed out" in result.stderr
@@ -287,7 +287,7 @@ def test_unprotect_sends_the_flag_with_the_current_version(api: FakeApi) -> None
     api.routes[("GET", USER)] = Response(200, user_document(version="5"))
     api.routes[("PATCH", USER)] = converging(protected=False)
 
-    result = runner.invoke(app, ["account", "unprotect", "--no-wait"])
+    result = runner.invoke(app, ["cam", "account", "unprotect", "--no-wait"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
     patch = next(request for request in api.requests if request.get_method() == "PATCH")
@@ -298,7 +298,7 @@ def test_unprotect_sends_the_flag_with_the_current_version(api: FakeApi) -> None
 def test_protect_is_idempotent_when_already_protected(api: FakeApi) -> None:
     api.routes[("GET", USER)] = Response(200, user_document(protected=True))
 
-    result = runner.invoke(app, ["account", "protect"])
+    result = runner.invoke(app, ["cam", "account", "protect"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
     assert "already protected" in " ".join(result.stdout.split())
@@ -313,7 +313,7 @@ def test_unprotect_wait_ends_when_the_generation_is_observed(api: FakeApi) -> No
     ]
     api.routes[("PATCH", USER)] = converging(protected=False)
 
-    result = runner.invoke(app, ["account", "unprotect", "--wait"])
+    result = runner.invoke(app, ["cam", "account", "unprotect", "--wait"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
     assert "Account unprotected" in result.stdout
@@ -322,7 +322,7 @@ def test_unprotect_wait_ends_when_the_generation_is_observed(api: FakeApi) -> No
 def test_get_shows_whether_the_account_is_protected(api: FakeApi) -> None:
     api.routes[("GET", USER)] = Response(200, user_document(protected=False))
 
-    result = runner.invoke(app, ["account", "get"])
+    result = runner.invoke(app, ["cam", "account", "get"])
 
     assert result.exit_code == 0, result.stdout + result.stderr
     assert "protected" in result.stdout
@@ -334,10 +334,10 @@ def test_delete_of_a_protected_account_points_to_unprotect(api: FakeApi) -> None
         409, "DeletionProtected", "A conta está protegida contra exclusão."
     )
 
-    result = runner.invoke(app, ["account", "delete", "--yes"])
+    result = runner.invoke(app, ["cam", "account", "delete", "--yes"])
 
     assert result.exit_code == 1
-    assert "sk account unprotect" in " ".join(result.stderr.split())
+    assert "sk cam account unprotect" in " ".join(result.stderr.split())
 
 
 # --- `--output json` (decisão 0093) -----------------------------------------------------------
@@ -359,7 +359,7 @@ def _document(stdout: str) -> Any:
 @pytest.mark.usefixtures("default_output_mode")
 def test_json_get_prints_the_account_without_the_token(api: FakeApi) -> None:
     api.routes[("GET", USER)] = Response(200, user_document())
-    result = runner.invoke(app, [*JSON, "account", "get"])
+    result = runner.invoke(app, [*JSON, "cam", "account", "get"])
     assert result.exit_code == 0, result.stderr
     document = _document(result.stdout)
     assert document["email"] == "ana@example.com" and document["deletionProtection"] is True
@@ -369,7 +369,7 @@ def test_json_get_prints_the_account_without_the_token(api: FakeApi) -> None:
 @pytest.mark.usefixtures("default_output_mode")
 def test_json_protect_when_already_protected_prints_the_current_account(api: FakeApi) -> None:
     api.routes[("GET", USER)] = Response(200, user_document(protected=True))
-    result = runner.invoke(app, [*JSON, "account", "protect"])
+    result = runner.invoke(app, [*JSON, "cam", "account", "protect"])
     assert result.exit_code == 0, result.stderr
     assert _document(result.stdout)["resourceId"] == ME
     assert "Nothing to do" in result.stderr and "Nothing to do" not in result.stdout
@@ -382,7 +382,7 @@ def test_json_unprotect_wait_prints_a_single_document(api: FakeApi) -> None:
         converged(protected=False),
     ]
     api.routes[("PATCH", USER)] = converging(protected=False)
-    result = runner.invoke(app, [*JSON, "account", "unprotect", "--wait"])
+    result = runner.invoke(app, [*JSON, "cam", "account", "unprotect", "--wait"])
     assert result.exit_code == 0, result.stderr
     document = _document(result.stdout)
     assert document["resourceId"] == ME and document["deletionProtection"] is False
@@ -390,7 +390,7 @@ def test_json_unprotect_wait_prints_a_single_document(api: FakeApi) -> None:
 
 @pytest.mark.usefixtures("default_output_mode")
 def test_json_delete_without_yes_fails_with_empty_stdout(api: FakeApi) -> None:
-    result = runner.invoke(app, [*JSON, "account", "delete"])
+    result = runner.invoke(app, [*JSON, "cam", "account", "delete"])
     assert result.exit_code == 2 and result.stdout == ""
     assert not api.requests
 
@@ -402,7 +402,7 @@ def test_json_delete_wait_prints_the_removed_state_and_forgets_the_session(api: 
         http_error(404, "NotFound", "Conta não encontrada."),
     ]
     api.routes[("DELETE", USER)] = converging(protected=False, phase="Deleting")
-    result = runner.invoke(app, [*JSON, "account", "delete", "--yes", "--wait"])
+    result = runner.invoke(app, [*JSON, "cam", "account", "delete", "--yes", "--wait"])
     assert result.exit_code == 0, result.stderr
     assert _document(result.stdout) == {"resourceId": ME, "state": "removed"}
     assert not default_credentials_path().exists()

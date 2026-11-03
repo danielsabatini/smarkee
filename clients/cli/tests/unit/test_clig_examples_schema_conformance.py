@@ -15,7 +15,7 @@ from referencing import Registry, Resource
 from referencing.exceptions import NoSuchResource
 
 from sk.features.bsm import account as bsm_account
-from sk.features.core import account as core_account
+from sk.features.cam import account as cam_account
 from sk.features.ipm import group as ipm_group
 from sk.features.ipm import organization as ipm_organization
 from sk.features.ipm import role as ipm_role
@@ -117,7 +117,7 @@ def test_ipm_role_create_payload_conforms_to_schema(monkeypatch: pytest.MonkeyPa
                 "organizationId": "01950000-0000-7000-8000-000000000001",
                 "name": "ipm.auditor",
                 "description": "Auditor role",
-                "permissions": ["core.account.get", "ipm.user.get"],
+                "permissions": ["cam.account.get", "ipm.user.get"],
             },
         }
 
@@ -128,7 +128,7 @@ def test_ipm_role_create_payload_conforms_to_schema(monkeypatch: pytest.MonkeyPa
         organization_id="01950000-0000-7000-8000-000000000001",
         name="ipm.auditor",
         description="Auditor role",
-        permissions=["core.account.get", "ipm.user.get"],
+        permissions=["cam.account.get", "ipm.user.get"],
         idempotency_key="idemp-1",
         allow_insecure_http=True,
     )
@@ -224,7 +224,7 @@ def test_ipm_group_create_payload_conforms_to_schema(monkeypatch: pytest.MonkeyP
                 "organizationId": "01950000-0000-7000-8000-000000000001",
                 "name": "dev-team",
                 "description": "Dev team group",
-                "roles": ["core.accountViewer"],
+                "roles": ["cam.accountViewer"],
             },
         }
 
@@ -235,7 +235,7 @@ def test_ipm_group_create_payload_conforms_to_schema(monkeypatch: pytest.MonkeyP
         organization_id="01950000-0000-7000-8000-000000000001",
         name="dev-team",
         description="Dev team group",
-        roles=["core.accountViewer"],
+        roles=["cam.accountViewer"],
         idempotency_key="idemp-1",
         allow_insecure_http=True,
     )
@@ -259,6 +259,8 @@ def test_bsm_account_create_payload_conforms_to_schema(monkeypatch: pytest.Monke
             "phase": "Ready",
             "desired": {
                 "lifecycle": "present",
+                "type": "free",
+                "customerAccountId": "394397791373230085",
                 "displayName": "Acme Corp",
                 "billingCurrency": "BRL",
                 "billingContacts": ["finance@acme.com"],
@@ -269,6 +271,8 @@ def test_bsm_account_create_payload_conforms_to_schema(monkeypatch: pytest.Monke
     bsm_account.create_account(
         "https://api.smarkee.internal",
         token="test-token",
+        account_type="free",
+        customer_account_id="394397791373230085",
         display_name="Acme Corp",
         billing_currency="BRL",
         billing_contacts=["finance@acme.com"],
@@ -308,7 +312,7 @@ def test_sum_service_enable_payload_conforms_to_schema(monkeypatch: pytest.Monke
     assert_schema_valid("sum/service/api-create-request.v1.schema.json", captured[0])
 
 
-def test_core_account_registration_payload_conforms_to_schema(
+def test_cam_account_registration_payload_conforms_to_schema(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: list[dict[str, Any]] = []
@@ -332,7 +336,7 @@ def test_core_account_registration_payload_conforms_to_schema(
         return FakeResponse()
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
-    core_account.submit_registration(
+    cam_account.submit_registration(
         "https://api.smarkee.internal",
         given_name="Ana",
         family_name="Souza",
@@ -340,4 +344,4 @@ def test_core_account_registration_payload_conforms_to_schema(
         allow_insecure_http=True,
     )
     assert len(captured) == 1
-    assert_schema_valid("core/account/api-create-request.v1.schema.json", captured[0])
+    assert_schema_valid("cam/account/api-create-request.v1.schema.json", captured[0])

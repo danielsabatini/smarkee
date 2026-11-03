@@ -136,7 +136,17 @@ def test_enable_wait_converges_and_the_token_already_carries_the_ipm_permissions
     assert _project("IPM") not in person.sk.token_permissions(), (
         "antes de ligar, o token não tem ipm.*"
     )
-    # Habilitar um serviço no SUM exige uma Billing Account ativa (decisão 0082).
+    assert _project("BSM") not in person.sk.token_permissions(), (
+        "antes de ligar bsm, o token não tem bsm.*"
+    )
+    # Habilitar bsm no SUM concede bsm.account.* e não exige Billing Account prévia.
+    enabled_bsm = person.sk.run(
+        "sum", "service", "enable", "--service", "bsm", "--wait", timeout=150.0
+    )
+    assert enabled_bsm.exit_code == 0, enabled_bsm.text
+    link["bsmResourceId"] = _identifier(enabled_bsm.stdout)
+
+    # Habilitar o ipm no SUM exige uma Billing Account ativa (decisão 0082).
     created_bsm = person.sk.run(
         "bsm",
         "account",
@@ -170,14 +180,17 @@ def test_enable_wait_converges_and_the_token_already_carries_the_ipm_permissions
         f"{IPM_PERMISSION_PREFIX}.get",
         f"{IPM_PERMISSION_PREFIX}.create",
     }, permissions
-    assert {"core.account.get", "core.account.delete"} <= permissions[_project("CORE")]
-    assert {"sum.ipm.enable", "sum.ipm.get"} <= permissions[_project("SUM")]
+    assert {"cam.account.get", "cam.account.delete"} <= permissions[_project("CAM")]
+    assert {"sum.bsm.enable", "sum.bsm.get", "sum.ipm.enable", "sum.ipm.get"} <= permissions[
+        _project("SUM")
+    ]
     assert {"bsm.account.get", "bsm.account.delete"} <= permissions[_project("BSM")]
 
 
 def test_the_link_is_listed_and_a_second_enable_points_to_it(
     person: Person, link: dict[str, str], links_cleanup: list[str]
 ) -> None:
+    links_cleanup.append(link["bsmResourceId"])
     links_cleanup.append(link["resourceId"])
     listed = person.sk.run("sum", "service", "list")
     assert listed.exit_code == 0 and link["resourceId"] in listed.stdout, listed.text
@@ -325,21 +338,21 @@ def test_the_organization_and_its_users_are_managed_with_the_sk(
         assert "user limit" in " ".join(over.stderr.split()), over.stderr
 
         # Proteção contra exclusão (decisão 0043): a conta e a Organization nascem protegidas.
-        shown_account = sk.run("account", "get")
+        shown_account = sk.run("cam", "account", "get")
         assert _field(shown_account.stdout, "protected") == "yes", shown_account.text
         assert _field(shown.stdout, "protected") == "yes", shown.text
-        protected_account = sk.run("account", "delete", "--yes")
+        protected_account = sk.run("cam", "account", "delete", "--yes")
         assert protected_account.exit_code == 1, protected_account.text
-        assert "sk account unprotect" in " ".join(protected_account.stderr.split())
+        assert "sk cam account unprotect" in " ".join(protected_account.stderr.split())
         protected_org = sk.run("ipm", "organization", "delete", "--resource-id", created_id)
         assert protected_org.exit_code == 1, protected_org.text
         assert "sk ipm organization unprotect" in " ".join(protected_org.stderr.split())
-        opened = sk.run("account", "unprotect", "--wait", timeout=150.0)
+        opened = sk.run("cam", "account", "unprotect", "--wait", timeout=150.0)
         assert opened.exit_code == 0, opened.text
-        assert _field(sk.run("account", "get").stdout, "protected") == "no"
+        assert _field(sk.run("cam", "account", "get").stdout, "protected") == "no"
 
         # Exclusão segura (decisão 0040): com uma Organization e o `ipm` habilitado, a conta fica.
-        refused = sk.run("account", "delete", "--yes")
+        refused = sk.run("cam", "account", "delete", "--yes")
         assert refused.exit_code == 1, refused.text
         text = _plain(refused.stderr)
         assert "still has Organizations" in text and "sk ipm organization delete" in text, text
@@ -445,7 +458,8 @@ def test_enabling_again_reuses_the_same_resource_and_the_list_has_one_row(
     listed = person.sk.run("sum", "service", "list")
     assert listed.exit_code == 0, listed.text
     assert listed.stdout.count(link["resourceId"]) == 1, listed.stdout
-    assert len(re.findall(r"\b[0-9a-f]{8}-[0-9a-f-]{27}\b", listed.stdout)) == 1, listed.stdout
+    assert listed.stdout.count(link["bsmResourceId"]) == 1, listed.stdout
+    assert len(re.findall(r"\b[0-9a-f]{8}-[0-9a-f-]{27}\b", listed.stdout)) == 2, listed.stdout
     # Deixa o serviço desabilitado: a limpeza do teste não apaga uma ligação habilitada.
     off = person.sk.run(
         *("sum", "service", "disable"),
@@ -464,9 +478,11 @@ def test_the_refresh_command_renews_the_session_on_demand(person: Person) -> Non
     assert person.sk.credentials()["accessToken"] != before
 
 
-def test_the_account_is_shown_and_then_deleted_with_the_sk(person: Person) -> None:
-    """Sem recursos atrelados (Organization, `ipm` e Billing Account), a conta sai."""
-    shown = person.sk.run("account", "get")
+def test_the_account_is_shown_and_then_deleted_with_the_sk(
+    person: Person, link: dict[str, str]
+) -> None:
+    """Sem recursos atrelados (Organization, `ipm`, Billing Account e `bsm`), a conta sai."""
+    shown = person.sk.run("cam", "account", "get")
     assert shown.exit_code == 0, shown.text
     assert person.email in shown.stdout and person.resource_id in shown.stdout
     bsm_listed = person.sk.run("bsm", "account", "list")
@@ -480,18 +496,29 @@ def test_the_account_is_shown_and_then_deleted_with_the_sk(person: Person) -> No
             "bsm", "account", "delete", "--resource-id", bsm_id, "--wait", timeout=150.0
         )
         assert deleted_bsm.exit_code == 0, deleted_bsm.text
+    if "bsmResourceId" in link:
+        disabled_bsm = person.sk.run(
+            "sum",
+            "service",
+            "disable",
+            "--resource-id",
+            link["bsmResourceId"],
+            "--wait",
+            timeout=150.0,
+        )
+        assert disabled_bsm.exit_code == 0, disabled_bsm.text
     if _field(shown.stdout, "protected") == "yes":
-        refused = person.sk.run("account", "delete", "--yes")
+        refused = person.sk.run("cam", "account", "delete", "--yes")
         assert refused.exit_code == 1, refused.text
-        assert "sk account unprotect" in _plain(refused.stderr), refused.stderr
-        unprotected_acc = person.sk.run("account", "unprotect", "--wait", timeout=150.0)
+        assert "sk cam account unprotect" in _plain(refused.stderr), refused.stderr
+        unprotected_acc = person.sk.run("cam", "account", "unprotect", "--wait", timeout=150.0)
         assert unprotected_acc.exit_code == 0, unprotected_acc.text
 
     def _delete_acc() -> Result | None:
-        res = person.sk.run("account", "delete", "--yes", "--wait", timeout=150.0)
+        res = person.sk.run("cam", "account", "delete", "--yes", "--wait", timeout=150.0)
         return res if res.exit_code == 0 else None
 
-    deleted = wait_until(_delete_acc, "a exclusão da conta no core.account", seconds=90.0)
+    deleted = wait_until(_delete_acc, "a exclusão da conta no cam.account", seconds=90.0)
     assert deleted is not None
     assert "Account deleted" in deleted.stdout, deleted.text
     assert not person.sk.credentials_path.exists(), "a sessão local deve ser esquecida"

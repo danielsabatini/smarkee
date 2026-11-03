@@ -41,8 +41,8 @@ from pydantic_settings import (
 from sk.defaults import (
     PRD_API_URL,
     PRD_BSM_PROJECT_ID,
+    PRD_CAM_PROJECT_ID,
     PRD_CLIENT_ID,
-    PRD_CORE_PROJECT_ID,
     PRD_IPM_PROJECT_ID,
     PRD_ISSUER,
     PRD_OPERATOR_PROJECT_ID,
@@ -173,13 +173,13 @@ class ApiSettings(BaseModel):
     """Segundos que cada pedido à API espera antes de desistir (de 1 a 300)."""
 
 
-class CoreSettings(BaseModel):
-    """Seção `core`: o módulo core (`sk account create`)."""
+class CamSettings(BaseModel):
+    """Seção `cam`: Customer Account Manager (`sk cam account`)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    project_id: str = PRD_CORE_PROJECT_ID
-    """ID do projeto de roles do core (`roles-core`): audience dos tokens do Receiver do User."""
+    project_id: str = PRD_CAM_PROJECT_ID
+    """ID do projeto de roles do CAM (`roles-cam`): audience dos tokens da API do CAM."""
 
 
 class SumSettings(BaseModel):
@@ -251,7 +251,7 @@ class SkSettings(BaseSettings):
 
     auth: AuthSettings = AuthSettings()
     api: ApiSettings = ApiSettings()
-    core: CoreSettings = CoreSettings()
+    cam: CamSettings = CamSettings()
     sum: SumSettings = SumSettings()
     ipm: IpmSettings = IpmSettings()
     bsm: BsmSettings = BsmSettings()

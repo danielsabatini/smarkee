@@ -20,7 +20,7 @@ def isolated_configuration(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         "SK_AUTH_ALLOW_INSECURE_HTTP",
         "SK_API_URL",
         "SK_API_ALLOW_INSECURE_HTTP",
-        "SK_CORE_PROJECT_ID",
+        "SK_CAM_PROJECT_ID",
         "SK_SUM_PROJECT_ID",
         "SK_IPM_PROJECT_ID",
     ):
@@ -44,7 +44,7 @@ def test_keys_come_from_the_models() -> None:
     keys = known_keys()
     assert {"auth.issuer", "auth.clientId", "auth.allowInsecureHttp"} <= set(keys)
     assert {"api.url", "api.allowInsecureHttp"} <= set(keys)
-    assert {"core.projectId", "sum.projectId", "ipm.projectId"} <= set(keys)
+    assert {"cam.projectId", "sum.projectId", "ipm.projectId"} <= set(keys)
     assert keys["auth.allowInsecureHttp"].is_boolean
     assert not keys["auth.issuer"].is_boolean
 
@@ -110,7 +110,7 @@ def test_the_project_ids_of_the_modules_are_settable_and_survive_other_changes(
     tmp_path: Path,
 ) -> None:
     for key, value in (
-        ("core.projectId", "111"),
+        ("cam.projectId", "111"),
         ("sum.projectId", "222"),
         ("ipm.projectId", "333"),
     ):
@@ -122,7 +122,7 @@ def test_the_project_ids_of_the_modules_are_settable_and_survive_other_changes(
     text = config_file(tmp_path).read_text(encoding="utf-8")
     assert 'projectId = "111"' in text and "[sum]" in text and 'projectId = "222"' in text
     assert runner.invoke(app, ["config", "get", "sum.projectId"]).stdout.strip() == "222"
-    assert runner.invoke(app, ["config", "get", "core.projectId"]).stdout.strip() == "111"
+    assert runner.invoke(app, ["config", "get", "cam.projectId"]).stdout.strip() == "111"
     assert runner.invoke(app, ["config", "get", "ipm.projectId"]).stdout.strip() == "333"
 
 

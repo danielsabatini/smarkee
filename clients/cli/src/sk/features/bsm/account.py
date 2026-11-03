@@ -16,6 +16,9 @@ ACCOUNTS_PATH = "/v1/bsm/accounts"
 # `displayName` de `schemas/bsm/account/definitions.v1.schema.json`: texto visível, sem controle.
 DISPLAY_NAME_PATTERN = re.compile(r"^[^\u0000-\u001f\u007f]+$")
 MAXIMUM_DISPLAY_NAME_LENGTH = 128
+ALLOWED_ACCOUNT_TYPES = ("free", "paid")
+CUSTOMER_ACCOUNT_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:@-]+$")
+MAXIMUM_CUSTOMER_ACCOUNT_ID_LENGTH = 256
 ALLOWED_CURRENCIES = ("BRL", "USD", "EUR")
 MINIMUM_EMAIL_LENGTH = 3
 MAXIMUM_EMAIL_LENGTH = 254
@@ -41,7 +44,29 @@ class BillingAccount:
     """`True` impede a exclusão (decisão 0043); a API a devolve sempre, e ausente vale `True`."""
     presence: str | None
     """Presença lida do provedor (`present`, `absent`, `unknown`); `None` antes da observação."""
+    account_type: str = "free"
+    customer_account_id: str = ""
     failure_reason: str | None = None
+
+
+def validate_account_type(value: str) -> str:
+    """Devolve o tipo da Billing Account (`free` ou `paid`), ou levanta `ValueError`."""
+    if value not in ALLOWED_ACCOUNT_TYPES:
+        raise ValueError(f"type invalid: use one of {', '.join(ALLOWED_ACCOUNT_TYPES)}")
+    return value
+
+
+def validate_customer_account_id(value: str) -> str:
+    """Devolve o `customerAccountId` se segue o contrato (`actorId`), ou levanta `ValueError`."""
+    if (
+        not value
+        or len(value) > MAXIMUM_CUSTOMER_ACCOUNT_ID_LENGTH
+        or not CUSTOMER_ACCOUNT_ID_PATTERN.fullmatch(value)
+    ):
+        raise ValueError(
+            "customerAccountId invalid: use 1 to 256 characters (letters, digits, ., _, :, @ or -)"
+        )
+    return value
 
 
 def validate_display_name(value: str) -> str:
@@ -65,16 +90,27 @@ def validate_billing_currency(value: str) -> str:
 
 
 def validate_billing_contacts(values: list[str]) -> list[str]:
-    """Devolve os contatos de cobrança sem duplicatas se seguem o contrato, ou `ValueError`."""
-    if not values:
+    """Devolve os contatos de cobrança sem duplicatas se seguem o contrato, ou `ValueError`.
+
+    Suporta entradas repetidas ou separadas por vírgula.
+    """
+    expanded: list[str] = []
+    for raw in values:
+        parts = [part.strip() for part in raw.split(",")]
+        if not raw or any(not part for part in parts):
+            raise ValueError(
+                "billingContacts invalid: contact does not have the format of an e-mail"
+            )
+        expanded.extend(parts)
+    if not expanded:
         raise ValueError("billingContacts invalid: provide at least 1 contact e-mail")
-    if len(values) > MAXIMUM_BILLING_CONTACTS:
+    if len(expanded) > MAXIMUM_BILLING_CONTACTS:
         raise ValueError(
             f"billingContacts invalid: provide at most {MAXIMUM_BILLING_CONTACTS} contact e-mails"
         )
-    if len(set(values)) != len(values):
+    if len(set(expanded)) != len(expanded):
         raise ValueError("billingContacts invalid: contact e-mails must not repeat")
-    for contact in values:
+    for contact in expanded:
         if not MINIMUM_EMAIL_LENGTH <= len(contact) <= MAXIMUM_EMAIL_LENGTH:
             raise ValueError("billingContacts invalid: e-mail size is outside the allowed range")
         local, separator, domain = contact.partition("@")
@@ -88,7 +124,7 @@ def validate_billing_contacts(values: list[str]) -> list[str]:
             raise ValueError(
                 "billingContacts invalid: contact does not have the format of an e-mail"
             )
-    return list(values)
+    return expanded
 
 
 def _generation(body: dict[str, Any], key: str, *, required: bool) -> int | None:
@@ -123,6 +159,8 @@ def _billing_account(document: object) -> BillingAccount:
     ):
         raise ApiUnavailableError("API response without billingContacts")
     presence = observed.get("presence")
+    raw_type = desired.get("type")
+    raw_customer_account_id = desired.get("customerAccountId")
     return BillingAccount(
         resource_id=as_text(body, "resourceId", what="billing account"),
         resource_version=as_text(body, "resourceVersion", what="billing account"),
@@ -135,6 +173,10 @@ def _billing_account(document: object) -> BillingAccount:
         lifecycle=as_text(desired, "lifecycle", what="billing account (desired)"),
         deletion_protection=desired.get("deletionProtection") is not False,
         presence=presence if isinstance(presence, str) else None,
+        account_type=raw_type if isinstance(raw_type, str) else "free",
+        customer_account_id=(
+            raw_customer_account_id if isinstance(raw_customer_account_id, str) else ""
+        ),
         failure_reason=_failure_reason(body),
     )
 
@@ -143,6 +185,8 @@ def create_account(
     api_url: str,
     *,
     token: str,
+    account_type: str = "free",
+    customer_account_id: str,
     display_name: str,
     billing_currency: str,
     billing_contacts: list[str],
@@ -150,10 +194,14 @@ def create_account(
     idempotency_key: str,
     allow_insecure_http: bool,
 ) -> BillingAccount:
+    validate_account_type(account_type)
+    validate_customer_account_id(customer_account_id)
     validate_display_name(display_name)
     validate_billing_currency(billing_currency)
     contacts = validate_billing_contacts(billing_contacts)
     body: dict[str, Any] = {
+        "type": account_type,
+        "customerAccountId": customer_account_id,
         "displayName": display_name,
         "billingCurrency": billing_currency,
         "billingContacts": contacts,

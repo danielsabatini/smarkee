@@ -1,9 +1,9 @@
-"""Comandos `sk account`: criar, consultar, proteger e excluir a própria conta.
+"""Comandos `sk cam account`: criar, consultar, proteger e excluir a própria conta.
 
 Agem sobre a conta da sessão (`sk auth login`), exceto a criação (anônima). A exclusão é segura
 (decisão 0040): a API recusa enquanto houver Organizations ou serviços habilitados da conta, e a
 CLI diz o que remover antes. A conta nasce protegida contra exclusão (decisão 0043):
-`sk account unprotect` precede o `delete`.
+`sk cam account unprotect` precede o `delete`.
 """
 
 import time
@@ -29,7 +29,7 @@ from sk.commands.shared import (
     require,
     session_token,
 )
-from sk.features.core.account import (
+from sk.features.cam.account import (
     Account,
     delete_account,
     get_account,
@@ -45,8 +45,16 @@ from sk.http import ApiError, ApiRejectedError, ApiUnavailableError
 from sk.identity.credentials import default_credentials_path
 from sk.identity.oidc import OidcError
 
-ACCOUNT_HELP = command("Manage your personal account (create, show, protect, delete).")
+CAM_HELP = command("Resources of the Customer Account Manager (CAM).")
+ACCOUNT_HELP = command("Manage your customer account (create, show, protect, delete).")
 
+cam_app = SkTyper(
+    help=CAM_HELP,
+    no_args_is_help=True,
+    # Ajuda colorida pelo Rich. Colchetes literais nos textos são escapados com "\\[".
+    rich_markup_mode="rich",
+    pretty_exceptions_show_locals=False,
+)
 account_app = SkTyper(
     help=ACCOUNT_HELP,
     no_args_is_help=True,
@@ -54,6 +62,7 @@ account_app = SkTyper(
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
 )
+cam_app.add_typer(account_app, name="account")
 
 HTTP_UNAUTHORIZED = 401
 HTTP_NOT_FOUND = 404
@@ -61,7 +70,7 @@ NOT_FOUND = "Your account was not found."
 CONFLICT_ON_CHANGE = "The account changed since it was last read. Inspect it and try again."
 ERROR_CODE_HINTS = {
     "DeletionProtected": (
-        "The account is protected against deletion. Run `sk account unprotect` first."
+        "The account is protected against deletion. Run `sk cam account unprotect` first."
     ),
     "ResourcesAttached": (
         "The account still has Organizations or enabled services. Delete the Organizations "
@@ -105,7 +114,7 @@ def _rows(account: Account) -> list[tuple[str, str]]:
     structured=True,
     help=command(
         "Show the account of the current session.",
-        examples=["sk account get", "sk --output json account get"],
+        examples=["sk cam account get", "sk --output json cam account get"],
     ),
 )
 def get_command() -> None:
@@ -123,7 +132,7 @@ def get_command() -> None:
 
 
 def _get_command(_resource_id: str) -> str:
-    return "sk account get"
+    return "sk cam account get"
 
 
 _flow = SyncResourceFlow(
@@ -223,7 +232,7 @@ WaitOption = Annotated[
     structured=True,
     help=command(
         "Protect your account against deletion (the default).",
-        examples=["sk account protect", "sk account protect --no-wait"],
+        examples=["sk cam account protect", "sk cam account protect --no-wait"],
     ),
 )
 def protect_command(
@@ -237,7 +246,7 @@ def protect_command(
     structured=True,
     help=command(
         "Allow your account to be deleted. Required before `delete`.",
-        examples=["sk account unprotect", "sk account unprotect --no-wait"],
+        examples=["sk cam account unprotect", "sk cam account unprotect --no-wait"],
     ),
 )
 def unprotect_command(
@@ -251,7 +260,7 @@ def unprotect_command(
     structured=True,
     help=command(
         "Delete your own account. It is refused while Organizations or enabled services remain.",
-        examples=["sk account delete --yes", "sk account delete --yes --no-wait"],
+        examples=["sk cam account delete --yes", "sk cam account delete --yes --no-wait"],
     ),
 )
 def delete_command(
@@ -320,8 +329,12 @@ def delete_command(
     "create",
     structured=True,
     help=command(
-        "Register a new account to get started on the platform. "
-        "By default, waits for provisioning to complete and the activation e-mail to be dispatched."
+        "Register a new account to get started on the platform. By default, "
+        "waits for provisioning to complete and the activation e-mail to be dispatched.",
+        examples=[
+            "sk cam account create --name Ada --surname Lovelace --email ada@example.com",
+            "sk cam account create --name Ada --surname Lovelace --email ada@example.com --no-wait",
+        ],
     ),
 )
 def create_account(
@@ -418,11 +431,7 @@ def create_account(
                 ("name", f"{name.strip()} {surname.strip()}"),
                 ("email", email.strip()),
                 ("resourceId", accepted.resource_id),
-                *(
-                    [("registrationTicket", ticket)]
-                    if ticket
-                    else []
-                ),
+                *([("registrationTicket", ticket)] if ticket else []),
                 *(
                     [("ticketExpiresAt", accepted.ticket_expires_at)]
                     if accepted.ticket_expires_at
@@ -434,7 +443,7 @@ def create_account(
         if ticket:
             ui.note(
                 f"Registration ticket: {ticket} (valid for 30 minutes)\n"
-                f"Use `sk account status --ticket {ticket} --wait` to follow up."
+                f"Use `sk cam account status --ticket {ticket} --wait` to follow up."
             )
         ui.note(
             "Next steps: open the link in the e-mail the provider sent to confirm the address "
@@ -447,9 +456,7 @@ def create_account(
         progress.update("request accepted")
         while True:
             try:
-                status = get_registration_status(
-                    url, ticket=ticket, allow_insecure_http=insecure
-                )
+                status = get_registration_status(url, ticket=ticket, allow_insecure_http=insecure)
             except ApiError as err:
                 ui.error("Status check failed", str(err))
                 raise typer.Exit(EXIT_FAILURE) from err
@@ -465,7 +472,7 @@ def create_account(
                 ui.error(
                     "Timed out",
                     f"{timeout} s passed waiting for account activation e-mail.",
-                    hint=f"Follow up with: `sk account status --ticket {ticket} --wait`.",
+                    hint=f"Follow up with: `sk cam account status --ticket {ticket} --wait`.",
                 )
                 raise typer.Exit(EXIT_FAILURE)
             time.sleep(1)
@@ -502,9 +509,9 @@ def create_account(
     help=command(
         "Check the activation status of a registration using its tracking ticket.",
         examples=[
-            "sk account status --ticket tkt-123456",
-            "sk account status --ticket tkt-123456 --wait",
-            "sk account status --ticket tkt-123456 --resend",
+            "sk cam account status --ticket tkt-123456",
+            "sk cam account status --ticket tkt-123456 --wait",
+            "sk cam account status --ticket tkt-123456 --resend",
         ],
     ),
 )
@@ -607,9 +614,7 @@ def status_command(
                 time.sleep(1)
     else:
         try:
-            status = get_registration_status(
-                url, ticket=ticket, allow_insecure_http=insecure
-            )
+            status = get_registration_status(url, ticket=ticket, allow_insecure_http=insecure)
         except ApiRejectedError as error:
             if error.status == 404:
                 ui.error("Ticket not found", "The registration ticket is invalid or has expired.")
@@ -637,6 +642,5 @@ def status_command(
     else:
         ui.note(
             "Next steps: open the activation link in your inbox to set your password, "
-            f"or run `sk account status --ticket {ticket} --resend`."
+            f"or run `sk cam account status --ticket {ticket} --resend`."
         )
-

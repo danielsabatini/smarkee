@@ -1,7 +1,7 @@
 # Memória Operacional do Projeto (AI Context)
 
 Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado operacional atual** necessário para continuar o trabalho.
-- **Histórico detalhado de execução:** `.journal/2026-10-30.md`, `.journal/2026-10-29.md`, `.journal/2026-10-28.md`, `.journal/2026-10-27.md`, `.journal/2026-10-26.md`, `.journal/2026-10-25.md`, `.journal/2026-10-24.md` e `.journal/2026-10-19.md` (locais, não versionados — consultar sob demanda).
+- **Histórico detalhado de execução:** `.journal/2026-11-03.md`, `.journal/2026-10-30.md`, `.journal/2026-10-29.md`, `.journal/2026-10-28.md`, `.journal/2026-10-27.md`, `.journal/2026-10-26.md`, `.journal/2026-10-25.md`, `.journal/2026-10-24.md` e `.journal/2026-10-19.md` (locais, não versionados — consultar sob demanda).
 - **Regras, contratos e decisões:** `AGENTS.md`, `docs/` e `.decisions/`.
 
 ## Estado operacional atual
@@ -27,15 +27,19 @@ Conforme `AGENTS.md` (§35): este arquivo contém **apenas o resumo do estado op
 - **Catálogo de serviços e CLI `--wait/--no-wait` por padrão (`sum.service` + `clients/cli`):**
   - Endpoint `GET /v1/sum/services/available` em `sum.service` e schema `api-available-services.v1.schema.json` expondo catálogo de serviços com `name`, `title`, `description` e status (`available` ou `enabled`).
   - CLI `sk sum service list --available`: lista serviços disponíveis da plataforma no estilo GCP (`gcloud services list --available`), e `sk sum service list [--enabled]` para serviços ativados na conta, com tabelas estilizadas, `hint` em listas vazias e suporte a `--output json` e `--raw`.
-  - CLI `sk`: `--wait/--no-wait` padronizado como opção booleana em todos os comandos de mutação (`account`, `bsm account`, `sum service`, `ipm organization`, `ipm user`, `ipm group`, `ipm role`, `ipm permission`, `ipm serviceaccount`) com convergência ativada por padrão (`--wait` default `on`), liberando o terminal imediatamente com `--no-wait`.
-- **Onboarding seguro de contas e CLI `--wait` (`core.account` + `clients/cli`):**
-  - Admissão anônima emite ticket de rastreamento temporário em UUIDv7 com TTL de 30 min (tabela `core.account_registration_ticket`, migração `0012`).
+- **Módulo `cam/account`, `bsm` habilitável via `sum/service` e evolução de `bsm/account` (decisão `0105`):**
+  - Módulo `core/account` renomeado para `cam/account` (**Customer Account Manager**, `/v1/cam/accounts`, schema SQL `cam`, CLI `sk cam account`), reservando `core` exclusivamente para a organização/namespace de sistema no Zitadel e OpenBao.
+  - `bsm` incluído no catálogo de serviços habilitáveis de `sum/service` (`sum.bsm.{enable,disable,get}`): o sign-up em `cam/account` concede `cam.account.{delete,get}`, `sum.bsm.*` e `sum.ipm.*`, e a habilitação de `bsm` em `sum/service` concede `bsm.account.{create,delete,get,list,update}` (bloqueando a desabilitação com `409 ResourcesAttached` enquanto houver Billing Accounts ativas).
+  - `bsm/account` evoluído com `--type` obrigatório (`free` | `paid`, imutável, alinhado a FOCUS `BillingAccountType`), vínculo explícito `--customer-account` (`customerAccountId`), `--billing-contacts` (1 a 10 e-mails financeiros), quotas por `customerAccountId` (1 `free` ativa e até 5 `paid` ativas) e verificação de método de pagamento em arquivo local (`SMARKEE_PAYMENT_METHODS_FILE`, schema `schemas/bsm/account/payment-methods.v1.schema.json`) para contas `paid`.
+  - CLI `sk`: `--wait/--no-wait` padronizado como opção booleana em todos os comandos de mutação (`cam account`, `bsm account`, `sum service`, `ipm organization`, `ipm user`, `ipm group`, `ipm role`, `ipm permission`, `ipm serviceaccount`) com convergência ativada por padrão (`--wait` default `on`).
+- **Onboarding seguro de contas e CLI `--wait` (`cam.account` + `clients/cli`):**
+  - Admissão anônima emite ticket de rastreamento temporário em UUIDv7 com TTL de 30 min (tabela `cam.account_registration_ticket`, migração `0012`).
   - Idempotência estrita: re-cadastro de e-mail não ativado atualiza `resendRequestedAt` e reemite ticket; re-cadastro de e-mail ativo responde uniformemente sem vazar existência nem emitir ticket ativo, prevenindo enumeração.
-  - Endpoints anônimos no gateway APISIX: `GET /v1/core/accounts/registration-status/{ticket}` (status mascarado) e `POST /v1/core/accounts/registration-status/{ticket}/resend` (reenvio de ativação via API v2 Zitadel com rate limit de 60s via `lastResendAt`).
-  - CLI `sk account create` opera com `--wait` por padrão convergindo até `Ready` e despacho do e-mail, suportando `--no-wait` que exibe o ticket; novo comando `sk account status --ticket <ticket>` suportando `--wait` e `--resend`.
+  - Endpoints anônimos no gateway APISIX: `GET /v1/cam/accounts/registration-status/{ticket}` (status mascarado) e `POST /v1/cam/accounts/registration-status/{ticket}/resend` (reenvio de ativação via API v2 Zitadel com rate limit de 60s via `lastResendAt`).
+  - CLI `sk cam account create` opera com `--wait` por padrão convergindo até `Ready` e despacho do e-mail, suportando `--no-wait` que exibe o ticket; comando `sk cam account status --ticket <ticket>` suportando `--wait` e `--resend`.
   - Verificação de CI local (`./scripts/dev/check`) 100% verde em todos os 15 componentes.
 - **Plano `ipm/*` e desmonte do loop legado (decisões `0098`, `0099`, `0100` e etapa S6):**
-  - `bsm/account`, `ipm/role` e `ipm/group` são `internal-state` (`api` + `publisher`); `core/account`, `sum/service` e `ipm/{organization,user,serviceaccount,permission}` são `external-reconciled` (`api` + `publisher` + `controller`).
+  - `bsm/account`, `ipm/role` e `ipm/group` são `internal-state` (`api` + `publisher`); `cam/account`, `sum/service` e `ipm/{organization,user,serviceaccount,permission}` são `external-reconciled` (`api` + `publisher` + `controller`).
   - Banco `ssot` (decisão `0087`) é o único banco de recursos; o banco `platform` foi extinto (decisão `0099`).
 - **Utilitários de dev (`scripts/dev/`):**
   - `./scripts/dev/cluster-up`: provisiona idempotentemente `kind`, `smarkee-registry`, CoreDNS, namespaces, operadores, `vault-bootstrap` e `smarkee-root` no ArgoCD.

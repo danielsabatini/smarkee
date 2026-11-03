@@ -58,12 +58,16 @@ def account_document(**changes: object) -> dict[str, Any]:
         "desired": {
             "lifecycle": "present",
             "reconciliation": "active",
+            "type": "free",
+            "customerAccountId": "394397791373230085",
             "displayName": "Acme Cloud Production",
             "billingCurrency": "BRL",
             "billingContacts": ["finops@acme.com"],
         },
         "observed": {
             "presence": "present",
+            "type": "free",
+            "customerAccountId": "394397791373230085",
             "displayName": "Acme Cloud Production",
             "billingCurrency": "BRL",
             "billingContacts": ["finops@acme.com"],
@@ -83,6 +87,7 @@ def test_the_display_name_pattern_is_the_one_of_the_published_contract() -> None
     assert account.DISPLAY_NAME_PATTERN.pattern == defs["displayName"]["pattern"]
     assert defs["displayName"]["maxLength"] == account.MAXIMUM_DISPLAY_NAME_LENGTH
     assert list(account.ALLOWED_CURRENCIES) == defs["billingCurrency"]["enum"]
+    assert list(account.ALLOWED_ACCOUNT_TYPES) == defs["billingAccountType"]["enum"]
 
 
 @pytest.mark.parametrize("value", ["a", "Acme Cloud Production", "a" * 128])
@@ -144,6 +149,8 @@ def test_create_posts_the_account_fields_with_the_idempotency_key(
         display_name="Acme Cloud Production",
         billing_currency="BRL",
         billing_contacts=["finops@acme.com"],
+        customer_account_id="394397791373230085",
+        account_type="free",
         deletion_protection=False,
         idempotency_key="k-1",
         allow_insecure_http=False,
@@ -158,6 +165,8 @@ def test_create_posts_the_account_fields_with_the_idempotency_key(
         "displayName": "Acme Cloud Production",
         "billingCurrency": "BRL",
         "billingContacts": ["finops@acme.com"],
+        "customerAccountId": "394397791373230085",
+        "type": "free",
         "deletionProtection": False,
     }
 
@@ -221,6 +230,8 @@ def test_get_reads_the_fields_of_the_account(monkeypatch: pytest.MonkeyPatch) ->
         display_name="Acme Cloud Production",
         billing_currency="BRL",
         billing_contacts=("finops@acme.com",),
+        customer_account_id="394397791373230085",
+        account_type="free",
         lifecycle="present",
         deletion_protection=True,
         presence="present",

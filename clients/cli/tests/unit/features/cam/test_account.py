@@ -1,4 +1,4 @@
-"""Cliente da API da conta (`sk.features.core.account`): contrato do pedido, respostas e erros."""
+"""Cliente da API da conta (`sk.features.cam.account`): contrato do pedido, respostas e erros."""
 
 import json
 import urllib.error
@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from sk.features.core.account import submit_registration, validate_registration
+from sk.features.cam.account import submit_registration, validate_registration
 from sk.http import ApiRejectedError, ApiUnavailableError
 from sk.identity.oidc import OidcError
 
@@ -50,7 +50,7 @@ def http_error(
     if retry_after is not None:
         headers["Retry-After"] = retry_after
     return urllib.error.HTTPError(
-        "https://api.example/v1/core/accounts",
+        "https://api.example/v1/cam/accounts",
         status,
         "erro",
         headers,
@@ -84,7 +84,7 @@ def test_the_request_is_anonymous_and_carries_only_the_contract_fields(
 
     request = opener.requests[0]
     assert request.get_method() == "POST"
-    assert request.full_url == "https://api.example/v1/core/accounts"
+    assert request.full_url == "https://api.example/v1/cam/accounts"
     assert request.get_header("Authorization") is None
     assert json.loads(request.data) == {
         "givenName": "Ana",

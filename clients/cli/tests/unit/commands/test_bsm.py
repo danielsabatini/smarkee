@@ -107,6 +107,8 @@ def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def account_document(
     *,
+    account_type: str = "free",
+    customer_account_id: str = "394397791373230085",
     display_name: str = "Acme Cloud Production",
     billing_currency: str = "BRL",
     billing_contacts: list[str] | None = None,
@@ -128,6 +130,8 @@ def account_document(
         "desired": {
             "lifecycle": "present",
             "reconciliation": "active",
+            "type": account_type,
+            "customerAccountId": customer_account_id,
             "displayName": display_name,
             "billingCurrency": billing_currency,
             "billingContacts": contacts,
@@ -137,6 +141,8 @@ def account_document(
             {
                 "observed": {
                     "presence": presence,
+                    "type": account_type,
+                    "customerAccountId": customer_account_id,
                     "displayName": display_name,
                     "billingCurrency": billing_currency,
                     "billingContacts": contacts,
@@ -167,12 +173,16 @@ def test_create_sends_fields_with_session_token_and_idempotency_key(api: FakeApi
             "bsm",
             "account",
             "create",
+            "--type",
+            "free",
+            "--customer-account",
+            "394397791373230085",
             "--display-name",
             "Acme Cloud Production",
             "--currency",
             "BRL",
-            "--contact",
-            "finops@acme.com",
+            "--billing-contacts",
+            "finops@acme.com, billing@acme.com",
             "--no-wait",
         ],
     )
@@ -182,9 +192,11 @@ def test_create_sends_fields_with_session_token_and_idempotency_key(api: FakeApi
     assert request.get_header("Authorization") == "Bearer access-1"
     assert request.get_header("Idempotency-key")
     assert body_of(request) == {
+        "type": "free",
+        "customerAccountId": "394397791373230085",
         "displayName": "Acme Cloud Production",
         "billingCurrency": "BRL",
-        "billingContacts": ["finops@acme.com"],
+        "billingContacts": ["finops@acme.com", "billing@acme.com"],
     }
     assert RID in result.stdout
     assert "sk bsm account get" in " ".join(result.stdout.split())
@@ -193,7 +205,28 @@ def test_create_sends_fields_with_session_token_and_idempotency_key(api: FakeApi
 def test_create_requires_valid_options_before_any_call(api: FakeApi) -> None:
     missing = runner.invoke(app, ["bsm", "account", "create"])
     assert missing.exit_code == 2
-    assert "--display-name" in missing.stderr
+    assert "--type" in missing.stderr
+
+    bad_type = runner.invoke(
+        app,
+        [
+            "bsm",
+            "account",
+            "create",
+            "--type",
+            "enterprise",
+            "--customer-account",
+            "394397791373230085",
+            "--display-name",
+            "Acme",
+            "--currency",
+            "BRL",
+            "--billing-contacts",
+            "finops@acme.com",
+        ],
+    )
+    assert bad_type.exit_code == 2
+    assert "Value not accepted" in bad_type.stderr
 
     bad_currency = runner.invoke(
         app,
@@ -201,11 +234,15 @@ def test_create_requires_valid_options_before_any_call(api: FakeApi) -> None:
             "bsm",
             "account",
             "create",
+            "--type",
+            "free",
+            "--customer-account",
+            "394397791373230085",
             "--display-name",
             "Acme",
             "--currency",
             "GBP",
-            "--contact",
+            "--billing-contacts",
             "finops@acme.com",
         ],
     )
@@ -218,11 +255,15 @@ def test_create_requires_valid_options_before_any_call(api: FakeApi) -> None:
             "bsm",
             "account",
             "create",
+            "--type",
+            "free",
+            "--customer-account",
+            "394397791373230085",
             "--display-name",
             "Acme",
             "--currency",
             "BRL",
-            "--contact",
+            "--billing-contacts",
             "not-an-email",
         ],
     )
@@ -241,11 +282,15 @@ def test_create_wait_waits_for_ready_and_shows_the_account(api: FakeApi) -> None
             "bsm",
             "account",
             "create",
+            "--type",
+            "free",
+            "--customer-account",
+            "394397791373230085",
             "--display-name",
             "Acme Cloud Production",
             "--currency",
             "BRL",
-            "--contact",
+            "--billing-contacts",
             "finops@acme.com",
             "--wait",
         ],
@@ -268,11 +313,15 @@ def test_wait_stops_with_the_reason_when_the_account_fails(api: FakeApi) -> None
             "bsm",
             "account",
             "create",
+            "--type",
+            "free",
+            "--customer-account",
+            "394397791373230085",
             "--display-name",
             "Acme Cloud Production",
             "--currency",
             "BRL",
-            "--contact",
+            "--billing-contacts",
             "finops@acme.com",
             "--wait",
         ],
@@ -296,11 +345,15 @@ def test_wait_times_out_with_a_hint(api: FakeApi, monkeypatch: pytest.MonkeyPatc
             "bsm",
             "account",
             "create",
+            "--type",
+            "free",
+            "--customer-account",
+            "394397791373230085",
             "--display-name",
             "Acme Cloud Production",
             "--currency",
             "BRL",
-            "--contact",
+            "--billing-contacts",
             "finops@acme.com",
             "--wait",
             "--timeout",
@@ -319,6 +372,7 @@ def test_wait_times_out_with_a_hint(api: FakeApi, monkeypatch: pytest.MonkeyPatc
     [
         (403, "EmailNotVerified", "confirmation link"),
         (403, "QuotaExceeded", "quota reached"),
+        (409, "PaymentMethodRequired", "active payment method"),
         (403, "Forbidden", "bsm.account.*"),
         (401, "Unauthorized", "sk auth login"),
         (503, "Unavailable", "Try again"),
@@ -335,11 +389,15 @@ def test_create_translates_the_api_refusals_into_hints(
             "bsm",
             "account",
             "create",
+            "--type",
+            "free",
+            "--customer-account",
+            "394397791373230085",
             "--display-name",
             "Acme Cloud Production",
             "--currency",
             "BRL",
-            "--contact",
+            "--billing-contacts",
             "finops@acme.com",
         ],
     )
@@ -411,7 +469,7 @@ def test_update_reads_the_current_version_before_patching(api: FakeApi) -> None:
             RID,
             "--display-name",
             "Novo Nome",
-            "--contact",
+            "--billing-contacts",
             "novo@acme.com",
         ],
     )
@@ -482,11 +540,15 @@ def test_active_account_configuration_and_save_on_create_wait(api: FakeApi, tmp_
             "bsm",
             "account",
             "create",
+            "--type",
+            "free",
+            "--customer-account",
+            "394397791373230085",
             "--display-name",
             "Acme Cloud Production",
             "--currency",
             "BRL",
-            "--contact",
+            "--billing-contacts",
             "finops@acme.com",
             "--wait",
         ],
@@ -539,8 +601,20 @@ def test_json_create_without_wait_prints_only_the_acceptance(api: FakeApi) -> No
         app,
         [
             *JSON,
-            *["bsm", "account", "create", "--display-name", "Acme", "--currency", "BRL"],
-            *["--contact", "finops@acme.com", "--no-wait"],
+            *[
+                "bsm",
+                "account",
+                "create",
+                "--type",
+                "free",
+                "--customer-account",
+                "394397791373230085",
+                "--display-name",
+                "Acme",
+                "--currency",
+                "BRL",
+            ],
+            *["--billing-contacts", "finops@acme.com", "--no-wait"],
         ],
     )
     assert result.exit_code == 0, result.stderr

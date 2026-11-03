@@ -30,7 +30,7 @@ uv run sk config set api.timeoutSeconds 30   # segundos que cada pedido à API e
 uv run sk config unset api.timeoutSeconds    # tira a chave do arquivo: o valor volta ao padrão
 ```
 
-Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `api.url`, `api.allowInsecureHttp`, `api.timeoutSeconds`, `core.projectId`, `sum.projectId`, `ipm.projectId`, `ipm.organizationId`, `bsm.projectId`, `bsm.accountId` e `operator.projectId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro **só com as sobrescritas**: um valor que ficou no padrão não vai para o arquivo, e comentários feitos à mão não são preservados. Não há `unset`: para voltar ao padrão, apague a chave do arquivo.
+Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `api.url`, `api.allowInsecureHttp`, `api.timeoutSeconds`, `cam.projectId`, `sum.projectId`, `ipm.projectId`, `ipm.organizationId`, `bsm.projectId`, `bsm.accountId` e `operator.projectId`. `set` valida a chave e o valor (booleanos aceitam só `true` ou `false`; endereços precisam de `http://` ou `https://`) e regrava o arquivo inteiro **só com as sobrescritas**: um valor que ficou no padrão não vai para o arquivo, e comentários feitos à mão não são preservados. Não há `unset`: para voltar ao padrão, apague a chave do arquivo.
 
 **O que ainda não tem padrão de produção:** o client ID e os IDs dos projetos de roles só nascem quando o Zitadel de produção for provisionado. Até lá o padrão é o marcador `000000000000000000` (18 zeros), e `sk auth login` recusa o login dizendo quais valores faltam (em vez de seguir e falhar adiante). Em desenvolvimento, sobrescreva cada um:
 
@@ -38,7 +38,7 @@ Chaves: `auth.issuer`, `auth.clientId`, `auth.allowInsecureHttp`, `api.url`, `ap
 uv run sk config set auth.issuer http://ipm-dev.smarkee.com.br:8080
 uv run sk config set auth.clientId <client-id-da-aplicação-cli>
 uv run sk config set api.url http://api-dev.smarkee.com.br:8080
-uv run sk config set core.projectId <ID-do-projeto-roles-core>
+uv run sk config set cam.projectId <ID-do-projeto-roles-cam>
 uv run sk config set sum.projectId <ID-do-projeto-roles-sum>
 uv run sk config set ipm.projectId <ID-do-projeto-roles-ipm>
 uv run sk config set auth.allowInsecureHttp true   # dev não tem TLS
@@ -57,8 +57,8 @@ allowInsecureHttp = true  # somente em desenvolvimento
 url = "http://api-dev.smarkee.com.br:8080"
 allowInsecureHttp = true  # somente em desenvolvimento
 
-[core]
-projectId = "<ID de roles-core>"
+[cam]
+projectId = "<ID de roles-cam>"
 
 [sum]
 projectId = "<ID de roles-sum>"
@@ -93,7 +93,7 @@ O login **não tem opções**: o provedor, o client ID e a permissão de HTTP v�
 | `SK_AUTH_CLIENT_ID` | `clientId` | Client ID da aplicação nativa do `sk` no provedor |
 | `SK_AUTH_ALLOW_INSECURE_HTTP=true` | `allowInsecureHttp = true` | Aceita issuer `http`. Somente em desenvolvimento |
 
-A aplicação do `sk` mora no projeto `clients` (sem permissões), e não num projeto de permissões: o token só vale no Receiver de um módulo se o login pedir a audience do projeto de permissões dele. Com `[core] projectId`, `[sum] projectId` e `[ipm] projectId` configurados (ou `SK_CORE_PROJECT_ID`, `SK_SUM_PROJECT_ID` e `SK_IPM_PROJECT_ID`), o login pede a audience de `roles-core`, `roles-sum` e `roles-ipm` no Zitadel, com as permissões no token: sem a chave de um módulo, o Receiver dele recusa o token. Sem a chave, o login é o de sempre.
+A aplicação do `sk` mora no projeto `clients` (sem permissões), e não num projeto de permissões: o token só vale no Receiver de um módulo se o login pedir a audience do projeto de permissões dele. Com `[cam] projectId`, `[sum] projectId` e `[ipm] projectId` configurados (ou `SK_CAM_PROJECT_ID`, `SK_SUM_PROJECT_ID` e `SK_IPM_PROJECT_ID`), o login pede a audience de `roles-cam`, `roles-sum` e `roles-ipm` no Zitadel, com as permissões no token: sem a chave de um módulo, o Receiver dele recusa o token. Sem a chave, o login é o de sempre.
 
 Códigos de saída: `0` sucesso; `1` falha no login ou na gravação, ou cancelamento (Ctrl+C); `2` uso incorreto (issuer ou client ID ausente, configuração inválida).
 
@@ -159,7 +159,7 @@ uv run sk sum service disable --resource-id ID [--wait] [--timeout SEGUNDOS]
 uv run sk sum service list
 ```
 
-O endereço da API e a permissão de HTTP sem TLS **não têm opção de linha de comando** (decisão 0041): vêm de `SK_API_URL` e `SK_API_ALLOW_INSECURE_HTTP=true`, de `[api]` no arquivo ou do padrão de produção, como no `sk account create`. O `resourceId` precisa seguir o padrão do contrato (letras minúsculas, números e hífen, até 128 caracteres): outro valor é recusado antes de qualquer chamada, porque entra no caminho da URL.
+O endereço da API e a permissão de HTTP sem TLS **não têm opção de linha de comando** (decisão 0041): vêm de `SK_API_URL` e `SK_API_ALLOW_INSECURE_HTTP=true`, de `[api]` no arquivo ou do padrão de produção, como no `sk cam account create`. O `resourceId` precisa seguir o padrão do contrato (letras minúsculas, números e hífen, até 128 caracteres): outro valor é recusado antes de qualquer chamada, porque entra no caminho da URL.
 
 | Comando | Requisição | Resultado |
 |---|---|---|
@@ -233,14 +233,14 @@ As recusas da API viram dicas na saída (por exemplo, `ipm.user.bind` para mudar
 ## Billing Accounts (`sk bsm account`)
 
 ```bash
-uv run sk bsm account create --display-name NOME --currency BRL|USD|EUR --contact EMAIL... [--wait]
-uv run sk bsm account get [--resource-id ID] [--operation-id OPERACAO]
+uv run sk bsm account create --type free|paid --customer-account ID --display-name NOME --currency BRL|USD|EUR --billing-contacts EMAIL... [--wait]
+uv run sk bsm account get [--resource-id ID]
 uv run sk bsm account list
-uv run sk bsm account update [--resource-id ID] [--display-name NOME] [--contact EMAIL]... [--wait]
+uv run sk bsm account update [--resource-id ID] [--display-name NOME] [--billing-contacts EMAIL]... [--wait]
 uv run sk bsm account protect|unprotect|delete [--resource-id ID] [--wait]
 ```
 
-Usa o token da sessão e a API de `[api] url`; o token precisa trazer as permissões `bsm.account.*`. `--currency` não muda depois da criação. `--contact` aceita de 1 a 10 e-mails distintos e, no `update`, **substitui** a lista. Como na Organization, existe a **Billing Account ativa** (`[bsm] accountId` ou `SK_BSM_ACCOUNT_ID`): sem `--resource-id`, os comandos usam a ativa. O `create --wait` grava a nova como ativa **só se não houver uma**; havendo, a saída mostra o `sk config set bsm.accountId ID` para trocar. A Billing Account nasce protegida: `unprotect` precede o `delete`.
+Usa o token da sessão e a API de `[api] url`; o token precisa trazer as permissões `bsm.account.*` (concedidas ao habilitar `bsm` no SUM: `sk sum service enable --service bsm`). `--type` (`free` | `paid`), `--customer-account` (`customerAccountId`) e `--currency` não mudam depois da criação. `--billing-contacts` aceita de 1 a 10 e-mails distintos (repetido ou separado por vírgula) e, no `update`, **substitui** a lista. Como na Organization, existe a **Billing Account ativa** (`[bsm] accountId` ou `SK_BSM_ACCOUNT_ID`): sem `--resource-id`, os comandos usam a ativa. O `create --wait` grava a nova como ativa **só se não houver uma**; havendo, a saída mostra o `sk config set bsm.accountId ID` para trocar. A Billing Account nasce protegida: `unprotect` precede o `delete`.
 
 ## Service accounts (`sk ipm serviceaccount`, alias `sa`)
 
@@ -261,13 +261,13 @@ A API admite o pedido na hora (decisão 0098); `--wait` espera o recurso converg
 
 O `keyId` só existe depois que o Zitadel registra a chave. Com `--wait`, a CLI completa `keyId` e `userId` no arquivo; sem ele, rode `key-file` quando a fase for `Ready`. Depois, `sk auth login --key-file F`. O papel mínimo para gerenciar é ter as permissões `ipm.serviceaccount.*` (roles `ipm.serviceaccountAdmin` e `ipm.serviceaccountViewer`).
 
-## Cadastro (`sk account create`)
+## Cadastro (`sk cam account create`)
 
 ```bash
-uv run sk account create --name Ana --surname Souza --email ana@dominio.com
+uv run sk cam account create --name Ana --surname Souza --email ana@dominio.com
 ```
 
-Pede o cadastro de um usuário pela API do módulo `core`. É **anônimo**: não exige login, não envia token (mesmo que existam credenciais salvas) e não pede senha. A pessoa define a senha depois, na página do provedor, a partir do e-mail de ativação. O cadastro é assíncrono: o comando confirma que o pedido foi aceito (`resourceId` e `operationId`), e não que a conta já existe.
+Pede o cadastro de um usuário pela API do módulo `cam`. É **anônimo**: não exige login, não envia token (mesmo que existam credenciais salvas) e não pede senha. A pessoa define a senha depois, na página do provedor, a partir do e-mail de ativação. O cadastro é assíncrono: o comando confirma que o pedido foi aceito (`resourceId` e `registrationTicket`).
 
 | Opção | Significado |
 |---|---|
@@ -285,18 +285,18 @@ allowInsecureHttp = true  # somente em desenvolvimento
 
 Os dados são validados antes do envio, com os mesmos limites do contrato. Um e-mail mal formado não gera nenhuma chamada à API. Códigos de saída: `0` pedido aceito; `1` serviço indisponível, limite de taxa ou falha de conexão; `2` uso incorreto ou dado recusado pela API.
 
-Depois do cadastro, a pessoa recebe um e-mail do provedor ("Verificar e-mail"), cujo link confirma o e-mail e define a senha. Enquanto a conta não é ativada, `sk auth login` não consegue autenticar. O passo a passo para ativar a conta, e para pedir outro link ou código quando o anterior expirou, está em `features/core/account/README.md`, seção 4.7.
+Depois do cadastro, a pessoa recebe um e-mail do provedor ("Verificar e-mail"), cujo link confirma o e-mail e define a senha. Enquanto a conta não é ativada, `sk auth login` não consegue autenticar. O passo a passo para ativar a conta, e para pedir outro link ou código quando o anterior expirou, está em `features/cam/account/README.md`, seção 4.7.
 
-## Conta (`sk account`)
+## Conta (`sk cam account`)
 
 ```bash
-uv run sk account get
-uv run sk account protect [--wait] [--timeout SEGUNDOS]
-uv run sk account unprotect [--wait] [--timeout SEGUNDOS]
-uv run sk account delete --yes [--wait] [--timeout SEGUNDOS]
+uv run sk cam account get
+uv run sk cam account protect [--wait] [--timeout SEGUNDOS]
+uv run sk cam account unprotect [--wait] [--timeout SEGUNDOS]
+uv run sk cam account delete --yes [--wait] [--timeout SEGUNDOS]
 ```
 
-Agem sobre a conta da sessão (`sk auth login`); o `resourceId` é o `sub` do token. A conta **nasce protegida contra exclusão** (decisão 0043): `unprotect` precede o `delete` (sem ele, a API responde `409 DeletionProtected` e a saída aponta o comando), e `protect` religa a proteção; ambos são idempotentes e respondem `200` com o recurso (decisão 0098); `--wait` espera a geração desejada ser observada (`Ready`). `delete` exige `--yes` (a exclusão não se desfaz) e lê a `resourceVersion` antes de pedir. **A exclusão é segura (decisão 0040):** a API recusa (`409`) enquanto a conta tiver Organizations ou serviços habilitados, e a saída diz o que remover antes (`sk ipm organization delete`, depois `sk sum service disable --service ipm`). A API responde `202` com o recurso em remoção. Com `--wait`, o comando espera a conta deixar de existir (`404`, ou o token deixar de valer, porque o usuário já saiu do provedor) e **esquece a sessão local**. `get` mostra `resourceId`, `name`, `email`, `phase`, `platformAccess` e `protected`. O cadastro anônimo é `sk account create`: a API responde `202` com só o `resourceId`, igual exista ou não o e-mail, e não há `--wait`.
+Agem sobre a conta da sessão (`sk auth login`); o `resourceId` é o `sub` do token. A conta **nasce protegida contra exclusão** (decisão 0043): `unprotect` precede o `delete` (sem ele, a API responde `409 DeletionProtected` e a saída aponta o comando), e `protect` religa a proteção; ambos são idempotentes e respondem `200` com o recurso (decisão 0098); `--wait` espera a geração desejada ser observada (`Ready`). `delete` exige `--yes` (a exclusão não se desfaz) e lê a `resourceVersion` antes de pedir. **A exclusão é segura (decisão 0040):** a API recusa (`409`) enquanto a conta tiver Organizations ou serviços habilitados, e a saída diz o que remover antes (`sk ipm organization delete`, depois `sk sum service disable`). A API responde `202` com o recurso em remoção. Com `--wait`, o comando espera a conta deixar de existir (`404`, ou o token deixar de valer, porque o usuário já saiu do provedor) e **esquece a sessão local**. `get` mostra `resourceId`, `name`, `email`, `phase`, `platformAccess` e `protected`. O cadastro anônimo é `sk cam account create`.
 
 ## Saída no terminal
 

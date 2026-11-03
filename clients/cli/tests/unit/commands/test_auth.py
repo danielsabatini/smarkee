@@ -21,7 +21,7 @@ def isolated_configuration(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
 
 PLATFORM_VARIABLES = {
     "SK_AUTH_CLIENT_ID": "client-1",
-    "SK_CORE_PROJECT_ID": "111",
+    "SK_CAM_PROJECT_ID": "111",
     "SK_SUM_PROJECT_ID": "222",
     "SK_IPM_PROJECT_ID": "333",
 }
@@ -38,7 +38,7 @@ def test_login_refuses_the_production_values_that_do_not_exist_yet() -> None:
     result = runner.invoke(app, ["auth", "login"])
     assert result.exit_code == 2
     assert "Production is not provisioned yet" in result.stderr
-    for key in ("auth.clientId", "core.projectId", "sum.projectId", "ipm.projectId"):
+    for key in ("auth.clientId", "cam.projectId", "sum.projectId", "ipm.projectId"):
         assert key in result.stderr
     assert "sk config set" in result.stderr
 

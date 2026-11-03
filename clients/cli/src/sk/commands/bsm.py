@@ -1,7 +1,7 @@
 """Comandos `sk bsm account`: criar, consultar, alterar, proteger e remover Billing Accounts.
 
 Usam o token da sessão (`sk auth login`), renovado quando está para vencer. A API é a mesma do
-`sk account create` (`[api] url`). Criar, alterar e remover são admitidos na hora pela API
+`sk cam account create` (`[api] url`). Criar, alterar e remover são admitidos na hora pela API
 (decisão 0098); a Billing Account é dado do SSOT e nasce convergida. Com `--wait`, o comando
 espera `observedGeneration` alcançar a geração admitida. O token precisa trazer as permissões
 `bsm.account.*`.
@@ -38,8 +38,10 @@ from sk.features.bsm.account import (
     list_accounts,
     set_account_protection,
     update_account,
+    validate_account_type,
     validate_billing_contacts,
     validate_billing_currency,
+    validate_customer_account_id,
     validate_display_name,
 )
 from sk.help import command, option
@@ -59,7 +61,8 @@ bsm_app = SkTyper(
         "Manage billing and payments in the Smarkee platform.",
         examples=[
             "sk bsm account list",
-            "sk bsm account create --display-name Acme --currency BRL --contact finops@acme.com",
+            "sk bsm account create --type free --customer-account 394397791373230085 \\\n"
+            "      --display-name Acme --currency BRL --billing-contacts finops@acme.com",
             "sk bsm account get",
             "sk bsm account protect",
             "sk bsm account delete",
@@ -74,7 +77,8 @@ account_app = SkTyper(
         "Manage Billing Accounts (credit balance, invoices, payment methods).",
         examples=[
             "sk bsm account list",
-            "sk bsm account create --display-name Acme --currency BRL --contact finops@acme.com",
+            "sk bsm account create --type free --customer-account 394397791373230085 \\\n"
+            "      --display-name Acme --currency BRL --billing-contacts finops@acme.com",
             "sk bsm account get",
             "sk bsm account protect",
             "sk bsm account delete",
@@ -107,11 +111,15 @@ ERROR_CODE_HINTS = {
     "ResourcesAttached": (
         "The Billing Account has active Organizations attached. Detach or delete them first."
     ),
+    "PaymentMethodRequired": (
+        "The Customer Account does not have an active payment method for a paid Billing Account."
+    ),
     "QuotaExceeded": "Billing Account quota reached for your user.",
 }
 NO_PERMISSION_HINT = (
-    "Your authenticated user does not have permission for this Billing Account operation. Ask an "
-    "administrator for the corresponding bsm.account.* permission."
+    "Your authenticated user does not have permission for this Billing Account operation. "
+    "Enable the bsm service (`sk sum service enable --service bsm`) or ask an administrator "
+    "for the corresponding bsm.account.* permission."
 )
 
 WaitOption = Annotated[
@@ -142,12 +150,12 @@ ResourceIdOption = Annotated[
         ),
     ),
 ]
-ContactOption = Annotated[
+BillingContactsOption = Annotated[
     list[str] | None,
     typer.Option(
-        "--contact",
+        "--billing-contacts",
         help=option(
-            "Billing contact e-mail (1 to 10 unique e-mails). Repeat it for more contacts.",
+            "Billing contact e-mail(s) (1 to 10 unique e-mails, repeatable or comma-separated).",
             kind="String",
             variable=None,
             file=None,
@@ -190,6 +198,24 @@ def _account_identifier(value: str | None) -> str:
     return identifier(value, "--resource-id", what="resourceId")
 
 
+def _account_type(value: str | None) -> str:
+    required = require(value, "--type")
+    try:
+        return validate_account_type(required)
+    except ValueError as error:
+        ui.error("Value not accepted", str(error), hint="Fix --type and repeat.")
+        raise typer.Exit(EXIT_USAGE_ERROR) from error
+
+
+def _customer_account_id(value: str | None) -> str:
+    required = require(value, "--customer-account")
+    try:
+        return validate_customer_account_id(required)
+    except ValueError as error:
+        ui.error("Value not accepted", str(error), hint="Fix --customer-account and repeat.")
+        raise typer.Exit(EXIT_USAGE_ERROR) from error
+
+
 def _display_name(value: str | None) -> str:
     required = require(value, "--display-name")
     try:
@@ -210,11 +236,12 @@ def _currency(value: str | None) -> str:
 
 def _contacts(values: list[str] | None) -> list[str]:
     if not values:
-        require(None, "--contact")
+        require(None, "--billing-contacts")
+    expanded = [item.strip() for raw in (values or []) for item in raw.split(",") if item.strip()]
     try:
-        return validate_billing_contacts(values or [])
+        return validate_billing_contacts(expanded)
     except ValueError as error:
-        ui.error("Value not accepted", str(error), hint="Fix --contact and repeat.")
+        ui.error("Value not accepted", str(error), hint="Fix --billing-contacts and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
 
 
@@ -227,15 +254,23 @@ def _styled_phase(account: BillingAccount) -> Text:
 
 
 def _rows(account: BillingAccount) -> list[tuple[str, str]]:
-    return [
+    rows = [
         ("resourceId", account.resource_id),
-        ("displayName", account.display_name),
-        ("billingCurrency", account.billing_currency),
-        ("billingContacts", ", ".join(account.billing_contacts)),
-        ("presence", _presence_label(account)),
-        ("phase", account.phase),
-        ("protected", "yes" if account.deletion_protection else "no"),
+        ("type", account.account_type),
     ]
+    if account.customer_account_id:
+        rows.append(("customerAccountId", account.customer_account_id))
+    rows.extend(
+        [
+            ("displayName", account.display_name),
+            ("billingCurrency", account.billing_currency),
+            ("billingContacts", ", ".join(account.billing_contacts)),
+            ("presence", _presence_label(account)),
+            ("phase", account.phase),
+            ("protected", "yes" if account.deletion_protection else "no"),
+        ]
+    )
+    return rows
 
 
 def _get_command(resource_id: str) -> str:
@@ -285,12 +320,38 @@ _flow = SyncResourceFlow(
     help=command(
         "Create a Billing Account.",
         examples=[
-            "sk bsm account create --display-name Acme --currency BRL \\\n"
-            "      --contact finance@example.com --wait"
+            "sk bsm account create --type free --customer-account 394397791373230085 \\\n"
+            "      --display-name Acme --currency BRL --billing-contacts finance@example.com --wait"
         ],
     ),
 )
 def create_command(
+    account_type: Annotated[
+        str | None,
+        typer.Option(
+            "--type",
+            help=option(
+                "Billing Account type (immutable after creation): free or paid.",
+                kind="String",
+                variable=None,
+                file=None,
+                default="none",
+            ),
+        ),
+    ] = None,
+    customer_account: Annotated[
+        str | None,
+        typer.Option(
+            "--customer-account",
+            help=option(
+                "Customer Account ID (cam.account resourceId) that owns this Billing Account.",
+                kind="String",
+                variable=None,
+                file=None,
+                default="none",
+            ),
+        ),
+    ] = None,
     display_name: Annotated[
         str | None,
         typer.Option(
@@ -317,19 +378,23 @@ def create_command(
             ),
         ),
     ] = None,
-    contact: ContactOption = None,
+    billing_contacts: BillingContactsOption = None,
     wait: WaitOption = True,
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
+    account_type = _account_type(account_type)
+    customer_account = _customer_account_id(customer_account)
     display_name = _display_name(display_name)
     currency = _currency(currency)
-    contacts = _contacts(contact)
+    contacts = _contacts(billing_contacts)
     url, insecure = load_api()
     token = session_token()
     try:
         account = create_account(
             url,
             token=token,
+            account_type=account_type,
+            customer_account_id=customer_account,
             display_name=display_name,
             billing_currency=currency,
             billing_contacts=contacts,
@@ -382,12 +447,12 @@ def update_command(
             ),
         ),
     ] = None,
-    contact: Annotated[
+    billing_contacts: Annotated[
         list[str] | None,
         typer.Option(
-            "--contact",
+            "--billing-contacts",
             help=option(
-                "New billing contact e-mail (replaces the list). Repeat it for more contacts.",
+                "New billing contact e-mail(s) (replaces the list, repeatable or comma-separated).",
                 kind="String",
                 variable=None,
                 file=None,
@@ -399,15 +464,15 @@ def update_command(
     timeout: TimeoutOption = DEFAULT_WAIT_TIMEOUT_SECONDS,
 ) -> None:
     resource_id = _account_identifier(resource_id)
-    if display_name is None and not contact:
+    if display_name is None and not billing_contacts:
         ui.error(
             "Missing required option",
-            "Provide --display-name and/or --contact.",
-            hint="Repeat the command with --display-name VALUE or --contact EMAIL.",
+            "Provide --display-name and/or --billing-contacts.",
+            hint="Repeat the command with --display-name VALUE or --billing-contacts EMAIL.",
         )
         raise typer.Exit(EXIT_USAGE_ERROR)
     validated_name = _display_name(display_name) if display_name is not None else None
-    validated_contacts = _contacts(contact) if contact else None
+    validated_contacts = _contacts(billing_contacts) if billing_contacts else None
     url, insecure = load_api()
     token = session_token()
     try:

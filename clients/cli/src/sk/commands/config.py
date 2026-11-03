@@ -22,8 +22,8 @@ from sk.settings import (
     ApiSettings,
     AuthSettings,
     BsmSettings,
+    CamSettings,
     ConfigurationError,
-    CoreSettings,
     IpmSettings,
     OperatorSettings,
     SkSettings,
@@ -43,7 +43,7 @@ EXIT_USAGE_ERROR = 2
 SECTION_MODELS: dict[str, type[BaseModel]] = {
     "auth": AuthSettings,
     "api": ApiSettings,
-    "core": CoreSettings,
+    "cam": CamSettings,
     "sum": SumSettings,
     "ipm": IpmSettings,
     "bsm": BsmSettings,

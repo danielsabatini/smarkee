@@ -311,9 +311,7 @@ def _change(
     structured=True,
     help=command(
         "Update description or roles of a group: --role replaces roles (--no-roles clears them).",
-        examples=[
-            "sk ipm group update --resource-id grp-123456 --role ipm.organizationAdmin"
-        ],
+        examples=["sk ipm group update --resource-id grp-123456 --role ipm.organizationAdmin"],
     ),
 )
 def update_command(

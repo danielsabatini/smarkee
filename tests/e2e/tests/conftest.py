@@ -27,7 +27,7 @@ API_URL = os.environ.get("E2E_API_URL", "http://api-dev.smarkee.com.br:8080")
 ISSUER = os.environ.get("E2E_ISSUER", "http://ipm-dev.smarkee.com.br:8080")
 MAILPIT_URL = os.environ.get("E2E_MAILPIT_URL", "http://localhost:8025")
 CLI_CLIENT_ID = os.environ.get("E2E_CLI_CLIENT_ID")
-CORE_PROJECT_ID = os.environ.get("E2E_CORE_PROJECT_ID")
+CAM_PROJECT_ID = os.environ.get("E2E_CAM_PROJECT_ID") or os.environ.get("E2E_CORE_PROJECT_ID")
 SUM_PROJECT_ID = os.environ.get("E2E_SUM_PROJECT_ID")
 IPM_PROJECT_ID = os.environ.get("E2E_IPM_PROJECT_ID")
 BSM_PROJECT_ID = os.environ.get("E2E_BSM_PROJECT_ID")
@@ -73,7 +73,7 @@ class Sk:
         (home / "sk" / "config.toml").write_text(
             f'[auth]\nissuer = "{ISSUER}"\nclientId = "{CLI_CLIENT_ID}"\nallowInsecureHttp = true\n'
             f'[api]\nurl = "{API_URL}"\nallowInsecureHttp = true\n'
-            f'[core]\nprojectId = "{CORE_PROJECT_ID}"\n'
+            f'[cam]\nprojectId = "{CAM_PROJECT_ID}"\n'
             f'[sum]\nprojectId = "{SUM_PROJECT_ID}"\n'
             f'[ipm]\nprojectId = "{IPM_PROJECT_ID}"\n'
             f'[bsm]\nprojectId = "{BSM_PROJECT_ID}"\n'
@@ -166,7 +166,7 @@ def _require_environment() -> None:
         name
         for name, value in (
             ("E2E_CLI_CLIENT_ID", CLI_CLIENT_ID),
-            ("E2E_CORE_PROJECT_ID", CORE_PROJECT_ID),
+            ("E2E_CAM_PROJECT_ID", CAM_PROJECT_ID),
             ("E2E_SUM_PROJECT_ID", SUM_PROJECT_ID),
             ("E2E_IPM_PROJECT_ID", IPM_PROJECT_ID),
             ("E2E_BSM_PROJECT_ID", BSM_PROJECT_ID),
@@ -189,7 +189,7 @@ def person(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Person]:
     email = f"test-e2e-{secrets.token_hex(4)}@example.com"
     password = "Aa1!" + secrets.token_urlsafe(14)
     registered = httpx.post(
-        f"{API_URL}/v1/core/accounts",
+        f"{API_URL}/v1/cam/accounts",
         json={"givenName": "Jornada", "familyName": "E2e", "email": email},
         timeout=15.0,
     )
@@ -226,7 +226,7 @@ def _remove(person: Person) -> None:
     sk = person.sk
     sk.run("sum", "service", "list")  # renova o token se preciso (a CLI cuida da sessão)
     headers = {"Authorization": f"Bearer {sk.credentials()['accessToken']}"}
-    url = f"{API_URL}/v1/core/accounts/{person.resource_id}"
+    url = f"{API_URL}/v1/cam/accounts/{person.resource_id}"
     current = httpx.get(url, headers=headers, timeout=15.0)
     if current.status_code == 404:
         return
@@ -252,17 +252,7 @@ def _remove(person: Person) -> None:
                 "ipm", "organization", "delete", "--resource-id", org_id, "--wait", timeout=150.0
             )
 
-    # Se havia serviços habilitados no SUM, desabilita.
-    sum_list = httpx.get(f"{API_URL}/v1/sum/services", headers=headers, timeout=15.0)
-    if sum_list.status_code == 200:
-        for item in sum_list.json().get("items", []):
-            if item.get("lifecycle") == "present":
-                srv_id = str(item["resourceId"])
-                sk.run(
-                    "sum", "service", "disable", "--resource-id", srv_id, "--wait", timeout=150.0
-                )
-
-    # Se havia Billing Accounts no BSM, desprotege e remove.
+    # Se havia Billing Accounts no BSM, desprotege e remove antes de desabilitar os serviços no SUM.
     bsm_list = httpx.get(f"{API_URL}/v1/bsm/accounts", headers=headers, timeout=15.0)
     if bsm_list.status_code == 200:
         for item in bsm_list.json().get("items", []):
@@ -273,8 +263,18 @@ def _remove(person: Person) -> None:
                 )
             sk.run("bsm", "account", "delete", "--resource-id", bsm_id, "--wait", timeout=150.0)
 
+    # Se havia serviços habilitados no SUM, desabilita.
+    sum_list = httpx.get(f"{API_URL}/v1/sum/services", headers=headers, timeout=15.0)
+    if sum_list.status_code == 200:
+        for item in sum_list.json().get("items", []):
+            if item.get("lifecycle") == "present":
+                srv_id = str(item["resourceId"])
+                sk.run(
+                    "sum", "service", "disable", "--resource-id", srv_id, "--wait", timeout=150.0
+                )
+
     if current.json()["desired"].get("deletionProtection", True):
-        sk.run("account", "unprotect", "--wait", timeout=150.0)
+        sk.run("cam", "account", "unprotect", "--wait", timeout=150.0)
         current = httpx.get(url, headers=headers, timeout=15.0)
         if current.status_code == 404:
             return

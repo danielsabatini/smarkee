@@ -33,7 +33,7 @@ from sk.commands.shared import (
     session_token,
     usage_error,
 )
-from sk.features.core.account import validate_registration
+from sk.features.cam.account import validate_registration
 from sk.features.ipm.user import (
     User,
     create_user,

@@ -1,6 +1,6 @@
-"""Cliente de `core/account` na API da plataforma (`docs/loop/RESOURCE-CONTROL-LOOP.md`, §6.1).
+"""Cliente de `cam/account` na API da plataforma (`docs/loop/RESOURCE-CONTROL-LOOP.md`, §6.1).
 
-O cadastro (`POST /v1/core/accounts`) é anônimo: esta chamada **nunca** envia `Authorization`,
+O cadastro (`POST /v1/cam/accounts`) é anônimo: esta chamada **nunca** envia `Authorization`,
 mesmo que existam credenciais salvas. O servidor é a autoridade sobre o conteúdo: as validações
 locais só evitam pedidos que certamente seriam recusados.
 """
@@ -15,7 +15,7 @@ from sk.features.api_contract import as_object, as_text, validate_identifier
 from sk.http import ApiUnavailableError, Opener, call_api, send
 from sk.identity.oidc import ensure_secure_url
 
-USER_REGISTRATION_PATH = "/v1/core/accounts"
+USER_REGISTRATION_PATH = "/v1/cam/accounts"
 MAXIMUM_NAME_LENGTH = 256
 MINIMUM_EMAIL_LENGTH = 3
 MAXIMUM_EMAIL_LENGTH = 254
@@ -39,7 +39,6 @@ class RegistrationStatus:
     email_dispatched: bool
     activated: bool
     ticket_expires_at: str
-
 
 
 def validate_registration(given_name: str, family_name: str, email: str) -> None:
@@ -111,7 +110,7 @@ def get_registration_status(
 ) -> RegistrationStatus:
     """Consulta o status de cadastro por ticket temporário (UUIDv7)."""
     ensure_secure_url(api_url, allow_insecure_http=allow_insecure_http)
-    url = f"{api_url.rstrip('/')}/v1/core/accounts/registration-status/{ticket}"
+    url = f"{api_url.rstrip('/')}/v1/cam/accounts/registration-status/{ticket}"
     request = urllib.request.Request(  # noqa: S310 (esquema validado por ensure_secure_url)
         url,
         method="GET",
@@ -139,7 +138,7 @@ def resend_registration(
 ) -> None:
     """Solicita reenvio do e-mail de ativação via ticket temporário (UUIDv7)."""
     ensure_secure_url(api_url, allow_insecure_http=allow_insecure_http)
-    url = f"{api_url.rstrip('/')}/v1/core/accounts/registration-status/{ticket}/resend"
+    url = f"{api_url.rstrip('/')}/v1/cam/accounts/registration-status/{ticket}/resend"
     request = urllib.request.Request(  # noqa: S310 (esquema validado por ensure_secure_url)
         url,
         method="POST",
@@ -148,7 +147,6 @@ def resend_registration(
     status, _ = send(request, opener=opener)
     if status != 204:
         raise ApiUnavailableError(f"unexpected API response (HTTP {status})")
-
 
 
 @dataclass(frozen=True, slots=True)

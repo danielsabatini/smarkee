@@ -11,15 +11,16 @@ Este documento apresenta o roteiro completo de ponta a ponta para validar todas 
 ## Índice por Feature
 
 1. [Preparação do Ambiente (`clients/cli`)](#1-preparação-do-ambiente-clientscli)
-2. [Feature `core.account` — Onboarding, Identidade e Conta Pessoal](#2-feature-coreaccount--onboarding-identidade-e-conta-pessoal)
-3. [Feature `bsm.account` — Unidade de Cobrança (Billing Service Manager)](#3-feature-bsmaccount--unidade-de-cobrança-billing-service-manager)
-4. [Feature `sum.service` — Serviços de Plataforma (Service Usage Manager)](#4-feature-sumservice--serviços-de-plataforma-service-usage-manager)
-5. [Feature `ipm.organization` — Gestão de Organizações](#5-feature-ipmorganization--gestão-de-organizações)
-6. [Features `ipm.permission` e `ipm.role` — Catálogo IAM de Permissões e Roles](#6-features-ipmpermission-e-ipmrole--catálogo-iam-de-permissões-e-roles)
-7. [Feature `ipm.group` — Grupos da Organização](#7-feature-ipmgroup--grupos-da-organização)
-8. [Feature `ipm.user` — Membros e Usuários da Organização](#8-feature-ipmuser--membros-e-usuários-da-organização)
-9. [Feature `ipm.serviceaccount` — Identidades de Máquina (M2M)](#9-feature-ipmserviceaccount--identidades-de-máquina-m2m)
-10. [Desmonte Ordenado e Exclusão Total (Hierarquia Reversa)](#10-desmonte-ordenado-e-exclusão-total-hierarquia-reversa)
+2. [Feature `cam.account` — Onboarding, Identidade e Conta do Cliente (Customer Account Manager)](#2-feature-camaccount--onboarding-identidade-e-conta-do-cliente-customer-account-manager)
+3. [Feature `sum.service` (Etapa 1) — Habilitação do Serviço `bsm`](#3-feature-sumservice-etapa-1--habilitação-do-serviço-bsm)
+4. [Feature `bsm.account` — Unidade de Cobrança (Billing Service Manager)](#4-feature-bsmaccount--unidade-de-cobrança-billing-service-manager)
+5. [Feature `sum.service` (Etapa 2) — Habilitação do Serviço `ipm`](#5-feature-sumservice-etapa-2--habilitação-do-serviço-ipm)
+6. [Feature `ipm.organization` — Gestão de Organizações](#6-feature-ipmorganization--gestão-de-organizações)
+7. [Features `ipm.permission` e `ipm.role` — Catálogo IAM de Permissões e Roles](#7-features-ipmpermission-e-ipmrole--catálogo-iam-de-permissões-e-roles)
+8. [Feature `ipm.group` — Grupos da Organização](#8-feature-ipmgroup--grupos-da-organização)
+9. [Feature `ipm.user` — Membros e Usuários da Organização](#9-feature-ipmuser--membros-e-usuários-da-organização)
+10. [Feature `ipm.serviceaccount` — Identidades de Máquina (M2M)](#10-feature-ipmserviceaccount--identidades-de-máquina-m2m)
+11. [Desmonte Ordenado e Exclusão Total (Hierarquia Reversa)](#11-desmonte-ordenado-e-exclusão-total-hierarquia-reversa)
 
 ---
 
@@ -39,15 +40,15 @@ source clients/cli/.env
 
 ---
 
-## 2. Feature `core.account` — Onboarding, Identidade e Conta Pessoal
+## 2. Feature `cam.account` — Onboarding, Identidade e Conta do Cliente (Customer Account Manager)
 
-O módulo `core.account` gerencia o ciclo de vida da conta pessoal e do usuário raiz no provedor de identidade (Zitadel).
+O módulo `cam.account` gerencia o ciclo de vida da conta de cliente (**Customer Account**) e do usuário raiz no provedor de identidade (Zitadel).
 
 ### 2.1 Auto-cadastro Síncrono (`--wait`, padrão)
 Solicite o cadastro da conta. Por padrão, a CLI adota `--wait`, aguardando a criação assíncrona no provedor e o envio do e-mail de ativação:
 
 ```bash
-uv run --project clients/cli sk account create \
+uv run --project clients/cli sk cam account create \
   --name "Ana" \
   --surname "Souza" \
   --email "ana.souza@empresa.com"
@@ -72,7 +73,7 @@ Provisioning completed and activation e-mail sent to ana.souza@empresa.com.
 Caso prefira retorno imediato sem reter o terminal, utilize `--no-wait`. A plataforma emite um **Ticket de Rastreamento** temporário (UUIDv7, TTL de 30 minutos):
 
 ```bash
-uv run --project clients/cli sk account create \
+uv run --project clients/cli sk cam account create \
   --name "Ana" \
   --surname "Souza" \
   --email "ana.souza@empresa.com" \
@@ -81,12 +82,12 @@ uv run --project clients/cli sk account create \
 
 #### Consultar o Status por Ticket:
 ```bash
-uv run --project clients/cli sk account status --ticket <TICKET_UUID>
+uv run --project clients/cli sk cam account status --ticket <TICKET_UUID>
 ```
 
 #### Solicitar Reenvio de E-mail de Ativação (com Rate Limiting de 60s):
 ```bash
-uv run --project clients/cli sk account status --ticket <TICKET_UUID> --resend
+uv run --project clients/cli sk cam account status --ticket <TICKET_UUID> --resend
 ```
 
 ### 2.3 Ativação no Mailpit e Cadastro de Senha
@@ -95,7 +96,7 @@ uv run --project clients/cli sk account status --ticket <TICKET_UUID> --resend
 3. Clique em **Verificar e-mail**.
 4. Na tela do Zitadel (`http://ipm-dev.smarkee.com.br:8080`), cadastre uma senha inicial (ex: `SenhaSegura@123`).
 
-### 2.4 Login OIDC e Inspeção da Conta Pessoal
+### 2.4 Login OIDC e Inspeção da Conta do Cliente
 Autentique-se via navegador e confira os dados da sessão:
 
 ```bash
@@ -105,39 +106,97 @@ uv run --project clients/cli sk auth login
 # Verificar a sessão ativa
 uv run --project clients/cli sk auth whoami
 
-# Inspecionar os detalhes da sua conta pessoal
-uv run --project clients/cli sk account get
+# Inspecionar os detalhes da sua Customer Account
+uv run --project clients/cli sk cam account get
+```
+*(Anote o `resourceId` da sua Customer Account ou fixe-o com `uv run --project clients/cli sk config set cam.accountId <CUSTOMER_ACCOUNT_ID>`)*.
+
+---
+
+## 3. Feature `sum.service` (Etapa 1) — Habilitação do Serviço `bsm`
+
+No auto-cadastro (`cam.account`), a conta recebe apenas as permissões `cam.account.{delete,get}`, `sum.bsm.{disable,enable,get}` e `sum.ipm.{disable,enable,get}` (menor privilégio, decisão `0105`). Para gerenciar contas de faturamento (`bsm.account`), habilite primeiro o serviço **`bsm`** no catálogo `sum.service`.
+
+### 3.1 Descobrir Serviços no Catálogo (`--available`)
+
+Consulte quais serviços estão disponíveis na plataforma:
+
+```bash
+uv run --project clients/cli sk sum service list --available
+```
+
+**Saída esperada:**
+```text
+╭─ Available Services ─────────────────────────────────────────────────────────────╮
+│ name  title                      state      description                          │
+│ bsm   Billing Service Manager    available  Manage billing accounts, contacts,   │
+│                                             currencies and spending controls.    │
+│ ipm   Identity Provider Manager  available  Manage organizations, identities,    │
+│                                             groups, permissions and service      │
+│                                             accounts.                            │
+╰──────────────────────────────────────────────────────────────────────────────────╯
+```
+
+### 3.2 Habilitar o Serviço `bsm` (`sk sum service enable --service bsm`)
+
+Habilite o serviço `bsm` (que não exige uma Billing Account prévia) para receber as permissões `bsm.account.{create,delete,get,list,update}` e renovar automaticamente o token da sessão OIDC:
+
+```bash
+uv run --project clients/cli sk sum service enable --service bsm
 ```
 
 ---
 
-## 3. Feature `bsm.account` — Unidade de Cobrança (Billing Service Manager)
+## 4. Feature `bsm.account` — Unidade de Cobrança (Billing Service Manager)
 
-O módulo `bsm.account` gerencia as unidades de faturamento e limites de cobrança. Conforme a arquitetura de recursos internos (`internal-state`, decisões `0098` e `0100`), a criação de uma Billing Account é realizada explicitamente via CLI:
+O módulo `bsm.account` gerencia as unidades de faturamento e limites de cobrança associadas explicitamente a uma Customer Account (`customerAccountId`).
+
+Cada `customerAccountId` suporta:
+- **`--type free`**: até **1** conta ativa sem exigência de método de pagamento.
+- **`--type paid`**: até **5** contas ativas, exigindo método de pagamento válido registrado para o `customerAccountId` no arquivo local configurado em `SMARKEE_PAYMENT_METHODS_FILE` (padrão `.workspace/payment-methods.json`, conforme `schemas/bsm/account/payment-methods.v1.schema.json`).
+
+### 4.1 Criar uma Billing Account `free`
 
 ```bash
-# Criar uma Billing Account inicial
+# Criar uma Billing Account gratuita associada à Customer Account
 uv run --project clients/cli sk bsm account create \
+  --type free \
+  --customer-account <CUSTOMER_ACCOUNT_ID> \
   --display-name "Free Tier" \
   --currency BRL \
-  --contact ana.souza@empresa.com \
-  --wait
+  --billing-contacts ana.souza@empresa.com
 ```
+*(Se `cam.accountId` já estiver salvo via `sk config set cam.accountId <CUSTOMER_ACCOUNT_ID>`, o parâmetro `--customer-account` pode ser omitido. O parâmetro `--billing-contacts` aceita repetição ou e-mails separados por vírgula).*
 
 **Saída esperada:**
 ```text
 waiting: request accepted (0 s of 60 s)
 waiting: provisioning (ready) (0 s of 60 s)
 ╭─ ✓ Billing Account created ──────────────────────────────────────────────────────╮
-│ displayName      Free Tier                                                       │
-│ currency         BRL                                                             │
-│ resourceId       01a18cc9-7970-7483-903c-2bc214939e89                            │
-│ phase            Ready                                                           │
-│ protected        yes                                                             │
+│ displayName        Free Tier                                                     │
+│ type               free                                                          │
+│ customerAccountId  01a18cc9-2bc2-7483-903c-797014939e89                          │
+│ currency           BRL                                                           │
+│ resourceId         01a18cc9-7970-7483-903c-2bc214939e89                          │
+│ phase              Ready                                                         │
+│ protected          yes                                                           │
 ╰──────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-Em seguida, liste as contas, inspecione seus detalhes e fixe-a como padrão na configuração local da CLI:
+### 4.2 (Opcional) Criar uma Billing Account `paid` com Método de Pagamento em Disco
+
+Para criar uma conta `--type paid` em ambiente de desenvolvimento, registre um método de pagamento ativo no arquivo `.workspace/payment-methods.json` (seguindo `schemas/bsm/account/payment-methods.example.json`) para o seu `<CUSTOMER_ACCOUNT_ID>` e execute:
+
+```bash
+uv run --project clients/cli sk bsm account create \
+  --type paid \
+  --customer-account <CUSTOMER_ACCOUNT_ID> \
+  --display-name "Produção" \
+  --currency BRL \
+  --billing-contacts "financeiro@empresa.com,ana.souza@empresa.com"
+```
+
+### 4.3 Listar, Inspecionar e Fixar na Configuração Local
 
 ```bash
 # Listar as contas de cobrança disponíveis
@@ -158,46 +217,9 @@ uv run --project clients/cli sk config get bsm.accountId
 
 ---
 
-## 4. Feature `sum.service` — Serviços de Plataforma (Service Usage Manager)
+## 5. Feature `sum.service` (Etapa 2) — Habilitação do Serviço `ipm`
 
-O módulo `sum.service` gerencia o catálogo e a habilitação de serviços da plataforma para o solicitante (por exemplo, `ipm`).
-
-A listagem segue o padrão do Google Cloud CLI (`gcloud services list`):
-- `sk sum service list --available`: lista todos os serviços disponíveis no catálogo com status (`available` ou `enabled`).
-- `sk sum service list` (ou `--enabled`): lista exclusivamente os serviços já ativados para a sua conta.
-
-### 4.1 Descobrir Serviços no Catálogo (`--available`)
-
-Antes de habilitar qualquer módulo, consulte quais serviços estão disponíveis na plataforma:
-
-```bash
-uv run --project clients/cli sk sum service list --available
-```
-
-**Saída esperada:**
-```text
-╭─ Available Services ─────────────────────────────────────────────────────────────╮
-│ name  title                      state      description                          │
-│ ipm   Identity Provider Manager  available  Manage organizations, identities,    │
-│                                             groups, permissions and service      │
-│                                             accounts.                            │
-╰──────────────────────────────────────────────────────────────────────────────────╯
-```
-
-Se consultar apenas os serviços já habilitados antes da ativação:
-
-```bash
-uv run --project clients/cli sk sum service list
-```
-
-A listagem indica que ainda não há serviços ativados e sugere a consulta ao catálogo:
-```text
-No services enabled. Run `sk sum service list --available` to see available services.
-```
-
-### 4.2 Habilitar um Serviço da Plataforma (`sk sum service enable`)
-
-Para começar a gerenciar identidades e organizações, habilite o serviço **`ipm`** (Identity Provider Manager) para a sua conta. Por padrão, a CLI opera com `--wait` ativo, aguardando a convergência na malha e renovando automaticamente o token da sessão OIDC com as novas permissões:
+Com uma Billing Account ativa em `bsm.account`, habilite o serviço **`ipm`** (Identity Provider Manager) para gerenciar organizações e identidades:
 
 ```bash
 # Habilitar o serviço IPM (aguarda Ready e renova a sessão por padrão)
@@ -220,21 +242,20 @@ waiting: provisioning (ready) (1 s of 60 s)
 ╰──────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-### 4.3 Inspecionar Serviços Ativados
-
-Com o serviço ativado, a listagem regular exibirá o serviço habilitado:
+### 5.1 Inspecionar Serviços Ativados
 
 ```bash
-# Listar os serviços habilitados para a sua conta (ou use a flag explícita --enabled)
+# Listar os serviços habilitados para a sua conta (bsm e ipm)
 uv run --project clients/cli sk sum service list
 
-# Conferir detalhes específicos do serviço IPM habilitado
+# Conferir detalhes específicos dos serviços habilitados
+uv run --project clients/cli sk sum service get --service bsm
 uv run --project clients/cli sk sum service get --service ipm
 ```
 
 ---
 
-## 5. Feature `ipm.organization` — Gestão de Organizações
+## 6. Feature `ipm.organization` — Gestão de Organizações
 
 O módulo `ipm.organization` gerencia organizações como tenants no provedor de identidade. Toda organização exige uma Billing Account ativa associada.
 
@@ -261,7 +282,7 @@ uv run --project clients/cli sk ipm organization get
 
 ---
 
-## 6. Features `ipm.permission` e `ipm.role` — Catálogo IAM de Permissões e Roles
+## 7. Features `ipm.permission` e `ipm.role` — Catálogo IAM de Permissões e Roles
 
 As features `ipm.permission` e `ipm.role` controlam o catálogo de permissões atômicas e roles compostas pré-definidas no padrão Google Cloud IAM.
 
@@ -275,7 +296,7 @@ uv run --project clients/cli sk ipm role list
 
 ---
 
-## 7. Feature `ipm.group` — Grupos da Organização
+## 8. Feature `ipm.group` — Grupos da Organização
 
 O módulo `ipm.group` gerencia agrupamentos lógicos de identidades na organização.
 
@@ -292,7 +313,7 @@ uv run --project clients/cli sk ipm group list
 
 ---
 
-## 8. Feature `ipm.user` — Membros e Usuários da Organização
+## 9. Feature `ipm.user` — Membros e Usuários da Organização
 
 O módulo `ipm.user` gerencia membros convidados e suas roles atribuídas dentro da organização.
 
@@ -317,7 +338,7 @@ uv run --project clients/cli sk ipm user get --resource-id <USER_ID>
 
 ---
 
-## 9. Feature `ipm.serviceaccount` — Identidades de Máquina (M2M)
+## 10. Feature `ipm.serviceaccount` — Identidades de Máquina (M2M)
 
 O módulo `ipm.serviceaccount` gerencia identidades não humanas para pipelines e automações, gerando chaves RSA localmente em arquivos seguros (`0600`).
 
@@ -341,35 +362,35 @@ uv run --project clients/cli sk ipm serviceaccount key list --resource-id <SA_ID
 
 ---
 
-## 10. Desmonte Ordenado e Exclusão Total (Hierarquia Reversa)
+## 11. Desmonte Ordenado e Exclusão Total (Hierarquia Reversa)
 
 A plataforma impõe proteção contra exclusão acidental e exige a **remoção hierárquica inversa**: recursos filhos devem ser removidos antes dos contêineres e serviços atrelados.
 
 ```text
-Service Accounts → Usuários → Grupos → Organização → Serviços SUM → Billing Account → Conta Pessoal
+Service Accounts → Usuários → Grupos → Organização → Serviço IPM → Billing Account → Serviço BSM → Conta do Cliente
 ```
 
-### 10.1 Feature `ipm.serviceaccount`
+### 11.1 Feature `ipm.serviceaccount`
 Desproteger e remover a Service Account:
 ```bash
 uv run --project clients/cli sk ipm serviceaccount unprotect --resource-id <SA_ID> --wait
 uv run --project clients/cli sk ipm serviceaccount delete --resource-id <SA_ID> --wait
 ```
 
-### 10.2 Feature `ipm.user`
+### 11.2 Feature `ipm.user`
 Desproteger e remover o usuário convidado:
 ```bash
 uv run --project clients/cli sk ipm user unprotect --resource-id <USER_ID> --wait
 uv run --project clients/cli sk ipm user delete --resource-id <USER_ID> --wait
 ```
 
-### 10.3 Feature `ipm.group`
+### 11.3 Feature `ipm.group`
 Remover o grupo da organização:
 ```bash
 uv run --project clients/cli sk ipm group delete --resource-id <GROUP_ID>
 ```
 
-### 10.4 Feature `ipm.organization`
+### 11.4 Feature `ipm.organization`
 Desproteger e remover a organização (exige estar vazia):
 ```bash
 uv run --project clients/cli sk ipm organization unprotect --resource-id <ORGANIZATION_ID> --wait
@@ -377,13 +398,13 @@ uv run --project clients/cli sk ipm organization delete --resource-id <ORGANIZAT
 uv run --project clients/cli sk config unset ipm.organizationId
 ```
 
-### 10.5 Feature `sum.service`
+### 11.5 Feature `sum.service` (`ipm`)
 Desabilitar o serviço IPM:
 ```bash
 uv run --project clients/cli sk sum service disable --service ipm --wait
 ```
 
-### 10.6 Feature `bsm.account`
+### 11.6 Feature `bsm.account`
 Desproteger e remover a Billing Account (exige que não haja organizações atreladas):
 ```bash
 uv run --project clients/cli sk bsm account unprotect --resource-id <BILLING_ACCOUNT_ID> --wait
@@ -391,14 +412,21 @@ uv run --project clients/cli sk bsm account delete --resource-id <BILLING_ACCOUN
 uv run --project clients/cli sk config unset bsm.accountId
 ```
 
-### 10.7 Feature `core.account`
-Desproteger e excluir definitivamente a conta pessoal:
+### 11.7 Feature `sum.service` (`bsm`)
+Desabilitar o serviço BSM (exige que não haja Billing Accounts ativas):
 ```bash
-uv run --project clients/cli sk account unprotect --wait
-uv run --project clients/cli sk account delete --yes --wait
+uv run --project clients/cli sk sum service disable --service bsm --wait
 ```
 
-### 10.8 Sessão
+### 11.8 Feature `cam.account`
+Desproteger e excluir definitivamente a conta do cliente:
+```bash
+uv run --project clients/cli sk cam account unprotect --wait
+uv run --project clients/cli sk cam account delete --yes --wait
+uv run --project clients/cli sk config unset cam.accountId
+```
+
+### 11.9 Sessão
 Finalizar a sessão local:
 ```bash
 uv run --project clients/cli sk auth logout

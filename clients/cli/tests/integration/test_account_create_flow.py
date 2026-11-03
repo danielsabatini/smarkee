@@ -1,7 +1,7 @@
-"""`sk account create` contra um servidor HTTP real (loopback), sem nenhum token enviado.
+"""`sk cam account create` contra um servidor HTTP real (loopback), sem nenhum token enviado.
 
 Simula a API do cadastro: responde `202` ao pedido bem formado e registra o que chegou. Não
-substitui o teste contra a plataforma de dev (`features/core/account/tests/e2e`).
+substitui o teste contra a plataforma de dev (`features/cam/account/tests/e2e`).
 """
 
 import json
@@ -74,6 +74,7 @@ def test_the_request_reaches_the_api_without_any_token(
     result = runner.invoke(
         app,
         [
+            "cam",
             "account",
             "create",
             "--name",
@@ -88,7 +89,7 @@ def test_the_request_reaches_the_api_without_any_token(
     assert result.exit_code == 0, result.stderr
     assert "Registration requested" in result.stdout
     request = Recording.received[0]
-    assert request["path"] == "/v1/core/accounts"
+    assert request["path"] == "/v1/cam/accounts"
     assert request["authorization"] is None
     assert request["body"] == {
         "givenName": "Ana",
@@ -105,6 +106,7 @@ def test_plain_http_without_permission_sends_nothing(
     result = runner.invoke(
         app,
         [
+            "cam",
             "account",
             "create",
             "--name",

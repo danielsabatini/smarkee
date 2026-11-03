@@ -146,9 +146,7 @@ _flow = SyncResourceFlow(
     structured=True,
     help=command(
         "Create an atomic platform permission.",
-        examples=[
-            "sk ipm permission create --name sum.service.audit --description Audit --wait"
-        ],
+        examples=["sk ipm permission create --name sum.service.audit --description Audit --wait"],
     ),
 )
 def create_command(
@@ -235,9 +233,7 @@ def create_command(
     structured=True,
     help=command(
         "Update the description or grantable status of a platform permission.",
-        examples=[
-            "sk ipm permission update --resource-id sum.service.audit --description Audit"
-        ],
+        examples=["sk ipm permission update --resource-id sum.service.audit --description Audit"],
     ),
 )
 def update_command(

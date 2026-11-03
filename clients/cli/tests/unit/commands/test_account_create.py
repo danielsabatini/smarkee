@@ -1,4 +1,4 @@
-"""Comando `sk account create`: opções, configuração, validação local e mensagens de saída."""
+"""Comando `sk cam account create`: opções, configuração, validação local e mensagens de saída."""
 
 import json
 from pathlib import Path
@@ -9,12 +9,12 @@ from typer.testing import CliRunner
 
 from sk import output
 from sk.defaults import PRD_API_URL
-from sk.features.core.account import RegistrationAccepted, RegistrationStatus
+from sk.features.cam.account import RegistrationAccepted, RegistrationStatus
 from sk.http import ApiRejectedError, ApiUnavailableError
 from sk.main import app
 
 runner = CliRunner()
-REGISTER = ["account", "create", "--name", "Ana", "--surname", "Souza", "--email", "x@y.com"]
+REGISTER = ["cam", "account", "create", "--name", "Ana", "--surname", "Souza", "--email", "x@y.com"]
 
 
 @pytest.fixture(autouse=True)
@@ -55,7 +55,7 @@ def test_without_any_configuration_the_production_api_is_used(
 ) -> None:
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        "sk.commands.account.submit_registration",
+        "sk.commands.cam.submit_registration",
         fake_submit(calls, RegistrationAccepted("r-1")),
     )
     result = runner.invoke(app, REGISTER)
@@ -69,7 +69,7 @@ def test_the_api_url_comes_from_the_configuration_file(
     write_config(tmp_path, '[api]\nurl = "https://api.arquivo"\n')
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        "sk.commands.account.submit_registration",
+        "sk.commands.cam.submit_registration",
         fake_submit(calls, RegistrationAccepted("r-1")),
     )
     result = runner.invoke(app, REGISTER)
@@ -84,7 +84,7 @@ def test_the_environment_overrides_the_file(
     monkeypatch.setenv("SK_API_URL", "https://api.ambiente")
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        "sk.commands.account.submit_registration",
+        "sk.commands.cam.submit_registration",
         fake_submit(calls, RegistrationAccepted("r-1")),
     )
     result = runner.invoke(app, REGISTER)
@@ -96,10 +96,11 @@ def test_an_invalid_email_never_reaches_the_api(monkeypatch: pytest.MonkeyPatch)
     def must_not_be_called(*_: object, **__: object) -> None:
         raise AssertionError("a API não deve ser chamada com dados inválidos")
 
-    monkeypatch.setattr("sk.commands.account.submit_registration", must_not_be_called)
+    monkeypatch.setattr("sk.commands.cam.submit_registration", must_not_be_called)
     result = runner.invoke(
         app,
         [
+            "cam",
             "account",
             "create",
             "--name",
@@ -117,7 +118,7 @@ def test_an_invalid_email_never_reaches_the_api(monkeypatch: pytest.MonkeyPatch)
 def test_success_prints_the_identities_and_the_next_step(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        "sk.commands.account.submit_registration",
+        "sk.commands.cam.submit_registration",
         fake_submit(calls, RegistrationAccepted("0199-res")),
     )
     result = runner.invoke(app, REGISTER, env={"SK_API_URL": "https://api.example"})
@@ -132,7 +133,7 @@ def test_success_prints_the_identities_and_the_next_step(monkeypatch: pytest.Mon
 
 def test_rate_limit_tells_how_long_to_wait(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sk.commands.account.submit_registration",
+        "sk.commands.cam.submit_registration",
         fake_submit(
             [], ApiRejectedError(429, "x", error_code="RateLimited", retry_after_seconds=30)
         ),
@@ -144,7 +145,7 @@ def test_rate_limit_tells_how_long_to_wait(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_a_rejected_field_is_a_usage_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sk.commands.account.submit_registration",
+        "sk.commands.cam.submit_registration",
         fake_submit(
             [],
             ApiRejectedError(400, "Campo inválido", error_code="ValidationFailed", field="email"),
@@ -158,7 +159,7 @@ def test_a_rejected_field_is_a_usage_error(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_an_unavailable_service_asks_to_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sk.commands.account.submit_registration",
+        "sk.commands.cam.submit_registration",
         fake_submit([], ApiUnavailableError("the API answered HTTP 503")),
     )
     result = runner.invoke(app, REGISTER, env={"SK_API_URL": "https://api.example"})
@@ -167,7 +168,7 @@ def test_an_unavailable_service_asks_to_retry(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_help_is_in_portuguese_and_lists_the_three_fields() -> None:
-    result = runner.invoke(app, ["account", "create", "--help"])
+    result = runner.invoke(app, ["cam", "account", "create", "--help"])
     assert result.exit_code == 0
     for option in ("--name", "--surname", "--email"):
         assert option in result.stdout
@@ -181,7 +182,7 @@ def test_json_prints_the_acceptance_and_sends_the_next_steps_to_stderr(
 ) -> None:
     output.configure(raw=False)
     monkeypatch.setattr(
-        "sk.commands.account.submit_registration",
+        "sk.commands.cam.submit_registration",
         fake_submit([], RegistrationAccepted("r-1", "t-1", "2026-10-30T15:30:00Z")),
     )
     result = runner.invoke(app, ["--output", "json", *REGISTER, "--no-wait"])
@@ -200,12 +201,11 @@ def test_create_account_with_wait_default_converges_to_ready(
 ) -> None:
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        "sk.commands.account.submit_registration",
+        "sk.commands.cam.submit_registration",
         fake_submit(calls, RegistrationAccepted("r-1", "ticket-123", "2026-10-30T15:30:00Z")),
     )
-    def fake_status(
-        url: str, *, ticket: str, allow_insecure_http: bool
-    ) -> RegistrationStatus:
+
+    def fake_status(url: str, *, ticket: str, allow_insecure_http: bool) -> RegistrationStatus:
         return RegistrationStatus(
             phase="Ready",
             email_masked="x***m@y.com",
@@ -214,7 +214,7 @@ def test_create_account_with_wait_default_converges_to_ready(
             ticket_expires_at="2026-10-30T15:30:00Z",
         )
 
-    monkeypatch.setattr("sk.commands.account.get_registration_status", fake_status)
+    monkeypatch.setattr("sk.commands.cam.get_registration_status", fake_status)
     result = runner.invoke(app, REGISTER)
     assert result.exit_code == 0, result.stderr
     assert "Account registration accepted" in result.stdout
@@ -226,12 +226,10 @@ def test_create_account_no_wait_prints_ticket(
 ) -> None:
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        "sk.commands.account.submit_registration",
+        "sk.commands.cam.submit_registration",
         fake_submit(calls, RegistrationAccepted("r-1", "ticket-456", "2026-10-30T15:30:00Z")),
     )
     result = runner.invoke(app, [*REGISTER, "--no-wait"])
     assert result.exit_code == 0, result.stderr
     assert "Registration requested" in result.stdout
     assert "Registration ticket: ticket-456" in result.stdout
-
-

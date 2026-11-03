@@ -1,7 +1,7 @@
 """Comandos `sk sum service`: ligar, desligar e consultar os serviços do solicitante (decisão 0033).
 
 Usam o token da sessão (`sk auth login`), renovado quando está para vencer. A API é a mesma do
-`sk account create` (`[api] url`). Ligar e desligar são escritas síncronas (decisão 0098): a API
+`sk cam account create` (`[api] url`). Ligar e desligar são escritas síncronas (decisão 0098): a API
 admite o pedido e devolve a ligação, e o Controller converge o Zitadel depois. Com `--wait`, o
 comando espera a ligação convergir (`observedGeneration` alcança `desiredGeneration`, fase `Ready`)
 e renova a sessão: o token só traz as permissões que existiam quando foi emitido, e as do serviço
@@ -105,8 +105,9 @@ def _fail_api(
                 "Create one first (`sk bsm account create`) and repeat."
             ),
             "ResourcesAttached": (
-                "The service still has Organizations. Delete them first "
-                "(`sk ipm organization delete`) and repeat."
+                "The service still has dependent resources (such as Organizations or Billing "
+                "Accounts). Delete them first (`sk ipm organization delete` or "
+                "`sk bsm account delete`) and repeat."
             ),
             "ResourcesNotVerifiable": (
                 "The attached resources could not be verified. "

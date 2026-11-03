@@ -1,4 +1,4 @@
-"""Comando `sk account status`: consulta de status por ticket temporário e reenvio de ativação."""
+"""`sk cam account status`: consulta de status por ticket temporário e reenvio de ativação."""
 
 import json
 from pathlib import Path
@@ -8,12 +8,12 @@ import pytest
 from typer.testing import CliRunner
 
 from sk import output
-from sk.features.core.account import RegistrationStatus
+from sk.features.cam.account import RegistrationStatus
 from sk.http import ApiRejectedError
 from sk.main import app
 
 runner = CliRunner()
-STATUS_TICKET = ["account", "status", "--ticket", "0192d4f8-7b4a-7123-89ab-cdef01234567"]
+STATUS_TICKET = ["cam", "account", "status", "--ticket", "0192d4f8-7b4a-7123-89ab-cdef01234567"]
 
 
 @pytest.fixture(autouse=True)
@@ -29,15 +29,13 @@ def isolated_configuration(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_status_requires_ticket() -> None:
-    result = runner.invoke(app, ["account", "status"])
+    result = runner.invoke(app, ["cam", "account", "status"])
     assert result.exit_code == 2
     assert "Provide --ticket" in result.stderr
 
 
 def test_status_query_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_status(
-        url: str, *, ticket: str, allow_insecure_http: bool
-    ) -> RegistrationStatus:
+    def fake_status(url: str, *, ticket: str, allow_insecure_http: bool) -> RegistrationStatus:
         return RegistrationStatus(
             phase="Reconciling",
             email_masked="a***a@example.com",
@@ -46,7 +44,7 @@ def test_status_query_success(monkeypatch: pytest.MonkeyPatch) -> None:
             ticket_expires_at="2026-10-30T15:30:00Z",
         )
 
-    monkeypatch.setattr("sk.commands.account.get_registration_status", fake_status)
+    monkeypatch.setattr("sk.commands.cam.get_registration_status", fake_status)
     result = runner.invoke(app, STATUS_TICKET)
     assert result.exit_code == 0, result.stderr
     assert "Registration status" in result.stdout
@@ -58,9 +56,7 @@ def test_status_query_success(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_status_json_output(monkeypatch: pytest.MonkeyPatch) -> None:
     output.configure(raw=False)
 
-    def fake_status(
-        url: str, *, ticket: str, allow_insecure_http: bool
-    ) -> RegistrationStatus:
+    def fake_status(url: str, *, ticket: str, allow_insecure_http: bool) -> RegistrationStatus:
         return RegistrationStatus(
             phase="Ready",
             email_masked="a***a@example.com",
@@ -69,7 +65,7 @@ def test_status_json_output(monkeypatch: pytest.MonkeyPatch) -> None:
             ticket_expires_at="2026-10-30T15:30:00Z",
         )
 
-    monkeypatch.setattr("sk.commands.account.get_registration_status", fake_status)
+    monkeypatch.setattr("sk.commands.cam.get_registration_status", fake_status)
     result = runner.invoke(app, ["--output", "json", *STATUS_TICKET])
     output.configure(raw=False)
     assert result.exit_code == 0, result.stderr
@@ -84,7 +80,7 @@ def test_status_ticket_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_status(*_: Any, **__: Any) -> None:
         raise ApiRejectedError(404, "Ticket not found", error_code="TicketNotFound")
 
-    monkeypatch.setattr("sk.commands.account.get_registration_status", fake_status)
+    monkeypatch.setattr("sk.commands.cam.get_registration_status", fake_status)
     result = runner.invoke(app, STATUS_TICKET)
     assert result.exit_code == 1
     assert "Ticket not found" in result.stderr
@@ -96,7 +92,7 @@ def test_status_resend_success(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_resend(url: str, *, ticket: str, allow_insecure_http: bool) -> None:
         calls.append(ticket)
 
-    monkeypatch.setattr("sk.commands.account.resend_registration", fake_resend)
+    monkeypatch.setattr("sk.commands.cam.resend_registration", fake_resend)
     result = runner.invoke(app, [*STATUS_TICKET, "--resend"])
     assert result.exit_code == 0, result.stderr
     assert calls == ["0192d4f8-7b4a-7123-89ab-cdef01234567"]
@@ -112,7 +108,7 @@ def test_status_resend_rate_limited(monkeypatch: pytest.MonkeyPatch) -> None:
             retry_after_seconds=45,
         )
 
-    monkeypatch.setattr("sk.commands.account.resend_registration", fake_resend)
+    monkeypatch.setattr("sk.commands.cam.resend_registration", fake_resend)
     result = runner.invoke(app, [*STATUS_TICKET, "--resend"])
     assert result.exit_code == 1
     assert "Too many requests" in result.stderr
@@ -133,7 +129,7 @@ def test_status_wait_converges_when_email_dispatched(monkeypatch: pytest.MonkeyP
             ticket_expires_at="2026-10-30T15:30:00Z",
         )
 
-    monkeypatch.setattr("sk.commands.account.get_registration_status", fake_status)
+    monkeypatch.setattr("sk.commands.cam.get_registration_status", fake_status)
     result = runner.invoke(app, [*STATUS_TICKET, "--wait"])
     assert result.exit_code == 0, result.stderr
     assert "Registration status" in result.stdout

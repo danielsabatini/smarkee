@@ -100,7 +100,7 @@ def _refuse_provisional_defaults(auth: AuthSettings) -> None:
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     values = {
         "auth.clientId": auth.client_id,
-        "core.projectId": settings.core.project_id,
+        "cam.projectId": settings.cam.project_id,
         "sum.projectId": settings.sum.project_id,
         "ipm.projectId": settings.ipm.project_id,
     }
@@ -122,7 +122,7 @@ def _refuse_provisional_module_projects() -> None:
         ui.error("Invalid configuration", str(error), hint="Fix the file and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
     values = {
-        "core.projectId": settings.core.project_id,
+        "cam.projectId": settings.cam.project_id,
         "sum.projectId": settings.sum.project_id,
         "ipm.projectId": settings.ipm.project_id,
     }
@@ -291,13 +291,13 @@ def run_service_account_login(
 
 
 def module_project_ids() -> tuple[str, ...]:
-    """`projectId` de `[core]`, `[sum]`, `[ipm]`, `[bsm]` e `[operator]`: audiences do login."""
+    """`projectId` de `[cam]`, `[sum]`, `[ipm]`, `[bsm]` e `[operator]`: audiences do login."""
     try:
         settings = SkSettings()
     except (ValidationError, ConfigurationError) as error:
         ui.error("Invalid configuration", str(error), hint="Fix the file and repeat.")
         raise typer.Exit(EXIT_USAGE_ERROR) from error
-    projects = [settings.core.project_id, settings.sum.project_id, settings.ipm.project_id]
+    projects = [settings.cam.project_id, settings.sum.project_id, settings.ipm.project_id]
     if settings.bsm.project_id != PROVISIONAL:
         projects.append(settings.bsm.project_id)
     if settings.operator.project_id != PROVISIONAL:
