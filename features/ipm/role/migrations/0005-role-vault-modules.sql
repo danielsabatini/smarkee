@@ -6,6 +6,30 @@ BEGIN;
 WITH predefined(resource_id, role_name, description, permissions) AS (
   VALUES
     (
+      '01a1763d-eb52-748b-84c3-10fa2192a062',
+      'cam.accountViewer',
+      'Leitura de conta pessoal em cam.account.',
+      '["cam.account.get"]'::jsonb
+    ),
+    (
+      '01a1763d-eb54-762f-813e-15a4667086f1',
+      'cam.accountAdmin',
+      'Administração da própria conta em cam.account.',
+      '["cam.account.delete", "cam.account.get"]'::jsonb
+    ),
+    (
+      '01a1763d-eb57-7009-9196-741d0a8702ab',
+      'sum.serviceViewer',
+      'Leitura de serviços habilitados em sum.service.',
+      '["sum.bsm.get", "sum.ipm.get"]'::jsonb
+    ),
+    (
+      '01a1763d-eb59-715e-bfd5-129f757b2768',
+      'sum.serviceAdmin',
+      'Administração de serviços habilitados em sum.service.',
+      '["sum.bsm.disable", "sum.bsm.enable", "sum.bsm.get", "sum.ipm.disable", "sum.ipm.enable", "sum.ipm.get"]'::jsonb
+    ),
+    (
       '01a1896f-8966-77e1-b658-a42c65ba7195',
       'svm.secretViewer',
       'Leitura de segredos no cofre em svm.secret.',
@@ -80,6 +104,7 @@ inserted AS (
     'active',
     jsonb_build_object(
       'lifecycle', 'present',
+      'organizationId', 'core',
       'name', p.role_name,
       'roleType', 'predefined',
       'description', p.description,
@@ -127,7 +152,11 @@ inserted AS (
     'system',
     'seed-vault-modules'
   FROM predefined p
-  ON CONFLICT (resource_id) DO NOTHING
+  ON CONFLICT (resource_id) DO UPDATE
+     SET desired = EXCLUDED.desired,
+         observed = EXCLUDED.observed
+   WHERE ipm.role.desired IS DISTINCT FROM EXCLUDED.desired
+      OR ipm.role.observed IS DISTINCT FROM EXCLUDED.observed
   RETURNING resource_id, desired, reconciliation
 )
 INSERT INTO ipm.role_outbox (message_id, resource_id, subject, payload)

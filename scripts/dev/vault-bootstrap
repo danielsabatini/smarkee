@@ -730,7 +730,10 @@ NATS_USER="$(read_env_val "${REPO_ROOT}/infrastructure/dev/messaging/.env" "SMAR
 NATS_PASSWORD="$(read_env_val "${REPO_ROOT}/infrastructure/dev/messaging/.env" "SMARKEE_MESSAGING_PASSWORD" "smarkee-dev-messaging")"
 GATEWAY_ENV="${REPO_ROOT}/infrastructure/dev/gateway/.env"
 GATEWAY_ADMIN_KEY="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_ADMIN_KEY" "edd1c9f034335f136f87ad84b625c8f1")"
-GATEWAY_AUD_CORE_ACCOUNT="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT" "nao-configurada")"
+GATEWAY_AUD_CAM_ACCOUNT="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_CAM_ACCOUNT" "nao-configurada")"
+if [[ "${GATEWAY_AUD_CAM_ACCOUNT}" == "nao-configurada" ]]; then
+  GATEWAY_AUD_CAM_ACCOUNT="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT" "nao-configurada")"
+fi
 GATEWAY_AUD_IPM_GROUP="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_GROUP" "nao-configurada")"
 GATEWAY_AUD_IPM_ORGANIZATION="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION" "nao-configurada")"
 GATEWAY_AUD_IPM_PERMISSION="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_PERMISSION" "nao-configurada")"
@@ -750,7 +753,7 @@ bao_core bao kv put svm/messaging \
 
 bao_core bao kv put svm/gateway \
   admin_key="${GATEWAY_ADMIN_KEY}" \
-  audience_core_account="${GATEWAY_AUD_CORE_ACCOUNT}" \
+  audience_cam_account="${GATEWAY_AUD_CAM_ACCOUNT}" \
   audience_ipm_group="${GATEWAY_AUD_IPM_GROUP}" \
   audience_ipm_organization="${GATEWAY_AUD_IPM_ORGANIZATION}" \
   audience_ipm_permission="${GATEWAY_AUD_IPM_PERMISSION}" \
@@ -765,7 +768,7 @@ bao_core bao kv put svm/database/admin \
   ssot_password="ssot" \
   identity_password="identity" \
   telemetry_password="telemetry_login" \
-  core_maintenance_password="core_maintenance_login" \
+  cam_maintenance_password="cam_maintenance_login" \
   bsm_maintenance_password="bsm_maintenance_login" \
   sum_service_maintenance_password="sum_service_maintenance_login" \
   ipm_maintenance_password="ipm_maintenance_login" >/dev/null
@@ -785,7 +788,7 @@ bao_core bao kv put svm/identity/config \
 # Chaves JSON das service accounts do volume identity-bootstrap
 if docker volume inspect identity-bootstrap >/dev/null 2>&1; then
   for sa_name in \
-    core-account-controller \
+    cam-account-controller \
     ipm-organization-controller \
     ipm-permission-controller \
     ipm-serviceaccount-controller \
@@ -793,6 +796,9 @@ if docker volume inspect identity-bootstrap >/dev/null 2>&1; then
     sum-service-controller \
     platform-bootstrap; do
     SA_JSON="$(docker run --rm -v identity-bootstrap:/keys:ro alpine sh -c "cat /keys/service-account-${sa_name}.json 2>/dev/null || true")"
+    if [[ -z "${SA_JSON}" && "${sa_name}" == "cam-account-controller" ]]; then
+      SA_JSON="$(docker run --rm -v identity-bootstrap:/keys:ro alpine sh -c "cat /keys/service-account-core-account-controller.json 2>/dev/null || true")"
+    fi
     if [[ -n "${SA_JSON}" ]]; then
       printf "%s" "${SA_JSON}" | bao_core bao kv put "svm/identity/service-accounts/${sa_name}" key_json=- >/dev/null
     fi
@@ -810,6 +816,9 @@ seed_feature_secret() {
 
   if [[ "${has_controller}" == "true" ]] && docker volume inspect identity-bootstrap >/dev/null 2>&1; then
     sa_json="$(docker run --rm -v identity-bootstrap:/keys:ro alpine sh -c "cat /keys/service-account-${sa_name}.json 2>/dev/null || true")"
+    if [[ -z "${sa_json}" && "${sa_name}" == "cam-account-controller" ]]; then
+      sa_json="$(docker run --rm -v identity-bootstrap:/keys:ro alpine sh -c "cat /keys/service-account-core-account-controller.json 2>/dev/null || true")"
+    fi
   fi
 
   if [[ "${has_controller}" == "true" ]]; then
@@ -830,7 +839,7 @@ seed_feature_secret() {
   fi
 }
 
-seed_feature_secret "core" "account" "true"
+seed_feature_secret "cam" "account" "true"
 seed_feature_secret "bsm" "account" "false"
 seed_feature_secret "sum" "service" "true"
 seed_feature_secret "ipm" "organization" "true"

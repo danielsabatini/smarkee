@@ -110,7 +110,8 @@ async def _create(transaction: AdmissionTransaction, admission: Admission, rules
             ALREADY_ENABLED,
             f"O serviço {service} já está habilitado (resourceId {existing['resource_id']}).",
         )
-    rules.before_enable(owner)
+    if service != "bsm":
+        rules.before_enable(owner)
     try:
         desired = enable_desired(
             owner, service, rules.catalog, existing["desired"] if existing else None

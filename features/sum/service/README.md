@@ -54,7 +54,7 @@ DESIRED -> sum-service-controller -> Zitadel (permissões) -> SSOT (observado, f
   - **Decisão:** as `servicePermissions` precisam estar com o usuário, e as outras permissões gerenciadas (`managedPermissions`, por exemplo uma que saiu do catálogo) não podem estar. `disable` tira só as gerenciadas e mantém as demais.
   - **Observação:** lê o usuário dono (`404` é `absent`; outra falha é `unknown`, que nunca autoriza ação) e as autorizações nos projetos de permissões.
   - **Rollout do catálogo (decisão 0079):** na partida, cada ligação cujo `desired` difere do que o catálogo atual produz ganha uma geração nova (`requested_by = system:catalog`).
-  - **Conta removida (decisão 0044):** consome o `updated` de `core.account` com `removed` e apaga as ligações do dono; repetir não tem efeito.
+  - **Conta removida (decisão 0044):** consome o `updated` de `cam.account` com `removed` e apaga as ligações do dono; repetir não tem efeito.
 - A linha de uma ligação desfeita **não é apagada** na convergência (decisão 0033): só a remoção da conta a apaga.
 
 ## 3.3 Um projeto, uma imagem, três contêineres (decisão 0063)
@@ -91,7 +91,7 @@ O fluxo de dados completo, passo a passo, está em [`docs/SUM-SERVICE-DATA-FLOW.
 |---|---|---|---|
 | `DESIRED` | `desired.sum.service.>` | `sum-service-controller-desired-<instância>` | Controller |
 | `DESIRED` | `desired.ipm.organization.>` e `desired.bsm.account.>` | `sum-service-api-<módulo>-<tipo>-<instância>` | API (projeções das pré-condições) |
-| `UPDATED` | `updated.core.account.>` | `sum-service-controller-account-removed-<instância>` | Controller (conta removida) |
+| `UPDATED` | `updated.cam.account.>` | `sum-service-controller-account-removed-<instância>` | Controller (conta removida) |
 | `DESIRED`, `UPDATED` | `manager.{desired,updated}.sum.service.>` | (publicados) | Publisher publica; consumidores externos leem |
 
 Os consumers são de estado: cada instância cria os próprios, com nome único por execução, `DeliverLastPerSubject` e `inactive_threshold`, e reconstrói o estado da mensageria (`docs/messaging/NATS.md`). Não há Stream `REQUESTED`, `OBSERVED`, `ACTION` nem `RESULT` para o tipo (decisões 0096 e 0098).
@@ -113,7 +113,7 @@ Os contratos estão em `schemas/sum/service/` (e `schemas/common/`), com o índi
 |---|---|---|---|
 | API | `SELECT` na view `service_v1`; `SELECT`, `INSERT` e `UPDATE` em `service`; `INSERT` no outbox; `SELECT` e `INSERT` em `service_idempotency` | lê `DESIRED` (projeções) | só valida tokens (JWKS) |
 | Publisher | `SELECT` no outbox e `UPDATE (published_at)` | publica `desired` e `updated` | — |
-| Controller | `SELECT`, `UPDATE` e `DELETE` em `service`; `INSERT` no outbox | lê `DESIRED` e o `UPDATED` de `core.account` | `ORG_OWNER_VIEWER` na `register`; `PROJECT_GRANT_OWNER` no Grant de `roles-ipm` |
+| Controller | `SELECT`, `UPDATE` e `DELETE` em `service`; `INSERT` no outbox | lê `DESIRED` e o `UPDATED` de `cam.account` | `ORG_OWNER_VIEWER` na `register`; `PROJECT_GRANT_OWNER` no Grant de `roles-ipm` |
 
 # 9. Configuração, execução e testes
 

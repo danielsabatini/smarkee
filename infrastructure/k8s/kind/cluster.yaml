@@ -72,8 +72,8 @@ nodes:
       - hostPath: __REPO_ROOT__/infrastructure/dev/telemetry-sink/traces
         containerPath: /var/lib/smarkee/telemetry/telemetry-sink/traces
       # Diretórios de saída dos telemeters das 9 features
-      - hostPath: __REPO_ROOT__/features/core/account/telemeter
-        containerPath: /var/lib/smarkee/telemetry/features/core/account
+      - hostPath: __REPO_ROOT__/features/cam/account/telemeter
+        containerPath: /var/lib/smarkee/telemetry/features/cam/account
       - hostPath: __REPO_ROOT__/features/bsm/account/telemeter
         containerPath: /var/lib/smarkee/telemetry/features/bsm/account
       - hostPath: __REPO_ROOT__/features/sum/service/telemeter

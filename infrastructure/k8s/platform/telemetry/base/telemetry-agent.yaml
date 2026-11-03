@@ -154,7 +154,7 @@ spec:
                   action: keep
       file_log/containers:
         include:
-          - /var/log/pods/core_*/*/*.log
+          - /var/log/pods/cam_*/*/*.log
           - /var/log/pods/ipm_*/*/*.log
           - /var/log/pods/sum_*/*/*.log
           - /var/log/pods/bsm_*/*/*.log
@@ -274,7 +274,7 @@ spec:
         metrics:
           metric:
             - IsMatch(metric.name, "^(up|scrape_.*|target_info|otel_scope_info)$")
-            - IsMatch(metric.name, "^k8s\\.") and (resource.attributes["k8s.namespace.name"] == nil or not IsMatch(resource.attributes["k8s.namespace.name"], "^(core|ipm|sum|bsm|database|messaging|identity|gateway|mail|vault|telemetry)$"))
+            - IsMatch(metric.name, "^k8s\\.") and (resource.attributes["k8s.namespace.name"] == nil or not IsMatch(resource.attributes["k8s.namespace.name"], "^(cam|ipm|sum|bsm|database|messaging|identity|gateway|mail|vault|telemetry)$"))
           datapoint:
             - metric.name == "postgresql.rows" and (resource.attributes["postgresql.database.name"] == "identity" or (datapoint.attributes["db.namespace"] != nil and IsMatch(datapoint.attributes["db.namespace"], "^identity(\\|.*)?$")))
       transform/infra_metrics:

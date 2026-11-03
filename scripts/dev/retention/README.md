@@ -5,7 +5,7 @@ Utilitário de retenção e expurgo de dados obsoletos das tabelas de outbox (`p
 ## Princípio de Menor Privilégio
 
 O utilitário utiliza estritamente as credenciais de manutenção de cada módulo:
-- `core_maintenance_login` para tabelas do schema `core`
+- `cam_maintenance_login` para tabelas do schema `cam`
 - `bsm_maintenance_login` para tabelas do schema `bsm`
 - `sum_service_maintenance_login` para tabelas do schema `sum`
 - `ipm_maintenance_login` para tabelas do schema `ipm`

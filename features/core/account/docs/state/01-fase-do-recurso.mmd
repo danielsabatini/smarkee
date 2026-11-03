@@ -1,9 +1,0 @@
-stateDiagram-v2
-    [*] --> Pending: POST /v1/core/accounts (202 Accepted na API)
-    Pending --> Reconciling: Controller inicia ciclo
-    Reconciling --> Ready: Usuário criado no Zitadel e e-mail enviado (observedGeneration == generation)
-    Reconciling --> Failed: Falha não transitória no Zitadel ou limite de retentativas
-    Failed --> Reconciling: Re-enfileirado pelo Controller ou nova versão do recurso
-    Ready --> Reconciling: PATCH com alteração de dados
-    Ready --> Deleting: DELETE aceito pela API (lifecycle absent)
-    Deleting --> [*]: Controller remove usuário no Zitadel e apaga linha do SSOT

@@ -45,7 +45,7 @@ class BillingAccountProjection:
         return self.apply(envelope.resource_id, envelope.data)
 
     def apply(self, resource_id: str, desired: Mapping[str, Any]) -> bool:
-        owner = desired.get("ownerAccountId")
+        owner = desired.get("customerAccountId") or desired.get("ownerAccountId")
         before = self._accounts.get(resource_id)
         if desired.get("lifecycle") == _PRESENT and isinstance(owner, str) and owner:
             self._accounts[resource_id] = owner

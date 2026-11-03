@@ -1,0 +1,10 @@
+{
+  "emailVerified": true,
+  "accountState": "active",
+  "platformAccess": "granted",
+  "platformPermissions": [
+    "cam.account.delete",
+    "cam.account.get"
+  ],
+  "deletionProtection": true
+}

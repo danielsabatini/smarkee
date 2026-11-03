@@ -81,7 +81,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--module",
         type=str,
         default=None,
-        help="Filtra por módulo específico (ex: ipm, core, bsm, sum).",
+        help="Filtra por módulo específico (ex: ipm, cam, bsm, sum).",
     )
     parser.add_argument(
         "--type",

@@ -83,7 +83,7 @@ async def test_the_whole_flow_creates_updates_protects_and_removes_the_group(
     assert desired["data"]["name"] == body["name"]
 
     # 2. Atualização: nova descrição e roles; a geração sobe e o `desired` acompanha.
-    new_roles = ["core.accountViewer", "ipm.groupViewer", "ipm.userViewer"]
+    new_roles = ["cam.accountViewer", "ipm.groupViewer", "ipm.userViewer"]
     patched = await api.patch(
         f"{COLLECTION}/{resource_id}",
         json={

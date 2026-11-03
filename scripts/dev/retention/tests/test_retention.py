@@ -36,9 +36,9 @@ def test_filter_targets() -> None:
     all_targets = filter_targets()
     assert len(all_targets) == len(TARGET_TABLES)
 
-    core_targets = filter_targets(module="core")
-    assert all(t.module == "core" for t in core_targets)
-    assert len(core_targets) == 2
+    cam_targets = filter_targets(module="cam")
+    assert all(t.module == "cam" for t in cam_targets)
+    assert len(cam_targets) == 2
 
     outbox_only = filter_targets(table_kind="outbox")
     assert all(t.table_kind == "outbox" for t in outbox_only)
@@ -66,15 +66,15 @@ class FakeRetentionDatabase:
 def test_plan_and_apply_retention() -> None:
     targets = [
         TargetTable(
-            "core", "account", "core", "account_outbox", "outbox", "core_maintenance_login"
+            "cam", "account", "cam", "account_outbox", "outbox", "cam_maintenance_login"
         ),
         TargetTable(
-            "core",
+            "cam",
             "account",
-            "core",
+            "cam",
             "account_idempotency",
             "idempotency",
-            "core_maintenance_login",
+            "cam_maintenance_login",
         ),
     ]
     db = FakeRetentionDatabase({"account_outbox": 15, "account_idempotency": 3})

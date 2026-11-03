@@ -55,8 +55,8 @@ spec:
             condition: attributes["smarkee.module"] == "bsm" and attributes["smarkee.resource.type"] == "account"
             pipelines: [logs/bsm_account]
           - context: resource
-            condition: attributes["smarkee.module"] == "core" and attributes["smarkee.resource.type"] == "account"
-            pipelines: [logs/core_account]
+            condition: attributes["smarkee.module"] == "cam" and attributes["smarkee.resource.type"] == "account"
+            pipelines: [logs/cam_account]
           - context: resource
             condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "group"
             pipelines: [logs/ipm_group]
@@ -86,8 +86,8 @@ spec:
             condition: attributes["apisix.service_name"] == "bsm-account-api"
             pipelines: [traces/bsm_account]
           - context: span
-            condition: attributes["apisix.service_name"] == "core-account-api"
-            pipelines: [traces/core_account]
+            condition: attributes["apisix.service_name"] == "cam-account-api"
+            pipelines: [traces/cam_account]
           - context: span
             condition: attributes["apisix.service_name"] == "ipm-group-api"
             pipelines: [traces/ipm_group]
@@ -193,8 +193,8 @@ spec:
           initial_interval: 5s
           max_interval: 30s
           max_elapsed_time: 10m
-      otlp_grpc/core_account:
-        endpoint: core-account-telemeter.core.svc.cluster.local:4317
+      otlp_grpc/cam_account:
+        endpoint: cam-account-telemeter.cam.svc.cluster.local:4317
         tls:
           insecure: true
         sending_queue:
@@ -324,10 +324,10 @@ spec:
           receivers: [routing/logs]
           processors: [batch]
           exporters: [otlp_grpc/bsm_account]
-        logs/core_account:
+        logs/cam_account:
           receivers: [routing/logs]
           processors: [batch]
-          exporters: [otlp_grpc/core_account]
+          exporters: [otlp_grpc/cam_account]
         logs/ipm_group:
           receivers: [routing/logs]
           processors: [batch]
@@ -368,10 +368,10 @@ spec:
           receivers: [routing/traces]
           processors: [batch]
           exporters: [otlp_grpc/bsm_account]
-        traces/core_account:
+        traces/cam_account:
           receivers: [routing/traces]
           processors: [batch]
-          exporters: [otlp_grpc/core_account]
+          exporters: [otlp_grpc/cam_account]
         traces/ipm_group:
           receivers: [routing/traces]
           processors: [batch]

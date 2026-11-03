@@ -74,7 +74,7 @@ Na partida, antes dos consumers, o Controller compara o `desired` de cada ligaç
 
 ### 4.2 Conta removida (decisão 0044)
 
-Um segundo consumer lê `updated.core.account.>`. No `updated` com `removed`, apaga as ligações do dono (`DELETE FROM sum.service WHERE owner_account_id = …`). Repetir não tem efeito.
+Um segundo consumer lê `updated.cam.account.>`. No `updated` com `removed`, apaga as ligações do dono (`DELETE FROM sum.service WHERE owner_account_id = …`). Repetir não tem efeito.
 
 ## 5. Estados
 
@@ -88,7 +88,7 @@ Um segundo consumer lê `updated.core.account.>`. No `updated` com `removed`, ap
 | `sum.service_outbox` | API e Controller (inserem) | Publisher (lê e marca `published_at`) |
 | `sum.service_idempotency` | API | API |
 | `DESIRED` | Publisher | Controller; API (projeções de `ipm.organization` e `bsm.account`) |
-| `UPDATED` | Publisher | Controller (`core.account` removida); consumidores externos |
+| `UPDATED` | Publisher | Controller (`cam.account` removida); consumidores externos |
 | Zitadel (autorizações em `roles-ipm`) | Controller | Controller |
 
 ## 7. Verificação

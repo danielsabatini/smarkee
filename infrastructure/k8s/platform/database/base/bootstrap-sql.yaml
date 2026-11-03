@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/part-of: database
 data:
   # 01: Executado pelo CNPG em `postInitSQLRefs` (conectado no banco `postgres` como superuser).
-  # Cria os papéis de função e login de todos os módulos (`core`, `bsm`, `sum`, `ipm`),
+  # Cria os papéis de função e login de todos os módulos (`cam`, `bsm`, `sum`, `ipm`),
   # o papel `telemetry` (`pg_read_all_stats`), o papel `identity` e o banco `identity`.
   01-roles.sql: |
     DO $$
@@ -15,8 +15,8 @@ data:
       function_role text;
     BEGIN
       FOREACH function_role IN ARRAY ARRAY[
-        -- core
-        'core_account_api', 'core_account_controller', 'core_account_publisher', 'core_maintenance',
+        -- cam
+        'cam_account_api', 'cam_account_controller', 'cam_account_publisher', 'cam_maintenance',
         -- bsm
         'bsm_account_api', 'bsm_account_publisher', 'bsm_maintenance',
         -- sum

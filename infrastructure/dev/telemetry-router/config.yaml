@@ -2,7 +2,7 @@
 #
 # Entrada: OTLP gRPC (4317, do telemetry-agent) e OTLP HTTP (4318, do APISIX).
 # Saída: OTLP gRPC para o telemeter que grava:
-#   - o telemeter da feature dona do sinal (`bsm-account-telemeter`, `core-account-telemeter`,
+#   - o telemeter da feature dona do sinal (`bsm-account-telemeter`, `cam-account-telemeter`,
 #     `ipm-organization-telemeter`, `ipm-permission-telemeter`, `ipm-role-telemeter`,
 #     `ipm-serviceaccount-telemeter`, `ipm-user-telemeter`
 #     e `sum-service-telemeter`): os logs de app e os spans da feature;
@@ -33,8 +33,8 @@ connectors:
         condition: attributes["smarkee.module"] == "bsm" and attributes["smarkee.resource.type"] == "account"
         pipelines: [logs/bsm_account]
       - context: resource
-        condition: attributes["smarkee.module"] == "core" and attributes["smarkee.resource.type"] == "account"
-        pipelines: [logs/core_account]
+        condition: attributes["smarkee.module"] == "cam" and attributes["smarkee.resource.type"] == "account"
+        pipelines: [logs/cam_account]
       - context: resource
         condition: attributes["smarkee.module"] == "ipm" and attributes["smarkee.resource.type"] == "group"
         pipelines: [logs/ipm_group]
@@ -64,8 +64,8 @@ connectors:
         condition: attributes["apisix.service_name"] == "bsm-account-api"
         pipelines: [traces/bsm_account]
       - context: span
-        condition: attributes["apisix.service_name"] == "core-account-api"
-        pipelines: [traces/core_account]
+        condition: attributes["apisix.service_name"] == "cam-account-api"
+        pipelines: [traces/cam_account]
       - context: span
         condition: attributes["apisix.service_name"] == "ipm-group-api"
         pipelines: [traces/ipm_group]
@@ -140,8 +140,8 @@ exporters:
       initial_interval: 5s
       max_interval: 30s
       max_elapsed_time: 10m
-  otlp_grpc/core_account:
-    endpoint: core-account-telemeter.smarkee.internal:4317
+  otlp_grpc/cam_account:
+    endpoint: cam-account-telemeter.smarkee.internal:4317
     tls:
       insecure: true
     sending_queue:
@@ -274,10 +274,10 @@ service:
       receivers: [routing/logs]
       processors: [batch]
       exporters: [otlp_grpc/bsm_account]
-    logs/core_account:
+    logs/cam_account:
       receivers: [routing/logs]
       processors: [batch]
-      exporters: [otlp_grpc/core_account]
+      exporters: [otlp_grpc/cam_account]
     logs/ipm_group:
       receivers: [routing/logs]
       processors: [batch]
@@ -320,10 +320,10 @@ service:
       receivers: [routing/traces]
       processors: [batch]
       exporters: [otlp_grpc/bsm_account]
-    traces/core_account:
+    traces/cam_account:
       receivers: [routing/traces]
       processors: [batch]
-      exporters: [otlp_grpc/core_account]
+      exporters: [otlp_grpc/cam_account]
     traces/ipm_group:
       receivers: [routing/traces]
       processors: [batch]

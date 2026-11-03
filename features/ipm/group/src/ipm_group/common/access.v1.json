@@ -42,17 +42,21 @@
       "bsm.account.list",
       "bsm.account.update"
     ],
-    "core.accountViewer": [
-      "core.account.get"
+    "cam.accountViewer": [
+      "cam.account.get"
     ],
-    "core.accountAdmin": [
-      "core.account.delete",
-      "core.account.get"
+    "cam.accountAdmin": [
+      "cam.account.delete",
+      "cam.account.get"
     ],
     "sum.serviceViewer": [
+      "sum.bsm.get",
       "sum.ipm.get"
     ],
     "sum.serviceAdmin": [
+      "sum.bsm.disable",
+      "sum.bsm.enable",
+      "sum.bsm.get",
       "sum.ipm.disable",
       "sum.ipm.enable",
       "sum.ipm.get"
@@ -85,18 +89,18 @@
       "ipm.permission.list"
     ],
     "ipm.permissionAdmin": [
-      "ipm.permission.admin",
       "ipm.permission.get",
-      "ipm.permission.list"
+      "ipm.permission.list",
+      "ipm.permission.operate"
     ],
     "ipm.roleViewer": [
       "ipm.role.get",
       "ipm.role.list"
     ],
     "ipm.roleAdmin": [
-      "ipm.role.admin",
       "ipm.role.get",
-      "ipm.role.list"
+      "ipm.role.list",
+      "ipm.role.operate"
     ],
     "ipm.groupViewer": [
       "ipm.group.get",

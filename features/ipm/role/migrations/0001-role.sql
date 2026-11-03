@@ -109,27 +109,27 @@ WITH predefined(resource_id, role_name, description, permissions) AS (
   VALUES
     (
       '01a1763d-eb52-748b-84c3-10fa2192a062',
-      'core.accountViewer',
-      'Leitura de conta pessoal em core.account.',
-      '["core.account.get"]'::jsonb
+      'cam.accountViewer',
+      'Leitura de conta pessoal em cam.account.',
+      '["cam.account.get"]'::jsonb
     ),
     (
       '01a1763d-eb54-762f-813e-15a4667086f1',
-      'core.accountAdmin',
-      'Administração da própria conta em core.account.',
-      '["core.account.delete", "core.account.get"]'::jsonb
+      'cam.accountAdmin',
+      'Administração da própria conta em cam.account.',
+      '["cam.account.delete", "cam.account.get"]'::jsonb
     ),
     (
       '01a1763d-eb57-7009-9196-741d0a8702ab',
       'sum.serviceViewer',
       'Leitura de serviços habilitados em sum.service.',
-      '["sum.ipm.get"]'::jsonb
+      '["sum.bsm.get", "sum.ipm.get"]'::jsonb
     ),
     (
       '01a1763d-eb59-715e-bfd5-129f757b2768',
       'sum.serviceAdmin',
       'Administração de serviços habilitados em sum.service.',
-      '["sum.ipm.disable", "sum.ipm.enable", "sum.ipm.get"]'::jsonb
+      '["sum.bsm.disable", "sum.bsm.enable", "sum.bsm.get", "sum.ipm.disable", "sum.ipm.enable", "sum.ipm.get"]'::jsonb
     ),
     (
       '01a1763d-eb5c-75f1-b729-da3469748023',

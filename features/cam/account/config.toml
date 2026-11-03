@@ -1,0 +1,42 @@
+# Configuração de dev de cam.account (decisão 0067). Sem segredos: eles vêm do ambiente ou de /run/secrets.
+# Tabela por papel: [tool.cam.account.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
+
+[tool.cam.account.api.auth]
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+jwks_url = "http://gateway.gateway.svc.cluster.local:8000/oauth/v2/keys"
+
+[tool.cam.account.api.database]
+host = "database-rw.database.svc.cluster.local"
+name = "ssot"
+port = 5432
+user = "cam_account_api_login"
+
+[tool.cam.account.api.messaging]
+url = "nats://messaging.messaging.svc.cluster.local:4222"
+user = "smarkee"
+
+[tool.cam.account.publisher.database]
+host = "database-rw.database.svc.cluster.local"
+name = "ssot"
+port = 5432
+user = "cam_account_publisher_login"
+
+[tool.cam.account.publisher.messaging]
+url = "nats://messaging.messaging.svc.cluster.local:4222"
+user = "smarkee"
+
+[tool.cam.account.controller.database]
+host = "database-rw.database.svc.cluster.local"
+name = "ssot"
+port = 5432
+user = "cam_account_controller_login"
+
+[tool.cam.account.controller.identity]
+base_url = "http://identity.identity.svc.cluster.local:8080"
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+
+[tool.cam.account.controller.messaging]
+url = "nats://messaging.messaging.svc.cluster.local:4222"
+user = "smarkee"

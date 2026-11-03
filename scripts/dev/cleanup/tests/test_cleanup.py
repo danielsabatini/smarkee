@@ -370,7 +370,7 @@ async def test_apply_removes_through_the_loop_then_directly_what_is_left_and_ver
     assert world.identity.deleted == [f"user:{USER_ID}"]  # só o que o loop não removeu
     assert find(world.ports()).is_clean()
     assert loop.purged["ipm"] == {ORG_ID}
-    assert loop.purged["core"] == {USER_ID} and loop.purged["sum"] == {"s1"}
+    assert loop.purged["cam"] == {USER_ID} and loop.purged["sum"] == {"s1"}
     assert world.mail.messages == 0
 
 
@@ -392,7 +392,7 @@ async def test_apply_removes_directly_when_no_kind_uses_the_loop() -> None:
     assert world.identity.deleted == [f"org:{ORG_ID}", f"user:{USER_ID}"]
     assert find(world.ports()).is_clean()
     assert world.bus.purged["ipm"] == {ORG_ID}
-    assert world.bus.purged["core"] == {USER_ID} and world.bus.purged["sum"] == {"s1"}
+    assert world.bus.purged["cam"] == {USER_ID} and world.bus.purged["sum"] == {"s1"}
     assert world.mail.messages == 0
 
 
@@ -543,7 +543,7 @@ async def test_apply_purges_the_history_and_the_messages_of_test_resources_only(
     code = await clean(world.ports(), apply_changes=True, say=lines.append)
 
     assert code == 0, lines
-    assert world.bus.purged == {"core": {"a1"}, "ipm": {"o1", "u1"}, "sum": {"s1"}}
+    assert world.bus.purged == {"cam": {"a1"}, "ipm": {"o1", "u1"}, "sum": {"s1"}}
     remaining = {
         k.resource_type: [r.resource_id for r in rows] for k, rows in world.ssot.support.items()
     }
@@ -553,7 +553,7 @@ async def test_apply_purges_the_history_and_the_messages_of_test_resources_only(
         "service": ["s2", "s3"],
         "user": ["u2"],
     }
-    assert any("Histórico mantido" in line and "2 de core.account" in line for line in lines)
+    assert any("Histórico mantido" in line and "2 de cam.account" in line for line in lines)
 
 
 async def test_a_clean_environment_still_mentions_the_history_it_kept() -> None:
@@ -571,7 +571,7 @@ async def test_a_clean_environment_still_mentions_the_history_it_kept() -> None:
 async def test_orphans_mode_removes_all_history_and_orphan_messages_but_not_live_ones() -> None:
     world = world_with_history()
     world.ssot.tables = {ACCOUNTS: [Row("viva", "ana@example.com")]}
-    world.bus.messages = {"core": {"viva", "a2", "so-nats"}}
+    world.bus.messages = {"cam": {"viva", "a2", "so-nats"}}
     lines: list[str] = []
 
     code = await clean(world.ports(), apply_changes=True, orphans=True, say=lines.append)
@@ -583,31 +583,31 @@ async def test_orphans_mode_removes_all_history_and_orphan_messages_but_not_live
         SERVICES: [],
         ORGANIZATION_USERS: [],
     }
-    assert world.bus.messages == {"core": {"viva"}}
+    assert world.bus.messages == {"cam": {"viva"}}
     assert [r.resource_id for r in world.ssot.tables[ACCOUNTS]] == ["viva"]
     assert not any("Histórico mantido" in line for line in lines)
 
 
 async def test_orphans_mode_without_apply_only_lists() -> None:
     world = world_with_history()
-    world.bus.messages = {"core": {"so-nats"}}
+    world.bus.messages = {"cam": {"so-nats"}}
     lines: list[str] = []
 
     code = await clean(world.ports(), apply_changes=False, orphans=True, say=lines.append)
 
     assert code == 1
     assert any("sem linha principal" in line for line in lines)
-    assert world.bus.messages == {"core": {"so-nats"}}
+    assert world.bus.messages == {"cam": {"so-nats"}}
 
 
 async def test_default_mode_leaves_orphan_messages_alone() -> None:
     world = World()
-    world.bus.messages = {"core": {"so-nats"}}
+    world.bus.messages = {"cam": {"so-nats"}}
 
     code = await clean(world.ports(), apply_changes=True, say=say_nothing)
 
     assert code == 0
-    assert world.bus.messages == {"core": {"so-nats"}}
+    assert world.bus.messages == {"cam": {"so-nats"}}
 
 
 async def test_organization_users_of_test_are_removed_through_the_loop_before_organizations() -> (
@@ -641,7 +641,7 @@ def test_a_test_role_is_found_in_the_ssot(name: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["ipm.userAdmin", "core.accountViewer", "bsm.accountAdmin", "test.roleok", "minha.role"]
+    "name", ["ipm.userAdmin", "cam.accountViewer", "bsm.accountAdmin", "test.roleok", "minha.role"]
 )
 def test_predefined_and_real_roles_are_never_test_data(name: str) -> None:
     world = World()

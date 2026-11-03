@@ -1,6 +1,6 @@
-# Namespaces da plataforma Smarkee no cluster Kubernetes (decisão 0102):
+# Namespaces da plataforma Smarkee no cluster Kubernetes (decisões 0102 e 0105):
 #   - 1 por papel de infraestrutura: database, messaging, identity, gateway, mail, telemetry, vault
-#   - 1 por módulo de produto: core, ipm, sum, bsm (e futuros svm, ekm, clm)
+#   - 1 por módulo de produto: cam, ipm, sum, bsm (e futuros svm, ekm, clm)
 #   - 1 por operador do cluster (padronização <papel>-operator, AGENTS.md §15.1):
 #     database-operator, telemetry-operator, external-secrets-operator,
 #     cert-manager-operator, gitops-operator, messaging-operator
@@ -63,10 +63,10 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: core
+  name: cam
   labels:
     smarkee.io/layer: app
-    smarkee.io/module: core
+    smarkee.io/module: cam
 ---
 apiVersion: v1
 kind: Namespace

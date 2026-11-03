@@ -63,12 +63,18 @@ logger = logging.getLogger(__name__)
 MAX_LIST_LIMIT = 200
 
 SERVICE_METADATA: dict[str, dict[str, str]] = {
+    "bsm": {
+        "title": "Billing Service Manager",
+        "description": (
+            "Manage billing accounts, payment methods and financial contacts."
+        ),
+    },
     "ipm": {
         "title": "Identity Provider Manager",
         "description": (
             "Manage organizations, identities, groups, permissions and service accounts."
         ),
-    }
+    },
 }
 
 

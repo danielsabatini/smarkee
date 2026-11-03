@@ -27,7 +27,7 @@ mkdir -p \
   "${REPO_ROOT}/infrastructure/dev/telemetry-sink/traces"
 
 for feature_dir in \
-  core/account \
+  cam/account \
   bsm/account \
   sum/service \
   ipm/organization \

@@ -278,7 +278,7 @@ async def test_the_removal_of_the_account_deletes_only_its_links(
     kept_id, _ = await created(cleanup, api, lifecycle="absent")
     message = (
         b'{"messageId":"0198a4a0-0000-7000-8000-000000000001","schemaVersion":"1.0",'
-        b'"messageType":"updated","emitter":"controller","module":"core","resourceType":"account",'
+        b'"messageType":"updated","emitter":"controller","module":"cam","resourceType":"account",'
         b'"resourceId":"' + removed_owner.encode() + b'","operation":"changed",'
         b'"desiredGeneration":1,"requestedBy":"x","correlationId":"c","causationId":"c",'
         b'"occurredAt":"2026-10-28T12:00:00Z","publishedAt":"2026-10-28T12:00:01Z","data":{"removed":true}}'

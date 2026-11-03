@@ -5,7 +5,7 @@
   "x-schemaVersion": "1.0",
   "$defs": {
     "roleName": {
-      "description": "Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, core.accountViewer). Imutável após a criação.",
+      "description": "Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, cam.accountViewer). Imutável após a criação.",
       "type": "string",
       "minLength": 3,
       "maxLength": 128,

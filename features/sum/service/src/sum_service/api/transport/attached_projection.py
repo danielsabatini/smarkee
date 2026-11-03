@@ -64,7 +64,7 @@ class AttachedProjection:
         return self.apply(envelope.resource_id, envelope.data)
 
     def apply(self, resource_id: str, desired: Mapping[str, Any]) -> bool:
-        owner = desired.get("ownerAccountId")
+        owner = desired.get("customerAccountId") or desired.get("ownerAccountId")
         active = desired.get("lifecycle") == _PRESENT and isinstance(owner, str) and bool(owner)
         before = self._owners.get(resource_id)
         if not active:
@@ -78,7 +78,10 @@ class AttachedProjection:
         return sum(1 for owner in self._owners.values() if owner == account_id)
 
 
-DEPENDENTS_OF_SERVICE: dict[str, AttachedKind] = {"ipm": ORGANIZATIONS}
+DEPENDENTS_OF_SERVICE: dict[str, AttachedKind] = {
+    "bsm": BILLING_ACCOUNTS,
+    "ipm": ORGANIZATIONS,
+}
 """Recursos do dono que impedem desligar o serviço (decisão 0040). Serviço fora daqui não tem."""
 
 
@@ -91,7 +94,10 @@ class AttachedResources:
         billing_accounts: AttachedProjection,
         consumers: Callable[[], bool],
     ) -> None:
-        self._projections = {ORGANIZATIONS: organizations}
+        self._projections = {
+            BILLING_ACCOUNTS: billing_accounts,
+            ORGANIZATIONS: organizations,
+        }
         self._billing_accounts = billing_accounts
         self._consumers_synced = consumers
 

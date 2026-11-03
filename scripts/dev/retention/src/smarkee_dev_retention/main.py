@@ -26,7 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--module",
-        help="Filtra por módulo específico (ex: core, bsm, sum, ipm).",
+        help="Filtra por módulo específico (ex: cam, bsm, sum, ipm).",
     )
     parser.add_argument(
         "--type",

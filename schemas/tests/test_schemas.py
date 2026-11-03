@@ -1,6 +1,6 @@
 """Verificações dos contratos em schemas/ (SCHEMA.md, Verificações da pipeline e Testes).
 
-Cobre common/ e os módulos bsm, core, ipm e sum. As referências são resolvidas somente a partir dos
+Cobre common/ e os módulos bsm, cam, ipm e sum. As referências são resolvidas somente a partir dos
 arquivos locais: qualquer tentativa de buscar uma URI fora de schemas/ falha.
 """
 
@@ -16,7 +16,7 @@ from referencing import Registry, Resource
 from referencing.exceptions import NoSuchResource
 
 SCHEMAS_ROOT = Path(__file__).resolve().parents[1]
-COVERED_DIRECTORIES = ("bsm", "common", "core", "ipm", "sum")
+COVERED_DIRECTORIES = ("bsm", "cam", "common", "ipm", "sum")
 SCHEMA_FILE_PATTERN = re.compile(r"^(?P<contract>[a-z0-9-]+)\.v(?P<major>[0-9]+)\.schema\.json$")
 SENSITIVITY_CLASSES = {"public", "internal", "confidential", "secretReference"}
 WRITERS = {"client", "server"}
@@ -249,7 +249,7 @@ def test_resource_view_never_exposes_the_owner() -> None:
     assert "ownerAccountId" not in resource["properties"]["desired"]["properties"]
 
 
-ACCOUNT = SCHEMAS_ROOT / "core" / "account"
+ACCOUNT = SCHEMAS_ROOT / "cam" / "account"
 
 
 def test_account_contracts_have_no_password_field() -> None:
@@ -290,7 +290,7 @@ def test_account_platform_permissions_are_a_set_of_action_permissions() -> None:
         desired_path, {**present, "platformAccess": "revoked", "platformPermissions": []}
     )
     assert not _is_valid(
-        desired_path, {**present, "platformPermissions": ["core.account.get", "core.account.get"]}
+        desired_path, {**present, "platformPermissions": ["cam.account.get", "cam.account.get"]}
     )
     assert not _is_valid(desired_path, {**present, "platformPermissions": ["User Get"]})
 

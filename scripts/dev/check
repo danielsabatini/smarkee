@@ -98,7 +98,7 @@ def check_architectural_boundaries() -> list[str]:
                         # Regra 1: import de outra feature
                         if (
                             mod.startswith("ipm_")
-                            or mod.startswith("core_")
+                            or mod.startswith("cam_")
                             or mod.startswith("bsm_")
                             or mod.startswith("sum_")
                         ):
@@ -118,7 +118,7 @@ def check_architectural_boundaries() -> list[str]:
                     # Regra 1: import de outra feature
                     if (
                         mod.startswith("ipm_")
-                        or mod.startswith("core_")
+                        or mod.startswith("cam_")
                         or mod.startswith("bsm_")
                         or mod.startswith("sum_")
                     ):

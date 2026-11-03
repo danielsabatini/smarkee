@@ -34,11 +34,11 @@ def test_every_profile_names_existing_features() -> None:
 def test_existing_features_are_found() -> None:
     """As features existentes são sempre encontradas; uma feature nova não exige editar o teste."""
     packages = {values["@@PACKAGE@@"] for _, values in cast(list[Any], _load_sync().features())}
-    assert {"core_account", "ipm_organization", "sum_service"} <= packages
+    assert {"cam_account", "ipm_organization", "sum_service"} <= packages
 
 
 @pytest.mark.parametrize(
-    ("module_name", "resource_type"), [("Core", "account"), ("core", "my-type"), ("", "account")]
+    ("module_name", "resource_type"), [("Cam", "account"), ("cam", "my-type"), ("", "account")]
 )
 def test_new_feature_rejects_invalid_names(module_name: str, resource_type: str) -> None:
     with pytest.raises(ValueError):
@@ -47,4 +47,4 @@ def test_new_feature_rejects_invalid_names(module_name: str, resource_type: str)
 
 def test_new_feature_rejects_existing_feature() -> None:
     with pytest.raises(FileExistsError):
-        _load_sync().new_feature("core", "account")
+        _load_sync().new_feature("cam", "account")

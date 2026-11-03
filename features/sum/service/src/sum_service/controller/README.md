@@ -15,7 +15,7 @@ Observa, decide, age e reobserva as permissões do dono da ligação no Zitadel 
    - decide com a função pura `decide(desired, observed)` (`domain/decision.py`): `enable`, `disable` ou nada;
    - executa a ação idempotente nos drivers, se houver divergência, e **reobserva**;
    - calcula fase e conditions (`domain/convergence.py`), grava `observed`, `phase` e `conditions` e o `updated` no outbox; se atingiu o limite de falhas, suspende a reconciliação e grava um `desired` suspenso no outbox.
-6. **Conta removida (decisão 0044):** um segundo consumer lê `updated.core.account.>` (Stream `UPDATED`) e, no `updated` com `removed`, apaga as ligações do dono (`DELETE FROM sum.service WHERE owner_account_id = …`). Repetir não tem efeito.
+6. **Conta removida (decisão 0044):** um segundo consumer lê `updated.cam.account.>` (Stream `UPDATED`) e, no `updated` com `removed`, apaga as ligações do dono (`DELETE FROM sum.service WHERE owner_account_id = …`). Repetir não tem efeito.
 
 ## Regras do tipo
 

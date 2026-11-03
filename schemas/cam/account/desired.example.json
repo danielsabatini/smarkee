@@ -1,0 +1,13 @@
+{
+  "lifecycle": "present",
+  "reconciliation": "active",
+  "platformAccess": "granted",
+  "platformPermissions": [
+    "cam.account.delete",
+    "cam.account.get"
+  ],
+  "deletionProtection": true,
+  "givenName": "Ana",
+  "familyName": "Souza",
+  "email": "ana.souza@example.com"
+}

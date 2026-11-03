@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: feature-core-account
+  name: feature-cam-account
   namespace: gitops-operator
   annotations:
     argocd.argoproj.io/sync-wave: "4"
@@ -10,10 +10,10 @@ spec:
   source:
     repoURL: git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git
     targetRevision: dev
-    path: features/core/account/k8s/overlays/dev
+    path: features/cam/account/k8s/overlays/dev
   destination:
     server: https://kubernetes.default.svc
-    namespace: core
+    namespace: cam
   syncPolicy:
     automated:
       prune: true

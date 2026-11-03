@@ -30,7 +30,7 @@ ENV_FILES = (
     "infrastructure/dev/telemetry-agent/.env",
     "infrastructure/dev/telemetry-router/.env",
     "features/bsm/account/.env",
-    "features/core/account/.env",
+    "features/cam/account/.env",
     "features/ipm/organization/.env",
     "features/ipm/permission/.env",
     "features/ipm/role/.env",
@@ -42,7 +42,7 @@ ENV_FILES = (
 )
 FEATURE_DIRECTORIES = (
     "features/bsm/account",
-    "features/core/account",
+    "features/cam/account",
     "features/ipm/organization",
     "features/ipm/permission",
     "features/ipm/role",

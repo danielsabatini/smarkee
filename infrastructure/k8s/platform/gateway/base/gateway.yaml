@@ -22,10 +22,10 @@ spec:
       remoteRef:
         key: gateway
         property: admin_key
-    - secretKey: SMARKEE_GATEWAY_AUTH_AUDIENCE_CORE_ACCOUNT
+    - secretKey: SMARKEE_GATEWAY_AUTH_AUDIENCE_CAM_ACCOUNT
       remoteRef:
         key: gateway
-        property: audience_core_account
+        property: audience_cam_account
     - secretKey: SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_GROUP
       remoteRef:
         key: gateway

@@ -290,7 +290,7 @@ class RoleObservedData(ContractModel):
         Field(max_length=128, min_length=3, pattern="^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$"),
     ] = None
     """
-    Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, core.accountViewer). Imutável após a criação.
+    Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, cam.accountViewer). Imutável após a criação.
     """
     description: Annotated[
         str | None, Field(max_length=256, min_length=1, pattern="^[^\\u0000-\\u001f\\u007f]+$")
@@ -332,7 +332,7 @@ class RoleCreateRequest(ContractModel):
         str, Field(max_length=128, min_length=3, pattern="^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$")
     ]
     """
-    Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, core.accountViewer). Imutável após a criação.
+    Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, cam.accountViewer). Imutável após a criação.
     """
     description: Annotated[
         str, Field(max_length=256, min_length=1, pattern="^[^\\u0000-\\u001f\\u007f]+$")
@@ -399,7 +399,7 @@ class RoleDesiredView(ContractModel):
         str, Field(max_length=128, min_length=3, pattern="^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$")
     ]
     """
-    Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, core.accountViewer). Imutável após a criação.
+    Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, cam.accountViewer). Imutável após a criação.
     """
     role_type: Annotated[RoleType, Field(alias="roleType")]
     description: Annotated[
@@ -436,7 +436,7 @@ class RoleObservedView(ContractModel):
         Field(max_length=128, min_length=3, pattern="^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$"),
     ] = None
     """
-    Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, core.accountViewer). Imutável após a criação.
+    Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, cam.accountViewer). Imutável após a criação.
     """
     description: Annotated[
         str | None, Field(max_length=256, min_length=1, pattern="^[^\\u0000-\\u001f\\u007f]+$")
@@ -721,7 +721,7 @@ class RoleDesiredData(ContractModel):
         str, Field(max_length=128, min_length=3, pattern="^[a-z][a-z0-9]*\\.[a-z][a-zA-Z0-9]*$")
     ]
     """
-    Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, core.accountViewer). Imutável após a criação.
+    Identificador semântico da Role no padrão <módulo>.<papel> (por exemplo ipm.userAdmin, ipm.userViewer, cam.accountViewer). Imutável após a criação.
     """
     role_type: Annotated[RoleType | None, Field(alias="roleType")] = None
     description: Annotated[

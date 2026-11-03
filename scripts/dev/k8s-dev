@@ -5,7 +5,7 @@
 # da feature no namespace correspondente (decisão 0102).
 #
 # Uso:
-#   ./scripts/dev/k8s-dev core/account           # reconstrói e reinicia core/account
+#   ./scripts/dev/k8s-dev cam/account            # reconstrói e reinicia cam/account
 #   ./scripts/dev/k8s-dev ipm/organization api   # reconstrói e reinicia apenas o papel api
 set -euo pipefail
 

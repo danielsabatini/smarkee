@@ -99,15 +99,15 @@ class Kind:
 
 
 ACCOUNTS = Kind(
-    "core",
+    "cam",
     "account",
-    "core.account",
-    ("core.account_outbox", "core.account_idempotency"),
-    "core_account_api_login",
-    "core_maintenance_login",
+    "cam.account",
+    ("cam.account_outbox", "cam.account_idempotency"),
+    "cam_account_api_login",
+    "cam_maintenance_login",
     "email",
     deletion_protected=True,
-    delete_role="core_account_controller_login",
+    delete_role="cam_account_controller_login",
     removable_through_requested=False,
 )
 SERVICES = Kind(
@@ -281,7 +281,7 @@ class Findings:
                 f"Zitadel organização {rid}  {label}"
                 for rid, label in self.zitadel_organizations.items()
             ),
-            *(f"SSOT core.account {row.resource_id}  {row.label}" for row in self.account_rows),
+            *(f"SSOT cam.account {row.resource_id}  {row.label}" for row in self.account_rows),
             *(
                 f"SSOT bsm.account {row.resource_id}  {row.label}"
                 for row in self.billing_account_rows

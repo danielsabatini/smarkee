@@ -68,10 +68,10 @@ async def test_outside_roles_catalog_and_dynamic_catalog_watcher() -> None:
         == []
     )
     assert outside_roles_catalog(
-        ["core.accountAdmin", "ipm.permissionAdmin", "ipm.unknownRole"],
+        ["cam.accountAdmin", "ipm.permissionAdmin", "ipm.unknownRole"],
         organization_id="org-1",
         catalog=catalog,
-    ) == ["core.accountAdmin", "ipm.permissionAdmin", "ipm.unknownRole"]
+    ) == ["cam.accountAdmin", "ipm.permissionAdmin", "ipm.unknownRole"]
 
     watcher = CatalogWatcher(catalog)
     now = datetime(2026, 4, 21, 12, 0, tzinfo=UTC).isoformat()

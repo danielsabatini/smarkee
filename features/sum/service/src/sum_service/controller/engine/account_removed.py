@@ -1,8 +1,8 @@
-"""Remoção da conta (`core.account`): o SUM apaga as ligações do dono (decisão 0044).
+"""Remoção da conta (`cam.account`): o SUM apaga as ligações do dono (decisão 0044).
 
 A conta só é apagada sem serviço habilitado (decisão 0040), então as ligações que sobram estão
 desabilitadas e apontam para um dono que não existe mais. Cada módulo apaga o que é seu: o SUM reage
-ao `updated` com `removed` da conta, em vez de o `core` escrever no SSOT do SUM. Repetir não tem
+ao `updated` com `removed` da conta, em vez de o `cam` escrever no SSOT do SUM. Repetir não tem
 efeito.
 """
 
@@ -16,7 +16,7 @@ from sum_service.controller.store.ssot import ControllerSsotStore
 
 logger = logging.getLogger(__name__)
 
-ACCOUNT_UPDATED_SUBJECT = "updated.core.account.>"
+ACCOUNT_UPDATED_SUBJECT = "updated.cam.account.>"
 
 
 def removed_account_id(data: bytes) -> str | None:
@@ -25,7 +25,7 @@ def removed_account_id(data: bytes) -> str | None:
         envelope = read_envelope(data)
     except EnvelopeError:
         return None
-    if envelope.module != "core" or envelope.resource_type != "account":
+    if envelope.module != "cam" or envelope.resource_type != "account":
         return None
     if envelope.message_type.value != "updated":
         return None
@@ -33,7 +33,7 @@ def removed_account_id(data: bytes) -> str | None:
 
 
 class AccountRemovedHandler:
-    """Sink do `StateConsumer` do `UPDATED` de `core.account`."""
+    """Sink do `StateConsumer` do `UPDATED` de `cam.account`."""
 
     def __init__(self, pool: AsyncConnectionPool[Any]) -> None:
         self._pool = pool

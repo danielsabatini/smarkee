@@ -63,12 +63,14 @@ async def test_only_the_services_with_dependents_report_attached_resources() -> 
             message("ipm", "organization", resource_id, lifecycle="present", ownerAccountId="acc-1")
         )
     await billing.on_message(
-        message("bsm", "account", "ba-1", lifecycle="present", ownerAccountId="acc-1")
+        message("bsm", "account", "ba-1", lifecycle="present", customerAccountId="acc-1")
     )
     resources = AttachedResources(organizations, billing, lambda: True)
 
     assert [item.describe() for item in resources.of("ipm", "acc-1")] == ["2 Organizations"]
+    assert [item.describe() for item in resources.of("bsm", "acc-1")] == ["1 Billing Account"]
     assert resources.of("ipm", "acc-9") == []
+    assert resources.of("bsm", "acc-9") == []
     assert resources.of("outro", "acc-1") == []  # serviço sem dependentes
     assert resources.has_billing_account("acc-1") is True
     assert resources.has_billing_account("acc-9") is False

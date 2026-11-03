@@ -26,6 +26,14 @@ WITH predefined(resource_id, permission_name, module_group, description, grantab
     ('01a1896f-895e-73b9-befc-5b620195dfc4', 'clm.certificate.list',   'clm', 'Listar certificados digitais (CLM)', true),
     ('01a1896f-895e-73b9-befc-5b63b8fdf540', 'clm.certificate.update', 'clm', 'Renovar ou alterar certificados digitais (CLM)', true),
     ('01a1896f-895e-73b9-befc-5b64b01f3754', 'clm.certificate.operate', 'clm', 'Operador: gerenciar qualquer certificado digital (CLM)', false),
+    -- cam.account (roles-cam): nível de conta pessoal (register)
+    ('01a1763d-eb14-74eb-86dd-6f7f4b480783', 'cam.account.delete', 'cam', 'Remover a própria conta', false),
+    ('01a1763d-eb16-748d-bafc-dd2976ec27a4',    'cam.account.get',    'cam', 'Ler a própria conta', false),
+    ('01a1763d-eb19-737d-9a93-d95b72ff01c0',  'cam.account.operate',  'cam', 'Operador: qualquer conta', false),
+    -- sum.bsm (roles-sum): nível de conta pessoal (register) (decisão 0105)
+    ('01a1763d-eb1a-7000-8000-000000000001', 'sum.bsm.disable', 'sum', 'Desabilitar o módulo BSM da conta', false),
+    ('01a1763d-eb1a-7000-8000-000000000002',  'sum.bsm.enable',  'sum', 'Habilitar o módulo BSM da conta', false),
+    ('01a1763d-eb1a-7000-8000-000000000003',     'sum.bsm.get',     'sum', 'Ler o estado do módulo BSM da conta', false),
     -- vault.platform (roles-operator): plano de controle do cofre (Vault) (decisão 0104)
     ('01a189a0-1111-7000-8000-000000000001', 'vault.platform.create',  'vault', 'Criar recursos no plano de controle do cofre (Vault)', false),
     ('01a189a0-1111-7000-8000-000000000002', 'vault.platform.delete',  'vault', 'Excluir recursos no plano de controle do cofre (Vault)', false),
@@ -104,7 +112,11 @@ inserted AS (
     'system',
     'seed-vault-modules'
   FROM predefined p
-  ON CONFLICT (resource_id) DO NOTHING
+  ON CONFLICT (resource_id) DO UPDATE
+     SET desired = EXCLUDED.desired,
+         observed = EXCLUDED.observed
+   WHERE ipm.permission.desired IS DISTINCT FROM EXCLUDED.desired
+      OR ipm.permission.observed IS DISTINCT FROM EXCLUDED.observed
   RETURNING resource_id, desired, reconciliation
 )
 INSERT INTO ipm.permission_outbox (message_id, resource_id, subject, payload)

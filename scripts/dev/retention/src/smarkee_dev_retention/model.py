@@ -18,9 +18,9 @@ class TargetTable:
 
 
 TARGET_TABLES: tuple[TargetTable, ...] = (
-    TargetTable("core", "account", "core", "account_outbox", "outbox", "core_maintenance_login"),
+    TargetTable("cam", "account", "cam", "account_outbox", "outbox", "cam_maintenance_login"),
     TargetTable(
-        "core", "account", "core", "account_idempotency", "idempotency", "core_maintenance_login"
+        "cam", "account", "cam", "account_idempotency", "idempotency", "cam_maintenance_login"
     ),
     TargetTable("bsm", "account", "bsm", "account_outbox", "outbox", "bsm_maintenance_login"),
     TargetTable(

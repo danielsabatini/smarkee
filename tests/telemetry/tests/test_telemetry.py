@@ -37,7 +37,7 @@ FEATURE_TELEMETRY_DIRS = [
             str(REPOSITORY / "features" / module / kind / "telemeter")
             for module, kind in (
                 ("bsm", "account"),
-                ("core", "account"),
+                ("cam", "account"),
                 ("ipm", "group"),
                 ("ipm", "organization"),
                 ("ipm", "permission"),
@@ -190,7 +190,7 @@ def register(headers: dict[str, str]) -> str:
     }
     for _ in range(3):
         response = httpx.post(
-            f"{API_URL}/v1/core/accounts",
+            f"{API_URL}/v1/cam/accounts",
             json=body,
             headers={"Host": API_HOST, **headers},
             timeout=20.0,
@@ -225,7 +225,7 @@ def gateway_spans_of(trace_id: str) -> list[Record]:
             s
             for s in spans()
             if s["trace_id"] == trace_id
-            and s["attributes"].get("http.route") == "/v1/core/accounts"
+            and s["attributes"].get("http.route") == "/v1/cam/accounts"
             and s["attributes"].get("http.request.method") == "POST"
         ]
         return found or None
@@ -294,7 +294,7 @@ def test_app_logs_hold_no_email_and_every_actor_id_is_opaque(
         )
 
 
-def test_core_account_app_logs_go_to_its_own_telemeter_and_not_to_the_shared_file(
+def test_cam_account_app_logs_go_to_its_own_telemeter_and_not_to_the_shared_file(
     registration: tuple[str, str],
 ) -> None:
     _, trace_id = registration
@@ -303,19 +303,19 @@ def test_core_account_app_logs_go_to_its_own_telemeter_and_not_to_the_shared_fil
         found = [r for r in logs(*FEATURE_APP_LOGS) if r["trace_id"] == trace_id]
         return found if {r["role"] for r in found} >= ROLES_OF_THE_LOOP else None
 
-    wait_for("logs de core/account na pasta do telemeter da feature", in_the_feature)
-    # O log de cada feature vai ao telemeter do seu dono; nenhum log de core-account pode cair no
+    wait_for("logs de cam/account na pasta do telemeter da feature", in_the_feature)
+    # O log de cada feature vai ao telemeter do seu dono; nenhum log de cam-account pode cair no
     # arquivo compartilhado do telemetry-sink.
     shared = logs(PLATFORM_APP_LOGS)
     leaked = [
         r
         for r in shared
-        if r["trace_id"] == trace_id and str(r["service"]).startswith("core-account")
+        if r["trace_id"] == trace_id and str(r["service"]).startswith("cam-account")
     ]
-    assert leaked == [], "log de core-account no arquivo compartilhado"
+    assert leaked == [], "log de cam-account no arquivo compartilhado"
 
 
-def test_core_account_spans_go_to_its_own_telemeter_and_not_to_the_platform_one(
+def test_cam_account_spans_go_to_its_own_telemeter_and_not_to_the_platform_one(
     registration: tuple[str, str],
 ) -> None:
     _, trace_id = registration
@@ -324,9 +324,9 @@ def test_core_account_spans_go_to_its_own_telemeter_and_not_to_the_platform_one(
         found = [s for s in spans(*FEATURE_TRACES) if s["trace_id"] == trace_id]
         return found or None
 
-    wait_for("span de core/account na pasta do telemeter da feature", in_the_feature)
+    wait_for("span de cam/account na pasta do telemeter da feature", in_the_feature)
     leaked = [s for s in spans(PLATFORM_TRACES) if s["trace_id"] == trace_id]
-    assert leaked == [], "span de core-account no `telemetry-sink`"
+    assert leaked == [], "span de cam-account no `telemetry-sink`"
 
 
 def emit_probe_log(module: str, kind: str) -> tuple[str, str]:
@@ -383,7 +383,7 @@ def feature_prefix(telemeter: Path) -> str:
 # Uma rota sem token de cada feature: o gateway responde 401, e o span dela é o que o teste procura.
 FEATURE_ROUTES = {
     "bsm-account": "/v1/bsm/accounts",
-    "core-account": "/v1/core/accounts/probe",
+    "cam-account": "/v1/cam/accounts/probe",
     "ipm-group": "/v1/ipm/groups",
     "ipm-organization": "/v1/ipm/organizations",
     "ipm-permission": "/v1/ipm/permissions",

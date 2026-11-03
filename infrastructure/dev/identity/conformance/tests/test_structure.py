@@ -35,7 +35,7 @@ ACTION_ROLES_BY_PROJECT = {
         "bsm.account.list",
         "bsm.account.update",
     },
-    "roles-core": {"core.account.delete", "core.account.get"},
+    "roles-cam": {"cam.account.delete", "cam.account.get"},
     "roles-ipm": {
         "ipm.organization.create",
         "ipm.organization.delete",
@@ -75,6 +75,9 @@ ACTION_ROLES_BY_PROJECT = {
         "ipm.user.update",
     },
     "roles-sum": {
+        "sum.bsm.disable",
+        "sum.bsm.enable",
+        "sum.bsm.get",
         "sum.ipm.disable",
         "sum.ipm.enable",
         "sum.ipm.get",
@@ -103,7 +106,7 @@ ACTION_ROLES_BY_PROJECT = {
 }
 ADMIN_ROLES_BY_PROJECT = {
     "roles-bsm": {"bsm.account.operate"},
-    "roles-core": {"core.account.operate"},
+    "roles-cam": {"cam.account.operate"},
     "roles-ipm": {
         "ipm.organization.operate",
         "ipm.permission.operate",
@@ -127,8 +130,8 @@ ADMIN_ROLES_BY_PROJECT = {
 }
 ACTION_ROLES = set[str]().union(*ACTION_ROLES_BY_PROJECT.values())
 ADMIN_ROLES = set[str]().union(*ADMIN_ROLES_BY_PROJECT.values())
-# Projetos cujo Project Grant o Executor do User administra (`PROJECT_GRANT_OWNER`, 0032 e 0082).
-USER_EXECUTOR_GRANT_PROJECTS = {"roles-bsm", "roles-core", "roles-sum"}
+# Projetos cujo Project Grant o Controller do CAM administra (`PROJECT_GRANT_OWNER`, 0032 e 0105).
+USER_EXECUTOR_GRANT_PROJECTS = {"roles-cam", "roles-sum"}
 ORGANIZATION_SERVICE = "zitadel.org.v2.OrganizationService"
 PROJECT_SERVICE = "zitadel.project.v2.ProjectService"
 APPLICATION_SERVICE = "zitadel.application.v2.ApplicationService"
@@ -138,15 +141,15 @@ USER_SERVICE = "zitadel.user.v2.UserService"
 # Alerta antes do vencimento, para a rotação manual ter folga (`infrastructure/dev/README.md`).
 KEY_EXPIRATION_WARNING = timedelta(days=90)
 SERVICE_ACCOUNTS = {
-    "core-account-controller",
+    "cam-account-controller",
     "ipm-organization-controller",
     "ipm-permission-controller",
     "ipm-serviceaccount-controller",
     "ipm-user-controller",
     "sum-service-controller",
 }
-# Projetos que o Controller do SUM administra (decisões 0033 e 0096): `ipm`.
-SUM_CONTROLLER_GRANT_PROJECTS = {"roles-ipm"}
+# Projetos que o Controller do SUM administra (decisões 0033, 0096 e 0105): `bsm` e `ipm`.
+SUM_CONTROLLER_GRANT_PROJECTS = {"roles-bsm", "roles-ipm"}
 
 pytestmark = pytest.mark.skipif(
     not KEY_FILE, reason="CONFORMANCE_IDENTITY_KEY_FILE não definida (chave do platform-bootstrap)"
@@ -477,8 +480,8 @@ def test_executor_and_observer_have_roles_only_in_register(
 ) -> None:
     in_register = organization_administrators(zitadel, orgs["register"])
     # `ORG_USER_CREATOR` cria e remove usuários, mas não concede roles (decisão 0032).
-    assert in_register.get("core-account-controller") == {"ORG_USER_CREATOR", "ORG_OWNER_VIEWER"}
-    # O Controller do SUM só lê a register (só o Grant de `roles-ipm` concede, abaixo).
+    assert in_register.get("cam-account-controller") == {"ORG_USER_CREATOR", "ORG_OWNER_VIEWER"}
+    # O Controller do SUM só lê a register (só os Grants de `roles-bsm` e `roles-ipm` concedem, abaixo).
     assert in_register.get("sum-service-controller") == {"ORG_OWNER_VIEWER"}
     # As contas da Organization têm só papel de instância (abaixo), nenhum na `register`; as do
     # User e da ServiceAccount só têm papéis nas organizações de cliente, dados pelo loop da
@@ -494,7 +497,7 @@ def test_executor_and_observer_have_roles_only_in_register(
         for name in in_core
         if name.startswith(
             (
-                "core-account-",
+                "cam-account-",
                 "sum-service-",
                 "ipm-organization-",
                 "ipm-serviceaccount-",
@@ -518,15 +521,15 @@ def test_permission_controller_reads_the_operator_organization(
 def test_user_executor_grants_roles_only_in_its_modules(
     zitadel: Zitadel, orgs: dict[str, str], project_ids: dict[str, str]
 ) -> None:
-    """O isolamento do SUM: o Executor do User é `PROJECT_GRANT_OWNER` só nos Grants dos módulos
-    de nível de conta (`core`, `bsm` e `sum`); no do `ipm` ele não é, e o Zitadel nega a concessão
-    (decisões 0032 e 0082)."""
+    """O isolamento do SUM: o Controller do CAM é `PROJECT_GRANT_OWNER` só nos Grants dos módulos
+    de nível de conta (`cam` e `sum`); nos de `bsm` e `ipm` ele não é, e o Zitadel nega a concessão
+    (decisões 0032 e 0105)."""
     for name, project_id in project_ids.items():
         owners = administrators(
             zitadel,
             {"projectGrant": {"projectId": project_id, "organizationId": orgs["register"]}},
         )
-        has_role = owners.get("core-account-controller") == {"PROJECT_GRANT_OWNER"}
+        has_role = owners.get("cam-account-controller") == {"PROJECT_GRANT_OWNER"}
         assert has_role == (name in USER_EXECUTOR_GRANT_PROJECTS), name
 
 
@@ -652,7 +655,7 @@ REPOSITORY = Path(__file__).resolve().parents[5]
 ENV_FILES = {
     "cli": REPOSITORY / "clients" / "cli" / ".env",
     "bsm.account": REPOSITORY / "features" / "bsm" / "account" / ".env",
-    "core.account": REPOSITORY / "features" / "core" / "account" / ".env",
+    "cam.account": REPOSITORY / "features" / "cam" / "account" / ".env",
     "sum.service": REPOSITORY / "features" / "sum" / "service" / ".env",
     "ipm.organization": REPOSITORY / "features" / "ipm" / "organization" / ".env",
     "ipm.permission": REPOSITORY / "features" / "ipm" / "permission" / ".env",
@@ -664,7 +667,7 @@ ENV_FILES = {
 # Variável de cada `.env` → o que ela deve apontar na instância.
 EXPECTED_AUDIENCE = {
     "bsm.account": ("BSM_ACCOUNT_RECEIVER_AUTH_AUDIENCE", "roles-bsm"),
-    "core.account": ("CORE_ACCOUNT_RECEIVER_AUTH_AUDIENCE", "roles-core"),
+    "cam.account": ("CAM_ACCOUNT_API_AUTH_AUDIENCE", "roles-cam"),
     "sum.service": ("SUM_SERVICE_RECEIVER_AUTH_AUDIENCE", "roles-sum"),
     "ipm.organization": ("IPM_ORGANIZATION_API_AUTH_AUDIENCE", "roles-ipm"),
     "ipm.permission": ("IPM_PERMISSION_API_AUTH_AUDIENCE", "roles-ipm"),
@@ -688,17 +691,17 @@ EXPECTED_ACCOUNT_IDS = {
     }
 }
 EXPECTED_REGISTER = {
-    "core.account": "CORE_ACCOUNT_IDENTITY_REGISTER_ORGANIZATION_ID",
+    "cam.account": "CAM_ACCOUNT_IDENTITY_REGISTER_ORGANIZATION_ID",
     "sum.service": "SUM_SERVICE_IDENTITY_REGISTER_ORGANIZATION_ID",
 }
 EXPECTED_PROJECT_IDS = {
-    "core.account": "CORE_ACCOUNT_IDENTITY_PROJECT_IDS",
+    "cam.account": "CAM_ACCOUNT_IDENTITY_PROJECT_IDS",
     "ipm.permission": "IPM_PERMISSION_IDENTITY_PROJECT_IDS",
     "sum.service": "SUM_SERVICE_IDENTITY_PROJECT_IDS",
 }
 CLI_PROJECTS = {
     "SK_BSM_PROJECT_ID": "roles-bsm",
-    "SK_CORE_PROJECT_ID": "roles-core",
+    "SK_CAM_PROJECT_ID": "roles-cam",
     "SK_SUM_PROJECT_ID": "roles-sum",
     "SK_IPM_PROJECT_ID": "roles-ipm",
     "SK_OPERATOR_PROJECT_ID": "roles-operator",
@@ -759,7 +762,7 @@ def test_the_ids_in_the_env_files_match_the_instance(
     }
     for feature in (
         "bsm.account",
-        "core.account",
+        "cam.account",
         "sum.service",
         "ipm.organization",
         "ipm.permission",

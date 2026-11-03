@@ -4,7 +4,7 @@
 #
 # Uso:
 #   ./scripts/dev/build-push                 # constrói e publica todas as 9 features + psql-client
-#   ./scripts/dev/build-push core/account    # constrói e publica apenas a feature informada
+#   ./scripts/dev/build-push cam/account     # constrói e publica apenas a feature informada
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,7 +49,7 @@ log "Pushing ${REGISTRY}/smarkee-psql-client:${TAG}..."
 docker push -q "${REGISTRY}/smarkee-psql-client:${TAG}" >/dev/null
 
 FEATURES=(
-  "core/account"
+  "cam/account"
   "bsm/account"
   "sum/service"
   "ipm/organization"

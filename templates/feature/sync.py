@@ -6,13 +6,13 @@ Cada arquivo de `files/` é o modelo de um arquivo idêntico em todas as feature
 `optional/<perfil>/`, de um arquivo idêntico nas features que declaram o perfil em `PROFILES`. Os
 marcadores ocupam o lugar dos nomes da feature:
 
-- `@@PACKAGE@@` pacote Python (`core_account`); no caminho, o diretório `PACKAGE`;
-- `@@KEBAB@@` nome do projeto e dos contêineres (`core-account`);
-- `@@UPPER@@` prefixo das variáveis de ambiente (`CORE_ACCOUNT`);
-- `@@DOTTED@@` módulo e tipo do recurso (`core.account`);
-- `@@MODULE@@` módulo (`core`) e `@@TYPE@@` tipo do recurso (`account`);
-- `@@CLASS@@` prefixo de classe (`CoreAccount`), `@@TYPE_CLASS@@` prefixo de classe do tipo
-  (`Account`, como em `AccountObserverSettings`) e `@@SPACED@@` nome em texto (`core account`).
+- `@@PACKAGE@@` pacote Python (`cam_account`); no caminho, o diretório `PACKAGE`;
+- `@@KEBAB@@` nome do projeto e dos contêineres (`cam-account`);
+- `@@UPPER@@` prefixo das variáveis de ambiente (`CAM_ACCOUNT`);
+- `@@DOTTED@@` módulo e tipo do recurso (`cam.account`);
+- `@@MODULE@@` módulo (`cam`) e `@@TYPE@@` tipo do recurso (`account`);
+- `@@CLASS@@` prefixo de classe (`CamAccount`), `@@TYPE_CLASS@@` prefixo de classe do tipo
+  (`Account`, como em `AccountObserverSettings`) e `@@SPACED@@` nome em texto (`cam account`).
 
 Sem argumentos ou com `--check`, verifica se alguma feature divergiu da fonte (modo somente leitura).
 Com `--write`, grava as cópias em cada `features/<módulo>/<tipo>/`. Com `--new <módulo> <tipo>`, cria a
@@ -41,7 +41,7 @@ PROFILES: dict[str, tuple[str, ...]] = {
     # Processo `api` (decisão 0098): probes, OpenAPI e contexto de trace; as demais peças são do tipo.
     "api-http": (
         "bsm/account",
-        "core/account",
+        "cam/account",
         "ipm/group",
         "ipm/organization",
         "ipm/permission",

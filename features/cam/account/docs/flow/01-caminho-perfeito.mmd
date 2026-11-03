@@ -1,0 +1,47 @@
+sequenceDiagram
+    autonumber
+    actor U as Pessoa
+    box rgb(232,240,254) Cliente e borda
+        participant CLI as sk register / sk account
+        participant GW as Gateway APISIX
+        participant API as cam-account-api
+    end
+    box rgb(232,245,233) Módulo core / account
+        participant DB as SSOT PostgreSQL
+        participant PUB as cam-account-publisher
+        participant CTRL as cam-account-controller
+    end
+    box rgb(243,229,245) Mensageria
+        participant N as NATS JetStream (DESIRED)
+    end
+    box rgb(253,236,234) Sistemas externos
+        participant ZIT as Zitadel
+        participant MAIL as SMTP (Mailpit em dev)
+    end
+
+    Note over U,API: 1. Admissão síncrona (anônima, sem senha)
+    U->>CLI: sk account create --name Ana --surname Souza --email ana@exemplo.com
+    CLI->>GW: POST /v1/cam/accounts {givenName, familyName, email}
+    GW->>API: repassa (limite de taxa de borda)
+    API->>API: valida schema estrito (sem senha) e unicidade de e-mail sob lock
+    API->>DB: Transação SQL: INSERT cam.account (phase Pending), INSERT outbox
+    API-->>CLI: 202 Accepted {resourceId}
+    CLI-->>U: orienta confirmação de e-mail e ativação de senha
+
+    Note over DB,N: 2. Publicação assíncrona do outbox
+    PUB->>DB: drena outbox pendente por ordem de sequence
+    PUB->>N: publica desired.cam.account.<id>
+    N-->>PUB: PubAck
+    PUB->>DB: UPDATE cam.account_outbox SET published_at = now()
+
+    Note over N,MAIL: 3. Reconciliação unificada no Controller
+    N->>CTRL: entrega desired.changed (Informer -> Workqueue)
+    CTRL->>DB: lê intenção vigente no SSOT
+    CTRL->>ZIT: observa se o usuário já existe
+    ZIT-->>CTRL: 404 Not Found (absent)
+    CTRL->>ZIT: cria usuário humano com os dados e permissões padrão
+    ZIT-->>CTRL: 201 Created (userId = resourceId)
+    CTRL->>MAIL: envia e-mail com link de ativação
+    CTRL->>ZIT: reobserva usuário
+    ZIT-->>CTRL: 200 OK (present, ativo)
+    CTRL->>DB: Transação SQL: UPDATE cam.account SET phase = Ready, observed_generation = generation

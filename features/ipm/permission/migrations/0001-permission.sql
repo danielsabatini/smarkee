@@ -112,11 +112,14 @@ WITH predefined(resource_id, permission_name, module_group, description, grantab
     ('01a1763d-eb0c-71d0-82c7-3010ed561cc5',   'bsm.account.list',   'bsm', 'Listar Billing Accounts', false),
     ('01a1763d-eb0f-75ea-8b0f-8bf1afb324fa', 'bsm.account.update', 'bsm', 'Alterar Billing Accounts', false),
     ('01a1763d-eb11-715e-96bb-90b4ab137e28',  'bsm.account.operate',  'bsm', 'Operador: qualquer Billing Account', false),
-    -- core.account (roles-core): nível de conta pessoal (register)
-    ('01a1763d-eb14-74eb-86dd-6f7f4b480783', 'core.account.delete', 'core', 'Remover a própria conta', false),
-    ('01a1763d-eb16-748d-bafc-dd2976ec27a4',    'core.account.get',    'core', 'Ler a própria conta', false),
-    ('01a1763d-eb19-737d-9a93-d95b72ff01c0',  'core.account.operate',  'core', 'Operador: qualquer conta', false),
-    -- sum.ipm (roles-sum): nível de conta pessoal (register)
+    -- cam.account (roles-cam): nível de conta pessoal (register)
+    ('01a1763d-eb14-74eb-86dd-6f7f4b480783', 'cam.account.delete', 'cam', 'Remover a própria conta', false),
+    ('01a1763d-eb16-748d-bafc-dd2976ec27a4',    'cam.account.get',    'cam', 'Ler a própria conta', false),
+    ('01a1763d-eb19-737d-9a93-d95b72ff01c0',  'cam.account.operate',  'cam', 'Operador: qualquer conta', false),
+    -- sum.bsm e sum.ipm (roles-sum): nível de conta pessoal (register)
+    ('01a1763d-eb1a-7000-8000-000000000001', 'sum.bsm.disable', 'sum', 'Desabilitar o módulo BSM da conta', false),
+    ('01a1763d-eb1a-7000-8000-000000000002',  'sum.bsm.enable',  'sum', 'Habilitar o módulo BSM da conta', false),
+    ('01a1763d-eb1a-7000-8000-000000000003',     'sum.bsm.get',     'sum', 'Ler o estado do módulo BSM da conta', false),
     ('01a1763d-eb1c-70bf-bf6c-8e2bb3bed9ec', 'sum.ipm.disable', 'sum', 'Desabilitar o módulo IPM da conta', false),
     ('01a1763d-eb1e-7411-939c-a0f773e2f875',  'sum.ipm.enable',  'sum', 'Habilitar o módulo IPM da conta', false),
     ('01a1763d-eb21-7647-aa8d-66b6fe110cf3',     'sum.ipm.get',     'sum', 'Ler o estado do módulo IPM da conta', false),
