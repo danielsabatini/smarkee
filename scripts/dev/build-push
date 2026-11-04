@@ -3,7 +3,7 @@
 # (`localhost:5001`, CNCF Distribution v3, decisão 0102).
 #
 # Uso:
-#   ./scripts/dev/build-push                 # constrói e publica todas as 9 features + psql-client
+#   ./scripts/dev/build-push                 # constrói e publica todas as 10 features + psql-client
 #   ./scripts/dev/build-push cam/account     # constrói e publica apenas a feature informada
 set -euo pipefail
 

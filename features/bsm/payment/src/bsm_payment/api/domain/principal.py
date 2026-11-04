@@ -8,7 +8,6 @@ PAYMENT_LIST = "bsm.payment.list"
 PAYMENT_UPDATE = "bsm.payment.update"
 PAYMENT_DELETE = "bsm.payment.delete"
 PAYMENT_OPERATE = "bsm.payment.operate"
-PAYMENT_ADMIN = "bsm.payment.admin"  # retrocompatibilidade transitória
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,7 +21,7 @@ class Principal:
     @property
     def is_operator(self) -> bool:
         """Operadores agem em qualquer método de pagamento."""
-        return PAYMENT_OPERATE in self.permissions or PAYMENT_ADMIN in self.permissions
+        return PAYMENT_OPERATE in self.permissions
 
     def has_permission(self, permission: str) -> bool:
         return permission in self.permissions

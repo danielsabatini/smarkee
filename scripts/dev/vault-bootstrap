@@ -852,6 +852,11 @@ seed_feature_secret "ipm" "permission" "true"
 seed_feature_secret "ipm" "role" "false"
 seed_feature_secret "ipm" "group" "false"
 
+# `bsm/payment`: token do Mercado Pago do `controller`. Em dev o `config.toml` usa `simulation_mode = true`
+# e o token é o de simulação (não é segredo real). Em stg e prd o token real é gravado pelo operador no cofre.
+# `kv patch` mantém as demais chaves gravadas por `seed_feature_secret`.
+bao_core bao kv patch svm/bsm/payment controller_mercadopago_access_token="sim-mercadopago-token" >/dev/null
+
 # Forçar reconciliação imediata do ClusterIssuer e ClusterSecretStore
 kubectl annotate clusterissuer smarkee-internal-ca vault.smarkee.io/reconciled-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --overwrite >/dev/null
 kubectl annotate clustersecretstore smarkee-core-svm vault.smarkee.io/reconciled-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --overwrite >/dev/null

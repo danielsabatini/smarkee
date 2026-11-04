@@ -58,6 +58,7 @@ async def store(api_conn: psycopg.AsyncConnection[Any]) -> AsyncIterator[SsotAdm
         DatabaseSettings(
             host=DATABASE_HOST,
             port=int(DATABASE_PORT),
+            name="ssot",
             user="bsm_payment_api_login",
             password=SecretStr("bsm_payment_api_login"),
         )
@@ -72,6 +73,7 @@ async def repository(api_conn: psycopg.AsyncConnection[Any]) -> AsyncIterator[Ss
         DatabaseSettings(
             host=DATABASE_HOST,
             port=int(DATABASE_PORT),
+            name="ssot",
             user="bsm_payment_api_login",
             password=SecretStr("bsm_payment_api_login"),
         )

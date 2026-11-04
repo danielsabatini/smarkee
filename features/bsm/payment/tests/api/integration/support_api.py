@@ -47,15 +47,11 @@ async def seed_payment(
         "deletionProtection": True,
     }
     await api.execute(
-        "INSERT INTO bsm.payment ("
-        "resource_id, schema_version, owner_account_id, customer_account_id, provider, method_type,"
-        " lifecycle, reconciliation, deletion_protection, desired, desired_generation,"
-        " observed_generation, resource_version, phase, requested_by, correlation_id"
-        ") VALUES ("
-        "%s, '1.0', %s, %s, 'mercadopago', 'credit_card',"
-        " 'present', 'active', TRUE, %s, 1, NULL, 1, 'Pending', 'test-seed', %s"
-        ")",
-        (resource_id, owner, customer_id, Jsonb(desired), str(uuid.uuid7())),
+        "INSERT INTO bsm.payment (resource_id, schema_version, lifecycle, reconciliation,"
+        " desired, desired_generation, observed_generation, resource_version, phase,"
+        " requested_by, correlation_id)"
+        " VALUES (%s, '1.0', 'present', 'active', %s, 1, NULL, 1, 'Pending', 'test-seed', %s)",
+        (resource_id, Jsonb(desired), str(uuid.uuid7())),
     )
     return resource_id
 
