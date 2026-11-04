@@ -190,7 +190,6 @@ kubectl rollout status deployment/external-secrets -n external-secrets-operator 
 kubectl rollout status deployment/external-secrets-cert-controller -n external-secrets-operator --timeout=180s
 kubectl rollout status deployment/external-secrets-webhook -n external-secrets-operator --timeout=180s
 kubectl rollout status deployment/opentelemetry-operator-controller-manager -n telemetry-operator --timeout=180s
-kubectl rollout status deployment/nack-jetstream-controller -n messaging-operator --timeout=180s
 kubectl rollout status deployment/argocd-server -n gitops-operator --timeout=240s
 kubectl rollout status deployment/argocd-repo-server -n gitops-operator --timeout=240s
 kubectl rollout status deployment/argocd-applicationset-controller -n gitops-operator --timeout=240s
@@ -211,5 +210,10 @@ if [[ -f "${REPO_ROOT}/infrastructure/k8s/argocd/root-app.yaml" ]]; then
   log "Applying ArgoCD App-of-Apps root (smarkee-root)..."
   kubectl apply -f "${REPO_ROOT}/infrastructure/k8s/argocd/root-app.yaml"
 fi
+
+# 12. O NACK lê a credencial do NATS do Secret `messaging-secret` (ExternalSecret do app `messaging`, que
+# depende do vault e do ArgoCD): o pod só fica pronto depois que o Secret é sincronizado.
+log "Waiting for NACK JetStream Controller (needs messaging-secret synced by External Secrets)..."
+kubectl rollout status deployment/nack-jetstream-controller -n messaging-operator --timeout=600s
 
 log "Cluster '${CLUSTER_NAME}', local registry 'localhost:${REGISTRY_PORT}' and all operators are Ready!"

@@ -90,13 +90,11 @@ spec:
                 secretKeyRef:
                   name: messaging-secret
                   key: NATS_USER
-                  optional: true
             - name: NATS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: messaging-secret
                   key: NATS_PASSWORD
-                  optional: true
           workingDir: /tmp
           ports:
             - name: health

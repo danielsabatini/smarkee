@@ -18,6 +18,7 @@ spec:
   maxMsgsPerSubject: 1
   maxMsgs: -1
   maxBytes: 1073741824
+  maxAge: "0s"
   maxMsgSize: 524288
   maxConsumers: -1
   duplicateWindow: "2m0s"
