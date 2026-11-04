@@ -74,7 +74,7 @@ O script `./scripts/dev/cluster-up` é o ponto de entrada único para provisiona
    - `nack-jetstream-controller` (`messaging-operator`)
    - `argocd` e `git-server` (`gitops-operator`)
 9. **Inicialização do Cofre (`vault-bootstrap`):** Executa o bootstrap do OpenBao (`vault-0`), realiza o *unseal*, configura os namespaces `core/` e `operator/`, habilita os mounts `/svm`, `/ekm`, `/clm`, configura a PKI e popula os segredos de desenvolvimento.
-10. **Aplicações Raiz do GitOps:** Aplica `smarkee-root` no ArgoCD, que por sua vez orquestra o provisionamento sincronizado em ondas (*sync waves*) de toda a plataforma e das 9 features de produto.
+10. **Aplicações Raiz do GitOps:** Aplica `smarkee-root` no ArgoCD, que por sua vez orquestra o provisionamento sincronizado em ondas (*sync waves*) de toda a plataforma e das 10 features de produto.
 
 ### 2.2 Pausar e Retomar o Cluster
 
@@ -130,7 +130,7 @@ Ao implementar ou alterar lógica de negócio nos serviços Python de qualquer f
 
 ```bash
 # 1. Reconstruir e atualizar todos os papéis (api, publisher, controller) de uma feature:
-./scripts/dev/k8s-dev core/account
+./scripts/dev/k8s-dev cam/account
 
 # 2. Reconstruir e reiniciar apenas o papel 'api' de ipm/organization:
 ./scripts/dev/k8s-dev ipm/organization api
@@ -368,8 +368,9 @@ kubectl -n messaging get streams.jetstream.nats.io
 # Inspecionar consumidores JetStream ativos:
 kubectl -n messaging get consumers.jetstream.nats.io
 
-# Inspecionar estatísticas do Stream via CLI dentro do pod NATS:
-kubectl -n messaging exec -it messaging-0 -- nats stream report
+# Estatísticas dos Streams: o pod do NATS não tem a CLI `nats`; use a CLI do host pelo NodePort
+# (credencial e variáveis em docs/messaging/NATS-CLI.md, seção 2.1):
+nats stream report
 ```
 
 #### Camada de Segredos e Certificados (`cert-manager` e `External Secrets`):

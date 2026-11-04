@@ -33,8 +33,8 @@ flowchart TB
         end
 
         subgraph LAYER_APP["Camada de Produto / Features (smarkee.io/layer=app)"]
-            NS_CORE["ns: core<br/>core/account (external-reconciled)<br/>api · publisher · controller · migrate · telemeter"]:::app
-            NS_BSM["ns: bsm<br/>bsm/account (internal-state)<br/>api · publisher · migrate · telemeter"]:::app
+            NS_CAM["ns: cam<br/>cam/account (external-reconciled)<br/>api · publisher · controller · migrate · telemeter"]:::app
+            NS_BSM["ns: bsm<br/>bsm/account (internal-state) · bsm/payment (external-reconciled)<br/>api · publisher · controller (payment) · migrate · telemeter"]:::app
             NS_SUM["ns: sum<br/>sum/service (external-reconciled)<br/>api · publisher · controller · migrate · telemeter"]:::app
             NS_IPM["ns: ipm<br/>organization · user · serviceaccount · permission (external-reconciled)<br/>role · group (internal-state)"]:::app
         end

@@ -2,7 +2,7 @@
 
 > **Escopo:** guia prático para **ver o que está acontecendo** no NATS de desenvolvimento (Streams, Consumers, Subjects e mensagens) usando a CLI `nats`, sem interface gráfica. A semântica das mensagens é de [`MESSAGING.md`](MESSAGING.md) e o desenho de Streams e Consumers é de [`NATS.md`](NATS.md): este documento não os redefine, só diz **como inspecioná-los**.
 >
-> **Base da verificação:** comandos executados em 2026-10-28 contra o `smarkee-dev` (servidor NATS 2.15.1; CLI `nats` 0.4.0 no host e 0.5.0 na imagem `smarkee-nats-client`). O que não foi possível verificar está na seção 10.
+> **Base da verificação:** comandos executados em 2026-11-04 contra o cluster `kind` `smarkee` (servidor NATS 2.15.2 no pod `messaging-0`, namespace `messaging`; CLI `nats` 0.4.0 no host). O que não foi possível verificar está na seção 10.
 
 # 1. Quando usar
 
@@ -18,12 +18,12 @@
 
 ## 2.1 Conexão pelo host
 
-O NATS de dev publica `127.0.0.1:4222` (`nats.conf` e `infrastructure/dev/messaging/compose.yaml`). A CLI lê a conexão de variáveis de ambiente, então a senha **não** vai na linha de comando nem no histórico do shell:
+O NATS do cluster de dev é publicado no host por NodePort: `127.0.0.1:4222` (cliente, `30422`) e `127.0.0.1:8222` (monitoramento, `30822`), pelo Service `messaging-nodeport` (`infrastructure/k8s/platform/messaging/base/`). A CLI lê a conexão de variáveis de ambiente, então a senha **não** vai na linha de comando nem no histórico do shell. A credencial é a do Secret `messaging-secret` (sincronizado pelo External Secrets a partir de `svm/messaging` no `vault`, namespace `core/`):
 
 ```bash
 export NATS_URL=nats://127.0.0.1:4222
-export NATS_USER=smarkee   # SMARKEE_MESSAGING_USER (padrão do compose)
-export NATS_PASSWORD=$(grep '^SMARKEE_MESSAGING_PASSWORD=' infrastructure/dev/messaging/.env | cut -d= -f2-)
+export NATS_USER=$(kubectl -n messaging get secret messaging-secret -o jsonpath='{.data.NATS_USER}' | base64 -d)
+export NATS_PASSWORD=$(kubectl -n messaging get secret messaging-secret -o jsonpath='{.data.NATS_PASSWORD}' | base64 -d)
 ```
 
 Teste:
@@ -35,15 +35,18 @@ nats server check connection
 
 Senha errada ou ausente responde `Authorization Violation` (ver seção 8.7).
 
-## 2.2 Sem a CLI instalada: pela imagem do projeto
+## 2.2 Sem a CLI instalada: pelo cluster
 
-A imagem `smarkee-nats-client` (a mesma dos contêineres `messaging-bootstrap-*`) tem a CLI. Rode-a na rede `internal`, passando as variáveis sem o valor da senha:
+A imagem do servidor (`nats:2.15.2-alpine`) **não** inclui a CLI `nats`: `kubectl exec` no pod `messaging-0` não a encontra. Sem a CLI no host, rode um pod descartável com a imagem `natsio/nats-box` dentro do cluster, passando a credencial pelo Secret (sem digitar a senha):
 
 ```bash
-docker run --rm --network internal \
-  -e NATS_URL=nats://messaging.smarkee.internal:4222 -e NATS_USER -e NATS_PASSWORD \
-  smarkee-nats-client:dev nats stream ls -n
+kubectl -n messaging run nats-cli --rm -it --restart=Never --image=natsio/nats-box:latest \
+  --env NATS_URL=nats://messaging.messaging.svc.cluster.local:4222 \
+  --overrides='{"spec":{"containers":[{"name":"nats-cli","image":"natsio/nats-box:latest","stdin":true,"tty":true,"envFrom":[{"secretRef":{"name":"messaging-secret"}}]}]}}' \
+  -- nats stream ls -n
 ```
+
+(O `messaging-secret` traz `NATS_USER` e `NATS_PASSWORD`, que a CLI lê do ambiente.) Esse caminho não foi executado neste guia (seção 10).
 
 ## 2.3 `jq`
 
@@ -51,19 +54,19 @@ As receitas de leitura de mensagens usam `jq`.
 
 # 3. Regras de segurança
 
-Em dev há **um único usuário** compartilhado por todos os serviços, com poder total (`nats.conf`). Nada impede um comando destrutivo.
+Em dev há **um único usuário** compartilhado por todos os serviços, com poder total (`nats.conf` no `ConfigMap` do `StatefulSet` `messaging`). Nada impede um comando destrutivo.
 
 | Tipo | Comandos | Regra |
 |---|---|---|
 | **Leitura (seguros)** | `stream ls\|info\|report\|subjects\|get`, `consumer ls\|info\|report`, `server check`, `account info`, `rtt`, `sub` com `--stream`, `curl` no `:8222` | Use à vontade |
 | **Efeito colateral** | `pub`, `consumer next`, `sub --ack`, `consumer add`, `stream add\|edit` | Só com Subject de teste e fora dos Streams (ver 8.9). `consumer next` e `--ack` **confirmam** mensagens e alteram o progresso de quem lê |
-| **Destrutivos** | `stream purge\|rm`, `consumer rm`, `stream rmm` | **Peça confirmação.** Em `DESIRED` e `OBSERVED` (um estado por recurso) um purge apaga o estado vigente de todos os tipos |
+| **Destrutivos** | `stream purge\|rm`, `consumer rm`, `stream rmm` | **Peça confirmação.** Em `DESIRED` e `UPDATED` (um estado por recurso) um purge apaga o estado vigente de todos os tipos |
 
 Outras regras:
 
 - Nunca publique em Subject de um Stream (`desired.>`, `updated.>` etc.) para "testar": a mensagem é gravada e consumida pelos serviços reais.
 - Não cole a senha em comando, log, issue nem na saída que você compartilhar.
-- Alterar Streams e Consumers é declarativo (`infrastructure/dev/messaging/bootstrap/*.json`, [`NATS.md`](NATS.md) seção 25), e não por comando manual.
+- Alterar Streams é declarativo: CRDs `Stream` em `infrastructure/k8s/platform/messaging/base/streams.yaml`, reconciliados pelo operador NACK via ArgoCD ([`NATS.md`](NATS.md) seção 25), e não por comando manual. Os Consumers são criados pelas próprias features.
 
 # 4. Verificação rápida de saúde
 
@@ -106,19 +109,17 @@ nats stream info DESIRED -j | jq '{subjects:.config.subjects, max_per_subject:.c
 
 ## 5.2 O que esperar de cada Stream
 
-O desenho está em [`NATS.md`](NATS.md) seção 6. Em dev, confira contra o broker em execução (valores lidos em 2026-10-28):
+O desenho está em [`NATS.md`](NATS.md) seção 6. Em dev, confira contra o broker em execução (valores lidos em 2026-11-04):
 
 | Stream | Retenção observada | Uso em dev hoje |
 |---|---|---|
-| `DESIRED` | `limits`, 1 mensagem por Subject, sem `MaxAge`, `allow_direct` | **Em uso:** último `desired` de cada recurso |
-| `UPDATED` | `limits`, `MaxAge` 24 h | **Em uso:** fatos `updated` |
-| `OBSERVED` | `limits`, 1 por Subject, `MaxAge` 24 h | Vazio: nenhuma feature o usa mais (decisões 0096, 0098 e 0100) |
-| `REQUESTED`, `ACTION` | `workqueue`, `DiscardNew` | Vazios, pelo mesmo motivo |
-| `RESULT` | `limits`, `MaxAge` 72 h, `allow_direct` | Vazio, pelo mesmo motivo |
+| `DESIRED` | `limits`, 1 mensagem por Subject, sem `MaxAge`, `allow_direct` | **Em uso:** último `desired` de cada recurso (195 mensagens na leitura) |
+| `UPDATED` | `limits`, 1 mensagem por Subject, `MaxAge` 24 h, `allow_direct` | **Em uso:** último `updated` de cada recurso (51 mensagens) |
+| `AUDIT` | `limits`, sem limite por Subject, `MaxAge` 24 h, sem `allow_direct`, `deny_delete` | **Em uso:** réplica por `sources` de `DESIRED` e `UPDATED` (155 mensagens) |
 
-`ACTION` tem `subject_transform` com partição: o Subject **armazenado** difere do publicado (`NATS.md` seção 7.5). Hoje ele está vazio.
+Os Streams `OBSERVED`, `REQUESTED`, `ACTION` e `RESULT` do modelo antigo **não existem mais** (decisões 0096, 0098, 0100 e 0101). Se algum aparecer, é resíduo de um ambiente antigo.
 
-Um Stream vazio **não é defeito** nas condições acima.
+Um Stream vazio **não é defeito** num ambiente recém-criado, antes de qualquer recurso ser admitido.
 
 ## 5.3 Subjects retidos
 
@@ -153,10 +154,10 @@ Campos que respondem "está atrasado?" em `consumer info`:
 
 ## 6.2 Nomes e instâncias
 
-Os Consumers de dev seguem `<módulo>-<tipo>-<papel>-<...>-<sufixo>`, em que o sufixo hexadecimal de 8 caracteres identifica a **execução do processo** (por exemplo, `ipm-organization-controller-desired-3deaf8e9`). Isso é o descrito em [`NATS.md`](NATS.md) seção 7.4. Consequências:
+Os Consumers de dev seguem `<módulo>-<tipo>-<papel>-<...>-<sufixo>`, em que o sufixo hexadecimal de 8 caracteres identifica a **execução do processo** (por exemplo, `sum-service-controller-account-removed-5768c09c`). Isso é o descrito em [`NATS.md`](NATS.md) seção 7.4. Consequências:
 
-- Após reiniciar um serviço aparece um Consumer novo com sufixo novo. O antigo é removido pelo servidor após o `inactive_threshold` (`5m0s` no Controller observado). Vê-los em dobro por alguns minutos é normal.
-- Os papéis em uso hoje são `api` (projeções), `controller` e `publisher` (decisões 0096, 0098 e 0100). Os papéis `manager`, `observer`, `reconciler` e `executor` da tabela de [`NATS.md`](NATS.md) seção 7.6 são o desenho de referência; nenhuma feature em dev os usa.
+- Após reiniciar um serviço aparece um Consumer novo com sufixo novo. O antigo é removido pelo servidor após o `inactive_threshold` (`5m0s` no Controller). Vê-los em dobro por alguns minutos é normal.
+- Os papéis em uso hoje são `api` (projeções), `controller` e `publisher` (decisões 0096, 0098 e 0100). Os papéis `manager`, `observer`, `reconciler` e `executor` da tabela de [`NATS.md`](NATS.md) seção 7.6 são o desenho de referência histórico; nenhuma feature os usa.
 
 ## 6.3 Quem está atrasado (varredura)
 
@@ -171,7 +172,7 @@ for s in $(nats stream ls -n); do
 done | awk -F'\t' '$3>0||$4>0||$5>0'
 ```
 
-São uma chamada por Consumer (cerca de 50 em dev).
+São uma chamada por Consumer (cerca de 54 em dev).
 
 ## 6.4 Verificação com limiar
 
@@ -250,13 +251,13 @@ Observações verificadas:
 ## 8.1 "Criei um recurso e ele não aparece no `DESIRED`"
 
 1. Procure o Subject: `nats stream subjects DESIRED '<prefixo do módulo e tipo>.>'`.
-2. Se a mensagem não está lá, o problema está **antes** do NATS: a API grava o `desired` no outbox e o `publisher` o publica ([`NATS.md`](NATS.md) seção 26.1). Confira se o publisher está `ready` (`/health/ready` na porta `8000`, só na rede `internal`) e o log dele. Um publisher bloqueado por recusa permanente sai de `ready` e registra `ERROR` ([`NATS.md`](NATS.md) seção 11.2).
+2. Se a mensagem não está lá, o problema está **antes** do NATS: a API grava o `desired` no outbox e o `publisher` o publica ([`NATS.md`](NATS.md) seção 26.1). Confira se o publisher está `Ready` (`kubectl -n <módulo> get pods`; `/health/ready` na porta `8000`) e o log dele (`kubectl -n <módulo> logs deploy/<módulo>-<tipo>-publisher`). Um publisher bloqueado por recusa permanente sai de `ready` e registra `ERROR` ([`NATS.md`](NATS.md) seção 11.2).
 3. Se a mensagem está lá, confirme `desiredGeneration` e `lifecycle` (7.2).
 
 ## 8.2 "Publicou, mas ninguém reagiu"
 
 1. A mensagem está no Stream (8.1)?
-2. O Consumer do serviço existe? `nats consumer ls DESIRED -n | grep <módulo>-<tipo>`.
+2. O Consumer do serviço existe? `nats consumer ls DESIRED -n | grep <módulo>-<tipo>`, ou `kubectl -n messaging get consumers.jetstream.nats.io` quando o operador NACK os gerencia.
 3. Ele tem leitor? `nats consumer info ...`: `Waiting Pulls` deve ser maior que 0.
 4. Há atraso? Varredura da seção 6.3.
 5. Se houver `num_pending` > 0 com `num_waiting` = 0, o serviço está parado ou desconectado (seção 8.6).
@@ -294,23 +295,23 @@ Só enxerga a **última** mensagem por Subject. Para o traço completo da requis
 curl -s 'http://127.0.0.1:8222/connz?limit=100' | jq -r '.connections[].name' | sort
 ```
 
-Cada serviço se conecta com um nome (por exemplo, `ipm-user-publisher`, `sum-service-controller`). Um serviço ausente da lista não está conectado ao broker.
+Cada serviço se conecta com um nome (por exemplo, `bsm-account-publisher`, `cam-account-controller-8f4b3efc`). Um serviço ausente da lista não está conectado ao broker.
 
 ## 8.7 Falha de autenticação
 
 - Pelo cliente: `nats server check connection` → `Authorization Violation`.
-- Pelo broker: `docker logs messaging.smarkee.internal 2>&1 | grep 'authentication error'`.
+- Pelo broker: `kubectl -n messaging logs messaging-0 -c messaging | grep 'authentication error'`.
   - Linha **sem** `User "..."`: o cliente conectou **sem enviar credencial** (cliente gráfico ou biblioteca sem usuário e senha configurados, ou com o modo de autenticação errado).
   - Linha **com** `User "smarkee"`: credencial enviada, mas senha incorreta.
-- Compare a senha do `.env` com a do broker sem imprimi-la: os dois hashes devem ser iguais.
+- Compare a senha do Secret com a do broker sem imprimi-la: os dois hashes devem ser iguais.
 
   ```bash
-  p1=$(grep '^SMARKEE_MESSAGING_PASSWORD=' infrastructure/dev/messaging/.env | cut -d= -f2- | tr -d '\n' | shasum | cut -c1-12)
-  p2=$(docker exec messaging.smarkee.internal sh -c 'printf %s "$NATS_PASSWORD"' | shasum | cut -c1-12)
+  p1=$(kubectl -n messaging get secret messaging-secret -o jsonpath='{.data.NATS_PASSWORD}' | base64 -d | shasum | cut -c1-12)
+  p2=$(kubectl -n messaging exec messaging-0 -c messaging -- sh -c 'printf %s "$NATS_PASSWORD"' | shasum | cut -c1-12)
   [ "$p1" = "$p2" ] && echo igual || echo diferente
   ```
 
-  Se forem diferentes, o `.env` mudou depois que o broker subiu: recrie o `messaging`.
+  Se forem diferentes, o Secret mudou depois que o broker subiu: reinicie o pod (`kubectl -n messaging rollout restart statefulset/messaging`). O operador NACK e as features usam o mesmo Secret.
 
 ## 8.8 Publicar e assinar no Core (sem JetStream)
 
@@ -329,7 +330,7 @@ Publicar em `desired.>`, `updated.>`, `audit.>` ou nos antigos subjects legados.
 
 # 9. Monitoramento HTTP (`:8222`)
 
-Sem autenticação, publicado só em `127.0.0.1` (`infrastructure/dev/README.md`). É a mesma fonte do `messaging-exporter`.
+Sem autenticação, publicado só em `127.0.0.1` pelo NodePort `30822` (`docs/infrastructure/k8s/OPERATION.md`). É a mesma fonte do contêiner `exporter` (`prometheus-nats-exporter`) do pod `messaging-0`.
 
 | Endpoint | Para quê |
 |---|---|
@@ -359,12 +360,14 @@ curl -s http://127.0.0.1:8222/varz | jq '{version, connections, slow_consumers, 
 - Acompanhar mensagens **novas** ao vivo (`nats sub --stream ... --new`) com tráfego real: para não publicar nos Streams, não gerei tráfego.
 - `nats event --js-advisory`: conecta e escuta, mas não observei nenhum evento durante o teste. Os avisos de reentrega máxima e de ACK terminado chegam por esse canal segundo a documentação do NATS, sem confirmação aqui.
 - O código de saída de `server check` (a saída textual `OK`/`CRITICAL` foi confirmada).
+- A execução da CLI por pod descartável (seção 2.2) e o `rollout restart` da seção 8.7.
+- Operador NACK: em 2026-11-04 os três CRDs `Stream` estavam `Errored` com `nats: Authorization Violation` (o `nack-jetstream-controller` não recebia `NATS_USER`/`NATS_PASSWORD`, porque `secretKeyRef` só resolve no namespace do próprio pod e o `messaging-secret` existia só em `messaging`; o `optional: true` escondia a falta e o broker via o usuário literal `$(NATS_USER)`). Corrigido com um `ExternalSecret` `messaging-secret` também em `messaging-operator`. Diagnóstico: `kubectl -n messaging get streams.jetstream.nats.io` (esperado `Ready`) e `kubectl -n messaging-operator logs deploy/nack-jetstream-controller`.
 - Comportamento em stg e prd: identidade por serviço e TLS ([`NATS.md`](NATS.md) seções 18 e 26) tornam esta conexão com usuário único inválida. Os comandos de leitura continuam valendo, com outro modo de autenticação.
 
 # 11. Fonte de verdade
 
 - Semântica das mensagens: [`MESSAGING.md`](MESSAGING.md).
 - Streams, Consumers, Subjects, retenção e segurança: [`NATS.md`](NATS.md).
-- Configuração real do broker: `infrastructure/dev/messaging/` (`nats.conf`, `compose.yaml`, `bootstrap/*.json`).
+- Configuração real do broker: `infrastructure/k8s/platform/messaging/base/` (`statefulset.yaml` com o `nats.conf`, `streams.yaml`, `secrets-and-certs.yaml`).
 - Procedimentos do agente: skill `nats`. Este guia a complementa para a operação manual.
 - CLI `nats`: https://docs.nats.io/using-nats/nats-tools/nats_cli

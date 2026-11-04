@@ -6,7 +6,7 @@ flowchart LR
     classDef out fill:#e0f2f1,stroke:#00695c,color:#003d33
 
     subgraph SOURCES["Fontes no Cluster Kubernetes (kind: smarkee)"]
-        APP_PODS["Pods das 9 Features (core, bsm, sum, ipm)<br/>stdout JSON (contrato 0045)<br/>/var/log/pods/*/*/*.log (CRI containerd)"]:::src
+        APP_PODS["Pods das 10 Features (cam, bsm, sum, ipm)<br/>stdout JSON (contrato 0045)<br/>/var/log/pods/*/*/*.log (CRI containerd)"]:::src
         INFRA_PODS["Pods de Infraestrutura<br/>(database, messaging, identity, gateway, mail, telemetry, vault)<br/>Logs WARN+ &amp; Kubelet :10250 (kubeletstats)<br/>PostgreSQL :5432 · Zitadel :8080 · NATS :7777"]:::src
         GW_SPANS["gateway (Apache APISIX)<br/>Plugin opentelemetry (Spans de servidor)"]:::src
     end
@@ -17,8 +17,8 @@ flowchart LR
         SINK["OpenTelemetryCollector: telemetry-sink<br/><b>mode: statefulset · GRAVA (:4317)</b><br/>Recebe toda a infra e fallback de app"]:::write
     end
 
-    subgraph NS_FEAT["Namespaces: core · bsm · sum · ipm"]
-        FTEL["9× OpenTelemetryCollector: &lt;mod&gt;-&lt;type&gt;-telemeter<br/><b>mode: statefulset · GRAVA (:4317)</b><br/>core-account · bsm-account · sum-service<br/>ipm-{organization,user,serviceaccount,permission,role,group}"]:::write
+    subgraph NS_FEAT["Namespaces: cam · bsm · sum · ipm"]
+        FTEL["10× OpenTelemetryCollector: &lt;mod&gt;-&lt;type&gt;-telemeter<br/><b>mode: statefulset · GRAVA (:4317)</b><br/>cam-account · bsm-{account,payment} · sum-service<br/>ipm-{organization,user,serviceaccount,permission,role,group}"]:::write
     end
 
     OUT_SINK[("Host (extraMounts):<br/>infrastructure/dev/telemetry-sink/<br/>logs/{app,infra}/ · metrics/{app,infra}/ · traces/")]:::out

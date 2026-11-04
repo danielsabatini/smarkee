@@ -14,7 +14,7 @@ Quatro peças, **um verbo cada**. Todas são o OpenTelemetry Collector (distribu
 
 | Verbo | Peça | Em uma frase |
 |---|---|---|
-| **Lê** | `telemetry-agent` | Lê os logs e as métricas dos contêineres (Docker) ou dos nós (Kubernetes) e os envia adiante |
+| **Lê** | `telemetry-agent` | Lê os logs dos pods (`/var/log/pods`) e as métricas dos nós (`kubeletstats`) e os envia adiante |
 | **Roteia** | `telemetry-router` | Manda cada sinal ao telemeter dono e **não grava em nenhum backend** |
 | **Grava** | `telemetry-sink` | Processa e grava a **infra** e o app que nenhuma feature reivindica |
 | **Grava** | `<módulo>-<tipo>-telemeter` | Processa e grava os sinais de **app** de **uma** feature |
@@ -31,13 +31,13 @@ Quatro peças, **um verbo cada**. Todas são o OpenTelemetry Collector (distribu
 
 | Peça | Onde está | Entrada | Saída | Privilégio | Quantas |
 |---|---|---|---|---|---|
-| **`telemetry-agent`** | `infrastructure/dev/telemetry-agent` | arquivos de log dos contêineres (`json-file`) e API do Docker (`docker_stats`) | OTLP gRPC ao roteador, com fila em disco | **root e socket do Docker em dev** (lacuna declarada); sem root nem socket em stg e prd | uma por nó |
-| **`telemetry-router`** | `infrastructure/dev/telemetry-router` | OTLP gRPC (`4317`, do agente) e OTLP HTTP (`4318`, do APISIX) | OTLP gRPC a cada telemeter, com fila em disco por destino | nenhum | uma |
-| **`telemetry-sink`** | `infrastructure/dev/telemetry-sink` | OTLP gRPC (`4317`, do roteador) | arquivos: `logs/{app,infra}`, `metrics/{app,infra}`, `traces/` | nenhum | uma |
-| **`<módulo>-<tipo>-telemeter`** | `features/<módulo>/<tipo>/telemeter` (serviço no `compose.yaml` da feature) | OTLP gRPC (`4317`, do roteador) | arquivos: `telemeter/logs/`, `telemeter/traces/` | nenhum | uma por feature, quando houver necessidade (hoje só `core/account`) |
+| **`telemetry-agent`** | `infrastructure/k8s/platform/telemetry/base/telemetry-agent.yaml` | logs dos pods (`/var/log/pods`, formato CRI `containerd`) e `kubeletstats` | OTLP gRPC ao roteador, com fila em disco | **root e `hostPath` de `/var/log/pods`** (lacuna declarada); sem `docker.sock` | uma por nó (`DaemonSet`) |
+| **`telemetry-router`** | `infrastructure/k8s/platform/telemetry/base/telemetry-router.yaml` | OTLP gRPC (`4317`, do agente) e OTLP HTTP (`4318`, do APISIX) | OTLP gRPC a cada telemeter, com fila em disco por destino | nenhum | uma |
+| **`telemetry-sink`** | `infrastructure/k8s/platform/telemetry/base/telemetry-sink.yaml` | OTLP gRPC (`4317`, do roteador) | arquivos: `logs/{app,infra}`, `metrics/{app,infra}`, `traces/` | nenhum | uma |
+| **`<módulo>-<tipo>-telemeter`** | `features/<módulo>/<tipo>/k8s/base/telemeter.yaml` (configuração em `features/<módulo>/<tipo>/telemeter/config.yaml`) | OTLP gRPC (`4317`, do roteador) | arquivos: `telemeter/logs/`, `telemeter/traces/` | nenhum | uma por feature (hoje as 10) |
 | `tests/telemetry` | `tests/telemetry` | — | — | — | teste black-box da cadeia inteira (não é serviço) |
 
-Todas expõem `health_check` em `13133` (rede `internal`) e não publicam portas no host. O README de cada peça detalha a função: [`telemetry-router`](../../infrastructure/dev/telemetry-router/README.md), [`telemetry-sink`](../../infrastructure/dev/telemetry-sink/README.md) e [`core-account-telemeter`](../../features/core/account/telemeter/README.md).
+Todas expõem `health_check` em `13133` (rede do cluster) e não publicam portas no host. O manifesto de cada peça detalha a função: [`telemetry-router`](../../infrastructure/k8s/platform/telemetry/base/telemetry-router.yaml), [`telemetry-sink`](../../infrastructure/k8s/platform/telemetry/base/telemetry-sink.yaml) e [`cam-account-telemeter`](../../features/cam/account/telemeter/README.md).
 
 ## 2.2 O que cada peça não faz
 
@@ -48,7 +48,7 @@ Todas expõem `health_check` em `13133` (rede `internal`) e não publicam portas
 | `telemetry-sink` | ✔ | ✔ | — (grava arquivos) | ✔ |
 | `…-telemeter` | ✔ | ✔ | — (grava arquivos) | aplica a política da feature |
 
-O `telemeter` **não é um dos seis papéis do loop** (Receiver, Manager, Publisher, Reconciler, Observer e Executor): nenhum componente depende dele.
+O `telemeter` **não é um dos papéis do loop** (`api`, `publisher` e `controller`): nenhum componente depende dele.
 
 # 3. Sinais e roteamento
 
@@ -58,10 +58,10 @@ O `telemeter` **não é um dos seis papéis do loop** (Receiver, Manager, Publis
 
 | Sinal | Origem | Chave de roteamento | Telemeter da feature | Padrão |
 |---|---|---|---|---|
-| **Logs de app** | os 18 contêineres das features (stdout, JSON do contrato 0045) | Resource: `smarkee.module` e `smarkee.resource.type` | o da feature (`core-account-telemeter`, `ipm-organization-telemeter` ou `sum-service-telemeter`) | `telemetry-sink` |
-| **Logs de infra** | messaging, banco, Zitadel, gateway, mail, coletores | não têm `smarkee.module` | — | `telemetry-sink` |
-| **Spans** | plugin `opentelemetry` do APISIX | atributo `apisix.service_name` (o ADC define um serviço por feature) | o da feature (`<módulo>-<tipo>-receiver` → `<módulo>-<tipo>-telemeter`) | `telemetry-sink` (identidade e rotas sem feature) |
-| **Métricas** | `docker_stats` (`container.*`), `postgresql`, `sql_query/outbox` e `prometheus/infra` (`identity` e `messaging-exporter`) | — | — (ainda não há métrica de app) | `telemetry-sink` |
+| **Logs de app** | os pods das features (stdout, JSON do contrato 0045) | Resource: `smarkee.module` e `smarkee.resource.type` | o da feature (`<módulo>-<tipo>-telemeter`, por exemplo `cam-account-telemeter`) | `telemetry-sink` |
+| **Logs de infra** | messaging, banco, Zitadel, gateway, mail, operadores, coletores | não têm `smarkee.module` | — | `telemetry-sink` |
+| **Spans** | plugin `opentelemetry` do APISIX | atributo `apisix.service_name` (o ADC define um serviço por feature) | o da feature (`<módulo>-<tipo>-api` → `<módulo>-<tipo>-telemeter`) | `telemetry-sink` (identidade e rotas sem feature) |
+| **Métricas** | `kubeletstats` (`k8s.*`, `container.*`), `postgresql`, `sql_query/outbox` e `prometheus/infra` (`identity` e o `exporter` do pod `messaging-0`) | — | — (ainda não há métrica de app) | `telemetry-sink` |
 
 - **O agente não conhece as features.** O roteamento é do roteador, com o conector `routing` do Collector, usando o que os sinais já trazem. O contrato 0045 já exige `smarkee.module`, `smarkee.resource.type` e `smarkee.component.role` no Resource.
 - **Por que o roteamento de spans é no roteador.** O endereço do coletor do plugin `opentelemetry` do APISIX é um metadado do plugin, global, e não por rota. Então o APISIX envia tudo ao roteador, e este decide.
@@ -70,21 +70,21 @@ O `telemeter` **não é um dos seis papéis do loop** (Receiver, Manager, Publis
 
 # 4. Fluxos
 
-## 4.1 Logs de app de `core/account`
+## 4.1 Logs de app de `cam/account`
 
-`componente (stdout)` → `telemetry-agent` (lê o arquivo do contêiner, identifica o sinal, descarta healthchecks) → `telemetry-router` (casa `smarkee.module` e `smarkee.resource.type` no Resource, aqui `core` e `account`) → `core-account-telemeter` → `features/core/account/telemeter/logs/`.
+`componente (stdout)` → `telemetry-agent` (lê o arquivo do pod em `/var/log/pods`, identifica o sinal, descarta healthchecks) → `telemetry-router` (casa `smarkee.module` e `smarkee.resource.type` no Resource, aqui `cam` e `account`) → `cam-account-telemeter` → `features/cam/account/telemeter/logs/`.
 
-## 4.2 Spans de uma requisição a `core/account`
+## 4.2 Spans de uma requisição a `cam/account`
 
-`APISIX` (plugin `opentelemetry`, span de servidor) → `telemetry-router` (normaliza à semconv, casa `apisix.service_name = core-account-api`) → `core-account-telemeter` → `telemeter/traces/`. O `trace_id` do span é o mesmo dos logs dos componentes (decisão 0055), o que permite juntar os dois.
+`APISIX` (plugin `opentelemetry`, span de servidor) → `telemetry-router` (normaliza à semconv, casa `apisix.service_name = cam-account-api`) → `cam-account-telemeter` → `telemeter/traces/`. O `trace_id` do span é o mesmo dos logs dos componentes (decisão 0055), o que permite juntar os dois.
 
 ## 4.3 Logs e métricas da infra
 
-`contêineres da plataforma` → `telemetry-agent` (só `WARN` ou acima nos logs, sem as linhas de acesso do nginx; redação de e-mail) → `telemetry-router` (default) → `telemetry-sink` → `logs/infra/` e `metrics/infra/`.
+`pods da plataforma` → `telemetry-agent` (só `WARN` ou acima nos logs, sem as linhas de acesso do nginx; redação de e-mail) → `telemetry-router` (default) → `telemetry-sink` → `logs/infra/` e `metrics/infra/`.
 
 ## 4.4 Um trace atravessa features
 
-O cadastro de uma conta passa também pelo `sum`. Os logs de cada feature vão ao telemeter dela (ou ao `telemetry-sink`, se a feature ainda não tiver um). A chave para juntá-los é o `trace_id`; a suíte `tests/telemetry` lê as duas fontes.
+O cadastro de uma conta passa também pelo `sum` e pelo `bsm`. Os logs de cada feature vão ao telemeter dela (ou ao `telemetry-sink`, se a feature ainda não tiver um). A chave para juntá-los é o `trace_id`; a suíte `tests/telemetry` lê as duas fontes.
 
 # 5. Filas, retry e falhas
 
@@ -92,20 +92,20 @@ Cada salto que pode falhar tem `sending_queue` **em disco** (`file_storage`, 100
 
 | Elo | Fila em disco | Onde |
 |---|---|---|
-| agente → roteador | sim | volume `telemetry-agent-data` (também guarda a posição de leitura dos logs) |
-| roteador → telemeters | sim, uma por destino e por sinal | `infrastructure/dev/telemetry-router/data/` |
+| agente → roteador | sim | `emptyDir` do pod do agente (também guarda a posição de leitura dos logs) |
+| roteador → telemeters | sim, uma por destino e por sinal | `emptyDir` do pod do roteador (`/var/lib/otelcol/file_storage`) |
 | telemeter → arquivo | — (o exporter `file` não tem fila) | `…/logs`, `…/traces` |
 
 | Cenário | Comportamento | Evidência |
 |---|---|---|
 | Um telemeter cai | o roteador retém na fila e reenvia quando ele volta | 150 de 150 registros, sem duplicatas |
-| O roteador reinicia durante a queda de um telemeter | a fila em disco persiste | idem (medido nos dois caminhos de uma vez, com os dois telemeters fora por 60 s) |
+| O roteador reinicia (o contêiner) durante a queda de um telemeter | a fila em disco persiste, **desde que o pod não seja recriado**: a fila está em `emptyDir` e some com o pod (lacuna de dev, seção 10) | idem (medido nos dois caminhos de uma vez, com os dois telemeters fora por 60 s) |
 | O agente reinicia durante a queda do roteador | a fila em disco persiste (com a fila só em memória, perdiam-se 31 de 150) | decisão 0059 |
 | Fila cheia | descarta o dado novo, sem bloquear a leitura | configuração |
 | Passou o `max_elapsed_time` (10 min) | o lote é descartado | configuração |
 | **Telemeter ausente** (feature não implantada) | o que era dele se perde depois da fila; a plataforma não depende da feature, mas o roteamento aponta para ela | decisão 0062 |
-| **Recriar um telemeter** (novo IP) | o roteador pode usar o IP antigo até o cache de DNS expirar; reiniciar o roteador resolve | observado em dev em 2026-10-19 |
-| Dois contêineres na mesma pasta `data/` | o arquivo da fila tem trava: o segundo não inicia | observado em dev em 2026-10-19 |
+| **Recriar um telemeter** | o roteador alcança o telemeter pelo `Service` do cluster (`<módulo>-<tipo>-telemeter.<módulo>.svc.cluster.local`); a fila retém o que ficou pendente | manifesto do roteador. O cache de DNS do roteador no Compose (2026-10-19) não foi reavaliado no cluster |
+| Duas réplicas na mesma pasta de fila | o arquivo da fila tem trava: a segunda não inicia | observado em dev em 2026-10-19 (Compose); no cluster cada pod tem o próprio `emptyDir` |
 
 A telemetria **nunca** bloqueia o negócio: os componentes só escrevem em stdout, e o agente lê de forma assíncrona.
 
@@ -113,8 +113,8 @@ A telemetria **nunca** bloqueia o negócio: os componentes só escrevem em stdou
 
 | Tema | Como está |
 |---|---|
-| **Privilégio** | só o `telemetry-agent` é privilegiado (root e socket do Docker em dev, **lacuna de dev declarada**, `IMPLEMENTATION-STATUS.md` 7.1). O roteador e os telemeters rodam com `cap_drop: ALL`, `no-new-privileges` e sem socket |
-| **Transporte** | OTLP sem TLS nem autenticação na rede `internal` em dev (**lacuna de dev declarada**); em stg e prd, TLS e autenticação |
+| **Privilégio** | só o `telemetry-agent` é privilegiado (root e `hostPath` somente leitura de `/var/log/pods`, **lacuna de dev declarada**, `IMPLEMENTATION-STATUS.md` 7.1). Não há `docker.sock`. Os manifestos do roteador e dos telemeters não declaram `securityContext` restritivo (lacuna a fechar antes do stg) |
+| **Transporte** | OTLP sem TLS nem autenticação na rede do cluster em dev (**lacuna de dev declarada**); em stg e prd, TLS e autenticação |
 | **Dados pessoais na infra** | o agente descarta o `WARN` "missing translation" do Zitadel e troca e-mail por `<redacted-email>` (decisão 0059) |
 | **Dados nos apps** | só identificador opaco; sem e-mail nem nome (decisão 0061); o schema valida o formato |
 | **Isolamento** | o telemeter da feature só recebe a feature; não há leitura de arquivo de outros contêineres. **Por feature não é por cliente**: a separação por dono é o contexto de negócio dos logs |
@@ -130,38 +130,38 @@ A telemetria **nunca** bloqueia o negócio: os componentes só escrevem em stdou
 | `telemetry-sink` | `infrastructure/k8s/platform/telemetry/base/telemetry-sink.yaml` | `telemetry` | `mode: statefulset` (`telemetry-sink-collector.telemetry.svc.cluster.local`), gravando em `infrastructure/dev/telemetry-sink/{logs,metrics,traces}` |
 | `<módulo>-<tipo>-telemeter` | `features/<módulo>/<tipo>/k8s/base/telemeter.yaml` | `<módulo>` | **`mode: statefulset` no namespace da feature** (`<módulo>-<tipo>-telemeter-collector.<módulo>.svc.cluster.local`) |
 
-A arquitetura e os manifestos base são **os mesmos** em `dev`, `stg` e `prd` (decisão `0102`), usando o `OpenTelemetry Operator` (`v0.162.0` com `otel/opentelemetry-collector-contrib:0.164.0`). O formato CRI `containerd` do `filelog` e o `kubeletstats` em Kubernetes foram verificados em 2026-10-29 com a suíte `tests/telemetry` (20/20).
+A arquitetura e os manifestos base são **os mesmos** em `dev`, `stg` e `prd` (decisão `0102`). Em dev, a saída dos telemeters e do sink é gravada por `hostPath` em `/var/lib/smarkee/telemetry/...` do nó `kind`, espelhada nas pastas `telemeter/` das features e em `infrastructure/dev/telemetry-sink/`, usando o `OpenTelemetry Operator` (`v0.162.0` com `otel/opentelemetry-collector-contrib:0.164.0`). O formato CRI `containerd` do `filelog` e o `kubeletstats` em Kubernetes foram verificados em 2026-10-29 com a suíte `tests/telemetry` (20/20).
 
 # 8. Nomes e convenções
 
-- `telemetry-agent` e `telemetry-router`: nomes por função, em `infrastructure/dev`. "Gateway" foi evitado porque neste repositório já designa o APISIX.
+- `telemetry-agent` e `telemetry-router`: nomes por função, em `infrastructure/k8s/platform/telemetry`. "Gateway" foi evitado porque neste repositório já designa o APISIX.
 - `telemeter` (nome escolhido pelo responsável): quem **processa e grava**, **por dono**. `telemetry-sink` é o da plataforma; `<módulo>-<tipo>-telemeter` é o da feature, como os papéis (pasta `features/<módulo>/<tipo>/telemeter/`, contêiner `<módulo>-<tipo>-telemeter`).
 - A saída do telemeter da feature (`telemeter/logs/`, `telemeter/traces/`) só tem sinais de app, então não há subpasta `app`. A do `telemetry-sink` separa `logs/{app,infra}` e `metrics/{app,infra}`.
 - Variáveis de limites: `SMARKEE_TELEMETRY_ROUTER_CPUS|MEMORY`, `SMARKEE_PLATFORM_TELEMETER_CPUS|MEMORY`, `<MÓDULO>_<TIPO>_TELEMETER_CPUS|MEMORY`; endereço do agente ao roteador: `SMARKEE_TELEMETRY_ROUTER_ENDPOINT`; do APISIX ao roteador: `SMARKEE_GATEWAY_TELEMETRY_ADDRESS`.
 
 # 9. Como acrescentar uma feature com telemeter
 
-1. **Na feature:** a pasta `telemeter/` com o `config.yaml` (receptor OTLP gRPC `4317`, limites, lotes e exportadores de arquivo para logs e spans), as pastas `logs/` e `traces/` com `.gitkeep`, e o serviço `<módulo>-<tipo>-telemeter` no `compose.yaml`, com a rede `internal`, o alias `<módulo>-<tipo>-telemeter.smarkee.internal` e os limites. Modelo: `features/core/account/telemeter`.
-2. **No roteador** (`infrastructure/dev/telemetry-router/config.yaml`): uma linha na tabela de `routing/logs` (módulo e tipo) e de `routing/traces` (`apisix.service_name`), uma pipeline por sinal e um exportador `otlp_grpc/<feature>` com fila em disco.
+1. **Na feature:** a pasta `telemeter/` com o `config.yaml` (receptor OTLP gRPC `4317`, limites, lotes e exportadores de arquivo para logs e spans), as pastas `logs/` e `traces/` com `.gitkeep`, e `k8s/base/telemeter.yaml` (`Service` e `OpenTelemetryCollector` no namespace da feature), listado no `kustomization.yaml`. A semente `templates/feature/seed/` já traz esse arquivo. Modelo: `features/cam/account`.
+2. **No roteador** (`infrastructure/k8s/platform/telemetry/base/telemetry-router.yaml`): uma linha na tabela de `routing/logs` (módulo e tipo) e de `routing/traces` (`apisix.service_name`), uma pipeline por sinal e um exportador `otlp_grpc/<feature>` com fila em disco.
 3. **No `.gitignore`:** as regras da saída da feature (`logs/*` e `traces/*`, com `.gitkeep`).
 4. **Na suíte `tests/telemetry`:** a pasta nova em `FEATURE_TELEMETRY_DIRS`, a rota em `FEATURE_ROUTES` e a outbox em `outbox_collections`.
-5. **Verificar:** subir o telemeter antes do roteador (ou reiniciar o roteador, por causa do cache de DNS), fazer uma requisição e conferir que os sinais da feature chegaram à pasta dela e que **nenhum** caiu no `telemetry-sink`.
+5. **Verificar:** sincronizar a feature no ArgoCD (ver `docs/infrastructure/k8s/OPERATION.md`), fazer uma requisição e conferir que os sinais da feature chegaram à pasta dela e que **nenhum** caiu no `telemetry-sink`.
 
 Nada muda nos apps nem no agente.
 
 # 10. Estado atual e limites
 
-- **Implementado e verificado em dev:** o agente, o roteador, o `telemetry-sink` e e os três telemeters de feature (`core-account-telemeter`, `ipm-organization-telemeter` e `sum-service-telemeter`, com `config.yaml` idêntico). O `telemetry-sink` recebe a infra e o app de qualquer feature sem telemeter próprio.
+- **Implementado e verificado em dev:** o agente (`DaemonSet`), o roteador, o `telemetry-sink` e os telemeters das 10 features (`config.yaml` idêntico). O `telemetry-sink` recebe a infra e o app de qualquer feature sem telemeter próprio.
 - **Destino ainda é arquivo.** Não há backend; trocar o exportador do telemeter é a mudança necessária.
-- **Lacunas de dev declaradas:** OTLP sem TLS nem autenticação; o agente privilegiado; roteador e telemeters únicos (sem alta disponibilidade). Condições de saída em [`IMPLEMENTATION-STATUS.md`](../platform/IMPLEMENTATION-STATUS.md) 7.1.
-- **Ainda não existe:** métricas de aplicação (`metrics/app` está vazio), spans dos componentes (só o span do gateway), o auditor, o formato CRI testado em Kubernetes.
+- **Lacunas de dev declaradas:** OTLP sem TLS nem autenticação; o agente privilegiado; roteador e telemeters únicos (sem alta disponibilidade); filas em `emptyDir` (somem com a recriação do pod; em stg e prd, volume persistente); saída em `hostPath` do nó. Condições de saída em [`IMPLEMENTATION-STATUS.md`](../platform/IMPLEMENTATION-STATUS.md) 7.1.
+- **Ainda não existe:** métricas de aplicação (`metrics/app` está vazio), spans dos componentes (só o span do gateway), o auditor.
 - **Evolução (decisão 0058: do simples ao avançado, sem descartar):** política própria por feature neste `config.yaml`; métricas de app derivadas dos logs (conector `count`); backend ou fila no lugar do arquivo; os componentes enviarem OTLP direto (SDK), quando o agente de nó fica só com a infra.
 
 # 11. Verificação
 
-Em 2026-10-19, em dev:
+Em 2026-10-19, em dev (Compose; a suíte `tests/telemetry` foi reexecutada no cluster em 2026-10-29, 20/20):
 
 - Todas as configurações validadas pelo próprio Collector (`otelcol validate`), com controle negativo.
 - **Roteamento nos três sinais:** cada feature teve seus logs e spans no telemeter dela; a infra e as métricas, no `telemetry-sink`; nenhum sinal de app de uma feature caiu no `telemetry-sink` nem no telemeter de outra (suíte `tests/telemetry`, com sonda sintética por feature para os logs).
-- **Resiliência nos dois caminhos de uma vez** (app de `core` e infra): 150 de 150 registros, sem duplicatas, com os dois telemeters fora do ar por 60 s e o roteador recriado no meio da queda.
-- **Suíte `tests/telemetry`** (9 testes): correlação do `trace_id` entre o gateway e os cinco papéis do loop, `traceparent` forjado ignorado, contexto de negócio, roteamento de logs e de spans, ausência de dado sensível e redação do agente.
+- **Resiliência nos dois caminhos de uma vez** (app de `cam` e infra): 150 de 150 registros, sem duplicatas, com os dois telemeters fora do ar por 60 s e o roteador recriado no meio da queda.
+- **Suíte `tests/telemetry`** (9 testes): correlação do `trace_id` entre o gateway e os papéis `api`, `publisher` e `controller`, `traceparent` forjado ignorado, contexto de negócio, roteamento de logs e de spans, ausência de dado sensível e redação do agente.

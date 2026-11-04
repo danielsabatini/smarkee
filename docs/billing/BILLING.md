@@ -10,7 +10,7 @@
 
 A arquitetura de Billing difere fundamentalmente da arquitetura de orquestração de recursos, baseando-se nestes pilares:
 
-1. **Separação de Planos (Control Loop vs. Ledger):** Recursos mutáveis (`core.account`, `ipm.organization`) usam o padrão declarativo do Resource Control Loop. Fatos financeiros (`Metering`, `Pricing`, `Invoicing`) são **fatos ocorridos no passado, estritamente imutáveis e *append-only***.
+1. **Separação de Planos (Control Loop vs. Ledger):** Recursos mutáveis (`cam.account`, `ipm.organization`) usam o padrão declarativo do Resource Control Loop. Fatos financeiros (`Metering`, `Pricing`, `Invoicing`) são **fatos ocorridos no passado, estritamente imutáveis e *append-only***.
 2. **Totalmente Assíncrono e Desacoplado:** Um domínio não faz chamadas síncronas (HTTP/gRPC) para o outro. Toda a comunicação ocorre via eventos publico-inscritos no NATS JetStream.
 3. **Persistência Inicial em Disco (Estratégia *Storage-Agnostic*):** Assim como a telemetria inicial, os dados de medição e tarifação nascerão em **arquivos no disco (formato JSONL *append-only*)**, consumidos via NATS. Adoção de banco de dados (Relacional ou OLAP) fica postergada até que o volume exija (AGENTS.md §6).
 4. **Idempotência Estrita:** O consumo de eventos garante deduplicação exata baseada em `idempotencyKey` determinística (AGENTS.md §11).
@@ -22,25 +22,35 @@ A arquitetura de Billing difere fundamentalmente da arquitetura de orquestraçã
 
 Inspirado no modelo do Google Cloud (GCP), a plataforma separa a *Identidade de Acesso* da *Identidade Pagadora*.
 
-*   **`core.account`**: Identidade do usuário (humano ou máquina) que acessa a plataforma. **Não guarda cartão de crédito nem moeda.**
-*   **`bsm.account` (Recurso do Control Loop no módulo BSM)**: Entidade financeira que concentra o perfil de faturamento (`displayName`), moeda preferencial (`billingCurrency`), contatos financeiros (`billingContacts`) e proteção contra exclusão (`deletionProtection`). Pertence a um `ownerAccountId` (`core.account`). Na Fase P0, o Executor materializa o estado em disco local (JSON/JSONL) e o Observer lê desse armazenamento para confirmar a convergência do loop.
+*   **`cam.account`**: Identidade do usuário (humano ou máquina) que acessa a plataforma. **Não guarda cartão de crédito nem moeda.**
+*   **`bsm.account` (Recurso do Control Loop no módulo BSM)**: Entidade financeira que concentra o perfil de faturamento (`displayName`), moeda preferencial (`billingCurrency`), contatos financeiros (`billingContacts`) e proteção contra exclusão (`deletionProtection`). Pertence a uma Customer Account (`customerAccountId`, `cam.account`; internamente `ownerAccountId`, o escopo de unicidade e de cota). Tem `type` (`free` ou `paid`, imutável, `BillingAccountType` do FOCUS 1.4): cada Customer Account tem até 1 conta `free` e até 5 `paid` ativas. É um recurso `internal-state` (`api` + `publisher`, decisão 0098): nasce `Ready` e vive só no SSOT, sem `controller`.
+*   **`bsm.payment` (Recurso do Control Loop no módulo BSM)**: Método de pagamento (cartão tokenizado) registrado e validado no gateway externo (Mercado Pago) por um `controller` (`external-reconciled`, decisão 0106). A plataforma nunca recebe nem guarda número do cartão ou CVV: a CLI envia apenas um *nonce* descartável (`--card-nonce`). Uma `bsm.account` `paid` referencia um `bsm.payment` do mesmo dono (`paymentId`, obrigatório em `paid` e proibido em `free`), e o `bsm.payment` não pode ser excluído enquanto houver `bsm.account` ativa que o referencie (`409 ResourcesAttached`).
 *   **`ipm.organization`**: O tenant (espaço de trabalho). Toda Organization aponta para um `billingAccountId` (`bsm.account.resourceId`). Múltiplas Organizations podem ser pagas pela mesma Billing Account.
 
 ### Diagrama de Relacionamento (ER)
 
 ```mermaid
 erDiagram
-    CORE-ACCOUNT ||--o{ BSM-ACCOUNT : "é dono de (ownerAccountId)"
+    CAM-ACCOUNT ||--o{ BSM-ACCOUNT : "é dono de (customerAccountId)"
+    CAM-ACCOUNT ||--o{ BSM-PAYMENT : "é dono de (customerAccountId)"
+    BSM-PAYMENT ||--o{ BSM-ACCOUNT : "paga (paymentId, só em paid)"
     BSM-ACCOUNT ||--o{ IPM-ORGANIZATION : "paga por (billingAccountId)"
-    CORE-ACCOUNT {
+    CAM-ACCOUNT {
         string resourceId "id da conta (humano)"
     }
     BSM-ACCOUNT {
         string resourceId "BillingAccountId (FOCUS)"
-        string ownerAccountId "FK core.account"
+        string customerAccountId "FK cam.account"
+        string type "free ou paid (imutável)"
+        string paymentId "FK bsm.payment (só em paid)"
         string displayName "Nome da conta de faturamento"
         string billingCurrency "Moeda (ex: BRL, USD)"
         array billingContacts "E-mails financeiros"
+    }
+    BSM-PAYMENT {
+        string resourceId "id do método de pagamento"
+        string customerAccountId "FK cam.account"
+        string displayName "Nome do método (ex: Visa corporativo)"
     }
     IPM-ORGANIZATION {
         string resourceId "SubAccountId (FOCUS)"
@@ -48,7 +58,7 @@ erDiagram
     }
     SUM-SERVICE {
         string resourceId "id da ativação do serviço (ipm, bsm)"
-        string ownerAccountId "FK core.account"
+        string customerAccountId "FK cam.account"
     }
 ```
 
@@ -168,8 +178,8 @@ O domínio de Invoicing gera dois arquivos em disco que mapeiam para as novas es
 Seguindo o padrão de entrega aditiva (AGENTS.md §2.2):
 
 ### Fase P0: Fundação Financeira (Contas e Consumo)
-*   Criação da feature `bsm/account` (`bsm.account`) dentro do Resource Control Loop, como capacidade de nível de conta (`core.account`): as roles `bsm.account.*` são concedidas automaticamente no cadastro e o Manager de `bsm.account` provisiona automaticamente a conta inicial `"Free Tier"` (`BRL`) quando `core.account` converge para `Ready`.
-*   Exigência de pelo menos uma `bsm.account` ativa (`Ready`) antes de habilitar serviços no `sum/service` (`409 BillingAccountRequired`), validação de `billingAccountId` ativo em `ipm.organization` (`409 BillingAccountNotReady`) e bloqueio de exclusão de `bsm.account` enquanto houver Organizations vinculadas (`409 ResourcesAttached`).
+*   Criação das features `bsm/account` e `bsm/payment` dentro do Resource Control Loop, como capacidade de nível de conta (`cam.account`): o cadastro concede `sum.bsm.*` e `sum.ipm.*`, e a habilitação do serviço `bsm` em `sum/service` concede `bsm.account.*` e `bsm.payment.*`. Não há conta inicial automática: o usuário cria a Billing Account (`sk bsm account create --type free|paid`) e, para `paid`, antes registra o método de pagamento (`sk bsm payment create --card-nonce`).
+*   Exigência de uma Billing Account do dono antes de habilitar serviços no `sum/service` (`409 BillingAccountRequired`; o `bsm` em si é habilitável sem ela), validação de `billingAccountId` pronto e do mesmo dono em `ipm.organization` (`409 BillingAccountNotReady`) e bloqueio de exclusão de `bsm.account` enquanto houver Organizations vinculadas (`409 ResourcesAttached`). Essas pré-condições usam projeções locais do Stream `DESIRED` (decisão 0100), sem chamada entre APIs.
 *   Criação do serviço `Metering` consumindo NATS e gravando `UsageRecords` no disco.
 
 ### Fase P1: Tarifação Determinística (Pricing)
@@ -183,7 +193,7 @@ Seguindo o padrão de entrega aditiva (AGENTS.md §2.2):
 *   Transição do armazenamento local em disco (JSONL) para persistência em banco analítico leve (como DuckDB, se o disco se mostrar insustentável) ou tabelas particionadas no PostgreSQL.
 
 ### Fase P3: Cobrança Externa
-*   Evolução do Executor/Observer para sincronizar o status da `bsm.account` e da `Invoice` com um Gateway de Pagamentos externo (ex: Stripe, Iugu), atualizando `invoiceIssueStatus` para `paid` de forma assíncrona.
+*   Evolução do `controller` (o de `bsm.payment` já reconcilia com o Mercado Pago) para sincronizar o status da `Invoice` com o Gateway de Pagamentos externo, atualizando `invoiceIssueStatus` para `paid` de forma assíncrona e usando o método de pagamento referenciado por `paymentId`.
 
 ---
 
@@ -194,14 +204,15 @@ Inspirado nas práticas maduras de provedores de nuvem (como *AWS Billing Prefer
 O BSM é a interface (APIs e recursos) entre o cliente e o motor interno de Billing. Ele separa a administração comercial da análise de dados em três capacidades principais:
 
 ### 7.1. Administração e Identidade Financeira (Recurso `bsm/account`)
-O BSM expõe o ciclo de vida da Conta de Faturamento através do Resource Control Loop (`/v1/bsm/accounts`).
+O BSM expõe o ciclo de vida da Conta de Faturamento através do Resource Control Loop (`/v1/bsm/accounts`) e o dos métodos de pagamento (`/v1/bsm/payments`, recurso `bsm/payment`, decisão 0106).
 *   **Papel:** Centralizar o nome da conta de faturamento, moeda, pontos de contato financeiro e proteção contra exclusão.
 *   **Atributos Declarativos (`desired` v1.0):**
     *   `displayName`: Nome de exibição da conta de faturamento (`BillingAccountName` no FOCUS 1.4).
     *   `billingCurrency`: A moeda ISO 4217 na qual a conta será faturada (ex: `BRL`, `USD`).
-    *   `billingContacts`: Lista de e-mails para envio de alertas, faturas (Invoices) e recibos.
+    *   `billingContacts`: Lista de 1 a 10 e-mails para envio de alertas, faturas (Invoices) e recibos.
+    *   `type`: `free` ou `paid` (imutável); `customerAccountId`: a Customer Account vinculada; `paymentId`: o `bsm.payment`, obrigatório em `paid` e substituível por `update`.
     *   `deletionProtection`: Proteção contra exclusão acidental (`true` por padrão, decisão `0043`).
-*   **Evolução Aditiva (P2/P3):** Inclusão de `legalEntity` (razão social, documento fiscal e endereço) e `purchaseOrderNumber`, além da sincronização pelo Executor/Observer com Gateway de Pagamentos externo.
+*   **Evolução Aditiva (P2/P3):** Inclusão de `legalEntity` (razão social, documento fiscal e endereço) e `purchaseOrderNumber`, além da cobrança pelo `controller` junto ao Gateway de Pagamentos externo.
 
 ### 7.2. Análise e Visualização (APIs Síncronas)
 Diferente da conta (que é declarativa), a visualização de custos não possui "estado desejado". É uma capacidade síncrona de consulta (*Query*).
@@ -215,4 +226,4 @@ Atendendo à necessidade de equipes maduras de FinOps que precisam realizar inge
     *   `format`: Formato de saída (ex: `jsonl`, `csv`, `parquet`).
     *   `frequency`: Frequência da entrega (ex: `daily`).
     *   `destination`: Destino da exportação (ex: um webhook, um bucket S3 providenciado pelo cliente).
-*   **Comportamento no Loop:** O *Executor* deste recurso configura e orquestra um *worker* interno. Este *worker* rotaciona o arquivo de `RatedRecords` no fim do período configurado e despacha o arquivo diretamente para o `destination` declarado pelo usuário.
+*   **Comportamento no Loop:** O `controller` deste recurso configura e orquestra um *worker* interno. Este *worker* rotaciona o arquivo de `RatedRecords` no fim do período configurado e despacha o arquivo diretamente para o `destination` declarado pelo usuário.

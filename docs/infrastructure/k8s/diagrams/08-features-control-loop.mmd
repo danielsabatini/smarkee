@@ -15,7 +15,7 @@ flowchart TB
         INT_PUB["Deployment: &lt;mod&gt;-&lt;type&gt;-publisher (:8000)<br/>pg_try_advisory_lock<br/>Publica desired.&lt;mod&gt;.&lt;type&gt;.&lt;id&gt; e updated.&lt;mod&gt;.&lt;type&gt;.&lt;id&gt;"]:::int
     end
 
-    subgraph MODEL_EXT["Modelo external-reconciled (core/account · sum/service · ipm/{organization,user,serviceaccount,permission})"]
+    subgraph MODEL_EXT["Modelo external-reconciled (cam/account · bsm/payment · sum/service · ipm/{organization,user,serviceaccount,permission})"]
         EXT_MIG["Job: &lt;mod&gt;-&lt;type&gt;-migrate<br/>Executa migrations/*.sql"]:::ext
         EXT_API["Deployment: &lt;mod&gt;-&lt;type&gt;-api (:8000)<br/>Transação atômica:<br/>grava desired (phase = Pending/Updating/Deleting)<br/>+ idempotency + outbox (desired)"]:::ext
         EXT_PUB["Deployment: &lt;mod&gt;-&lt;type&gt;-publisher (:8000)<br/>pg_try_advisory_lock<br/>Publica desired.&lt;mod&gt;.&lt;type&gt;.&lt;id&gt; e updated.&lt;mod&gt;.&lt;type&gt;.&lt;id&gt;"]:::ext

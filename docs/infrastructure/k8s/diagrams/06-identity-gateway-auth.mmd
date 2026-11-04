@@ -22,7 +22,7 @@ flowchart LR
         MAILPIT["StatefulSet: mail-0 (Mailpit)<br/>SMTP :1025 · HTTP UI/API :8025"]:::mail
     end
 
-    subgraph NS_APP["Namespaces: core · bsm · sum · ipm"]
+    subgraph NS_APP["Namespaces: cam · bsm · sum · ipm"]
         API["&lt;mod&gt;-&lt;type&gt;-api (:8000)<br/>Valida JWT (JWKS) ou X-Smarkee-Internal-Token"]:::app
         CTRL["&lt;mod&gt;-&lt;type&gt;-controller<br/>Reconcilia usuários, orgs, SAs e grants no Zitadel"]:::app
     end
@@ -36,6 +36,6 @@ flowchart LR
     APISIX -- "OIDC + Introspect (:8080)" --> ZIT
     ZIT -- "SMTP :1025 (códigos/ativação)" --> MAILPIT
 
-    APISIX -- "/v1/{core,bsm,sum,ipm}/* (:8000)" --> API
+    APISIX -- "/v1/{cam,bsm,sum,ipm}/* (:8000)" --> API
     API -- "GET /oauth/v2/keys (:8080)" --> ZIT
     CTRL -- "REST/gRPC Management API (:8080)" --> ZIT

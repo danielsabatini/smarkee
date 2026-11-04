@@ -6,7 +6,7 @@
 >
 > **Papel:** fonte de verdade do formato, dos campos e das proibições dos logs. O contrato executável é o schema [`schemas/observability/log-record.v1.schema.json`](../../schemas/observability/log-record.v1.schema.json). As decisões que o originaram são a [`0045`](../../.decisions/0045-contrato-de-logs-opentelemetry.md) e a [`0046`](../../.decisions/0046-codigo-identico-gerado-de-fonte-unica.md). A segurança do que pode ou não ser registrado vem de [`RESOURCE-CONTROL-SECURITY.md`](../loop/RESOURCE-CONTROL-SECURITY.md) (§13) e de [`SCHEMA.md`](../data/SCHEMA.md) (`sensitivity`).
 >
-> **Status:** todas as 9 features (`core.account`, `bsm.account`, `sum.service` e `ipm.{organization,user,serviceaccount,permission,role,group}`) seguem o contrato. Em dev a coleta roda em Kubernetes via `OpenTelemetry Operator` (seção 7, [`OBSERVABILITY-ARCHITECTURE.md`](OBSERVABILITY-ARCHITECTURE.md) e decisão [`0102`](../../.decisions/0102-kubernetes-kind-argocd-vault-e-operadores.md): `telemetry-agent` DaemonSet → `telemetry-router` → `telemetry-sink` e `<módulo>-<tipo>-telemeter`), gravando em arquivos com rotação (10 MB), separados em infra e app (ver [`IMPLEMENTATION-STATUS.md`](../platform/IMPLEMENTATION-STATUS.md)).
+> **Status:** todas as 10 features (`cam.account`, `bsm.{account,payment}`, `sum.service` e `ipm.{organization,user,serviceaccount,permission,role,group}`) seguem o contrato. Em dev a coleta roda em Kubernetes via `OpenTelemetry Operator` (seção 7, [`OBSERVABILITY-ARCHITECTURE.md`](OBSERVABILITY-ARCHITECTURE.md) e decisão [`0102`](../../.decisions/0102-kubernetes-kind-argocd-vault-e-operadores.md): `telemetry-agent` DaemonSet → `telemetry-router` → `telemetry-sink` e `<módulo>-<tipo>-telemeter`), gravando em arquivos com rotação (10 MB), separados em infra e app (ver [`IMPLEMENTATION-STATUS.md`](../platform/IMPLEMENTATION-STATUS.md)).
 
 # 1. Princípio
 
@@ -25,23 +25,23 @@ A linha é a representação, em JSON, dos campos do LogRecord. A conversão par
   "severity_text": "ERROR",
   "body": "task failed",
   "event_name": "smarkee.task.failed",
-  "scope": {"name": "core_account_controller.main"},
+  "scope": {"name": "cam_account_controller.main"},
   "resource": {
-    "service.name": "core-account-controller",
+    "service.name": "cam-account-controller",
     "service.namespace": "smarkee",
     "service.version": "0.1.0",
     "service.instance.id": "0199c8b2-6f0e-7a31-9d0c-1f6b5c2a8e44",
     "deployment.environment.name": "development",
-    "smarkee.module": "core",
+    "smarkee.module": "cam",
     "smarkee.resource.type": "account",
-    "smarkee.component.role": "manager"
+    "smarkee.component.role": "controller"
   },
   "attributes": {
     "error.type": "ConnectionError",
     "exception.type": "ConnectionError",
-    "code.file.path": "core_account_controller/transport/messaging.py",
+    "code.file.path": "cam_account_controller/transport/messaging.py",
     "code.line.number": 88,
-    "code.function.name": "core_account_controller.transport.nats.connect",
+    "code.function.name": "cam_account_controller.transport.nats.connect",
     "smarkee.task.name": "consumer"
   }
 }
@@ -74,7 +74,7 @@ Campos opcionais sem valor são **omitidos**, e não gravados como `null`.
 
 `ERROR` ou superior indica falha. Uma exceção esperada e tratada (por exemplo, uma mensagem inválida descartada de propósito) é `WARN`, e não `ERROR`.
 
-**Nível configurável por processo** (decisão 0078): a seção `log` de todo papel tem `level` (padrão `INFO`), para o código do próprio papel, e `dependencies_level` (padrão `WARNING`), para as bibliotecas (`httpx`, `httpcore`, `uvicorn`, `nats`, `psycopg`, `asyncio`). Com o padrão, o `HTTP Request: ...` de cada chamada do cliente HTTP não aparece. Os dois seguem a precedência de toda configuração (decisão 0067): por exemplo, `SUM_SERVICE_OBSERVER_LOG_LEVEL=DEBUG` no ambiente, `[tool.sum.service.observer.log] level = "DEBUG"` no `config.toml` ou `--log.level DEBUG` na linha de comando. Na partida, cada papel registra `configuration loaded`, com o resumo de cada seção da configuração sem os segredos (`smarkee.config.digest`): a mesma seção com resumos diferentes em papéis da mesma feature indica configuração divergente.
+**Nível configurável por processo** (decisão 0078): a seção `log` de todo papel tem `level` (padrão `INFO`), para o código do próprio papel, e `dependencies_level` (padrão `WARNING`), para as bibliotecas (`httpx`, `httpcore`, `uvicorn`, `nats`, `psycopg`, `asyncio`). Com o padrão, o `HTTP Request: ...` de cada chamada do cliente HTTP não aparece. Os dois seguem a precedência de toda configuração (decisão 0067): por exemplo, `SUM_SERVICE_CONTROLLER_LOG_LEVEL=DEBUG` no ambiente, `[tool.sum.service.controller.log] level = "DEBUG"` no `config.toml` ou `--log.level DEBUG` na linha de comando. Na partida, cada papel registra `configuration loaded`, com o resumo de cada seção da configuração sem os segredos (`smarkee.config.digest`): a mesma seção com resumos diferentes em papéis da mesma feature indica configuração divergente.
 
 # 4. Resource: quem emitiu
 
@@ -82,12 +82,12 @@ Atributos do componente, fixos durante o processo. Vêm de configuração explí
 
 | Atributo | Valor | Origem |
 |---|---|---|
-| `service.name` | `<módulo>-<tipo>-<papel>` (por exemplo, `core-account-controller`) | Derivado do nome do pacote Python (`<módulo>_<tipo>_<papel>`), o que mantém o arquivo idêntico em todos os componentes. |
+| `service.name` | `<módulo>-<tipo>-<papel>` (por exemplo, `cam-account-controller`) | Derivado do nome do pacote Python (`<módulo>_<tipo>_<papel>`), o que mantém o arquivo idêntico em todos os componentes. |
 | `service.namespace` | `smarkee` | Fixo. |
 | `service.version` | Versão do pacote do componente | Metadados do pacote; omitido se o pacote não estiver instalado. |
 | `service.instance.id` | UUID gerado na partida | Gerado no processo. |
 | `deployment.environment.name` | `development`, `staging` ou `production` | Variável `SMARKEE_ENVIRONMENT` com `dev`, `stg` ou `prd` (valores *well-known* da semconv). Ausente ou desconhecida: o atributo é omitido. O Compose de cada feature define `dev` por padrão. |
-| `smarkee.module`, `smarkee.resource.type`, `smarkee.component.role` | `core`, `account`, `manager` | Fixo no componente (cada projeto trata um só tipo de recurso). |
+| `smarkee.module`, `smarkee.resource.type`, `smarkee.component.role` | `cam`, `account`, `controller` | Fixo no componente (cada projeto trata um só tipo de recurso). |
 
 Atributos de infraestrutura (`k8s.*`, `container.*`, `host.*`) são acrescentados **pelo coletor**, e não pelo componente.
 
@@ -133,12 +133,12 @@ Tudo o que a semconv não cobre usa o prefixo `smarkee.`.
 | `smarkee.desired.generation` | Geração do `desired`. |
 | `smarkee.delivery.attempt` | Tentativa de entrega ou de processamento (a partir de 1). |
 | `smarkee.partition`, `smarkee.partition.count` | Partição do processo (`índice/total`) e total de partições. |
-| `smarkee.instance.name` | Nome da instância de Observer ou Reconciler (estado em memória). |
+| `smarkee.instance.name` | Nome da instância do Controller (consumer de estado em memória). |
 | `smarkee.outbox.sequence`, `smarkee.failure.permanent` | Linha do outbox e se a falha de publicação é permanente. |
 | `smarkee.account.id`, `smarkee.links.removed` | Conta removida e quantidade de ligações apagadas (`sum.service`). |
 | `smarkee.links.changed` | Ligações que ganharam uma geração nova no rollout do catálogo (`sum.service`, decisão 0079). |
 | `smarkee.config.missing_variables` | Nomes (nunca valores) das variáveis obrigatórias ausentes. |
-| `smarkee.drift.fields` | Nomes (nunca valores) dos campos gerenciados em que o `observed` diverge do `desired`, na decisão do Reconciler (decisão 0078). |
+| `smarkee.drift.fields` | Nomes (nunca valores) dos campos gerenciados em que o `observed` diverge do `desired`, na decisão do ciclo de reconciliação (decisão 0078). |
 | `smarkee.action.ineffective_count` | Ações seguidas da geração atual que concluíram sem a observação causada convergir (decisão 0078). |
 | `smarkee.progress.deadline_seconds` | Prazo de progresso da geração (`progressDeadline`), no aviso de prazo esgotado (decisão 0078). |
 | `smarkee.config.digest` | Resumo (SHA-256, 12 caracteres) da configuração do papel sem os segredos, no log de partida: papéis da mesma feature com digests diferentes rodam com configurações diferentes (decisão 0078). |
@@ -177,7 +177,7 @@ componente → stdout (JSON) → runtime do contêiner → coletor → destino
 - **A fonte única** está em `templates/feature/files/`. `python templates/feature/sync.py` regrava as cópias e `--check` as confere (decisão 0046). Alterar o formatter é alterar a fonte, sincronizar e rodar a suíte de cada componente. Um teste em `schemas/tests` falha se uma cópia divergir.
 - **O schema da linha** (`schemas/observability/log-record.v1.schema.json`) é o contrato verificável. Ele fecha os atributos aos nomes da semconv listados nele e ao namespace `smarkee.*`, e proíbe `exception.message` e `exception.stacktrace`. Atributo novo da semconv entra no schema, e atributo `smarkee.*` já é aceito pelo padrão.
 - O teste de cada componente verifica: que a linha emitida cumpre o schema; o mapeamento de severidade; `EventName`; a omissão de valores nulos; que a mensagem da exceção não aparece; o `Resource` derivado do pacote; e, por análise estática do código-fonte, que **toda chave de `extra` dos loggers é um atributo que o schema aceita** ou `event_name`.
-- **Teste de ponta a ponta da telemetria:** `tests/telemetry` (decisão 0059) faz um cadastro pelo gateway e confere nos arquivos: o mesmo `trace_id` do span do gateway em Receiver, Manager, Publisher, Reconciler e Executor; `traceparent` forjado ignorado; spans sem `args`, `http.target` e `url.full` e com `url.query` redigida; logs de infra sem e-mail nem código de verificação; e a redação do agente, por um contêiner sintético.
+- **Teste de ponta a ponta da telemetria:** `tests/telemetry` (decisão 0059) faz um cadastro pelo gateway e confere nos arquivos: o mesmo `trace_id` do span do gateway em `api`, `publisher` e `controller`; `traceparent` forjado ignorado; spans sem `args`, `http.target` e `url.full` e com `url.query` redigida; logs de infra sem e-mail nem código de verificação; e a redação do agente, por um contêiner sintético.
 - A CLI `sk` não emite logs neste formato: o que ela mostra ao usuário é saída de interface, em inglês (decisão `0035`).
 
 # 9. Versão de referência
@@ -197,7 +197,7 @@ As páginas oficiais consultadas em 2026-10-16 não exibem um número de versão
 
 Decisão [`0050`](../../.decisions/0050-traces-do-gateway-opentelemetry.md). Vale só para o **span de servidor do gateway** (APISIX); os traces dos componentes do loop ainda não estão definidos.
 
-**Caminho:** plugin `opentelemetry` do APISIX → OTLP/HTTP → **`telemetry-router`** (`infrastructure/dev/telemetry-router`, que só roteia; ver [`OBSERVABILITY-ARCHITECTURE.md`](OBSERVABILITY-ARCHITECTURE.md)) → o telemeter dono do span (`core-account-telemeter` para a rota de `core/account`; `telemetry-sink` para as demais) → arquivos (exporter `file`, rotação em 10 MB; ainda não há backend). O plugin é aplicado a todas as rotas por uma regra global (`infrastructure/dev/gateway/bootstrap/adc.yaml`) e o destino vem de `SMARKEE_GATEWAY_TELEMETRY_ADDRESS`. Como o plugin emite nomes depreciados e nomeia atributos pelo nome da variável do nginx, o **roteador ajusta os spans** (antes de rotear) com o processador de [`infrastructure/dev/telemetry-router/gateway-semconv.yaml`](../../infrastructure/dev/telemetry-router/gateway-semconv.yaml), colocado logo depois do `memory_limiter` e antes de qualquer exporter (em outro coletor, antes do service graph e do tail sampling). O processador só age em spans do gateway. As pipelines de métricas e de logs também existem. Cada sinal vai para a sua pasta de `infrastructure/dev/telemetry-sink` (e, para `core/account`, de `features/core/account/telemeter`): `logs/{app,infra}`, `metrics/{app,infra}` e `traces/` (decisão 0053), em arquivos de uma linha OTLP JSON por lote (`jq` lê); o ativo é `<sinal>.jsonl`, e ao chegar a 10 MB é renomeado `<sinal>-<data>-size.jsonl` (ficam 3, por até 1 dia). A separação infra x app é do `telemetry-sink`: **logs de app** são os que trazem `smarkee.component.role` (contrato 0045); os demais, dos contêineres da plataforma, são **infra**. **Métricas de infra** são as de prefixo `container.`, `system.`, `process.`, `k8s.` e `postgresql.`, e as dos serviços da plataforma (`database`, `identity`, `messaging`, `gateway`); as demais, de **app** (hoje só as sintéticas de teste: nenhum componente emite métrica própria ainda). Um registro único maior que 10 MB é rejeitado pelo exporter (erro no log do coletor; o receptor ainda responde 200), por isso o `batch` limita os lotes a 200 itens. Tamanho medido em 2026-10-17: uma rodada completa (jornada com a CLI real e as três suítes de conformidade, 160 s) grava cerca de 0,42 MB de logs, 0,38 MB de métricas e 0,19 MB de traces, e as métricas crescem uns 75 KB a cada 30 s (~9 MB/h); 10 MB por arquivo, com 3 rotacionados, guardam mais de cem rodadas e cerca de 4 horas de métricas.
+**Caminho:** plugin `opentelemetry` do APISIX → OTLP/HTTP → **`telemetry-router`** (`infrastructure/dev/telemetry-router`, que só roteia; ver [`OBSERVABILITY-ARCHITECTURE.md`](OBSERVABILITY-ARCHITECTURE.md)) → o telemeter dono do span (`cam-account-telemeter` para a rota de `cam/account`; `telemetry-sink` para as demais) → arquivos (exporter `file`, rotação em 10 MB; ainda não há backend). O plugin é aplicado a todas as rotas por uma regra global (`infrastructure/dev/gateway/bootstrap/adc.yaml`) e o destino vem de `SMARKEE_GATEWAY_TELEMETRY_ADDRESS`. Como o plugin emite nomes depreciados e nomeia atributos pelo nome da variável do nginx, o **roteador ajusta os spans** (antes de rotear) com o processador de [`infrastructure/dev/telemetry-router/gateway-semconv.yaml`](../../infrastructure/dev/telemetry-router/gateway-semconv.yaml), colocado logo depois do `memory_limiter` e antes de qualquer exporter (em outro coletor, antes do service graph e do tail sampling). O processador só age em spans do gateway. As pipelines de métricas e de logs também existem. Cada sinal vai para a sua pasta de `infrastructure/dev/telemetry-sink` (e, para `cam/account`, de `features/cam/account/telemeter`): `logs/{app,infra}`, `metrics/{app,infra}` e `traces/` (decisão 0053), em arquivos de uma linha OTLP JSON por lote (`jq` lê); o ativo é `<sinal>.jsonl`, e ao chegar a 10 MB é renomeado `<sinal>-<data>-size.jsonl` (ficam 3, por até 1 dia). A separação infra x app é do `telemetry-sink`: **logs de app** são os que trazem `smarkee.component.role` (contrato 0045); os demais, dos contêineres da plataforma, são **infra**. **Métricas de infra** são as de prefixo `container.`, `system.`, `process.`, `k8s.` e `postgresql.`, e as dos serviços da plataforma (`database`, `identity`, `messaging`, `gateway`); as demais, de **app** (hoje só as sintéticas de teste: nenhum componente emite métrica própria ainda). Um registro único maior que 10 MB é rejeitado pelo exporter (erro no log do coletor; o receptor ainda responde 200), por isso o `batch` limita os lotes a 200 itens. Tamanho medido em 2026-10-17: uma rodada completa (jornada com a CLI real e as três suítes de conformidade, 160 s) grava cerca de 0,42 MB de logs, 0,38 MB de métricas e 0,19 MB de traces, e as métricas crescem uns 75 KB a cada 30 s (~9 MB/h); 10 MB por arquivo, com 3 rotacionados, guardam mais de cem rodadas e cerca de 4 horas de métricas.
 
 **Resource** (seção 4): `service.name = gateway`, `service.namespace = smarkee`, `service.version` (a do APISIX), `deployment.environment.name`; `service.instance.id` e `host.name` vêm do nome do contêiner, pelo coletor.
 
@@ -230,27 +230,27 @@ Decisão [`0050`](../../.decisions/0050-traces-do-gateway-opentelemetry.md). Val
 
 Decisão [`0055`](../../.decisions/0055-contexto-de-trace-nos-componentes.md). Os componentes **repassam** o `traceparent` W3C e o gravam nos logs; não criam spans nem usam o SDK do OpenTelemetry.
 
-**Caminho:** gateway (inicia o trace, seção 11) → Receiver (header HTTP) → NATS (header `traceparent`, ao lado de `Nats-Msg-Id`, fora do envelope) → Manager (consome e grava a coluna `traceparent` do outbox) → Publisher (lê a coluna e publica o header) → Reconciler (guarda o contexto do `desired` e o aplica à `action`) → Executor (consome a `action`, repassa o contexto ao `completed`/`failed`) → Manager (resultado) → Publisher. O Observer **não** propaga: suas observações são periódicas e não nascem de um pedido.
+**Caminho:** gateway (inicia o trace, seção 11) → `api` (header HTTP; grava a coluna `traceparent` do outbox na mesma transação da admissão) → `publisher` (lê a coluna e publica o header `traceparent` no NATS, ao lado de `Nats-Msg-Id`, fora do envelope) → consumers (as projeções da `api` e o `controller`, que associam o contexto à mensagem em tratamento) → `controller` (guarda o contexto do `desired` e o aplica ao ciclo de reconciliação; grava o `traceparent` do `updated` no outbox) → `publisher`. As reobservações periódicas do `controller` **não** propagam: não nascem de um pedido.
 
 **Regras:**
 
 - Só se aceita `traceparent` versão `00`, em minúsculas, com `trace_id` e `span_id` não nulos; qualquer outro valor é descartado, nunca repassado nem registrado.
 - O contexto vale só para a mensagem ou requisição em tratamento: cada consumidor o associa ao contexto da tarefa e o limpa ao terminar, para que logs entre mensagens não herdem o `trace_id` anterior.
-- O Reconciler guarda o contexto no estado do recurso (a `action` sai de uma mensagem `observed`, que não tem contexto, ou da reavaliação periódica).
-- Cada hop emite um evento de log por unidade de trabalho (`request published`, `message handled`, `outbox message published`, `action published`, `action handled`), com `trace_id`; sem eles o contexto não apareceria, pois os componentes quase não logam no fluxo normal.
+- O `controller` guarda o contexto no estado do recurso (a reconciliação pode nascer de uma reavaliação periódica, que não tem contexto).
+- Cada hop emite um evento de log por unidade de trabalho (`message handled`, `outbox message published` e os eventos de rejeição e falha, como `request rejected`), com `trace_id`; sem eles o contexto não apareceria, pois os componentes quase não logam no fluxo normal.
 
-**Verificado em 2026-10-18:** um cadastro e as operações da jornada mostraram o mesmo `trace_id` do span do gateway nos logs de todos os papéis do `core/account`, do `ipm/organization` e do `sum/service`; um `traceparent` forjado pelo cliente não chegou aos componentes.
+**Verificado em 2026-10-18:** um cadastro e as operações da jornada mostraram o mesmo `trace_id` do span do gateway nos logs de todos os papéis do `cam/account`, do `ipm/organization` e do `sum/service`; um `traceparent` forjado pelo cliente não chegou aos componentes.
 
 # 13. Contexto de negócio nos logs dos apps
 
-Decisão [`0061`](../../.decisions/0061-contexto-de-negocio-nos-logs-dos-apps.md). Os logs dos **apps** (os 18 contêineres das três features) carregam **quem pediu, qual recurso, qual ação, o dono e a organização**, para o drill-down. A **infra** continua sem dono: atende vários clientes. Isto **não** é auditoria (a auditoria é outro produto, com garantias de completude e retenção que a telemetria não tem).
+Decisão [`0061`](../../.decisions/0061-contexto-de-negocio-nos-logs-dos-apps.md). Os logs dos **apps** (os contêineres das features) carregam **quem pediu, qual recurso, qual ação, o dono e a organização**, para o drill-down. A **infra** continua sem dono: atende vários clientes. Isto **não** é auditoria (a auditoria é outro produto, com garantias de completude e retenção que a telemetria não tem).
 
 **Atributos** (do contexto da requisição ou da mensagem em tratamento; o que o evento informa explicitamente prevalece):
 
 | Atributo | De onde vem | Quando falta |
 |---|---|---|
-| `user.id` | `principal` validado do Receiver; `requestedBy` do envelope nos demais papéis | omitido |
-| `smarkee.actor.type` | `user` (id opaco válido), `anonymous` (escrita anônima), `system` (mensagem sem solicitante: as `observed`, os fatos `updated`, o Observer e a reavaliação periódica) | omitido |
+| `user.id` | `principal` validado da `api`; `requestedBy` do envelope nos demais papéis | omitido |
+| `smarkee.actor.type` | `user` (id opaco válido), `anonymous` (escrita anônima), `system` (mensagem sem solicitante: os fatos `updated` e a reavaliação periódica do `controller`); `service` (conta de serviço) | omitido |
 | `smarkee.resource.id` | o `resourceId` da requisição ou da mensagem | omitido |
 | `smarkee.operation.name` | rota (`create`, `update`, `delete`) ou `operation` do envelope | omitido |
 | `smarkee.owner.id` | `data.ownerAccountId`, quando a mensagem o traz | omitido |
@@ -260,12 +260,12 @@ Decisão [`0061`](../../.decisions/0061-contexto-de-negocio-nos-logs-dos-apps.md
 
 - **Desconhecido é omitido**, e não escrito como `unknown` (padrão OpenTelemetry). A exceção é o tipo do ator, de baixa cardinalidade, que é sempre explícito quando há contexto.
 - **Só identificador opaco**: o formato de `user.id`, `smarkee.owner.id` e demais ids não admite `@` nem `.`; um valor fora do formato (por exemplo, um e-mail) é descartado e nunca registrado. O schema e o teste de conformidade vigiam.
-- **O ator vem só do dado validado** (o token que o Receiver verificou; o `requestedBy` do envelope), nunca de um valor enviado pelo cliente.
+- **O ator vem só do dado validado** (o token que a `api` verificou; o `requestedBy` do envelope), nunca de um valor enviado pelo cliente.
 - **`anonymous` quer dizer não autenticado**, e não anonimizado. O id do ator é **pseudonimizado** (o `sub`, um UUID opaco). Um hash com chave (HMAC) é um passo posterior e aditivo, útil se o backend for de terceiros.
 - **Em métricas**, o id do ator, do recurso e da organização **não** podem ser atributo (cardinalidade ilimitada); só o tipo do ator e dimensões de baixa cardinalidade. O drill-down é métrica → trace → logs.
 - **Quem executou** não precisa de atributo novo: o `service.name` do Resource (`<módulo>-<tipo>-<papel>`) é o nome da conta de serviço do Zitadel.
 
-**Como funciona:** o `logging_config.py` (a fonte única, decisão 0046) mantém um contexto por requisição ou mensagem. O Receiver o preenche na autenticação e ao publicar; Manager, Reconciler e Executor o preenchem a partir do envelope, no mesmo ponto em que já ligam o `traceparent`; o Publisher, a partir da linha do outbox. `bind_traceparent` inicia um contexto novo e é o que os consumidores usam para limpar (`finally`); o Reconciler guarda e restaura o contexto ao reavaliar.
+**Como funciona:** o `logging_config.py` (a fonte única, decisão 0046) mantém um contexto por requisição ou mensagem. A `api` o preenche na autenticação; o `controller` e os consumers das projeções o preenchem a partir do envelope, no mesmo ponto em que já ligam o `traceparent`; o `publisher`, a partir da linha do outbox. `bind_traceparent` inicia um contexto novo e é o que os consumidores usam para limpar (`finally`); o `controller` guarda e restaura o contexto ao reavaliar.
 
 **Limites declarados:** o span do gateway e as métricas ainda não têm este contexto (etapas seguintes do plano). Nas mensagens de estado, a ação do envelope é `changed`; a ação original (`create`) aparece nos hops que a carregam. O fato `updated` não traz `requestedBy`, então fica `system`. O dono só aparece onde a mensagem o traz. **Verificado em 2026-10-19** com três donos e cinco organizações: 99% dos logs de app com tipo de ator, `user.id` por conta e `smarkee.organization.id` por organização, e nenhum `user.id` com formato de e-mail.
 

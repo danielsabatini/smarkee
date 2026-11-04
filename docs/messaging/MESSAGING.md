@@ -347,7 +347,7 @@ Identifica o módulo funcional da plataforma ao qual a mensagem pertence.
 Exemplos:
 
 ```text
-core
+cam
 ipm
 bsm
 sum
@@ -356,7 +356,7 @@ runner
 tool
 ```
 
-`core` é o módulo dos recursos da própria plataforma que existem antes de qualquer Organization, como a Account. `ipm` é o módulo de identidade e contém a Organization, Service Account, User, Permission, Role e Group (decisão 0016). `bsm` contém cobrança e faturamento, e `sum` gerencia o uso e catálogo de serviços.
+`cam` (Customer Account Manager, decisão 0105) é o módulo da conta do cliente, que existe antes de qualquer Organization, como a Account. O nome `core` ficou reservado à organização de sistema do Zitadel e ao namespace do OpenBao. `ipm` é o módulo de identidade e contém a Organization, Service Account, User, Permission, Role e Group (decisão 0016). `bsm` contém cobrança e faturamento, e `sum` gerencia o uso e catálogo de serviços.
 
 ## 6.4 `resourceType`
 
@@ -525,7 +525,7 @@ Estrutura de `updated`:
 | `schemaVersion` | Sim | Todos | Versão do contrato da mensagem (`1.0`) |
 | `messageType` | Sim | Todos | Tipo semântico da mensagem (`desired` ou `updated`) |
 | `emitter` | Sim | Todos | Emissor lógico decisor (`api` ou `controller`) |
-| `module` | Sim | Todos | Módulo funcional (ex: `ipm`, `core`, `bsm`, `sum`) |
+| `module` | Sim | Todos | Módulo funcional (ex: `ipm`, `cam`, `bsm`, `sum`) |
 | `resourceType` | Sim | Todos | Tipo de recurso gerenciado |
 | `resourceId` | Sim | Todos | Identificador estável do recurso |
 | `operation` | Sim | Todos | Operação semântica associada (fixado como `changed`) |

@@ -15,7 +15,7 @@ flowchart TB
         end
 
         subgraph DB_SSOT["Database: ssot (owner: ssot_owner · decisão 0087)"]
-            SCHEMAS["Schemas de Negócio:<br/>core · bsm · sum · ipm<br/>Tabelas: &lt;tipo&gt; · &lt;tipo&gt;_outbox · &lt;tipo&gt;_idempotency"]:::db
+            SCHEMAS["Schemas de Negócio:<br/>cam · bsm · sum · ipm<br/>Tabelas: &lt;tipo&gt; · &lt;tipo&gt;_outbox · &lt;tipo&gt;_idempotency"]:::db
             SCH_TEL["Schema: telemetry<br/>Função: telemetry.outbox_stats() (SECURITY DEFINER)"]:::db
         end
 

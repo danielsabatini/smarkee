@@ -11,7 +11,7 @@ flowchart TB
         SVC_CLM["Service: clm.vault.svc.cluster.local:8200<br/>Certificate Lifecycle Manager"]:::svc
 
         subgraph V_NS["Namespaces OpenBao (1:1 com Zitadel Organizations · identity_org_id)"]
-            NS_CORE["Namespace: core/<br/>identity_org_id: 395132726044262411<br/>Mounts: /svm (kv-v2) · /ekm (transit) · /clm (pki)"]:::vault
+            NS_CORE["Namespace: core/<br/>identity_org_id: 394490764228296706<br/>Mounts: /svm (kv-v2) · /ekm (transit) · /clm (pki)"]:::vault
             NS_OPER["Namespace: operator/<br/>identity_org_id: 395132729248710667<br/>Mounts: /svm (kv-v2) · /ekm (transit) · /clm (pki)"]:::vault
             NS_TENANT["Namespace: &lt;organizationId&gt;/<br/>identity_org_id: &lt;orgId&gt;<br/>Mounts: /svm · /ekm · /clm"]:::vault
         end
@@ -26,7 +26,7 @@ flowchart TB
     CM["cert-manager<br/>ClusterIssuer: smarkee-internal-ca"]:::op
     TM["trust-manager<br/>Bundle: smarkee-internal-ca-bundle"]:::op
 
-    SECRETS["Kubernetes Secrets (/run/secrets/*)<br/>database · messaging · identity · gateway · 9 features"]:::target
+    SECRETS["Kubernetes Secrets (/run/secrets/*)<br/>database · messaging · identity · gateway · 10 features"]:::target
     CERTS["TLS Secrets (kubernetes.io/tls)<br/>&amp; ConfigMap: smarkee-ca-bundle (ca.crt)"]:::target
     CRYPTO["Criptografia Transit (/v1/core/ekm)<br/>key: bsm-account-credentials"]:::target
 

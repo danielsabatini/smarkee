@@ -6,8 +6,8 @@ flowchart LR
 
     subgraph LOGS["Logs"]
         direction LR
-        L0["log"]:::sig --> L1{"Resource: module e type<br/>= uma das 9 features?"}:::dec
-        L1 -- "sim" --> LC["&lt;módulo&gt;-&lt;tipo&gt;-telemeter<br/>(core, bsm, sum, ipm)"]:::dst
+        L0["log"]:::sig --> L1{"Resource: module e type<br/>= uma das 10 features?"}:::dec
+        L1 -- "sim" --> LC["&lt;módulo&gt;-&lt;tipo&gt;-telemeter<br/>(cam, bsm, sum, ipm)"]:::dst
         L1 -- "não" --> LP["telemetry-sink"]:::dst
     end
 

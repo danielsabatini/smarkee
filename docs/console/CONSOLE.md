@@ -10,7 +10,7 @@ Referências visuais:
 - Layout de referência aprovado: `images/console-main-layout.png`.
 - Logotipos oficiais da marca: `images/`.
 
-O console é um cliente fino da API pública da plataforma (`clients/`, decisão `0034`), seguindo a ordem arquitetural `API (Receiver) → CLI (sk) → Console Web` (decisão `0013`). Ele consome exatamente os mesmos contratos HTTP e JSON Schema já estabelecidos para as features existentes, utilizando adaptadores simulados claramente identificados apenas onde o backend ainda não existe.
+O console é um cliente fino da API pública da plataforma (`clients/`, decisão `0034`), seguindo a ordem arquitetural `API → CLI (sk) → Console Web` (decisão `0013`). Ele consome exatamente os mesmos contratos HTTP e JSON Schema já estabelecidos para as features existentes, utilizando adaptadores simulados claramente identificados apenas onde o backend ainda não existe.
 
 ---
 
@@ -26,7 +26,7 @@ O Console obedece aos pilares do `AGENTS.md` (§2.1), nesta ordem:
 
 Regras de escopo e evolução aditiva (`AGENTS.md` §2.2 e §2.6):
 - Não implemente funcionalidades inexistentes no backend como se fossem reais.
-- Para features cujo backend já existe (`core.account`, `sum.service`, `ipm.organization`, `ipm.user`), os contratos TypeScript e adaptadores devem refletir fielmente os schemas JSON oficiais em `schemas/`.
+- Para features cujo backend já existe (`cam.account`, `sum.service`, `ipm.organization`, `ipm.user`), os contratos TypeScript e adaptadores devem refletir fielmente os schemas JSON oficiais em `schemas/`.
 - Para módulos futuros previstos na visão do produto (`AEM`, `ODM` e recursos ainda não implementados), utilize dados demonstrativos explicitamente identificados na interface (`Preview` / `Demonstrativo`).
 
 ---
@@ -98,7 +98,7 @@ Conforme a referência visual aprovada e o `AGENTS.md` (§16.1 e §39.1), os tex
 ### 4.5 Abstração de Notações Internas e Foco no Usuário Final
 
 O Smarkee Console é uma interface projetada para o **usuário final** e administradores de organizações, não um depurador de JSON Schema ou ferramenta interna de engenharia:
-- **Proibição de Nomes Técnicos de Recursos e Módulos na UI:** É estritamente proibido exibir notações internas como `ipm.organization`, `ipm.user`, `sum.service`, `core.account` em títulos, subtítulos, tabelas, formulários ou cartões. Em seu lugar, use sempre nomes limpos em português: **Organização**, **Usuário**, **Serviço** e **Conta**.
+- **Proibição de Nomes Técnicos de Recursos e Módulos na UI:** É estritamente proibido exibir notações internas como `ipm.organization`, `ipm.user`, `sum.service`, `cam.account` em títulos, subtítulos, tabelas, formulários ou cartões. Em seu lugar, use sempre nomes limpos em português: **Organização**, **Usuário**, **Serviço** e **Conta**.
 - **Proibição de Notações de Schemas e Ações Internas:** Não exponha notações como `resourceId`, `desired.name`, `deletionProtection`, `operationType`, `update`, `create` ou `delete` diretamente ao usuário. Utilize rótulos amigáveis: **ID**, **Nome / Slug DNS**, **Proteção contra exclusão**, **Ação (Criação, Atualização, Exclusão)**.
 - **Isolamento de Processos Internos do Loop:** Tarefas de bastidores executadas pelo loop de reconciliação (como concessões de Project Grant, atribuições de roles técnicas no Zitadel ou sincronizações internas) não são operações do usuário e não devem poluir o painel de operações ou a central de notificações.
 
@@ -117,7 +117,7 @@ Contém:
 - Busca global (`GlobalSearch.svelte`) para pesquisa rápida de recursos, serviços e rotas.
 - Indicador e botão de abertura do painel de **Operações** e **Notificações** (com *badge* de contagem ativa).
 - Acesso à documentação/ajuda.
-- Menu de perfil da conta autenticada (`core.account` ou `ipm.user`).
+- Menu de perfil da conta autenticada (`cam.account` ou `ipm.user`).
 
 ### 5.2 Seletor de Organização (`OrganizationSelector.svelte`)
 
@@ -134,8 +134,8 @@ Requisitos:
 
 Regras de segurança de contexto:
 - O seletor define apenas o contexto de trabalho na interface (equivalente ao `[ipm] organizationId` da CLI `sk`).
-- Nunca trate a seleção no navegador como mecanismo de autorização: todas as operações são autorizadas pelos Receivers no backend mediante validação do token JWT e do vínculo do solicitante (root dono ou `ipm.user` daquela organização, decisão `0077`).
-- Nunca assuma que a organização interna `core` ou `register` do Zitadel são organizações de cliente (decisões `0009` e `0027`).
+- Nunca trate a seleção no navegador como mecanismo de autorização: todas as operações são autorizadas pelas APIs no backend mediante validação do token JWT e do vínculo do solicitante (root dono ou `ipm.user` daquela organização, decisão `0077`).
+- Nunca assuma que as organizações internas `core`, `operator` ou `register` do Zitadel são organizações de cliente (decisões `0009` e `0027`).
 
 ### 5.3 Navegação Lateral (`Sidebar.svelte`)
 
@@ -145,7 +145,7 @@ Menu estruturado por configuração tipada única, agrupado pelos módulos reais
 - Dashboard (`/`)
 
 **Identity Provider Manager (IPM)**
-- Contas (`/identity/accounts`) — *escopo da conta titular (`core.account`, `/v1/core/accounts`)*
+- Contas (`/identity/accounts`) — *escopo da conta titular (`cam.account`, `/v1/cam/accounts`)*
 - Organizações (`/identity/organizations`) — *organizações do titular (`ipm.organization`, `/v1/ipm/organizations`)*
 - Usuários (`/identity/users`) — *usuários dentro da organização selecionada (`ipm.user`, `/v1/ipm/users`)*
 - Configurações de identidade (`/identity/settings`) — *placeholder demonstrativo*
@@ -233,13 +233,13 @@ Cada card apresenta nome, sigla, descrição, estado de habilitação e link par
 
 Tabela apresentando recursos recentes com colunas para:
 - **Nome / Identificador** (`name`, `email`, `service` ou `resourceId`).
-- **Tipo** (`ipm.organization`, `ipm.user`, `sum.service`, `core.account`, além de exemplos demonstrativos devidamente marcados se aplicável).
+- **Tipo** (`ipm.organization`, `ipm.user`, `sum.service`, `cam.account`, além de exemplos demonstrativos devidamente marcados se aplicável).
 - **Fase (`phase`)** (`Pending`, `Reconciling`, `Ready`, `Degraded`, `Failed`).
 - **Atualizado em** (`updatedAt`).
 
 Requisitos:
 - Diferenciar estados por cor, ícone e rótulo textual (nunca exclusivamente por cor).
-- Nomeclatura fiel ao domínio: usar **`Organization`** (e nunca o termo antigo `Tenant`), **`Account`** (`core.account`) e **`User`** (`ipm.user`).
+- Nomeclatura fiel ao domínio: usar **`Organization`** (e nunca o termo antigo `Tenant`), **`Account`** (`cam.account`) e **`User`** (`ipm.user`).
 
 ### 6.4 Estado dos Serviços (`ServiceStatusTable.svelte`)
 
@@ -267,8 +267,8 @@ Os tipos TypeScript em `src/lib/types/` devem espelhar rigorosamente os JSON Sch
   - `RequestAccepted`: `{ resourceId: string; operationId: string }` (resposta HTTP `202`)
 - **Operação (`schemas/common/operation.v1.schema.json`):**
   - `Operation`: `{ operationId: string; operationType: 'create' | 'update' | 'delete'; module: string; resourceType: string; resourceId: string; desiredGeneration?: number; operationStatus: 'accepted' | 'in_progress' | 'completed' | 'failed' | 'rejected'; operationStatusReason?: 'conflict' | 'validation' | 'not_found' | 'protected'; createdAt: string; updatedAt: string; completedAt?: string }`
-- **Conta (`schemas/core/account/resource.v1.schema.json`):**
-  - `AccountResource`: visão de `/v1/core/accounts/{resourceId}` com `desired` (`givenName`, `familyName`, `email`, `platformAccess`, `deletionProtection`) e `observed` (`presence`, `accountState`, `observedAt`).
+- **Conta (`schemas/cam/account/resource.v1.schema.json`):**
+  - `AccountResource`: visão de `/v1/cam/accounts/{resourceId}` com `desired` (`givenName`, `familyName`, `email`, `platformAccess`, `deletionProtection`) e `observed` (`presence`, `accountState`, `observedAt`).
 - **Organização (`schemas/ipm/organization/resource.v1.schema.json`):**
   - `OrganizationResource`: visão de `/v1/ipm/organizations` com `resourceId`, `resourceVersion`, `desiredGeneration`, `phase`, `conditions`, `desired` (`name`, `lifecycle`, `reconciliation`, `platformAccess`, `deletionProtection`), `observed` (`presence`, `name`, `platformAccess`, `organizationState`, `deletionProtection`, `observedAt`), `createdAt` e `updatedAt`.
 - **Usuário da Organização (`schemas/ipm/user/resource.v1.schema.json`):**
@@ -285,7 +285,7 @@ Os tipos TypeScript em `src/lib/types/` devem espelhar rigorosamente os JSON Sch
 - **Interface única (`ConsoleDataAdapter`):** os componentes e stores consomem apenas o contrato abstrato do serviço.
 - **Adaptador Simulado (`MockDataAdapter`):** fornece dados em memória realistas, aderentes aos schemas JSON acima, permitindo simular cenários de carregamento, troca de organização, criação/atualização assíncrona (`202` → `in_progress` → `completed` / `Ready`), rejeição (`rejected` por `protected` ou `conflict`) e erro de rede.
 - **Preparação para o Adaptador HTTP (`HttpDataAdapter`):** centraliza o mapeamento para as rotas reais do gateway APISIX:
-  - `POST / GET / PATCH / DELETE /v1/core/accounts...`
+  - `POST / GET / PATCH / DELETE /v1/cam/accounts...`
   - `POST / GET / DELETE /v1/sum/services...`
   - `POST / GET / PATCH / DELETE /v1/ipm/organizations...`
   - `POST / GET / PATCH / DELETE /v1/ipm/users...`
@@ -296,9 +296,11 @@ Os tipos TypeScript em `src/lib/types/` devem espelhar rigorosamente os JSON Sch
 
 ## 8. Operações Assíncronas e Reconciliação
 
+> **Defasagem declarada (2026-11-04):** esta seção e os contratos `Operation`/`RequestAccepted` descrevem o modelo anterior (`202` com `operationId`, rota `/operations`, Stream `REQUESTED`). Nas features em `api` síncrona (decisões `0098` e `0100`: todas as atuais), `POST` responde `201` e `DELETE`, `202`, ambos com o `Resource`; não há `Operation`: a convergência se acompanha lendo `observedGeneration` e `phase` do recurso (é o que faz o `--wait` da CLI `sk`). O Console será alinhado em fase própria; até lá, não implemente `OperationWatcher` sobre `/operations`. O módulo da conta do cliente é `cam` (decisão `0105`), e `bsm/payment` (decisão `0106`) ainda não tem tela.
+
 A Smarkee opera por reconciliação assíncrona entre estado desejado (`desired`) e estado observado (`observed`). O frontend reflete esse ciclo de vida sem reimplementar regras de controle do backend:
 
-- **Recebimento vs. Conclusão:** uma resposta HTTP `202 Accepted` com `{ resourceId, operationId }` significa apenas que o Receiver aceitou o pedido e publicou `requested.*`. Nunca trate `202` como confirmação de que o recurso já convergiu.
+- **Recebimento vs. Conclusão:** uma resposta HTTP `202 Accepted` com `{ resourceId, operationId }` significa apenas que o pedido foi aceito (no modelo atual, a `api` já admitiu o recurso e gravou o `desired`). Nunca trate `202` como confirmação de que o recurso já convergiu.
 - **Dupla dimensão de acompanhamento:**
   1. Estado da solicitação (`Operation.operationStatus`: `accepted` → `in_progress` → `completed` | `failed` | `rejected`).
   2. Convergência do recurso (`Resource.phase`: `Pending` → `Reconciling` → `Ready` | `Degraded` | `Failed`, detalhado por `conditions` `Ready` e `Progressing`, decisão `0078`).
@@ -315,11 +317,11 @@ A Smarkee opera por reconciliação assíncrona entre estado desejado (`desired`
 A autenticação da plataforma utiliza **Zitadel** via OpenID Connect (decisões `0007`, `0013`, `0034` e `0052`).
 
 Diretrizes obrigatórias:
-- A aplicação `console` residirá no projeto `clients` da organização `core` no Zitadel (decisão `0034`), utilizando **Authorization Code Flow com PKCE** e solicitando as audiences dos projetos de roles dos módulos (`roles-core`, `roles-sum`, `roles-ipm`).
+- A aplicação `console` residirá no projeto `clients` da organização `core` no Zitadel (decisão `0034`), utilizando **Authorization Code Flow com PKCE** e solicitando as audiences dos projetos de roles dos módulos (`roles-cam`, `roles-sum`, `roles-ipm`).
 - **Nenhum segredo no cliente:** jamais armazene `client_secret`, chaves de contas de serviço ou credenciais privadas no código ou no bundle do frontend.
 - **Proteção de tokens e dados sensíveis:** nunca registre tokens JWT, e-mails ou dados pessoais (`confidential`) no `console.log`, em mensagens de erro brutas ou em URLs.
-- **Autorização no Backend:** as roles no token (`core.account.*`, `sum.ipm.*`, `ipm.organization.*`, `ipm.user.*`) e os itens visíveis no menu servem apenas para ergonomia da interface. Toda decisão de autorização pertence exclusivamente aos Receivers.
-- **Renovação após mudanças no SUM:** assim como na CLI (decisão `0033`), habilitar ou desabilitar um serviço no SUM altera as roles do usuário no Zitadel, exigindo renovação do token (refresh) após a convergência da ligação para que as novas roles tenham efeito nos Receivers.
+- **Autorização no Backend:** as roles no token (`cam.account.*`, `sum.ipm.*`, `ipm.organization.*`, `ipm.user.*`) e os itens visíveis no menu servem apenas para ergonomia da interface. Toda decisão de autorização pertence exclusivamente às APIs (e ao gateway).
+- **Renovação após mudanças no SUM:** assim como na CLI (decisão `0033`), habilitar ou desabilitar um serviço no SUM altera as roles do usuário no Zitadel, exigindo renovação do token (refresh) após a convergência da ligação para que as novas roles tenham efeito nas APIs.
 - Enquanto o fluxo OIDC interativo do Console não estiver conectado ao Zitadel de dev, o estado de sessão deve vir de um `AuthAdapter` simulado explícito, documentando todos os parâmetros de integração (`issuer`, `clientId`, `redirectUri`, `scopes` com audiences dos projetos de roles).
 
 ---

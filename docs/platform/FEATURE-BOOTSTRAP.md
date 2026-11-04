@@ -2,7 +2,7 @@
 
 > **Responsabilidade:** o roteiro para criar uma feature nova (`features/<módulo>/<tipo>`): o que gerar, o que copiar e ajustar, o que registrar fora da pasta da feature e como verificar. Não repete as regras: cada passo aponta para a fonte da verdade do tema.
 
-Uma feature é **um tipo de recurso** (por exemplo, `core/account`, `ipm/organization`, `sum/service`) que segue o loop de controle de recursos: um projeto Python, uma imagem e um contêiner por papel (decisão `0063`): `api`, `publisher` e, quando o recurso tem um provedor externo, `controller` (decisões `0096` e `0098`). `<módulo>` é o domínio (`core`, `ipm`, `sum`); `<tipo>` é o recurso (`account`, `organization`, `service`).
+Uma feature é **um tipo de recurso** (por exemplo, `cam/account`, `ipm/organization`, `sum/service`) que segue o loop de controle de recursos: um projeto Python, uma imagem e um contêiner por papel (decisão `0063`): `api`, `publisher` e, quando o recurso tem um provedor externo, `controller` (decisões `0096` e `0098`). `<módulo>` é o domínio (`cam`, `bsm`, `ipm`, `sum`); `<tipo>` é o recurso (`account`, `organization`, `service`).
 
 Nomes derivados, usados abaixo: pacote `<módulo>_<tipo>` · projeto e contêineres `<módulo>-<tipo>` · variáveis `<MÓDULO>_<TIPO>_` · recurso `<módulo>.<tipo>`.
 
@@ -12,7 +12,7 @@ O que é da regra de negócio do recurso (`api/domain/`, `common/service_rules.p
 
 | Se o recurso... | Tipo | Copie de | Motivo |
 |---|---|---|---|
-| tem identidade no provedor de identidade e proteção contra exclusão | `external-reconciled` (`api` + `publisher` + `controller`) | `core/account` | o Controller observa o Zitadel, decide, age e reobserva numa só transação |
+| tem identidade no provedor de identidade e proteção contra exclusão | `external-reconciled` (`api` + `publisher` + `controller`) | `cam/account` | o Controller observa o Zitadel, decide, age e reobserva numa só transação |
 | vive dentro de uma Organization e age só nela (pessoas, com roles) | `external-reconciled` | `ipm/user` | escopo por Organization, projeções locais (`organization-projection`, `member-projection`), catálogo do Grant e regra do `bind` (decisão `0077`); nasce desprotegido, por exceção |
 | é uma ligação ou concessão entre recursos, com catálogo | `external-reconciled` | `sum/service` | catálogo com rollout (decisão `0079`), regras de dependência e Controller que concede e revoga permissões |
 | é uma entidade só do SSOT, sem provedor externo | `internal-state` (`api` + `publisher`) | `bsm/account` ou `ipm/role` | sem `controller`: a admissão da API já é o estado final |
@@ -67,21 +67,23 @@ Em `src/<módulo>_<tipo>/` cada papel é um subpacote com `main.py`, `settings.p
 - O `main.py` só monta as tarefas do papel dentro de `role_runtime` (`common/runtime.py`), que conecta ao broker, registra a saúde, supervisiona e encerra (drena o broker e fecha o que for registrado em `close_after`). O Publisher vem pronto do template.
 - Variáveis de infraestrutura levam a **função** como prefixo (`DATABASE_`, `MESSAGING_`, `GATEWAY_`, `TELEMETRY_`...), não o produto (decisão [`0068`](../../.decisions/0068-variaveis-de-infraestrutura-nomeadas-pela-funcao.md)).
 - Variáveis: `<MÓDULO>_<TIPO>_<PAPEL>_<SEÇÃO>_<CAMPO>` (`role_config`); senhas sem default. No compose, cada senha de papel é montada como arquivo em `/run/secrets/<VARIÁVEL>` (bloco `secrets:`, decisão [`0070`](../../.decisions/0070-senhas-dos-servicos-como-arquivos-montados.md)); o manifesto não define a variável `*_PASSWORD`. Cada papel herda `RoleSettings` (CLI → ambiente → `config.toml` → arquivos de segredo → default, decisão [`0067`](../../.decisions/0067-configuracao-por-papel-com-config-toml-e-segredos-em-arquivo.md)); os valores de dev da feature ficam no `config.toml` (semente), tabela `[tool.<módulo>.<tipo>.<papel>.<seção>]`.
-- Testes por feature (não vêm do template, porque dependem dos papéis): `tests/common/unit/test_role_entrypoints.py` (um por feature, modelo no `core/account`) e os testes de cada papel (`tests/api`, `tests/controller`, `tests/publisher/integration`). Sem eles a cobertura do código novo não passa o Quality Gate. Os testes de `http_server` e do `outbox_publisher` já vêm do template.
+- Testes por feature (não vêm do template, porque dependem dos papéis): `tests/common/unit/test_role_entrypoints.py` (um por feature, modelo no `cam/account`) e os testes de cada papel (`tests/api`, `tests/controller`, `tests/publisher/integration`). Sem eles a cobertura do código novo não passa o Quality Gate. Os testes de `http_server` e do `outbox_publisher` já vêm do template.
 
 ## 5. Banco de dados
 
 1. Migrações em `migrations/` (`0001-<tipo>.sql`): tabela principal, `outbox` e `idempotency`, views e privilégios por papel (`<módulo>_<tipo>_{api,publisher,controller,maintenance}`; só o Controller apaga a linha do recurso). Sem `operation` nem `action_result`. Modelo e regras em [`SSOT.md`](../data/SSOT.md) e [`POSTGRESQL.md`](../data/POSTGRESQL.md) (a tabela de exemplo de lá é a referência atual). **Não copie só o `0001` do modelo:** o modelo evoluiu em migrações aditivas, e o `0001` dele não tem o que veio depois. A `0001` da feature nova já nasce com o estado atual de todas, em especial a coluna `observed_generation` com o `CHECK (observed_generation IS NULL OR (observed_generation >= 1 AND observed_generation <= desired_generation))` (decisão `0072`), o motivo de rejeição `protected` (decisão `0043`) e a coluna `traceparent` do outbox (decisão `0055`). Confira contra todas as migrações do modelo (`migrations/*.sql`).
+
+   **Copie cada migração para o `ConfigMap` `<módulo>-<tipo>-migrations` em `k8s/base/configmap.yaml`** (chave = nome do arquivo, conteúdo idêntico): o `Job` `*-migrate` monta o `ConfigMap`, e não a pasta `migrations/`. A semente traz `data: {}`; com ele vazio o `Job` falha com `/migrations/*.sql: No such file or directory`. Refaça a cópia a cada nova migração.
 2. Papéis do módulo em `infrastructure/dev/database/bootstrap/<módulo>.sql` — só se o **módulo** é novo; para um tipo novo de módulo existente, acrescente o papel do tipo à lista do arquivo existente.
 
 ## 6. Mensageria
 
-Os Streams (`DESIRED` e `UPDATED`, entre outros) são da plataforma e já existem (`infrastructure/dev/messaging/bootstrap/`); uma feature nova **não cria Stream**. O Controller e as projeções da API criam os próprios consumers duráveis na partida (decisões `0096` e `0100`), então a feature não tem pasta `consumers/`. Regras em [`NATS.md`](../messaging/NATS.md).
+Os Streams (`DESIRED` e `UPDATED`, entre outros) são da plataforma e já existem (CRDs `Stream` em `infrastructure/k8s/platform/messaging/base/streams.yaml`); uma feature nova **não cria Stream**. O Controller e as projeções da API criam os próprios consumers duráveis na partida (decisões `0096` e `0100`), então a feature não tem pasta `consumers/`. Regras em [`NATS.md`](../messaging/NATS.md).
 
 ## 7. Identidade e acesso
 
 - Um projeto de roles por módulo no provedor de identidade e a conta de serviço do Controller (`<módulo>-<tipo>-controller`, quando o recurso usa o Zitadel; [`.decisions/0032`](../../.decisions/0032-projetos-de-roles-por-modulo-e-papel-sem-grant.md), [`0028`](../../.decisions/0028-padrao-de-nomes-das-roles.md)). Módulo novo exige o projeto novo; tipo novo de módulo existente reutiliza o do módulo.
-- Rota da API em `infrastructure/k8s/platform/gateway/base/configmap.yaml` (e `infrastructure/dev/gateway/bootstrap/adc.yaml`): **uma por tipo** (decisões `0015`, `0030`, `0052`, `0102`), com a variável `SMARKEE_GATEWAY_AUTH_AUDIENCE_<MÓDULO>_<TIPO>` em `infrastructure/k8s/platform/gateway/base/external-secret.yaml`, `infrastructure/k8s/platform/gateway/base/deployment.yaml` e `scripts/dev/vault-bootstrap` (`svm/data/platform/gateway`).
+- Rota da API em `infrastructure/k8s/platform/gateway/base/adc.yaml` (e `infrastructure/dev/gateway/bootstrap/adc.yaml`): **uma por tipo** (decisões `0015`, `0030`, `0052`, `0102`), com a variável `SMARKEE_GATEWAY_AUTH_AUDIENCE_<MÓDULO>_<TIPO>` no `ExternalSecret` e no `Deployment` de `infrastructure/k8s/platform/gateway/base/gateway.yaml` e em `scripts/dev/vault-bootstrap` (`svm/data/platform/gateway`).
 
 ## 8. Execução em dev (Kubernetes + GitOps)
 
@@ -103,7 +105,7 @@ Os Streams (`DESIRED` e `UPDATED`, entre outros) são da plataforma e já existe
 ## 10. Documentação e registro
 
 - `README.md` da feature (papéis, estrutura, banco, como rodar) e o `DATA-FLOW` ([`.decisions/0024`](../../.decisions/0024-data-flow-por-feature.md)); diagramas em `docs/` da feature.
-- `docs/CONFIGURATION.md` (guia de parâmetros: precedência, campos e execução de cada papel). É **gerado** dos `settings.py` pelo template, depois que os papéis existem: `cd features/<módulo>/<tipo> && uv run python ../../../templates/feature/configuration_guide.py`. Não se edita à mão, e o teste `tests/common/unit/test_configuration_guide.py` falha quando ele diverge dos `settings.py`.
+- `features/<módulo>/<tipo>/docs/CONFIGURATION.md` (guia de parâmetros: precedência, campos e execução de cada papel). É **gerado** dos `settings.py` pelo template, depois que os papéis existem: `cd features/<módulo>/<tipo> && uv run python ../../../templates/feature/configuration_guide.py`. Não se edita à mão, e o teste `tests/common/unit/test_configuration_guide.py` falha quando ele diverge dos `settings.py`.
 - Decisão em `.decisions/` se houver escolha relevante; atualize [`IMPLEMENTATION-STATUS.md`](IMPLEMENTATION-STATUS.md) e, no que for do produto, o `CHANGELOG.md` e o `ROADMAP.md` (AGENTS §36.3, §37, §38).
 
 ## 11. Verificação antes de avançar

@@ -1,6 +1,5 @@
 erDiagram
-    RESOURCE ||--o{ OPERATION : "resource_id (lógica, sem FK)"
-    RESOURCE ||--o{ ACTION_RESULT : "resource_id (lógica, sem FK)"
+    RESOURCE ||--o{ IDEMPOTENCY : "resource_id (lógica, sem FK)"
     RESOURCE ||--o{ OUTBOX : "resource_id (lógica, sem FK)"
 
     RESOURCE {
@@ -10,35 +9,29 @@ erDiagram
         jsonb desired "intenção (conteúdo do contrato)"
         bigint desired_generation "só muda com a especificação"
         bigint resource_version "controle otimista do solicitante"
+        text requested_by "solicitante da geração vigente"
+        text correlation_id "fluxo de rastreamento"
         jsonb observed "última observação"
         text presence "present, absent ou unknown"
         timestamptz observed_at "monotônico"
         text phase "Pending, Reconciling, Ready, Failed, Deleting"
         jsonb conditions "Ready e outras"
         int failure_count "falhas da geração corrente"
-        int observed_generation "última geração confirmada pela observação"
+        bigint observed_generation "última geração confirmada pela observação"
     }
-    OPERATION {
-        text operation_id PK "idempotência do pedido"
-        text resource_id "recurso alvo"
-        text operation_type "create, update, delete"
-        bigint desired_generation "nula se rejeitada"
-        text requested_by "solicitante ou anonymous"
+    IDEMPOTENCY {
+        text requested_by PK "escopo do solicitante"
+        text idempotency_key PK "chave informada pelo cliente"
         text request_digest "SHA-256 do conteúdo"
-        text operation_status "accepted, in_progress, completed, failed, rejected"
-        text operation_status_reason "só se rejeitada"
-    }
-    ACTION_RESULT {
-        text action_id PK "idempotência do resultado"
-        text resource_id "recurso alvo"
-        bigint desired_generation "geração da action"
-        text action_outcome "completed ou failed"
+        text resource_id "recurso admitido"
+        timestamptz created_at "retenção de 24 horas"
     }
     OUTBOX {
         bigint sequence PK "ordem de gravação"
         text message_id UK "messageId (deduplicação)"
         text resource_id "recurso da mensagem"
-        text subject "endereço lógico"
-        jsonb payload "mensagem pronta"
+        text subject "desired ou updated.módulo.tipo.id"
+        jsonb payload "envelope pronto"
         timestamptz published_at "nulo até a confirmação"
+        text traceparent "W3C Trace Context, opcional"
     }

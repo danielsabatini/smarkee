@@ -100,7 +100,7 @@ O formato canônico de 4 tokens (decisão 0101) é:
 
 Em que:
 - `messageType`: `desired` ou `updated`;
-- `module`: módulo do recurso (ex.: `ipm`, `core`, `bsm`, `sum`);
+- `module`: módulo do recurso (ex.: `ipm`, `cam`, `bsm`, `sum`);
 - `resourceType`: tipo do recurso (ex.: `organization`, `account`, `service`, `user`);
 - `resourceId`: identificador do recurso (UUID v7 ou equivalente sem pontos).
 
@@ -109,8 +109,8 @@ Em que:
 ```text
 desired.ipm.organization.0192d6e3-231a-7b3c-a579-a7e7810e95ab
 updated.ipm.organization.0192d6e3-231a-7b3c-a579-a7e7810e95ab
-desired.core.account.0192d6e3-552b-7c1d-842f-d8b3c10a4421
-updated.core.account.0192d6e3-552b-7c1d-842f-d8b3c10a4421
+desired.cam.account.0192d6e3-552b-7c1d-842f-d8b3c10a4421
+updated.cam.account.0192d6e3-552b-7c1d-842f-d8b3c10a4421
 ```
 
 ## 5.3 Wildcards
@@ -241,7 +241,7 @@ Por isso, cada instância ativa instancia um `StateConsumer` na inicialização:
 
 ## 7.4 Controllers e reconciliação contínua
 
-Para recursos com provedor externo (como `core/account`, `ipm/organization`, `ipm/permission`, `ipm/user`, `ipm/serviceaccount` e `sum/service`):
+Para recursos com provedor externo (como `cam/account`, `ipm/organization`, `ipm/permission`, `ipm/user`, `ipm/serviceaccount` e `sum/service`):
 
 - O `Controller` consome o stream `DESIRED` do seu tipo via `StateConsumer`;
 - As mensagens alimentam seu catálogo em memória (Informer);
@@ -884,8 +884,8 @@ billing-account-updated
 ```text
 desired.ipm.organization.01a17641-4895-761f-888f-24ca35143f79
 updated.ipm.organization.01a17641-4895-761f-888f-24ca35143f79
-desired.core.account.0192d6e3-552b-7c1d-842f-d8b3c10a4421
-updated.core.account.0192d6e3-552b-7c1d-842f-d8b3c10a4421
+desired.cam.account.0192d6e3-552b-7c1d-842f-d8b3c10a4421
+updated.cam.account.0192d6e3-552b-7c1d-842f-d8b3c10a4421
 ```
 
 # 31. Checklist operacional

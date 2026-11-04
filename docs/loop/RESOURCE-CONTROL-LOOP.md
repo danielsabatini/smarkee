@@ -34,7 +34,7 @@ Todo tipo de recurso é um dos dois perfis abaixo. Eles diferem apenas em haver 
 
 | Perfil | Quando se aplica | Papéis (processos) | Exemplos |
 |---|---|---|---|
-| **`external-reconciled`** | O recurso é materializado em um sistema externo (por exemplo, o Zitadel), que precisa ser observado e corrigido | `api` + `publisher` + `controller` | `core/account`, `ipm/organization`, `ipm/user`, `ipm/serviceaccount`, `ipm/permission`, `sum/service` |
+| **`external-reconciled`** | O recurso é materializado em um sistema externo (por exemplo, o Zitadel), que precisa ser observado e corrigido | `api` + `publisher` + `controller` | `cam/account`, `ipm/organization`, `ipm/user`, `ipm/serviceaccount`, `ipm/permission`, `sum/service` |
 | **`internal-state`** | O recurso é só dado do SSOT: nenhum sistema externo o materializa | `api` + `publisher` | `ipm/role`, `ipm/group`, `bsm/account` |
 
 Em `internal-state`, a admissão da API já é o estado final: o recurso nasce `Ready` com `observedGeneration` igual à geração, não há `observed`, nem Controller, nem `updated`. A API publica apenas o `desired`, que é a fonte das projeções dos demais tipos (seção 3.8). Todo o restante deste documento descreve o perfil `external-reconciled`, e as diferenças do `internal-state` são indicadas onde existirem. O guia de criação de uma feature é `docs/platform/FEATURE-BOOTSTRAP.md`.
@@ -389,13 +389,13 @@ Regras:
 - **Concorrência otimista:** `PATCH` e `DELETE` exigem o `resourceVersion` lido. Uma versão divergente é recusada na admissão com `409` (`Conflict`). A comparação e a gravação ocorrem sob `FOR UPDATE`, de modo que dois pedidos concorrentes não passam juntos.
 - **Alteração sem efeito:** um `PATCH` que não muda o `desired` nem a reconciliação não grava nem publica nada e devolve o recurso atual.
 - **Autorização:** a API autoriza o solicitante antes de gravar e filtra as leituras pelas Organizations autorizadas (`RESOURCE-CONTROL-SECURITY.md`, *Isolamento entre organizations*).
-- **Privilégios por campo:** o contrato do recurso pode restringir campos a operadores. Na Organization, o dono altera só o `name`; `platformAccess` e `reconciliation` exigem a role de operador do tipo, `ipm.organization.admin` (`403` caso contrário; padrão de nomes na decisão 0028).
+- **Privilégios por campo:** o contrato do recurso pode restringir campos a operadores. Na Organization, o dono altera só o `name`; `platformAccess` e `reconciliation` exigem a role de operador do tipo, `ipm.organization.operate` (`403` caso contrário; padrão de nomes na decisão 0028).
 - **Causa da geração:** `requested_by` e `correlation_id` do pedido que produziu a geração vigente ficam no próprio recurso, e acompanham o `desired` e o `updated` dessa geração.
 - **Erros:** `400` corpo inválido, `401` sem token válido, `403` sem permissão, `404` inexistente ou não autorizado, `409` conflito (`resourceVersion` divergente, nome em uso, recurso protegido contra exclusão, recurso em exclusão), `422` regra de negócio violada ou reuso da chave de idempotência, `429` limite de taxa e `503` com `Retry-After: 5` quando o banco está indisponível (o cliente repete; a `Idempotency-Key` torna a repetição segura). Quando o contrato do recurso define regras de elegibilidade ou de cota, `403` leva um código estável no corpo (`api-error`): por exemplo, `EmailNotVerified` (e-mail do solicitante não verificado) e `QuotaExceeded` (cota de criação do dono excedida).
 
 ## 6.1.2 Escritas anônimas
 
-Por padrão, toda escrita exige solicitante autenticado. A exceção deve estar declarada no contrato do recurso e registrada em decisão. Hoje existe uma só: o auto-cadastro de usuário (`POST /v1/core/accounts`, decisão 0014).
+Por padrão, toda escrita exige solicitante autenticado. A exceção deve estar declarada no contrato do recurso e registrada em decisão. Hoje existe uma só: o auto-cadastro de usuário (`POST /v1/cam/accounts`, decisão 0014).
 
 Uma escrita anônima:
 
@@ -1408,7 +1408,7 @@ O fluxo do padrão é o descrito em *Modelo geral*.
 
 # 46. Aplicação à Organization
 
-A Organization é um recurso do módulo `ipm` (`sk ipm organization`, decisão 0016), criado por um usuário registrado (a Account, do módulo `core`), que passa a ser o dono dela. Perfil `external-reconciled`.
+A Organization é um recurso do módulo `ipm` (`sk ipm organization`, decisão 0016), criado por um usuário registrado (a Account, do módulo `cam`), que passa a ser o dono dela. Perfil `external-reconciled`.
 
 Para Organization, o Controller lê e escreve em uma organização do Zitadel. A etapa de ação escreve a organização (decisão 0038), de forma idempotente: na criação, a organização no Zitadel, com o `resourceId` como ID; na alteração, renomeia e ativa ou desativa a organização (`platformAccess` `granted` ou `revoked`); na remoção, a remove. Com a organização ativa, ele também a **prepara para os usuários** (campo gerenciado `userAccess`, decisão 0081): o Project Grant do projeto de roles do `ipm` com exatamente o catálogo `grantableRole` do contrato, e os papéis das contas do `ipm/user` na organização e no Grant, acrescentando só o que falta. A observação lê o Grant e os papéis, e a ausência de algum deles é divergência (`Drift`). A remoção da organização leva o Grant e os papéis.
 
@@ -1432,15 +1432,15 @@ O comando `sk ipm organization` pertence ao CLI da plataforma (`clients/cli`), q
 
 ## 46.1 Aplicação à Account
 
-A Account é um recurso da plataforma, no módulo `core` (decisão 0014), criado pelo auto-cadastro (`sk account create`), uma escrita anônima (seção 6.1.2). Perfil `external-reconciled`. O Controller escreve em um único sistema externo, o Zitadel:
+A Account é um recurso da plataforma, no módulo `cam` (decisões 0014 e 0105), criado pelo auto-cadastro (`sk account create`), uma escrita anônima (seção 6.1.2). Perfil `external-reconciled`. O Controller escreve em um único sistema externo, o Zitadel:
 
 1. cria o usuário na organização `register`, com o `resourceId` como ID e **sem senha**: o `desired` da Account não tem senha, porque `desired` fica retido no SSOT e na mensageria (`SCHEMA.md`);
 2. o Zitadel envia o e-mail "Verificar e-mail" na criação, e a pessoa confirma o e-mail e define a senha na página desse link (um e-mail só; o Controller não pede `password_reset`). A senha nunca passa por CLI, API, SSOT nem mensageria;
-3. autoriza o usuário nos projetos de roles dos módulos, que pertencem à organização `core` e são delegados à `register` por um Project Grant cada (decisão 0032) (a autorização é criada no contexto da `register`, e só roles do Project Grant são aceitas), com o conjunto de roles de ação do usuário cadastrado (`ipm.organization.create`, `ipm.organization.get`, `ipm.organization.list`, `ipm.organization.update`, `ipm.organization.delete`, `core.account.get` e `core.account.delete`).
+3. autoriza o usuário nos projetos de roles dos módulos, que pertencem à organização `core` e são delegados à `register` por um Project Grant cada (decisão 0032) (a autorização é criada no contexto da `register`, e só roles do Project Grant são aceitas), com o conjunto de roles de ação do usuário cadastrado (`ipm.organization.create`, `ipm.organization.get`, `ipm.organization.list`, `ipm.organization.update`, `ipm.organization.delete`, `cam.account.get` e `cam.account.delete`).
 
 Quando o e-mail já está cadastrado no SSOT, a API reverte a transação sem criar nada; quando ele só existe no Zitadel, a criação do Controller falha de forma permanente (`Rejected`). O Zitadel responde `AlreadyExisting` (HTTP 400, id `COMMAND-7yiox1isql`, verificado na v4.19.4) a um ID ou e-mail já usado, e o Controller lê o usuário pelo ID: se existe com o e-mail esperado, é sucesso idempotente. Em todos os casos o solicitante anônimo recebe o mesmo `202`, sem revelar se o e-mail existia. O `desired` com `lifecycle = absent` não carrega dados pessoais (decisão 0014).
 
-Componentes (projetos em `features/core/account/`, desde a decisão 0098): `core-account-api`, `core-account-publisher` e `core-account-controller`. O comando `sk account create` pertence ao CLI da plataforma.
+Componentes (projetos em `features/cam/account/`, desde a decisão 0098): `cam-account-api`, `cam-account-publisher` e `cam-account-controller`. O comando `sk account create` pertence ao CLI da plataforma.
 
 ## 46.2 Aplicação a um recurso `internal-state`
 

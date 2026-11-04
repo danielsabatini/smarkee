@@ -139,7 +139,7 @@ uv run --project clients/cli sk sum service list --available
 
 ### 3.2 Habilitar o Serviço `bsm` (`sk sum service enable --service bsm`)
 
-Habilite o serviço `bsm` (que não exige uma Billing Account prévia) para receber as permissões `bsm.account.{create,delete,get,list,update}` e renovar automaticamente o token da sessão OIDC:
+Habilite o serviço `bsm` (que não exige uma Billing Account prévia) para receber as permissões `bsm.account.{create,delete,get,list,update}` e `bsm.payment.{create,delete,get,list,update}` e renovar automaticamente o token da sessão OIDC:
 
 ```bash
 uv run --project clients/cli sk sum service enable --service bsm
@@ -153,7 +153,7 @@ O módulo `bsm.account` gerencia as unidades de faturamento e limites de cobran�
 
 Cada `customerAccountId` suporta:
 - **`--type free`**: até **1** conta ativa sem exigência de método de pagamento.
-- **`--type paid`**: até **5** contas ativas, exigindo método de pagamento válido registrado para o `customerAccountId` no arquivo local configurado em `SMARKEE_PAYMENT_METHODS_FILE` (padrão `.workspace/payment-methods.json`, conforme `schemas/bsm/account/payment-methods.v1.schema.json`).
+- **`--type paid`**: até **5** contas ativas, exigindo `--payment-id` de um Método de Pagamento (`bsm.payment`) do mesmo `customerAccountId` (seção 4.2).
 
 ### 4.1 Criar uma Billing Account `free`
 
@@ -183,18 +183,31 @@ waiting: provisioning (ready) (0 s of 60 s)
 ╰──────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-### 4.2 (Opcional) Criar uma Billing Account `paid` com Método de Pagamento em Disco
+### 4.2 (Opcional) Criar uma Billing Account `paid` com Método de Pagamento (`bsm.payment`)
 
-Para criar uma conta `--type paid` em ambiente de desenvolvimento, registre um método de pagamento ativo no arquivo `.workspace/payment-methods.json` (seguindo `schemas/bsm/account/payment-methods.example.json`) para o seu `<CUSTOMER_ACCOUNT_ID>` e execute:
+Uma conta `--type paid` exige um Método de Pagamento (`bsm.payment`, decisão `0106`) registrado e validado no gateway externo (Mercado Pago). A CLI recebe apenas um *nonce* descartável emitido pelo SDK do gateway (`--card-nonce`): número do cartão e CVV nunca são informados nem persistidos. Em dev, o modo de simulação aceita nonces como `sim_visa_4242`.
+
+```bash
+# Registrar o método de pagamento e aguardar a validação no gateway
+uv run --project clients/cli sk bsm payment create \
+  --customer-account <CUSTOMER_ACCOUNT_ID> \
+  --display-name "Visa corporativo" \
+  --card-nonce sim_visa_4242
+```
+
+Copie o `resourceId` do método de pagamento e crie a conta paga:
 
 ```bash
 uv run --project clients/cli sk bsm account create \
   --type paid \
   --customer-account <CUSTOMER_ACCOUNT_ID> \
+  --payment-id <PAYMENT_ID> \
   --display-name "Produção" \
   --currency BRL \
   --billing-contacts "financeiro@empresa.com,ana.souza@empresa.com"
 ```
+
+Enquanto uma Billing Account ativa referenciar o método de pagamento, a exclusão dele responde `409 ResourcesAttached`. Para trocar o método de uma conta existente, use `sk bsm account update --payment-id <NOVO_PAYMENT_ID>`.
 
 ### 4.3 Listar, Inspecionar e Fixar na Configuração Local
 
@@ -404,12 +417,18 @@ Desabilitar o serviço IPM:
 uv run --project clients/cli sk sum service disable --service ipm --wait
 ```
 
-### 11.6 Feature `bsm.account`
+### 11.6 Features `bsm.account` e `bsm.payment`
 Desproteger e remover a Billing Account (exige que não haja organizações atreladas):
 ```bash
 uv run --project clients/cli sk bsm account unprotect --resource-id <BILLING_ACCOUNT_ID> --wait
 uv run --project clients/cli sk bsm account delete --resource-id <BILLING_ACCOUNT_ID> --wait
 uv run --project clients/cli sk config unset bsm.accountId
+```
+
+Se houver Métodos de Pagamento, remova-os depois das Billing Accounts que os referenciam:
+```bash
+uv run --project clients/cli sk bsm payment unprotect --resource-id <PAYMENT_ID> --wait
+uv run --project clients/cli sk bsm payment delete --resource-id <PAYMENT_ID> --wait
 ```
 
 ### 11.7 Feature `sum.service` (`bsm`)

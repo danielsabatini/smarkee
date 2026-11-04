@@ -41,7 +41,7 @@ Estabelecer uma implementação PostgreSQL consistente, previsível, segura e re
 |---|---|
 | SGBD | **PostgreSQL 18.6** (versão de referência do ambiente de desenvolvimento) |
 | Banco | `ssot` (banco único consolidado de recursos gerenciados, decisão 0087) |
-| Schemas | Um schema por módulo funcional da plataforma (`ipm`, `core`, `bsm`, `sum`, etc.) |
+| Schemas | Um schema por módulo funcional da plataforma (`ipm`, `cam`, `bsm`, `sum`, etc.) |
 | Tabelas | Três por tipo de recurso: `<tipo>`, `<tipo>_outbox` e `<tipo>_idempotency` (decisões 0096, 0098, 0101) |
 | Views | Uma por tipo de recurso para a interface de leitura da API: `<tipo>_v<MAJOR>` |
 | Papéis | `<módulo>_<tipo>_api`, `<módulo>_<tipo>_controller`, `<módulo>_<tipo>_publisher` e `<módulo>_maintenance` |
@@ -59,7 +59,7 @@ Banco: ssot
   │     ├── Tabela: organization_outbox
   │     ├── Tabela: organization_idempotency
   │     └── View:   organization_v1
-  ├── Schema: core
+  ├── Schema: cam
   │     ├── Tabela: account
   │     ├── Tabela: account_outbox
   │     ├── Tabela: account_idempotency

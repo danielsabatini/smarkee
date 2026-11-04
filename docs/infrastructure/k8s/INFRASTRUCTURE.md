@@ -27,7 +27,7 @@
 9. [Provedor de Identidade (`identity` e `identity-login`)](#9-provedor-de-identidade-identity-e-identity-login)
 10. [Gateway de API (`gateway`, `gateway-etcd` e `gateway-sync`)](#10-gateway-de-api-gateway-gateway-etcd-e-gateway-sync)
 11. [Observabilidade e Telemetria (`telemetry` e `<feature>-telemeter`)](#11-observabilidade-e-telemetria-telemetry-e-feature-telemeter)
-12. [Features de Produto (`core`, `bsm`, `sum`, `ipm`)](#12-features-de-produto-core-bsm-sum-ipm)
+12. [Features de Produto (`cam`, `bsm`, `sum`, `ipm`)](#12-features-de-produto-cam-bsm-sum-ipm)
 13. [Referência Operacional e Catálogo de Utilitários](#13-referência-operacional-e-catálogo-de-utilitários)
 
 ---
@@ -95,7 +95,7 @@ infrastructure/k8s/
 
 No ambiente de desenvolvimento, o cluster executa sobre o Docker Desktop por meio de dois contêineres principais na rede Docker `kind`:
 1. **`smarkee-control-plane` (`kindest/node:v1.37.0`)**: nó Kubernetes control-plane + worker, executando `containerd` configurado com `config_path = "/etc/containerd/certs.d"` para confiar nativamente no registry local.
-2. **`smarkee-registry` (`registry:3.1.2`)**: CNCF Distribution Registry publicado em `127.0.0.1:5001` no host (`localhost:5001`), armazenando as imagens das 9 features (`localhost:5001/smarkee-<módulo>-<tipo>:dev`) e o utilitário de migração (`localhost:5001/smarkee-psql-client:dev`).
+2. **`smarkee-registry` (`registry:3.1.2`)**: CNCF Distribution Registry publicado em `127.0.0.1:5001` no host (`localhost:5001`), armazenando as imagens das 10 features (`localhost:5001/smarkee-<módulo>-<tipo>:dev`) e o utilitário de migração (`localhost:5001/smarkee-psql-client:dev`).
 
 ### 2.2 Namespaces do Cluster (16 Namespaces)
 
@@ -114,8 +114,8 @@ No ambiente de desenvolvimento, o cluster executa sobre o Docker Desktop por mei
 | `telemetry` | `infra` | `telemetry` | `telemetry-agent-collector` (DaemonSet), `telemetry-router-collector-0`, `telemetry-sink-collector-0` |
 | `identity` | `infra` | `identity` | `identity` (Zitadel API), `identity-login` (Zitadel Login v2 UI) |
 | `gateway` | `infra` | `gateway` | `gateway-etcd-0`, `gateway` (APISIX), `gateway-sync` (ADC) |
-| `core` | `app` | Módulo `core` | `core-account-{api,publisher,controller,migrate,telemeter-collector-0}` |
-| `bsm` | `app` | Módulo `bsm` | `bsm-account-{api,publisher,migrate,telemeter-collector-0}` |
+| `cam` | `app` | Módulo `cam` | `cam-account-{api,publisher,controller,migrate,telemeter-collector-0}` |
+| `bsm` | `app` | Módulo `bsm` | `bsm-account-{api,publisher,migrate,telemeter-collector-0}` e `bsm-payment-{api,publisher,controller,migrate,telemeter-collector-0}` |
 | `sum` | `app` | Módulo `sum` | `sum-service-{api,publisher,controller,migrate,telemeter-collector-0}` |
 | `ipm` | `app` | Módulo `ipm` | `ipm-{organization,user,serviceaccount,permission}-{api,publisher,controller,migrate,telemeter-collector-0}` e `ipm-{role,group}-{api,publisher,migrate,telemeter-collector-0}` |
 
@@ -179,7 +179,7 @@ flowchart TB
       LOGIN["identity-login (:3000)"]
     end
 
-    subgraph NS_Features["Namespaces: core | bsm | sum | ipm"]
+    subgraph NS_Features["Namespaces: cam | bsm | sum | ipm"]
       API["<mod>-<type>-api (:8000)"]
       PUB["<mod>-<type>-publisher (:8000)"]
       CTRL["<mod>-<type>-controller (:8000)"]
@@ -259,8 +259,8 @@ flowchart TB
   - **`git-server` (somente em `dev`):** `Deployment` (`alpine/git:2.52.0`) que monta `/workspace/smarkee` (repositório do host via `extraMounts` somente leitura), sincroniza continuamente para um repositório bare `/git/smarkee.git` na branch `dev` e o expõe via `git daemon` (`git://git-server.gitops-operator.svc.cluster.local:9418/smarkee.git`). Isso permite que o ArgoCD reconcilie alterações locais nos manifestos Kustomize sem exigir `git push` para um servidor remoto durante o desenvolvimento.
 - **Padrão *App of Apps* e Ondas de Sincronização (`sync-wave`):**
   1. `smarkee-platform-root` gerencia as 7 `Application`s de plataforma (`platform-vault` na wave `0`; `platform-database`, `platform-messaging` e `platform-mail` na wave `1`; `platform-telemetry` e `platform-identity` na wave `2`; `platform-gateway` na wave `3`) e a `smarkee-features-root` (wave `4`).
-  2. `smarkee-features-root` gerencia as 9 `Application`s de features (`feature-core-account`, `feature-bsm-account`, `feature-sum-service`, `feature-ipm-{organization,user,serviceaccount,permission,role,group}`).
-  3. Todas as 18 `Application`s operam com `automated: {prune: true, selfHeal: true}`.
+  2. `smarkee-features-root` gerencia as 10 `Application`s de features (`feature-cam-account`, `feature-bsm-{account,payment}`, `feature-sum-service`, `feature-ipm-{organization,user,serviceaccount,permission,role,group}`).
+  3. Todas as 19 `Application`s (7 de plataforma, 2 raízes e 10 de features) operam com `automated: {prune: true, selfHeal: true}`.
 
 ![GitOps e ArgoCD Sync Waves](diagrams/02-gitops-argocd-waves.svg)
 
@@ -372,14 +372,14 @@ sequenceDiagram
   participant TM as trust-manager
   participant Vault as vault-0 (OpenBao :8200)
   participant K8sSec as Secret Kubernetes (/run/secrets/*)
-  participant Workload as Pod / Workload (ex: core-account)
+  participant Workload as Pod / Workload (ex: cam-account)
 
   Note over ESO,Vault: 1. Projeção de Segredos Estáticos (/svm)
   ESO->>Vault: Autenticação via ServiceAccount (/v1/core/auth/kubernetes/login)
   Vault-->>ESO: Token com política svm-reader
-  ESO->>Vault: Leitura do segredo (/v1/core/svm/data/features/core/account)
+  ESO->>Vault: Leitura do segredo (/v1/core/svm/data/features/cam/account)
   Vault-->>ESO: Chaves e senhas criptografadas
-  ESO->>K8sSec: Cria/atualiza Secret K8s (core-account-secret)
+  ESO->>K8sSec: Cria/atualiza Secret K8s (cam-account-secret)
   K8sSec->>Workload: Monta como volume imutável em /run/secrets/
 
   Note over CM,Workload: 2. Emissão de Certificados X.509 (/clm)
@@ -434,7 +434,7 @@ sequenceDiagram
 - **Produto e Operador:** PostgreSQL `18.6` (`ghcr.io/cloudnative-pg/postgresql:18.6`) gerenciado pelo operador **`CloudNativePG` (`v1.30.1`)** via CRD `Cluster` (`database`).
 - **Manifestos:** `infrastructure/k8s/platform/database/{base,overlays/dev}/`
 - **Bancos de Dados na Instância:**
-  1. **`ssot`** (owner: `ssot_owner`): Fonte Única da Verdade (*Single Source of Truth*, decisão `0087`) contendo os schemas `core`, `bsm`, `sum`, `ipm` e `telemetry`.
+  1. **`ssot`** (owner: `ssot_owner`): Fonte Única da Verdade (*Single Source of Truth*, decisão `0087`) contendo os schemas `cam`, `bsm`, `sum`, `ipm` e `telemetry`.
   2. **`identity`** (owner: `identity`): banco dedicado ao eventstore e projeções do Zitadel.
 - **Segregação de Papéis (Menor Privilégio — `docs/data/POSTGRESQL.md`):**
   - Nenhum componente de runtime conecta como `postgres` ou `ssot_owner`.
@@ -498,7 +498,7 @@ sequenceDiagram
 - **Entrada:**
   - `identity` e `identity-init` (`namespace: identity`) → banco `identity` (usuário `identity`).
   - Jobs `<módulo>-<tipo>-migrate` → banco `ssot` (usuário `ssot_owner` na migração de bootstrap).
-  - Pods `<módulo>-<tipo>-{api,publisher,controller}` (`namespaces: core, bsm, sum, ipm`) → banco `ssot` (com seus respectivos `*_login`).
+  - Pods `<módulo>-<tipo>-{api,publisher,controller}` (`namespaces: cam, bsm, sum, ipm`) → banco `ssot` (com seus respectivos `*_login`).
   - `telemetry-agent-collector` (`namespace: telemetry`) → banco `ssot` (usuário `telemetry_login`).
 - **Saída:** Nenhuma (não inicia conexões externas).
 
@@ -577,8 +577,8 @@ sequenceDiagram
 ### 7.3 Interligações
 - **Entrada:**
   - `nack-jetstream-controller` (`namespace: nack`) → `:4222` (gerencia os CRDs `Stream`).
-  - `<módulo>-<tipo>-publisher` (`namespaces: core, bsm, sum, ipm`) → `:4222` (publica `desired.<mod>.<type>.<id>` e `updated.<mod>.<type>.<id>` com `Nats-Msg-Id` determinístico).
-  - `<módulo>-<tipo>-controller` (`namespaces: core, sum, ipm`) → `:4222` (consome `DESIRED` via `StateConsumer` com `DeliverLastPerSubject` e `allow_direct: true`).
+  - `<módulo>-<tipo>-publisher` (`namespaces: cam, bsm, sum, ipm`) → `:4222` (publica `desired.<mod>.<type>.<id>` e `updated.<mod>.<type>.<id>` com `Nats-Msg-Id` determinístico).
+  - `<módulo>-<tipo>-controller` (`namespaces: cam, bsm, sum, ipm`) → `:4222` (consome `DESIRED` via `StateConsumer` com `DeliverLastPerSubject` e `allow_direct: true`).
   - `telemetry-agent-collector` (`namespace: telemetry`) → `:7777/metrics` (coleta métricas do NATS/JetStream).
 - **Saída:** Nenhuma.
 
@@ -624,7 +624,7 @@ sequenceDiagram
 - **Saída:** Nenhuma.
 
 ### 8.4 Quem Acessa e Como Acessa
-- **Usuário Final (em `dev`):** consulta seus e-mails simulados (como o código de verificação após `POST /v1/core/accounts`) em `http://127.0.0.1:8025`.
+- **Usuário Final (em `dev`):** consulta seus e-mails simulados (como o código de verificação após `POST /v1/cam/accounts`) em `http://127.0.0.1:8025`.
 - **Operador (`dev`):**
   - **Web UI:** `http://127.0.0.1:8025`
   - **API REST:** `curl -s http://127.0.0.1:8025/api/v1/messages | jq .`
@@ -641,11 +641,13 @@ sequenceDiagram
   1. **`Deployment/identity`**: motor OIDC/OAuth2, gRPC/REST Management, Auth e Admin APIs v1/v2 (`start --from-steps`). Possui o `initContainer` `identity-init` (`init zitadel`) que garante o schema no banco `identity`.
   2. **`Deployment/identity-login`**: interface de autenticação Login v2 (`:3000`), autenticando contra o `identity` com o token da conta de serviço `login-client.pat` montado em `/init-user/login-client.pat`.
 - **Estrutura de Identidade da Plataforma:**
-  - **Organizações base:**
-    - `core` (`395132726044262411`): contas humanas auto-registradas (`core.account`), conta `core-owner` e serviço `gateway-jwt-introspector`.
-    - `operator` (`395132729248710667`): contas de serviço dos `controller`s (`core-account-controller`, `sum-service-controller`, `ipm-{organization,user,serviceaccount,permission}-controller`) e `identity-admin`.
+  - **Organizações base** (decisões `0032`, `0084` e `0105`):
+    - `smarkee` (`394341608402780164`): organização padrão da instância (`admin@...`, `login-client@...` e `platform-bootstrap@smarkee.internal`).
+    - `core` (`394490764228296706`): organização de sistema. Dona dos projetos de roles `roles-<módulo>` e das contas de serviço dos `controller`s (`cam-account-controller`, `sum-service-controller`, `ipm-{organization,user,serviceaccount,permission}-controller`). Não é organização de cliente.
+    - `register` (`395132726044262411`): contas humanas auto-registradas (`cam.account`). Recebe os projetos de roles por Project Grant.
+    - `operator` (`396620647502970889`): operadores humanos (`admin`), dono do projeto `roles-operator` (`*.operate` e `vault.platform.*`) e da aplicação `vault` (OIDC do OpenBao).
     - `<organizationId>`: organizações criadas pelos clientes via `ipm/organization`.
-  - **Projetos:** `core` (`394490764261851138`), `bsm` (`396296690602082330`), `sum` (`395263163731279883`) e `ipm` (`395263156584185867`).
+  - **Projetos:** `roles-<módulo>` na `core` (`roles-bsm`, `roles-cam`, `roles-clm`, `roles-ekm`, `roles-ipm`, `roles-sum` e `roles-svm`), `roles-operator` na `operator` e `clients` (aplicações `cli` na `core` e `vault` na `operator`). Os projetos de roles ficam sem aplicação (decisão `0034`).
   - **Domínios reconhecidos pela instância (`ExternalDomain`):** `localhost`, `auth-dev.smarkee.com.br` e `api-dev.smarkee.com.br` (porta externa `8080`).
 
 ![Arquitetura de Identidade, Autenticação e Gateway](diagrams/06-identity-gateway-auth.svg)
@@ -700,8 +702,8 @@ sequenceDiagram
 ### 9.3 Interligações
 - **Entrada:**
   - `gateway` (`namespace: gateway`) → `identity.identity.svc.cluster.local:8080` (rotas OIDC, JWKS, introspection e console) e `identity-login.identity.svc.cluster.local:3000` (`/ui/v2/login/*`).
-  - `<módulo>-<tipo>-api` (`namespaces: core, bsm, sum, ipm`) → `identity.identity.svc.cluster.local:8080` (busca de chaves públicas `/oauth/v2/keys` e introspecção OAuth2 `/oauth/v2/introspect` com header `Host: localhost:8080`).
-  - `<módulo>-<tipo>-controller` (`namespaces: core, sum, ipm`) → `identity.identity.svc.cluster.local:8080` (reconciliação de organizações, usuários, contas de serviço, metadados e autorizações usando JWT Profile RFC 7523).
+  - `<módulo>-<tipo>-api` (`namespaces: cam, bsm, sum, ipm`) → `identity.identity.svc.cluster.local:8080` (busca de chaves públicas `/oauth/v2/keys` e introspecção OAuth2 `/oauth/v2/introspect` com header `Host: localhost:8080`).
+  - `<módulo>-<tipo>-controller` (`namespaces: cam, bsm, sum, ipm`) → `identity.identity.svc.cluster.local:8080` (reconciliação de organizações, usuários, contas de serviço, metadados e autorizações usando JWT Profile RFC 7523).
   - `telemetry-agent-collector` (`namespace: telemetry`) → `identity.identity.svc.cluster.local:8080/debug/metrics`.
 - **Saída:**
   - `database.database.svc.cluster.local:5432` (banco `identity`, usuário `identity`).
@@ -731,13 +733,13 @@ sequenceDiagram
 - **Produto e Imagens:**
   - **`gateway` (`apache/apisix:3.19.0-debian`):** `Deployment` do Apache APISIX com o plugin customizado `opaque-token-introspect.lua` (converte tokens opacos em JWTs internos assinados via introspecção RFC 7662 no `identity`, mantendo cache curto em memória e bloqueando qualquer `X-Smarkee-Internal-Token` vindo de fora).
   - **`gateway-etcd` (`quay.io/coreos/etcd:v3.6.9`):** `StatefulSet` (`gateway-etcd-0`) armazenando a configuração dinâmica de rotas, upstreams, serviços e plugins do APISIX.
-  - **`gateway-sync` (`ghcr.io/api7/adc:0.26.1`):** `Deployment` que reconcilia declarativamente o arquivo `adc.yaml` (gerado a partir de `infrastructure/k8s/platform/gateway/base/adc-configmap.yaml` com as variáveis do `ExternalSecret` `gateway-secret`) contra a Admin API do APISIX (`http://gateway:9180`) a cada 30 segundos.
+  - **`gateway-sync` (`ghcr.io/api7/adc:0.26.1`):** `Deployment` que reconcilia declarativamente o arquivo `adc.yaml` (gerado a partir de `infrastructure/k8s/platform/gateway/base/adc.yaml` com as variáveis do `ExternalSecret` `gateway-secret`) contra a Admin API do APISIX (`http://gateway:9180`) a cada 30 segundos.
 - **Regras Globais e Segurança na Borda:**
   1. **Sanitização de Tracing (`proxy-rewrite`):** remove headers `traceparent` e `tracestate` enviados pelo cliente externo antes de iniciar um novo trace W3C no plugin `opentelemetry`.
   2. **Introspecção de Token Opaco (`opaque-token-introspect`):** valida tokens opacos das contas de serviço no `identity` (`http://identity.identity.svc.cluster.local:8080/oauth/v2/introspect`).
-  3. **Rate Limiting e Limite de Payload (`limit-req`, `limit-count`, `client-control`):** protege rotas anônimas (`POST /v1/core/accounts` limitado a 10 req/min por IP com retorno `429` + `Retry-After`) e rotas autenticadas.
+  3. **Rate Limiting e Limite de Payload (`limit-req`, `limit-count`, `client-control`):** protege rotas anônimas (`POST /v1/cam/accounts` limitado a 10 req/min por IP com retorno `429` + `Retry-After`) e rotas autenticadas.
   4. **Segregação por `Host`:**
-     - `api-dev.smarkee.com.br`: expõe exclusivamente `/v1/core/*`, `/v1/bsm/*`, `/v1/sum/*` e `/v1/ipm/*`.
+     - `api-dev.smarkee.com.br`: expõe exclusivamente `/v1/cam/*`, `/v1/bsm/*`, `/v1/sum/*` e `/v1/ipm/*`.
      - `auth-dev.smarkee.com.br` (e `localhost` em `dev`): expõe exclusivamente as rotas OIDC/OAuth2 e UI de login do `identity`.
 
 #### 10.1.1 Pipeline de Processamento de Requisição no Gateway
@@ -754,7 +756,7 @@ sequenceDiagram
   participant FeatureAPI as <mod>-<type>-api (:8000)
   participant TRouter as telemetry-router (:4318)
 
-  Client->>GW: HTTP GET /v1/core/accounts (Host: api-dev.smarkee.com.br)
+  Client->>GW: HTTP GET /v1/cam/accounts (Host: api-dev.smarkee.com.br)
   GW->>PluginRewrite: Strip headers traceparent e tracestate externos
   GW->>PluginOtel: Gera novo W3C traceparent (trace_id + span_id)
   alt Token Opaco de Service Account
@@ -785,7 +787,7 @@ sequenceDiagram
   - Chamadas internas OIDC (`vault` → `auth-dev.smarkee.com.br:8080`) → `gateway.gateway.svc.cluster.local:8080`.
 - **Saída (Upstreams):**
   - `identity.identity.svc.cluster.local:8080` e `identity-login.identity.svc.cluster.local:3000`
-  - `core-account-api.core.svc.cluster.local:8000`
+  - `cam-account-api.cam.svc.cluster.local:8000`
   - `bsm-account-api.bsm.svc.cluster.local:8000`
   - `sum-service-api.sum.svc.cluster.local:8000`
   - `ipm-{organization,user,serviceaccount,permission,role,group}-api.ipm.svc.cluster.local:8000`
@@ -809,12 +811,12 @@ sequenceDiagram
 ## 11. Observabilidade e Telemetria (`telemetry` e `<feature>-telemeter`)
 
 ### 11.1 Arquitetura
-- **Namespaces:** `telemetry` (componentes de plataforma) e `core`, `bsm`, `sum`, `ipm` (telemeters de cada feature).
+- **Namespaces:** `telemetry` (componentes de plataforma) e `cam`, `bsm`, `sum`, `ipm` (telemeters de cada feature).
 - **Produto e Operador:** `otel/opentelemetry-collector-contrib:0.164.0` gerenciado declarativamente pelo **`OpenTelemetry Operator` (`v0.162.0`)** via CRDs `OpenTelemetryCollector`.
 - **Manifestos:** `infrastructure/k8s/platform/telemetry/{base,overlays/dev}/` e `features/<módulo>/<tipo>/k8s/{base,overlays/dev}/telemeter.yaml`.
 - **As 4 Peças da Cadeia (1 verbo por peça — decisões `0062` e `0102`):**
   1. **`telemetry-agent` (`mode: daemonset`, namespace `telemetry`):**
-     - **Lê** os logs de todos os pods do nó em `/var/log/pods/*/*/*.log` no formato CRI (`containerd`) via `filelog/app` (logs JSON do contrato `0045` nos namespaces `core`, `bsm`, `sum`, `ipm`) e `filelog/infra` (logs `WARN+` dos namespaces `database`, `messaging`, `identity`, `gateway`, `mail`, `telemetry`, `vault`, com redação de e-mail e descarte de healthchecks).
+     - **Lê** os logs de todos os pods do nó em `/var/log/pods/*/*/*.log` no formato CRI (`containerd`) via `filelog/app` (logs JSON do contrato `0045` nos namespaces `cam`, `bsm`, `sum`, `ipm`) e `filelog/infra` (logs `WARN+` dos namespaces `database`, `messaging`, `identity`, `gateway`, `mail`, `telemetry`, `vault`, com redação de e-mail e descarte de healthchecks).
      - **Coleta** métricas de infraestrutura via `kubeletstats` (CPU, memória e rede de nós, pods e contêineres na API do Kubelet `:10250`, sem `docker.sock`), `postgresql` + `sql_query/outbox` (em `database:5432` com `telemetry_login`), e `prometheus/infra` (`identity:8080/debug/metrics` e `messaging:7777/metrics`).
      - Envia tudo por OTLP/gRPC (com `sending_queue` persistente em disco `file_storage`) ao `telemetry-router`.
   2. **`telemetry-router` (`mode: statefulset`, namespace `telemetry`):**
@@ -824,7 +826,7 @@ sequenceDiagram
      - Roteia logs de aplicação (por `smarkee.module` + `smarkee.resource.type`) e spans (por `apisix.service_name`) para o `<módulo>-<tipo>-telemeter` correspondente; roteia toda a telemetria de infraestrutura e spans de plataforma para o **`telemetry-sink`**.
   3. **`telemetry-sink` (`mode: statefulset`, namespace `telemetry`):**
      - **Grava** os sinais da plataforma (`logs/{app,infra}`, `metrics/{app,infra}`, `traces/`) em `/var/lib/smarkee/telemetry/telemetry-sink/`, mapeado via `extraMounts` do `kind` para `infrastructure/dev/telemetry-sink/` no host.
-  4. **`<módulo>-<tipo>-telemeter` (`mode: statefulset`, namespaces `core`, `bsm`, `sum`, `ipm`):**
+  4. **`<módulo>-<tipo>-telemeter` (`mode: statefulset`, namespaces `cam`, `bsm`, `sum`, `ipm`):**
      - **Grava** exclusivamente os logs de aplicação e spans da sua feature em `/var/lib/smarkee/telemetry/features/<módulo>/<tipo>/`, mapeado via `extraMounts` para `features/<módulo>/<tipo>/telemeter/{logs,traces}/` no host.
 
 ![Pipeline de Telemetria e Roteamento OpenTelemetry](diagrams/07-telemetry-pipeline.svg)
@@ -862,7 +864,7 @@ flowchart LR
   M_INF -->|OTLP/gRPC| SINK
   R_TRANS --> R_TRACES
 
-  R_LOGS -- "Módulo de feature (core/bsm/sum/ipm)" --> F_TEL
+  R_LOGS -- "Módulo de feature (cam/bsm/sum/ipm)" --> F_TEL
   R_LOGS -- "Sem módulo ou infraestrutura" --> SINK
 
   R_TRACES -- "<mod>-<type>-api" --> F_TEL
@@ -875,8 +877,8 @@ flowchart LR
 |---|---|---|---|
 | `telemetry-router-collector.telemetry.svc.cluster.local` (e alias `telemetry-router`) | `telemetry` | `4317`, `4318` | `4317` (OTLP/gRPC do `telemetry-agent`), `4318` (OTLP/HTTP do `gateway`) |
 | `telemetry-sink-collector.telemetry.svc.cluster.local` (e alias `telemetry-sink`) | `telemetry` | `4317` | OTLP/gRPC (recebe do `telemetry-router`) |
-| `<módulo>-<tipo>-telemeter-collector.<módulo>.svc.cluster.local` (e alias `<módulo>-<tipo>-telemeter`) | `core`, `bsm`, `sum`, `ipm` | `4317` | OTLP/gRPC (recebe do `telemetry-router` os sinais da feature) |
-| `*-collector-extension` / `*-collector-monitoring` | `telemetry`, `core`, `bsm`, `sum`, `ipm` | `13133`, `8888` | Healthcheck (`:13133`) e métricas internas do Collector (`:8888`) |
+| `<módulo>-<tipo>-telemeter-collector.<módulo>.svc.cluster.local` (e alias `<módulo>-<tipo>-telemeter`) | `cam`, `bsm`, `sum`, `ipm` | `4317` | OTLP/gRPC (recebe do `telemetry-router` os sinais da feature) |
+| `*-collector-extension` / `*-collector-monitoring` | `telemetry`, `cam`, `bsm`, `sum`, `ipm` | `13133`, `8888` | Healthcheck (`:13133`) e métricas internas do Collector (`:8888`) |
 
 *(Nota: nenhum coletor publica portas no host; os sinais nunca são expostos a clientes externos.)*
 
@@ -885,10 +887,10 @@ flowchart LR
 - **Operador (`dev`):**
   - **Inspeção dos arquivos OTLP JSONL no host com `jq`:**
     ```bash
-    # Spans do gateway roteados para core/account
-    jq . features/core/account/telemeter/traces/traces.jsonl
-    # Logs de aplicação de core/account
-    jq . features/core/account/telemeter/logs/logs.jsonl
+    # Spans do gateway roteados para cam/account
+    jq . features/cam/account/telemeter/traces/traces.jsonl
+    # Logs de aplicação de cam/account
+    jq . features/cam/account/telemeter/logs/logs.jsonl
     # Logs e métricas de infraestrutura no telemetry-sink
     jq . infrastructure/dev/telemetry-sink/logs/infra/logs.jsonl
     jq . infrastructure/dev/telemetry-sink/metrics/infra/metrics.jsonl
@@ -900,15 +902,16 @@ flowchart LR
 
 ---
 
-## 12. Features de Produto (`core`, `bsm`, `sum`, `ipm`)
+## 12. Features de Produto (`cam`, `bsm`, `sum`, `ipm`)
 
 ### 12.1 Arquitetura e Modelos de Reconciliação
-As 9 features da plataforma dividem-se em 4 namespaces de produto (`core`, `bsm`, `sum`, `ipm`) e seguem dois modelos arquiteturais (decisões `0096`, `0098` e `0099`):
+As 10 features da plataforma dividem-se em 4 namespaces de produto (`cam`, `bsm`, `sum`, `ipm`) e seguem dois modelos arquiteturais (decisões `0096`, `0098` e `0099`):
 
 | Feature (`<módulo>/<tipo>`) | Namespace | Modelo | Componentes no Cluster (`Deployment` / `Job` / `OpenTelemetryCollector`) | Rota no `gateway` (`api-dev.smarkee.com.br`) |
 |---|---|---|---|---|
-| **`core/account`** | `core` | `external-reconciled` | `api`, `publisher`, `controller`, `migrate` (Job), `telemeter` | `/v1/core/accounts` |
+| **`cam/account`** | `cam` | `external-reconciled` | `api`, `publisher`, `controller`, `migrate` (Job), `telemeter` | `/v1/cam/accounts` |
 | **`bsm/account`** | `bsm` | `internal-state` | `api`, `publisher`, `migrate` (Job), `telemeter` | `/v1/bsm/accounts` |
+| **`bsm/payment`** | `bsm` | `external-reconciled` | `api`, `publisher`, `controller`, `migrate` (Job), `telemeter` | `/v1/bsm/payments` |
 | **`sum/service`** | `sum` | `external-reconciled` | `api`, `publisher`, `controller`, `migrate` (Job), `telemeter` | `/v1/sum/services` |
 | **`ipm/organization`** | `ipm` | `external-reconciled` | `api`, `publisher`, `controller`, `migrate` (Job), `telemeter` | `/v1/ipm/organizations` |
 | **`ipm/user`** | `ipm` | `external-reconciled` | `api`, `publisher`, `controller`, `migrate` (Job), `telemeter` | `/v1/ipm/users` |
@@ -955,7 +958,7 @@ sequenceDiagram
     Pub->>DB: Lê outbox pendente (advisory lock)
     Pub->>NATS: Publica desired.<mod>.<type>.<id> e updated.<mod>.<type>.<id>
     Pub->>DB: Marca published_at = now()
-  else Recursos external-reconciled (core/account, sum/service, ipm/{org,user,sa,perm})
+  else Recursos external-reconciled (cam/account, sum/service, ipm/{org,user,sa,perm})
     Client->>GW: POST /v1/<mod>/<tipo>
     GW->>API: Valida Token & Admissão
     API->>DB: TX SQL: grava desired, phase = Pending + outbox (desired)

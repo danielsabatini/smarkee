@@ -34,7 +34,7 @@ Preencha o `.env` com os valores do ambiente. Os IDs vêm do console do Zitadel 
 | `SK_API_URL` | Endereço da API (gateway), para todos os módulos |
 | `SK_API_ALLOW_INSECURE_HTTP` | `true` só onde não há TLS (dev) |
 | `SK_API_TIMEOUT_SECONDS` | Segundos que cada pedido à API espera (1 a 300; padrão 10). Opcional |
-| `SK_CORE_PROJECT_ID` | ID do projeto `roles-core` |
+| `SK_CAM_PROJECT_ID` | ID do projeto `roles-cam` |
 | `SK_SUM_PROJECT_ID` | ID do projeto `roles-sum` |
 | `SK_IPM_PROJECT_ID` | ID do projeto `roles-ipm` |
 | `SK_BSM_PROJECT_ID` | ID do projeto `roles-bsm` |
@@ -83,7 +83,7 @@ O token só traz as permissões que existiam quando foi emitido. Depois de mudar
 
 O operador é um usuário da organização `operator` no Zitadel (decisão [`0084`](../../.decisions/0084-organizacao-operator-e-projeto-roles-operator.md)). Em dev, o usuário padrão é `admin@operator.smarkee.internal`, e a senha é a definida no provisionamento do Zitadel de dev. **Não registre a senha em arquivo versionado, log ou documento.**
 
-As permissões `*.admin` (por exemplo `ipm.role.admin`) ficam no projeto `roles-operator`. Elas só entram no token se o login pedir a audience desse projeto, ou seja, **só com `SK_OPERATOR_PROJECT_ID` exportado** (e `SK_BSM_PROJECT_ID`, para o `bsm`). Um operador que entra sem essa variável **não recebe** as roles de operador, e o Receiver o trata como usuário comum.
+As permissões `*.operate` (por exemplo `ipm.role.operate`) ficam no projeto `roles-operator`. Elas só entram no token se o login pedir a audience desse projeto, ou seja, **só com `SK_OPERATOR_PROJECT_ID` exportado** (e `SK_BSM_PROJECT_ID`, para o `bsm`). Um operador que entra sem essa variável **não recebe** as roles de operador, e o Receiver o trata como usuário comum.
 
 ### Do zero (limpar tudo e logar de novo)
 
@@ -101,7 +101,7 @@ As permissões `*.admin` (por exemplo `ipm.role.admin`) ficam no projeto `roles-
 
 ### Conferir se o token é de operador
 
-O `whoami` só mostra o usuário. Para ver as `*.admin` do token:
+O `whoami` só mostra o usuário. Para ver as `*.operate` do token:
 
 ```bash
 python3 - <<'EOF'
@@ -109,11 +109,11 @@ import json, base64, pathlib
 c = json.loads(pathlib.Path.home().joinpath(".config/sk/credentials.json").read_text())
 tok = next(v for v in c.values() if isinstance(v, str) and v.startswith("ey") and v.count(".") == 2)
 p = json.loads(base64.urlsafe_b64decode(tok.split(".")[1] + "=="))
-print(sorted(x for k, v in p.items() if k.endswith(":roles") for x in v if x.endswith(".admin")))
+print(sorted(x for k, v in p.items() if k.endswith(":roles") for x in v if x.endswith(".operate")))
 EOF
 ```
 
-Para o operador de dev, a lista deve trazer `bsm.account.admin`, `core.account.admin`, `ipm.group.admin`, `ipm.organization.admin`, `ipm.permission.admin`, `ipm.role.admin` e `ipm.user.admin`. Lista vazia indica `.env` sem `export`.
+Para o operador de dev, a lista deve trazer `bsm.account.operate`, `cam.account.operate`, `ipm.group.operate`, `ipm.organization.operate`, `ipm.permission.operate`, `ipm.role.operate` e `ipm.user.operate`. Lista vazia indica `.env` sem `export`.
 
 ## 5. Várias sessões ao mesmo tempo
 
@@ -130,8 +130,8 @@ O `credentials.json` guarda tokens (permissão `0600`): trate o diretório como 
 
 | Sintoma | Causa | O que fazer |
 |---|---|---|
-| `Role not found.` em `sk ipm role list` (e `404` no log do gateway com `organizationId=...`) | `ipm.organizationId` no `config.toml` aponta para uma Organization que não existe mais (por exemplo, após `scripts/dev/cleanup`) e o usuário não é operador. A API devolve `404` para não revelar existência, e a listagem inteira falha | Remova `organizationId` do `config.toml` ou ative uma Organization válida. Com `ipm.role.admin` no token, o filtro não bloqueia |
-| O token do operador não tem nenhuma `*.admin` | `SK_BSM_PROJECT_ID` ou `SK_OPERATOR_PROJECT_ID` sem `export` no `.env` | Corrija o `.env`, apague o `credentials.json` e refaça o login (seção 4) |
+| `Role not found.` em `sk ipm role list` (e `404` no log do gateway com `organizationId=...`) | `ipm.organizationId` no `config.toml` aponta para uma Organization que não existe mais (por exemplo, após `scripts/dev/cleanup`) e o usuário não é operador. A API devolve `404` para não revelar existência, e a listagem inteira falha | Remova `organizationId` do `config.toml` ou ative uma Organization válida. Com `ipm.role.operate` no token, o filtro não bloqueia |
+| O token do operador não tem nenhuma `*.operate` | `SK_BSM_PROJECT_ID` ou `SK_OPERATOR_PROJECT_ID` sem `export` no `.env` | Corrija o `.env`, apague o `credentials.json` e refaça o login (seção 4) |
 | `sk auth login` recusa o login citando valores provisórios | Faltam o client ID ou os IDs dos projetos (o padrão ainda é `000000000000000000`) | Carregue o `.env` (`source .env`) |
 | `URL without TLS refused` | `SK_*_ALLOW_INSECURE_HTTP` não está `true` e o endereço é `http` | Em dev, exporte as duas variáveis `ALLOW_INSECURE_HTTP`. Em stg, use `https` |
 | `could not reach the API` ou issuer em `api.smarkee.com.br` | O `.env` não foi carregado neste terminal, e a CLI usou o padrão de produção | `source .env` e confira com `sk config list` |

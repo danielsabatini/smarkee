@@ -1,9 +1,7 @@
 erDiagram
-    tipo ||--o{ tipo_operation : "resource_id (sem FK)"
-    tipo ||--o{ tipo_action_result : "resource_id (sem FK)"
+    tipo ||--o{ tipo_idempotency : "resource_id (sem FK)"
     tipo ||--o{ tipo_outbox : "resource_id (sem FK)"
     tipo ||--|| tipo_v1 : "view (sem failure_count)"
-    tipo_operation ||--|| tipo_operation_v1 : "view (inclui requested_by)"
 
     tipo {
         text resource_id PK "CHECK padrão do SCHEMA.md"
@@ -13,6 +11,8 @@ erDiagram
         jsonb desired "objeto, até 256 KiB"
         bigint desired_generation "CHECK >= 1"
         bigint resource_version "DEFAULT 1"
+        text requested_by "CHECK 1 a 256 caracteres"
+        text correlation_id "CHECK 1 a 256 caracteres"
         jsonb observed "nulo até a 1a observação"
         text presence "CHECK present, absent, unknown"
         timestamptz observed_at "nulo se e só se presence nulo"
@@ -23,26 +23,12 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
-    tipo_operation {
-        text operation_id PK
-        text resource_id "idx (resource_id, created_at)"
-        text operation_type "CHECK create, update, delete"
-        bigint desired_generation "nula so se rejected"
-        text requested_by
-        text correlation_id
+    tipo_idempotency {
+        text requested_by PK "parte 1 da chave composta"
+        text idempotency_key PK "parte 2 da chave composta"
         text request_digest "CHECK 64 hex"
-        text operation_status "CHECK 5 estados"
-        text operation_status_reason "CHECK conflict, validation, not_found"
-        timestamptz created_at
-        timestamptz updated_at "idx parcial de retenção"
-        timestamptz completed_at
-    }
-    tipo_action_result {
-        text action_id PK
-        text resource_id
-        bigint desired_generation
-        text action_outcome "CHECK completed, failed"
-        timestamptz recorded_at "idx de retenção"
+        text resource_id "CHECK padrão do SCHEMA.md"
+        timestamptz created_at "idx de retenção"
     }
     tipo_outbox {
         bigint sequence PK "GENERATED ALWAYS AS IDENTITY"
@@ -52,10 +38,8 @@ erDiagram
         jsonb payload "até 256 KiB"
         timestamptz created_at
         timestamptz published_at "idx parcial: pendentes e publicados"
+        text traceparent "55 caracteres, opcional"
     }
     tipo_v1 {
-        text visao "SELECT das colunas de leitura"
-    }
-    tipo_operation_v1 {
         text visao "SELECT das colunas de leitura"
     }

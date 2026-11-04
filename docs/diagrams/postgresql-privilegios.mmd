@@ -3,27 +3,23 @@ flowchart LR
     classDef tbl fill:#e0f2f1,stroke:#00695c,color:#003d33
     classDef view fill:#fff8e1,stroke:#ef6c00,color:#5a2d00
 
-    M["tipo_manager"]:::role
-    RCV["tipo_receiver"]:::role
+    API["tipo_api"]:::role
+    CTL["tipo_controller<br/>(só external-reconciled)"]:::role
     P["tipo_publisher"]:::role
     MT["maintenance"]:::role
 
     R[("tipo")]:::tbl
-    O[("tipo_operation")]:::tbl
-    A[("tipo_action_result")]:::tbl
+    I[("tipo_idempotency")]:::tbl
     X[("tipo_outbox")]:::tbl
     V1["tipo_v1"]:::view
-    V2["tipo_operation_v1"]:::view
 
-    M -->|"SELECT INSERT UPDATE DELETE"| R
-    M -->|"SELECT INSERT UPDATE"| O
-    M -->|"SELECT INSERT"| A
-    M -->|"somente INSERT"| X
-    RCV -->|"SELECT"| V1
-    RCV -->|"SELECT"| V2
+    API -->|"SELECT"| V1
     V1 -.->|"projeção"| R
-    V2 -.->|"projeção"| O
+    API -->|"INSERT UPDATE (campos de admissão)"| R
+    API -->|"SELECT INSERT"| I
+    API -->|"somente INSERT"| X
+    CTL -->|"SELECT FOR UPDATE; UPDATE observação e convergência; DELETE após remoção confirmada"| R
+    CTL -->|"somente INSERT"| X
     P -->|"SELECT; UPDATE published_at"| X
     MT -->|"SELECT DELETE (retenção)"| X
-    MT -->|"SELECT DELETE (retenção)"| A
-    MT -->|"SELECT DELETE (retenção)"| O
+    MT -->|"SELECT DELETE (retenção)"| I
