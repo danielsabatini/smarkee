@@ -17,6 +17,10 @@
       "description": "Identificador da Customer Account (cam.account) à qual esta Billing Account pertence.",
       "$ref": "../../common/definitions.v1.schema.json#/$defs/actorId"
     },
+    "paymentId": {
+      "description": "Identificador do método de pagamento (bsm.payment) vinculado à Billing Account. Obrigatório quando type é paid; proibido quando type é free.",
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/resourceId"
+    },
     "displayName": {
       "description": "Nome de exibição da conta de faturamento (BillingAccountName no FOCUS 1.4).",
       "type": "string",

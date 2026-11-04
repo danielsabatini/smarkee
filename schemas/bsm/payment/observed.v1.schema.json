@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaymentObservedData",
+  "description": "data de observed do método de pagamento (bsm.payment): metadados não sensíveis lidos do gateway de pagamento. Os campos estão presentes quando presence é present; com absent ou unknown, data é vazio.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "customerAccountId": {
+      "$ref": "definitions.v1.schema.json#/$defs/customerAccountId",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "displayName": {
+      "$ref": "definitions.v1.schema.json#/$defs/displayName",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "provider": {
+      "$ref": "definitions.v1.schema.json#/$defs/paymentProvider",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "methodType": {
+      "$ref": "definitions.v1.schema.json#/$defs/paymentMethodType",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "status": {
+      "$ref": "definitions.v1.schema.json#/$defs/paymentMethodStatus",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "providerCustomerId": {
+      "$ref": "definitions.v1.schema.json#/$defs/providerCustomerId",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "providerPaymentMethodId": {
+      "$ref": "definitions.v1.schema.json#/$defs/providerPaymentMethodId",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    },
+    "brand": {
+      "$ref": "definitions.v1.schema.json#/$defs/cardBrand",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "lastFourDigits": {
+      "$ref": "definitions.v1.schema.json#/$defs/lastFourDigits",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "expirationMonth": {
+      "$ref": "definitions.v1.schema.json#/$defs/expirationMonth",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "expirationYear": {
+      "$ref": "definitions.v1.schema.json#/$defs/expirationYear",
+      "x-writer": "server",
+      "x-sensitivity": "public"
+    },
+    "deletionProtection": {
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/deletionProtection",
+      "description": "Proteção contra exclusão confirmada pelo Controller (decisão 0074).",
+      "x-writer": "server",
+      "x-sensitivity": "internal"
+    }
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaymentDefinitions",
+  "description": "Campos de domínio do método de pagamento (bsm.payment) reutilizados pelos contratos do recurso (desired, observed e a API). Nunca armazena nem trafega PAN ou CVV (PCI-DSS / AGENTS.md §4).",
+  "x-schemaVersion": "1.0",
+  "$defs": {
+    "customerAccountId": {
+      "description": "Identificador da Customer Account (cam.account) titular deste método de pagamento.",
+      "$ref": "../../common/definitions.v1.schema.json#/$defs/actorId"
+    },
+    "displayName": {
+      "description": "Nome de exibição amigável do método de pagamento (por exemplo, Visa Corporativo Final 4242).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "^[^\\r\\n\\t]+$"
+    },
+    "paymentProvider": {
+      "description": "Gateway de pagamento responsável por custodiar e processar este método.",
+      "type": "string",
+      "enum": [
+        "mercadopago"
+      ],
+      "x-enumPolicy": "open"
+    },
+    "paymentMethodType": {
+      "description": "Modalidade do meio de pagamento registrado no provedor.",
+      "type": "string",
+      "enum": [
+        "credit_card",
+        "debit_card",
+        "pix",
+        "boleto"
+      ],
+      "x-enumPolicy": "open"
+    },
+    "providerToken": {
+      "description": "Token de uso único ou referência tokenizada emitida pelo gateway de pagamento (por exemplo, card_token_id do Mercado Pago). Nunca contém PAN ou CVV.",
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "providerCustomerId": {
+      "description": "Identificador do cliente (Customer) no cofre do gateway de pagamento.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "providerPaymentMethodId": {
+      "description": "Identificador permanente do método de pagamento (Card/Instrument) no cofre do gateway de pagamento.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "paymentMethodStatus": {
+      "description": "Estado do método de pagamento reportado pelo gateway externo.",
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive",
+        "invalid"
+      ],
+      "x-enumPolicy": "open"
+    },
+    "cardBrand": {
+      "description": "Bandeira ou identificador da rede do meio de pagamento (por exemplo, visa, master, pix).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "^[a-z0-9_-]+$"
+    },
+    "lastFourDigits": {
+      "description": "Últimos quatro dígitos do cartão (mascarado; não constitui dado sensível PAN).",
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 4,
+      "pattern": "^[0-9]{4}$"
+    },
+    "expirationMonth": {
+      "description": "Mês de vencimento do cartão (1 a 12).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 12
+    },
+    "expirationYear": {
+      "description": "Ano de vencimento do cartão com quatro dígitos.",
+      "type": "integer",
+      "minimum": 2024,
+      "maximum": 2100
+    }
+  }
+}

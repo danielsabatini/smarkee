@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PaymentCreateRequest",
+  "description": "Corpo de POST /v1/bsm/payments. A API valida que customerAccountId pertence ao solicitante autenticado (salvo operador) e atribui resourceId, ownerAccountId = customerAccountId e deletionProtection = true.",
+  "x-schemaVersion": "1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "customerAccountId",
+    "displayName",
+    "provider",
+    "methodType",
+    "providerToken"
+  ],
+  "properties": {
+    "customerAccountId": {
+      "$ref": "definitions.v1.schema.json#/$defs/customerAccountId",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
+    "displayName": {
+      "$ref": "definitions.v1.schema.json#/$defs/displayName",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "provider": {
+      "$ref": "definitions.v1.schema.json#/$defs/paymentProvider",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "methodType": {
+      "$ref": "definitions.v1.schema.json#/$defs/paymentMethodType",
+      "x-writer": "client",
+      "x-sensitivity": "public"
+    },
+    "providerToken": {
+      "$ref": "definitions.v1.schema.json#/$defs/providerToken",
+      "x-writer": "client",
+      "x-sensitivity": "secretReference"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "lifecycle": "present",
+  "reconciliation": "active",
+  "customerAccountId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e",
+  "displayName": "Visa Corporativo Final 4242",
+  "provider": "mercadopago",
+  "methodType": "credit_card",
+  "providerToken": "tok_test_apro_4242",
+  "deletionProtection": true,
+  "ownerAccountId": "0199c8a4-7b1e-7c3a-9f2d-5e8a1b2c3d4e"
+}

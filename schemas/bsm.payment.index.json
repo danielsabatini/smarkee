@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BsmPaymentContracts",
+  "description": "Índice dos contratos usados pelos componentes de payment do módulo bsm: entrada do gerador de modelos (decisão 0012). Não é um contrato. Todo contrato de common/ e de bsm/payment/ deve estar listado (verificado pelos testes de contrato).",
+  "anyOf": [
+    {
+      "$ref": "common/message-envelope.v1.schema.json"
+    },
+    {
+      "$ref": "common/condition.v1.schema.json"
+    },
+    {
+      "$ref": "common/action.v1.schema.json"
+    },
+    {
+      "$ref": "common/completed.v1.schema.json"
+    },
+    {
+      "$ref": "common/failed.v1.schema.json"
+    },
+    {
+      "$ref": "common/updated.v1.schema.json"
+    },
+    {
+      "$ref": "common/operation.v1.schema.json"
+    },
+    {
+      "$ref": "common/api-accepted-response.v1.schema.json"
+    },
+    {
+      "$ref": "common/api-error.v1.schema.json"
+    },
+    {
+      "$ref": "bsm/payment/desired.v1.schema.json"
+    },
+    {
+      "$ref": "bsm/payment/observed.v1.schema.json"
+    },
+    {
+      "$ref": "bsm/payment/api-create-request.v1.schema.json"
+    },
+    {
+      "$ref": "bsm/payment/api-update-request.v1.schema.json"
+    },
+    {
+      "$ref": "bsm/payment/resource.v1.schema.json"
+    },
+    {
+      "$ref": "bsm/payment/resource-list.v1.schema.json"
+    }
+  ]
+}

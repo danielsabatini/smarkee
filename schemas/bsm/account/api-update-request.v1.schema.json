@@ -20,6 +20,11 @@
       "x-writer": "client",
       "x-sensitivity": "public"
     },
+    "paymentId": {
+      "$ref": "definitions.v1.schema.json#/$defs/paymentId",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
     "billingContacts": {
       "$ref": "definitions.v1.schema.json#/$defs/billingContacts",
       "x-writer": "client",

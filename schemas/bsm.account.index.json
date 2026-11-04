@@ -56,9 +56,6 @@
     },
     {
       "$ref": "bsm/account/resource-list.v1.schema.json"
-    },
-    {
-      "$ref": "bsm/account/payment-methods.v1.schema.json"
     }
   ]
 }

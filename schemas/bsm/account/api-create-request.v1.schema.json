@@ -23,6 +23,11 @@
       "x-writer": "client",
       "x-sensitivity": "internal"
     },
+    "paymentId": {
+      "$ref": "definitions.v1.schema.json#/$defs/paymentId",
+      "x-writer": "client",
+      "x-sensitivity": "internal"
+    },
     "displayName": {
       "$ref": "definitions.v1.schema.json#/$defs/displayName",
       "x-writer": "client",
