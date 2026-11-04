@@ -138,7 +138,7 @@ As mensagens publicadas no Stream `DESIRED` alimentam projeções em memória de
 ## 4. Atualização e Exclusão
 
 ### 4.1 Atualização (`PATCH /v1/bsm/accounts/{resourceId}`)
-- Exige `bsm.account.update` ou `bsm.account.admin` e pertinência ao dono.
+- Exige `bsm.account.update` ou `bsm.account.operate` e pertinência ao dono.
 - Tentativa de alterar `billingCurrency` é recusada com `400 ValidationFailed` (campo imutável).
 - Concorrência otimista via cabeçalho `If-Match` ou campo `resourceVersion`.
 - Na transação da API:
@@ -149,7 +149,7 @@ As mensagens publicadas no Stream `DESIRED` alimentam projeções em memória de
 - Resposta síncrona `200 OK` com o recurso atualizado.
 
 ### 4.2 Exclusão (`DELETE /v1/bsm/accounts/{resourceId}`)
-- Exige `bsm.account.delete` ou `bsm.account.admin` e pertinência ao dono.
+- Exige `bsm.account.delete` ou `bsm.account.operate` e pertinência ao dono.
 - Se `deletionProtection` estiver ativa (`true`), recusa com `409 Conflict` (`DeletionProtected`).
 - **Verificação de dependentes ativos (Ajuste 1 e decisão 0100):** a API consulta o cache local `OrganizationUsageProjection`. Se houver organizações vinculadas à conta de faturamento, a exclusão é recusada sincronamente com `409 Conflict` (`ResourcesAttached`), informando a quantidade de organizações dependentes.
 - Quando elegível:

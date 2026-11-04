@@ -41,7 +41,7 @@ PRINCIPALS = {
     "binder": principal("binder", USER_PERMISSIONS | {"ipm.user.bind"}),
     # Usuária da `org-2`.
     "eve": principal("eve", USER_PERMISSIONS | {"ipm.user.bind"}),
-    "admin": principal("admin", USER_PERMISSIONS | {"ipm.user.admin"}),
+    "admin": principal("admin", USER_PERMISSIONS | {"ipm.user.operate"}),
     "norole": principal("norole", frozenset()),
     # Identidade de máquina da `org-1` (reconhecida pela API de ServiceAccount; 0094).
     "machine": principal("machine", USER_PERMISSIONS),

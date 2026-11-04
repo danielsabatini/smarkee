@@ -42,6 +42,17 @@
       "bsm.account.list",
       "bsm.account.update"
     ],
+    "bsm.paymentViewer": [
+      "bsm.payment.get",
+      "bsm.payment.list"
+    ],
+    "bsm.paymentAdmin": [
+      "bsm.payment.create",
+      "bsm.payment.delete",
+      "bsm.payment.get",
+      "bsm.payment.list",
+      "bsm.payment.update"
+    ],
     "cam.accountViewer": [
       "cam.account.get"
     ],

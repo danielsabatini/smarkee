@@ -150,6 +150,41 @@ services:
                     - type: array
                       contains:
                         const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ORGANIZATION}
+          # Verificação grossa de permissão (decisão 0107): o token precisa ter ao menos uma permissão do tipo
+          # (`ipm.organization.*`) ou a `operate` dele. A API confere a ação, o dono e o estado (verificação fina).
+          # Roda depois do openid-connect, que já validou assinatura, emissor e audiência do token.
+          serverless-post-function:
+            phase: access
+            permission_prefix: ipm.organization.
+            functions:
+              - &coarse_permission_check |
+                return function(conf, ctx)
+                  local core = require("apisix.core")
+                  local header = core.request.header(ctx, "Authorization")
+                  local claims
+                  local token = header and header:match("^[Bb]earer%s+(.+)$")
+                  local payload = token and token:match("^[^.]+%.([^.]+)%.[^.]+$")
+                  if payload then
+                    payload = payload:gsub("-", "+"):gsub("_", "/")
+                    payload = payload .. string.rep("=", (4 - #payload % 4) % 4)
+                    local raw = ngx.decode_base64(payload)
+                    claims = raw and core.json.decode(raw)
+                  end
+                  if type(claims) == "table" then
+                    local claim_start, claim_end = "urn:zitadel:iam:org:project:", ":roles"
+                    for key, roles in pairs(claims) do
+                      if type(key) == "string" and type(roles) == "table"
+                          and key:sub(1, #claim_start) == claim_start and key:sub(-#claim_end) == claim_end then
+                        for name in pairs(roles) do
+                          if type(name) == "string" and name:sub(1, #conf.permission_prefix) == conf.permission_prefix then
+                            return
+                          end
+                        end
+                      end
+                    end
+                  end
+                  return 403, {errorCode = "Forbidden", message = "O solicitante não tem permissão para esta operação."}
+                end
           # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
           # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
           response-rewrite:
@@ -213,6 +248,14 @@ services:
                     - type: array
                       contains:
                         const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_USER}
+          # Verificação grossa de permissão (decisão 0107): o token precisa ter ao menos uma permissão do tipo
+          # (`ipm.user.*`) ou a `operate` dele. A API confere a ação, o dono e o estado (verificação fina).
+          # Roda depois do openid-connect, que já validou assinatura, emissor e audiência do token.
+          serverless-post-function:
+            phase: access
+            permission_prefix: ipm.user.
+            functions:
+              - *coarse_permission_check
           # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
           # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
           response-rewrite:
@@ -276,6 +319,14 @@ services:
                     - type: array
                       contains:
                         const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_SERVICEACCOUNT}
+          # Verificação grossa de permissão (decisão 0107): o token precisa ter ao menos uma permissão do tipo
+          # (`ipm.serviceaccount.*`) ou a `operate` dele. A API confere a ação, o dono e o estado (verificação fina).
+          # Roda depois do openid-connect, que já validou assinatura, emissor e audiência do token.
+          serverless-post-function:
+            phase: access
+            permission_prefix: ipm.serviceaccount.
+            functions:
+              - *coarse_permission_check
           # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
           # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
           response-rewrite:
@@ -338,6 +389,14 @@ services:
                     - type: array
                       contains:
                         const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_PERMISSION}
+          # Verificação grossa de permissão (decisão 0107): o token precisa ter ao menos uma permissão do tipo
+          # (`ipm.permission.*`) ou a `operate` dele. A API confere a ação, o dono e o estado (verificação fina).
+          # Roda depois do openid-connect, que já validou assinatura, emissor e audiência do token.
+          serverless-post-function:
+            phase: access
+            permission_prefix: ipm.permission.
+            functions:
+              - *coarse_permission_check
           response-rewrite:
             vars:
               - - status
@@ -396,6 +455,14 @@ services:
                     - type: array
                       contains:
                         const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_ROLE}
+          # Verificação grossa de permissão (decisão 0107): o token precisa ter ao menos uma permissão do tipo
+          # (`ipm.role.*`) ou a `operate` dele. A API confere a ação, o dono e o estado (verificação fina).
+          # Roda depois do openid-connect, que já validou assinatura, emissor e audiência do token.
+          serverless-post-function:
+            phase: access
+            permission_prefix: ipm.role.
+            functions:
+              - *coarse_permission_check
           response-rewrite:
             vars:
               - - status
@@ -454,6 +521,14 @@ services:
                     - type: array
                       contains:
                         const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_GROUP}
+          # Verificação grossa de permissão (decisão 0107): o token precisa ter ao menos uma permissão do tipo
+          # (`ipm.group.*`) ou a `operate` dele. A API confere a ação, o dono e o estado (verificação fina).
+          # Roda depois do openid-connect, que já validou assinatura, emissor e audiência do token.
+          serverless-post-function:
+            phase: access
+            permission_prefix: ipm.group.
+            functions:
+              - *coarse_permission_check
           response-rewrite:
             vars:
               - - status
@@ -513,6 +588,14 @@ services:
                     - type: array
                       contains:
                         const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_SUM_SERVICE}
+          # Verificação grossa de permissão (decisão 0107): o token precisa ter ao menos uma permissão do tipo
+          # (`sum.*`) ou a `operate` dele. A API confere a ação, o dono e o estado (verificação fina).
+          # Roda depois do openid-connect, que já validou assinatura, emissor e audiência do token.
+          serverless-post-function:
+            phase: access
+            permission_prefix: sum.
+            functions:
+              - *coarse_permission_check
           # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
           # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
           response-rewrite:
@@ -576,6 +659,14 @@ services:
                     - type: array
                       contains:
                         const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_ACCOUNT}
+          # Verificação grossa de permissão (decisão 0107): o token precisa ter ao menos uma permissão do tipo
+          # (`bsm.account.*`) ou a `operate` dele. A API confere a ação, o dono e o estado (verificação fina).
+          # Roda depois do openid-connect, que já validou assinatura, emissor e audiência do token.
+          serverless-post-function:
+            phase: access
+            permission_prefix: bsm.account.
+            functions:
+              - *coarse_permission_check
           # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
           # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
           response-rewrite:
@@ -638,6 +729,14 @@ services:
                     - type: array
                       contains:
                         const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_PAYMENT}
+          # Verificação grossa de permissão (decisão 0107): o token precisa ter ao menos uma permissão do tipo
+          # (`bsm.payment.*`) ou a `operate` dele. A API confere a ação, o dono e o estado (verificação fina).
+          # Roda depois do openid-connect, que já validou assinatura, emissor e audiência do token.
+          serverless-post-function:
+            phase: access
+            permission_prefix: bsm.payment.
+            functions:
+              - *coarse_permission_check
           response-rewrite:
             vars:
               - - status
@@ -696,6 +795,14 @@ services:
                     - type: array
                       contains:
                         const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_CAM_ACCOUNT}
+          # Verificação grossa de permissão (decisão 0107): o token precisa ter ao menos uma permissão do tipo
+          # (`cam.account.*`) ou a `operate` dele. A API confere a ação, o dono e o estado (verificação fina).
+          # Roda depois do openid-connect, que já validou assinatura, emissor e audiência do token.
+          serverless-post-function:
+            phase: access
+            permission_prefix: cam.account.
+            functions:
+              - *coarse_permission_check
           # O 401 do plugin não tem corpo; este devolve o contrato ApiError, como o dos Receivers. Só vale para o 401 do
           # gateway (o plugin envia WWW-Authenticate); o 401 do próprio Receiver passa intacto.
           response-rewrite:

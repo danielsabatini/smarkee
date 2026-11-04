@@ -75,7 +75,7 @@ O `desired` da criação: `lifecycle = present`, `reconciliation = active`, `pla
 
 | Rota | Quem | Regra |
 |---|---|---|
-| `GET /v1/cam/accounts/{id}` | O dono (`sub == resourceId`) ou `cam.account.admin`, permissão `cam.account.get` | `200` com o `Resource`; outro solicitante recebe `404` |
+| `GET /v1/cam/accounts/{id}` | O dono (`sub == resourceId`) ou `cam.account.operate`, permissão `cam.account.get` | `200` com o `Resource`; outro solicitante recebe `404` |
 | `PATCH /v1/cam/accounts/{id}` | Idem, permissão `cam.account.delete` | Só altera `deletionProtection`. Bloqueia a linha (`FOR UPDATE`), confere `resourceVersion` (`409`), conta em remoção (`409 NotPresent`); sem mudança efetiva devolve `200` sem gravar. Com mudança: geração + 1, versão + 1, fase `Reconciling`, novo `desired` no outbox, `200` + `Resource` |
 | `DELETE /v1/cam/accounts/{id}?resourceVersion=` | Idem, permissão `cam.account.delete` | Ver seção 6. `202` + `Resource` (`phase = Deleting`) |
 
@@ -144,7 +144,7 @@ O usuário recebe o e-mail do Zitadel ("Verificar e-mail"), define a senha pela 
 
 ## 6. Remoção: `DELETE /v1/cam/accounts/{id}?resourceVersion=`
 
-Exige a permissão `cam.account.delete` (o dono ou `cam.account.admin`) e a `resourceVersion` da última leitura. A conta nasce com `deletionProtection = true`; o `PATCH` a desliga (200), e só então o `DELETE` segue (`409 DeletionProtected` enquanto ligada).
+Exige a permissão `cam.account.delete` (o dono ou `cam.account.operate`) e a `resourceVersion` da última leitura. A conta nasce com `deletionProtection = true`; o `PATCH` a desliga (200), e só então o `DELETE` segue (`409 DeletionProtected` enquanto ligada).
 
 **Exclusão segura (decisões 0040 e 0100).** Antes de aceitar, a API confere se a conta ainda tem recursos, **sem chamar outras APIs**: lê as projeções locais do Stream `DESIRED` (`ipm.organization`, `bsm.account` e `sum.service`, por `ownerAccountId` e `lifecycle = present`):
 

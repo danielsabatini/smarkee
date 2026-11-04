@@ -17,8 +17,8 @@ from ipm_user.common.contracts import generated
 
 def test_outside_catalog_lists_the_refused_permissions_sorted() -> None:
     """O catálogo é o enum `grantablePermission` do contrato (decisão 0081), e não configuração."""
-    refused = ["ipm.user.get", "ipm.organization.delete", "ipm.user.admin", "ipm.user.admin"]
-    assert outside_catalog(refused) == ["ipm.organization.delete", "ipm.user.admin"]
+    refused = ["ipm.user.get", "ipm.organization.delete", "ipm.user.operate", "ipm.user.operate"]
+    assert outside_catalog(refused) == ["ipm.organization.delete", "ipm.user.operate"]
     assert outside_catalog([permission.value for permission in generated.GrantablePermission]) == []
     assert outside_catalog([]) == []
 

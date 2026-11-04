@@ -32,7 +32,7 @@ def test_the_catalog_is_the_contract_enum_sorted() -> None:
     catalog = access.grant_catalog()
     assert catalog == sorted(permission.value for permission in generated.GrantablePermission)
     assert "ipm.user.bind" in catalog
-    assert not {"ipm.organization.create", "ipm.organization.delete", "ipm.user.admin"} & set(
+    assert not {"ipm.organization.create", "ipm.organization.delete", "ipm.user.operate"} & set(
         catalog
     )
     assert DESIRED["grantPermissions"] == catalog

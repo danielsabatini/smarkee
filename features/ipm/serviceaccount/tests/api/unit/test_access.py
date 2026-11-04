@@ -19,10 +19,10 @@ def test_outside_catalog_lists_the_refused_permissions_sorted() -> None:
     refused = [
         "ipm.serviceaccount.get",
         "ipm.organization.delete",
-        "ipm.serviceaccount.admin",
-        "ipm.serviceaccount.admin",
+        "ipm.serviceaccount.operate",
+        "ipm.serviceaccount.operate",
     ]
-    assert outside_catalog(refused) == ["ipm.organization.delete", "ipm.serviceaccount.admin"]
+    assert outside_catalog(refused) == ["ipm.organization.delete", "ipm.serviceaccount.operate"]
     assert outside_catalog([permission.value for permission in generated.GrantablePermission]) == []
     assert outside_catalog([]) == []
 

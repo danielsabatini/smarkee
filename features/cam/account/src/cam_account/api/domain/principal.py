@@ -5,7 +5,6 @@ from dataclasses import dataclass
 ACCOUNT_GET = "cam.account.get"
 ACCOUNT_DELETE = "cam.account.delete"
 ACCOUNT_OPERATE = "cam.account.operate"
-ACCOUNT_ADMIN = "cam.account.admin"  # retrocompatibilidade transitória
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,7 +18,7 @@ class Principal:
     @property
     def is_operator(self) -> bool:
         """Operadores agem em qualquer Account."""
-        return ACCOUNT_OPERATE in self.permissions or ACCOUNT_ADMIN in self.permissions
+        return ACCOUNT_OPERATE in self.permissions
 
     def has_permission(self, permission: str) -> bool:
         return permission in self.permissions

@@ -139,7 +139,7 @@ Depois de recriar o contêiner da API, reinicie o gateway (cache de DNS).
 
 - A verificação de e-mail do solicitante (a Account exige) ainda não foi decidida para o SUM.
 - Desligar não apaga: a linha fica como histórico até a conta ser removida (decisão 0033), e ainda não há retenção das linhas desligadas.
-- Kill switch e a visão de operador (`sum.service.admin`) não existem.
+- Kill switch e a visão de operador (`sum.service.operate`) não existem.
 - A validade curta do access token (decisão 0033, opção B) não está aplicada no Zitadel de dev; a CLI já renova a sessão.
 - As chaves das contas de serviço vencem em 2027-10-15 e a rotação é manual (`infrastructure/dev/README.md`).
 - Em stg/prd é preciso repetir a migração `0009-service-api`, os papéis e logins, a conta Zitadel `sum-service-controller`, a rota do gateway e a remoção dos consumers antigos (`docs/platform/IMPLEMENTATION-STATUS.md`). As contas `sum-service-executor` e `sum-service-observer` ficam sem uso.

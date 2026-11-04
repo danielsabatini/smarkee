@@ -1,7 +1,7 @@
 """Cliente do `ipm.permission` na API da plataforma (decisões 0083 e 0098).
 
 Permissões atômicas da plataforma no padrão `<módulo>.<tipo>.<ação>`. Criar, alterar e remover são
-escritas síncronas do operador (`ipm.permission.admin`): a API responde `201`, `200` e `202` (na
+escritas síncronas do operador (`ipm.permission.operate`): a API responde `201`, `200` e `202` (na
 remoção) com o recurso, e a convergência se lê em `observedGeneration` e `phase`. Não há Operation.
 A leitura das respostas é estrita.
 """
@@ -125,7 +125,7 @@ def create_permission(
     idempotency_key: str,
     allow_insecure_http: bool,
 ) -> Permission:
-    """Cria uma permissão atômica (requer ipm.permission.admin); a API a admite na hora."""
+    """Cria uma permissão atômica (requer ipm.permission.operate); a API a admite na hora."""
     valid_name = validate_permission_name(name)
     valid_desc = validate_description(description, name=valid_name)
     _, document = call_api(

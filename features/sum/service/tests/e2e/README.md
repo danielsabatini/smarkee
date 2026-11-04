@@ -22,7 +22,7 @@ Não cobre (declarado, não verificado):
   tentativas em dev. O loop completo cobre o mesmo caminho com um usuário real.
 - **Remoção da conta** (o Controller apaga as ligações do dono, decisão 0044): coberta pelo teste de
   integração do Controller, não por esta suíte.
-- **Operador** (`sum.service.admin`, visão de todas as ligações): fora do escopo.
+- **Operador** (`sum.service.operate`, visão de todas as ligações): fora do escopo.
 - Esta suíte não foi executada contra a stack real nesta etapa (declarado em
   `docs/platform/IMPLEMENTATION-STATUS.md`).
 

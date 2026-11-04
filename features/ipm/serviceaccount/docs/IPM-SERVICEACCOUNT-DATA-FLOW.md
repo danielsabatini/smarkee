@@ -50,7 +50,7 @@ Diagramas de arquitetura e estados:
 A API `ipm-serviceaccount-api`:
 - Valida o token JWT (audience `roles-ipm`).
 - Reconhece o escopo sem chamadas HTTP mútuas (decisão 0100):
-  - Operador (`ipm.serviceaccount.admin`): atua em qualquer organização;
+  - Operador (`ipm.serviceaccount.operate`): atua em qualquer organização;
   - Root: dono confirmado pelo cache local `OrganizationUsageProjection`;
   - Usuário da organização: membro confirmado pelo cache local `MemberProjection`.
 - Valida o material de chave: exige chave pública PEM RSA >= 2048 bits com validade futura de até 365 dias. Rejeita terminantemente chave privada (`400`).

@@ -10,7 +10,7 @@ Dois papéis implementados para execução no ambiente de dev (Docker Compose), 
 
 | Papel | Projeto | Estado |
 |---|---|---|
-| API | `api/` (`bsm-account-api`) | API `/v1/bsm/accounts`: `POST` 201, `PATCH` 200 e `DELETE` 202, todos com o `Resource`; sem Operation. Autentica (Zitadel), confere permissões (`bsm.account.*`), e-mail verificado e cota de 5 contas ativas por dono (sem cota para operador `bsm.account.admin`). Valida moeda imutável e bloqueia exclusão com `409 ResourcesAttached` se houver organizações vinculadas (projeção em memória de `ipm.organization`). Grava atomicamente no SSOT e no outbox numa única transação. Contrato em `openapi.json` |
+| API | `api/` (`bsm-account-api`) | API `/v1/bsm/accounts`: `POST` 201, `PATCH` 200 e `DELETE` 202, todos com o `Resource`; sem Operation. Autentica (Zitadel), confere permissões (`bsm.account.*`), e-mail verificado e cota de 5 contas ativas por dono (sem cota para operador `bsm.account.operate`). Valida moeda imutável e bloqueia exclusão com `409 ResourcesAttached` se houver organizações vinculadas (projeção em memória de `ipm.organization`). Grava atomicamente no SSOT e no outbox numa única transação. Contrato em `openapi.json` |
 | Publisher | `publisher/` (`bsm-account-publisher`) | Drena o outbox pendente em ordem de `sequence` e publica no JetStream (`desired.bsm.account.>`), com trava de sessão, envelope estrito e `Nats-Msg-Id` determinístico |
 
 A migração inicial e estrutural roda com `bsm-account-migrate` e sai.

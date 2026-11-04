@@ -1,7 +1,7 @@
 """Loop de ipm.permission (API até o Controller), com os componentes reais e o Zitadel de dev.
 
 Os pedidos entram pela API HTTP com o token de um operador (`CONFORMANCE_ACCESS_TOKEN`, que tem
-`ipm.permission.admin`): o recurso nasce `Pending`, o Publisher entrega o `desired` e o Controller
+`ipm.permission.operate`): o recurso nasce `Pending`, o Publisher entrega o `desired` e o Controller
 cria, atualiza e remove a role no projeto `roles-<módulo>`. Cada Permission é removida pela
 própria API ao final (fixture `created`).
 """

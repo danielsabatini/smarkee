@@ -8,7 +8,6 @@ ACCOUNT_LIST = "bsm.account.list"
 ACCOUNT_UPDATE = "bsm.account.update"
 ACCOUNT_DELETE = "bsm.account.delete"
 ACCOUNT_OPERATE = "bsm.account.operate"
-ACCOUNT_ADMIN = "bsm.account.admin"  # retrocompatibilidade transitória
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,7 +21,7 @@ class Principal:
     @property
     def is_operator(self) -> bool:
         """Operadores agem em qualquer Billing Account."""
-        return ACCOUNT_OPERATE in self.permissions or ACCOUNT_ADMIN in self.permissions
+        return ACCOUNT_OPERATE in self.permissions
 
     def has_permission(self, permission: str) -> bool:
         return permission in self.permissions

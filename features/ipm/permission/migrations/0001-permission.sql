@@ -112,6 +112,12 @@ WITH predefined(resource_id, permission_name, module_group, description, grantab
     ('01a1763d-eb0c-71d0-82c7-3010ed561cc5',   'bsm.account.list',   'bsm', 'Listar Billing Accounts', false),
     ('01a1763d-eb0f-75ea-8b0f-8bf1afb324fa', 'bsm.account.update', 'bsm', 'Alterar Billing Accounts', false),
     ('01a1763d-eb11-715e-96bb-90b4ab137e28',  'bsm.account.operate',  'bsm', 'Operador: qualquer Billing Account', false),
+    ('01a1a441-1769-7e97-b220-28595adbe81d', 'bsm.payment.create', 'bsm', 'Criar métodos de pagamento', false),
+    ('01a1a441-176a-7733-8653-b7e63eaa9854', 'bsm.payment.delete', 'bsm', 'Remover métodos de pagamento', false),
+    ('01a1a441-176a-74c2-9ef3-0381b4a25b0f',    'bsm.payment.get',    'bsm', 'Ler métodos de pagamento', false),
+    ('01a1a441-176a-7374-9297-8bf906219867',   'bsm.payment.list',   'bsm', 'Listar métodos de pagamento', false),
+    ('01a1a441-176a-781a-bd5a-087e62d90312', 'bsm.payment.update', 'bsm', 'Alterar métodos de pagamento', false),
+    ('01a1a441-176a-7b37-8efc-f4d38209ab56',  'bsm.payment.operate',  'bsm', 'Operador: qualquer método de pagamento', false),
     -- cam.account (roles-cam): nível de conta pessoal (register)
     ('01a1763d-eb14-74eb-86dd-6f7f4b480783', 'cam.account.delete', 'cam', 'Remover a própria conta', false),
     ('01a1763d-eb16-748d-bafc-dd2976ec27a4',    'cam.account.get',    'cam', 'Ler a própria conta', false),

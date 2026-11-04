@@ -46,7 +46,7 @@ Diagramas de arquitetura e estados:
 
 A API `ipm-permission-api`:
 - Valida o token JWT (audience `roles-ipm`).
-- Exige permissão de operador global `ipm.permission.admin`.
+- Exige permissão de operador global `ipm.permission.operate`.
 - Valida o formato estrito da chave (`^[a-z]+(\.[a-z0-9_-]+){2}$`).
 - Insere na tabela `ipm.permission` com `phase: Pending` e `generation: 1`, grava na tabela `ipm.permission_outbox` e responde síncrono `201 Created`.
 

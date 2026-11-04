@@ -40,9 +40,9 @@ Os papéis são **um projeto e uma imagem** (decisão 0063), cada um rodando com
 | Rota | Efeito | Quem | Respostas |
 |---|---|---|---|
 | `POST /v1/cam/accounts` | Auto-cadastro (**anônimo**) | Qualquer pessoa | `202` + `{resourceId}` uniforme, `400`, `429` (com `Retry-After`), `503` (com `Retry-After`) |
-| `GET /v1/cam/accounts/{id}` | Lê a conta (`Resource`) | O próprio usuário ou `cam.account.admin`, permissão `cam.account.get` | `200`, `401`, `403`, `404` |
-| `PATCH /v1/cam/accounts/{id}` | Liga ou desliga a proteção contra exclusão (corpo `{resourceVersion, deletionProtection}`; cabeçalho opcional `Idempotency-Key`) | O próprio usuário ou `cam.account.admin`, permissão `cam.account.delete` | `200` + `Resource`, `400`, `401`, `403`, `404`, `409`, `422`, `503` |
-| `DELETE /v1/cam/accounts/{id}?resourceVersion=` | Pede a remoção (cabeçalho opcional `Idempotency-Key`) | O próprio usuário ou `cam.account.admin`, permissão `cam.account.delete` | `202` + `Resource` (`phase=Deleting`), `400`, `401`, `403`, `404`, `409`, `422`, `503` |
+| `GET /v1/cam/accounts/{id}` | Lê a conta (`Resource`) | O próprio usuário ou `cam.account.operate`, permissão `cam.account.get` | `200`, `401`, `403`, `404` |
+| `PATCH /v1/cam/accounts/{id}` | Liga ou desliga a proteção contra exclusão (corpo `{resourceVersion, deletionProtection}`; cabeçalho opcional `Idempotency-Key`) | O próprio usuário ou `cam.account.operate`, permissão `cam.account.delete` | `200` + `Resource`, `400`, `401`, `403`, `404`, `409`, `422`, `503` |
+| `DELETE /v1/cam/accounts/{id}?resourceVersion=` | Pede a remoção (cabeçalho opcional `Idempotency-Key`) | O próprio usuário ou `cam.account.operate`, permissão `cam.account.delete` | `202` + `Resource` (`phase=Deleting`), `400`, `401`, `403`, `404`, `409`, `422`, `503` |
 
 Não há Operation: a convergência se lê no próprio recurso (`observedGeneration >= desiredGeneration` com `phase` `Ready` ou `Failed`; depois do `DELETE`, `404`). Não há listagem. O contrato descritivo é [`openapi.json`](openapi.json). Erros: `{errorCode, message, field?}` (`schemas/common/api-error`), sem repetir valores enviados. Quem não é o dono recebe `404`, e não `403`, para não revelar a existência.
 

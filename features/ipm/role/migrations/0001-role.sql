@@ -192,6 +192,18 @@ WITH predefined(resource_id, role_name, description, permissions) AS (
       '["bsm.account.create", "bsm.account.delete", "bsm.account.get", "bsm.account.list", "bsm.account.update"]'::jsonb
     ),
     (
+      '01a1a441-176a-799b-a00b-9eb17182f650',
+      'bsm.paymentViewer',
+      'Leitura de métodos de pagamento em bsm.payment.',
+      '["bsm.payment.get", "bsm.payment.list"]'::jsonb
+    ),
+    (
+      '01a1a441-176a-7ac0-9dcd-cbfd16924cc8',
+      'bsm.paymentAdmin',
+      'Administração de métodos de pagamento em bsm.payment.',
+      '["bsm.payment.create", "bsm.payment.delete", "bsm.payment.get", "bsm.payment.list", "bsm.payment.update"]'::jsonb
+    ),
+    (
       '01a17641-48a6-7106-88be-dc31ff14f340',
       'ipm.groupViewer',
       'Leitura de grupos de usuários em ipm.group.',

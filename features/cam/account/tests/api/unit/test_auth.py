@@ -99,13 +99,13 @@ async def test_admin_permissions_from_operator_project_claim_are_merged() -> Non
         key,
         overrides={
             "urn:zitadel:iam:org:project:396620715182260233:roles": {
-                "cam.account.admin": {"operator-org": "operator.example"},
+                "cam.account.operate": {"operator-org": "operator.example"},
                 "other.module.read": {"operator-org": "operator.example"},
             }
         },
     )
     principal = await verifier_for(Provider([jwk_of(key, "key-1")])).verify(token)
-    assert "cam.account.admin" in principal.permissions
+    assert "cam.account.operate" in principal.permissions
     assert "other.module.read" not in principal.permissions
 
 

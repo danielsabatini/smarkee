@@ -1,6 +1,6 @@
 """Comandos `sk ipm permission`: permissões atômicas da plataforma (decisões 0083 e 0098).
 
-Operadores com a permissão `ipm.permission.admin` criam, consultam, alteram, protegem e removem
+Operadores com a permissão `ipm.permission.operate` criam, consultam, alteram, protegem e removem
 permissões atômicas reconciliadas no provedor de identidade. Usuários da plataforma consultam
 (`ipm.permission.list` e `ipm.permission.get`). A API admite a escrita na hora (decisão 0098) e o
 Controller a aplica no provedor; com `--wait`, o comando espera `observedGeneration` alcançar a
@@ -61,7 +61,7 @@ ERROR_CODE_HINTS = {
 }
 NO_PERMISSION_HINT = (
     "You do not have permission for this operation. Modifying permissions requires "
-    "ipm.permission.admin."
+    "ipm.permission.operate."
 )
 
 PHASE_STYLES = {"Ready": "green", "Failed": "red"}

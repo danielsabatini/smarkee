@@ -27,7 +27,7 @@ USER_PERMISSIONS = frozenset(
         "bsm.account.delete",
     }
 )
-OPERATOR_PERMISSIONS = USER_PERMISSIONS | {"bsm.account.admin"}
+OPERATOR_PERMISSIONS = USER_PERMISSIONS | {"bsm.account.operate"}
 
 
 def principal(subject: str, permissions: frozenset[str]) -> Principal:

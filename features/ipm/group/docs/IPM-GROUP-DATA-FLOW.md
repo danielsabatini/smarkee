@@ -62,11 +62,11 @@ A requisição chega ao gateway APISIX e é roteada para a API `ipm-group-api` n
 1. **Autenticação:** validação do token JWT OIDC emitido pelo Zitadel (audience `roles-ipm`).
 2. **Escopo da Organization (sem chamadas HTTP entre features, decisão 0100):**
    - O solicitante pode ser:
-     - **Operador global:** permissão `ipm.group.admin`;
+     - **Operador global:** permissão `ipm.group.operate`;
      - **Dono da Organization (`ownerAccountId`):** identificado pela projeção em memória do stream `DESIRED` de `ipm.organization`;
      - **Membro da Organization:** identificado pelo claim `urn:zitadel:iam:org:project:<projectId>:roles` escopado ao domínio da Organization.
 3. **Autorização:**
-   - Exige `ipm.group.create` ou `ipm.group.admin`.
+   - Exige `ipm.group.create` ou `ipm.group.operate`.
    - Quando o solicitante for um membro comum atribuindo ou modificando `roles`, exige também a permissão `ipm.group.bind` (Ajuste de segurança S0).
    - E-mail do solicitante deve estar verificado (`email_verified: true`).
 
@@ -143,7 +143,7 @@ O **Controller de `ipm.user`** consome os eventos do subject `desired.ipm.group.
 ## 4. Atualização e Exclusão
 
 ### 4.1 Atualização (`PATCH /v1/ipm/groups/{resourceId}`)
-- Exige `ipm.group.update` ou `ipm.group.admin`.
+- Exige `ipm.group.update` ou `ipm.group.operate`.
 - Membros alterando `roles` necessitam de `ipm.group.bind`.
 - Concorrência otimista via `If-Match` ou `resourceVersion`.
 - Na transação da API:
@@ -154,7 +154,7 @@ O **Controller de `ipm.user`** consome os eventos do subject `desired.ipm.group.
 - Resposta síncrona `200 OK` com o recurso atualizado.
 
 ### 4.2 Exclusão (`DELETE /v1/ipm/groups/{resourceId}`)
-- Exige `ipm.group.delete` ou `ipm.group.admin`.
+- Exige `ipm.group.delete` ou `ipm.group.operate`.
 - Se `deletionProtection` estiver ativa (`true`), recusa com `409 Conflict` (`DeletionProtected`).
 - **Verificação de dependentes ativos (Ajuste 1 e decisão 0100):** a API consulta o cache local `UserUsageProjection` (Informer de `ipm.user`). Se houver usuários pertencentes ao grupo, a exclusão é recusada sincronamente com `409 Conflict` (`ResourcesAttached`), informando a quantidade de usuários dependentes.
 - Quando elegível:

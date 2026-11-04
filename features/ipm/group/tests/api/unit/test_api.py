@@ -12,12 +12,12 @@ from ipm_group.api.domain.access import OrganizationAccess
 from ipm_group.api.domain.errors import unauthorized, unavailable
 from ipm_group.api.domain.group import OwnerQuota, UniqueValue
 from ipm_group.api.domain.principal import (
-    GROUP_ADMIN,
     GROUP_BIND,
     GROUP_CREATE,
     GROUP_DELETE,
     GROUP_GET,
     GROUP_LIST,
+    GROUP_OPERATE,
     GROUP_UPDATE,
     Principal,
 )
@@ -268,7 +268,7 @@ def _setup(
         {
             "admin-token": Principal(
                 subject="operator-1",
-                permissions=frozenset({GROUP_ADMIN}),
+                permissions=frozenset({GROUP_OPERATE}),
                 access_token="admin-token",
             ),
             "owner-token": Principal(

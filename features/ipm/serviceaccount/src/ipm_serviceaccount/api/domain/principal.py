@@ -10,7 +10,6 @@ SERVICEACCOUNT_DELETE = "ipm.serviceaccount.delete"
 SERVICEACCOUNT_BIND = "ipm.serviceaccount.bind"
 """Atribuir ou retirar permissões que o solicitante não tem (semântica do RBAC do Kubernetes)."""
 
-SERVICEACCOUNT_ADMIN = "ipm.serviceaccount.admin"  # retrocompatibilidade transitória
 SERVICEACCOUNT_OPERATE = "ipm.serviceaccount.operate"
 
 
@@ -25,9 +24,7 @@ class Principal:
     @property
     def is_operator(self) -> bool:
         """Operadores agem em qualquer Organization e não têm cota (decisão 0031 e 0104)."""
-        return (
-            SERVICEACCOUNT_OPERATE in self.permissions or SERVICEACCOUNT_ADMIN in self.permissions
-        )
+        return SERVICEACCOUNT_OPERATE in self.permissions
 
     def has_permission(self, permission: str) -> bool:
         return permission in self.permissions

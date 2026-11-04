@@ -24,7 +24,7 @@ USER_PERMISSIONS = frozenset(
         "ipm.organization.delete",
     }
 )
-OPERATOR_PERMISSIONS = USER_PERMISSIONS | {"ipm.organization.admin"}
+OPERATOR_PERMISSIONS = USER_PERMISSIONS | {"ipm.organization.operate"}
 
 
 def principal(subject: str, permissions: frozenset[str]) -> Principal:

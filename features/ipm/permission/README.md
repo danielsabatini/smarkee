@@ -1,6 +1,6 @@
 # ipm.permission
 
-A **Permission** é o catálogo operacional de permissões atômicas da plataforma (`.decisions/0083-ipm-permission-ipm-role-e-fim-da-trava-de-deploy.md`): um recurso global do módulo `ipm` sob o formato `<módulo>.<tipo>.<ação>` (ex.: `bsm.account.create`, `ipm.user.bind`, `ipm.permission.admin`) gerenciado pelo Resource Control Loop (`docs/loop/RESOURCE-CONTROL-LOOP.md`).
+A **Permission** é o catálogo operacional de permissões atômicas da plataforma (`.decisions/0083-ipm-permission-ipm-role-e-fim-da-trava-de-deploy.md`): um recurso global do módulo `ipm` sob o formato `<módulo>.<tipo>.<ação>` (ex.: `bsm.account.create`, `ipm.user.bind`, `ipm.permission.operate`) gerenciado pelo Resource Control Loop (`docs/loop/RESOURCE-CONTROL-LOOP.md`).
 
 Cada Permission é reconciliada pelo `ipm-permission-controller` como uma role de projeto no projeto `roles-<módulo>` na organização `core` do Zitadel (`AddProjectRole`, `UpdateProjectRole` e `RemoveProjectRole`), eliminando travas de *redeploy* para criação e evolução de permissões na plataforma. Alterações em permissões com `grantable = true` propagam-se assincronamente via NATS para atualizar os Project Grants das Organizations (`ipm.organization`).
 
@@ -12,7 +12,7 @@ Os três papéis estão implementados para execução no ambiente de dev (Compos
 
 | Papel | Projeto | Estado |
 |---|---|---|
-| API | `api/` (`ipm-permission-api`) | API `/v1/ipm/permissions`: leitura por `ipm.permission.get`/`ipm.permission.list` e escrita restrita a operadores (`ipm.permission.admin`). Admite a escrita numa transação (unicidade de `name` entre as Permissions ativas, `description` diferente de `name`, geração, recurso e `desired` no outbox); `POST` 201, `PATCH` 200 e `DELETE` 202, com o `Resource`. Contrato em `openapi.json` |
+| API | `api/` (`ipm-permission-api`) | API `/v1/ipm/permissions`: leitura por `ipm.permission.get`/`ipm.permission.list` e escrita restrita a operadores (`ipm.permission.operate`). Admite a escrita numa transação (unicidade de `name` entre as Permissions ativas, `description` diferente de `name`, geração, recurso e `desired` no outbox); `POST` 201, `PATCH` 200 e `DELETE` 202, com o `Resource`. Contrato em `openapi.json` |
 | Publisher | `publisher/` (`ipm-permission-publisher`) | Publica o outbox no NATS (`desired.ipm.permission.>` e `updated.ipm.permission.>`) |
 | Controller | `controller/` (`ipm-permission-controller`) | Decisão 0096: lê a role em `roles-<módulo>` (ou `roles-operator`), decide, cria, atualiza ou remove, reobserva e grava estado e `updated` numa só transação. Substitui Reconciler, Observer e Executor |
 | Testes e2e | `tests/e2e/` | Black-box: contrato, loop completo e caos (Publisher e Controller) |

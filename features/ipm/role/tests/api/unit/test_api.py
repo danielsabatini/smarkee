@@ -11,12 +11,12 @@ import httpx
 from ipm_role.api.domain.access import OrganizationAccess
 from ipm_role.api.domain.errors import unauthorized, unavailable
 from ipm_role.api.domain.principal import (
-    ROLE_ADMIN,
     ROLE_BIND,
     ROLE_CREATE,
     ROLE_DELETE,
     ROLE_GET,
     ROLE_LIST,
+    ROLE_OPERATE,
     ROLE_UPDATE,
     Principal,
 )
@@ -273,7 +273,7 @@ class Harness:
     def client(self) -> httpx.AsyncClient:
         auth = FakeAuthenticator(
             {
-                "admin-token": Principal("operator-1", frozenset({ROLE_ADMIN}), "admin-token"),
+                "admin-token": Principal("operator-1", frozenset({ROLE_OPERATE}), "admin-token"),
                 "viewer-token": Principal(
                     "viewer-1", frozenset({ROLE_GET, ROLE_LIST}), "viewer-token"
                 ),
@@ -426,7 +426,7 @@ async def test_a_serviceaccount_acts_in_its_own_organization_as_a_member() -> No
 async def test_permissions_are_capped_at_the_grantable_catalog() -> None:
     harness = Harness()
     async with harness.client() as client:
-        body = {**CREATE_BODY, "permissions": ["ipm.user.get", "ipm.permission.admin"]}
+        body = {**CREATE_BODY, "permissions": ["ipm.user.get", "ipm.permission.operate"]}
         for token in ("admin-token", "owner-token"):  # o teto vale também para o operador
             refused = await client.post("/v1/ipm/roles", json=body, headers=_bearer(token))
             assert refused.status_code == 400
@@ -554,7 +554,7 @@ async def test_update_checks_scope_bind_and_the_grantable_cap() -> None:
                 "/v1/ipm/roles/role-acme", json=change, headers=_bearer("member-token")
             )
         ).status_code == 200
-        above = {"resourceVersion": "3", "permissions": ["ipm.permission.admin"]}
+        above = {"resourceVersion": "3", "permissions": ["ipm.permission.operate"]}
         assert (
             await client.patch(
                 "/v1/ipm/roles/role-acme", json=above, headers=_bearer("member-token")

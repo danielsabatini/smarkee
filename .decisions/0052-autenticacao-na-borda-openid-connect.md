@@ -2,6 +2,7 @@
 
 - **Data:** 2026-10-17
 - **Status:** Aceita e implementada em desenvolvimento (`infrastructure/dev/gateway`). Origem: a validação de JWT no gateway, adiada em 2026-10-16 (o `jwt` do Kong OSS não cobria) e desbloqueada pela decisão 0049.
+- **Revisão (2026-11-03):** a decisão 0107 acrescenta a verificação grossa de permissão no gateway; "o gateway só autentica" e "roles no gateway fora do escopo" deixam de valer. A autenticação aqui descrita permanece.
 
 ## Contexto
 

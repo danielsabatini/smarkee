@@ -15,7 +15,7 @@ from ipm_permission.api.http.app import Dependencies, create_app
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
 READER_PERMISSIONS = frozenset({"ipm.permission.get", "ipm.permission.list"})
-OPERATOR_PERMISSIONS = READER_PERMISSIONS | {"ipm.permission.admin"}
+OPERATOR_PERMISSIONS = READER_PERMISSIONS | {"ipm.permission.operate"}
 
 
 def principal(subject: str, permissions: frozenset[str]) -> Principal:

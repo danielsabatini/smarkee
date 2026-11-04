@@ -49,7 +49,7 @@ Diagramas de arquitetura e estados:
 A API `ipm-user-api`:
 - Valida o token JWT (audience `roles-ipm`).
 - Reconhece o escopo:
-  - Operador (`ipm.user.admin`): atua em qualquer organização;
+  - Operador (`ipm.user.operate`): atua em qualquer organização;
   - Root: dono confirmado pelo cache local `OrganizationUsageProjection` (sem chamada HTTP a `ipm.organization`);
   - Usuário da organização: identificado pelo próprio registro no SSOT (`resourceId == sub`) e permissão `ipm.user.create`.
 - Valida cota de usuários da Organization e unicidade do e-mail.

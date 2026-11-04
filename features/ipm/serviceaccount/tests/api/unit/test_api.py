@@ -85,7 +85,7 @@ PRINCIPALS = {
     "eve": principal("eve", SA_PERMISSIONS | {"ipm.serviceaccount.bind"}),
     # Usuário humano da `org-1`, reconhecido pelo Receiver de User.
     "human": principal("human", SA_PERMISSIONS | {"ipm.serviceaccount.bind"}),
-    "admin": principal("admin", SA_PERMISSIONS | {"ipm.serviceaccount.admin"}),
+    "admin": principal("admin", SA_PERMISSIONS | {"ipm.serviceaccount.operate"}),
     "norole": principal("norole", frozenset()),
 }
 

@@ -61,8 +61,8 @@ A requisição chega ao gateway APISIX e é roteada para a API `ipm-role-api` na
 ### 1.1 Autenticação e Autorização na API
 1. **Autenticação:** validação do token JWT OIDC emitido pelo Zitadel (audience `roles-ipm`).
 2. **Autorização:**
-   - Para roles predefinidas da plataforma (`predefined`, organização `core`): exige permissão `ipm.role.admin`.
-   - Para roles customizadas de organização (`custom`): exige `ipm.role.create` ou `ipm.role.admin` e pertinência à organização solicitada.
+   - Para roles predefinidas da plataforma (`predefined`, organização `core`): exige permissão `ipm.role.operate`.
+   - Para roles customizadas de organização (`custom`): exige `ipm.role.create` ou `ipm.role.operate` e pertinência à organização solicitada.
    - E-mail do solicitante deve estar verificado (`email_verified: true`).
 
 ### 1.2 Validações de Domínio e Admissão Síncrona
@@ -139,7 +139,7 @@ As mensagens publicadas no Stream `DESIRED` alimentam:
 ## 4. Atualização e Exclusão
 
 ### 4.1 Atualização (`PATCH /v1/ipm/roles/{resourceId}`)
-- Exige `ipm.role.update` ou `ipm.role.admin`.
+- Exige `ipm.role.update` ou `ipm.role.operate`.
 - Controle de concorrência otimista via cabeçalho `If-Match` ou campo `resourceVersion`.
 - Roles pré-definidas da plataforma (`roleType == predefined`) são imutáveis e retornam `403 Forbidden` (`PredefinedRoleProtected`).
 - Na transação da API:
@@ -150,7 +150,7 @@ As mensagens publicadas no Stream `DESIRED` alimentam:
 - Resposta síncrona `200 OK` com o recurso atualizado.
 
 ### 4.2 Exclusão (`DELETE /v1/ipm/roles/{resourceId}`)
-- Exige `ipm.role.delete` ou `ipm.role.admin`.
+- Exige `ipm.role.delete` ou `ipm.role.operate`.
 - Roles pré-definidas não podem ser excluídas (`403 Forbidden`).
 - Se `deletionProtection` estiver ativa (`true`), recusa com `409 Conflict` (`DeletionProtected`).
 - **Verificação de dependentes ativos (Ajuste 1 e decisão 0100):** a API consulta o cache local `RoleUsageProjection`. Se houver usuários ou grupos referenciando a role, a exclusão é recusada sincronamente com `409 Conflict` (`ResourcesAttached`), listando a contagem de dependentes.

@@ -30,7 +30,7 @@ def principal(subject: str, permissions: frozenset[str]) -> Principal:
 PRINCIPALS = {
     "ana": principal("ana", OWNER_PERMISSIONS),
     "bia": principal("bia", OWNER_PERMISSIONS),
-    "admin": principal("admin", OWNER_PERMISSIONS | {"cam.account.admin"}),
+    "admin": principal("admin", OWNER_PERMISSIONS | {"cam.account.operate"}),
     "noperm": principal("noperm", frozenset()),
 }
 

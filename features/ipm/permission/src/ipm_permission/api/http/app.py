@@ -6,7 +6,7 @@ responde `201`, `PATCH` responde `200` e `DELETE` responde `202`, todos com o `R
 convergência se acompanha lendo o recurso (`observedGeneration`, `phase` e `conditions`). Ela não
 tem credencial no provedor de identidade. As leituras vêm das views do SSOT.
 
-Permissions são do catálogo da plataforma: só o operador (`ipm.permission.admin`) as cria, altera
+Permissions são do catálogo da plataforma: só o operador (`ipm.permission.operate`) as cria, altera
 e remove; quem tem `get` ou `list` lê (decisão 0083).
 """
 
@@ -185,7 +185,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         principal: Authenticated,
         idempotency_key: IdempotencyKey = None,
     ) -> generated.Permission:
-        require(principal, permissions.PERMISSION_ADMIN)
+        require(principal, permissions.PERMISSION_OPERATE)
         if description_repeats_name(body.description, body.name):
             raise bad_request(
                 "A descrição da permissão deve descrever a ação e não repetir a chave.",
@@ -247,7 +247,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         principal: Authenticated,
         idempotency_key: IdempotencyKey = None,
     ) -> generated.Permission:
-        require(principal, permissions.PERMISSION_ADMIN)
+        require(principal, permissions.PERMISSION_OPERATE)
         record = await existing_permission(permission_id)
         if not body.resource_version.isdigit():
             raise bad_request("resourceVersion deve ser numérico.", field="resourceVersion")
@@ -295,7 +295,7 @@ def _register_routes(app: FastAPI, deps: Dependencies) -> None:
         resource_version: VersionQuery,
         idempotency_key: IdempotencyKey = None,
     ) -> generated.Permission:
-        require(principal, permissions.PERMISSION_ADMIN)
+        require(principal, permissions.PERMISSION_OPERATE)
         record = await existing_permission(permission_id)
         check_version(record, resource_version)
         if deletion_protected(record.desired):

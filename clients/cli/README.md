@@ -226,7 +226,7 @@ Os quatro tipos seguem o mesmo ciclo (decisão 0098): `create`, `update`, `prote
 | `user` | Organization (`--organization-id` ou a ativa) | Nasce **sem senha**: a pessoa define a senha pelo e-mail de ativação e entra com `sk auth login`. `update` **substitui** as roles e os grupos pelos valores dados; `--no-roles` e `--no-groups` removem todos. Novos usuários não nascem protegidos |
 | `group` | Organization | Agrupa roles compostas. `--role` substitui as roles do grupo; `--no-roles` limpa. O nome é um slug de 2 a 63 caracteres (minúsculas, números e hífen) |
 | `role` | Organization (`custom`) ou da plataforma (predefinida) | Nome no formato `<módulo>.<nomeDaRole>`. `--permission` lista as permissões atômicas da role e, no `update`, substitui as atuais. `list` mostra as predefinidas e as `custom` da Organization |
-| `permission` | Plataforma (operador) | Permissão atômica no formato `<módulo>.<tipo>.<ação>`. `--grantable` / `--not-grantable` diz se pode ser delegada a Organizations de clientes; no `update`, sem a opção, o valor não muda. Criar, alterar e remover exigem `ipm.permission.admin`; consultar exige `ipm.permission.get` / `list` |
+| `permission` | Plataforma (operador) | Permissão atômica no formato `<módulo>.<tipo>.<ação>`. `--grantable` / `--not-grantable` diz se pode ser delegada a Organizations de clientes; no `update`, sem a opção, o valor não muda. Criar, alterar e remover exigem `ipm.permission.operate`; consultar exige `ipm.permission.get` / `list` |
 
 As recusas da API viram dicas na saída (por exemplo, `ipm.user.bind` para mudar roles de um usuário e `ipm.group.bind` para as de um grupo). Códigos de saída: como em `sk sum service`.
 
