@@ -126,12 +126,14 @@ async def test_stops_at_first_failure_to_preserve_order(
 
 
 async def test_advisory_lock_allows_only_one_leader(publisher_conn: Connection) -> None:
+    # Chave própria do teste: o Publisher em execução já detém a trava do outbox real.
+    lock_key = "bsm.locktest_" + unique_suffix()
     second = await connect("bsm_payment_publisher_login")
     try:
-        assert await try_acquire_lock(publisher_conn) is True
-        assert await holds_lock(publisher_conn) is True
-        assert await try_acquire_lock(second) is False
-        assert await holds_lock(second) is False
+        assert await try_acquire_lock(publisher_conn, lock_key) is True
+        assert await holds_lock(publisher_conn, lock_key) is True
+        assert await try_acquire_lock(second, lock_key) is False
+        assert await holds_lock(second, lock_key) is False
     finally:
         await second.close()
         await publisher_conn.execute("SELECT pg_advisory_unlock_all()")
