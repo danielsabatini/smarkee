@@ -15,6 +15,7 @@ from referencing import Registry, Resource
 from referencing.exceptions import NoSuchResource
 
 from sk.features.bsm import account as bsm_account
+from sk.features.bsm import payment as bsm_payment
 from sk.features.cam import account as cam_account
 from sk.features.ipm import group as ipm_group
 from sk.features.ipm import organization as ipm_organization
@@ -281,6 +282,44 @@ def test_bsm_account_create_payload_conforms_to_schema(monkeypatch: pytest.Monke
     )
     assert len(captured) == 1
     assert_schema_valid("bsm/account/api-create-request.v1.schema.json", captured[0])
+
+
+def test_bsm_payment_create_payload_conforms_to_schema(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[dict[str, Any]] = []
+
+    def fake_call_api(
+        method: str, url: str, path: str, *, body: dict[str, Any] | None = None, **_: Any
+    ) -> tuple[int, dict[str, Any]]:
+        if body is not None:
+            captured.append(body)
+        return 201, {
+            "resourceId": "pay-1",
+            "resourceVersion": "1",
+            "desiredGeneration": 1,
+            "phase": "Pending",
+            "desired": {
+                "lifecycle": "present",
+                "customerAccountId": "394397791373230085",
+                "displayName": "Corporate Visa",
+                "provider": "mercadopago",
+                "methodType": "credit_card",
+            },
+        }
+
+    monkeypatch.setattr("sk.features.bsm.payment.call_api", fake_call_api)
+    bsm_payment.create_payment(
+        "https://api.smarkee.internal",
+        token="test-token",
+        customer_account_id="394397791373230085",
+        display_name="Corporate Visa",
+        provider="mercadopago",
+        method_type="credit_card",
+        provider_token="mp_tok_visa_4242",
+        idempotency_key="idemp-1",
+        allow_insecure_http=True,
+    )
+    assert len(captured) == 1
+    assert_schema_valid("bsm/payment/api-create-request.v1.schema.json", captured[0])
 
 
 def test_sum_service_enable_payload_conforms_to_schema(monkeypatch: pytest.MonkeyPatch) -> None:

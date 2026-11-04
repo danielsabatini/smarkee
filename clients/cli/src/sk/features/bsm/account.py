@@ -46,6 +46,7 @@ class BillingAccount:
     """Presença lida do provedor (`present`, `absent`, `unknown`); `None` antes da observação."""
     account_type: str = "free"
     customer_account_id: str = ""
+    payment_id: str | None = None
     failure_reason: str | None = None
 
 
@@ -161,6 +162,7 @@ def _billing_account(document: object) -> BillingAccount:
     presence = observed.get("presence")
     raw_type = desired.get("type")
     raw_customer_account_id = desired.get("customerAccountId")
+    raw_payment_id = desired.get("paymentId")
     return BillingAccount(
         resource_id=as_text(body, "resourceId", what="billing account"),
         resource_version=as_text(body, "resourceVersion", what="billing account"),
@@ -177,6 +179,7 @@ def _billing_account(document: object) -> BillingAccount:
         customer_account_id=(
             raw_customer_account_id if isinstance(raw_customer_account_id, str) else ""
         ),
+        payment_id=raw_payment_id if isinstance(raw_payment_id, str) else None,
         failure_reason=_failure_reason(body),
     )
 
@@ -190,6 +193,7 @@ def create_account(
     display_name: str,
     billing_currency: str,
     billing_contacts: list[str],
+    payment_id: str | None = None,
     deletion_protection: bool | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
@@ -206,6 +210,8 @@ def create_account(
         "billingCurrency": billing_currency,
         "billingContacts": contacts,
     }
+    if payment_id is not None:
+        body["paymentId"] = validate_identifier(payment_id, what="paymentId")
     if deletion_protection is not None:
         body["deletionProtection"] = deletion_protection
     _, document = call_api(
@@ -228,6 +234,7 @@ def update_account(
     resource_version: str,
     display_name: str | None = None,
     billing_contacts: list[str] | None = None,
+    payment_id: str | None = None,
     idempotency_key: str,
     allow_insecure_http: bool,
 ) -> BillingAccount:
@@ -237,6 +244,8 @@ def update_account(
         body["displayName"] = validate_display_name(display_name)
     if billing_contacts is not None:
         body["billingContacts"] = validate_billing_contacts(billing_contacts)
+    if payment_id is not None:
+        body["paymentId"] = validate_identifier(payment_id, what="paymentId")
     _, document = call_api(
         "PATCH",
         api_url,

@@ -230,17 +230,26 @@ Os quatro tipos seguem o mesmo ciclo (decisão 0098): `create`, `update`, `prote
 
 As recusas da API viram dicas na saída (por exemplo, `ipm.user.bind` para mudar roles de um usuário e `ipm.group.bind` para as de um grupo). Códigos de saída: como em `sk sum service`.
 
-## Billing Accounts (`sk bsm account`)
+## Billing Accounts e Métodos de Pagamento (`sk bsm account` e `sk bsm payment`)
 
 ```bash
-uv run sk bsm account create --type free|paid --customer-account ID --display-name NOME --currency BRL|USD|EUR --billing-contacts EMAIL... [--wait]
+uv run sk bsm payment create --customer-account ID --display-name NOME --card-nonce NONCE [--provider mercadopago] [--method-type credit_card] [--wait/--no-wait]
+uv run sk bsm payment get --resource-id ID
+uv run sk bsm payment list
+uv run sk bsm payment update --resource-id ID [--display-name NOME] [--card-nonce NONCE] [--wait/--no-wait]
+uv run sk bsm payment protect|unprotect|delete --resource-id ID [--wait/--no-wait]
+
+uv run sk bsm account create --type free|paid --customer-account ID [--payment-id ID] --display-name NOME --currency BRL|USD|EUR --billing-contacts EMAIL... [--wait/--no-wait]
 uv run sk bsm account get [--resource-id ID]
 uv run sk bsm account list
-uv run sk bsm account update [--resource-id ID] [--display-name NOME] [--billing-contacts EMAIL]... [--wait]
-uv run sk bsm account protect|unprotect|delete [--resource-id ID] [--wait]
+uv run sk bsm account update [--resource-id ID] [--display-name NOME] [--billing-contacts EMAIL]... [--payment-id ID] [--wait/--no-wait]
+uv run sk bsm account protect|unprotect|delete [--resource-id ID] [--wait/--no-wait]
 ```
 
-Usa o token da sessão e a API de `[api] url`; o token precisa trazer as permissões `bsm.account.*` (concedidas ao habilitar `bsm` no SUM: `sk sum service enable --service bsm`). `--type` (`free` | `paid`), `--customer-account` (`customerAccountId`) e `--currency` não mudam depois da criação. `--billing-contacts` aceita de 1 a 10 e-mails distintos (repetido ou separado por vírgula) e, no `update`, **substitui** a lista. Como na Organization, existe a **Billing Account ativa** (`[bsm] accountId` ou `SK_BSM_ACCOUNT_ID`): sem `--resource-id`, os comandos usam a ativa. O `create --wait` grava a nova como ativa **só se não houver uma**; havendo, a saída mostra o `sk config set bsm.accountId ID` para trocar. A Billing Account nasce protegida: `unprotect` precede o `delete`.
+Usa o token da sessão e a API de `[api] url`; o token precisa trazer as permissões `bsm.account.*` e `bsm.payment.*` (concedidas ao habilitar `bsm` no SUM: `sk sum service enable --service bsm`).
+
+- **Métodos de Pagamento (`bsm.payment`, `external-reconciled`):** pertencem à Customer Account (`--customer-account`) e registram um nonce de tokenização emitido pelo SDK do gateway (`--provider-token` / `--card-nonce`, sem nunca trafegar ou armazenar PAN/CVV na Smarkee). O Controller reconcilia o método junto ao gateway externo (Mercado Pago Customers & Cards API) e grava apenas metadados não sensíveis (`brand`, `lastFourDigits`, `expirationMonth`, `expirationYear`, `status`). Um método de pagamento em uso por uma Billing Account `paid` ativa não pode ser removido (`409 ResourcesAttached`).
+- **Billing Accounts (`bsm.account`, `internal-state`):** `--type` (`free` | `paid`), `--customer-account` (`customerAccountId`) e `--currency` não mudam depois da criação. Quando `--type paid`, `--payment-id` é obrigatório e deve apontar para um `bsm.payment` ativo (`Ready`) da mesma Customer Account; quando `--type free`, `--payment-id` não é aceito. No `update` de uma conta `paid`, `--payment-id` permite substituir o método de pagamento vinculado. `--billing-contacts` aceita de 1 a 10 e-mails distintos (repetido ou separado por vírgula) e, no `update`, **substitui** a lista. Como na Organization, existe a **Billing Account ativa** (`[bsm] accountId` ou `SK_BSM_ACCOUNT_ID`): sem `--resource-id`, os comandos usam a ativa. O `create --wait` grava a nova como ativa **só se não houver uma**; havendo, a saída mostra o `sk config set bsm.accountId ID` para trocar. Tanto `bsm.payment` quanto `bsm.account` nascem protegidos contra remoção: `unprotect` precede o `delete`.
 
 ## Service accounts (`sk ipm serviceaccount`, alias `sa`)
 

@@ -631,3 +631,167 @@ def test_json_delete_with_wait_prints_the_removed_state(api: FakeApi) -> None:
     result = runner.invoke(app, [*JSON, "bsm", "account", "delete", "--resource-id", RID, "--wait"])
     assert result.exit_code == 0, result.stderr
     assert _document(result.stdout) == {"resourceId": RID, "state": "removed"}
+
+
+# --- `sk bsm payment` e vínculo `--payment-id` em `sk bsm account` ---------------------------
+
+PAYMENT_RID = "019c8a40-0000-7000-8000-000000000042"
+PAYMENTS_PATH = "/v1/bsm/payments"
+PAYMENT_URL = f"{PAYMENTS_PATH}/{PAYMENT_RID}"
+
+
+def payment_document(
+    *,
+    customer_account_id: str = "394397791373230085",
+    display_name: str = "Corporate Visa",
+    phase: str = "Ready",
+    presence: str | None = "present",
+    version: str = "1",
+    protected: bool = True,
+    desired_generation: int = 1,
+    observed_generation: int | None = 1,
+) -> dict[str, Any]:
+    return {
+        "resourceId": PAYMENT_RID,
+        "resourceVersion": version,
+        "desiredGeneration": desired_generation,
+        "observedGeneration": observed_generation,
+        "phase": phase,
+        "conditions": [],
+        "desired": {
+            "lifecycle": "present",
+            "reconciliation": "active",
+            "customerAccountId": customer_account_id,
+            "displayName": display_name,
+            "provider": "mercadopago",
+            "methodType": "credit_card",
+            "deletionProtection": protected,
+        },
+        **(
+            {
+                "observed": {
+                    "presence": presence,
+                    "provider": "mercadopago",
+                    "methodType": "credit_card",
+                    "status": "active",
+                    "brand": "visa",
+                    "lastFourDigits": "4242",
+                    "expirationMonth": 12,
+                    "expirationYear": 2030,
+                    "providerCustomerId": "mp_cust_1",
+                    "providerPaymentMethodId": "mp_card_1",
+                }
+            }
+            if presence
+            else {}
+        ),
+        "createdAt": "2026-10-16T10:00:00+00:00",
+        "updatedAt": "2026-10-16T10:00:05+00:00",
+    }
+
+
+def test_paid_account_requires_payment_id_and_free_rejects_it(api: FakeApi) -> None:
+    missing_payment = runner.invoke(
+        app,
+        [
+            "bsm",
+            "account",
+            "create",
+            "--type",
+            "paid",
+            "--customer-account",
+            "394397791373230085",
+            "--display-name",
+            "Acme Paid",
+            "--currency",
+            "BRL",
+            "--billing-contacts",
+            "finops@acme.com",
+        ],
+    )
+    assert missing_payment.exit_code == 2
+    assert "--payment-id" in missing_payment.stderr
+
+    free_with_payment = runner.invoke(
+        app,
+        [
+            "bsm",
+            "account",
+            "create",
+            "--type",
+            "free",
+            "--customer-account",
+            "394397791373230085",
+            "--payment-id",
+            PAYMENT_RID,
+            "--display-name",
+            "Acme Free",
+            "--currency",
+            "BRL",
+            "--billing-contacts",
+            "finops@acme.com",
+        ],
+    )
+    assert free_with_payment.exit_code == 2
+    assert "--payment-id" in free_with_payment.stderr
+    assert api.requests == []
+
+
+def test_payment_create_get_list_update_and_delete(api: FakeApi) -> None:
+    api.routes[("POST", PAYMENTS_PATH)] = Response(
+        201, payment_document(phase="Pending", presence=None, observed_generation=None)
+    )
+    api.routes[("GET", PAYMENT_URL)] = Response(200, payment_document())
+
+    created = runner.invoke(
+        app,
+        [
+            "bsm",
+            "payment",
+            "create",
+            "--customer-account",
+            "394397791373230085",
+            "--display-name",
+            "Corporate Visa",
+            "--provider-token",
+            "mp_tok_visa_4242",
+            "--wait",
+        ],
+    )
+    assert created.exit_code == 0, created.stdout + created.stderr
+    assert "Payment Method created" in created.stdout
+    assert "visa" in created.stdout and "4242" in created.stdout
+
+    api.routes[("GET", PAYMENTS_PATH)] = Response(200, {"items": [payment_document()]})
+    listed = runner.invoke(app, ["bsm", "payment", "list"])
+    assert listed.exit_code == 0, listed.stderr
+    assert "Corporate Visa" in listed.stdout
+
+    api.routes[("PATCH", PAYMENT_URL)] = Response(
+        200, payment_document(display_name="Mastercard Gold", version="2")
+    )
+    updated = runner.invoke(
+        app,
+        [
+            "bsm",
+            "payment",
+            "update",
+            "--resource-id",
+            PAYMENT_RID,
+            "--display-name",
+            "Mastercard Gold",
+            "--no-wait",
+        ],
+    )
+    assert updated.exit_code == 0, updated.stderr
+
+    api.routes[("GET", PAYMENT_URL)] = [
+        Response(200, payment_document(protected=False)),
+        http_error(404, "NotFound", "Recurso não encontrado."),
+    ]
+    api.routes[("DELETE", PAYMENT_URL)] = Response(202, payment_document(phase="Deleting"))
+    deleted = runner.invoke(
+        app, ["bsm", "payment", "delete", "--resource-id", PAYMENT_RID, "--wait"]
+    )
+    assert deleted.exit_code == 0, deleted.stderr
+    assert "Payment Method deleted" in deleted.stdout
