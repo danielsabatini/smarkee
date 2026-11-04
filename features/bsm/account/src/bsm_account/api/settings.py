@@ -47,9 +47,6 @@ class ApiSettings(Section):
     paid_account_quota: int = 5
     """Cota de Billing Accounts `paid` ativas por Customer Account."""
 
-    payment_methods_file: str | None = None
-    """Caminho do arquivo JSON local de formas de pagamento para validação de contas `paid`."""
-
 
 class AccountApiSettings(RoleSettings):
     model_config = role_config("api")

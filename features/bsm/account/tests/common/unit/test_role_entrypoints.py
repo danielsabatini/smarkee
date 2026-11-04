@@ -100,6 +100,7 @@ async def test_the_api_serves_http_and_leaves_the_probes_to_the_app(
     assert await api_main.run(AccountApiSettings()) == 0
     assert runtime.started == [
         "organization-usage-projection",
+        "payment-projection",
         "http",
     ]
     assert runtime.health_port is None

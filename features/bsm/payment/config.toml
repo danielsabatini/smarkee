@@ -1,0 +1,41 @@
+# Configuração de dev de bsm.payment (decisão 0067). Sem segredos: eles vêm do ambiente ou de /run/secrets.
+# Tabela por papel: [tool.bsm.payment.<papel>.<seção>]. Precedência: CLI > ambiente > este arquivo > segredos > default.
+
+[tool.bsm.payment.api.auth]
+host_header = "ipm-dev.smarkee.com.br:8080"
+issuer = "http://ipm-dev.smarkee.com.br:8080"
+jwks_url = "http://gateway.gateway.svc.cluster.local:8000/oauth/v2/keys"
+
+[tool.bsm.payment.api.database]
+host = "database-rw.database.svc.cluster.local"
+name = "ssot"
+port = 5432
+user = "bsm_payment_api_login"
+
+[tool.bsm.payment.api.messaging]
+url = "nats://messaging.messaging.svc.cluster.local:4222"
+user = "smarkee"
+
+[tool.bsm.payment.publisher.database]
+host = "database-rw.database.svc.cluster.local"
+name = "ssot"
+port = 5432
+user = "bsm_payment_publisher_login"
+
+[tool.bsm.payment.publisher.messaging]
+url = "nats://messaging.messaging.svc.cluster.local:4222"
+user = "smarkee"
+
+[tool.bsm.payment.controller.database]
+host = "database-rw.database.svc.cluster.local"
+name = "ssot"
+port = 5432
+user = "bsm_payment_controller_login"
+
+[tool.bsm.payment.controller.mercadopago]
+base_url = "https://api.mercadopago.com"
+simulation_mode = true
+
+[tool.bsm.payment.controller.messaging]
+url = "nats://messaging.messaging.svc.cluster.local:4222"
+user = "smarkee"

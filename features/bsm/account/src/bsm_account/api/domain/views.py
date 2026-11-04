@@ -36,11 +36,17 @@ def account_view(record: ResourceRecord) -> generated.BillingAccount:
             "displayName": record.desired["displayName"],
             "billingCurrency": record.desired["billingCurrency"],
             "billingContacts": record.desired["billingContacts"],
+            **(
+                {"paymentId": str(record.desired["paymentId"])}
+                if record.desired.get("paymentId") is not None
+                else {}
+            ),
             "deletionProtection": record.desired.get("deletionProtection", True),
         },
     }
     observed = record.observed
     if observed is not None and record.presence is not None and record.observed_at is not None:
+        observed_payment_id = observed.get("paymentId", record.desired.get("paymentId"))
         payload["observed"] = {
             "presence": record.presence,
             "observedAt": record.observed_at.isoformat(),
@@ -53,6 +59,7 @@ def account_view(record: ResourceRecord) -> generated.BillingAccount:
             "displayName": observed.get("displayName", record.desired["displayName"]),
             "billingCurrency": observed.get("billingCurrency", record.desired["billingCurrency"]),
             "billingContacts": observed.get("billingContacts", record.desired["billingContacts"]),
+            **({"paymentId": str(observed_payment_id)} if observed_payment_id is not None else {}),
             "deletionProtection": observed.get(
                 "deletionProtection", record.desired.get("deletionProtection", True)
             ),

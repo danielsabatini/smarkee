@@ -1,0 +1,15 @@
+.env
+.env.*
+.venv
+.pytest_cache
+.ruff_cache
+.coverage
+**/__pycache__
+tests
+docs
+telemeter
+migrations
+consumers
+openapi.json
+**/README.md
+compose.yaml

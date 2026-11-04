@@ -37,12 +37,12 @@ from bsm_account.api.http.ports import (
     AdmissionStore,
     EmailVerifier,
     Organizations,
-    PaymentMethodVerifier,
+    Payments,
     Repository,
 )
 from bsm_account.api.http.trace_context import TraceContextMiddleware
 from bsm_account.api.settings import AccountApiSettings
-from bsm_account.api.store.payment_methods import FilePaymentMethodVerifier
+from bsm_account.api.transport.payment_projection import PaymentProjection
 from bsm_account.common.contracts import generated
 from bsm_account.common.ids import new_identifier, utc_now
 from bsm_account.common.logging_config import bind_context
@@ -66,9 +66,7 @@ class Dependencies:
     repository: Repository
     store: AdmissionStore
     organizations: Organizations
-    payment_methods: PaymentMethodVerifier = field(
-        default_factory=lambda: FilePaymentMethodVerifier(None)
-    )
+    payments: Payments = field(default_factory=PaymentProjection)
     identifiers: Callable[[], str] = new_identifier
     is_synced: Callable[[], bool] = lambda: True
 
@@ -227,24 +225,38 @@ def create_app(deps: Dependencies) -> FastAPI:
                     else deps.settings.api.free_account_quota
                 )
 
-        if account_type == "paid" and not deps.payment_methods.has_active_payment_method(
-            customer_account_id
-        ):
-            raise ApiError(
-                HTTPStatus.CONFLICT,
-                "PaymentMethodRequired",
-                "A Customer Account não possui forma de pagamento ativa "
-                "para criar uma Billing Account do tipo paid.",
-                field="type",
+        if account_type == "paid":
+            if body.payment_id is None:
+                raise ApiError(
+                    HTTPStatus.CONFLICT,
+                    "PaymentMethodRequired",
+                    "Uma Billing Account do tipo paid exige o vínculo com um método de pagamento "
+                    "ativo (paymentId).",
+                    field="paymentId",
+                )
+            if not deps.payments.is_active_payment(body.payment_id, customer_account_id):
+                raise ApiError(
+                    HTTPStatus.CONFLICT,
+                    "PaymentMethodRequired",
+                    "O método de pagamento informado não existe, não está ativo ou não pertence "
+                    "à Customer Account.",
+                    field="paymentId",
+                )
+        elif body.payment_id is not None:
+            raise bad_request(
+                "Billing Accounts do tipo free não aceitam método de pagamento (paymentId).",
+                field="paymentId",
             )
 
-        specification = {
+        specification: dict[str, Any] = {
             "type": account_type,
             "customerAccountId": customer_account_id,
             "displayName": body.display_name,
             "billingCurrency": body.billing_currency.value,
             "billingContacts": _contacts(body.billing_contacts),
         }
+        if body.payment_id is not None:
+            specification["paymentId"] = body.payment_id
         resource_id = deps.identifiers()
         key = checked_idempotency_key(idempotency_key)
         digest = request_digest({"operation": "create", "specification": specification})
@@ -284,6 +296,25 @@ def create_app(deps: Dependencies) -> FastAPI:
             specification["displayName"] = body.display_name
         if body.billing_contacts is not None:
             specification["billingContacts"] = _contacts(body.billing_contacts)
+        if body.payment_id is not None:
+            account_type = str(record.desired.get("type") or "free")
+            if account_type != "paid":
+                raise bad_request(
+                    "Billing Accounts do tipo free não aceitam método de pagamento (paymentId).",
+                    field="paymentId",
+                )
+            customer_account_id = str(
+                record.desired.get("customerAccountId") or record.desired["ownerAccountId"]
+            )
+            if not deps.payments.is_active_payment(body.payment_id, customer_account_id):
+                raise ApiError(
+                    HTTPStatus.CONFLICT,
+                    "PaymentMethodRequired",
+                    "O método de pagamento informado não existe, não está ativo ou não pertence "
+                    "à Customer Account.",
+                    field="paymentId",
+                )
+            specification["paymentId"] = body.payment_id
         if body.deletion_protection is not None:
             specification["deletionProtection"] = body.deletion_protection
         reconciliation = body.reconciliation.value if body.reconciliation is not None else None

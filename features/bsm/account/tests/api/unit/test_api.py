@@ -4,7 +4,6 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -16,7 +15,6 @@ from bsm_account.api.domain.principal import Principal
 from bsm_account.api.domain.records import ResourceRecord
 from bsm_account.api.http.app import Dependencies, create_app
 from bsm_account.api.settings import AccountApiSettings
-from bsm_account.api.store.payment_methods import FilePaymentMethodVerifier
 from bsm_account.common.contracts import generated
 
 NOW = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
@@ -66,6 +64,14 @@ class FakeOrganizations:
 
     def has_attached_organizations(self, billing_account_id: str) -> bool:
         return billing_account_id in self.attached
+
+
+class FakePayments:
+    def __init__(self) -> None:
+        self.active: dict[str, str] = {}
+
+    def is_active_payment(self, payment_id: str, customer_account_id: str) -> bool:
+        return self.active.get(payment_id) == customer_account_id
 
 
 class FakeRepository:
@@ -264,12 +270,12 @@ class Harness:
     store: FakeAdmissionStore
     emails: FakeEmailVerifier
     organizations: FakeOrganizations
+    payments: FakePayments
     settings: AccountApiSettings
-    payment_methods_file: Path
 
 
 @pytest.fixture
-def harness(tmp_path: Path) -> Harness:
+def harness() -> Harness:
     seq = 0
 
     def next_id() -> str:
@@ -282,7 +288,7 @@ def harness(tmp_path: Path) -> Harness:
     store = FakeAdmissionStore(repository)
     emails = FakeEmailVerifier()
     organizations = FakeOrganizations()
-    payment_methods_file = tmp_path / "payment-methods.json"
+    payments = FakePayments()
     deps = Dependencies(
         settings=settings,
         authenticator=FakeAuthenticator(),
@@ -290,7 +296,7 @@ def harness(tmp_path: Path) -> Harness:
         repository=repository,
         store=store,
         organizations=organizations,
-        payment_methods=FilePaymentMethodVerifier(payment_methods_file),
+        payments=payments,
         identifiers=next_id,
     )
     client = httpx.AsyncClient(
@@ -302,8 +308,8 @@ def harness(tmp_path: Path) -> Harness:
         store,
         emails,
         organizations,
+        payments,
         settings,
-        payment_methods_file,
     )
 
 
@@ -462,31 +468,72 @@ async def test_paid_account_requires_active_payment_method_and_has_quota_of_five
         "PaymentMethodRequired",
     )
 
-    harness.payment_methods_file.write_text(
-        '{"accounts": [{"customerAccountId": "ana", '
-        '"status": "active", "methodType": "credit_card"}]}',
-        encoding="utf-8",
+    unknown_pm = await harness.client.post(
+        "/v1/bsm/accounts",
+        json={**paid_payload, "paymentId": "pm-inexistente"},
+        headers=auth("ana"),
     )
+    assert (unknown_pm.status_code, unknown_pm.json()["errorCode"]) == (
+        409,
+        "PaymentMethodRequired",
+    )
+
+    free_with_pm = await harness.client.post(
+        "/v1/bsm/accounts",
+        json={**CREATE_PAYLOAD, "paymentId": "pm-ana-1"},
+        headers=auth("ana"),
+    )
+    assert (free_with_pm.status_code, free_with_pm.json()["errorCode"]) == (
+        400,
+        "ValidationFailed",
+    )
+
+    harness.payments.active["pm-ana-1"] = "ana"
     # Pode ter 1 free + até 5 paid
     free_res = await harness.client.post(
         "/v1/bsm/accounts", json=CREATE_PAYLOAD, headers=auth("ana")
     )
     assert free_res.status_code == 201
 
+    first_paid_id: str | None = None
     for idx in range(5):
         res = await harness.client.post(
             "/v1/bsm/accounts",
-            json={**CREATE_PAYLOAD, "type": "paid", "displayName": f"Paid {idx}"},
+            json={
+                **CREATE_PAYLOAD,
+                "type": "paid",
+                "displayName": f"Paid {idx}",
+                "paymentId": "pm-ana-1",
+            },
             headers=auth("ana"),
         )
         assert res.status_code == 201, res.text
+        assert res.json()["desired"]["paymentId"] == "pm-ana-1"
+        if first_paid_id is None:
+            first_paid_id = res.json()["resourceId"]
 
     sixth = await harness.client.post(
         "/v1/bsm/accounts",
-        json={**CREATE_PAYLOAD, "type": "paid", "displayName": "Paid 6"},
+        json={
+            **CREATE_PAYLOAD,
+            "type": "paid",
+            "displayName": "Paid 6",
+            "paymentId": "pm-ana-1",
+        },
         headers=auth("ana"),
     )
     assert (sixth.status_code, sixth.json()["errorCode"]) == (403, "QuotaExceeded")
+
+    # Atualização do paymentId em conta paid
+    harness.payments.active["pm-ana-2"] = "ana"
+    assert first_paid_id is not None
+    patched = await harness.client.patch(
+        f"/v1/bsm/accounts/{first_paid_id}",
+        json={"resourceVersion": "1", "paymentId": "pm-ana-2"},
+        headers=auth("ana"),
+    )
+    assert patched.status_code == 200
+    assert patched.json()["desired"]["paymentId"] == "pm-ana-2"
 
 
 @pytest.mark.parametrize(

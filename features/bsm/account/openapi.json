@@ -117,6 +117,20 @@
             "title": "Displayname",
             "type": "string"
           },
+          "paymentId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentid"
+          },
           "type": {
             "$ref": "#/components/schemas/BillingAccountType"
           }
@@ -173,6 +187,20 @@
           },
           "lifecycle": {
             "$ref": "#/components/schemas/Lifecycle"
+          },
+          "paymentId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentid"
           },
           "reconciliation": {
             "$ref": "#/components/schemas/Reconciliation"
@@ -300,6 +328,20 @@
             "title": "Observedat",
             "type": "string"
           },
+          "paymentId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentid"
+          },
           "presence": {
             "$ref": "#/components/schemas/Presence"
           },
@@ -374,6 +416,20 @@
               }
             ],
             "title": "Displayname"
+          },
+          "paymentId": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentid"
           },
           "reconciliation": {
             "anyOf": [

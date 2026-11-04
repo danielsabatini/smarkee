@@ -41,6 +41,7 @@ PROFILES: dict[str, tuple[str, ...]] = {
     # Processo `api` (decisão 0098): probes, OpenAPI e contexto de trace; as demais peças são do tipo.
     "api-http": (
         "bsm/account",
+        "bsm/payment",
         "cam/account",
         "ipm/group",
         "ipm/organization",

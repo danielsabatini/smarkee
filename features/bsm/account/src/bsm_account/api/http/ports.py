@@ -27,10 +27,10 @@ class EmailVerifier(Protocol):
     async def is_verified(self, principal: Principal) -> bool: ...
 
 
-class PaymentMethodVerifier(Protocol):
-    """Confere se uma Customer Account tem forma de pagamento ativa para Billing Account `paid`."""
+class Payments(Protocol):
+    """Projeção local de métodos de pagamento (`bsm.payment`, decisão 0100)."""
 
-    def has_active_payment_method(self, customer_account_id: str) -> bool: ...
+    def is_active_payment(self, payment_id: str, customer_account_id: str) -> bool: ...
 
 
 class AdmissionTransaction(Protocol):

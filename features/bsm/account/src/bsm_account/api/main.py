@@ -6,7 +6,6 @@ consulta ficam em `http/`, `domain/` e `store/`.
 
 import logging
 import sys
-from pathlib import Path
 
 import httpx
 
@@ -14,11 +13,14 @@ from bsm_account.api.auth.tokens import EmailVerification, TokenVerifier
 from bsm_account.api.http.app import Dependencies, create_app
 from bsm_account.api.settings import AccountApiSettings, missing_required
 from bsm_account.api.store.admission import SsotAdmissionStore
-from bsm_account.api.store.payment_methods import FilePaymentMethodVerifier
 from bsm_account.api.store.repository import SsotRepository
 from bsm_account.api.transport.organization_usage_projection import (
     ORGANIZATION_SUBJECT,
     OrganizationUsageProjection,
+)
+from bsm_account.api.transport.payment_projection import (
+    PAYMENT_SUBJECT,
+    PaymentProjection,
 )
 from bsm_account.common.database import open_pool
 from bsm_account.common.http.server import serve_http
@@ -52,12 +54,23 @@ async def run(settings: AccountApiSettings) -> int:
         )
         runtime.start("organization-usage-projection", organization_consumer.run(runtime.stop))
 
-        def is_synced() -> bool:
-            return organization_consumer.is_synced
-
-        payment_methods_path = (
-            Path(settings.api.payment_methods_file) if settings.api.payment_methods_file else None
+        # Métodos de pagamento ativos (`bsm.payment`), sem consulta HTTP (0100).
+        payments = PaymentProjection()
+        payment_consumer = StateConsumer(
+            runtime.stream,
+            payments,
+            durable=f"bsm-account-api-payments-{instance}",
+            stream="DESIRED",
+            filter_subject=PAYMENT_SUBJECT,
+            inactive_threshold_seconds=300,
+            traced=False,
+            on_cycle=runtime.health.beat,
         )
+        runtime.start("payment-projection", payment_consumer.run(runtime.stop))
+
+        def is_synced() -> bool:
+            return organization_consumer.is_synced and payment_consumer.is_synced
+
         app = create_app(
             Dependencies(
                 settings=settings,
@@ -66,7 +79,7 @@ async def run(settings: AccountApiSettings) -> int:
                 repository=SsotRepository(pool),
                 store=SsotAdmissionStore(pool),
                 organizations=organizations,
-                payment_methods=FilePaymentMethodVerifier(payment_methods_path),
+                payments=payments,
                 is_synced=is_synced,
             )
         )

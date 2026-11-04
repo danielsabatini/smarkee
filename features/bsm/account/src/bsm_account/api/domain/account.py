@@ -53,9 +53,10 @@ def validate_contacts(contacts: list[str]) -> list[str]:
 
 def desired_for_create(specification: Mapping[str, Any], requested_by: str) -> dict[str, Any]:
     customer_account_id = str(specification.get("customerAccountId") or requested_by)
-    return {
+    account_type = str(specification.get("type") or "free")
+    desired: dict[str, Any] = {
         "lifecycle": "present",
-        "type": str(specification.get("type") or "free"),
+        "type": account_type,
         "customerAccountId": customer_account_id,
         "displayName": specification["displayName"],
         "billingCurrency": specification["billingCurrency"],
@@ -63,6 +64,9 @@ def desired_for_create(specification: Mapping[str, Any], requested_by: str) -> d
         "deletionProtection": True,  # todo recurso apagável nasce protegido (decisão 0043)
         "ownerAccountId": customer_account_id,
     }
+    if specification.get("paymentId") is not None:
+        desired["paymentId"] = str(specification["paymentId"])
+    return desired
 
 
 def desired_for_update(current: Mapping[str, Any], changes: Mapping[str, Any]) -> dict[str, Any]:
@@ -71,6 +75,8 @@ def desired_for_update(current: Mapping[str, Any], changes: Mapping[str, Any]) -
         updated["displayName"] = changes["displayName"]
     if "billingContacts" in changes:
         updated["billingContacts"] = validate_contacts(list(changes["billingContacts"]))
+    if "paymentId" in changes:
+        updated["paymentId"] = changes["paymentId"]
     if "deletionProtection" in changes:
         updated["deletionProtection"] = changes["deletionProtection"]
     return updated
