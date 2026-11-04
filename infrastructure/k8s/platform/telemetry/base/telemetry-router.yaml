@@ -55,6 +55,9 @@ spec:
             condition: attributes["smarkee.module"] == "bsm" and attributes["smarkee.resource.type"] == "account"
             pipelines: [logs/bsm_account]
           - context: resource
+            condition: attributes["smarkee.module"] == "bsm" and attributes["smarkee.resource.type"] == "payment"
+            pipelines: [logs/bsm_payment]
+          - context: resource
             condition: attributes["smarkee.module"] == "cam" and attributes["smarkee.resource.type"] == "account"
             pipelines: [logs/cam_account]
           - context: resource
@@ -85,6 +88,9 @@ spec:
           - context: span
             condition: attributes["apisix.service_name"] == "bsm-account-api"
             pipelines: [traces/bsm_account]
+          - context: span
+            condition: attributes["apisix.service_name"] == "bsm-payment-api"
+            pipelines: [traces/bsm_payment]
           - context: span
             condition: attributes["apisix.service_name"] == "cam-account-api"
             pipelines: [traces/cam_account]
@@ -181,6 +187,20 @@ spec:
           max_elapsed_time: 10m
       otlp_grpc/bsm_account:
         endpoint: bsm-account-telemeter.bsm.svc.cluster.local:4317
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+          block_on_overflow: false
+          storage: file_storage
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 10m
+      otlp_grpc/bsm_payment:
+        endpoint: bsm-payment-telemeter.bsm.svc.cluster.local:4317
         tls:
           insecure: true
         sending_queue:
@@ -324,6 +344,10 @@ spec:
           receivers: [routing/logs]
           processors: [batch]
           exporters: [otlp_grpc/bsm_account]
+        logs/bsm_payment:
+          receivers: [routing/logs]
+          processors: [batch]
+          exporters: [otlp_grpc/bsm_payment]
         logs/cam_account:
           receivers: [routing/logs]
           processors: [batch]
@@ -368,6 +392,10 @@ spec:
           receivers: [routing/traces]
           processors: [batch]
           exporters: [otlp_grpc/bsm_account]
+        traces/bsm_payment:
+          receivers: [routing/traces]
+          processors: [batch]
+          exporters: [otlp_grpc/bsm_payment]
         traces/cam_account:
           receivers: [routing/traces]
           processors: [batch]

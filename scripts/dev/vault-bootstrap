@@ -742,6 +742,7 @@ GATEWAY_AUD_IPM_USER="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDI
 GATEWAY_AUD_IPM_SERVICEACCOUNT="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_IPM_SERVICEACCOUNT" "nao-configurada")"
 GATEWAY_AUD_SUM_SERVICE="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_SUM_SERVICE" "nao-configurada")"
 GATEWAY_AUD_BSM_ACCOUNT="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_ACCOUNT" "nao-configurada")"
+GATEWAY_AUD_BSM_PAYMENT="$(read_env_val "${GATEWAY_ENV}" "SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_PAYMENT" "${GATEWAY_AUD_BSM_ACCOUNT}")"
 IDENTITY_MASTERKEY="$(read_env_val "${REPO_ROOT}/infrastructure/dev/identity/.env" "SMARKEE_IDENTITY_MASTERKEY" "0123456789abcdef0123456789abcdef")"
 IDENTITY_ADMIN_PASSWORD="$(read_env_val "${REPO_ROOT}/infrastructure/dev/identity/.env" "SMARKEE_IDENTITY_ADMIN_PASSWORD" "Smarkee@Dev2026!")"
 IDENTITY_SESSION_SECRET="$(read_env_val "${REPO_ROOT}/infrastructure/dev/identity/.env" "SMARKEE_IDENTITY_SESSION_COOKIE_SECRET" "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")"
@@ -761,7 +762,8 @@ bao_core bao kv put svm/gateway \
   audience_ipm_user="${GATEWAY_AUD_IPM_USER}" \
   audience_ipm_serviceaccount="${GATEWAY_AUD_IPM_SERVICEACCOUNT}" \
   audience_sum_service="${GATEWAY_AUD_SUM_SERVICE}" \
-  audience_bsm_account="${GATEWAY_AUD_BSM_ACCOUNT}" >/dev/null
+  audience_bsm_account="${GATEWAY_AUD_BSM_ACCOUNT}" \
+  audience_bsm_payment="${GATEWAY_AUD_BSM_PAYMENT}" >/dev/null
 
 bao_core bao kv put svm/database/admin \
   postgres_password="postgres" \
@@ -841,6 +843,7 @@ seed_feature_secret() {
 
 seed_feature_secret "cam" "account" "true"
 seed_feature_secret "bsm" "account" "false"
+seed_feature_secret "bsm" "payment" "true"
 seed_feature_secret "sum" "service" "true"
 seed_feature_secret "ipm" "organization" "true"
 seed_feature_secret "ipm" "user" "true"

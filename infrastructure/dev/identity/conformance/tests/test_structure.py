@@ -34,6 +34,11 @@ ACTION_ROLES_BY_PROJECT = {
         "bsm.account.get",
         "bsm.account.list",
         "bsm.account.update",
+        "bsm.payment.create",
+        "bsm.payment.delete",
+        "bsm.payment.get",
+        "bsm.payment.list",
+        "bsm.payment.update",
     },
     "roles-cam": {"cam.account.delete", "cam.account.get"},
     "roles-ipm": {
@@ -105,7 +110,7 @@ ACTION_ROLES_BY_PROJECT = {
     },
 }
 ADMIN_ROLES_BY_PROJECT = {
-    "roles-bsm": {"bsm.account.operate"},
+    "roles-bsm": {"bsm.account.operate", "bsm.payment.operate"},
     "roles-cam": {"cam.account.operate"},
     "roles-ipm": {
         "ipm.organization.operate",
@@ -655,6 +660,7 @@ REPOSITORY = Path(__file__).resolve().parents[5]
 ENV_FILES = {
     "cli": REPOSITORY / "clients" / "cli" / ".env",
     "bsm.account": REPOSITORY / "features" / "bsm" / "account" / ".env",
+    "bsm.payment": REPOSITORY / "features" / "bsm" / "payment" / ".env",
     "cam.account": REPOSITORY / "features" / "cam" / "account" / ".env",
     "sum.service": REPOSITORY / "features" / "sum" / "service" / ".env",
     "ipm.organization": REPOSITORY / "features" / "ipm" / "organization" / ".env",
@@ -667,6 +673,7 @@ ENV_FILES = {
 # Variável de cada `.env` → o que ela deve apontar na instância.
 EXPECTED_AUDIENCE = {
     "bsm.account": ("BSM_ACCOUNT_RECEIVER_AUTH_AUDIENCE", "roles-bsm"),
+    "bsm.payment": ("BSM_PAYMENT_API_AUTH_AUDIENCE", "roles-bsm"),
     "cam.account": ("CAM_ACCOUNT_API_AUTH_AUDIENCE", "roles-cam"),
     "sum.service": ("SUM_SERVICE_RECEIVER_AUTH_AUDIENCE", "roles-sum"),
     "ipm.organization": ("IPM_ORGANIZATION_API_AUTH_AUDIENCE", "roles-ipm"),
@@ -762,6 +769,7 @@ def test_the_ids_in_the_env_files_match_the_instance(
     }
     for feature in (
         "bsm.account",
+        "bsm.payment",
         "cam.account",
         "sum.service",
         "ipm.organization",

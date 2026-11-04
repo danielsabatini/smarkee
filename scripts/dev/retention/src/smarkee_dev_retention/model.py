@@ -26,6 +26,10 @@ TARGET_TABLES: tuple[TargetTable, ...] = (
     TargetTable(
         "bsm", "account", "bsm", "account_idempotency", "idempotency", "bsm_maintenance_login"
     ),
+    TargetTable("bsm", "payment", "bsm", "payment_outbox", "outbox", "bsm_maintenance_login"),
+    TargetTable(
+        "bsm", "payment", "bsm", "payment_idempotency", "idempotency", "bsm_maintenance_login"
+    ),
     TargetTable(
         "sum", "service", "sum", "service_outbox", "outbox", "sum_service_maintenance_login"
     ),

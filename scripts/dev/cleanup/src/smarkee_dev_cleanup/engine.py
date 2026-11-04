@@ -8,6 +8,7 @@ from smarkee_dev_cleanup.model import (
     GROUPS,
     ORGANIZATION_USERS,
     ORGANIZATIONS,
+    PAYMENTS,
     PERMISSIONS,
     POLL_SECONDS,
     REMOVAL_WAIT_SECONDS,
@@ -67,6 +68,9 @@ def find(ports: Ports, *, orphans: bool = False) -> Findings:
         for row in ports.ssot.rows(BILLING_ACCOUNTS)
         if TEST_BILLING_ACCOUNT_NAME.match(row.label)
     ]
+    findings.payment_rows = [
+        row for row in ports.ssot.rows(PAYMENTS) if TEST_BILLING_ACCOUNT_NAME.match(row.label)
+    ]
     findings.organization_rows = [
         row for row in ports.ssot.rows(ORGANIZATIONS) if TEST_ORGANIZATION_NAME.match(row.label)
     ]
@@ -109,6 +113,7 @@ def _find_history(
     for kind in (
         ACCOUNTS,
         BILLING_ACCOUNTS,
+        PAYMENTS,
         ORGANIZATIONS,
         SERVICES,
         ORGANIZATION_USERS,
@@ -124,6 +129,7 @@ def _find_history(
         BILLING_ACCOUNTS: [
             row for row in orphans[BILLING_ACCOUNTS] if TEST_BILLING_ACCOUNT_NAME.match(row.label)
         ],
+        PAYMENTS: [row for row in orphans[PAYMENTS] if TEST_BILLING_ACCOUNT_NAME.match(row.label)],
         ORGANIZATIONS: [
             row for row in orphans[ORGANIZATIONS] if TEST_ORGANIZATION_NAME.match(row.label)
         ],
@@ -153,6 +159,7 @@ async def find_everywhere(ports: Ports, *, orphans: bool) -> Findings:
             for kind in (
                 ACCOUNTS,
                 BILLING_ACCOUNTS,
+                PAYMENTS,
                 ORGANIZATIONS,
                 SERVICES,
                 ORGANIZATION_USERS,
@@ -221,6 +228,7 @@ async def apply(
         (ROLES, findings.role_rows),
         (PERMISSIONS, findings.permission_rows),
         (BILLING_ACCOUNTS, findings.billing_account_rows),
+        (PAYMENTS, findings.payment_rows),
         (ACCOUNTS, findings.account_rows),
     ):
         for row in rows:
@@ -243,6 +251,7 @@ async def apply(
         (ROLES, remaining.role_rows),
         (PERMISSIONS, remaining.permission_rows),
         (BILLING_ACCOUNTS, remaining.billing_account_rows),
+        (PAYMENTS, remaining.payment_rows),
         (ACCOUNTS, remaining.account_rows),
     ):
         if rows:
@@ -258,6 +267,7 @@ async def apply(
         ROLES,
         PERMISSIONS,
         BILLING_ACCOUNTS,
+        PAYMENTS,
         ACCOUNTS,
     ):
         ids = {row.resource_id for row in remaining.history.get(kind, [])}

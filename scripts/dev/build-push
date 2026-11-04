@@ -51,6 +51,7 @@ docker push -q "${REGISTRY}/smarkee-psql-client:${TAG}" >/dev/null
 FEATURES=(
   "cam/account"
   "bsm/account"
+  "bsm/payment"
   "sum/service"
   "ipm/organization"
   "ipm/user"

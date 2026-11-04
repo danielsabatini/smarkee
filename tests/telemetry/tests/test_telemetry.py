@@ -37,6 +37,7 @@ FEATURE_TELEMETRY_DIRS = [
             str(REPOSITORY / "features" / module / kind / "telemeter")
             for module, kind in (
                 ("bsm", "account"),
+                ("bsm", "payment"),
                 ("cam", "account"),
                 ("ipm", "group"),
                 ("ipm", "organization"),
@@ -383,6 +384,7 @@ def feature_prefix(telemeter: Path) -> str:
 # Uma rota sem token de cada feature: o gateway responde 401, e o span dela é o que o teste procura.
 FEATURE_ROUTES = {
     "bsm-account": "/v1/bsm/accounts",
+    "bsm-payment": "/v1/bsm/payments",
     "cam-account": "/v1/cam/accounts/probe",
     "ipm-group": "/v1/ipm/groups",
     "ipm-organization": "/v1/ipm/organizations",
@@ -637,6 +639,7 @@ def test_infra_metrics_cover_database_identity_and_messaging_with_otel_semconv(
         "account_outbox",
         "group_outbox",
         "organization_outbox",
+        "payment_outbox",
         "permission_outbox",
         "role_outbox",
         "service_outbox",

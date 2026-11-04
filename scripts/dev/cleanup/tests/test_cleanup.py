@@ -19,6 +19,7 @@ from smarkee_dev_cleanup.model import (
     GROUPS,
     ORGANIZATION_USERS,
     ORGANIZATIONS,
+    PAYMENTS,
     PERMISSIONS,
     ROLES,
     SERVICEACCOUNTS,
@@ -514,6 +515,7 @@ def test_history_of_removed_test_resources_is_found_and_the_rest_is_kept() -> No
     assert findings.kept_history == {
         ACCOUNTS: 2,
         BILLING_ACCOUNTS: 0,
+        PAYMENTS: 0,
         ORGANIZATIONS: 1,
         SERVICES: 2,
         ORGANIZATION_USERS: 1,

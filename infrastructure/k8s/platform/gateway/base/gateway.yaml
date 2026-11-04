@@ -58,6 +58,10 @@ spec:
       remoteRef:
         key: gateway
         property: audience_bsm_account
+    - secretKey: SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_PAYMENT
+      remoteRef:
+        key: gateway
+        property: audience_bsm_payment
 ---
 apiVersion: v1
 kind: Service

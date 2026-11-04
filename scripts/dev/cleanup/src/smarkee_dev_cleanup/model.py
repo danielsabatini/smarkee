@@ -158,6 +158,18 @@ BILLING_ACCOUNTS = Kind(
     deletion_protected=True,
     removable_through_requested=False,
 )
+PAYMENTS = Kind(
+    "bsm",
+    "payment",
+    "bsm.payment",
+    ("bsm.payment_outbox", "bsm.payment_idempotency"),
+    "bsm_payment_api_login",
+    "bsm_maintenance_login",
+    "displayName",
+    deletion_protected=True,
+    delete_role="bsm_payment_controller_login",
+    removable_through_requested=False,
+)
 # Permissions atômicas (decisões 0084 e 0098): existem só no SSOT, como role de projeto no Zitadel;
 # não têm plano de dados. A API síncrona não tem `requested`: a limpeza apaga a linha direto com o
 # papel do Controller, e a role de projeto sai pela remoção pela API (e2e). Nascem protegidas.
@@ -231,6 +243,7 @@ class Findings:
     zitadel_organizations: dict[str, str] = field(default_factory=lambda: {})
     account_rows: list[Row] = field(default_factory=lambda: [])
     billing_account_rows: list[Row] = field(default_factory=lambda: [])
+    payment_rows: list[Row] = field(default_factory=lambda: [])
     service_rows: list[Row] = field(default_factory=lambda: [])
     organization_rows: list[Row] = field(default_factory=lambda: [])
     organization_user_rows: list[Row] = field(default_factory=lambda: [])
@@ -252,6 +265,7 @@ class Findings:
             or self.zitadel_organizations
             or self.account_rows
             or self.billing_account_rows
+            or self.payment_rows
             or self.service_rows
             or self.organization_rows
             or self.organization_user_rows
@@ -286,6 +300,7 @@ class Findings:
                 f"SSOT bsm.account {row.resource_id}  {row.label}"
                 for row in self.billing_account_rows
             ),
+            *(f"SSOT bsm.payment {row.resource_id}  {row.label}" for row in self.payment_rows),
             *(f"SSOT sum.service {row.resource_id}  {row.label}" for row in self.service_rows),
             *(
                 f"SSOT ipm.organization {row.resource_id}  {row.label}"
@@ -332,6 +347,9 @@ class Findings:
             BILLING_ACCOUNTS: {row.resource_id for row in self.billing_account_rows}
             | self._history_ids(BILLING_ACCOUNTS)
             | self.message_orphans.get(BILLING_ACCOUNTS, set()),
+            PAYMENTS: {row.resource_id for row in self.payment_rows}
+            | self._history_ids(PAYMENTS)
+            | self.message_orphans.get(PAYMENTS, set()),
             SERVICES: {row.resource_id for row in self.service_rows}
             | self._history_ids(SERVICES)
             | self.message_orphans.get(SERVICES, set()),

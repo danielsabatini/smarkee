@@ -18,7 +18,9 @@ data:
         -- cam
         'cam_account_api', 'cam_account_controller', 'cam_account_publisher', 'cam_maintenance',
         -- bsm
-        'bsm_account_api', 'bsm_account_publisher', 'bsm_maintenance',
+        'bsm_account_api', 'bsm_account_publisher',
+        'bsm_payment_api', 'bsm_payment_controller', 'bsm_payment_publisher',
+        'bsm_maintenance',
         -- sum
         'sum_service_api', 'sum_service_controller', 'sum_service_publisher', 'sum_service_maintenance',
         -- ipm

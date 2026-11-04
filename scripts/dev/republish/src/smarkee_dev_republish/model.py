@@ -40,6 +40,9 @@ USERS = Kind("ipm", "user", "ipm.user", "ipm.user_outbox", "ipm_user_api_login")
 BILLING_ACCOUNTS = Kind(
     "bsm", "account", "bsm.account", "bsm.account_outbox", "bsm_account_api_login"
 )
+PAYMENTS = Kind(
+    "bsm", "payment", "bsm.payment", "bsm.payment_outbox", "bsm_payment_api_login"
+)
 PERMISSIONS = Kind(
     "ipm",
     "permission",
@@ -63,6 +66,7 @@ ALL_KINDS: tuple[Kind, ...] = (
     ORGANIZATIONS,
     USERS,
     BILLING_ACCOUNTS,
+    PAYMENTS,
     PERMISSIONS,
     ROLES,
     GROUPS,

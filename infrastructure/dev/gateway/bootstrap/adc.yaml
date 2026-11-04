@@ -594,6 +594,64 @@ services:
                 WWW-Authenticate: Bearer realm="smarkee"
             body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
 
+  # API de bsm.payment (decisão 0098): a API `/v1/bsm/payments`.
+  - name: bsm-payment-api
+    upstream:
+      scheme: http
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        - host: bsm-payment-api.smarkee.internal
+          port: 8000
+          weight: 100
+    routes:
+      - name: bsm-payment-api
+        hosts:
+          - api-dev.smarkee.com.br
+        uris:
+          - /v1/bsm/payments
+          - /v1/bsm/payments/*
+        plugins:
+          openid-connect:
+            client_id: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_PAYMENT}
+            discovery: http://ipm-dev.smarkee.com.br:8080/.well-known/openid-configuration
+            bearer_only: true
+            use_jwks: true
+            realm: smarkee
+            token_signing_alg_values_expected: RS256
+            jwk_expires_in: 3600
+            set_access_token_header: false
+            set_id_token_header: false
+            set_userinfo_header: false
+            claim_validator:
+              issuer:
+                valid_issuers:
+                  - http://ipm-dev.smarkee.com.br:8080
+            claim_schema:
+              type: object
+              required: [sub, exp, iss, aud]
+              properties:
+                aud:
+                  anyOf:
+                    - type: string
+                      const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_PAYMENT}
+                    - type: array
+                      contains:
+                        const: ${SMARKEE_GATEWAY_AUTH_AUDIENCE_BSM_PAYMENT}
+          response-rewrite:
+            vars:
+              - - status
+                - "=="
+                - 401
+              - - sent_http_www_authenticate
+                - "~~"
+                - "^Bearer"
+            headers:
+              set:
+                Content-Type: application/json
+                WWW-Authenticate: Bearer realm="smarkee"
+            body: '{"errorCode":"Unauthorized","message":"Token ausente ou inválido."}'
+
   - name: cam-account-api
     upstream:
       scheme: http

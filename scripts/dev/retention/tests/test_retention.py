@@ -42,7 +42,7 @@ def test_filter_targets() -> None:
 
     outbox_only = filter_targets(table_kind="outbox")
     assert all(t.table_kind == "outbox" for t in outbox_only)
-    assert len(outbox_only) == 9
+    assert len(outbox_only) == 10
 
     perm_outbox = filter_targets(module="ipm", resource_type="permission", table_kind="outbox")
     assert len(perm_outbox) == 1
