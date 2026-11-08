@@ -1,0 +1,30 @@
+flowchart LR
+    classDef src fill:#e3f2fd,stroke:#1565c0,color:#0d2b4d
+    classDef file fill:#fff8e1,stroke:#ef6c00,color:#5a2d00
+    classDef meta fill:#ede7f6,stroke:#5e35b1,color:#1a0933
+
+    PG["PostgreSQL (CloudNativePG)<br/>bancos identity e ssot"]:::src
+    NATS["NATS JetStream<br/>DESIRED · UPDATED · AUDIT"]:::src
+    BAO["OpenBao (raft)<br/>svm · ekm · clm"]:::src
+    REG["Registry local<br/>/var/lib/registry"]:::src
+    VOL["Volume Docker<br/>identity-bootstrap"]:::src
+    LOC[".env (14) e<br/>.workspace/*.json"]:::src
+    GIT["Git · ArgoCD · kubectl"]:::src
+
+    subgraph PKG["smarkee-k8s-TS.tar.zst"]
+        DB["db/<br/>*.dump · globals.sql<br/>*.rowcounts.tsv"]:::file
+        NT["nats/<br/>stream.tar.s2 + counts.tsv"]:::file
+        VT["vault/raft.snap"]:::file
+        RG["registry/<br/>registry.tar.zst (~98%)"]:::file
+        VL["volumes/<br/>identity-bootstrap.tar"]:::file
+        EV["env/ e workspace/"]:::file
+        MF["manifest.json<br/>SHA256SUMS"]:::meta
+    end
+
+    PG -- "pg_dump -Fc · pg_dumpall" --> DB
+    NATS -- "nats stream backup" --> NT
+    BAO -- "raft snapshot save" --> VT
+    REG -- "tar + zstd" --> RG
+    VOL -- "tar" --> VL
+    LOC -- "cópia" --> EV
+    GIT -- "commit e estado" --> MF

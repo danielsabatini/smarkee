@@ -825,6 +825,25 @@ Sempre utilize a **versão mais nova e estável da API** de um serviço, produto
 * Ao tocar em código que usa uma API legada, migre-a quando isso couber no escopo da tarefa (§7); quando não couber, deixe a pendência explícita.
 * A migração de uma API em uso respeita a compatibilidade (§31) e é verificada contra o serviço real (§19).
 
+## 24.3 Padrão de Estrutura dos Documentos
+
+Todo documento permanente em `docs/` (guias, manuais, arquiteturas) segue esta estrutura, nesta ordem:
+
+1. **Título** (`# …`), seguido, quando útil, de um bloco `> **Escopo:**` e dos documentos de referência.
+2. **Sumário**, numerado e com links para as seções.
+3. **`1. Introdução`**: o contexto e o problema que o documento trata.
+4. **`2. Objetivos`**: o que o documento entrega e o que fica fora do escopo.
+5. **Demais seções numeradas** (`3.`, `4.`, …), com subseções `N.M`.
+
+Diagramas:
+
+* Inclua diagramas **sempre que ajudarem a entender** arquitetura, fluxos, sequências, estados ou relações. Não inclua diagrama que apenas repita o texto.
+* Use **Mermaid** como padrão, com o arquivo `.mmd` como fonte em `diagrams/` ao lado do documento (nome `NN-assunto.mmd`), e também embutido no documento em bloco ```` ```mermaid ````, para renderizar no repositório. Use **draw.io** (`.drawio`) quando o diagrama exigir um layout que o Mermaid não oferece.
+* Todo diagrama citado deve ter a fonte referenciada no texto, e deve ser atualizado junto com o comportamento que descreve (§24).
+* Valide a sintaxe do Mermaid antes de entregar.
+
+Documentos curtos e de escopo único, como `README.md` de uma feature, podem omitir seções que não se aplicam, mas mantêm Título, Sumário (quando houver mais de três seções) e Introdução.
+
 ---
 
 # 25. Decisões Técnicas

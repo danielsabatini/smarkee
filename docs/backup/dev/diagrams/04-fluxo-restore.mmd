@@ -1,0 +1,25 @@
+flowchart TB
+    classDef ok fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
+    classDef step fill:#e3f2fd,stroke:#1565c0,color:#0d2b4d
+    classDef data fill:#fff8e1,stroke:#ef6c00,color:#5a2d00
+    classDef stop fill:#ffebee,stroke:#c62828,color:#4a0d0d
+
+    S1["1. Abrir e verificar o pacote<br/>SHA256SUMS · commit do backup"]:::step
+    S2{"2. kind já tem<br/>OpenBao?"}
+    ABORT["Aborta: restore só para cluster novo"]:::stop
+    S3["3. Restaurar .env e .workspace/*.json (0600)"]:::step
+    S4["4. cluster-up<br/>kind · registry · operadores<br/>(pára antes do OpenBao)"]:::step
+    S5["5. Repor registry e<br/>volume identity-bootstrap"]:::data
+    S6["6. OpenBao: init temporário<br/>raft snapshot restore -force<br/>unseal · vault-bootstrap"]:::data
+    S7["7. ArgoCD: App-of-Apps<br/>aguarda database e messaging"]:::step
+    S8["8. Pausar ArgoCD e cargas<br/>pg_restore identity e ssot<br/>restore dos streams"]:::data
+    CHK{"Contagens de linhas e<br/>de mensagens iguais?"}
+    FAIL["Aborta com a diferença"]:::stop
+    S9["9. Religar tudo e aguardar<br/>19 Applications Synced Healthy"]:::step
+    DONE(["Ambiente restaurado"]):::ok
+
+    S1 --> S2
+    S2 -- "sim" --> ABORT
+    S2 -- "não" --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> CHK
+    CHK -- "não" --> FAIL
+    CHK -- "sim" --> S9 --> DONE

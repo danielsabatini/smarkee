@@ -1,0 +1,28 @@
+flowchart LR
+    classDef src fill:#e3f2fd,stroke:#1565c0,color:#0d2b4d
+    classDef pkg fill:#fff8e1,stroke:#ef6c00,color:#5a2d00
+    classDef dst fill:#e8f5e9,stroke:#2e7d32,color:#1b3d1f
+    classDef net fill:#eceff1,stroke:#455a64,color:#1c2a30
+
+    subgraph ORIGEM["Máquina de origem"]
+        direction TB
+        K["Cluster kind smarkee<br/>(Postgres · NATS · OpenBao)"]:::src
+        R["Registry local<br/>smarkee-registry :5001"]:::src
+        L["Arquivos locais<br/>.env · .workspace/*.json<br/>volume identity-bootstrap"]:::src
+    end
+
+    PKG[("Pacote<br/>smarkee-k8s-TS.tar.zst<br/>~/.smarkee/k8s-backups")]:::pkg
+    DRIVE[("Google Drive<br/>smarkee-backups<br/>(pasta privada)")]:::net
+
+    subgraph DESTINO["Máquina de destino"]
+        direction TB
+        P2["Pacote baixado<br/>~/.smarkee/k8s-backups"]:::pkg
+        N["Cluster kind novo<br/>cluster-up + ArgoCD + dados"]:::dst
+    end
+
+    K -- "k8s-backup create" --> PKG
+    R -- "k8s-backup create" --> PKG
+    L -- "k8s-backup create" --> PKG
+    PKG -- "upload (rclone)" --> DRIVE
+    DRIVE -- "download (rclone)" --> P2
+    P2 -- "restore --apply" --> N

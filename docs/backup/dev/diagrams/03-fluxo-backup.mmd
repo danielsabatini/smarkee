@@ -1,0 +1,26 @@
+sequenceDiagram
+    autonumber
+    actor Op as Operador
+    participant BK as k8s-backup create
+    participant PG as PostgreSQL
+    participant NT as NATS JetStream
+    participant OB as OpenBao
+    participant DK as Docker (registry e volume)
+    participant FS as ~/.smarkee/k8s-backups
+    participant GD as Google Drive (smarkee-backups)
+
+    Op->>BK: create
+    BK->>OB: bao status (precisa estar desselado)
+    BK->>PG: pg_dump -Fc identity e ssot, pg_dumpall --globals-only
+    PG-->>BK: dumps e contagem de linhas por tabela
+    BK->>NT: nats stream backup --consumers (DESIRED, UPDATED, AUDIT)
+    NT-->>BK: stream.tar.s2 e nº de mensagens
+    BK->>OB: raft snapshot save (token via stdin)
+    OB-->>BK: raft.snap
+    BK->>DK: tar do registry e do volume identity-bootstrap
+    BK->>BK: copia .env e .workspace/*.json, gera manifest.json e SHA256SUMS
+    BK->>FS: tar, zstd, smarkee-k8s-TS.tar.zst (0600)
+    BK->>BK: verify (SHA256SUMS, PGDMP, streams, raft, registry)
+    BK-->>Op: backup CONFIRMADO
+    Op->>GD: upload (rclone) do pacote
+    GD-->>Op: envio conferido
