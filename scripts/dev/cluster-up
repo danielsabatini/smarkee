@@ -200,6 +200,13 @@ kubectl rollout status deployment/git-server -n gitops-operator --timeout=180s
 log "Syncing K8s manifests to kind node /workspace/smarkee..."
 (cd "${REPO_ROOT}" && tar cf - infrastructure/k8s features/*/*/k8s | docker exec -i "${CLUSTER_NAME}-control-plane" tar xf - -C /workspace/smarkee 2>/dev/null || true)
 
+# 9.2 Restauração de backup (`scripts/dev/k8s-backup restore`): o OpenBao precisa ser restaurado
+# ANTES do bootstrap, senão a CA e os certificados emitidos nasceriam de uma raiz diferente da do backup.
+if [[ "${SMARKEE_CLUSTER_UP_STOP_BEFORE_VAULT:-}" == "1" ]]; then
+  log "SMARKEE_CLUSTER_UP_STOP_BEFORE_VAULT=1: stopping before the vault bootstrap (restore flow)."
+  exit 0
+fi
+
 # 10. Provisionar e inicializar o serviço `vault` (/svm, /ekm, /clm — Wave 0)
 if [[ -x "${REPO_ROOT}/scripts/dev/vault-bootstrap" ]]; then
   "${REPO_ROOT}/scripts/dev/vault-bootstrap"

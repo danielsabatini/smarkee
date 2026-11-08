@@ -1,0 +1,400 @@
+#!/usr/bin/env bash
+# Backup e restauração COMPLETOS do ambiente Kubernetes de desenvolvimento (`kind` + ArgoCD),
+# para recriar o ambiente em outra máquina. Procedimento detalhado: docs/backup/dev/BACKUP.md.
+#
+# Uso:
+#   ./scripts/dev/k8s-backup create                    # gera o backup cifrado (e o verifica)
+#   ./scripts/dev/k8s-backup list                      # lista os backups
+#   ./scripts/dev/k8s-backup verify [ARQUIVO]          # integridade (checksums + estrutura), sem cluster
+#   ./scripts/dev/k8s-backup restore ARQUIVO           # mostra o plano (dry-run)
+#   ./scripts/dev/k8s-backup restore ARQUIVO --apply   # restaura num cluster que ainda NÃO existe
+#
+# O backup contém segredos (chave de unseal/root token do OpenBao, masterkey do Zitadel, chaves de service
+# accounts, .env): é gravado FORA do repositório, cifrado (AES-256-CBC + PBKDF2) e com permissão 0600.
+
+set -euo pipefail
+umask 077
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CLUSTER_NAME="${SMARKEE_KIND_CLUSTER_NAME:-smarkee}"
+REGISTRY_NAME="${SMARKEE_KIND_REGISTRY_NAME:-smarkee-registry}"
+BACKUP_DIR="${SMARKEE_BACKUP_DIR:-${HOME}/.smarkee/k8s-backups}"
+PASS_FILE="${SMARKEE_BACKUP_PASSPHRASE_FILE:-${HOME}/.smarkee/backup-passphrase}"
+NATS_HOST_URL="${SMARKEE_NATS_URL:-nats://127.0.0.1:4222}"
+WORK_ROOT="${REPO_ROOT}/.workspace"
+INIT_FILE="${WORK_ROOT}/vault-init.json"
+
+STREAMS=(DESIRED UPDATED AUDIT)
+DATABASES=(identity ssot)
+# Namespaces cujas cargas escrevem no banco `identity`/`ssot`: ficam paradas durante a restauração.
+WORKLOAD_NAMESPACES=(identity cam bsm sum ipm)
+WORKSPACE_FILES=(
+  vault-init.json vault-oidc-app.json service-account-platform-bootstrap.json
+  zitadel-state.json controllers-keys.json seed_ids.json
+)
+
+log() { printf "\033[1;34m[k8s-backup]\033[0m %s\n" "$*"; }
+warn() { printf "\033[1;33m[k8s-backup] AVISO:\033[0m %s\n" "$*" >&2; }
+die() { printf "\033[1;31m[k8s-backup] ERRO:\033[0m %s\n" "$*" >&2; exit 1; }
+
+need() { command -v "$1" >/dev/null 2>&1 || die "ferramenta ausente: $1"; }
+
+sha256_check() { # diretório com SHA256SUMS
+  if command -v sha256sum >/dev/null 2>&1; then (cd "$1" && sha256sum -c SHA256SUMS --quiet)
+  else (cd "$1" && shasum -a 256 -c SHA256SUMS --quiet); fi
+}
+sha256_make() {
+  if command -v sha256sum >/dev/null 2>&1; then (cd "$1" && find . -type f ! -name SHA256SUMS | sort | xargs sha256sum > SHA256SUMS)
+  else (cd "$1" && find . -type f ! -name SHA256SUMS | sort | xargs shasum -a 256 > SHA256SUMS); fi
+}
+
+wait_until() { # descrição timeout_s comando...
+  local desc="$1" timeout="$2"; shift 2
+  local end=$(( $(date +%s) + timeout ))
+  until "$@" >/dev/null 2>&1; do
+    [[ $(date +%s) -lt ${end} ]] || die "tempo esgotado aguardando: ${desc}"
+    sleep 5
+  done
+}
+
+primary_pod() {
+  kubectl -n database get pod -l cnpg.io/cluster=database,cnpg.io/instanceRole=primary \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null
+}
+
+pg() { # executa um comando no contêiner postgres do primário (stdin repassado)
+  kubectl exec -i -n database "$(primary_pod)" -c postgres -- "$@"
+}
+
+# SQL que lista "schema.tabela<TAB>contagem" para todas as tabelas de aplicação do banco
+ROWCOUNT_SQL="select table_schema||'.'||table_name, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))[1]::text from information_schema.tables where table_type='BASE TABLE' and table_schema not in ('pg_catalog','information_schema') order by 1"
+
+rowcounts() { # banco
+  printf '%s\n' "${ROWCOUNT_SQL}" | pg psql -U postgres -d "$1" -AtF $'\t' -v ON_ERROR_STOP=1
+}
+
+nats_env() { # executa "$@" com as credenciais do NATS em variáveis de ambiente (nunca em argumentos)
+  local user pass
+  user="$(kubectl -n messaging get secret messaging-secret -o jsonpath='{.data.NATS_USER}' | base64 -d)"
+  pass="$(kubectl -n messaging get secret messaging-secret -o jsonpath='{.data.NATS_PASSWORD}' | base64 -d)"
+  NATS_URL="${NATS_HOST_URL}" NATS_USER="${user}" NATS_PASSWORD="${pass}" "$@"
+}
+
+# `bao` com token informado por stdin (não aparece em argumentos de processo)
+bao_tok() { # token comando_bao...
+  local token="$1"; shift
+  printf '%s\n' "${token}" | kubectl exec -i -n vault vault-0 -- \
+    sh -c 'IFS= read -r BAO_TOKEN; export BAO_TOKEN BAO_ADDR=http://127.0.0.1:8200; exec "$@"' sh bao "$@"
+}
+bao_plain() { kubectl exec -n vault vault-0 -- env BAO_ADDR=http://127.0.0.1:8200 bao "$@"; }
+
+ensure_passphrase() {
+  if [[ ! -s "${PASS_FILE}" ]]; then
+    mkdir -p "$(dirname "${PASS_FILE}")"; chmod 700 "$(dirname "${PASS_FILE}")"
+    openssl rand -base64 33 > "${PASS_FILE}"; chmod 600 "${PASS_FILE}"
+    warn "frase-senha gerada em ${PASS_FILE}. GUARDE-A num cofre de senhas: sem ela o backup não abre."
+  fi
+}
+
+encrypt() { openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass "file:${PASS_FILE}"; }
+decrypt() { openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass "file:${PASS_FILE}"; }
+
+extract_to() { # arquivo destino
+  [[ -s "${PASS_FILE}" ]] || die "frase-senha ausente: ${PASS_FILE} (ou SMARKEE_BACKUP_PASSPHRASE_FILE)"
+  mkdir -p "$2"
+  decrypt < "$1" | zstd -dc | tar xf - -C "$2" || die "falha ao abrir o backup (frase-senha incorreta ou arquivo corrompido)"
+}
+
+# ---------------------------------------------------------------------------------------------- create
+cmd_create() {
+  for t in kubectl docker jq openssl zstd nats python3; do need "$t"; done
+  kubectl config use-context "kind-${CLUSTER_NAME}" >/dev/null
+  [[ "$(bao_plain status -format=json 2>/dev/null | jq -r .sealed)" == "false" ]] \
+    || die "OpenBao selado: desselar (./scripts/dev/vault-bootstrap) antes do backup"
+  [[ -f "${INIT_FILE}" ]] || die "ausente: ${INIT_FILE}"
+  ensure_passphrase
+  mkdir -p "${BACKUP_DIR}"; chmod 700 "${BACKUP_DIR}" "${WORK_ROOT}"
+
+  local ts out stage
+  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+  out="${BACKUP_DIR}/smarkee-k8s-${ts}.tar.zst.enc"
+  stage="${WORK_ROOT}/k8s-backup-stage-${ts}"
+  mkdir -p "${stage}"/{db,nats,vault,registry,volumes,env,workspace}
+  trap 'rm -rf "'"${stage}"'"' EXIT
+
+  log "PostgreSQL (CloudNativePG): dumps lógicos e contagens de linhas..."
+  for db in "${DATABASES[@]}"; do
+    pg pg_dump -U postgres -Fc "${db}" > "${stage}/db/${db}.dump"
+    [[ "$(head -c5 "${stage}/db/${db}.dump")" == "PGDMP" ]] || die "dump inválido: ${db}"
+    rowcounts "${db}" > "${stage}/db/${db}.rowcounts.tsv"
+  done
+  pg pg_dumpall -U postgres --globals-only > "${stage}/db/globals.sql"
+
+  log "NATS JetStream: streams ${STREAMS[*]} (com consumers)..."
+  for s in "${STREAMS[@]}"; do
+    nats_env nats stream backup "${s}" "${stage}/nats/${s}" --consumers --no-progress >/dev/null
+    printf '%s\t%s\n' "${s}" "$(nats_env nats stream info "${s}" --json | jq -r '.state.messages')" >> "${stage}/nats/counts.tsv"
+  done
+
+  log "OpenBao: snapshot raft..."
+  local token; token="$(jq -r .root_token "${INIT_FILE}")"
+  bao_tok "${token}" operator raft snapshot save /tmp/raft.snap >/dev/null
+  kubectl exec -n vault vault-0 -- cat /tmp/raft.snap > "${stage}/vault/raft.snap"
+  kubectl exec -n vault vault-0 -- rm -f /tmp/raft.snap
+  unset token
+  [[ -s "${stage}/vault/raft.snap" ]] || die "snapshot raft vazio"
+
+  log "Registry local (${REGISTRY_NAME}): imagens smarkee-*..."
+  curl -fsS "http://127.0.0.1:${SMARKEE_KIND_REGISTRY_PORT:-5001}/v2/_catalog" > "${stage}/registry/catalog.json" || true
+  docker exec "${REGISTRY_NAME}" tar cf - -C /var/lib/registry . | zstd -T0 -3 -q > "${stage}/registry/registry.tar.zst"
+
+  log "Volume Docker identity-bootstrap..."
+  if docker volume inspect identity-bootstrap >/dev/null 2>&1; then
+    docker run --rm -v identity-bootstrap:/k:ro alpine tar cf - -C /k . > "${stage}/volumes/identity-bootstrap.tar"
+  else
+    warn "volume identity-bootstrap não existe; ignorado"
+  fi
+
+  log "Arquivos .env e .workspace/*.json de apoio..."
+  local f rel
+  for f in "${REPO_ROOT}"/clients/cli/.env "${REPO_ROOT}"/features/*/*/.env "${REPO_ROOT}"/infrastructure/dev/*/.env; do
+    [[ -f "${f}" ]] || continue
+    rel="${f#"${REPO_ROOT}"/}"; mkdir -p "${stage}/env/$(dirname "${rel}")"; cp "${f}" "${stage}/env/${rel}"
+  done
+  for f in "${WORKSPACE_FILES[@]}"; do
+    [[ -f "${WORK_ROOT}/${f}" ]] && cp "${WORK_ROOT}/${f}" "${stage}/workspace/${f}"
+  done
+
+  log "Manifesto e checksums..."
+  jq -n \
+    --arg createdAt "${ts}" --arg cluster "${CLUSTER_NAME}" \
+    --arg commit "$(git -C "${REPO_ROOT}" rev-parse HEAD)" --arg branch "$(git -C "${REPO_ROOT}" branch --show-current)" \
+    --arg dirty "$(git -C "${REPO_ROOT}" status --porcelain | wc -l | tr -d ' ')" \
+    --arg k8s "$(kubectl version -o json | jq -r .serverVersion.gitVersion)" \
+    --arg kind "$(kind version | awk '{print $2}')" \
+    --argjson apps "$(kubectl -n gitops-operator get applications.argoproj.io -o json | jq '[.items[]|{name:.metadata.name,sync:.status.sync.status,health:.status.health.status}]')" \
+    '{format:1, createdAt:$createdAt, cluster:$cluster, git:{commit:$commit, branch:$branch, uncommittedFiles:($dirty|tonumber)}, kubernetes:$k8s, kind:$kind, applications:$apps}' \
+    > "${stage}/manifest.json"
+  sha256_make "${stage}"
+
+  log "Empacotando e cifrando..."
+  tar cf - -C "${stage}" . | zstd -T0 -3 -q | encrypt > "${out}"
+  chmod 600 "${out}"
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "${out}" > "${out}.sha256"; else shasum -a 256 "${out}" > "${out}.sha256"; fi
+  chmod 600 "${out}.sha256"
+  rm -rf "${stage}"; trap - EXIT
+
+  cmd_verify "${out}"
+  log "backup CONFIRMADO: ${out} ($(du -h "${out}" | cut -f1))"
+  log "Copie o arquivo para a outra máquina; guarde a frase-senha (${PASS_FILE}) por outro canal."
+}
+
+# ---------------------------------------------------------------------------------------------- list
+cmd_list() {
+  ls -lh "${BACKUP_DIR}"/smarkee-k8s-*.tar.zst.enc 2>/dev/null || echo "nenhum backup em ${BACKUP_DIR}"
+}
+
+latest() { ls -1 "${BACKUP_DIR}"/smarkee-k8s-*.tar.zst.enc 2>/dev/null | tail -1; }
+
+# ---------------------------------------------------------------------------------------------- verify
+cmd_verify() {
+  for t in jq openssl zstd; do need "$t"; done
+  local file="${1:-$(latest)}"
+  [[ -f "${file}" ]] || die "backup não encontrado: ${file:-<nenhum>}"
+  local dir="${WORK_ROOT}/k8s-verify-$$"
+  trap 'rm -rf "'"${dir}"'"' RETURN
+  if [[ -f "${file}.sha256" ]]; then
+    local want got
+    want="$(cut -d' ' -f1 "${file}.sha256")"
+    if command -v sha256sum >/dev/null 2>&1; then got="$(sha256sum "${file}" | cut -d' ' -f1)"; else got="$(shasum -a 256 "${file}" | cut -d' ' -f1)"; fi
+    [[ "${want}" == "${got}" ]] || die "SHA-256 do arquivo cifrado não confere"
+  fi
+  extract_to "${file}" "${dir}"
+  sha256_check "${dir}" || die "SHA256SUMS interno não confere"
+  local db s
+  for db in "${DATABASES[@]}"; do
+    [[ "$(head -c5 "${dir}/db/${db}.dump")" == "PGDMP" ]] || die "dump inválido: ${db}"
+  done
+  for s in "${STREAMS[@]}"; do [[ -s "${dir}/nats/${s}/backup.json" ]] || die "backup do stream ausente: ${s}"; done
+  [[ -s "${dir}/vault/raft.snap" ]] || die "snapshot raft ausente"
+  [[ -s "${dir}/workspace/vault-init.json" ]] || die "vault-init.json ausente"
+  [[ -s "${dir}/registry/registry.tar.zst" ]] && zstd -tq "${dir}/registry/registry.tar.zst"
+  jq -e '.format == 1' "${dir}/manifest.json" >/dev/null
+  log "verificação de integridade OK: $(jq -r '"commit \(.git.commit[0:8]) em \(.createdAt), \(.applications|length) applications"' "${dir}/manifest.json")"
+}
+
+# ---------------------------------------------------------------------------------------------- restore
+restore_vault() { # DIR
+  local dir="$1" tmp_json tmp_key tmp_token key
+  kubectl apply -k "${REPO_ROOT}/infrastructure/k8s/platform/vault/overlays/dev" >/dev/null
+  kubectl rollout status statefulset/vault -n vault --timeout=180s >/dev/null
+  if [[ "$(bao_plain status -format=json 2>/dev/null | jq -r .initialized)" != "true" ]]; then
+    tmp_json="$(bao_plain operator init -key-shares=1 -key-threshold=1 -format=json)"
+    tmp_key="$(jq -r '.unseal_keys_b64[0]' <<<"${tmp_json}")"; tmp_token="$(jq -r .root_token <<<"${tmp_json}")"
+    bao_plain operator unseal "${tmp_key}" >/dev/null
+    kubectl exec -i -n vault vault-0 -- sh -c 'cat > /tmp/raft.snap' < "${dir}/vault/raft.snap"
+    bao_tok "${tmp_token}" operator raft snapshot restore -force /tmp/raft.snap >/dev/null
+    kubectl exec -n vault vault-0 -- rm -f /tmp/raft.snap
+    unset tmp_json tmp_key tmp_token
+  else
+    die "OpenBao já inicializado neste cluster; restauração aborta para não sobrescrever"
+  fi
+  # Após o restore, o cofre volta a exigir a chave de unseal do backup.
+  key="$(jq -r '.unseal_keys_b64[0]' "${INIT_FILE}")"
+  local i
+  for i in $(seq 1 30); do
+    if [[ "$(bao_plain status -format=json 2>/dev/null | jq -r .sealed)" == "false" ]]; then break; fi
+    bao_plain operator unseal "${key}" >/dev/null 2>&1 || true
+    sleep 2
+  done
+  unset key
+  [[ "$(bao_plain status -format=json | jq -r .sealed)" == "false" ]] || die "OpenBao continua selado após o restore raft"
+}
+
+scale_workloads() { # down|up ARQUIVO_REPLICAS
+  local ns name replicas
+  if [[ "$1" == "down" ]]; then
+    : > "$2"
+    for ns in "${WORKLOAD_NAMESPACES[@]}"; do
+      while read -r name replicas; do
+        [[ -n "${name}" ]] || continue
+        printf '%s %s %s\n' "${ns}" "${name}" "${replicas}" >> "$2"
+        kubectl -n "${ns}" scale "deployment/${name}" --replicas=0 >/dev/null
+      done < <(kubectl -n "${ns}" get deployment -o jsonpath='{range .items[*]}{.metadata.name} {.spec.replicas}{"\n"}{end}' 2>/dev/null)
+    done
+    wait_until "pods das cargas encerrados" 180 bash -c "! kubectl get pods -n identity -n cam 2>/dev/null | grep -q Running"
+  else
+    while read -r ns name replicas; do
+      [[ -n "${ns}" ]] || continue
+      kubectl -n "${ns}" scale "deployment/${name}" --replicas="${replicas}" >/dev/null
+    done < "$2"
+  fi
+}
+
+restore_databases() { # DIR
+  local dir="$1" db errlog
+  for db in "${DATABASES[@]}"; do
+    log "  banco ${db}: recriando a partir do dump..."
+    pg psql -U postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"${db}\" WITH (FORCE)" >/dev/null
+    errlog="${WORK_ROOT}/k8s-restore-pg-${db}.log"
+    pg pg_restore -U postgres -d postgres --create < "${dir}/db/${db}.dump" > "${errlog}" 2>&1 || warn "pg_restore ${db} retornou erros (ver ${errlog})"
+    rowcounts "${db}" > "${dir}/db/${db}.rowcounts.restored.tsv"
+    if diff -q "${dir}/db/${db}.rowcounts.tsv" "${dir}/db/${db}.rowcounts.restored.tsv" >/dev/null; then
+      log "  banco ${db}: contagens de linhas idênticas ao backup ($(wc -l < "${dir}/db/${db}.rowcounts.tsv" | tr -d ' ') tabelas)"
+    else
+      diff "${dir}/db/${db}.rowcounts.tsv" "${dir}/db/${db}.rowcounts.restored.tsv" | head -20 >&2
+      die "contagens de linhas divergem após restaurar ${db}"
+    fi
+  done
+}
+
+restore_streams() { # DIR
+  local dir="$1" s want got
+  kubectl -n messaging-operator scale deployment/nack-jetstream-controller --replicas=0 >/dev/null
+  for s in "${STREAMS[@]}"; do
+    nats_env nats stream rm "${s}" -f >/dev/null 2>&1 || true
+  done
+  for s in "${STREAMS[@]}"; do
+    nats_env nats stream restore "${dir}/nats/${s}" --no-progress >/dev/null
+    want="$(awk -v s="${s}" '$1==s{print $2}' "${dir}/nats/counts.tsv")"
+    got="$(nats_env nats stream info "${s}" --json | jq -r '.state.messages')"
+    [[ "${want}" == "${got}" ]] || die "stream ${s}: ${got} mensagens, esperado ${want}"
+    log "  stream ${s}: ${got} mensagens restauradas"
+  done
+  kubectl -n messaging-operator scale deployment/nack-jetstream-controller --replicas=1 >/dev/null
+}
+
+cmd_restore() {
+  local file="${1:-}" apply="${2:-}"
+  [[ -n "${file}" && -f "${file}" ]] || die "uso: k8s-backup restore ARQUIVO [--apply]"
+  for t in kubectl docker kind jq openssl zstd nats python3 diff; do need "$t"; done
+  if [[ "${apply}" != "--apply" ]]; then
+    cat <<EOF
+Plano de restauração de ${file} (nada foi alterado; use --apply para executar):
+  1. abre o backup e confere checksums;
+  2. recusa se o cluster '${CLUSTER_NAME}' já tem o OpenBao (restore é só para cluster novo);
+  3. restaura .env e .workspace/*.json (recusa se já existirem e forem diferentes);
+  4. cluster-up até os operadores (sem o bootstrap do OpenBao);
+  5. restaura o registry local e o volume identity-bootstrap;
+  6. restaura o OpenBao (snapshot raft + unseal com a chave do backup) e roda o vault-bootstrap;
+  7. aplica o ArgoCD App-of-Apps e aguarda database e messaging;
+  8. pausa ArgoCD e cargas, restaura identity/ssot (pg_restore) e streams NATS, retoma tudo;
+  9. aguarda as Applications ficarem Synced/Healthy.
+EOF
+    return 0
+  fi
+
+  local dir="${WORK_ROOT}/k8s-restore-$$"
+  trap 'rm -rf "'"${dir}"'"' EXIT
+  log "1/9 Abrindo e verificando o backup..."
+  extract_to "${file}" "${dir}"
+  sha256_check "${dir}" || die "SHA256SUMS interno não confere"
+  local commit; commit="$(jq -r .git.commit "${dir}/manifest.json")"
+  [[ "$(git -C "${REPO_ROOT}" rev-parse HEAD)" == "${commit}" ]] \
+    || warn "o repositório não está no commit do backup (${commit:0:8}); faça 'git checkout ${commit:0:8}' (ou equivalente) se houver divergência"
+
+  log "2/9 Conferindo que o cluster é novo..."
+  if kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}" \
+     && kubectl --context "kind-${CLUSTER_NAME}" -n vault get statefulset vault >/dev/null 2>&1; then
+    die "o cluster '${CLUSTER_NAME}' já tem o OpenBao. Restore é só para cluster novo (kind delete cluster --name ${CLUSTER_NAME})"
+  fi
+
+  log "3/9 Restaurando .env e .workspace/*.json..."
+  mkdir -p "${WORK_ROOT}"
+  local f rel dest
+  while IFS= read -r f; do
+    rel="${f#"${dir}"/env/}"; dest="${REPO_ROOT}/${rel}"
+    if [[ -f "${dest}" ]] && ! cmp -s "${f}" "${dest}"; then die "já existe e difere do backup: ${rel}"; fi
+    mkdir -p "$(dirname "${dest}")"; cp "${f}" "${dest}"; chmod 600 "${dest}"
+  done < <(find "${dir}/env" -type f)
+  while IFS= read -r f; do
+    rel="$(basename "${f}")"; dest="${WORK_ROOT}/${rel}"
+    if [[ -f "${dest}" ]] && ! cmp -s "${f}" "${dest}"; then die "já existe e difere do backup: .workspace/${rel}"; fi
+    cp "${f}" "${dest}"; chmod 600 "${dest}"
+  done < <(find "${dir}/workspace" -type f)
+
+  log "4/9 cluster-up (operadores, sem o bootstrap do OpenBao)..."
+  SMARKEE_CLUSTER_UP_STOP_BEFORE_VAULT=1 "${REPO_ROOT}/scripts/dev/cluster-up"
+  kubectl config use-context "kind-${CLUSTER_NAME}" >/dev/null
+
+  log "5/9 Restaurando registry local e volume identity-bootstrap..."
+  zstd -dc "${dir}/registry/registry.tar.zst" | docker exec -i "${REGISTRY_NAME}" tar xf - -C /var/lib/registry
+  if [[ -f "${dir}/volumes/identity-bootstrap.tar" ]]; then
+    docker volume create identity-bootstrap >/dev/null
+    docker run --rm -i -v identity-bootstrap:/k alpine tar xf - -C /k < "${dir}/volumes/identity-bootstrap.tar"
+  fi
+
+  log "6/9 Restaurando o OpenBao (raft) e executando o vault-bootstrap..."
+  restore_vault "${dir}"
+  "${REPO_ROOT}/scripts/dev/vault-bootstrap"
+
+  log "7/9 Aplicando o ArgoCD App-of-Apps e aguardando database e messaging..."
+  kubectl apply -f "${REPO_ROOT}/infrastructure/k8s/argocd/root-app.yaml" >/dev/null
+  wait_until "pod primário do database" 900 bash -c 'kubectl -n database get pod -l cnpg.io/cluster=database,cnpg.io/instanceRole=primary -o jsonpath="{.items[0].status.phase}" | grep -q Running'
+  wait_until "database Ready" 900 kubectl -n database wait --for=condition=Ready pod -l cnpg.io/cluster=database --timeout=5s
+  wait_until "messaging Ready" 900 kubectl -n messaging wait --for=condition=Ready pod/messaging-0 --timeout=5s
+  wait_until "database identity criado" 600 bash -c 'kubectl exec -n database "$(kubectl -n database get pod -l cnpg.io/cluster=database,cnpg.io/instanceRole=primary -o jsonpath="{.items[0].metadata.name}")" -c postgres -- psql -U postgres -Atc "select 1 from pg_database where datname='"'"'ssot'"'"'" | grep -q 1'
+  wait_until "NACK implantado" 600 kubectl -n messaging-operator get deployment nack-jetstream-controller
+
+  log "8/9 Restaurando identity/ssot e streams (ArgoCD e cargas pausados)..."
+  kubectl -n gitops-operator scale statefulset/argocd-application-controller --replicas=0 >/dev/null
+  scale_workloads down "${dir}/replicas.txt"
+  restore_databases "${dir}"
+  restore_streams "${dir}"
+  scale_workloads up "${dir}/replicas.txt"
+  kubectl -n gitops-operator scale statefulset/argocd-application-controller --replicas=1 >/dev/null
+
+  log "9/9 Aguardando as Applications ficarem Synced/Healthy..."
+  local expected; expected="$(jq '.applications|length' "${dir}/manifest.json")"
+  wait_until "${expected} Applications Synced/Healthy" 1500 bash -c \
+    "[[ \$(kubectl -n gitops-operator get applications.argoproj.io -o json | jq '[.items[]|select(.status.sync.status==\"Synced\" and .status.health.status==\"Healthy\")]|length') -ge ${expected} ]]"
+  log "restauração CONCLUÍDA. Conferência: kubectl -n gitops-operator get applications.argoproj.io"
+}
+
+case "${1:-}" in
+  create) cmd_create ;;
+  list) cmd_list ;;
+  verify) shift; cmd_verify "${1:-}" ;;
+  restore) shift; cmd_restore "${1:-}" "${2:-}" ;;
+  *) sed -n 2,14p "${BASH_SOURCE[0]}"; exit 1 ;;
+esac
