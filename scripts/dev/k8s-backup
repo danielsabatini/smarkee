@@ -3,14 +3,17 @@
 # para recriar o ambiente em outra máquina. Procedimento detalhado: docs/backup/dev/BACKUP.md.
 #
 # Uso:
-#   ./scripts/dev/k8s-backup create                    # gera o backup cifrado (e o verifica)
+#   ./scripts/dev/k8s-backup create                    # gera o backup (e o verifica)
 #   ./scripts/dev/k8s-backup list                      # lista os backups
 #   ./scripts/dev/k8s-backup verify [ARQUIVO]          # integridade (checksums + estrutura), sem cluster
 #   ./scripts/dev/k8s-backup restore ARQUIVO           # mostra o plano (dry-run)
 #   ./scripts/dev/k8s-backup restore ARQUIVO --apply   # restaura num cluster que ainda NÃO existe
+#   ./scripts/dev/k8s-backup upload [ARQUIVO]          # envia o pacote ao remoto rclone (SMARKEE_BACKUP_REMOTE)
+#   ./scripts/dev/k8s-backup download NOME             # baixa do remoto e verifica
 #
-# O backup contém segredos (chave de unseal/root token do OpenBao, masterkey do Zitadel, chaves de service
-# accounts, .env): é gravado FORA do repositório, cifrado (AES-256-CBC + PBKDF2) e com permissão 0600.
+# O backup contém segredos de DEV (chave de unseal/root token do OpenBao, masterkey do Zitadel, chaves de service
+# accounts, .env) EM CLARO: é gravado FORA do repositório, com permissão 0600. Quem o guarda (ex.: Google Drive)
+# é responsável pelo controle de acesso. Não use este fluxo em stg/prd.
 
 set -euo pipefail
 umask 077
@@ -19,7 +22,6 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CLUSTER_NAME="${SMARKEE_KIND_CLUSTER_NAME:-smarkee}"
 REGISTRY_NAME="${SMARKEE_KIND_REGISTRY_NAME:-smarkee-registry}"
 BACKUP_DIR="${SMARKEE_BACKUP_DIR:-${HOME}/.smarkee/k8s-backups}"
-PASS_FILE="${SMARKEE_BACKUP_PASSPHRASE_FILE:-${HOME}/.smarkee/backup-passphrase}"
 NATS_HOST_URL="${SMARKEE_NATS_URL:-nats://127.0.0.1:4222}"
 WORK_ROOT="${REPO_ROOT}/.workspace"
 INIT_FILE="${WORK_ROOT}/vault-init.json"
@@ -88,36 +90,23 @@ bao_tok() { # token comando_bao...
 }
 bao_plain() { kubectl exec -n vault vault-0 -- env BAO_ADDR=http://127.0.0.1:8200 bao "$@"; }
 
-ensure_passphrase() {
-  if [[ ! -s "${PASS_FILE}" ]]; then
-    mkdir -p "$(dirname "${PASS_FILE}")"; chmod 700 "$(dirname "${PASS_FILE}")"
-    openssl rand -base64 33 > "${PASS_FILE}"; chmod 600 "${PASS_FILE}"
-    warn "frase-senha gerada em ${PASS_FILE}. GUARDE-A num cofre de senhas: sem ela o backup não abre."
-  fi
-}
-
-encrypt() { openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass "file:${PASS_FILE}"; }
-decrypt() { openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass "file:${PASS_FILE}"; }
-
 extract_to() { # arquivo destino
-  [[ -s "${PASS_FILE}" ]] || die "frase-senha ausente: ${PASS_FILE} (ou SMARKEE_BACKUP_PASSPHRASE_FILE)"
   mkdir -p "$2"
-  decrypt < "$1" | zstd -dc | tar xf - -C "$2" || die "falha ao abrir o backup (frase-senha incorreta ou arquivo corrompido)"
+  zstd -dc "$1" | tar xf - -C "$2" || die "falha ao abrir o backup (arquivo corrompido?)"
 }
 
 # ---------------------------------------------------------------------------------------------- create
 cmd_create() {
-  for t in kubectl docker jq openssl zstd nats python3; do need "$t"; done
+  for t in kubectl docker jq zstd nats python3; do need "$t"; done
   kubectl config use-context "kind-${CLUSTER_NAME}" >/dev/null
   [[ "$(bao_plain status -format=json 2>/dev/null | jq -r .sealed)" == "false" ]] \
     || die "OpenBao selado: desselar (./scripts/dev/vault-bootstrap) antes do backup"
   [[ -f "${INIT_FILE}" ]] || die "ausente: ${INIT_FILE}"
-  ensure_passphrase
   mkdir -p "${BACKUP_DIR}"; chmod 700 "${BACKUP_DIR}" "${WORK_ROOT}"
 
   local ts out stage
   ts="$(date -u +%Y%m%dT%H%M%SZ)"
-  out="${BACKUP_DIR}/smarkee-k8s-${ts}.tar.zst.enc"
+  out="${BACKUP_DIR}/smarkee-k8s-${ts}.tar.zst"
   stage="${WORK_ROOT}/k8s-backup-stage-${ts}"
   mkdir -p "${stage}"/{db,nats,vault,registry,volumes,env,workspace}
   trap 'rm -rf "'"${stage}"'"' EXIT
@@ -177,38 +166,30 @@ cmd_create() {
     > "${stage}/manifest.json"
   sha256_make "${stage}"
 
-  log "Empacotando e cifrando..."
-  tar cf - -C "${stage}" . | zstd -T0 -3 -q | encrypt > "${out}"
+  log "Empacotando..."
+  tar cf - -C "${stage}" . | zstd -T0 -3 -q > "${out}"
   chmod 600 "${out}"
-  if command -v sha256sum >/dev/null 2>&1; then sha256sum "${out}" > "${out}.sha256"; else shasum -a 256 "${out}" > "${out}.sha256"; fi
-  chmod 600 "${out}.sha256"
   rm -rf "${stage}"; trap - EXIT
 
   cmd_verify "${out}"
   log "backup CONFIRMADO: ${out} ($(du -h "${out}" | cut -f1))"
-  log "Copie o arquivo para a outra máquina; guarde a frase-senha (${PASS_FILE}) por outro canal."
+  log "Para levar à outra máquina: ./scripts/dev/k8s-backup upload"
 }
 
 # ---------------------------------------------------------------------------------------------- list
 cmd_list() {
-  ls -lh "${BACKUP_DIR}"/smarkee-k8s-*.tar.zst.enc 2>/dev/null || echo "nenhum backup em ${BACKUP_DIR}"
+  ls -lh "${BACKUP_DIR}"/smarkee-k8s-*.tar.zst 2>/dev/null || echo "nenhum backup em ${BACKUP_DIR}"
 }
 
-latest() { ls -1 "${BACKUP_DIR}"/smarkee-k8s-*.tar.zst.enc 2>/dev/null | tail -1; }
+latest() { ls -1 "${BACKUP_DIR}"/smarkee-k8s-*.tar.zst 2>/dev/null | tail -1; }
 
 # ---------------------------------------------------------------------------------------------- verify
 cmd_verify() {
-  for t in jq openssl zstd; do need "$t"; done
+  for t in jq zstd; do need "$t"; done
   local file="${1:-$(latest)}"
   [[ -f "${file}" ]] || die "backup não encontrado: ${file:-<nenhum>}"
   local dir="${WORK_ROOT}/k8s-verify-$$"
   trap 'rm -rf "'"${dir}"'"' RETURN
-  if [[ -f "${file}.sha256" ]]; then
-    local want got
-    want="$(cut -d' ' -f1 "${file}.sha256")"
-    if command -v sha256sum >/dev/null 2>&1; then got="$(sha256sum "${file}" | cut -d' ' -f1)"; else got="$(shasum -a 256 "${file}" | cut -d' ' -f1)"; fi
-    [[ "${want}" == "${got}" ]] || die "SHA-256 do arquivo cifrado não confere"
-  fi
   extract_to "${file}" "${dir}"
   sha256_check "${dir}" || die "SHA256SUMS interno não confere"
   local db s
@@ -307,7 +288,7 @@ restore_streams() { # DIR
 cmd_restore() {
   local file="${1:-}" apply="${2:-}"
   [[ -n "${file}" && -f "${file}" ]] || die "uso: k8s-backup restore ARQUIVO [--apply]"
-  for t in kubectl docker kind jq openssl zstd nats python3 diff; do need "$t"; done
+  for t in kubectl docker kind jq zstd nats python3 diff; do need "$t"; done
   if [[ "${apply}" != "--apply" ]]; then
     cat <<EOF
 Plano de restauração de ${file} (nada foi alterado; use --apply para executar):
@@ -330,8 +311,15 @@ EOF
   extract_to "${file}" "${dir}"
   sha256_check "${dir}" || die "SHA256SUMS interno não confere"
   local commit; commit="$(jq -r .git.commit "${dir}/manifest.json")"
-  [[ "$(git -C "${REPO_ROOT}" rev-parse HEAD)" == "${commit}" ]] \
-    || warn "o repositório não está no commit do backup (${commit:0:8}); faça 'git checkout ${commit:0:8}' (ou equivalente) se houver divergência"
+  if [[ "$(git -C "${REPO_ROOT}" rev-parse HEAD)" != "${commit}" ]]; then
+    # O commit do backup pode ser anterior a este script; o que importa é que os manifestos não divirjam.
+    if git -C "${REPO_ROOT}" cat-file -e "${commit}^{commit}" 2>/dev/null \
+       && ! git -C "${REPO_ROOT}" diff --quiet "${commit}" HEAD -- infrastructure/k8s 'features/*/*/k8s' 2>/dev/null; then
+      warn "os manifestos (infrastructure/k8s, features/*/*/k8s) diferem do commit do backup (${commit:0:8}); o ArgoCD aplicará os do repositório atual"
+    else
+      log "repositório em $(git -C "${REPO_ROOT}" rev-parse --short HEAD); manifestos compatíveis com o commit do backup (${commit:0:8})"
+    fi
+  fi
 
   log "2/9 Conferindo que o cluster é novo..."
   if kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}" \
@@ -391,10 +379,41 @@ EOF
   log "restauração CONCLUÍDA. Conferência: kubectl -n gitops-operator get applications.argoproj.io"
 }
 
+# ---------------------------------------------------------------------------------------------- upload/download
+# Remoto do rclone (pasta privada; o acesso é controlado pela autenticação da conta do Drive).
+BACKUP_REMOTE="${SMARKEE_BACKUP_REMOTE:-gdrive-gmail:smarkee-backups}"
+
+cmd_upload() {
+  need rclone
+  local file="${1:-$(latest)}"
+  [[ -f "${file}" ]] || die "backup não encontrado: ${file:-<nenhum>}"
+  [[ "${file}" == *.tar.zst ]] || die "envie apenas o pacote (.tar.zst)"
+  log "Enviando para ${BACKUP_REMOTE}..."
+  rclone copyto "${file}" "${BACKUP_REMOTE}/$(basename "${file}")" --progress --drive-chunk-size 64M
+  rclone check "$(dirname "${file}")" "${BACKUP_REMOTE}" --one-way --include "$(basename "${file}")" \
+    || die "conferência do envio falhou"
+  log "envio CONFIRMADO: ${BACKUP_REMOTE}/$(basename "${file}")"
+}
+
+cmd_download() {
+  need rclone
+  local name="${1:-}"
+  if [[ -z "${name}" ]]; then
+    rclone lsf "${BACKUP_REMOTE}" --include '*.tar.zst'
+    die "informe o nome do arquivo a baixar (acima, os disponíveis em ${BACKUP_REMOTE})"
+  fi
+  mkdir -p "${BACKUP_DIR}"; chmod 700 "${BACKUP_DIR}"
+  rclone copyto "${BACKUP_REMOTE}/${name}" "${BACKUP_DIR}/${name}" --progress
+  chmod 600 "${BACKUP_DIR}/${name}"
+  cmd_verify "${BACKUP_DIR}/${name}"
+}
+
 case "${1:-}" in
+  upload) shift; cmd_upload "${1:-}" ;;
+  download) shift; cmd_download "${1:-}" ;;
   create) cmd_create ;;
   list) cmd_list ;;
   verify) shift; cmd_verify "${1:-}" ;;
   restore) shift; cmd_restore "${1:-}" "${2:-}" ;;
-  *) sed -n 2,14p "${BASH_SOURCE[0]}"; exit 1 ;;
+  *) sed -n 2,16p "${BASH_SOURCE[0]}"; exit 1 ;;
 esac
